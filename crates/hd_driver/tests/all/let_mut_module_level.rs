@@ -1,6 +1,6 @@
 //! `let mut` on a primitive is an error at module level
 //! (spec/lang/04-type-system.md, types.bind.let-mut-primitive-top) and, in a
-//! body, valid with a warning unless `&mut` of it is taken
+//! body, valid; optional advice belongs to hd lint
 //! (types.bind.let-mut-primitive-local, types.bind.let-mut-primitive-unused).
 //! On a tuple it is valid in both (types.bind.let-mut-tuple-valid). An annotated
 //! list binding is a writable value (types.coll.let-mut).
@@ -58,7 +58,7 @@ fn module_level_let_mut_of_primitives_is_rejected_once() {
         "let mut f = 1.5",
     ] {
         assert_eq!(module(decl), vec![Code::MutOnPrimitive], "{decl}");
-        assert_eq!(local(decl), vec![Code::RedundantLetMut], "{decl} (local)");
+        assert!(local(decl).is_empty(), "{decl} (local)");
     }
 }
 

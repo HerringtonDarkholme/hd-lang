@@ -13,7 +13,8 @@ struct Conn:
 
 impl Disposable for Conn:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("${self.name} defer")
+        defer:
+            self.log.push("${self.name} defer")
         self.log.push("${self.name} closing")
         let mut wait = self.closing
         wait!()
@@ -51,5 +52,9 @@ pub fn main!() -> void $ Console + Clock:
     let mut other: List[string] = []
     let shared: mut Suspend[i32] = worker("c", &mut other)
     let holder: mut Suspend[i32] = waiter(shared, &mut other)
-    _ := all!(race(shared, ready()), waiter(shared, &mut other), race(holder, stop(holder, &mut other)))
+    _ := all!(
+        race(shared, ready()),
+        waiter(shared, &mut other),
+        race(holder, stop(holder, &mut other)),
+    )
     println(other.join(", "))

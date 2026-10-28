@@ -22,4 +22,4 @@ fn hold(h: Holder[fn() -> void $ Db + Clock]) -> void:
     pass
 
 fn wire(h: Holder[fn() -> void $ Db]) -> void:
-    hold(h)  # diagnostic: type-mismatch
+    hold(h) # diagnostic: type-mismatch

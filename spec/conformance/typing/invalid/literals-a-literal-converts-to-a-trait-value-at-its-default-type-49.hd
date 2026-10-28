@@ -7,7 +7,7 @@ impl Gauge for f64:
         self
 
 fn f() -> f64:
-    let g: &dyn Gauge = &0  # diagnostic: type-mismatch
+    let g: &dyn Gauge = &0 # diagnostic: type-mismatch
     g.level()
 
 pub fn main() -> void:

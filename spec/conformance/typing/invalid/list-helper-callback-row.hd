@@ -7,4 +7,4 @@ fn noisy(value: i32) -> bool $ Logger:
     value > 0
 
 fn some_positive(values: List[i32]) -> bool $ Logger:
-    values.any(noisy)  # diagnostic: type-mismatch
+    values.any(noisy) # diagnostic: type-mismatch

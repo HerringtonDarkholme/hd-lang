@@ -9,5 +9,5 @@ struct Pair[K, V]:
     value: V
 
 fn f() -> i32:
-    let b: Both[i32] = (1, 2)  # diagnostic: partial-generic-arguments
+    let b: Both[i32] = (1, 2) # diagnostic: partial-generic-arguments
     b._0

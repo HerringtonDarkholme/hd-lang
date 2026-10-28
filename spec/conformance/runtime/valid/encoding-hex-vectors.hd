@@ -59,7 +59,23 @@ tests:
 
     it("checks byte length before the first invalid digit"):
         prefix := "00".repeat(1024)
-        assert_equal(hex_decode(prefix + "λ"), .Err(DecodeError.InvalidCharacter(prefix.len())), reason="first non-ASCII byte")
-        assert_equal(hex_decode(prefix + "0λ"), .Err(DecodeError.InvalidLength(prefix.len() + 3)), reason="odd byte length wins")
-        assert_equal(hex_decode(prefix + "0g"), .Err(DecodeError.InvalidCharacter(prefix.len() + 1)), reason="low digit position")
-        assert_equal(hex_decode(prefix + "g0"), .Err(DecodeError.InvalidCharacter(prefix.len())), reason="high digit position")
+        assert_equal(
+            hex_decode(prefix + "λ"),
+            .Err(DecodeError.InvalidCharacter(prefix.len())),
+            reason="first non-ASCII byte",
+        )
+        assert_equal(
+            hex_decode(prefix + "0λ"),
+            .Err(DecodeError.InvalidLength(prefix.len() + 3)),
+            reason="odd byte length wins",
+        )
+        assert_equal(
+            hex_decode(prefix + "0g"),
+            .Err(DecodeError.InvalidCharacter(prefix.len() + 1)),
+            reason="low digit position",
+        )
+        assert_equal(
+            hex_decode(prefix + "g0"),
+            .Err(DecodeError.InvalidCharacter(prefix.len())),
+            reason="high digit position",
+        )

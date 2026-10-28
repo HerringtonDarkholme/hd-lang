@@ -10,7 +10,8 @@ trait Reader:
     fn text(self) -> string
 
 impl Reader for Pair:
-    fn text(self) -> string: self.text
+    fn text(self) -> string:
+        self.text
 
 trait Factory:
     fn make[T](self, value: T) -> *mut T:
@@ -35,9 +36,17 @@ tests:
         alias := factory.identity(&mut pair)
         assert(alias is &mut pair, reason="a view has its original place's identity")
         pair = Pair { number: +2, text: "outside" }
-        assert_equal(*alias, Pair { number: +2, text: "outside" }, reason="a view reads later caller writes")
+        assert_equal(
+            *alias,
+            Pair { number: +2, text: "outside" },
+            reason="a view reads later caller writes",
+        )
         *alias = Pair { number: +3, text: "inside" }
-        assert_equal(pair, Pair { number: +3, text: "inside" }, reason="a view writes the caller's current storage")
+        assert_equal(
+            pair,
+            Pair { number: +3, text: "inside" },
+            reason="a view writes the caller's current storage",
+        )
         field := &mut alias.text
         assert(field is &mut pair.text, reason="projected identity forwards to the original field")
         *field = "projected"
@@ -50,9 +59,16 @@ tests:
         another := &mut pair.text
         assert(field is another, reason="independently created projections share identity")
         other := factory.make(Pair { number: +4, text: "first" })
-        assert(!(field is &mut other.text), reason="equal values in different roots have distinct field identities")
+        assert(
+            !(field is &mut other.text),
+            reason="equal values in different roots have distinct field identities",
+        )
         *pair = Pair { number: +5, text: "replacement" }
-        assert_equal(*field, "replacement", reason="the field follows replacement of the whole value")
+        assert_equal(
+            *field,
+            "replacement",
+            reason="the field follows replacement of the whole value",
+        )
         *field = "field write"
         assert_equal(pair.number, +5, reason="writing one field preserves its sibling")
         assert_equal(pair.text, "field write", reason="a field write updates the open parent")
@@ -71,7 +87,11 @@ tests:
         let reader: &dyn Reader = source
         assert_equal(reader.text(), "first", reason="a dynamic receiver reads through the view")
         *source = Pair { number: +7, text: "next" }
-        assert_equal(reader.text(), "next", reason="dynamic reads follow replacement of the original value")
+        assert_equal(
+            reader.text(),
+            "next",
+            reason="dynamic reads follow replacement of the original value",
+        )
 
     it("keeps references to values with an empty layout"):
         let factory: &dyn Factory = &Maker {}
@@ -81,7 +101,11 @@ tests:
         assert_equal(*source, (), reason="empty values cross without a payload box")
         created := factory.make(())
         *created = ()
-        assert_equal(*created, (), reason="an empty generic argument can produce an escaping reference")
+        assert_equal(
+            *created,
+            (),
+            reason="an empty generic argument can produce an escaping reference",
+        )
 
     it("preserves the direct representation of a one-address target"):
         let factory: &dyn Factory = &Maker {}

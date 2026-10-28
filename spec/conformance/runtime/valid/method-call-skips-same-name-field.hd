@@ -4,9 +4,11 @@ struct Button:
     label: fn() -> string
 
 impl Button:
-    fn label(self) -> string: "method"
+    fn label(self) -> string:
+        "method"
 
-fn stored() -> string: "field"
+fn stored() -> string:
+    "field"
 
 tests:
     use std.testing.assert_equal

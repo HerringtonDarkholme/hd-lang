@@ -6,4 +6,4 @@ fn work!(value: i32) -> i32:
 fn construct(value: i32) -> mut Suspend[i32]:
     work(value)
 
-let invalid: fn!(i32) -> i32 = construct  # diagnostic: type-mismatch
+let invalid: fn!(i32) -> i32 = construct # diagnostic: type-mismatch

@@ -13,4 +13,4 @@ type Crate[T](Box[T])
 type Mile(i32)
 
 fn use_it() -> void:
-    _ := Draft(1)  # diagnostic: type-used-as-value
+    _ := Draft(1) # diagnostic: type-used-as-value

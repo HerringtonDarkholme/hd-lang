@@ -16,6 +16,7 @@ import {
   decodeRows,
   readRows,
   recorded,
+  joinJournals,
   requestDigest,
   xxh3_128,
   type Value,
@@ -99,6 +100,42 @@ function everyRowKind(): Recorder {
   r.end({ kind: "exit", status: 0 });
   return r;
 }
+
+test("archived chunks join without losing method identities or recorded results", () => {
+  const first = everyRowKind().journal()!;
+  const second = new Recorder(1 << 20, seven());
+  second.input(3, "later()", text("later module"));
+  second.call("hd:prim", "format_f64", new Uint8Array(), int(17), text("retained reply"));
+  second.call("hd:Clock", "now", text("a request longer than eight bytes"), int(18), null);
+  second.end({ kind: "exit", status: 0 });
+  const tail = second.journal()!;
+  const empty = new Recorder(1 << 20, seven()).journal()!;
+  assert.deepEqual(joinJournals([first]), first, "one chunk keeps its exact wire format");
+  const joined = joinJournals([first, tail, empty]);
+  assert.deepEqual(recorded(joined), {
+    execution: seven(),
+    inputs: [...recorded(first).inputs, ...recorded(tail).inputs],
+  });
+  assert.equal(readRows(joined).valid, joined.length);
+  assert.deepEqual(
+    readRows(joined).rows.map((row) => row.index),
+    readRows(joined).rows.map((_, i) => i),
+  );
+  const copy = first.slice();
+  joinJournals([first, tail]);
+  assert.deepEqual(first, copy, "joining leaves the original archive intact");
+});
+
+test("archive joining rejects incomplete, foreign and reordered history", () => {
+  const first = everyRowKind().journal()!;
+  const foreign = new Recorder(1 << 20, new Uint8Array(16)).journal()!;
+  assert.throws(() => joinJournals([first, foreign]), /different executions/);
+  assert.throws(() => joinJournals([first, first]), /increasing order/);
+  assert.throws(() => joinJournals([first.subarray(0, first.length - 1)]), /cut short/);
+  const pending = new Recorder(1 << 20, seven());
+  pending.input(3, "busy()", text("busy module"));
+  assert.throws(() => joinJournals([first, pending.journal()!]), /unfinished input/);
+});
 
 test("xxh3-128 matches hd_base::hash128 at every length class", () => {
   const bytes = Uint8Array.from({ length: 2100 }, (_, i) => (i * 31) % 251);

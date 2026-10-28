@@ -51,4 +51,8 @@ tests:
     use std.testing.assert_equal
 
     it("Point implements Probe through the template"):
-        assert_equal(Point { x: 1, y: 2 }.probe(), "x=-/-;y=-/-;", reason="the template walks both members")
+        assert_equal(
+            Point { x: 1, y: 2 }.probe(),
+            "x=-/-;y=-/-;",
+            reason="the template walks both members",
+        )

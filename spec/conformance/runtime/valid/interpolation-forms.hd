@@ -15,10 +15,12 @@ struct Cart:
     items: List[string]
 
 impl Display for Cart:
-    fn to_string(self) -> string: self.owner
+    fn to_string(self) -> string:
+        self.owner
 
 impl Cart:
-    fn label(self) -> string: "cart of $self"
+    fn label(self) -> string:
+        "cart of $self"
 
     fn summary(self) -> string:
         "${self.owner} has ${self.items.len()} items: [${self.items[0]}, ${self.items[1]}]"

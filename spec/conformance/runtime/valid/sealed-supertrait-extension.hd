@@ -37,10 +37,20 @@ tests:
 
     it("the supplied Inspectable part reports the concrete type"):
         let plugin: &dyn Plugin = &Exporter { format: "json" }
-        assert(plugin.runtime_type() == TypeId::of::[Exporter](), reason="the recorded type is Exporter")
+        assert(
+            plugin.runtime_type() == TypeId::of::[Exporter](),
+            reason="the recorded type is Exporter",
+        )
 
     it("widening to Inspectable keeps the recorded type"):
         widened := as_inspectable(&Exporter { format: "xml" })
-        assert(widened.runtime_type() == TypeId::of::[Exporter](), reason="nothing is wrapped twice")
+        assert(
+            widened.runtime_type() == TypeId::of::[Exporter](),
+            reason="nothing is wrapped twice",
+        )
         assert_equal(format_of(widened), "xml", reason="the widened value downcasts to Exporter")
-        assert_equal(format_of(as_inspectable(&Importer { source: "ftp" })), "none", reason="an Importer is not an Exporter")
+        assert_equal(
+            format_of(as_inspectable(&Importer { source: "ftp" })),
+            "none",
+            reason="an Importer is not an Exporter",
+        )

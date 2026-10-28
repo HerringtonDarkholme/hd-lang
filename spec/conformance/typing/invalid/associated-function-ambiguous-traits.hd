@@ -9,10 +9,12 @@ trait Right:
 struct User: pass
 
 impl Left for User:
-    fn label() -> string: "left"
+    fn label() -> string:
+        "left"
 
 impl Right for User:
-    fn label() -> string: "right"
+    fn label() -> string:
+        "right"
 
 fn invalid() -> string:
-    User::label()  # diagnostic: ambiguous-method
+    User::label() # diagnostic: ambiguous-method

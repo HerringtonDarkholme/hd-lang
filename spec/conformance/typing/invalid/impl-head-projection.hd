@@ -9,6 +9,6 @@ trait Summary:
 struct Feed[I]:
     items: I
 
-impl[I < Store] Summary for Feed[I::Item]:  # diagnostic: unconstrained-impl-parameter
+impl[I < Store] Summary for Feed[I::Item]: # diagnostic: unconstrained-impl-parameter
     fn summary(self) -> string:
         "items"

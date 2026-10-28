@@ -5,7 +5,7 @@ use std.path.Path
 pub fn main!() -> void $ Console + FsRead:
     let total: usize = 0
     let i: i64 = 0
-    while i < 10000:  # param: count
+    while i < 10000: # param: count
         text := "${i}"
         total = total + text.len()
         i = i + 1

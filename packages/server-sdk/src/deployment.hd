@@ -38,9 +38,14 @@ pub enum DeploymentError:
 @host
 pub trait Deployment:
     fn vercel!(&mut self, options: VercelOptions) -> Result[DeploymentReceipt, DeploymentError]
-    fn cloudflare!(&mut self, options: CloudflareOptions) -> Result[DeploymentReceipt, DeploymentError]
+    fn cloudflare!(
+        &mut self,
+        options: CloudflareOptions,
+    ) -> Result[DeploymentReceipt, DeploymentError]
 
-pub fn cloudflare!(options: CloudflareOptions) -> Result[DeploymentReceipt, DeploymentError] $ Deployment:
+pub fn cloudflare!(
+    options: CloudflareOptions,
+) -> Result[DeploymentReceipt, DeploymentError] $ Deployment:
     $.use(Deployment).cloudflare!(options)
 
 pub fn vercel!(options: VercelOptions) -> Result[DeploymentReceipt, DeploymentError] $ Deployment:

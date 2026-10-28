@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, cpSync, rmSync, readdirSync }
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createCoreHost } from "../../../host/core.mjs";
+import { createPackageRuntime } from "../../../host/package-providers.mjs";
 import { createApplication } from "../adapters/application.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -18,9 +19,13 @@ before(() => {
   writeFileSync(
     main,
     readFileSync(main, "utf8").replace(
-      "    text := match string::from_utf8(request.body):",
-      '    if request.url.ends_with("/trap"): panic("private handler failure")\n    text := match string::from_utf8(request.body):',
+      "    input := match request.json::[Input]():",
+      '    if request.url.path.ends_with("/trap"): panic("private handler failure")\n    input := match request.json::[Input]():',
     ),
+  );
+  assert.ok(
+    readFileSync(main, "utf8").includes('panic("private handler failure")'),
+    "the fixture really injects a guest panic",
   );
   const manifest = join(directory, "app/hd.toml");
   writeFileSync(
@@ -56,6 +61,7 @@ function application() {
     module,
     bindings,
     createCoreHost,
+    createPackageRuntime,
     grants: { [source.selectors[0]]: true, Console: true, Clock: true },
     sink: {
       out(text) {
@@ -71,7 +77,6 @@ function application() {
 const request = (path, message) => ({
   method: { tag: "Post", fields: {} },
   url: "https://server.test" + path,
-  query: [],
   headers: [],
   body: new TextEncoder().encode(JSON.stringify({ message })),
   redirects: 10,

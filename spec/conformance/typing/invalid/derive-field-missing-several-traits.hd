@@ -5,4 +5,4 @@ struct Coin:
 
 @derive(Eq, Hash)
 struct Purse:
-    coin: Coin  # diagnostic: derive-field-missing-trait
+    coin: Coin # diagnostic: derive-field-missing-trait

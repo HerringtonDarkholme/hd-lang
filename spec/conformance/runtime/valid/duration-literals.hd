@@ -9,5 +9,8 @@ tests:
         assert_equal(30s, Duration::seconds(30), reason="seconds")
         assert_equal(1_500ms, Duration::milliseconds(1500), reason="separators")
         assert_equal(1h + 30min, Duration::seconds(5400), reason="compound")
-        assert_equal((9223372036854775807ms).as_milliseconds(), 9223372036854775807, reason="maximum")
-
+        assert_equal(
+            (9223372036854775807ms).as_milliseconds(),
+            9223372036854775807,
+            reason="maximum",
+        )

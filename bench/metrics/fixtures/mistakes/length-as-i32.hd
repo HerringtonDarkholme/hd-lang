@@ -7,4 +7,4 @@ struct User:
     name: string
 
 fn name_length(user: User) -> i32:
-    user.name.len()  # diagnostic: type-mismatch
+    user.name.len() # diagnostic: type-mismatch

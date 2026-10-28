@@ -3,6 +3,7 @@
 //! [Versions], [Toolchain Version] of `spec/lang/10-modules.md`,
 //! `cli.dep.invalid`, Package Tooling's `cli.manifest.*`).
 
+use hd_base::SliceSort as _;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -39,9 +40,31 @@ pub struct Manifest {
     pub executables: Vec<Executable>,
     /// `[workspace]` (`cli.mode.workspace`).
     pub workspace: Option<Workspace>,
+    /// The package's `[lint]` table. Policy names stay uninterpreted here;
+    /// `hd_lint` owns the registry and validates them for `hd lint`.
+    pub lint: Option<LintTable>,
     /// Each table or key that no rule gives a meaning, by its dotted path,
     /// and its line (`cli.manifest.unknown-key.with-host`).
     pub unknown: Vec<(String, u32)>,
+}
+
+/// The syntactic contents of a `[lint]` table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LintTable {
+    /// `false` preserves a non-table value for a located configuration error.
+    pub table: bool,
+    pub line: u32,
+    pub allow: Option<LintNames>,
+    pub warn: Option<LintNames>,
+    pub deny: Option<LintNames>,
+}
+
+/// One policy level as written in `[lint]`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LintNames {
+    /// `None` means the value was not a list containing only strings.
+    pub names: Option<Vec<String>>,
+    pub line: u32,
 }
 
 /// The package's trait-to-provider map and its manifest location.
@@ -429,6 +452,36 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
                         .unwrap_or_else(|| at("workspace")),
                 });
             }
+            ("lint", toml::Value::Table(t)) => {
+                only(&mut unknowns, "lint", t, &["allow", "warn", "deny"]);
+                let names = |level: &str| {
+                    t.get(level).map(|value| LintNames {
+                        names: value.as_array().and_then(|items| {
+                            items
+                                .iter()
+                                .map(|item| item.as_str().map(str::to_owned))
+                                .collect()
+                        }),
+                        line: at(&format!("lint.{level}")),
+                    })
+                };
+                m.lint = Some(LintTable {
+                    table: true,
+                    line: at("lint"),
+                    allow: names("allow"),
+                    warn: names("warn"),
+                    deny: names("deny"),
+                });
+            }
+            ("lint", _) => {
+                m.lint = Some(LintTable {
+                    table: false,
+                    line: at("lint"),
+                    allow: None,
+                    warn: None,
+                    deny: None,
+                });
+            }
             ("executable", toml::Value::Array(items)) => {
                 for (i, item) in items.iter().enumerate() {
                     let path = format!("executable.{i}");
@@ -456,7 +509,7 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
             (other, _) => unknowns.push((other.to_owned(), at(other))),
         }
     }
-    unknowns.sort_by_key(|(_, line)| *line);
+    unknowns.sort_stable_by_key(|(_, line)| *line);
     m.unknown = unknowns;
     Ok(m)
 }
@@ -884,12 +937,12 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     for (path, line) in &m.unknown {
         out.push(Problem {
             code: Some(Code::UnknownManifestKey),
-            severity: Severity::Warning,
+            severity: Severity::Error,
             line: Some(*line),
-            message: format!("`{path}` has no meaning in `hd.toml`, so it is ignored"),
+            message: format!("`{path}` has no meaning in `hd.toml`; remove it"),
         });
     }
-    out.sort_by_key(|p| p.line);
+    out.sort_stable_by_key(|p| p.line);
     out
 }
 
@@ -899,7 +952,7 @@ mod tests {
         Grant, Version, grant_problem, is_capability_selector, key_problem, parse_manifest,
         problems,
     };
-    use hd_diag::Code;
+    use hd_diag::{Code, Severity};
 
     #[test]
     fn versions_order_by_semver_precedence() {
@@ -937,6 +990,42 @@ mod tests {
         )
         .expect("manifest");
         assert!(problems(&ok, "0.1.0").is_empty());
+    }
+
+    #[test]
+    fn unknown_manifest_keys_are_load_errors() {
+        let manifest = parse_manifest(
+            "[package]\nname = \"app\"\nversion = \"1.0.0\"\n\n[profile]\nrelease = true\n",
+        )
+        .unwrap();
+        let got: Vec<_> = problems(&manifest, "0.1.0")
+            .into_iter()
+            .map(|problem| {
+                (
+                    problem.code,
+                    problem.severity,
+                    problem.line,
+                    problem.message,
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (
+                    Some(Code::UnknownManifestKey),
+                    Severity::Error,
+                    Some(3),
+                    "`package.version` has no meaning in `hd.toml`; remove it".to_owned(),
+                ),
+                (
+                    Some(Code::UnknownManifestKey),
+                    Severity::Error,
+                    Some(5),
+                    "`profile` has no meaning in `hd.toml`; remove it".to_owned(),
+                ),
+            ]
+        );
     }
 
     #[test]

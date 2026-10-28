@@ -10,7 +10,8 @@ fn read_size!(stream: &mut dyn TcpStream) -> usize:
 fn receive_size!(socket: &mut dyn UdpSocket) -> usize:
     socket.receive!(2).expect("the pending datagram").bytes.len()
 
-fn stop!() -> usize: 0
+fn stop!() -> usize:
+    0
 
 pub fn main!() -> Result[void, NetError] $ Net + Console:
     using listener = listen!("127.0.0.1", 0)?
@@ -27,7 +28,11 @@ pub fn main!() -> Result[void, NetError] $ Net + Console:
     using receiver = bind_udp!("127.0.0.1", 0)?
     using sender = bind_udp!("127.0.0.1", 0)?
     target := receiver.local_address()?
-    assert_equal(race!(receive_size(receiver), stop()), 0, reason="a sibling cancels the pending receive")
+    assert_equal(
+        race!(receive_size(receiver), stop()),
+        0,
+        reason="a sibling cancels the pending receive",
+    )
     sender.send_to!("127.0.0.1", target._1, "hey".to_utf8())?
     datagram := receiver.receive!(3)?
     assert_equal(datagram.bytes, "hey".to_utf8(), reason="the next receive keeps the datagram")

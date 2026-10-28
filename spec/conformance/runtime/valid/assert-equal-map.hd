@@ -2,10 +2,18 @@ tests:
     use std.testing.assert_equal
 
     it("equal maps pass assert_equal"):
-        assert_equal({"ada": 1, "grace": 2}, {"ada": 1, "grace": 2}, reason="same entries in the same order")
+        assert_equal(
+            { "ada": 1, "grace": 2 },
+            { "ada": 1, "grace": 2 },
+            reason="same entries in the same order",
+        )
 
     it("map equality is independent of entry order"):
-        assert_equal({"ada": 1, "grace": 2}, {"grace": 2, "ada": 1}, reason="same entries in a different order")
+        assert_equal(
+            { "ada": 1, "grace": 2 },
+            { "grace": 2, "ada": 1 },
+            reason="same entries in a different order",
+        )
 
     it("equal empty maps pass assert_equal"):
         let left: Map[string, i32] = {}

@@ -9,4 +9,5 @@
 ##
 ## _ := bump(+1)
 ## ```
-pub fn bump(value: i32) -> i32: value + 1
+pub fn bump(value: i32) -> i32:
+    value + 1

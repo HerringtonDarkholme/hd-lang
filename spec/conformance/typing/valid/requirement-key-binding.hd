@@ -15,7 +15,8 @@ struct UserStore: pass
 
 impl Store for UserStore:
     type Item = User
-    fn load(self, id: string) -> User: User { name: id }
+    fn load(self, id: string) -> User:
+        User { name: id }
 
 type Users = &dyn Store[Item = User]
 

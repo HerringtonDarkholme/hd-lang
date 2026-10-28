@@ -5,7 +5,7 @@ fn welcome!(email: string) -> void $ Mailer + Clock:
 
 pub fn main!() -> void $ Console:
     let mut outbox = Outbox { sent: [] }
-    $.with(Mailer=&mut outbox):  # ← Clock is missing
+    $.with(Mailer=&mut outbox): # ← Clock is missing
         welcome!("ada@example.com")
     println(outbox.sent[0])
 

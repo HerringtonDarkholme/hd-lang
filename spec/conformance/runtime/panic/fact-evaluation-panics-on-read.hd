@@ -31,7 +31,7 @@ impl[T] Label for T by Structure:
     fn label(self) -> string:
         let mut w = Counter { count: +0 }
         _ := Structure::walk(self, &mut w)
-        match T::facts().find::[Style]():  # panic: fact-evaluation-failed
+        match T::facts().find::[Style](): # panic: fact-evaluation-failed
             .Some(found) => found.prefix
             .None => "none"
 

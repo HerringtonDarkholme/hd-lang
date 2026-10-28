@@ -1,0 +1,101 @@
+# Raw input data stays deliberately unformatted when repo .hd sources are formatted.
+run: hd fmt --check inputs/binary.input
+exit: 1
+run: hd fmt inputs/binary.input
+same-text: inputs/binary.input want/binary.hd
+run: hd fmt --check inputs/binary.input
+stdout-json: []
+run: hd fmt inputs/binary.input
+same-text: inputs/binary.input want/binary.hd
+run: hd fmt --check inputs/calls.input
+exit: 1
+run: hd fmt inputs/calls.input
+same-text: inputs/calls.input want/calls.hd
+run: hd fmt --check inputs/calls.input
+stdout-json: []
+run: hd fmt inputs/calls.input
+same-text: inputs/calls.input want/calls.hd
+run: hd fmt --check inputs/groups.input
+exit: 1
+run: hd fmt inputs/groups.input
+same-text: inputs/groups.input want/groups.hd
+run: hd fmt --check inputs/groups.input
+stdout-json: []
+run: hd fmt inputs/groups.input
+same-text: inputs/groups.input want/groups.hd
+run: hd fmt --check inputs/lists.input
+exit: 1
+run: hd fmt inputs/lists.input
+same-text: inputs/lists.input want/lists.hd
+run: hd fmt --check inputs/lists.input
+stdout-json: []
+run: hd fmt inputs/lists.input
+same-text: inputs/lists.input want/lists.hd
+run: hd fmt --check inputs/parameters.input
+exit: 1
+run: hd fmt inputs/parameters.input
+same-text: inputs/parameters.input want/parameters.hd
+run: hd fmt --check inputs/parameters.input
+stdout-json: []
+run: hd fmt inputs/parameters.input
+same-text: inputs/parameters.input want/parameters.hd
+run: hd fmt inputs/protected.input
+same-text: inputs/protected.input want/protected.hd
+run: hd fmt --check inputs/protected.input
+stdout-json: []
+run: hd fmt inputs/protected.input
+same-text: inputs/protected.input want/protected.hd
+run: hd fmt inputs/unicode.input
+same-text: inputs/unicode.input want/unicode.expected
+run: hd fmt --check inputs/unicode.input
+stdout-json: []
+run: hd fmt inputs/unicode.input
+same-text: inputs/unicode.input want/unicode.expected
+run: hd fmt --check inputs/records.input
+exit: 1
+run: hd fmt inputs/records.input
+same-text: inputs/records.input want/records.hd
+run: hd fmt --check inputs/records.input
+stdout-json: []
+run: hd fmt inputs/records.input
+same-text: inputs/records.input want/records.hd
+run: hd fmt --check inputs/already-broken.input
+exit: 1
+run: hd fmt inputs/already-broken.input
+same-text: inputs/already-broken.input want/already-broken.hd
+run: hd fmt --check inputs/review.input
+exit: 1
+run: hd fmt inputs/review.input
+same-text: inputs/review.input want/review.hd
+run: hd fmt --check inputs/review.input
+stdout-json: []
+run: hd fmt inputs/review.input
+same-text: inputs/review.input want/review.hd
+run: hd fmt --check inputs/already-broken.input
+stdout-json: []
+run: hd fmt --check inputs/canonical.input
+exit: 1
+run: hd fmt inputs/canonical.input
+same-text: inputs/canonical.input want/canonical.hd
+run: hd fmt --check inputs/canonical.input
+stdout-json: []
+run: hd fmt inputs/canonical.input
+same-text: inputs/canonical.input want/canonical.hd
+run: hd fmt --check inputs/chains.input
+exit: 1
+run: hd fmt inputs/chains.input
+same-text: inputs/chains.input want/chains.hd
+run: hd fmt --check inputs/chains.input
+stdout-json: []
+run: hd fmt inputs/chains.input
+same-text: inputs/chains.input want/chains.hd
+run: hd fmt --check inputs/comments.input
+exit: 1
+run: hd fmt inputs/comments.input
+same-text: inputs/comments.input want/comments.hd
+run: hd fmt --check inputs/comments.input
+stdout-json: []
+run: hd fmt inputs/comments.input
+same-text: inputs/comments.input want/comments.hd
+run: hd fmt inputs/already-broken.input
+same-text: inputs/already-broken.input want/already-broken.hd

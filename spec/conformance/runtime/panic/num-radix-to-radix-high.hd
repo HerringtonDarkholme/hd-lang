@@ -2,7 +2,7 @@
 # Spec std/num Radix Text: std-num.radix.bad-radix (issue #477).
 
 fn run() -> string:
-    (5).to_radix(37)  # panic: explicit-panic
+    (5).to_radix(37) # panic: explicit-panic
 
 tests:
     it("rejects the radix"):

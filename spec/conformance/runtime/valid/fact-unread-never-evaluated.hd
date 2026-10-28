@@ -17,4 +17,8 @@ tests:
     use std.testing.assert_equal
 
     it("the unread fact never runs"):
-        assert_equal(Point { x: 2 }.x, 2, reason="building and reading a value never evaluates the type's facts")
+        assert_equal(
+            Point { x: 2 }.x,
+            2,
+            reason="building and reading a value never evaluates the type's facts",
+        )

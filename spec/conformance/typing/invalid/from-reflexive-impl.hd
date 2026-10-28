@@ -2,6 +2,6 @@
 # Spec 09 Conversion Implementations: trait.from.coherence, trait.from.reflexive.
 use std.convert.From
 
-impl[T] From[T] for T:  # diagnostic: bare-parameter-impl-target
+impl[T] From[T] for T: # diagnostic: bare-parameter-impl-target
     fn from(value: T) -> T:
         value

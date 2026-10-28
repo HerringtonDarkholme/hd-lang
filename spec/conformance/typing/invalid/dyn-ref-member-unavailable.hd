@@ -4,4 +4,4 @@ trait Versioned:
     fn newer_than(&self, other: Self) -> bool
 
 fn audit(record: &dyn Versioned, other: &dyn Versioned) -> bool:
-    record.newer_than(other)  # diagnostic: dyn-member-unavailable
+    record.newer_than(other) # diagnostic: dyn-member-unavailable

@@ -11,4 +11,4 @@ fn shared(point: *Point) -> *Point:
 
 fn demo() -> void:
     point := Point { x: 1 }
-    shared(&point).shift()  # diagnostic: not-writable
+    shared(&point).shift() # diagnostic: not-writable

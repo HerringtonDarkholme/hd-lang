@@ -10,7 +10,11 @@ tests:
         assert_equal((90s).to_string(), "1min30s", reason="minutes, then seconds")
         assert_equal((60s).to_string(), "1min0s", reason="a zero seconds component is written")
         assert_equal((1h).to_string(), "1h0min0s", reason="every component below hours is written")
-        assert_equal((1h + 5s).to_string(), "1h0min5s", reason="a zero minutes component in the middle")
+        assert_equal(
+            (1h + 5s).to_string(),
+            "1h0min5s",
+            reason="a zero minutes component in the middle",
+        )
         assert_equal((90min).to_string(), "1h30min0s", reason="minutes carry into hours")
 
     it("milliseconds are a fraction of a second"):
@@ -25,4 +29,8 @@ tests:
         assert_equal("waited ${2h}", "waited 2h0min0s", reason="interpolation uses Display")
 
     it("the largest duration does not overflow"):
-        assert_equal(Duration::milliseconds(9_223_372_036_854_775_807).to_string(), "2562047788015h12min55.807s", reason="the largest duration")
+        assert_equal(
+            Duration::milliseconds(9_223_372_036_854_775_807).to_string(),
+            "2562047788015h12min55.807s",
+            reason="the largest duration",
+        )

@@ -2,4 +2,4 @@
 # Spec 09 Supertrait Bindings: trait.binding.super.names (Operator Traits OP8).
 use std.ops.Add
 
-trait Summable < Add[Self, Output = Self]  # diagnostic: unknown-associated-type
+trait Summable < Add[Self, Output = Self] # diagnostic: unknown-associated-type

@@ -19,8 +19,7 @@ pub fn main() -> void $ Console:
     for r in refs:
         println(*r)
     let mut total = +0
-    add := fn(k: i32) -> void:
-        total += k
+    add := fn(k: i32) -> void: total += k
     t := &mut total
     add(5)
     *t += 1

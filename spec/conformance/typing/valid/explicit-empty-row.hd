@@ -2,8 +2,9 @@
 # Spec 02 Requirement Clauses: grammar.type.row.empty.
 # expect: accept
 
-fn invoke(callback: fn() -> void $()) -> void: callback()
+fn invoke(callback: fn() -> void $ ()) -> void:
+    callback()
 
 fn main() -> void:
-    callback := fn() -> void $(): pass
+    callback := fn() -> void $ (): pass
     invoke(callback)

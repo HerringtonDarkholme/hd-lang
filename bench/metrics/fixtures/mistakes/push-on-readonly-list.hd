@@ -4,5 +4,5 @@
 
 fn pieces(text: string) -> List[string]:
     let found: List[string] = []
-    found.push(text)  # diagnostic: not-writable
+    found.push(text) # diagnostic: not-writable
     found

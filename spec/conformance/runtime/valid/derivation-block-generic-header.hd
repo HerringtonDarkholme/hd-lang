@@ -39,4 +39,8 @@ tests:
     use std.testing.assert_equal
 
     it("derives Show for a Bag of a Shown type"):
-        assert_equal(Bag::[i64] { item: 5 }.show(), "5;", reason="the item is walked through its Shown bound")
+        assert_equal(
+            Bag::[i64] { item: 5 }.show(),
+            "5;",
+            reason="the item is walked through its Shown bound",
+        )

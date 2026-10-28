@@ -6,7 +6,8 @@ trait Zero:
     fn zero() -> Self
 
 impl Zero for i32:
-    fn zero() -> i32: 0
+    fn zero() -> i32:
+        0
 
 impl[T] Zero for T by Structure:
     fn zero() -> T:
@@ -40,7 +41,7 @@ impl[S] Source[S] for Zeroes[S]:
 struct Label:
     text: string
 
-@derive(Zero)  # diagnostic: member-not-derivable
+@derive(Zero) # diagnostic: member-not-derivable
 struct Counter:
     count: i32
     label: Label = Label { text: "none" }

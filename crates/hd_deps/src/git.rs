@@ -12,6 +12,7 @@
 //! version's files are read from git's objects, not checked out, so no
 //! attribute, filter or line-ending setting changes their bytes.
 
+use hd_base::SliceSort as _;
 use std::io::{ErrorKind, Read, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -464,7 +465,7 @@ impl Git {
                 path.strip_suffix("/hd.toml").map(|d| format!("{d}/"))
             })
             .collect();
-        dirs.sort();
+        dirs.sort_stable();
         Ok(dirs)
     }
 

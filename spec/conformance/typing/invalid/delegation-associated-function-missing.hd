@@ -17,4 +17,4 @@ impl Named for Logger:
 struct Service:
     Logger
 
-impl Named for Service by Logger  # diagnostic: missing-trait-method
+impl Named for Service by Logger # diagnostic: missing-trait-method

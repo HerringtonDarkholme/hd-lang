@@ -5,5 +5,5 @@ trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-fn count() -> i32 $ Store[Item = Account]:  # diagnostic: unknown-type
+fn count() -> i32 $ Store[Item = Account]: # diagnostic: unknown-type
     0

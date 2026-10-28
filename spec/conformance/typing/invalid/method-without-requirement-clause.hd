@@ -12,4 +12,4 @@ struct Nightly: pass
 
 impl Job for Nightly:
     fn run(self) -> void:
-        log("nightly")  # diagnostic: missing-requirement
+        log("nightly") # diagnostic: missing-requirement

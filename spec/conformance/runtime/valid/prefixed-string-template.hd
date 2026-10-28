@@ -12,7 +12,8 @@
 use std.ops.{Template, str_prefix}
 
 @str_prefix
-fn raw(t: Template[string]) -> string: t.raw_parts[0]
+fn raw(t: Template[string]) -> string:
+    t.raw_parts[0]
 
 @str_prefix
 fn tag(t: Template[i32]) -> string:
@@ -22,13 +23,16 @@ fn tag(t: Template[i32]) -> string:
         "<${t.raw_parts[0]}|${t.values[0]}|${t.raw_parts[1]}>"
 
 @str_prefix
-fn use(t: Template[string]) -> string: t.raw_parts[0]
+fn use(t: Template[string]) -> string:
+    t.raw_parts[0]
 
 pub fn main() -> void $ Console:
     println(raw"\d+\s")
     println(raw"say \"hi\"")
-    println(raw"""first\n
-second""")
+    println(
+        raw"""first\n
+second""",
+    )
     id := +7
     println(tag"id=$id!")
     println(raw"^\d+$")

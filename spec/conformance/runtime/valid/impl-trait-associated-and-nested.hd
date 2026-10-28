@@ -37,4 +37,6 @@ fn nested[T < Display](value: T) -> string:
     later(value).to_string()
 
 pub fn main() -> void $ Console:
-    println("${source().get()} ${source_derived().get()} ${Holder { value: "eight" }.hidden()} ${nested("nine")}")
+    println(
+        "${source().get()} ${source_derived().get()} ${Holder { value: "eight" }.hidden()} ${nested("nine")}",
+    )

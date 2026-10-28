@@ -41,4 +41,4 @@ impl Debug for Labels:
 pub fn main() -> void $ Console:
     println(debug(Span { start: +1, end: +4 }))
     println(debug(Spans { items: [Span { start: +1, end: +2 }, Span { start: +3, end: +4 }] }))
-    println(debug(Labels { counts: {"a": +1}, note: "two" }))
+    println(debug(Labels { counts: { "a": +1 }, note: "two" }))

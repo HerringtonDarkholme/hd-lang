@@ -24,4 +24,4 @@ impl[T] Named for T by Structure:
     fn title() -> string:
         let mut d = MemberCount { count: 0 }
         _ := T::describe(&mut d)
-        prefix + Structure::name()  # diagnostic: template-names-binding
+        prefix + Structure::name() # diagnostic: template-names-binding

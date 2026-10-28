@@ -1,0 +1,4 @@
+pub fn main() -> void:
+    pass
+pub fn value() -> i32:
+    +1

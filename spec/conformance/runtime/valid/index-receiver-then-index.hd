@@ -4,7 +4,7 @@ let log = ""
 
 fn scores() -> Map[string, i32]:
     log = log + "r"
-    {"a": +7}
+    { "a": +7 }
 
 fn key() -> string:
     log = log + "k"

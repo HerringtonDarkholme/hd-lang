@@ -3,4 +3,4 @@
 # expect: type-mismatch
 
 fn with_key(keys: List[string], key: string) -> List[string]:
-    keys + [key]  # diagnostic: type-mismatch
+    keys + [key] # diagnostic: type-mismatch

@@ -3,4 +3,5 @@ fn fib(n: i32) -> i32:
 
 pub fn main() -> void:
     result := fib(30)
-    if result != 832040: panic("wrong: $result")
+    if result != 832040:
+        panic("wrong: $result")

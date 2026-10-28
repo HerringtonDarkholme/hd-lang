@@ -192,7 +192,10 @@ tests:
         list_reserve(&mut bytes, 1)
         assert(buffer_address(at, bytes) != buffer, "the list has its own buffer")
         bytes[0] = 65
-        assert(kept[0] == 120 && bytes[0] == 65 && bytes.len() == 3, "the other holder is unchanged")
+        assert(
+            kept[0] == 120 && bytes[0] == 65 && bytes.len() == 3,
+            "the other holder is unchanged",
+        )
 
     it("StringBuilder.reserve makes the room in one buffer"):
         out := StringBuilder::new()
@@ -204,7 +207,10 @@ tests:
         text := out.build()
         # The string took over the builder's buffer, whose first word is
         # its capacity: exactly the room reserved, so no push grew it.
-        assert(usize(load_u32(string_bytes(text).address - 16)) == 100, "one buffer of the reserved size")
+        assert(
+            usize(load_u32(string_bytes(text).address - 16)) == 100,
+            "one buffer of the reserved size",
+        )
         assert(text.len() == 100, "every byte kept")
 
     it("string_from_bytes copies a shared buffer, which a later change misses"):
@@ -243,7 +249,9 @@ tests:
             out := StringBuilder::new()
             let i = +0
             while i < 20:
-                out.push(label(i)).push_char('é').push_ascii(33)
+                out.push(label(i))
+                out.push_char('é')
+                out.push_ascii(33)
                 i = i + 1
             total = total + out.build().len()
             round = round + 1

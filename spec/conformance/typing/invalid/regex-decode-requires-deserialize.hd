@@ -5,4 +5,4 @@ struct Record:
     value: string
 
 fn read(pattern: Regex) -> Result[Record, RegexError]:
-    pattern.decode::[Record]("value")  # diagnostic: unsatisfied-trait-bound
+    pattern.decode::[Record]("value") # diagnostic: unsatisfied-trait-bound

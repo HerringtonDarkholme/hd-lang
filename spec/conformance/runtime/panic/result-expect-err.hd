@@ -2,7 +2,7 @@
 # Spec std/result Variant Tests And Conversions: std-result.expect.panic (batch 68, STD-HELPERS-KEEP; task #219).
 
 fn configured_port(text: string) -> i32:
-    text.parse::[i32]().expect("the configured port is a number")  # panic: explicit-panic
+    text.parse::[i32]().expect("the configured port is a number") # panic: explicit-panic
 
 tests:
     it("panics on Err"):

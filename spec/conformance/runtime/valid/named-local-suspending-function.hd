@@ -13,10 +13,7 @@ fn drive_local!() -> i32:
     let base = +39
     fn count!(remaining: i32) -> i32 $ Increment:
         provider := $.use(Increment)
-        if remaining == 0:
-            provider.next!(base)
-        else:
-            count!(remaining - 1) + 1
+        if remaining == 0: provider.next!(base) else: count!(remaining - 1) + 1
     $.with(Increment=FixedIncrement {}):
         count!(2)
 

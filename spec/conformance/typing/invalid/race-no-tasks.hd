@@ -2,4 +2,4 @@
 use std.task.race
 
 fn nothing!() -> i32:
-    race!::[i32]()  # diagnostic: argument-count
+    race!::[i32]() # diagnostic: argument-count

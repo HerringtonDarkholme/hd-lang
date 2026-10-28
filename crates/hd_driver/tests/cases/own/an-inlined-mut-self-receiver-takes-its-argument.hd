@@ -1,0 +1,13 @@
+# @dump: own
+# @build: v8 release
+# A `mut self` receiver of a primitive is `mut i32` in the method, where
+# the call passes an `i32`; the copy's `self` takes the argument's type.
+trait Step:
+    fn next(mut self) -> i32
+
+impl Step for i32:
+    fn next(mut self) -> i32: self + 1
+
+fn advance(start: i32) -> i32:
+    # subject
+    start.next()

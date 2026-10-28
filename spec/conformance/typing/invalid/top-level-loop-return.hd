@@ -2,4 +2,4 @@
 
 for item in [1, 2]:
     if item > 1:
-        return  # diagnostic: return-outside-function
+        return # diagnostic: return-outside-function

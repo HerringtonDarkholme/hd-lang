@@ -1,4 +1,4 @@
 fn bad(flag: bool) -> impl Display:
     if flag:
         return +7
-    return  # diagnostic: type-mismatch
+    return # diagnostic: type-mismatch

@@ -6,5 +6,5 @@ fn make() -> fn() -> i32 $ Console:
     fn() -> i32: 1
 
 pub fn caller() -> i32:
-    f := make()  # diagnostic: missing-requirement
+    f := make() # diagnostic: missing-requirement
     f()

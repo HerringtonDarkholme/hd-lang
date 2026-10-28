@@ -1,6 +1,7 @@
 # test: checker generic arguments and parameters have a kind
 struct Box[T]:
     value: T
-fn f(value: Box[i32]) -> void: pass
+fn f(value: Box[i32]) -> void:
+    pass
 pub fn main() -> void:
     pass

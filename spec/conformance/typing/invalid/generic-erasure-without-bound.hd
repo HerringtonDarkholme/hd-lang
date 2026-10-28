@@ -3,4 +3,4 @@
 use std.inspect.Inspectable
 
 fn erase[T](value: T) -> *dyn Inspectable:
-    value  # diagnostic: type-mismatch
+    value # diagnostic: type-mismatch

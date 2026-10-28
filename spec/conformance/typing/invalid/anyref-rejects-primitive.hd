@@ -4,4 +4,4 @@ fn same_parcel[T < AnyRef](left: T, right: T) -> bool:
     left is right
 
 fn check() -> bool:
-    same_parcel(+3, +3)  # diagnostic: unsatisfied-trait-bound
+    same_parcel(+3, +3) # diagnostic: unsatisfied-trait-bound

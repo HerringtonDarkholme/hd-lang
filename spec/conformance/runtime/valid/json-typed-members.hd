@@ -30,7 +30,12 @@ enum Status(code: i32):
     Shipped(carrier: string) -> Status(+2)
 
 fn order() -> Order:
-    Order { Audit: Audit { created_by: "ada", revision: 3 }, id: OrderId(42), total_cents: 1999, currency: "EUR" }
+    Order {
+        Audit: Audit { created_by: "ada", revision: 3 },
+        id: OrderId(42),
+        total_cents: 1999,
+        currency: "EUR",
+    }
 
 fn order_text() -> string:
     "{\"Audit\":{\"created_by\":\"ada\",\"revision\":3},\"id\":42,\"total_cents\":1999,\"currency\":\"EUR\"}"
@@ -52,7 +57,11 @@ tests:
     it("a newtype writes and reads its base value"):
         assert_equal(encode(OrderId(42)), "42", reason="no wrapper")
         assert_equal(encode(read::[OrderId]("7")), "7", reason="reads its base value")
-        assert_equal(decode::[OrderId]("-1").map(fn(found): encode(found)), .Err(JsonError.WrongType("$", "u64")), reason="the base type's error")
+        assert_equal(
+            decode::[OrderId]("-1").map(fn(found): encode(found)),
+            .Err(JsonError.WrongType("$", "u64")),
+            reason="the base type's error",
+        )
 
     it("a generic data type round trips for each type argument"):
         let numbers: Page[i32] = Page { items: [+1, +2], next: .None }
@@ -63,14 +72,32 @@ tests:
         assert_equal(encode(read::[Page[Order]](text)), text, reason="round trip")
 
     it("shared constructor data is neither written nor read"):
-        assert_equal(encode(Status.Shipped("DHL")), "{\"Shipped\":{\"carrier\":\"DHL\"}}", reason="no code key")
+        assert_equal(
+            encode(Status.Shipped("DHL")),
+            "{\"Shipped\":{\"carrier\":\"DHL\"}}",
+            reason="no code key",
+        )
         assert_equal(encode(Status.Placed), "\"Placed\"", reason="a variant with no member")
-        assert_equal(read::[Status]("{\"Shipped\":{\"carrier\":\"DHL\"}}").code, +2, reason="code comes from the variant")
-        assert_equal(read::[Status]("{\"Placed\":{\"code\":9}}").code, +1, reason="a code key is ignored")
+        assert_equal(
+            read::[Status]("{\"Shipped\":{\"carrier\":\"DHL\"}}").code,
+            +2,
+            reason="code comes from the variant",
+        )
+        assert_equal(
+            read::[Status]("{\"Placed\":{\"code\":9}}").code,
+            +1,
+            reason="a code key is ignored",
+        )
 
     it("from_json paths start at the value it reads"):
-        match parse("{\"order\":{\"Audit\":{\"created_by\":\"ada\",\"revision\":3},\"id\":42,\"total_cents\":\"x\"}}"):
+        match parse(
+            "{\"order\":{\"Audit\":{\"created_by\":\"ada\",\"revision\":3},\"id\":42,\"total_cents\":\"x\"}}",
+        ):
             .Ok(root) =>
                 inner := root.get("order").unwrap_or(Json.Null)
-                assert_equal(from_json::[Order](inner).map(fn(found): found.total_cents), .Err(JsonError.WrongType("$.total_cents", "i64")), reason="not $.order.total_cents")
+                assert_equal(
+                    from_json::[Order](inner).map(fn(found): found.total_cents),
+                    .Err(JsonError.WrongType("$.total_cents", "i64")),
+                    reason="not $.order.total_cents",
+                )
             .Err(error) => panic("parse failed: $error")

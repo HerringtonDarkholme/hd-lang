@@ -2,7 +2,7 @@
 # Spec 06 Runtime Panics: flow.panic.stack-exhausted.
 
 fn deeper(depth: i32) -> i32:
-    deeper(depth) + 1  # panic: stack-exhausted
+    deeper(depth) + 1 # panic: stack-exhausted
 
 pub fn main() -> void:
     _ := deeper(+0)

@@ -2,6 +2,6 @@
 # Spec 03 Local Type Declarations: names.local-type.duplicate.
 fn make() -> i32:
     Item := +1
-    struct Item:  # diagnostic: duplicate-binding
+    struct Item: # diagnostic: duplicate-binding
         value: i32
     Item

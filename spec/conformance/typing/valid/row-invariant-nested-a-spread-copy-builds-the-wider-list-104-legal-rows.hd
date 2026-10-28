@@ -41,7 +41,7 @@ fn serve_all_113(routes: Map[string, fn() -> void $ Db + Clock]) -> void:
     pass
 
 fn wire_113() -> void:
-    serve_all_113({"a": narrow})
+    serve_all_113({ "a": narrow })
 
 fn maybe_115(f: (fn() -> void $ Db + Clock)?) -> void:
     pass

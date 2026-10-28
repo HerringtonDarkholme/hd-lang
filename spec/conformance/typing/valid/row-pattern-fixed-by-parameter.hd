@@ -4,13 +4,15 @@ trait Db
 
 trait Clock
 
-fn both[$R1, $R2](first: fn() -> void $ R1, second: fn() -> void $ R1 + R2) -> void $ R1 + R2:
+fn both[$ R1, $ R2](first: fn() -> void $ R1, second: fn() -> void $ R1 + R2) -> void $ R1 + R2:
     first()
     second()
 
-fn read() -> void $ Db: pass
+fn read() -> void $ Db:
+    pass
 
-fn read_and_time() -> void $ Db + Clock: pass
+fn read_and_time() -> void $ Db + Clock:
+    pass
 
 fn run() -> void $ Db + Clock:
     both(read, read_and_time)

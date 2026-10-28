@@ -9,6 +9,7 @@ tests:
 
     it("shouts at two types"):
         suffix := "!"
-        fn shout[U < Display](u: U) -> string: "${u}${suffix}"
+        fn shout[U < Display](u: U) -> string:
+            "${u}${suffix}"
         assert_equal(shout(+3), "3!", reason="number")
         assert_equal(shout("hi"), "hi!", reason="text")

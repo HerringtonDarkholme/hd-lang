@@ -6,4 +6,4 @@ function total(n) {
     .filter((x) => x % 2 === 0)
     .reduce((acc, x) => (acc + x) % 1000003, 0);
 }
-console.log(total(20000000));
+console.log(total(24000000));

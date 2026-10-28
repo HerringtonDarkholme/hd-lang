@@ -33,7 +33,7 @@ impl[T < Tuple] Encode for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-impl[T < Tuple] Encode for T by Structure:  # diagnostic: overlapping-impl
+impl[T < Tuple] Encode for T by Structure: # diagnostic: overlapping-impl
     fn encode(self) -> string:
         let mut w = Encoder { out: "again" }
         _ := Structure::walk(self, &mut w)

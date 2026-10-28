@@ -6,5 +6,5 @@ fn plain(t: Template[string]) -> string:
     "plain"
 
 fn render() -> string:
-    first := plain"x"  # diagnostic: invalid-string-prefix
+    first := plain"x" # diagnostic: invalid-string-prefix
     first

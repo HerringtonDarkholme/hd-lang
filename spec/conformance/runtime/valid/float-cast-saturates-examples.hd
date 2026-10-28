@@ -1,8 +1,11 @@
 # test: a float-to-integer cast saturates, and NaN gives 0
 # Spec 04 Numeric Conversions: types.cast.saturate.example.
-fn small(value: f64) -> i8: i8(value)
-fn byte(value: f64) -> u8: u8(value)
-fn whole(value: f64) -> i32: i32(value)
+fn small(value: f64) -> i8:
+    i8(value)
+fn byte(value: f64) -> u8:
+    u8(value)
+fn whole(value: f64) -> i32:
+    i32(value)
 
 tests:
     use std.testing.assert_equal

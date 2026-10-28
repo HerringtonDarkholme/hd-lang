@@ -10,8 +10,9 @@ fn invoice_label(number: string, draft: bool) -> string:
     invoice := Invoice { number }
     if draft:
         impl Labeled for Invoice:
-            fn label(self) -> string: "DRAFT-" + self.number
+            fn label(self) -> string:
+                "DRAFT-" + self.number
 
         _ := invoice.label()
 
-    invoice.label()  # diagnostic: unknown-method
+    invoice.label() # diagnostic: unknown-method

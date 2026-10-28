@@ -19,7 +19,8 @@ struct Logger:
     hits: i32
 
 impl Describe for Logger:
-    fn describe(self) -> string: self.name
+    fn describe(self) -> string:
+        self.name
 
 impl Counter for Logger:
     fn bump(&mut self, by: i32) -> i32:
@@ -28,18 +29,20 @@ impl Counter for Logger:
 
 impl Supplier for Logger:
     type Item = i32
-    fn get(self) -> i32: self.hits
+    fn get(self) -> i32:
+        self.hits
 
 struct Service:
     Logger
     port: i32
 
 impl Describe for Service by Logger:
-    fn describe(self) -> string: "service"
+    fn describe(self) -> string:
+        "service"
 
 impl Counter for Service by Logger
 
 impl Supplier for Service by Logger
 
 fn text(service: Service) -> string:
-    service.get()  # diagnostic: type-mismatch
+    service.get() # diagnostic: type-mismatch

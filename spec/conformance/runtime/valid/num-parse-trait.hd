@@ -17,16 +17,36 @@ tests:
         assert_equal("-32769".parse::[i16](), .Err(ParseNumberError.OutOfRange), reason="i16 under")
         assert_equal("2147483647".parse::[i32](), .Ok(2147483647), reason="i32 max")
         assert_equal("-2147483648".parse::[i32](), .Ok(-2147483648), reason="i32 min")
-        assert_equal("2147483648".parse::[i32](), .Err(ParseNumberError.OutOfRange), reason="i32 over")
-        assert_equal("-9223372036854775808".parse::[i64](), .Ok(-9223372036854775807 - 1), reason="i64 min")
-        assert_equal("9223372036854775808".parse::[i64](), .Err(ParseNumberError.OutOfRange), reason="i64 over")
+        assert_equal(
+            "2147483648".parse::[i32](),
+            .Err(ParseNumberError.OutOfRange),
+            reason="i32 over",
+        )
+        assert_equal(
+            "-9223372036854775808".parse::[i64](),
+            .Ok(-9223372036854775807 - 1),
+            reason="i64 min",
+        )
+        assert_equal(
+            "9223372036854775808".parse::[i64](),
+            .Err(ParseNumberError.OutOfRange),
+            reason="i64 over",
+        )
         assert_equal("255".parse::[u8](), .Ok(u8(255)), reason="u8 max")
         assert_equal("256".parse::[u8](), .Err(ParseNumberError.OutOfRange), reason="u8 over")
         assert_equal("65535".parse::[u16](), .Ok(u16(65535)), reason="u16 max")
         assert_equal("65536".parse::[u16](), .Err(ParseNumberError.OutOfRange), reason="u16 over")
         assert_equal("4294967295".parse::[u32](), .Ok(u32(4294967295)), reason="u32 max")
-        assert_equal("18446744073709551615".parse::[u64](), .Ok(18446744073709551615), reason="u64 max")
-        assert_equal("18446744073709551616".parse::[u64](), .Err(ParseNumberError.OutOfRange), reason="u64 over")
+        assert_equal(
+            "18446744073709551615".parse::[u64](),
+            .Ok(18446744073709551615),
+            reason="u64 max",
+        )
+        assert_equal(
+            "18446744073709551616".parse::[u64](),
+            .Err(ParseNumberError.OutOfRange),
+            reason="u64 over",
+        )
         assert_equal("+7".parse::[usize](), .Ok(usize(7)), reason="usize plus")
 
     it("the example's helper"):
@@ -36,15 +56,51 @@ tests:
     it("the grammar reports concrete parse errors"):
         assert_equal("".parse::[i8](), .Err(ParseNumberError.Empty), reason="empty")
         assert_equal("-".parse::[i16](), .Err(ParseNumberError.InvalidDigit(1)), reason="lone sign")
-        assert_equal("1_0".parse::[i32](), .Err(ParseNumberError.InvalidDigit(1)), reason="separator")
-        assert_equal("-1".parse::[u8](), .Err(ParseNumberError.InvalidDigit(0)), reason="unsigned minus")
-        assert_equal("-1".parse::[u64](), .Err(ParseNumberError.InvalidDigit(0)), reason="u64 minus")
-        assert_equal("0x10".parse::[usize](), .Err(ParseNumberError.InvalidDigit(1)), reason="radix")
-        assert_equal("12ab".parse::[i32](), .Err(ParseNumberError.InvalidDigit(2)), reason="i32 error")
-        assert_equal("99999999999999999999".parse::[i64](), .Err(ParseNumberError.OutOfRange), reason="i64 error")
-        assert_equal("4x".parse::[u32](), .Err(ParseNumberError.InvalidDigit(1)), reason="u32 error")
-        assert_equal("4x".parse::[u64](), .Err(ParseNumberError.InvalidDigit(1)), reason="u64 error")
-        assert_equal("4x".parse::[usize](), .Err(ParseNumberError.InvalidDigit(1)), reason="usize error")
+        assert_equal(
+            "1_0".parse::[i32](),
+            .Err(ParseNumberError.InvalidDigit(1)),
+            reason="separator",
+        )
+        assert_equal(
+            "-1".parse::[u8](),
+            .Err(ParseNumberError.InvalidDigit(0)),
+            reason="unsigned minus",
+        )
+        assert_equal(
+            "-1".parse::[u64](),
+            .Err(ParseNumberError.InvalidDigit(0)),
+            reason="u64 minus",
+        )
+        assert_equal(
+            "0x10".parse::[usize](),
+            .Err(ParseNumberError.InvalidDigit(1)),
+            reason="radix",
+        )
+        assert_equal(
+            "12ab".parse::[i32](),
+            .Err(ParseNumberError.InvalidDigit(2)),
+            reason="i32 error",
+        )
+        assert_equal(
+            "99999999999999999999".parse::[i64](),
+            .Err(ParseNumberError.OutOfRange),
+            reason="i64 error",
+        )
+        assert_equal(
+            "4x".parse::[u32](),
+            .Err(ParseNumberError.InvalidDigit(1)),
+            reason="u32 error",
+        )
+        assert_equal(
+            "4x".parse::[u64](),
+            .Err(ParseNumberError.InvalidDigit(1)),
+            reason="u64 error",
+        )
+        assert_equal(
+            "4x".parse::[usize](),
+            .Err(ParseNumberError.InvalidDigit(1)),
+            reason="usize error",
+        )
 
     it("the float impls read the float grammar"):
         assert_equal("1.5".parse::[f64](), .Ok(1.5), reason="f64")
@@ -52,8 +108,16 @@ tests:
         assert_equal("1.5".parse::[f32](), .Ok(f32(1.5)), reason="f32")
         assert_equal("0.1".parse::[f32](), .Ok(f32(0.1)), reason="f32 rounds")
         assert_equal("".parse::[f32](), .Err(ParseNumberError.Empty), reason="f32 empty")
-        assert_equal("1.5x".parse::[f32](), .Err(ParseNumberError.InvalidDigit(3)), reason="f32 invalid")
-        assert_equal("1x".parse::[f64](), .Err(ParseNumberError.InvalidDigit(1)), reason="f64 error")
+        assert_equal(
+            "1.5x".parse::[f32](),
+            .Err(ParseNumberError.InvalidDigit(3)),
+            reason="f32 invalid",
+        )
+        assert_equal(
+            "1x".parse::[f64](),
+            .Err(ParseNumberError.InvalidDigit(1)),
+            reason="f64 error",
+        )
         match "inf".parse::[f64]():
             .Ok(value) => assert_equal(value > 1.0e300, true, reason="infinity")
             .Err(_) => assert_equal(true, false, reason="inf must parse")

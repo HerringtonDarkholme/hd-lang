@@ -11,7 +11,8 @@
 ## snapshot(greeting("Grace"))
 ## snapshot(greeting("Lin"), expect="hello,\u{20}Lin")
 ## ```
-pub fn greeting(name: string) -> string: "hello, " + name
+pub fn greeting(name: string) -> string:
+    "hello, " + name
 
 struct Box:
     ## ```hd

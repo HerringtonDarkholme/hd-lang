@@ -3,5 +3,5 @@
 trait Audited:
     fn audit(self) -> string
 
-pub fn audit_all[T < Audited](entries: List[T]) -> i32:  # diagnostic: private-type-leak
+pub fn audit_all[T < Audited](entries: List[T]) -> i32: # diagnostic: private-type-leak
     0

@@ -1,0 +1,6 @@
+# test: a panic used as an interpolated part panics before the string is built
+# Spec 04 The never Type: types.never.assignable; Spec 05: expr.order.left-to-right (issue #850).
+
+pub fn main() -> void $ Console:
+    name := "hd".repeat(2)
+    println("${name} ${panic("no part")}") # panic: explicit-panic

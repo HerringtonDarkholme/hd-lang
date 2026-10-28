@@ -2,4 +2,4 @@
 # Spec 08 Field Defaults: data.default.no-field-binding.
 struct Account:
     email: string
-    display_name: string = email  # diagnostic: unknown-name
+    display_name: string = email # diagnostic: unknown-name

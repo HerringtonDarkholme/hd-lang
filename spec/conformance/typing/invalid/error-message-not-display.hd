@@ -6,5 +6,5 @@ struct Span:
 
 @error
 enum ParseError:
-    @error("bad span $span")  # diagnostic: unsatisfied-trait-bound
+    @error("bad span $span") # diagnostic: unsatisfied-trait-bound
     BadSpan(span: Span)

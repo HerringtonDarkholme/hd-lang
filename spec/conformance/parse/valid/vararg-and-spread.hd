@@ -1,4 +1,5 @@
 # test: vararg and spread
 
-fn sum(values...: List[i32]) -> i32: 0
+fn sum(values...: List[i32]) -> i32:
+    0
 result := sum(values...)

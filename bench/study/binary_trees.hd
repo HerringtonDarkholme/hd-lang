@@ -1,5 +1,5 @@
 # binary-trees, depth 14 (benchmarks game). Prints one line per depth.
-MAX := +14
+MAX := +17
 MIN := +4
 
 struct Node:
@@ -27,10 +27,8 @@ pub fn main() -> void $ Console:
     while d <= MAX:
         iters := +1 << u32(MAX - d + MIN)
         let sum: i64 = 0
-        let i = +0
-        while i < iters:
-            sum = sum + check(make(d))
-            i = i + 1
+        for _ in 0..iters:
+            sum += check(make(d))
         println("$iters $d $sum")
-        d = d + 2
+        d += 2
     println("long $MAX ${check(long)}")

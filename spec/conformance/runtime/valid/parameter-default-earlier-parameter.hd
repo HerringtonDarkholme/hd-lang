@@ -1,4 +1,5 @@
-fn seven() -> i32: 7
+fn seven() -> i32:
+    7
 
 fn span(finish: i32 = seven(), start: i32 = finish - 2) -> i32:
     finish - start

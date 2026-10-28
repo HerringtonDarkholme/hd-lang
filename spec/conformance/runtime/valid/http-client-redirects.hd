@@ -1,79 +1,157 @@
-# test: Client follows redirects, rewrites methods, strips cross-host credentials, and enforces limits
-# Spec std/http Client: std-http.client.redirects.manual, std-http.client.redirects.method, std-http.client.redirects.cross-host, std-http.client.redirects.limit.
-use std.http.{Client, Http, Method, Request, Response, ScriptedHttp}
+# test: Client follows redirects with fresh request bodies, strips cross-host credentials and enforces limits
+use std.http.{Client, Http, HttpStatus, Method, Request, Response, ScriptedHttp, Url}
+use std.time.{Clock, ManualClock, Timestamp}
+use std.testing.assert_equal
 
-fn header(request: Request, name: string) -> string?:
-    Response { status: 200, headers: request.headers }.header(name)
+fn url(text: string) -> Url:
+    Url::parse(text).expect("fixture URL")
+fn clock() -> *mut ManualClock:
+    ManualClock::new(Timestamp::from_unix_milliseconds(0))
 
 tests:
-    use std.testing.assert_equal
-
     it("cross-host redirects drop Authorization and explicit Cookie"):
         http := ScriptedHttp::new()
-        http.reply("https://one.example/start?q=a", .Ok(Response { status: 302, headers: [("Set-Cookie", "source=one"), ("Location", "https://two.example/end")] }))
-        http.reply("https://two.example/end", .Ok(Response { status: 200 }))
-        client := Client::new().header("Authorization", "Bearer secret").header("Cookie", "manual=yes").header("X-Keep", "ok")
-        request := Request { url: "https://one.example/start", query: [("q", "a")] }
-        $.with(Http=http):
-            _ := client.send!(request).expect("redirect")
+        http.reply(
+            "https://one.example/start?q=a",
+            .Ok(Response::status(.Found).set_header(.Location, "https://two.example/end")),
+        )
+        http.reply("https://two.example/end", .Ok(Response {}))
+        let mut client = Client::new()
+        request := Request::get(url("https://one.example/start?q=a"))
+            .set_header(.Authorization, "Bearer secret")
+            .set_header(.Cookie, "manual=yes")
+            .set_header(.Other("X-Keep"), "ok")
+        $.with(Http=http, Clock=clock()):
+            _ := client.send!(&request).expect("redirect")
         received := http.received()
-        assert_equal(header(received[0], "Authorization"), .Some("Bearer secret"), reason="initial request gets defaults")
-        assert_equal(header(received[1], "Authorization"), .None, reason="credential removed")
-        assert_equal(header(received[1], "Cookie"), .None, reason="explicit and source-host cookies removed")
-        assert_equal(header(received[1], "X-Keep"), .Some("ok"), reason="unrelated header kept")
-        assert_equal(received[1].url, "https://two.example/end", reason="original query is not appended again")
-        assert_equal(request.url, "https://one.example/start", reason="request remains a value")
+        assert_equal(
+            received[0].header(.Authorization),
+            .Some("Bearer secret"),
+            reason="initial credentials",
+        )
+        assert_equal(received[1].header(.Authorization), .None, reason="credential removed")
+        assert_equal(received[1].header(.Cookie), .None, reason="explicit source cookie removed")
+        assert_equal(
+            received[1].header(.Other("X-Keep")),
+            .Some("ok"),
+            reason="unrelated header kept",
+        )
+        assert_equal(
+            received[1].url,
+            url("https://two.example/end"),
+            reason="old query not appended again",
+        )
+        assert_equal(
+            request.url,
+            url("https://one.example/start?q=a"),
+            reason="source fields retained",
+        )
 
     it("301 and 302 rewrite only Post while 303 rewrites every method"):
-        for (status, method, expected) in [(301u16, Method.Post, Method.Get), (302u16, Method.Post, Method.Get), (301u16, Method.Put, Method.Put), (303u16, Method.Put, Method.Get), (307u16, Method.Post, Method.Post), (308u16, Method.Post, Method.Post)]:
+        for (status, method, expected) in [
+            (301u16, Method.Post, Method.Get),
+            (302u16, Method.Post, Method.Get),
+            (301u16, Method.Put, Method.Put),
+            (303u16, Method.Put, Method.Get),
+            (307u16, Method.Post, Method.Post),
+            (308u16, Method.Post, Method.Post),
+        ]:
             http := ScriptedHttp::new()
-            http.reply("https://api.example/start", .Ok(Response { status: status, headers: [("Location", "/end")] }))
-            http.reply("https://api.example/end", .Ok(Response { status: 200 }))
-            client := Client::new().header("Authorization", "same-host")
-            $.with(Http=http):
-                _ := client.send!(Request { method: method, url: "https://api.example/start", headers: [("Content-Type", "text/plain"), ("Content-Length", "2")], body: [1, 2] }).expect("redirect")
+            http.reply(
+                "https://api.example/start",
+                .Ok(Response::status(HttpStatus::from_code(status)).set_header(.Location, "/end")),
+            )
+            http.reply("https://api.example/end", .Ok(Response {}))
+            let mut client = Client::new()
+            request := Request::new(method, url("https://api.example/start"))
+                .set_bytes([1, 2])
+                .set_header(.Authorization, "same-host")
+                .set_header(.ContentType, "text/plain")
+                .set_header(.ContentLength, "2")
+                .set_header(.Other("transfer-encoding"), "chunked")
+            $.with(Http=http, Clock=clock()):
+                _ := client.send!(&request).expect("redirect")
             next := http.received()[1]
             assert_equal(next.method, expected, reason="status-specific method")
-            assert_equal(header(next, "Authorization"), .Some("same-host"), reason="same host retains credentials")
+            assert_equal(
+                next.header(.Authorization),
+                .Some("same-host"),
+                reason="same host retains credentials",
+            )
             if expected == Method.Get:
-                assert_equal(next.body, [], reason="rewritten GET has no body")
-                assert_equal(header(next, "Content-Length"), .None, reason="body framing removed")
-                assert_equal(header(next, "Content-Type"), .None, reason="body content type removed")
+                assert_equal(next.bytes(), .Ok([]), reason="rewritten GET has no body")
+                assert_equal(next.header(.ContentLength), .None, reason="framing removed")
+                assert_equal(next.header(.ContentType), .None, reason="content type removed")
+                assert_equal(
+                    next.header(.Other("transfer-encoding")),
+                    .None,
+                    reason="transfer encoding removed",
+                )
             else:
-                assert_equal(next.body, [1, 2], reason="preserved method keeps body")
+                assert_equal(
+                    next.bytes(),
+                    .Ok([1, 2]),
+                    reason="preserved method gets fresh replay bytes",
+                )
 
-    it("relative redirects resolve paths, dot segments and query references"):
+    it("relative redirects resolve paths and queries and return the final parsed URL"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/a/b/start", .Ok(Response { status: 302, headers: [("Location", "../next?x=1")] }))
-        http.reply("https://api.example/a/next?x=1", .Ok(Response { status: 302, headers: [("Location", "?x=2")] }))
-        http.reply("https://api.example/a/next?x=2", .Ok(Response { status: 302, headers: [("Location", "//other.example/end")] }))
-        http.reply("https://other.example/end", .Ok(Response { status: 204 }))
-        client := Client::new()
-        $.with(Http=http):
-            response := client.send!(Request { url: "https://api.example/a/b/start" }).expect("redirects")
-            assert_equal(response.status, 204, reason="last response")
-            assert_equal(response.url, "https://other.example/end", reason="last URL")
-        assert_equal(http.received().len(), 4, reason="each hop sent once")
+        http.reply(
+            "https://api.example/a/b/start",
+            .Ok(Response::status(.Found).set_header(.Location, "../next?x=1")),
+        )
+        http.reply(
+            "https://api.example/a/next?x=1",
+            .Ok(Response::status(.Found).set_header(.Location, "?x=2")),
+        )
+        http.reply(
+            "https://api.example/a/next?x=2",
+            .Ok(Response::status(.Found).set_header(.Location, "//other.example/end")),
+        )
+        http.reply("https://other.example/end", .Ok(Response::status(.NoContent)))
+        let mut client = Client::new()
+        $.with(Http=http, Clock=clock()):
+            response := client.send!(&Request::get(url("https://api.example/a/b/start")))
+                .expect("redirects")
+            assert_equal(response.status, .NoContent, reason="last response")
+            assert_equal(response.url, .Some(url("https://other.example/end")), reason="last URL")
+        assert_equal(http.received().len(), 4, reason="each hop once")
 
-    it("zero follows none, a positive limit errors at the next target"):
+    it("zero follows none and a positive limit names the next unsent target"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/start", .Ok(Response { status: 302, headers: [("Location", "https://api.example/end")] }))
-        http.reply("https://api.example/end", .Ok(Response { status: 302, headers: [("Location", "/again")] }))
-        client := Client::new()
-        $.with(Http=http):
-            assert_equal(client.send!(Request { url: "https://api.example/start", redirects: 0 }).expect("zero").status, 302, reason="first redirect returned")
-            match client.send!(Request { url: "https://api.example/start", redirects: 1 }):
-                .Err(.TooManyRedirects(url)) => assert_equal(url, "https://api.example/again", reason="next target named")
+        http.reply(
+            "https://api.example/start",
+            .Ok(Response::status(.Found).set_header(.Location, "/end")),
+        )
+        http.reply(
+            "https://api.example/end",
+            .Ok(Response::status(.Found).set_header(.Location, "/again")),
+        )
+        let mut client = Client::new()
+        $.with(Http=http, Clock=clock()):
+            assert_equal(
+                client.send!(&Request::get(url("https://api.example/start")), 0)
+                    .expect("zero")
+                    .status,
+                .Found,
+                reason="first redirect",
+            )
+            match client.send!(&Request::get(url("https://api.example/start")), 1):
+                .Err(.TooManyRedirects(target)) =>
+                    assert_equal(target, "https://api.example/again", reason="next target named")
                 _ => panic("expected redirect limit")
         assert_equal(http.received().len(), 3, reason="no request beyond the limit")
 
     it("redirect status without Location is returned unchanged"):
         http := ScriptedHttp::new()
-        http.reply("https://api.example/", .Ok(Response { status: 302, body: [9] }))
-        client := Client::new()
-        $.with(Http=http):
-            assert_equal(client.send!(Request { url: "https://api.example/" }).expect("response").body, [9], reason="no target to follow")
-
+        http.reply("https://api.example/", .Ok(Response::status(.Found).set_bytes([9])))
+        let mut client = Client::new()
+        $.with(Http=http, Clock=clock()):
+            assert_equal(
+                client.send!(&Request::get(url("https://api.example/"))).expect("response").bytes(),
+                .Ok([9]),
+                reason="no target to follow",
+            )
     it("resolves the HTTP RFC 3986 normal and abnormal references"):
         for (reference, expected) in [
             ("g", "http://a/b/c/g"),
@@ -122,10 +200,18 @@ tests:
             ("g#", "http://a/b/c/g#"),
         ]:
             http := ScriptedHttp::new()
-            http.reply("http://a/b/c/d;p?q", .Ok(Response { status: 302, headers: [("Location", reference)] }))
-            http.reply(expected, .Ok(Response { status: 200 }))
-            client := Client::new()
-            $.with(Http=http):
-                response := client.send!(Request { url: "http://a/b/c/d;p?q", redirects: 1 }).expect("reference")
-                assert_equal(response.url, expected, reason="RFC reference resolution")
-            assert_equal(http.received()[1].url, expected, reason="target sent to the provider")
+            http.reply(
+                url("http://a/b/c/d;p?q").to_string(),
+                .Ok(Response::status(.Found).set_header(.Location, reference)),
+            )
+            http.reply(url(expected).to_string(), .Ok(Response {}))
+            let mut client = Client::new()
+            $.with(Http=http, Clock=clock()):
+                response := client.send!(&Request::get(url("http://a/b/c/d;p?q")), 1)
+                    .expect("reference")
+                assert_equal(response.url, .Some(url(expected)), reason="RFC reference resolution")
+            assert_equal(
+                http.received()[1].url,
+                url(expected),
+                reason="target sent to the provider",
+            )

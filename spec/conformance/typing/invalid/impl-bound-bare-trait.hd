@@ -9,7 +9,7 @@ trait Marker
 struct Wrap[T]:
     value: T
 
-impl[T < Source[Factory]] Marker for Wrap[T]  # diagnostic: trait-used-as-type
+impl[T < Source[Factory]] Marker for Wrap[T] # diagnostic: trait-used-as-type
 
 trait Factory:
     fn create() -> Self

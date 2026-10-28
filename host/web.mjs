@@ -11,7 +11,8 @@
 // call synchronously, so `send` uses a synchronous `XMLHttpRequest`, which a
 // worker still allows.
 
-import { createCoreHost, createSession, httpProvider, isAsciiUrl, writtenHost } from "./core.mjs";
+import { createCoreHost, httpProvider, isAsciiUrl, writtenHost } from "./core.mjs";
+import { createSession } from "./session.mjs";
 
 // The text of a request the browser refused (std-http.playground.refused).
 const REFUSED = "the browser refused the request: a network error or CORS";

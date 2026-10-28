@@ -1,0 +1,23 @@
+# test: StringBuilder mutators and build take local writable receivers
+# Spec std/text Joining And Building: std-text.builder.push-local, std-text.builder.push-char-local, std-text.builder.push-ascii-local, std-text.builder.reserve-local, std-text.builder.build-local.
+# expect-stdout: aλ!
+use std.text.StringBuilder
+use std.testing.assert_equal
+
+fn append(out: &mut StringBuilder) -> void:
+    out.reserve(16)
+    out.push("a")
+    out.push_char('λ')
+    out.push_ascii(33)
+
+fn finish(out: &mut StringBuilder) -> string:
+    text := out.build()
+    assert_equal(out.build(), "", reason="build empties through a local receiver")
+    out.push("later")
+    assert_equal(out.build(), "later", reason="local builder can be reused")
+    text
+
+pub fn main() -> void $ Console:
+    out := StringBuilder::new()
+    append(out)
+    println(finish(out))

@@ -3,7 +3,7 @@
 use std.num.Num
 
 fn convert[T < Num](n: i64) -> T:
-    T::from_i64(n)  # panic: integer-overflow
+    T::from_i64(n) # panic: integer-overflow
 
 tests:
     it("overflows"):

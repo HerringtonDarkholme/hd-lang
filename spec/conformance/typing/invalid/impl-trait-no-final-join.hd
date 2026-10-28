@@ -9,7 +9,4 @@ impl Number for i32?:
             .Some(value) => value
             .None => +0
 fn mixed(flag: bool) -> impl Number:
-    if flag:
-        .Some(+1)
-    else:
-        +2 # diagnostic: type-mismatch
+    if flag: .Some(+1) else: +2 # diagnostic: type-mismatch

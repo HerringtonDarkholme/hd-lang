@@ -18,4 +18,4 @@ fn list_users() -> void:
     pass
 
 pub fn main() -> void:
-    _ := facts_of(list_users).find::[Route]()  # panic: fact-evaluation-failed
+    _ := facts_of(list_users).find::[Route]() # panic: fact-evaluation-failed

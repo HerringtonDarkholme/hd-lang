@@ -7,10 +7,12 @@ struct Item:
     value: i32
 
 impl Apply[bool] for Item:
-    fn apply[U](self, run: fn(bool) -> U) -> U: run(true)
+    fn apply[U](self, run: fn(bool) -> U) -> U:
+        run(true)
 
 impl Apply[i32] for Item:
-    fn apply[U](self, run: fn(i32) -> U) -> U: run(self.value)
+    fn apply[U](self, run: fn(i32) -> U) -> U:
+        run(self.value)
 
 fn main() -> i32:
     Item { value: 40 }.apply(fn(value): value + 2)

@@ -20,4 +20,4 @@ fn read[U, S < Source[U]](source: S) -> U:
     source.take()
 
 fn invalid(source: Box[Plain]) -> void:
-    value := read(source)  # diagnostic: unsatisfied-trait-bound
+    value := read(source) # diagnostic: unsatisfied-trait-bound

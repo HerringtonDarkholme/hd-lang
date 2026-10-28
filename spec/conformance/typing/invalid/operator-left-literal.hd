@@ -11,4 +11,4 @@ impl Mul[i64] for Money:
         Money { cents: self.cents * rhs }
 
 fn triple(price: Money) -> Money:
-    3 * price  # diagnostic: type-mismatch
+    3 * price # diagnostic: type-mismatch

@@ -33,7 +33,11 @@ tests:
         assert_equal(u8(0).to_radix(16), "0", reason="zero of an unsigned type")
 
     it("pads for fixed-width hex"):
-        assert_equal(u32(48879).to_radix(16).pad_start(8, '0'), "0000beef", reason="the {:08x} replacement")
+        assert_equal(
+            u32(48879).to_radix(16).pad_start(8, '0'),
+            "0000beef",
+            reason="the {:08x} replacement",
+        )
 
     it("formats the extremes of every width"):
         assert_equal(i8(-128).to_radix(2), "-10000000", reason="i8 minimum")
@@ -42,7 +46,11 @@ tests:
         assert_equal(i16(-32768).to_radix(16), "-8000", reason="i16 minimum")
         assert_equal(u16(65535).to_radix(16), "ffff", reason="u16 maximum")
         assert_equal((-2147483648).to_radix(16), "-80000000", reason="i32 minimum")
-        assert_equal((-2147483648).to_radix(2), "-10000000000000000000000000000000", reason="i32 minimum in binary")
+        assert_equal(
+            (-2147483648).to_radix(2),
+            "-10000000000000000000000000000000",
+            reason="i32 minimum in binary",
+        )
         assert_equal((2147483647).to_radix(16), "7fffffff", reason="i32 maximum")
         assert_equal((2147483647).to_radix(36), "zik0zj", reason="i32 maximum in 36")
         assert_equal(u32(4294967295).to_radix(16), "ffffffff", reason="u32 maximum")
@@ -51,7 +59,11 @@ tests:
         assert_equal(u64_max().to_radix(16), "ffffffffffffffff", reason="u64 maximum")
         assert_equal(u64_max().to_radix(36), "3w5e11264sgsf", reason="u64 maximum in 36")
         assert_equal(u64_max().to_radix(8), "1777777777777777777777", reason="u64 maximum in 8")
-        assert_equal(u64_max().to_radix(2), "1111111111111111111111111111111111111111111111111111111111111111", reason="u64 maximum in 2")
+        assert_equal(
+            u64_max().to_radix(2),
+            "1111111111111111111111111111111111111111111111111111111111111111",
+            reason="u64 maximum in 2",
+        )
 
     it("parses in each radix"):
         assert_equal(describe(i32::parse_radix("ff", 16)), "ok 255", reason="lowercase")
@@ -63,50 +75,170 @@ tests:
         assert_equal(describe(i32::parse_radix("101", 2)), "ok 5", reason="binary")
         assert_equal(describe(i32::parse_radix("zz", 36)), "ok 1295", reason="radix 36")
         assert_equal(describe(i32::parse_radix("007", 10)), "ok 7", reason="leading zeros")
-        assert_equal(describe(u8::parse_radix("-0", 16)), "invalid digit at 0", reason="no minus on an unsigned type")
+        assert_equal(
+            describe(u8::parse_radix("-0", 16)),
+            "invalid digit at 0",
+            reason="no minus on an unsigned type",
+        )
 
     it("reports the first error"):
         assert_equal(describe(i32::parse_radix("", 16)), "empty", reason="empty text")
-        assert_equal(describe(i32::parse_radix("-", 16)), "invalid digit at 1", reason="a lone minus")
+        assert_equal(
+            describe(i32::parse_radix("-", 16)),
+            "invalid digit at 1",
+            reason="a lone minus",
+        )
         assert_equal(describe(i32::parse_radix("+", 2)), "invalid digit at 1", reason="a lone plus")
-        assert_equal(describe(i32::parse_radix("0xff", 16)), "invalid digit at 1", reason="no prefix")
-        assert_equal(describe(i32::parse_radix("12", 2)), "invalid digit at 1", reason="a digit past the radix")
-        assert_equal(describe(i32::parse_radix("g", 16)), "invalid digit at 0", reason="a letter past the radix")
-        assert_equal(describe(i32::parse_radix("1 ", 16)), "invalid digit at 1", reason="whitespace")
-        assert_equal(describe(i32::parse_radix("1_0", 16)), "invalid digit at 1", reason="a separator")
-        assert_equal(describe(i32::parse_radix("é", 16)), "invalid digit at 0", reason="a non-ASCII byte")
-        assert_equal(describe(i32::parse_radix("80000000zz", 16)), "out of range", reason="overflow before a bad digit")
-        assert_equal(describe(i32::parse_radix("ffz", 16)), "invalid digit at 2", reason="a bad digit within range")
+        assert_equal(
+            describe(i32::parse_radix("0xff", 16)),
+            "invalid digit at 1",
+            reason="no prefix",
+        )
+        assert_equal(
+            describe(i32::parse_radix("12", 2)),
+            "invalid digit at 1",
+            reason="a digit past the radix",
+        )
+        assert_equal(
+            describe(i32::parse_radix("g", 16)),
+            "invalid digit at 0",
+            reason="a letter past the radix",
+        )
+        assert_equal(
+            describe(i32::parse_radix("1 ", 16)),
+            "invalid digit at 1",
+            reason="whitespace",
+        )
+        assert_equal(
+            describe(i32::parse_radix("1_0", 16)),
+            "invalid digit at 1",
+            reason="a separator",
+        )
+        assert_equal(
+            describe(i32::parse_radix("é", 16)),
+            "invalid digit at 0",
+            reason="a non-ASCII byte",
+        )
+        assert_equal(
+            describe(i32::parse_radix("80000000zz", 16)),
+            "out of range",
+            reason="overflow before a bad digit",
+        )
+        assert_equal(
+            describe(i32::parse_radix("ffz", 16)),
+            "invalid digit at 2",
+            reason="a bad digit within range",
+        )
 
     it("reads the range of each width"):
         assert_equal(describe(i8::parse_radix("-80", 16)), "ok -128", reason="i8 minimum")
-        assert_equal(describe(i8::parse_radix("-81", 16)), "out of range", reason="below i8 minimum")
+        assert_equal(
+            describe(i8::parse_radix("-81", 16)),
+            "out of range",
+            reason="below i8 minimum",
+        )
         assert_equal(describe(i8::parse_radix("7f", 16)), "ok 127", reason="i8 maximum")
         assert_equal(describe(i8::parse_radix("80", 16)), "out of range", reason="above i8 maximum")
         assert_equal(describe(u8::parse_radix("ff", 16)), "ok 255", reason="u8 maximum")
-        assert_equal(describe(u8::parse_radix("100", 16)), "out of range", reason="above u8 maximum")
-        assert_equal(describe(i32::parse_radix("-80000000", 16)), "ok -2147483648", reason="i32 minimum")
-        assert_equal(describe(i32::parse_radix("-80000001", 16)), "out of range", reason="below i32 minimum")
-        assert_equal(describe(i32::parse_radix("7fffffff", 16)), "ok 2147483647", reason="i32 maximum")
-        assert_equal(describe(i32::parse_radix("80000000", 16)), "out of range", reason="above i32 maximum")
-        assert_equal(describe(u32::parse_radix("ffffffff", 16)), "ok 4294967295", reason="u32 maximum")
-        assert_equal(describe(u32::parse_radix("100000000", 16)), "out of range", reason="above u32 maximum")
-        assert_equal(describe(i64::parse_radix("-8000000000000000", 16)), "ok -9223372036854775808", reason="i64 minimum")
-        assert_equal(describe(i64::parse_radix("-8000000000000001", 16)), "out of range", reason="below i64 minimum")
-        assert_equal(describe(i64::parse_radix("7fffffffffffffff", 16)), "ok 9223372036854775807", reason="i64 maximum")
-        assert_equal(describe(i64::parse_radix("8000000000000000", 16)), "out of range", reason="above i64 maximum")
-        assert_equal(describe(u64::parse_radix("ffffffffffffffff", 16)), "ok 18446744073709551615", reason="u64 maximum")
-        assert_equal(describe(u64::parse_radix("10000000000000000", 16)), "out of range", reason="above u64 maximum")
-        assert_equal(describe(u64::parse_radix("3w5e11264sgsf", 36)), "ok 18446744073709551615", reason="u64 maximum in 36")
-        assert_equal(describe(u64::parse_radix("3w5e11264sgsg", 36)), "out of range", reason="above u64 maximum in 36")
+        assert_equal(
+            describe(u8::parse_radix("100", 16)),
+            "out of range",
+            reason="above u8 maximum",
+        )
+        assert_equal(
+            describe(i32::parse_radix("-80000000", 16)),
+            "ok -2147483648",
+            reason="i32 minimum",
+        )
+        assert_equal(
+            describe(i32::parse_radix("-80000001", 16)),
+            "out of range",
+            reason="below i32 minimum",
+        )
+        assert_equal(
+            describe(i32::parse_radix("7fffffff", 16)),
+            "ok 2147483647",
+            reason="i32 maximum",
+        )
+        assert_equal(
+            describe(i32::parse_radix("80000000", 16)),
+            "out of range",
+            reason="above i32 maximum",
+        )
+        assert_equal(
+            describe(u32::parse_radix("ffffffff", 16)),
+            "ok 4294967295",
+            reason="u32 maximum",
+        )
+        assert_equal(
+            describe(u32::parse_radix("100000000", 16)),
+            "out of range",
+            reason="above u32 maximum",
+        )
+        assert_equal(
+            describe(i64::parse_radix("-8000000000000000", 16)),
+            "ok -9223372036854775808",
+            reason="i64 minimum",
+        )
+        assert_equal(
+            describe(i64::parse_radix("-8000000000000001", 16)),
+            "out of range",
+            reason="below i64 minimum",
+        )
+        assert_equal(
+            describe(i64::parse_radix("7fffffffffffffff", 16)),
+            "ok 9223372036854775807",
+            reason="i64 maximum",
+        )
+        assert_equal(
+            describe(i64::parse_radix("8000000000000000", 16)),
+            "out of range",
+            reason="above i64 maximum",
+        )
+        assert_equal(
+            describe(u64::parse_radix("ffffffffffffffff", 16)),
+            "ok 18446744073709551615",
+            reason="u64 maximum",
+        )
+        assert_equal(
+            describe(u64::parse_radix("10000000000000000", 16)),
+            "out of range",
+            reason="above u64 maximum",
+        )
+        assert_equal(
+            describe(u64::parse_radix("3w5e11264sgsf", 36)),
+            "ok 18446744073709551615",
+            reason="u64 maximum in 36",
+        )
+        assert_equal(
+            describe(u64::parse_radix("3w5e11264sgsg", 36)),
+            "out of range",
+            reason="above u64 maximum in 36",
+        )
 
     it("round-trips the extremes"):
         for radix in [2, 8, 16, 36]:
             for value in [-2147483648, -255, -1, 0, 1, 255, 2147483647]:
-                assert_equal(i32::parse_radix(value.to_radix(radix), radix), .Ok(value), reason="i32 radix $radix")
+                assert_equal(
+                    i32::parse_radix(value.to_radix(radix), radix),
+                    .Ok(value),
+                    reason="i32 radix $radix",
+                )
             for value in [u64(0), 1, 255, 4294967296, u64(i64_max()), u64_max()]:
-                assert_equal(u64::parse_radix(value.to_radix(radix), radix), .Ok(value), reason="u64 radix $radix")
+                assert_equal(
+                    u64::parse_radix(value.to_radix(radix), radix),
+                    .Ok(value),
+                    reason="u64 radix $radix",
+                )
             for value in [i64_min(), -1, 0, i64_max()]:
-                assert_equal(i64::parse_radix(value.to_radix(radix), radix), .Ok(value), reason="i64 radix $radix")
+                assert_equal(
+                    i64::parse_radix(value.to_radix(radix), radix),
+                    .Ok(value),
+                    reason="i64 radix $radix",
+                )
             for value in [i8(-128), -1, 0, 127]:
-                assert_equal(i8::parse_radix(value.to_radix(radix), radix), .Ok(value), reason="i8 radix $radix")
+                assert_equal(
+                    i8::parse_radix(value.to_radix(radix), radix),
+                    .Ok(value),
+                    reason="i8 radix $radix",
+                )

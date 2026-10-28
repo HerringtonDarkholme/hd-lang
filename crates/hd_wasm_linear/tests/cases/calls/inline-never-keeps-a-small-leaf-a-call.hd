@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: v8 release
+# `@inline(.Never)`: the leaf is small enough to copy, but its call stays
+# a call, so the function keeps a body V8 can optimize between calls.
+use std.annotation.inline
+
+@inline(.Never)
+fn a(i: usize, j: usize) -> f64:
+    1.0 / f64((i + j) * (i + j + 1) / 2 + i + 1)
+
+fn row(n: usize, i: usize) -> f64:
+    let s = 0.0
+    let j: usize = 0
+    while j < n:
+        s = s + a(i, j)
+        #^^^^^^^^^^^^^^
+        j = j + 1
+    s

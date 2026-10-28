@@ -11,4 +11,4 @@ fn count() -> i32 $ Clock:
     1
 
 fn wire() -> void:
-    handlers := [name, count]  # diagnostic: no-common-type
+    handlers := [name, count] # diagnostic: no-common-type

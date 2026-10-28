@@ -19,43 +19,94 @@ fn verify(secret: string, body: string, header: string) -> bool:
             match hex_decode(hex):
                 .Err(_) => false
                 .Ok(sent) =>
-                    expected := Sha256::hmac(secret.bytes().collect()).update(body.bytes().collect()).finish()
+                    expected := Sha256::hmac(secret.bytes().collect())
+                        .update(body.bytes().collect())
+                        .finish()
                     expected == Digest { bytes: sent }
 
 tests:
     use std.testing.{assert, assert_equal}
 
     it("RFC 4231 test case 1"):
-        assert_equal(mac_hex(repeated(0x0b, 20), "Hi There".bytes().collect()), "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7", reason="case 1")
+        assert_equal(
+            mac_hex(repeated(0x0b, 20), "Hi There".bytes().collect()),
+            "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7",
+            reason="case 1",
+        )
 
     it("RFC 4231 test case 2"):
-        assert_equal(mac_hex("Jefe".bytes().collect(), "what do ya want for nothing?".bytes().collect()), "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843", reason="case 2")
+        assert_equal(
+            mac_hex("Jefe".bytes().collect(), "what do ya want for nothing?".bytes().collect()),
+            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843",
+            reason="case 2",
+        )
 
     it("RFC 4231 test case 3"):
-        assert_equal(mac_hex(repeated(0xaa, 20), repeated(0xdd, 50)), "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe", reason="case 3")
+        assert_equal(
+            mac_hex(repeated(0xaa, 20), repeated(0xdd, 50)),
+            "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe",
+            reason="case 3",
+        )
 
     it("RFC 4231 test case 4"):
         let mut key: List[u8] = []
         for byte in 1..26:
             key.push(u8(byte))
-        assert_equal(mac_hex(key, repeated(0xcd, 50)), "82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b", reason="case 4")
+        assert_equal(
+            mac_hex(key, repeated(0xcd, 50)),
+            "82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b",
+            reason="case 4",
+        )
 
     it("RFC 4231 test case 5 is the full-length MAC"):
-        assert_equal(mac_hex(repeated(0x0c, 20), "Test With Truncation".bytes().collect()), "a3b6167473100ee06e0c796c2955552bfa6f7c0a6a8aef8b93f860aab0cd20c5", reason="case 5")
+        assert_equal(
+            mac_hex(repeated(0x0c, 20), "Test With Truncation".bytes().collect()),
+            "a3b6167473100ee06e0c796c2955552bfa6f7c0a6a8aef8b93f860aab0cd20c5",
+            reason="case 5",
+        )
 
     it("RFC 4231 test case 6, a key longer than the block"):
-        assert_equal(mac_hex(repeated(0xaa, 131), "Test Using Larger Than Block-Size Key - Hash Key First".bytes().collect()), "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54", reason="case 6")
+        assert_equal(
+            mac_hex(
+                repeated(0xaa, 131),
+                "Test Using Larger Than Block-Size Key - Hash Key First".bytes().collect(),
+            ),
+            "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54",
+            reason="case 6",
+        )
 
     it("RFC 4231 test case 7, a long key and long data"):
-        message := "This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.".bytes().collect()
-        assert_equal(mac_hex(repeated(0xaa, 131), message), "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2", reason="case 7")
+        message := "This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.".bytes(
+        )
+            .collect()
+        assert_equal(
+            mac_hex(repeated(0xaa, 131), message),
+            "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2",
+            reason="case 7",
+        )
 
     it("keys around the block size and the empty key"):
-        assert_equal(mac_hex([], []), "b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad", reason="empty key and message")
+        assert_equal(
+            mac_hex([], []),
+            "b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad",
+            reason="empty key and message",
+        )
         abc := "abc".bytes().collect()
-        assert_equal(mac_hex(repeated(0x6b, 63), abc), "23670528b6b8c55d2f8ef2f36c1f000cec7c23ec76881c485f2e89b5fe705cca", reason="63-byte key")
-        assert_equal(mac_hex(repeated(0x6b, 64), abc), "ae0c0e4a2340cf50185eb46aaa8723f4769153661612e212fb0d1fa3170c6202", reason="64-byte key")
-        assert_equal(mac_hex(repeated(0x6b, 65), abc), "ed378e5dfa30dc98814ba09b2e610d9b6af66054922ceef9480da094a3f11b2d", reason="65-byte key")
+        assert_equal(
+            mac_hex(repeated(0x6b, 63), abc),
+            "23670528b6b8c55d2f8ef2f36c1f000cec7c23ec76881c485f2e89b5fe705cca",
+            reason="63-byte key",
+        )
+        assert_equal(
+            mac_hex(repeated(0x6b, 64), abc),
+            "ae0c0e4a2340cf50185eb46aaa8723f4769153661612e212fb0d1fa3170c6202",
+            reason="64-byte key",
+        )
+        assert_equal(
+            mac_hex(repeated(0x6b, 65), abc),
+            "ed378e5dfa30dc98814ba09b2e610d9b6af66054922ceef9480da094a3f11b2d",
+            reason="65-byte key",
+        )
 
     it("a split message gives the one-shot MAC, and finish leaves the hasher usable"):
         key := "Jefe".bytes().collect()
@@ -73,12 +124,27 @@ tests:
 
     it("a keyed hasher differs from the plain one and from another key"):
         message := "abc".bytes().collect()
-        assert(Sha256::hmac("a".bytes().collect()).update(message).finish() != Sha256::new().update(message).finish(), reason="keyed vs plain")
-        assert(Sha256::hmac("a".bytes().collect()).update(message).finish() != Sha256::hmac("b".bytes().collect()).update(message).finish(), reason="two keys")
+        assert(
+            (
+                Sha256::hmac("a".bytes().collect()).update(message).finish()
+                != Sha256::new().update(message).finish()
+            ),
+            reason="keyed vs plain",
+        )
+        assert(
+            (
+                Sha256::hmac("a".bytes().collect()).update(message).finish()
+                != Sha256::hmac("b".bytes().collect()).update(message).finish()
+            ),
+            reason="two keys",
+        )
 
     it("a webhook signature checks with =="):
         body := "{\"orderId\":\"o-7\"}"
-        header := "sha256=" + Sha256::hmac("k".bytes().collect()).update(body.bytes().collect()).finish().to_hex()
+        header := (
+            "sha256="
+            + Sha256::hmac("k".bytes().collect()).update(body.bytes().collect()).finish().to_hex()
+        )
         assert(verify("k", body, header), reason="accepted")
         assert(!verify("k", "{\"orderId\":\"o-8\"}", header), reason="changed body")
         assert(!verify("other", body, header), reason="wrong secret")

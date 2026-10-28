@@ -1,2 +1,2 @@
 # test: the context wrapper cannot be imported by callers
-use std.error.ContextError  # diagnostic: private-import
+use std.error.ContextError # diagnostic: private-import

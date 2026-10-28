@@ -70,6 +70,7 @@ export function recorded(bytes: Uint8Array): {
   execution: Uint8Array;
   inputs: RecordedInput[];
 };
+export function joinJournals(chunks: Iterable<Uint8Array>): Uint8Array;
 export function ran(input: RecordedInput, source: string): boolean;
 export function importTypes(
   bytes: Uint8Array | ArrayBuffer,

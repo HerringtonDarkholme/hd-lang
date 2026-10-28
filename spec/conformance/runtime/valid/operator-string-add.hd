@@ -19,4 +19,8 @@ tests:
     it("concatenates through the std implementation"):
         assert_equal(join(["a", "b", "c"], ""), "abc", reason="string implements Add[string]")
     it("rebinds a string place"):
-        assert_equal(shout("hi"), "hi/hi!", reason="a string has no identity, so the copy keeps its value")
+        assert_equal(
+            shout("hi"),
+            "hi/hi!",
+            reason="a string has no identity, so the copy keeps its value",
+        )

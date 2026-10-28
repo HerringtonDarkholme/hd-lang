@@ -41,7 +41,11 @@ tests:
         assert_equal(2.6.round(), 3.0, reason="above the tie")
         assert_equal((-0.5).round(), -1.0, reason="the tie at one half")
         assert_equal(0.49999999999999994.round(), 0.0, reason="the largest f64 below one half")
-        assert_equal(4503599627370495.5.round(), 4503599627370496.0, reason="the last representable half")
+        assert_equal(
+            4503599627370495.5.round(),
+            4503599627370496.0,
+            reason="the last representable half",
+        )
         assert_equal(sale_price(19.99), 20.0, reason="a price")
         assert(negative_zero((-0.4).round()), "a small negative rounds to -0.0")
         assert(positive_zero(0.4.round()), "a small positive rounds to 0.0")
@@ -64,7 +68,11 @@ tests:
         assert_equal((big + 1.0).round(), big + 1.0, reason="2^52 + 1")
         assert_equal(1e300.floor(), 1e300, reason="a huge value")
         assert_equal((-1e300).ceil(), -1e300, reason="a huge negative")
-        assert_equal(1.7976931348623157e308.round(), 1.7976931348623157e308, reason="the largest f64")
+        assert_equal(
+            1.7976931348623157e308.round(),
+            1.7976931348623157e308,
+            reason="the largest f64",
+        )
         assert_equal(1e300.trunc(), 1e300, reason="trunc of a huge value")
 
     it("abs"):
@@ -74,7 +82,11 @@ tests:
         assert(positive_zero(0.0.abs()), "0.0 gives 0.0")
         let infinity = 1.0 / 0.0
         assert_equal((-infinity).abs(), infinity, reason="-inf")
-        assert_equal((-1.7976931348623157e308).abs(), 1.7976931348623157e308, reason="the most negative f64")
+        assert_equal(
+            (-1.7976931348623157e308).abs(),
+            1.7976931348623157e308,
+            reason="the most negative f64",
+        )
 
     it("f32"):
         assert_equal(f32(2.5).round(), f32(3.0), reason="f32 tie")
@@ -85,6 +97,10 @@ tests:
         assert_equal(f32(-2.5).abs(), f32(2.5), reason="f32 abs")
         assert(negative_zero(f64(f32(-0.4).round())), "f32 round keeps the sign of zero")
         assert(positive_zero(f64(f32(-0.0).abs())), "f32 abs of -0.0")
-        assert_equal(f32(8388608.5).round(), f32(8388608.0), reason="f32 value from 2^23 is already an integer")
+        assert_equal(
+            f32(8388608.5).round(),
+            f32(8388608.0),
+            reason="f32 value from 2^23 is already an integer",
+        )
         let nan: f32 = f32(0.0 / 0.0)
         assert(nan.floor() != nan.floor(), "f32 NaN stays NaN")

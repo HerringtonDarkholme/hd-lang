@@ -1,19 +1,22 @@
 #![deny(unsafe_code)]
 //! `hd_base`: the ID newtype macro, `Hash128` and `StableHasher`, `Span`,
 //! `Fuel`, `AppendVec`, the little-endian entry codec and the structured
-//! "not implemented" error that every skeleton stage returns
+//! "not implemented" error that every skeleton stage returns, and
+//! `SliceSort`, the workspace's compact slice sort
 //! (`docs/compiler/design-overview.md` §2.1, `docs/compiler/data-structures.md` §3.1, §3.2, §3.9.4).
 //! `append` is the workspace's one audited `unsafe` module.
 
 pub mod append;
 pub mod hash;
 pub mod path;
+pub mod sort;
 pub mod stable;
 pub mod unsupported;
 pub mod wire;
 
 pub use append::{AppendVec, Col, Range32};
 pub use hash::{FixedState, HashMap, HashSet, set_hash_seed};
+pub use sort::{SliceSort, btree_map, btree_set};
 pub use stable::{StableHash, StableHasher};
 pub use unsupported::{NotImplemented, Stage, StageResult};
 

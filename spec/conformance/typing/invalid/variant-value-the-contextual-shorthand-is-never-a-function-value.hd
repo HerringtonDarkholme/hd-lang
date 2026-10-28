@@ -6,4 +6,4 @@ fn apply(make: fn(i32) -> Shape) -> Shape:
     make(1)
 
 fn run() -> Shape:
-    apply(.Circle)  # diagnostic: missing-contextual-enum-type
+    apply(.Circle) # diagnostic: missing-contextual-enum-type

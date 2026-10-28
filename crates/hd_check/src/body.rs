@@ -8,6 +8,7 @@
 //! Expressions are in `expr`, calls and member lookup in `call`, patterns
 //! and `match` in `pat`, annotations in `ty`.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::fmt::Write as _;
 
@@ -49,6 +50,8 @@ pub struct BodyCx<'a> {
     /// Every reference to `dbg` the module's bodies make, which a release
     /// build rejects in the user's own code (`module.dbg.release`).
     pub dbg_refs: std::cell::RefCell<Vec<crate::dbg::DbgRef>>,
+    /// Optional source facts requested by tooling; absent on ordinary builds.
+    pub source_facts: Option<std::cell::RefCell<crate::comparison::SourceFacts>>,
     /// The module's block-local declarations, lifted to hidden items
     /// (`crates/hd_tir/DESIGN.md` "Local items lift to hidden module items").
     pub locals: &'a [hd_resolve::LocalItem],
@@ -185,8 +188,7 @@ pub(crate) enum RowFrame {
     Profile { row: RowId, used: hd_types::RowData },
 }
 
-/// A local `let mut` whose `mut` matters only if `&mut` of the local is
-/// taken (`refs.rs`, `redundant-let-mut`).
+/// The checked primitive or writable-annotation category of a binding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum LetMutKind {
     /// Its type is primitive (types.bind.let-mut-primitive-local).
@@ -213,6 +215,10 @@ pub(crate) enum ExpectPosition {
 
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
+    /// Body-local append-only facts: failed trials truncate these before publication.
+    pub comparisons: Vec<crate::comparison::Comparison>,
+    pub statements: Vec<crate::comparison::Statement>,
+    pub discarded: Vec<crate::comparison::DiscardedExpression>,
     /// The body's local pool: its types that hold inference variables.
     pub local: &'c hd_types::LocalPool,
     pub b: TirBuilder,
@@ -248,11 +254,14 @@ pub(crate) struct Ck<'a, 'c> {
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
     /// copy.
     pub mut_params: Vec<LocalId>,
-    /// The locals some `&mut` refers to, and the `let mut` locals of a
-    /// primitive type with their patterns, for `redundant-let-mut`
-    /// (`types.bind.let-mut-primitive-unused`).
+    /// Checked mutations of those copies, before direct-statement grouping.
+    pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
+    /// Neutral facts published to optional post-check analysis.
+    pub parameter_writes: Vec<crate::comparison::ParameterWrite>,
+    /// Source-only mutable-address and written binding facts requested by tooling.
     pub ref_taken: Vec<LocalId>,
-    pub prim_let_mut: Vec<(LocalId, hd_base::NodeIdx, LetMutKind)>,
+    pub mut_bindings: Vec<(LocalId, hd_base::NodeIdx, Option<LetMutKind>)>,
+    pub variant_patterns: Vec<crate::comparison::VariantPattern>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -386,6 +395,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub bare_step: bool,
     /// The next `for` loop's `else` suite and the loop's result type.
     pub loop_else: Option<(NodeRefIdx, Ty)>,
+    /// The next `for` loop's comprehension result, a local and its type,
+    /// which reserves room once before the loop when the source's length
+    /// is known then.
+    pub reserve_into: Option<(hd_base::LocalId, Ty)>,
     /// The function body block, for `missing-return-value`.
     pub fn_body: Option<NodeRefIdx>,
     /// Whether the function omits its result type: its result is
@@ -405,7 +418,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// Set when `declare_pattern` rejected a pattern; its arm then takes
     /// no part in the reachability and exhaustiveness checks.
     pub pattern_rejected: bool,
-    /// The locals the source binds by name, for `unused-local-binding`.
+    /// Source bindings for unread-suspension checks and optional tooling facts.
     pub user_locals: Vec<LocalId>,
     /// Whether the body read a name that a failed `use` poisoned, or a
     /// local whose declared type is poison (a header parameter's type in
@@ -533,6 +546,9 @@ pub(crate) fn new_ck<'a, 'c>(
     let mut ck = Ck {
         cx,
         local,
+        comparisons: Vec::new(),
+        statements: Vec::new(),
+        discarded: Vec::new(),
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
         scopes: vec![HashMap::default()],
@@ -552,8 +568,11 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_locals: Vec::new(),
         changed_locals: Vec::new(),
         mut_params: Vec::new(),
+        param_writes: Vec::new(),
+        parameter_writes: Vec::new(),
         ref_taken: Vec::new(),
-        prim_let_mut: Vec::new(),
+        mut_bindings: Vec::new(),
+        variant_patterns: Vec::new(),
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -610,6 +629,7 @@ pub(crate) fn new_ck<'a, 'c>(
         pipe_arg: None,
         bare_step: false,
         loop_else: None,
+        reserve_into: None,
         fn_body: None,
         result_omitted: false,
         fn_body_tail: None,
@@ -1068,6 +1088,7 @@ fn fn_body_steps(
         })?
     };
     let root = ck.b.close_block(blk, tail, ret, body.index());
+    ck.finish_parameter_writes(body);
     ck.finish_with(root, ret, Some(node))
 }
 
@@ -1226,26 +1247,25 @@ impl Ck<'_, '_> {
         (w, g)
     }
 
-    /// `unused-local-binding` (flow.unused.warning): a local the source
-    /// binds and never reads; a name beginning with `_` is exempt.
-    fn unused_locals(&mut self) {
-        // One warning per line: a `let` pattern's unread names share it.
-        let mut lines = hd_base::HashSet::default();
+    /// Unread suspensions are errors even for underscore-prefixed names.
+    /// Tooling may request neutral binding/read facts; advice lives outside checking.
+    fn finish_bindings(&mut self) -> Vec<crate::comparison::Binding> {
+        let mut bindings = Vec::new();
+        let mut mutability = std::mem::take(&mut self.mut_bindings);
+        mutability.sort_stable_by(|a, b| a.0.raw().cmp(&b.0.raw()));
         for l in std::mem::take(&mut self.user_locals) {
             let body = self.b.body_mut();
-            let (flags, name, at) = (
+            let (item, flags, name, at) = (
+                body.item,
                 body.local_flags[l.idx()],
                 body.local_name[l.idx()],
                 body.local_syn[l.idx()],
             );
-            let text = self.cx.names.text(name);
-            if flags & local_flags::READ != 0 {
-                continue;
-            }
-            // flow.unused.must-use: an unread suspension binding is an
-            // error, whatever its name; `Result` and `T?` stay warnings.
+            let read = flags & local_flags::READ != 0;
             let lt = self.b.local_ty(l);
-            if self.must_use_in(lt, true) == Some(true) {
+            // flow.unused.must-use: a readonly binding does not lift the obligation.
+            if !read && self.must_use_in(lt, true) == Some(true) {
+                let text = self.cx.names.text(name);
                 let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
                 let msg = format!(
                     "`{text}` binds a {} value that is never read; handle it or write `_ := ...`",
@@ -1258,26 +1278,25 @@ impl Ck<'_, '_> {
                     &msg,
                     None,
                 );
-                continue;
             }
-            if text.starts_with('_') {
-                continue;
+            if self.cx.source_facts.is_some() {
+                bindings.push(crate::comparison::Binding {
+                    body: item,
+                    local: l,
+                    name: self.cx.names.text(name).to_owned(),
+                    span: self.cx.src.span(self.cx.src.parse.tree.node(at)),
+                    read,
+                    mutability: mutability
+                        .binary_search_by_key(&l.raw(), |(local, ..)| local.raw())
+                        .ok()
+                        .map(|i| {
+                            let (_, pattern, kind) = mutability[i];
+                            self.binding_mutability(l, pattern, kind)
+                        }),
+                });
             }
-            let msg = format!("`{text}` is never read; name it `_{text}` to keep it");
-            let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
-            let source = self.cx.src.text;
-            let lo = usize::try_from(span.lo).unwrap_or(0).min(source.len());
-            if !lines.insert(source[..lo].rfind('\n')) {
-                continue;
-            }
-            self.diags.push(
-                Code::UnusedLocalBinding,
-                hd_diag::Severity::Warning,
-                span,
-                &msg,
-                None,
-            );
         }
+        bindings
     }
 
     /// `expr.arith.unary-minus`: `-` on an operand whose type turned out
@@ -1546,6 +1565,13 @@ impl Ck<'_, '_> {
             self.add_flags(l, local_flags::MUTATED);
         }
         self.add_flags(l, local_flags::ASSIGNED);
+    }
+
+    /// Records a checked mutation of a function's own mutable parameter copy.
+    pub(crate) fn note_param_write(&mut self, l: LocalId, at: hd_base::NodeIdx) {
+        if self.cx.source_facts.is_some() && self.mut_params.contains(&l) {
+            self.param_writes.push((l, at));
+        }
     }
 
     pub(crate) fn sym_of(&self, n: NodeRef<'_>) -> Symbol {
@@ -2829,20 +2855,18 @@ impl Ck<'_, '_> {
         // Whether a listed diverging statement already ran in this suite:
         // every later statement is unreachable
         // (`flow.unreachable.def`, `flow.unreachable.infinite-loop`). It
-        // is still checked (`flow.unreachable.checked`); only the warning
-        // (`flow.unreachable.warning`) is new.
+        // is still checked (`flow.unreachable.checked`). Tools may request
+        // these source reachability facts for `flow.unreachable.lint`.
         let mut dead = false;
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
-            if dead {
-                self.diags.push(
-                    Code::UnreachableCode,
-                    hd_diag::Severity::Warning,
-                    self.cx.src.span(s),
-                    "this statement is unreachable",
-                    None,
-                );
+            if self.cx.source_facts.is_some() {
+                self.statements.push(crate::comparison::Statement {
+                    body: self.b.body().item,
+                    span: self.cx.src.span(s),
+                    reachable: !dead,
+                });
             }
             if last && value && s.kind() == SyntaxKind::ExprStmt {
                 let Some(e) = s.children().next() else {
@@ -3102,7 +3126,7 @@ impl Ck<'_, '_> {
                 choices.push(format!("`{qualifier}::{member}({args})`"));
             }
         }
-        choices.sort();
+        choices.sort_stable();
         choices.dedup();
         if choices.is_empty() {
             format!(
@@ -3390,103 +3414,107 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `module.dbg.debug-hint`: whether `e` is a call of the prelude
-    /// function `debug`, by declaration identity and not by spelling.
-    fn is_prelude_debug_call(&self, e: NodeRef<'_>) -> bool {
+    /// Declaration identity for the core void-tail exception to debug calls.
+    /// Read the selected callee recorded in TIR, never reconstruct it from the
+    /// source spelling: a temporary receiver's `.debug` is a method call even
+    /// though its last path segment has the prelude function's name.
+    fn selected_item_callee(&self, e: NodeRef<'_>, result: Ref) -> Option<DefId> {
         let call = match e.kind() {
             SyntaxKind::CallExpr => e,
             SyntaxKind::TrailingCallExpr => {
-                match e.children().find(|c| c.kind() == SyntaxKind::CallExpr) {
-                    Some(c) => c,
-                    None => return false,
-                }
+                e.children().find(|c| c.kind() == SyntaxKind::CallExpr)?
             }
-            _ => return false,
+            _ => return None,
         };
-        let Some(mut callee) = call.children().next() else {
-            return false;
-        };
-        if callee.kind() == SyntaxKind::TypeArgsExpr {
-            let Some(inner) = callee.children().next() else {
-                return false;
-            };
-            callee = inner;
+        let inst = result.as_inst()?;
+        let i = inst.0 as usize;
+        let body = self.b.body();
+        if body.syn.get(i) != Some(&call.index())
+            || !matches!(body.tags.get(i), Some(Tag::Call | Tag::Await))
+        {
+            return None;
         }
-        if callee.kind() == SyntaxKind::SuspendExpr {
-            let Some(inner) = callee.children().next() else {
-                return false;
-            };
-            callee = inner;
-        }
-        let debug_def = self.cx.names.item("std.format", "debug");
-        let at = self.cx.src.span(callee).lo;
-        match callee.kind() {
-            SyntaxKind::NameExpr => {
-                let sym = self.sym_of(callee);
-                if self.find_local(sym).is_some() {
-                    return false;
-                }
-                if hd_resolve::local_at(self.cx.locals, sym, at).is_some() {
-                    return false;
-                }
-                let scope = self.cx.scope_at(at);
-                match scope.lookup(sym) {
-                    Some(b) if b.kind == hd_resolve::BindingKind::Item => {
-                        DefId::from_raw(b.value) == debug_def
-                    }
-                    _ => false,
-                }
-            }
-            SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
-                let segs = self.segments_expr(callee);
-                match self.resolve_path(&segs) {
-                    Some(def) => def == debug_def,
-                    None => false,
-                }
-            }
-            _ => false,
+        let data = body.data.get(i)?;
+        let callee = Callee::from_words(body.record(data[0]))?;
+        match callee {
+            Callee::Item { def, .. } => Some(def),
+            Callee::TraitMethod { .. } => None,
         }
     }
 
-    /// Rename only a plain call whose replacement still resolves to prelude `dbg`.
-    fn discarded_debug_fix(&mut self, call: NodeRef<'_>) -> Option<Span> {
-        if call.kind() != SyntaxKind::CallExpr {
-            return None;
-        }
-        let callee = call.children().next()?;
-        let span = self.cx.src.span(callee);
-        if callee.kind() != SyntaxKind::NameExpr
-            || self.cx.src.text.get(span.lo as usize..span.hi as usize) != Some("debug")
-        {
-            return None;
-        }
-        let args = self.args_of(Src::child(call, SyntaxKind::ArgumentList));
-        if args.positional.len() != 1
-            || args.spread.is_some()
-            || !args.named.is_empty()
-            || !args.after_spread.is_empty()
-        {
-            return None;
-        }
-        let at = span.lo;
-        for name in ["debug", "dbg"] {
-            let sym = self.cx.names.syms.intern(name);
-            let init = self.cx.init.borrow();
-            if self.find_local(sym).is_some()
-                || hd_resolve::local_at(self.cx.locals, sym, at).is_some()
-                || init.globals.contains_key(&sym)
-                || init.earlier.contains_key(&sym)
+    /// The source form and lexical name lookup of a discarded expression.
+    /// The consumer decides whether this is advice and whether an edit is safe.
+    fn discarded_expression(
+        &self,
+        expression: NodeRef<'_>,
+        selected: Option<DefId>,
+    ) -> crate::comparison::DiscardedExpression {
+        use crate::comparison::{DiscardedCall, DiscardedExpression};
+        let call = (expression.kind() == SyntaxKind::CallExpr).then(|| {
+            let name = expression
+                .children()
+                .next()
+                .filter(|callee| callee.kind() == SyntaxKind::NameExpr)
+                .map(|callee| self.cx.src.span(callee));
+            let mut positional = 0;
+            let mut named = 0;
+            let mut spread = false;
+            let mut after_spread = 0;
+            for argument in Src::child(expression, SyntaxKind::ArgumentList)
+                .iter()
+                .flat_map(|list| list.children())
             {
-                return None;
+                match argument.kind() {
+                    SyntaxKind::NamedArgument => named += 1,
+                    SyntaxKind::Argument => {
+                        if spread {
+                            after_spread += 1;
+                        } else if argument
+                            .children()
+                            .next()
+                            .is_some_and(|e| e.kind() == SyntaxKind::SpreadExpr)
+                        {
+                            spread = true;
+                        } else {
+                            positional += 1;
+                        }
+                    }
+                    _ => {}
+                }
             }
-            let binding = self.cx.scope_at(at).lookup(sym)?;
-            if binding.kind != hd_resolve::BindingKind::Item
-                || DefId::from_raw(binding.value) != self.cx.names.item("std.format", name)
-            {
-                return None;
+            let at = self.cx.src.span(expression).lo;
+            DiscardedCall {
+                name,
+                positional,
+                named,
+                spread,
+                after_spread,
+                standard_debug: self.standard_format_name("debug", at),
+                standard_dbg: self.standard_format_name("dbg", at),
             }
+        });
+        DiscardedExpression {
+            span: self.cx.src.span(expression),
+            selected,
+            prelude_debug: selected == Some(self.cx.names.item("std.format", "debug")),
+            call,
         }
-        Some(span)
+    }
+
+    fn standard_format_name(&self, name: &str, at: u32) -> bool {
+        let sym = self.cx.names.syms.intern(name);
+        let init = self.cx.init.borrow();
+        if self.find_local(sym).is_some()
+            || hd_resolve::local_at(self.cx.locals, sym, at).is_some()
+            || init.globals.contains_key(&sym)
+            || init.earlier.contains_key(&sym)
+        {
+            return false;
+        }
+        self.cx.scope_at(at).lookup(sym).is_some_and(|binding| {
+            binding.kind == hd_resolve::BindingKind::Item
+                && DefId::from_raw(binding.value) == self.cx.names.item("std.format", name)
+        })
     }
 
     fn stmt_node(&mut self, s: NodeRef<'_>, void_tail: bool) -> StageResult<Ty> {
@@ -3504,22 +3532,26 @@ impl Ck<'_, '_> {
                     self.shown = Some((s.index(), Some((r, t))));
                     return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
                 }
-                let before_expr = self.diags.mark();
-                let (_, t) = self.expr(*e, Some(Ty::VOID))?;
+                let (result, t) = self.expr(*e, Some(Ty::VOID))?;
                 let t = self.infer.shallow(self.pool(), t);
                 // `fn.body.void-final`: a `void` function rejects a
                 // non-`void` final expression. An omitted result is
                 // inferred, never `void` by declaration, and poison
                 // already reported. A must-use value and a `debug` call
-                // have their own discard diagnostics below.
-                if void_tail
+                // have their own discard rules.
+                let void_value = void_tail
                     && !self.result_omitted
                     && t != Ty::VOID
                     && t != Ty::NEVER
                     && !self.pool().has_poison(t)
-                    && !self.must_use(t)
-                    && !self.is_prelude_debug_call(*e)
-                {
+                    && !self.must_use(t);
+                // Ordinary checking needs declaration identity only for this
+                // core exception; other discarded expressions need it in lint.
+                let selected = (void_value || self.cx.source_facts.is_some())
+                    .then(|| self.selected_item_callee(*e, result))
+                    .flatten();
+                let prelude_debug = selected == Some(self.cx.names.item("std.format", "debug"));
+                if void_value && !prelude_debug {
                     let open = matches!(self.pool().get(t), TyData::Infer(_))
                         && !matches!(
                             self.infer.kind_of(self.pool(), t),
@@ -3537,26 +3569,9 @@ impl Ck<'_, '_> {
                     );
                     self.err(Code::DiscardedMustUseValue, *e, &msg);
                 }
-                // `module.dbg.debug-hint`: an expression statement that
-                // calls the prelude function `debug` discards its text.
-                if self.is_prelude_debug_call(*e) {
-                    let span = self.cx.src.span(*e);
-                    self.diags.push(
-                        Code::UnusedDebugText,
-                        hd_diag::Severity::Warning,
-                        span,
-                        "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
-                        None,
-                    );
-                    if self.diags.errors_since(before_expr) == 0
-                        && let Some(callee) = self.discarded_debug_fix(*e)
-                    {
-                        self.diags.add_fix(
-                            "replace discarded `debug` with `dbg`",
-                            hd_diag::FixSafety::Exact,
-                            &[(callee, "dbg")],
-                        );
-                    }
+                if self.cx.source_facts.is_some() {
+                    let fact = self.discarded_expression(*e, selected);
+                    self.discarded.push(fact);
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }
@@ -3833,6 +3848,7 @@ impl Ck<'_, '_> {
                     }
                 };
                 self.note_write(l, depth);
+                self.note_param_write(l, s.index());
                 self.set_local(l, v, s.index());
             }
             SyntaxKind::FieldExpr => {
@@ -4507,8 +4523,7 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-        self.unused_locals();
-        self.redundant_primitive_let_mut();
+        let bindings = self.finish_bindings();
         self.report_conflicts();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
@@ -4761,6 +4776,17 @@ impl Ck<'_, '_> {
             .b
             .finish_in(root, &modes, tolerated, &known)
             .map_err(|e| VerifyError::bug(Stage::Body, "TIR verifier", &e))?;
+        if !self.diags.has_errors()
+            && let Some(sink) = &self.cx.source_facts
+        {
+            let mut sink = sink.borrow_mut();
+            sink.comparisons.extend(self.comparisons);
+            sink.bindings.extend(bindings);
+            sink.patterns.extend(self.variant_patterns);
+            sink.statements.extend(self.statements);
+            sink.parameter_writes.extend(self.parameter_writes);
+            sink.discarded.extend(self.discarded);
+        }
         Ok((body, ret, facts))
     }
 }

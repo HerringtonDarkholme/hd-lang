@@ -29,6 +29,6 @@ impl[T < Tuple] Encode for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-impl Encode for (i64, i64):  # diagnostic: overlapping-impl
+impl Encode for (i64, i64): # diagnostic: overlapping-impl
     fn encode(self) -> string:
         "pair"

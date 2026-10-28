@@ -13,5 +13,5 @@ fn fact[T](value: T) -> Fact[T]:
 struct Account:
     @fact(5)
     a: i32
-    @fact("x")  # diagnostic: type-mismatch
+    @fact("x") # diagnostic: type-mismatch
     b: i32

@@ -6,5 +6,5 @@ trait Session < Disposable:
     fn name(&self) -> string
 
 fn peek_session!(session: &dyn Session) -> void:
-    using held = session  # diagnostic: not-writable
+    using held = session # diagnostic: not-writable
     pass

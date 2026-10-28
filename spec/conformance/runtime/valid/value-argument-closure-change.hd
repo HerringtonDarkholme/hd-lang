@@ -42,16 +42,24 @@ tests:
 
     it("a push by the callee's callback leaves the parameter as passed"):
         let mut items = [+1]
-        assert_equal(len_after(items, fn(): items.push(2)), 1, reason="the parameter is the list as passed")
+        assert_equal(
+            len_after(items, fn(): items.push(2)),
+            1,
+            reason="the parameter is the list as passed",
+        )
         assert_equal(items.len(), 2, reason="the caller's list grew")
 
     it("an element store by the callback leaves the parameter as passed"):
         let mut items = [+1]
-        assert_equal(first_after(items, fn(): items[0] = 5), 1, reason="the parameter keeps its element")
+        assert_equal(
+            first_after(items, fn(): items[0] = 5),
+            1,
+            reason="the parameter keeps its element",
+        )
         assert_equal(items[0], 5, reason="the caller's element changed")
 
     it("a map parameter is unaffected by the callback's insert"):
-        let mut stock: Map[string, i32] = {"apple": 3}
+        let mut stock: Map[string, i32] = { "apple": 3 }
         assert_equal(size_after(stock, fn(): stock["pear"] = 1), 1, reason="the map as passed")
         assert_equal(stock.len(), 2, reason="the caller's map grew")
 
@@ -79,5 +87,9 @@ tests:
 
     it("a mutable global passed by value is unaffected by the callback's push"):
         LOG = [+1]
-        assert_equal(log_len_after(fn(): LOG.push(2)), 1, reason="the parameter is the global as read")
+        assert_equal(
+            log_len_after(fn(): LOG.push(2)),
+            1,
+            reason="the parameter is the global as read",
+        )
         assert_equal(LOG.len(), 2, reason="the global grew")

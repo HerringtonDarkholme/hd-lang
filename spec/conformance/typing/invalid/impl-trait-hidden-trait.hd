@@ -5,4 +5,4 @@ fn need_eq[T < Eq](value: T) -> bool:
     value == value
 
 fn bad() -> bool:
-    need_eq(value())  # diagnostic: unsatisfied-trait-bound
+    need_eq(value()) # diagnostic: unsatisfied-trait-bound

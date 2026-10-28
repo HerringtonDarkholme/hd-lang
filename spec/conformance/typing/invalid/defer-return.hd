@@ -2,5 +2,5 @@
 
 fn run() -> i32:
     defer:
-        return 1  # diagnostic: defer-control-flow
+        return 1 # diagnostic: defer-control-flow
     0

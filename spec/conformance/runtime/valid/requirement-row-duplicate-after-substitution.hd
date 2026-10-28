@@ -7,7 +7,8 @@ struct User: pass
 struct UserRepo: pass
 
 impl Repo[User] for UserRepo:
-    fn count(self) -> i32: 20
+    fn count(self) -> i32:
+        20
 
 struct Job[A, B]:
     callback: fn() -> i32 $ Repo[A] + Repo[B]

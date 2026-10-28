@@ -4,14 +4,25 @@ tests:
     use std.testing.assert_equal
 
     it("flattens in order"):
-        assert_equal([1, 2].iter().flat_map(fn(n: i32) -> List[i32]: [n, n * 10]).collect(), [1, 10, 2, 20], reason="in order")
-        assert_equal([1, 2].iter().flat_map(fn(n: i32) -> List[i32]: []).collect(), [], reason="empty parts")
+        assert_equal(
+            [1, 2].iter().flat_map(fn(n: i32) -> List[i32]: [n, n * 10]).collect(),
+            [1, 10, 2, 20],
+            reason="in order",
+        )
+        assert_equal(
+            [1, 2].iter().flat_map(fn(n: i32) -> List[i32]: []).collect(),
+            [],
+            reason="empty parts",
+        )
     it("pulls only when asked"):
         let calls = 0
-        let mut flat = [1, 2, 3].iter().flat_map(fn(n: i32) -> List[i32]:
-            calls = calls + 1
-            [n]
-        )
+        let mut flat = [1, 2, 3].iter()
+            .flat_map(
+                fn(n: i32) -> List[i32]:
+                    calls = calls + 1
+                    [n]
+                ,
+            )
         assert_equal(calls, 0, reason="nothing yet")
         assert_equal(flat.next(), .Some(1), reason="the first item")
         assert_equal(calls, 1, reason="one call")

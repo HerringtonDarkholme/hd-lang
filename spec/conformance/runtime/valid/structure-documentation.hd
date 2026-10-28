@@ -58,7 +58,7 @@ enum Choice:
     ## Payload variant.
     Second(
         ## Payload field.
-        text: string
+        text: string,
     )
     Bare
 
@@ -67,14 +67,34 @@ tests:
 
     it("record docs join across decorators and preserve normalized lines"):
         docs := Record::docs()
-        assert_equal(docs.types, [.Some("Record first line.\nRecord second line.")], reason="record type doc")
+        assert_equal(
+            docs.types,
+            [.Some("Record first line.\nRecord second line.")],
+            reason="record type doc",
+        )
         assert_equal(docs.variants, docs.types, reason="record variant has its type doc")
-        assert_equal(docs.members, [.Some("Field first line.\nField second line."), .None, .Some("Embedded declaration.")], reason="field docs and absence")
+        assert_equal(
+            docs.members,
+            [.Some("Field first line.\nField second line."), .None, .Some("Embedded declaration.")],
+            reason="field docs and absence",
+        )
 
     it("all enum variants carry the same type doc and their own variant docs"):
         docs := Choice::docs()
-        assert_equal(docs.types, [.Some("Enumeration documentation."), .Some("Enumeration documentation."), .Some("Enumeration documentation.")], reason="same type doc on all variants")
-        assert_equal(docs.variants, [.Some("First variant."), .Some("Payload variant."), .None], reason="own variant docs")
+        assert_equal(
+            docs.types,
+            [
+                .Some("Enumeration documentation."),
+                .Some("Enumeration documentation."),
+                .Some("Enumeration documentation."),
+            ],
+            reason="same type doc on all variants",
+        )
+        assert_equal(
+            docs.variants,
+            [.Some("First variant."), .Some("Payload variant."), .None],
+            reason="own variant docs",
+        )
         assert_equal(docs.members, [.Some("Payload field.")], reason="payload field doc")
 
     it("tuple metadata has neither type nor member documentation"):

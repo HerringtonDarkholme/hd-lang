@@ -3,4 +3,4 @@ tests:
     use std.testing.assert_equal
 
     it("unequal bool values fail assert_equal"):
-        assert_equal(1 == 2, true, reason="deliberately unequal booleans")  # panic: assertion-failed
+        assert_equal(1 == 2, true, reason="deliberately unequal booleans") # panic: assertion-failed

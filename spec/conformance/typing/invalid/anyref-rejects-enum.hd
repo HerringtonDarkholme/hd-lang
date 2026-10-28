@@ -8,4 +8,4 @@ fn by_ref[T < AnyRef](value: T) -> T:
     value
 
 fn check() -> Status:
-    by_ref(Status.Queued)  # diagnostic: unsatisfied-trait-bound
+    by_ref(Status.Queued) # diagnostic: unsatisfied-trait-bound

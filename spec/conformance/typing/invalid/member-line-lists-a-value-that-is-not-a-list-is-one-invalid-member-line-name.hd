@@ -59,4 +59,4 @@ struct Point:
     a: i64
 
 impl Point by Structure:
-    a = count  # diagnostic: invalid-member-line
+    a = count # diagnostic: invalid-member-line

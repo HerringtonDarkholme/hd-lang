@@ -3,7 +3,8 @@
 use std.ops.{Template, str_prefix}
 
 @str_prefix
-fn keep(t: Template[string]) -> Template[string]: t
+fn keep(t: Template[string]) -> Template[string]:
+    t
 
 tests:
     use std.testing.assert_equal

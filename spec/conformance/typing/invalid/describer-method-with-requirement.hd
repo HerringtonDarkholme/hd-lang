@@ -14,6 +14,6 @@ impl[S] Describer[S] for Count:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never] $ Log:  # diagnostic: trait-method-signature
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never] $ Log: # diagnostic: trait-method-signature
         self.n = self.n + 1
         .Ok(())

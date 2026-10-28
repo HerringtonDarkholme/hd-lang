@@ -1,0 +1,5 @@
+# test: the old Client base_url builder is removed
+use std.http.Client
+
+pub fn main() -> void:
+    _ := Client::new().base_url("https://example.test/") # diagnostic: unknown-method

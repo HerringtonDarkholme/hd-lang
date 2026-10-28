@@ -3,4 +3,4 @@ enum Choice:
 
 fn swapped(choice: Choice) -> i32:
     match choice:
-        Choice.Pair(else_value, then_value) => then_value - else_value  # warning: variant-binding-name-mismatch
+        Choice.Pair(else_value, then_value) => then_value - else_value

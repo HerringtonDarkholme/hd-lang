@@ -1,8 +1,8 @@
 # Replacing TIR: Five Directions
 
-Status: design exploration, 2026-10-21, for issue #667. Nothing here is
-decided, in the specification or in the compiler. It compares directions;
-the full design and a prototype follow once the owner picks one.
+Status: design exploration, 2026-10-21, for issue #667 (closed). The owner
+picked Direction 3, designed and built in [tir-v2.md](tir-v2.md); this
+document stays as the record of the alternatives.
 
 Under review: TIR ([crates/hd_tir/src/ir.rs](../../crates/hd_tir/src/ir.rs),
 [crates/hd_tir/DESIGN.md](../../crates/hd_tir/DESIGN.md) §4.13.11), the
@@ -363,12 +363,10 @@ defects with harder alias reasoning.
    form saves a load for the length but triples the size of every list
    field. Recommended: the buffer address, with length, capacity and pin
    count in the buffer.
-5. **When to decide #704's tag for interior references?** With places,
-   a function knows statically whether an address is a whole object or
-   interior; only `&T` parameters and fields are unknown. The tag would
-   give those the fast count path at one mask per interior dereference.
-   Recommended: decide after the per-body borrow pass lands and the
-   binary_trees counts are measured again.
+5. **#704's tag for interior references: not adopted** (2026-10-26). An
+   experiment measured the masks at 6-8% on dyn_iter. #704 shipped instead
+   as a release-only whole-program fact per reference target
+   (`crates/hd_opt/src/whole.rs`), with no tag and no masks.
 
 ## Sources
 

@@ -3,4 +3,4 @@
 fn find(id: i32) -> i32?:
     if id == 0: .Some(7) else: .None
 
-let .Some(value) = find(0)  # diagnostic: refutable-let-pattern
+let .Some(value) = find(0) # diagnostic: refutable-let-pattern

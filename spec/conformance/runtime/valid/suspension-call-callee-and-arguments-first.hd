@@ -7,7 +7,8 @@ fn note(log: &mut Log, tag: string, value: i32) -> i32:
     log.text = log.text + tag
     value
 
-fn fetch!(key: string) -> string: "value of $key"
+fn fetch!(key: string) -> string:
+    "value of $key"
 
 fn work!(log: &mut Log, first: i32, second: i32) -> i32:
     log.text = log.text + "body"
@@ -21,7 +22,11 @@ tests:
     use std.testing.assert_equal
 
     it("the bang call yields the child's value"):
-        assert_equal(fetch!("a") + fetch!("b"), "value of avalue of b", reason="each child runs to completion, left to right")
+        assert_equal(
+            fetch!("a") + fetch!("b"),
+            "value of avalue of b",
+            reason="each child runs to completion, left to right",
+        )
 
     it("callee and arguments evaluate before the child body"):
         let mut log = &mut Log { text: "" }

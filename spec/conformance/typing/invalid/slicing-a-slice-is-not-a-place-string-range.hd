@@ -2,5 +2,5 @@
 use std.ops.Range
 
 fn invalid(items: &mut List[i32], text: string) -> void:
-    text[0..1] = "a"  # diagnostic: invalid-assignment-target
+    text[0..1] = "a" # diagnostic: invalid-assignment-target
     let r: Range[usize] = Range { start: 0, end: 1, inclusive: false }

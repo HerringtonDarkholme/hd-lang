@@ -63,6 +63,7 @@ use super::flow::{BitArena, Flow, Forward, Suites, forward};
 use super::parts::{Slots, takes};
 use super::splice;
 use super::{Loc, Operand, OwnCx, Role, Tri, consumes, fill, operands, suite_touches, tracked};
+use hd_base::SliceSort as _;
 
 use crate::ir::{
     Body, CaptureMode, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags,
@@ -211,7 +212,7 @@ pub(crate) fn run(
         keep[k - 1]
     });
     // Rule 5: the reads that found the local full on every visit.
-    t.cells.sort_unstable();
+    t.cells.sort_stable();
     let mut x = 0;
     while x < t.cells.len() {
         let (at, l, _) = t.cells[x];
@@ -226,7 +227,7 @@ pub(crate) fn run(
     }
     // The unwind set: each suspension point's values that may hold a
     // count.
-    t.points.sort_unstable();
+    t.points.sort_stable();
     for &x in &t.points {
         let at = t.susp_at[x as usize] as usize;
         for bit in t.nl as usize..(t.nl + t.nv) as usize {

@@ -3,25 +3,26 @@
 # `Console`, `ConsoleError`, and `println`
 # are prelude names (spec/lang/10-modules.md#console), all declared here.
 # The checker still also knows `ConsoleError` by name. The default profile
-# binds a host `ConsoleInput` to standard input. `println` drives the covering
-# provider's `write!` with `block_on` (MHP-1), so a `MemoryConsole`
-# records `println` lines too.
-use std.task.block_on
+# binds a host `ConsoleInput` to standard input. `println` calls the
+# covering provider's `write_sync` directly, so a `MemoryConsole` records
+# `println` lines too.
 use std.text.StringBuilder
 
-# The host console capability; `write!` takes `&mut self`, so it is a
+# The host console capability; `write_sync` takes `&mut self`, so it is a
 # mutable requirement trait and `$.use(Console)` is a `&mut dyn Console`,
-# which every `println` reaches.
+# which every `println` reaches. Output never suspends: a host provider may
+# block until the text is written
+# (spec/lang/10-modules.md#r-module.console.write-sync.never-suspends).
 ## The host capability to write unchanged output text and error text.
 ## See [module.console.host-trait](../../spec/lang/10-modules.md#r-module.console.host-trait).
 pub trait Console:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]
 
     # Error text. A provider that does not override it
-    # forwards it unchanged to `write!`
-    # (spec/lang/10-modules.md#r-module.console.write-error.forwarding).
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write!(text)
+    # forwards it unchanged to `write_sync`
+    # (spec/lang/10-modules.md#r-module.console.write-error-sync.forwarding).
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_sync(text)
 
 # `read_line!` takes `&mut self`, so a scripted provider can advance
 # through its lines (spec/std/console.md#r-std-console.input.mut-ref.reference-values).
@@ -80,72 +81,57 @@ impl MemoryConsole:
     pub fn new() -> *mut MemoryConsole:
         &mut MemoryConsole { lines: [], error_lines: [] }
 
-    # The lines `write!` received, in order (r-std-console.buffer.output-text).
-    ## The exact text chunks written through `write!`, in order.
-    ## See [std-console.buffer.output-text](../../spec/std/console.md#r-std-console.buffer.output-text).
+    # The lines `write_sync` received, in order (r-std-console.buffer.output-text-sync).
+    ## The exact text chunks written through `write_sync`, in order.
+    ## See [std-console.buffer.output-text-sync](../../spec/std/console.md#r-std-console.buffer.output-text-sync).
     pub fn output(&self) -> List[string]:
         self.lines
 
-    # The lines `write_error!` received, in order
-    # (r-std-console.buffer.error-text).
-    ## The exact text chunks written through `write_error!`, in order.
-    ## See [std-console.buffer.error-text](../../spec/std/console.md#r-std-console.buffer.error-text).
+    # The lines `write_error_sync` received, in order
+    # (r-std-console.buffer.error-text-sync).
+    ## The exact text chunks written through `write_error_sync`, in order.
+    ## See [std-console.buffer.error-text-sync](../../spec/std/console.md#r-std-console.buffer.error-text-sync).
     pub fn error_output(&self) -> List[string]:
         self.error_lines
 
 # The `&mut MemoryConsole` that `new` returns, installed as the provider,
 # records into this object (r-req.ref.share.reference-values).
 impl Console for MemoryConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.error_lines.push(text)
         .Ok(())
 
-# `println` (spec/lang/10-modules.md#console) is ordinary std code: it drives the
-# covering provider's `write!` with `block_on`, so it inherits all of
-# `block_on`'s rules. Under an active driver, such as `main!` or a test
-# body, it drives only its own write, and it is rejected in a `defer` suite
-# or a default expression. An `.Err` is an ordinary panic. It holds the only
-# reference to its write, so only a provider that cancels its own work can
-# end the drive `.Cancelled` or `.Abandoned`; that line is lost
-# (r-module.console.println-write-cancelled).
+# `println` (spec/lang/10-modules.md#console) is ordinary std code: it calls
+# the covering provider's `write_sync` for the text, then for the newline
+# once the text is written. An `.Err` is an ordinary panic.
 ## Writes `value`'s `Display` text and a line ending to the `Console` provider that covers the call; it panics when the write fails.
-## See [module.console.println-one-write](../../spec/lang/10-modules.md#r-module.console.println-one-write).
+## See [module.console.println-two-writes-sync](../../spec/lang/10-modules.md#r-module.console.println-two-writes-sync).
 pub fn println[T < Display](value: T) -> void $ Console:
-    let mut console = $.use(Console)
-    let call: mut Suspend[Result[void, ConsoleError]] = console.write("$value\n")
-    match block_on(call):
-        .Completed(.Ok(())) => pass
-        .Completed(.Err(_)) => panic("println: write! returned .Err(ConsoleError)")
-        .Cancelled => pass
-        .Abandoned => pass
+    let console: &mut dyn Console = $.use(Console)
+    if console.write_sync(value.to_string()).is_err():
+        panic("println: write_sync returned .Err(ConsoleError)")
+    if console.write_sync("\n").is_err():
+        panic("println: write_sync returned .Err(ConsoleError)")
 
-## Writes Display text without a newline and drives the covering Console write to completion.
+## Writes Display text without a newline to the covering Console provider; it panics when the write fails.
 ## See [std-console.print.decl](../../spec/std/console.md#r-std-console.print.decl).
 pub fn print[T < Display](value: T) -> void $ Console:
-    let mut console = $.use(Console)
-    let call: mut Suspend[Result[void, ConsoleError]] = console.write("$value")
-    match block_on(call):
-        .Completed(.Ok(())) => pass
-        .Completed(.Err(_)) => panic("print: write! returned .Err(ConsoleError)")
-        .Cancelled => pass
-        .Abandoned => pass
+    let console: &mut dyn Console = $.use(Console)
+    if console.write_sync("$value").is_err():
+        panic("print: write_sync returned .Err(ConsoleError)")
 
-# `eprintln` (spec/std/console.md#standard-error) drives the covering
-# provider's `write_error!` as `println` drives `write!`.
+# `eprintln` (spec/std/console.md#standard-error) calls the covering
+# provider's `write_error_sync` as `println` calls `write_sync`.
 ## Like `println`, but it writes the line as error output.
 ## See [std-console.eprintln.decl](../../spec/std/console.md#r-std-console.eprintln.decl).
 pub fn eprintln[T < Display](value: T) -> void $ Console:
-    let mut console = $.use(Console)
-    let call: mut Suspend[Result[void, ConsoleError]] = console.write_error("$value\n")
-    match block_on(call):
-        .Completed(.Ok(())) => pass
-        .Completed(.Err(_)) => panic("eprintln: write_error! returned .Err(ConsoleError)")
-        .Cancelled => pass
-        .Abandoned => pass
+    let console: &mut dyn Console = $.use(Console)
+    if console.write_error_sync("$value\n").is_err():
+        panic("eprintln: write_error_sync returned .Err(ConsoleError)")
 
 # The scripted `ConsoleInput` provider (spec/std/console.md#scripted-input):
 # it returns its lines in order, then `.None`.

@@ -56,5 +56,9 @@ tests:
     use std.testing.assert_equal
 
     it("uses the written kind and the template's probe"):
-        assert_equal(Point { x: 1 }.kind(), "written", reason="the written method replaces the template's")
+        assert_equal(
+            Point { x: 1 }.kind(),
+            "written",
+            reason="the written method replaces the template's",
+        )
         assert_equal(Point { x: 1 }.probe(), "x=-/-;", reason="probe still comes from the template")

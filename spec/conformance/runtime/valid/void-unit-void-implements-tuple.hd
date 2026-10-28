@@ -3,7 +3,8 @@
 
 use std.function.Tuple
 
-fn keep[T < Tuple](value: T) -> T: value
+fn keep[T < Tuple](value: T) -> T:
+    value
 
 fn log_start() -> void:
     pass

@@ -98,7 +98,7 @@ test("Fetch mapping preserves absolute URL, raw bytes, combined headers and meth
   );
   const value = app.calls[0].request;
   assert.equal(value.url, "https://in.test/p?q=a%2Cb&q=two");
-  assert.deepEqual(value.query, []);
+  assert.equal(Object.hasOwn(value, "query"), false);
   assert.deepEqual(value.method, { tag: "Other", fields: { name: "CUSTOM" } });
   assert.deepEqual([...value.body], [0, 255, 128]);
   assert.deepEqual(value.headers, [["x-repeat", "one, two"]]);

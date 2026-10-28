@@ -4,5 +4,5 @@ fn make[T]() -> T:
 
 fn main() -> void $ Console:
     match make():
-        .Some(x) => println(x)  # diagnostic: cannot-infer-type
+        .Some(x) => println(x) # diagnostic: cannot-infer-type
         .None => println(0)

@@ -2,4 +2,5 @@
 struct Box[T]:
     value: T
 
-fn invalid(value: Box[$()]) -> void: pass  # diagnostic: generic-kind-mismatch
+fn invalid(value: Box[$ ()]) -> void: # diagnostic: generic-kind-mismatch
+    pass

@@ -6,4 +6,4 @@ fn identity[T](value: T) -> T:
 fn use_twice() -> void:
     same := identity::[i32]
     _ := same(+1)
-    _ := same("text")  # diagnostic: type-mismatch
+    _ := same("text") # diagnostic: type-mismatch

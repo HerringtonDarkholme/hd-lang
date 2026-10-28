@@ -23,13 +23,16 @@ struct User:
     name: string
 
 impl Describe for User:
-    fn describe(self) -> string: self.name
+    fn describe(self) -> string:
+        self.name
 
 impl Named for User:
-    fn name(self) -> string: self.name
+    fn name(self) -> string:
+        self.name
 
 impl Formattable for User:
-    fn format(self) -> string: self.describe()
+    fn format(self) -> string:
+        self.describe()
 
 impl Serializable for User
 
@@ -61,7 +64,8 @@ impl Supplier for NameSupplier:
 struct UserFactory: pass
 
 impl Factory for UserFactory:
-    fn create() -> string: "guest"
+    fn create() -> string:
+        "guest"
 
 trait Source:
     type Item
@@ -73,7 +77,8 @@ struct Box[T]:
 impl[T < Any] Source for Box[T]:
     type Item = T
 
-    fn get(self) -> T: self.value
+    fn get(self) -> T:
+        self.value
 
 fn guest_name() -> string:
     UserFactory::create()

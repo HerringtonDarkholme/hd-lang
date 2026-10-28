@@ -13,14 +13,16 @@ struct Conn:
 
 impl Disposable for Conn:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("conn defer")
+        defer:
+            self.log.push("conn defer")
         self.log.push("closing")
         let mut wait = self.closing
         wait!()
         self.log.push("closed")
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    defer: log.push("session defer")
+    defer:
+        log.push("session defer")
     using conn = &mut Conn { log: log, closing: sleep(s(60)) }
     sleep!(s(60))
     "late"
@@ -46,7 +48,11 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
     let job: mut Suspend[string] = session(&mut log)
-    let (winner, waited, stopped) = all!(race(job, ready()), waiter(job, &mut log), stop(job, &mut log))
+    let (winner, waited, stopped) = all!(
+        race(job, ready()),
+        waiter(job, &mut log),
+        stop(job, &mut log),
+    )
     println("${winner} ${waited} ${stopped}")
     println(log.join(", "))
     println("later ${ended!(job)}")

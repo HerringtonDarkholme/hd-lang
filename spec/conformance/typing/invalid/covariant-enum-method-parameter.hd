@@ -6,5 +6,5 @@ enum Reply[+T]:
     Waiting
 
 impl[T] Reply[T]:
-    pub fn fill(self, value: T) -> void:  # diagnostic: invalid-variance
+    pub fn fill(self, value: T) -> void: # diagnostic: invalid-variance
         pass

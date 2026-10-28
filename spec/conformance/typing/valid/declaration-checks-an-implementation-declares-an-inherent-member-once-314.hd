@@ -2,5 +2,7 @@
 struct User: pass
 
 impl User:
-    fn name(self) -> string: "first"
-    fn title(self) -> string: "second"
+    fn name(self) -> string:
+        "first"
+    fn title(self) -> string:
+        "second"

@@ -7,11 +7,20 @@ pub fn main!() -> Result[void, FsError] $ Console + FsRead + FsWrite + Clock:
     path := Path("stamp.txt")
     before := now().unix_milliseconds()
     write_text!(path, "first")?
-    first := stat!(path)?.expect("the written file exists").modified.expect("the host reports a modification time")
+    first := stat!(path)?
+        .expect("the written file exists")
+        .modified
+        .expect("the host reports a modification time")
     after := now().unix_milliseconds()
-    assert(first.unix_milliseconds() >= before - 2000 && first.unix_milliseconds() <= after + 2000, reason="the OS timestamp is near the write")
+    assert(
+        first.unix_milliseconds() >= before - 2000 && first.unix_milliseconds() <= after + 2000,
+        reason="the OS timestamp is near the write",
+    )
     write_text!(path, "second")?
-    second := stat!(path)?.expect("the written file exists").modified.expect("the host reports a modification time")
+    second := stat!(path)?
+        .expect("the written file exists")
+        .modified
+        .expect("the host reports a modification time")
     assert(second >= first, reason="a later write is not older")
     for entry in list_dir!(Path("."))?:
         if entry.path.file_name() == .Some("stamp.txt"):

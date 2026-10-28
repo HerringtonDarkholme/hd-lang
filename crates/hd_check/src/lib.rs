@@ -6,11 +6,14 @@
 //! interfaces and writes TIR; nothing downstream reads syntax.
 
 mod access;
+#[cfg(feature = "analysis")]
+pub mod analysis;
 pub mod body;
 mod call;
 mod callable;
 mod coll;
 mod collide;
+pub mod comparison;
 pub mod conflicts;
 mod conform;
 mod dbg;

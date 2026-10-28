@@ -19,7 +19,8 @@ struct Constant:
 impl Supplier for Constant:
     type Item = string
 
-    fn get(self) -> string: self.value
+    fn get(self) -> string:
+        self.value
 
 fn feed_text() -> string:
     Feed::[Constant] { source: Constant { value: "Ada" } }.to_string()

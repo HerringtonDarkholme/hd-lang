@@ -9,4 +9,4 @@ struct Socket:
     port: i32
 
 fn same(left: Labeled[Socket], right: Labeled[Socket]) -> bool:
-    left == right  # diagnostic: missing-derived-bound
+    left == right # diagnostic: missing-derived-bound

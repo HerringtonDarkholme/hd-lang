@@ -11,4 +11,8 @@ tests:
     use std.testing.assert_equal
 
     it("reaches the directory module and its child"):
-        assert_equal(welcome(types.User { name: "Ada" }), "hello, Ada", reason="user and user.types are two modules")
+        assert_equal(
+            welcome(types.User { name: "Ada" }),
+            "hello, Ada",
+            reason="user and user.types are two modules",
+        )

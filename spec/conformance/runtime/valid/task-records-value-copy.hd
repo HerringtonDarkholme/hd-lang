@@ -12,7 +12,9 @@ pub fn main() -> void $ Console:
     policy := Backoff { attempts: 3, initial: ms(10), factor: 2, max: s(1) }
     let mut longer = policy
     longer.attempts = 5
-    println("${policy.attempts} ${longer.attempts} ${policy == Backoff { attempts: 3, initial: ms(10), factor: 2, max: s(1) }} ${policy == longer}")
+    println(
+        "${policy.attempts} ${longer.attempts} ${policy == Backoff { attempts: 3, initial: ms(10), factor: 2, max: s(1) }} ${policy == longer}",
+    )
     error := TimedOut { limit: s(2), cleanup: CleanupEnd.Finished }
     let same: TimedOut = TimedOut::from(error)
     assert_equal(same, error, reason="the timeout identity conversion preserves both fields")

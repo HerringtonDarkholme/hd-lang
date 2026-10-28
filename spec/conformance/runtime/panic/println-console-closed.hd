@@ -1,23 +1,23 @@
-# test: println panics with explicit-panic when the covering provider's write! returns .Err(ConsoleError.Closed)
+# test: println panics with explicit-panic when the covering provider's write_sync returns .Err(ConsoleError.Closed)
 # Spec 10 Console: module.console.println-error.category, module.console.error.variants, module.console.println-std, module.console.println-panics.
-# Spec 10 Console: module.console.println-write-error, .println-error.category, and .error.closed.
+# Spec 10 Console: module.console.println-write-error.either, .println-error.category, and .error.closed.
 
 struct ClosedConsole:
     attempts: List[string]
 
 impl Console for ClosedConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.attempts.push(text)
         .Err(ConsoleError.Closed)
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write!(text)
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_sync(text)
 
 fn greet(name: string) -> void $ Console:
-    println("hello, ${name}")  # panic: explicit-panic
+    println("hello, ${name}") # panic: explicit-panic
 
 tests:
-    it("println panics on a closed console"):
+    it("println panics when its first text write fails"):
         let mut console = ClosedConsole { attempts: [] }
         $.with(Console=&mut console):
             greet("Ada")

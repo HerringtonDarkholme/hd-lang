@@ -5,7 +5,7 @@ fn run(f: fn() -> i32) -> i32:
     f()
 fn run_with(f: fn(Meter) -> i32, m: Meter) -> i32:
     f(m)
-got := run(helper)  # diagnostic: top-level-read-before-initialization
+got := run(helper) # diagnostic: top-level-read-before-initialization
 offset := +1
 fn helper() -> i32:
     offset

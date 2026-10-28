@@ -4,4 +4,4 @@ trait Counter:
 
 fn poke(counter: &dyn Counter) -> void:
     let shared: &dyn Counter = counter
-    shared.bump()  # diagnostic: not-writable
+    shared.bump() # diagnostic: not-writable

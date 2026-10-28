@@ -7,7 +7,9 @@
 // compiler and its in-memory store live as long as the worker.
 //
 // The WAT view's module is the program the compiler built for Run, printed
-// by the compiler wasm (the wat goal, output kind 2).
+// by the separately loaded hd_wat module.
+
+import { instantiateCompiler } from "./compiler-host.ts";
 
 import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.mjs";
 import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mjs";
@@ -22,6 +24,7 @@ import {
   type WireDiagnostic,
   type WireTest,
 } from "./compiler-wire.ts";
+import { createWatPrinter } from "./wat-printer.ts";
 import type { Project } from "./project.ts";
 import type { RunDiagnostic, RunResult, WatResult } from "./runner.ts";
 
@@ -60,7 +63,7 @@ export interface RustRunner {
    */
   compileProject(project: Project, mode: RustMode): Promise<RunResult | CompiledRun>;
   /** The WebAssembly text of the module Run would build for `project`. */
-  watProject(project: Project): Promise<WatResult>;
+  watProject(project: Project, onLoading?: () => void): Promise<WatResult>;
 }
 
 /** The program's `Args.program`, as `hd run` gives a package's executable name. */
@@ -278,10 +281,18 @@ async function runTests(
  * A runner over the compiler wasm `bytes` (the file
  * `pnpm run build:web-compiler` writes); it instantiates them once.
  */
-export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): RustRunner {
+export function createRustRunner(
+  bytes: Promise<BufferSource> | BufferSource,
+  loadWat: () => Promise<BufferSource> = async () => {
+    const response = await fetch(new URL("./hd_wat.wasm", import.meta.url));
+    if (!response.ok) throw new Error(`hd_wat.wasm: HTTP ${response.status}`);
+    return response.arrayBuffer();
+  },
+): RustRunner {
+  const printer = createWatPrinter(loadWat);
   const compiler = Promise.resolve(bytes).then(
     async (source) =>
-      (await WebAssembly.instantiate(source, {})).instance.exports as unknown as CompilerExports,
+      (await instantiateCompiler(source)).instance.exports as unknown as CompilerExports,
   );
   const ready = compiler.then(
     () => undefined,
@@ -337,7 +348,7 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     return "mode" in built ? runCompiled(built, onStdout) : built;
   }
 
-  async function watProject(project: Project): Promise<WatResult> {
+  async function watProject(project: Project, onLoading?: () => void): Promise<WatResult> {
     let exports: CompilerExports;
     try {
       exports = await compiler;
@@ -349,7 +360,7 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
         summary: `the compiler did not load: ${message}`,
       };
     }
-    const compiled = compileRequest(exports, encodeRequest(project.files, project.main, GOAL.wat));
+    const compiled = compileRequest(exports, encodeRequest(project.files, project.main, GOAL.run));
     if (compiled.status === STATUS.malformed)
       return {
         status: "failure",
@@ -361,14 +372,22 @@ export function createRustRunner(bytes: Promise<BufferSource> | BufferSource): R
     );
     if (compiled.status === STATUS.errors)
       return { status: "compile-error", diagnostics, summary: "compilation failed" };
-    if (compiled.wat === "")
+    if (compiled.wasm.length === 0)
       return { status: "failure", diagnostics, summary: "no module to show" };
-    return {
-      status: "ok",
-      module: { wat: compiled.wat },
-      diagnostics,
-      summary: "",
-    };
+    try {
+      return {
+        status: "ok",
+        module: { wat: await printer(compiled.wasm, onLoading) },
+        diagnostics,
+        summary: "",
+      };
+    } catch (error) {
+      return {
+        status: "failure",
+        diagnostics,
+        summary: `the WAT printer failed: ${String(error)}`,
+      };
+    }
   }
 
   return { ready, compiler, runProject, compileProject, watProject };

@@ -1,7 +1,8 @@
 # mistake: a private `main` as the entry point
 # log: 2026-10-02 M6 scratch test; 2026-10-05 GADT variant results
+# tool: lint
 # expect: private-main
 # fixed: pub fn main() -> void $ Console:
 
-fn main() -> void $ Console:  # warning: private-main
+fn main() -> void $ Console: # warning: private-main
     println("hello")

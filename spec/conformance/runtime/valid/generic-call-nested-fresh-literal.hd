@@ -10,4 +10,8 @@ tests:
     use std.testing.assert_equal
 
     it("passes a nested literal straight to the call"):
-        assert_equal(nested(Box { item: Box { item: 2.25 } }), 2.25, reason="T is f64 and the inner literal weakened")
+        assert_equal(
+            nested(Box { item: Box { item: 2.25 } }),
+            2.25,
+            reason="T is f64 and the inner literal weakened",
+        )

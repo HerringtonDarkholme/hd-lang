@@ -4,8 +4,10 @@ struct Counter:
     value: i32
 
 impl Counter:
-    fn add(self, amount: i32) -> Counter: Counter { value: self.value + amount }
-    fn double(self) -> Counter: Counter { value: self.value * 2 }
+    fn add(self, amount: i32) -> Counter:
+        Counter { value: self.value + amount }
+    fn double(self) -> Counter:
+        Counter { value: self.value * 2 }
 
 enum Step:
     Grow
@@ -13,14 +15,11 @@ enum Step:
 
 fn apply(counter: Counter, step: Step) -> Counter:
     match step:
-        .Grow => counter
-            .add(1)
-            .double()
+        .Grow => counter.add(1).double()
         .Keep => counter
 
 fn main() -> i32:
-    start := Counter { value: 10 }
-        .add(10)
+    start := Counter { value: 10 }.add(10)
         # comment and blank lines do not end the chain
 
         .double()

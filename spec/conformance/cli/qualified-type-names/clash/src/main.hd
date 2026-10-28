@@ -3,7 +3,8 @@ use pkg.other
 struct Shape:
     a: i32
 
-fn take(shape: Shape) -> i32: shape.a
+fn take(shape: Shape) -> i32:
+    shape.a
 
 pub fn main() -> void $ Console:
     println(take(other.Shape { a: +1 }))

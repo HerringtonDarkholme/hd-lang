@@ -4,7 +4,7 @@ struct CreatedBySystem:
 
 struct AuditDraft:
     CreatedBySystem
-    id: string  # diagnostic: ambiguous-promoted-member
+    id: string # diagnostic: ambiguous-promoted-member
 
 struct ReviewDraft:
     CreatedBySystem

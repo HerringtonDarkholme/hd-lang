@@ -3,6 +3,8 @@
 struct User:
     name: string
 
-fn keep[T < AnyVal](value: T) -> T: value
+fn keep[T < AnyVal](value: T) -> T:
+    value
 
-fn check() -> *User: keep(&User { name: "Ada" })  # diagnostic: unsatisfied-trait-bound
+fn check() -> *User:
+    keep(&User { name: "Ada" }) # diagnostic: unsatisfied-trait-bound

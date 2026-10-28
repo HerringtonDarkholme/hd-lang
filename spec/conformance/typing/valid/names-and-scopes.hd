@@ -4,7 +4,8 @@
 # names.local.same-scope, names.cond.child,
 # names.cond.condition, names.loop.for-local, names.fn.value-params.visible,
 # names.fn.params.scope.
-fn normalize(value: string) -> string: "[$value]"
+fn normalize(value: string) -> string:
+    "[$value]"
 
 name := " outer "
 

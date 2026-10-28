@@ -16,6 +16,10 @@ pub fn main!() -> void $ Console:
             connect!("ready.local", 25)
         assert_equal(result.is_ok(), true, reason="ready work wins the zero-limit tie")
         _ := result.expect("connected stream").close()
-    assert_equal(clock.now().unix_milliseconds(), 0i64, reason="the losing deadline never advances time")
+    assert_equal(
+        clock.now().unix_milliseconds(),
+        0i64,
+        reason="the losing deadline never advances time",
+    )
     assert_equal(net.received(), ["ready.local:25"], reason="the connection starts once")
     println("ready connect")

@@ -655,3 +655,15 @@ test("the spec tools import only Node built-ins and spec/", async () => {
     }
   }
 });
+
+test("the registry preserves lint code identities beside loading errors", () => {
+  const codes = knownCodes(
+    "| Error | `unknown-manifest-key` |\n| Lint finding (default warning) | `unsigned-comparison-always`, `private-main` |\n",
+    "",
+  );
+  assert.deepEqual([...codes].sort(), [
+    "private-main",
+    "unknown-manifest-key",
+    "unsigned-comparison-always",
+  ]);
+});

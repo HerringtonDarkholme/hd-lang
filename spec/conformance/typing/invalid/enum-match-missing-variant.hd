@@ -5,5 +5,5 @@ enum Flag:
     Off
 
 fn main(flag: Flag) -> i32:
-    match flag:  # diagnostic: nonexhaustive-match
+    match flag: # diagnostic: nonexhaustive-match
         Flag.On(value) => value

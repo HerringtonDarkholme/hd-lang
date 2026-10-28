@@ -18,4 +18,4 @@ fn keep(handler: fn(string) -> User $ Store[Item = Post]) -> void:
     pass
 
 fn run() -> void:
-    keep(find)  # diagnostic: type-mismatch
+    keep(find) # diagnostic: type-mismatch

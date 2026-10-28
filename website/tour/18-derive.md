@@ -13,6 +13,11 @@ reproduces it, and `hd test` also shrinks the failing input to a small one,
 such as `Price { cents: -1000 }`. The derivations are written once, at the
 type, not per test.
 
+Derivation itself is library code over `std.structure`. A generated traversal
+passes small read-only `Field`, `Variant`, `Members`, and `Key` handles to that
+library code. Each handle names static metadata kept for the whole program, so
+passing it does not copy the member or variant description.
+
 ```hd
 @derive(Arbitrary, Debug, Eq)  # ← random Prices, printed and compared for free
 struct Price:

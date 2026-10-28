@@ -1,5 +1,7 @@
 # test: the unit value is no other type
 
-fn take(value: i32) -> i32: value
+fn take(value: i32) -> i32:
+    value
 
-fn wrong() -> i32: take(())  # diagnostic: type-mismatch
+fn wrong() -> i32:
+    take(()) # diagnostic: type-mismatch

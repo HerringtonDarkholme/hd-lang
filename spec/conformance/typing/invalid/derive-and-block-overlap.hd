@@ -31,5 +31,5 @@ impl[T] Show for T by Structure:
 struct Point:
     x: i64
 
-impl Show for Point by Structure:  # diagnostic: overlapping-impl
+impl Show for Point by Structure: # diagnostic: overlapping-impl
     x = []

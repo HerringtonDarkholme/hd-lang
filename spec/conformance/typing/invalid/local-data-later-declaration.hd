@@ -2,7 +2,7 @@
 # Spec 08 Recursive Data Types: data.recursive.local.
 fn route_length() -> i32:
     struct Leg:
-        from: Stop  # diagnostic: unknown-type
+        from: Stop # diagnostic: unknown-type
         next: *Leg?
 
     struct Stop:

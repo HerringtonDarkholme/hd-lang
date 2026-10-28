@@ -3,4 +3,4 @@
 
 trait Parent
 
-trait Twice < Parent & Parent  # diagnostic: duplicate-supertrait
+trait Twice < Parent & Parent # diagnostic: duplicate-supertrait

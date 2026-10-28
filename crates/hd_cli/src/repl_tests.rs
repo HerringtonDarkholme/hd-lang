@@ -200,7 +200,14 @@ fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     program
         .sources
         .add_synthetic(&hd_project::repl_file(1), "x := +1\n");
-    let (wasm, diags) = super::build_session(&program, &store, &[], 1, super::PIPELINE.target);
+    let (wasm, _, diags) = super::build_session(
+        &program,
+        &store,
+        &[],
+        1,
+        super::PIPELINE.target,
+        &hd_driver::Session::linked(),
+    );
     assert!(wasm.is_some(), "{diags:?}");
     assert_eq!(crate::take_built(), [pipeline]);
 }
@@ -282,11 +289,10 @@ fn a_type_is_not_declared_again() {
     );
 }
 
-/// `cli.repl.redefine.impl`: an implementation that overlaps one of an
-/// earlier input or of `src/lib.hd` is `overlapping-impl`, as in one
-/// module, and the first one stays.
+/// `cli.lint.ordinary-errors`: unused-binding advice never appears in a
+/// REPL input or when a later input rebuilds it.
 #[test]
-fn an_earlier_input_s_warning_is_shown_once() {
+fn unused_binding_advice_is_absent_across_rebuilds() {
     let t = session(&[
         "fn f() -> i32:",
         "    let unused = 1",
@@ -297,7 +303,7 @@ fn an_earlier_input_s_warning_is_shown_once() {
     ]);
     assert_eq!(
         t.out.matches("unused-local-binding").count(),
-        1,
+        0,
         "{}",
         t.out
     );
@@ -461,29 +467,37 @@ impl[T] Columns2 for T by Structure:
         w.out
 "#
     );
-    let dir = package("repl-late-member-facts", &[("src/lib.hd", &lib)]);
-    let script = Script::of(&[
-        "use std.structure.Structure",
-        "struct Row:",
-        "    id: i32",
-        "    total: i32",
-        "",
-        "impl Columns for Row by Structure",
-        "Row { id: +1, total: +2 }.columns()",
-        "impl Row by Structure:",
-        "    total += [column(\"sum_total\")]",
-        "",
-        "impl Columns2 for Row by Structure",
-        "Row { id: +1, total: +2 }.columns2()",
-        "Row { id: +1, total: +2 }.columns()",
-    ]);
-    let t = session_in(&dir, script, |_| {});
-    assert_eq!(
-        t.out,
-        "\"id/0;total/0;\" : string\n\
+    for kind in [
+        crate::engine::EngineKind::Node,
+        crate::engine::EngineKind::Wasmtime,
+    ] {
+        let dir = package(
+            &format!("repl-late-member-facts-{}", unique()),
+            &[("src/lib.hd", &lib)],
+        );
+        let script = Script::of(&[
+            "use std.structure.Structure",
+            "struct Row:",
+            "    id: i32",
+            "    total: i32",
+            "",
+            "impl Columns for Row by Structure",
+            "Row { id: +1, total: +2 }.columns()",
+            "impl Row by Structure:",
+            "    total += [column(\"sum_total\")]",
+            "",
+            "impl Columns2 for Row by Structure",
+            "Row { id: +1, total: +2 }.columns2()",
+            "Row { id: +1, total: +2 }.columns()",
+        ]);
+        let t = session_on(kind, &dir, script, |_| {}, None, Bounds::default(), None);
+        assert_eq!(
+            t.out,
+            "\"id/0;total/0;\" : string\n\
          \"id/0;sum_total/1;\" : string\n\
          \"id/0;total/0;\" : string\n"
-    );
+        );
+    }
 }
 
 /// `cli.repl.rebuild`: after `:reload` builds every input again from its
@@ -592,7 +606,14 @@ fn a_stopped_input_ends_and_the_session_goes_on() {
     use std::time::Duration;
     // 1 once the loop input is sent, 2 once the next input is read.
     let phase = Arc::new(AtomicU8::new(0));
-    let mut script = Script::of(&["let kept = 7", "while true:", "    pass", "", "kept + 1"]);
+    let mut script = Script::of(&[
+        "let kept = 7",
+        "while true:",
+        "    let mut values: List[usize] = []",
+        "    values.push(1)",
+        "",
+        "kept + 1",
+    ]);
     let seen = Arc::clone(&phase);
     script.on_line = Some(Box::new(move |line: &str| match line {
         "" => seen.store(1, Ordering::SeqCst),
@@ -608,13 +629,14 @@ fn a_stopped_input_ends_and_the_session_goes_on() {
     let mut stopping = None;
     let t = session_in(&dir, script, |stopper| {
         // Ctrl-C while the loop runs, as the handler calls it: a stop
-        // before the input starts is dropped, so it repeats.
+        // before the input starts is dropped, so it repeats. Poll often
+        // enough to cover the input's linked-module allocation too.
         stopping = Some(std::thread::spawn(move || {
             while phase.load(Ordering::SeqCst) < 2 {
                 if phase.load(Ordering::SeqCst) == 1 {
                     stopper.stop();
                 }
-                std::thread::sleep(Duration::from_millis(50));
+                std::thread::sleep(Duration::from_millis(1));
             }
         }));
     });
@@ -919,33 +941,39 @@ fn diagnostics_name_the_input_and_line() {
     );
 }
 
-/// Past its journal's cap the REPL says once, after the input that passed
-/// it, that the session can run no further input, since every input
-/// replays the journal (`docs/future-work/live-execution.md` §4.6); each
-/// later input and `:reload` is refused. The cap here is 200 bytes.
+/// A small active journal compacts rather than refusing the next input.
+/// Reload still has the historical evidence and can accept an extension.
 #[test]
-fn a_full_journal_is_noted_once() {
-    let dir = Scratch::new(SCRATCH, &format!("repl-journal-{}", unique()));
-    let script = Script::of(&[
-        "use std.time.{now}",
-        "a := now()",
-        "b := now()",
-        "c := now()",
-        "d := now()",
-        "+7",
-        ":reload",
-    ]);
-    let bounds = Bounds { journal_cap: 200 };
-    let t = session_with(&dir, script, |_| {}, None, bounds);
-    let lines: Vec<&str> = t.out.lines().collect();
-    assert_eq!(lines.first(), Some(&super::JOURNAL_FULL), "{}", t.out);
-    let refused = &lines[1..lines.len() - 1];
-    assert!(!refused.is_empty(), "{}", t.out);
-    assert!(refused.iter().all(|l| *l == super::NO_JOURNAL), "{}", t.out);
-    assert_eq!(
-        lines.last(),
-        Some(&"error: the session's record of host calls is full, so it cannot be rebuilt")
-    );
+fn a_full_journal_checkpoints_and_keeps_accepting_inputs() {
+    for kind in [
+        crate::engine::EngineKind::Node,
+        crate::engine::EngineKind::Wasmtime,
+    ] {
+        let dir = Scratch::new(SCRATCH, &format!("repl-journal-{}", unique()));
+        let script = Script::of(&[
+            "use std.time.{now}",
+            "a := now()",
+            "b := now()",
+            "c := now()",
+            "d := now()",
+            "+7",
+            ":reload",
+            "a == a",
+        ]);
+        let t = session_on(
+            kind,
+            &dir,
+            script,
+            |_| {},
+            None,
+            Bounds { journal_cap: 200 },
+            None,
+        );
+        assert_eq!(
+            t.out, "7 : i32\nreloaded: 6 inputs replayed\ntrue : bool\n",
+            "{kind:?}"
+        );
+    }
 }
 
 /// `cli.repl.rebuild` and `cli.repl.host.once`: `:reload` runs the inputs
@@ -1240,12 +1268,13 @@ fn long_session(mix: bool) {
                 let file = hd_project::repl_file(repl.next);
                 repl.program.sources.add_synthetic(&file, &text);
                 let start = Instant::now();
-                let (wasm, diags) = super::build_session(
+                let (wasm, added, diags) = super::build_session(
                     &repl.program,
                     &repl.store,
                     &[],
                     repl.next,
                     super::PIPELINE.target,
+                    &repl.metadata,
                 );
                 let build = start.elapsed().as_secs_f64();
                 let wasm = wasm.unwrap_or_else(|| panic!("input {index} {text:?}: {diags:?}"));
@@ -1258,6 +1287,7 @@ fn long_session(mix: bool) {
                     matches!(ran, Ok(super::Ran { live: Some((Outcome::Exit(0), _)), .. })),
                     "input {index}"
                 );
+                repl.metadata.add(added.expect("completed input metadata"));
                 repl.inputs.insert(
                     repl.next,
                     super::Kept {
@@ -1354,4 +1384,26 @@ fn node_session_rebuilds_without_repeating_host_calls() {
     assert!(lines[1].ends_with(" : i64"), "{}", t.out);
     assert_eq!(lines[2], "reloaded: 4 inputs replayed");
     assert_eq!(lines[3], lines[1]);
+}
+
+/// A trait value keeps the vtable of its defining module. Later inputs may
+/// use a different suspension-driving mode without changing that interface.
+#[test]
+fn a_saved_provider_supports_later_blocking_async_and_stored_calls() {
+    for engine in [
+        crate::engine::EngineKind::Node,
+        crate::engine::EngineKind::Wasmtime,
+    ] {
+        let dir = Scratch::new(SCRATCH, &format!("repl-retained-drive-{}", unique()));
+        let script = Script::of(&[
+            "use std.task.block_on",
+            "use std.time.{Clock, ms}",
+            "let clock: *mut dyn Clock = if true:\n    let provider: *mut dyn Clock = $.use(Clock)\n    _ := block_on(provider.sleep(ms(1)))\n    println(\"first\")\n    provider\nelse:\n    $.use(Clock)",
+            "clock.sleep!(ms(1))\nprintln(\"second\")",
+            "let pending: mut Suspend[void] = clock.sleep(ms(1))",
+            "_ := block_on(pending)\nprintln(\"third\")",
+        ]);
+        let t = session_on(engine, &dir, script, |_| {}, None, Bounds::default(), None);
+        assert_eq!(t.out, "first\nsecond\nthird\n");
+    }
 }

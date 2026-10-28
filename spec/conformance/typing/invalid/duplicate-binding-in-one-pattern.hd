@@ -4,4 +4,4 @@
 # Spec 03 Matches: "Duplicate bindings within one pattern are a compile-time error."
 fn sum(pair: (i32, i32)) -> i32:
     match pair:
-        (n, n) => n  # diagnostic: duplicate-binding
+        (n, n) => n # diagnostic: duplicate-binding

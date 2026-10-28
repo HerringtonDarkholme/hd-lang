@@ -1,4 +1,4 @@
-use std.http.{Http, HttpError, Request}
+use std.http.{Http, HttpError, Request, Url}
 use std.process.{Command, Process}
 use std.task.{timeout, apply}
 use std.time.{Clock, ms}
@@ -8,9 +8,12 @@ pub fn main!() -> void $ Console + Http + Process + Clock:
         .Ok(output) => output.stdout
         .Err(_) => panic("the loopback fixture server did not start")
     result := apply!(timeout(100ms)):
-        Request::get("http://127.0.0.1:$port/").send!()
+        Request::get(Url::parse("http://127.0.0.1:$port/").expect("fixture URL")).send!()
     # Only a timeout passes; a refused or failed request must not.
-    println(match result:
-        .Err(HttpError.Timeout) => "timed out"
-        .Err(other) => "other error: $other"
-        .Ok(response) => "answered ${response.status}")
+    println(
+        match result:
+            .Err(HttpError.Timeout) => "timed out"
+            .Err(other) => "other error: $other"
+            .Ok(response) => "answered ${response.status.code()}"
+        ,
+    )

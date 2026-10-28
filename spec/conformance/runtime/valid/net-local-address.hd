@@ -3,7 +3,16 @@
 # Also covers std-net.scripted.udp, std-net.scripted.setup-ref, and
 # std-net.scripted.closed-error.
 # expect: test
-use std.net.{Datagram, Net, NetError, ScriptedListener, ScriptedNet, ScriptedUdp, TcpListener, UdpSocket}
+use std.net.{
+    Datagram,
+    Net,
+    NetError,
+    ScriptedListener,
+    ScriptedNet,
+    ScriptedUdp,
+    TcpListener,
+    UdpSocket,
+}
 
 fn start_server!() -> Result[u16, NetError] $ Net:
     net := $.use(Net)
@@ -41,7 +50,8 @@ tests:
         $.with(Net=net):
             assert_equal(start_server!(), .Err(.Other("no local address")), reason="unscripted")
         match listener.local_address():
-            .Err(.Other(message)) => assert_equal(message, "ScriptedListener has no local address", reason="the message")
+            .Err(.Other(message)) =>
+                assert_equal(message, "ScriptedListener has no local address", reason="the message")
             _ => panic("unscripted")
 
     it("tells the peer which port to answer on"):
@@ -51,12 +61,17 @@ tests:
         net.add_udp("0.0.0.0:0", socket)
         $.with(Net=net):
             assert_equal(announce!("10.0.0.7", 9000), .Ok(40001), reason="own port")
-        assert_equal(socket.sent(), [Datagram { bytes: "reply to 40001".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="announce")
+        assert_equal(
+            socket.sent(),
+            [Datagram { bytes: "reply to 40001".to_utf8(), host: "10.0.0.7", port: 9000 }],
+            reason="announce",
+        )
 
     it("an unscripted UDP address names the socket, and close disposes it"):
         socket := ScriptedUdp::new([])
         match socket.local_address():
-            .Err(.Other(message)) => assert_equal(message, "ScriptedUdp has no local address", reason="the message")
+            .Err(.Other(message)) =>
+                assert_equal(message, "ScriptedUdp has no local address", reason="the message")
             _ => panic("unscripted")
         socket.set_local_address("0.0.0.0", 40001)
         _ := socket.close()

@@ -2,7 +2,8 @@
 # Spec 11 Lowering: req.lowering.sugar, req.lowering.frame,
 # req.lowering.poll, req.lowering.representation.
 
-fn child!() -> i32: 2
+fn child!() -> i32:
+    2
 fn main!() -> i32:
     base := +40
     value := child!()

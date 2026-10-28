@@ -28,10 +28,6 @@
 //! target the engine mode builds, or compares the run with those saved
 //! files and fails on any difference. It proves a refactor leaves the
 //! emitted code byte-identical; it needs the full runtime suite.
-//! `HD_CONFORMANCE_WRITES=pending` runs every entry under the
-//! `pending-write` profile unless its fixture names one, so each Console
-//! write yields as a pending host call; the default answers a write that
-//! completes at once as ready. Both modes must pass (#652).
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without applying the rule.
 //!
@@ -42,10 +38,14 @@
 //! leak, a double free or a count change on a freed block panics
 //! `count-audit`, so the case fails.
 //! Every case builds through the ownership passes of TIR v2's stage 2,
-//! whose decisions the backend emits.
+//! whose decisions the backend emits, and their output is verified
+//! (`Packages::verify_own`) even when CI builds the suite in release, so
+//! a release-only pass that leaves a body broken, on either pipeline,
+//! fails its case as `unsupported:Collect` (#851).
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
+use hd_base::SliceSort as _;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -114,6 +114,59 @@ struct Fixture {
     package: &'static str,
 }
 
+fn formatted_sources(sources: &MemorySources) -> MemorySources {
+    let mut formatted = MemorySources::default();
+    for entry in hd_project::SourceSet::list(sources) {
+        let bytes = hd_project::SourceSet::read(sources, &entry.path).expect("fixture source");
+        let text = String::from_utf8_lossy(&bytes);
+        let output = if Path::new(&entry.path)
+            .extension()
+            .is_some_and(|extension| extension == "hd")
+        {
+            hd_fmt::format(&text).unwrap_or_else(|_| text.into_owned())
+        } else {
+            text.into_owned()
+        };
+        formatted.insert(&entry.path, &output);
+    }
+    formatted
+}
+
+fn formatted_fixture(fixture: &Fixture) -> Fixture {
+    let sources = formatted_sources(&fixture.sources);
+    let text = hd_project::SourceSet::read(&sources, &fixture.primary).map_or_else(
+        || fixture.text.clone(),
+        |bytes| String::from_utf8_lossy(&bytes).into_owned(),
+    );
+    Fixture {
+        sources,
+        primary: fixture.primary.clone(),
+        text,
+        tree: fixture.tree,
+        deps: fixture
+            .deps
+            .iter()
+            .map(|(name, sources)| (name.clone(), formatted_sources(sources)))
+            .collect(),
+        checked: fixture.checked,
+        package: fixture.package,
+    }
+}
+
+fn diagnostic_signature(output: &Output) -> Vec<(Severity, String)> {
+    output
+        .diags
+        .content_order()
+        .into_iter()
+        .map(|index| {
+            (
+                output.diags.severity[index],
+                output.diags.code[index].as_str().to_owned(),
+            )
+        })
+        .collect()
+}
+
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -155,7 +208,7 @@ fn load_tree(root: &Path, dir: &Path, sources: &mut MemorySources) {
         .flatten()
         .map(|entry| entry.path())
         .collect();
-    paths.sort();
+    paths.sort_stable();
     for path in paths {
         if path.is_dir() {
             load_tree(root, &path, sources);
@@ -182,7 +235,7 @@ fn role_packages() -> Vec<(String, MemorySources)> {
         .map(|e| e.path())
         .filter(|p| p.is_dir())
         .collect();
-    names.sort();
+    names.sort_stable();
     names
         .into_iter()
         .map(|path| {
@@ -431,6 +484,7 @@ fn build_for(
         target,
         level: level(),
         checked: fixture.checked,
+        verify_own: true,
         ..Packages::default()
     };
     build_packages(&host, fixture.package, &packages, goal)
@@ -450,7 +504,10 @@ fn profile(fixture: &Fixture) -> Option<Vec<String>> {
         "pending-gate" => own(&["Gate"]),
         "misbehaving-host" => own(&["Gauge"]),
         "special-float-host" => own(&["Sensor"]),
-        "pending-write" => Some(vec!["std.console.Console".to_owned()]),
+        "tick" | "pending-tick" => Some(vec![
+            "std.console.Console".to_owned(),
+            format!("{module}.Tick"),
+        ]),
         _ => None,
     }
 }
@@ -1658,10 +1715,10 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
     let verdict = entry_verdict(case, fixture, modules, serial, profile);
     if verdict == Verdict::Pass && pending_first_poll(&fixture.text) {
         // README "Runtime Scenarios", `pending-first-poll`: after the
-        // ordinary run, the entry again under the `console` profile with
-        // every `write!` pending on its first poll, which is the
-        // `pending-write` profile; both runs must succeed.
-        return entry_verdict(case, fixture, modules, serial, Some("pending-write"));
+        // ordinary run under `tick`, the entry again with every `tick!`
+        // pending on its first poll, which is the `pending-tick` profile;
+        // both runs must succeed.
+        return entry_verdict(case, fixture, modules, serial, Some("pending-tick"));
     }
     verdict
 }
@@ -1675,7 +1732,6 @@ fn entry_verdict(
     serial: usize,
     profile: Option<&str>,
 ) -> Verdict {
-    let profile = profile.or_else(|| pending_writes().then_some("pending-write"));
     let run = match run_program(case, wasm, serial, profile) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
@@ -1820,16 +1876,6 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
     }
 }
 
-/// Whether `HD_CONFORMANCE_WRITES=pending` runs every entry whose fixture
-/// names no runtime profile under `pending-write`, so each Console write
-/// is pending at its first poll and yields to the scheduler. By default a
-/// host answers a write that completes at once as ready, and the caller
-/// goes on without yielding (#652). Both runs must pass: no fixture may
-/// depend on whether a write yields.
-fn pending_writes() -> bool {
-    selection_env("HD_CONFORMANCE_WRITES").is_some_and(|value| value == "pending")
-}
-
 /// The backend every case builds with: the linear one, in checked mode
 /// when `HD_CONFORMANCE_CHECKED=1`.
 fn checked_runtime() -> bool {
@@ -1861,12 +1907,25 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ("rt/json_tests.hd", include_str!("std_rt/json_tests.hd")),
 ];
 
+/// The [`STD_RT_TESTS`] files that read `std.rt.checked.allocated()`, which
+/// only the checked runtime counts: they also run checked in every mode.
+const STD_RT_CHECKED_TOO: &[&str] = &["rt/ref_tests.hd"];
+
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
 /// on the engines of the mode, as a `tests` case of the suite would.
 #[test]
 fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
     let store = MemoryStore::default();
-    for (serial, (path, text)) in STD_RT_TESTS.iter().enumerate() {
+    let runs = STD_RT_TESTS
+        .iter()
+        .map(|file| (file, checked_runtime()))
+        .chain(
+            STD_RT_TESTS
+                .iter()
+                .filter(|(path, _)| !checked_runtime() && STD_RT_CHECKED_TOO.contains(path))
+                .map(|file| (file, true)),
+        );
+    for (serial, ((path, text), checked)) in runs.enumerate() {
         let mut sources = hd_driver::std_sources();
         sources.insert(path, text);
         let fixture = Fixture {
@@ -1875,7 +1934,7 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             text: (*text).to_owned(),
             tree: false,
             deps: Vec::new(),
-            checked: checked_runtime(),
+            checked,
             package: "std",
         };
         let case = Case {
@@ -1900,7 +1959,8 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             built.out.render()
         );
         println!(
-            "std runtime hd tests (linear backend) on {}: {path}, {} cases pass",
+            "std runtime hd tests (linear backend{}) on {}: {path}, {} cases pass",
+            if checked { ", checked" } else { "" },
             engine_mode().name(),
             built.out.tests.len()
         );
@@ -1940,29 +2000,33 @@ fn unit_runtime(text: &str, expectation: &str, serial: usize) -> Verdict {
     runtime_case(&case, &unit_fixture(text), &store, (1 << 40) + serial)
 }
 
-const PENDING_WRITES: &str = "\
+const PENDING_TICKS: &str = "\
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 use std.testing.assert_equal
 
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
 let calls = +0
 
-fn note!(text: string) -> void $ Console:
-    let mut console = $.use(Console)
-    _ := console.write!(\"${text} ${calls}\\n\")
+fn note!(text: string) -> void $ Console + Tick:
+    $.use(Tick).tick!(text)
+    println(\"${text} ${calls}\")
     calls = calls + 1
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     note!(\"first\")
     note!(\"second\")
-    assert_equal(calls, EXPECTED, reason=\"each call resumed after its pending write\")
+    assert_equal(calls, EXPECTED, reason=\"each call resumed after its pending tick\")
 ";
 
 #[test]
-fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
-    let passing = PENDING_WRITES.replace("EXPECTED", "2");
+fn pending_first_poll_runs_the_entry_again_with_pending_ticks() {
+    let passing = PENDING_TICKS.replace("EXPECTED", "2");
     assert_eq!(unit_runtime(&passing, "accept", 0), Verdict::Pass);
-    // The scenario run is the entry under `pending-write`: each write is
-    // pending once, then written in call order, and the run succeeds.
+    // The scenario run is the entry under `pending-tick`: each tick is
+    // pending once, then the calls resume in order, and the run succeeds.
     let fixture = unit_fixture(&passing);
     let built = build_runnable(
         &fixture,
@@ -1978,13 +2042,13 @@ fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
         &unit_case("accept", 1),
         built.modules(wasm),
         serial,
-        Some("pending-write"),
+        Some("pending-tick"),
     )
     .expect("runs");
     assert!(ran.success(), "{}", String::from_utf8_lossy(&ran.stderr));
     assert_eq!(String::from_utf8_lossy(&ran.stdout), "first 0\nsecond 1\n");
     // A program whose result differs fails the case.
-    let failing = PENDING_WRITES.replace("EXPECTED", "3");
+    let failing = PENDING_TICKS.replace("EXPECTED", "3");
     assert_eq!(
         unit_runtime(&failing, "accept", 2),
         Verdict::Fail("runtime-exit".to_owned())
@@ -1993,7 +2057,7 @@ fn pending_first_poll_runs_the_entry_again_with_pending_writes() {
 
 #[test]
 fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
-    assert!(!replacing_scenario(PENDING_WRITES));
+    assert!(!replacing_scenario(PENDING_TICKS));
     assert!(!replacing_scenario("pub fn main!() -> void: pass\n"));
     // The cancellation program never pends, so its drive fails the
     // first step; the competing and reentrant drives trap, which the
@@ -2014,10 +2078,10 @@ fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
         );
     }
     // The test hosts take no runtime profile, so the scenario's run of
-    // test cases cannot hold a write pending.
+    // test cases cannot hold a tick pending.
     let with_tests = format!(
         "{}\ntests:\n    it(\"runs\"):\n        pass\n",
-        PENDING_WRITES.replace("EXPECTED", "2")
+        PENDING_TICKS.replace("EXPECTED", "2")
     );
     assert_eq!(
         unit_runtime(&with_tests, "accept", 4),
@@ -2178,7 +2242,7 @@ fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
         );
     }
     let mut sorted: Vec<_> = buckets.into_iter().collect();
-    sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    sorted.sort_stable_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     for (bucket, count) in sorted {
         println!("{count:>5} {bucket}");
     }
@@ -2339,6 +2403,27 @@ fn specification_conformance_passes_except_known_failures() {
     );
 }
 
+#[test]
+fn formatter_preserves_every_parseable_conformance_check_verdict_and_code() {
+    let store = MemoryStore::default();
+    for case in cases() {
+        let fixture = fixture(&case)
+            .unwrap_or_else(|reason| panic!("{} could not be loaded: {reason}", case.path));
+        if !parse(fixture.text.as_bytes()).is_ok() {
+            continue;
+        }
+        let formatted = formatted_fixture(&fixture);
+        let before = check_fixture(&fixture, &store);
+        let after = check_fixture(&formatted, &store);
+        assert_eq!(
+            diagnostic_signature(&after),
+            diagnostic_signature(&before),
+            "{} changed its check verdict or diagnostic codes after formatting",
+            case.path
+        );
+    }
+}
+
 /// Every `typing/invalid` fixture, checked: none reaches an internal error
 /// (`hd_diag::DiagBuf::internal_error`), such as a body that fails the TIR
 /// verifier. Error recovery must leave a body the verifier accepts, so a
@@ -2374,7 +2459,7 @@ fn no_typing_invalid_fixture_reaches_an_internal_error() {
         }
     });
     let mut found = found.into_inner().expect("found lock");
-    found.sort();
+    found.sort_stable();
     assert!(
         found.is_empty(),
         "typing/invalid fixtures reach an internal error:\n{}",

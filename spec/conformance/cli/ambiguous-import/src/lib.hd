@@ -1,1 +1,2 @@
-pub fn words() -> string: "decl"
+pub fn words() -> string:
+    "decl"

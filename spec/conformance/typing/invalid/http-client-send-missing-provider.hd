@@ -1,5 +1,6 @@
 # test: Client.send! still requires Http
-use std.http.{Client, HttpError, Request, Response}
+use std.time.Clock
+use std.http.{Client, HttpError, Request, Response, Url}
 
-pub fn send!() -> Result[Response, HttpError]:
-    Client::new().send!(Request { url: "https://example.test/" })  # diagnostic: missing-requirement
+pub fn send!() -> Result[Response, HttpError] $ Clock:
+    Client::new().send!(&Request { url: Url::parse("https://example.test/").expect("fixture URL") }) # diagnostic: missing-requirement

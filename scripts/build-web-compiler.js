@@ -1,13 +1,13 @@
-// Builds the playground's compiler wasm (crates/hd_web/DESIGN.md §7, W3):
-// `cargo rustc -p hd_web --lib --target wasm32-unknown-unknown --profile
-// web`, copied to website/playground/assets/hd_web.wasm, which the
+// Builds the playground compiler and its optional WAT printer:
+// `cargo rustc -p hd_web/hd_wat --lib --target wasm32-unknown-unknown --profile
+// web`, copied to website/playground/assets/hd_{web,wat}.wasm, which the
 // playground build copies next to its worker. The output is not committed.
 // Prints the raw and gzip sizes. CARGO_TARGET_DIR is honored.
 //
 // `cargo rustc` hands the final link `--compress-relocations`: wasm-ld
 // otherwise leaves every call and data address as a padded 5-byte LEB,
 // and compacting them cut the gzip download by 28 KB (#49). The flag goes
-// to hd_web alone, so the dependencies' builds stay shared with
+// to each final module alone, so the dependencies' builds stay shared with
 // `cargo build`; it cannot go in a profile or a target's rustflags, since
 // the debug builds of wasm32 carry debug info, which the flag rejects.
 //
@@ -29,9 +29,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET_DIR = process.env.CARGO_TARGET_DIR
   ? resolve(root, process.env.CARGO_TARGET_DIR)
   : join(root, "target");
-const CARGO_OUTPUT = join(TARGET_DIR, "wasm32-unknown-unknown", "web", "hd_web.wasm");
 /** The compiler wasm the playground serves. */
 export const COMPILER_WASM = join(root, "website", "playground", "assets", "hd_web.wasm");
+export const WAT_WASM = join(root, "website", "playground", "assets", "hd_wat.wasm");
 
 /** Raw and gzip (level 9) byte counts of a file. */
 export function sizes(path) {
@@ -49,26 +49,29 @@ function report(label, { raw, gzip }) {
 }
 
 function build() {
-  execFileSync(
-    "cargo",
-    [
-      "rustc",
-      "-p",
-      "hd_web",
-      "--lib",
-      "--target",
-      "wasm32-unknown-unknown",
-      "--profile",
-      "web",
-      "--",
-      "-C",
-      "link-arg=--compress-relocations",
-    ],
-    { cwd: root, stdio: "inherit" },
-  );
-  mkdirSync(dirname(COMPILER_WASM), { recursive: true });
-  copyFileSync(CARGO_OUTPUT, COMPILER_WASM);
-  report("hd_web.wasm", sizes(COMPILER_WASM));
+  for (const crate of ["hd_web", "hd_wat"]) {
+    execFileSync(
+      "cargo",
+      [
+        "rustc",
+        "-p",
+        crate,
+        "--lib",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--profile",
+        "web",
+        "--",
+        "-C",
+        "link-arg=--compress-relocations",
+      ],
+      { cwd: root, stdio: "inherit" },
+    );
+    mkdirSync(dirname(COMPILER_WASM), { recursive: true });
+    const output = crate === "hd_web" ? COMPILER_WASM : WAT_WASM;
+    copyFileSync(join(TARGET_DIR, "wasm32-unknown-unknown", "web", `${crate}.wasm`), output);
+    report(`${crate}.wasm`, sizes(output));
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) build();

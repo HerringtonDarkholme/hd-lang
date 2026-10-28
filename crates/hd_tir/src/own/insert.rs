@@ -58,6 +58,7 @@
 //! leaves its block, or at the exit, where a place already dropped holds
 //! zeros and drops as nothing.
 
+use hd_base::SliceSort as _;
 use hd_base::{LocalId, NodeIdx, SubId};
 use hd_types::Ty;
 
@@ -308,7 +309,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
             b.data[i][1] = if ptr { ReadMode::Move } else { ReadMode::Copy } as u32;
         }
     }
-    t.exits.sort_unstable_by_key(|(s, l)| (s.raw(), l.raw()));
+    t.exits.sort_stable_by_key(|(s, l)| (s.raw(), l.raw()));
     t.exits.dedup();
     b.exit_drops.clone_from(&t.exits);
     splice::apply(b, topo, edits)
@@ -478,7 +479,7 @@ fn values(
 /// so the borrow's span ends before the value's drop.
 fn after_drops(t: &mut Tables, edits: &mut splice::Tables) {
     t.after
-        .sort_by_key(|a| (a.blk, a.pos, std::cmp::Reverse(a.age)));
+        .sort_stable_by_key(|a| (a.blk, a.pos, std::cmp::Reverse(a.age)));
     for a in &t.after {
         edits.insert(a.blk, a.pos, Tag::Drop, [a.word, NONE], Ty::VOID, a.syn);
     }
@@ -537,8 +538,8 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
             _ => {}
         }
     }
-    t.acc.sort_unstable();
-    t.entries.sort_unstable();
+    t.acc.sort_stable();
+    t.entries.sort_stable();
     t.entries.dedup();
     let owned = |b: &Body, t: &Tables, l: u32| {
         t.celled[l as usize] || cx.counted(b.local_ty[l as usize]) != Tri::No

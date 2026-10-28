@@ -34,7 +34,7 @@ tests:
 
     it("the helpers read the covering providers"):
         given := FixedArgs { values: ["a", "b"] }
-        vars := FixedEnv { values: {"GREETING": "hi"} }
+        vars := FixedEnv { values: { "GREETING": "hi" } }
         $.with(Args=given, Env=vars):
             assert_equal(greeting(), "hi 2", reason="one variable, two arguments")
             assert_equal(env("MISSING"), .None, reason="an unset variable")

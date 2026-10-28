@@ -9,6 +9,8 @@
 // gate: an LTO build that shrinks (a panicking call such as
 // `Instant::now()` deletes everything after it) fails the floor.
 
+import { compilerImports, instantiateCompiler } from "../website/playground/src/compiler-host.ts";
+
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -25,46 +27,18 @@ import {
   encodeReplStart,
   encodeRequest,
 } from "../website/playground/src/compiler-wire.ts";
-import { COMPILER_WASM, formatBytes, sizes } from "./build-web-compiler.js";
-import { createNodeSession } from "../host/node.mjs";
+import { COMPILER_WASM, WAT_WASM, formatBytes, sizes } from "./build-web-compiler.js";
+import { createWatPrinter } from "../website/playground/src/wat-printer.ts";
+import { createNodeSession } from "../host/node-session.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
 
-// The plan's 3.2 MB raw came from the `stages` example, which reads std
-// from disk; the real compiler embeds std's 0.51 MB of source (§2). W8's
-// wasmprinter added 0.49 MB raw and 0.13 MB gzip (3.90 -> 4.39 MB, 1.25 ->
-// 1.39 MB), so the gates are 0.5 MB and 0.15 MB higher than W3's. The REPL
-// session support in the driver and linker (#17, C2-C8) added 0.12 MB raw
-// and 0.04 MB gzip (4.39 -> 4.51 MB, 1.39 -> 1.42 MB); the playground's REPL
-// panel will use it, so the raw gate is 4.7 MB. The REPL goals (W3) added
-// 11 KB raw and 5 KB gzip (4.550 -> 4.560 MB, 1.436 -> 1.440 MB), within
-// both gates. The REPL's session-as-one-module rules for derivations, facts
-// and drift (#159, f101ce35 onward) took gzip to 1.454 MB, so the gzip gate
-// is 1.5 MB. The std skim cache and per-process std sources (#49, b068b071)
-// added 15 KB raw (4.696 -> 4.711 MB); the browser compiler keeps one driver
-// across compiles, so warm compiles use them too. The raw gate is 4.75 MB.
-// On 2026-10-15 checker fixes, the usize-fallback panic notes (#172),
-// newtype erasure (#50) and fix-its kept in cached interfaces (#23) took
-// the build to 4.748 MB raw and 1.50003 MB gzip, so the gates are 4.9 MB
-// raw and 1.55 MB gzip; shrinking hd_web is tracked with the size work (#49).
-// On 2026-10-16 the checker, mono and wasm fixes of that day (#176, #212,
-// #222, #267, #272, #274, #297 and others) took it to 4.8996 MB raw and
-// 1.5469 MB gzip, so the gates are 5.0 MB raw and 1.6 MB gzip (owner
-// approval, #49). #317's single-copy join took it to 5.0005 MB raw, so
-// the raw gate is 5.2 MB (owner approval, 2026-10-16). With the ownership
-// prototype's slices still to land, the owner set the gzip gate to 2 MB
-// (2026-10-17). The sole code generator is now the linear backend
-// (4.93 MB raw after #627); the raw gate stayed at the owner-approved
-// 5.2 MB, since a tighter one broke CI twice as RC work landed. #677's
-// known-null release pass took it to 5.2106 MB, so the raw gate is
-// 5.25 MB (owner approval, 2026-10-21).
-// Owner 2026-10-21: the raw size is not a useful limit; only the download
-// (gzip) size is gated. Raw is still printed for reference. (#700's
-// dictionary compression of std text saved raw bytes but only 6.7 KB of
-// download, so it was reverted.) Owner 2026-10-21: the gzip ceiling is
-// 2 MB (1.746 MB at b4c5768e3, as stdlib work lands).
-const GZIP_LIMIT = 2_000_000;
+// #852 removes the printer from ordinary compilation. These caps keep
+// modest margins above the measured 1,755,751 / 147,828 gzip bytes.
+// The owner's hard 2 MB ceiling still holds.
+const GZIP_LIMIT = 1_800_000;
+const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
 /** Compiles `request` and times the call. */
@@ -75,9 +49,11 @@ function compile(exports, request) {
 }
 
 const { raw, gzip } = sizes(COMPILER_WASM);
+const watSize = sizes(WAT_WASM);
+console.log(`hd_wat.wasm: raw ${formatBytes(watSize.raw)}, gzip ${formatBytes(watSize.gzip)}`);
 console.log(`hd_web.wasm: raw ${formatBytes(raw)}, gzip ${formatBytes(gzip)}`);
 
-const { instance } = await WebAssembly.instantiate(readFileSync(COMPILER_WASM), {});
+const { instance } = await instantiateCompiler(readFileSync(COMPILER_WASM));
 const exports = instance.exports;
 const text = readFileSync(FIXTURE, "utf8");
 const request = encodeRequest({ "src/main.hd": text }, "src/main.hd", GOAL.run);
@@ -103,10 +79,56 @@ const expected = [...text.matchAll(/^# expect-stdout: (.*)$/gm)].map((m) => `${m
 assert.equal(stdout, expected);
 console.log(`run: ${JSON.stringify(stdout)}`);
 
-const printed = compile(exports, encodeRequest({ "src/main.hd": text }, "src/main.hd", GOAL.wat));
-assert.equal(printed.status, STATUS.ok);
-assert.ok(printed.wat.startsWith("(module"), printed.wat.slice(0, 40));
-assert.deepEqual(printed.wasm, cold.wasm);
+let printerLoads = 0;
+const printWat = createWatPrinter(async () => {
+  printerLoads += 1;
+  return readFileSync(WAT_WASM);
+});
+assert.equal(printerLoads, 0, "Run never loads the printer");
+const printed = await printWat(cold.wasm);
+assert.ok(printed.startsWith("(module"), printed.slice(0, 40));
+assert.equal(await printWat(cold.wasm), printed);
+assert.equal(printerLoads, 1, "repeated WAT requests share the printer");
+await assert.rejects(printWat(Uint8Array.of(1)));
+assert.equal(await printWat(cold.wasm), printed, "printing errors do not poison later requests");
+
+// The shared host must be unused by entirely ASCII source and paths.
+let nfcCalls = 0;
+let nfcMemory;
+const imports = compilerImports(() => {
+  nfcCalls += 1;
+  return nfcMemory;
+});
+const nfcInstance = (await WebAssembly.instantiate(readFileSync(COMPILER_WASM), imports)).instance;
+nfcMemory = nfcInstance.exports.memory;
+const checkFiles = (files) =>
+  compile(nfcInstance.exports, encodeRequest(files, "src/lib.hd", GOAL.check));
+assert.equal(checkFiles({ "src/lib.hd": "pub fn value() -> i32: +1\n" }).status, STATUS.ok);
+assert.equal(nfcCalls, 0, "ASCII checking never calls normalization");
+assert.equal(checkFiles({ "src/lib.hd": "pub fn café() -> i32: +1\n" }).status, STATUS.ok);
+assert.ok(nfcCalls > 0);
+for (const name of ["cafe\u0301", "`cafe\u0301`"]) {
+  const result = checkFiles({ "src/lib.hd": `pub fn ${name}() -> i32: +1\n` });
+  assert.equal(result.status, STATUS.errors);
+  assert.ok(result.json.diagnostics.some(({ code }) => code === "invalid-token"));
+}
+// In-memory sources keep the host filesystem from merging distinct names.
+for (const names of [
+  ["Cart", "cart"],
+  ["ŉ", "ʼn"],
+  ["café", "cafe\u0301"],
+]) {
+  const result = checkFiles({
+    "src/lib.hd": "",
+    [`src/${names[0]}.hd`]: "pub fn first() -> i32: +1\n",
+    [`src/${names[1]}.hd`]: "pub fn second() -> i32: +2\n",
+  });
+  assert.equal(result.status, STATUS.errors);
+  assert.ok(result.json.diagnostics.some(({ code }) => code === "duplicate-module-name"));
+  if (names[1] === "cafe\u0301")
+    assert.ok(result.json.diagnostics.some(({ code }) => code === "invalid-module-path"));
+}
+console.log("NFC: ASCII host calls 0; identifiers and case-fold collisions passed");
 
 const broken = compile(
   exports,
@@ -165,6 +187,7 @@ const early = compile(exports, encodeReplOutcome(9, OUTCOME.joined));
 assert.equal(early.status, STATUS.malformed);
 console.log(`repl: session program ${built} B, first input cold ${firstMs.toFixed(0)} ms`);
 
+assert.ok(watSize.gzip <= WAT_GZIP_LIMIT, `WAT gzip ${watSize.gzip} is over ${WAT_GZIP_LIMIT}`);
 assert.ok(gzip <= GZIP_LIMIT, `gzip ${formatBytes(gzip)} is over ${formatBytes(GZIP_LIMIT)}`);
 assert.ok(
   raw >= RAW_FLOOR,

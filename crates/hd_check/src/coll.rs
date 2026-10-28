@@ -190,6 +190,7 @@ impl Ck<'_, '_> {
         if self.place_writable_quiet(recv) || self.is_fresh(recv) {
             if let Some(l) = self.place_root_local(recv) {
                 self.changed_locals.push(l);
+                self.note_param_write(l, at.index());
             }
             return true;
         }

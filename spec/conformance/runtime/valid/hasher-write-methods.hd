@@ -36,7 +36,48 @@ fn write_typed(state: &mut dyn Hasher) -> void:
     state.write([92, 93])
 
 fn typed_bytes() -> List[u8]:
-    [91, 171, 52, 18, 120, 86, 52, 18, 8, 7, 6, 5, 4, 3, 2, 1, 239, 205, 171, 137, 254, 254, 255, 254, 255, 255, 255, 254, 255, 255, 255, 255, 255, 255, 255, 104, 195, 169, 92, 93]
+    [
+        91,
+        171,
+        52,
+        18,
+        120,
+        86,
+        52,
+        18,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        239,
+        205,
+        171,
+        137,
+        254,
+        254,
+        255,
+        254,
+        255,
+        255,
+        255,
+        254,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        104,
+        195,
+        169,
+        92,
+        93,
+    ]
 
 fn write_edges(state: &mut dyn Hasher) -> void:
     state.write_i8(-128)
@@ -47,7 +88,35 @@ fn write_edges(state: &mut dyn Hasher) -> void:
     state.write_usize(4294967295)
 
 fn edge_bytes() -> List[u8]:
-    [128, 0, 128, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 128, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
+    [
+        128,
+        0,
+        128,
+        0,
+        0,
+        0,
+        128,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        128,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+    ]
 
 # Equal keys use different write methods for the same byte stream. Map lookups
 # therefore check its private hasher without depending on its hash algorithm.
@@ -107,29 +176,57 @@ tests:
         hasher.write([7])
         hasher.write_u64(1)
         hasher.write_str("a")
-        assert_equal(hasher.finish(), digest([7, 1, 0, 0, 0, 0, 0, 0, 0, 97]), reason="same byte stream")
+        assert_equal(
+            hasher.finish(),
+            digest([7, 1, 0, 0, 0, 0, 0, 0, 0, 97]),
+            reason="same byte stream",
+        )
 
     it("hash_of values for integers and strings are unchanged"):
         let key: (u8, string) = (7, "a")
         let expected: u64 = 12920292002639229810
         assert_equal(hash_of(key), expected, reason="the spec's digest of (7, \"a\")")
         let wide: u64 = 258
-        assert_equal(hash_of(wide), digest([2, 1, 0, 0, 0, 0, 0, 0]), reason="a u64 writes eight bytes")
+        assert_equal(
+            hash_of(wide),
+            digest([2, 1, 0, 0, 0, 0, 0, 0]),
+            reason="a u64 writes eight bytes",
+        )
         let negative: i64 = -2
-        assert_equal(hash_of(negative), digest([254, 255, 255, 255, 255, 255, 255, 255]), reason="an i64 writes its two's complement")
+        assert_equal(
+            hash_of(negative),
+            digest([254, 255, 255, 255, 255, 255, 255, 255]),
+            reason="an i64 writes its two's complement",
+        )
         let narrow: i32 = -2
-        assert_equal(hash_of(narrow), digest([254, 255, 255, 255]), reason="an i32 writes four bytes")
-        assert_equal(hash_of("hd"), digest([2, 0, 0, 0, 0, 0, 0, 0, 104, 100]), reason="length, then bytes")
+        assert_equal(
+            hash_of(narrow),
+            digest([254, 255, 255, 255]),
+            reason="an i32 writes four bytes",
+        )
+        assert_equal(
+            hash_of("hd"),
+            digest([2, 0, 0, 0, 0, 0, 0, 0, 104, 100]),
+            reason="length, then bytes",
+        )
 
     it("all typed defaults preserve their widths and little-endian byte order"):
         let mut recorder = Recorder { bytes: [] }
         write_typed(&mut recorder)
-        assert_equal(recorder.bytes, typed_bytes(), reason="unsigned widths, signed bytes, usize and UTF-8")
+        assert_equal(
+            recorder.bytes,
+            typed_bytes(),
+            reason="unsigned widths, signed bytes, usize and UTF-8",
+        )
 
     it("signed minima and unsigned maxima keep every bit"):
         let mut recorder = Recorder { bytes: [] }
         write_edges(&mut recorder)
-        assert_equal(recorder.bytes, edge_bytes(), reason="two's complement at each width and 32-bit usize")
+        assert_equal(
+            recorder.bytes,
+            edge_bytes(),
+            reason="two's complement at each width and 32-bit usize",
+        )
 
     it("DefaultHasher typed writes match bytes across mixed call boundaries"):
         for padding in 0..4:
@@ -142,13 +239,25 @@ tests:
             write_edges(typed)
             raw.write(typed_bytes())
             raw.write(edge_bytes())
-            assert_equal(typed.finish(), raw.finish(), reason="same bytes with zero to three leading bytes")
+            assert_equal(
+                typed.finish(),
+                raw.finish(),
+                reason="same bytes with zero to three leading bytes",
+            )
 
     it("Map keys hash equally through typed and raw writes at every word offset"):
         let mut values: Map[ByteKey, usize] = {}
         for padding in 0..4:
             values[ByteKey { padding: padding, typed: false }] = padding + 7
-            assert_equal(values.get(ByteKey { padding: padding, typed: true }), .Some(padding + 7), reason="typed lookup finds a raw-written key")
+            assert_equal(
+                values.get(ByteKey { padding: padding, typed: true }),
+                .Some(padding + 7),
+                reason="typed lookup finds a raw-written key",
+            )
             values[ByteKey { padding: padding, typed: true }] = padding + 9
-            assert_equal(values.get(ByteKey { padding: padding, typed: false }), .Some(padding + 9), reason="raw lookup finds the updated typed-written key")
+            assert_equal(
+                values.get(ByteKey { padding: padding, typed: false }),
+                .Some(padding + 9),
+                reason="raw lookup finds the updated typed-written key",
+            )
         assert_equal(values.len(), 4, reason="typed and raw modes are the same keys")

@@ -6,7 +6,7 @@ impl Same for Money:
     fn same(self, other: Money) -> bool:
         true
 
-impl Same[Money] for Money:  # diagnostic: overlapping-impl
+impl Same[Money] for Money: # diagnostic: overlapping-impl
     fn same(self, other: Money) -> bool:
         false
 

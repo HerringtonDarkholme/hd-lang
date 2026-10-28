@@ -5,6 +5,7 @@
 //! (the top-level bindings it reads, the same-module functions it calls);
 //! definite initialization combines them bottom-up over the call graph.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
@@ -82,7 +83,7 @@ pub fn input_bindings(cx: &BodyCx<'_>) -> Vec<InputBinding> {
         .values()
         .map(|g| (g.stmt, g.binding()))
         .collect();
-    out.sort_by_cached_key(|(s, b)| (*s, cx.names.path(b.def)));
+    out.sort_stable_by_cached_key(|(s, b)| (*s, cx.names.path(b.def)));
     out.into_iter().map(|(_, b)| b).collect()
 }
 
@@ -183,7 +184,7 @@ pub fn summary(
         .values()
         .map(|g| (g.def, u32::try_from(g.stmt).expect("statements")))
         .collect();
-    globals.sort_by_cached_key(|(d, s)| (*s, cx.names.path(*d)));
+    globals.sort_stable_by_cached_key(|(d, s)| (*s, cx.names.path(*d)));
     for s in &mut stmts {
         s.facts.calls.retain(|d| keep(*d));
     }
@@ -202,7 +203,7 @@ pub fn summary(
         })
         .filter(|(_, f)| !f.reads.is_empty() || !f.calls.is_empty())
         .collect();
-    fns.sort_by_cached_key(|(d, _)| cx.names.path(*d));
+    fns.sort_stable_by_cached_key(|(d, _)| cx.names.path(*d));
     InitSummary {
         stmts,
         globals,
@@ -829,7 +830,7 @@ impl Ck<'_, '_> {
         self.user_locals.truncate(users);
         checked?;
         let mut bound: Vec<(Symbol, hd_base::LocalId)> = scope.into_iter().collect();
-        bound.sort_by_key(|(_, l)| l.idx());
+        bound.sort_stable_by_key(|(_, l)| l.idx());
         let module = self.module_init.clone().unwrap_or_default();
         for (name, l) in bound {
             let text = self.cx.names.text(name).to_owned();
@@ -1451,7 +1452,7 @@ pub fn definite_init(
             .iter()
             .filter_map(|g| at.get(g).filter(|s| **s >= i).map(|s| (*s, seg(g))))
             .collect();
-        late.sort();
+        late.sort_stable();
         if let Some((_, late)) = late.first()
             && let Some(s) = stmts.get(i)
         {

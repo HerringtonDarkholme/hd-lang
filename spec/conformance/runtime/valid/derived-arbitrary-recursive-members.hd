@@ -24,22 +24,12 @@ enum Outcome:
     Done(result: Result[i32, *Outcome])
 
 tests:
-    it_prop("a list member ends a tree", cases=10, prop=fn!(tree: Tree):
-        pass
-    )
+    it_prop("a list member ends a tree", cases=10, prop=fn!(tree: Tree): pass)
 
-    it_prop("a map member ends an index", cases=10, prop=fn!(index: Index):
-        pass
-    )
+    it_prop("a map member ends an index", cases=10, prop=fn!(index: Index): pass)
 
-    it_prop("an optional member ends a chain", cases=10, prop=fn!(chain: Chain):
-        pass
-    )
+    it_prop("an optional member ends a chain", cases=10, prop=fn!(chain: Chain): pass)
 
-    it_prop("a tuple of simplest values ends a pairing", cases=10, prop=fn!(pairing: Pairing):
-        pass
-    )
+    it_prop("a tuple of simplest values ends a pairing", cases=10, prop=fn!(pairing: Pairing): pass)
 
-    it_prop("an Ok of the simplest i32 ends an outcome", cases=10, prop=fn!(outcome: Outcome):
-        pass
-    )
+    it_prop("an Ok of the simplest i32 ends an outcome", cases=10, prop=fn!(outcome: Outcome): pass)

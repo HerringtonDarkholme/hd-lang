@@ -2,10 +2,10 @@
 //
 // For each program in progs/: build the .hd with `hd build`, run the .wasm
 // through the checked-in host runner (host/run.mjs), run the .js
-// directly, 1 warmup + 5 measured runs each, p50/p95. Prints a markdown
+// directly, 1 warmup + 5 measured runs each (`--runs N`), p50/p95. Prints a markdown
 // report to stdout. Fails loudly when hd and JS outputs differ.
 //
-// Usage: node bench/runtime/run.mjs [workdir] [--release]
+// Usage: node bench/runtime/run.mjs [workdir] [--release] [--hd PATH] [--only a,b] [--runs N]
 // With --release, programs are built with `hd build --release` and the
 // release-profile Wasm is timed; otherwise the debug profile. Every build
 // passes `--engine node`, so its Wasm is tuned for V8, which runs it here,
@@ -20,13 +20,24 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 const NEW_HD = join(REPO, "target", "release", "hd");
 const RUNNER = join(REPO, "host", "run.mjs");
-const RUNS = 5;
+let RUNS = 5;
 const TIMEOUT_MS = 300_000;
 
 const args = process.argv.slice(2);
-const release = args.includes("--release");
-const workRoot =
-  args.find((a) => !a.startsWith("--")) ?? join(tmpdir(), `hd-runtime-${process.pid}`);
+let release = false;
+let hdBinary = NEW_HD;
+let only;
+let workRoot;
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  if (arg === "--release") release = true;
+  else if (arg === "--hd" && args[i + 1]) hdBinary = resolve(args[++i]);
+  else if (arg === "--only" && args[i + 1]) only = args[++i].split(",");
+  else if (arg === "--runs" && args[i + 1]) RUNS = Number(args[++i]);
+  else if (!arg.startsWith("--") && workRoot === undefined) workRoot = arg;
+  else throw new Error(`unknown argument ${arg}`);
+}
+workRoot ??= join(tmpdir(), `hd-runtime-${process.pid}`);
 const profile = release ? "release" : "debug";
 
 function sh(cmd, argv, opts = {}) {
@@ -46,7 +57,8 @@ function sh(cmd, argv, opts = {}) {
 
 function stats(samples) {
   const s = [...samples].sort((a, b) => a - b);
-  return { p50: s[2], p95: s[4], min: s[0], max: s[4] };
+  const max = s[s.length - 1];
+  return { p50: s[Math.floor(s.length / 2)], p95: max, min: s[0], max };
 }
 
 function measure(fn) {
@@ -82,23 +94,32 @@ function main() {
     .filter((f) => f.endsWith(".hd"))
     .map((f) => f.slice(0, -3))
     .sort();
+  if (only) {
+    for (const name of only) {
+      if (!names.includes(name)) throw new Error(`unknown program ${name}`);
+    }
+  }
+  const selected = names.filter((name) => !only || only.includes(name));
   const hash = gitHash();
   const rows = [];
   let logRatioSum = 0;
 
   mkdirSync(workRoot, { recursive: true });
-  for (const name of names) {
+  for (const name of selected) {
     const src = readFileSync(join(HERE, "progs", `${name}.hd`), "utf8");
     const dir = join(workRoot, name);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(join(dir, "src"), { recursive: true });
-    writeFileSync(join(dir, "hd.toml"), `[package]\nname = "${name}"\n`);
+    writeFileSync(
+      join(dir, "hd.toml"),
+      `[package]\nname = "${name}"\n\n[capabilities]\nConsole = true\n`,
+    );
     writeFileSync(join(dir, "src", "main.hd"), src);
     const cache = join(workRoot, `cache-${name}`);
     rmSync(cache, { recursive: true, force: true });
     mkdirSync(cache, { recursive: true });
     const buildArgs = ["build", "--engine", "node", ...(release ? ["--release"] : [])];
-    const built = sh(NEW_HD, buildArgs, {
+    const built = sh(hdBinary, buildArgs, {
       cwd: dir,
       env: { ...process.env, HD_CACHE: cache },
     });
@@ -124,9 +145,11 @@ function main() {
 
   console.log(`# Runtime vs Node`);
   console.log(``);
-  console.log(`- hd commit: \`${hash}\`; binary: \`target/release/hd build\` (${profile} profile)`);
+  console.log(`- hd commit: \`${hash}\`; binary: \`${hdBinary} build\` (${profile} profile)`);
   console.log(`- runner: \`node ${nodeVersion()} host/run.mjs\` for hd, \`node\` directly for JS`);
-  console.log(`- method: build once per program; 1 warmup + ${RUNS} measured runs each; p50 = median, p95 = max`);
+  console.log(
+    `- method: build once per program; 1 warmup + ${RUNS} measured runs each; p50 = median, p95 = max`,
+  );
   console.log(`- outputs verified equal before timing (checksum printed by each program)`);
   console.log(``);
   console.log(`| Program | hd p50 / p95 (ms) | JS p50 / p95 (ms) | hd/JS | Checksum |`);

@@ -14,7 +14,11 @@ tests:
     use std.testing.assert_equal
 
     it("numbers and names mix"):
-        assert_equal(iso("12/31/2025 and 01/02/2024"), "2025-12-31 and 2024-01-02", reason="two dates")
+        assert_equal(
+            iso("12/31/2025 and 01/02/2024"),
+            "2025-12-31 and 2024-01-02",
+            reason="two dates",
+        )
 
     it("replace changes only the first match"):
         digits := Regex::new(r"\d+").expect("compiles")
@@ -26,7 +30,11 @@ tests:
     it("group references"):
         assert_equal(swap(r"(\w+)=(\w+)", "a=1 b=2", "$2=$1"), "1=a 2=b", reason="numbers")
         assert_equal(swap(r"(\w+)=(\w+)", "a=1", "\${2}\${1}"), "1a", reason="braced numbers")
-        assert_equal(swap(r"(?<key>\w+)=(?<value>\w+)", "a=1 b=2", "\${value}:\${key}"), "1:a 2:b", reason="names")
+        assert_equal(
+            swap(r"(?<key>\w+)=(?<value>\w+)", "a=1 b=2", "\${value}:\${key}"),
+            "1:a 2:b",
+            reason="names",
+        )
         assert_equal(swap("(a)", "a", "$0$1"), "aa", reason="group 0 is the whole match")
         assert_equal(swap(r"\d+", "cost 5", "$$$0"), "cost \$5", reason="$$ is a dollar sign")
 
@@ -45,16 +53,32 @@ tests:
 
     it("empty matches"):
         assert_equal(swap("x*", "abc", "-"), "-a-b-c-", reason="an empty match at each position")
-        assert_equal(swap("a*", "baaac", "-"), "-b-c-", reason="the empty match after aaa is dropped")
+        assert_equal(
+            swap("a*", "baaac", "-"),
+            "-b-c-",
+            reason="the empty match after aaa is dropped",
+        )
 
     it("many references preserve Unicode and literal boundaries"):
         pattern := Regex::new("(?<item>界)").expect("compiles")
         template := "<λ\${item}>".repeat(128)
         expected := "<λ界>".repeat(128)
         assert_equal(pattern.replace("界", template), expected, reason="one long expansion")
-        assert_equal(pattern.replace_all("界界", template), expected + expected, reason="two independent expansions")
+        assert_equal(
+            pattern.replace_all("界界", template),
+            expected + expected,
+            reason="two independent expansions",
+        )
 
     it("many absent groups and dollar references retain exact text"):
         template := "[$2]$$\${1}2\${missing}".repeat(128)
-        assert_equal(swap("(a)|(b)", "a", template), "[]\$a2".repeat(128), reason="absent and literal pieces")
-        assert_equal(swap("(a)", "a", "λ界😀".repeat(128)), "λ界😀".repeat(128), reason="long literal replacement")
+        assert_equal(
+            swap("(a)|(b)", "a", template),
+            "[]\$a2".repeat(128),
+            reason="absent and literal pieces",
+        )
+        assert_equal(
+            swap("(a)", "a", "λ界😀".repeat(128)),
+            "λ界😀".repeat(128),
+            reason="long literal replacement",
+        )

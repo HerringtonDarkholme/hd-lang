@@ -10,7 +10,8 @@ fn late_fee(days: i32) -> i32:
 tests:
     use std.testing.assert_equal
 
-    fn overdue() -> i32: 31
+    fn overdue() -> i32:
+        31
 
     it("charges a fee after 30 days"):
         assert_equal(late_fee(overdue()), 5, reason="one day late")

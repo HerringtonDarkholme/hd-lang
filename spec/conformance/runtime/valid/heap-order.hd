@@ -58,7 +58,11 @@ tests:
                 source.push(value)
                 heap.push(value)
             assert_equal(heap.to_sorted_list(), source.sorted(), reason="all values retained")
-            assert_equal(drained(&mut heap), source.sorted().reversed(), reason="descending through odd and even sizes")
+            assert_equal(
+                drained(&mut heap),
+                source.sorted().reversed(),
+                reason="descending through odd and even sizes",
+            )
 
     it("copies and sorted lists stay independent during later sifts"):
         let mut original = [+3, 9, 2, 9, -1].iter().collect::[Heap[i32]]()
@@ -69,6 +73,10 @@ tests:
         copy.push(7)
         assert_equal(copy.pop(), .Some(9), reason="copy retained both maxima")
         sorted[0] = -99
-        assert_equal(drained(&mut original), [+12, 9, 3, 2, -1], reason="original has only its own writes")
+        assert_equal(
+            drained(&mut original),
+            [+12, 9, 3, 2, -1],
+            reason="original has only its own writes",
+        )
         assert_equal(drained(&mut copy), [+9, 7, 3, 2, -1], reason="copy has only its own writes")
         assert_equal(sorted, [-99i32, 2, 3, 9, 9], reason="sorted list has only its own writes")

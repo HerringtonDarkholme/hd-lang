@@ -8,7 +8,8 @@ fn first[T](items: List[T], fallback: T) -> T:
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
-fn name() -> string: first::[string](["ada"], "none")
+fn name() -> string:
+    first::[string](["ada"], "none")
 
 fn labeled() -> (string, i32):
     pair::[string]("left", +1)

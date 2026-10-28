@@ -22,4 +22,4 @@ struct Server:
     handlers: List[fn() -> void $ Db + Clock]
 
 fn wire(handlers: List[fn() -> void $ Db]) -> Server:
-    Server { handlers: handlers }  # diagnostic: type-mismatch
+    Server { handlers: handlers } # diagnostic: type-mismatch

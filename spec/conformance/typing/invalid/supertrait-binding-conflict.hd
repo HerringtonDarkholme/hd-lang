@@ -9,4 +9,4 @@ trait Numbers < Source[Item = i32]
 
 trait Words < Source[Item = string]
 
-trait Both < Numbers & Words  # diagnostic: duplicate-associated-binding
+trait Both < Numbers & Words # diagnostic: duplicate-associated-binding

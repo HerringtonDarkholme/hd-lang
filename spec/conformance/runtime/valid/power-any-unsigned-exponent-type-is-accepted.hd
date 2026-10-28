@@ -8,11 +8,16 @@
 # expect-stdout: 1
 # expect-stdout: 0
 
-fn p8(b: i32, e: u8) -> i32: b ** e
-fn p16(b: i32, e: u16) -> i32: b ** e
-fn p32(b: i32, e: u32) -> i32: b ** e
-fn p64(b: i32, e: u64) -> i32: b ** e
-fn pz(b: i64, e: usize) -> i64: b ** e
+fn p8(b: i32, e: u8) -> i32:
+    b ** e
+fn p16(b: i32, e: u16) -> i32:
+    b ** e
+fn p32(b: i32, e: u32) -> i32:
+    b ** e
+fn p64(b: i32, e: u64) -> i32:
+    b ** e
+fn pz(b: i64, e: usize) -> i64:
+    b ** e
 
 pub fn main() -> void $ Console:
     println(p8(2, 5))

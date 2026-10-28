@@ -2,7 +2,7 @@
 fn f(o: i32?) -> i32:
     match o:
         _ => 0
-        .None => 1  # diagnostic: unreachable-match-arm
+        .None => 1 # diagnostic: unreachable-match-arm
 
 pub fn main() -> void $ Console:
     println(1)

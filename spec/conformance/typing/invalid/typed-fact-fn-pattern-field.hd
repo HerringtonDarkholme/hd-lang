@@ -12,5 +12,5 @@ fn fn_fact[T < Num, R]() -> FnFact[T, R]:
 struct Meter:
     @fn_fact
     convert: fn(i32) -> i64
-    @fn_fact  # diagnostic: type-mismatch
+    @fn_fact # diagnostic: type-mismatch
     count: i32

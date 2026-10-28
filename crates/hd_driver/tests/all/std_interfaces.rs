@@ -3,6 +3,7 @@
 //! decode to equal interfaces, blob bytes are equal across shuffled serial
 //! orders, and a deep-hash edit reaches a dependent's key.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -97,12 +98,12 @@ fn the_prelude_module_reexports_the_prelude_table() {
             .filter(|e| e.module == "std.prelude")
             .map(|e| (n.module_of(e.def), n.text(e.name).to_owned()))
             .collect();
-        got.sort();
+        got.sort_stable();
         let mut want: Vec<(String, String)> = hd_resolve::PRELUDE
             .iter()
             .flat_map(|(m, names)| names.iter().map(|x| ((*m).to_owned(), (*x).to_owned())))
             .collect();
-        want.sort();
+        want.sort_stable();
         assert_eq!(got, want);
     });
 }

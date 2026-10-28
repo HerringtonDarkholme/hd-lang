@@ -3,4 +3,4 @@
 use std.text
 
 pub fn digit() -> i32:
-    text.hex_digit(48)  # diagnostic: private-import
+    text.hex_digit(48) # diagnostic: private-import

@@ -1239,15 +1239,14 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 6. r[req.drive.block-on.cancelled] When the suspension turns out cancelled, `block_on` goes on driving its cleanup until the cleanup has ended. It then returns `.Cancelled` when the cleanup ran to its end, and `.Abandoned` when a part of it was cut short.
 7. r[req.drive.block-on.cancelled.when] That holds for a suspension cancelled before the call, and for one that code inside the drive cancels, as an await of a suspension cancelled elsewhere does by [`req.cancel.await`](#r-req.cancel.await).
 8. r[req.drive.block-on.forbidden-contexts] `block_on` is forbidden in a default expression, a `defer` suite, or non-entry module initialization; those contexts cannot start suspension work.
-9. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.block-on.direct).
+9. r[req.drive.block-on.fact-contexts] `block_on` is also forbidden in a fact or metadata expression of [typed derivation](14-annotations.md#r-annot.fact.block-on.direct-call).
 10. r[req.drive.block-on.direct] A `block_on` call written directly in a forbidden context is an error. A call inside a closure or local function declared there is not direct. Error: `suspension-forbidden-context`.
 11. r[req.drive.block-on.direct.syntax] The check of a direct call reads only the forbidden context's own source, never the body of a function it calls.
 12. r[req.drive.block-on.indirect] A `block_on` call reached through a call while a forbidden context runs panics when it is reached. Panic: `suspension-forbidden-context`.
 13. r[req.drive.block-on.indirect.nested] A forbidden context runs from its start to its end, including every call it makes, even while another driver is active.
-14. r[req.drive.block-on.println] A `println` call follows the same rules: a direct call in a forbidden context is an error, and an indirect one panics, by [`module.console.println-block-on`](10-modules.md#r-module.console.println-block-on). Error: `suspension-forbidden-context`. Panic: `suspension-forbidden-context`.
-15. r[req.drive.block-on.under-driver] Outside a forbidden context, a `block_on` call is valid while another driver is active, as in `main!` or a test body. That holds whether it is reached directly or through non-suspending helpers.
-16. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
-17. r[req.drive.block-on.deadlock] When an inner `block_on` call's argument is pending and no host operation, timer, or wake can resume it, the call panics. Panic: `suspension-deadlock`.
+14. r[req.drive.block-on.under-driver] Outside a forbidden context, a `block_on` call is valid while another driver is active, as in `main!` or a test body. That holds whether it is reached directly or through non-suspending helpers.
+15. r[req.drive.block-on.inner-only] That call drives only its own argument to completion, synchronously, and never polls or cancels a suspension of the outer driver.
+16. r[req.drive.block-on.deadlock] When an inner `block_on` call's argument is pending and no host operation, timer, or wake can resume it, the call panics. Panic: `suspension-deadlock`.
 
 ```text
 use std.task.block_on

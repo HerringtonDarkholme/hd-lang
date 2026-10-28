@@ -3,4 +3,4 @@
 fn main() -> i32:
     if true:
         hidden := 1
-    hidden  # diagnostic: unknown-name
+    hidden # diagnostic: unknown-name

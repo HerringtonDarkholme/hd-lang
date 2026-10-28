@@ -2,4 +2,4 @@ struct User:
     id: string
 
 fn same(left: User, right: User) -> bool:
-    left == right  # diagnostic: type-mismatch
+    left == right # diagnostic: type-mismatch

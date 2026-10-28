@@ -7,4 +7,4 @@ struct Outbox:
 
 impl Outbox:
     fn record(self, message: string) -> void:
-        self.sent.push(message)  # diagnostic: not-writable
+        self.sent.push(message) # diagnostic: not-writable

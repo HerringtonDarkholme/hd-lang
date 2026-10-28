@@ -1,6 +1,6 @@
 # test: a data type that embeds itself through another type is one embedding cycle, reported in its first declared type
 struct Node:
-    Edge  # diagnostic: embedding-cycle
+    Edge # diagnostic: embedding-cycle
     id: string
 
 struct Edge:

@@ -3,6 +3,7 @@
 //! of a commit (`module.version.pseudo`). Everything here is pure; the
 //! listing and fetching around it are `Remote`'s.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 
 use hd_project::{HostPath, Version};
@@ -168,7 +169,7 @@ pub fn pick(host: &HostPath, refs: &Refs, query: &Query, shown: &str) -> Result<
                     "it has no version tag".to_owned()
                 } else {
                     let mut all = all;
-                    all.sort();
+                    all.sort_stable();
                     let shown: Vec<String> = all.iter().map(ToString::to_string).collect();
                     format!("its versions are {}", shown.join(", "))
                 };

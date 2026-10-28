@@ -2,7 +2,7 @@
 use std.inspect.Inspectable
 
 fn name_of(value: &dyn Inspectable) -> string:
-    match value.nothing::[fn() -> string]():  # diagnostic: unknown-method
+    match value.nothing::[fn() -> string](): # diagnostic: unknown-method
         .Some(_) => "x"
         .None => "x"
 

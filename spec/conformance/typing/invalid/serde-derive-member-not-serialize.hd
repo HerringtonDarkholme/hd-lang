@@ -5,7 +5,7 @@ use std.serde.Serialize
 struct Secret:
     value: i32
 
-@derive(Serialize)  # diagnostic: member-not-derivable
+@derive(Serialize) # diagnostic: member-not-derivable
 struct Account:
     id: i32
     secret: Secret

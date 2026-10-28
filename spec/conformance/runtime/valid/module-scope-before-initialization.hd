@@ -19,4 +19,8 @@ tests:
     use std.testing.assert_equal
 
     it("runs top-level statements in source order"):
-        assert_equal(receipts, ["opened", "total 375"], reason="record ran before and after the total")
+        assert_equal(
+            receipts,
+            ["opened", "total 375"],
+            reason="record ran before and after the total",
+        )

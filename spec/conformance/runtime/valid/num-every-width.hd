@@ -47,7 +47,15 @@ tests:
 
     it("u64"):
         let three: u64 = 3
-        assert_equal(three.checked_mul(6148914691236517205), .Some(18446744073709551615), reason="the product fits")
+        assert_equal(
+            three.checked_mul(6148914691236517205),
+            .Some(18446744073709551615),
+            reason="the product fits",
+        )
         assert_equal(three.checked_mul(6148914691236517206), .None, reason="the product overflows")
         assert_equal(three.saturating_sub(4), 0, reason="saturates at zero")
-        assert_equal(three.abs_diff(18446744073709551615), 18446744073709551612, reason="abs_diff is u64")
+        assert_equal(
+            three.abs_diff(18446744073709551615),
+            18446744073709551612,
+            reason="abs_diff is u64",
+        )

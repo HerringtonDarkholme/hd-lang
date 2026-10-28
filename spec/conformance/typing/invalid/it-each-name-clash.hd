@@ -5,5 +5,5 @@ tests:
 
     it_each("doubles", [1, 2], body=fn!(value: i32): pass)
 
-    it("doubles[0]"):  # diagnostic: duplicate-test-name
+    it("doubles[0]"): # diagnostic: duplicate-test-name
         pass

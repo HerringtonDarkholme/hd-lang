@@ -8,7 +8,7 @@ tests:
     use std.testing.assert_equal
 
     it("every value replaced in place"):
-        let mut entries: Map[string, i32] = {"a": +1, "b": +2}
+        let mut entries: Map[string, i32] = { "a": +1, "b": +2 }
         double(&mut entries)
         assert_equal(entries["a"], +2, reason="a doubled")
         assert_equal(entries["b"], +4, reason="b doubled")

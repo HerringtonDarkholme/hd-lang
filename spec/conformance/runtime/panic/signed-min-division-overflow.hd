@@ -1,5 +1,5 @@
 fn overflow() -> i32:
     let minimum: i32 = -2147483648
-    minimum / -1  # panic: integer-overflow
+    minimum / -1 # panic: integer-overflow
 
 overflow()

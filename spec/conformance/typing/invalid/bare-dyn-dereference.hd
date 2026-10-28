@@ -3,4 +3,4 @@
 trait Shape:
     fn area(self) -> i32
 fn read(value: &dyn Shape) -> void:
-    _ := *value  # diagnostic: trait-used-as-type
+    _ := *value # diagnostic: trait-used-as-type

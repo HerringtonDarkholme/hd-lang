@@ -11,5 +11,5 @@ fn kept(mut m: Map[string, List[i64]]) -> usize:
         .None => 0
 
 pub fn main() -> void $ Console:
-    let m: Map[string, List[i64]] = {"a": [1, 2]}
+    let m: Map[string, List[i64]] = { "a": [1, 2] }
     println(kept(m))

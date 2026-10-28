@@ -1,0 +1,3 @@
+pub fn value() -> i32:
+    let mα = +1
+    mα

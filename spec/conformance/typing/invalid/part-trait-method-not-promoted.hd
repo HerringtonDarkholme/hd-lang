@@ -14,4 +14,4 @@ struct Page:
     Label
 
 fn invalid(page: Page) -> string:
-    page.describe()  # diagnostic: unknown-method
+    page.describe() # diagnostic: unknown-method

@@ -4,4 +4,4 @@
 
 fn main() -> i32:
     value := 1
-    (value := 2)  # diagnostic: duplicate-binding
+    (value := 2) # diagnostic: duplicate-binding

@@ -8,6 +8,6 @@ enum Unit:
     Foot
 
 struct Pair:
-    Vec2  # valid: an embedded struct
-    Unit  # diagnostic: embedded-non-data
+    Vec2 # valid: an embedded struct
+    Unit # diagnostic: embedded-non-data
     weight: f64

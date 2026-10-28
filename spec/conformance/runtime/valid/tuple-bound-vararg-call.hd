@@ -1,11 +1,14 @@
 # test: a Tuple-bounded vararg type is solved as the tuple of the argument types, one element per argument
 # expect: test
 use std.function.{Fn, Tuple}
-fn add2(a: i32, b: i32) -> i32: a + b
-fn neg(a: i32) -> i32: 0 - a
-fn zero() -> i32: 0
+fn add2(a: i32, b: i32) -> i32:
+    a + b
+fn neg(a: i32) -> i32:
+    0 - a
+fn zero() -> i32:
+    0
 
-fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
 tests:

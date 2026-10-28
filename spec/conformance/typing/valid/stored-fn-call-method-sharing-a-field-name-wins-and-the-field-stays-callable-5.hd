@@ -3,7 +3,8 @@ struct Button:
     on_click: fn(i32) -> i32
 
 impl Button:
-    fn on_click(self, x: i32) -> i32: x + 1
+    fn on_click(self, x: i32) -> i32:
+        x + 1
 
 fn run(button: Button) -> i32:
     button.on_click(1) + (button.on_click)(2)

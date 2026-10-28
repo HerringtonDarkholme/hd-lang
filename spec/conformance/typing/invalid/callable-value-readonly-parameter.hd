@@ -7,7 +7,8 @@ struct Cell[T]:
 
 impl[T] Apply for Cell[T]:
     type Out = T
-    fn apply(self) -> T: self.value
+    fn apply(self) -> T:
+        self.value
 
 impl[T] Update[T] for Cell[T]:
     fn update(&mut self, value: T) -> void:
@@ -17,5 +18,5 @@ fn live[T](value: T) -> *mut Cell[T]:
     &mut Cell { value: value }
 
 fn badge(count: Cell[i32]) -> i32:
-    count() = 2  # diagnostic: not-writable
+    count() = 2 # diagnostic: not-writable
     count()

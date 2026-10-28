@@ -1175,7 +1175,11 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Or);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(b);
-        self.f.helper(Helper::ListGrow { elem: e.clone() });
+        self.f.cold_helper(
+            Helper::ListGrow { elem: e.clone() },
+            vec![Val::I32],
+            vec![Val::I32],
+        );
         self.f.set(b);
         self.put_back(args[0], b)?;
         self.f.op(I::End);
@@ -1187,6 +1191,28 @@ impl Em<'_, '_, '_> {
         self.f.i32(1);
         self.f.op(I::I32Add);
         self.f.op(I::I32Store(mem(HEAP, LIST_LEN, 2)));
+        Ok(())
+    }
+
+    /// `ListReserve`: room for `count` more elements, through
+    /// [`Helper::ListReserve`], which panics on a pinned list and copies a
+    /// shared buffer; the buffer it returns goes back into the operand's
+    /// place. A count of 0 does nothing, so an empty list keeps the static
+    /// empty buffer.
+    pub(super) fn list_reserve(&mut self, args: &[u32]) -> StageResult<()> {
+        let (_, e) = self.elem(self.ty_of(args[0]))?;
+        let count = self.f.local(Val::I32);
+        self.push(args[1])?;
+        self.f.set(count);
+        self.f.get(count);
+        self.f.op(I::If(BlockType::Empty));
+        let b = self.buffer(args[0])?;
+        self.f.get(b);
+        self.f.get(count);
+        self.f.helper(Helper::ListReserve { elem: e });
+        self.f.set(b);
+        self.put_back(args[0], b)?;
+        self.f.op(I::End);
         Ok(())
     }
 
@@ -1241,9 +1267,7 @@ impl Em<'_, '_, '_> {
         rest(self)?;
         self.f.helper(helper.clone());
         self.f.set(list);
-        crate::rt::ref_store(&mut self.f, at, &[list], &value);
-        self.f.get(list);
-        self.f.helper(Helper::ReleaseRef);
+        crate::rt::ref_store(&mut self.f, at, &[list], &value, true);
         self.f.op(I::Else);
         self.f.get(at);
         self.f.get(at);
@@ -1255,38 +1279,6 @@ impl Em<'_, '_, '_> {
         if reserve {
             self.f.op(I::End);
         }
-        Ok(())
-    }
-
-    /// `SnapBegin`: the list a counted `for` iterates, a copy of the
-    /// collection, so that a change during the loop copies its buffer
-    /// first (`flow.for.snapshot`).
-    pub(super) fn snap_begin(&mut self, i: u32, coll: u32) -> StageResult<()> {
-        if self.input.runtime.is_none() {
-            return unsupported("collections without std's allocator");
-        }
-        self.comp(coll, 0)?;
-        self.f.helper(Helper::CollCopy);
-        self.store_owned(i)
-    }
-
-    /// `SnapEnd`: the loop over `snap` ended, so the snapshot gives up its
-    /// buffer at once, and the collection's next change copies only if
-    /// something else still shares it. A snapshot read with a count gives
-    /// it up as any operand does; one only borrowed from its local leaves
-    /// the static empty buffer there.
-    pub(super) fn snap_end(&mut self, snap: u32) -> StageResult<()> {
-        if !self.b.is_borrow(snap) {
-            return Ok(());
-        }
-        let b = self.buffer(snap)?;
-        let empty = self.f.local(Val::I32);
-        let at = empty_buffer(self.m);
-        self.f.static_addr(at);
-        self.f.set(empty);
-        self.put_back(snap, empty)?;
-        self.f.get(b);
-        self.f.helper(Helper::ReleaseRef);
         Ok(())
     }
 

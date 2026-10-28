@@ -1,26 +1,13 @@
 fn apply(value: string, transform: fn(string) -> string) -> string:
     transform(value)
 
-fn choice(
-    first: fn(i32) -> void,
-    second: fn(string) -> void,
-) -> void:
+fn choice(first: fn(i32) -> void, second: fn(string) -> void) -> void:
     first(1)
     second("two")
 
-initial := fn(text: string) -> string:
-    text.slice(0, 1)
+initial := fn(text: string) -> string: text.slice(0, 1)
 
 inline := apply("name", fn(name): name.slice(0, 1))
 inc := fn(x: i32) -> i32: x + 1
 
-choice(
-    (
-        fn(number):
-            println(number)
-    ),
-    (
-        fn(text):
-            println(text)
-    ),
-)
+choice((fn(number): println(number)), (fn(text): println(text)))

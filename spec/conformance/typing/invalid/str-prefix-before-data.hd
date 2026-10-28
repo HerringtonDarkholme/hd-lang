@@ -2,6 +2,6 @@
 # Spec 05 Literal Suffixes: expr.literal-fn.fn-only.
 use std.ops.str_prefix
 
-@str_prefix  # diagnostic: decorator-target-kind
+@str_prefix # diagnostic: decorator-target-kind
 struct Query:
     text: string

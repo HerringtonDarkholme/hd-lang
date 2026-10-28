@@ -1,10 +1,10 @@
-# test: a standard value before a derivation block warns too
+# test: ordinary checks accept a standard value before a derivation block
 # Spec 14 Facts: annot.fact.unused-block-decorator.any-type (evening follow-up 8, 2026-09-29).
 use std.structure.Structure
 
 struct Hidden:
     id: i64
 
-@"internal"  # warning: unused-derivation-fact
+@"internal"
 impl Hidden by Structure:
     id += ["key"]

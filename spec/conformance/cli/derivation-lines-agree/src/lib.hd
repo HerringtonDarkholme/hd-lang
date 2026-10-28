@@ -11,5 +11,5 @@ impl Serialize for Session by Structure:
 impl Deserialize for Session by Structure:
     cache = pass
 
-# Spec 14 Line Drift: annot.line.drift, annot.line.drift.legal. The two blocks'
+# Spec 14 Line Drift: annot.line.drift.lint, annot.line.drift.legal. The two blocks'
 # member lines agree, so no derivation-line-drift warning.

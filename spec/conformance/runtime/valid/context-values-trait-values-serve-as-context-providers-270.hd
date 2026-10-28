@@ -9,10 +9,12 @@ trait Backup < Clock:
 struct Fixed: pass
 
 impl Clock for Fixed:
-    fn now(self) -> i32: 7
+    fn now(self) -> i32:
+        7
 
 impl Backup for Fixed:
-    fn label(self) -> i32: 1
+    fn label(self) -> i32:
+        1
 
 fn make() -> $.Context[$ Clock + Backup] $ Backup:
     $.context(Clock=$.use(Backup), Backup=$.use(Backup))

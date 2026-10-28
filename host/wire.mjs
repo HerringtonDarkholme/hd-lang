@@ -17,7 +17,9 @@
 // - a host handle is its number.
 
 // A host result or argument that breaks the ABI: the `host-contract` panic.
-export class HostContract extends Error {}
+// Keep a local binding as well as the public re-export: the decoder throws it.
+import { HostContract } from "./run-support.mjs";
+export { HostContract };
 
 const utf8 = new TextEncoder();
 // Lossy UTF-8 text that keeps a leading byte-order mark, as Node's UTF-8

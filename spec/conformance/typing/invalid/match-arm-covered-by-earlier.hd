@@ -3,5 +3,5 @@
 fn label(value: i32?) -> string:
     match value:
         .Some(_) => "some"
-        .Some(1) => "one"  # diagnostic: unreachable-match-arm
+        .Some(1) => "one" # diagnostic: unreachable-match-arm
         .None => "none"

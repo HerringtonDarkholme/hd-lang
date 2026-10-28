@@ -5,7 +5,11 @@ pub struct DiskError:
 @error
 pub enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError)
+    Write(
+        path: string,
+        @source
+        error: DiskError,
+    )
 
 pub fn save() -> Result[void, SaveError]:
     .Err(SaveError.Write("notes.txt", DiskError { free: 0 }))

@@ -33,10 +33,15 @@ fn depth(e: Expr) -> i32:
         .Add(left, right) => depth(*left) + depth(*right)
 
 tests:
-    it_prop_with("generated trees are finite", gen=tree, prop=fn!(t: Tree):
-        assert(size(t) >= 1, reason="every tree ends in leaves")
+    it_prop_with(
+        "generated trees are finite",
+        gen=tree,
+        prop=fn!(t: Tree): assert(size(t) >= 1, reason="every tree ends in leaves")
+        ,
     )
 
-    it_prop("derived expressions are finite", prop=fn!(e: Expr):
-        assert(depth(e) >= 1, reason="every expression ends in numbers")
+    it_prop(
+        "derived expressions are finite",
+        prop=fn!(e: Expr): assert(depth(e) >= 1, reason="every expression ends in numbers")
+        ,
     )

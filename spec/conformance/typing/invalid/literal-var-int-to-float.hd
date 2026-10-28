@@ -5,4 +5,4 @@ fn half(value: f64) -> f64:
 
 fn run() -> f64:
     let n = 1
-    half(n)  # diagnostic: type-mismatch
+    half(n) # diagnostic: type-mismatch

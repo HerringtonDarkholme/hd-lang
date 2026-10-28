@@ -1,7 +1,8 @@
 # test: cancelling a cold suspension marks it without running it, returns .Finished, and a second cancel does the same
 # Spec 11 Cancellation: req.cancel.cold-job, req.check.cancel-idempotent.
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 fn main!() -> i32:
     let pending: mut Suspend[i32] = ready()
     first := pending.cancel!()
@@ -17,4 +18,8 @@ tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main!(), 42, reason="cancelling a cold suspension twice returns .Finished both times")
+        assert_equal(
+            main!(),
+            42,
+            reason="cancelling a cold suspension twice returns .Finished both times",
+        )

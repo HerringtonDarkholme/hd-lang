@@ -9,6 +9,10 @@ tests:
 
     it("splits into pieces of size elements"):
         assert_equal(pairs([1, 2, 3]), [[1, 2], [3]], reason="the last piece is shorter")
-        assert_equal([+1, +2, +3, +4].chunks(2).map(fn(piece: ListView[i32]) -> List[i32]: piece.to_list()), [[1, 2], [3, 4]], reason="even pieces")
+        assert_equal(
+            [+1, +2, +3, +4].chunks(2).map(fn(piece: ListView[i32]) -> List[i32]: piece.to_list()),
+            [[1, 2], [3, 4]],
+            reason="even pieces",
+        )
         let empty: List[i32] = []
         assert_equal(empty.chunks(3).len(), 0, reason="no pieces for an empty list")

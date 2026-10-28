@@ -1,6 +1,7 @@
 # test: a propagation error in an initializer reports no uninhabited-binding follow-on
 # expr.try.target.nearest-function, types.bind.never.
-fn parse() -> Result[i32, string]: .Ok(+1)
+fn parse() -> Result[i32, string]:
+    .Ok(+1)
 
 pub fn main!() -> void $ Console:
-    _number := parse()?  # diagnostic: invalid-result-propagation
+    _number := parse()? # diagnostic: invalid-result-propagation

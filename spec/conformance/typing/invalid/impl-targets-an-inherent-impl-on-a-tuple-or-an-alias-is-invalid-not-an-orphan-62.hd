@@ -4,5 +4,6 @@ use dep.models.User
 
 type Alias = User
 
-impl Alias:  # diagnostic: invalid-impl-target
-    fn size(self) -> i32: 1
+impl Alias: # diagnostic: invalid-impl-target
+    fn size(self) -> i32:
+        1

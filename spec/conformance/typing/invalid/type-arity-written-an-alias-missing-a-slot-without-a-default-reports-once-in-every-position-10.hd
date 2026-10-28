@@ -8,5 +8,6 @@ struct Pair[K, V]:
     key: K
     value: V
 
-impl Show for Both[i32]:  # diagnostic: partial-generic-arguments
-    fn show(self) -> string: ""
+impl Show for Both[i32]: # diagnostic: partial-generic-arguments
+    fn show(self) -> string:
+        ""

@@ -3,4 +3,4 @@
 use std.collections.ListView
 
 fn invalid(mut view: ListView[i32]) -> void:
-    view[0] = 7  # diagnostic: invalid-assignment-target
+    view[0] = 7 # diagnostic: invalid-assignment-target

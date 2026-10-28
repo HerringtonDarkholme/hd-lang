@@ -12,7 +12,11 @@ it("reads a fixture from the package directory"):
 
 it("writes the export into a fresh directory of its own"):
     dir := temp_dir()
-    assert_equal($.use(FsRead).list_dir!(dir).expect("the directory").len(), 0, reason="fresh and empty")
+    assert_equal(
+        $.use(FsRead).list_dir!(dir).expect("the directory").len(),
+        0,
+        reason="fresh and empty",
+    )
     out := Path("${dir}/export.csv")
     write_text!(out, "A-1,3\n").expect("the export")
     assert_equal(read_text!(out).expect("the written export"), "A-1,3\n", reason="the export")

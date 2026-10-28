@@ -1,7 +1,7 @@
 # A loop over a small map, n times.
 pub fn main() -> void $ Console:
-    let n: i64 = 1000  # param: n
-    let table: Map[string, i64] = {"a": 1, "b": 2, "c": 3, "d": 4}
+    let n: i64 = 1000 # param: n
+    let table: Map[string, i64] = { "a": 1, "b": 2, "c": 3, "d": 4 }
     let total: i64 = 0
     for i in 0..n:
         for (key, value) in table:

@@ -5,10 +5,11 @@ trait Greeter:
     fn name(self) -> string
 
     fn tag(self) -> string:
-        self.email  # diagnostic: unknown-method
+        self.email # diagnostic: unknown-method
 
 struct User:
     email: string
 
 impl Greeter for User:
-    fn name(self) -> string: self.email
+    fn name(self) -> string:
+        self.email

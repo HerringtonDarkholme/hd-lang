@@ -1,9 +1,7 @@
 //! Explicit conformance fixture providers, never enabled by the default host.
-//! Their boundary values match `host/profiles.mjs`; under `pending-write`
-//! the ordinary Console provider answers every write pending at its
-//! start (`Host::pending_writes`). The
-//! `disposed-file` and `pending-gate` providers follow the spec's Runtime
-//! Profiles (`spec/conformance/README.md`) too. `call` is their provider;
+//! Their boundary values match `host/profiles.mjs`. The `tick`,
+//! `pending-tick`, `disposed-file` and `pending-gate` providers follow the
+//! spec's Runtime Profiles (`spec/conformance/README.md`) too. `call` is their provider;
 //! `State` is one instance's fixture state.
 
 use std::collections::BTreeMap;
@@ -23,7 +21,8 @@ pub enum RuntimeProfile {
     MisbehavingHost,
     SpecialFloatHost,
     SerdeVault,
-    PendingWrite,
+    Tick,
+    PendingTick,
     DisposedFile,
     PendingGate,
 }
@@ -36,7 +35,8 @@ impl RuntimeProfile {
             "misbehaving-host" => Ok(Self::MisbehavingHost),
             "special-float-host" => Ok(Self::SpecialFloatHost),
             "serde-vault" => Ok(Self::SerdeVault),
-            "pending-write" => Ok(Self::PendingWrite),
+            "tick" => Ok(Self::Tick),
+            "pending-tick" => Ok(Self::PendingTick),
             "disposed-file" => Ok(Self::DisposedFile),
             "pending-gate" => Ok(Self::PendingGate),
             _ => Err(format!("no runtime profile named {name}")),
@@ -61,6 +61,10 @@ impl RuntimeProfile {
             (Self::DisposedFile, "hd:Files", "open.finish") => (Method::FilesOpen, true),
             (Self::DisposedFile, "hd:FileHandle", "read.start") => (Method::FileHandleRead, false),
             (Self::DisposedFile, "hd:FileHandle", "read.finish") => (Method::FileHandleRead, true),
+            (Self::Tick, "hd:Tick", "tick.start") => (Method::TickNow, false),
+            (Self::Tick, "hd:Tick", "tick.finish") => (Method::TickNow, true),
+            (Self::PendingTick, "hd:Tick", "tick.start") => (Method::TickPending, false),
+            (Self::PendingTick, "hd:Tick", "tick.finish") => (Method::TickPending, true),
             (Self::PendingGate, "hd:Gate", "wait.start") => (Method::GateWait, false),
             (Self::PendingGate, "hd:Gate", "wait.finish") => (Method::GateWait, true),
             _ => return None,
@@ -70,8 +74,9 @@ impl RuntimeProfile {
 }
 
 /// A fixture method's one call, or its `.start`, or its `.finish` when
-/// `finish`. A waiting method's `.start` is a reactor operation that
-/// completes at once (`disposed-file`) or never (`pending-gate`), and its
+/// `finish`. A waiting method's `.start` completes during the call
+/// (`tick`), or is a reactor operation that completes at its next poll
+/// (`pending-tick`, `disposed-file`) or never (`pending-gate`), and its
 /// `.finish` decides the result from the instance's `State`.
 pub(crate) fn call(
     method: Method,
@@ -87,6 +92,7 @@ pub(crate) fn call(
             );
         };
         let bytes = match (method, op.work) {
+            (Method::TickPending, Work::FixtureOpen) => return Ok(Ret::int(0)),
             (Method::FilesOpen, Work::FixtureOpen) => {
                 let id = caller.data_mut().fixture.open_file();
                 let mut encoded = Enc::default();
@@ -124,6 +130,8 @@ pub(crate) fn call(
             )
         }
         Method::GateWait => Ret::pair(1, caller.data_mut().reactor.gate()),
+        Method::TickNow => Ret::pair(0, 0),
+        Method::TickPending => Ret::pair(1, caller.data_mut().reactor.fixture_open()),
         Method::GaugeLevel | Method::SensorReading | Method::VaultKeep => {
             let length = if matches!(method, Method::VaultKeep) {
                 int_arg(params, 0)?
@@ -147,6 +155,8 @@ pub(crate) enum Method {
     FileHandleRead,
     FileHandleClose,
     GateWait,
+    TickNow,
+    TickPending,
 }
 
 impl Method {
@@ -246,7 +256,11 @@ impl State {
             // memory. The generated guest decoder enforces its boundary;
             // this deliberately transparent provider does not read or copy it.
             Method::VaultKeep => return Reply::EchoLength(length),
-            Method::FilesOpen | Method::FileHandleRead | Method::GateWait => {
+            Method::FilesOpen
+            | Method::FileHandleRead
+            | Method::GateWait
+            | Method::TickNow
+            | Method::TickPending => {
                 unreachable!("waiting fixture methods run as .start/.finish, never one call")
             }
             Method::FileHandleClose => {

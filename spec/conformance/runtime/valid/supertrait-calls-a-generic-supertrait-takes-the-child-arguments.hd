@@ -11,10 +11,12 @@ struct Crate[T]:
     item: T
 
 impl[T] Source[List[T]] for Crate[T]:
-    fn source(self) -> List[T]: [self.item, self.item]
+    fn source(self) -> List[T]:
+        [self.item, self.item]
 
 impl[T] Wrapped[T] for Crate[T]:
-    fn count(self) -> i32: 2
+    fn count(self) -> i32:
+        2
 
 fn first(source: &dyn Source[List[string]]) -> string:
     source.source()[0]

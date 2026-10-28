@@ -8,4 +8,4 @@ function tally(n, buckets) {
   for (const count of counts.values()) total += count;
   return total;
 }
-console.log(tally(200000, 5000));
+console.log(tally(17000000, 5000));

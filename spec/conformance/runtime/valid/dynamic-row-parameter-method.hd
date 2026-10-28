@@ -5,12 +5,12 @@
 # Spec 09 Dynamic Safety: trait.dyn.safe.row-parameter.
 
 trait Runner:
-    fn run[$R](self, job: fn() -> i32 $ R) -> i32 $ R
+    fn run[$ R](self, job: fn() -> i32 $ R) -> i32 $ R
 
 struct Plain: pass
 
 impl Runner for Plain:
-    fn run[$R](self, job: fn() -> i32 $ R) -> i32 $ R:
+    fn run[$ R](self, job: fn() -> i32 $ R) -> i32 $ R:
         job()
 
 fn loud() -> i32 $ Console:

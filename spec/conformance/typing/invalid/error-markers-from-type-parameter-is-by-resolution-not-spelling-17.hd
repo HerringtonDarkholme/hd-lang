@@ -2,4 +2,7 @@
 @error
 enum App[DiskError]:
     @error("inner")
-    Inner(@from error: DiskError)  # diagnostic: invalid-error-marker
+    Inner(
+        @from # diagnostic: invalid-error-marker
+        error: DiskError,
+    )

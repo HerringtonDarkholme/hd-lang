@@ -38,4 +38,8 @@ tests:
             assert_equal(reach!("example.com", 80), false, reason="the connection is refused")
 
     it("a refused address names the address"):
-        assert_equal(NetError.NotGranted("db.internal:5432").to_string(), "net access to db.internal:5432 is not granted", reason="plain denial without host-specific advice")
+        assert_equal(
+            NetError.NotGranted("db.internal:5432").to_string(),
+            "net access to db.internal:5432 is not granted",
+            reason="plain denial without host-specific advice",
+        )

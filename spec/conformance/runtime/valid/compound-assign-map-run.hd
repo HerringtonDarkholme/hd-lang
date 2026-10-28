@@ -1,7 +1,7 @@
 # test: += on a present map entry reads it as V, then stores the sum
 # Spec 05 Compound Assignment and Map Indexing: expr.assign.compound.index-read-write, expr.index.map.read-value (evening follow-up 5, 2026-09-29; SSC Q8, batch 26).
 fn count(words: List[string]) -> Map[string, i32]:
-    let mut counts: Map[string, i32] = {"a": 0, "b": 0}
+    let mut counts: Map[string, i32] = { "a": 0, "b": 0 }
     for word in words:
         counts[word] += 1
     counts

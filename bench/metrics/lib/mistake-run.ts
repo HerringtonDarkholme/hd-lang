@@ -2,8 +2,9 @@
 // `fixit-safety`, so a full metrics run checks each program once.
 //
 // For each program, in its own temporary directory:
-// 1. `hd check --tests --format json FILE` gives the diagnostic objects;
-// 2. `hd check --tests FILE` gives the text an agent reads by default;
+// 1. `hd check` or a fixture's `# tool: lint`, with --tests --format json,
+//    gives the diagnostic objects;
+// 2. the same tool with --tests gives the text an agent reads by default;
 // 3. when the diagnostic for the mistake carries one fix-it, the fix is
 //    applied to a copy and step 1 runs again on it.
 
@@ -39,12 +40,12 @@ const POOL = 4;
 
 const cache = new Map<string, Promise<MistakeOutcome[]>>();
 
-async function checkJson(hd: HdCommand, dir: string, file: string) {
-  const result = await runHd(hd, ["check", "--tests", "--format", "json", file], {
+async function checkJson(hd: HdCommand, dir: string, file: string, tool: Mistake["tool"]) {
+  const result = await runHd(hd, [tool, "--tests", "--format", "json", file], {
     cwd: dir,
     timeoutMs: TIMEOUT_MS,
   });
-  if (result.timedOut) throw new Error(`hd check timed out after ${TIMEOUT_MS / 1000} s`);
+  if (result.timedOut) throw new Error(`hd ${tool} timed out after ${TIMEOUT_MS / 1000} s`);
   return diagnosticsOf(result.stdout + result.stderr);
 }
 
@@ -53,8 +54,8 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
     const file = `${mistake.name}.hd`;
     writeFileSync(join(dir, file), mistake.text);
     try {
-      const diagnostics = await checkJson(hd, dir, file);
-      const textRun = await runHd(hd, ["check", "--tests", file], {
+      const diagnostics = await checkJson(hd, dir, file, mistake.tool);
+      const textRun = await runHd(hd, [mistake.tool, "--tests", file], {
         cwd: dir,
         timeoutMs: TIMEOUT_MS,
       });
@@ -70,7 +71,7 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
       };
       if (!edits || edits.length === 0) return { ...base, fixApplied: false };
       writeFileSync(join(dir, file), applyEdits(mistake.text, edits));
-      return { ...base, fixApplied: true, afterFix: await checkJson(hd, dir, file) };
+      return { ...base, fixApplied: true, afterFix: await checkJson(hd, dir, file, mistake.tool) };
     } catch (error) {
       return {
         mistake,

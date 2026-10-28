@@ -2,5 +2,6 @@
 # fixture-package-role: library
 use dep.models.User
 
-impl User:  # diagnostic: orphan-impl
-    fn size(self) -> i32: 1
+impl User: # diagnostic: orphan-impl
+    fn size(self) -> i32:
+        1

@@ -9,12 +9,14 @@ trait Clock:
 struct MemoryDb: pass
 
 impl Db for MemoryDb:
-    fn name(self) -> string: "db"
+    fn name(self) -> string:
+        "db"
 
 struct FixedClock: pass
 
 impl Clock for FixedClock:
-    fn now(self) -> i32: 7
+    fn now(self) -> i32:
+        7
 
 fn health() -> string $ Clock:
     "ok ${$.use(Clock).now()}"
@@ -42,4 +44,8 @@ tests:
             assert_equal(serve(health), "ok 7", reason="Clock only")
             assert_equal(serve(orders), "db 7", reason="Db and Clock")
             assert_equal(serve(plain), "plain", reason="the empty row")
-            assert_equal(serve_all([health, orders, plain]), "ok 7;db 7;plain;", reason="a list of handlers")
+            assert_equal(
+                serve_all([health, orders, plain]),
+                "ok 7;db 7;plain;",
+                reason="a list of handlers",
+            )

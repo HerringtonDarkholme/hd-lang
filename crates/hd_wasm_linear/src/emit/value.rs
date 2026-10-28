@@ -137,13 +137,9 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.is_some_and(|r| r.checked.is_none())
             && m.size
                 .checked_add(crate::module::HEADER)
-                .and_then(|n| n.checked_add(if cyclic { crate::module::CYCLE_WORD } else { 0 }))
                 .is_some_and(|n| n <= 2048)
         {
-            self.f.helper(Helper::NewFixed {
-                size: m.size,
-                cyclic,
-            });
+            self.f.helper(Helper::NewFixed { size: m.size });
         } else {
             self.f.helper(Helper::New);
         }
@@ -226,7 +222,7 @@ impl Em<'_, '_, '_> {
             Kind::Data(tys) => {
                 if tys.is_empty() {
                     let at = self.empty_object();
-                    self.f.u32(at);
+                    self.f.static_addr(at);
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);
@@ -414,7 +410,7 @@ impl Em<'_, '_, '_> {
             Kind::Data(tys) => {
                 if tys.is_empty() {
                     let at = self.empty_object();
-                    self.f.u32(at);
+                    self.f.static_addr(at);
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
                     let walk = self.payload_walk(&tys);
@@ -531,7 +527,7 @@ impl Em<'_, '_, '_> {
         // boxed a value compares its boxes (`ref.identity.same-place`).
         let t = self.ty_of(a);
         if !matches!(self.kind(t), Kind::Data(_) | Kind::Boxed)
-            && walk(self.pool(), self.env(), t) != Some(Walk::Ref(0))
+            && walk(self.pool(), self.env(), t).and_then(|w| w.single()) != Some(0)
         {
             return unsupported("identity of a value that is not a data value");
         }
@@ -541,10 +537,24 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
+    /// Whether enum or optional type `t` is a nullable address
+    /// ([`crate::layout::nullable`]): its tag is whether the address is
+    /// not null.
+    pub(super) fn nullable(&self, t: Ty) -> bool {
+        variants(self.pool(), self.env(), t)
+            .is_some_and(|vs| crate::layout::nullable(self.pool(), self.env(), &vs))
+    }
+
     /// Pushes the tag of enum value `a`, loaded from its cell when it is
     /// boxed.
     pub(super) fn tag(&mut self, a: u32) -> StageResult<()> {
         let t = self.ty_of(a);
+        if self.nullable(t) {
+            self.comp(a, 0)?;
+            self.f.i32(0);
+            self.f.op(I::I32Ne);
+            return Ok(());
+        }
         if matches!(self.kind(t), Kind::Boxed) {
             let (m, _) = self.flat(t)?;
             return self.load(&|em: &mut Self| em.comp(a, 0), 0, m.leaves[0]);
@@ -598,13 +608,13 @@ impl Em<'_, '_, '_> {
         }
         // Construction consumes its parts (§23.25).
         let fields = self.count_parts(fields, &tys)?;
+        // A nullable enum's value 0 is the payload's address, or null.
         let push = |em: &mut Self, p: usize| -> StageResult<()> {
-            if p == 0 {
-                em.f.u32(variant);
-                return Ok(());
-            }
             if let Some((f, k)) = from[p] {
                 em.src(&fields[f], k)
+            } else if p == 0 {
+                em.f.u32(variant);
+                Ok(())
             } else {
                 em.zero(m.leaves[p].val);
                 Ok(())

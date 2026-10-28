@@ -21,6 +21,4 @@ fn lines(raw: string) -> string:
         |> clean
 
 fn chained(values: List[i32]) -> i32:
-    values
-        .len()
-        |> twice
+    values.len() |> twice

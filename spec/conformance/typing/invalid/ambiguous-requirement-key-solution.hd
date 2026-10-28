@@ -13,4 +13,4 @@ fn read_both() -> i32 $ Repo[User] + Repo[Post]:
     $.use(Repo[User]).number() + $.use(Repo[Post]).number()
 
 fn schedule() -> void:
-    _ := Job { callback: read_both }  # diagnostic: ambiguous-type
+    _ := Job { callback: read_both } # diagnostic: ambiguous-type

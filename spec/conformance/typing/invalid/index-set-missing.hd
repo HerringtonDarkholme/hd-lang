@@ -11,4 +11,4 @@ impl Index[usize] for Row:
         self.cells[key]
 
 fn invalid(row: &mut Row) -> void:
-    row[0] = 1  # diagnostic: invalid-assignment-target
+    row[0] = 1 # diagnostic: invalid-assignment-target

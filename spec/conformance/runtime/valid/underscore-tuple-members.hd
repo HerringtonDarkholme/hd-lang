@@ -8,8 +8,7 @@ fn describe(pair: (i32, string)) -> string:
     "${pair._0}-${pair._1}"
 
 fn continued(nested: ((i32, i32), i32)) -> i32:
-    value := nested
-        ._0
+    value := nested._0
     value._1
 
 tests:

@@ -1,3 +1,4 @@
 # test: functions / declarations / public function needs a result type
 
-pub fn identity(x: i32): x  # diagnostic: missing-result-type
+pub fn identity(x: i32): # diagnostic: missing-result-type
+    x

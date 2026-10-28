@@ -5,4 +5,4 @@ struct Child:
 
 fn rename(children: &mut List[Child]) -> void:
     for child in children:
-        child.name = "renamed"  # diagnostic: not-writable
+        child.name = "renamed" # diagnostic: not-writable

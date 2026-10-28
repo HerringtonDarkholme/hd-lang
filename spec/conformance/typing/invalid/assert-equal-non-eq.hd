@@ -8,4 +8,4 @@ tests:
 
     it("result equality needs Eq"):
         let actual: Result[i32, Error] = .Ok(1)
-        assert_equal(actual, .Ok(1), reason="values match")  # diagnostic: unsatisfied-trait-bound
+        assert_equal(actual, .Ok(1), reason="values match") # diagnostic: unsatisfied-trait-bound

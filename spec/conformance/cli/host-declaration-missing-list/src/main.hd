@@ -2,4 +2,5 @@
 pub trait Server:
     fn read(&self) -> string
 
-pub fn main() -> void: pass
+pub fn main() -> void:
+    pass

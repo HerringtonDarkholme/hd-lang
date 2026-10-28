@@ -7,6 +7,6 @@ use pkg.cart.{Cart}
 struct Basket:
     carts: List[Cart]
 
-impl Priced for Basket:  # diagnostic: unknown-trait
+impl Priced for Basket: # diagnostic: unknown-trait
     fn price(self) -> i32:
         +0

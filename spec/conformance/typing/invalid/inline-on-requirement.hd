@@ -1,0 +1,7 @@
+# test: @cold before a trait requirement without a default body
+# Spec 14 Inline And Cold: annot.inline.targets.
+use std.annotation.cold
+
+trait Step:
+    @cold # diagnostic: invalid-inline-decorator
+    fn step(self, x: i32) -> i32

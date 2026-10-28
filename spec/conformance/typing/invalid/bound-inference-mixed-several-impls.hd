@@ -26,4 +26,4 @@ fn joined[U, A < Source[U], B < Source[U]](first: A, second: B) -> List[U]:
     [first.take(), second.take()]
 
 fn mixed(label: Label, both: Both) -> void:
-    items := joined(label, both)  # diagnostic: ambiguous-type
+    items := joined(label, both) # diagnostic: ambiguous-type

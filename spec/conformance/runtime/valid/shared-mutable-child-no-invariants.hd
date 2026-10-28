@@ -22,4 +22,8 @@ tests:
     it("a store may break a cross-field invariant"):
         let mut budget = &mut Budget { limit_cents: 100, spent_cents: 0 }
         budget.spent_cents = 500
-        assert_equal(budget.spent_cents > budget.limit_cents, true, reason="no validation beyond the type")
+        assert_equal(
+            budget.spent_cents > budget.limit_cents,
+            true,
+            reason="no validation beyond the type",
+        )

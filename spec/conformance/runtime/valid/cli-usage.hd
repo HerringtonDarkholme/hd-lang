@@ -2,7 +2,11 @@
 # Spec std/cli Usage Text: std-cli.usage.parser, std-cli.usage.command-terms, std-cli.usage.arguments, std-cli.usage.options-help-last, std-cli.usage.term, std-cli.usage.entry-choices, std-cli.usage.no-description, std-cli.usage.automatic-help, std-cli.error.help-stop (task #242).
 use std.cli.{Arg, ArgParser, CliError}
 fn tool() -> *mut ArgParser:
-    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "dry-run", kind: .Flag, short: .None, help: "" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
+    ArgParser::new("count")
+        .arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
+        .arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" })
+        .arg(Arg { name: "dry-run", kind: .Flag, short: .None, help: "" })
+        .arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 tests:
     use std.testing.assert_equal
@@ -12,12 +16,40 @@ tests:
         assert_equal(tool().usage(), expected, reason="every section")
 
     it("sections without declarations are left out"):
-        assert_equal(ArgParser::new("bare").usage(), "usage: bare [options]\n\noptions:\n  -h, --help  Print this help.", reason="no declarations")
-        assert_equal(ArgParser::new("cat").arg(Arg { name: "file", kind: .Positional, required: true, help: "the file" }).usage(), "usage: cat [options] <file>\n\narguments:\n  file        the file\n\noptions:\n  -h, --help  Print this help.", reason="positionals only")
-        assert_equal(ArgParser::new("ls").arg(Arg { name: "all", kind: .Flag, short: 'a', help: "every entry" }).usage(), "usage: ls [options]\n\noptions:\n  -a, --all   every entry\n  -h, --help  Print this help.", reason="flags only")
+        assert_equal(
+            ArgParser::new("bare").usage(),
+            "usage: bare [options]\n\noptions:\n  -h, --help  Print this help.",
+            reason="no declarations",
+        )
+        assert_equal(
+            ArgParser::new("cat")
+                .arg(Arg { name: "file", kind: .Positional, required: true, help: "the file" })
+                .usage(),
+            "usage: cat [options] <file>\n\narguments:\n  file        the file\n\noptions:\n  -h, --help  Print this help.",
+            reason="positionals only",
+        )
+        assert_equal(
+            ArgParser::new("ls")
+                .arg(Arg { name: "all", kind: .Flag, short: 'a', help: "every entry" })
+                .usage(),
+            "usage: ls [options]\n\noptions:\n  -a, --all   every entry\n  -h, --help  Print this help.",
+            reason="flags only",
+        )
 
     it("automatic help stops parsing before required checks or later errors"):
-        assert_equal(tool().parse(["--help"]), .Err(CliError.Help(tool().usage())), reason="always declared")
+        assert_equal(
+            tool().parse(["--help"]),
+            .Err(CliError.Help(tool().usage())),
+            reason="always declared",
+        )
         assert_equal(tool().parse(["-h"]), tool().parse(["--help"]), reason="short alias")
-        assert_equal(tool().parse(["-h", "--colour"]), .Err(CliError.Help(tool().usage())), reason="later arguments are not read")
-        assert_equal(tool().parse([]), .Err(CliError.MissingArgument("<pattern>")), reason="normal required checks remain")
+        assert_equal(
+            tool().parse(["-h", "--colour"]),
+            .Err(CliError.Help(tool().usage())),
+            reason="later arguments are not read",
+        )
+        assert_equal(
+            tool().parse([]),
+            .Err(CliError.MissingArgument("<pattern>")),
+            reason="normal required checks remain",
+        )

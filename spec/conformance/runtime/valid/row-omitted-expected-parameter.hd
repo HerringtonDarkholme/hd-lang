@@ -8,9 +8,10 @@ struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
-fn run[$R](job: fn() -> string $ R) -> string $ R:
+fn run[$ R](job: fn() -> string $ R) -> string $ R:
     job()
 
 fn through() -> string $ Tag:

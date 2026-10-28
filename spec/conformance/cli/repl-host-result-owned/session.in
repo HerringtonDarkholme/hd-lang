@@ -1,0 +1,11 @@
+use std.host.Sys
+let system: *dyn Sys = if true:
+    let provider: *dyn Sys = $.use(Sys)
+    _ := provider.os()
+    provider
+else:
+    $.use(Sys)
+
+saved := system.os()
+println("overwrite the exchange buffer")
+saved.expect("os").len() > 0

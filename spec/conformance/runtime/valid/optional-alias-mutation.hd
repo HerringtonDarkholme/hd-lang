@@ -10,7 +10,8 @@ fn change(value: Maybe[*mut User]) -> Maybe[*mut User]:
     item.name = item.name + 1
     item
 
-fn keep[T](value: T) -> T: value
+fn keep[T](value: T) -> T:
+    value
 
 tests:
     use std.testing.assert_equal

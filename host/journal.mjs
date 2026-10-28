@@ -728,6 +728,67 @@ export function recorded(bytes) {
   return { execution: header.execution, inputs };
 }
 
+// Materializes archived, completed epochs as one ordinary journal. Method
+// numbers and row indices are local to each chunk and must be reassigned;
+// stored request digests and reply bytes are copied without running HD.
+export function joinJournals(chunks) {
+  const out = new Bytes();
+  const methods = new Map();
+  let execution = null;
+  let next = 0;
+  let last = -1;
+  for (const bytes of chunks) {
+    const read = readRows(bytes);
+    if (read.valid !== bytes.byteLength) throw new Error("an archived journal is cut short");
+    const record = recorded(bytes);
+    if (record.inputs.some((input) => input.end === null)) {
+      throw new Error("an archived journal has an unfinished input");
+    }
+    if (execution && !execution.every((b, i) => b === record.execution[i])) {
+      throw new Error("archived journals belong to different executions");
+    }
+    const events = decodeRows(read.rows);
+    for (const [index, event] of events.entries()) {
+      const row = read.rows[index];
+      if (event.kind === "header") {
+        if (execution) continue;
+        execution = record.execution;
+      }
+      if (event.kind === "input") {
+        if (event.number <= last) throw new Error("archived inputs are not in increasing order");
+        last = event.number;
+      }
+      let payload = row.payload;
+      if (event.kind === "call") {
+        const write = new Bytes();
+        const key = `${event.module}\0${event.name}`;
+        const known = methods.get(key);
+        write.uleb(known ?? methods.size);
+        if (known === undefined) {
+          for (const text of [event.module, event.name]) {
+            const encoded = utf8.encode(text);
+            write.uleb(encoded.length);
+            write.raw(encoded);
+          }
+          methods.set(key, methods.size);
+        }
+        if (event.request.args) {
+          write.uleb(event.request.args.length);
+          write.raw(event.request.args);
+        } else {
+          write.uleb(event.request.len);
+          write.le(event.request.digest, 8);
+        }
+        putReply(write, event.value, event.result);
+        payload = write.view();
+      }
+      appendRow(out, row.kind, next++, payload);
+    }
+  }
+  if (!execution) throw new Error("no archived journal header");
+  return out.view();
+}
+
 // Whether `source` is the text a recorded input ran, by its hash.
 export const ran = (input, source) => xxh3_128(utf8.encode(source)) === input.source;
 

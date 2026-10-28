@@ -1604,7 +1604,7 @@ result fixed by the type, so it gets a warning:
 | r[expr.ord.unsigned-zero.below] Below zero | `t < 0` | always false |
 | r[expr.ord.unsigned-zero.above] Zero above | `0 > t` | always false |
 
-1. r[expr.ord.unsigned-zero] A comparison in one of the forms in the table, where `t` has an unsigned integer type, gets a warning, and the program still compiles. Warning: `unsigned-comparison-always`.
+1. r[expr.ord.unsigned-zero.lint] A comparison in the table whose `t` has an unsigned integer type produces a lint finding without changing program validity. Warning: `unsigned-comparison-always`.
 2. r[expr.ord.unsigned-zero.literal] The `0` of a form is any unsuffixed integer literal whose value is zero, in any radix, such as `0` or `0x0`.
 3. r[expr.ord.unsigned-zero.binding-type] The type of `t` is its type at the comparison. That is a declared unsigned type, or the [`usize` default](04-type-system.md#r-types.literal.local.default) of the literal its binding was initialized with.
 5. r[expr.ord.unsigned-zero.message] The warning must name the operand and say whether the comparison is always true or always false. One phrasing is "`t` is unsigned, so `t >= 0` is always true". When `t` has the `usize` default, it should also suggest a signed literal such as `+10` or another condition.

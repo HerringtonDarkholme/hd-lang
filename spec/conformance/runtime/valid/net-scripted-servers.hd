@@ -79,7 +79,11 @@ tests:
         net := ScriptedNet::new()
         net.add_listener("0.0.0.0:7", ScriptedListener::new([]))
         $.with(Net=net):
-            assert_equal(serve_one!(), .Err(.Other("accept failed")), reason="no connection scripted")
+            assert_equal(
+                serve_one!(),
+                .Err(.Other("accept failed")),
+                reason="no connection scripted",
+            )
 
     it("accepts in order, then fails at once"):
         first := ScriptedStream::new([])
@@ -99,11 +103,17 @@ tests:
                 .Err(_) => panic("the second stream")
             match listener.accept!():
                 .Ok(_) => panic("no third stream")
-                .Err(error) => assert_equal(outcome::[void](.Err(error)), "other: ScriptedListener has no more connections", reason="exhausted")
+                .Err(error) =>
+                    assert_equal(
+                        outcome::[void](.Err(error)),
+                        "other: ScriptedListener has no more connections",
+                        reason="exhausted",
+                    )
             assert_equal(outcome(listener.close()), "ok", reason="close")
             match listener.accept!():
                 .Ok(_) => panic("closed")
-                .Err(error) => assert_equal(outcome::[void](.Err(error)), "closed", reason="after close")
+                .Err(error) =>
+                    assert_equal(outcome::[void](.Err(error)), "closed", reason="after close")
         assert_equal(first.written(), [1], reason="the first accept")
         assert_equal(second.written(), [2], reason="the second accept")
 
@@ -112,24 +122,40 @@ tests:
         net.fail_connection("db.local:5432", NetError.Refused("db.local:5432"))
         net.add_connection("db.local:5432", ScriptedStream::new([]))
         $.with(Net=net):
-            assert_equal(connect_with_retry!("db.local", 5432, 3), .Ok(()), reason="second try works")
+            assert_equal(
+                connect_with_retry!("db.local", 5432, 3),
+                .Ok(()),
+                reason="second try works",
+            )
         assert_equal(net.received().len(), 2, reason="two connects")
 
     it("runs out of scripted connections with Refused"):
         net := ScriptedNet::new()
         $.with(Net=net):
-            assert_equal(connect_with_retry!("db.local", 5432, 2), .Err(.Refused("db.local:5432")), reason="nothing scripted")
+            assert_equal(
+                connect_with_retry!("db.local", 5432, 2),
+                .Err(.Refused("db.local:5432")),
+                reason="nothing scripted",
+            )
 
     it("answers a ping with a scripted datagram"):
-        socket := ScriptedUdp::new([Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }])
+        socket := ScriptedUdp::new(
+            [Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }],
+        )
         net := ScriptedNet::new()
         net.add_udp("0.0.0.0:0", socket)
         $.with(Net=net):
             assert_equal(ping!("10.0.0.7", 9000), .Ok(true), reason="pong")
-        assert_equal(socket.sent(), [Datagram { bytes: "ping".to_utf8(), host: "10.0.0.7", port: 9000 }], reason="the ping")
+        assert_equal(
+            socket.sent(),
+            [Datagram { bytes: "ping".to_utf8(), host: "10.0.0.7", port: 9000 }],
+            reason="the ping",
+        )
 
     it("cuts a datagram to max, fails past the last, and is Closed after close"):
-        socket := ScriptedUdp::new([Datagram { bytes: "hello".to_utf8(), host: "10.0.0.7", port: 9000 }])
+        socket := ScriptedUdp::new(
+            [Datagram { bytes: "hello".to_utf8(), host: "10.0.0.7", port: 9000 }],
+        )
         net := ScriptedNet::new()
         net.add_udp("0.0.0.0:5000", socket)
         $.with(Net=net):
@@ -138,16 +164,35 @@ tests:
                 .Ok(found) => found
                 .Err(_) => panic("a scripted socket")
             match udp.receive!(3):
-                .Ok(datagram) => assert_equal(datagram, Datagram { bytes: "hel".to_utf8(), host: "10.0.0.7", port: 9000 }, reason="cut to max")
+                .Ok(datagram) =>
+                    assert_equal(
+                        datagram,
+                        Datagram { bytes: "hel".to_utf8(), host: "10.0.0.7", port: 9000 },
+                        reason="cut to max",
+                    )
                 .Err(_) => panic("a scripted datagram")
-            assert_equal(outcome(udp.receive!(3)), "other: ScriptedUdp has no more datagrams", reason="exhausted")
+            assert_equal(
+                outcome(udp.receive!(3)),
+                "other: ScriptedUdp has no more datagrams",
+                reason="exhausted",
+            )
             assert_equal(outcome(udp.close()), "ok", reason="close")
-            assert_equal(outcome(udp.send_to!("10.0.0.7", 9000, [1])), "closed", reason="after close")
+            assert_equal(
+                outcome(udp.send_to!("10.0.0.7", 9000, [1])),
+                "closed",
+                reason="after close",
+            )
             match client.bind_udp!("0.0.0.0", 5000):
                 .Ok(_) => panic("the queue is empty")
-                .Err(error) => assert_equal(error, NetError.Refused("0.0.0.0:5000"), reason="an emptied queue")
+                .Err(error) =>
+                    assert_equal(error, NetError.Refused("0.0.0.0:5000"), reason="an emptied queue")
             match client.listen!("0.0.0.0", 8):
                 .Ok(_) => panic("nothing scripted")
-                .Err(error) => assert_equal(error, NetError.Refused("0.0.0.0:8"), reason="no listener entry")
+                .Err(error) =>
+                    assert_equal(error, NetError.Refused("0.0.0.0:8"), reason="no listener entry")
         assert_equal(socket.is_closed(), true, reason="the test sees it")
-        assert_equal(net.received(), ["0.0.0.0:5000", "0.0.0.0:5000", "0.0.0.0:8"], reason="every call")
+        assert_equal(
+            net.received(),
+            ["0.0.0.0:5000", "0.0.0.0:5000", "0.0.0.0:8"],
+            reason="every call",
+        )

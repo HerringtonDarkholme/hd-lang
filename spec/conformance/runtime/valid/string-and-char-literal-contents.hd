@@ -5,7 +5,8 @@
 # expect-stdout: ' " 世 😀
 # expect-stdout: true
 # expect-stdout: true
-fn first_char(initial: char, rest: string) -> string: "$initial$rest"
+fn first_char(initial: char, rest: string) -> string:
+    "$initial$rest"
 
 pub fn main() -> void $ Console:
     println("Ada says \"hi\" and it's {fine}")

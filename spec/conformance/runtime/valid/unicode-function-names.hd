@@ -3,11 +3,14 @@
 # expect-stdout: 10
 # expect-stdout: 10
 # expect-stdout: 7
-fn 差(a: i32, b: i32) -> i32: b - a
+fn 差(a: i32, b: i32) -> i32:
+    b - a
 
-fn Δ(a: i32, b: i32) -> i32: b - a
+fn Δ(a: i32, b: i32) -> i32:
+    b - a
 
-fn größe_in_zoll(cm: i32) -> i32: cm / 2
+fn größe_in_zoll(cm: i32) -> i32:
+    cm / 2
 
 pub fn main() -> void $ Console:
     println(差(+2, +12))

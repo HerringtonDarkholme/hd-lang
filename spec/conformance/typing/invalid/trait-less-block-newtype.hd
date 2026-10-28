@@ -3,4 +3,4 @@ use std.structure.Structure
 
 type Meters(i64)
 
-impl Meters by Structure  # diagnostic: misplaced-derivation
+impl Meters by Structure # diagnostic: misplaced-derivation

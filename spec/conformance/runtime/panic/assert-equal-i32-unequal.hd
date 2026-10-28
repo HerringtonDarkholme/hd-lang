@@ -6,4 +6,4 @@ tests:
         assert_equal(1, 1, reason="equal values pass")
 
     it("unequal i32 values fail assert_equal"):
-        assert_equal(3 + 4, 8, reason="deliberately unequal integers")  # panic: assertion-failed
+        assert_equal(3 + 4, 8, reason="deliberately unequal integers") # panic: assertion-failed

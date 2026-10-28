@@ -89,6 +89,7 @@ async function setup({
       module,
       bindingsURL,
       runtimeURL: new URL("../../../host/core.mjs", import.meta.url).href,
+      packageRuntimeURL: new URL("../../../host/package-providers.mjs", import.meta.url).href,
       applicationURL: new URL(
         cleanupClock
           ? "./fixtures/logical-cleanup-application.mjs" + (cleanupClock.hold ? "?hold" : "")
@@ -472,11 +473,16 @@ test(
   { timeout: 20000 },
   async (t) => {
     // Like DeadlineClock in tests/serve.hd, advance the SDK cleanup in logical
-    // time. The supervisor and mapper retain their real 200ms watchdogs. A
-    // loaded worker need not receive a real 100ms timer callback within 200ms
-    // of a cancellation sent by another thread.
+    // time. Freeze the supervisor and mapper watchdogs while that logical
+    // cleanup runs: a loaded worker need not receive another thread's
+    // cancellation within 200ms. The next test advances those watchdogs and
+    // proves their production deadline independently.
+    const realSetTimeout = setTimeout,
+      realClearTimeout = clearTimeout;
     const trials = [];
     for (let trial = 0; trial < 10; trial++) {
+      let observationTimer,
+        timersMocked = false;
       let markEntered;
       const entered = new Promise((resolve) => {
         markEntered = resolve;
@@ -497,8 +503,26 @@ test(
         request.catch(() => {});
         await bounded(entered);
         const start = performance.now();
+        t.mock.timers.enable({ apis: ["setTimeout"] });
+        timersMocked = true;
         controller.abort();
-        const terminal = await f.wait((e) => e.kind === "released" || e.kind === "terminated");
+        const terminal = await Promise.race([
+          f.wait((e) => e.kind === "released" || e.kind === "terminated"),
+          new Promise((_, reject) => {
+            observationTimer = realSetTimeout(
+              () => reject(new Error("logical cleanup did not complete")),
+              4000,
+            );
+          }),
+        ]);
+        realClearTimeout(observationTimer);
+        observationTimer = undefined;
+        // Let the fetch mapper observe the supervisor result and clear its
+        // cleanup timer before restoring the real timer implementation.
+        await tick();
+        await tick();
+        t.mock.timers.reset();
+        timersMocked = false;
         const elapsedAfterDisconnectMs = performance.now() - start;
         const healthyResponse = await f.request("/count");
         const healthy = healthyResponse.status;
@@ -534,6 +558,8 @@ test(
           false,
         );
       } finally {
+        realClearTimeout(observationTimer);
+        if (timersMocked) t.mock.timers.reset();
         await f.close();
         await up.close();
       }
@@ -565,7 +591,6 @@ test("a withheld actual HD cleanup triggers at exactly 200ms", { timeout: 10000 
   const plainRequest = (path, body = "") => ({
     method: { tag: "Post", fields: {} },
     url: "https://in.test" + path,
-    query: [],
     headers: [],
     redirects: 10,
     body: new TextEncoder().encode(body),

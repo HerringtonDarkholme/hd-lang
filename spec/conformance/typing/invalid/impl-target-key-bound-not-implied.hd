@@ -3,6 +3,6 @@
 trait Catalog:
     fn catalog_name(self) -> string
 
-impl[K, V] Catalog for Map[K, V]:  # diagnostic: unsatisfied-trait-bound
+impl[K, V] Catalog for Map[K, V]: # diagnostic: unsatisfied-trait-bound
     fn catalog_name(self) -> string:
         "inventory"

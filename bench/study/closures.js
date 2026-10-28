@@ -2,7 +2,7 @@
 // JavaScript: the typed array's own map/filter/reduce with arrow functions
 // (eager, so each round builds the mapped and filtered arrays; hd's
 // iterator chain is lazy).
-const N = 170_000;
+const N = 650_000;
 const items = new Int32Array(N);
 for (let i = 0; i < N; i++) items[i] = (i * 31 + 7) % 100_003;
 let total = 0;

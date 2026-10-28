@@ -9,10 +9,12 @@ struct User:
     handle: string
 
 impl Display for User:
-    fn to_string(self) -> string: "@" + self.handle
+    fn to_string(self) -> string:
+        "@" + self.handle
 
 impl Named for User:
-    fn name(self) -> string: self.handle
+    fn name(self) -> string:
+        self.handle
 
 fn show[T < Display](value: T) -> string:
     value.to_string()
@@ -28,4 +30,8 @@ tests:
 
     it("own trait and supertrait bounds"):
         user := User { handle: "ada" }
-        assert_equal(describe(&user, &42), "ada @ada 42", reason="Named satisfies Named and Display; Display satisfies Display")
+        assert_equal(
+            describe(&user, &42),
+            "ada @ada 42",
+            reason="Named satisfies Named and Display; Display satisfies Display",
+        )

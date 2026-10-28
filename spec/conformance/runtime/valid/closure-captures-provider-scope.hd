@@ -21,7 +21,8 @@ struct FixedBackup: pass
 impl Clock for FixedBackup
 
 impl Backup for FixedBackup:
-    fn label(self) -> i32: 0
+    fn label(self) -> i32:
+        0
 
 tests:
     use std.testing.assert_equal

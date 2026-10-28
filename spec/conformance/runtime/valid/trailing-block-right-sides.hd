@@ -6,9 +6,11 @@
 # expect-stdout: retry
 # expect-stdout: retry
 # expect-stdout: 10 12 14 16
-fn run(body: fn() -> void $ Console) -> void $ Console: body()
+fn run(body: fn() -> void $ Console) -> void $ Console:
+    body()
 
-fn measure(body: fn() -> i32) -> i32: body() * 2
+fn measure(body: fn() -> i32) -> i32:
+    body() * 2
 
 fn twice(times: i32, body: fn() -> void $ Console) -> void $ Console:
     for _ in +1..times + 1:

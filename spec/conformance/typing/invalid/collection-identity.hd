@@ -1,4 +1,4 @@
 # test: a list has no identity, so is with one is an error
 # Spec 04 Collection Values: types.coll.no-identity.
 fn same(left: List[i32], right: List[i32]) -> bool:
-    left is right  # diagnostic: identity-requires-references
+    left is right # diagnostic: identity-requires-references

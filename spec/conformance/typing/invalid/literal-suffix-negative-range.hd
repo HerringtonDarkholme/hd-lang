@@ -7,4 +7,4 @@ fn off(value: i32) -> i32:
     value
 
 fn lowest() -> i32:
-    -2147483648off  # diagnostic: integer-literal-range
+    -2147483648off # diagnostic: integer-literal-range

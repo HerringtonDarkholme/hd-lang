@@ -10,5 +10,5 @@ impl Disposable for Session:
         pass
 
 fn plain(id: i32) -> i32:
-    using session = Session { id: id }  # diagnostic: bang-call-outside-suspension
+    using session = Session { id: id } # diagnostic: bang-call-outside-suspension
     session.id

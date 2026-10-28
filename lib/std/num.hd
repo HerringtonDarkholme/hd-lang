@@ -11,7 +11,9 @@ use std.text.Parse
 # a value the integer type cannot hold panics with integer overflow.
 ## The trait every built-in number type implements: ordered, displayable, and closed under `+`, `-`, `*`, `/`, and `%`.
 ## See [trait.num.num-ordered](../../spec/lang/09-traits.md#r-trait.num.num-ordered).
-pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self] & Mul[Out = Self] & Div[Out = Self] & Rem[Out = Self]:
+pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self] & Mul[
+    Out = Self,
+] & Div[Out = Self] & Rem[Out = Self]:
     fn zero() -> Self
     fn one() -> Self
     fn from_i64(n: i64) -> Self
@@ -20,7 +22,9 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 ## See [trait.num.integer](../../spec/lang/09-traits.md#r-trait.num.integer).
 ## `to_u64` and `from_u64` convert to and from `u64`, panicking with `integer-overflow` when the value does not fit.
 ## See [trait.num.integer-u64](../../spec/std/num.md#r-std-num.u64.members).
-pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[Out = Self] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
+pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[
+    Out = Self,
+] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
     fn to_u64(self) -> u64
     fn from_u64(n: u64) -> Self
 
@@ -29,95 +33,146 @@ pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[
 pub trait Float < Num & PartialOrd & Neg[Out = Self]
 
 impl Num for i8:
-    fn zero() -> i8: 0
-    fn one() -> i8: 1
-    fn from_i64(n: i64) -> i8: i8(fit(n, -128, 127))
+    fn zero() -> i8:
+        0
+    fn one() -> i8:
+        1
+    fn from_i64(n: i64) -> i8:
+        i8(fit(n, -128, 127))
 
 impl Num for i16:
-    fn zero() -> i16: 0
-    fn one() -> i16: 1
-    fn from_i64(n: i64) -> i16: i16(fit(n, -32768, 32767))
+    fn zero() -> i16:
+        0
+    fn one() -> i16:
+        1
+    fn from_i64(n: i64) -> i16:
+        i16(fit(n, -32768, 32767))
 
 impl Num for i32:
-    fn zero() -> i32: 0
-    fn one() -> i32: 1
-    fn from_i64(n: i64) -> i32: i32(fit(n, -2147483648, 2147483647))
+    fn zero() -> i32:
+        0
+    fn one() -> i32:
+        1
+    fn from_i64(n: i64) -> i32:
+        i32(fit(n, -2147483648, 2147483647))
 
 impl Num for i64:
-    fn zero() -> i64: 0
-    fn one() -> i64: 1
-    fn from_i64(n: i64) -> i64: n
+    fn zero() -> i64:
+        0
+    fn one() -> i64:
+        1
+    fn from_i64(n: i64) -> i64:
+        n
 
 impl Num for u8:
-    fn zero() -> u8: 0
-    fn one() -> u8: 1
-    fn from_i64(n: i64) -> u8: u8(fit(n, 0, 255))
+    fn zero() -> u8:
+        0
+    fn one() -> u8:
+        1
+    fn from_i64(n: i64) -> u8:
+        u8(fit(n, 0, 255))
 
 impl Num for u16:
-    fn zero() -> u16: 0
-    fn one() -> u16: 1
-    fn from_i64(n: i64) -> u16: u16(fit(n, 0, 65535))
+    fn zero() -> u16:
+        0
+    fn one() -> u16:
+        1
+    fn from_i64(n: i64) -> u16:
+        u16(fit(n, 0, 65535))
 
 impl Num for u32:
-    fn zero() -> u32: 0
-    fn one() -> u32: 1
-    fn from_i64(n: i64) -> u32: u32(fit(n, 0, 4294967295))
+    fn zero() -> u32:
+        0
+    fn one() -> u32:
+        1
+    fn from_i64(n: i64) -> u32:
+        u32(fit(n, 0, 4294967295))
 
 impl Num for usize:
-    fn zero() -> usize: 0
-    fn one() -> usize: 1
-    fn from_i64(n: i64) -> usize: usize(fit(n, 0, 4294967295))
+    fn zero() -> usize:
+        0
+    fn one() -> usize:
+        1
+    fn from_i64(n: i64) -> usize:
+        usize(fit(n, 0, 4294967295))
 
 impl Num for u64:
-    fn zero() -> u64: 0
-    fn one() -> u64: 1
-    fn from_i64(n: i64) -> u64: u64(fit(n, 0, i64_max()))
+    fn zero() -> u64:
+        0
+    fn one() -> u64:
+        1
+    fn from_i64(n: i64) -> u64:
+        u64(fit(n, 0, i64_max()))
 
 impl Num for f32:
-    fn zero() -> f32: 0.0
-    fn one() -> f32: 1.0
-    fn from_i64(n: i64) -> f32: f32(n)
+    fn zero() -> f32:
+        0.0
+    fn one() -> f32:
+        1.0
+    fn from_i64(n: i64) -> f32:
+        f32(n)
 
 impl Num for f64:
-    fn zero() -> f64: 0.0
-    fn one() -> f64: 1.0
-    fn from_i64(n: i64) -> f64: f64(n)
+    fn zero() -> f64:
+        0.0
+    fn one() -> f64:
+        1.0
+    fn from_i64(n: i64) -> f64:
+        f64(n)
 
 impl Integer for i8:
-    fn to_u64(self) -> u64: nonneg_u64(i64(self))
-    fn from_u64(n: u64) -> i8: i8(fit_u64(n, 127))
+    fn to_u64(self) -> u64:
+        nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i8:
+        i8(fit_u64(n, 127))
 
 impl Integer for i16:
-    fn to_u64(self) -> u64: nonneg_u64(i64(self))
-    fn from_u64(n: u64) -> i16: i16(fit_u64(n, 32767))
+    fn to_u64(self) -> u64:
+        nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i16:
+        i16(fit_u64(n, 32767))
 
 impl Integer for i32:
-    fn to_u64(self) -> u64: nonneg_u64(i64(self))
-    fn from_u64(n: u64) -> i32: i32(fit_u64(n, 2147483647))
+    fn to_u64(self) -> u64:
+        nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i32:
+        i32(fit_u64(n, 2147483647))
 
 impl Integer for i64:
-    fn to_u64(self) -> u64: nonneg_u64(i64(self))
-    fn from_u64(n: u64) -> i64: i64(fit_u64(n, 9223372036854775807))
+    fn to_u64(self) -> u64:
+        nonneg_u64(i64(self))
+    fn from_u64(n: u64) -> i64:
+        i64(fit_u64(n, 9223372036854775807))
 
 impl Integer for u8:
-    fn to_u64(self) -> u64: u64(self)
-    fn from_u64(n: u64) -> u8: u8(fit_u64(n, 255))
+    fn to_u64(self) -> u64:
+        u64(self)
+    fn from_u64(n: u64) -> u8:
+        u8(fit_u64(n, 255))
 
 impl Integer for u16:
-    fn to_u64(self) -> u64: u64(self)
-    fn from_u64(n: u64) -> u16: u16(fit_u64(n, 65535))
+    fn to_u64(self) -> u64:
+        u64(self)
+    fn from_u64(n: u64) -> u16:
+        u16(fit_u64(n, 65535))
 
 impl Integer for u32:
-    fn to_u64(self) -> u64: u64(self)
-    fn from_u64(n: u64) -> u32: u32(fit_u64(n, 4294967295))
+    fn to_u64(self) -> u64:
+        u64(self)
+    fn from_u64(n: u64) -> u32:
+        u32(fit_u64(n, 4294967295))
 
 impl Integer for usize:
-    fn to_u64(self) -> u64: u64(self)
-    fn from_u64(n: u64) -> usize: usize(fit_u64(n, 4294967295))
+    fn to_u64(self) -> u64:
+        u64(self)
+    fn from_u64(n: u64) -> usize:
+        usize(fit_u64(n, 4294967295))
 
 impl Integer for u64:
-    fn to_u64(self) -> u64: self
-    fn from_u64(n: u64) -> u64: n
+    fn to_u64(self) -> u64:
+        self
+    fn from_u64(n: u64) -> u64:
+        n
 
 impl Float for f32
 
@@ -211,14 +266,16 @@ impl[N < Integer] N:
     pub fn saturating_add(self, other: N) -> N:
         match self.checked_add(other):
             .Some(sum) => sum
-            .None => if other > N::zero(): int_max::[N]() else: int_min::[N]()
+            .None =>
+                if other > N::zero(): int_max::[N]() else: int_min::[N]()
 
     ## The difference, capped at the type's largest or smallest value.
     ## See [std-num.saturating.sub](../../spec/std/num.md#r-std-num.saturating.sub).
     pub fn saturating_sub(self, other: N) -> N:
         match self.checked_sub(other):
             .Some(difference) => difference
-            .None => if other > N::zero(): int_min::[N]() else: int_max::[N]()
+            .None =>
+                if other > N::zero(): int_min::[N]() else: int_max::[N]()
 
     ## The number of one bits in the value.
     ## See [std-num.bits.count-ones-u32](../../spec/std/num.md#r-std-num.bits.count-ones-u32).

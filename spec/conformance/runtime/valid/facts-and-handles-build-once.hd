@@ -52,8 +52,16 @@ fn check_once() -> void:
     first.push("caller copy")
     assert_equal(first, ["field", "type", "caller copy"], reason="caller owns its result")
     assert_equal(events, ["field", "type"], reason="first reads run each body once")
-    assert_equal(Point::labels(), ["field", "type"], reason="cached counted values survive the first caller")
-    assert_equal(Point::labels(), ["field", "type"], reason="repeated reads keep the original values")
+    assert_equal(
+        Point::labels(),
+        ["field", "type"],
+        reason="cached counted values survive the first caller",
+    )
+    assert_equal(
+        Point::labels(),
+        ["field", "type"],
+        reason="repeated reads keep the original values",
+    )
     assert_equal(events, ["field", "type"], reason="cached reads never rebuild the handle or fact")
 
 tests:

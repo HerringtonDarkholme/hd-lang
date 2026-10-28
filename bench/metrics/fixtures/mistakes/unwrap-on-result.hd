@@ -6,4 +6,4 @@ fn parse(text: string) -> Result[i32, string]:
     if text == "": .Err("empty") else: .Ok(1)
 
 fn value() -> i32:
-    parse("7").unwrap()  # diagnostic: unknown-method
+    parse("7").unwrap() # diagnostic: unknown-method

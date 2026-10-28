@@ -48,6 +48,7 @@ use crate::ir::{
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 mod borrow;
+pub(crate) use borrow::keeps_drops;
 pub(crate) mod flow;
 pub(crate) mod hoist;
 mod insert;
@@ -243,14 +244,15 @@ pub(crate) fn owner_takes_tail(b: &Body, owner: u32, blk: u32) -> bool {
 }
 
 /// The collection operands instruction `i` changes in place, as (`extra`
-/// position, value): a push's list, a map store's or removal's map.
+/// position, value): a push's or reserve's list, a map store's or
+/// removal's map.
 pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + '_ {
-    use IntrinsicOp::{ListPush, MapRemove, MapSet};
+    use IntrinsicOp::{ListPush, ListReserve, MapRemove, MapSet};
     let [a, w] = b.data[i];
     let direct = b.tags[i] == Tag::Intrinsic
         && matches!(
             IntrinsicOp::from_u32(a),
-            Some(ListPush | MapSet | MapRemove)
+            Some(ListPush | ListReserve | MapSet | MapRemove)
         );
     direct.then(|| (w + 1, b.record(w)[0])).into_iter()
 }
@@ -271,7 +273,7 @@ pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     if t == Ty::VOID || t == Ty::NEVER || t == Ty::POISON {
         return false;
     }
-    if b.is_borrow(u32_of(i)) {
+    if b.is_borrow(u32_of(i)) || b.is_borrowed_coercion(u32_of(i)) {
         return false;
     }
     if matches!(
@@ -445,8 +447,8 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Summary {
     /// Bit k: the body may keep parameter k (receiver first) past the
-    /// call. Parameters past 63 and open types are always kept; a
-    /// suspending body has no summary.
+    /// call. Parameters past 63 are always kept; a suspending body has no
+    /// summary.
     pub kept: u64,
     /// The parameter every result of the body is, unchanged: a whole read
     /// of a parameter the body never stores.

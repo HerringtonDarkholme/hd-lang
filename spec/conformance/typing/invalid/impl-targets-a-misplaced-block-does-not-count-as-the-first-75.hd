@@ -3,4 +3,4 @@
 use std.structure.Structure
 use pkg.alpha.Item
 
-impl Item by Structure  # diagnostic: misplaced-derivation
+impl Item by Structure # diagnostic: misplaced-derivation

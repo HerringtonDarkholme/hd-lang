@@ -1,0 +1,10 @@
+use pkg.helper.label
+use dep.util.value
+
+pub fn main() -> void $ Console:
+    println(label())
+    _ := value()
+
+tests:
+    it("helpers stay ordinary functions"):
+        assert_equal(label(), "helper", reason="a used root module")

@@ -1,6 +1,7 @@
 # test: a test body is an active driver, and block_on under it drives its own suspension
 use std.task.block_on
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 fn helper() -> i32:
     let pending: mut Suspend[i32] = ready()

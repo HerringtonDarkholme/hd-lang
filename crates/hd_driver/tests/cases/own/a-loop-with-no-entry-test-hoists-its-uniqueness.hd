@@ -1,0 +1,21 @@
+# @dump: own
+# Hoisting: a loop with no entry test (`while true`) runs its body
+# whenever it is entered, so the changes in its body and in the inner
+# loops that stand there make each list unique once, before it
+# (`IsUnique hoisted` for both lists before the outer loop). The lists
+# come from comprehensions, moved into their locals: fresh, so a store
+# into one list's buffer leaves the other's check hoisted.
+fn rotate(n: usize) -> usize:
+    let mut items = [for i in 0..n => i]
+    let mut count = [for _ in 0..n => 1]
+    let r: usize = 1
+    while true:
+        first := items[0]
+        for i in 0..r:
+            items[i] = items[i + 1]
+        items[r] = first
+        count[r] -= 1
+        if count[r] == 0 || r + 1 == n:
+            break
+        r += 1
+    items[0] + count[0]

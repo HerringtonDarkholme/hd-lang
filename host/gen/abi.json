@@ -1,8 +1,8 @@
 {
   "traits": [
     { "key": "Console", "std": "std.console.Console", "methods": [
-      { "name": "write", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" },
-      { "name": "write_error", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
+      { "name": "write_sync", "wait": "never", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" },
+      { "name": "write_error_sync", "wait": "never", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
     ]},
     { "key": "ConsoleInput", "std": "std.console.ConsoleInput", "methods": [
       { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" },
@@ -32,8 +32,8 @@
       { "name": "next_u64", "wait": "never", "resource": null, "params": [], "result": "i64" },
       { "name": "fill", "wait": "never", "resource": null, "params": ["i32"], "result": "List[u8]" }
     ]},
-    { "key": "Http", "std": "std.http.Http", "methods": [
-      { "name": "send", "wait": "may", "resource": "host", "params": ["Request"], "result": "Result[Response, HttpError]" }
+    { "key": "Http", "std": "std.http_wire.Http", "methods": [
+      { "name": "send", "wait": "may", "resource": "host", "params": ["WireRequest"], "result": "Result[WireResponse, WireHttpError]" }
     ]},
     { "key": "Net", "std": "std.net.Net", "methods": [
       { "name": "lookup", "wait": "may", "resource": "host", "params": ["string"], "result": "Result[List[string], NetError]" },
@@ -99,6 +99,11 @@
     ]}
   ],
   "types": {
+    "BodyError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
+      { "name": "Used", "fields": [] },
+      { "name": "Json", "fields": [{ "name": "error", "type": "JsonError" }] },
+      { "name": "Form", "fields": [{ "name": "error", "type": "FormError" }] }
+    ] },
     "Command": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "program", "type": "string" }, { "name": "args", "type": "List[string]" }, { "name": "env", "type": "List[(string, string)]" }, { "name": "current_dir", "type": "Path?" }, { "name": "stdin", "type": "string" }] },
     "ConsoleError": { "kind": "enum", "module": "lib/std/console.hd", "generics": [], "variants": [
       { "name": "Closed", "fields": [] },
@@ -112,6 +117,11 @@
       { "name": "File", "fields": [] },
       { "name": "Directory", "fields": [] },
       { "name": "Symlink", "fields": [] }
+    ] },
+    "FormError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
+      { "name": "Unsupported", "fields": [{ "name": "field", "type": "string" }] },
+      { "name": "Missing", "fields": [{ "name": "field", "type": "string" }] },
+      { "name": "Invalid", "fields": [{ "name": "field", "type": "string" }, { "name": "text", "type": "string" }] }
     ] },
     "FsError": { "kind": "enum", "module": "lib/std/fs.hd", "generics": [], "variants": [
       { "name": "NotFound", "fields": [{ "name": "path", "type": "Path" }] },
@@ -130,16 +140,17 @@
       { "name": "InvalidValue", "fields": [{ "name": "name", "type": "string" }, { "name": "reason", "type": "string" }] },
       { "name": "Missing", "fields": [{ "name": "name", "type": "string" }] }
     ] },
-    "HttpError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
-      { "name": "NotGranted", "fields": [{ "name": "host", "type": "string" }] },
-      { "name": "InvalidUrl", "fields": [{ "name": "url", "type": "string" }] },
-      { "name": "Dns", "fields": [{ "name": "host", "type": "string" }] },
-      { "name": "Connect", "fields": [{ "name": "message", "type": "string" }] },
-      { "name": "Tls", "fields": [{ "name": "message", "type": "string" }] },
-      { "name": "Timeout", "fields": [] },
-      { "name": "TooManyRedirects", "fields": [{ "name": "url", "type": "string" }] },
-      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
-      { "name": "Status", "fields": [{ "name": "response", "type": "Response" }] }
+    "JsonError": { "kind": "enum", "module": "lib/std/json.hd", "generics": [], "variants": [
+      { "name": "UnexpectedEnd", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "UnexpectedCharacter", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "InvalidEscape", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "LoneSurrogate", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "ControlCharacter", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "NumberOutOfRange", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "NestingTooDeep", "fields": [{ "name": "position", "type": "usize" }] },
+      { "name": "WrongType", "fields": [{ "name": "path", "type": "string" }, { "name": "expected", "type": "string" }] },
+      { "name": "MissingField", "fields": [{ "name": "path", "type": "string" }] },
+      { "name": "UnknownVariant", "fields": [{ "name": "path", "type": "string" }, { "name": "name", "type": "string" }] }
     ] },
     "Method": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
       { "name": "Get", "fields": [] },
@@ -170,11 +181,24 @@
     ] },
     "ProcessOutput": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "stdout", "type": "string" }, { "name": "stderr", "type": "string" }, { "name": "status", "type": "i32" }, { "name": "program", "type": "string" }] },
     "PropertyCase": { "kind": "data", "module": "lib/std/testing.hd", "generics": [], "fields": [{ "name": "example", "type": "usize?" }, { "name": "seed", "type": "i64" }, { "name": "size", "type": "i32" }, { "name": "replay", "type": "List[i64]" }] },
-    "Request": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "query", "type": "List[(string, string)]" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "redirects", "type": "usize" }] },
-    "Response": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] },
     "TcpListener": { "kind": "handle" },
     "TcpStream": { "kind": "handle" },
     "Timestamp": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },
-    "UdpSocket": { "kind": "handle" }
+    "UdpSocket": { "kind": "handle" },
+    "WireHttpError": { "kind": "enum", "module": "lib/std/http_wire.hd", "generics": [], "variants": [
+      { "name": "NotGranted", "fields": [{ "name": "host", "type": "string" }] },
+      { "name": "InvalidUrl", "fields": [{ "name": "url", "type": "string" }] },
+      { "name": "Dns", "fields": [{ "name": "host", "type": "string" }] },
+      { "name": "Connect", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "Tls", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "Timeout", "fields": [] },
+      { "name": "TooManyRedirects", "fields": [{ "name": "url", "type": "string" }] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "Status", "fields": [{ "name": "response", "type": "WireResponse" }] },
+      { "name": "InvalidHeader", "fields": [{ "name": "name", "type": "string" }] },
+      { "name": "Body", "fields": [{ "name": "error", "type": "BodyError" }] }
+    ] },
+    "WireRequest": { "kind": "data", "module": "lib/std/http_wire.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "redirects", "type": "usize" }] },
+    "WireResponse": { "kind": "data", "module": "lib/std/http_wire.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] }
   }
 }

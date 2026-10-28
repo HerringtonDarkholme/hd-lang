@@ -19,7 +19,6 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Application and host
 
-- [HTTP messages](http/): checked hd signatures (`src/http.hd`) and usage examples (`src/examples.hd`) for the symmetric Request/Response API; owner review before implementation (#847).
 - [Validation](VALIDATION.md): short design and [checked signatures and examples](validation/) for typed JSON/CLI/environment validation; owner review before implementation (#846).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
@@ -30,10 +29,12 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
+- [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
 
 ### Tooling
 
-- [hd lint](HD_LINT.md): proposed command, shared diagnostics, package allow/deny policy, and a first lint for lost temporary-receiver writes (#651).
+- [hd fmt](HD_FMT.md): the approved formatter architecture: one fixed style, comment attachment and a bounded document printer (#906); implemented (#899).
+- [hd lint](HD_LINT.md): the approved shared lint architecture: one rule registry, one analysis walk, policy applied once, a per-module findings cache (#908); the #855 migration onto it is complete.
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
 - [Live Execution](live-execution.md): the built REPL, journal, replay and session rebuilds (#17).
 
@@ -41,7 +42,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
-- [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834), and the later steps need approval (#704).
+- [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834); step 2 is not adopted (#704 shipped as a release-only fact instead), and later steps need approval.
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
 - [Release-Only Interprocedural Optimization](RELEASE_INTERPROC.md): built 2026-10-25 in the optimized pipeline only: per-function summaries over SCCs (slices 2-5: kept parameters, writes, lent parameters). Slices 6-9 measured no gain and were not merged (#681 closed); results on #165.

@@ -9,12 +9,16 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError)
+    Write(
+        path: string,
+        @source
+        error: DiskError,
+    )
 
 fn free_space(failure: SaveError) -> i64?:
     let erased: *dyn Error = &failure
     if erased.find::[DiskError]().is_none():
         return .None
-    match failure.find::[DiskError]():  # diagnostic: unknown-method
+    match failure.find::[DiskError](): # diagnostic: unknown-method
         .Some(disk) => .Some(disk.free)
         .None => .None

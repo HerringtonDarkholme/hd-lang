@@ -25,6 +25,7 @@
 //! its own (`Em::owned` is false there): its operands and captures arrive
 //! with counts, its reads copy, and its exit releases every place it holds.
 
+use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_tir::ir::{NONE, Ref, Tag};
 use hd_types::Ty;
@@ -45,8 +46,10 @@ impl Em<'_, '_, '_> {
     /// takes no count on a physical place; a view's getter makes a fresh
     /// value there, which a flag ([`Em::view_loans`]) marks for the read's
     /// `Drop`. A local the passes store a borrow into holds no count
-    /// ([`Em::loan_locals`]): its stores count
-    /// nothing and release nothing.
+    /// ([`Em::loan_locals`]): its stores count nothing, and its `Drop`s,
+    /// which the passes keep for a borrow an instance may make fresh,
+    /// release only a view's value. One that a thunk's value is stored
+    /// into owns it.
     pub(super) fn prepare_own_loans(&mut self) {
         use hd_tir::ir::place;
         for i in 0..self.b.len() {
@@ -96,13 +99,20 @@ impl Em<'_, '_, '_> {
                     }
                 }
                 // A reference to all of a local in a slot (§23.38) takes
-                // no count: a count of a slot's address does nothing.
+                // no count: a count of a slot's address does nothing. One
+                // that takes the local at its last access releases the
+                // slot's value at its `Drop`.
                 Tag::Ref
                     if super::shape::ref_local(self.b, i)
                         .is_some_and(|l| self.slots.contains_key(&l))
                         && self.b.decode_place(a).is_some_and(|p| p.proj.is_empty()) =>
                 {
                     self.loans.insert(x);
+                    if w & hd_tir::ir::ref_word::TAKES != 0
+                        && let Some(l) = super::shape::ref_local(self.b, i)
+                    {
+                        self.slot_takes.insert(x, l);
+                    }
                 }
                 // A reference into what a lent parameter refers to
                 // (`ref_word::LENT`) takes no count where the referent is
@@ -118,6 +128,10 @@ impl Em<'_, '_, '_> {
                     let flag = self.f.local(crate::module::Val::I32);
                     self.view_loans.insert(x, flag);
                 }
+                // A coercion of a borrow keeps its value, with no count.
+                Tag::Coerce if self.b.is_borrowed_coercion(x) => {
+                    self.loans.insert(x);
+                }
                 Tag::Store if self.b.is_borrow(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)
@@ -127,7 +141,11 @@ impl Em<'_, '_, '_> {
                             _ => None,
                         }
                     };
-                    if let Some(l) = l {
+                    // A thunk's fresh value is the local's own, with its
+                    // count, which the local's kept `Drop`s release.
+                    if let Some(l) = l
+                        && self.loans.contains(&w)
+                    {
                         self.loan_locals.insert(l as usize, w);
                     }
                 }
@@ -233,9 +251,9 @@ impl Em<'_, '_, '_> {
                 None => return Ok(()),
             }
         }
-        if let Walk::Ref(k) = w {
+        if let Some(k) = w.single() {
             self.f.get(ls[k as usize]);
-            if crate::layout::block_start(self.pool(), self.env(), t) {
+            if matches!(w, Walk::Known(_)) {
                 self.f.helper(if retain {
                     Helper::RetainKnown
                 } else {
@@ -266,7 +284,7 @@ impl Em<'_, '_, '_> {
         &mut self,
         h: hd_base::Hash128,
         t: Ty,
-        slot: Option<(u32, Vec<crate::layout::Leaf>)>,
+        slot: Option<(crate::module::Address, Vec<crate::layout::Leaf>)>,
     ) -> StageResult<()> {
         if self.input.runtime.and_then(|r| r.checked).is_none() {
             return Ok(());
@@ -420,6 +438,11 @@ impl Em<'_, '_, '_> {
     /// Releases value `x`'s count, when it holds a counted value, and
     /// zeroes its locals.
     pub(super) fn release_value(&mut self, x: u32) -> StageResult<()> {
+        // A loan of a slot that took its local (`Em::slot_takes`): the
+        // local's release, after the reference's last use.
+        if let Some(&l) = self.slot_takes.get(&x) {
+            return self.release_local(l);
+        }
         let Some(ls) = self.vals.get(&x).cloned() else {
             return Ok(());
         };
@@ -450,13 +473,23 @@ impl Em<'_, '_, '_> {
         if !self.is_cell(l) && self.counted(self.sub(self.b.local_ty[l])).is_none() {
             return Ok(());
         }
-        if !self.loan_locals.contains_key(&l) {
-            self.count_local(l, &ls, false)?;
-        }
+        self.release_owned_local(l, &ls)?;
         for x in ls {
             self.f.zero(x);
         }
         Ok(())
+    }
+
+    /// Releases the count local `l` (Wasm locals `ls`) holds. A binding
+    /// local ([`Em::loan_locals`]) holds a borrow, with no count, except
+    /// where a view's getter made the value fresh: the borrow's flag
+    /// ([`Em::view_loans`]) says so, and is cleared.
+    fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
+        match self.loan_locals.get(&l) {
+            None => self.count_local(l, ls, false),
+            Some(w) if self.view_loans.contains_key(w) => self.release_view_loan(*w, ls),
+            Some(_) => Ok(()),
+        }
     }
 
     /// Whether the function holds a counted reference anywhere: a
@@ -521,7 +554,7 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
                 if let Some(ls) = self.locals.get(&l.idx()).cloned() {
-                    self.count_local(l.idx(), &ls, false)?;
+                    self.release_owned_local(l.idx(), &ls)?;
                 }
             }
             for l in self.unowned_params.clone() {
@@ -537,7 +570,7 @@ impl Em<'_, '_, '_> {
         }
         let mut vals: Vec<(u32, Vec<u32>)> =
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        vals.sort_unstable();
+        vals.sort_stable();
         for (i, ls) in vals {
             self.f.origin_at = if self.anchored(i) { Some(i) } else { root };
             if self.view_loans.contains_key(&i) {
@@ -548,7 +581,7 @@ impl Em<'_, '_, '_> {
         }
         let mut locals: Vec<(usize, Vec<u32>)> =
             self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        locals.sort_unstable();
+        locals.sort_stable();
         let bound = self.exit_origins();
         for (l, ls) in locals {
             self.f.origin_at = bound.get(&l).copied().or(root);
@@ -649,14 +682,20 @@ impl Em<'_, '_, '_> {
         if self.b.tags.get(c as usize) != Some(&Tag::Call) {
             return false;
         }
+        let mut args = self.rec(self.b.data[c as usize][1]);
+        args.truncate(args.len().saturating_sub(3));
+        if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
+            // A dynamic call lends every argument to its slot. The slot
+            // takes any count its concrete target owns, and a blocking
+            // drive keeps the caller live until it returns.
+            return args.iter().filter(|&&a| a == r).count() == 1;
+        }
         let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
             return false;
         };
         if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
             return false;
         }
-        let mut args = self.rec(self.b.data[c as usize][1]);
-        args.truncate(args.len().saturating_sub(3));
         let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
             return false;
         };
@@ -908,7 +947,7 @@ impl Em<'_, '_, '_> {
                 vals.extend(rows[at..].iter().take_while(|r| r.0 == p).map(|r| r.1));
             }
         }
-        vals.sort_unstable();
+        vals.sort_stable();
         vals.dedup();
         for v in vals {
             self.release_value(v)?;

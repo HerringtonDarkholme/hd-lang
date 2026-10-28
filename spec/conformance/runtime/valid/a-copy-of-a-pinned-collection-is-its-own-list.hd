@@ -19,13 +19,13 @@ tests:
     use std.testing.assert_equal
 
     it("a map lookup copies the pinned value"):
-        let mut m: Map[string, List[i64]] = {"a": [1i64, 2]}
+        let mut m: Map[string, List[i64]] = { "a": [1i64, 2] }
         got := set_after(&mut m["a"][0], m.get("a"))
         assert_equal(m["a"][0], 9, reason="the reference writes the map's list")
         assert_equal(got[0], 1, reason="the lookup's copy is its own list")
 
     it("a map passed beside the reference copies the pinned value"):
-        let mut m: Map[string, List[i64]] = {"a": [1i64, 2]}
+        let mut m: Map[string, List[i64]] = { "a": [1i64, 2] }
         got := set_in_loop(&mut m["a"][0], m)
         assert_equal(m["a"][0], 8, reason="the reference writes the map's list")
         assert_equal(got[0], 1, reason="the map's copy holds a list of its own")

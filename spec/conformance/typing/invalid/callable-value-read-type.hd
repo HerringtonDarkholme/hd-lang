@@ -7,8 +7,9 @@ struct Counter:
 
 impl Apply for Counter:
     type Out = i32
-    fn apply(self) -> i32: self.hits
+    fn apply(self) -> i32:
+        self.hits
 
 fn label(counter: Counter) -> string:
-    let text: string = counter()  # diagnostic: type-mismatch
+    let text: string = counter() # diagnostic: type-mismatch
     text

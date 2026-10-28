@@ -3,4 +3,4 @@
 use dep.members.{Outer}
 
 fn invalid(outer: Outer) -> string:
-    outer.stamp()  # diagnostic: private-member
+    outer.stamp() # diagnostic: private-member

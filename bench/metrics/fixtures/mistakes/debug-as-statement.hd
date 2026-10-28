@@ -1,11 +1,12 @@
 # mistake: `debug(x)` as a statement, expecting it to print
 # log: 2026-10-05 usability probe 2
 # expect: unused-debug-text
+# tool: lint
 
 @derive(Debug)
 struct Config:
     port: i32
 
 fn inspect(config: Config) -> i32:
-    debug(config)  # warning: unused-debug-text
+    debug(config) # warning: unused-debug-text
     config.port

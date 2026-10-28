@@ -17,4 +17,4 @@ struct Shipment[T]:
 
 struct Order:
     note: string
-    Shipment[i32]  # diagnostic: embedding-too-deep
+    Shipment[i32] # diagnostic: embedding-too-deep

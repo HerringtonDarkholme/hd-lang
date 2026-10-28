@@ -4,13 +4,11 @@
 # names.bind.initialized, names.definite.required, names.definite.condition,
 # names.definite.proof.
 
-fn pair() -> (i32, i32): (10, 12)
+fn pair() -> (i32, i32):
+    (10, 12)
 
 fn guarded(flag: bool) -> i32:
-    if flag && (inside := +1) > 0:
-        inside
-    else:
-        0
+    if flag && (inside := +1) > 0: inside else: 0
 
 fn main() -> i32:
     if (value := +20) > 0:
@@ -23,4 +21,8 @@ tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main(), 42, reason="binding expressions return values and bind in the enclosing scope")
+        assert_equal(
+            main(),
+            42,
+            reason="binding expressions return values and bind in the enclosing scope",
+        )

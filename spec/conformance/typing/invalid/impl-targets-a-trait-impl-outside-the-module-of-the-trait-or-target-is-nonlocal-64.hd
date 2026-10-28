@@ -2,6 +2,6 @@
 # fixture-package-tree: migrate-64-impl-placement/src/beta.hd
 use pkg.alpha.{Greeter, Person}
 
-impl Greeter for Person:  # diagnostic: nonlocal-impl
+impl Greeter for Person: # diagnostic: nonlocal-impl
     fn greet(self) -> string:
         missing_name

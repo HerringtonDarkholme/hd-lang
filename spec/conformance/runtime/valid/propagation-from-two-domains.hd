@@ -13,22 +13,18 @@ enum SyncError:
     Http(error: HttpError)
 
 impl From[FsError] for SyncError:
-    fn from(value: FsError) -> SyncError: SyncError.Fs(value)
+    fn from(value: FsError) -> SyncError:
+        SyncError.Fs(value)
 
 impl From[HttpError] for SyncError:
-    fn from(value: HttpError) -> SyncError: SyncError.Http(value)
+    fn from(value: HttpError) -> SyncError:
+        SyncError.Http(value)
 
 fn read_config(path: string) -> Result[string, FsError]:
-    if path == "config.txt":
-        .Ok("https://example.test")
-    else:
-        .Err(FsError.NotFound(path))
+    if path == "config.txt": .Ok("https://example.test") else: .Err(FsError.NotFound(path))
 
 fn fetch(url: string, online: bool) -> Result[string, HttpError]:
-    if online:
-        .Ok("body of " + url)
-    else:
-        .Err(HttpError.Timeout(url))
+    if online: .Ok("body of " + url) else: .Err(HttpError.Timeout(url))
 
 fn sync(path: string, online: bool) -> Result[string, SyncError]:
     url := read_config(path)?
@@ -57,10 +53,18 @@ tests:
     use std.testing.assert_equal
 
     it("both steps succeed"):
-        assert_equal(describe(sync("config.txt", true)), "body of https://example.test", reason="no error")
+        assert_equal(
+            describe(sync("config.txt", true)),
+            "body of https://example.test",
+            reason="no error",
+        )
 
     it("a file error converts to SyncError.Fs"):
         assert_equal(describe(sync("missing.txt", true)), "fs: missing.txt", reason="From[FsError]")
 
     it("a network error converts to SyncError.Http"):
-        assert_equal(describe(sync("config.txt", false)), "http: https://example.test", reason="From[HttpError]")
+        assert_equal(
+            describe(sync("config.txt", false)),
+            "http: https://example.test",
+            reason="From[HttpError]",
+        )

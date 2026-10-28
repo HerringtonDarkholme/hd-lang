@@ -4,4 +4,4 @@ fn to_millis(seconds: i64) -> i64:
     seconds * 1000
 
 fn minute(count: i32) -> i64:
-    to_millis(count)  # diagnostic: type-mismatch
+    to_millis(count) # diagnostic: type-mismatch

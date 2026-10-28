@@ -2,4 +2,4 @@
 # Spec 11 Row Aliases: req.row.alias.generic.marked.
 trait Log
 
-type WithLog[R] = $ R + Log  # diagnostic: generic-kind-mismatch
+type WithLog[R] = $ R + Log # diagnostic: generic-kind-mismatch

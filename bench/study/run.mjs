@@ -58,17 +58,17 @@ const STUDY = [
 // measurements without launching another reference to obtain expected output.
 const EXPECTED = {
   spectral_norm: "1274224152\n",
-  fannkuch_redux: "8629 30\n",
+  fannkuch_redux: "73196 38\n",
   mandelbrot: "778803\n",
-  nbody: "-169075163 -169077795\n",
-  sieve: "1031130\n",
+  nbody: "-169075163 -169008104\n",
+  sieve: "2204262\n",
   binary_trees:
-    "stretch 15 65535\n16384 4 507904\n4096 6 520192\n1024 8 523264\n256 10 524032\n64 12 524224\n16 14 524272\nlong 14 32767\n",
-  points: "1548151455099\n",
-  closures: "39055\n",
-  map_count: "50021 8446724\n",
-  string_build: "18388890\n",
-  json: "451121 3011000\n",
+    "stretch 18 524287\n131072 4 4063232\n32768 6 4161536\n8192 8 4186112\n2048 10 4192256\n512 12 4193792\n128 14 4194176\n32 16 4194272\nlong 17 262143\n",
+  points: "3631250395357\n",
+  closures: "745614\n",
+  map_count: "50021 124948550\n",
+  string_build: "89888890\n",
+  json: "13302414 85311667\n",
   dyn_iter:
     "dyn 66666653333334\nin-place 66666653333334\nloop 66666653333334\nrange 66666653333334\ndyn-short 653400000\nin-place-short 653400000\n",
 };
@@ -78,6 +78,7 @@ const PROGS = [
   "int-loop",
   "list-sort",
   "map-count",
+  "nested-display",
   "string-build",
   "string-builder",
   "trait-dispatch",
@@ -119,17 +120,17 @@ function cases() {
 
 // Reduced inputs for checked builds: [constant line, replacement].
 const SMALL = {
-  spectral_norm: [["N := 2000", "N := 250"]],
-  fannkuch_redux: [["N := 9", "N := 8"]],
+  spectral_norm: [["N := 2800", "N := 250"]],
+  fannkuch_redux: [["N := 10", "N := 8"]],
   mandelbrot: [["SIZE := 1400", "SIZE := 160"]],
-  nbody: [["STEPS := 1_150_000", "STEPS := 50_000"]],
-  sieve: [["N := 16_000_000", "N := 300_000"]],
-  binary_trees: [["MAX := +14", "MAX := +10"]],
-  points: [["N := 3_300_000", "N := 10_000"]],
-  closures: [["N := +170_000", "N := +10_000"]],
-  map_count: [["N := 650_000", "N := 20_000"]],
-  string_build: [["N := 1_500_000", "N := 30_000"]],
-  json: [["N := 6_000", "N := 4_000"]],
+  nbody: [["STEPS := 7_000_000", "STEPS := 50_000"]],
+  sieve: [["N := 36_000_000", "N := 300_000"]],
+  binary_trees: [["MAX := +17", "MAX := +10"]],
+  points: [["N := 7_500_000", "N := 10_000"]],
+  closures: [["N := +650_000", "N := +10_000"]],
+  map_count: [["N := 2_500_000", "N := 20_000"]],
+  string_build: [["N := 7_000_000", "N := 30_000"]],
+  json: [["N := 170_000", "N := 4_000"]],
   dyn_iter: [
     ["N := 10_000_000i64", "N := 100_000i64"],
     ["CALLS := 100_000", "CALLS := 1_000"],

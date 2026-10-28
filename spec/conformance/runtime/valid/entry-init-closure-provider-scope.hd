@@ -7,11 +7,10 @@ trait Source:
 struct Fixed: pass
 
 impl Source for Fixed:
-    fn read(&self) -> i32: +3
+    fn read(&self) -> i32:
+        +3
 
-read := fn() -> i32:
-    $.with(Source=&mut Fixed {}):
-        $.use(Source).read()
+read := fn() -> i32: $.with(Source=&mut Fixed {}): $.use(Source).read()
 
 pub fn main() -> void $ Console:
     println(read())

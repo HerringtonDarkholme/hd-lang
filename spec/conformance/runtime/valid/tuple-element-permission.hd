@@ -4,7 +4,7 @@ struct User:
     name: string
 
 fn rename(pair: (&mut User, i32)) -> void:
-    pair._0.name = "Grace"  # valid: the element has mutable access
+    pair._0.name = "Grace" # valid: the element has mutable access
 
 tests:
     use std.testing.assert_equal

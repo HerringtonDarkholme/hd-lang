@@ -11,4 +11,4 @@ struct Right:
 
 struct Both:
     Left
-    Right  # diagnostic: ambiguous-promoted-member
+    Right # diagnostic: ambiguous-promoted-member

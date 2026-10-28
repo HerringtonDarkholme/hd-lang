@@ -8,6 +8,6 @@ fn tagged() -> void:
 fn plain() -> void:
     pass
 
-value := facts_of(plain())  # diagnostic: invalid-facts-of-target
+value := facts_of(plain()) # diagnostic: invalid-facts-of-target
 pub fn main() -> void:
     pass

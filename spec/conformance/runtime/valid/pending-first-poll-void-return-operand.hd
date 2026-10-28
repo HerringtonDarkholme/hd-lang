@@ -1,25 +1,30 @@
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: a void return operand runs once before cleanup when the earlier host call was pending
 use std.testing.assert_equal
 
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
 struct State:
     count: i32
 
-fn child!() -> i32 $ Console:
+fn child!() -> i32 $ Console + Tick:
     let mut console = $.use(Console)
-    _ := console.write!("child\n")
+    $.use(Tick).tick!("child\n")
+    _ := console.write_sync("child\n")
     1
 
 fn tick(state: &mut State):
     state.count = state.count + 1
 
-fn run!(state: &mut State) -> void $ Console:
+fn run!(state: &mut State) -> void $ Console + Tick:
     defer:
         state.count = state.count * 10
     _ := child!()
     return tick(state)
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     let mut state = State { count: 0 }
     run!(&mut state)
     assert_equal(state.count, 10, reason="the operand ran once, then defer multiplied")

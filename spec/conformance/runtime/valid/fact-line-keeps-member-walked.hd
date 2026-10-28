@@ -53,4 +53,8 @@ tests:
     use std.testing.assert_equal
 
     it("x is still walked, with no facts"):
-        assert_equal(Point { x: 1, y: 2 }.probe(), "x=-/-;y=-/-;", reason="an empty list removes facts, not the member")
+        assert_equal(
+            Point { x: 1, y: 2 }.probe(),
+            "x=-/-;y=-/-;",
+            reason="an empty list removes facts, not the member",
+        )

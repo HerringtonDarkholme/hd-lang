@@ -16,8 +16,7 @@ impl Visitor for Doubler:
 
     fn gather[T](self, x: T) -> List[T]:
         let mut ys: List[T] = []
-        let add = fn() -> void:
-            ys.push(x)
+        let add = fn() -> void: ys.push(x)
         add()
         add()
         ys

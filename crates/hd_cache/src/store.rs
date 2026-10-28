@@ -3,6 +3,7 @@
 //! §5.4, §5.7, §5.8; `docs/compiler/data-structures.md` §3.20). The disk store is in
 //! `disk.rs`.
 
+use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap};
 use std::sync::{Arc, Mutex};
 
@@ -23,10 +24,11 @@ pub enum EntryKind {
     Cwasm,
     Code,
     Parse,
+    Lint,
 }
 
 impl EntryKind {
-    pub const ALL: [EntryKind; 13] = [
+    pub const ALL: [EntryKind; 14] = [
         EntryKind::Iface,
         EntryKind::Check,
         EntryKind::CheckTest,
@@ -40,6 +42,7 @@ impl EntryKind {
         EntryKind::Cwasm,
         EntryKind::Code,
         EntryKind::Parse,
+        EntryKind::Lint,
     ];
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -57,6 +60,7 @@ impl EntryKind {
             EntryKind::Cwasm => "cwasm",
             EntryKind::Code => "code",
             EntryKind::Parse => "parse",
+            EntryKind::Lint => "lint",
         }
     }
 }
@@ -388,7 +392,7 @@ pub fn plan_eviction(entries: &[EntryStat], budget: u64) -> Vec<EntryStat> {
     }
     let target = budget / 10 * 9;
     let mut sorted = entries.to_vec();
-    sorted.sort_by_key(|e| (e.mtime_s, e.kind, e.key));
+    sorted.sort_stable_by_key(|e| (e.mtime_s, e.kind, e.key));
     let mut left = total;
     let mut out = Vec::new();
     for e in sorted {

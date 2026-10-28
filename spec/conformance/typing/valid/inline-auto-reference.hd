@@ -1,0 +1,7 @@
+# test: inline Auto accepts a reference parameter
+# Spec 14 Inline And Cold: annot.inline.auto.
+use std.annotation.inline
+
+@inline
+fn first(values: &List[i32]) -> i32:
+    values.get(0).unwrap_or(0)

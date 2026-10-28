@@ -8,7 +8,8 @@ struct User:
     name: string
 
 impl User:
-    pub fn label() -> string: "inherent"
+    pub fn label() -> string:
+        "inherent"
 
 impl Factory for User:
     fn create() -> User:
@@ -18,7 +19,8 @@ trait Labeled:
     fn label() -> string
 
 impl Labeled for User:
-    fn label() -> string: "trait"
+    fn label() -> string:
+        "trait"
 
 fn make[T < Factory]() -> T:
     T::create()

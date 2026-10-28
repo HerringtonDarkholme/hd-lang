@@ -9,5 +9,5 @@ struct User:
     name: string
 
 fn mixed[T](local: *dyn Store[Item = User]) -> void $ Store[Item = T]:
-    $.with(Store[Item = User]=local):  # diagnostic: generic-requirement-key-collision
+    $.with(Store[Item = User]=local): # diagnostic: generic-requirement-key-collision
         pass

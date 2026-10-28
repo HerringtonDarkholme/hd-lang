@@ -7,5 +7,5 @@ struct CreatedByUser:
 
 struct AuditRecord:
     CreatedBySystem
-    CreatedByUser  # diagnostic: ambiguous-promoted-member
+    CreatedByUser # diagnostic: ambiguous-promoted-member
     note: string

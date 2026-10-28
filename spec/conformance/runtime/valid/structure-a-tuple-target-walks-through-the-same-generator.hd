@@ -14,7 +14,12 @@ impl[S] Walker[S] for Lister:
     type Error = never
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
-        self.out = self.out + "<" + v.info.name + " facts=${v.info.facts.items.len()} shared=${v.info.shared.len()}>"
+        self.out = (
+            self.out
+            + "<"
+            + v.info.name
+            + " facts=${v.info.facts.items.len()} shared=${v.info.shared.len()}>"
+        )
         .Ok(())
 
     fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:

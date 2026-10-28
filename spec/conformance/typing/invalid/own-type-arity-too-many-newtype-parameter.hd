@@ -9,4 +9,5 @@ enum Choice[T]:
 
 type Wrap[T](T)
 
-fn h(w: Wrap[i32, i32]) -> i32: w  # diagnostic: argument-count
+fn h(w: Wrap[i32, i32]) -> i32: # diagnostic: argument-count
+    w

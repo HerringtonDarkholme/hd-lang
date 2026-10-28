@@ -7,10 +7,12 @@ struct Item:
     value: i32
 
 impl Build[i64] for Item:
-    fn build(value: i64) -> Item: Item { value: 0 }
+    fn build(value: i64) -> Item:
+        Item { value: 0 }
 
 impl Build[i32] for Item:
-    fn build(value: i32) -> Item: Item { value: value }
+    fn build(value: i32) -> Item:
+        Item { value: value }
 
 fn main() -> i32:
     Item::build(value=+42).value

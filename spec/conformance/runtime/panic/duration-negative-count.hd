@@ -3,7 +3,7 @@
 use std.time.Duration
 
 fn wait_for(count: i64) -> Duration:
-    Duration::milliseconds(count)  # panic: explicit-panic
+    Duration::milliseconds(count) # panic: explicit-panic
 
 tests:
     it("panics on a negative count"):

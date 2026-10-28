@@ -314,7 +314,10 @@ impl string:
     ## True when the string ends with `suffix`.
     ## See [std-text.more.ends-with](../../spec/std/text.md#r-std-text.more.ends-with).
     pub fn ends_with(self, suffix: string) -> bool:
-        bytes_len(suffix) <= bytes_len(self) && bytes_match(self, suffix, bytes_len(self) - bytes_len(suffix))
+        (
+            bytes_len(suffix) <= bytes_len(self)
+            && bytes_match(self, suffix, bytes_len(self) - bytes_len(suffix))
+        )
 
     ## True when `needle` occurs in the string.
     ## See [std-text.more.contains](../../spec/std/text.md#r-std-text.more.contains).
@@ -360,8 +363,7 @@ impl string:
                 .Some(found) =>
                     pieces.push(bytes_slice(self, start, found))
                     start = found + bytes_len(separator)
-                .None =>
-                    searching = false
+                .None => searching = false
         pieces.push(bytes_slice(self, start, size))
         pieces
 
@@ -387,8 +389,7 @@ impl string:
                 .Some(found) =>
                     pieces.push(bytes_slice(self, start, found))
                     start = found + bytes_len(separator)
-                .None =>
-                    searching = false
+                .None => searching = false
         pieces.push(bytes_slice(self, start, size))
         pieces
 
@@ -419,8 +420,7 @@ impl string:
                     pieces.push(bytes_slice(self, start, found))
                     pieces.push(replacement)
                     start = found + bytes_len(old)
-                .None =>
-                    searching = false
+                .None => searching = false
         pieces.push(bytes_slice(self, start, size))
         pieces.join("")
 
@@ -466,12 +466,18 @@ impl string:
     ## Returns the string without its `prefix` when it starts with it, in `.Some`, or `.None`.
     ## See [std-text.more.strip](../../spec/std/text.md#r-std-text.more.strip).
     pub fn strip_prefix(self, prefix: string) -> string?:
-        if self.starts_with(prefix): .Some(bytes_slice(self, bytes_len(prefix), bytes_len(self))) else: .None
+        if self.starts_with(prefix):
+            .Some(bytes_slice(self, bytes_len(prefix), bytes_len(self)))
+        else:
+            .None
 
     ## Returns the string without its `suffix` when it ends with it, in `.Some`, or `.None`.
     ## See [std-text.more.strip](../../spec/std/text.md#r-std-text.more.strip).
     pub fn strip_suffix(self, suffix: string) -> string?:
-        if self.ends_with(suffix): .Some(bytes_slice(self, 0, bytes_len(self) - bytes_len(suffix))) else: .None
+        if self.ends_with(suffix):
+            .Some(bytes_slice(self, 0, bytes_len(self) - bytes_len(suffix)))
+        else:
+            .None
 
     # The pieces between "\n" separators; a final "\n" ends the last line
     # rather than starting an empty one. A carriage return directly before
@@ -518,7 +524,13 @@ impl string:
     ## See [std-text.split-once](../../spec/std/text.md#r-std-text.split-once).
     pub fn split_once(self, separator: string) -> (string, string)?:
         match byte_find(self, separator, 0):
-            .Some(found) => .Some((bytes_slice(self, 0, found), bytes_slice(self, found + bytes_len(separator), bytes_len(self))))
+            .Some(found) =>
+                .Some(
+                    (
+                        bytes_slice(self, 0, found),
+                        bytes_slice(self, found + bytes_len(separator), bytes_len(self)),
+                    ),
+                )
             .None => .None
 
     # The runs of scalars between runs of Unicode White_Space, with no
@@ -569,8 +581,7 @@ impl string:
                 .Some(at) =>
                     found = found + 1
                     start = at + bytes_len(needle)
-                .None =>
-                    searching = false
+                .None => searching = false
         found
 
 # Character classification (spec/std/text.md#character-classification).
@@ -649,15 +660,14 @@ impl StringBuilder:
     pub fn new() -> *mut StringBuilder:
         &mut StringBuilder { bytes: [] }
 
-    ## Appends `text` and returns the builder, so calls chain.
-    ## See [std-text.builder.push-ref](../../spec/std/text.md#r-std-text.builder.push-ref).
-    pub fn push(*mut self, text: string) -> *mut StringBuilder:
+    ## Appends `text` to the builder.
+    ## See [std-text.builder.push-local](../../spec/std/text.md#r-std-text.builder.push-local).
+    pub fn push(&mut self, text: string) -> void:
         bytes_append(&mut self.bytes, text)
-        self
 
-    ## Appends the character `c` and returns the builder, so calls chain.
-    ## See [std-text.builder.push-char-ref](../../spec/std/text.md#r-std-text.builder.push-char-ref).
-    pub fn push_char(*mut self, c: char) -> *mut StringBuilder:
+    ## Appends the character `c` to the builder.
+    ## See [std-text.builder.push-char-local](../../spec/std/text.md#r-std-text.builder.push-char-local).
+    pub fn push_char(&mut self, c: char) -> void:
         point := i32(char_scalar(c))
         if point < 128:
             self.bytes.push(u8(point))
@@ -673,25 +683,22 @@ impl StringBuilder:
             self.bytes.push(u8(128 + point / 4096 % 64))
             self.bytes.push(u8(128 + point / 64 % 64))
             self.bytes.push(u8(128 + point % 64))
-        self
 
-    ## Appends the ASCII byte `byte` and returns the builder, so calls chain. A byte of 128 or more panics.
-    ## See [std-text.builder.push-ascii](../../spec/std/text.md#r-std-text.builder.push-ascii).
-    pub fn push_ascii(*mut self, byte: u8) -> *mut StringBuilder:
+    ## Appends the ASCII byte `byte`. A byte of 128 or more panics.
+    ## See [std-text.builder.push-ascii-local](../../spec/std/text.md#r-std-text.builder.push-ascii-local).
+    pub fn push_ascii(&mut self, byte: u8) -> void:
         if byte >= 128:
             panic("push_ascii: the byte must be ASCII, below 128")
         self.bytes.push(byte)
-        self
 
-    ## Makes room for at least `count` more bytes, appends nothing, and returns the builder.
-    ## See [std-text.builder.reserve](../../spec/std/text.md#r-std-text.builder.reserve).
-    pub fn reserve(*mut self, count: usize) -> *mut StringBuilder:
+    ## Makes room for at least `count` more bytes and appends nothing.
+    ## See [std-text.builder.reserve-local](../../spec/std/text.md#r-std-text.builder.reserve-local).
+    pub fn reserve(&mut self, count: usize) -> void:
         list_reserve(&mut self.bytes, count)
-        self
 
     ## Returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
-    ## See [std-text.builder.build-empties](../../spec/std/text.md#r-std-text.builder.build-empties).
-    pub fn build(*mut self) -> string:
+    ## See [std-text.builder.build-local](../../spec/std/text.md#r-std-text.builder.build-local).
+    pub fn build(&mut self) -> string:
         # The buffer moves out of the builder, so `string_from_bytes` takes
         # it over with no copy. Every push appends only UTF-8, so it checks nothing.
         bytes := self.bytes
@@ -723,7 +730,10 @@ fn byte_rfind(text: string, needle: string) -> usize?:
     let matched: usize = 0
     let index: usize = 1
     while index < size:
-        while matched > 0 && bytes_at(needle, size - 1 - index) != bytes_at(needle, size - 1 - matched):
+        while (
+            matched > 0
+            && bytes_at(needle, size - 1 - index) != bytes_at(needle, size - 1 - matched)
+        ):
             matched = fail[matched - 1]
         if bytes_at(needle, size - 1 - index) == bytes_at(needle, size - 1 - matched):
             matched = matched + 1
@@ -878,7 +888,10 @@ fn pair_windows(finder: Searcher, text: string, from: usize) -> Window:
             memory = 0
         else:
             let left = split
-            while left > memory && bytes_at(needle, left - 1) == bytes_at(text, position + left - 1):
+            while (
+                left > memory
+                && bytes_at(needle, left - 1) == bytes_at(text, position + left - 1)
+            ):
                 left = left - 1
             if left > memory:
                 position = position + finder.period
@@ -920,7 +933,10 @@ fn plain_windows(finder: Searcher, text: string, from: usize, stop: usize) -> Wi
                 memory = 0
             else:
                 let left = split
-                while left > memory && bytes_at(needle, left - 1) == bytes_at(text, position + left - 1):
+                while (
+                    left > memory
+                    && bytes_at(needle, left - 1) == bytes_at(text, position + left - 1)
+                ):
                     left = left - 1
                 if left > memory:
                     position = position + finder.period
@@ -930,10 +946,7 @@ fn plain_windows(finder: Searcher, text: string, from: usize, stop: usize) -> Wi
                         memory = 0
                 else:
                     return .Found(position)
-    if position + size > end:
-        .Missing
-    else:
-        .Resume(position)
+    if position + size > end: .Missing else: .Resume(position)
 
 # The number of scalars in `text`.
 fn scalar_count(text: string) -> usize:
@@ -997,7 +1010,14 @@ fn white_space(point: i32) -> bool:
         return point == 32 || (point >= 9 && point <= 13)
     if point < 8192:
         return point == 133 || point == 160 || point == 5760
-    point <= 8202 || point == 8232 || point == 8233 || point == 8239 || point == 8287 || point == 12288
+    (
+        point <= 8202
+        || point == 8232
+        || point == 8233
+        || point == 8239
+        || point == 8287
+        || point == 12288
+    )
 
 # The Unicode Alphabetic property, with ASCII answered directly.
 fn alphabetic_point(point: i32) -> bool:

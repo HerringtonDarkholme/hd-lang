@@ -9,4 +9,4 @@ impl Counter:
         self.value = self.value + by
 
 fn frozen(counter: Counter) -> fn(i32) -> void:
-    counter::bump  # diagnostic: not-writable
+    counter::bump # diagnostic: not-writable

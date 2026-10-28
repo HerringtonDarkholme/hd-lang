@@ -1,5 +1,5 @@
 # test: a closure parameter needs a type without an expected function type
 
 fn run() -> i32:
-    closure := fn(value) -> i32: value  # diagnostic: closure-parameter-needs-annotation
+    closure := fn(value) -> i32: value # diagnostic: closure-parameter-needs-annotation
     0

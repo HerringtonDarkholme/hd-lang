@@ -2,5 +2,5 @@
 # Spec 02 Suite Statements: grammar.stmt.chain.
 pub fn main() -> void $ Console:
     a := b := +1
-    b = 2  # diagnostic: non-reassignable-binding
+    b = 2 # diagnostic: non-reassignable-binding
     println("$a $b")

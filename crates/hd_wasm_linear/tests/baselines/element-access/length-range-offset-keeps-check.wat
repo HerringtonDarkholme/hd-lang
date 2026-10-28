@@ -2,71 +2,48 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (result i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $i i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
+  (func $total (param $xs i32) (result i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     block
     ;; 5 |     let sum = +0
       i32.const 0
       local.set $sum
     ;; 6 |     for i in 0..xs.len():
       local.get $xs
-      local.tee $t0
-      drop
-      block
-        local.get $t0
-        i32.load $heap
-        local.set $t1
-      end
-      local.get $t1
+      i32.load $heap
+      i32.load $heap offset=4
+      i32.const 0
+      local.set $t0
+      local.set $t1
+      local.get $xs
+      i32.load $heap
+      local.tee $xs
       i32.load $heap offset=4
       local.set $t2
-      i32.const 0
-      local.set $t3
-      local.get $t2
-      local.set $t4
-      block
-        local.get $xs
-        i32.load $heap
-        local.tee $t5
-        i32.load $heap offset=4
-        local.set $t6
-      end
       block
         loop
-          local.get $t3
-          local.get $t4
+          local.get $t0
+          local.get $t1
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t3
-          local.set $i
-          local.get $t3
+          local.get $t0
+          local.get $t0
           i32.const 1
           i32.add
-          local.set $t3
+          local.set $t0
     ;; 7 |         sum += xs[i + 1]
-          local.get $sum
-          local.set $t7
-          local.get $i
           i32.const 1
           i32.add
-          local.set $t8
-          block (result i32)
-            local.get $t5
-          end
-          local.set $t9
-          local.get $t8
-          local.tee $t10
-          block (result i32)
-            local.get $t6
-          end
+          local.tee $t3
+          local.get $t2
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t7
-          local.get $t9
-          local.get $t10
+          local.get $sum
+          local.get $xs
+          local.get $t3
           i32.const 4
           i32.mul
           i32.add

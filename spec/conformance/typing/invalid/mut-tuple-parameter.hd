@@ -3,5 +3,5 @@
 struct User:
     name: string
 
-fn invalid(pair: mut (User, i32)) -> i32:  # diagnostic: mut-on-struct
+fn invalid(pair: mut (User, i32)) -> i32: # diagnostic: mut-on-struct
     pair._1

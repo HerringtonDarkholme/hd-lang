@@ -16,9 +16,11 @@ impl Apply[bool] for Item:
 
 fn main() -> i32:
     item := Item { value: 40 }
-    item.apply(fn(value):
-        local := value + 2
-        if local == 42: local else: 0
+    item.apply(
+        fn(value):
+            local := value + 2
+            if local == 42: local else: 0
+        ,
     )
 
 tests:

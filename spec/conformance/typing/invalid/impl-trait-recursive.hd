@@ -1,2 +1,2 @@
-fn recursive() -> impl Display:  # diagnostic: recursive-value-type
+fn recursive() -> impl Display: # diagnostic: recursive-value-type
     recursive()

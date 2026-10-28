@@ -14,7 +14,7 @@ tests:
 
     it("greets from fixed input"):
         given := ScriptedArgs::new("tool", ["a", "b"])
-        vars := ScriptedEnv::new({"GREETING": "hi", "HOME": "/home/me"})
+        vars := ScriptedEnv::new({ "GREETING": "hi", "HOME": "/home/me" })
         $.with(Args=given, Env=vars):
             assert_equal(greeting(), "hi, 2", reason="one variable, two arguments")
             assert_equal(program(), "tool", reason="the program name")

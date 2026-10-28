@@ -5,4 +5,4 @@ trait Cache[T]:
     fn get(self, key: string) -> T?
 
 struct Loader[+T]:
-    refresh: fn() -> void $ Cache[T]  # diagnostic: invalid-variance
+    refresh: fn() -> void $ Cache[T] # diagnostic: invalid-variance

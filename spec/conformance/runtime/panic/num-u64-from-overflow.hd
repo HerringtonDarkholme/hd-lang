@@ -3,7 +3,7 @@
 use std.num.Integer
 
 fn narrow[N < Integer](n: u64) -> N:
-    N::from_u64(n)  # panic: integer-overflow
+    N::from_u64(n) # panic: integer-overflow
 
 tests:
     it("overflows"):

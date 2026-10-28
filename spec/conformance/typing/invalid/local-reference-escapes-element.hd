@@ -4,4 +4,4 @@ struct Point:
     x: i32
 
 fn keep(points: &mut List[*Point], p: &Point) -> void:
-    points.push(p)  # diagnostic: local-reference-escapes
+    points.push(p) # diagnostic: local-reference-escapes

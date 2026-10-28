@@ -3,4 +3,4 @@ struct Wrap[T]:
     inner: T
 
 struct Nest:
-    wrap: Wrap[Nest]  # diagnostic: recursive-value-type
+    wrap: Wrap[Nest] # diagnostic: recursive-value-type

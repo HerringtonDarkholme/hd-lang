@@ -5,5 +5,5 @@ struct Feed[+T]:
     latest: T
 
 impl[T] Feed[T]:
-    pub fn merge(self, other: T?) -> void:  # diagnostic: invalid-variance
+    pub fn merge(self, other: T?) -> void: # diagnostic: invalid-variance
         pass

@@ -1,6 +1,6 @@
 # test: string values need a catch-all after their literal arms
 # Spec 06 Exhaustiveness: flow.match.cover.other-values.
 fn code(name: string) -> i32:
-    match name:  # diagnostic: nonexhaustive-match
+    match name: # diagnostic: nonexhaustive-match
         "ada" => +1
         "grace" => +2

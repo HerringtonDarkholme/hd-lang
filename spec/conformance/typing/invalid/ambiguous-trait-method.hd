@@ -9,10 +9,12 @@ struct User:
     name: string
 
 impl LeftLabel for User:
-    fn label(self) -> string: self.name
+    fn label(self) -> string:
+        self.name
 
 impl RightLabel for User:
-    fn label(self) -> string: self.name
+    fn label(self) -> string:
+        self.name
 
 fn invalid(user: User) -> string:
-    user.label()  # diagnostic: ambiguous-method
+    user.label() # diagnostic: ambiguous-method

@@ -3,7 +3,8 @@
 # expect-stdout: 220
 # expect-stdout: 340
 # expect-stdout: 730
-fn label(tag: i32, values...: List[i32]) -> i32: tag * 100 + i32(values.len()) * 10
+fn label(tag: i32, values...: List[i32]) -> i32:
+    tag * 100 + i32(values.len()) * 10
 
 fn apply(callback: fn(i32, List[i32]...) -> i32) -> i32:
     callback(7, 1, 2, 3)

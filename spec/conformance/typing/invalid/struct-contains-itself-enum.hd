@@ -4,4 +4,4 @@ enum Link:
     More(forest: Forest)
 
 struct Forest:
-    link: Link  # diagnostic: recursive-value-type
+    link: Link # diagnostic: recursive-value-type

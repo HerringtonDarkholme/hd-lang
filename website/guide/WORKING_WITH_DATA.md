@@ -65,11 +65,13 @@ because they are inside the module that declares the private field.
 A trait exposing `&self` getters can provide the same read-only interface.
 The rules are in [Reading Through A Reference](../../spec/lang/13-values-and-references.md#reading-through-a-reference).
 
-## Reusing A Builder
+## Reusing Builders
 
-`Command`, `ArgParser`, `Request` and `Client` use mutable builders.
-Their constructors return `&mut T`; each configuration method changes that
-object and returns the same reference. Chains may be stored or returned.
+`Command` and `ArgParser` are shared mutable builders. Their constructors
+return `*mut T`; each configuration method changes that object and returns the
+same reference, which may be stored or returned. HTTP messages use a different
+shape: `Request` and `Response` setters take and return values, while `Client`
+is a value whose mutable `send!` updates its cookie jar.
 
 Assigning `alias := base` shares the builder. To derive independent
 configurations, copy its value into separate `let mut` variables before
@@ -291,7 +293,7 @@ impl From[TimedOut] for LoadError:
 struct Source:
     calls: usize
 
-fn read!(source: *mut Source) -> Result[string, LoadError]:
+fn read!(source: &mut Source) -> Result[string, LoadError]:
     source.calls += 1
     if source.calls < 3: .Err(.Busy) else: .Ok("primary")
 

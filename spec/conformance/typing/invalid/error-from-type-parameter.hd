@@ -4,4 +4,7 @@
 @error
 enum AppError[E]:
     @error("inner failed")
-    Inner(@from error: E)  # diagnostic: invalid-error-marker
+    Inner(
+        @from # diagnostic: invalid-error-marker
+        error: E,
+    )

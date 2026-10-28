@@ -5,4 +5,4 @@ enum Color:
     Green
 
 fn colors(left: Color, right: Color) -> bool:
-    left is right  # diagnostic: identity-requires-references
+    left is right # diagnostic: identity-requires-references

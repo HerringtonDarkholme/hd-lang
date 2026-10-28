@@ -2,7 +2,8 @@
 # @build: v8 release
 # Reading one field of a list element in a generic method loads that
 # field in place, as plain code does: no copy of the element, and no
-# count of its string. Part of #165.
+# count of its string. Part of #165. A release build copies the method's
+# `i32` instance into `use_generic`, where the load stands.
 struct Info:
     position: usize
     name: string

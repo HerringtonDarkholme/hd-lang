@@ -5,5 +5,5 @@ trait Feed:
     fn next(mut self) -> Self::Item?
 
 trait PriceFeed < Feed:
-    type Item  # diagnostic: duplicate-trait-member
+    type Item # diagnostic: duplicate-trait-member
     fn currency(self) -> string

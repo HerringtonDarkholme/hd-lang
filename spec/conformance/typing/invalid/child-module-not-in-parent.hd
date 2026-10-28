@@ -8,5 +8,5 @@ use pkg.user
 pub fn welcome(name: string) -> string:
     user.greeting(name)
 
-fn owner_name(owner: user.types.User) -> string:  # diagnostic: unknown-import
+fn owner_name(owner: user.types.User) -> string: # diagnostic: unknown-import
     owner.name

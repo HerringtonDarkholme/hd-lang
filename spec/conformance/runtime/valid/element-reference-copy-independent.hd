@@ -21,7 +21,11 @@ tests:
     it("a copied list changes on its own"):
         let mut xs = [+1, 2, 3]
         copy := change_copy(&mut xs[0], xs)
-        assert_equal(copy, [+100, 2, 3, 4, 1], reason="the reference read its own list, and its write missed the copy")
+        assert_equal(
+            copy,
+            [+100, 2, 3, 4, 1],
+            reason="the reference read its own list, and its write missed the copy",
+        )
         assert_equal(xs[0], 7, reason="the write reaches the list it was taken from")
 
     it("a struct holding a pinned list copies the list too"):

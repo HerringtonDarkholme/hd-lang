@@ -10,4 +10,4 @@ impl Shape for Square:
         self.side * self.side
 
 fn shapes() -> List[*dyn Shape]:
-    [Square { side: 1.0 }]  # diagnostic: type-mismatch
+    [Square { side: 1.0 }] # diagnostic: type-mismatch

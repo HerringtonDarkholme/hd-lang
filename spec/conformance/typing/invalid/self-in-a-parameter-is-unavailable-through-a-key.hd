@@ -13,16 +13,23 @@ struct Sq:
     n: i32
 
 impl Shape for Sq:
-    fn area(self) -> i32: self.n * self.n
-    fn same_as(self, other: Sq) -> bool: self.n == other.n
-    fn twin(self) -> Sq: self
-    fn pair(self) -> List[Sq]: [self]
-    fn each(self, f: fn(Sq) -> void) -> void: f(self)
-    fn pick[T](self, x: T) -> T: x
-    fn many[T](self, xs: List[T]) -> List[T]: xs
+    fn area(self) -> i32:
+        self.n * self.n
+    fn same_as(self, other: Sq) -> bool:
+        self.n == other.n
+    fn twin(self) -> Sq:
+        self
+    fn pair(self) -> List[Sq]:
+        [self]
+    fn each(self, f: fn(Sq) -> void) -> void:
+        f(self)
+    fn pick[T](self, x: T) -> T:
+        x
+    fn many[T](self, xs: List[T]) -> List[T]:
+        xs
 
 fn use_it() -> void $ Shape:
-    $.use(Shape).same_as($.use(Shape))  # diagnostic: dyn-member-unavailable
+    $.use(Shape).same_as($.use(Shape)) # diagnostic: dyn-member-unavailable
 
 pub fn main() -> void:
     pass

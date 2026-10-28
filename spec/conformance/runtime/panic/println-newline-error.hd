@@ -1,0 +1,15 @@
+# test: println panics if its second, newline write returns an error.
+# Spec 10 Console: module.console.println-write-error.either, module.console.println-error.category.
+
+struct NewlineFails:
+    calls: usize
+
+impl Console for NewlineFails:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.calls = self.calls + 1
+        if self.calls == 1: .Ok(()) else: .Err(ConsoleError.Closed)
+
+pub fn main() -> void:
+    let mut console = NewlineFails { calls: 0 }
+    $.with(Console=&mut console):
+        println("hello") # panic: explicit-panic

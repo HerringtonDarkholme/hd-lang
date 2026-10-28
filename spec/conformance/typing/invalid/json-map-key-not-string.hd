@@ -3,4 +3,4 @@
 use std.json.encode
 
 fn show(counts: Map[i32, i32]) -> string:
-    encode(counts)  # diagnostic: unsatisfied-trait-bound
+    encode(counts) # diagnostic: unsatisfied-trait-bound

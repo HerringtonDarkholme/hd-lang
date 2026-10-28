@@ -6,4 +6,5 @@ trait Cache
 
 type AppRow = $ Db + Cache
 
-fn load(rows: AppRow) -> void: pass  # diagnostic: generic-kind-mismatch
+fn load(rows: AppRow) -> void: # diagnostic: generic-kind-mismatch
+    pass

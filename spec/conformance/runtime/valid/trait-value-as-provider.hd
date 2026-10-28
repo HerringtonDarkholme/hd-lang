@@ -7,12 +7,13 @@ struct OffsetLogger:
     offset: i32
 
 impl Logger for OffsetLogger:
-    fn adjust(self, value: i32) -> i32: value + self.offset
+    fn adjust(self, value: i32) -> i32:
+        value + self.offset
 
 fn read() -> i32 $ Logger:
     $.use(Logger).adjust(40)
 
-fn provide_logger[$R](callback: fn() -> i32 $ R + Logger, logger: *dyn Logger) -> i32 $ R:
+fn provide_logger[$ R](callback: fn() -> i32 $ R + Logger, logger: *dyn Logger) -> i32 $ R:
     $.with(Logger=logger):
         callback()
 

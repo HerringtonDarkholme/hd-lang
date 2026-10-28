@@ -4,7 +4,8 @@ fn find(id: i32) -> i32?:
     if id == 0: .Some(7) else: .None
 
 fn read(id: i32, flag: bool) -> i32?:
-    let .Some(user) = find(id) else: return .None
+    let .Some(user) = find(id) else:
+        return .None
     let .Some(other) = (if flag: find(id) else: find(0)) else:
         return .None
     .Some(user + other)

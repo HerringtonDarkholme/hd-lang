@@ -59,7 +59,11 @@ tests:
         let top: u32 = 4294967295
         assert_equal(top.wrapping_mul(2), 4294967294, reason="the maximum doubled")
         assert_equal(top.wrapping_mul(top), 1, reason="the maximum squared")
-        assert_equal(hash_step(2166136261, 97), 3826002220, reason="one FNV-1a step over the byte 97")
+        assert_equal(
+            hash_step(2166136261, 97),
+            3826002220,
+            reason="one FNV-1a step over the byte 97",
+        )
 
     it("u64"):
         let top: u64 = 18446744073709551615
@@ -68,7 +72,11 @@ tests:
         let big: u64 = 4294967296
         assert_equal(big.wrapping_mul(big), 0, reason="2^64 wraps to zero")
         let seed: u64 = 6364136223846793005
-        assert_equal(seed.wrapping_mul(seed), 7520897724310334953, reason="a wrapped 64-bit product")
+        assert_equal(
+            seed.wrapping_mul(seed),
+            7520897724310334953,
+            reason="a wrapped 64-bit product",
+        )
 
     it("usize"):
         let one: usize = 1

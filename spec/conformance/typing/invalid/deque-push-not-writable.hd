@@ -4,5 +4,5 @@ use std.collections.Deque
 
 fn ready() -> usize:
     queue := Deque::[string]::new()
-    queue.push_back("ana")  # diagnostic: not-writable
+    queue.push_back("ana") # diagnostic: not-writable
     queue.len()

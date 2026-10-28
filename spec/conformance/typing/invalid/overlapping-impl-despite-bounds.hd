@@ -10,4 +10,4 @@ struct Plain:
 trait Marker
 
 impl[T < Display] Marker for Box[T]
-impl Marker for Box[Plain]  # diagnostic: overlapping-impl
+impl Marker for Box[Plain] # diagnostic: overlapping-impl

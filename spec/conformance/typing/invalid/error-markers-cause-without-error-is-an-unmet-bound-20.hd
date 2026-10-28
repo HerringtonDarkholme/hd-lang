@@ -2,4 +2,7 @@
 @error
 enum E:
     @error("bad")
-    Path(@source reason: i64?)  # diagnostic: unsatisfied-trait-bound
+    Path(
+        @source # diagnostic: unsatisfied-trait-bound
+        reason: i64?,
+    )

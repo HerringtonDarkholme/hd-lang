@@ -1,0 +1,8 @@
+# @dump: own
+# A comprehension with an `if`, or over an iterator, whose length is not
+# known before its loop, only pushes: no `ListReserve` (#165).
+fn evens(n: usize) -> List[usize]:
+    [for i in 0..n if i % 2 == 0 => i]
+
+fn counted(n: usize) -> List[usize]:
+    [for i in (0..n).iter() => i]

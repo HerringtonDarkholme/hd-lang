@@ -1,6 +1,7 @@
 # test: a vararg value differs from a list taking one
-fn sum(values...: List[i32]) -> i32: values[0]
+fn sum(values...: List[i32]) -> i32:
+    values[0]
 
 fn run() -> i32:
     f := sum
-    f(1, "a")  # diagnostic: type-mismatch
+    f(1, "a") # diagnostic: type-mismatch

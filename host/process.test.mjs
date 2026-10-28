@@ -16,7 +16,7 @@ function windowsWorker(t) {
   const entry = join(root, "entry.mjs");
   writeFileSync(
     entry,
-    `Object.defineProperty(process,'platform',{value:'win32'});await import(${JSON.stringify(new URL("./process.mjs", import.meta.url).href)});`,
+    `Object.defineProperty(process,'platform',{value:'win32'});process.env.HD_PROCESS_TEST_ROOT=${JSON.stringify(root)};await import(${JSON.stringify(new URL("./process.mjs", import.meta.url).href)});`,
   );
   const client = syncClient(pathToFileURL(entry), "close");
   const call = (request) => {
@@ -42,9 +42,9 @@ function windowsWorker(t) {
         timeout: Infinity,
         ...more,
       }).ok,
-    helper: (source) => {
+    helper: (source, interpreter = process.execPath) => {
       const path = join(root, "helper");
-      writeFileSync(path, `#!${process.execPath}\n${source}`);
+      writeFileSync(path, `#!${interpreter}\n${source}`);
       chmodSync(path, 0o755);
       return path;
     },
@@ -81,27 +81,39 @@ test(
   protocol,
   async (t) => {
     const { root, call, start, helper } = windowsWorker(t);
-    const launcher =
-      helper(`const rl=require('node:readline').createInterface({input:process.stdin});
-    rl.once('line',line=>{const request=JSON.parse(line);setTimeout(()=>{
-      process.stdout.write(JSON.stringify({ok:{stdout:JSON.stringify(request),stderr:'err',status:23}}));process.exit(0);
-    },30);});rl.on('close',()=>process.exit(99));`);
+    const state = join(root, "protocol-state.json");
+    const requestPath = join(root, "protocol-request.json");
+    const launcher = helper(
+      `state="$HD_PROCESS_TEST_ROOT/protocol-state.json"
+request="$HD_PROCESS_TEST_ROOT/protocol-request.json"
+mark() { printf '{"stage":"%s","pid":%s}' "$1" "$$" > "$state"; }
+mark started
+IFS= read -r line
+printf '%s' "$line" > "$request"
+mark request-read
+printf '%s\\n' '{"ok":{"stdout":"complete","stderr":"err","status":23}}'
+mark reply-flushed`,
+      "/bin/sh",
+    );
     const operation = start({ launcher });
     let result;
     await t.waitFor(
       () => {
         result = call({ op: "wait_poll", operation });
-        assert.ok(result.ok);
+        const launcherState = existsSync(state) ? readFileSync(state, "utf8") : "not-started";
+        assert.ok(result.ok, `poll=${JSON.stringify(result)} launcher=${launcherState}`);
       },
       { timeout: 10000 },
     );
     assert.equal(result.ok.status, 23);
     assert.equal(result.ok.stderr, "err");
-    const request = JSON.parse(result.ok.stdout);
+    assert.equal(result.ok.stdout, "complete");
+    const request = JSON.parse(readFileSync(requestPath, "utf8"));
     assert.deepEqual(
       [request.program, request.args, request.cwd, request.env, request.input],
       ["tool", ["one two", "'", "λ"], root, { ONLY: "value" }, "line\nλ"],
     );
+    assert.equal(JSON.parse(readFileSync(state, "utf8")).stage, "reply-flushed");
     call({ op: "wait_finish", operation });
   },
 );

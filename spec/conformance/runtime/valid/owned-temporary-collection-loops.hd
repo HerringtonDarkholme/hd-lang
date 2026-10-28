@@ -2,13 +2,17 @@
 # Spec 06 For Loops: flow.for.snapshot.
 # expect: test
 
-fn numbers() -> List[i32]: [+1, +2, +3]
+fn numbers() -> List[i32]:
+    [+1, +2, +3]
 
-fn words() -> List[string]: ["first", "second"]
+fn words() -> List[string]:
+    ["first", "second"]
 
-fn returned(values: List[i32]) -> List[i32]: values
+fn returned(values: List[i32]) -> List[i32]:
+    values
 
-fn shared(values: *mut List[i32]) -> *mut List[i32]: values
+fn shared(values: *mut List[i32]) -> *mut List[i32]:
+    values
 
 fn referenced(values: &mut List[i32]) -> i32:
     let total = +0
@@ -32,7 +36,8 @@ fn nested_words() -> List[string]:
             out.push(left + right)
     out
 
-fn table() -> Map[string, i32]: {"a": +1, "b": +2}
+fn table() -> Map[string, i32]:
+    { "a": +1, "b": +2 }
 
 tests:
     use std.testing.assert_equal

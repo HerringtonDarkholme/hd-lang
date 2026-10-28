@@ -3,5 +3,11 @@
 # expect: parse
 
 fn run(xs: List[i32], c: bool) -> void:
-    for x in xs: println("$x") else: println("done")
-    while c: break else: println("never")
+    for x in xs:
+        println("$x")
+    else:
+        println("done")
+    while c:
+        break
+    else:
+        println("never")

@@ -3,7 +3,7 @@
 fn main() -> i32:
     defer:
         panic("cleanup must not run")
-    panic("boom")  # panic: explicit-panic
+    panic("boom") # panic: explicit-panic
 
 tests:
     it("explicit panic does not run the pending defer"):

@@ -12,5 +12,5 @@ tests:
     use std.testing.assert_equal
 
     it("makes a duration per count"):
-        found := durations([3, 4], (time.s))
+        found := durations([3, 4], time.s)
         assert_equal(found, [time.ms(3000), time.ms(4000)], reason="each count is in seconds")

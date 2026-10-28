@@ -37,7 +37,7 @@ An application is an ordinary `main!`. There is no `handle!` entry, no manifest 
 `main!` creates one explicit state object and joins a fixed group of worker loops over it with `all!` or `map_all!`.
 
 `HttpServer` is a capability trait owned by a server SDK package and delivered through package-declared host capabilities (#51).
-Its requests and responses are the existing boundary-safe `Request` and `Response` values from `std.http`.
+The SDK exchanges byte wire DTOs at its host boundary and converts them to the public `Request` and `Response` values from `std.http`.
 Routing is ordinary hd code over `Request`.
 
 One Wasm instance is retained per adapter. Each admitted request gets a lease: its ID, deadline, cancellation controller and the outgoing operations it owns.
@@ -52,7 +52,7 @@ struct Hits:
 
 fn handle!(req: Request, hits: &mut Hits) -> Response:
     hits.n = hits.n + 1
-    Response { status: 200, body: "hit ${hits.n}".to_utf8() }
+    Response::status(.Ok).set_text("hit ${hits.n}")
 
 pub fn main!() -> void $ HttpServer:
     let mut hits = Hits { n: 0 }
@@ -83,9 +83,9 @@ Current-compiler controls on Node and workerd 1.20261023.1 run the retained-inst
 - four overlapping outgoing requests reach upstream concurrency four;
 - with a lease-scoped I/O dispatcher in the SDK, an adversarial ordering (request A ready, B polls, B finishes) passes on both hosts.
 
-These controls use a private Console bridge, not the public capability ([prototype](http-server/prototype/README.md)).
+These controls used a private Console bridge, not the public capability (the prototype is in git history at b451c9fdd, `docs/future-work/http-server/prototype/`).
 Node Net reads, accepts and receives return Pending and keep unread bytes across cancellation (#810), so several worker loops can wait at once.
-The [server-application controls](server-applications/README.md) cover the lifecycle cases: two admitted jobs finish under a stop while one queued job is left, a stale read across an await, a poisoned instance, and typed JSON handling, on both engines.
+The server-application controls (git history at b451c9fdd, `docs/future-work/server-applications/`) covered the lifecycle cases: two admitted jobs finish under a stop while one queued job is left, a stale read across an await, a poisoned instance, and typed JSON handling, on both engines.
 The maintained SDK controls now cover disconnect and deadline cleanup, body limits, outgoing grants and Node supervision. Cloudflare packaging has local Wrangler dry-run, retained-application, policy and timeout evidence. Local probes also measure external cold wall latency and both guest linear memories. Vercel Node packaging has local official builder and launcher evidence; hosted deployment remains unproven.
 
 ## Prior Art

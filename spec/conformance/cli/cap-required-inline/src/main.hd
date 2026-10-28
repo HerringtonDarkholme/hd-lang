@@ -3,4 +3,5 @@ use std.time.Clock
 use std.random.Random
 use std.http.Http
 use std.process.Process
-pub fn main() -> void $ Console + Args + Clock + Random + Http + Process: pass
+pub fn main() -> void $ Console + Args + Clock + Random + Http + Process:
+    pass

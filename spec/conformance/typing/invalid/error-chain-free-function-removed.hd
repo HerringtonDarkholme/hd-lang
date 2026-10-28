@@ -1,2 +1,2 @@
 # test: chain is available only as an inherent error method
-use std.error.chain  # diagnostic: unknown-import
+use std.error.chain # diagnostic: unknown-import

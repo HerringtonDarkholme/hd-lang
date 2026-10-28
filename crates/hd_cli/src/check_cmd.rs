@@ -2,7 +2,8 @@
 //! `cli.file.check-test`, `cli.json.*`): the pipeline through checking and
 //! coherence, with no collection or emission.
 
-use std::collections::BTreeMap;
+use hd_base::SliceSort as _;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::path::Path;
@@ -13,7 +14,7 @@ use hd_cache::{CacheStore, DeferredStore};
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output};
 
-use hd_project::{ModuleTable, Role, role_of};
+use hd_project::{ModuleTable, Role, SourceSet, role_of};
 
 use crate::report::{self, Diag, Summary};
 use crate::{HD_FAILURE, Wall, disk, executor, fail, package_of_cwd};
@@ -31,9 +32,10 @@ struct Options {
     all: bool,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
+    lint: Option<hd_lint::Policy>,
 }
 
-fn options(args: &[OsString]) -> Result<Options, String> {
+fn options(args: &[OsString], command: &str) -> Result<Options, String> {
     let mut o = Options::default();
     let mut i = 0;
     while i < args.len() {
@@ -85,9 +87,9 @@ fn options(args: &[OsString]) -> Result<Options, String> {
                 }
             }
         } else if text.starts_with('-') {
-            return Err(format!("`hd check` has no option `{text}`"));
+            return Err(format!("`hd {command}` has no option `{text}`"));
         } else if o.file.replace(a.clone()).is_some() {
-            return Err("`hd check` takes at most one FILE".to_owned());
+            return Err(format!("`hd {command}` takes at most one FILE"));
         }
     }
     Ok(o)
@@ -106,7 +108,11 @@ struct Target {
 /// What `hd check` checks: FILE's package or FILE alone, the package of the
 /// working directory, or in workspace mode every member
 /// (`cli.workspace.members`).
-fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, String> {
+fn targets(
+    file: Option<&OsString>,
+    packages: &[String],
+    command: &str,
+) -> Result<Vec<Target>, String> {
     let Some(file) = file else {
         let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
         if !packages.is_empty() {
@@ -138,7 +144,7 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
                 })
                 .collect();
         }
-        let root = package_of_cwd("check")
+        let root = package_of_cwd(command)
             .map_err(|e| format!("{e}; or pass a FILE to check it as a single-file program"))?;
         return Ok(vec![Target {
             program: disk::load_package(&root, "main")?,
@@ -149,7 +155,7 @@ fn targets(file: Option<&OsString>, packages: &[String]) -> Result<Vec<Target>, 
     let path = Path::new(file);
     if path.extension().is_none_or(|x| x != "hd") {
         return Err(format!(
-            "`{}` is not an .hd file; `hd check` takes a FILE.hd",
+            "`{}` is not an .hd file; `hd {command}` takes a FILE.hd",
             path.display()
         ));
     }
@@ -185,6 +191,18 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     if t.program.problems.iter().any(Diag::is_error) {
         return (t.program.problems, 0);
     }
+    let lint = match o.lint {
+        None => None,
+        Some(explicit) => match hd_lint::Policy::from_manifest(t.program.lint.as_ref()) {
+            Ok(manifest) => Some(manifest.overlay(explicit)),
+            Err(error) => {
+                t.program.problems.push(
+                    Diag::error(None, &error.message).at("hd.toml", Some(error.line as usize)),
+                );
+                return (t.program.problems, 0);
+            }
+        },
+    };
     let (tests, left_out) = scope(&mut t, o);
     // `cli.check.tests.doc`: the doc tests too, but for compile-fail ones.
     let docs: Vec<crate::test_cmd::Doc> = if tests && t.program.as_written.is_none() {
@@ -208,19 +226,26 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[]);
+    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[], lint);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
         }
-        let (more, names) = check_role(&t, store, &t.program.sources, &Goal::CheckTests, &docs);
+        let (more, names) = check_role(
+            &t,
+            store,
+            &t.program.sources,
+            &Goal::CheckTests,
+            &docs,
+            lint,
+        );
         for x in more {
             if !shown.contains(&x) {
                 shown.push(x);
             }
         }
         checked.extend(names);
-        checked.sort();
+        checked.sort_stable();
         checked.dedup();
     }
     report::relocate(&mut shown, |f| t.program.sources.display(f));
@@ -238,6 +263,7 @@ fn check_role(
     sources: &disk::DiskSources,
     goal: &Goal,
     docs: &[crate::test_cmd::Doc],
+    lint: Option<hd_lint::Policy>,
 ) -> (Vec<Diag>, Vec<String>) {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -251,19 +277,90 @@ fn check_role(
     // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
+    packages.doc_scopes = matches!(goal, Goal::Analyze)
+        && lint.is_some_and(|policy| !policy.allows(Code::BrokenDocLink));
     packages.check_roots = t.only.as_ref().map(|only| {
         std::iter::once(only.clone())
             .chain(docs.iter().map(|d| d.path.clone()))
             .collect()
     });
-    let out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
-    let mut shown = shown(&out, t, docs);
-    for x in &mut shown {
-        if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {
-            d.relocate(x);
+    let mut out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
+    let Some(policy) = lint else {
+        let mut shown = shown(&out, t, docs);
+        relocate_docs(&mut shown, docs);
+        return (shown, out.counters.modules_checked);
+    };
+    if shown(&out, t, docs).iter().any(Diag::is_error) {
+        let mut shown = shown(&out, t, docs);
+        relocate_docs(&mut shown, docs);
+        return (shown, out.counters.modules_checked);
+    }
+
+    let root_files: BTreeSet<_> = sources.list().into_iter().map(|entry| entry.path).collect();
+    let reached = reached_files(&out, t, docs);
+    let selected: Vec<_> = out
+        .files
+        .iter()
+        .enumerate()
+        .map(|(file, path)| {
+            root_files.contains(path)
+                && reached
+                    .as_ref()
+                    .is_none_or(|reached| reached.get(file).copied().unwrap_or(false))
+        })
+        .collect();
+    let source_policy =
+        match hd_lint::SourcePolicy::from_output(&out, &selected) {
+            Ok(policy) => policy,
+            Err(errors) => {
+                let mut shown = shown(&out, t, docs);
+                shown.extend(errors.into_iter().map(|error| {
+                    Diag::error(None, &error.message).at(&error.file, Some(error.line))
+                }));
+                relocate_docs(&mut shown, docs);
+                return (shown, out.counters.modules_checked);
+            }
+        };
+    let mut command_findings = Vec::new();
+    if !policy.all_allow() {
+        out = hd_driver::build_packages_with_analysis(
+            &host,
+            &t.program.package,
+            &packages,
+            goal,
+            Some(&hd_lint::ANALYZER),
+        );
+        if !shown(&out, t, docs).iter().any(Diag::is_error) {
+            let findings = policy.apply_with_source(&out.analysis_diags, &source_policy);
+            out.diags.append(&findings);
+            if matches!(goal, Goal::Analyze) && !policy.allows(Code::BrokenDocLink) {
+                match crate::doc_cmd::lint_broken_links(
+                    &t.program,
+                    &out,
+                    policy,
+                    reached.as_deref(),
+                ) {
+                    Ok(findings) => command_findings = findings,
+                    Err(message) => command_findings.push(Diag::error(None, &message)),
+                }
+            }
         }
     }
+    let mut shown = shown(&out, t, docs);
+    shown.extend(command_findings);
+    relocate_docs(&mut shown, docs);
     (shown, out.counters.modules_checked)
+}
+
+fn relocate_docs(shown: &mut [Diag], docs: &[crate::test_cmd::Doc]) {
+    for diagnostic in shown {
+        if let Some(doc) = docs
+            .iter()
+            .find(|doc| diagnostic.file.as_ref() == Some(&doc.path))
+        {
+            doc.relocate(diagnostic);
+        }
+    }
 }
 
 /// Whole-package diagnostics including tests and tasks, as `hd check --all`
@@ -287,18 +384,30 @@ pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
-    let o = match options(args) {
+    command_with(args, None)
+}
+
+pub(crate) fn lint_command(args: &[OsString], policy: hd_lint::Policy) -> ExitCode {
+    command_with(args, Some(policy))
+}
+
+fn command_with(args: &[OsString], lint: Option<hd_lint::Policy>) -> ExitCode {
+    let command = if lint.is_some() { "lint" } else { "check" };
+    let mut o = match options(args, command) {
         Ok(o) => o,
         Err(e) => return fail(&e),
     };
+    o.lint = lint;
     let (mut diags, mut modules_checked) = (Vec::new(), 0);
     // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4): the entries
     // reach the disk when the store drops, after the report.
     let store = DeferredStore::new(crate::disk_store());
     if o.file.is_some() && !o.packages.is_empty() {
-        return fail("`hd check` takes a FILE or `-p NAME`, not both");
+        return fail(&format!(
+            "`hd {command}` takes a FILE or `-p NAME`, not both"
+        ));
     }
-    match targets(o.file.as_ref(), &o.packages) {
+    match targets(o.file.as_ref(), &o.packages, command) {
         Ok(ts) => {
             for t in ts {
                 let member = t.member.clone();
@@ -318,6 +427,16 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
             }
         }
         Err(e) => diags.push(Diag::error(None, &e)),
+    }
+    if lint.is_some() {
+        diags.sort_stable_by(|a, b| {
+            (&a.file, a.line, a.column, a.code.map(Code::as_str)).cmp(&(
+                &b.file,
+                b.line,
+                b.column,
+                b.code.map(Code::as_str),
+            ))
+        });
     }
     let failed = diags.iter().any(Diag::is_error);
     let status = if failed { HD_FAILURE } else { 0 };
@@ -379,9 +498,24 @@ fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
     let as_written = t.program.as_written.as_deref();
     let mut all = report::from_output(out, as_written);
     all.extend(crate::caps::required(&t.program, out));
-    let Some(only) = &t.only else {
+    let Some(reached) = reached_files(out, t, docs) else {
         return all;
     };
+    all.into_iter()
+        .filter(|d| {
+            d.file.as_ref().is_none_or(|file| {
+                out.files
+                    .iter()
+                    .position(|f| f == file)
+                    .is_some_and(|i| reached[i])
+            })
+        })
+        .collect()
+}
+
+/// FILE checks include its used modules and checked doc-test roots.
+fn reached_files(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Option<Vec<bool>> {
+    let only = t.only.as_ref()?;
     let mut reached = vec![false; out.files.len()];
     let mut stack: Vec<usize> = out
         .files
@@ -395,16 +529,7 @@ fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
             stack.extend(out.uses.get(f).into_iter().flatten().copied());
         }
     }
-    all.into_iter()
-        .filter(|d| {
-            d.file.as_ref().is_none_or(|file| {
-                out.files
-                    .iter()
-                    .position(|f| f == file)
-                    .is_some_and(|i| reached[i])
-            })
-        })
-        .collect()
+    Some(reached)
 }
 
 /// The text report of `cli.check.*`: each diagnostic, or with `--summary` one

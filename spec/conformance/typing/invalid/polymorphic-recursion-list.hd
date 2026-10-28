@@ -1,8 +1,7 @@
 # test: a generic function that calls itself with its parameter wrapped in a list is a growing generic call cycle
 # Spec 04 Generic Representation: types.generic.polymorphic-recursion.
 fn wrap[T](value: T, n: i32) -> i32:
-    if n == 0: 0
-    else: wrap([value], n - 1)  # diagnostic: instantiation-too-deep
+    if n == 0: 0 else: wrap([value], n - 1) # diagnostic: instantiation-too-deep
 
 pub fn main() -> void:
     _ := wrap(+1, +3)

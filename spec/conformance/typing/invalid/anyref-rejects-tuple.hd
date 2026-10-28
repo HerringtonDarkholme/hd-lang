@@ -4,4 +4,4 @@ fn keep[T < AnyRef](value: T) -> T:
     value
 
 fn check() -> void:
-    _ := keep((+1, "a"))  # diagnostic: unsatisfied-trait-bound
+    _ := keep((+1, "a")) # diagnostic: unsatisfied-trait-bound

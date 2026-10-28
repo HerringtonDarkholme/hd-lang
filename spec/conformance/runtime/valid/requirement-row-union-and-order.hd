@@ -38,15 +38,15 @@ fn both() -> string $ Tag + Clock:
 fn reordered() -> string $ Clock + Tag:
     both()
 
-fn provide_clock[$R](callback: fn() -> string $ R + Clock) -> string $ R:
+fn provide_clock[$ R](callback: fn() -> string $ R + Clock) -> string $ R:
     $.with(Clock=FixedClock { value: 7 }):
         callback()
 
-fn with_tag[$R](callback: fn() -> string $ R + Tag) -> string $ R:
+fn with_tag[$ R](callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=FixedTag { value: "local" }):
         callback()
 
-fn relay[$R](callback: fn() -> string $ R + Tag) -> string $ R + Tag:
+fn relay[$ R](callback: fn() -> string $ R + Tag) -> string $ R + Tag:
     callback()
 
 tests:
@@ -54,7 +54,11 @@ tests:
 
     it("union row satisfied by an outer and a local provider"):
         $.with(Tag=FixedTag { value: "t" }):
-            assert_equal(provide_clock(both), "t@7", reason="Tag from outside, Clock from the callee")
+            assert_equal(
+                provide_clock(both),
+                "t@7",
+                reason="Tag from outside, Clock from the callee",
+            )
 
     it("row order does not matter"):
         $.with(Clock=FixedClock { value: 3 }, Tag=FixedTag { value: "u" }):

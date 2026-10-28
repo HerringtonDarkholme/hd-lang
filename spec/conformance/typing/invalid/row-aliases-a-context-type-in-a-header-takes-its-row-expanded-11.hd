@@ -3,4 +3,4 @@
 use pkg.lib.ctx.{AppRow, Db, Cache, pass_on}
 
 fn again(ctx: $.Context[$ Db + Cache]) -> $.Context[$ Db]:
-    pass_on(ctx)  # diagnostic: type-mismatch
+    pass_on(ctx) # diagnostic: type-mismatch

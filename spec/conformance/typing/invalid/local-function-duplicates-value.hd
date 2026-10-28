@@ -2,5 +2,6 @@
 # Spec 03 Local Functions: names.local-fn.rules.
 fn run() -> i32:
     helper := +1
-    fn helper(x: i32) -> i32: x  # diagnostic: duplicate-binding
+    fn helper(x: i32) -> i32: # diagnostic: duplicate-binding
+        x
     helper(+2)

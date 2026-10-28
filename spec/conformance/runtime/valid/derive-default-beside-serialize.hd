@@ -24,4 +24,8 @@ tests:
         safe := Safe::default()
         assert_equal(safe.retries, +3, reason="declared default")
         assert_equal(safe.count, +0, reason="type default")
-        assert_equal(encode(safe), "{\"retries\":3,\"secret\":7,\"count\":0}", reason="every member is written")
+        assert_equal(
+            encode(safe),
+            "{\"retries\":3,\"secret\":7,\"count\":0}",
+            reason="every member is written",
+        )

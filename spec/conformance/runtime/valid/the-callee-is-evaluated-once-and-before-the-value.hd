@@ -14,7 +14,8 @@ struct Cell:
 
 impl Apply for Cell:
     type Out = i32
-    fn apply(self) -> i32: self.value
+    fn apply(self) -> i32:
+        self.value
 
 impl Update[i32] for Cell:
     fn update(&mut self, value: i32) -> void:

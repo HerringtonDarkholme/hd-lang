@@ -17,13 +17,17 @@ tests:
     use std.testing.assert_equal
 
     it("a field write changes the value in place"):
-        let shelves: Map[string, Stock] = {"apple": Stock { count: 1, tags: [] }}
+        let shelves: Map[string, Stock] = { "apple": Stock { count: 1, tags: [] } }
         copy := restock(shelves)
         assert_equal(copy["apple"].count, 5, reason="the copy's value changed")
         assert_equal(shelves["apple"].count, 1, reason="the original map is a value of its own")
 
     it("a compound field write and a nested change go through a reference to the map"):
-        let mut shelves: Map[string, Stock] = {"pear": Stock { count: 2, tags: [] }}
+        let mut shelves: Map[string, Stock] = { "pear": Stock { count: 2, tags: [] } }
         tag(&mut shelves, "pear")
         assert_equal(shelves["pear"].count, 3, reason="the field changed in the caller's map")
-        assert_equal(shelves["pear"].tags, ["checked"], reason="the inner list changed where it is stored")
+        assert_equal(
+            shelves["pear"].tags,
+            ["checked"],
+            reason="the inner list changed where it is stored",
+        )

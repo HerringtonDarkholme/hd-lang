@@ -7,5 +7,5 @@ trait Cache
 
 type AppRow = $ Db + Cache
 
-fn install(job: Fn[(), void, AppRow]) -> void:  # diagnostic: generic-kind-mismatch
+fn install(job: Fn[(), void, AppRow]) -> void: # diagnostic: generic-kind-mismatch
     pass

@@ -5,8 +5,8 @@ enum Shape:
 
 fn scaled(shape: Shape) -> i32:
     match shape:
-        .Scale(left, factor=2) => left * 2
-        .Scale(left, factor=f) => left * f
+        .Scale(left, factor = 2) => left * 2
+        .Scale(left, factor = f) => left * f
 
 tests:
     use std.testing.assert_equal

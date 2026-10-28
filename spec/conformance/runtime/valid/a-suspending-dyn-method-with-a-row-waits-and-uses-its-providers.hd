@@ -22,7 +22,8 @@ impl Sensor for Thermometer:
         println("thermometer ${tick}")
         self.offset + tick
 
-    fn name(self) -> string: "thermometer"
+    fn name(self) -> string:
+        "thermometer"
 
 struct Barometer:
     scale: i32
@@ -33,7 +34,8 @@ impl Sensor for Barometer:
         sleep!(Duration::milliseconds(1))
         self.scale * tick
 
-    fn name(self) -> string: "barometer"
+    fn name(self) -> string:
+        "barometer"
 
 fn read_twice!(sensor: &dyn Sensor) -> i32 $ Console + Clock:
     sensor.sample!(1) + sensor.sample!(2)

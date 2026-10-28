@@ -1,9 +1,12 @@
 # test: a pending guard preserves payloads for the next matching arm and its cleanup
 # Spec 06 Match Expressions: flow.match.guard.result, flow.match.body.
 # Spec 11 Suspension: req.suspend.bang.point.
-# fixture-runtime-profile: pending-write
+# fixture-runtime-profile: pending-tick
 # expect-stdout: pending 42!
 # expect-stdout: kept pending 42!
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 # expect-stdout: again! guard 1
 # expect-stdout: chosen again! calls 1
@@ -16,25 +19,27 @@ enum Message:
 fn message(seed: string) -> Message:
     .Word(seed + "!")
 
-fn reject!(text: string) -> bool $ Console:
-    _ := $.use(Console).write!("${text}\n")
+fn reject!(text: string) -> bool $ Console + Tick:
+    $.use(Tick).tick!("${text}\n")
+    _ := $.use(Console).write_sync("${text}\n")
     false
 
 fn once(calls: &mut usize, text: string) -> string:
     *calls += 1
     text + " guard ${*calls}"
 
-fn decide!(text: string, yes: bool) -> bool $ Console:
-    _ := $.use(Console).write!("${text}\n")
+fn decide!(text: string, yes: bool) -> bool $ Console + Tick:
+    $.use(Tick).tick!("${text}\n")
+    _ := $.use(Console).write_sync("${text}\n")
     yes
 
-fn choose!(calls: &mut usize, yes: bool) -> string $ Console:
+fn choose!(calls: &mut usize, yes: bool) -> string $ Console + Tick:
     match message("again"):
         .Word(text) if decide!(once(calls, text), yes) => text
         .Word(text) => text + " fallback"
         .Empty => "empty"
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     kept := match message("pending 42"):
         .Word(text) if reject!(text) => "unexpected"
         .Word(text) => text

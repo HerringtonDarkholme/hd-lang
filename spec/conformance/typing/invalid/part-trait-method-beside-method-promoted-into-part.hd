@@ -17,4 +17,4 @@ struct Page:
     Label
 
 fn invalid(page: Page) -> string:
-    page.Label.to_string()  # diagnostic: ambiguous-method
+    page.Label.to_string() # diagnostic: ambiguous-method

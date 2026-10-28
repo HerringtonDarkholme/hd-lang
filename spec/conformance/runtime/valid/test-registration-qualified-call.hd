@@ -6,6 +6,9 @@ tests:
     testing.it("adds"):
         testing.assert(1 + 1 == 2, reason="small sums")
 
-    testing.it_each("doubles", [1, 2], body=fn!(value: i32):
-        testing.assert(value * 2 > value, reason="positive rows grow")
+    testing.it_each(
+        "doubles",
+        [1, 2],
+        body=fn!(value: i32): testing.assert(value * 2 > value, reason="positive rows grow")
+        ,
     )

@@ -1,0 +1,52 @@
+# 330,000 orders, with three nested Display levels: Order -> Line -> Money.
+# Keep interpolation at every level: this measures intermediate text copies.
+N := 330_000
+
+struct Money:
+    cents: i64
+
+impl Display for Money:
+    fn to_string(self) -> string:
+        whole := self.cents / 100
+        fraction := self.cents % 100
+        if fraction < 10: "$whole.0$fraction" else: "$whole.$fraction"
+
+struct Line:
+    sku: usize
+    quantity: usize
+    price: Money
+
+impl Display for Line:
+    fn to_string(self) -> string:
+        "item#${self.sku} x${self.quantity} @${self.price}"
+
+struct Order:
+    id: usize
+    first: Line
+    second: Line
+    third: Line
+
+impl Display for Order:
+    fn to_string(self) -> string:
+        "order#${self.id}[${self.first};${self.second};${self.third}]"
+
+fn line(seed: usize) -> Line:
+    Line {
+        sku: seed % 1000,
+        quantity: seed % 5 + 1,
+        price: Money { cents: i64(seed % 10_000) + 100 },
+    }
+
+pub fn main() -> void $ Console:
+    let checksum = 0i64
+    for id in 0..N:
+        order := Order {
+            id: id,
+            first: line(id * 3),
+            second: line(id * 3 + 1),
+            third: line(id * 3 + 2),
+        }
+        text := "$order"
+        for byte in text.bytes():
+            checksum = (checksum * 33 + i64(byte)) % 1_000_000_007
+    println(checksum)

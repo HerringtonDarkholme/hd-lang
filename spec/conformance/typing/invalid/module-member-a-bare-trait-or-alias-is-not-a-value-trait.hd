@@ -3,5 +3,5 @@
 use pkg.shapes.{Describe}
 
 pub fn main() -> void:
-    d := Describe  # diagnostic: type-used-as-value
+    d := Describe # diagnostic: type-used-as-value
     pass

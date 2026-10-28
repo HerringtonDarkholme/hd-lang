@@ -1,10 +1,7 @@
 # test: optionals inject plain values, match both cases, and propagate .None
 
 fn maybe(flag: bool) -> i32?:
-    if flag:
-        40
-    else:
-        .None
+    if flag: 40 else: .None
 
 fn lifted(flag: bool) -> i32?:
     value := maybe(flag)?
@@ -15,10 +12,15 @@ fn inspect(value: i32?) -> i32:
         .None => -1
         .Some(actual) => actual
 
-fn main() -> i32: inspect(lifted(true)) + inspect(lifted(false))
+fn main() -> i32:
+    inspect(lifted(true)) + inspect(lifted(false))
 
 tests:
     use std.testing.assert_equal
 
     it("main returns 41"):
-        assert_equal(main(), 41, reason="optionals inject plain values, match both cases, and propagate .None")
+        assert_equal(
+            main(),
+            41,
+            reason="optionals inject plain values, match both cases, and propagate .None",
+        )

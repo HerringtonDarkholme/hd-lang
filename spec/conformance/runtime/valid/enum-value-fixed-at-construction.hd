@@ -32,5 +32,13 @@ tests:
         job := Job.Running(ada)
         copy := job
         ada.done = 3
-        assert_equal(describe(job), "running on Ada with 3 done", reason="the payload refers to the worker")
-        assert_equal(describe(copy), "running on Ada with 3 done", reason="a copy refers to the same worker")
+        assert_equal(
+            describe(job),
+            "running on Ada with 3 done",
+            reason="the payload refers to the worker",
+        )
+        assert_equal(
+            describe(copy),
+            "running on Ada with 3 done",
+            reason="a copy refers to the same worker",
+        )

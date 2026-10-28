@@ -6,5 +6,5 @@ enum Flag:
 
 fn choose(flag: Flag) -> i32:
     match flag:
-        Flag.On => +1  # diagnostic: pattern-arity
+        Flag.On => +1 # diagnostic: pattern-arity
         Flag.Off => +0

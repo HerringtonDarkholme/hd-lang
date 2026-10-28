@@ -6,10 +6,12 @@ trait Build[T]:
 struct Item: pass
 
 impl Build[bool] for Item:
-    fn build(value: bool) -> Item: Item {}
+    fn build(value: bool) -> Item:
+        Item {}
 
 impl Build[i32] for Item:
-    fn build(value: i32) -> Item: Item {}
+    fn build(value: i32) -> Item:
+        Item {}
 
 fn probe() -> Item:
-    Item::build(value="wrong")  # diagnostic: type-mismatch
+    Item::build(value="wrong") # diagnostic: type-mismatch

@@ -3,4 +3,4 @@ struct User:
     id: i32
     active: bool = true
 
-user := User {}  # diagnostic: missing-required-field
+user := User {} # diagnostic: missing-required-field

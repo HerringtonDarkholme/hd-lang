@@ -3,4 +3,4 @@
 use std.text.r
 
 fn payload() -> string:
-    b"abc"  # diagnostic: unknown-name
+    b"abc" # diagnostic: unknown-name

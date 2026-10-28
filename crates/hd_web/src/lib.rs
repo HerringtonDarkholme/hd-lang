@@ -8,17 +8,17 @@
 //! (the `exports` module); [`wire`] holds their request and response format.
 //!
 //! A session also holds one REPL session: the playground's files as its
-//! package, and the inputs it keeps. Each REPL request builds the session
-//! program: every kept input and the new one in one module
-//! (`hd_driver::Packages::inputs_from`), which the JS host runs, replaying
-//! the kept inputs from its journal before the new one (host/core.mjs
-//! `createSession`). The host then reports how the new input ended: one
+//! package, and the inputs it keeps. Each ordinary REPL request builds a
+//! base or an extension importing earlier initialized storage. A historical
+//! rebuild compiles the kept prefix as one base and replays recorded host
+//! results (host/core.mjs `createSession`). The host reports how an input ended: one
 //! that ended with status 0 joins the session; one that panicked or ended
 //! with another status stays, hidden from later inputs
 //! (`cli.repl.panic.binding`, `cli.repl.panic.declarations`), so later
 //! replays repeat its changes (`cli.repl.panic.mutations`); one that did
 //! not run or was stopped is dropped.
 
+use hd_base::SliceSort as _;
 use hd_cache::MemoryStore;
 use hd_driver::diagnostics::{Diag, from_output};
 use hd_driver::{
@@ -110,9 +110,9 @@ pub struct ReplBuild {
     /// 0 for a start, which builds nothing. A failed input uses its number
     /// up, as on the CLI.
     pub input: u32,
-    /// The session program, when no diagnostic is an error: the kept
-    /// inputs and this one, input N running from the exports `hd.init.N`
-    /// and `hd.poll.N`. The session waits for the input's outcome
+    /// The session base or its next imported extension, when no diagnostic
+    /// is an error. Input N runs from `hd.init.N` and `hd.poll.N`; earlier
+    /// initialized inputs are not run again. The session waits for its outcome
     /// ([`Session::repl_outcome`]) before it builds another.
     pub wasm: Option<Vec<u8>>,
     /// In content order; an input's file is `repl#N`.
@@ -147,6 +147,10 @@ struct Repl {
     last: u32,
     /// The input that waits for its outcome.
     waiting: Option<u32>,
+    /// Only completed inputs commit their initialized module ABI.
+    metadata: hd_driver::Session,
+    /// Metadata from the built input, not yet committed by its outcome.
+    pending: Option<hd_driver::Session>,
 }
 
 /// One playground worker's state.
@@ -261,7 +265,7 @@ impl Session {
         }
         result
             .tests
-            .sort_by(|(_, a), (_, b)| (&a.file, a.line).cmp(&(&b.file, b.line)));
+            .sort_stable_by(|(_, a), (_, b)| (&a.file, a.line).cmp(&(&b.file, b.line)));
         result
     }
 }
@@ -307,6 +311,8 @@ impl Session {
             failed: Vec::new(),
             last: 0,
             waiting: None,
+            metadata: hd_driver::Session::linked(),
+            pending: None,
         });
         Ok(ReplBuild {
             input: 0,
@@ -341,6 +347,26 @@ impl Session {
     /// No session started, the last input still waits for its outcome, or
     /// `number` does not come after the last input built.
     pub fn repl_input_as(&mut self, number: u32, text: &str) -> Result<ReplBuild, ReplError> {
+        self.repl_build_input(number, text, false)
+    }
+
+    /// Builds a whole linked base for historical replay through `number`.
+    /// Report its recorded outcome normally; the next live input then
+    /// imports this base rather than an uninstantiated extension chain.
+    pub fn repl_rebuild_input_as(
+        &mut self,
+        number: u32,
+        text: &str,
+    ) -> Result<ReplBuild, ReplError> {
+        self.repl_build_input(number, text, true)
+    }
+
+    fn repl_build_input(
+        &mut self,
+        number: u32,
+        text: &str,
+        rebuilding: bool,
+    ) -> Result<ReplBuild, ReplError> {
         let repl = self.repl.as_mut().ok_or_else(no_session)?;
         if let Some(n) = &repl.waiting {
             return Err(ReplError(format!("input {n} has no outcome yet")));
@@ -361,21 +387,25 @@ impl Session {
             clock: &NoClock,
             executor: Executor::Serial(SerialOrder::Priority),
         };
-        let start = hd_driver::Session::start();
+        let base = hd_driver::Session::linked();
         let packages = Packages {
             build_profile: BuildProfile::Checked,
             target: PIPELINE.0,
             level: PIPELINE.1,
-            session: Some(&start),
+            session: Some(if rebuilding { &base } else { &repl.metadata }),
             inputs_from: Some(1),
             failed_inputs: &repl.failed,
             ..Packages::default()
         };
         let goal = hd_driver::Goal::ReplInput { input: number };
-        let out = build_packages(&host, PACKAGE, &packages, &goal);
+        let mut out = build_packages(&host, PACKAGE, &packages, &goal);
+        let added = out.session_added.take();
         let build = finish(number, out);
         match build.wasm {
-            Some(_) => repl.waiting = Some(number),
+            Some(_) => {
+                repl.waiting = Some(number);
+                repl.pending = added;
+            }
             None => repl.sources.retain(|p| p != file),
         }
         self.tidy_store();
@@ -395,9 +425,19 @@ impl Session {
                 "input {input} does not wait for its outcome"
             )));
         }
+        let pending = repl.pending.take();
         match outcome {
-            ReplOutcome::Joined => {}
-            ReplOutcome::Failed => repl.failed.push(input),
+            ReplOutcome::Joined => {
+                if let Some(added) = pending {
+                    repl.metadata.add(added);
+                }
+            }
+            ReplOutcome::Failed => {
+                if let Some(added) = pending {
+                    repl.metadata.add(added);
+                }
+                repl.failed.push(input);
+            }
             ReplOutcome::Dropped => {
                 let file = repl_file(input);
                 repl.sources.retain(|p| p != file);

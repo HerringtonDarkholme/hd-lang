@@ -3,4 +3,5 @@
 
 use std.testing.assert_equal
 
-pub fn main() -> void: assert_equal([1], [2], reason="different")  # panic: assertion-failed
+pub fn main() -> void:
+    assert_equal([1], [2], reason="different") # panic: assertion-failed

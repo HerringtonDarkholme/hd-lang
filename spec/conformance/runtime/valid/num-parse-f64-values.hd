@@ -29,17 +29,15 @@ tests:
         for case in cases:
             assert_equal(text(case._0), case._1, reason=case._0)
     it("either side of the point may be empty, and leading zeros are digits"):
-        cases := [
-            (".5", "0.5"),
-            ("5.", "5.0"),
-            ("-.5", "-0.5"),
-            ("+5.", "5.0"),
-            ("007", "7.0"),
-        ]
+        cases := [(".5", "0.5"), ("5.", "5.0"), ("-.5", "-0.5"), ("+5.", "5.0"), ("007", "7.0")]
         for case in cases:
             assert_equal(text(case._0), case._1, reason=case._0)
     it("a tie rounds to the even f64"):
-        assert_equal(text("9007199254740993"), "9007199254740992.0", reason="2^53 + 1 is halfway, and 2^53 is even")
+        assert_equal(
+            text("9007199254740993"),
+            "9007199254740992.0",
+            reason="2^53 + 1 is halfway, and 2^53 is even",
+        )
     it("past the range gives an infinity, and below it a zero, each with the text's sign"):
         assert_equal(text("1e400"), "inf", reason="overflow")
         assert_equal(text("-1e400"), "-inf", reason="negative overflow")

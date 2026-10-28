@@ -7,4 +7,4 @@ fn keep[T](value: T) -> T:
     value
 
 fn invalid() -> void:
-    _ := keep(.Queued)  # diagnostic: missing-contextual-enum-type
+    _ := keep(.Queued) # diagnostic: missing-contextual-enum-type

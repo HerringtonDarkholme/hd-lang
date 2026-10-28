@@ -1,5 +1,6 @@
 //! Opt-in development views use the same layout and cycle analysis as emission.
 
+use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_mono::{ProgramEnv, printed_type_name, subst};
 use hd_types::{InternPool, Ty, TyData};
@@ -44,7 +45,7 @@ fn counted(
     fn walk(w: &Walk) -> std::collections::BTreeMap<u32, bool> {
         use std::collections::BTreeMap;
         match w {
-            Walk::Ref(k) => BTreeMap::from([(*k, false)]),
+            Walk::Ref(k) | Walk::Known(k) => BTreeMap::from([(*k, false)]),
             Walk::Seq(ws) => {
                 let mut out = BTreeMap::new();
                 for w in ws {
@@ -56,6 +57,7 @@ fn counted(
                 }
                 out
             }
+            Walk::Nullable(w) => walk(w).into_keys().map(|k| (k, true)).collect(),
             Walk::Switch(_, arms) => {
                 let arms: Vec<_> = arms
                     .iter()
@@ -83,7 +85,7 @@ fn counted(
             conditional,
         })
         .collect();
-    out.sort();
+    out.sort_stable();
     out.dedup();
     Ok(out)
 }

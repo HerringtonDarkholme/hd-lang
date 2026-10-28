@@ -9,5 +9,5 @@ struct Tagged[T < Hash, H = T]:
     hash: H
 
 fn use_it() -> i32:
-    let tagged: Tagged[Plain] = panic("unreachable")  # diagnostic: unsatisfied-trait-bound
+    let tagged: Tagged[Plain] = panic("unreachable") # diagnostic: unsatisfied-trait-bound
     tagged.tag.x

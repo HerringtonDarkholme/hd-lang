@@ -116,8 +116,8 @@ fn twice() -> void:
     pass
 ```
 
-A decorator that names a function with no parameters calls it, so a marker
-is written without parentheses:
+A decorator that names a function whose parameters all have defaults calls
+it, so a marker is written without parentheses:
 
 ```text
 use std.annotation.facts_of
@@ -134,7 +134,7 @@ fn internal_check() -> bool:
 marked := facts_of(internal_check).find::[Hidden]()
 ```
 
-11. r[annot.decorator.bare-call] In a decorator, a bare name that resolves to a function with no parameters is called, so `@hidden` means `@hidden()`.
+11. r[annot.decorator.bare-call-defaults] In a decorator, a bare name that resolves to a function with no parameters without a default is called, so `@hidden` means `@hidden()`.
 12. r[annot.decorator.bare-call.only] The rule applies only to decorators. Elsewhere, the same name stays a function value.
 
 > **Why.** A decorator is a plain value, as in Java, C#, Kotlin, and Dart,
@@ -183,6 +183,81 @@ Its arguments are trait names rather than metadata values. The compiler
 checks and generates each requested implementation.
 [Opting In](#opting-in) defines which traits it accepts.
 
+#### Inline And Cold
+
+`@inline` and `@cold` choose how the compiler compiles calls of a function.
+They never change what a program does:
+
+```text
+use std.annotation.{cold, inline}
+
+# Runs only on bad input: never copy it, and keep the engine from copying it.
+@cold
+fn unexpected(at: usize, size: usize) -> string:
+    if at >= size:
+        return "unexpected end at byte $at"
+    "unexpected byte at $at"
+
+# A long loop: keep it a function of its own.
+@inline(.Never)
+fn checksum(input: &List[u8]) -> u64:
+    let hash: u64 = 14695981039346656037
+    for byte in input:
+        hash = (hash ^ u64(byte)).wrapping_mul(1099511628211)
+    hash
+
+# A small reader: prefer a copy of its body at each call.
+@inline
+fn first(input: &List[u8]) -> u8:
+    input.get(0).unwrap_or(0)
+```
+
+1. r[annot.inline.declared] `std.annotation` declares the enum `InlineHint`, with the variants `Auto`, `Always`, and `Never`, the function `inline(hint: InlineHint = .Auto)`, the struct `Cold`, and the function `cold()`. They are not prelude names, so code imports them.
+2. r[annot.inline.recognized] The compiler recognizes `std.annotation.inline` and `std.annotation.cold` by their qualified names, through an alias or a module path. Their lines are compiler decorators and attach no value.
+3. r[annot.inline.targets] An `@inline` or `@cold` line must precede a module-level function or a method that has a body. Before a trait requirement without a default body, or before an `@intrinsic` declaration, it is an error. Error: `invalid-inline-decorator`.
+4. r[annot.inline.argument] The argument of `inline` must be `.Auto`, `.Always`, or `.Never`, or left out, and it is read as written. Any other argument of `inline`, and any argument of `cold`, is an error. Error: `invalid-inline-decorator`.
+5. r[annot.inline.bare] A bare `@inline` is `@inline(.Auto)`, by [`annot.decorator.bare-call-defaults`](#r-annot.decorator.bare-call-defaults).
+6. r[annot.inline.exclusive] An `@inline` line and an `@cold` line before one declaration are an error, reported on the later line. Error: `invalid-inline-decorator`.
+7. r[annot.inline.duplicate] Two `@inline` lines, or two `@cold` lines, before one declaration are an error, reported on the later line. Error: `duplicate-fact`.
+8. r[annot.inline.never] No build copies the body of a function marked `@inline(.Never)` or `@cold` into a caller.
+9. r[annot.inline.cold] In every build, each direct call of a `@cold` function is a call through the function table.
+10. r[annot.inline.instances] A choice holds for every instance of a generic function, and for a method wherever a call resolves to its body. A call through `&dyn` or a function value is a call as before.
+11. r[annot.inline.meaning] None of these lines changes a program's output, its panics, or its panic frames.
+12. r[annot.inline.auto] In every build and package, `@inline` or `@inline(.Auto)` copies each statically known call whose body has at most 64 TIR instructions and is copyable. Reference parameters are allowed. A body that is too large or cannot be copied remains a call without a diagnostic.
+13. r[annot.inline.always] In every build and package, `@inline(.Always)` copies every statically known call. The body's size and reference parameters do not limit the copy.
+14. r[annot.inline.always-copyable] A function marked `@inline(.Always)` must not suspend, contain a `defer`, make a closure, have a requirement row, contain `with`, or belong to `std.rt`. Functions marked `@inline(.Always)` must not form a cycle consisting only of such functions. Error: `inline-always-uncopyable`.
+
+```text
+use std.annotation.{cold, inline}
+
+trait Step:
+    @cold  # error: invalid-inline-decorator
+    fn step(self, x: i32) -> i32
+
+@inline(.Sometimes)  # error: invalid-inline-decorator
+fn twice(x: i32) -> i32:
+    x * 2
+
+@cold
+@inline(.Never)  # error: invalid-inline-decorator
+fn fail(code: i32) -> string:
+    "failed with $code"
+
+@inline
+@inline(.Never)  # error: duplicate-fact
+fn thrice(x: i32) -> i32:
+    x * 3
+```
+
+An `@inline` or `@cold` line before any other target, such as a struct, is a
+`decorator-target-kind` error, because `InlineHint` and `Cold` carry
+`@annotate(.Fn, .Method)`, by [`annot.target.limit.kind-error`](#r-annot.target.limit.kind-error).
+
+> **Why.** A table call is one V8 does not inline, so `@cold` keeps a rare
+> path out of a hot caller's code in both compilers. The decorators are
+> compiler decorators, not values, because an ordinary value changes
+> nothing by [`annot.decorator.attach`](#r-annot.decorator.attach).
+
 ### Function Facts
 
 `facts_of(f)` returns the values that decorators attach to the
@@ -210,7 +285,7 @@ fn users_path() -> string:
 
 1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
 2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration. The name may go through a module qualifier or a `use` import. The argument is not evaluated.
-3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, and `@str_prefix` lines.
+3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, and `@cold` lines.
 4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`.
 
 ```text
@@ -253,7 +328,7 @@ written only with `@value` on the parameter.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
 3. r[annot.metadata.reference-storage] Member metadata and parameter metadata are stored as shared references in `List[*dyn Inspectable]`.
 4. r[annot.metadata.value] Any value that a global may hold may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
-5. r[annot.metadata.eval-as-fact] Each metadata expression is evaluated as a [fact expression](#r-annot.fact.eval.lazy) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
+5. r[annot.metadata.eval-as-fact] Each metadata expression is evaluated as a [fact expression](#r-annot.fact.eval.lazy) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct-call).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
 
 One member or parameter must not contain two metadata values with the same
@@ -722,29 +797,37 @@ pub enum SelfRef:
     Optional
     Required
 
-pub struct Field[-S, F]:
+pub type Field[S, F] = *FieldRecord[S, F]
+
+pub struct FieldRecord[S, F]:
     pub info: Member
 
-impl[S, F] Field[S, F]:
-    pub fn get(self, s: S) -> F: pass
-    pub fn has_default(self) -> bool: pass
-    pub fn default(self) -> F?: pass
-    pub fn fact[M](self) -> M?: pass
+impl[S, F] FieldRecord[S, F]:
+    pub fn get(&self, s: S) -> F: pass
+    pub fn has_default(&self) -> bool: pass
+    pub fn default(&self) -> F?: pass
+    pub fn fact[M](&self) -> M?: pass
 
-pub struct Variant[S]:
+pub type Variant[S] = *VariantRecord[S]
+
+pub struct VariantRecord[S]:
     pub info: VariantInfo
 
-impl[S] Variant[S]:
-    pub fn holds(self, s: S) -> bool: pass
+impl[S] VariantRecord[S]:
+    pub fn holds(&self, s: S) -> bool: pass
 
-pub struct Members[S]:
+pub type Members[S] = *MembersRecord[S]
+
+pub struct MembersRecord[S]:
     pub infos: List[Member]
 
-impl[S] Members[S]:
-    pub fn at(self, position: usize) -> Key[S]?: pass
-    pub fn find(self, matches: fn(Member) -> bool) -> Key[S]?: pass
+impl[S] MembersRecord[S]:
+    pub fn at(&self, position: usize) -> Key[S]?: pass
+    pub fn find(&self, matches: fn(Member) -> bool) -> Key[S]?: pass
 
-pub struct Key[S]:
+pub type Key[S] = *KeyRecord[S]
+
+pub struct KeyRecord[S]:
     pub info: Member
 
 pub trait Walker[S]:
@@ -766,7 +849,7 @@ pub trait Source[S]:
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
 
-1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, and `Key` are struct values: a copy is independent of the value it was copied from.
+1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `FieldRecord`, `Variant`, `VariantRecord`, `Members`, `MembersRecord`, `Key`, `KeyRecord`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo` and the four record types are struct values: a copy is independent of the value it was copied from. `Field`, `Variant`, `Members`, and `Key` are read-only counted references to a `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` respectively.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
 3. r[annot.structure.reference-facts] `Facts` holds shared references to the facts attached to one type, member, variant, or module-level function, in source order.
 4. r[annot.structure.find-copy] `facts.find::[F]()` copies the first fact of concrete type `F` through `downcast_ref`, or returns `.None`.
@@ -775,7 +858,7 @@ pub trait Source[S]:
 7. r[annot.structure.members.at-option] `members.at(position: usize)` returns `.Some(key)` for the member at that position.
 8. r[annot.structure.members.find-option] `members.find(matches)` returns `.Some(key)` for the first member that `matches` accepts.
 9. r[annot.structure.members.lookup-none] Either lookup returns `.None` when no member fits.
-10. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information.
+10. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information. The keys and the member directory of one variant live as long as the program.
 11. r[annot.structure.lookup-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
 12. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
 13. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
@@ -1083,8 +1166,8 @@ so omitting one, as `Audit = pass` above, is always this error.
 
 #### Line Drift
 
-1. r[annot.line.drift] Derivation blocks for traits of one package on one type whose member lines differ get a warning, reported on the later block. Warning: `derivation-line-drift`.
-2. r[annot.line.drift.derive] A block beside a `@derive` of another trait from the same package gets the same warning when the block has any member line. Warning: `derivation-line-drift`.
+1. r[annot.line.drift.lint] Derivation blocks for traits of one package on one type with differing member lines produce a lint finding on the later block. Warning: `derivation-line-drift`.
+2. r[annot.line.drift.lint.derive] A block beside another same-package trait’s `@derive` produces the same lint finding when it contains any member line. Warning: `derivation-line-drift`.
 3. r[annot.line.drift.legal] Different member lines stay legal: configuration may differ per direction, such as encoding and decoding.
 
 ```hd
@@ -1208,7 +1291,7 @@ fn key_for(style: Style, m: Member) -> string:
 11. r[annot.fact.eval.reentrant] A fact or metadata expression whose evaluation reads the same fact again is a runtime panic at that second read, before the second evaluation starts. Its report names the fact. Panic: `fact-evaluation-failed`.
 12. r[annot.fact.read] A template reads the type-level facts through `T::facts()`, and a member's or variant's facts through its handle's `info.facts`.
 13. r[annot.fact.default] A template falls back to its own default when a fact is absent. An absent or foreign fact is never an error.
-14. r[annot.fact.unused-block-decorator] A decorator before a derivation block, `impl ... by Structure:`, attaches a value that no derivation reads. It gets a warning, reported on the decorator. Warning: `unused-derivation-fact`.
+14. r[annot.fact.unused-block-decorator.lint] A decorator before `impl ... by Structure:` attaches an unread value and produces a lint finding on the decorator. Warning: `unused-derivation-fact`.
 15. r[annot.fact.unused-block-decorator.any-type] This warning applies whatever the value's type, so a primitive or standard value, such as `@"internal"`, gets it too.
 16. r[annot.fact.unused-block-decorator.fix] The warning offers a fix-it that moves the value into the block as a `Self += [...]` member line.
 17. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
@@ -1250,7 +1333,7 @@ struct Twice:
     id: i64
 ```
 
-17. r[annot.fact.block-on.direct] A call of `std.task.block_on` or `println` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
+17. r[annot.fact.block-on.direct-call] A call of `std.task.block_on` written directly in a fact or metadata expression is an error. Error: `suspension-forbidden-context`.
 18. r[annot.fact.block-on.indirect] Such a call reached through another call while the expression is evaluated panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text
@@ -1280,7 +1363,7 @@ struct User:
 > computes the value on its first read. So checking a dependent never
 > waits for the bodies a fact expression calls.
 
-> **Note.** The panic of an indirect `block_on` or `println` call happens
+> **Note.** The panic of an indirect `block_on` call happens
 > while the program evaluates the fact. So it is reported as
 > `fact-evaluation-failed`, by
 > [`annot.fact.eval.panic-runtime`](#r-annot.fact.eval.panic-runtime),
@@ -1538,9 +1621,9 @@ struct Node:
 A **handle** is a compiler-generated constant that names one member or
 variant of a derivation's target.
 
-1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`.
+1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`. A handle refers to a record that lives as long as the program.
 2. r[annot.handle.member-type] `walk`, `describe`, and `build` pass handles whose `F` is the member's declared type: for `hits: *mut Counter`, it is `*mut Counter`.
-3. r[annot.handle.field-variance] `Field` is contravariant in `S` and invariant in `F`, since `default` returns `F?` and an optional is invariant.
+3. r[annot.handle.field-variance] `Field` is invariant in `S` and `F`, and `Variant`, `Members`, and `Key` are invariant in `S`, as a counted reference is in its referent ([`ref.type.kind-distinct`](13-values-and-references.md#r-ref.type.kind-distinct)).
 4. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
 5. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
 6. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
@@ -2068,8 +2151,9 @@ status code, so `Missing` has no `_0` in scope.
 2. r[annot.error.cause.member] A variant's or struct's cause member is its `@from` or `@source` member.
 3. r[annot.error.cause.explicit] A variant or struct without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
 4. r[annot.error.cause.one] A variant or struct has at most one `@from` or `@source` member. A second one is an error, reported on that member. Error: `invalid-error-marker`.
-5. r[annot.error.cause.type] A cause member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
-6. r[annot.error.cause.optional] A `@source` member may instead have the type `E?`, where `E` implements `Error`. A `.None` member gives no cause.
+5. r[annot.error.cause.one-marker] A member carries at most one of `@from` and `@source`; `@from` already marks the cause. A second cause marker on one member is an error, reported on that marker. Error: `invalid-error-marker`.
+6. r[annot.error.cause.type] A cause member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
+7. r[annot.error.cause.optional] A `@source` member may instead have the type `E?`, where `E` implements `Error`. A `.None` member gives no cause.
 
 ```text
 @error("disk full")

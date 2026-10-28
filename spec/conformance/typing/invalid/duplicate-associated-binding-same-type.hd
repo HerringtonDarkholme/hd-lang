@@ -4,5 +4,5 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-fn first[I < Supplier[Item = i32, Item = i32]](source: I) -> i32:  # diagnostic: duplicate-associated-binding
+fn first[I < Supplier[Item = i32, Item = i32]](source: I) -> i32: # diagnostic: duplicate-associated-binding
     source.get()

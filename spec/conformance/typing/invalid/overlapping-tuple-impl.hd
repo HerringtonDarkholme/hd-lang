@@ -3,4 +3,4 @@
 trait Marker
 
 impl[T] Marker for (T, string)
-impl Marker for (i32, string)  # diagnostic: overlapping-impl
+impl Marker for (i32, string) # diagnostic: overlapping-impl

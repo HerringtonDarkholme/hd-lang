@@ -1,2 +1,2 @@
 # Spec 10 Prelude: module.prelude.no-shadow.
-struct Display: pass  # diagnostic: prelude-name-shadow
+struct Display: pass # diagnostic: prelude-name-shadow

@@ -19,7 +19,9 @@ tests:
         let calls: usize = 0
         let mut starts: List[i64] = []
         $.with(Clock=clock):
-            let result: Result[void, string] = apply!(retry(Backoff { attempts: 4, initial: 200ms, max: 500ms })):
+            let result: Result[void, string] = apply!(
+                retry(Backoff { attempts: 4, initial: 200ms, max: 500ms }),
+            ):
                 calls += 1
                 starts.push(clock.now().unix_milliseconds())
                 let attempt: Result[void, string] = .Err("busy")
@@ -33,7 +35,11 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         let calls: usize = 0
         $.with(Clock=clock):
-            let result: Result[void, string] = apply!(retry(Backoff { attempts: 4, initial: 200ms }).when(fn(error: string): error == "busy")):
+            let result: Result[void, string] = apply!(
+                retry(Backoff { attempts: 4, initial: 200ms })
+                    .when(fn(error: string): error == "busy")
+                ,
+            ):
                 calls += 1
                 let attempt: Result[void, string] = .Err(if calls == 1: "busy" else: "refused")
                 attempt
@@ -45,7 +51,9 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(123))
         let calls: usize = 0
         $.with(Clock=clock):
-            let result: Result[usize, string] = apply!(retry(Backoff { attempts: 4, initial: 0ms })):
+            let result: Result[usize, string] = apply!(
+                retry(Backoff { attempts: 4, initial: 0ms }),
+            ):
                 calls += 1
                 let attempt: Result[usize, string] = if calls < 4: .Err("busy") else: .Ok(calls)
                 attempt
@@ -55,7 +63,9 @@ tests:
     it("a large multiplier and initial delay respect the cap without overflow"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            let result: Result[void, string] = apply!(retry(Backoff { attempts: 3, initial: 10s, factor: 4294967295u32, max: 500ms })):
+            let result: Result[void, string] = apply!(
+                retry(Backoff { attempts: 3, initial: 10s, factor: 4294967295u32, max: 500ms }),
+            ):
                 let attempt: Result[void, string] = .Err("busy")
                 attempt
             assert_equal(result, .Err("busy"), reason="retry limit")
@@ -64,8 +74,14 @@ tests:
     it("a zero factor makes later waits zero"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
-            let result: Result[void, string] = apply!(retry(Backoff { attempts: 4, initial: 200ms, factor: 0u32 })):
+            let result: Result[void, string] = apply!(
+                retry(Backoff { attempts: 4, initial: 200ms, factor: 0u32 }),
+            ):
                 let attempt: Result[void, string] = .Err("busy")
                 attempt
             assert_equal(result, .Err("busy"), reason="all attempts fail")
-        assert_equal(clock.now().unix_milliseconds(), 200i64, reason="only the first wait advances the clock")
+        assert_equal(
+            clock.now().unix_milliseconds(),
+            200i64,
+            reason="only the first wait advances the clock",
+        )

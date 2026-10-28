@@ -1,0 +1,17 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd build --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd test --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"derivation-line-drift","severity":"warning","message":"`Serialize` configures different member lines for `Session` than `Debug` does","file":"src/main.hd","line":11,"column":1,"fixes":[]},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"derivation-line-drift","severity":"warning","message":"`Serialize` configures different member lines for `Session` than `Debug` does","file":"src/main.hd","line":11,"column":1,"fixes":[]},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --allow derivation-line-drift --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --deny derivation-line-drift --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"derivation-line-drift","severity":"error","message":"`Serialize` configures different member lines for `Session` than `Debug` does","file":"src/main.hd","line":11,"column":1,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

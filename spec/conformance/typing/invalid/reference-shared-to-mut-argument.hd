@@ -7,5 +7,5 @@ fn view(r: &i32) -> i32:
     *r
 
 fn invalid(r: &i32) -> i32:
-    edit(r)  # diagnostic: mutable-upgrade
+    edit(r) # diagnostic: mutable-upgrade
     view(r)

@@ -8,5 +8,5 @@ struct Handler[-T]:
     handle: fn(T) -> void
 
 impl[T] Handler[T]:
-    fn boxed(self):  # diagnostic: invalid-variance
+    fn boxed(self): # diagnostic: invalid-variance
         Slot { value: self.handle }

@@ -15,6 +15,14 @@ The tour showed one claim per page. To keep going:
   shows everyday jobs: JSON config, files, packages, and wiring a program.
 - [The specification](../../spec/README.md) states every rule, numbered, with
   the diagnostics the compiler reports and the conformance tests behind them.
+- [`hd fmt`](../guide/COMMANDS.md#format-source) gives every source file one
+  fixed 100-column, four-space layout with no settings. Ordinary commands
+  report errors; [`hd lint`](../guide/COMMANDS.md#lint-accepted-code) is the
+  explicit pass for optional advice.
+
+Every build uses the same linear-memory WebAssembly code generator, with
+reference counting and cycle collection. Node and wasmtime are execution
+engines for that module, not separate language backends.
 
 Every tour page keeps your edits in this browser, so you can come back to
 them; Reset brings the original back. This last editor is yours too: change

@@ -1,16 +1,14 @@
-# Proposed validation with the approved #848 HTTP API; stubs never run.
+# Proposed validation with std.http; stubs never run.
 use std.cli.Cli
 use std.console.eprintln
 use std.fs.{FsError, FsRead, read_text}
-use std.host.{Args, Env, EnvName, HostError, env_name, env_as, env_decode}
+use std.host.{Args, Env, HostError, env_decode}
+use std.http.{Request, Response}
 use std.json.{JsonError, decode}
 use std.path.Path
 use std.process.ExitCode
 use std.serde.{Deserialize, Rename, Serialize, rename}
 use std.structure.Structure
-use std.text.Parse
-use std.num.ParseNumberError
-use dep.http.{Request, Response}
 use pkg.validation.{
     Each,
     MessageRule,
@@ -165,9 +163,7 @@ struct ServerConfig:
 fn port_rule() -> Range[u32]:
     range(1, 65535)
 impl Deserialize for ServerConfig by Structure:
-    port = [rename("listenPort"), env_name("APP_PORT")]
-    tls = [env_name("APP_TLS")]
-    certificate = [env_name("APP_CERTIFICATE")]
+    port = [rename("listenPort")]
 impl Validate for ServerConfig by Structure:
     port = [port_rule()]
     certificate = [nonempty_optional()]
@@ -226,28 +222,9 @@ enum EnvironmentError:
     @error("$message")
     Validation(message: string)
 fn config_from_env() -> Result[ServerConfig, EnvironmentError] $ Env:
-    value := env_decode::[ServerConfig]()?
+    value := env_decode::[ServerConfig](prefix="APP_")?
     match value.validated():
         .Ok(config) => .Ok(config)
-        .Err(error) => .Err(.Validation(render_issues(&error, env_step)))
-
-struct Port:
-    value: u32
-impl Parse for Port:
-    type Error = string
-    fn parse(text: string) -> Result[Port, string]:
-        let parsed: Result[u32, ParseNumberError] = Parse::parse(text)
-        match parsed:
-            .Ok(value) => .Ok(Port { value: value })
-            .Err(error) => .Err(error.to_string())
-impl Validate for Port:
-    fn collect(&self, context: &mut ValidationContext) -> void:
-        port_rule().apply(&self.value, context)
-fn port_from_env() -> Result[Port?, EnvironmentError] $ Env:
-    let read: Result[Port?, HostError] = env_as("APP_PORT")
-    value := read?
-    match value.validated():
-        .Ok(port) => .Ok(port)
         .Err(error) => .Err(.Validation(render_issues(&error, env_step)))
 
 fn json_step(step: PathStep) -> string:
@@ -267,10 +244,7 @@ fn cli_step(step: PathStep) -> string:
 
 fn env_step(step: PathStep) -> string:
     match step:
-        .Field(member) =>
-            match member.facts.find::[EnvName]():
-                .Some(env) => env.name
-                .None => member.name
+        .Field(member) => "APP_" + member.name.upper()
         .Index(index) => "[$index]"
         .Key(name) => "[$name]"
 

@@ -5,7 +5,8 @@ use std.text.r
 
 fn found(pattern: string, text: string) -> string?:
     match Regex::new(pattern):
-        .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
+        .Ok(compiled) =>
+            compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
         .Err(error) => .Some("error ${error}")
 
 fn whole_number(line: string) -> bool:

@@ -7,4 +7,4 @@ fn greet(name: string, punctuation: string = "!") -> string:
 
 fn call() -> string:
     let f: fn(string, string) -> string = greet
-    f("Ada")  # diagnostic: argument-count
+    f("Ada") # diagnostic: argument-count

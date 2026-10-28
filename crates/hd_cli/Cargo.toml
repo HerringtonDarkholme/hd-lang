@@ -20,10 +20,11 @@ wasmtime = ["dep:hd_run_wasmtime", "dep:rustyline"]
 hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache", features = ["disk"] }
 hd_check = { path = "../hd_check" }
+hd_lint = { path = "../hd_lint" }
 hd_deps = { path = "../hd_deps" }
 hd_diag = { path = "../hd_diag" }
 hd_doc = { path = "../hd_doc" }
-hd_driver = { path = "../hd_driver", features = ["threads", "checked-report"] }
+hd_driver = { path = "../hd_driver", features = ["threads", "checked-report", "analysis"] }
 hd_fmt = { path = "../hd_fmt" }
 hd_host_abi = { path = "../hd_host_abi" }
 hd_project = { path = "../hd_project" }

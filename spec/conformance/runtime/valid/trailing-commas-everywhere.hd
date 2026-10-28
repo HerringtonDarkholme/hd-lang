@@ -15,44 +15,33 @@ struct Constant:
 
 impl Supplier for Constant:
     type Item = i32
-    fn get(self) -> i32: self.value
+    fn get(self) -> i32:
+        self.value
 
-struct Pair[A, B,]:
+struct Pair[A, B]:
     first: A
     second: B
 
 enum Shape:
-    Rect(
-        w: i32,
-        h: i32,
-    )
+    Rect(w: i32, h: i32)
 
-fn area[T, I < Supplier[Item = T,],](
-    source: I,
-    scale: i32 = 1,
-) -> i32: scale * 2
+fn area[T, I < Supplier[Item = T]](source: I, scale: i32 = 1) -> i32:
+    scale * 2
 
-fn pair_sum(pair: (i32, i32,),) -> i32: pair._0 + pair._1
+fn pair_sum(pair: (i32, i32)) -> i32:
+    pair._0 + pair._1
 
-fn apply(f: fn(i32, i32,) -> i32, a: i32, b: i32,) -> i32: f(a, b,)
+fn apply(f: fn(i32, i32, ) -> i32, a: i32, b: i32) -> i32:
+    f(a, b)
 
 pub fn main() -> void $ Console:
-    items := [
-        +1,
-        +2,
-        +3,
-    ]
+    items := [+1, +2, +3]
     println("${apply(fn(x: i32, y: i32,) -> i32: x + y, +2, +4,)} ${items[2]} ${items[1]}")
-    pair := Pair::[i32, string,] {
-        first: +5,
-        second: "a",
-    }
+    pair := Pair::[i32, string] { first: +5, second: "a" }
     println("${pair.first} ${pair.second}")
-    let (a, b, c,) = (+3, +1, +4,)
+    let (a, b, c) = (+3, +1, +4)
     println("$a $b $c")
-    match Shape.Rect(w = +2, h = +9,):
-        Shape.Rect(w, h,) => println(w)
-    table := {
-        "k": +9,
-    }
+    match Shape.Rect(w=+2, h=+9):
+        Shape.Rect(w, h) => println(w)
+    table := { "k": +9 }
     println(table.get("k").unwrap_or(+0))

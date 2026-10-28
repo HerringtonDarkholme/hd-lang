@@ -4,7 +4,7 @@ struct Point:
     y: i32
 fn find() -> i32?:
     .Some(+4)
-early := far  # diagnostic: top-level-read-before-initialization
+early := far # diagnostic: top-level-read-before-initialization
 let (a, (b, _)) = (+1, (+2, +3))
 let Point { x, y: far } = Point { x: +5, y: +6 }
 let .Some(found) = find() else:

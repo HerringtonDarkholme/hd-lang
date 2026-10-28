@@ -7,19 +7,23 @@
 # expect-stdout: u0
 use std.function.{Fn, SuspendFn, Tuple}
 
-fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
-fn through[Args < Tuple, O](f: Fn[Args, O, $()], args: Args) -> O:
+fn through[Args < Tuple, O](f: Fn[Args, O, $ ()], args: Args) -> O:
     f(args...)
 
-fn retry![Args < Tuple, O](f: SuspendFn[Args, O, $()], args: Args) -> O:
+fn retry![Args < Tuple, O](f: SuspendFn[Args, O, $ ()], args: Args) -> O:
     f!(args...)
 
-fn zero() -> i32: 7
-fn neg(a: i32) -> i32: 0 - a
-fn join(a: string, b: string, c: string) -> string: a + b + c
-fn tail(tag: string, xs...: List[i32]) -> string: "${tag}${xs.len()}"
+fn zero() -> i32:
+    7
+fn neg(a: i32) -> i32:
+    0 - a
+fn join(a: string, b: string, c: string) -> string:
+    a + b + c
+fn tail(tag: string, xs...: List[i32]) -> string:
+    "${tag}${xs.len()}"
 
 pub fn main() -> void $ Console:
     println(call(zero))

@@ -1,8 +1,8 @@
 # Messy input, no crashes: a bad row is a `.None` you handle.
 fn score(line: string) -> i32?:
     match (line.split(" ")[1]).parse::[i32]():
-        .Ok(n) => .Some(n)  # ← the number, or...
-        .Err(_) => .None  # ← ...a value to handle
+        .Ok(n) => .Some(n) # ← the number, or...
+        .Err(_) => .None # ← ...a value to handle
 
 tests:
     use std.testing.assert_equal

@@ -9,9 +9,11 @@ struct Counter:
     value: i32
 impl Read for Counter:
     type Item = i32
-    fn get(&self) -> i32: self.value
+    fn get(&self) -> i32:
+        self.value
 impl Write for Counter:
-    fn bump(&mut self) -> void: self.value += 1
+    fn bump(&mut self) -> void:
+        self.value += 1
 fn read[T < Read[Item = i32]](value: T) -> i32:
     value.get()
 fn associated[T < Read](value: T) -> T::Item:
@@ -24,7 +26,11 @@ tests:
     it("shared dispatch and associated binding"):
         let value: &dyn Read[Item = i32] = &Counter { value: 17 }
         assert_equal(read(value), 17, reason="the reference supplies Read and Item")
-        assert_equal(associated(value), 17, reason="the associated return type projects through a reference")
+        assert_equal(
+            associated(value),
+            17,
+            reason="the associated return type projects through a reference",
+        )
     it("mutable dispatch and a supertrait bound"):
         let mut counter = Counter { value: 4 }
         let value: &mut dyn Write = &mut counter

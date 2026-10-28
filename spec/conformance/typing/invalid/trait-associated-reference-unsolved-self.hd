@@ -5,4 +5,4 @@ trait Factory:
     fn create() -> Self
 
 fn unsolved() -> void:
-    _ := Factory::create  # diagnostic: cannot-infer-type
+    _ := Factory::create # diagnostic: cannot-infer-type

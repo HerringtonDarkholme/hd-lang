@@ -6,5 +6,5 @@
 use pkg.cart.{Cart}
 
 fn run() -> i32:
-    $.with(Priced=Cart { items: +1 }):  # diagnostic: unknown-trait
+    $.with(Priced=Cart { items: +1 }): # diagnostic: unknown-trait
         +0

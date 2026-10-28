@@ -19,8 +19,16 @@ tests:
         verbose(command)
         same := command
         _ := same.env("PAGER", "cat")
-        assert_equal(command.args, ["log", "-v"], reason="the helper appended through the reference")
-        assert_equal(command.env, [("PAGER", "cat")], reason="the second binding is the same object")
+        assert_equal(
+            command.args,
+            ["log", "-v"],
+            reason="the helper appended through the reference",
+        )
+        assert_equal(
+            command.env,
+            [("PAGER", "cat")],
+            reason="the second binding is the same object",
+        )
         assert_equal(command is same, true, reason="one place")
         let mut copy = *command
         copy.args.push("--stat")
@@ -35,7 +43,11 @@ tests:
             assert_equal(status!(Command { program: "make" }), -1, reason="no answer queued")
         process.reply("git", .Ok(ProcessOutput { status: 4 }))
         $.with(Process=process):
-            assert_equal(status!(Command { program: "git" }), 4, reason="the reply added after the first scope")
+            assert_equal(
+                status!(Command { program: "git" }),
+                4,
+                reason="the reply added after the first scope",
+            )
         received := process.received()
         assert_equal(received.len(), 3, reason="every run recorded on the one object")
         assert_equal(received[0].args, ["one"], reason="the first command's arguments")

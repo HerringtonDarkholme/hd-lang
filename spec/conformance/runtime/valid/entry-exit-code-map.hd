@@ -12,9 +12,12 @@ enum CliError:
     Failed(string)
 
 fn run(args: List[string]) -> Result[void, CliError]:
-    if args.len() == 0: .Err(.Usage("usage: tool FILE"))
-    else if args[0] == "fail": .Err(.Failed("cannot read ${args[0]}"))
-    else: .Ok(())
+    if args.len() == 0:
+        .Err(.Usage("usage: tool FILE"))
+    else if args[0] == "fail":
+        .Err(.Failed("cannot read ${args[0]}"))
+    else:
+        .Ok(())
 
 fn exit_for(result: Result[void, CliError]) -> ExitCode:
     match result:

@@ -19,8 +19,7 @@ tests:
 
     it("two closures share one captured let"):
         let total = +0
-        let add: fn(i32) -> void = fn(amount: i32) -> void:
-            total = total + amount
+        let add: fn(i32) -> void = fn(amount: i32) -> void: total = total + amount
         read := fn() -> i32: total
         add(5)
         add(1)

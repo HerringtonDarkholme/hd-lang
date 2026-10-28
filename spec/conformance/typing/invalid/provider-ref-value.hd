@@ -11,5 +11,5 @@ impl Counter for Tally:
 
 fn demo() -> void:
     let mut tally = Tally { n: 0 }
-    $.with(Counter=tally):  # diagnostic: type-mismatch
+    $.with(Counter=tally): # diagnostic: type-mismatch
         pass

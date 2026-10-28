@@ -8,4 +8,4 @@ impl Point:
         self.x += dx
 
     fn reset(self) -> void:
-        self.shift(1)  # diagnostic: not-writable
+        self.shift(1) # diagnostic: not-writable

@@ -8,10 +8,7 @@ enum Mode:
     Slow
 
 fn adjust(counter: Counter, enabled: bool) -> i32:
-    if enabled:
-        counter.value + 1
-    else:
-        counter.value
+    if enabled: counter.value + 1 else: counter.value
 
 pub fn main!() -> void $ Console:
     delay := 1_500ms
@@ -22,4 +19,4 @@ pub fn main!() -> void $ Console:
     greeting := "Hello, $name: ${adjust(Counter { value: 2 }, true)}\n"
     story := """first
 second"""
-    $.use(Console).write!("$greeting\n")  # say hello
+    $.use(Console).write_sync("$greeting\n") # say hello

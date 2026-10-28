@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 
 use hd_base::DefId;
 use hd_base::StageResult;
-use hd_diag::{Code, FixSafety, Severity};
+use hd_diag::{Code, FixSafety};
 use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src, show_ty_rows_in};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -16,6 +16,13 @@ use hd_types::solver::{Answer, Evidence, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, VarKind};
 
 use crate::body::{Ck, ExpectPosition, OpenSub, unsupported};
+
+/// A counted loop's `else` suite with the loop's result type, and the
+/// comprehension result it reserves room in before the loop, if any.
+type LoopEnds = (
+    Option<(hd_base::NodeIdx, Ty)>,
+    Option<(hd_base::LocalId, Ty)>,
+);
 
 /// What the base of a `**` is (`expr.power.*`).
 #[derive(Clone, Copy)]
@@ -741,7 +748,7 @@ impl Ck<'_, '_> {
             op,
             TokenKind::Lt | TokenKind::LtEq | TokenKind::Gt | TokenKind::GtEq
         ) {
-            self.warn_unsigned_zero(op, *l, at, *r, ct, n);
+            self.record_comparison(op, *l, at, *r, ct, n);
         }
         // `ref.identity.no-equality`: `==` between two references is
         // ambiguous, so it is an error with a fix-it for each meaning.
@@ -842,20 +849,8 @@ impl Ck<'_, '_> {
         crate::literals::decimal_digits(&digits) && digits.parse::<u64>().ok() == Some(0)
     }
 
-    /// Whether a type is an unsigned integer type at the comparison
-    /// (`expr.ord.unsigned-zero.binding-type`).
-    fn unsigned_now(&self, t: Ty) -> Option<Prim> {
-        let pool = self.pool();
-        match pool.get(self.strip_mut(t)) {
-            TyData::Prim(p) if p.is_unsigned() => Some(p),
-            _ => None,
-        }
-    }
-
-    /// `expr.ord.unsigned-zero`: `t >= 0`, `0 <= t`, `t < 0` and `0 > t`
-    /// with an unsigned `t` warn `unsigned-comparison-always`; the
-    /// program still compiles.
-    fn warn_unsigned_zero(
+    /// Records source and checked operand types only when a tool requested facts.
+    fn record_comparison(
         &mut self,
         op: TokenKind,
         l: NodeRef<'_>,
@@ -864,52 +859,27 @@ impl Ck<'_, '_> {
         ct: Ty,
         n: NodeRef<'_>,
     ) {
-        // Whether `t` is the left operand, and whether the form is
-        // always true.
-        let (t_left, t_node, t_ty, always) = match op {
-            TokenKind::GtEq if self.zero_literal(r) => (true, l, at, true),
-            TokenKind::LtEq if self.zero_literal(l) => (false, r, ct, true),
-            TokenKind::Lt if self.zero_literal(r) => (true, l, at, false),
-            TokenKind::Gt if self.zero_literal(l) => (false, r, ct, false),
-            _ => return,
-        };
-        let Some(p) = self.unsigned_now(t_ty) else {
+        if self.cx.source_facts.is_none() {
             return;
-        };
-        let span = self.cx.src.span(t_node);
-        let name = self
-            .cx
-            .src
-            .text
-            .get(span.lo as usize..span.hi as usize)
-            .unwrap_or("the value");
-        let op_text = match op {
-            TokenKind::GtEq => ">=",
-            TokenKind::LtEq => "<=",
-            TokenKind::Lt => "<",
-            _ => ">",
-        };
-        let ordering = if always {
-            "always true"
-        } else {
-            "always false"
-        };
-        let form = if t_left {
-            format!("{name} {op_text} 0")
-        } else {
-            format!("0 {op_text} {name}")
-        };
-        let mut msg = format!("`{name}` is unsigned, so `{form}` is {ordering}");
-        if p == Prim::Usize {
-            msg.push_str("; consider a signed literal such as `+10` or another condition");
         }
-        self.diags.push(
-            Code::UnsignedComparisonAlways,
-            Severity::Warning,
-            self.cx.src.span(n),
-            &msg,
-            None,
-        );
+        let operand = |node, ty| {
+            let primitive = match self.pool().get(self.strip_mut(ty)) {
+                TyData::Prim(p) => Some(p),
+                _ => None,
+            };
+            crate::comparison::Operand {
+                span: self.cx.src.span(node),
+                primitive,
+                unsuffixed_zero: self.zero_literal(node),
+            }
+        };
+        let fact = crate::comparison::Comparison {
+            span: self.cx.src.span(n),
+            operator: op,
+            left: operand(l, at),
+            right: operand(r, ct),
+        };
+        self.comparisons.push(fact);
     }
 
     /// Applies a binary operator to two checked operands.
@@ -2869,6 +2839,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let els = self.loop_else.take();
+        let reserve = self.reserve_into.take();
         // `for p in &xs` and `for p in &mut xs` over a list bind element
         // references (`flow.for.ref`).
         let refsrc = crate::elem_refs::strip_parens(src);
@@ -2934,7 +2905,7 @@ impl Ck<'_, '_> {
             // A float range is not iterable (`flow.for.range.float`), so it
             // goes through the general `Iterable` call below and fails there.
             if self.numeric(et) && self.integer_like(et) {
-                return self.range_loop(pat, (sr, et), els, e, body);
+                return self.range_loop(pat, (sr, et), (els, reserve), e, body);
             }
         }
         if let TyData::Adt { def, args } = pool.get(st_i)
@@ -2950,7 +2921,8 @@ impl Ck<'_, '_> {
                 }),
                 _ => return unsupported("a collection type's arguments"),
             };
-            return self.collection_loop(pat, (sr, st, item, map), els, e, body);
+            let reserve = reserve.filter(|_| !map);
+            return self.collection_loop(pat, (sr, st, item, map), (els, reserve), e, body);
         }
         let (referent, writable) = self.ref_of(st_i).unwrap_or((st_i, false));
         let mut direct = self.iterator_item(referent)?;
@@ -3170,6 +3142,100 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `ListReserve` of the list in local `acc`: room for `count` more
+    /// elements.
+    fn reserve_room(
+        &mut self,
+        (acc, at_ty): (hd_base::LocalId, Ty),
+        count: Ref,
+        at: hd_base::NodeIdx,
+    ) {
+        let a = self.b.get(acc, at_ty, at);
+        let rec = self.b.refs_record(&[a, count]);
+        self.b.emit(
+            Tag::Intrinsic,
+            IntrinsicOp::ListReserve as u32,
+            rec,
+            Ty::VOID,
+            at,
+        );
+    }
+
+    /// The number of rounds of a range loop over `cur..end` (`..=` when
+    /// `incl` holds), as a `usize`, for an element type of at most 32
+    /// bits: computed in `i64`, where no step overflows. A range of
+    /// unsigned literals whose type is still open counts here, from its
+    /// constants. A 64-bit element type, or another open one, gives none.
+    fn range_count(
+        &mut self,
+        (sr, cur_l, end_l, inc_l): (Ref, hd_base::LocalId, hd_base::LocalId, hd_base::LocalId),
+        et: Ty,
+        exclusive: bool,
+        at: hd_base::NodeIdx,
+    ) -> Option<Ref> {
+        use Prim as P;
+        let pool = self.pool();
+        let et_r = self.infer.resolve(pool, et);
+        let narrow = matches!(
+            pool.get(et_r),
+            TyData::Prim(P::I8 | P::I16 | P::I32 | P::U8 | P::U16 | P::U32 | P::Usize)
+        );
+        if !narrow {
+            if !matches!(pool.get(et_r), TyData::Infer(_))
+                || self.infer.kind_of(pool, et_r) != Some(VarKind::IntLit)
+            {
+                return None;
+            }
+            let b = self.b.body_mut();
+            let i = sr.as_inst()?.0 as usize;
+            if b.tags[i] != Tag::NewStruct {
+                return None;
+            }
+            let fields = b.record(b.data[i][1]).to_vec();
+            let value = |f: usize| {
+                let r = Ref(*fields.get(f)?);
+                (r.0 != NONE && r.as_inst().is_none())
+                    .then(|| b.consts[(r.0 & !Ref::CONST_BIT) as usize].1)
+            };
+            let (start, end, inclusive) = (value(0)?, value(1)?, value(2)?);
+            let count = end
+                .checked_add(u64::from(inclusive != 0))?
+                .saturating_sub(start);
+            let count = u32::try_from(count).ok()?;
+            return Some(self.b.const_value(Ty::prim(P::Usize), u64::from(count)));
+        }
+        let (wide, us) = (Ty::prim(P::I64), Ty::prim(P::Usize));
+        let conv = PrimOp::Conv as u32;
+        let c = self.b.get(cur_l, et, at);
+        let start = self.b.prim(conv, &[c], wide, at);
+        let d = self.b.get(end_l, et, at);
+        let end = self.b.prim(conv, &[d], wide, at);
+        // An inclusive range's end is one past its bound.
+        let end = if exclusive {
+            end
+        } else {
+            let tb = self.b.open_block();
+            let one = self.b.const_value(wide, 1);
+            let past = self.b.prim(PrimOp::Add as u32, &[end, one], wide, at);
+            let then = self.b.close_block(tb, Some(past), wide, at);
+            let eb = self.b.open_block();
+            let els = self.b.close_block(eb, Some(end), wide, at);
+            let incv = self.b.get(inc_l, Ty::BOOL, at);
+            let rec = self.b.refs_record(&[then, els]);
+            self.b.emit(Tag::If, incv.0, rec, wide, at)
+        };
+        let some = self.b.prim(PrimOp::Lt as u32, &[start, end], Ty::BOOL, at);
+        let tb = self.b.open_block();
+        let span = self.b.prim(PrimOp::Sub as u32, &[end, start], wide, at);
+        let span = self.b.prim(conv, &[span], us, at);
+        let then = self.b.close_block(tb, Some(span), us, at);
+        let eb = self.b.open_block();
+        let zero = self.b.const_value(us, 0);
+        let els = self.b.close_block(eb, Some(zero), us, at);
+        let rec = self.b.refs_record(&[then, els]);
+        Some(self.b.emit(Tag::If, some.0, rec, us, at))
+    }
+
     /// A `for` over a numeric `Range` as a counting loop (lowering-catalog
     /// "for over a range"): no iterator value. Each round tests
     /// `cur < end || (inclusive && cur == end)`, binds the item, then
@@ -3182,7 +3248,7 @@ impl Ck<'_, '_> {
         &mut self,
         pat: NodeRef<'_>,
         (sr, et): (Ref, Ty),
-        loop_else: Option<(hd_base::NodeIdx, Ty)>,
+        (loop_else, reserve): LoopEnds,
         e: NodeRef<'_>,
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
@@ -3213,6 +3279,11 @@ impl Ck<'_, '_> {
         self.set_local(end_l, end, at);
         let inc = self.b.field(sr, 2, Ty::BOOL, at);
         self.set_local(inc_l, inc, at);
+        if let Some(acc) = reserve
+            && let Some(count) = self.range_count((sr, cur_l, end_l, inc_l), et, exclusive, at)
+        {
+            self.reserve_room(acc, count, at);
+        }
         let lt = PrimOp::Lt as u32;
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
@@ -3278,17 +3349,15 @@ impl Ck<'_, '_> {
     /// A `for` over a built-in `List` or `Map` as a counted loop
     /// (lowering-catalog "Loops"): no iterator value. The loop iterates a
     /// snapshot of the collection as it was when the loop began
-    /// (`flow.for.snapshot`): `SnapBegin` shares its buffer, which a change
-    /// to the collection during the loop copies first, and `SnapEnd`
-    /// releases it when the loop ends. A fresh source value needs no
-    /// snapshot: the loop owns that value and ordinary local lifetime
-    /// handling releases it. Each round reads the next element or live
-    /// entry, advances, and binds it.
+    /// (`flow.for.snapshot`): `$coll` holds the source value, a copy of a
+    /// place's collection sharing its buffer, which a change to the place
+    /// during the loop copies first. Each round reads the next element or
+    /// live entry, advances, and binds it.
     fn collection_loop(
         &mut self,
         pat: NodeRef<'_>,
         (sr, st, item_ty, map): (Ref, Ty, Ty, bool),
-        loop_else: Option<(hd_base::NodeIdx, Ty)>,
+        (loop_else, reserve): LoopEnds,
         e: NodeRef<'_>,
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
@@ -3307,24 +3376,11 @@ impl Ck<'_, '_> {
             sym(self, "$pos"),
             sym(self, "$end"),
         );
-        // A value the source expression made has no other place the body
-        // can change. Let the loop own it directly, as an ordinary stored
-        // value does; only a source read out of a place needs a snapshot.
-        let orig_l = if self.is_fresh(sr) {
-            None
-        } else {
-            let l = self.b.local(st, sym(self, "$orig"), ASSIGNED, at);
-            self.set_local(l, sr, at);
-            Some(l)
-        };
+        // An ordinary stored value: the ownership passes lend it when
+        // nothing in the loop can change the place, and move it at the
+        // place's last use.
         let src_l = self.b.local(st, src_s, ASSIGNED, at);
-        let source = if let Some(orig_l) = orig_l {
-            let o = self.b.get(orig_l, st, at);
-            intr(self, IntrinsicOp::SnapBegin, &[o], st)
-        } else {
-            sr
-        };
-        self.set_local(src_l, source, at);
+        self.set_local(src_l, sr, at);
         let len_l = self.b.local(us, len_s, ASSIGNED, at);
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
@@ -3336,6 +3392,10 @@ impl Ck<'_, '_> {
         };
         let n = intr(self, len_op, &[c], us);
         self.set_local(len_l, n, at);
+        if let Some(acc) = reserve {
+            let count = self.b.get(len_l, us, at);
+            self.reserve_room(acc, count, at);
+        }
         // A map's loop visits the slots written when it began; a list's,
         // its captured length.
         let end = if map {
@@ -3407,10 +3467,6 @@ impl Ck<'_, '_> {
         let lbody = self.b.close_block(lb, None, Ty::VOID, at);
         let ty = result.unwrap_or(Ty::VOID);
         let lr = self.b.close_loop(lp, lbody, ty, at);
-        if let Some(orig_l) = orig_l {
-            let (o, c) = (self.b.get(orig_l, st, at), self.b.get(src_l, st, at));
-            intr(self, IntrinsicOp::SnapEnd, &[o, c], Ty::VOID);
-        }
         Ok((lr, ty))
     }
 
@@ -3567,6 +3623,12 @@ impl Ck<'_, '_> {
         let tag = if is_map { Tag::NewMap } else { Tag::NewList };
         let fresh = self.b.emit(tag, NONE, empty, mt, n.index());
         self.set_local(acc, fresh, n.index());
+        // A list comprehension of one `for` and no `if` pushes one element
+        // per round: a source whose length is known before the loop, a
+        // range or a list, reserves room for all of them once there.
+        if !is_map && matches!(clauses, [c] if c.kind() == SyntaxKind::ComprehensionFor) {
+            self.reserve_into = Some((acc, mt));
+        }
         self.scopes.push(HashMap::default());
         let r = self.clauses(clauses, *element, (acc, mt), &args, n);
         self.scopes.pop();

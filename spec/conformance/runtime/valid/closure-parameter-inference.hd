@@ -11,4 +11,8 @@ tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main(), 42, reason="expected function types infer inline closure parameters and results")
+        assert_equal(
+            main(),
+            42,
+            reason="expected function types infer inline closure parameters and results",
+        )

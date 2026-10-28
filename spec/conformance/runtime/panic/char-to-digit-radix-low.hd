@@ -2,7 +2,7 @@
 # Spec std/text Character Classification: std-text.char.to-digit.radix (CHAR-CLASSIFY, batch 72; task #229).
 
 fn digit(c: char, radix: u32) -> u32?:
-    c.to_digit(radix)  # panic: explicit-panic
+    c.to_digit(radix) # panic: explicit-panic
 
 tests:
     it("rejects radix 1"):

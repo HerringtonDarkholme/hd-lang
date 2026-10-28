@@ -3,6 +3,6 @@ enum Status:
     Running
 
 fn label(status: Status, urgent: bool) -> string:
-    match status:  # diagnostic: nonexhaustive-match
+    match status: # diagnostic: nonexhaustive-match
         Status.Queued if urgent => "urgent"
         Status.Running => "running"

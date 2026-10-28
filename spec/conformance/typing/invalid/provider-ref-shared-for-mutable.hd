@@ -10,5 +10,5 @@ impl Counter for Tally:
         self.n += 1
 
 fn shared(tally: *Tally) -> void:
-    $.with(Counter=tally):  # diagnostic: mutable-upgrade
+    $.with(Counter=tally): # diagnostic: mutable-upgrade
         pass

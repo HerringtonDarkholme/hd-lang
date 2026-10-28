@@ -8,6 +8,7 @@
 //! host call. The driver and `hd:rt` `block` wait here for the next
 //! completion: a timer's deadline or a delivery, whichever comes first.
 
+use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::future::Future;
 use std::io::BufRead;
@@ -36,8 +37,6 @@ pub type Line = Result<Option<String>, ()>;
 /// What an offloaded operation delivers, for its `.finish` to encode.
 /// Each capability that moves onto the `hd-io` runtime adds its variant.
 pub enum Done {
-    /// A Console chunk written by the ordered output thread.
-    Output,
     /// `Process.run!`: how the child's run ended.
     Process(crate::process::native::Ran),
     /// `Process.run!` of a test case's named child, run on a thread of its
@@ -59,55 +58,8 @@ pub enum Done {
 pub enum Stream {
     /// `write`'s standard output.
     Out,
-    /// `write_error`'s standard error (`module.console.write-error.raw`).
+    /// `write_error`'s standard error (`module.console.write-error-sync.raw`).
     Err,
-}
-
-/// A pending output chunk starts at the next reactor poll, not in `.start`.
-/// Cancellation wakes a queued writer and discards the chunk's unwritten suffix.
-#[derive(Clone, Default)]
-pub(crate) struct OutputWait(Arc<OutputState>);
-
-#[derive(Default)]
-struct OutputState {
-    started: Mutex<bool>,
-    ready: Condvar,
-    cancelled: AtomicBool,
-}
-
-impl OutputWait {
-    fn start(&self) {
-        *self
-            .0
-            .started
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = true;
-        self.0.ready.notify_all();
-    }
-
-    fn cancel(&self) {
-        self.0.cancelled.store(true, Ordering::SeqCst);
-        self.start();
-    }
-
-    pub(crate) fn cancelled(&self) -> bool {
-        self.0.cancelled.load(Ordering::SeqCst)
-    }
-
-    pub(crate) fn wait(&self) {
-        let mut started = self
-            .0
-            .started
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        while !*started {
-            started = self
-                .0
-                .ready
-                .wait(started)
-                .unwrap_or_else(PoisonError::into_inner);
-        }
-    }
 }
 
 /// What an operation does when it completes.
@@ -137,7 +89,6 @@ pub struct Op {
     /// An offloaded operation's task, until it delivers: aborted when the
     /// operation ends first.
     task: Option<Task>,
-    output: Option<OutputWait>,
     /// The resource whose handle this operation is on, so closing it can
     /// end its pending operations (`dispose_owned`).
     owner: Option<Owner>,
@@ -231,8 +182,6 @@ impl Waker {
 pub struct Reactor {
     ops: BTreeMap<i32, Op>,
     next_handle: i32,
-    /// Output chunks not handed to their writer by a reactor poll yet.
-    output_starts: Vec<i32>,
     /// The operations not completed yet.
     open: usize,
     /// The timed operations not completed yet, by deadline.
@@ -262,7 +211,6 @@ impl Reactor {
         Reactor {
             ops: BTreeMap::new(),
             next_handle: 1,
-            output_starts: Vec::new(),
             open: 0,
             timers: BTreeSet::new(),
             ready: Vec::new(),
@@ -290,26 +238,10 @@ impl Reactor {
                 work,
                 completed: false,
                 task: None,
-                output: None,
                 owner: None,
             },
         );
         h
-    }
-
-    /// Register a write without starting hd-io. The output thread delivers
-    /// through the normal inbox so timers and input retain their wake order.
-    pub(crate) fn output(&mut self) -> (i32, OutputWait, impl FnOnce() + Send + 'static) {
-        let h = self.start(None, Work::Offloaded(None));
-        let wait = OutputWait::default();
-        self.ops.get_mut(&h).unwrap().output = Some(wait.clone());
-        self.output_starts.push(h);
-        let inbox = Arc::clone(&self.inbox);
-        (h, wait, move || {
-            let mut queue = inbox.queue.lock().unwrap_or_else(PoisonError::into_inner);
-            queue.done.push((h, Done::Output));
-            inbox.ready.notify_all();
-        })
     }
 
     /// A sleep of `ms` milliseconds.
@@ -509,10 +441,7 @@ impl Reactor {
     }
 
     /// Completes every due operation, oldest first, and returns its handle.
-    /// Console writes arrive through the inbox after their writer finishes.
     pub fn due(&mut self) -> Vec<i32> {
-        self.start_output();
-        self.output_starts.clear();
         self.take_delivered();
         let now = now_ns();
         let mut due = std::mem::take(&mut self.ready);
@@ -522,7 +451,7 @@ impl Reactor {
             self.timers.pop_first();
             due.push((at, h));
         }
-        due.sort_unstable();
+        due.sort_stable();
         for (_, h) in &due {
             if let Some(op) = self.ops.get_mut(h)
                 && !op.completed
@@ -585,19 +514,10 @@ impl Reactor {
         drop(queue);
     }
 
-    fn start_output(&self) {
-        for h in &self.output_starts {
-            if let Some(wait) = self.ops.get(h).and_then(|op| op.output.as_ref()) {
-                wait.start();
-            }
-        }
-    }
-
     /// Like `wait`, but wakes no later than the program's wall deadline,
     /// and at once when `interrupt` is set, before or during the wait, by
     /// a thread that then uses `waker`.
     pub fn wait_until(&self, limit: Option<Instant>, interrupt: Option<&AtomicBool>) -> bool {
-        self.start_output();
         if !self.waiting() {
             return false;
         }
@@ -656,9 +576,6 @@ impl Reactor {
     pub fn remove(&mut self, h: i32) -> Option<Op> {
         self.reads.retain(|r| r.0 != h);
         let mut op = self.ops.remove(&h)?;
-        if let Some(wait) = &op.output {
-            wait.cancel();
-        }
         if !op.completed {
             self.open -= 1;
             if let Some(at) = op.at {
@@ -726,7 +643,6 @@ impl Reactor {
     pub fn drop_all(&mut self) -> Vec<Done> {
         self.abort_tasks();
         self.reads.clear();
-        self.output_starts.clear();
         self.open = 0;
         self.timers.clear();
         self.ready.clear();
@@ -755,11 +671,6 @@ impl Reactor {
     /// Aborts every pending task, then waits until each one's work is
     /// dropped.
     fn abort_tasks(&self) {
-        for op in self.ops.values() {
-            if let Some(wait) = &op.output {
-                wait.cancel();
-            }
-        }
         let tasks = || self.ops.values().filter_map(|op| op.task.as_ref());
         for task in tasks() {
             task.abort();

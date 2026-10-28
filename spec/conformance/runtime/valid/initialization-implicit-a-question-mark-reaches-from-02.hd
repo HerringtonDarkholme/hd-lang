@@ -24,7 +24,8 @@ fn code() -> i32:
 later := +5
 
 impl From[Tag] for Wide:
-    fn from(e: Tag) -> Wide: Wide { m: e.n + later }
+    fn from(e: Tag) -> Wide:
+        Wide { m: e.n + later }
 
 first := code()
 

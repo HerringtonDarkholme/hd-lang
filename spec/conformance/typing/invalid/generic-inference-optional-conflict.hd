@@ -5,4 +5,4 @@ fn pick[T](left: T, right: T) -> T:
     left
 
 fn first(value: i32, maybe: i32?) -> i32?:
-    pick(value, maybe)  # diagnostic: type-mismatch
+    pick(value, maybe) # diagnostic: type-mismatch

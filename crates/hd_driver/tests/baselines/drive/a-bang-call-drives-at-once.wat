@@ -6,7 +6,7 @@
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 5 funcref))
+  (import "fixture" "table0" (table $table0 9 funcref))
   (func $relay (param $frame i32) (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t4 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $s.0 i32) (local $s.1 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t15 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32)
     ;; ...
     block
@@ -14,8 +14,6 @@
       if
         ;; ...
     ;; 10 |     s.put!(text)
-        local.get $s.0
-        local.get $s.1
         local.set $t0
         local.tee $t1
         call $retain
@@ -47,10 +45,9 @@
           if
             local.get $frame
             i32.load $heap offset=16
-            local.set $t5
+            local.tee $t5
             i32.const 1
             local.set $t6
-            local.get $t5
             local.get $t5
             i32.load $heap
             call_indirect $table0 (param i32) (result i32 i32)
@@ -64,10 +61,9 @@
             i32.load $heap offset=4
             call_indirect $table0 (param i32 i32 i32) (result i32 i32)
             local.set $t7
-            local.set $t5
+            local.tee $t5
             i32.const 0
             local.set $t6
-            local.get $t5
             i32.eqz
             local.set $t8
           end
@@ -220,8 +216,6 @@
               call $rt:release_ref
             end
           end
-          i32.const 0
-          local.set $t4
           local.get $t7
           local.set $t15
           br 1
@@ -366,20 +360,10 @@
           local.get $t16
           call $rt:release_ref
         end
-        i32.const 0
-        local.set $t4
         local.get $t1
         call $rt:release_ref
-        i32.const 0
-        local.set $t1
-        i32.const 0
-        local.set $t0
         local.get $t3
         call $rt:release_ref
-        i32.const 0
-        local.set $t3
-        i32.const 0
-        local.set $t2
         i32.const 0
         local.set $t10
         i32.const 1

@@ -1,7 +1,7 @@
+use crate::is_nfc;
 use hd_base::{FileId, Span, Symbol, TokenIdx};
-use hd_diag::{Code, Diagnostic, Severity};
+use hd_diag::{Code, Diagnostic};
 use unicode_ident::{is_xid_continue, is_xid_start};
-use unicode_normalization::UnicodeNormalization;
 
 const NONE: u32 = u32::MAX;
 
@@ -653,16 +653,6 @@ impl<'s> Lexer<'s> {
             let message = format!("identifier '{text}' is not NFC-normalized");
             self.error(Code::InvalidToken, start, self.pos, message);
         }
-        if !text.is_ascii() && kind == TokenKind::Ident {
-            let scripts = mixed_scripts(text);
-            if scripts.len() > 1 {
-                let message = format!(
-                    "identifier '{text}' mixes {} scripts",
-                    join_scripts(&scripts)
-                );
-                self.warn(Code::MixedScriptIdentifier, start, self.pos, message);
-            }
-        }
         self.tokens.push(kind, start, self.pos, self.line);
     }
 
@@ -1139,20 +1129,6 @@ impl<'s> Lexer<'s> {
         self.diagnostics.push(diagnostic(code, start, end, message));
     }
 
-    fn warn(&mut self, code: Code, start: usize, end: usize, message: impl Into<String>) {
-        self.diagnostics.push(Diagnostic {
-            code,
-            severity: Severity::Warning,
-            primary: Span {
-                file: FileId::from_raw(0),
-                lo: to_u32(start),
-                hi: to_u32(end),
-            },
-            message: message.into(),
-            fix: None,
-        });
-    }
-
     /// Whether only spaces and tabs precede the cursor on its line.
     fn in_indentation(&self) -> bool {
         self.bytes[..self.pos]
@@ -1262,58 +1238,6 @@ fn is_ident_start_byte(byte: u8, source: &str, pos: usize) -> bool {
     byte == b'_'
         || byte.is_ascii_alphabetic()
         || (!byte.is_ascii() && source[pos..].chars().next().is_some_and(is_xid_start))
-}
-
-fn is_nfc(text: &str) -> bool {
-    text.nfc().eq(text.chars())
-}
-
-/// The confusable scripts an identifier's letters use, in fixed order:
-/// Latin, Greek, Cyrillic (`lex.ident.mixed-script.warning`). Letters of
-/// any other script never count, so Han with Latin stays quiet.
-fn mixed_scripts(text: &str) -> Vec<&'static str> {
-    let (mut latin, mut greek, mut cyrillic) = (false, false, false);
-    for ch in text.chars().filter(|ch| ch.is_alphabetic()) {
-        let c = ch as u32;
-        if ch.is_ascii_alphabetic()
-            || (0x00C0..=0x024F).contains(&c)
-            || (0x1E00..=0x1EFF).contains(&c)
-            || (0x2C60..=0x2C7F).contains(&c)
-            || (0xA720..=0xA7FF).contains(&c)
-            || (0xAB30..=0xAB6F).contains(&c)
-        {
-            latin = true;
-        } else if (0x0370..=0x03FF).contains(&c) || (0x1F00..=0x1FFF).contains(&c) {
-            greek = true;
-        } else if (0x0400..=0x052F).contains(&c)
-            || (0x2DE0..=0x2DFF).contains(&c)
-            || (0xA640..=0xA69F).contains(&c)
-            || (0x1C80..=0x1C8F).contains(&c)
-        {
-            cyrillic = true;
-        }
-    }
-    [("Latin", latin), ("Greek", greek), ("Cyrillic", cyrillic)]
-        .into_iter()
-        .filter(|(_, found)| *found)
-        .map(|(name, _)| name)
-        .collect()
-}
-
-/// `"Latin"`, `"Latin and Cyrillic"`, `"Latin, Greek and Cyrillic"`.
-fn join_scripts(scripts: &[&str]) -> String {
-    let mut out = String::new();
-    for (i, name) in scripts.iter().enumerate() {
-        if i > 0 {
-            out.push_str(if i + 1 == scripts.len() {
-                " and "
-            } else {
-                ", "
-            });
-        }
-        out.push_str(name);
-    }
-    out
 }
 
 fn digit_for_radix(byte: u8, radix: u32) -> bool {
@@ -1496,18 +1420,19 @@ mod tests {
     }
 
     #[test]
-    fn a_mixed_script_identifier_warns() {
-        // Cyrillic small a (U+0430) followed by Latin letters.
-        let lexed = lex("\u{430}bc".as_bytes());
-        assert_eq!(lexed.diagnostics.len(), 1, "{:?}", lexed.diagnostics);
-        let warning = &lexed.diagnostics[0];
-        assert_eq!(warning.code, Code::MixedScriptIdentifier);
-        assert_eq!(warning.severity, hd_diag::Severity::Warning);
-        assert!(
-            warning.message.contains("Latin and Cyrillic"),
-            "{}",
-            warning.message
-        );
+    fn mixed_script_identifiers_remain_valid_without_lexical_advice() {
+        for source in ["аbc", "aαя", "`аbc`", "日本a"] {
+            let lexed = lex(source.as_bytes());
+            assert!(
+                lexed.diagnostics.is_empty(),
+                "{source}: {:?}",
+                lexed.diagnostics
+            );
+            assert!(matches!(
+                lexed.tokens.kind.as_slice(),
+                [TokenKind::Ident | TokenKind::RawIdent]
+            ));
+        }
     }
 
     #[test]

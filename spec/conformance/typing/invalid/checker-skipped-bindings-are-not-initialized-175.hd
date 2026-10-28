@@ -3,7 +3,7 @@ fn f(flag: bool) -> string:
     if flag && (name := "Ada") != "":
         pass
     else:
-        return name  # diagnostic: possibly-uninitialized-binding
+        return name # diagnostic: possibly-uninitialized-binding
     "x"
 pub fn main() -> void:
     pass

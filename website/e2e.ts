@@ -249,8 +249,27 @@ try {
     // The edit survives a reload; Reset brings back the original.
     await page.reload();
     await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 50)" }).waitFor();
+    const savedEdit = await page.evaluate(() => {
+      const key = `hd-tour:${document.getElementById("tour-editor")!.dataset.tourKey!}`;
+      return { key, value: localStorage.getItem(key)! };
+    });
+    const parsedEdit = JSON.parse(savedEdit.value) as Record<string, unknown>;
+    assert.equal(typeof parsedEdit.originalHash, "string");
+    assert.match(parsedEdit.code as string, /apply_discount\(&mut order, 50\)/);
     await page.click("#tour-reset");
     await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).waitFor();
+    await page.evaluate(({ key, value }) => {
+      const stale = JSON.parse(value) as { originalHash: string };
+      stale.originalHash = "an-older-lesson";
+      localStorage.setItem(key, JSON.stringify(stale));
+    }, savedEdit);
+    await page.reload();
+    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).waitFor();
+    assert.equal(
+      await page.evaluate((key) => localStorage.getItem(key), savedEdit.key),
+      null,
+      "an edit from an older lesson version is dropped",
+    );
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-run");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });

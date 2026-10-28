@@ -1,0 +1,6 @@
+[package]
+name = "lint_fixture"
+
+[[executable]]
+name = "app"
+module = "main"

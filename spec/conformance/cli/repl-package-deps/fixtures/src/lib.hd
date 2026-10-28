@@ -1,1 +1,2 @@
-pub fn sample() -> i32: +10
+pub fn sample() -> i32:
+    +10

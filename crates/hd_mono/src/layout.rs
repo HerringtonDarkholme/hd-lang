@@ -2,6 +2,7 @@
 //! representation (`crates/hd_mono/DESIGN.md` §13.2, §13.3; `crates/hd_wasm_linear/DESIGN.md` §15.1, §15.2;
 //! `docs/compiler/data-structures.md` §3.22).
 
+use hd_base::SliceSort as _;
 use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
 use hd_base::{HashMap, HashSet};
 
@@ -612,7 +613,7 @@ pub fn canon(
                 .into_iter()
                 .map(|(a, t)| (path_hash(a), canon(pool, path_hash, memo, t)))
                 .collect();
-            bs.sort();
+            bs.sort_stable();
             h.u32(u32::try_from(bs.len()).expect("bindings"));
             for (a, t) in bs {
                 h.hash(a);
@@ -698,7 +699,7 @@ fn canon_row(
         .into_iter()
         .map(|k| canon(pool, path_hash, memo, k))
         .collect();
-    keys.sort();
+    keys.sort_stable();
     h.u32(u32::try_from(keys.len()).expect("keys"));
     for k in keys {
         h.hash(k);
@@ -709,7 +710,7 @@ fn canon_row(
         .into_iter()
         .map(|p| (path_hash(p.owner), p.index))
         .collect();
-    params.sort();
+    params.sort_stable();
     h.u32(u32::try_from(params.len()).expect("params"));
     for (o, i) in params {
         h.hash(o);
@@ -981,7 +982,7 @@ impl InstanceTable {
         let mut ids: Vec<InstId> = (0..self.len())
             .map(|i| InstId::from_raw(u32::try_from(i).expect("i")))
             .collect();
-        ids.sort_by_key(|i| self.key[i.idx()]);
+        ids.sort_stable_by_key(|i| self.key[i.idx()]);
         ids
     }
 }
@@ -992,6 +993,7 @@ mod tests {
         A1Class, CanonMemo, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, Sub, ValType,
         a1_class, inline_map_key, instance_key, known_key, layout_of, strip_newtype,
     };
+    use hd_base::SliceSort as _;
     use hd_base::{DefId, Hash128, InstId};
     use hd_types::{InternPool, Ty, TyData, TyList};
 
@@ -1146,7 +1148,7 @@ mod tests {
         let all: Vec<DefId> = (1..=6).map(d).collect();
         let rec = super::recursive_enums(&p, &decls, &all);
         let mut got: Vec<u32> = rec.iter().map(|x| x.raw()).collect();
-        got.sort_unstable();
+        got.sort_stable();
         assert_eq!(got, [1, 2, 4]);
     }
 

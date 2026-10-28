@@ -91,7 +91,7 @@ fn a_fetched_dependency_is_not_the_users_own_code() {
 }
 
 #[test]
-fn fetched_debug_warnings_and_suppression_survive_check_and_link_cache_hits() {
+fn fetched_debug_is_quiet_while_suppression_survives_check_and_link_cache_hits() {
     let store = MemoryStore::default();
     let code = "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    let show: fn((i32,)) -> void = dbg\n    show((n,))\n    n * 100\n";
     let local = build_with_debug_code(&store, false, BuildProfile::Checked, code);
@@ -99,18 +99,7 @@ fn fetched_debug_warnings_and_suppression_survive_check_and_link_cache_hits() {
     assert!(local.wasm.is_some());
     for _ in 0..2 {
         let fetched = build_with_debug_code(&store, true, BuildProfile::Checked, code);
-        assert_eq!(
-            fetched
-                .diags
-                .code
-                .iter()
-                .filter(|c| **c == Code::DbgInDependency)
-                .count(),
-            1,
-            "{}",
-            fetched.render()
-        );
-        assert!(fetched.render().contains("fetched package `money`"));
+        assert!(fetched.diags.is_empty(), "{}", fetched.render());
         assert!(fetched.counters.modules_checked.is_empty());
         assert!(fetched.wasm.is_some());
         assert_ne!(local.wasm, fetched.wasm, "suppression changes emitted code");

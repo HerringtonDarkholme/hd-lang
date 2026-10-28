@@ -3,6 +3,7 @@
 //! trait methods, static members, conversions, function values, bang calls
 //! and the row check of a callee's requirements.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, PathId, StageResult, Symbol};
@@ -1985,6 +1986,33 @@ impl Ck<'_, '_> {
                     let snap = self.infer.snapshot();
                     if self.infer.unify(pool, ret, w).is_err() {
                         self.infer.rollback(snap);
+                        // An expected result still guides each result
+                        // argument that fits when another one does not. In
+                        // particular, the operand of `?` may return a
+                        // different error type that `From` converts while
+                        // its success type solves a callee parameter
+                        // (`expr.try.expected.result`).
+                        if let (
+                            TyData::Adt {
+                                def: ret_def,
+                                args: ret_args,
+                            },
+                            TyData::Adt {
+                                def: want_def,
+                                args: want_args,
+                            },
+                        ) = (pool.get(ret), pool.get(w))
+                            && ret_def == want_def
+                        {
+                            let ret_args = pool.list_items(ret_args).to_vec();
+                            let want_args = pool.list_items(want_args).to_vec();
+                            for (ret_arg, want_arg) in ret_args.into_iter().zip(want_args) {
+                                let snap = self.infer.snapshot();
+                                if self.infer.unify(pool, ret_arg, want_arg).is_err() {
+                                    self.infer.rollback(snap);
+                                }
+                            }
+                        }
                     }
                 }
                 self.default_owner = Some((def, pool.list(&vars), vec![]));
@@ -2154,13 +2182,13 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `req.drive.block-on.direct`, `req.drive.block-on.println`: a call of
-    /// `block_on` or `println` written directly in a `defer` suite, a
-    /// default or fact expression, or a non-entry module's initialization.
+    /// `req.drive.block-on.direct`: a call of `block_on` written directly
+    /// in a `defer` suite, a default or fact expression, or a non-entry
+    /// module's initialization.
     /// A closure or local function declared there is not direct.
     pub(crate) fn check_forbidden_call(&mut self, def: DefId, name: &str, n: NodeRef<'_>) {
         let known = self.cx.names.known;
-        if def != known.block_on && def != known.println {
+        if def != known.block_on {
             return;
         }
         let context = if self.defer_base.is_some() && self.subs.len() == self.defer_subs {
@@ -3393,7 +3421,7 @@ impl Ck<'_, '_> {
             .map(|s| self.cx.names.text(s).to_owned())
             .chain(["len", "push", "get", "remove"].map(str::to_owned))
             .collect();
-        names.sort();
+        names.sort_stable();
         names.dedup();
         let mut ranked: Vec<_> = names
             .into_iter()
@@ -3402,7 +3430,7 @@ impl Ck<'_, '_> {
                 candidate != name && *distance <= name.chars().count().div_ceil(2).max(3)
             })
             .collect();
-        ranked.sort();
+        ranked.sort_stable();
         for (_, candidate) in ranked {
             let checkpoint = self.checkpoint();
             let memo = std::mem::take(&mut self.memo);
@@ -4270,6 +4298,13 @@ impl Ck<'_, '_> {
                     .map_or(Symbol::from_raw(0), |i| i.name),
             )
             .to_owned();
+        // An omitted argument takes the trait declaration's default
+        // (`trait.impl.param-default`), whose body shares the trait
+        // method's arguments: `Self`, the trait's, then the method's.
+        let mut owner_args = vec![self_ty];
+        owner_args.extend(&targs);
+        owner_args.extend(&vars);
+        self.default_owner = Some((method, pool.list(&owner_args), refs.clone()));
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
         if pool.has_opaque(sig.ret) {
             let self_ty = self.strip_mut(self.infer.resolve(pool, self_ty));

@@ -18,13 +18,9 @@ fn collections(users: List[User]) -> Map[string, User] $ Console:
     let (x, y) = point
     entry := Entry { name: "Ada", score: 10 }
     let (entry_name, score) = (entry.name, entry.score)
-    scores := {"Ada": 10, "Grace": 12}
+    scores := { "Ada": 10, "Grace": 12 }
     names := [for user in users if user.active => user.name]
-    sizes := [
-        for user in users
-        if (size := user.name.len()) > 0
-        => size
-    ]
+    sizes := [for user in users if (size := user.name.len()) > 0 => size]
     pairs := [for left in names for right in sizes => (left, right)]
     by_id := {for user in users if user.active => user.id: user}
     println("$x,$y")

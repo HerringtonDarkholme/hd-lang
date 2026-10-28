@@ -1,6 +1,6 @@
 # test: an embedding cycle through a generic data type is still a cycle
 struct Holder:
-    Wrapper[i32]  # diagnostic: embedding-cycle
+    Wrapper[i32] # diagnostic: embedding-cycle
     id: string
 
 struct Wrapper[T]:

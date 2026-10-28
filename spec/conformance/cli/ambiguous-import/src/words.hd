@@ -1,1 +1,2 @@
-pub fn squash(word: string) -> string: word
+pub fn squash(word: string) -> string:
+    word

@@ -8,7 +8,11 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError)
+    Write(
+        path: string,
+        @source
+        error: DiskError,
+    )
 
 fn load() -> Result[string, *dyn Error]:
     .Err(&SaveError.Write("notes.txt", DiskError { free: 7 }))
@@ -24,4 +28,5 @@ tests:
     it("find through an erased Error"):
         match load():
             .Ok(_) => assert(false, reason="load fails")
-            .Err(failure) => assert_equal(free_space(failure), .Some(7), reason="the source, recovered")
+            .Err(failure) =>
+                assert_equal(free_space(failure), .Some(7), reason="the source, recovered")

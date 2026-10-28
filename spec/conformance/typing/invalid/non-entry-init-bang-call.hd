@@ -5,7 +5,7 @@
 fn count_boxes!() -> i32:
     3
 
-total := count_boxes!()  # diagnostic: bang-call-outside-suspension
+total := count_boxes!() # diagnostic: bang-call-outside-suspension
 
 pub fn item_count() -> i32:
     total

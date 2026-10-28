@@ -1,7 +1,7 @@
-"""Spectral norm, n=2000; the same ten power iterations as the hd case."""
+"""Spectral norm, n=2800; the same ten power iterations as the hd case."""
 from math import sqrt
 
-N = 2000
+N = 2800
 
 
 def multiply(v, out, transpose=False):

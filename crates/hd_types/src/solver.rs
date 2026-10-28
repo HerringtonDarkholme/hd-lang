@@ -7,6 +7,7 @@
 //! fuel charged per proof node); the projection goal is still not
 //! implemented (the checker normalizes).
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -158,7 +159,7 @@ impl ImplUniverses {
         folders: &[(FolderId, &FolderImpls)],
     ) -> (ImplUniverseId, Arc<UniverseImpls>) {
         let mut list = folders.to_vec();
-        list.sort_by_key(|(f, _)| f.raw());
+        list.sort_stable_by_key(|(f, _)| f.raw());
         list.dedup_by_key(|(f, _)| *f);
         let key: Vec<FolderId> = list.iter().map(|(f, _)| *f).collect();
         let mut m = self.by_list.lock().expect("universes");
@@ -472,7 +473,7 @@ impl ImplTable {
         let mut perm: Vec<u32> = (0..u32::try_from(self.def.len()).expect("impls")).collect();
         for &(s, e) in self.by_trait.values() {
             perm[s as usize..e as usize]
-                .sort_unstable_by_key(|&r| (self.head_key[r as usize].code(), r));
+                .sort_stable_by_key(|&r| (self.head_key[r as usize].code(), r));
         }
         self.by_key = perm;
     }
@@ -1750,7 +1751,7 @@ impl<'s, 'a> Search<'s, 'a> {
             }
         }
         let mut reads = self.reads.split_off(rstart);
-        reads.sort_unstable_by_key(|(t, k)| (t.raw(), k.code()));
+        reads.sort_stable_by_key(|(t, k)| (t.raw(), k.code()));
         reads.dedup();
         self.reads.extend_from_slice(&reads);
         if !memo || matches!(out.answer, Answer::OutOfFuel) {

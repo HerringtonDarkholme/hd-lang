@@ -3,11 +3,15 @@
 fn doubled(values: List[i32]) -> List[i32]:
     let mut out = values
     for value in out:
-        out.push(value)  # the loop still ends after the old elements
+        out.push(value) # the loop still ends after the old elements
     out
 
 tests:
     use std.testing.assert_equal
 
     it("each old element once more"):
-        assert_equal(doubled([+1, 2]), [+1, 2, 1, 2], reason="the loop visited the two old elements")
+        assert_equal(
+            doubled([+1, 2]),
+            [+1, 2, 1, 2],
+            reason="the loop visited the two old elements",
+        )

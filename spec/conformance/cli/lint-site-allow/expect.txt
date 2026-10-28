@@ -1,0 +1,2 @@
+run: hd lint --deny unsigned-comparison-always --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

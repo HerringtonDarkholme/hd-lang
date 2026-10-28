@@ -26,6 +26,7 @@ export const close=()=>supervisor.close();
 }
 export const deployedCoreSource = `import {workerData} from 'node:worker_threads';
 import {createCoreHost as base} from './core.mjs';
+export {createPackageRuntime} from './package-providers.mjs';
 export function createCoreHost(sink,env,layer){
  const environment=workerData.program.environment;
  const result=base(sink,env,{...layer,providers(context){

@@ -2411,111 +2411,127 @@ body.repl-open .repl-toggle {
   }
 }
 
-/* Daily Metrics page (website/src/metrics.ts): one trend card per target. */
-.metric-summary {
-  display: flex;
-  gap: 16px;
-  font-weight: 600;
+/* Daily Metrics page (website/src/metrics.ts). Pillar colours are slots 1-4
+   of the dataviz reference palette; status keeps --ok / --repl-error. */
+:root {
+  --metric-c1: light-dark(#2a78d6, #3987e5);
+  --metric-c2: light-dark(#eb6834, #d95926);
+  --metric-c3: light-dark(#1baf7a, #199e70);
+  --metric-c4: light-dark(#8a8d99, #9ba1ae);
 }
-.metric-summary .is-pass,
-.metric-card.is-pass .metric-status {
-  color: var(--ok);
+.metric-c1 {
+  --metric-colour: var(--metric-c1);
 }
-.metric-summary .is-fail,
-.metric-card.is-fail .metric-status {
-  color: var(--repl-error);
+.metric-c2 {
+  --metric-colour: var(--metric-c2);
 }
-.metric-grid {
+.metric-c3 {
+  --metric-colour: var(--metric-c3);
+}
+.metric-c4 {
+  --metric-colour: var(--metric-c4);
+}
+.metric-pillars {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-  margin: 12px 0 28px;
+  gap: 10px;
+  margin: 12px 0 24px;
 }
-.metric-card {
-  margin: 0;
-  padding: 12px 14px 8px;
+.metric-pillar {
+  padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-soft);
-  min-width: 0;
 }
-.metric-card figcaption {
+.metric-pillar dt {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.metric-name {
-  color: var(--heading);
-  font-weight: 600;
-  font-size: 0.92rem;
-  line-height: 1.3;
-}
-.metric-script,
-.metric-goal-text,
-.metric-axis,
-.metric-empty {
-  color: var(--text-soft);
-  font-size: 0.78rem;
-}
-.metric-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
-  margin-top: 6px;
-}
-.metric-value {
   color: var(--heading);
-  font-size: 1.25rem;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-.metric-status {
-  color: var(--text-soft);
-  font-size: 0.8rem;
   font-weight: 600;
-  white-space: nowrap;
 }
-.metric-chart {
+.metric-pillar dd {
+  margin: 4px 0 0;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+.metric-pillar dd strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.metric-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--metric-colour);
+}
+.metric-count {
+  margin-left: auto;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.metric-explain {
+  color: var(--text-soft);
+  font-size: 0.92rem;
+}
+.metric-trend,
+.metric-goals {
   display: block;
   width: 100%;
-  height: 72px;
-  margin-top: 6px;
+  height: auto;
+  margin: 8px 0 28px;
   overflow: visible;
 }
-.metric-line {
+.metric-grid-line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.metric-tick,
+.metric-row-label,
+.metric-row-note,
+.metric-label {
+  fill: var(--text-soft);
+  font-size: 12px;
+  font-family: var(--font-body);
+}
+.metric-row-label,
+.metric-label {
+  fill: var(--text);
+}
+.metric-row-note.is-pass {
+  fill: var(--ok);
+}
+.metric-row-note.is-fail {
+  fill: var(--repl-error);
+}
+.metric-series {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--metric-colour);
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
+}
+.metric-point circle {
+  fill: var(--metric-colour);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+.metric-point circle.metric-hit {
+  fill: transparent;
+  stroke: none;
 }
 .metric-goal {
   stroke: var(--text-soft);
   stroke-width: 1;
   stroke-dasharray: 4 4;
 }
-.metric-dot circle {
-  fill: var(--accent);
-  stroke: var(--bg-soft);
-  stroke-width: 2;
-}
-.metric-dot.is-pass circle {
+.metric-bar.is-pass {
   fill: var(--ok);
 }
-.metric-dot.is-fail circle {
+.metric-bar.is-fail {
   fill: var(--repl-error);
 }
-.metric-dot circle.metric-hit {
-  fill: transparent;
-  stroke: none;
-}
-.metric-axis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 2px;
-}
-.metric-empty {
-  padding: 24px 0;
+.metric-bar.is-na {
+  fill: var(--text-soft);
 }

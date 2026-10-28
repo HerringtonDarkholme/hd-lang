@@ -1,5 +1,5 @@
 # test: declaration checks two local function parameters do not share a name
 fn work() -> i32:
-    fn inner(a: i32, a: i32) -> i32:  # diagnostic: duplicate-binding
+    fn inner(a: i32, a: i32) -> i32: # diagnostic: duplicate-binding
         a
     inner(1, 2)

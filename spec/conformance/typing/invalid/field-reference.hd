@@ -5,4 +5,4 @@ struct User:
     email: string
 
 fn emails() -> fn(User) -> string:
-    User::email  # diagnostic: unknown-method
+    User::email # diagnostic: unknown-method

@@ -15,7 +15,7 @@ fn wrong_expected() -> List[string]:
 
 fn comments() -> Map[string, string]:
     Map.new(
-        # preserve this explanation
+    # preserve this explanation
     )
 
 fn instance(value: Map[string, string]) -> Map[string, string]:

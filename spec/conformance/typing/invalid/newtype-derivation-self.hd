@@ -27,5 +27,5 @@ impl[T] Pairing for T by Structure:
         _ := T::describe(&mut d)
         (self, d.total)
 
-@derive(Pairing)  # diagnostic: newtype-derivation-self
+@derive(Pairing) # diagnostic: newtype-derivation-self
 type Tag(string)

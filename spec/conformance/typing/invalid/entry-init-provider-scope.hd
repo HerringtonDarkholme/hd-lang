@@ -6,10 +6,11 @@ trait Source:
 struct Fixed: pass
 
 impl Source for Fixed:
-    fn read(&self) -> i32: +1
+    fn read(&self) -> i32:
+        +1
 
 if true:
-    $.with(Source=&mut Fixed {}):  # diagnostic: missing-requirement
+    $.with(Source=&mut Fixed {}): # diagnostic: missing-requirement
         _ := $.use(Source).read()
 
 pub fn main() -> void:

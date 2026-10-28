@@ -169,10 +169,7 @@ impl Number:
         match self.repr:
             .Negative(value) => .Some(value)
             .NonNegative(value) =>
-                if value < sign_limit():
-                    .Some(i64(value))
-                else:
-                    .None
+                if value < sign_limit(): .Some(i64(value)) else: .None
             .Float(_) => .None
 
     ## The integer when it is from zero up, and `.None` for a negative integer or a float.
@@ -219,10 +216,7 @@ impl Json:
     pub fn at(self, index: usize) -> Json?:
         match self:
             .Array(items) =>
-                if index < items.len():
-                    .Some(items[index])
-                else:
-                    .None
+                if index < items.len(): .Some(items[index]) else: .None
             _ => .None
 
     ## The string of a `Text` value.
@@ -355,7 +349,8 @@ impl Display for Json:
 fn render(value: Json, parts: &mut List[string], spaced: bool, depth: usize) -> void:
     match value:
         .Null => parts.push("null")
-        .Bool(flag) => parts.push(if flag: "true" else: "false")
+        .Bool(flag) =>
+            parts.push(if flag: "true" else: "false")
         .Number(number) => parts.push("$number")
         .Text(text) => push_quoted(parts, text)
         .Array(items) =>
@@ -486,7 +481,14 @@ pub enum JsonError:
 ## Reads one JSON text, strictly as RFC 8259 defines it, and returns `.Ok` of the value or `.Err` of the first error.
 ## See [std-json.parse](../../spec/std/json.md#r-std-json.parse).
 pub fn parse(text: string) -> Result[Json, JsonError]:
-    parser := &mut Parser { text: text, size: bytes_len(text), at: 0, index: [], pending: [], held: 0 }
+    parser := &mut Parser {
+        text: text,
+        size: bytes_len(text),
+        at: 0,
+        index: [],
+        pending: [],
+        held: 0,
+    }
     value := parser.value(0)?
     parser.skip_space()
     if parser.at < parser.size:
@@ -542,7 +544,8 @@ impl Parser:
         if byte == 45 || is_digit(byte):
             self.validate_number()?
             return .Ok(0)
-        if byte != 91 && byte != 123: return .Err(self.unexpected(start))
+        if byte != 91 && byte != 123:
+            return .Err(self.unexpected(start))
         if depth >= 128:
             return .Err(JsonError.NestingTooDeep(start))
         object := byte == 123
@@ -566,7 +569,8 @@ impl Parser:
                     length := self.at - key - 2
                     let first: u64 = if length > 0: u64(bytes_at(self.text, key + 1)) else: 0
                     let bit: u64 = 1 << ((u64(length) * 31 + first) & 63)
-                    if seen & bit != 0: repeats = 1
+                    if seen & bit != 0:
+                        repeats = 1
                     seen = seen | bit
                 else:
                     repeats = 1
@@ -584,25 +588,32 @@ impl Parser:
                 self.skip_space()
                 item := if self.at < self.size: bytes_at(self.text, self.at) else: 0
                 entry := self.validate(depth + 1)?
-                if item == 91 || item == 123: self.hold(entry)
+                if item == 91 || item == 123:
+                    self.hold(entry)
             self.skip_space()
             index := self.at
             if index < self.size:
                 next := bytes_at(self.text, index)
                 if next == close:
                     self.at = index + 1
-                    return .Ok(if object: self.close_object(mark, repeats) else: self.close_array(mark))
+                    return .Ok(
+                        if object: self.close_object(mark, repeats) else: self.close_array(mark)
+                        ,
+                    )
                 if next == 44:
                     self.at = index + 1
-                    if object: self.skip_space()
+                    if object:
+                        self.skip_space()
                     continue
             return .Err(self.unexpected(index))
 
     # Keep one word of an open container's member.
     fn hold(&mut self, word: usize) -> void:
         held := self.held
-        if held < self.pending.len(): self.pending[held] = word
-        else: self.pending.push(word)
+        if held < self.pending.len():
+            self.pending[held] = word
+        else:
+            self.pending.push(word)
         self.held = held + 1
 
     # Move the child entries held since `mark` into a new array entry, and
@@ -634,7 +645,8 @@ impl Parser:
         word = mark
         while word < held:
             value := bytes_at(self.text, self.pending[word + 1])
-            if value == 91 || value == 123: self.index.push(self.pending[word + 2])
+            if value == 91 || value == 123:
+                self.index.push(self.pending[word + 2])
             word = word + 3
         self.held = mark
         entry
@@ -644,12 +656,14 @@ impl Parser:
     # after those of the container values before it.
     fn child_of(&self, object: usize, count: usize, slot: usize, at: usize) -> usize:
         byte := bytes_at(self.text, at)
-        if byte != 91 && byte != 123: return 0
+        if byte != 91 && byte != 123:
+            return 0
         let child: usize = 0
         let before: usize = 0
         while before < slot:
             value := bytes_at(self.text, self.index[object + 3 + 2 * before])
-            if value == 91 || value == 123: child = child + 1
+            if value == 91 || value == 123:
+                child = child + 1
             before = before + 1
         self.index[object + 2 + 2 * count + child]
 
@@ -676,9 +690,12 @@ impl Parser:
         let offset: usize = 0
         while offset <= size:
             byte := bytes_at(self.text, start + offset)
-            if byte == 92: return .Ok(self.key_at(quote)? == name)
-            if byte == 34: return .Ok(offset == size)
-            if offset == size || byte != bytes_at(name, offset): return .Ok(false)
+            if byte == 92:
+                return .Ok(self.key_at(quote)? == name)
+            if byte == 34:
+                return .Ok(offset == size)
+            if offset == size || byte != bytes_at(name, offset):
+                return .Ok(false)
             offset = offset + 1
         .Ok(false)
 
@@ -687,22 +704,34 @@ impl Parser:
     fn value_end(&self, at: usize, entry: usize) -> usize:
         byte := bytes_at(self.text, at)
         if byte == 91 || byte == 123:
-            if entry > 0: return self.index[entry + 1]
+            if entry > 0:
+                return self.index[entry + 1]
             let index = at + 1
             while true:
                 next := bytes_at(self.text, index)
-                if next == 93 || next == 125: return index + 1
+                if next == 93 || next == 125:
+                    return index + 1
                 index = index + 1
         if byte == 34:
             let index = at + 1
             while true:
                 index = bytes_index_json(self.text, index)
-                if bytes_at(self.text, index) == 34: return index + 1
+                if bytes_at(self.text, index) == 34:
+                    return index + 1
                 index = index + 2
         let index = at + 1
         while index < self.size:
             next := bytes_at(self.text, index)
-            if next == 44 || next == 93 || next == 125 || next == 32 || next == 9 || next == 10 || next == 13: return index
+            if (
+                next == 44
+                || next == 93
+                || next == 125
+                || next == 32
+                || next == 9
+                || next == 10
+                || next == 13
+            ):
+                return index
             index = index + 1
         index
 
@@ -725,53 +754,89 @@ impl Parser:
         let plain = true
         while true:
             index = bytes_index_json(self.text, index)
-            if index >= size: return .Err(JsonError.UnexpectedEnd(index))
+            if index >= size:
+                return .Err(JsonError.UnexpectedEnd(index))
             byte := bytes_at(self.text, index)
             if byte == 34:
                 self.at = index + 1
                 return .Ok(plain)
-            if byte < 32: return .Err(JsonError.ControlCharacter(index))
+            if byte < 32:
+                return .Err(JsonError.ControlCharacter(index))
             plain = false
             backslash := index
-            if index + 1 >= size: return .Err(JsonError.UnexpectedEnd(index + 1))
+            if index + 1 >= size:
+                return .Err(JsonError.UnexpectedEnd(index + 1))
             escaped := bytes_at(self.text, index + 1)
             index = index + 2
             if escaped == 117:
                 unit := self.hex4(index)
-                if unit == -2: return .Err(JsonError.UnexpectedEnd(size))
-                if unit < 0: return .Err(JsonError.InvalidEscape(backslash))
+                if unit == -2:
+                    return .Err(JsonError.UnexpectedEnd(size))
+                if unit < 0:
+                    return .Err(JsonError.InvalidEscape(backslash))
                 index = index + 4
-                if unit >= 56320 && unit <= 57343: return .Err(JsonError.LoneSurrogate(backslash))
+                if unit >= 56320 && unit <= 57343:
+                    return .Err(JsonError.LoneSurrogate(backslash))
                 if unit >= 55296 && unit <= 56319:
-                    low := if index + 1 < size && bytes_at(self.text, index) == 92 && bytes_at(self.text, index + 1) == 117: self.hex4(index + 2) else: -1
-                    if low < 56320 || low > 57343: return .Err(JsonError.LoneSurrogate(backslash))
+                    low := if (
+                        index + 1 < size
+                        && bytes_at(self.text, index) == 92
+                        && bytes_at(self.text, index + 1) == 117
+                    ):
+                        self.hex4(index + 2)
+                    else:
+                        -1
+                    if low < 56320 || low > 57343:
+                        return .Err(JsonError.LoneSurrogate(backslash))
                     index = index + 6
-            else if escaped != 34 && escaped != 92 && escaped != 47 && escaped != 98 && escaped != 102 && escaped != 110 && escaped != 114 && escaped != 116:
+            else if (
+                escaped != 34
+                && escaped != 92
+                && escaped != 47
+                && escaped != 98
+                && escaped != 102
+                && escaped != 110
+                && escaped != 114
+                && escaped != 116
+            ):
                 return .Err(JsonError.InvalidEscape(backslash))
 
     fn validate_number(&mut self) -> Result[void, JsonError]:
         size := self.size
         start := self.at
         let index = start
-        if bytes_at(self.text, index) == 45: index = index + 1
-        if index >= size: return .Err(self.unexpected(index))
+        if bytes_at(self.text, index) == 45:
+            index = index + 1
+        if index >= size:
+            return .Err(self.unexpected(index))
         first := bytes_at(self.text, index)
-        if first == 48: index = index + 1
+        if first == 48:
+            index = index + 1
         else if first >= 49 && first <= 57:
-            while index < size && is_digit(bytes_at(self.text, index)): index = index + 1
-        else: return .Err(self.unexpected(index))
+            while index < size && is_digit(bytes_at(self.text, index)):
+                index = index + 1
+        else:
+            return .Err(self.unexpected(index))
         let floating = false
         if index < size && bytes_at(self.text, index) == 46:
             floating = true
             index = index + 1
-            if index >= size || !is_digit(bytes_at(self.text, index)): return .Err(self.unexpected(index))
-            while index < size && is_digit(bytes_at(self.text, index)): index = index + 1
+            if index >= size || !is_digit(bytes_at(self.text, index)):
+                return .Err(self.unexpected(index))
+            while index < size && is_digit(bytes_at(self.text, index)):
+                index = index + 1
         if index < size && (bytes_at(self.text, index) == 101 || bytes_at(self.text, index) == 69):
             floating = true
             index = index + 1
-            if index < size && (bytes_at(self.text, index) == 43 || bytes_at(self.text, index) == 45): index = index + 1
-            if index >= size || !is_digit(bytes_at(self.text, index)): return .Err(self.unexpected(index))
-            while index < size && is_digit(bytes_at(self.text, index)): index = index + 1
+            if (
+                index < size
+                && (bytes_at(self.text, index) == 43 || bytes_at(self.text, index) == 45)
+            ):
+                index = index + 1
+            if index >= size || !is_digit(bytes_at(self.text, index)):
+                return .Err(self.unexpected(index))
+            while index < size && is_digit(bytes_at(self.text, index)):
+                index = index + 1
         # At most 19 digits fit within the integer representations; larger
         # integers and floats still use the shared range/finite checks.
         if floating || index - start > 19:
@@ -964,7 +1029,14 @@ impl Parser:
                 if unit >= 56320 && unit <= 57343:
                     return .Err(JsonError.LoneSurrogate(backslash))
                 if unit >= 55296 && unit <= 56319:
-                    low := if index + 1 < size && bytes_at(text, index) == 92 && bytes_at(text, index + 1) == 117: self.hex4(index + 2) else: -1
+                    low := if (
+                        index + 1 < size
+                        && bytes_at(text, index) == 92
+                        && bytes_at(text, index + 1) == 117
+                    ):
+                        self.hex4(index + 2)
+                    else:
+                        -1
                     if low < 56320 || low > 57343:
                         return .Err(JsonError.LoneSurrogate(backslash))
                     point = 65536 + (unit - 55296) * 1024 + (low - 56320)
@@ -1126,7 +1198,14 @@ impl Debug for JsonObject:
 ## The `Json` that `value`'s `serialize` writes.
 ## See [std-json.to-json](../../spec/std/json.md#r-std-json.to-json).
 pub fn to_json[T < Serialize](value: T) -> Json:
-    writer := &mut JsonWriter { result: Json.Null, pending: "", keys: [], values: [], frames: [], no_facts: Facts { items: [] } }
+    writer := &mut JsonWriter {
+        result: Json.Null,
+        pending: "",
+        keys: [],
+        values: [],
+        frames: [],
+        no_facts: Facts { items: [] },
+    }
     match value.serialize(writer):
         .Ok(_) => writer.result
         .Err(_) => panic("std.json: the JSON writer never fails")
@@ -1149,7 +1228,7 @@ pub fn encode[T < Serialize](value: T) -> string:
     _ := value.serialize(writer)
     match writer.finish():
         .Some(text) => text
-        .None => "${to_json(value)}"
+        .None => encode_fallback(value)
 
 # The pretty text of a value's `Json` (r-std-json.encode-pretty), written
 # by `TextWriter` in its spaced layout, or through the tree as `encode`
@@ -1161,13 +1240,20 @@ pub fn encode_pretty[T < Serialize](value: T) -> string:
     _ := value.serialize(writer)
     match writer.finish():
         .Some(text) => text
-        .None => to_json(value).pretty()
+        .None => encode_pretty_fallback(value)
 
 # Read validated text directly through the typed deserializer (r-std-json.decode.direct).
 ## Reads a typed value directly from validated JSON text.
 ## See [std-json.decode.direct](../../spec/std/json.md#r-std-json.decode.direct).
 pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
-    let mut parser = Parser { text: text, size: bytes_len(text), at: 0, index: [0, 0], pending: [], held: 0 }
+    let mut parser = Parser {
+        text: text,
+        size: bytes_len(text),
+        at: 0,
+        index: [0, 0],
+        pending: [],
+        held: 0,
+    }
     root := parser.validate(0)?
     parser.skip_space()
     if parser.at != parser.size:
@@ -1264,7 +1350,16 @@ impl JsonWriter:
         .Ok(())
 
     fn open(&mut self, kind: i32, name: string, of_data: bool, facts: Facts) -> Result[void, never]:
-        self.frames.push(OpenFrame { kind: kind, start: self.values.len(), key: self.pending, name: name, of_data: of_data, facts: facts })
+        self.frames.push(
+            OpenFrame {
+                kind: kind,
+                start: self.values.len(),
+                key: self.pending,
+                name: name,
+                of_data: of_data,
+                facts: facts,
+            },
+        )
         .Ok(())
 
     # The innermost frame, its items, and its keys, popped.
@@ -1328,11 +1423,17 @@ impl Serializer for JsonWriter:
         closed := self.close()
         self.put(Json.Object(object_of(closed._1, closed._2)))
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.open(2, v.name, v.of_data, facts)
 
-    fn member(&mut self, m: Member) -> Result[void, never]:
-        facts := if self.frames.is_empty(): self.no_facts else: self.frames[self.frames.len() - 1].facts
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.open(3, v.name, false, facts)
+
+    fn member(&mut self, m: &Member) -> Result[void, never]:
+        facts := if self.frames.is_empty():
+            self.no_facts
+        else:
+            self.frames[self.frames.len() - 1].facts
         self.pending = member_name(m, facts)
         .Ok(())
 
@@ -1341,6 +1442,12 @@ impl Serializer for JsonWriter:
     fn end_variant(&mut self) -> Result[void, never]:
         closed := self.close()
         frame := closed._0
+        if frame.kind == 3:
+            if closed._2.len() != 1:
+                panic("std.json: a newtype variant needs one value")
+            let mut outer = JsonObject::new()
+            outer.set(frame.name, closed._2[0])
+            return self.put(Json.Object(outer))
         fields := object_of(closed._1, closed._2)
         if frame.of_data:
             return self.put(Json.Object(fields))
@@ -1368,6 +1475,8 @@ enum FrameKind:
     Record
     # An enum variant: its name, or `{"Variant":{...}}`.
     Tagged
+    # An enum newtype variant: `{"Variant": value}`.
+    Newtype
 
 # The writer met a walk that it does not write directly.
 enum Irregular:
@@ -1412,7 +1521,25 @@ struct TextWriter:
 
 impl TextWriter:
     fn new(spaced: bool) -> *mut TextWriter:
-        &mut TextWriter { parts: &mut [], depth: 0, kinds: [], names: [], counts: [], key_starts: [], facts: [], no_facts: Facts { items: [] }, key_count: 0, keys: [], prints: [], pending: "", keyed: false, written: false, regular: true, spaced: spaced, indent: 0 }
+        &mut TextWriter {
+            parts: &mut [],
+            depth: 0,
+            kinds: [],
+            names: [],
+            counts: [],
+            key_starts: [],
+            facts: [],
+            no_facts: Facts { items: [] },
+            key_count: 0,
+            keys: [],
+            prints: [],
+            pending: "",
+            keyed: false,
+            written: false,
+            regular: true,
+            spaced: spaced,
+            indent: 0,
+        }
 
     # The text, or `.None` when the walk was not regular or not complete.
     fn finish(&self) -> string?:
@@ -1444,6 +1571,10 @@ impl TextWriter:
                 if count > 0:
                     self.parts.push(",")
                 line_break(self.parts, self.spaced, self.indent)
+                return .Ok(())
+            .Newtype =>
+                if count > 0:
+                    return self.give_up()
                 return .Ok(())
             _ => pass
         if !self.keyed:
@@ -1510,6 +1641,11 @@ impl TextWriter:
         match kind:
             .Items => self.parts.push("[")
             .Tagged => pass
+            .Newtype =>
+                self.parts.push("{")
+                line_break(self.parts, self.spaced, self.indent + 1)
+                push_quoted(self.parts, name)
+                self.parts.push(if self.spaced: ": " else: ":")
             _ => self.parts.push("{")
         at := self.depth
         if at < self.kinds.len():
@@ -1560,6 +1696,11 @@ impl TextWriter:
                     self.parts.push("}}")
                 else:
                     push_quoted(self.parts, self.names[last])
+            (.Record, .Newtype) =>
+                if count != 1:
+                    return self.give_up()
+                line_break(self.parts, self.spaced, self.indent - 1)
+                self.parts.push("}")
             _ => return self.give_up()
         self.key_count = self.key_starts[last]
         self.depth = last
@@ -1625,10 +1766,13 @@ impl Serializer for TextWriter:
     fn end_map(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Entries)
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, Irregular]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
         self.open(if v.of_data: FrameKind.Record else: FrameKind.Tagged, v.name, facts)
 
-    fn member(&mut self, m: Member) -> Result[void, Irregular]:
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
+        self.open(FrameKind.Newtype, v.name, facts)
+
+    fn member(&mut self, m: &Member) -> Result[void, Irregular]:
         if !self.regular || self.depth == 0:
             return self.give_up()
         self.name_next(member_name(m, self.facts[self.depth - 1]))
@@ -1661,6 +1805,10 @@ enum ReadKind:
     Record
     # An enum variant's payload, read with `member`; its path adds `.Variant`.
     Tagged
+    # An enum variant written as its name, with no payload.
+    Unit
+    # An enum newtype variant's one direct payload; its path adds `.Variant`.
+    Newtype
 
 # Reads one `Json` for `from_json`. `value` is the value at the cursor, and
 # `present` is false for a member whose key is missing.
@@ -1693,7 +1841,22 @@ struct JsonReader:
 
 impl JsonReader:
     fn new(value: Json) -> *mut JsonReader:
-        &mut JsonReader { value: value, present: true, depth: 0, steps: [], names: [], open: 0, containers: [], kinds: [], next: [], bases: [], homes: [], variants: [], facts: [], no_facts: Facts { items: [] } }
+        &mut JsonReader {
+            value: value,
+            present: true,
+            depth: 0,
+            steps: [],
+            names: [],
+            open: 0,
+            containers: [],
+            kinds: [],
+            next: [],
+            bases: [],
+            homes: [],
+            variants: [],
+            facts: [],
+            no_facts: Facts { items: [] },
+        }
 
     # The path of the first `depth` steps: `$`, then `.key` or `[index]`
     # for each.
@@ -1734,7 +1897,14 @@ impl JsonReader:
             self.names.push(key)
 
     # Opens a frame whose items' container is at path depth `base`.
-    fn enter(&mut self, container: Json, kind: ReadKind, base: usize, name: string, facts: Facts) -> void:
+    fn enter(
+        &mut self,
+        container: Json,
+        kind: ReadKind,
+        base: usize,
+        name: string,
+        facts: Facts,
+    ) -> void:
         at := self.open
         if at < self.containers.len():
             self.containers[at] = container
@@ -1813,10 +1983,7 @@ impl Deserializer for JsonReader:
                 match number.repr:
                     .Negative(_) => .Ok(ValueKind.Int)
                     .NonNegative(found) =>
-                        if found < sign_limit():
-                            .Ok(ValueKind.Int)
-                        else:
-                            .Ok(ValueKind.Uint)
+                        if found < sign_limit(): .Ok(ValueKind.Int) else: .Ok(ValueKind.Uint)
                     .Float(_) => .Ok(ValueKind.Float)
             .Text(_) => .Ok(ValueKind.Text)
             .Array(_) => .Ok(ValueKind.List)
@@ -1945,7 +2112,11 @@ impl Deserializer for JsonReader:
     # A data type reads an object. An enum reads `"Variant"` as
     # `{"Variant": {}}`, or an object with exactly one key
     # (r-std-json.derive.from-json.enum).
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, JsonError]:
         if choices.len() == 1 && choices[0].of_data:
             if self.present:
                 match self.value:
@@ -1973,20 +2144,34 @@ impl Deserializer for JsonReader:
         let index: usize = 0
         while index < choices.len():
             if choices[index].name == name:
-                if !named:
-                    match payload:
-                        .Object(_) => pass
-                        _ => return .Err(JsonError.WrongType(concat_all([self.path_to(self.depth), ".", name]), "object"))
                 depth := self.depth
                 self.step_key(depth, name)
-                self.enter(payload, ReadKind.Tagged, depth + 1, name, facts)
+                self.enter(
+                    payload,
+                    if named: ReadKind.Unit else: ReadKind.Tagged,
+                    depth + 1,
+                    name,
+                    facts,
+                )
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
 
+    fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
+        last := self.top()
+        match self.kinds[last]:
+            .Tagged =>
+                self.kinds[last] = ReadKind.Newtype
+                if self.present:
+                    self.value = self.containers[last]
+                    self.depth = self.bases[last]
+                    return .Ok(())
+            _ => pass
+        .Err(self.fail("newtype variant"))
+
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member-wire-name). A list or a map has no members.
-    fn member(&mut self, m: Member) -> Result[void, JsonError]:
+    fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         last := self.top()
         name := member_name(m, self.facts[last])
         base := self.bases[last]
@@ -1994,7 +2179,9 @@ impl Deserializer for JsonReader:
             .Record => self.find_member(last, name)
             .Tagged =>
                 self.step_key(base - 1, self.variants[last])
-                self.find_member(last, name)
+                match self.containers[last]:
+                    .Object(_) => self.find_member(last, name)
+                    _ => return .Err(JsonError.WrongType(self.path_to(base), "object"))
             _ =>
                 self.value = Json.Null
                 self.present = false
@@ -2003,6 +2190,16 @@ impl Deserializer for JsonReader:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, JsonError]:
+        last := self.top()
+        match self.kinds[last]:
+            .Tagged =>
+                match self.containers[last]:
+                    .Object(_) => pass
+                    _ =>
+                        base := self.bases[last]
+                        self.step_key(base - 1, self.variants[last])
+                        return .Err(JsonError.WrongType(self.path_to(base), "object"))
+            _ => pass
         self.leave()
         .Ok(())
 
@@ -2023,6 +2220,8 @@ impl Deserializer for JsonReader:
 # tree.
 struct TextReadFrame:
     pub kind: ReadKind
+    # The raw offset of this frame's value.
+    pub at: usize
     # The container's index entry, and its member count there.
     pub entry: usize
     pub count: usize
@@ -2063,25 +2262,40 @@ impl TextReader:
         let mut source = parser
         source.at = 0
         source.skip_space()
-        &mut TextReader { parser: &mut source, at: source.at, entry: root, present: true, depth: 0, steps: [], names: [], open: 0, frames: [], no_facts: Facts { items: [] } }
+        &mut TextReader {
+            parser: &mut source,
+            at: source.at,
+            entry: root,
+            present: true,
+            depth: 0,
+            steps: [],
+            names: [],
+            open: 0,
+            frames: [],
+            no_facts: Facts { items: [] },
+        }
 
     fn path_to(&self, depth: usize) -> string:
         let mut parts: List[string] = ["\$"]
         let index: usize = 0
         while index < depth:
             step := self.steps[index]
-            if step < 0: parts.push("." + self.names[index])
-            else: parts.push("[$step]")
+            if step < 0:
+                parts.push("." + self.names[index])
+            else:
+                parts.push("[$step]")
             index = index + 1
         concat_all(parts)
 
     fn fail(&self, expected: string) -> JsonError:
         path := self.path_to(self.depth)
-        if !self.present: return JsonError.MissingField(path)
+        if !self.present:
+            return JsonError.MissingField(path)
         JsonError.WrongType(path, expected)
 
     fn step_index(&mut self, slot: usize, index: usize) -> void:
-        if slot < self.steps.len(): self.steps[slot] = i64(index)
+        if slot < self.steps.len():
+            self.steps[slot] = i64(index)
         else:
             self.steps.push(i64(index))
             self.names.push("")
@@ -2110,7 +2324,8 @@ impl TextReader:
     # objects need no map, and their unescaped keys remain input slices.
     fn scan_object(&mut self, frame: &mut TextReadFrame) -> Result[void, JsonError]:
         frame.key_count = 0
-        if frame.positions.len() > 0: frame.positions = {}
+        if frame.positions.len() > 0:
+            frame.positions = {}
         let member: usize = 0
         let child = frame.entry + 2 + 2 * frame.count
         while member < frame.count:
@@ -2154,14 +2369,50 @@ impl TextReader:
             member = member + 1
         .Ok(())
 
-    fn enter(&mut self, at: usize, entry: usize, kind: ReadKind, base: usize, name: string, facts: Facts) -> Result[void, JsonError]:
+    fn enter(
+        &mut self,
+        at: usize,
+        entry: usize,
+        kind: ReadKind,
+        base: usize,
+        name: string,
+        facts: Facts,
+    ) -> Result[void, JsonError]:
         slot := self.open
         if slot == self.frames.len():
-            self.frames.push(&mut TextReadFrame { kind: kind, entry: 0, count: 0, repeats: false, next: 0, cursor: 0, child: 0, keys: [], key_count: 0, offsets: [], children: [], positions: {}, base: base, home: self.depth, name: name, facts: facts })
+            self.frames.push(
+                &mut TextReadFrame {
+                    kind: kind,
+                    at: 0,
+                    entry: 0,
+                    count: 0,
+                    repeats: false,
+                    next: 0,
+                    cursor: 0,
+                    child: 0,
+                    keys: [],
+                    key_count: 0,
+                    offsets: [],
+                    children: [],
+                    positions: {},
+                    base: base,
+                    home: self.depth,
+                    name: name,
+                    facts: facts,
+                },
+            )
         frame := self.frames[slot]
         frame.kind = kind
+        frame.at = at
         frame.entry = entry
-        head := self.parser.index[entry]
+        let head: usize = 0
+        match kind:
+            .Newtype => pass
+            .Unit => pass
+            .Tagged =>
+                if bytes_at(self.parser.text, at) == 123:
+                    head = self.parser.index[entry]
+            _ => head = self.parser.index[entry]
         frame.count = head / 2
         frame.repeats = head % 2 == 1
         frame.next = 0
@@ -2176,12 +2427,14 @@ impl TextReader:
             .Items => pass
             .Entries => self.scan_object(frame)?
             _ =>
-                if frame.count > 16: self.scan_object(frame)?
+                if frame.count > 16:
+                    self.scan_object(frame)?
         self.open = slot + 1
         .Ok(())
 
     fn top(&self) -> *mut TextReadFrame:
-        if self.open == 0: panic("std.json: no open container")
+        if self.open == 0:
+            panic("std.json: no open container")
         self.frames[self.open - 1]
 
     fn leave(&mut self) -> void:
@@ -2201,18 +2454,25 @@ impl Deserializer for TextReader:
     type Error = JsonError
 
     fn peek(&mut self) -> Result[ValueKind, JsonError]:
-        if !self.present: return .Ok(ValueKind.Null)
+        if !self.present:
+            return .Ok(ValueKind.Null)
         byte := self.byte()
-        if byte == 110: return .Ok(ValueKind.Null)
-        if byte == 116 || byte == 102: return .Ok(ValueKind.Bool)
-        if byte == 34: return .Ok(ValueKind.Text)
-        if byte == 91: return .Ok(ValueKind.List)
-        if byte == 123: return .Ok(ValueKind.Map)
+        if byte == 110:
+            return .Ok(ValueKind.Null)
+        if byte == 116 || byte == 102:
+            return .Ok(ValueKind.Bool)
+        if byte == 34:
+            return .Ok(ValueKind.Text)
+        if byte == 91:
+            return .Ok(ValueKind.List)
+        if byte == 123:
+            return .Ok(ValueKind.Map)
         match self.number()?:
             .Some(number) =>
                 match number.repr:
                     .Negative(_) => return .Ok(ValueKind.Int)
-                    .NonNegative(found) => return .Ok(if found < sign_limit(): ValueKind.Int else: ValueKind.Uint)
+                    .NonNegative(found) =>
+                        return .Ok(if found < sign_limit(): ValueKind.Int else: ValueKind.Uint)
                     .Float(_) => return .Ok(ValueKind.Float)
             .None => pass
         .Err(self.fail("value"))
@@ -2223,8 +2483,10 @@ impl Deserializer for TextReader:
     fn bool(&mut self, expected: string) -> Result[bool, JsonError]:
         if self.present:
             byte := self.byte()
-            if byte == 116: return .Ok(true)
-            if byte == 102: return .Ok(false)
+            if byte == 116:
+                return .Ok(true)
+            if byte == 102:
+                return .Ok(false)
         .Err(self.fail(expected))
 
     fn int(&mut self, expected: string) -> Result[i64, JsonError]:
@@ -2255,7 +2517,8 @@ impl Deserializer for TextReader:
         .Err(self.fail(expected))
 
     fn text(&mut self, expected: string) -> Result[string, JsonError]:
-        if self.present && self.byte() == 34: return self.parser.string()
+        if self.present && self.byte() == 34:
+            return self.parser.string()
         .Err(self.fail(expected))
 
     fn begin_list(&mut self) -> Result[void, JsonError]:
@@ -2315,18 +2578,24 @@ impl Deserializer for TextReader:
                     self.depth = frame.base + 1
                     return .Ok(.Some(key))
             .Items =>
-                if self.parser.list_item(frame.cursor) != 93: panic("std.json: next_key in a list")
+                if self.parser.list_item(frame.cursor) != 93:
+                    panic("std.json: next_key in a list")
             _ => pass
         self.leave()
         .Ok(.None)
 
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, JsonError]:
         if choices.len() == 1 && choices[0].of_data:
             if self.present && self.byte() == 123:
                 self.enter(self.at, self.entry, ReadKind.Record, self.depth, "", facts)?
                 return .Ok(0)
             return .Err(self.fail("object"))
-        if !self.present: return .Err(self.fail("variant"))
+        if !self.present:
+            return .Err(self.fail("variant"))
         byte := self.byte()
         let name = ""
         let payload: usize? = .None
@@ -2337,12 +2606,14 @@ impl Deserializer for TextReader:
             # and the last member holds the value.
             object := self.entry
             count := self.parser.index[object] / 2
-            if count == 0: return .Err(self.fail("variant"))
+            if count == 0:
+                return .Err(self.fail("variant"))
             name = self.parser.key_at(self.parser.index[object + 2])?
             let other: usize = 1
             while other < count:
                 same := self.parser.key_is(self.parser.index[object + 2 + 2 * other], name)?
-                if !same: return .Err(self.fail("variant"))
+                if !same:
+                    return .Err(self.fail("variant"))
                 other = other + 1
             payload = .Some(count - 1)
         else:
@@ -2350,30 +2621,59 @@ impl Deserializer for TextReader:
         let index: usize = 0
         while index < choices.len():
             if choices[index].name == name:
-                let entry: usize = 0
+                let at: usize = self.at
+                let entry: usize = self.entry
+                let present = false
                 match payload:
                     .Some(slot) =>
                         object := self.entry
-                        at := self.parser.index[object + 3 + 2 * slot]
-                        if bytes_at(self.parser.text, at) != 123:
-                            return .Err(JsonError.WrongType(concat_all([self.path_to(self.depth), ".", name]), "object"))
-                        entry = self.parser.child_of(object, self.parser.index[object] / 2, slot, at)
+                        at = self.parser.index[object + 3 + 2 * slot]
+                        entry = self.parser.child_of(
+                            object,
+                            self.parser.index[object] / 2,
+                            slot,
+                            at,
+                        )
+                        present = true
                     .None => pass
                 depth := self.depth
                 self.step_key(depth, name)
-                self.enter(0, entry, ReadKind.Tagged, depth + 1, name, facts)?
+                self.enter(
+                    at,
+                    entry,
+                    if present: ReadKind.Tagged else: ReadKind.Unit,
+                    depth + 1,
+                    name,
+                    facts,
+                )?
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
 
-    fn member(&mut self, m: Member) -> Result[void, JsonError]:
+    fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
+        frame := self.top()
+        match frame.kind:
+            .Tagged =>
+                frame.kind = ReadKind.Newtype
+                if self.present:
+                    self.at = frame.at
+                    self.entry = frame.entry
+                    self.depth = frame.base
+                    return .Ok(())
+            _ => pass
+        .Err(self.fail("newtype variant"))
+
+    fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         frame := self.top()
         name := member_name(m, frame.facts)
         let found = false
         let record = true
         match frame.kind:
             .Record => pass
-            .Tagged => self.step_key(frame.base - 1, frame.name)
+            .Tagged =>
+                self.step_key(frame.base - 1, frame.name)
+                if bytes_at(self.parser.text, frame.at) != 123:
+                    return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
             _ => record = false
         if record:
             if frame.count <= 16:
@@ -2381,14 +2681,22 @@ impl Deserializer for TextReader:
                 # found, then the first match; when keys may repeat, the
                 # last match holds the value.
                 let slot = frame.next
-                let hit = !frame.repeats && slot < frame.count && self.parser.key_is(self.parser.index[frame.entry + 2 + 2 * slot], name)?
+                let hit = (
+                    !frame.repeats
+                    && slot < frame.count
+                    && self.parser.key_is(self.parser.index[frame.entry + 2 + 2 * slot], name)?
+                )
                 if !hit:
                     let probe: usize = 0
                     while probe < frame.count:
-                        if self.parser.key_is(self.parser.index[frame.entry + 2 + 2 * probe], name)?:
+                        if self.parser.key_is(
+                            self.parser.index[frame.entry + 2 + 2 * probe],
+                            name,
+                        )?:
                             slot = probe
                             hit = true
-                            if !frame.repeats: break
+                            if !frame.repeats:
+                                break
                         probe = probe + 1
                 if hit:
                     self.at_slot(frame.entry, frame.count, slot)
@@ -2417,6 +2725,13 @@ impl Deserializer for TextReader:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, JsonError]:
+        frame := self.top()
+        match frame.kind:
+            .Tagged =>
+                if bytes_at(self.parser.text, frame.at) != 123:
+                    self.step_key(frame.base - 1, frame.name)
+                    return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
+            _ => pass
         self.leave()
         .Ok(())
 
@@ -2481,3 +2796,12 @@ fn bytes_index(text: string, from: usize, byte: u8) -> usize:
             return index
         index = index + 1
     size
+
+# Kept as one call so a closed program whose concrete serializer is known
+# to make a regular walk can leave the whole tree path unlinked. These stay
+# last so adding the private link boundary changes no existing item ID.
+fn encode_fallback[T < Serialize](value: T) -> string:
+    "${to_json(value)}"
+
+fn encode_pretty_fallback[T < Serialize](value: T) -> string:
+    to_json(value).pretty()

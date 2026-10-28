@@ -3,6 +3,10 @@
 tests:
     use std.testing.it_each
 
-    it_each("never runs", [1, 2], ignore="demonstrates ignore", body=fn!(value: i32):
-        panic("an ignored row must not run")
+    it_each(
+        "never runs",
+        [1, 2],
+        ignore="demonstrates ignore",
+        body=fn!(value: i32): panic("an ignored row must not run")
+        ,
     )

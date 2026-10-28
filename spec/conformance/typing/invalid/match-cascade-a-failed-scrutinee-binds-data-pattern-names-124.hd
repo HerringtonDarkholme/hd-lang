@@ -4,7 +4,7 @@ struct Point:
     y: i32
 
 fn run() -> i32:
-    match missing:  # diagnostic: unknown-name
+    match missing: # diagnostic: unknown-name
         Point { x, y } => x + y
 
 pub fn main() -> void:

@@ -29,5 +29,9 @@ tests:
     use std.testing.assert_equal
 
     it("U is open, so its default string fills it"):
-        assert_equal(label_of(Both { count: 3 }), "both", reason="the Source[string] implementation")
+        assert_equal(
+            label_of(Both { count: 3 }),
+            "both",
+            reason="the Source[string] implementation",
+        )
         assert_equal(label_of_both(Both { count: 3 }), "both", reason="the list binds S only")

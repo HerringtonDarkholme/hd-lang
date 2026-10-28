@@ -12,6 +12,7 @@
 //! (trait.typeid.name.package, trait.typeid.name.single-file). Repeated
 //! frames print once, then how many more times they repeat.
 
+use hd_base::SliceSort as _;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -73,7 +74,7 @@ fn hd(root: &Path, args: &[&str]) -> Output {
 }
 
 fn text(b: &[u8]) -> String {
-    String::from_utf8_lossy(b).into_owned()
+    crate::normalize_std_lines(&String::from_utf8_lossy(b))
 }
 
 /// A helper's failed assertion lists std's `assert`, the helper, then the
@@ -88,7 +89,7 @@ fn a_panic_lists_its_frames_panic_site_first() {
         "\
 PANIC src/lib.hd:20: sums prices
     panic: assertion-failed: total is 10
-    <std>/testing.hd:626 std.testing.assert
+    <std>/testing.hd:LINE std.testing.assert
     src/lib.hd:7 shop.total
     src/lib.hd:21 test \"sums prices\"
     repro: hd test src/lib.hd --filter \"sums prices\"
@@ -99,7 +100,7 @@ PANIC src/lib.hd:23: runs out
     repro: hd test src/lib.hd --filter \"runs out\"
 PANIC src/lib.hd:26: drops past the end
     panic: index-out-of-bounds: list remove_at index 5 out of bounds for length 2
-    <std>/collections.hd:53 std.collections.List.remove_at
+    <std>/collections.hd:LINE std.collections.List.remove_at
     src/lib.hd:14 shop.drop_far
     src/lib.hd:28 test \"drops past the end\"
     repro: hd test src/lib.hd --filter \"drops past the end\"
@@ -382,11 +383,10 @@ fn custom_sections(wasm: &[u8]) -> Vec<String> {
 }
 
 /// A debug build keeps the standard `name` section beside `hd.lines`; a
-/// release build drops it for the compact `hd.names`, so its panics still
-/// name their functions (`crates/hd_wasm_linear/DESIGN.md` §15.5). Both carry
-/// `hd.positions`, the anchors `hd build` resolved.
+/// release build drops both name sections after copying the names its traces
+/// need into `hd.positions`.
 #[test]
-fn release_builds_name_functions_in_hd_names() {
+fn release_builds_keep_names_only_in_positions() {
     let root = package(
         "hd-frames-release",
         "pub fn main() -> void $ Console:\n    println(42)\n",
@@ -402,11 +402,37 @@ fn release_builds_name_functions_in_hd_names() {
     let out = hd(&root, &["build", "--release"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let release = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
-    assert_eq!(
-        custom_sections(&release),
-        ["hd.lines", "hd.names", "hd.positions"]
-    );
+    assert_eq!(custom_sections(&release), ["hd.lines", "hd.positions"]);
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
+}
+
+/// A release build copies `inner` into `outer`, then `outer` into
+/// `main` (`docs/compiler/tir-v2.md`, "The inliner"), so `main` calls
+/// neither; the panic in the copy inside the copy still lists `inner`,
+/// `outer` and `main`, each at its own line.
+#[test]
+fn a_copy_inside_a_copy_reports_each_frame() {
+    let root = package(
+        "hd-frames-nested-copy",
+        "fn inner(x: i32) -> i32:\n    100 / x\n\nfn outer(x: i32) -> i32:\n    inner(x - 1) + 1\n\npub fn main() -> void $ Console:\n    let n = +1\n    println(outer(n))\n",
+    );
+    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
+    let out = hd(&root, &["build", "--release"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let wasm = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
+    let named = |f: &[u8]| wasm.windows(f.len()).any(|w| w == f);
+    assert!(!named(b"/main#") && !named(b"/outer#") && !named(b"/inner#"));
+    assert!(named(b"shop.main.main") && named(b"shop.main.outer") && named(b"shop.main.inner"));
+    let out = hd(&root, &["build/release/shop.wasm"]);
+    assert_eq!(
+        text(&out.stderr),
+        "\
+panic: integer-division-by-zero: division by zero
+    src/main.hd:2 shop.main.inner
+    src/main.hd:5 shop.main.outer
+    src/main.hd:9 shop.main.main
+"
+    );
 }
 
 /// A derived instance's body is the template's, so its instructions map
@@ -503,7 +529,7 @@ fn runtime_helper_names_are_short_and_readable() {
         );
     }
     let mut sorted = rt.clone();
-    sorted.sort();
+    sorted.sort_stable();
     sorted.dedup();
     assert_eq!(sorted.len(), rt.len(), "a helper name repeats: {rt:?}");
 }

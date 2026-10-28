@@ -2,6 +2,4 @@
 struct User:
     name: string
 
-user := User {
-    name: "Ada",
-}
+user := User { name: "Ada" }

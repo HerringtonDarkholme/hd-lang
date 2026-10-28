@@ -5,8 +5,8 @@
 //
 // Run, Check and Test go to the Rust compiler (rust-runner.ts), whose
 // wasm, hd_web.wasm, sits beside this script; the worker loads it once and
-// says it is ready after that. The WAT view's module comes from the same
-// wasm (the wat goal). The REPL's requests (`repl-*`) go to repl-host.ts,
+// says it is ready after that. Only a WAT request loads hd_wat.wasm,
+// which prints the compiler's program bytes. REPL requests go to repl-host.ts,
 // which runs the compiler's REPL session and the JS session that runs its
 // modules in this worker too.
 
@@ -38,6 +38,7 @@ export type WorkerMessage =
   /** A project to run, for the run worker. */
   | { readonly kind: "compiled"; readonly id: number; readonly run: CompiledRun }
   | { readonly kind: "wat"; readonly id: number; readonly result: WatResult }
+  | { readonly kind: "wat-loading"; readonly id: number }
   | ReplMessage;
 
 interface WorkerScope {
@@ -69,7 +70,9 @@ scope.onmessage = async ({ data: request }) => {
       ]);
     else scope.postMessage({ kind: "result", id, result: built });
   } else if (request.kind === "wat") {
-    const result = await rust.watProject(request.project);
+    const result = await rust.watProject(request.project, () =>
+      scope.postMessage({ kind: "wat-loading", id: request.id }),
+    );
     scope.postMessage({ kind: "wat", id: request.id, result });
   }
 };

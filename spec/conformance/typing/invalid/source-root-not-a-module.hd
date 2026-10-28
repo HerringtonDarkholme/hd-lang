@@ -1,6 +1,7 @@
 # test: without src/lib.hd the package has no root module, since the source root is never a directory module
 # Spec 10 Root Files: module.path.lib-only-root. The tree holds src/util.hd and no src/lib.hd.
 # fixture-package-tree: no-lib-root/src/app.hd
-use pkg.{util}  # diagnostic: unknown-module
+use pkg.{util} # diagnostic: unknown-module
 
-pub fn shown() -> i32: util.price()
+pub fn shown() -> i32:
+    util.price()

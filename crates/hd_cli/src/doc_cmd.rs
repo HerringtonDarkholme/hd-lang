@@ -9,8 +9,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use hd_diag::{Code, Severity};
-use hd_driver::{BuildProfile, Goal};
+use hd_driver::{BuildProfile, Goal, Output};
 use hd_project::{Role, SourceSet as _, module_below, role_of};
 
 use crate::report::{self, Diag, Reporter};
@@ -98,44 +97,30 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(r) => r,
         Err(e) => return rep.fail(&e),
     };
-    match document(&root, &o, &mut rep) {
+    match document(&root, &o, &mut rep, open) {
         Ok(()) => rep.finish(0),
         Err(code) => code,
     }
 }
 
 /// Checks the package (`cli.doc.check`), then writes its pages.
-fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode> {
+fn document(
+    root: &Path,
+    o: &Options,
+    rep: &mut Reporter,
+    opener: impl FnOnce(&Path) -> std::io::Result<bool>,
+) -> Result<(), ExitCode> {
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
     program.only_program("");
     let out = build_goal_with(&program, &Goal::Analyze, BuildProfile::Checked, true, rep)?;
-    let texts =
-        module_texts(&program.sources, &program.entries, o.private).map_err(|e| rep.fail(&e))?;
-    let modules = modules_of(&texts);
-    let root_ident = hd_project::package_ident(&program.package);
-    let deps = dependency_roots(&program);
-    let std_names = std_names();
-    let std: Vec<hd_doc::Module<'_>> = std_names
-        .iter()
-        .map(|(path, text)| hd_doc::Module { path, text })
-        .collect();
-    let package = hd_doc::Package {
-        name: &program.package,
-        root: &root_ident,
-        modules: &modules,
-        ifaces: &out.ifaces,
-        private: o.private,
-        scopes: &out.scopes,
-        deps: &deps,
-        std: &std,
-    };
     if let Some(name) = &o.name {
-        return print_name(&program, &package, &out, name, rep);
+        return with_package(&program, &out, o.private, |package| {
+            print_name(&program, package, &out, name, rep)
+        })
+        .map_err(|e| rep.fail(&e))?;
     }
-    let rendered = hd_doc::render(&package);
-    for b in &rendered.broken {
-        rep.diag(&broken_link(&program, b));
-    }
+    let rendered =
+        with_package(&program, &out, o.private, hd_doc::render).map_err(|e| rep.fail(&e))?;
     let files = rendered.files;
     // `cli.doc.dir`: `build/doc`, or `--out DIR` below the working directory.
     let dir = o
@@ -153,9 +138,70 @@ fn document(root: &Path, o: &Options, rep: &mut Reporter) -> Result<(), ExitCode
         }
     }
     if o.open {
-        open(&dir.join("index.html"), rep);
+        let page = dir.join("index.html");
+        open_with(&page, opener).map_err(|message| rep.fail(&message))?;
     }
     Ok(())
+}
+
+/// Builds the documentation package view around one checked output. The
+/// closure consumes every borrow before this function's owned text buffers
+/// are dropped.
+fn with_package<R>(
+    program: &disk::Program,
+    out: &Output,
+    private: bool,
+    f: impl FnOnce(&hd_doc::Package<'_>) -> R,
+) -> Result<R, String> {
+    let texts = module_texts(&program.sources, &program.entries, private)?;
+    let modules = modules_of(&texts);
+    let root_ident = hd_project::package_ident(&program.package);
+    let deps = dependency_roots(program);
+    let std_names = std_names();
+    let std: Vec<hd_doc::Module<'_>> = std_names
+        .iter()
+        .map(|(path, text)| hd_doc::Module { path, text })
+        .collect();
+    Ok(f(&hd_doc::Package {
+        name: &program.package,
+        root: &root_ident,
+        modules: &modules,
+        ifaces: &out.ifaces,
+        private,
+        scopes: &out.scopes,
+        deps: &deps,
+        std: &std,
+    }))
+}
+
+/// Documentation-link findings for `hd lint`. `hd_doc` owns link
+/// resolution and returns neutral broken-link facts; `hd_lint` owns their
+/// diagnostic message and selected level.
+pub(crate) fn lint_broken_links(
+    program: &disk::Program,
+    out: &Output,
+    policy: hd_lint::Policy,
+    reached: Option<&[bool]>,
+) -> Result<Vec<Diag>, String> {
+    let rendered = with_package(program, out, false, hd_doc::render)?;
+    let mut findings = Vec::new();
+    for broken in &rendered.broken {
+        let Some(source) = broken_link_source(program, broken) else {
+            continue;
+        };
+        if reached.is_some_and(|selected| {
+            out.files
+                .iter()
+                .position(|file| file == &source)
+                .is_none_or(|file| !selected.get(file).copied().unwrap_or(false))
+        }) {
+            continue;
+        }
+        if let Some(diag) = hd_lint::broken_doc_link(policy, &broken.name, broken.private) {
+            findings.push(diag.at(&program.sources.display(&source), None));
+        }
+    }
+    Ok(findings)
 }
 
 /// The dependencies' keys with the root module of each package.
@@ -170,33 +216,18 @@ fn dependency_roots(program: &disk::Program) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The warning for a link that names no documented item
-/// (`cli.doc.link.broken`), at the source file of its module.
-fn broken_link(program: &disk::Program, b: &hd_doc::BrokenLink) -> Diag {
-    let why = if b.private {
-        "is private and not documented"
-    } else {
-        "names no item"
-    };
-    let mut diag = Diag::new(
-        Some(Code::BrokenDocLink),
-        Severity::Warning,
-        &format!("the link `[`{}`]` {why}", b.name),
-    );
+/// The root-package source whose documentation owns a broken link.
+fn broken_link_source(program: &disk::Program, b: &hd_doc::BrokenLink) -> Option<String> {
     let root = hd_project::package_ident(&program.package);
     let module = b
         .module
         .strip_prefix(&root)
         .map(|m| m.trim_start_matches('.'));
-    let file = program.sources.list().into_iter().find_map(|e| {
+    program.sources.list().into_iter().find_map(|e| {
         let path = &e.path;
         (path.starts_with("src/") && Some(module_below(path).as_str()) == module)
-            .then(|| program.sources.display(path))
-    });
-    if let Some(file) = file {
-        diag = diag.at(&file, None);
-    }
-    diag
+            .then(|| path.clone())
+    })
 }
 
 /// The (module path, text) of each module `hd doc` documents in `sources`
@@ -336,9 +367,8 @@ fn missing(name: &str, candidates: &[String], rep: &mut Reporter) -> ExitCode {
     ))
 }
 
-/// `cli.doc.open`: opens the entry page with the platform's default
-/// program. The pages are written already, so a failure only warns.
-fn open(page: &Path, rep: &mut Reporter) {
+/// `cli.doc.open`: opens the entry page with the platform's default program.
+fn open(page: &Path) -> std::io::Result<bool> {
     let mut command = if cfg!(target_os = "macos") {
         std::process::Command::new("open")
     } else if cfg!(windows) {
@@ -348,12 +378,121 @@ fn open(page: &Path, rep: &mut Reporter) {
     } else {
         std::process::Command::new("xdg-open")
     };
-    let status = command.arg(page).status();
-    if !status.is_ok_and(|s| s.success()) {
-        rep.diag(&Diag::new(
-            None,
-            Severity::Warning,
-            &format!("could not open {}", page.display()),
-        ));
+    command.arg(page).status().map(|status| status.success())
+}
+
+/// The opener is injected so failures can be tested without launching a browser.
+fn open_with(
+    page: &Path,
+    opener: impl FnOnce(&Path) -> std::io::Result<bool>,
+) -> Result<(), String> {
+    if opener(page).is_ok_and(|success| success) {
+        Ok(())
+    } else {
+        Err(format!("could not open {}", page.display()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use std::path::Path;
+    use std::process::ExitCode;
+
+    use hd_testkit::Scratch;
+
+    use super::{Options, document, open_with};
+    use crate::report::Reporter;
+
+    fn project(name: &str) -> Scratch {
+        let root = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            name,
+        );
+        std::fs::create_dir_all(root.join("src")).expect("source directory");
+        std::fs::write(root.join("hd.toml"), "[package]\nname = \"docs\"\n").expect("manifest");
+        std::fs::write(root.join("src/lib.hd"), "pub fn answer() -> i32: +42\n").expect("source");
+        root
+    }
+
+    fn options(root: &Path, open: bool, json: bool) -> Options {
+        Options {
+            json,
+            private: false,
+            open,
+            out: Some(root.join("site")),
+            packages: Vec::new(),
+            name: None,
+        }
+    }
+
+    fn failed_open(name: &str, json: bool, spawn_error: bool) {
+        let root = project(name);
+        let options = options(&root, true, json);
+        let page = root.join("site/index.html");
+        let mut rep = Reporter::stdout(json);
+        let mut opened = false;
+        let result = document(&root, &options, &mut rep, |path| {
+            opened = true;
+            assert_eq!(path, page);
+            assert!(path.is_file(), "write the page before opening it");
+            if spawn_error {
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "mock opener absent",
+                ))
+            } else {
+                Ok(false)
+            }
+        });
+        assert!(opened, "reach the opener after a successful doc build");
+        assert_eq!(result, Err(ExitCode::from(crate::HD_FAILURE)));
+        assert_eq!((rep.errors, rep.warnings), (1, 0));
+        for file in ["index.html", "index.md", "pkg.html", "pkg.md", "llms.txt"] {
+            assert!(root.join("site").join(file).is_file(), "retain {file}");
+        }
+        // This is the exact message document passes to Reporter::fail, which
+        // writes it in the selected text/JSON format before the failure status.
+        let message = open_with(&page, |_| Ok(false)).expect_err("mock opener failure");
+        assert_eq!(message, format!("could not open {}", page.display()));
+    }
+
+    #[test]
+    fn missing_browser_command_fails_after_writing_docs() {
+        failed_open("hd-doc-open-missing", false, true);
+    }
+
+    #[test]
+    fn unsuccessful_browser_command_fails_after_writing_docs_in_json() {
+        failed_open("hd-doc-open-unsuccessful", true, false);
+    }
+
+    #[test]
+    fn successful_browser_command_keeps_success_status() {
+        let root = project("hd-doc-open-success");
+        let options = options(&root, true, false);
+        let mut rep = Reporter::stdout(false);
+        let mut opened = false;
+        let result = document(&root, &options, &mut rep, |page| {
+            opened = true;
+            assert!(page.is_file());
+            Ok(true)
+        });
+        assert!(opened);
+        assert_eq!(result, Ok(()));
+        assert_eq!((rep.errors, rep.warnings), (0, 0));
+    }
+
+    #[test]
+    fn docs_without_open_never_call_the_browser() {
+        let root = project("hd-doc-no-open");
+        let options = options(&root, false, false);
+        let mut rep = Reporter::stdout(false);
+        assert_eq!(
+            document(&root, &options, &mut rep, |_| panic!("unexpected opener")),
+            Ok(())
+        );
+        assert!(root.join("site/index.html").is_file());
+        assert_eq!((rep.errors, rep.warnings), (0, 0));
     }
 }

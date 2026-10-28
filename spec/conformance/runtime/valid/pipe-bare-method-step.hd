@@ -16,4 +16,8 @@ tests:
 
     it("x |> user.greet means user.greet(x)"):
         user := User { name: "Ada" }
-        assert_equal(welcome(user, "Hi"), "Hi, Ada", reason="user is the receiver and the piped value the argument")
+        assert_equal(
+            welcome(user, "Hi"),
+            "Hi, Ada",
+            reason="user is the receiver and the piped value the argument",
+        )

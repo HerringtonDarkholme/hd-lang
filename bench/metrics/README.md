@@ -144,8 +144,9 @@ Notes on the choices:
   retired TypeScript prototype documented;
   [`cli.json.diagnostic.fields`](../../spec/cli/command-line.md#r-cli.json.diagnostic.fields)
   names no fix-it field yet.
-- **`mistakes`** checks with `hd check --tests FILE`, so a mistake inside a
-  `tests:` block is checked too
+- **`mistakes`** uses each fixture's tool: `hd check` by default, or
+  `hd lint` for `# tool: lint`. Both use `--tests FILE`, so a mistake inside
+  a `tests:` block is checked too
   ([`cli.check.tests`](../../spec/cli/command-line.md#r-cli.check.tests)).
 
 ## Pillar 2 Metrics
@@ -343,6 +344,9 @@ fn negate(ready: bool) -> bool:
 - `# expect:` is the code the specification gives the mistake, and the one
   `check-fixtures.ts` requires. Warnings use `# warning: CODE` as the line
   marker.
+- `# tool: lint` selects lint for a migrated lint finding or cascade.
+  Without it, the fixture uses check. JSON, text and fixed-program checks
+  all use the selected tool.
 - `# fixed:` is optional: the corrected text of the marked line. `\n`
   starts another line, and `# fixed-lines: N` replaces N lines. No metric
   reads it; it confirms the program holds no other mistake.

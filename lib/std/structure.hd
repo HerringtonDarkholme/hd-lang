@@ -101,11 +101,18 @@ pub enum SelfRef:
 # (r-std-format.debug.derive-builders.source): a `@derive` on a std
 # declaration has no effect in the prototype.
 
-# A member's handle. `hd_witness` names the member's type, so that `fact`
-# needs no `Inspectable` bound on `HdF` (annot.handle.fact.key).
-## A member's handle: its `Member` information plus the calls a template needs.
+# A member's handle: a shared, read-only reference to the member's
+# record, which the compiler builds once per instance in static data, so a
+# handle is one address that no count changes.
+## A member's handle: a reference to its `FieldRecord`, which holds its `Member` information plus the calls a template needs.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub struct Field[HdS, HdF]:
+pub type Field[HdS, HdF] = *FieldRecord[HdS, HdF]
+
+# `hd_witness` names the member's type, so that `fact` needs no
+# `Inspectable` bound on `HdF` (annot.handle.fact.key).
+## What a member's handle refers to: its `Member` information plus the calls a template needs.
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
+pub struct FieldRecord[HdS, HdF]:
     ## The member's information.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub info: Member
@@ -114,80 +121,92 @@ pub struct Field[HdS, HdF]:
     hd_default: fn() -> HdF?
     hd_witness: *dyn Inspectable
 
-impl[HdS, HdF] Field[HdS, HdF]:
+impl[HdS, HdF] FieldRecord[HdS, HdF]:
     ## Reads the member's value from `s`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn get(self, s: HdS) -> HdF:
+    pub fn get(&self, s: HdS) -> HdF:
         (self.hd_get)(s)
 
     ## Whether the member has a default value.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn has_default(self) -> bool:
+    pub fn has_default(&self) -> bool:
         self.hd_has_default
 
     ## The member's default value, in `.Some`, or `.None`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn default(self) -> HdF?:
+    pub fn default(&self) -> HdF?:
         (self.hd_default)()
 
     ## The member's fact whose concrete type is `HdM`, or `.None`.
     ## See [annot.structure.find-exact](../../spec/lang/14-annotations.md#r-annot.structure.find-exact).
-    pub fn fact[HdM < Inspectable](self) -> HdM?:
+    pub fn fact[HdM < Inspectable](&self) -> HdM?:
         self.info.facts.find::[HdM]()
 
-# The handle of a member with no facts, doc comment, or default.
-fn hd__plain_field[HdS, HdF](name: string, position: usize, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: *dyn Inspectable) -> Field[HdS, HdF]:
-    Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF], hd_witness: witness }
-
-fn hd__no_default[HdF]() -> HdF?:
-    .None
-
-## A variant's handle: its `VariantInfo` plus the check that a value holds it.
+# A variant's handle, a member key and a member directory are, like a
+# member's handle, shared read-only references to records that the
+# compiler builds once per instance in static data.
+## A variant's handle: a reference to its `VariantRecord`, which holds its `VariantInfo` plus the check that a value holds it.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-pub struct Variant[HdS]:
+pub type Variant[HdS] = *VariantRecord[HdS]
+
+## What a variant's handle refers to: its `VariantInfo` plus the check that a value holds it.
+## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
+pub struct VariantRecord[HdS]:
     ## The variant's information.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub info: VariantInfo
     hd_holds: fn(HdS) -> bool
 
-impl[HdS] Variant[HdS]:
+impl[HdS] VariantRecord[HdS]:
     ## Whether `s` holds this variant.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub fn holds(self, s: HdS) -> bool:
+    pub fn holds(&self, s: HdS) -> bool:
         (self.hd_holds)(s)
 
-## A found member's key, carrying its information and target type.
+## A found member's key: a reference to its `KeyRecord`.
 ## See [annot.structure.members.key-entry](../../spec/lang/14-annotations.md#r-annot.structure.members.key-entry).
-pub struct Key[HdS]:
+pub type Key[HdS] = *KeyRecord[HdS]
+
+## What a member's key refers to: the member's information and target type.
+## See [annot.structure.members.key-entry](../../spec/lang/14-annotations.md#r-annot.structure.members.key-entry).
+pub struct KeyRecord[HdS]:
     pub info: Member
     hd_type: fn(HdS) -> bool
 
-## The members of the type being derived, which a template looks up by position or by a match.
+## The members of the type being derived: a reference to their `MembersRecord`.
 ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
-pub struct Members[HdS]:
+pub type Members[HdS] = *MembersRecord[HdS]
+
+# `hd_keys[k]` is the key of `infos[k]`.
+## What a member directory refers to: the members, which a template looks up by position or by a match.
+## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
+pub struct MembersRecord[HdS]:
     ## The members' information, in order.
     ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
     pub infos: List[Member]
-    hd_type: fn(HdS) -> bool
+    hd_keys: List[Key[HdS]]
 
-impl[HdS] Members[HdS]:
+impl[HdS] MembersRecord[HdS]:
     ## The key of the member at `position`, or `.None`.
     ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
-    pub fn at(self, position: usize) -> Key[HdS]?:
-        # The member is read in place, and copied only into the key.
+    pub fn at(&self, position: usize) -> Key[HdS]?:
         if position < self.infos.len() && self.infos[position].position == position:
-            return .Some(Key { info: self.infos[position], hd_type: self.hd_type })
-        for info in self.infos:
-            if info.position == position:
-                return .Some(Key { info: info, hd_type: self.hd_type })
+            return .Some(self.hd_keys[position])
+        let k: usize = 0
+        while k < self.infos.len():
+            if self.infos[k].position == position:
+                return .Some(self.hd_keys[k])
+            k += 1
         .None
 
     ## The key of the first member that `matches` accepts, or `.None`.
     ## See [annot.structure.members.find-option](../../spec/lang/14-annotations.md#r-annot.structure.members.find-option).
-    pub fn find(self, matches: fn(Member) -> bool) -> Key[HdS]?:
-        for info in self.infos:
-            if matches(info):
-                return .Some(Key { info: info, hd_type: self.hd_type })
+    pub fn find(&self, matches: fn(Member) -> bool) -> Key[HdS]?:
+        let k: usize = 0
+        while k < self.infos.len():
+            if matches(self.infos[k]):
+                return .Some(self.hd_keys[k])
+            k += 1
         .None
 
 # Generated `walk` calls `rest` for a rest member; the default calls

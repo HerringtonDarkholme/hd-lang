@@ -1,10 +1,13 @@
 # test: requirements / row inference / conflicting row
 
-fn combine[$R](left: fn() -> i32 $ R, right: fn() -> i32 $ R) -> i32 $ R:
+fn combine[$ R](left: fn() -> i32 $ R, right: fn() -> i32 $ R) -> i32 $ R:
     left() + right()
-fn clock() -> i32 $ Clock: 20
-fn logger() -> i32 $ Logger: 22
-fn main() -> i32 $ Clock + Logger: combine(clock, logger)  # diagnostic: type-mismatch
+fn clock() -> i32 $ Clock:
+    20
+fn logger() -> i32 $ Logger:
+    22
+fn main() -> i32 $ Clock + Logger:
+    combine(clock, logger) # diagnostic: type-mismatch
 
 trait Clock
 

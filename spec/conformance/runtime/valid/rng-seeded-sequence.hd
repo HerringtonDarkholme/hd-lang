@@ -24,7 +24,11 @@ tests:
         let mut flips: List[bool] = []
         for _ in 0..8:
             flips.push(dice.bool())
-        assert_equal(flips, [false, false, true, true, true, true, false, false], reason="eight flips")
+        assert_equal(
+            flips,
+            [false, false, true, true, true, true, false, false],
+            reason="eight flips",
+        )
 
     it("int on a seeded Rng repeats in every implementation"):
         dice := Rng::new(7)

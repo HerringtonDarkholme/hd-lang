@@ -3,4 +3,4 @@ trait Named:
     fn name(self) -> string
 
 struct User: pass
-impl Named for User  # diagnostic: missing-trait-method
+impl Named for User # diagnostic: missing-trait-method

@@ -10,7 +10,7 @@ fn identity[T](value: T) -> T:
 fn build() -> void:
     let span = 0..10
     let xs = [1, 2]
-    let scores = {"Ada": 1.5}
+    let scores = { "Ada": 1.5 }
     let found = Option.Some(3)
     let pair = Pair { first: 1, second: 2 }
     let both = (1, 2.5)

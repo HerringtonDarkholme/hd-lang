@@ -45,7 +45,7 @@ use hd_types::{Ty, TyList};
 
 use super::value::Src;
 use super::{Ctl, Em};
-use crate::layout::{Kind, Mem, Part, Walk, kind, mem as mem_of, walk};
+use crate::layout::{Kind, Mem, Part, kind, mem as mem_of, walk};
 use crate::module::{Func, HEAP, Module, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
@@ -100,14 +100,15 @@ fn raw_ty(b: &hd_tir::ir::Body, r: u32) -> Ty {
 }
 
 /// The operand that open instruction `at` changes in place, when it is a
-/// collection change (`hd_tir::own::changed`'s push, map store or removal).
+/// collection change (`hd_tir::own::changed`'s push, reserve, map store or
+/// removal).
 fn outlined_change(b: &hd_tir::ir::Body, at: u32) -> Option<u32> {
-    use hd_tir::ir::IntrinsicOp::{ListPush, MapRemove, MapSet};
+    use hd_tir::ir::IntrinsicOp::{ListPush, ListReserve, MapRemove, MapSet};
     let [a, w] = b.data[at as usize];
     (b.tags[at as usize] == Tag::Intrinsic
         && matches!(
             hd_tir::ir::IntrinsicOp::from_u32(a),
-            Some(ListPush | MapSet | MapRemove)
+            Some(ListPush | ListReserve | MapSet | MapRemove)
         ))
     .then(|| b.record(w)[0])
 }
@@ -138,7 +139,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         .filter(|c| c.1)
         .map(|c| (c.0 as usize, u32::MAX))
         .collect();
-    let mut em = Em::new(input, m, b, (item, args), calls, shared_cells);
+    let mut em = Em::new(input, m, b, (item, args), calls, shared_cells, false);
     // Each shared capture arrives as its cell's address.
     em.entry_cells = em.cells.keys().copied().collect();
     em.origin_root = at;
@@ -418,7 +419,8 @@ impl Em<'_, '_, '_> {
             return Ok(Cross::Same);
         }
         let one = |t: Ty| -> StageResult<bool> {
-            Ok(self.vals(t)? == [Val::I32] && walk(pool, env, t) == Some(Walk::Ref(0)))
+            Ok(self.vals(t)? == [Val::I32]
+                && walk(pool, env, t).and_then(|w| w.single()) == Some(0))
         };
         if let Kind::Ref { .. } = kind(pool, env, et) {
             return match kind(pool, env, ct) {

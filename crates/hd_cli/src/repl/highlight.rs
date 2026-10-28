@@ -5,6 +5,7 @@
 //! terminal columns, so the visible text and the cursor position are those
 //! of the original line. It lexes one line per keystroke and does not parse.
 
+use hd_base::SliceSort as _;
 use std::borrow::Cow;
 use std::io::IsTerminal;
 
@@ -170,7 +171,7 @@ fn spans(line: &str) -> Vec<(usize, usize, Class)> {
             _ => {}
         }
     }
-    found.sort_by_key(|&(lo, _, _)| lo);
+    found.sort_stable_by_key(|&(lo, _, _)| lo);
     found
 }
 

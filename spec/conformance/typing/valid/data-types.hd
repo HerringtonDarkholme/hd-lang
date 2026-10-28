@@ -4,12 +4,6 @@ struct User:
     display_name: string
 
 fn rename(user: User, name: string) -> User:
-    User {
-        ...user,
-        display_name: name,
-    }
+    User { ...user, display_name: name }
 
-user := User {
-    id: "user-1",
-    display_name: "Ada",
-}
+user := User { id: "user-1", display_name: "Ada" }

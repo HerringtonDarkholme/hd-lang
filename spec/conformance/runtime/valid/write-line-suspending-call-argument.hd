@@ -1,9 +1,10 @@
 # expect-stdout: 2
 # expect-stdout: done
 
-fn two!() -> i32: 2
+fn two!() -> i32:
+    2
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write!("${two!()}\n")?
-    console.write!("done\n")
+    console.write_sync("${two!()}\n")?
+    console.write_sync("done\n")

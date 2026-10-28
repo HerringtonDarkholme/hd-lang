@@ -21,9 +21,6 @@ tests:
         for case in cases:
             assert_equal(failure(case._0), .Some(case._1), reason=case._0)
     it("a number that ends where a digit must follow is UnexpectedEnd"):
-        cases := [
-            ("5.", JsonError.UnexpectedEnd(2)),
-            ("1e", JsonError.UnexpectedEnd(2)),
-        ]
+        cases := [("5.", JsonError.UnexpectedEnd(2)), ("1e", JsonError.UnexpectedEnd(2))]
         for case in cases:
             assert_equal(failure(case._0), .Some(case._1), reason=case._0)

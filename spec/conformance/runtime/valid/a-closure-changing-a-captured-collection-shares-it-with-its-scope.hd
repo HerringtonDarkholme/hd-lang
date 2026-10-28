@@ -2,8 +2,7 @@
 # Spec 07 Captures: fn.capture.cell, fn.capture.cell.writes.
 fn pushes() -> List[i64]:
     let mut seen: List[i64] = []
-    add := fn(n: i64) -> void:
-        seen.push(n)
+    add := fn(n: i64) -> void: seen.push(n)
     let n: i64 = 0
     while n < 30:
         add(n)
@@ -12,8 +11,7 @@ fn pushes() -> List[i64]:
 
 fn outer_push_is_seen() -> usize:
     let mut items: List[i64] = [1]
-    count := fn() -> usize:
-        items.len()
+    count := fn() -> usize: items.len()
     items.push(2)
     items.push(3)
     count()
@@ -39,4 +37,8 @@ tests:
         assert_equal(outer_push_is_seen(), 3, reason="the closure reads the list the scope changed")
 
     it("element and key stores in the closure reach the scope"):
-        assert_equal(element_and_key_stores(), (7, 7), reason="the closure's stores change the scope's list and map")
+        assert_equal(
+            element_and_key_stores(),
+            (7, 7),
+            reason="the closure's stores change the scope's list and map",
+        )

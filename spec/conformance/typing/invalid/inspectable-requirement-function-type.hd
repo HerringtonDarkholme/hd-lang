@@ -5,5 +5,5 @@ use std.inspect.Inspectable
 trait Storage < Inspectable:
     fn get(self, key: string) -> string?
 
-fn schedule(job: fn() -> void $ Storage) -> void:  # diagnostic: inspectable-requirement
+fn schedule(job: fn() -> void $ Storage) -> void: # diagnostic: inspectable-requirement
     pass

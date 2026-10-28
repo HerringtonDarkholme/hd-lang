@@ -4,7 +4,8 @@
 # req.drive.once, req.drive.not-method, req.value.cold, req.value.single,
 # req.value.stateful.
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 fn main!() -> i32:
     let pending: mut Suspend[i32] = ready()
     pending!()

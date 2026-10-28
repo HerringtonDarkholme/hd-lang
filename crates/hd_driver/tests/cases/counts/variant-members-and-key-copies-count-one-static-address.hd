@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: v8 release
+# A variant's handle, a member directory and its keys are each one
+# reference to a record that a handle body builds once in static data
+# (#895): keeping a copy or looking up a key counts one address, which the
+# runtime skips for static data. No copy glue copies a record's
+# information, facts list or closures.
+use std.structure.{Key, Members, Variant}
+
+struct Point:
+    x: i32
+
+fn keep(vs: &mut List[Variant[Point]], v: Variant[Point], ks: &mut List[Key[Point]], members: Members[Point]) -> void:
+    vs.push(v)
+    match members.at(0):
+        .Some(key) => ks.push(key)
+        .None => pass

@@ -11,4 +11,4 @@ impl Sum[i32] for Total:
         panic("not run")
 
 fn unspecified(values: List[i32]) -> void:
-    _ := values.iter().sum()  # diagnostic: cannot-infer-type
+    _ := values.iter().sum() # diagnostic: cannot-infer-type

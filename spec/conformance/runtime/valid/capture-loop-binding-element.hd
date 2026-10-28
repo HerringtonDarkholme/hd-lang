@@ -24,7 +24,7 @@ tests:
         assert_equal(rows[0].len(), 2, reason="the caller's row grew")
 
     it("a closure over a map value binding keeps the value"):
-        let mut shelves: Map[string, List[i32]] = {"a": [+1]}
+        let mut shelves: Map[string, List[i32]] = { "a": [+1] }
         counts := shelf_counters(shelves)
         shelves["a"].push(3)
         assert_equal(counts[0](), 1, reason="the binding is the value as it was")

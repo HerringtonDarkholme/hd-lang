@@ -28,4 +28,8 @@ tests:
     use std.testing.assert_equal
 
     it("both bounds allow only U = string"):
-        assert_equal(titles(Label { text: "a" }, Note { text: "b" }), ["a", "b"], reason="U is string")
+        assert_equal(
+            titles(Label { text: "a" }, Note { text: "b" }),
+            ["a", "b"],
+            reason="U is string",
+        )

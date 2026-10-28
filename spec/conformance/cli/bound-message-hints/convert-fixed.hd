@@ -4,10 +4,12 @@ trait Convert[T]:
 struct Packet: pass
 
 impl Convert[i32] for Packet:
-    fn convert(self) -> i32: +1
+    fn convert(self) -> i32:
+        +1
 
 impl Convert[string] for Packet:
-    fn convert(self) -> string: "one"
+    fn convert(self) -> string:
+        "one"
 
 fn run(packet: Packet) -> void:
     _number := Convert::[i32]::convert(packet)

@@ -35,6 +35,6 @@ impl[T] Encode for T by Structure:
 struct Opaque:
     id: i64
 
-@derive(Encode)  # diagnostic: member-not-derivable
+@derive(Encode) # diagnostic: member-not-derivable
 struct Holder:
     inner: Opaque

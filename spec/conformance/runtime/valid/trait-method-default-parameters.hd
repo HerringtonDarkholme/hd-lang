@@ -1,0 +1,58 @@
+# test: an omitted argument of a trait method takes the trait's default, through the default body, an override, a generic bound and a trait value
+# expect-stdout: 64
+# expect-stdout: 64
+# expect-stdout: 3
+# expect-stdout: 2064
+# expect-stdout: 1064
+# expect-stdout: 64
+# expect-stdout: 2064
+# expect-stdout: 74
+# expect-stdout: 2078
+# expect-stdout: 14
+# expect-stdout: 2064
+# Spec 09 Method Parameter Defaults: trait.impl.param-default, trait.impl.param-default.calls.
+# Spec 07 Default Values: fn.default.omit, fn.default.scope.
+
+pub enum Mode:
+    First
+    All
+
+trait Check:
+    fn validated(self, mode: Mode = .All, limit: usize = 64) -> usize:
+        limit
+    fn base(self) -> usize
+    fn scaled(self, k: usize = self.base() * 2) -> usize:
+        k
+
+struct Item: pass
+impl Check for Item:
+    fn base(self) -> usize:
+        5
+
+struct Strict: pass
+impl Check for Strict:
+    fn validated(self, mode: Mode, limit: usize) -> usize:
+        match mode:
+            .First => limit + 1000
+            .All => limit + 2000
+    fn base(self) -> usize:
+        7
+
+fn through_bound[T < Check](x: T) -> usize:
+    x.validated()
+
+fn through_value(x: &dyn Check) -> usize:
+    x.validated() + x.scaled()
+
+pub fn main() -> void $ Console:
+    println(Item {}.validated())
+    println(Item {}.validated(.First))
+    println(Item {}.validated(.All, 3))
+    println(Strict {}.validated())
+    println(Strict {}.validated(.First))
+    println(through_bound(Item {}))
+    println(through_bound(Strict {}))
+    println(through_value(&Item {}))
+    println(through_value(&Strict {}))
+    println(Strict {}.scaled())
+    println(Check::validated(Strict {}))

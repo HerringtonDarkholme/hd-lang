@@ -10,4 +10,4 @@ fn depth(path: Path) -> usize:
     path.text.len()
 
 fn run() -> usize:
-    depth("data/orders.csv")  # diagnostic: type-mismatch
+    depth("data/orders.csv") # diagnostic: type-mismatch

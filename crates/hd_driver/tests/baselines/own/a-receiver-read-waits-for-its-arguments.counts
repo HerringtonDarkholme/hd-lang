@@ -35,6 +35,7 @@ fn by_reference(m: Members, i: usize) -> usize:
 
 fn changed_by_argument(items: List[Info]) -> usize:
     let mut m = Members { infos: items }
-    m.at(m.pop())
 > app/main/changed_by_argument
+>   release app.main.Members
+    m.at(m.pop())
 >   copy app.main.Members

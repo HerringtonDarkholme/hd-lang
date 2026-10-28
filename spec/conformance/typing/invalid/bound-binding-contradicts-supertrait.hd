@@ -6,5 +6,5 @@ trait Supplier:
 
 trait Prices < Supplier[Item = i32]
 
-fn total[T < Prices[Item = string]](supplier: T) -> i32:  # diagnostic: duplicate-associated-binding
+fn total[T < Prices[Item = string]](supplier: T) -> i32: # diagnostic: duplicate-associated-binding
     0

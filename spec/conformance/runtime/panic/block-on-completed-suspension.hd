@@ -1,10 +1,11 @@
 # test: driving a completed suspension again through a helper reports suspension-invalid-state
 use std.task.block_on
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 fn drive(pending: mut Suspend[i32]) -> i32:
-    match block_on(pending):  # panic: suspension-invalid-state
+    match block_on(pending): # panic: suspension-invalid-state
         .Completed(value) => value
         _ => 0
 

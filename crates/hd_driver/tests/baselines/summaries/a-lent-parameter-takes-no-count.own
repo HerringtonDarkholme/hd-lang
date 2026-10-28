@@ -7,18 +7,34 @@
 # `weight` through a function value: the value's caller passes `f` owned,
 # and the adapter releases it after the call. `set_first` keeps nothing,
 # but `pinned` passes it a mutable reference into `xs` beside `xs`, so
-# `xs` is copied for the call.
+# `xs` is copied for the call. `weight` has more than 16 instructions, so
+# a release build leaves it a call.
 struct Field:
     name: string
     n: i64
 
 fn weight(f: Field) -> i64:
-    f.n + 1
+    (f.n + 1) * (f.n + 2) * (f.n + 3) * (f.n + 4) * (f.n + 5) / (f.n + 6)
 > app/main/weight
 >   local $0 f: Field [param read]
 >   %0 = Read copy [$0 .n] : i64
 >   %1 = Prim Add [%0 1:i64] : i64
->   %2 = Block %1 : i64
+>   %2 = Read copy [$0 .n] : i64
+>   %3 = Prim Add [%2 2:i64] : i64
+>   %4 = Prim Mul [%1 %3] : i64
+>   %5 = Read copy [$0 .n] : i64
+>   %6 = Prim Add [%5 3:i64] : i64
+>   %7 = Prim Mul [%4 %6] : i64
+>   %8 = Read copy [$0 .n] : i64
+>   %9 = Prim Add [%8 4:i64] : i64
+>   %10 = Prim Mul [%7 %9] : i64
+>   %11 = Read copy [$0 .n] : i64
+>   %12 = Prim Add [%11 5:i64] : i64
+>   %13 = Prim Mul [%10 %12] : i64
+>   %14 = Read copy [$0 .n] : i64
+>   %15 = Prim Add [%14 6:i64] : i64
+>   %16 = Prim Div [%13 %15] : i64
+>   %17 = Block %16 : i64
 >   summary kept []
 
 fn remember(all: &mut List[Field], f: Field) -> void:
@@ -152,27 +168,71 @@ pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
 > app/main/main
 >   local $0 f: Field [:= read assigned]
+>   local $1 xs: List[i64] [read assigned]
+>   local $2 g: fn(Field) -> i64 [read]
+>   local $3 f: Field [read]
+>   local $4 f: Field [read]
+>   local $5 all: List[Field] [read assigned captured captured-assigned]
 >   %0 = Call std/format/Display.to_string for usize [] via Builtin (1:usize) : string
 >   %1 = Interp ["abc" %0] : string
 >   %2 = Drop [%0] : ()
 >   %3 = NewStruct [%1 2:i64] : Field
 >   %4 = Store [$0] %3 : ()
->   %18 = Block - : ()
+>   %54 = Block - : ()
     println(total(f, 3))
 >   %5 = Read borrow [$0] : Field
 >   %6 = Call app/main/total[] (%5, 3:i64) : i64
 >   %7 = Call std/console/println[i64] (%6) : ()
     println(collect(f))
 >   %8 = Read copy [$0] : Field
->   %9 = Call app/main/collect[] (%8) : usize
->   %10 = Call std/console/println[usize] (%9) : ()
+>   %9 = Store [$4] %8 : ()
+>   %10 = NewList - [] : List[Field]
+>   %11 = Store [$5] %10 : ()
+>   %12 = Ref mut local [$5] : Ref[mut List[Field]]
+>   %13 = Read copy [$4] : Field
+>   %14 = Call app/main/remember[] (%12, %13) : ()
+>   %15 = Drop [%12] : ()
+>   %16 = Ref mut local [$5] : Ref[mut List[Field]]
+>   %17 = Read move [$4] : Field
+>   %18 = Call app/main/remember[] (%16, %17) : ()
+>   %19 = Drop [%16] : ()
+>   %20 = Read copy [$5] : List[Field]
+>   %21 = Drop [$5] : ()
+>   %22 = Intrinsic ListLen [%20] : usize
+>   %23 = Drop [%20] : ()
+>   %24 = Break L2 %22 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Call std/console/println[usize] (%26) : ()
+>   %12 finds [$5] full
+>   %16 finds [$5] full
+>   %20 finds [$5] full
     println(apply(weight, f))
->   %11 = ItemRef #56 [..] : fn(Field) -> i64
->   %12 = Read move [$0] : Field
->   %13 = Call app/main/apply[] (%11, %12) : i64
->   %14 = Drop [%11] : ()
->   %15 = Call std/console/println[i64] (%13) : ()
+>   %28 = ItemRef #56 [..] : fn(Field) -> i64
+>   %29 = Read move [$0] : Field
+>   %30 = Store [$2] %28 : ()
+>   %31 = Store [$3] %29 : ()
+>   %32 = Read borrow [$2] : fn(Field) -> i64
+>   %33 = Read move [$3] : Field
+>   %34 = CallValue %32 [%33] : i64
+>   %35 = Break L1 %34 : never
+>   %36 = Block - : i64
+>   %37 = Scope %36 [] : i64
+>   %38 = Drop [$2] : ()
+>   %39 = Call std/console/println[i64] (%37) : ()
     println(pinned())
->   %16 = Call app/main/pinned[] () : i64
->   %17 = Call std/console/println[i64] (%16) : ()
+>   %40 = NewList - [1:i64 2:i64] : List[i64]
+>   %41 = Store [$1] %40 : ()
+>   %42 = IsUnique [$1] : ()
+>   %43 = Pin [$1] : ()
+>   %44 = Ref mut local [$1 [0:usize]] : Ref[mut i64]
+>   %45 = Read copy [$1] : List[i64]
+>   %46 = Drop [$1] : ()
+>   %47 = Call app/main/set_first[] (%44, %45) : i64
+>   %48 = Drop [%45] : ()
+>   %49 = Drop [%44] : ()
+>   %50 = Break L0 %47 : never
+>   %51 = Block - : i64
+>   %52 = Scope %51 [] : i64
+>   %53 = Call std/console/println[i64] (%52) : ()
 >   summary kept [] writes

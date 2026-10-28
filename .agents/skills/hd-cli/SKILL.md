@@ -18,12 +18,16 @@ In this repo, build the compiler with `cargo build -p hd_cli` and run
 2. `hd check --format json FILE`, or `hd check --format json --tests` in a
    package. Read each diagnostic's `code`, `line`, `column`, `message`, and
    `fixes`. Fix the first error first; later ones are often follow-ons.
-3. In a package, `hd fix` applies the safe fix-its to the source files
+3. `hd lint --format json FILE` (or `--tests` in a package) reports optional
+   advice after the code checks. Ordinary `check`, `build`, and `test` report
+   errors only. Fix warning-level findings; a denied finding is an error.
+4. In a package, `hd fix` applies the safe fix-its to the source files
    for you, then prints what remains. It never edits `hd.toml`.
-4. `hd test` (or `hd test FILE`). A failure prints a `repro:` line; run
+5. `hd test` (or `hd test FILE`). A failure prints a `repro:` line; run
    that one case while you fix it.
-5. Run the program: `hd FILE` or `hd run`, with arguments after `--`.
-6. Before committing, `hd fmt --check` and `hd check --all`.
+6. Run the program: `hd FILE` or `hd run`, with arguments after `--`.
+7. Before committing, run the fixed canonical formatter with `hd fmt`, then
+   `hd fmt --check`, `hd lint --all`, and `hd check --all`.
 
 Two tries at most per error: when a fix does not take, read the cited
 spec chapter or `hd doc` the std item instead of guessing again.
@@ -36,7 +40,8 @@ spec chapter or `hd doc` the std item instead of guessing again.
 | `hd check [FILE]` | type-check the package, or FILE and the modules it uses; runs nothing |
 | `hd check --tests` / `--all` | also the test code / also the tests and tasks |
 | `hd check --max-errors N`, `--summary` | print fewer lines; the counts stay the same |
-| `hd fix` | apply safe source fix-its and missing-capability grants in `hd.toml`, at most 3 rounds; other manifest fixes are reported only; no FILE, package only |
+| `hd lint [FILE]` | type-check, then report optional findings; selects tests and tasks like `check` and accepts `--allow`, `--warn`, and `--deny` for exact lint names |
+| `hd fix` | apply safe source fix-its, at most 3 rounds; manifest fix-its are reported but not applied; no FILE, package only |
 | `hd test [FILE]` | run the package's tests, or those of FILE's module |
 | `hd test --filter WORD` | only the cases whose name contains WORD |
 | `hd test --affected` | only the test programs that changed since they last passed |
@@ -44,7 +49,7 @@ spec chapter or `hd doc` the std item instead of guessing again.
 | `hd test --seed N` | fix the base seed of property tests |
 | `hd run [NAME] [-- ARGS]` | run the package's executable, or the executable or task NAME |
 | `hd build [--release] [FILE]` | write `build/debug/NAME.wasm` (or `build/release/`) |
-| `hd fmt [--check] [FILE]` | format in place; `--check` only lists files that would change |
+| `hd fmt [--check] [FILE]` | apply the one canonical style (100 columns, four-space indentation, no settings); `--check` only lists files that would change |
 | `hd new PATH --app` / `--lib` | create an application or a library package |
 | `hd add ../money`, `hd add OWNER/REPO@1.2` | require a dependency; `--dev` for test-only |
 | `hd doc NAME` | print one item's docs, as `hd doc std.text.split`; `hd doc std.text` prints a module. Run it inside a package (a folder with `hd.toml`); outside one it is an error |
@@ -52,7 +57,7 @@ spec chapter or `hd doc` the std item instead of guessing again.
 
 Run flags (`hd FILE`, `hd run`, `hd test`, `hd build` where they apply):
 `--release` (overflow wraps instead of panicking), `--engine NAME` (this
-build offers `node` and `wasmtime`; a program behaves the same on each),
+selects an engine offered by this build; every engine runs the same module),
 `--time-limit 30s`, `--cap NAME=VALUE` (grant or deny a
 capability, as `--cap FsRead=false`; package mains must list their host capabilities in `[capabilities]`;
 standalone scripts remain unrestricted by default), and `-p NAME` for one workspace member.
@@ -104,7 +109,7 @@ and the program exits nonzero.
 
 | Status | Meaning |
 | --- | --- |
-| 0 | success; warnings do not change it |
+| 0 | success; warning-level `hd lint` findings do not change it |
 | 1 | `hd test`: a case failed; `hd fmt --check`: a file needs formatting |
 | 101 | `hd` failed (a compile error or a usage error) and ran nothing |
 | other | `hd FILE`, `hd run`: the program's own status; a panic exits nonzero |
@@ -137,6 +142,11 @@ library root: other packages import its items as `dep.money.NAME`) and
 - `hd fix` refuses a FILE and refuses to run outside a package; for a
   single file, apply the JSON `fixes` edits yourself.
 - `hd run` is for packages. For one file, run `hd FILE`.
+- `hd check`, `hd build`, and `hd test` intentionally omit optional lint
+  advice. Run `hd lint` explicitly; use `--deny CODE` when one finding must
+  fail the command.
+- `hd fmt` has no project style settings. Let it choose the canonical layout
+  instead of hand-tuning wrapping or indentation.
 - Program arguments go after `--`: `hd run -- input.txt`.
 - A file outside a package may import only `std`.
 - `hd test` on a package also runs `tests/*.hd`, doc tests in `##` doc

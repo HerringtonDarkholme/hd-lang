@@ -1,2 +1,2 @@
 # test: a function member is no map key
-let m: Map[(i32, fn(i32) -> i32), string] = {}  # diagnostic: unsatisfied-trait-bound
+let m: Map[(i32, fn(i32) -> i32), string] = {} # diagnostic: unsatisfied-trait-bound

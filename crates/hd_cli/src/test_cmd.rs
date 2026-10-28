@@ -4,6 +4,7 @@
 //! workers, and print the results through the release cursor in content
 //! order, whatever order the workers finish in.
 
+use hd_base::SliceSort as _;
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -908,7 +909,7 @@ fn test_one(
         }
     }
     // `cli.test.report.order`: file path, then line, then registration.
-    selected.sort_by(|a, b| (&a.case.file, a.case.line).cmp(&(&b.case.file, b.case.line)));
+    selected.sort_stable_by(|a, b| (&a.case.file, a.case.line).cmp(&(&b.case.file, b.case.line)));
     let env = RunEnv {
         root,
         table: disk::test_capabilities(root).map_err(|e| report.rep.fail(&e))?,

@@ -3,5 +3,5 @@ fn cleanup!() -> void:
 
 fn invalid!() -> void:
     defer:
-        cleanup!()  # diagnostic: suspension-forbidden-context
+        cleanup!() # diagnostic: suspension-forbidden-context
     pass

@@ -4,4 +4,4 @@ struct Point:
     x: i32
 
 fn reader(p: &Point) -> fn() -> i32:
-    fn() -> i32: p.x  # diagnostic: local-reference-escapes
+    fn() -> i32: p.x # diagnostic: local-reference-escapes

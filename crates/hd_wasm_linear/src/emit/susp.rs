@@ -9,6 +9,7 @@
 //! whatever its condition was.
 
 use crate::op::Op as I;
+use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::{Target, TargetKind};
 use hd_tir::ir::{Body, NONE, Tag};
@@ -767,7 +768,7 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(ready);
         self.f.op(I::Else);
-        self.push_dyn(a, args, None, Some(self.ty(i)))?;
+        self.push_dyn(a, args, None, Some((self.ty(i), None)))?;
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
@@ -1222,13 +1223,23 @@ pub(super) fn finish(
     }
     let mut vals_all: Vec<Val> = em.f.params.clone();
     vals_all.extend(em.f.locals.iter().copied());
-    let (area, size) = save_area(&vals_all, &[FRAME, pc]);
+    let local_frame = em.frame.filter(|(base, _)| *base != NONE);
+    let mut skipped = vec![FRAME, pc];
+    if let Some((base, _)) = local_frame {
+        skipped.push(base);
+    }
+    let (area, size) = save_area(&vals_all, &skipped);
     expand(&mut em.f, &area);
     em.m.frames.insert(key, size);
     let at_of = |l: u32| area.iter().find(|x| x.0 == l).map(|x| (x.1, x.2));
     let results = em.results.clone();
     let name = em.f.name.clone();
     crate::task::guard_frame(&mut em.f);
+    if let Some((base, size)) = local_frame {
+        // This is a physical poll/body invocation, not the persistent task
+        // frame. Its base is deliberately absent from suspension save areas.
+        crate::wide::locals_frame(&mut em.f, base, size);
+    }
     let body = std::mem::take(&mut em.f);
 
     // The release glue: the places the body owns while it waits, unless
@@ -1245,7 +1256,7 @@ pub(super) fn finish(
         em.f.op(I::If(BlockType::Empty));
         let mut places: Vec<(Option<u32>, Option<usize>, Vec<u32>)> = Vec::new();
         let mut vals: Vec<(u32, Vec<u32>)> = em.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        vals.sort_unstable();
+        vals.sort_stable();
         for (i, ls) in vals {
             if !em.loans.contains(&i) {
                 places.push((Some(i), None, ls));
@@ -1253,7 +1264,7 @@ pub(super) fn finish(
         }
         let mut locals: Vec<(usize, Vec<u32>)> =
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        locals.sort_unstable();
+        locals.sort_stable();
         for (l, ls) in locals {
             if !em.loan_locals.contains_key(&l) {
                 places.push((None, Some(l), ls));
@@ -1294,7 +1305,7 @@ pub(super) fn finish(
             .as_ref()
             .map(|s| s.alls.iter().map(|(k, v)| (*k, v.clone())).collect())
             .unwrap_or_default();
-        alls.sort_unstable_by_key(|x| x.0);
+        alls.sort_stable_by_key(|x| x.0);
         for (_, all) in alls {
             let Some((dat, dv)) = at_of(all.done) else {
                 continue;

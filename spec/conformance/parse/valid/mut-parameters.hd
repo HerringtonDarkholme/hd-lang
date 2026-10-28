@@ -6,7 +6,8 @@ impl Point:
     fn shifted(mut self, mut dx: i32, mut rest...: List[i32]) -> Point:
         self
 
-fn changed(mut a: Point, mut b: i32 = 1) -> void: pass
+fn changed(mut a: Point, mut b: i32 = 1) -> void:
+    pass
 
 fn closures() -> void:
     f := fn(mut a: Point, mut b) -> Point: a

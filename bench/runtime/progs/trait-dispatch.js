@@ -1,14 +1,24 @@
 // Same shape as the hd program: two "steppers" applied alternately
 // through one generic call site each.
 class Double {
-  constructor(k) { this.k = k; }
-  step(x) { return x * 2 + this.k; }
+  constructor(k) {
+    this.k = k;
+  }
+  step(x) {
+    return x * 2 + this.k;
+  }
 }
 class Add {
-  constructor(k) { this.k = k; }
-  step(x) { return x + this.k; }
+  constructor(k) {
+    this.k = k;
+  }
+  step(x) {
+    return x + this.k;
+  }
 }
-function apply(s, x) { return s.step(x); }
+function apply(s, x) {
+  return s.step(x);
+}
 function drive(n) {
   const double = new Double(3);
   const add = new Add(5);
@@ -19,4 +29,4 @@ function drive(n) {
   }
   return x;
 }
-console.log(drive(80000000));
+console.log(drive(35000000));

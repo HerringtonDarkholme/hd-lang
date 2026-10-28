@@ -3,5 +3,5 @@
 struct Point:
     x: i32
 
-fn pick(p: &Point) -> &Point:  # diagnostic: local-reference-escapes
+fn pick(p: &Point) -> &Point: # diagnostic: local-reference-escapes
     p

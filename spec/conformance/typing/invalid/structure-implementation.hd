@@ -5,4 +5,4 @@ use std.structure.Structure
 struct Point:
     x: i64
 
-impl Structure for Point  # diagnostic: sealed-trait-implementation
+impl Structure for Point # diagnostic: sealed-trait-implementation

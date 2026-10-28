@@ -1,0 +1,16 @@
+# @dump: own
+# @build: v8 release
+# Release inlining: `a` calls nothing, takes no reference and has at most
+# 16 instructions, so each call of it is a copy of its body, its
+# parameters bound by `Store`s of the arguments (spectral_norm's inner loop).
+fn a(i: usize, j: usize) -> f64:
+    1.0 / f64((i + j) * (i + j + 1) / 2 + i + 1)
+
+fn row(n: usize, i: usize) -> f64:
+    let s = 0.0
+    let j: usize = 0
+    # subject
+    while j < n:
+        s = s + a(i, j)
+        j = j + 1
+    s

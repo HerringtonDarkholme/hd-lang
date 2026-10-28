@@ -14,5 +14,9 @@ tests:
 
     it("xs = [] leaves the reference on the old elements"):
         let mut xs = [+1, 2, 3]
-        assert_equal(replaced(&mut xs), 20, reason="the old reference still reads and writes its slot")
+        assert_equal(
+            replaced(&mut xs),
+            20,
+            reason="the old reference still reads and writes its slot",
+        )
         assert_equal(xs, [+5], reason="the new list is untouched by the old reference")

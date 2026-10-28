@@ -10,13 +10,15 @@ fn invoice_label(number: string, draft: bool) -> string:
     invoice := Invoice { number }
     if draft:
         impl Labeled for Invoice:
-            fn label(self) -> string: "DRAFT-" + self.number
+            fn label(self) -> string:
+                "DRAFT-" + self.number
 
         return invoice.label()
 
     if !draft:
-        impl Labeled for Invoice:  # diagnostic: overlapping-impl
-            fn label(self) -> string: "INV-" + self.number
+        impl Labeled for Invoice: # diagnostic: overlapping-impl
+            fn label(self) -> string:
+                "INV-" + self.number
 
         return invoice.label()
 

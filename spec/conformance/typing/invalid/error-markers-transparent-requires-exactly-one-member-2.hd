@@ -1,5 +1,5 @@
 # test: transparent requires exactly one member
 @error
 enum E:
-    @error(transparent)  # diagnostic: decorator-target-kind
+    @error(transparent) # diagnostic: decorator-target-kind
     Pair(a: i32, b: i32)

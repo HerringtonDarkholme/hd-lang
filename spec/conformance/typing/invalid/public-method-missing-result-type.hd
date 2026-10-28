@@ -4,5 +4,5 @@ struct Cart:
     count: i32
 
 impl Cart:
-    pub fn total(self):  # diagnostic: missing-result-type
+    pub fn total(self): # diagnostic: missing-result-type
         self.count

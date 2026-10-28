@@ -1,6 +1,7 @@
 # test: integer power associativity
 
-fn main() -> i32: -2 ** 2 + 2 ** 3 ** 2
+fn main() -> i32:
+    -2 ** 2 + 2 ** 3 ** 2
 
 tests:
     use std.testing.assert_equal

@@ -4,4 +4,4 @@ use std.function.Tuple
 struct Pair:
     left: i32
 
-impl Tuple for Pair  # diagnostic: sealed-trait-implementation
+impl Tuple for Pair # diagnostic: sealed-trait-implementation

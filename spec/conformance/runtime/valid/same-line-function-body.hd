@@ -1,6 +1,7 @@
 # test: a function body may be one simple statement on the header line
 # Spec 07 Same-Line Bodies: fn.body.same-line.
-fn double(x: i32) -> i32: x * 2
+fn double(x: i32) -> i32:
+    x * 2
 
 tests:
     use std.testing.assert_equal

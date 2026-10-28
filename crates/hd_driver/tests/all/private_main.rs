@@ -1,6 +1,5 @@
-//! `module.entry.private-main` and `module.entry.private-main.warn`: a
-//! `main` that is not `pub` is an ordinary function. It is no entry point,
-//! so its result owes no `Termination`, and it only earns a warning.
+//! `module.entry.private-main`: a `main` that is not `pub` is an ordinary
+//! function during analysis and tests, but not a runnable entry point.
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -50,24 +49,26 @@ fn private_main_with_i32_result_runs_from_a_test() {
 }
 
 #[test]
-fn private_main_alone_warns_and_is_an_empty_script() {
+fn private_main_is_quiet_in_analysis_and_rejected_as_a_program() {
     let text = "fn main() -> void:\n    pass\n";
     let analyzed = run(text, &Goal::Analyze);
     assert!(!analyzed.diags.has_errors(), "{}", analyzed.render());
-    assert!(
-        codes(&analyzed).contains(&"private-main"),
-        "{}",
-        analyzed.render()
-    );
+    assert!(!codes(&analyzed).contains(&"private-main"));
     let program = run(
         text,
         &Goal::Program {
             entry: "main".into(),
         },
     );
-    // `module.init.script-empty`: with no statements it is an empty script.
-    assert!(!program.diags.has_errors(), "{}", program.render());
-    assert!(program.wasm.is_some(), "{}", program.render());
+    assert_eq!(codes(&program), ["missing-entry-point"]);
+    assert!(
+        program
+            .render()
+            .contains("`app.main` has a private `main`; make it `pub`"),
+        "{}",
+        program.render()
+    );
+    assert!(program.wasm.is_none());
 }
 
 #[test]
@@ -95,14 +96,14 @@ fn entry_module_with_only_statements_builds_a_script() {
 }
 
 #[test]
-fn private_main_i32_in_a_program_owes_no_termination() {
+fn private_main_i32_is_rejected_before_entry_result_validation() {
     let program = run(
         "fn main() -> i32:\n    7\n",
         &Goal::Program {
             entry: "main".into(),
         },
     );
-    assert!(!program.diags.has_errors(), "{}", program.render());
+    assert_eq!(codes(&program), ["missing-entry-point"]);
     assert!(
         !program.render().contains("unsupported"),
         "{}",
@@ -122,11 +123,7 @@ fn spacing_between_header_tokens_does_not_matter() {
     assert!(program.wasm.is_some());
     assert!(!codes(&program).contains(&"private-main"));
     let private = run("fn  main() -> void:\n    pass\n", &Goal::Analyze);
-    assert!(
-        codes(&private).contains(&"private-main"),
-        "{}",
-        private.render()
-    );
+    assert!(!codes(&private).contains(&"private-main"));
 }
 
 #[test]

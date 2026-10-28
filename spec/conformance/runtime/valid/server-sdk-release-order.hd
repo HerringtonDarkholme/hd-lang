@@ -2,7 +2,8 @@
 # fixture-package-role: root-application
 use dep.server_sdk.{HttpServer, Incoming, RequestId, ServerError, CancelReason, serve}
 use std.console.MemoryConsole
-use std.http.{Http, Request, Response, ScriptedHttp}
+use std.http.{Http, Request, Response, ScriptedHttp, Url}
+use std.http_wire.{WireRequest, WireResponse}
 use std.time.{Clock, s}
 use std.testing.assert_equal
 
@@ -14,31 +15,50 @@ struct Source:
 
 impl HttpServer for Source:
     fn accept!(&mut self) -> Result[Incoming?, ServerError]:
-        if self.next == 3: return .Ok(.None)
+        if self.next == 3:
+            return .Ok(.None)
         id := RequestId { generation: 17, sequence: self.next }
         self.next += 1
         self.events.push("accept ${id.sequence}")
-        .Ok(.Some(Incoming { id: id, request: Request { url: "https://server.test" } }))
-    fn respond!(&mut self, id: RequestId, response: Response) -> Result[void, ServerError]:
-        assert_equal(response.body, "reply".to_utf8(), reason="the source receives the complete body before release")
+        .Ok(
+            .Some(
+                Incoming {
+                    id: id,
+                    request: WireRequest { method: .Get, url: "https://server.test" },
+                },
+            ),
+        )
+    fn respond!(&mut self, id: RequestId, response: WireResponse) -> Result[void, ServerError]:
+        assert_equal(
+            response.body,
+            "reply".to_utf8(),
+            reason="the source receives the complete body before release",
+        )
         self.events.push("respond ${id.sequence}")
         .Ok(())
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
         self.clock.sleep!(s(60))
         .Stopping
-    fn client(&mut self, _id: RequestId) -> *mut dyn Http: self.http
-    fn console(&mut self, _id: RequestId) -> *mut dyn Console: MemoryConsole::new()
-    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock: self.clock
+    fn client(&mut self, _id: RequestId) -> *mut dyn Http:
+        self.http
+    fn console(&mut self, _id: RequestId) -> *mut dyn Console:
+        MemoryConsole::new()
+    fn clock(&mut self, _id: RequestId) -> *mut dyn Clock:
+        self.clock
     fn finish(&mut self, id: RequestId, abandoned: bool) -> void:
         assert_equal(abandoned, false, reason="normal replies finish cleanup")
         self.events.push("finish ${id.sequence}")
 
 fn handle!(_request: Request, _state: &mut List[string]) -> Response:
-    Response { status: 200, body: "reply".to_utf8() }
+    Response::status(.Other(200)).set_bytes("reply".to_utf8())
 
 pub fn main!() -> void $ Clock:
     source := &mut Source { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), events: [] }
     let mut state: List[string] = []
     $.with(HttpServer=source):
         serve!(1, &mut state, handle).expect("source ends normally")
-    assert_equal(source.events, ["accept 1", "respond 1", "finish 1", "accept 2", "respond 2", "finish 2"], reason="a worker releases each response lease before reusing its slot")
+    assert_equal(
+        source.events,
+        ["accept 1", "respond 1", "finish 1", "accept 2", "respond 2", "finish 2"],
+        reason="a worker releases each response lease before reusing its slot",
+    )

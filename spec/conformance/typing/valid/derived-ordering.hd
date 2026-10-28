@@ -24,4 +24,8 @@ tests:
         assert_equal(a < c, true, reason="second field breaks ties")
         assert_equal(Priority.Low(99) < Priority.High(0), true, reason="variant order")
         assert_equal(Priority.Low(2) < Priority.Low(3), true, reason="payload order")
-        assert_equal(Measurement { value: 1.0 } < Measurement { value: 2.0 }, true, reason="partial float order")
+        assert_equal(
+            Measurement { value: 1.0 } < Measurement { value: 2.0 },
+            true,
+            reason="partial float order",
+        )

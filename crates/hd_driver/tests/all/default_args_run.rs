@@ -55,12 +55,12 @@ fn run(name: &str, main: &str) -> (bool, String, String) {
 }
 
 #[test]
-fn println_reached_from_a_default_panics() {
+fn println_reached_from_a_default_runs() {
     let main = "\
 struct QuietConsole: pass
 
 impl Console for QuietConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         .Ok(())
 
 fn announce() -> i32:
@@ -81,11 +81,9 @@ pub fn main() -> void $ Console:
     println(announce())
     println(count())
 ";
+    // `println` drives no suspension (`module.console.println-no-drive`),
+    // so a default expression may reach it.
     let (ok, stdout, stderr) = run("forbidden", main);
-    assert!(!ok, "the default's println must panic");
-    assert_eq!(stdout, "7\n5\n1\n");
-    assert!(
-        stderr.contains("suspension-forbidden-context"),
-        "stderr: {stderr}"
-    );
+    assert!(ok, "stderr: {stderr}");
+    assert_eq!(stdout, "7\n5\n1\n1\n");
 }

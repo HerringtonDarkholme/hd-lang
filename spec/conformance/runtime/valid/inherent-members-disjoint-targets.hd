@@ -4,10 +4,12 @@ struct Box[T]:
     value: T
 
 impl Box[i32]:
-    fn show(self) -> string: "int box"
+    fn show(self) -> string:
+        "int box"
 
 impl Box[string]:
-    fn show(self) -> string: "string box"
+    fn show(self) -> string:
+        "string box"
 
 tests:
     use std.testing.assert_equal

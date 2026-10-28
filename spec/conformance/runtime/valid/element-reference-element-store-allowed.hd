@@ -14,5 +14,9 @@ tests:
 
     it("element stores keep the length"):
         let mut xs = [+1, 2, 3]
-        assert_equal(stored(&mut xs), 330, reason="the store and the other reference's write are both seen")
+        assert_equal(
+            stored(&mut xs),
+            330,
+            reason="the store and the other reference's write are both seen",
+        )
         assert_equal(xs, [+1, 2, 300], reason="the length never changed")

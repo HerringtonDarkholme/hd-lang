@@ -11,4 +11,4 @@ impl Pick[i64] for (i32, i32):
         7
 
 pub fn main() -> void $ Console:
-    _ := (+1, +2).pick()  # diagnostic: ambiguous-method
+    _ := (+1, +2).pick() # diagnostic: ambiguous-method

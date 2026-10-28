@@ -4,6 +4,7 @@
 //! program, built from a table and flags, and the scope checks a provider
 //! asks before it touches a resource.
 
+use hd_base::SliceSort as _;
 use std::path::{Component, Path, PathBuf};
 
 use hd_base::path::canonicalize;
@@ -170,7 +171,7 @@ impl Grants {
         flag_base: &Path,
     ) -> Grants {
         let mut keys: Vec<&str> = table.iter().chain(flags).map(|(k, _)| k.as_str()).collect();
-        keys.sort_unstable();
+        keys.sort_stable();
         keys.dedup();
         let entries = |key: &str, list: &[String], base: &Path| -> Vec<String> {
             list.iter()

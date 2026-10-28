@@ -22,4 +22,4 @@ fn serve_all(groups: List[List[fn() -> void $ Db + Clock]]) -> void:
     pass
 
 fn wire(groups: List[List[fn() -> void $ Db]]) -> void:
-    serve_all(groups)  # diagnostic: type-mismatch
+    serve_all(groups) # diagnostic: type-mismatch

@@ -3,7 +3,7 @@
 fn count_boxes!() -> i32:
     3
 
-boxes := count_boxes!()  # diagnostic: bang-call-outside-suspension
+boxes := count_boxes!() # diagnostic: bang-call-outside-suspension
 
 pub fn main() -> void $ Console:
     println("${boxes}")

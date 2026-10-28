@@ -18,7 +18,8 @@ struct Channel:
 
 impl Disposable for Channel:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("channel defer")
+        defer:
+            self.log.push("channel defer")
         _ := self.socket.write!([1])
         self.log.push("close sent")
         let mut wait = self.acked

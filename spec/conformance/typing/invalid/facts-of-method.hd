@@ -9,4 +9,4 @@ impl User:
     fn label(self) -> string:
         self.name
 
-label_facts := facts_of(User::label)  # diagnostic: invalid-facts-of-target
+label_facts := facts_of(User::label) # diagnostic: invalid-facts-of-target

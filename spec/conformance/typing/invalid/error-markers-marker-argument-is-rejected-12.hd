@@ -6,4 +6,7 @@ struct DiskError:
 @error
 enum E:
     @error("x")
-    Y(@source(strict) error: DiskError)  # diagnostic: invalid-error-marker
+    Y(
+        @source(strict) # diagnostic: invalid-error-marker
+        error: DiskError,
+    )

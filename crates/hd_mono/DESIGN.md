@@ -290,6 +290,11 @@ cancel function (§14.6).
   forbidden-context counter), so the handle is built on the first call
   per owner instance and every later call returns the same value
   ([`annot.handle.constants`](../../spec/lang/14-annotations.md#r-annot.handle.constants)).
+  A member's handle `Field[S, F]` is a reference to its `FieldRecord`,
+  which the body stores in a local's cell; a handle body's cells live in
+  static data, behind a zero count word, so the handle is one address no
+  count changes (#889). A variant's handle, a member directory and each of
+  its keys are references to records built the same way (#895).
   Building it reads its facts, so a member fact runs when its handle is
   first built ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy)).
   The owner is the data type or enum
@@ -427,9 +432,10 @@ so `continue` needs no separate increment. At an inclusive endpoint it
 clears the flag rather than overflowing the cursor.
 
 Built-in list and map loops read indexed elements or live entries. A
-borrowed source uses `SnapBegin`/`SnapEnd` to share its initial buffer;
-changes copy that buffer first (`flow.for.snapshot`). A fresh source is
-owned by the loop and needs no snapshot. Iterator-protocol loops instead
+loop holds its source value: a copy of a place's collection shares its
+initial buffer, and changes copy that buffer first (`flow.for.snapshot`);
+the ownership passes lend it when nothing in the loop changes the place.
+A fresh source is owned by the loop. Iterator-protocol loops instead
 call `iter`/`next` and match the optional item. No specialized counted-loop
 tags remain for emission to interpret.
 

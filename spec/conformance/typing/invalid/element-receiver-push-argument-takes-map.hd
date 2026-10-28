@@ -5,5 +5,5 @@ fn add_shelf(shelves: &mut Map[string, List[i32]]) -> i32:
     return 1
 
 fn demo() -> void:
-    let mut shelves: Map[string, List[i32]] = {"apple": [+4]}
-    shelves["apple"].push(add_shelf(&mut shelves))  # diagnostic: conflicting-access
+    let mut shelves: Map[string, List[i32]] = { "apple": [+4] }
+    shelves["apple"].push(add_shelf(&mut shelves)) # diagnostic: conflicting-access

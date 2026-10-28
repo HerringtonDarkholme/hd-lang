@@ -22,7 +22,11 @@ tests:
         $.with(Random=source):
             made = rng()
         assert_equal(made.next_u64(), expected.next_u64(), reason="the same seed")
-        assert_equal(source.next_u64(), copy.next_u64(), reason="rng spent one draw of the provider")
+        assert_equal(
+            source.next_u64(),
+            copy.next_u64(),
+            reason="rng spent one draw of the provider",
+        )
 
     it("a seed deals one order"):
         assert_equal(deal(3), deal(3), reason="the same seed, the same order")

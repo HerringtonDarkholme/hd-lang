@@ -6,7 +6,7 @@ use hd_run::Grants;
 use ureq::http::{HeaderName, HeaderValue};
 use ureq::unversioned::transport::{Connector, RustlsConnector};
 
-pub(crate) use crate::abi::HttpError;
+pub(crate) use crate::abi::WireHttpError as HttpError;
 use crate::abi::{self, Method};
 use crate::codec::{self, Dec, Enc, Wire};
 
@@ -25,12 +25,11 @@ pub(crate) struct Request {
 
 impl Request {
     pub(crate) fn decode(bytes: &[u8]) -> wasmtime::Result<Self> {
-        let abi::Request {
+        let abi::WireRequest {
             method,
             url,
             headers,
             body,
-            query: _,
             redirects,
         } = Wire::dec(&mut Dec::new(bytes))?;
         let method = match method {
@@ -63,7 +62,7 @@ pub(crate) struct Response {
 
 /// A send's encoded result.
 pub(crate) fn encode(response: Result<Response, HttpError>) -> Enc {
-    codec::encode(&response.map(|r| abi::Response {
+    codec::encode(&response.map(|r| abi::WireResponse {
         status: r.status,
         headers: r.headers,
         body: r.body,

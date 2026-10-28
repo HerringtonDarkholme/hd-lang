@@ -1,0 +1,10 @@
+# λ before the public header
+pub fn main() -> void:
+    pass
+
+## An ordinary helper, including its independently checked example.
+## ```hd
+## _ := "checked doc example"
+## ```
+pub fn label() -> string:
+    "helper"

@@ -16,4 +16,4 @@ impl Index[i64] for Table:
         self.size
 
 fn read(table: Table) -> i32:
-    table[5]  # diagnostic: type-mismatch
+    table[5] # diagnostic: type-mismatch

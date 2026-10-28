@@ -1,11 +1,9 @@
 # sieve of Eratosthenes below 16M. Prints the prime count.
-N := 16_000_000
+N := 36_000_000
 
 pub fn main() -> void $ Console:
     n := N
-    let mut flags: List[bool] = []
-    for _ in 0..n:
-        flags.push(true)
+    let mut flags = [for _ in 0..n => true]
     flags[0] = false
     flags[1] = false
     let i: usize = 2
@@ -14,10 +12,10 @@ pub fn main() -> void $ Console:
             let j = i * i
             while j < n:
                 flags[j] = false
-                j = j + i
-        i = i + 1
+                j += i
+        i += 1
     let count: usize = 0
     for flag in flags:
         if flag:
-            count = count + 1
+            count += 1
     println(count)

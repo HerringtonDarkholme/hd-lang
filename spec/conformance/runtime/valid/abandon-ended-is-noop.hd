@@ -5,7 +5,8 @@
 # Spec lang/11 Abandoning: req.abandon.ended, req.abandon.cold, req.abandon.result.
 
 fn record!(log: &mut List[string]) -> string:
-    defer: log.push("cleanup")
+    defer:
+        log.push("cleanup")
     log.push("body")
     "done"
 

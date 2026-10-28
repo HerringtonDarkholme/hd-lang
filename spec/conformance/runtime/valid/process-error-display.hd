@@ -15,24 +15,76 @@ tests:
     use std.testing.assert_equal
 
     it("each variant has its text"):
-        assert_equal(explain(.NotFound(program="git")), "cannot run the tool: program not found: git", reason="NotFound")
-        assert_equal(explain(.PermissionDenied(program="make")), "cannot run the tool: permission denied: make", reason="PermissionDenied")
-        assert_equal(explain(.Other(message="exec format error")), "cannot run the tool: exec format error", reason="Other is its message")
+        assert_equal(
+            explain(.NotFound(program="git")),
+            "cannot run the tool: program not found: git",
+            reason="NotFound",
+        )
+        assert_equal(
+            explain(.PermissionDenied(program="make")),
+            "cannot run the tool: permission denied: make",
+            reason="PermissionDenied",
+        )
+        assert_equal(
+            explain(.Other(message="exec format error")),
+            "cannot run the tool: exec format error",
+            reason="Other is its message",
+        )
 
     it("equal when the variant and the message are"):
-        assert_equal(ProcessError.Other(message="a") == ProcessError.Other(message="a"), true, reason="same message")
-        assert_equal(ProcessError.Other(message="a") == ProcessError.Other(message="b"), false, reason="other message")
-        assert_equal(ProcessError.NotFound(program="a") == ProcessError.PermissionDenied(program="a"), false, reason="other variant")
-        assert_equal(ProcessError.NotFound(program="a") == ProcessError.NotFound(program="a"), true, reason="same program")
-        assert_equal(ProcessError.NotFound(program="a") == ProcessError.NotFound(program="b"), false, reason="other program")
-        assert_equal(ProcessError.PermissionDenied(program="a") == ProcessError.PermissionDenied(program="b"), false, reason="other program denied")
+        assert_equal(
+            ProcessError.Other(message="a") == ProcessError.Other(message="a"),
+            true,
+            reason="same message",
+        )
+        assert_equal(
+            ProcessError.Other(message="a") == ProcessError.Other(message="b"),
+            false,
+            reason="other message",
+        )
+        assert_equal(
+            ProcessError.NotFound(program="a") == ProcessError.PermissionDenied(program="a"),
+            false,
+            reason="other variant",
+        )
+        assert_equal(
+            ProcessError.NotFound(program="a") == ProcessError.NotFound(program="a"),
+            true,
+            reason="same program",
+        )
+        assert_equal(
+            ProcessError.NotFound(program="a") == ProcessError.NotFound(program="b"),
+            false,
+            reason="other program",
+        )
+        assert_equal(
+            (
+                ProcessError.PermissionDenied(program="a")
+                == ProcessError.PermissionDenied(program="b")
+            ),
+            false,
+            reason="other program denied",
+        )
 
     it("? converts it into the erased Error"):
         match erased(.PermissionDenied(program="make")):
-            .Err(error) => assert_equal(error.to_string(), "permission denied: make", reason="the text survives")
+            .Err(error) =>
+                assert_equal(
+                    error.to_string(),
+                    "permission denied: make",
+                    reason="the text survives",
+                )
             .Ok(_) => assert_equal(true, false, reason="an error stays an error")
 
     it("Debug writes the variant and its program"):
-        assert_equal(debug(ProcessError.NotFound(program="git")), "ProcessError.NotFound(program=\"git\")", reason="NotFound")
-        assert_equal(debug(ProcessError.PermissionDenied(program="make")), "ProcessError.PermissionDenied(program=\"make\")", reason="PermissionDenied")
+        assert_equal(
+            debug(ProcessError.NotFound(program="git")),
+            "ProcessError.NotFound(program=\"git\")",
+            reason="NotFound",
+        )
+        assert_equal(
+            debug(ProcessError.PermissionDenied(program="make")),
+            "ProcessError.PermissionDenied(program=\"make\")",
+            reason="PermissionDenied",
+        )
         assert_equal(debug(ProcessError.NotGranted), "ProcessError.NotGranted", reason="NotGranted")

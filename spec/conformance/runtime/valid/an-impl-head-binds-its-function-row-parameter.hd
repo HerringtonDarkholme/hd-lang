@@ -10,7 +10,7 @@ use std.function.Fn
 trait Describe:
     fn describe(self) -> string
 
-impl[O, $R] Describe for Fn[(i32,), O, $ R]:
+impl[O, $ R] Describe for Fn[(i32,), O, $ R]:
     fn describe(self) -> string:
         "function"
 

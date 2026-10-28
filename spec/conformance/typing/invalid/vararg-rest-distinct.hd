@@ -1,7 +1,10 @@
 # test: a function with a List vararg and one with a plain List parameter have different types
 
-fn h(a: usize, b: usize, xs: List[i32]) -> usize: a + b + xs.len()
+fn h(a: usize, b: usize, xs: List[i32]) -> usize:
+    a + b + xs.len()
 
-fn apply(callback: fn(usize, usize, List[i32]...) -> usize) -> usize: callback(1, 2, 3)
+fn apply(callback: fn(usize, usize, List[i32]...) -> usize) -> usize:
+    callback(1, 2, 3)
 
-fn wrong() -> usize: apply(h)  # diagnostic: type-mismatch
+fn wrong() -> usize:
+    apply(h) # diagnostic: type-mismatch

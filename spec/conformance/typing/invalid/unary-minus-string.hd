@@ -2,4 +2,4 @@
 # Spec 05 Operators: expr.op.no-impl (error-code proposal, part D).
 
 fn negate() -> string:
-    -"x"  # diagnostic: type-mismatch
+    -"x" # diagnostic: type-mismatch

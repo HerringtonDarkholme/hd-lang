@@ -1,6 +1,8 @@
-# test: a name bound in a same-line suite is never read, so it warns
-# Spec 02 Same-Line Suite Bodies: grammar.inline.let-pattern with flow.unused.warning (owner decision Let 7, 2026-09-29).
-fn pair() -> (i32, i32): (1, 2)
+# test: an unread same-line suite binding is accepted without lint
+# Spec 02 Same-Line Suite Bodies: grammar.inline.let-pattern with flow.unused.lint (owner decision Let 7, 2026-09-29).
+fn pair() -> (i32, i32):
+    (1, 2)
 
 fn split(ready: bool) -> void:
-    if ready: let (low, high) = pair()  # warning: unused-local-binding
+    if ready:
+        let (low, high) = pair()

@@ -15,6 +15,7 @@
 //! becomes an internal `unsupported` diagnostic, which is an error.
 //! `analyze_package` runs the same code and only reports the counts.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -53,6 +54,8 @@ pub use hd_wasm_linear::views::{
 };
 pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
 
+#[cfg(feature = "analysis")]
+pub mod analysis;
 pub mod bench;
 mod dbg;
 pub mod diagnostics;
@@ -597,6 +600,9 @@ pub struct EntryCapability {
 
 /// The result of a run.
 pub struct Output {
+    /// Policy-free findings from the optional post-verification walk.
+    #[cfg(feature = "analysis")]
+    pub analysis_diags: DiagBuf,
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
     pub wasm: Option<Vec<u8>>,
@@ -731,6 +737,21 @@ impl Output {
         Positions::new(pool, self)
     }
 
+    /// The syntax tree for one output file, reusing the parse retained by
+    /// this build when it has one. A warm cache hit may retain only source
+    /// text; analysis clients then materialize syntax without rechecking a
+    /// body or changing the ordinary Check entry.
+    #[cfg(feature = "analysis")]
+    #[must_use]
+    pub fn source_parse(&self, file: usize) -> Option<Arc<hd_syntax::Parse>> {
+        let input = self.position_inputs.get(file)?;
+        if let Some(parse) = &input.parse {
+            return Some(Arc::clone(parse));
+        }
+        let text = self.texts.get(file)?;
+        Some(Arc::new(hd_syntax::parse(text.as_bytes())))
+    }
+
     fn file_name(&self, s: Span) -> String {
         s.file
             .get()
@@ -799,6 +820,9 @@ struct PrepOut {
     /// may not be in the run's diagnostics yet when a body asks
     /// ([`Run::file_has_errors`]) or the module finishes.
     use_errors: bool,
+    /// Neutral resolver observations requested by the optional analysis sink.
+    #[cfg(feature = "analysis")]
+    derivations: hd_resolve::facts::DerivationFacts,
 }
 
 /// A folder's stage-A diagnostics, with the module each belongs to, the
@@ -1233,7 +1257,7 @@ impl ReplInputs {
             .enumerate()
             .filter_map(|(k, n)| Some(((*n)?, k)))
             .collect();
-        sorted.sort_unstable();
+        sorted.sort_stable();
         let visible: Vec<(u32, usize)> = sorted
             .iter()
             .filter(|(n, _)| !failed.contains(n))
@@ -1389,6 +1413,10 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
 }
 
 struct Run<'a> {
+    #[cfg(feature = "analysis")]
+    analysis: Option<(&'a dyn analysis::AnalysisSink, analysis::Events)>,
+    #[cfg(feature = "analysis")]
+    analysis_diags: Vec<OnceLock<DiagBuf>>,
     host: &'a Host<'a>,
     package: String,
     /// Whether the root package is a single-file program
@@ -1427,8 +1455,13 @@ struct Run<'a> {
     inline_counts: bool,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
+    /// The selected optimization pipeline, separate from arithmetic semantics.
+    level: OptLevel,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
+    /// Whether the ownership passes' output is verified without debug
+    /// assertions or `checked` ([`Packages::verify_own`]).
+    verify_own: bool,
     /// The layout facts the ownership passes ask of a type, computed once
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
     /// is a reference.
@@ -1576,7 +1609,7 @@ fn check_host_declarations(
     diags: &mut DiagBuf,
 ) {
     use hd_syntax::{SyntaxKind, TokenKind};
-    let packages: BTreeMap<_, _> = packages.iter().map(|p| (p.package, p)).collect();
+    let packages = hd_base::btree_map(packages.iter().map(|p| (p.package, p)));
     let mut found = BTreeSet::new();
     let mut declared = BTreeMap::new();
     for (m, module) in table.modules.iter().enumerate() {
@@ -1835,6 +1868,11 @@ pub struct Packages<'a> {
     pub body_fuel: Option<u64>,
     /// Enable allocation/count auditing for compiler conformance checks.
     pub checked: bool,
+    /// Verify the ownership passes' output (`hd_tir::ir::verify_owned`)
+    /// in a compiler built without debug assertions too, as debug and
+    /// checked builds always do, so a release-built conformance run
+    /// rejects a body a pass leaves broken.
+    pub verify_own: bool,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -1846,6 +1884,9 @@ pub struct Session {
     /// inputs before it and reading the store, so it does not redo the
     /// session's earlier inputs (`f1c55020:future-work/compiler/repl-plan.md` §4).
     inputs: BTreeMap<u32, InputEntries>,
+    /// Private linking ABI for initialized REPL modules; absent for a
+    /// whole-history rebuild used by older callers and replay recovery.
+    linked: Option<hd_wasm_linear::Session>,
 }
 
 /// A validated cache payload that retains the store's backing allocation.
@@ -1914,9 +1955,21 @@ impl Session {
         Session::default()
     }
 
+    /// Starts compilation of initialized base/extension REPL modules.
+    #[must_use]
+    pub fn linked() -> Session {
+        Session {
+            linked: Some(hd_wasm_linear::Session::default()),
+            ..Session::default()
+        }
+    }
+
     /// Adds cached source/check entries from an input.
     pub fn add(&mut self, added: Session) {
         self.inputs.extend(added.inputs);
+        if added.linked.is_some() {
+            self.linked = added.linked;
+        }
     }
 }
 
@@ -1948,6 +2001,36 @@ pub fn build_packages(
     package: &str,
     packages: &Packages<'_>,
     goal: &Goal,
+) -> Output {
+    build_packages_inner(
+        host,
+        package,
+        packages,
+        goal,
+        #[cfg(feature = "analysis")]
+        None,
+    )
+}
+
+/// `build_packages`, with one optional post-verification analysis consumer.
+#[cfg(feature = "analysis")]
+#[must_use]
+pub fn build_packages_with_analysis(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+    analysis: Option<&dyn analysis::AnalysisSink>,
+) -> Output {
+    build_packages_inner(host, package, packages, goal, analysis)
+}
+
+fn build_packages_inner(
+    host: &Host<'_>,
+    package: &str,
+    packages: &Packages<'_>,
+    goal: &Goal,
+    #[cfg(feature = "analysis")] analysis: Option<&dyn analysis::AnalysisSink>,
 ) -> Output {
     // The embedded std, or the root package's own when it is std.
     let embedded = (package != "std").then(embedded_std);
@@ -2075,7 +2158,7 @@ pub fn build_packages(
     let mut profile = packages.profile.clone().unwrap_or_else(|| {
         hd_host_abi::TABLE
             .iter()
-            .map(|t| t.std_path.to_owned())
+            .map(|t| hd_host_abi::public_provider_path(t).to_owned())
             .collect()
     });
     let mut host_key = hd_base::StableHasher::new("package-host-inputs-v1");
@@ -2109,6 +2192,12 @@ pub fn build_packages(
         package_key = key.finish();
     }
     let run = Run {
+        #[cfg(feature = "analysis")]
+        analysis: analysis
+            .map(|sink| (sink, sink.interests()))
+            .filter(|(_, interests)| *interests != analysis::Events::default()),
+        #[cfg(feature = "analysis")]
+        analysis_diags: (0..n).map(|_| OnceLock::new()).collect(),
         host,
         package: package.to_owned(),
         single_file: packages.single_file,
@@ -2140,8 +2229,10 @@ pub fn build_packages(
                 BuildProfile::Checked
             }
         },
+        level: packages.level,
         body_fuel: packages.body_fuel,
         checked: packages.checked,
+        verify_own: packages.verify_own,
         own_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         summaries: hd_opt::passes::pipeline(packages.target, packages.level)
@@ -2412,6 +2503,18 @@ pub fn build_packages(
         }
     }
     let mut output = Output {
+        #[cfg(feature = "analysis")]
+        analysis_diags: if diags.has_errors() {
+            DiagBuf::default()
+        } else {
+            let mut findings = DiagBuf::default();
+            for module in &run.analysis_diags {
+                if let Some(module) = module.get() {
+                    findings.append(module);
+                }
+            }
+            findings
+        },
         entry_capabilities,
         tests: cases,
         wasm,
@@ -2600,7 +2703,7 @@ fn folder_display(table: &ModuleTable, f: usize) -> String {
         .iter()
         .map(|m| table.files[m.idx()].as_str())
         .collect();
-    files.sort_unstable();
+    files.sort_stable();
     if let Some(dir) = files.iter().find_map(|p| p.strip_suffix("/mod.hd")) {
         return dir.to_owned();
     }
@@ -2903,6 +3006,68 @@ struct OptInFinding {
 }
 
 impl Run<'_> {
+    /// Whether this root module needs the narrow completed checker facts used
+    /// by the optional analysis sink.
+    fn collect_checked_facts(&self, m: usize) -> bool {
+        if self.table.modules[m].package != 0 {
+            return false;
+        }
+        #[cfg(feature = "analysis")]
+        {
+            self.analysis
+                .is_some_and(|(_, events)| events.intersects(analysis::Events::CHECKED))
+        }
+        #[cfg(not(feature = "analysis"))]
+        {
+            false
+        }
+    }
+
+    #[cfg(feature = "analysis")]
+    fn collect_derivation_facts(&self, m: usize) -> bool {
+        self.table.modules[m].package == 0
+            && self
+                .analysis
+                .is_some_and(|(_, events)| events.contains(analysis::Events::DERIVATIONS))
+    }
+
+    #[cfg(feature = "analysis")]
+    fn analysis_main_site(&self, m: usize) -> Option<hd_project::MainSite> {
+        let (_, events) = self.analysis?;
+        if !events.contains(analysis::Events::MAIN_SITE) {
+            return None;
+        }
+        let module = &self.table.modules[m];
+        if module.package != 0 {
+            return None;
+        }
+        let skim = &self.skim_of(m).file;
+        let (lo, hi, public) = skim
+            .public_main
+            .map(|(lo, hi)| (lo, hi, true))
+            .or_else(|| skim.private_main.map(|(lo, hi)| (lo, hi, false)))?;
+        Some(hd_project::MainSite {
+            span: Span {
+                file: module.file,
+                lo,
+                hi,
+            },
+            public,
+            entry_module: self.entry_module(m),
+            make_public_exact: !self
+                .table
+                .modules
+                .iter()
+                .enumerate()
+                .any(|(other, candidate)| {
+                    candidate.package == 0 && self.skim_of(other).file.public_main.is_some()
+                }),
+            role: module.role,
+            entry: module.entry,
+            source_root: self.table.files[module.file.idx()].starts_with("src/"),
+        })
+    }
+
     /// Whether the build links the linear backend's checked runtime
     /// (the internal allocation/count audit setting).
     fn checked(&self) -> bool {
@@ -3166,7 +3331,7 @@ impl Run<'_> {
     }
 
     /// Whether module `m` of the root package is an entry module that the
-    /// entry-point rules cover (`module.entry.private-main.warn`,
+    /// entry-point rules cover (`module.entry.private-main.lint`,
     /// `module.entry.parameters`): a root file other than the library
     /// root, an executable's module, or the file of a single-file program.
     fn entry_module(&self, m: usize) -> bool {
@@ -3250,89 +3415,6 @@ impl Run<'_> {
                 && self.reached.as_ref().is_none_or(|r| r[m])
                 && checked.is_none_or(|(reach, _)| reach[m])
         };
-        // `cli.exe.unselected-main`: a public `main` under the source root
-        // of a module no executable names is an ordinary function.
-        for (m, module) in self.table.modules.iter().enumerate() {
-            let source = self.table.files[m].starts_with("src/");
-            if module.package != 0
-                || module.entry
-                || module.role != Role::Lib
-                || !source
-                || !builds_module(m)
-            {
-                continue;
-            }
-            if let Some((lo, hi)) = self.skim_of(m).file.public_main {
-                let span = Span {
-                    file: module.file,
-                    lo,
-                    hi,
-                };
-                lock(&self.diags).push(
-                    Code::UnselectedMain,
-                    Severity::Warning,
-                    span,
-                    "this public `main` is an ordinary function, since no executable names its module; name it in an `[[executable]]` table of `hd.toml` to run it",
-                    None,
-                );
-            }
-        }
-        // `module.entry.private-main.warn`: a `main` or `main!` that is not
-        // `pub` in an entry module is an ordinary function.
-        for (m, module) in self.table.modules.iter().enumerate() {
-            if !self.entry_module(m) || !builds_module(m) {
-                continue;
-            }
-            if let Some((lo, hi)) = self.skim_of(m).file.private_main {
-                let span = Span {
-                    file: module.file,
-                    lo,
-                    hi,
-                };
-                let safety = if self
-                    .table
-                    .modules
-                    .iter()
-                    .enumerate()
-                    .any(|(other, candidate)| {
-                        candidate.package == 0 && self.skim_of(other).file.public_main.is_some()
-                    }) {
-                    hd_diag::FixSafety::Suggestion
-                } else {
-                    hd_diag::FixSafety::Exact
-                };
-                let header = self.texts[m].get(lo as usize..hi as usize).unwrap_or("");
-                let lexed = hd_syntax::lex(header.as_bytes());
-                let keyword = lexed
-                    .tokens
-                    .kind
-                    .iter()
-                    .position(|kind| *kind == hd_syntax::TokenKind::KwFn);
-                let mut diags = lock(&self.diags);
-                diags.push(
-                    Code::PrivateMain,
-                    Severity::Warning,
-                    span,
-                    "main is not pub, so it is not the entry point",
-                    None,
-                );
-                if let Some(keyword) = keyword {
-                    let at = lo + lexed.tokens.start[keyword];
-                    diags.add_fix(
-                        "make `main` public",
-                        safety,
-                        &[(
-                            Span {
-                                file: span.file,
-                                lo: at,
-                                hi: at,
-                            },
-                            "pub ",
-                        )],
-                    );
-                }
-            }
-        }
         for c in &graph.cycles {
             if c.iter()
                 .any(|f| self.table.folders[f.idx()].package != 0 || !builds(*f))
@@ -3972,7 +4054,7 @@ impl Run<'_> {
             &apis,
             self.roots_hash(fi),
         );
-        let mut key = hd_base::StableHasher::new("iface-own-docs-v1");
+        let mut key = hd_base::StableHasher::new("iface-own-derivation-facts-v1");
         key.hash(semantic);
         for m in &folder.modules {
             key.hash(self.doc_hash(m.idx()));
@@ -4436,6 +4518,16 @@ impl Run<'_> {
         stage: Stage,
         diags: &mut DiagBuf,
     ) -> StageResult<Option<ModOut>> {
+        self.lower_module_with_facts(m, stage, diags, None)
+    }
+
+    fn lower_module_with_facts(
+        &self,
+        m: usize,
+        stage: Stage,
+        diags: &mut DiagBuf,
+        facts: Option<&mut hd_resolve::facts::DerivationFacts>,
+    ) -> StageResult<Option<ModOut>> {
         let module = &self.table.modules[m];
         let Some(own) = self.iface_of(module.folder) else {
             return Ok(None);
@@ -4450,7 +4542,8 @@ impl Run<'_> {
             tests: self.role(m) == "test",
             ..self.mod_in(m)
         }];
-        let out = hd_resolve::build_folder(&cx, &mods, Some(own), stage, diags)?;
+        let out =
+            hd_resolve::lower::build_folder_with_facts(&cx, &mods, Some(own), stage, diags, facts)?;
         Ok(out.modules.into_iter().next())
     }
 
@@ -4799,7 +4892,7 @@ impl Run<'_> {
             .map(hd_base::ModuleId::idx)
             .filter(|x| *x != m)
             .collect();
-        v.sort_unstable();
+        v.sort_stable();
         v.dedup();
         v
     }
@@ -4834,7 +4927,7 @@ impl Run<'_> {
             .into_iter()
             .filter(|g| g.len() > 1 && g.iter().filter(|m| initializes(**m)).count() > 1)
             .map(|mut g| {
-                g.sort_by(|a, b| {
+                g.sort_stable_by(|a, b| {
                     self.table.modules[*a]
                         .path
                         .cmp(&self.table.modules[*b].path)
@@ -5349,9 +5442,9 @@ impl Run<'_> {
             role.push_str("+fuel=");
             role.push_str(&fuel.to_string());
         }
-        // This check-entry layout adds fixed-callee generic call summaries.
-        // Old entries must miss rather than silently contribute no edges.
-        let mut key = hd_base::StableHasher::new("check-generic-edges-v1");
+        // Keep fixed-callee summaries and invalidate serialized main and
+        // derivation advice. Ephemeral lint facts remain off-band.
+        let mut key = hd_base::StableHasher::new("check-main-derivation-facts-v1");
         key.hash(check_key(
             self.toolchain,
             package,
@@ -5440,7 +5533,9 @@ impl Run<'_> {
                         Some((p, trait_))
                     })
                     .collect();
-                ts.sort_by(|a, b| (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw))));
+                ts.sort_stable_by(|a, b| {
+                    (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw)))
+                });
                 ts.dedup();
                 ts
             });
@@ -5459,8 +5554,9 @@ impl Run<'_> {
         Some(out.into_iter().collect())
     }
 
-    /// `ModulePrep(m)`: the `check` key lookup first; only on a miss does
-    /// it lower headers and create `Body(m)` and `ModuleFinish(m)`
+    /// `ModulePrep(m)`: look up the optional policy-free `lint` result and
+    /// the ordinary `check` entry. Only a missing required result lowers
+    /// headers and creates `Body(m)` and `ModuleFinish(m)`
     /// (`crates/hd_sched/DESIGN.md` §6.1).
     fn module_prep(&self, id: TaskId, m: u32, sp: &dyn Spawn) {
         let mi = m as usize;
@@ -5483,7 +5579,42 @@ impl Run<'_> {
         lock(&self.counters)
             .check_keys
             .insert(self.table.modules[mi].path.clone(), key);
-        if let Some(sections) = self.lookup(EntryKind::Check, key) {
+        // Typed analysis facts are deliberately off-band, not persisted in Check
+        // entries. Recheck selected root bodies on a Lint miss; dependencies keep
+        // ordinary cache hits, and a Lint hit skips the analysis walk entirely.
+        #[cfg(feature = "analysis")]
+        let analyze = self.analysis.is_some_and(|(_, events)| {
+            self.table.modules[mi].package == 0
+                && events.intersects(analysis::Events::MODULE_ANALYSIS)
+        });
+        #[cfg(feature = "analysis")]
+        let cached_analysis = if analyze {
+            let (sink, _) = self.analysis.expect("analysis sink");
+            self.lookup(EntryKind::Lint, key).and_then(|sections| {
+                (sections.len() == 1)
+                    .then(|| sections[0].as_ref())
+                    .and_then(|bytes| {
+                        analysis::decode_cache(
+                            bytes,
+                            &self.lines(mi),
+                            FileId::from_raw(u32_of(mi)),
+                            sink,
+                        )
+                    })
+            })
+        } else {
+            None
+        };
+        #[cfg(feature = "analysis")]
+        let analysis_missing = analyze && cached_analysis.is_none();
+        #[cfg(not(feature = "analysis"))]
+        let analysis_missing = false;
+        let cached = if analysis_missing {
+            None
+        } else {
+            self.lookup(EntryKind::Check, key)
+        };
+        if let Some(sections) = cached {
             // The key ignores comments and blank lines, which can still
             // break the parse (a detached documentation comment).
             if !self.parses(mi) {
@@ -5493,6 +5624,10 @@ impl Run<'_> {
                 let _ = self.prep[mi].set(None);
                 let _ = self.check[mi].set(None);
                 return None;
+            }
+            #[cfg(feature = "analysis")]
+            if let Some(findings) = cached_analysis {
+                let _ = self.analysis_diags[mi].set(findings);
             }
             lock(&self.report).ok(Stage::ModulePrep);
             self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
@@ -5508,8 +5643,18 @@ impl Run<'_> {
             return None;
         }
         let mut scratch = DiagBuf::default();
+        let mut facts = hd_resolve::facts::DerivationFacts::default();
+        #[cfg(feature = "analysis")]
+        let collect = self.collect_derivation_facts(mi);
+        #[cfg(not(feature = "analysis"))]
+        let collect = false;
         let items = self
-            .lower_module(mi, Stage::ModulePrep, &mut scratch)
+            .lower_module_with_facts(
+                mi,
+                Stage::ModulePrep,
+                &mut scratch,
+                collect.then_some(&mut facts),
+            )
             .map(|o| o.map(|o| o.items));
         let Some(Some(items)) = self.stage(Stage::ModulePrep, items) else {
             self.blocked(Stage::Body);
@@ -5528,6 +5673,8 @@ impl Run<'_> {
             items,
             diags: DiagBuf::default(),
             use_errors,
+            #[cfg(feature = "analysis")]
+            derivations: facts,
         }));
         let pr = self.graph.get().map(|g| g.package_result)?;
         // A REPL input's bodies read the earlier inputs' bindings.
@@ -5757,6 +5904,9 @@ impl Run<'_> {
             )),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
+            source_facts: self
+                .collect_checked_facts(m)
+                .then(std::cell::RefCell::default),
             locals: &locals,
             tests: lowered.tests.as_ref().map(|scope| hd_check::TestsView {
                 blocks: &blocks,
@@ -6232,7 +6382,6 @@ impl Run<'_> {
         for h in &heads {
             hd_check::check_duplicate_facts(&cx, &heads, h, &mut diags);
             self.foreign_repeats(m, (&cx, &heads, &impls), h, &mut diags);
-            self.foreign_drift(m, (&cx, &heads, &impls), h, &mut diags);
         }
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
@@ -6285,6 +6434,26 @@ impl Run<'_> {
             self.stage::<()>(Stage::Body, Err(e));
             let _ = self.body[m].set(None);
             return;
+        }
+        #[cfg(feature = "analysis")]
+        if !diags.has_errors()
+            && module.package == 0
+            && let Some((sink, interests)) = self.analysis
+        {
+            let mut findings = DiagBuf::default();
+            let facts = cx.source_facts.as_ref().map(std::cell::RefCell::borrow);
+            analysis::walk(
+                sink,
+                interests,
+                cx.src,
+                facts.as_deref(),
+                self.collect_derivation_facts(m)
+                    .then_some(&prep.derivations),
+                self.analysis_main_site(m),
+                &module.path,
+                &mut findings,
+            );
+            let _ = self.analysis_diags[m].set(findings);
         }
         lock(&self.report).body_ok += derived.bodies.len();
         for b in &derived.bodies {
@@ -6477,6 +6646,9 @@ impl Run<'_> {
             .profile
             .iter()
             .filter_map(|p| {
+                // Check the host representation, while requirement rows
+                // continue to name the public library capability.
+                let p = hd_host_abi::provider_bridge(p).map_or(p.as_str(), |b| b.wire_path);
                 let (module, name) = p.rsplit_once('.')?;
                 Some(cx.names.item(module, name))
             })
@@ -6769,7 +6941,7 @@ impl Run<'_> {
                 diags.error(f.code, self.item_span(f.item, f.slot), &f.message);
             }
         }
-        found.sort_by_key(|f| (f.item, f.slot));
+        found.sort_stable_by_key(|f| (f.item, f.slot));
         // A field that misses several derived comparison traits is one
         // error at the field, for the first trait (spec 09
         // `trait.derive.field-missing-trait`).
@@ -6924,108 +7096,6 @@ impl Run<'_> {
         hd_check::layer_types(cx, h, &prior, Some(diags));
     }
 
-    /// `annot.line.drift` across the REPL session: the block `h` of input
-    /// `m` for a trait of one package on a type warns when its member
-    /// lines differ from the first block for that package and type, which
-    /// an earlier module of the session holds, as within one module. The
-    /// blocks of `m` itself are compared by lowering, so a block that is
-    /// not `m`'s first for the package and type, and already differs from
-    /// that first, is not reported twice.
-    fn foreign_drift<'t>(
-        &self,
-        m: usize,
-        (cx, heads, impls): (&BodyCx<'t>, &[hd_resolve::Head<'t>], &ImplView<'_>),
-        h: &hd_resolve::Head<'t>,
-        diags: &mut DiagBuf,
-    ) {
-        let names = self.names();
-        let pool = cx.names.pool;
-        let block_of = |it: &Item| match &it.data {
-            ItemData::Impl {
-                trait_,
-                by: Some(_),
-                self_ty,
-                ..
-            } if *trait_ != DefId::NONE => match pool.get(*self_ty) {
-                TyData::Adt { def, .. } => Some((*trait_, def)),
-                _ => None,
-            },
-            _ => None,
-        };
-        let Some((trait_, data)) = cx.lookup.item(h.def).and_then(block_of) else {
-            return;
-        };
-        let package = |d: DefId| names.package_node(d);
-        let same = |it: &Item| {
-            block_of(it).is_some_and(|(t, d)| d == data && package(t) == package(trait_))
-        };
-        // The earlier modules' blocks, grouped by module.
-        let mut earlier: Vec<(usize, Vec<DefId>)> = Vec::new();
-        for it in cx
-            .lookup
-            .own
-            .iter()
-            .chain(cx.lookup.ifaces.iter().flat_map(|f| &f.items))
-            .filter(|it| same(it) && cx.session.contains(&names.module_node(it.def)))
-        {
-            let Some(bm) = self.item_module(it.def).map(hd_base::ModuleId::idx) else {
-                continue;
-            };
-            if bm == m {
-                continue;
-            }
-            match earlier.iter_mut().find(|(k, _)| *k == bm) {
-                Some((_, defs)) => defs.push(it.def),
-                None => earlier.push((bm, vec![it.def])),
-            }
-        }
-        let Some((fm, defs)) = earlier
-            .into_iter()
-            .min_by_key(|(k, _)| self.repl_number(*k))
-        else {
-            return;
-        };
-        let Some((first_trait, first)) = self
-            .in_module(m, fm, (&[], impls.own), |fcx, fheads| {
-                let fh = fheads.iter().find(|x| defs.contains(&x.def))?;
-                let (t, _) = fcx.lookup.item(fh.def).and_then(block_of)?;
-                Some((t, drift_signature(&fcx.src, fh.node)))
-            })
-            .flatten()
-        else {
-            return;
-        };
-        let mine = drift_signature(&cx.src, h.node);
-        if mine == first {
-            return;
-        }
-        // Within `m`, a later block that differs from `m`'s first block is
-        // already reported by lowering.
-        let own_first = heads
-            .iter()
-            .find(|x| cx.lookup.item(x.def).is_some_and(same));
-        if let Some(of) = own_first
-            && of.def != h.def
-            && drift_signature(&cx.src, of.node) != mine
-        {
-            return;
-        }
-        let last = |d: DefId| names.path(d).rsplit('/').next().unwrap_or("").to_owned();
-        let msg = format!(
-            "`{}` configures different member lines for `{}` than `{}` does",
-            last(trait_),
-            last(data),
-            last(first_trait)
-        );
-        diags.push(
-            Code::DerivationLineDrift,
-            Severity::Warning,
-            cx.src.span(h.node),
-            &msg,
-            None,
-        );
-    }
-
     /// The declaration facts bodies of `data`, which another module of
     /// REPL input `m`'s session declares (`annot.fact.shared`): built in
     /// its own module, then edited by the type's block with no trait when
@@ -7172,6 +7242,7 @@ impl Run<'_> {
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
+            source_facts: None,
             locals: &tlocals,
             tests: None,
             file_name: &self.table.files[tm],
@@ -7247,6 +7318,7 @@ impl Run<'_> {
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
+            source_facts: None,
             locals: &tlocals,
             tests: None,
             file_name: &self.table.files[tm],
@@ -7347,7 +7419,8 @@ impl Run<'_> {
         out
     }
 
-    /// `ModuleFinish(m)`: writes the `check` entry. Sections: diagnostics;
+    /// `ModuleFinish(m)`: writes the `check` entry and, for an analysis
+    /// run, the module's separate policy-free `lint` entry. Check sections: diagnostics;
     /// meta (the module's content hash, which `prog_key` reads); the
     /// module's items; TIR, one record per body; a test run's
     /// registrations; the init summary, which `InitOrder` reads; the `dbg`
@@ -7557,6 +7630,16 @@ impl Run<'_> {
             sections.push(&input_iface);
         }
         self.put(EntryKind::Check, key, &sections);
+        #[cfg(feature = "analysis")]
+        if self.analysis.is_some() && self.table.modules[m].package == 0 {
+            let empty = DiagBuf::default();
+            let findings = self.analysis_diags[m].get().unwrap_or(&empty);
+            if let Some(bytes) =
+                analysis::encode_cache(findings, &lines, FileId::from_raw(u32_of(m)))
+            {
+                self.put(EntryKind::Lint, key, &[&bytes]);
+            }
+        }
         lock(&self.counters)
             .modules_checked
             .push(self.table.modules[m].path.clone());
@@ -7603,9 +7686,17 @@ impl Run<'_> {
         }
     }
 
-    /// Report outside the cached check entry, once per fetched package,
-    /// including when every module or the whole program is cached.
-    fn dbg_in_dependencies(&self) {
+    /// Send one neutral cached-`dbg` event per fetched package to optional
+    /// lint analysis. Dependency bodies stay on ordinary Check cache hits;
+    /// the event is reconstructed cheaply from the cached reference section.
+    #[cfg(feature = "analysis")]
+    fn lint_dbg_in_dependencies(&self) {
+        let Some((sink, interests)) = self.analysis else {
+            return;
+        };
+        if !interests.contains(analysis::Events::FETCHED_DEBUG) {
+            return;
+        }
         let mut warned = BTreeSet::new();
         for (m, module) in self.table.modules.iter().enumerate() {
             let package = usize::from(module.package);
@@ -7616,16 +7707,17 @@ impl Run<'_> {
                 continue;
             };
             if warned.insert(package) {
-                lock(&self.diags).push(
-                    Code::DbgInDependency,
-                    Severity::Warning,
-                    reference.span,
-                    &format!(
-                        "fetched package `{}` contains `dbg`; its debug output is suppressed",
-                        self.table.packages[package]
-                    ),
-                    None,
+                let mut findings = DiagBuf::default();
+                analysis::dispatch(
+                    sink,
+                    &analysis::Event::FetchedDebug(analysis::FetchedDebugEvent {
+                        package: &self.table.packages[package],
+                        span: reference.span,
+                    }),
+                    self.src(m),
+                    &mut findings,
                 );
+                let _ = self.analysis_diags[m].set(findings);
             }
         }
     }
@@ -7771,6 +7863,170 @@ impl Run<'_> {
         }));
     }
 
+    /// The written `@inline(.Always)` on `def`, including private items
+    /// whose declarations are not part of a folder interface.
+    fn inline_always_span(&self, def: DefId) -> Span {
+        let Some(module) = self.item_module(def) else {
+            return self.item_span(def, 0);
+        };
+        let src = self.src(module.idx());
+        let names = self.names();
+        let module_text = &self.table.modules[module.idx()].path;
+        let heads = hd_resolve::heads(&names, &src, module_text, self.role(module.idx()) == "test");
+        let Some(head) = heads.iter().find(|head| head.def == def) else {
+            return self.item_span(def, 0);
+        };
+        head.node
+            .children()
+            .filter(|child| child.kind() == hd_syntax::SyntaxKind::Decorator)
+            .find(|decorator| {
+                let mut inline = false;
+                let mut always = false;
+                for token in src.tokens(*decorator) {
+                    inline |= src.text(token) == "inline";
+                    always |= src.text(token) == "Always";
+                }
+                inline && always
+            })
+            .map_or_else(|| src.span(head.node), |decorator| src.span(decorator))
+    }
+
+    /// Checks the promises of `@inline(.Always)` after every module body is
+    /// available, including cache hits. Local body restrictions and cycles
+    /// are package facts rather than inputs to a module's cached check.
+    fn check_inline_always(&self) {
+        let mut items: HashMap<DefId, Item> = HashMap::default();
+        let mut bodies: HashMap<DefId, Body> = HashMap::default();
+        for checked in &self.check {
+            let Some(Some(checked)) = checked.get() else {
+                continue;
+            };
+            if checked.has_errors {
+                continue;
+            }
+            let Some(sections) = split_sections(&checked.entry) else {
+                continue;
+            };
+            if let Some(decoded) = sections
+                .get(2)
+                .and_then(|bytes| hd_resolve::decode_items(&self.names(), bytes))
+            {
+                items.extend(
+                    decoded
+                        .0
+                        .into_iter()
+                        .filter(|item| item.inline == hd_resolve::iface::INLINE_ALWAYS)
+                        .map(|item| (item.def, item)),
+                );
+            }
+            let Some(index) = body_index(&checked.entry) else {
+                continue;
+            };
+            for (_, at) in index {
+                if let Some(body) =
+                    hd_tir::wire::read_body(&checked.entry[at], &self.pool, &self.paths, &self.syms)
+                {
+                    bodies.insert(body.item, body);
+                }
+            }
+        }
+
+        let mut defs: Vec<DefId> = items.keys().copied().collect();
+        defs.sort_stable_by_key(|def| def.raw());
+        let mut findings: Vec<(DefId, String)> = Vec::new();
+        let mut bad: HashSet<DefId> = HashSet::default();
+        for &def in &defs {
+            let Some(item) = items.get(&def) else {
+                continue;
+            };
+            let Some(sig) = item.sig() else {
+                continue;
+            };
+            let body = bodies.get(&def);
+            let module = self.item_module_text(def);
+            let runtime = module == "std.rt" || module.starts_with("std.rt.");
+            let reason = if sig.suspends {
+                Some("it suspends")
+            } else if sig.row != hd_types::RowId::EMPTY {
+                Some("it has a requirement row")
+            } else if runtime {
+                Some("it belongs to `std.rt`")
+            } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::Defer)) {
+                Some("it contains `defer`")
+            } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::Closure)) {
+                Some("it makes a closure")
+            } else if body.is_some_and(|body| body.tags.contains(&hd_tir::Tag::With)) {
+                Some("it contains `with`")
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                bad.insert(def);
+                findings.push((
+                    def,
+                    format!("`@inline(.Always)` cannot copy this function because {reason}"),
+                ));
+            }
+        }
+
+        let always: HashSet<DefId> = defs.iter().copied().collect();
+        let mut edges: HashMap<DefId, Vec<DefId>> = HashMap::default();
+        for &def in &defs {
+            let Some(body) = bodies.get(&def) else {
+                continue;
+            };
+            let mut out = Vec::new();
+            for i in 0..body.len() {
+                let callee = hd_tir::inline::known_call(body, i).and_then(|callee| match callee {
+                    hd_tir::Callee::Item { def, .. } => Some(def),
+                    hd_tir::Callee::TraitMethod {
+                        choice: (hd_tir::ChoiceKind::Impl, def),
+                        ..
+                    } => Some(DefId::from_raw(def)),
+                    hd_tir::Callee::TraitMethod { .. } => None,
+                });
+                if let Some(callee) = callee.filter(|callee| always.contains(callee)) {
+                    out.push(callee);
+                }
+            }
+            out.sort_stable_by_key(|callee| callee.raw());
+            out.dedup();
+            edges.insert(def, out);
+        }
+        let done = std::cell::RefCell::new(HashSet::default());
+        for &root in &defs {
+            hd_opt::inline::bottom_up(
+                root,
+                &|def| done.borrow().contains(&def),
+                &mut |def| edges.get(&def).cloned().unwrap_or_default(),
+                &mut |members, recursive| {
+                    done.borrow_mut().extend(members.iter().copied());
+                    if recursive {
+                        members.sort_stable_by_key(|def| def.raw());
+                        for &def in members.iter().filter(|def| !bad.contains(def)) {
+                            findings.push((
+                                def,
+                                "`@inline(.Always)` functions cannot form a call cycle".into(),
+                            ));
+                        }
+                    }
+                },
+            );
+        }
+        findings.sort_stable_by_key(|(def, _)| {
+            let span = self.inline_always_span(*def);
+            (span.file.raw(), span.lo, def.raw())
+        });
+        let mut diags = lock(&self.diags);
+        for (def, message) in findings {
+            diags.error(
+                Code::InlineAlwaysUncopyable,
+                self.inline_always_span(def),
+                &message,
+            );
+        }
+    }
+
     /// Recompute hidden-type equations after module checks, including cache
     /// hits, without adding body dependencies to any caller's check key.
     fn check_opaque_cycles(&self) {
@@ -7827,7 +8083,7 @@ impl Run<'_> {
         };
         let mut reported = hd_base::HashSet::default();
         let mut ordered: Vec<_> = facts.iter().collect();
-        ordered.sort_by_key(|(_, (_, span))| (span.file.raw(), span.lo));
+        ordered.sort_stable_by_key(|(_, (_, span))| (span.file.raw(), span.lo));
         for (_, (fact, fallback)) in ordered {
             let result = hd_mono::opaque::reveal(&self.pool, fact.opaque, &hidden);
             if matches!(result, Err(hd_mono::opaque::Error::TooComplex(_))) {
@@ -7859,6 +8115,7 @@ impl Run<'_> {
 
     fn package_result(&self, sp: &dyn Spawn) {
         lock(&self.report).ok(Stage::PackageResult);
+        self.check_inline_always();
         self.check_opaque_cycles();
         // Recompute the folder graph from current module summaries, including
         // cache hits. Its verdict is never cached under one module's key.
@@ -7898,7 +8155,8 @@ impl Run<'_> {
             t
         };
         self.dbg_in_release();
-        self.dbg_in_dependencies();
+        #[cfg(feature = "analysis")]
+        self.lint_dbg_in_dependencies();
         match &self.goal {
             Goal::Program { .. }
             | Goal::ReplInput { .. }
@@ -8248,6 +8506,28 @@ impl Run<'_> {
             }
             Goal::Analyze | Goal::CheckTests => return,
         };
+        if matches!(self.goal, Goal::Program { .. } | Goal::Scenario { .. })
+            && let Some(m) = self
+                .table
+                .modules
+                .iter()
+                .position(|module| module.path == entry_key)
+            && let Some((lo, hi)) = self.skim_of(m).file.private_main
+        {
+            let span = Span {
+                file: self.table.modules[m].file,
+                lo,
+                hi,
+            };
+            lock(&self.diags).error(
+                Code::MissingEntryPoint,
+                span,
+                &format!(
+                    "`{entry_key}` has a private `main`; make it `pub` to use it as the entry point"
+                ),
+            );
+            return;
+        }
         let mut modules: Vec<(&str, Hash128)> = Vec::new();
         // std's content is in the toolchain key; a dependency's reached
         // modules count as the root's do.
@@ -8497,7 +8777,11 @@ impl Run<'_> {
                 if host_refs.iter().any(|(k, _)| *k == key) {
                     continue;
                 }
-                let r = (host_provider, self.pool.list(&[key]));
+                let r = env
+                    .host_bridge(key)
+                    .map_or((host_provider, self.pool.list(&[key])), |bridge| {
+                        (bridge.adapter, self.pool.list(&[bridge.wire]))
+                    });
                 host_refs.push((key, r));
                 if !extra.contains(&r) {
                     extra.push(r);
@@ -8681,7 +8965,7 @@ impl Run<'_> {
                 });
             }
         }
-        layouts.sort_by(|a, b| a.item.cmp(&b.item));
+        layouts.sort_stable_by(|a, b| a.item.cmp(&b.item));
         let _ = self.fixture_layouts.set(layouts);
         let mut definitions: Vec<DefId> = p
             .items
@@ -8695,7 +8979,7 @@ impl Run<'_> {
                 .then_some(item.def)
             })
             .collect();
-        definitions.sort_by_key(|d| names.path(*d));
+        definitions.sort_stable_by_key(|d| names.path(*d));
         let generic = |d: DefId| {
             p.items
                 .get(d)
@@ -8787,7 +9071,7 @@ impl Run<'_> {
                 }
             }
         }
-        notes.sort();
+        notes.sort_stable();
         let _ = self.fixture_notes.set(notes);
         let keep = collected
             .table
@@ -8838,7 +9122,11 @@ impl Run<'_> {
                 .is_some_and(|(_, file)| hd_project::Root::of(file).0 == hd_project::Root::Test);
         let mut paths = vec!["std.testing.TestRunner"];
         if integration {
-            paths.extend(hd_host_abi::TABLE.iter().map(|t| t.std_path));
+            paths.extend(
+                hd_host_abi::TABLE
+                    .iter()
+                    .map(hd_host_abi::public_provider_path),
+            );
         }
         let names = self.names();
         let keys = paths
@@ -9131,7 +9419,7 @@ impl Run<'_> {
                 .iter()
                 .map(|m| self.table.modules[*m].path.as_str())
                 .collect();
-            paths.sort_unstable();
+            paths.sort_stable();
             if paths.iter().filter(|p| has_init(p)).count() < 2 {
                 out.extend(
                     paths
@@ -9263,7 +9551,7 @@ impl Run<'_> {
                 }
             }
         }
-        out.sort_by(|a, b| {
+        out.sort_stable_by(|a, b| {
             (a.span.file.raw(), a.span.lo, &a.selectors).cmp(&(
                 b.span.file.raw(),
                 b.span.lo,
@@ -9308,7 +9596,8 @@ impl Run<'_> {
                 hd_host_abi::TABLE
                     .iter()
                     .find(|t| {
-                        t.std_path == format!("std.{}", identity.trait_path)
+                        hd_host_abi::public_provider_path(t)
+                            == format!("std.{}", identity.trait_path)
                             && hd_project::CAPABILITY_KEYS
                                 .iter()
                                 .any(|(key, _)| *key == t.key)
@@ -9437,10 +9726,12 @@ impl Run<'_> {
         };
         let inits = &c.collected.inits;
         let entry = match &c.roots {
-            // A linear module owns its memory, so it links to no earlier
-            // module: a session is one module of all its inputs
-            // ([`Packages::inputs_from`]) over a session with no module.
-            _ if self.session.is_some_and(|s| *s != Session::start()) => {
+            // Legacy whole-history sessions own their memory. Only the
+            // initialized linking ABI can import earlier modules.
+            _ if self
+                .session
+                .is_some_and(|s| s.linked.is_none() && *s != Session::start()) =>
+            {
                 hd_wasm_linear::Entry::Unsupported("a REPL input over earlier modules")
             }
             Roots::Fixture(roots) => hd_wasm_linear::Entry::Fixture {
@@ -9588,10 +9879,23 @@ impl Run<'_> {
             );
             return;
         }
+        let direct_json_encoders = env.direct_json_encoders(&c.collected, &body);
+        let json_fallbacks = [
+            names.item("std.json", "encode_fallback"),
+            names.item("std.json", "encode_pretty_fallback"),
+        ];
         let package_trait = |d| self.package_trait_identity(d);
         let package_host = |d| self.package_host_identity(d);
         let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
         let package_selectors = |d| self.package_host_selectors(d);
+        let interior_targets = || {
+            let instances = hd_opt::whole::Instances {
+                table: &c.collected.table,
+                order: &c.order,
+                body: &body,
+            };
+            hd_opt::whole::interior_targets(&self.pool, &env, &env, &instances)
+        };
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
@@ -9602,14 +9906,32 @@ impl Run<'_> {
             collected: &c.collected,
             order: &c.order,
             body: &body,
+            direct_json_encoders: &direct_json_encoders,
+            json_fallbacks,
             entry,
             release: self.build_profile == BuildProfile::Release,
+            optimized: self.level == OptLevel::Optimized,
             runtime,
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
             own_cx: &env,
+            interior_targets: &interior_targets,
         };
-        let built = if self.map_instructions {
+        let linked = self.session.and_then(|s| s.linked.as_ref());
+        let built = if let Some(previous) = linked {
+            let built = if previous.is_empty() {
+                hd_wasm_linear::build_session_base(&input)
+            } else {
+                hd_wasm_linear::build_session_extension(&input, previous)
+            };
+            built.map(|(wasm, linked)| {
+                let _ = self.session_added.set(Session {
+                    linked: Some(linked),
+                    ..Session::default()
+                });
+                wasm
+            })
+        } else if self.map_instructions {
             hd_wasm_linear::build_with_origins(&input).map(|mapped| {
                 let _ = self.instruction_origins.set(mapped.functions);
                 mapped.wasm
@@ -9620,7 +9942,10 @@ impl Run<'_> {
         let Some(wasm) = self.stage(Stage::Link, built) else {
             return;
         };
-        if !self.map_instructions && !matches!(self.goal, Goal::Fixture { .. }) {
+        if !self.map_instructions
+            && self.session.is_none()
+            && !matches!(self.goal, Goal::Fixture { .. })
+        {
             self.put(EntryKind::Link, c.prog_key, &[&wasm]);
         }
         let _ = self.wasm.set(wasm);
@@ -9762,7 +10087,7 @@ fn encode_summary(
     let mut body = Writer::default();
     let set = |t: &mut hd_types::wire::TableWriter<'_>, w: &mut Writer, s: &HashSet<DefId>| {
         let mut v: Vec<DefId> = s.iter().copied().collect();
-        v.sort_by_cached_key(|d| names.path(*d));
+        v.sort_stable_by_cached_key(|d| names.path(*d));
         w.len_of(&v);
         for d in v {
             w.u32(t.def(d));
@@ -10598,7 +10923,7 @@ impl LayoutEnv for Env<'_> {
                     .filter(|i| matches!(i.data, ItemData::Enum { .. }))
                     .map(|i| i.def)
                     .collect();
-                enums.sort_unstable_by_key(|d| d.raw());
+                enums.sort_stable_by_key(|d| d.raw());
                 hd_mono::layout::recursive_enums(&self.run.pool, self, &enums)
             })
             .contains(&def)
@@ -10608,6 +10933,32 @@ impl LayoutEnv for Env<'_> {
             ItemData::Newtype(inner) => Some(self.low(*inner)),
             _ => None,
         }
+    }
+}
+
+/// The backend's layout as the whole-object scan reads it
+/// (`hd_opt::whole`).
+impl hd_opt::whole::ObjectLayout for Env<'_> {
+    fn shape(&self, t: Ty) -> hd_opt::whole::Shape {
+        use hd_opt::whole::Shape;
+        use hd_wasm_linear::object_layout::{Kind, kind};
+        match kind(&self.run.pool, self, t) {
+            Kind::Ref { target, fat } => Shape::Ref { target, fat },
+            Kind::Data(fields) => Shape::Data(fields),
+            Kind::Value | Kind::Boxed => Shape::Other,
+        }
+    }
+    fn strip(&self, t: Ty) -> Ty {
+        hd_wasm_linear::object_layout::strip(&self.run.pool, self, t)
+    }
+    fn payload_offset(&self, fields: &[Ty], f: usize) -> Option<u32> {
+        hd_wasm_linear::object_layout::payload_offset(&self.run.pool, self, fields, f)
+    }
+    fn field(&self, t: Ty, f: u32) -> Option<(Ty, u32)> {
+        hd_wasm_linear::object_layout::field_at(&self.run.pool, self, t, f)
+    }
+    fn variants(&self, t: Ty) -> Option<Vec<Vec<Ty>>> {
+        hd_wasm_linear::object_layout::variants(&self.run.pool, self, t)
     }
 }
 
@@ -10792,9 +11143,209 @@ impl Env<'_> {
         let names = self.run.names();
         hd_mono::key_order(pool, &|d| names.path_hash(d), keys)
     }
+
+    /// The concrete compact and pretty JSON encoders whose selected
+    /// `Serialize` implementation can only make a regular writer walk.
+    /// Their private tree-fallback call is removed during emission, before
+    /// the backend's final reachability pass.
+    fn direct_json_encoders<'a>(
+        &self,
+        collected: &Collected,
+        body: &dyn Fn(hd_base::InstId) -> Option<&'a Body>,
+    ) -> HashSet<Hash128> {
+        let names = self.run.names();
+        let encoders = [
+            self.run.known.json_encode,
+            names.item("std.json", "encode_pretty"),
+        ];
+        let by_key: HashMap<Hash128, hd_base::InstId> = collected
+            .table
+            .key
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(i, key)| (key, hd_base::InstId::from_raw(u32_of(i))))
+            .collect();
+        let mut out = HashSet::default();
+        for (i, &item) in collected.table.item.iter().enumerate() {
+            if !encoders.contains(&item) || collected.table.sub[i] != hd_mono::Sub::Body(0) {
+                continue;
+            }
+            let selected: Vec<Hash128> = collected.calls[i]
+                .values()
+                .filter_map(|target| match target {
+                    hd_mono::Target::Call(call)
+                        if call.kind == hd_mono::TargetKind::Instance
+                            && self.serialize_method(call.item) =>
+                    {
+                        Some(call.key)
+                    }
+                    _ => None,
+                })
+                .collect();
+            if let [serialize] = selected.as_slice()
+                && self.regular_json_walk(collected, body, &by_key, *serialize)
+            {
+                out.insert(collected.table.key[i]);
+            }
+        }
+        out
+    }
+
+    /// Whether `item` is a concrete implementation of
+    /// `std.serde.Serialize.serialize`.
+    fn serialize_method(&self, item: DefId) -> bool {
+        let Some(ItemData::Method { owner, .. }) = self.p.items.get(item).map(|i| &i.data) else {
+            return false;
+        };
+        matches!(
+            self.p.items.get(*owner).map(|i| &i.data),
+            Some(ItemData::Impl { trait_, .. }) if *trait_ == self.run.known.serialize
+        )
+    }
+
+    /// A closed call graph is regular when it has no user-written
+    /// `Serialize` method, dynamic dispatch, or user facts that can rename
+    /// two derived members to the same JSON key. Standard serializers and
+    /// compiler-generated derivations otherwise obey the writer protocol.
+    fn regular_json_walk<'a>(
+        &self,
+        collected: &Collected,
+        body: &dyn Fn(hd_base::InstId) -> Option<&'a Body>,
+        by_key: &HashMap<Hash128, hd_base::InstId>,
+        root: Hash128,
+    ) -> bool {
+        let mut stack = vec![root];
+        let mut seen = HashSet::default();
+        while let Some(key) = stack.pop() {
+            if !seen.insert(key) {
+                continue;
+            }
+            let Some(&id) = by_key.get(&key) else {
+                return false;
+            };
+            let item = collected.table.item[id.idx()];
+            if self.user_written_serialize(item) {
+                return false;
+            }
+            let Some(instance) = body(id) else {
+                return false;
+            };
+            if !self.std_item(item)
+                && instance.kind == hd_tir::BodyKind::Fact
+                && !empty_fact_body(instance)
+            {
+                return false;
+            }
+            for target in collected.calls[id.idx()].values() {
+                if !push_json_targets(target, &mut stack) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn user_written_serialize(&self, item: DefId) -> bool {
+        let Some(ItemData::Method { owner, .. }) = self.p.items.get(item).map(|i| &i.data) else {
+            return false;
+        };
+        matches!(
+            self.p.items.get(*owner).map(|i| &i.data),
+            Some(ItemData::Impl {
+                trait_,
+                kind: hd_resolve::ImplKind::Written,
+                ..
+            }) if *trait_ == self.run.known.serialize && !self.std_item(item)
+        )
+    }
+
+    fn std_item(&self, item: DefId) -> bool {
+        let module = self.run.item_module_text(item);
+        module == "std" || module.starts_with("std.")
+    }
+}
+
+/// Whether a generated facts body constructs only `Facts { items: [] }`.
+/// Any actual fact is conservatively treated as enough to keep JSON's tree
+/// fallback: serde's rename facts can make two generated member keys collide.
+fn empty_fact_body(body: &Body) -> bool {
+    let mut lists = body
+        .tags
+        .iter()
+        .enumerate()
+        .filter_map(|(i, tag)| (*tag == hd_tir::Tag::NewList).then_some(i));
+    let Some(i) = lists.next() else {
+        return false;
+    };
+    lists.next().is_none()
+        && body.data[i][0] == hd_tir::ir::NONE
+        && body.record(body.data[i][1]).is_empty()
+}
+
+/// Adds every concrete instance a collected target may call. A dynamic or
+/// erased call is not a closed graph and therefore cannot prove a regular
+/// JSON walk.
+fn push_json_targets(target: &hd_mono::Target, out: &mut Vec<Hash128>) -> bool {
+    match target {
+        hd_mono::Target::Call(target) => push_json_call(target, out),
+        hd_mono::Target::Default { call: target, .. } => push_json_call(target, out),
+        hd_mono::Target::VTable(table) => push_json_vtable(table, out),
+        hd_mono::Target::Closure(key) | hd_mono::Target::KnownClosure(key) => out.push(*key),
+        hd_mono::Target::MapKey { hash, eq } => {
+            push_json_call(hash, out);
+            push_json_call(eq, out);
+        }
+        hd_mono::Target::MapInline(target) => push_json_call(target, out),
+        hd_mono::Target::Dyn | hd_mono::Target::Open(_) => return false,
+        hd_mono::Target::ConstDefault(_)
+        | hd_mono::Target::Erased { .. }
+        | hd_mono::Target::Thunk { .. } => {}
+    }
+    true
+}
+
+fn push_json_call(target: &hd_mono::CallTarget, out: &mut Vec<Hash128>) {
+    if target.kind == hd_mono::TargetKind::Instance {
+        out.push(target.key);
+    }
+}
+
+fn push_json_vtable(table: &hd_mono::VTable, out: &mut Vec<Hash128>) {
+    for slot in &table.slots {
+        push_json_call(slot, out);
+    }
+    for parent in &table.parents {
+        push_json_vtable(parent, out);
+    }
 }
 
 impl ProgramEnv for Env<'_> {
+    fn host_bridge(&self, key: Ty) -> Option<hd_mono::HostBridge> {
+        let TyData::TraitValue { def, args, .. } = self.run.pool.get(key) else {
+            return None;
+        };
+        if args != TyList::EMPTY {
+            return None;
+        }
+        let names = self.run.names();
+        let path = names.path(def).replace('/', ".");
+        let bridge = hd_host_abi::provider_bridge(&path)?;
+        let (module, name) = bridge.wire_path.rsplit_once('.')?;
+        let wire = names.item(module, name);
+        self.p.items.get(wire)?;
+        let (module, name) = bridge.adapter.rsplit_once('.')?;
+        let adapter = names.item(module, name);
+        self.p.items.get(adapter)?;
+        Some(hd_mono::HostBridge {
+            wire: self.run.pool.intern_ty(&TyData::TraitValue {
+                def: wire,
+                args: TyList::EMPTY,
+                bindings: vec![],
+            }),
+            adapter,
+        })
+    }
     fn shared_reference_layout(&self, ty: Ty) -> Option<bool> {
         Some(hd_wasm_linear::shared_reference_layout(
             &self.run.pool,
@@ -10918,7 +11469,15 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn generics_owner(&self, def: DefId) -> DefId {
-        if self.default_body(def).is_some() {
+        // The decoded body's kind, not the owned body: the inliner
+        // substitutes a callee's types while its caller's passes wait
+        // (`own.rs`), and owning a body there would start another walk.
+        let default = (self.run.lazy_body(self.p, def))
+            .and_then(|b| self.run.decode(b))
+            .is_some_and(|(b, _)| {
+                matches!(b.kind, hd_tir::BodyKind::Default | hd_tir::BodyKind::Fact)
+            });
+        if default {
             let p = self
                 .run
                 .names()
@@ -11009,6 +11568,12 @@ impl ProgramEnv for Env<'_> {
             Some(ItemData::Trait(t)) => t.assoc.iter().map(|a| a.1).collect(),
             _ => Vec::new(),
         }
+    }
+    fn cold(&self, def: DefId) -> bool {
+        self.p
+            .items
+            .get(def)
+            .is_some_and(|i| i.inline == hd_resolve::iface::COLD)
     }
     fn intrinsic(&self, def: DefId) -> Option<String> {
         let k = self.p.items.get(def)?.intrinsic?;
@@ -11400,24 +11965,6 @@ fn traitless<'t>(
 }
 
 /// Whether `it` is a derivation block with no trait for `data`.
-/// A derivation block's member lines as `annot.line.drift` compares them:
-/// each member, whether it extends, and its right side's tokens.
-fn drift_signature(
-    src: &hd_resolve::Src<'_>,
-    block: hd_syntax::NodeRef<'_>,
-) -> Vec<(String, bool, Vec<String>)> {
-    hd_check::derive::member_lines(src, block)
-        .into_iter()
-        .map(|l| {
-            let rhs = l.list.map_or_else(
-                || vec!["pass".to_owned()],
-                |v| src.tokens(v).map(|t| src.text(t).to_owned()).collect(),
-            );
-            (l.name.to_owned(), l.extend, rhs)
-        })
-        .collect()
-}
-
 fn traitless_for(pool: &InternPool, it: &Item, data: DefId) -> bool {
     matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
         if *trait_ == DefId::NONE
@@ -12102,7 +12649,11 @@ fn run_package_host_javascript(out: &Output, body: &str) {
         "\
 import assert from 'node:assert/strict';
 import {{ pathToFileURL }} from 'node:url';
-const {{ createCoreHost }} = await import(pathToFileURL({:?}));
+const coreURL = pathToFileURL({:?});
+const {{ createCoreHost: createBaseHost }} = await import(coreURL);
+const {{ createPackageRuntime, readPackageContract }} = await import(new URL('package-providers.mjs', coreURL));
+const createCoreHost = (sink, env, layer) =>
+  createBaseHost(sink, {{ ...env, createPackageRuntime, readPackageContract }}, layer);
 const glue = await import('data:text/javascript,' + encodeURIComponent({glue:?}));
 const module = await WebAssembly.compile(new Uint8Array({:?}));
 const output = [], errors = [];

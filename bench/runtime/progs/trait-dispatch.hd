@@ -22,12 +22,10 @@ fn drive(n: i32) -> i32:
     double := Double { k: 3 }
     add := Add { k: 5 }
     let x = +1
-    let i = +0
-    while i < n:
+    for _ in 0..n:
         x = apply(double, x) % 1000003
         x = apply(add, x) % 1000003
-        i = i + 1
     x
 
 pub fn main() -> void $ Console:
-    println(drive(80000000))
+    println(drive(35000000))

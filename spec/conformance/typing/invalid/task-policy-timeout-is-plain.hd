@@ -3,4 +3,4 @@
 use std.task.{TimeLimit, timeout}
 
 pub fn bad!() -> TimeLimit:
-    timeout!(1s)  # diagnostic: not-suspending
+    timeout!(1s) # diagnostic: not-suspending

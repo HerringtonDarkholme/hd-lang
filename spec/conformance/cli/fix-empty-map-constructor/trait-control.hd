@@ -1,7 +1,8 @@
 trait Empty:
     fn new() -> Map[string, i32]
 impl Empty for Map[string, i32]:
-    fn new() -> Map[string, i32]: {}
+    fn new() -> Map[string, i32]:
+        {}
 fn unresolved_trait() -> Map[string, i32]:
     Map::new()
 fn real_trait_method() -> Map[string, i32]:

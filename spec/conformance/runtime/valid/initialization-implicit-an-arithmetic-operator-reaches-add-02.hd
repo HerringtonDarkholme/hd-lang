@@ -10,7 +10,8 @@ later := +5
 
 impl Add for Tag:
     type Out = i32
-    fn add(self, rhs: Tag) -> i32: self.n + rhs.n + later
+    fn add(self, rhs: Tag) -> i32:
+        self.n + rhs.n + later
 
 first := Tag { n: 1 } + Tag { n: 2 }
 

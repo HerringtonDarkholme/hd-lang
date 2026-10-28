@@ -1,4 +1,5 @@
 trait Shape:
     fn area(&self) -> i32
 
-fn total(s: &Shape) -> i32: s.area()
+fn total(s: &Shape) -> i32:
+    s.area()

@@ -49,8 +49,7 @@ pub fn main() -> void $ Console:
     m := a.moved(4)
     println("${m.x} ${origin.y}")
     let mut counter = Vec2 { x: 0, y: 0 }
-    tick := fn() -> void:
-        counter.x += 1
+    tick := fn() -> void: counter.x += 1
     tick()
     tick()
     println(counter.x)

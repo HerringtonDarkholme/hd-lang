@@ -1,4 +1,4 @@
 # test: `==` between two references is reference-equality
 # Spec 13 Identity: ref.identity.no-equality.
 fn same(a: &i32, b: &i32) -> bool:
-    a == b  # diagnostic: reference-equality
+    a == b # diagnostic: reference-equality

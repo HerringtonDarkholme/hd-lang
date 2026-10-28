@@ -2,4 +2,4 @@
 # Spec 05 Indexing: expr.index.list.assign, expr.index.list.range, expr.index.list.panic.
 let mut values: List[i32] = [7]
 let at: u64 = 4294967296
-values[at] = 9  # panic: index-out-of-bounds
+values[at] = 9 # panic: index-out-of-bounds

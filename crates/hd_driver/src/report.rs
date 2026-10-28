@@ -1,5 +1,6 @@
 //! Per-stage tallies (the architecture view of a run) and run counters.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 
 use hd_base::{Hash128, Stage};
@@ -141,11 +142,11 @@ impl Counters {
     }
     /// Sorts the unit lists, so a parallel run reports like a serial one.
     pub(crate) fn sort(&mut self) {
-        self.modules_checked.sort();
-        self.ifaces_built.sort();
-        self.parsed.sort();
-        self.tir_decoded.sort();
+        self.modules_checked.sort_stable();
+        self.ifaces_built.sort_stable();
+        self.parsed.sort_stable();
+        self.tir_decoded.sort_stable();
         self.tir_decoded.dedup();
-        self.coherence_traits.sort();
+        self.coherence_traits.sort_stable();
     }
 }

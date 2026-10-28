@@ -19,6 +19,7 @@
 //! once no member is being checked (`req.row.omitted.cycle`).
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use hd_base::{DefId, NodeIdx, StageResult};
 use hd_diag::{Code, DiagBuf};
@@ -445,14 +446,14 @@ impl Results {
                 })
                 .map(|k| format!("`$ {}`", hd_resolve::show_ty_in(&cx.names, pool, *k)))
                 .collect();
-            missing.sort();
+            missing.sort_stable();
             let mut params: Vec<String> = need
                 .params
                 .iter()
                 .filter(|p| !have.params.contains(p))
                 .map(|p| format!("the row `$ {}`", row_param_name(cx, *p)))
                 .collect();
-            params.sort();
+            params.sort_stable();
             missing.extend(params);
             let node = cx.src.parse.tree.node(e.at);
             let span = cx.src.span(node);
@@ -685,7 +686,7 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
                 .flatten()
                 .copied()
                 .collect();
-            out.sort_unstable();
+            out.sort_stable();
             out.dedup();
             out
         })

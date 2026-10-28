@@ -2,7 +2,7 @@
 # Spec 06 Range Iteration: flow.for.range.from-overflow (batch 48).
 fn count_up(start: i8) -> i32:
     let seen = +0
-    for value in start..:  # panic: integer-overflow
+    for value in start..: # panic: integer-overflow
         seen = seen + 1
     seen
 

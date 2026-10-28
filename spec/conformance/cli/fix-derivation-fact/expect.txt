@@ -1,7 +1,16 @@
-# annot.fact.unused-block-decorator.fix moves both a call and a primitive.
-# The two edits preserve the actual value, its comment, and UTF-8 offsets.
-run: hd check --format json
-stdout-json: [{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":12,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":164,"end":199,"text":""},{"file":"src/lib.hd","start":223,"end":223,"text":"    Self += [style(prefix=\"db_\")]  # keep café\n"}]}]},{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":19,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":269,"end":281,"text":""},{"file":"src/lib.hd","start":306,"end":306,"text":"    Self += [\"internal\"]\n"}]}]},{"kind":"summary","errors":0,"warnings":2,"status":0}]
-run: hd fix
+# Lint keeps exact value/comment/UTF-8 fixes; check and fix stay errors-only.
 run: hd check --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":12,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":164,"end":198,"text":""},{"file":"src/lib.hd","start":222,"end":222,"text":"    Self += [style(prefix=\"db_\")] # keep café\n"}]}]},{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":19,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":268,"end":280,"text":""},{"file":"src/lib.hd","start":305,"end":305,"text":"    Self += [\"internal\"]\n"}]}]},{"kind":"summary","errors":0,"warnings":2,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":12,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":164,"end":198,"text":""},{"file":"src/lib.hd","start":222,"end":222,"text":"    Self += [style(prefix=\"db_\")] # keep café\n"}]}]},{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":19,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":268,"end":280,"text":""},{"file":"src/lib.hd","start":305,"end":305,"text":"    Self += [\"internal\"]\n"}]}]},{"kind":"summary","errors":0,"warnings":2,"status":0}]
+run: hd fix
+same-text: src/lib.hd want/lib.hd
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --allow unused-derivation-fact --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --deny unused-derivation-fact --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":12,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":164,"end":198,"text":""},{"file":"src/lib.hd","start":222,"end":222,"text":"    Self += [style(prefix=\"db_\")] # keep café\n"}]}]},{"kind":"diagnostic","code":"unused-derivation-fact","file":"src/lib.hd","line":19,"fixes":[{"message":null,"edits":[{"file":"src/lib.hd","start":268,"end":280,"text":""},{"file":"src/lib.hd","start":305,"end":305,"text":"    Self += [\"internal\"]\n"}]}]},{"kind":"summary","errors":2,"warnings":0,"status":101}]

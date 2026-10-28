@@ -13,4 +13,4 @@ impl Logger:
 struct Service:
     Logger
 
-impl Describe for Service by Logger  # diagnostic: invalid-delegation
+impl Describe for Service by Logger # diagnostic: invalid-delegation

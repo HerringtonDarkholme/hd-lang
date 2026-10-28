@@ -8,4 +8,7 @@ struct YamlError:
 @error
 enum LoadError:
     @error("bad config")
-    Yaml(@from(yaml) error: YamlError)  # diagnostic: invalid-error-marker
+    Yaml(
+        @from(yaml) # diagnostic: invalid-error-marker
+        error: YamlError,
+    )

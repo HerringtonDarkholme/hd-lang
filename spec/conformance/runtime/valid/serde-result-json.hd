@@ -1,0 +1,48 @@
+# test: Result writes and reads Rust serde's newtype-variant form, and rejects an unknown variant name
+# Spec std/serde Standard Implementations: std-serde.std.result.
+# Spec std/json Standard Implementations: std-json.std.result.
+use std.json.{encode, encode_pretty, decode, to_json, from_json, parse, Json, JsonError}
+use std.serde.{Serialize, Deserialize}
+use std.testing.assert_equal
+
+@derive(Serialize, Deserialize)
+struct Job:
+    outcome: Result[i32, string]
+
+fn parsed(text: string) -> Json:
+    match parse(text):
+        .Ok(value) => value
+        .Err(error) => panic("parse failed: $error")
+
+fn round_trip(job: Job, expected: string) -> void:
+    text := encode(job)
+    assert_equal(text, expected, reason="wire form")
+    match decode::[Job](text):
+        .Ok(back) => assert_equal(encode(back), expected, reason="round trip")
+        .Err(error) => panic("decode failed: $error")
+    expected_value := parsed(expected)
+    value := to_json(job)
+    assert_equal(value, expected_value, reason="tree wire form")
+    match from_json::[Job](value):
+        .Ok(back) => assert_equal(encode(back), expected, reason="tree round trip")
+        .Err(error) => panic("from_json failed: $error")
+    assert_equal(parsed(encode_pretty(job)), expected_value, reason="pretty wire form")
+
+fn failure(text: string) -> JsonError:
+    match decode::[Job](text):
+        .Ok(_) => panic("expected an error for $text")
+        .Err(error) => error
+
+tests:
+    it("round trips Ok through a derived member"):
+        round_trip(Job { outcome: .Ok(7) }, "{\"outcome\":{\"Ok\":7}}")
+
+    it("round trips Err through a derived member"):
+        round_trip(Job { outcome: .Err("offline") }, "{\"outcome\":{\"Err\":\"offline\"}}")
+
+    it("rejects an unknown Result variant name"):
+        assert_equal(
+            failure("{\"outcome\":{\"Pending\":1}}"),
+            JsonError.UnknownVariant("$.outcome", "Pending"),
+            reason="unknown variant",
+        )

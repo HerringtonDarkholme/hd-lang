@@ -6,7 +6,8 @@ struct Shelf[T]:
     rest: List[T] = []
 
 impl[T] Shelf[T]:
-    fn all(self, extra: List[T] = [self.first]) -> usize: extra.len() + self.rest.len()
+    fn all(self, extra: List[T] = [self.first]) -> usize:
+        extra.len() + self.rest.len()
 
 pub fn main() -> void $ Console:
     words := Shelf { first: "a" }

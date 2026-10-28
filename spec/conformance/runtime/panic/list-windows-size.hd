@@ -4,7 +4,7 @@
 use std.collections.ListView
 
 fn paged(items: List[i32]) -> List[ListView[i32]]:
-    items.windows(0)  # panic: explicit-panic
+    items.windows(0) # panic: explicit-panic
 
 tests:
     it("rejects size 0"):

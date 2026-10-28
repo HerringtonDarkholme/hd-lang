@@ -16,21 +16,24 @@ trait Clock:
 struct MemoryDb: pass
 
 impl Db for MemoryDb:
-    fn name(self) -> string: "db"
+    fn name(self) -> string:
+        "db"
 
 struct PlainLog: pass
 
 impl Log for PlainLog:
-    fn tag(self) -> string: "log"
+    fn tag(self) -> string:
+        "log"
 
 struct FixedClock: pass
 
 impl Clock for FixedClock:
-    fn now(self) -> i32: 5
+    fn now(self) -> i32:
+        5
 
 type Stack = $ Db + Log
 
-fn with_stack[T, $R](body: fn() -> T $ R + Stack) -> T $ R:
+fn with_stack[T, $ R](body: fn() -> T $ R + Stack) -> T $ R:
     $.with(Db=MemoryDb {}, Log=PlainLog {}):
         body()
 

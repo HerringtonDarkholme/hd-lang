@@ -6,4 +6,4 @@ struct Job[T]:
     run: T
 
 fn job_kind() -> TypeId:
-    TypeId::of::[Job[fn() -> i32]]()  # diagnostic: unsatisfied-trait-bound
+    TypeId::of::[Job[fn() -> i32]]() # diagnostic: unsatisfied-trait-bound

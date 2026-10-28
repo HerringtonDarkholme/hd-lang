@@ -32,7 +32,10 @@ tests:
         assert_equal(before.members[0].tags.len(), 0, reason="its inner list too")
 
     it("a field of an element's struct field changes in place"):
-        let mut lines = [Line { from: Point { x: +1, y: 2 }, label: "a" }, Line { from: Point { x: 3, y: 4 }, label: "b" }]
+        let mut lines = [
+            Line { from: Point { x: +1, y: 2 }, label: "a" },
+            Line { from: Point { x: 3, y: 4 }, label: "b" },
+        ]
         before := lines
         lines[1].from.y = 40
         lines[1].label = "c"

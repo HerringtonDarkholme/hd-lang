@@ -1,0 +1,121 @@
+# test: validation rejects unsafe fields and pending query errors before provider calls or body reads
+use std.http.{BodyError, FormError, Http, HttpError, Request, Response, ScriptedHttp, Url, post}
+use std.serde.Serialize
+use std.testing.{assert, assert_equal}
+
+struct Counting:
+    calls: usize
+
+impl Http for Counting:
+    fn send!(&mut self, request: &Request, _redirects: usize) -> Result[Response, HttpError]:
+        self.calls += 1
+        _ := request.bytes()?
+        .Ok(Response {})
+
+@derive(Serialize)
+struct BadQuery:
+    entries: Map[string, string]
+
+@derive(Serialize)
+struct Input:
+    name: string
+
+fn url() -> Url:
+    Url::parse("https://example.test/").expect("fixture URL")
+
+tests:
+    it("invalid header names and CR or LF values never reach the provider"):
+        let mut provider = Counting { calls: 0 }
+        requests := [
+            Request::get(url()).set_text("one").set_header(.Other("bad name"), "value"),
+            Request::get(url()).set_text("two").set_header(.Other("X-Test"), "before\r\nafter"),
+            Request::get(url()).set_text("three").set_header(.Other("X-Test"), "before\nafter"),
+        ]
+        $.with(Http=&mut provider):
+            for request in requests:
+                match request.send!():
+                    .Err(.InvalidHeader(_)) => pass
+                    _ => assert(false, reason="unsafe header must fail")
+                assert(request.text().is_ok(), reason="validation leaves the body unread")
+        assert_equal(provider.calls, 0, reason="no provider calls")
+
+    it("typed request cookie validation runs before the body is claimed"):
+        let mut provider = Counting { calls: 0 }
+        request := Request::get(url()).set_cookie("bad;name", "value").set_text("unread")
+        $.with(Http=&mut provider):
+            assert_equal(
+                request.send!(),
+                .Err(HttpError.InvalidHeader("cookie")),
+                reason="typed cookie rejects delimiters",
+            )
+        assert_equal(request.text(), .Ok("unread"), reason="body still readable")
+        assert_equal(provider.calls, 0, reason="no provider calls")
+
+    it("mutated URL fields are rechecked before the provider call"):
+        let mut provider = Counting { calls: 0 }
+        let mut scheme = url()
+        scheme.scheme = "ftp"
+        let mut host = url()
+        host.host = "bücher.example"
+        let mut path = url()
+        path.path = "relative"
+        $.with(Http=&mut provider):
+            for target in [scheme, host, path]:
+                request := Request::get(target).set_text("unread")
+                match request.send!():
+                    .Err(.InvalidUrl(_)) => pass
+                    _ => assert(false, reason="invalid public URL fields must fail")
+                assert_equal(
+                    request.text(),
+                    .Ok("unread"),
+                    reason="URL validation does not read the body",
+                )
+        assert_equal(provider.calls, 0, reason="no provider calls")
+
+    it("pending query preparation errors use the approved Body Form path"):
+        let mut provider = Counting { calls: 0 }
+        request := Request::get(url())
+            .set_query_as(BadQuery { entries: { "x": "y" } })
+            .set_text("unread")
+        $.with(Http=&mut provider):
+            assert_equal(
+                request.send!(),
+                .Err(HttpError.Body(BodyError.Form(FormError.Unsupported("entries")))),
+                reason="query error wrapped without a new public variant",
+            )
+        assert_equal(request.text(), .Ok("unread"), reason="query failure precedes body claim")
+        assert_equal(provider.calls, 0, reason="no provider calls")
+
+    it("failed form preparation cannot produce a scripted delivery"):
+        http := ScriptedHttp::new()
+        http.reply("https://example.test/", .Ok(Response {}))
+        request := Request::post(url()).set_form(BadQuery { entries: { "x": "y" } })
+        $.with(Http=http):
+            assert_equal(
+                request.send!(),
+                .Err(HttpError.Body(BodyError.Form(FormError.Unsupported("entries")))),
+                reason="body encoding error retained",
+            )
+        assert_equal(http.received().len(), 0, reason="no scripted delivery")
+        assert_equal(
+            request.bytes(),
+            .Err(BodyError.Used),
+            reason="failed body send still consumes it",
+        )
+
+    it("the post helper sends JSON and checks the retained response"):
+        http := ScriptedHttp::new()
+        http.reply("https://example.test/", .Ok(Response::status(.BadRequest).set_text("rejected")))
+        $.with(Http=http):
+            match post!("https://example.test/", Input { name: "Ada" }):
+                .Err(.Status(response)) =>
+                    assert_equal(
+                        response.text(),
+                        .Ok("rejected"),
+                        reason="post checks status without reading the response",
+                    )
+                _ => assert(false, reason="post must check 400")
+        sent := http.received()[0]
+        assert_equal(sent.method, .Post, reason="POST method")
+        assert_equal(sent.header(.ContentType), .Some("application/json"), reason="JSON header")
+        assert_equal(sent.text(), .Ok("{\"name\":\"Ada\"}"), reason="JSON body")

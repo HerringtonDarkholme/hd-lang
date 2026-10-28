@@ -53,4 +53,8 @@ tests:
     use std.testing.assert_equal
 
     it("the newtype's probe is the base type's"):
-        assert_equal(Wrapped(Point { x: 1 }).probe(), "x=-/-;", reason="rewrapped from Point's implementation")
+        assert_equal(
+            Wrapped(Point { x: 1 }).probe(),
+            "x=-/-;",
+            reason="rewrapped from Point's implementation",
+        )

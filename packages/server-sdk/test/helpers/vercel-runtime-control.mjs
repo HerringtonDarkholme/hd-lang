@@ -34,7 +34,15 @@ server.listen(0, "127.0.0.1");
 await once(server, "listening");
 const port = server.address().port,
   url = "http://127.0.0.1:" + port;
-async function stalled(status, extraHeaders) {
+const requestTimeout = 5000;
+function post(body) {
+  return fetch(url + "/", {
+    method: "POST",
+    body,
+    signal: AbortSignal.timeout(requestTimeout),
+  });
+}
+async function stalled(status, extraHeaders, bodyPrefix = "x") {
   const socket = net.createConnection({ host: "127.0.0.1", port });
   const chunks = [];
   let received = false;
@@ -42,7 +50,7 @@ async function stalled(status, extraHeaders) {
     const timeout = nativeSetTimeout(() => {
       socket.destroy();
       reject(Error("stalled ingress never received its response"));
-    }, 5000);
+    }, requestTimeout);
     socket.on("data", (chunk) => {
       received = true;
       chunks.push(chunk);
@@ -67,7 +75,8 @@ async function stalled(status, extraHeaders) {
       length +
       "\r\n" +
       extraHeaders +
-      "\r\nx",
+      "\r\n" +
+      bodyPrefix,
   );
   const response = await complete;
   assert.equal(received, true);
@@ -80,24 +89,31 @@ async function stalled(status, extraHeaders) {
 try {
   const counts = [];
   for (const message of ["one", "two", "three"]) {
-    const response = await fetch(url + "/", { method: "POST", body: JSON.stringify({ message }) });
+    const response = await post(JSON.stringify({ message }));
     assert.equal(response.status, 200);
     const value = await response.json();
     assert.equal(value.message, message);
     counts.push(value.count);
   }
   assert.deepEqual(counts, [1, 2, 3]);
-  assert.equal((await fetch(url + "/", { method: "POST", body: "{broken" })).status, 400);
-  assert.equal(
-    (await fetch(url + "/", { method: "POST", body: "x".repeat(1024 * 1024 + 1) })).status,
-    413,
-  );
+  const invalid = await post("{broken");
+  assert.equal(invalid.status, 400);
+  await invalid.arrayBuffer();
+  // The declared size must be rejected before any body arrives. An eager
+  // fetch upload can race the intentional early connection close with EPIPE.
+  // The paused probe checks the response body and close as well as the status.
+  await stalled(413, "", "");
   const malformed = await new Promise((resolve, reject) => {
     const req = http.request(
       url + "/",
-      { method: "POST", headers: { host: "private@authority.test" } },
+      {
+        method: "POST",
+        headers: { host: "private@authority.test" },
+        signal: AbortSignal.timeout(requestTimeout),
+      },
       (response) => {
         const chunks = [];
+        response.on("error", reject);
         response.on("data", (chunk) => chunks.push(chunk));
         response.on("end", () =>
           resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString() }),
@@ -110,10 +126,7 @@ try {
   assert.deepEqual(malformed, { status: 400, body: "bad request" });
   await stalled(431, "X-Padding: " + "x".repeat(64 * 1024) + "\r\n");
   await stalled(413, "");
-  const response = await fetch(url + "/", {
-    method: "POST",
-    body: JSON.stringify({ message: "healthy" }),
-  });
+  const response = await post(JSON.stringify({ message: "healthy" }));
   assert.equal(response.status, 200);
   const healthy = await response.json();
   assert.equal(healthy.message, "healthy");

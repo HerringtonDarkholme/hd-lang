@@ -8,7 +8,7 @@ trait Reader:
 fn via_bound[T < Reader](value: T) -> i32:
     value.read()
 
-bounded := via_bound(Box { value: 2 })  # diagnostic: top-level-read-before-initialization
+bounded := via_bound(Box { value: 2 }) # diagnostic: top-level-read-before-initialization
 later := +5
 
 impl Reader for Box:

@@ -1,5 +1,4 @@
 use std.time.{Clock, now}
 
-action := fn() -> void $ Clock:
-    _ := now()
+action := fn() -> void $ Clock: _ := now()
 action()

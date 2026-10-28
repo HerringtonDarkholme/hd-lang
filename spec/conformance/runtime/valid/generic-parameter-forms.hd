@@ -36,41 +36,47 @@ struct Sink[-T]:
 
 impl Supplier for Constant:
     type Item = i32
-    fn get(self) -> i32: self.value
+    fn get(self) -> i32:
+        self.value
 
 impl Combine for Money:
     type Out = Money
-    fn combine(self, other: Money) -> Money: Money { cents: self.cents + other.cents }
+    fn combine(self, other: Money) -> Money:
+        Money { cents: self.cents + other.cents }
 
 impl Combine[i32] for Money:
     type Out = i32
-    fn combine(self, other: i32) -> i32: self.cents + other
+    fn combine(self, other: i32) -> i32:
+        self.cents + other
 
 fn larger[T < Ord & Display](a: T, b: T, pool: List[T]) -> T:
-    if a < b && pool.len() > 0:
-        b
-    else:
-        a
+    if a < b && pool.len() > 0: b else: a
 
-fn smaller[T < Ord](a: T, b: T) -> bool: a < b
+fn smaller[T < Ord](a: T, b: T) -> bool:
+    a < b
 
 fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
     source.get()
 
-fn run[$R = $()](job: fn() -> i32 $ R) -> i32 $ R: job()
+fn run[$ R = $ ()](job: fn() -> i32 $ R) -> i32 $ R:
+    job()
 
-fn count_keys[K < Eq & Hash, V](map: Map[K, V]) -> usize: map.len()
+fn count_keys[K < Eq & Hash, V](map: Map[K, V]) -> usize:
+    map.len()
 
 pub fn main() -> void $ Console:
     println(larger(+4, +9, [+1]))
     println("${smaller(+1, +2)} ${smaller(+3, +2)}")
     pair := Pair::[i32] { first: +7, second: +7 }
     println("${pair.first} ${pair.second}")
-    total := Money { cents: +5 }.combine(Money { cents: +3 }).cents + Money { cents: +1 }.combine(+3)
+    total := (
+        Money { cents: +5 }.combine(Money { cents: +3 }).cents
+        + Money { cents: +1 }.combine(+3)
+    )
     println(total)
     println(pick(Constant { value: +5 }))
     println(run(fn() -> i32: 3))
-    println(count_keys({"a": 1, "b": 2}))
+    println(count_keys({ "a": 1, "b": 2 }))
     println(6 & 3 | 8)
     _sink := Sink { take: fn(n: i32) -> bool: n > 0 }
     source := Source { value: +3 }

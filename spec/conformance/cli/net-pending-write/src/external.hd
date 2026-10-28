@@ -7,7 +7,11 @@ use std.time.{Clock, ms, sleep}
 struct Progress:
     finished: bool = false
 
-fn send!(stream: &mut dyn TcpStream, bytes: List[u8], state: &mut Progress) -> Result[void, NetError]:
+fn send!(
+    stream: &mut dyn TcpStream,
+    bytes: List[u8],
+    state: &mut Progress,
+) -> Result[void, NetError]:
     stream.write!(bytes)?
     state.finished = true
     .Ok(())

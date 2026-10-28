@@ -13,7 +13,11 @@ tests:
 
     it("a push through a reference before the first next"):
         let mut values: List[i32] = [1, 2, 3]
-        assert_equal(grow(&mut values), [.Some(+1), .Some(2), .Some(3), .None], reason="the cursor yields the three elements iter found")
+        assert_equal(
+            grow(&mut values),
+            [.Some(+1), .Some(2), .Some(3), .None],
+            reason="the cursor yields the three elements iter found",
+        )
         assert_equal(values, [+1, 2, 3, 4], reason="the list has the push")
 
     it("a push after the cursor was exhausted"):

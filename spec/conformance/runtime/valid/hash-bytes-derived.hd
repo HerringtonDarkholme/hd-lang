@@ -30,7 +30,11 @@ tests:
 
     it("an enum writes its zero-based variant index as a u32, then its payload"):
         assert_equal(bytes_of(Light.Red), [0, 0, 0, 0], reason="the first variant, no payload")
-        assert_equal(bytes_of(Light.Green(level=9)), [1, 0, 0, 0, 9], reason="the second variant, then the u8")
+        assert_equal(
+            bytes_of(Light.Green(level=9)),
+            [1, 0, 0, 0, 9],
+            reason="the second variant, then the u8",
+        )
 
     it("data writes no tag, only its fields in declaration order"):
         assert_equal(bytes_of(Point { x: -1, y: 2 }), [255, 255, 2, 0], reason="x, then y, as i16")

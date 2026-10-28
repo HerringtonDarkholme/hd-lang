@@ -1,6 +1,0 @@
-[package]
-name = "server_race_control"
-
-[capabilities]
-Clock = true
-Console = true

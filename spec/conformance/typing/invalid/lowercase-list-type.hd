@@ -2,5 +2,5 @@
 # Spec 10 Collection Type Names: module.prelude.capitalized, module.prelude.lowercase, module.prelude.lowercase-unknown.
 
 fn count() -> i32:
-    let values: list[i32] = [1, 2]  # diagnostic: unknown-type
+    let values: list[i32] = [1, 2] # diagnostic: unknown-type
     return 2

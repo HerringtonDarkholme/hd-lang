@@ -2,4 +2,4 @@
 use std.collections.Set
 
 fn use_it() -> void:
-    let _s = Set[string]()  # diagnostic: type-used-as-value
+    let _s = Set[string]() # diagnostic: type-used-as-value

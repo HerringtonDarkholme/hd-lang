@@ -3,9 +3,14 @@
 struct Money:
     cents: i32
 
+# Generated traversals pass small static structure handles. A derive reads the
+# same per-type member metadata instead of rebuilding or copying it per value.
+
 tests:
-    it_prop("parse undoes print", prop=fn!(m: Money):
-        assert_equal(parse(print(m)), .Some(m), reason="round trip")
+    it_prop(
+        "parse undoes print",
+        prop=fn!(m: Money): assert_equal(parse(print(m)), .Some(m), reason="round trip")
+        ,
     )
 
 # The first `print` wrote 5 cents as "0.5", which `parse` rejects.
@@ -19,10 +24,7 @@ tests:
 use std.testing.{Arbitrary, assert_equal, it_prop}
 
 fn pad(n: i64) -> string:
-    if n < 10:
-        "0$n"
-    else:
-        n.to_string()
+    if n < 10: "0$n" else: n.to_string()
 
 fn print(m: Money) -> string:
     sign := if m.cents < 0: "-" else: ""

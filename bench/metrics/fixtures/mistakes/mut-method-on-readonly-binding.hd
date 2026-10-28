@@ -11,5 +11,5 @@ impl Parser:
 
 fn run() -> i32:
     let parser = Parser { at: 0 }
-    parser.advance()  # diagnostic: not-writable
+    parser.advance() # diagnostic: not-writable
     parser.at

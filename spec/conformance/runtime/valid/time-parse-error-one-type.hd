@@ -15,8 +15,16 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("a bad duration and a bad timestamp return the same error type"):
-        assert_equal(both("1x", "2026-10-03T12:00:00Z"), .Err(ParseTimeError.UnknownUnit(1)), reason="a bad duration")
-        assert_equal(both("1h", "2026-13-03T12:00:00Z"), .Err(ParseTimeError.OutOfRange(5)), reason="a bad timestamp")
+        assert_equal(
+            both("1x", "2026-10-03T12:00:00Z"),
+            .Err(ParseTimeError.UnknownUnit(1)),
+            reason="a bad duration",
+        )
+        assert_equal(
+            both("1h", "2026-13-03T12:00:00Z"),
+            .Err(ParseTimeError.OutOfRange(5)),
+            reason="a bad timestamp",
+        )
         assert_equal(both("1h", "2026-10-03T12:00:00Z"), .Ok(()), reason="both good")
 
     it("the error is an Error"):

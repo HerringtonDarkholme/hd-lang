@@ -12,10 +12,12 @@ struct Quotes:
 
 impl Feed for Quotes:
     type Item = i32
-    fn latest(self) -> i32: self.price
+    fn latest(self) -> i32:
+        self.price
 
 impl PriceFeed for Quotes:
-    fn label(self) -> string: "quotes"
+    fn label(self) -> string:
+        "quotes"
 
 fn short_spelling() -> i32 $ PriceFeed:
     $.use(PriceFeed).latest()

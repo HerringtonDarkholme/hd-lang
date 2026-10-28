@@ -1,47 +1,60 @@
-# test: Request and Response are struct values, ScriptedHttp::new returns a handle the test and the installed provider share, and a program's struct with a &mut self send! serves as an Http fake
-# Spec std/http: std-http.types.builder-response-defaults, std-http.trait.decl-ref, std-http.send.mut-ref.reference-values, std-http.scripted.new-empty, std-http.scripted.received-ref.
+# test: messages copy fields and share bodies, while providers use local borrowed requests
 # expect: test
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp, Url, get}
 
 struct Counting:
     seen: i32
 
 impl Http for Counting:
-    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
-        self.seen = self.seen + 1
-        .Ok(Response { status: 200, headers: [], body: "${self.seen}".to_utf8(), url: request.url })
+    fn send!(&mut self, request: &Request, _redirects: usize) -> Result[Response, HttpError]:
+        _ := request.bytes()?
+        self.seen += 1
+        .Ok(Response { url: .Some(request.url) }.set_text("${self.seen}"))
 
 fn body!(url: string) -> string $ Http:
     match get!(url):
-        .Ok(response) => response.text()
+        .Ok(response) => response.text().expect("body")
         .Err(_) => "error"
+
+fn url(text: string) -> Url:
+    Url::parse(text).expect("fixture URL")
 
 tests:
     use std.testing.assert_equal
 
-    it("records are values"):
-        request := Request { url: "https://example.com/" }
+    it("records copy fields but share the read-once body"):
+        request := Request::get(url("https://example.com/")).set_text("shared")
         let mut changed = request
-        changed.url = "https://example.org/"
-        assert_equal(request.url, "https://example.com/", reason="the original keeps its URL")
-        response := Response { status: 200, headers: [], body: [] }
+        changed.url = url("https://example.org/")
+        assert_equal(
+            request.url.to_string(),
+            "https://example.com/",
+            reason="the original keeps its URL",
+        )
+        assert_equal(changed.text(), .Ok("shared"), reason="copy reads the body")
+        assert_equal(request.text(), .Err(BodyError.Used), reason="original observes the read")
+        response := Response::status(.Ok)
         let mut other = response
-        other.status = 500
-        assert_equal(response.status, 200, reason="the original keeps its status")
+        other.status = .InternalServerError
+        assert_equal(response.status, .Ok, reason="the original keeps its status")
 
-    it("the scripted provider is one object"):
+    it("the scripted provider is one object across binding scopes"):
         http := ScriptedHttp::new()
-        http.reply("https://example.com/", .Ok(Response { status: 204, headers: [], body: [] }))
+        http.reply("https://example.com/", .Ok(Response::status(.NoContent)))
         $.with(Http=http):
             _ := get!("https://example.com/")
         $.with(Http=http):
-            _ := Request::get("https://example.com/missing").send!()
-        assert_equal(http.received().len(), 2, reason="both scopes recorded on the one object")
-        assert_equal(http.received()[1].url, "https://example.com/missing", reason="the unanswered request too")
+            _ := Request::get(url("https://example.com/missing")).send!()
+        assert_equal(http.received().len(), 2, reason="both scopes recorded on one object")
+        assert_equal(
+            http.received()[1].url.to_string(),
+            "https://example.com/missing",
+            reason="unanswered request retained",
+        )
 
-    it("a struct fake counts through &mut"):
+    it("a struct fake counts through a local mutable borrow"):
         let mut fake = Counting { seen: 0 }
         $.with(Http=&mut fake):
-            assert_equal(body!("a"), "1", reason="first")
-            assert_equal(body!("b"), "2", reason="second")
+            assert_equal(body!("https://example.com/a"), "1", reason="first")
+            assert_equal(body!("https://example.com/b"), "2", reason="second")
         assert_equal(fake.seen, 2, reason="the caller's struct changed")

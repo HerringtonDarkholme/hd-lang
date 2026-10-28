@@ -15,7 +15,7 @@ tests:
             assert_equal(workers(), .Ok(usize(4)), reason="default")
 
     it("a good value is read as the type"):
-        vars := ScriptedEnv::new({"WORKERS": "8", "DEBUG": "false", "NAME": "ci", "RATIO": "0.5"})
+        vars := ScriptedEnv::new({ "WORKERS": "8", "DEBUG": "false", "NAME": "ci", "RATIO": "0.5" })
         $.with(Env=vars):
             assert_equal(workers(), .Ok(usize(8)), reason="usize")
             assert_equal(env_as::[bool]("DEBUG"), .Ok(.Some(false)), reason="bool")
@@ -23,13 +23,33 @@ tests:
             assert_equal(env_as::[f64]("RATIO"), .Ok(.Some(0.5)), reason="f64")
 
     it("an unreadable value names the variable"):
-        vars := ScriptedEnv::new({"WORKERS": "many", "BIG": "300", "EMPTY": "", "PORT": "bad"})
+        vars := ScriptedEnv::new({ "WORKERS": "many", "BIG": "300", "EMPTY": "", "PORT": "bad" })
         $.with(Env=vars):
-            assert_equal(workers(), .Err(HostError.InvalidValue("WORKERS", "invalid digit at position 0")), reason="not a number")
-            assert_equal(env_as::[u8]("BIG"), .Err(HostError.InvalidValue("BIG", "number out of range for its type")), reason="range")
-            assert_equal(env_as::[i32]("EMPTY"), .Err(HostError.InvalidValue("EMPTY", "cannot parse a number from empty text")), reason="empty is set")
+            assert_equal(
+                workers(),
+                .Err(HostError.InvalidValue("WORKERS", "invalid digit at position 0")),
+                reason="not a number",
+            )
+            assert_equal(
+                env_as::[u8]("BIG"),
+                .Err(HostError.InvalidValue("BIG", "number out of range for its type")),
+                reason="range",
+            )
+            assert_equal(
+                env_as::[i32]("EMPTY"),
+                .Err(HostError.InvalidValue("EMPTY", "cannot parse a number from empty text")),
+                reason="empty is set",
+            )
             assert_equal(env_as::[string]("EMPTY"), .Ok(.Some("")), reason="empty string")
-            assert_equal(env_as::[u16]("PORT"), .Err(HostError.InvalidValue("PORT", "invalid digit at position 0")), reason="shared host error names PORT")
+            assert_equal(
+                env_as::[u16]("PORT"),
+                .Err(HostError.InvalidValue("PORT", "invalid digit at position 0")),
+                reason="shared host error names PORT",
+            )
 
     it("the Display text of InvalidValue"):
-        assert_equal("${HostError.InvalidValue("WORKERS", "invalid digit at position 0")}", "invalid value for WORKERS: invalid digit at position 0", reason="text")
+        assert_equal(
+            "${HostError.InvalidValue("WORKERS", "invalid digit at position 0")}",
+            "invalid value for WORKERS: invalid digit at position 0",
+            reason="text",
+        )

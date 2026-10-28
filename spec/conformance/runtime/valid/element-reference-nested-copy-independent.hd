@@ -94,7 +94,10 @@ tests:
     it("each index is evaluated once"):
         let mut a = [[[+1]]]
         let mut calls = 0
-        b := set_after(&mut a[next_index(&mut calls)][next_index(&mut calls)][next_index(&mut calls)], a)
+        b := set_after(
+            &mut a[next_index(&mut calls)][next_index(&mut calls)][next_index(&mut calls)],
+            a,
+        )
         assert_equal(calls, 3, reason="exposure reuses evaluated indices")
         assert_equal(b[0][0][0], 1, reason="the copy remains isolated")
 

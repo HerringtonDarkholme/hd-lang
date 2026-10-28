@@ -41,4 +41,8 @@ tests:
     use std.testing.assert_equal
 
     it("the omitted parent still makes the variant optional"):
-        assert_equal(Node::shape(), "Node=optional;label=absent;", reason="parent is omitted but counted")
+        assert_equal(
+            Node::shape(),
+            "Node=optional;label=absent;",
+            reason="parent is omitted but counted",
+        )

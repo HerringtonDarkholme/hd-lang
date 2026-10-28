@@ -24,10 +24,10 @@ struct Catalog:
     entries: Map[string, Catalog]
 
 struct RefDir:
-> app.main.RefDir size=12 align=4 cycle-capable=true
->   counted: 0, 8?
+> app.main.RefDir size=8 align=4 cycle-capable=true
+>   counted: 0, 4?
 >   kids: List[app.main.RefDir] offset=0 size=4 align=4 counted=0
->   parent: &mut app.main.RefDir? offset=4 size=8 align=4 counted=8?
+>   parent: &mut app.main.RefDir? offset=4 size=4 align=4 counted=4?
     kids: List[RefDir]
     parent: (*mut RefDir)?
 

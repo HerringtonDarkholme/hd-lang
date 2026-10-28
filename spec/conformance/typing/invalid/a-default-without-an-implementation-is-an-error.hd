@@ -16,4 +16,4 @@ impl Index[(u16, u16)] for Small:
         self.size
 
 fn read(s: Small) -> void:
-    _ := s[(0, 1)]  # diagnostic: type-mismatch
+    _ := s[(0, 1)] # diagnostic: type-mismatch

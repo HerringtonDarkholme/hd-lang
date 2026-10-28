@@ -2,4 +2,4 @@
 
 fn choose(value: Choice) -> i32:
     match value:
-        Choice.Pair(right=b, left=a) => a + b
+        Choice.Pair(right = b, left = a) => a + b

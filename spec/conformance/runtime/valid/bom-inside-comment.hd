@@ -3,4 +3,4 @@
 # expect-stdout: ok
 # comment with ﻿ inside
 pub fn main() -> void $ Console:
-    println("ok")    # trailing ﻿ comment
+    println("ok") # trailing ﻿ comment

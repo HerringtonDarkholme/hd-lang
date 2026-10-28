@@ -16,7 +16,8 @@ struct Names:
 
 impl Store for Names:
     type Item = string
-    fn first(self) -> string: self.head
+    fn first(self) -> string:
+        self.head
 
 impl[T < Display, I < Store[Item = T]] Summary for Feed[I]:
     fn summary(self) -> string:

@@ -47,19 +47,75 @@ tests:
         assert_equal(text.slice(1, 1).to_utf8(), [], reason="an empty slice")
 
     it("each category fails at its offset after a long ASCII run"):
-        assert_equal(after_ascii([128]), .Some(Utf8Error.InvalidSequence(300)), reason="a stray continuation byte")
-        assert_equal(after_ascii([192, 175]), .Some(Utf8Error.InvalidSequence(300)), reason="an overlong two-byte form")
-        assert_equal(after_ascii([224, 128, 175]), .Some(Utf8Error.InvalidSequence(300)), reason="an overlong three-byte form")
-        assert_equal(after_ascii([237, 160, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="a surrogate")
-        assert_equal(after_ascii([244, 144, 128, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="above U+10FFFF")
-        assert_equal(after_ascii([245, 128, 128, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="a lead byte above 0xF4")
-        assert_equal(after_ascii([226, 130]), .Some(Utf8Error.Truncated(300)), reason="two of three bytes")
-        assert_equal(after_ascii([240, 159, 152]), .Some(Utf8Error.Truncated(300)), reason="three of four bytes")
-        assert_equal(after_ascii([195, 169, 255]), .Some(Utf8Error.InvalidSequence(302)), reason="after a good two-byte scalar")
+        assert_equal(
+            after_ascii([128]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="a stray continuation byte",
+        )
+        assert_equal(
+            after_ascii([192, 175]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="an overlong two-byte form",
+        )
+        assert_equal(
+            after_ascii([224, 128, 175]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="an overlong three-byte form",
+        )
+        assert_equal(
+            after_ascii([237, 160, 128]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="a surrogate",
+        )
+        assert_equal(
+            after_ascii([244, 144, 128, 128]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="above U+10FFFF",
+        )
+        assert_equal(
+            after_ascii([245, 128, 128, 128]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="a lead byte above 0xF4",
+        )
+        assert_equal(
+            after_ascii([226, 130]),
+            .Some(Utf8Error.Truncated(300)),
+            reason="two of three bytes",
+        )
+        assert_equal(
+            after_ascii([240, 159, 152]),
+            .Some(Utf8Error.Truncated(300)),
+            reason="three of four bytes",
+        )
+        assert_equal(
+            after_ascii([195, 169, 255]),
+            .Some(Utf8Error.InvalidSequence(302)),
+            reason="after a good two-byte scalar",
+        )
 
     it("a bad continuation byte fails the whole sequence at its start"):
-        assert_equal(after_ascii([226, 40, 161]), .Some(Utf8Error.InvalidSequence(300)), reason="the second byte of three")
-        assert_equal(after_ascii([226, 130, 40]), .Some(Utf8Error.InvalidSequence(300)), reason="the third byte of three")
-        assert_equal(after_ascii([240, 159, 40, 128]), .Some(Utf8Error.InvalidSequence(300)), reason="the third byte of four")
-        assert_equal(after_ascii([240, 159, 152, 40]), .Some(Utf8Error.InvalidSequence(300)), reason="the fourth byte of four")
-        assert_equal(after_ascii([240, 159, 152, 128, 97]), .None, reason="a good four-byte scalar then ASCII")
+        assert_equal(
+            after_ascii([226, 40, 161]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="the second byte of three",
+        )
+        assert_equal(
+            after_ascii([226, 130, 40]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="the third byte of three",
+        )
+        assert_equal(
+            after_ascii([240, 159, 40, 128]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="the third byte of four",
+        )
+        assert_equal(
+            after_ascii([240, 159, 152, 40]),
+            .Some(Utf8Error.InvalidSequence(300)),
+            reason="the fourth byte of four",
+        )
+        assert_equal(
+            after_ascii([240, 159, 152, 128, 97]),
+            .None,
+            reason="a good four-byte scalar then ASCII",
+        )

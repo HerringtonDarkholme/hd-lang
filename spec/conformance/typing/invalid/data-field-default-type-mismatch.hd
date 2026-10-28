@@ -2,4 +2,4 @@
 # Spec 08 Field Defaults: data.default.type.
 
 struct Bad:
-    value: i32 = true  # diagnostic: type-mismatch
+    value: i32 = true # diagnostic: type-mismatch

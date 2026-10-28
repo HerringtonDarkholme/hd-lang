@@ -16,6 +16,6 @@ struct Duration:
 fn ticks(n: i32) -> Duration:
     Duration { millis: n }
 
-@fn_fact  # diagnostic: type-mismatch
+@fn_fact # diagnostic: type-mismatch
 fn later!(n: i32) -> Duration:
     Duration { millis: n }

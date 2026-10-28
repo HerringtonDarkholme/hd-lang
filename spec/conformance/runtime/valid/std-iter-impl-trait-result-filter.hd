@@ -16,7 +16,14 @@ enum IoError:
 fn open(p: string) -> Result[impl Iterator[string], IoError]:
     if p.len() == 0:
         return .Err(.Missing)
-    .Ok(Lines { values: ["", "alpha", "beta", ""], at: 0 }.filter(fn(line: string) -> bool: line.len() > 0).filter(fn(line: string) -> bool: line != "skip"))
+    .Ok(
+        Lines { values: ["", "alpha", "beta", ""], at: 0 }.filter(
+            fn(line: string) -> bool: line.len() > 0
+            ,
+        )
+            .filter(fn(line: string) -> bool: line != "skip")
+        ,
+    )
 
 pub fn main() -> void $ Console:
     cursor := match open("words"):

@@ -1,7 +1,0 @@
-[package]
-name = "server_read_concurrency"
-
-[capabilities]
-Args = true
-Console = true
-Net = true

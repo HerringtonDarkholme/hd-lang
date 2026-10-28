@@ -17,7 +17,7 @@ impl Disposable for Conn:
         let mut wait = self.closing
         wait!()
         let mut ack = self.ack
-        ack!()                   # abandoned in the dependency case
+        ack!() # abandoned in the dependency case
 
 fn session!(ack: mut Suspend[void]) -> string $ Clock:
     using conn = Conn { closing: sleep(s(1)), ack: ack }

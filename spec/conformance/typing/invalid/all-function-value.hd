@@ -2,4 +2,4 @@
 use std.task.all
 
 fn keep() -> void:
-    f := all  # diagnostic: type-mismatch
+    f := all # diagnostic: type-mismatch

@@ -3,4 +3,4 @@
 struct Invoice:
     number: string
     total_cents: i64
-    number: i64  # diagnostic: duplicate-field
+    number: i64 # diagnostic: duplicate-field

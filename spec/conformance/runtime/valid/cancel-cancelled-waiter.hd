@@ -26,7 +26,8 @@ fn ready!() -> string:
     "won"
 
 fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
-    defer: log.push("stopper defer")
+    defer:
+        log.push("stopper defer")
     _ := job.cancel!()
     log.push("stopper resumed")
     "stopper"

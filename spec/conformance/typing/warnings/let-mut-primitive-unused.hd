@@ -1,6 +1,6 @@
-# test: let mut on a primitive local that no &mut refers to warns redundant-let-mut
-# Spec 04 Binding Forms: types.bind.let-mut-primitive-local, types.bind.let-mut-primitive-unused.
+# test: let mut on a primitive local that no &mut refers to is accepted without lint
+# Spec 04 Binding Forms: types.bind.let-mut-primitive-local, types.bind.let-mut-primitive-lint.
 fn count_up() -> i32:
-    let mut count = +0  # warning: redundant-let-mut
+    let mut count = +0
     count = count + 1
     count

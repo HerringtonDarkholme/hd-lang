@@ -8,5 +8,5 @@ fn rename(name: string) -> Rename:
 
 struct User:
     @rename("mail")
-    @rename("email")  # diagnostic: duplicate-fact
+    @rename("email") # diagnostic: duplicate-fact
     email: string

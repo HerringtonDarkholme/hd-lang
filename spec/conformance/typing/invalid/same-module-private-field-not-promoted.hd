@@ -6,4 +6,4 @@ struct Record:
     Base
 
 fn invalid(record: Record) -> string:
-    record.secret  # diagnostic: unknown-field
+    record.secret # diagnostic: unknown-field

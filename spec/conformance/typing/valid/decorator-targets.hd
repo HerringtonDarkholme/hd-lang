@@ -26,7 +26,11 @@ fn search(query: string) -> string:
 @"storage"
 trait Store:
     @"read"
-    fn load(self, @"key" key: string) -> string
+    fn load(
+        self,
+        @"key"
+        key: string,
+    ) -> string
 
 @"inherent"
 impl Tool:
@@ -36,7 +40,11 @@ impl Tool:
 
 @"store"
 impl Store for Tool:
-    fn load(self, @"key" key: string) -> string:
+    fn load(
+        self,
+        @"key"
+        key: string,
+    ) -> string:
         key
 
 @"id"

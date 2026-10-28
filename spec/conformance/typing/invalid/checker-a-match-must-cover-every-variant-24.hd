@@ -4,7 +4,7 @@ enum Color:
     Green
 
 fn f(c: Color?) -> i32:
-    match c:  # diagnostic: nonexhaustive-match
+    match c: # diagnostic: nonexhaustive-match
         .Some(.Red) => 1
         .None => 0
 

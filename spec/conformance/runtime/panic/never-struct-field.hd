@@ -1,0 +1,10 @@
+# test: a panic used as a struct field value panics before the struct is built
+# Spec 04 The never Type: types.never.assignable; Spec 05: expr.order.left-to-right (issue #850).
+
+struct Point:
+    x: i32
+    y: i32
+
+pub fn main() -> void $ Console:
+    p := Point { x: +1, y: panic("no y") } # panic: explicit-panic
+    println("${p.x}")

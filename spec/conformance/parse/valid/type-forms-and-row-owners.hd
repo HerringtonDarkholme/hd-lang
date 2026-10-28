@@ -29,23 +29,45 @@ struct User: pass
 fn total(pair: (i32, List[i32]...), callback: fn(i32, List[i32]...) -> i32) -> i32:
     callback(pair...)
 
-fn only(values: (List[i32]...,)) -> usize: values._0.len()
+fn only(values: (List[i32]...,)) -> usize:
+    values._0.len()
 
-fn feeds(feed: &dyn Supplier[Item = i32], cache: &mut dyn Supplier[Item = i32], maybe: &dyn Display?) -> void: pass
+fn feeds(
+    feed: &dyn Supplier[Item = i32],
+    cache: &mut dyn Supplier[Item = i32],
+    maybe: &dyn Display?,
+) -> void:
+    pass
 
-fn unit(none: (), single: (i32,), nested: ((i32, i32), (string,))) -> (): ()
+fn unit(none: (), single: (i32,), nested: ((i32, i32), (string,))) -> ():
+    ()
 
-fn project[I < Supplier](source: I) -> I::Item: source.get()
+fn project[I < Supplier](source: I) -> I::Item:
+    source.get()
 
-fn inner_owner(lookup: fn(i32) -> fn() -> i32 $ Store[Item = User]) -> void: pass
+fn inner_owner(lookup: fn(i32) -> fn() -> i32 $ Store[Item = User]) -> void:
+    pass
 
-fn outer_owner(lookup: fn(i32) -> (fn() -> i32) $ Clock) -> void: pass
+fn outer_owner(lookup: fn(i32) -> (fn() -> i32) $ Clock) -> void:
+    pass
 
-fn field_and_argument(items: List[fn() -> i32 $ Log + Clock], pairs: Map[string, fn() -> i32 $ Log]) -> void: pass
+fn field_and_argument(
+    items: List[fn() -> i32 $ Log + Clock],
+    pairs: Map[string, fn() -> i32 $ Log],
+) -> void:
+    pass
 
-fn contexts(ctx: $.Context[$ Store[Item = User]], both: $.Context[$ Log + Clock]) -> void: pass
+fn contexts(ctx: $.Context[$ Store[Item = User]], both: $.Context[$ Log + Clock]) -> void:
+    pass
 
 fn make() -> (fn() -> i32 $ Log) $ Clock:
     fn() -> i32 $ Log: 1
 
-fn optionals(a: i32?, b: i32??, c: (fn() -> i32)?, d: List[i32?]?, e: &mut List[string]) -> fn() -> i32?: fn() -> i32?: .None
+fn optionals(
+    a: i32?,
+    b: i32??,
+    c: (fn() -> i32)?,
+    d: List[i32?]?,
+    e: &mut List[string],
+) -> fn() -> i32?:
+    fn() -> i32?: .None

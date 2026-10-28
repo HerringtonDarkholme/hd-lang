@@ -18,6 +18,8 @@
 // starts another line; `# fixed-lines: N` makes it replace N lines from the
 // marked one. The corpus check uses it to confirm that the program
 // holds no other mistake; no metric reads it as the expected fix-it.
+// `# tool: lint` selects `hd lint` for lint findings (and their cascades);
+// the default is `hd check`. The fixed variant uses the same tool.
 // `# cascade: CODE, ...` is optional too: codes that hd also reports today
 // as a consequence of the one mistake, such as `not-writable` after a
 // rejected `mut`. check-fixtures.ts allows them and no other code; the
@@ -38,6 +40,8 @@ export interface Mistake {
   readonly log: string;
   /** The code the specification gives the mistake. */
   readonly code: string;
+  /** The command that reports this mistake; defaults to check. */
+  readonly tool: "check" | "lint";
   readonly severity: "error" | "warning";
   /** The 1-based line of the mistake. */
   readonly line: number;
@@ -55,6 +59,9 @@ export function parseMistake(name: string, file: string, text: string): Mistake 
   const code = header(text, "expect");
   const mistake = header(text, "mistake");
   const log = header(text, "log");
+  const tool = header(text, "tool") ?? "check";
+  if (tool !== "check" && tool !== "lint")
+    throw new Error(`${file}: tool must be check or lint, got ${tool}`);
   if (!code || !mistake || !log) throw new Error(`${file}: needs mistake, log, and expect headers`);
   const marked = lines
     .map((line, index) => ({
@@ -78,6 +85,7 @@ export function parseMistake(name: string, file: string, text: string): Mistake 
     mistake,
     log,
     code,
+    tool,
     severity: match[1] === "warning" ? "warning" : "error",
     line: index + 1,
     cascade: (header(text, "cascade") ?? "")

@@ -87,17 +87,20 @@ impl[T] Ptr[T]:
     ## Moves the value at the address out and gives it; the heap there then holds none.
     ## See [module.rt.ptr.read](../../../spec/lang/10-modules.md#r-module.rt.ptr.read).
     @intrinsic("ptr_read")
-    pub fn read(self) -> T: panic("intrinsic")
+    pub fn read(self) -> T:
+        panic("intrinsic")
 
     ## Writes a copy of `value` at the address, over whatever its bytes held.
     ## See [module.rt.ptr.write](../../../spec/lang/10-modules.md#r-module.rt.ptr.write).
     @intrinsic("ptr_write")
-    pub fn write(self, value: T) -> void: panic("intrinsic")
+    pub fn write(self, value: T) -> void:
+        panic("intrinsic")
 
     ## The address `count` values of `T` past this one.
     ## See [module.rt.ptr.offset](../../../spec/lang/10-modules.md#r-module.rt.ptr.offset).
     @intrinsic("ptr_offset")
-    pub fn offset(self, count: usize) -> Ptr[T]: panic("intrinsic")
+    pub fn offset(self, count: usize) -> Ptr[T]:
+        panic("intrinsic")
 
 ## The number of heap bytes one value of `T` takes.
 ## See [module.rt.ptr.size-of](../../../spec/lang/10-modules.md#r-module.rt.ptr.size-of).
@@ -114,20 +117,25 @@ impl[T] Buffer[T]:
     ## A new buffer with room for `capacity` values of `T`, holding none.
     ## See [module.rt.buffer.new](../../../spec/lang/10-modules.md#r-module.rt.buffer.new).
     @intrinsic("mem_buffer")
-    pub fn new(capacity: usize) -> Buffer[T]: panic("intrinsic")
+    pub fn new(capacity: usize) -> Buffer[T]:
+        panic("intrinsic")
 
     ## How many values of `T` the buffer has room for.
-    pub fn capacity(self) -> usize: usize(load_u32(self.address))
+    pub fn capacity(self) -> usize:
+        usize(load_u32(self.address))
 
     ## How many values the buffer holds, at the start of its room.
-    pub fn len(self) -> usize: usize(load_u32(self.address + 4))
+    pub fn len(self) -> usize:
+        usize(load_u32(self.address + 4))
 
     ## Sets how many values the buffer holds; the code that changes it writes or reads those values.
     ## See [module.rt.buffer.len](../../../spec/lang/10-modules.md#r-module.rt.buffer.len).
-    pub fn set_len(self, len: usize) -> void: store_u32(self.address + 4, u32(len))
+    pub fn set_len(self, len: usize) -> void:
+        store_u32(self.address + 4, u32(len))
 
     ## The place of value `index` of the buffer's room.
-    pub fn at(self, index: usize) -> Ptr[T]: Ptr::[T] { address: self.address + 16 }.offset(index)
+    pub fn at(self, index: usize) -> Ptr[T]:
+        Ptr::[T] { address: self.address + 16 }.offset(index)
 
 ## The address of the first of the bytes of `text`, which stay where they are while `text` or a copy of it lives.
 ## See [module.rt.string.bytes](../../../spec/lang/10-modules.md#r-module.rt.string.bytes).

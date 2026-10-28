@@ -593,6 +593,7 @@ JSON writes and reads each standard implementation of
 | r[std-json.std.integer] Integers | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, and `usize` | the exact integer, as `Number::from_i64` or `Number::from_u64` gives it | a `Number` that is an integer in the type's range |
 | r[std-json.std.float] Floats | `f32` and `f64` | the `Number` of the value as an `f64` | any `Number`, as `as_f64` gives it |
 | r[std-json.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload's `Json` for `.Some` | `.None` from `null`, and `.Some` of what `T` reads from any other value |
+| r[std-json.std.result] Result | `Result[T, E]`, where `T` and `E` implement the trait | an `Object` with one key: `Ok` or `Err`, and the direct payload as its value | the same one-key object, with its value read as the corresponding payload type |
 | r[std-json.std.list] List | `List[T]`, where `T` implements the trait | an `Array` of the items' values, in order | an `Array`, item by item |
 | r[std-json.std.map] Map | `Map[string, V]`, where `V` implements the trait | an `Object` of the entries' values, in the map's iteration order | an `Object`, entry by entry, in its key order |
 

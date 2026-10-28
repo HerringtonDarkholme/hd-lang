@@ -5,5 +5,5 @@ enum JobStatus:
     Running
 
 struct Job:
-    JobStatus  # diagnostic: embedded-non-data
+    JobStatus # diagnostic: embedded-non-data
     id: string

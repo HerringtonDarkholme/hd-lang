@@ -221,18 +221,20 @@ pub enum Helper {
     /// one, or 0 when its payload holds no counted reference. The address
     /// is its payload's.
     New,
-    /// The same ABI as New, with a statically known payload size and cycle bit.
+    /// The same ABI as New, with a statically known payload size.
     NewFixed {
         size: u32,
-        cyclic: bool,
     },
-    /// A known small class, with page-list maintenance on the std slow path.
+    /// `() -> address`: a block of the known small class `class`, of
+    /// `bytes` bytes, with page-list maintenance on the std slow path.
     AllocClass {
         class: u32,
         bytes: u32,
     },
     /// Free an object using its descriptor class when available.
     FreeClass,
+    /// Free an object using its already loaded descriptor and decoded class.
+    FreeClassLoaded,
     /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, a
     /// counted object with nothing to release in it.
     Str,
@@ -251,6 +253,11 @@ pub enum Helper {
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
     ReleaseRef,
+    /// `(block)`: a block whose last count [`Helper::ReleaseRef`] took
+    /// while no release runs: releases its payload's references through its
+    /// descriptor, frees it, then does the same for each block the releases
+    /// queued.
+    ReleaseDrain,
     /// Count a statically known payload start without a block lookup.
     RetainKnown,
     ReleaseKnown,
@@ -304,9 +311,15 @@ pub enum Helper {
         elem: Elem,
     },
     /// `(list) -> list`: the list's buffer made its own before a change:
-    /// a buffer it shares is copied, and the place's count goes to the
-    /// copy.
+    /// a buffer it shares is copied ([`Helper::ListCopy`]), and the
+    /// place's count goes to the copy.
     ListUnique {
+        elem: Elem,
+    },
+    /// `(list) -> list`: [`Helper::ListUnique`]'s slow path, out of line:
+    /// a copy of the shared buffer at its length, whose elements take
+    /// their own counts; the old buffer loses one holder.
+    ListCopy {
         elem: Elem,
     },
     /// `(list) -> list`: a `push`'s slow path: a pinned list panics
@@ -503,6 +516,7 @@ pub enum Helper {
     /// `(frame) -> (ready, results)`: the leaf's `.start`, then its
     /// `.finish` once the wake table holds its handle.
     HostPoll {
+        blocking: bool,
         module: String,
         method: String,
         args: Vec<crate::task::HostArg>,
@@ -513,9 +527,11 @@ pub enum Helper {
     HostCancel,
     /// A host provider's drive slot for a method that may wait (§23.39):
     /// `(data, arguments) -> (frame, results)`. It calls `.start` at once;
-    /// only a call the host left pending gets a leaf frame, whose handle
-    /// is that call's, and the results are zero then.
+    /// only a call the host left pending gets a leaf frame and zero results.
+    /// A blocking slot takes a final caller-local buffer instead of allocating
+    /// a frame; the caller explicitly drops that buffer's retained arguments.
     HostDrive {
+        blocking: bool,
         module: String,
         method: String,
         args: Vec<crate::task::HostArg>,
@@ -525,8 +541,10 @@ pub enum Helper {
     /// The drive slot beside cold slot `cold` (§23.39): `(params) ->
     /// (frame, results)`. It calls `cold` and polls its frame once; a
     /// Ready frame is released and 0 returned with the results, a Pending
-    /// one returned with zero results.
+    /// one returned with zero results. Blocking slots take and ignore an
+    /// additional caller buffer: an hd-provider's frame stays owned.
     Drive {
+        blocking: bool,
         cold: Box<Helper>,
         params: Vec<Val>,
         results: Vec<Val>,
@@ -907,7 +925,8 @@ fn poll(
     let mut providers = Vec::new();
     for k in input.env.row_keys(main, TyList::EMPTY) {
         let by_ref = input.host_refs.iter().find(|(t, _)| *t == k).map(|r| r.1);
-        providers.push((host_vtable(input, m, k)?, by_ref));
+        let wire = input.env.host_bridge(k).map_or(k, |bridge| bridge.wire);
+        providers.push((host_vtable(input, m, wire)?, by_ref));
     }
     let ret = input.env.ret(main).unwrap_or(Ty::VOID);
     let rvals = crate::layout::vals(input.pool, input.env, ret)?;
@@ -1023,16 +1042,16 @@ fn teardown(m: &Module) -> Func {
         for (k, (v, l)) in s.vals.iter().zip(&ls).enumerate() {
             let g = Global::Storage(*h, u32::try_from(k).expect("k"), *v);
             if let Some((at, leaves)) = &s.slot {
-                f.u32(*at);
+                f.address(*at);
                 f.op(leaves[k].load(0));
             } else {
                 f.global_get(g);
             }
             f.set(*l);
         }
-        if let Walk::Ref(k) = s.walk {
+        if let Some(k) = s.walk.single() {
             f.get(ls[k as usize]);
-            f.helper(Helper::ReleaseRef);
+            release_call(&mut f, matches!(s.walk, Walk::Known(_)));
         } else {
             for l in &ls {
                 f.get(*l);
@@ -1047,7 +1066,7 @@ fn teardown(m: &Module) -> Func {
         for (k, v) in s.vals.iter().enumerate() {
             let g = Global::Storage(*h, u32::try_from(k).expect("k"), *v);
             if let Some((at, leaves)) = &s.slot {
-                f.u32(*at);
+                f.address(*at);
                 crate::task::zero(&mut f, *v);
                 f.op(leaves[k].store(0));
             } else {
@@ -1323,7 +1342,7 @@ fn dyn_read(
 /// Writes the literal `text` to standard error.
 fn write_lit(f: &mut Func, m: &mut Module, text: &str) {
     let at = m.static_bytes(text.as_bytes(), 1);
-    f.u32(at);
+    f.static_addr(at);
     f.u32(u32::try_from(text.len()).expect("literal"));
     f.helper(Helper::ToBuf);
     f.call(rt_import("stderr", &[Val::I32], &[]));
@@ -1451,6 +1470,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 Global::Owner,
                 Global::WakeTab,
                 Global::WakeCap,
+                Global::BlockingWakes,
                 Global::Waker,
                 Global::WakeBit,
                 Global::Releasing,
@@ -1577,10 +1597,19 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             free_object(&mut f, m, 1);
             f
         }
+        // `panic_with(msg, "")`, whose report is `msg` alone, through the
+        // table: V8 inlines a small direct callee by size when it has no
+        // call counts (`--no-liftoff`), so every panic site would copy the
+        // code that writes the report, `rt:to_buf` with it. An inlined
+        // panic helper is a few nodes.
         Helper::Panic(msg) => {
             let mut f = m.func("rt:panic", vec![], vec![]);
-            f.call(rt_import("panic", &[], &[]));
-            write_lit(&mut f, m, &format!("{msg}\n"));
+            let at = m.static_bytes(msg.as_bytes(), 1);
+            f.static_addr(at);
+            f.u32(u32::try_from(msg.len()).expect("message"));
+            f.i32(0);
+            f.i32(0);
+            f.cold_helper(Helper::PanicWith, vec![Val::I32; 4], vec![]);
             f.op(Instruction::Unreachable);
             f
         }
@@ -1628,9 +1657,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.i32(-1);
             f.op(Instruction::I32Eq);
             f.op(Instruction::If(BlockType::Empty));
-            f.helper(Helper::Panic(
-                "heap-exhausted: the exchange buffer cannot grow".into(),
-            ));
+            // A cold call: the panic writes its message through here, and
+            // a cycle of direct calls is one an engine's inliner unrolls.
+            f.cold_helper(
+                Helper::Panic("heap-exhausted: the exchange buffer cannot grow".into()),
+                vec![],
+                vec![],
+            );
+            f.op(Instruction::Unreachable);
             f.op(Instruction::End);
             f.op(Instruction::End);
             f.i32(0);
@@ -1646,9 +1680,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::Alloc => alloc(m),
         Helper::StrEq => str_eq(m),
         Helper::New => new_object(m, None),
-        Helper::NewFixed { size, cyclic } => new_object(m, Some((*size, *cyclic))),
+        Helper::NewFixed { size } => new_object(m, Some(*size)),
         Helper::AllocClass { class, bytes } => alloc_class(m, *class, *bytes),
         Helper::FreeClass => free_class(m),
+        Helper::FreeClassLoaded => free_class_loaded(m),
         Helper::Str => {
             let mut f = m.func("rt:str", vec![Val::I32], vec![Val::I32]);
             f.get(0);
@@ -1664,13 +1699,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Release { vals, walk } => {
             let mut f = m.func("rt:release", vals.clone(), vec![]);
-            walk_code(&mut f, walk, &|f, k| f.get(k), &|f| {
-                f.helper(Helper::ReleaseRef);
-            });
+            walk_code(&mut f, walk, &|f, k| f.get(k), &release_call);
             f
         }
         Helper::ReleaseRef => release_ref(m, false),
         Helper::ReleaseKnown => release_ref(m, true),
+        Helper::ReleaseDrain => release_drain(m),
         Helper::RetainKnown => {
             let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
             if let Some(r) = m.runtime {
@@ -1679,9 +1713,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             }
             f
         }
-        Helper::DropFields { leaves, walk } => fields_glue(m, "rt:drop", leaves, walk, &|f| {
-            f.helper(Helper::ReleaseRef);
-        }),
+        Helper::DropFields { leaves, walk } => {
+            fields_glue(m, "rt:drop", leaves, walk, &release_call)
+        }
         Helper::RetainFields { leaves, walk } => {
             fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m))
         }
@@ -1694,6 +1728,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::CtxNew => ctx_new(m),
         Helper::CopyElems { elem } => copy_elems(elem, m),
         Helper::ListUnique { elem } => list_unique(elem, m),
+        Helper::ListCopy { elem } => list_copy(elem, m),
         Helper::ListGrow { elem } => list_grow(elem, m),
         Helper::MapTable { entry } => map::table(m, entry),
         Helper::DropEntries { entry } => map::drop_entries(m, entry),
@@ -2170,32 +2205,57 @@ pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn
     }
 }
 
-/// What retains the address on the stack: std's `retain`, or nothing when
-/// the program counts nothing.
-pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func) {
+/// What retains the address on the stack, given whether it is a known
+/// payload start: std's `retain`, `retain_known` for a known start, or
+/// nothing when the program counts nothing.
+pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func, bool) {
     let retain = m.runtime.map(|r| r.retain);
-    move |f: &mut Func| match retain {
+    move |f: &mut Func, known: bool| match retain {
+        Some(_) if known => f.helper(Helper::RetainKnown),
         Some(k) => f.call(Sym::Inst(k)),
         None => f.op(Instruction::Drop),
     }
 }
 
+/// The release of one counted address on the stack, without finding its
+/// block when it is a `known` payload start.
+pub(crate) fn release_call(f: &mut Func, known: bool) {
+    f.helper(if known {
+        Helper::ReleaseKnown
+    } else {
+        Helper::ReleaseRef
+    });
+}
+
 /// Emits `walk` over the values that `get(k)` pushes, running `on` with
-/// each counted address on the stack: an enum's arms by its tag.
+/// each counted address on the stack, and whether it is a known payload
+/// start ([`Walk::Known`]): an enum's arms by its tag.
 pub(crate) fn walk_code(
     f: &mut Func,
     walk: &Walk,
     get: &dyn Fn(&mut Func, u32),
-    on: &dyn Fn(&mut Func),
+    on: &dyn Fn(&mut Func, bool),
 ) {
     match walk {
         Walk::Ref(k) => {
             get(f, *k);
-            on(f);
+            on(f, false);
+        }
+        Walk::Known(k) => {
+            get(f, *k);
+            on(f, true);
         }
         Walk::Seq(ws) => {
             for w in ws {
                 walk_code(f, w, get, on);
+            }
+        }
+        Walk::Nullable(w) => {
+            if let Some(k) = w.single() {
+                get(f, k);
+                f.op(Instruction::If(BlockType::Empty));
+                walk_code(f, w, get, on);
+                f.op(Instruction::End);
             }
         }
         Walk::Switch(tag, arms) => {
@@ -2221,7 +2281,7 @@ fn fields_glue(
     name: &str,
     leaves: &[Leaf],
     walk: &Walk,
-    on: &dyn Fn(&mut Func),
+    on: &dyn Fn(&mut Func, bool),
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
@@ -2255,8 +2315,8 @@ pub(crate) fn glue_of(f: &mut Func) {
     f.op(Instruction::I32And);
 }
 
-/// The allocator's twenty small classes, including the object's header and
-/// its optional collector word. Zero/large objects keep the ordinary path.
+/// The allocator's twenty small classes, including the object's header.
+/// Zero/large objects keep the ordinary path.
 fn small_class(size: u32) -> Option<(u32, u32)> {
     const BYTES: [u32; 20] = [
         16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600,
@@ -2267,53 +2327,25 @@ fn small_class(size: u32) -> Option<(u32, u32)> {
     })
 }
 
-/// The allocation total is in the copied allocator metadata prefix.
-fn note_allocation(f: &mut Func, m: &Module, table: u32) {
-    let next = f.local(Val::I32);
-    f.get(table);
-    f.op(Instruction::I32Load(mem(HEAP, 244, 2)));
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.set(next);
-    if !m.release {
-        f.get(next);
-        f.op(Instruction::I32Eqz);
-        f.op(Instruction::If(BlockType::Empty));
-        f.helper(Helper::Panic("integer-overflow: integer overflow".into()));
-        f.op(Instruction::End);
-    }
-    f.get(table);
-    f.get(next);
-    f.op(Instruction::I32Store(mem(HEAP, 244, 2)));
-}
+/// The offset of each class's freed list in std's allocator metadata
+/// (`std.rt.alloc`'s `FREED`): class `c`'s is at `FREED + 4 * c`.
+const FREED: u32 = 256;
 
-fn allocated_slot(f: &mut Func, page: u32, slot: u32) {
-    f.get(page);
-    f.get(page);
-    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
-    f.get(slot);
-    f.op(Instruction::Return);
-}
-
-/// Pop a free slot or bump within the head page when it remains non-full.
-/// The last available slot, a missing page/table, and page-list maintenance
-/// stay in std. There is no call between reading metadata and updating it.
+/// Pop the class's freed list, else a free slot, or bump within the head
+/// page when it remains non-full. The last available slot, a missing
+/// page/table, and page-list maintenance stay in std, which is given the
+/// class's bytes as the size. There is no call between reading metadata
+/// and updating it. The page fast paths share one tail, so that V8 inlines
+/// this into each allocation.
 fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
-    let mut f = m.func(
-        format!("rt:alloc_class/{class}"),
-        vec![Val::I32],
-        vec![Val::I32],
-    );
+    let mut f = m.func(format!("rt:alloc_class/{class}"), vec![], vec![Val::I32]);
     let Some(r) = m.runtime else {
-        f.get(0);
+        f.u32(bytes);
         f.helper(Helper::Alloc);
         return f;
     };
     if r.checked.is_some() {
-        f.get(0);
+        f.u32(bytes);
         f.call(Sym::Inst(r.alloc));
         return f;
     }
@@ -2324,46 +2356,57 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
         f.local(Val::I32),
         f.local(Val::I32),
     );
+    f.op(Instruction::Block(BlockType::Empty));
     f.call(Sym::Inst(r.small.metadata));
-    f.set(table);
+    f.op(Instruction::LocalTee(table));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(0));
+    // A block on the class's freed list, which its page still counts.
+    let freed = u64::from(FREED + class * 4);
     f.get(table);
+    f.op(Instruction::I32Load(mem(HEAP, freed, 2)));
+    f.op(Instruction::LocalTee(slot));
     f.op(Instruction::If(BlockType::Empty));
+    f.get(table);
+    f.get(slot);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, freed, 2)));
+    f.get(slot);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
     f.get(table);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(class * 4), 2)));
-    f.set(page);
-    f.get(page);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(page);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(slot);
+    f.op(Instruction::LocalTee(page));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(0));
     f.get(page);
     f.op(Instruction::I32Load16U(mem(HEAP, 14, 1)));
     f.i32(4);
     f.op(Instruction::I32Shl);
     f.set(bump);
-    f.get(slot);
+    f.get(page);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::LocalTee(slot));
     f.op(Instruction::If(BlockType::Empty));
+    // Pop the free list unless that leaves the page full.
     f.get(slot);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(next);
-    f.get(next);
+    f.op(Instruction::LocalTee(next));
     f.get(bump);
     f.u32(65536 - bytes);
     f.op(Instruction::I32LeU);
     f.op(Instruction::I32Or);
-    f.op(Instruction::If(BlockType::Empty));
-    note_allocation(&mut f, m, table);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
     f.get(page);
     f.get(next);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    allocated_slot(&mut f, page, slot);
-    f.op(Instruction::End);
     f.op(Instruction::Else);
+    // Bump unless that leaves the page full.
     f.get(bump);
     f.u32(65536 - 2 * bytes);
-    f.op(Instruction::I32LeU);
-    f.op(Instruction::If(BlockType::Empty));
-    note_allocation(&mut f, m, table);
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::BrIf(1));
     f.get(page);
     f.get(bump);
     f.u32(bytes);
@@ -2375,20 +2418,43 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     f.get(bump);
     f.op(Instruction::I32Add);
     f.set(slot);
-    allocated_slot(&mut f, page, slot);
     f.op(Instruction::End);
+    f.get(page);
+    f.get(page);
+    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
+    f.get(slot);
+    f.op(Instruction::Return);
     f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.op(Instruction::End);
-    f.get(0);
+    // The slow path: only here does a known class's allocation ask whether
+    // a collection is due. A collection becomes due only as candidates
+    // gain blocks that nothing frees, so their class's pages fill and reach
+    // this path within a page of allocations (§23.28).
+    collect_if_due(&mut f, m);
+    f.u32(bytes);
     f.u32(class);
     f.call(Sym::Inst(r.small.alloc));
     f
 }
 
-/// A live block on its class's head page needs only a free-list push and
-/// live decrement. Empty head pages remain cached. Other pages use std's
-/// known-class slow path; buffered candidates keep the collector's free.
+/// Runs a collection when the collector says one is due.
+fn collect_if_due(f: &mut Func, m: &Module) {
+    let Some(r) = m.runtime.filter(|_| !m.acyclic) else {
+        return;
+    };
+    f.call(Sym::Inst(r.cycle.due));
+    f.op(Instruction::If(BlockType::Empty));
+    // A cold call (§23.17): through the table, V8 does not inline the
+    // collection into each allocation and spend its budget there.
+    f.cold_helper(Helper::Collect, vec![], vec![]);
+    f.op(Instruction::End);
+}
+
+/// A live block of a known class goes on its class's freed list, which
+/// its page keeps counting until std's `reclaim`. Buffered candidates keep
+/// the collector's free.
 fn free_class(m: &Module) -> Func {
     let mut f = m.func("rt:free_class", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
@@ -2399,12 +2465,7 @@ fn free_class(m: &Module) -> Func {
         f.call(Sym::Inst(r.free));
         return f;
     }
-    let (desc, class, table, page) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
+    let (desc, class) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.set(desc);
@@ -2414,6 +2475,32 @@ fn free_class(m: &Module) -> Func {
     f.u32(crate::module::CLASS_SHIFT);
     f.op(Instruction::I32ShrU);
     f.set(class);
+    f.get(0);
+    f.get(desc);
+    f.get(class);
+    f.helper(Helper::FreeClassLoaded);
+    f
+}
+
+/// The fixed-class free after its caller has loaded the descriptor and decoded
+/// its class. Keeping this body out of the drain preserves its compact hot loop
+/// while avoiding the old helper's descriptor reload and class decode.
+fn free_class_loaded(m: &Module) -> Func {
+    let mut f = m.func("rt:free_class_loaded", vec![Val::I32; 3], vec![]);
+    free_class_body(&mut f, m, 0, 1, 2);
+    f
+}
+
+/// Emits the fixed-class free after the caller has loaded the descriptor and
+/// decoded its class. A release drain already needs the descriptor for glue
+/// dispatch, so its generic path can reuse both values instead of loading and
+/// decoding the word again in [`Helper::FreeClass`].
+fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) {
+    let Some(r) = m.runtime else {
+        return;
+    };
+    let list = f.local(Val::I32);
+    f.op(Instruction::Block(BlockType::Empty));
     f.get(class);
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32Eqz);
@@ -2423,44 +2510,24 @@ fn free_class(m: &Module) -> Func {
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
     f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.i32(-65536);
-    f.op(Instruction::I32And);
-    f.set(page);
     f.call(Sym::Inst(r.small.metadata));
-    f.set(table);
-    f.get(table);
     f.get(class);
     f.i32(2);
     f.op(Instruction::I32Shl);
     f.op(Instruction::I32Add);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.get(page);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.get(page);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(list);
+    f.get(block);
+    f.get(list);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(FREED), 2)));
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(page);
-    f.get(0);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    f.get(page);
-    f.get(page);
-    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
-    f.i32(1);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
-    f.op(Instruction::Return);
+    f.get(list);
+    f.get(block);
+    f.op(Instruction::I32Store(mem(HEAP, u64::from(FREED), 2)));
+    f.op(Instruction::Br(1));
     f.op(Instruction::End);
-    f.get(0);
-    f.get(class);
-    f.call(Sym::Inst(r.small.free));
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(0);
+    f.get(block);
     f.call(Sym::Inst(r.free));
-    f
+    f.op(Instruction::End);
 }
 
 fn free_object(f: &mut Func, m: &Module, block: u32) {
@@ -2478,21 +2545,14 @@ fn free_object(f: &mut Func, m: &Module, block: u32) {
 /// [`Helper::New`]: a block of the header and the payload from std's
 /// `alloc`, or from the bump pointer when the program counts nothing.
 ///
-/// With the runtime, a collection runs first when the collector's buffer
-/// is full, and an object whose descriptor has [`CYCLIC`] takes part in
-/// collections: its block has room for the collector word at its end,
-/// which std's `track` zeroes (§23.28).
-fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
-    let small = fixed.and_then(|(size, cyclic)| {
+/// With the runtime, a collection runs first when one is due (at a known
+/// class, only on the class's slow path). An object whose descriptor has
+/// [`CYCLIC`] takes part in collections; the descriptor written here has
+/// its collector bits clear, black and no frame (§23.28).
+fn new_object(m: &Module, fixed: Option<u32>) -> Func {
+    let small = fixed.and_then(|size| {
         m.runtime.filter(|r| r.checked.is_none())?;
-        let bytes = size
-            .checked_add(HEADER)?
-            .checked_add(if cyclic && !m.acyclic {
-                crate::module::CYCLE_WORD
-            } else {
-                0
-            })?;
-        small_class(bytes)
+        small_class(size.checked_add(HEADER)?)
     });
     let name = small.map_or_else(
         || "rt:new".into(),
@@ -2500,33 +2560,25 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
     );
     let mut f = m.func(name, vec![Val::I32, Val::I32], vec![Val::I32]);
     let block = f.local(Val::I32);
-    let cycles = m.runtime.filter(|_| !m.acyclic);
-    if let Some(r) = cycles {
-        f.call(Sym::Inst(r.cycle.due));
-        f.op(Instruction::If(BlockType::Empty));
-        f.helper(Helper::Collect);
-        f.op(Instruction::End);
+    // A known class asks on its slow path only ([`alloc_class`]).
+    if small.is_none() {
+        collect_if_due(&mut f, m);
     }
-    f.get(0);
-    f.u32(HEADER);
-    f.op(Instruction::I32Add);
-    match m.runtime {
-        Some(r) => {
-            if !m.acyclic {
-                f.get(1);
-                f.i32(31);
-                f.op(Instruction::I32ShrU);
-                f.u32(crate::module::CYCLE_WORD);
-                f.op(Instruction::I32Mul);
-                f.op(Instruction::I32Add);
-            }
-            if let Some((class, bytes)) = small {
-                f.helper(Helper::AllocClass { class, bytes });
-            } else {
-                f.call(Sym::Inst(r.alloc));
-            }
+    match (m.runtime, small) {
+        // The class's block holds the header and the payload.
+        (Some(_), Some((class, bytes))) => f.helper(Helper::AllocClass { class, bytes }),
+        (Some(r), None) => {
+            f.get(0);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f.call(Sym::Inst(r.alloc));
         }
-        None => f.helper(Helper::Alloc),
+        (None, _) => {
+            f.get(0);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f.helper(Helper::Alloc);
+        }
     }
     f.set(block);
     f.get(block);
@@ -2539,15 +2591,6 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
         f.op(Instruction::I32Or);
     }
     f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-    if let Some(r) = cycles {
-        f.get(1);
-        f.i32(0);
-        f.op(Instruction::I32LtS);
-        f.op(Instruction::If(BlockType::Empty));
-        f.get(block);
-        f.call(Sym::Inst(r.cycle.track));
-        f.op(Instruction::End);
-    }
     f.get(block);
     f.u32(HEADER);
     f.op(Instruction::I32Add);
@@ -2572,22 +2615,33 @@ fn collect(m: &Module) -> Func {
 /// enters this allocation-free worklist. Its count word then links pending
 /// blocks; its payload and descriptor stay intact until its turn. A nested
 /// descriptor release enqueues and returns, so recursive types use a bounded
-/// native stack. While the collector traces an object (`Tracing`), the
-/// reference goes to its `visit` instead, checked here so that `visit` is
-/// called only during a collection (§23.28).
+/// native stack; the outermost one goes to [`Helper::ReleaseDrain`] at
+/// once, which keeps this small enough for V8 to inline. While the
+/// collector traces an object (`Tracing`), the reference goes to its
+/// `visit` instead, checked here so that `visit` is called only during a
+/// collection (§23.28).
 fn release_ref(m: &Module, known: bool) -> Func {
     let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
     };
-    let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
+    let block = f.local(Val::I32);
     if !m.acyclic {
+        // A drain cannot overlap collector tracing. Nested releases therefore
+        // bypass the collector test; only the outer release performs it.
+        f.op(Instruction::Block(BlockType::Empty));
+        f.global_get(Global::Releasing);
+        f.op(Instruction::BrIf(0));
         f.global_get(Global::Tracing);
         f.op(Instruction::If(BlockType::Empty));
         f.get(0);
-        f.call(Sym::Inst(r.cycle.visit));
+        // Through the table, as `collect` is: V8 would otherwise inline
+        // the collector's walk into every release.
+        f.table_slot(Sym::Inst(r.cycle.visit));
+        f.call_indirect(vec![Val::I32], vec![Val::I32]);
         f.op(Instruction::If(BlockType::Empty));
         f.op(Instruction::Return);
+        f.op(Instruction::End);
         f.op(Instruction::End);
         f.op(Instruction::End);
     }
@@ -2601,49 +2655,114 @@ fn release_ref(m: &Module, known: bool) -> Func {
     f.op(Instruction::End);
 
     // The final release already removed the block from cycle candidates.
+    f.global_get(Global::Releasing);
+    f.op(Instruction::If(BlockType::Empty));
     f.get(block);
     f.global_get(Global::ReleaseHead);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
     f.get(block);
     f.global_set(Global::ReleaseHead);
-    f.global_get(Global::Releasing);
-    f.op(Instruction::If(BlockType::Empty));
     f.op(Instruction::Return);
     f.op(Instruction::End);
+    f.get(block);
+    f.helper(Helper::ReleaseDrain);
+    f
+}
+
+/// [`Helper::ReleaseDrain`]. A recursive type's glue
+/// ([`Module::drain_glues`]) is called directly when the descriptor names
+/// it, so that V8 can inline it here; any other glue goes through the
+/// table.
+fn release_drain(m: &Module) -> Func {
+    let mut f = m.func("rt:release_drain", vec![Val::I32], vec![]);
+    let (block, slot, desc) = (0, f.local(Val::I32), f.local(Val::I32));
     f.i32(1);
     f.global_set(Global::Releasing);
-
-    f.op(Instruction::Block(BlockType::Empty));
     f.op(Instruction::Loop(BlockType::Empty));
-    f.global_get(Global::ReleaseHead);
-    f.set(block);
     f.get(block);
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::BrIf(1));
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.op(Instruction::LocalTee(desc));
+    glue_of(&mut f);
+    f.op(Instruction::LocalTee(slot));
+    f.op(Instruction::If(BlockType::Empty));
+    if m.drain_glues.is_empty() {
+        f.get(block);
+        f.u32(HEADER);
+        f.op(Instruction::I32Add);
+        f.get(slot);
+        f.i32(1);
+        f.op(Instruction::I32Sub);
+        f.call_indirect(vec![Val::I32], vec![]);
+    } else {
+        dispatch_glue(&mut f, &m.drain_glues, block, slot);
+    }
+    f.op(Instruction::End);
+    free_loaded_object(&mut f, m, block, desc);
+    f.global_get(Global::ReleaseHead);
+    f.op(Instruction::LocalTee(block));
+    f.op(Instruction::If(BlockType::Empty));
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.global_set(Global::ReleaseHead);
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    glue_of(&mut f);
-    f.set(desc);
-    f.get(desc);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.u32(HEADER);
-    f.op(Instruction::I32Add);
-    f.get(desc);
-    f.i32(1);
-    f.op(Instruction::I32Sub);
-    f.call_indirect(vec![Val::I32], vec![]);
-    f.op(Instruction::End);
-    free_object(&mut f, m, block);
-    f.op(Instruction::Br(0));
+    f.op(Instruction::Br(1));
     f.op(Instruction::End);
     f.op(Instruction::End);
     f.i32(0);
     f.global_set(Global::Releasing);
     f
+}
+
+/// Frees a block whose descriptor is already in `desc`. The generic drain
+/// has loaded it for glue dispatch, so a fixed allocation can decode its
+/// class once and enter the same free body without a helper reload.
+fn free_loaded_object(f: &mut Func, m: &Module, block: u32, desc: u32) {
+    let Some(r) = m.runtime else {
+        return;
+    };
+    if m.fixed_allocations && r.checked.is_none() {
+        let class = f.local(Val::I32);
+        f.get(desc);
+        f.u32(crate::module::CLASS_MASK);
+        f.op(Instruction::I32And);
+        f.u32(crate::module::CLASS_SHIFT);
+        f.op(Instruction::I32ShrU);
+        f.set(class);
+        f.get(block);
+        f.get(desc);
+        f.get(class);
+        f.helper(Helper::FreeClassLoaded);
+    } else {
+        f.get(block);
+        f.call(Sym::Inst(r.free));
+    }
+}
+
+/// Runs the glue at table slot `slot` plus one over the payload of
+/// `block`: one of `glues` by a direct call, any other through the table.
+fn dispatch_glue(f: &mut Func, glues: &[Sym], block: u32, slot: u32) {
+    f.get(slot);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.set(slot);
+    f.op(Instruction::Block(BlockType::Empty));
+    for glue in glues {
+        f.get(slot);
+        f.table_slot(glue.clone());
+        f.op(Instruction::I32Eq);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(block);
+        f.u32(HEADER);
+        f.op(Instruction::I32Add);
+        f.call(glue.clone());
+        f.op(Instruction::Br(1));
+        f.op(Instruction::End);
+    }
+    f.get(block);
+    f.u32(HEADER);
+    f.op(Instruction::I32Add);
+    f.get(slot);
+    f.call_indirect(vec![Val::I32], vec![]);
+    f.op(Instruction::End);
 }
 
 /// [`Helper::CollCopy`]: one more count on the buffer of a list or a map,
@@ -2750,9 +2869,7 @@ fn list_clone(m: &Module, elem: &Elem) -> Func {
 fn list_buf(m: &Module, elem: &Elem) -> Func {
     let mut f = m.func("rt:list_buf", vec![Val::I32], vec![Val::I32]);
     let b = f.local(Val::I32);
-    if let Some(most) =
-        (u32::MAX - LIST_ELEMS - HEADER - crate::module::CYCLE_WORD).checked_div(elem.size)
-    {
+    if let Some(most) = (u32::MAX - LIST_ELEMS - HEADER).checked_div(elem.size) {
         f.get(0);
         f.u32(most);
         f.op(Instruction::I32GtU);
@@ -2903,7 +3020,7 @@ fn each_elem(f: &mut Func, at: u32, n: u32, size: u32, body: &dyn Fn(&mut Func))
 fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
     let mut f = m.func("rt:type_id", params, vec![Val::I32; 4]);
     for text in [&parts.name, &parts.shown] {
-        f.u32(m.static_bytes(text.as_bytes(), 1));
+        f.static_addr(m.static_bytes(text.as_bytes(), 1));
         f.u32(u32::try_from(text.len()).expect("type name"));
     }
     f
@@ -2945,9 +3062,7 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
         let ls = load_elem_locals(&mut f, &elem.leaves);
         each_elem(&mut f, at, n, elem.size, &|f| {
             fill_elem(f, at, &elem.leaves, &ls);
-            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &|f| {
-                f.helper(Helper::ReleaseRef);
-            });
+            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
         });
     }
     f.get(b);
@@ -2974,9 +3089,7 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
         fill_elem(f, at, &elem.leaves, &ls);
-        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &|f| {
-            f.helper(Helper::ReleaseRef);
-        });
+        walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
     });
     f
 }
@@ -3017,11 +3130,13 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ListUnique`]: a shared buffer is copied at its length; its
-/// elements take their own counts and the old buffer one holder less.
+/// [`Helper::ListUnique`]: a buffer with more than one holder and no owner
+/// word is copied by [`Helper::ListCopy`], a cold call (`Func::cold_helper`).
+/// What a hot caller's engine inlines is then a few loads and a compare,
+/// not the copy loop and the allocator behind it.
 fn list_unique(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:list_unique", vec![Val::I32], vec![Val::I32]);
-    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
+    let b = 0;
     f.get(b);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
@@ -3035,6 +3150,23 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
     f.op(Instruction::If(BlockType::Empty));
+    f.get(b);
+    f.cold_helper(
+        Helper::ListCopy { elem: elem.clone() },
+        vec![Val::I32],
+        vec![Val::I32],
+    );
+    f.set(b);
+    f.op(Instruction::End);
+    f.get(b);
+    f
+}
+
+/// [`Helper::ListCopy`]: a shared buffer is copied at its length; its
+/// elements take their own counts and the old buffer one holder less.
+fn list_copy(elem: &Elem, m: &Module) -> Func {
+    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
+    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);
@@ -3067,9 +3199,6 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f.get(b);
     f.helper(Helper::ReleaseKnown);
     f.get(nb);
-    f.set(b);
-    f.op(Instruction::End);
-    f.get(b);
     f
 }
 
@@ -3529,9 +3658,7 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
 }
 
 fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
-    if value.known
-        && let Some(Walk::Ref(k)) = &value.walk
-    {
+    if let Some(Walk::Known(k)) = &value.walk {
         f.get(ls[*k as usize]);
         f.helper(if retain {
             Helper::RetainKnown
@@ -3679,15 +3806,18 @@ fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) 
     ls
 }
 
-/// Stores the value in locals `ls`, which keep their own counts, through
-/// the reference in local `at`: a view's setter takes a new box of it, an
-/// address its leaves, releasing the value it held. Emitted inline, as
-/// [`ref_load`] is.
-pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout) {
+/// Stores the value in locals `ls` through the reference in local `at`: a
+/// view's setter takes a new box of it, an address its leaves, releasing
+/// the value it held. An `owned` value's counts move into the place, so
+/// its locals keep none; any other keeps its own, and the place takes a
+/// count of its own. Emitted inline, as [`ref_load`] is.
+pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout, owned: bool) {
     if ls.is_empty() {
         return;
     }
-    ref_count(f, ls, value, true);
+    if !owned {
+        ref_count(f, ls, value, true);
+    }
     f.get(at);
     f.helper(Helper::RefIsView);
     f.op(Instruction::If(BlockType::Empty));
@@ -3867,8 +3997,7 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             let mut f = m.func("rt:ref_set", vec![Val::I32; 2], vec![]);
             let ls = ref_unbox(&mut f, 1, source);
             let src = view_source(&mut f);
-            ref_store(&mut f, src, &ls, source);
-            ref_count(&mut f, &ls, source, false);
+            ref_store(&mut f, src, &ls, source, true);
             f
         }
         _ => unreachable!("a reference helper"),
@@ -3986,8 +4115,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
                 f.get(source);
                 f.set(*target);
             }
-            ref_store(&mut f, src, &ls, parent);
-            ref_count(&mut f, &ls, parent, false);
+            ref_store(&mut f, src, &ls, parent, true);
             f
         }
         _ => unreachable!("a field reference helper"),

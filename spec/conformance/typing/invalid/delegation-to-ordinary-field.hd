@@ -14,4 +14,4 @@ struct Service:
     Logger
     port: i32
 
-impl Describe for Service by port  # diagnostic: invalid-delegation
+impl Describe for Service by port # diagnostic: invalid-delegation

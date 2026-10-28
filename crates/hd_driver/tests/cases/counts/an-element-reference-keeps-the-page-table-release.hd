@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+# `&items[0]` points inside the list's buffer, so in release a `*Item`
+# may be an interior address: its counts keep `rt:retain`, which finds
+# the block through the page table (#704).
+struct Item:
+    n: i64
+
+fn read(it: &Item) -> i64:
+    it.n
+
+fn first(items: &List[Item]) -> i64:
+    read(&items[0])
+
+fn both(r: *Item) -> (*Item, *Item):
+    # subject
+    (r, r)

@@ -4,7 +4,7 @@
 trait Source[T]:
     fn read(self) -> T
 
-type Wrapped[S < Source[Factory]](S)  # diagnostic: trait-used-as-type
+type Wrapped[S < Source[Factory]](S) # diagnostic: trait-used-as-type
 
 trait Factory:
     fn create() -> Self

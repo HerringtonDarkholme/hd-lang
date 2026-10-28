@@ -1,7 +1,7 @@
 //! Which decorators of a function attach a value (annotations, "Function
 //! Facts"): every decorator line but the ones the compiler reads itself.
 
-use hd_base::{DefId, Symbol};
+use hd_base::{DefId, PathId, Span, Symbol};
 use hd_syntax::{NodeRef, SyntaxKind};
 
 use crate::view::Src;
@@ -134,4 +134,56 @@ pub fn never_a_list(kind: SyntaxKind) -> bool {
             | SyntaxKind::LogicalAndExpr
             | SyntaxKind::LogicalOrExpr
     )
+}
+
+/// Resolved declaration metadata requested by read-only tooling, never cached advice.
+#[derive(Clone, Debug, Default)]
+pub struct DerivationFacts {
+    pub decorators: Vec<BlockDecorator>,
+    pub blocks: Vec<DerivationBlock>,
+    pub derived: Vec<Derived>,
+}
+
+impl DerivationFacts {
+    pub fn extend(&mut self, other: Self) {
+        self.decorators.extend(other.decorators);
+        self.blocks.extend(other.blocks);
+        self.derived.extend(other.derived);
+    }
+}
+
+/// One decorator's occurrence and surrounding derivation block.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockDecorator {
+    pub span: Span,
+    pub value: Option<Span>,
+    pub first: Option<Span>,
+    pub marker: bool,
+    pub valid: bool,
+}
+
+/// A written member line: member name, extension mode, and right-side tokens.
+pub type MemberLines = Vec<(String, bool, Vec<String>)>;
+
+/// Nominal targets and configured lines of a resolved derivation block.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DerivationBlock {
+    pub folder: u32,
+    pub target: DefId,
+    pub package: PathId,
+    pub trait_: DefId,
+    pub trait_name: String,
+    pub target_name: String,
+    pub lines: MemberLines,
+    pub span: Span,
+}
+
+/// An ordinary derive opt-in, independent of any advice about nearby blocks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Derived {
+    pub folder: u32,
+    pub target: DefId,
+    pub package: PathId,
+    pub trait_: DefId,
+    pub name: String,
 }

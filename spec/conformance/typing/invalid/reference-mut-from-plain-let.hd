@@ -2,5 +2,5 @@
 # Spec 13 Writable Places Of References: ref.place.not-writable.let.
 fn invalid() -> i32:
     let total = 0
-    r := &mut total  # diagnostic: not-writable
+    r := &mut total # diagnostic: not-writable
     *r

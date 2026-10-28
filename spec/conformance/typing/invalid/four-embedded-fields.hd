@@ -16,5 +16,5 @@ struct Post:
     Created
     Updated
     Owned
-    Tagged  # diagnostic: too-many-embedded-fields
+    Tagged # diagnostic: too-many-embedded-fields
     title: string

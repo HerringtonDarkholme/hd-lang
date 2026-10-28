@@ -27,9 +27,17 @@ tests:
         assert_equal((-2147483647 - 1).checked_div(-1), .None, reason="the minimum divided by -1")
 
     it("wrapping methods"):
-        assert_equal(next_ticket(2147483647), -2147483647 - 1, reason="the maximum wraps to the minimum")
+        assert_equal(
+            next_ticket(2147483647),
+            -2147483647 - 1,
+            reason="the maximum wraps to the minimum",
+        )
         assert_equal(next_ticket(41), 42, reason="no wrap")
-        assert_equal((-2147483647 - 1).wrapping_sub(1), 2147483647, reason="the minimum wraps to the maximum")
+        assert_equal(
+            (-2147483647 - 1).wrapping_sub(1),
+            2147483647,
+            reason="the minimum wraps to the maximum",
+        )
         let largest: i64 = 9223372036854775807
         let wrapped: i64 = largest.wrapping_add(1)
         assert(wrapped < 0, reason="i64 wraps to its minimum")

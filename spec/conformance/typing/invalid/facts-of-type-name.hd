@@ -5,4 +5,4 @@ use std.annotation.facts_of
 struct User:
     name: string
 
-user_facts := facts_of(User)  # diagnostic: invalid-facts-of-target
+user_facts := facts_of(User) # diagnostic: invalid-facts-of-target

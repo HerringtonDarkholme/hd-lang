@@ -27,6 +27,7 @@ pub struct KnownItems {
     pub tuple: DefId,
     // std.structure
     pub structure: DefId,
+    /// `FieldRecord`, which a `Field` handle refers to.
     pub field: DefId,
     pub walker: DefId,
     pub describer: DefId,
@@ -109,6 +110,10 @@ pub struct KnownItems {
     pub println: DefId,
     // std.annotation, std.testing
     pub annotate: DefId,
+    /// `inline` and `cold`, the decorators that choose how calls of a
+    /// function are compiled (`annot.inline.recognized`).
+    pub inline: DefId,
+    pub cold: DefId,
     pub testing_module: PathId,
     pub check_equal: DefId,
     /// The test registration functions besides `it`
@@ -186,7 +191,7 @@ impl KnownItems {
             function_module: module("std.function"),
             tuple,
             structure,
-            field: item("std.structure", "Field"),
+            field: item("std.structure", "FieldRecord"),
             walker: item("std.structure", "Walker"),
             describer: item("std.structure", "Describer"),
             source: item("std.structure", "Source"),
@@ -245,6 +250,8 @@ impl KnownItems {
             race: item("std.task", "race"),
             println: item("std.console", "println"),
             annotate: item("std.annotation", "annotate"),
+            inline: item("std.annotation", "inline"),
+            cold: item("std.annotation", "cold"),
             testing_module: module("std.testing"),
             check_equal: item("std.testing", "check_equal"),
             it_each: item("std.testing", "it_each"),

@@ -33,7 +33,11 @@ tests:
 
     it("dbg works in a pure function, generic code, and a unit test"):
         assert_equal(total([1, 2, 3]), 6, reason="dbg changes no sum")
-        assert_equal(audit(Account { owner: "Ada", balance: 120 }), "Ada", reason="dbg changes no account")
+        assert_equal(
+            audit(Account { owner: "Ada", balance: 120 }),
+            "Ada",
+            reason="dbg changes no account",
+        )
         assert_equal(first(["a", "b"]), "a", reason="dbg prints a T")
         dbg(1, "two", [3])
         show_all((+1, "one"))

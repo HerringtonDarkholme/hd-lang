@@ -1,0 +1,34 @@
+impl Builder:
+    fn format(
+        &self,
+        clock: &Clock,
+        store: Store[Item = string],
+        first_descriptive_parameter: First,
+        second_descriptive_parameter: Second,
+        third_descriptive_parameter: Third,
+    ) -> Result[Output, Error]:
+        self[0]
+        value = ..5
+        for item in ..:
+            use(item)
+        $.with(Clock=clock):
+            consume(reason="x")
+        consume(
+            [
+                the_first_descriptive_operand_name_the_first_descriptive_operand_name
+                + the_second_descriptive_operand_name_the_second_descriptive_operand_name,
+            ],
+        )
+        self.frames.push(
+            Frame {
+                descriptive_field_namedescriptive_field_namedescriptive_field_namedescriptive_field_name: value,
+                second: other,
+            },
+        )
+        consume(
+            fn(item):
+                use_the_descriptive_value_and_record_the_descriptive_result_for_the_current_operation(
+                    item,
+                )
+            ,
+        )

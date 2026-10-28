@@ -29,8 +29,24 @@ tests:
         let factory: &dyn Factory = &Maker {}
         for n in +0..+20:
             words := factory.hold(["kept $n", "tail $n"]).item
-            assert_equal(first_word(words), "kept $n", reason="the projected list is read through its view")
-            assert_equal(repeated(words, true), "kept $n", reason="early return keeps the result and releases the temporary")
-            assert_equal(repeated(words, false), "kept $n", reason="each iteration releases its getter temporary")
+            assert_equal(
+                first_word(words),
+                "kept $n",
+                reason="the projected list is read through its view",
+            )
+            assert_equal(
+                repeated(words, true),
+                "kept $n",
+                reason="early return keeps the result and releases the temporary",
+            )
+            assert_equal(
+                repeated(words, false),
+                "kept $n",
+                reason="each iteration releases its getter temporary",
+            )
             *words = ["changed $n"]
-            assert_equal(first_word(words), "changed $n", reason="the view still forwards writes after the reads")
+            assert_equal(
+                first_word(words),
+                "changed $n",
+                reason="the view still forwards writes after the reads",
+            )

@@ -2,30 +2,45 @@
 
 fn separated() -> i32:
     pieces := ",a,,β,".split(",")
-    if pieces.len() == 5 && pieces[0] == "" && pieces[1] == "a" && pieces[2] == "" && pieces[3] == "β" && pieces[4] == "":
+    if (
+        pieces.len() == 5
+        && pieces[0] == ""
+        && pieces[1] == "a"
+        && pieces[2] == ""
+        && pieces[3] == "β"
+        && pieces[4] == ""
+    ):
         1
     else:
         0
 
 fn scalars() -> i32:
     pieces := "Aβ🙂".split("")
-    if pieces.len() == 3 && pieces[0] == "A" && pieces[1] == "β" && pieces[2] == "🙂":
-        1
-    else:
-        0
+    if pieces.len() == 3 && pieces[0] == "A" && pieces[1] == "β" && pieces[2] == "🙂": 1 else: 0
 
 fn empty_input() -> i32:
-    if "".split("").len() == 0: 1
-    else: 0
+    if "".split("").len() == 0: 1 else: 0
 
 tests:
     use std.testing.assert_equal
 
     it("separated returns 1"):
-        assert_equal(separated(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
+        assert_equal(
+            separated(),
+            1,
+            reason="string split preserves empty pieces and splits an empty separator at Unicode scalars",
+        )
 
     it("scalars returns 1"):
-        assert_equal(scalars(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
+        assert_equal(
+            scalars(),
+            1,
+            reason="string split preserves empty pieces and splits an empty separator at Unicode scalars",
+        )
 
     it("empty_input returns 1"):
-        assert_equal(empty_input(), 1, reason="string split preserves empty pieces and splits an empty separator at Unicode scalars")
+        assert_equal(
+            empty_input(),
+            1,
+            reason="string split preserves empty pieces and splits an empty separator at Unicode scalars",
+        )

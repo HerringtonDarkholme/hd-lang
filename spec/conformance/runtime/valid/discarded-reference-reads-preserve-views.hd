@@ -49,4 +49,8 @@ tests:
             values := factory.make(["first $i", "second $i"])
             inspect(values, true)
             inspect(values, false)
-            assert_equal((*values)[1], "second $i", reason="the getter result can still be read after discarded reads")
+            assert_equal(
+                (*values)[1],
+                "second $i",
+                reason="the getter result can still be read after discarded reads",
+            )

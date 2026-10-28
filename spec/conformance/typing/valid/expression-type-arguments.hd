@@ -4,7 +4,8 @@
 struct Box[T]:
     value: T
 
-fn first[T](items: List[T]) -> T: items[0]
+fn first[T](items: List[T]) -> T:
+    items[0]
 
 fn demo(names: List[string]) -> Box[string]:
     head := first::[string](names)

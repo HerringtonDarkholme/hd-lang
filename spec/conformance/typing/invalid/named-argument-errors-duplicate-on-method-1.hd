@@ -6,8 +6,11 @@ struct Size:
     width: i32
 
 impl Size:
-    fn resize(self, width: i32, height: i32) -> i32: width * height
+    fn resize(self, width: i32, height: i32) -> i32:
+        width * height
 
-fn resize(width: i32, height: i32) -> i32: width * height
+fn resize(width: i32, height: i32) -> i32:
+    width * height
 
-fn f(s: Size) -> i32: s.resize(640, width=480)  # diagnostic: duplicate-argument
+fn f(s: Size) -> i32:
+    s.resize(640, width=480) # diagnostic: duplicate-argument

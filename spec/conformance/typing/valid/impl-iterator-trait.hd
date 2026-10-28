@@ -5,4 +5,5 @@ struct Counter:
     current: i32
 
 impl Iterator[i32] for Counter:
-    fn next(&mut self) -> i32?: .None
+    fn next(&mut self) -> i32?:
+        .None

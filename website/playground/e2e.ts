@@ -41,7 +41,7 @@ async function sameOriginHttp(
     "",
     "fn status!(url: string) -> string $ Http:",
     "    match get!(url):",
-    '        .Ok(response) => "status ${response.status}"',
+    '        .Ok(response) => "status ${response.status.code()}"',
     '        .Err(.NotGranted(host)) => "no ${host}"',
     '        .Err(error) => "${error}"',
     "",

@@ -1,4 +1,4 @@
 # test: a misnamed map argument is rejected
 pub fn main() -> void:
     let mut m: Map[string, i32] = {}
-    _ := m.remove(value="a")  # diagnostic: unknown-named-argument
+    _ := m.remove(value="a") # diagnostic: unknown-named-argument

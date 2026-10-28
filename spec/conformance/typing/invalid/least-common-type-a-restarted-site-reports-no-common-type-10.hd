@@ -2,4 +2,4 @@
 # Spec lang/04-type-system.md: types.lct.sites.
 
 fn f(a: i32?) -> void:
-    _v := {"p": 1, "q": a, "r": "s"} # diagnostic: no-common-type
+    _v := { "p": 1, "q": a, "r": "s" } # diagnostic: no-common-type

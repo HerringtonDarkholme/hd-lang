@@ -2,4 +2,4 @@
 
 fn first() -> i32?:
     value := 1
-    value?  # diagnostic: invalid-result-propagation
+    value? # diagnostic: invalid-result-propagation

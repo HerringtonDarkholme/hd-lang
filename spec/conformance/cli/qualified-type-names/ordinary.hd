@@ -1,4 +1,5 @@
-fn take(value: i32) -> void: pass
+fn take(value: i32) -> void:
+    pass
 
 pub fn main() -> void:
     take("oops")

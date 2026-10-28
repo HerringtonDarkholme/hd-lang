@@ -1,0 +1,5 @@
+[package]
+name = "script_lint"
+
+[dependencies]
+dep = { path = "dep" }

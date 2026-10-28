@@ -85,9 +85,6 @@ Fifteen runs were rotated and interleaved per variant at the default, `--no-lift
 The in-Wasm timer covered validation only; every path produced the same issue count and checksum.
 Ratios are median paired throughput ratios, so higher is better.
 
-Inline `env_as(...)?` inside the custom-error example reports `a type argument named only in bounds has no solution; write it explicitly`.
-An expected `Result[Port?, HostError]` binding resolves it without naming the parse error type; direct HostError-returning controls also pass.
-
 | Variant | Default validations / 300 ms | Ratio | `--no-liftoff` validations / 300 ms | Ratio | `--liftoff-only` validations / 300 ms | Ratio |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Hand-written checks | 5,182,724 | 1.000× | 6,437,086 | 1.000× | 2,101,911 | 1.000× |
@@ -165,12 +162,9 @@ Stubs were never executed: “checks” below proves typing, not runtime validat
 | Store or capture a borrowed context | Both reject `local-reference-escapes` | Keep contexts local |
 | `.validated()` defaults | Checks after f82d56b49 | Fixed and covered by the compiler fixture |
 | Generic optional/element rule | Checks through an expected helper result | Backward inference is fixed |
-| Inline env_as plus custom-error propagation | Bounds-only `cannot-infer-type` | Typed whole-Result binding checks; direct-return controls also check |
 | Mismatched passwords | Input/call shape checks only | Semantic rejection remains unproved |
 | Invalid regex `[` | Fact/call shape checks only | Definition-error behavior remains unproved |
 
-The sole remaining compiler gap is the narrow inline environment-call inference case (#882).
-The target short calls remain visible; no compiler/spec change or named-list bypass is proposed here.
 The historical model's seven tests per engine do not prove this broader revision, automatic recursion or reader aliases.
 
 ## Appendix B: Prior Art
@@ -287,7 +281,7 @@ hd takes typed custom checks and explicit length semantics, but proposes automat
 | One dynamic composite per field | One indirect call per field | Retains only 0.46–0.54× throughput and adds 20% Wasm in the ceiling |
 
 **Recommendation:** the value combinator, the smallest ordinary-library addition.
-Distinct facts preserve today's duplicate rule, like `rename` and `env_name`.
+Distinct facts preserve today's duplicate rule: a second fact of the same rule kind is rejected.
 Optional, element and map wrappers stay static concrete facts, not an untyped registry.
 
 <a id="context"></a>
@@ -295,10 +289,10 @@ Optional, element and map wrappers stay static concrete facts, not an untyped re
 ## Appendix D: Today In hd
 
 [JSON](../../spec/std/json.md#typed-json), [CLI](../../spec/std/cli.md) and [environment readers](../../spec/std/host.md) establish types.
-[Approved HTTP messages](http/src/http.hd) supply typed body readers; their implementation is #847.
+[HTTP](../../spec/std/http.md) supplies typed body readers through `std.http`.
 None currently supplies this validation library; “while reading” was the earlier proposal, not implemented behavior.
 The revised combinator deliberately proposes a second traversal instead of changing reader protocols.
-The signature example depends on the approved HTTP package until #847 migrates it to std.
+The signature example uses the implemented `std.http` request and response types.
 
 <a id="appendix-d-implementation-and-checks"></a>
 

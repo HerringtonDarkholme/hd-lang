@@ -9,7 +9,8 @@ fn kind[T < Inspectable](_value: T) -> TypeId:
     TypeId::of::[T]()
 fn forwarded_kind[T < Inspectable](value: T) -> TypeId:
     kind(value)
-fn copied[T < Inspectable](value: T) -> T: value
+fn copied[T < Inspectable](value: T) -> T:
+    value
 pub fn main() -> void $ Console:
     let user = &User { count: 1 }
     let original = &user
@@ -32,7 +33,10 @@ tests:
         let mut user = &User { count: 3 }
         original := &mut user
         let erased: &mut dyn Inspectable = original
-        assert(erased.downcast_mut::[*mut User]().is_none(), reason="the referent is a shared reference")
+        assert(
+            erased.downcast_mut::[*mut User]().is_none(),
+            reason="the referent is a shared reference",
+        )
         match erased.downcast_mut::[*User]():
             .Some(found) =>
                 assert(found is original, reason="the mutable reference to the shared reference")
@@ -41,8 +45,14 @@ tests:
         assert_equal(user.count, 7, reason="the shared reference value was replaced")
     it("generic identity stays permission sensitive through forwarding"):
         let mut user = User { count: 4 }
-        assert(kind(&user) != kind(&mut user), reason="TypeId observes the actual reference permission")
-        assert(forwarded_kind(&user) != forwarded_kind(&mut user), reason="the generic caller must retain the distinction too")
+        assert(
+            kind(&user) != kind(&mut user),
+            reason="TypeId observes the actual reference permission",
+        )
+        assert(
+            forwarded_kind(&user) != forwarded_kind(&mut user),
+            reason="the generic caller must retain the distinction too",
+        )
     it("sharing generic code preserves the actual mutable reference"):
         let mut user = User { count: 8 }
         original := &mut user
@@ -52,4 +62,8 @@ tests:
         assert_equal(user.count, 9, reason="the returned reference keeps its actual setter")
     it("reference names retain permission"):
         assert_equal(TypeId::of::[*i32]().to_string(), "&i32", reason="shared reference spelling")
-        assert_equal(TypeId::of::[*mut i32]().to_string(), "&mut i32", reason="mutable reference spelling")
+        assert_equal(
+            TypeId::of::[*mut i32]().to_string(),
+            "&mut i32",
+            reason="mutable reference spelling",
+        )

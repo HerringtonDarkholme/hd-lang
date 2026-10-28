@@ -1,0 +1,40 @@
+# fixture-runtime-profile: tick
+# expect-stdout: abandon: abandoned, abandoned, abandoned
+# expect-stdout: cancel: finished, finished, cancelled
+# expect-stdout: argument: never 1
+# test: abandoning an unstarted host call preserves abandoned cleanup and drive outcomes, repeated cleanup is stable, and ordinary cancellation remains finished
+# Spec lang/11 Abandoning: req.abandon.result, req.abandon.cold, req.abandon.ended; Driving A Stored Suspension: req.drive.block-on.cancelled.
+use std.task.block_on
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn cleanup[T](pending: mut Suspend[T]) -> string:
+    match block_on(pending.cancel()):
+        .Completed(.Finished) => "finished"
+        .Completed(.Abandoned) => "abandoned"
+        _ => "unexpected cleanup"
+
+fn outcome[T](pending: mut Suspend[T]) -> string:
+    match block_on(pending):
+        .Completed(_) => "completed"
+        .Cancelled => "cancelled"
+        .Abandoned => "abandoned"
+
+pub fn main() -> void $ Console + Tick:
+    let ticker: &mut dyn Tick = $.use(Tick)
+    argument := "never ${+1}"
+    let abandoned: mut Suspend[void] = ticker.tick(argument)
+    abandoned.abandon()
+    abandoned.abandon()
+    first := cleanup(abandoned)
+    second := cleanup(abandoned)
+    println("abandon: $first, $second, ${outcome(abandoned)}")
+    let cancelled: mut Suspend[void] = ticker.tick(argument)
+    ordinary := cleanup(cancelled)
+    # Abandoning an already ended cleanup leaves its finished result alone.
+    cancelled.abandon()
+    repeated := cleanup(cancelled)
+    println("cancel: $ordinary, $repeated, ${outcome(cancelled)}")
+    # Each cold leaf retained its own argument; neither call started.
+    println("argument: $argument")

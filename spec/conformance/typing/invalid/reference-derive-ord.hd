@@ -2,4 +2,4 @@
 # Spec 09 Derived Implementations: trait.derive.reference-debug.
 @derive(Eq, PartialOrd, Ord)
 struct Rank:
-    level: *i32  # diagnostic: derive-field-missing-trait
+    level: *i32 # diagnostic: derive-field-missing-trait

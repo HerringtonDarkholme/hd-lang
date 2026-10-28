@@ -146,14 +146,15 @@ pub fn main(x: i32) -> Point: Point { x: x }
 #[test]
 fn unused_closures_and_named_generic_instances_survive_folding() {
     let text = "\
-fn identity[T](value: T) -> T: value
+fn identity[T](value: T, n: i32) -> T:
+    if n > 0: identity(value, n - 1) else: value
 fn unused[T](value: T) -> T: value
 
 fn f(x: i32) -> i32:
     add := fn(y: i32) -> i32: x + y
     fn local[T](value: T) -> T: value
     if false:
-        identity(local(+3))
+        identity(local(+3), 0)
     x
 ";
     for level in [OptLevel::Dev, OptLevel::Optimized] {

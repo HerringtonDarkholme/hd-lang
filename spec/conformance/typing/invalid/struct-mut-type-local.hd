@@ -4,5 +4,5 @@ struct Point:
     y: i32
 
 fn demo(p: Point) -> i32:
-    let q: mut Point = p  # diagnostic: mut-on-struct
+    let q: mut Point = p # diagnostic: mut-on-struct
     q.x

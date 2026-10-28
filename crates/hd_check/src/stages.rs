@@ -57,12 +57,7 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
     let mut callers: HashMap<DefId, Vec<DefId>> = HashMap::default();
     for sum in modules {
         for (d, f) in &sum.fns {
-            let set: BTreeSet<usize> = f
-                .reads
-                .iter()
-                .filter_map(|g| binding.get(g))
-                .copied()
-                .collect();
+            let set = hd_base::btree_set(f.reads.iter().filter_map(|g| binding.get(g)).copied());
             reach.entry(*d).or_default().extend(set);
             for c in &f.calls {
                 callers.entry(*c).or_default().push(*d);
@@ -90,13 +85,13 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
         .iter()
         .flat_map(|sum| &sum.stmts)
         .map(|st| {
-            let mut set: BTreeSet<usize> = st
-                .facts
-                .reads
-                .iter()
-                .filter_map(|g| binding.get(g))
-                .copied()
-                .collect();
+            let mut set = hd_base::btree_set(
+                st.facts
+                    .reads
+                    .iter()
+                    .filter_map(|g| binding.get(g))
+                    .copied(),
+            );
             for c in &st.facts.calls {
                 set.extend(reach.get(c).into_iter().flatten().copied());
             }
@@ -114,7 +109,7 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
             dependents[owner[*g].0].push(k);
         }
     }
-    let mut ready: BTreeSet<usize> = (0..n).filter(|k| waiting[*k] == 0).collect();
+    let mut ready = hd_base::btree_set((0..n).filter(|k| waiting[*k] == 0));
     let mut done = vec![false; n];
     let mut order = Vec::with_capacity(n);
     while let Some(k) = ready.pop_first() {

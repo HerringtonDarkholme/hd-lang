@@ -13,7 +13,7 @@ fn take(r: Range[i32], tail: RangeFrom[i32]) -> i32:
 
 fn more(xs: List[i32]) -> i32:
     whole := 0..10
-    pair := (1.5..2, xs[1 .. 3])
+    pair := (1.5..2, xs[1..3])
     ends := (xs[..=1], xs[..], ..=9, ..)
     take(whole, 3..)
 

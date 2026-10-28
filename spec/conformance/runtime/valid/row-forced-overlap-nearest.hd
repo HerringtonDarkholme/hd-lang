@@ -7,16 +7,17 @@ struct Named:
     label: string
 
 impl Tag for Named:
-    fn name(self) -> string: self.label
+    fn name(self) -> string:
+        self.label
 
 fn read_tag() -> string $ Tag:
     $.use(Tag).name()
 
-fn with_tag[$R](callback: fn() -> string $ R + Tag) -> string $ R:
+fn with_tag[$ R](callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=Named { label: "inner" }):
         callback()
 
-fn fixed_by_first[$R](first: fn() -> string $ R, callback: fn() -> string $ R + Tag) -> string $ R:
+fn fixed_by_first[$ R](first: fn() -> string $ R, callback: fn() -> string $ R + Tag) -> string $ R:
     $.with(Tag=Named { label: "inner" }):
         callback()
 
@@ -31,5 +32,9 @@ tests:
         assert_equal(run(), "inner", reason="the callee's Tag is nearer")
     it("another argument fixes R to list Tag"):
         $.with(Tag=Named { label: "outer" }):
-            assert_equal(fixed_by_first(read_tag, read_tag), "inner", reason="the callee's Tag is nearer")
+            assert_equal(
+                fixed_by_first(read_tag, read_tag),
+                "inner",
+                reason="the callee's Tag is nearer",
+            )
             assert_equal(read_tag(), "outer", reason="the caller's own scope is unchanged")

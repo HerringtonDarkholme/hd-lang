@@ -1,0 +1,13 @@
+use std.random.fill
+use std.fs.write_text
+use std.path.Path
+let count = 0
+old_revision := revision()
+_ := fill(64 * 1024 * 1024).len()
+count = count + 1
+count
+_ := write_text!(Path("src/lib.hd"), "fn revision() -> usize: 2\n").expect("update package")
+:reload
+revision()
+old_revision
+count

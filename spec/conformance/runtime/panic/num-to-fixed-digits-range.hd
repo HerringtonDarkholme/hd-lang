@@ -2,7 +2,7 @@
 # Spec std/num Fixed-Point Text: std-num.to-fixed.digits-max.
 
 fn shown(value: f64) -> string:
-    value.to_fixed(101)  # panic: explicit-panic
+    value.to_fixed(101) # panic: explicit-panic
 
 tests:
     it("rejects too many digits"):

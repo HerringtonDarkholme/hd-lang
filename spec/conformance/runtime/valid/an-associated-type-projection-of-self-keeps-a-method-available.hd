@@ -10,7 +10,8 @@ struct D:
 
 impl Bag for D:
     type Item = i32
-    fn first(self) -> i32: self.n
+    fn first(self) -> i32:
+        self.n
 
 fn show(b: &dyn Bag[Item = i32]) -> i32:
     b.first()

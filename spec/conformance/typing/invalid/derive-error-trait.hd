@@ -2,6 +2,6 @@
 # Spec 09 Traits: trait.derive.check, trait.derive.templated.
 use std.error.Error
 
-@derive(Error)  # diagnostic: underivable-trait
+@derive(Error) # diagnostic: underivable-trait
 enum LoadError:
     Missing

@@ -4,4 +4,4 @@
 use dep.models.{User}
 use std.structure.Structure
 
-impl User by Structure  # diagnostic: misplaced-derivation
+impl User by Structure # diagnostic: misplaced-derivation

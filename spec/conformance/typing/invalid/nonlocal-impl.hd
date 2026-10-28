@@ -5,6 +5,6 @@
 # Spec 09 Traits: trait.own.module.trait.
 use pkg.alpha.{Greeter, Person}
 
-impl Greeter for Person:  # diagnostic: nonlocal-impl
+impl Greeter for Person: # diagnostic: nonlocal-impl
     fn greet(self) -> string:
         self.name

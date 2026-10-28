@@ -1,10 +1,12 @@
 # test: a same named local marker does not hijack literal functions
-fn num_suffix() -> i32: 1
+fn num_suffix() -> i32:
+    1
 
 @num_suffix
 fn kb(count: i32) -> i32:
     count
 
-fn delay() -> i32: 250kb  # diagnostic: invalid-literal-suffix
+fn delay() -> i32:
+    250kb # diagnostic: invalid-literal-suffix
 pub fn main() -> void:
     pass

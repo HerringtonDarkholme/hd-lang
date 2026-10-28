@@ -11,5 +11,5 @@ fn orders() -> string $ Db:
     "orders"
 
 fn table() -> List[fn() -> string $ Clock]:
-    let handlers: List[fn() -> string $ Clock] = [health, orders]  # diagnostic: type-mismatch
+    let handlers: List[fn() -> string $ Clock] = [health, orders] # diagnostic: type-mismatch
     handlers

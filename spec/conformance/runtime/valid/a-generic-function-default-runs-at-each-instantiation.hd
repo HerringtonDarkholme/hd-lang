@@ -3,7 +3,8 @@
 # expect-stdout: 9
 # expect-stdout: hihi
 # expect-stdout: 1
-fn twice[T](value: T, items: List[T] = [value, value]) -> List[T]: items
+fn twice[T](value: T, items: List[T] = [value, value]) -> List[T]:
+    items
 
 pub fn main() -> void $ Console:
     numbers := twice(7)

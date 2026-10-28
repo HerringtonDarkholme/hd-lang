@@ -3,4 +3,4 @@ use std.function.Tuple
 
 struct Handle: pass
 
-impl Tuple for Handle  # diagnostic: sealed-trait-implementation
+impl Tuple for Handle # diagnostic: sealed-trait-implementation

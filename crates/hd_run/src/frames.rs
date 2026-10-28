@@ -14,6 +14,7 @@
 //! FILE.wasm` prints a panic's frames without the compiler's cache.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use crate::imports::{Bytes, all_sections, import_kinds};
 
@@ -178,7 +179,7 @@ impl LineTable {
     #[must_use]
     pub fn functions(&self) -> Vec<(u32, String, Vec<Vec<Anchored>>)> {
         let mut fs: Vec<&u32> = self.rows.keys().collect();
-        fs.sort_unstable();
+        fs.sort_stable();
         fs.into_iter()
             .filter_map(|f| {
                 let name = self.names.get(f)?;
@@ -294,25 +295,31 @@ impl LineTable {
     }
 }
 
-/// A module without its `hd.inlined` section, which `hd build` drops once
-/// `hd.positions` holds the frames it names.
-pub fn cut_inlined(wasm: &mut Vec<u8>) {
+fn cut_custom(wasm: &mut Vec<u8>, target: &str) {
     let Ok(sections) = all_sections(wasm) else {
         return;
     };
     let mut start = 8;
     for (id, at, body) in sections {
         let end = at + body.len();
-        if id == 0
-            && (Bytes { b: body, at: 0 })
-                .name()
-                .is_ok_and(|n| n == "hd.inlined")
-        {
+        if id == 0 && (Bytes { b: body, at: 0 }).name().is_ok_and(|n| n == target) {
             wasm.drain(start..end);
             return;
         }
         start = end;
     }
+}
+
+/// A module without its `hd.inlined` section, which `hd build` drops once
+/// `hd.positions` holds the frames it names.
+pub fn cut_inlined(wasm: &mut Vec<u8>) {
+    cut_custom(wasm, "hd.inlined");
+}
+
+/// A module without its `hd.names` section, which `hd build` drops once
+/// `hd.positions` holds every function name needed by a written module.
+pub fn cut_names(wasm: &mut Vec<u8>) {
+    cut_custom(wasm, "hd.names");
 }
 
 fn num(r: &mut Bytes<'_>) -> Result<u32, String> {

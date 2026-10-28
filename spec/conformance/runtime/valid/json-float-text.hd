@@ -39,14 +39,37 @@ tests:
                 _ => assert(false, reason="${case._0} should parse")
 
     it("an integer past both ranges is a float"):
-        assert_equal(number("18446744073709551616").as_f64(), .Some(18446744073709551616.0), reason="past u64")
-        assert_equal(number("-9223372036854775809").as_i64(), .None, reason="below i64 is not an integer")
-        assert_equal(number("-0.000000000000000000000000000000000000000000000000000000000000000000000000000001").as_f64(), .Some(-1e-78), reason="close to zero")
+        assert_equal(
+            number("18446744073709551616").as_f64(),
+            .Some(18446744073709551616.0),
+            reason="past u64",
+        )
+        assert_equal(
+            number("-9223372036854775809").as_i64(),
+            .None,
+            reason="below i64 is not an integer",
+        )
+        assert_equal(
+            number(
+                "-0.000000000000000000000000000000000000000000000000000000000000000000000000000001",
+            )
+                .as_f64(),
+            .Some(-1e-78),
+            reason="close to zero",
+        )
 
     it("a float past the f64 range is NumberOutOfRange at its first character"):
         assert_equal(failure("1e400"), JsonError.NumberOutOfRange(0), reason="overflow")
-        assert_equal(failure("[\"é\", -1E309]"), JsonError.NumberOutOfRange(7), reason="a byte offset")
-        assert_equal(failure("[1e400, ]"), JsonError.NumberOutOfRange(1), reason="the number is read before the later error")
+        assert_equal(
+            failure("[\"é\", -1E309]"),
+            JsonError.NumberOutOfRange(7),
+            reason="a byte offset",
+        )
+        assert_equal(
+            failure("[1e400, ]"),
+            JsonError.NumberOutOfRange(1),
+            reason="the number is read before the later error",
+        )
 
     it("malformed float text is still a grammar error"):
         cases := [

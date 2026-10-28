@@ -1,5 +1,22 @@
 use std.convert.From
-use std.task.{Backoff, Breaker, CircuitOpen, Guard, Hedge, Layer, Retry, SelectiveRetry, TimeLimit, apply, fallback, guarded, hedged, retry, timeout, with_timeout}
+use std.task.{
+    Backoff,
+    Breaker,
+    CircuitOpen,
+    Guard,
+    Hedge,
+    Layer,
+    Retry,
+    SelectiveRetry,
+    TimeLimit,
+    apply,
+    fallback,
+    guarded,
+    hedged,
+    retry,
+    timeout,
+    with_timeout,
+}
 
 pub struct Counts:
     runs: usize
@@ -7,7 +24,7 @@ pub struct Counts:
 struct CountRuns:
     counts: *mut Counts
 
-impl[T, $R] Layer[fn!() -> T $ R] for CountRuns:
+impl[T, $ R] Layer[fn!() -> T $ R] for CountRuns:
     type Wrapped = fn!() -> T $ R
     fn wrap(self, work: fn!() -> T $ R) -> (fn!() -> T $ R):
         fn!() -> T $ R:
@@ -19,18 +36,28 @@ pub fn answer!(counts: *mut Counts) -> usize:
         42
 
 pub fn configurations() -> (TimeLimit, Retry, SelectiveRetry[string], ((), TimeLimit)):
-    (timeout(1s), retry(Backoff {}), retry(Backoff {}).when(fn(error: string): error == "busy"), with_timeout(2s, ()))
+    (
+        timeout(1s),
+        retry(Backoff {}),
+        retry(Backoff {}).when(fn(error: string): error == "busy"),
+        with_timeout(2s, ()),
+    )
 
-fn configuration_count(values: (TimeLimit, Retry, SelectiveRetry[string], ((), TimeLimit))) -> usize: 4
+fn configuration_count(
+    values: (TimeLimit, Retry, SelectiveRetry[string], ((), TimeLimit)),
+) -> usize:
+    4
 
 enum GuardError:
     Failed
     Open
 
 impl From[CircuitOpen] for GuardError:
-    fn from(error: CircuitOpen) -> GuardError: .Open
+    fn from(error: CircuitOpen) -> GuardError:
+        .Open
 
-fn backup!() -> Result[usize, GuardError]: .Ok(7)
+fn backup!() -> Result[usize, GuardError]:
+    .Ok(7)
 
 pub fn untimed_fallback!() -> usize:
     state := &mut Breaker { failures: 0, limit: 1, calls: 0 }
@@ -44,7 +71,8 @@ pub fn untimed_fallback!() -> usize:
 pub fn more_configurations(state: *mut Breaker) -> (Guard, Hedge):
     (guarded(state), hedged(1ms))
 
-fn more_configuration_count(values: (Guard, Hedge)) -> usize: 2
+fn more_configuration_count(values: (Guard, Hedge)) -> usize:
+    2
 
 pub fn main!() -> void $ Console:
     if configuration_count(configurations()) != 4:

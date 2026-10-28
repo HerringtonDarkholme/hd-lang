@@ -1,0 +1,34 @@
+# Internal byte DTOs for the Http host ABI. Public std.http messages and
+# their private read-once state stay inside HD behind its adapter.
+use std.http.{Method, BodyError}
+
+pub struct WireRequest:
+    pub method: Method
+    pub url: string
+    pub headers: List[(string, string)] = []
+    pub body: List[u8] = []
+    pub redirects: usize = 0
+
+pub struct WireResponse:
+    pub status: u16
+    pub headers: List[(string, string)] = []
+    pub body: List[u8] = []
+    pub url: string = ""
+
+# Keep transport tags stable while keeping the Status payload a wire DTO.
+pub enum WireHttpError:
+    NotGranted(host: string)
+    InvalidUrl(url: string)
+    Dns(host: string)
+    Connect(message: string)
+    Tls(message: string)
+    Timeout
+    TooManyRedirects(url: string)
+    Other(message: string)
+    Status(response: WireResponse)
+    InvalidHeader(name: string)
+    Body(error: BodyError)
+
+@host
+pub trait Http:
+    fn send!(&mut self, request: WireRequest) -> Result[WireResponse, WireHttpError]

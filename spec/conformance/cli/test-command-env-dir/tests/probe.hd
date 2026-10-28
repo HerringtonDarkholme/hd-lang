@@ -3,12 +3,20 @@ use std.path.Path
 use std.testing.assert_equal
 
 it("a child sees the environment and directory of its command"):
-    command := Command::new("probe").env("HD_COMMAND_NAME", "first").env("HD_COMMAND_NAME", "second").current_dir(Path("kid"))
+    command := Command::new("probe")
+        .env("HD_COMMAND_NAME", "first")
+        .env("HD_COMMAND_NAME", "second")
+        .current_dir(Path("kid"))
     match command.run!():
         .Ok(out) => assert_equal(out.stdout, "second\nfrom kid\n", reason="the child's report")
         .Err(error) => assert_equal("${error}", "", reason="the child starts")
 
 it("a child without a command environment or directory sees neither"):
     match Command::new("probe").run!():
-        .Ok(out) => assert_equal(out.stdout.starts_with("(none)\n") && !out.stdout.contains("from kid"), true, reason="the child's report")
+        .Ok(out) =>
+            assert_equal(
+                out.stdout.starts_with("(none)\n") && !out.stdout.contains("from kid"),
+                true,
+                reason="the child's report",
+            )
         .Err(error) => assert_equal("${error}", "", reason="the child starts")

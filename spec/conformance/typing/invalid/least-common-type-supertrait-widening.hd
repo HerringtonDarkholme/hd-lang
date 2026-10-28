@@ -10,7 +10,7 @@ trait Tagged < Named:
     fn tag(self) -> string
 
 fn mix(shown: *dyn Shown, tagged: *dyn Tagged) -> void:
-    items := [shown, tagged]  # diagnostic: no-common-type
+    items := [shown, tagged] # diagnostic: no-common-type
 
 fn expected(shown: *dyn Shown, tagged: *dyn Tagged) -> List[*dyn Named]:
     [shown, tagged]

@@ -23,4 +23,8 @@ tests:
     use std.testing.assert_equal
 
     it("local implementations are found inside their suite"):
-        assert_equal(receipt(3), "60 + fee = 65", reason="inherent and trait methods of a local type")
+        assert_equal(
+            receipt(3),
+            "60 + fee = 65",
+            reason="inherent and trait methods of a local type",
+        )

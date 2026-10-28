@@ -11,4 +11,4 @@ fn orders() -> string $ Db:
     "orders"
 
 fn wire() -> void:
-    groups := [[health], [orders]]  # diagnostic: no-common-type
+    groups := [[health], [orders]] # diagnostic: no-common-type

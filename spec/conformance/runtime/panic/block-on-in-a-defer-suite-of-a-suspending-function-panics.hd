@@ -7,14 +7,14 @@ fn ready!() -> i32:
 
 fn wait_now() -> i32:
     let pending: mut Suspend[i32] = ready()
-    match block_on(pending):  # panic: suspension-forbidden-context
+    match block_on(pending): # panic: suspension-forbidden-context
         .Completed(value) => value
         _ => 0
 
 struct QuietConsole: pass
 
 impl Console for QuietConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         .Ok(())
 
 fn print_now() -> i32:

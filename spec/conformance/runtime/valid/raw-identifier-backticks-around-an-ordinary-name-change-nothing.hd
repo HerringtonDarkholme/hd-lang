@@ -9,14 +9,15 @@
 struct Point:
     x: i32
 
-fn twice(value: i32) -> i32: value * 2
+fn twice(value: i32) -> i32:
+    value * 2
 
 pub fn main() -> void $ Console:
     name := +4
     println(`name`)
     `other` := +5
     println(other)
-    println(`twice`(`value` = 3))
-    println(twice(value = `other`))
+    println(`twice`(`value`=3))
+    println(twice(value=`other`))
     p := Point { `x`: +1 }
     println(p.x + p.`x`)

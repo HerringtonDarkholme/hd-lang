@@ -1,5 +1,6 @@
 # test: function result to an optional
-fn count() -> i32: 1
+fn count() -> i32:
+    1
 
 fn erase() -> fn() -> i32?:
     fn() -> i32?: count()

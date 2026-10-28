@@ -5,4 +5,4 @@ enum Plan(label: string, features: List[string]):
     Team -> Plan("team", ["export", "sso"])
 
 fn add_feature(plan: Plan) -> void:
-    plan.features.push("audit-log")  # diagnostic: not-writable
+    plan.features.push("audit-log") # diagnostic: not-writable

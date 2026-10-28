@@ -30,7 +30,7 @@ export function createRequestConsole(lease, { id = lease.id, policy, write }) {
     return { ok: true, value: undefined };
   };
   return Object.freeze({
-    write: (text) => capture("out", text),
-    write_error: (text) => capture("err", text),
+    write_sync: (text) => capture("out", text),
+    write_error_sync: (text) => capture("err", text),
   });
 }

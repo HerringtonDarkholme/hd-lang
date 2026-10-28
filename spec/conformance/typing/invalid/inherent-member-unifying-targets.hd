@@ -4,7 +4,9 @@ struct Box[T]:
     value: T
 
 impl[T] Box[T]:
-    fn show(self) -> string: "box"
+    fn show(self) -> string:
+        "box"
 
 impl Box[i32]:
-    fn show(self) -> string: "int box"  # diagnostic: duplicate-inherent-member
+    fn show(self) -> string: # diagnostic: duplicate-inherent-member
+        "int box"

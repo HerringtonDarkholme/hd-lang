@@ -14,7 +14,10 @@ tests:
         assert(other != missing, reason="symmetric variant comparison")
 
     it("equality compares payloads within the same variant"):
-        assert(FsError.NotFound(Path("a")) == FsError.NotFound(Path("a")), reason="equal variant and path")
+        assert(
+            FsError.NotFound(Path("a")) == FsError.NotFound(Path("a")),
+            reason="equal variant and path",
+        )
         assert(FsError.NotFound(Path("a")) != FsError.NotFound(Path("b")), reason="different paths")
         assert(FsError.Other("a") == FsError.Other("a"), reason="equal messages within Other")
         assert(FsError.Other("a") != FsError.Other("b"), reason="different messages within Other")

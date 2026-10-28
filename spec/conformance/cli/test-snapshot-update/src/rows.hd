@@ -1,8 +1,12 @@
-fn greeting(name: string) -> string: "hello, " + name
+fn greeting(name: string) -> string:
+    "hello, " + name
 
 tests:
     use std.testing.{it_each, snapshot}
 
-    it_each("rows share one literal", ["Ada", "Lin"], body=fn!(who: string):
-        snapshot(greeting(who), expect="wrong")
+    it_each(
+        "rows share one literal",
+        ["Ada", "Lin"],
+        body=fn!(who: string): snapshot(greeting(who), expect="wrong")
+        ,
     )

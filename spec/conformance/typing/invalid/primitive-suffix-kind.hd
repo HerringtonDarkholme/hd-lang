@@ -1,3 +1,3 @@
 # test: a primitive suffix cannot change an integer literal into a floating-point literal
 fn value() -> f32:
-    1f32  # diagnostic: type-mismatch
+    1f32 # diagnostic: type-mismatch

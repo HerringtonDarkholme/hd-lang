@@ -2,7 +2,8 @@
 # test: block_on inside main!'s driver drives only its argument, not a suspension main! holds
 use std.task.block_on
 
-fn ready!(value: i32) -> i32: value
+fn ready!(value: i32) -> i32:
+    value
 
 fn helper() -> i32:
     let pending: mut Suspend[i32] = ready(1)
@@ -15,4 +16,4 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     inner := helper()
     outer_value := outer!()
     let mut console = $.use(Console)
-    console.write!("inner ${inner}, outer ${outer_value}\n")
+    console.write_sync("inner ${inner}, outer ${outer_value}\n")

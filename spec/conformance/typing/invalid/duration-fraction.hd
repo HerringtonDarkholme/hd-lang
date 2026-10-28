@@ -1,3 +1,3 @@
 # test: a fractional duration suggests its exact integer millisecond spelling
 fn delay():
-    _ := 1.5s  # diagnostic: type-mismatch
+    _ := 1.5s # diagnostic: type-mismatch

@@ -47,7 +47,7 @@ test("maintenance asset covers every source and returned-handle method", () => {
       .find((i) => i.identity.trait_path === "console.Console")
       .methods.map((m) => m.name)
       .sort(),
-    ["write", "write_error"],
+    ["write_error_sync", "write_sync"],
   );
   assert.deepEqual(
     reference.find((i) => i.identity.trait_path === "http.Http").methods.map((m) => m.name),
@@ -183,13 +183,14 @@ for (const [name, mutate] of [
   [
     "returned handle member",
     (i) => {
-      i.find((x) => x.identity.trait_path === "console.Console").methods[0].member = "write_error";
+      const [method] = i.find((x) => x.identity.trait_path === "console.Console").methods;
+      method.member = method.member === "write_sync" ? "write_error_sync" : "write_sync";
     },
   ],
   [
     "returned handle suspension",
     (i) => {
-      i.find((x) => x.identity.trait_path === "console.Console").methods[0].wait = "never";
+      i.find((x) => x.identity.trait_path === "console.Console").methods[0].wait = "may";
     },
   ],
   [

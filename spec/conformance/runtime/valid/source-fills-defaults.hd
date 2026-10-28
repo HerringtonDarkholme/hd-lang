@@ -6,7 +6,8 @@ trait Zero:
     fn zero() -> Self
 
 impl Zero for i32:
-    fn zero() -> i32: 0
+    fn zero() -> i32:
+        0
 
 impl[T] Zero for T by Structure:
     fn zero() -> T:
@@ -77,4 +78,8 @@ tests:
         assert_equal(c.label.text, "none", reason="label comes from its declared default")
 
     it("another derivation of the type still walks the defaulted member"):
-        assert_equal(Counter { count: 1 }.names(), "count;label;", reason="the walker sees both members")
+        assert_equal(
+            Counter { count: 1 }.names(),
+            "count;label;",
+            reason="the walker sees both members",
+        )

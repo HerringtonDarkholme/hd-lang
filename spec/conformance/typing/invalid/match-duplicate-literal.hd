@@ -3,5 +3,5 @@
 fn label(n: i32) -> string:
     match n:
         1 => "one"
-        1 => "uno"  # diagnostic: unreachable-match-arm
+        1 => "uno" # diagnostic: unreachable-match-arm
         _ => "many"

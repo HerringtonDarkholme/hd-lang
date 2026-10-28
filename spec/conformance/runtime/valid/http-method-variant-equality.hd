@@ -1,6 +1,6 @@
 # test: HTTP method equality compares variants and payloads, not wire spelling
 # Spec std/http: std-http.method.eq.variant-payload.
-use std.http.{Method, Request}
+use std.http.{Method, Request, Url}
 
 tests:
     use std.testing.assert
@@ -17,4 +17,16 @@ tests:
         assert(Method.Other("GET") != Method.Other("POST"), reason="different payload")
 
     it("request equality preserves method variant identity"):
-        assert(Request { url: "a", method: .Get } != Request { url: "a", method: .Other("GET") }, reason="derived request equality reaches Method")
+        assert(
+            (
+                Request {
+                    url: Url::parse("https://example.test/a").expect("fixture URL"),
+                    method: .Get,
+                }
+                != Request {
+                    url: Url::parse("https://example.test/a").expect("fixture URL"),
+                    method: .Other("GET"),
+                }
+            ),
+            reason="derived request equality reaches Method",
+        )

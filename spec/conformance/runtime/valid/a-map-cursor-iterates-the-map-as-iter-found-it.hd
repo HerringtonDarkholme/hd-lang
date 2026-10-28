@@ -19,21 +19,25 @@ tests:
     use std.testing.assert_equal
 
     it("a new key"):
-        let mut values: Map[string, i32] = {"first": 1, "second": 2}
+        let mut values: Map[string, i32] = { "first": 1, "second": 2 }
         let mut cursor = values.iter()
         values["third"] = 3
         assert_equal(count(&mut cursor), 2, reason="the two entries iter found")
         assert_equal(values.len(), 3, reason="the map has the new key")
 
     it("a removal"):
-        let mut values: Map[string, i32] = {"first": 1, "second": 2}
+        let mut values: Map[string, i32] = { "first": 1, "second": 2 }
         let mut cursor = values.iter()
         _ := values.remove("first")
-        assert_equal(cursor.next(), .Some(("first", +1)), reason="the removed entry is still in the snapshot")
+        assert_equal(
+            cursor.next(),
+            .Some(("first", +1)),
+            reason="the removed entry is still in the snapshot",
+        )
         assert_equal(values.len(), 1, reason="the map lost the key")
 
     it("changes that rebuild the storage, before and after exhaustion"):
-        let mut entries: Map[string, i32] = {"a": +1, "b": +2, "c": +3, "d": +4}
+        let mut entries: Map[string, i32] = { "a": +1, "b": +2, "c": +3, "d": +4 }
         let mut cursor = entries.iter()
         _ := cursor.next()
         churn(&mut entries)

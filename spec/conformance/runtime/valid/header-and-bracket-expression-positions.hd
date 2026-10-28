@@ -5,7 +5,8 @@
 # expect-stdout: 2 1
 # expect-stdout: a 5
 # expect-stdout: 9
-fn check(predicate: fn(i32) -> bool, value: i32) -> bool: predicate(value)
+fn check(predicate: fn(i32) -> bool, value: i32) -> bool:
+    predicate(value)
 
 fn classify(value: i32?) -> string:
     match value:
@@ -19,12 +20,9 @@ pub fn main() -> void $ Console:
         println("positive")
     println(classify(.Some(+12)))
     flag := true
-    picked := [+2, if flag:
-        +1
-    else:
-        +3]
+    picked := [+2, if flag: +1 else: +3]
     println("${picked[0]} ${picked[1]}")
-    table := {(if flag: "a" else: "b"): +5}
+    table := { (if flag: "a" else: "b"): +5 }
     println("a ${table.get("a").unwrap_or(+0)}")
     wrapped := (match flag:
         true => +9

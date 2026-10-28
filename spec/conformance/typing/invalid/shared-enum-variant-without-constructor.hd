@@ -3,4 +3,4 @@
 
 enum Status(code: i32):
     Ok -> Status(200)
-    NotFound  # diagnostic: missing-required-field
+    NotFound # diagnostic: missing-required-field

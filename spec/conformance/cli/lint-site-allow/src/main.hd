@@ -1,0 +1,11 @@
+fn condition(value: u32) -> bool:
+    # lint-allow: unsigned-comparison-always
+    value >= 0
+
+fn inspect() -> void:
+    # lint-allow: unused-debug-text
+    debug(+1)
+    pass
+
+pub fn main() -> void:
+    _ := condition(1)

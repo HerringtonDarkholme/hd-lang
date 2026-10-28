@@ -5,4 +5,4 @@ struct Score:
 
 fn invalid(bonus: Score) -> void:
     let score = Score { points: 0 }
-    score += bonus  # diagnostic: type-mismatch
+    score += bonus # diagnostic: type-mismatch

@@ -7,7 +7,8 @@ trait Clock
 struct Route:
     handler: fn() -> i32 $ Db + Clock
 
-fn now() -> i32 $ Clock: 1
+fn now() -> i32 $ Clock:
+    1
 
 fn call(handler: fn() -> i32 $ Db + Clock) -> i32 $ Db + Clock:
     handler()

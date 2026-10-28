@@ -29,5 +29,5 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-impl Show for Point by Structure:  # diagnostic: misplaced-derivation
+impl Show for Point by Structure: # diagnostic: misplaced-derivation
     x = []

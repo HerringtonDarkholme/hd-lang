@@ -56,4 +56,6 @@ pub fn main() -> void $ Console:
     more := Box { value: +2 }.seen()
     strs := Box { value: "a" }.seen()
     other := Box { value: "b" }.seen()
-    println("${ints.members[0].name == more.members[0].name} ${strs.members[0].position == other.members[0].position} ${ints.members[0].name == strs.members[0].name} ${ints.variants[0].index == strs.variants[0].index}")
+    println(
+        "${ints.members[0].name == more.members[0].name} ${strs.members[0].position == other.members[0].position} ${ints.members[0].name == strs.members[0].name} ${ints.variants[0].index == strs.variants[0].index}",
+    )

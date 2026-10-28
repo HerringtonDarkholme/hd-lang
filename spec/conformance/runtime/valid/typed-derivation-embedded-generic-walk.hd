@@ -52,7 +52,11 @@ tests:
 
     it("an embedded field is one member named by its type"):
         post := Post { Timestamp: Timestamp { seconds: 3 }, title: "Launch" }
-        assert_equal(post.show(), "Post(Timestamp=Timestamp(seconds=3;);title=Launch;)", reason="the embedded part is walked as one value")
+        assert_equal(
+            post.show(),
+            "Post(Timestamp=Timestamp(seconds=3;);title=Launch;)",
+            reason="the embedded part is walked as one value",
+        )
 
     it("a generic target walks its members"):
         assert_equal(Range { low: +1, high: 9 }.show(), "Range(low=1;high=9;)", reason="A is i32")

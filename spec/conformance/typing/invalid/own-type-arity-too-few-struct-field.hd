@@ -10,6 +10,7 @@ enum Choice[T]:
 type Wrap[T](T)
 
 struct Holder:
-    p: Pair[i32]  # diagnostic: partial-generic-arguments
+    p: Pair[i32] # diagnostic: partial-generic-arguments
 
-fn h() -> Holder: Holder { p: 5 }
+fn h() -> Holder:
+    Holder { p: 5 }

@@ -5,5 +5,5 @@ use std.ops.Index
 fn lookup[K, C < Index[K]](entries: C, key: K) -> C::Out:
     entries[key]
 
-ages := {"ada": 36}
-age := lookup(ages, "grace")  # panic: index-out-of-bounds
+ages := { "ada": 36 }
+age := lookup(ages, "grace") # panic: index-out-of-bounds

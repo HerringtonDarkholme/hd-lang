@@ -2,14 +2,16 @@
 # Spec 05 Positional Spreads: expr.call.spread.inputs.
 use std.function.{Fn, SuspendFn, Tuple}
 
-fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
+fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)
 
-fn through[Args < Tuple, O](f: Fn[Args, O, $()], args: Args) -> O:
+fn through[Args < Tuple, O](f: Fn[Args, O, $ ()], args: Args) -> O:
     f(args...)
 
-fn retry![Args < Tuple, O](f: SuspendFn[Args, O, $()], args: Args) -> O:
+fn retry![Args < Tuple, O](f: SuspendFn[Args, O, $ ()], args: Args) -> O:
     f!(args...)
 
-fn add(a: i32, b: i32) -> i32: a + b
-fn short() -> i32: through(add, (1,))  # diagnostic: type-mismatch
+fn add(a: i32, b: i32) -> i32:
+    a + b
+fn short() -> i32:
+    through(add, (1,)) # diagnostic: type-mismatch

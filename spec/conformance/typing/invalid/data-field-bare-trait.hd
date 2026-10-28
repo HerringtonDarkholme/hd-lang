@@ -2,7 +2,7 @@
 # Spec 09 Dynamic Trait Values: trait.dyn.reference-keyword, trait.dyn.keyword.positions; Spec 03 Module Scope: names.module.order-free.
 
 struct Registry:
-    factories: List[Factory]  # diagnostic: trait-used-as-type
+    factories: List[Factory] # diagnostic: trait-used-as-type
 
 trait Factory:
     fn create() -> Self

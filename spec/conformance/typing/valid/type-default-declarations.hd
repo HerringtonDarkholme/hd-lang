@@ -23,7 +23,8 @@ trait Evict:
 struct Lru: pass
 
 impl Evict for Lru:
-    fn pick(self, sizes: List[i32]) -> i32: 0
+    fn pick(self, sizes: List[i32]) -> i32:
+        0
 
 struct Cache[K < Eq & Hash, V, P < Evict = Lru]:
     entries: Map[K, V]

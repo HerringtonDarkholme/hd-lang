@@ -12,8 +12,16 @@ tests:
         assert_equal(decode::[Duration]("30000"), .Ok(30s), reason="whole milliseconds")
 
     it("a bad text or a float is a decode error naming Duration"):
-        assert_equal(decode::[Duration]("\"soon\""), .Err(JsonError.WrongType("$", "Duration")), reason="bad text")
-        assert_equal(decode::[Duration]("1.5"), .Err(JsonError.WrongType("$", "Duration")), reason="number")
+        assert_equal(
+            decode::[Duration]("\"soon\""),
+            .Err(JsonError.WrongType("$", "Duration")),
+            reason="bad text",
+        )
+        assert_equal(
+            decode::[Duration]("1.5"),
+            .Err(JsonError.WrongType("$", "Duration")),
+            reason="number",
+        )
 
     it("a duration writes whole milliseconds even when it read text"):
         match decode::[Duration]("\"30s\""):

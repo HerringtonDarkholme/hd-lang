@@ -7,10 +7,12 @@ trait Factory:
 struct UserFactory: pass
 
 impl Factory for UserFactory:
-    fn create() -> string: "guest"
+    fn create() -> string:
+        "guest"
 
 trait DefaultFactory:
-    fn create() -> i32: 42
+    fn create() -> i32:
+        42
 
 struct DefaultValue: pass
 
@@ -28,7 +30,8 @@ trait Convert[T]:
 struct IntConverter: pass
 
 impl Convert[i32] for IntConverter:
-    fn convert(value: i32) -> i32: value
+    fn convert(value: i32) -> i32:
+        value
 
 fn converted_value() -> i32:
     IntConverter::convert(42)
@@ -37,10 +40,22 @@ tests:
     use std.testing.assert_equal
 
     it("guest_length returns 5"):
-        assert_equal(guest_length(), 5, reason="trait associated functions use implementing type qualification")
+        assert_equal(
+            guest_length(),
+            5,
+            reason="trait associated functions use implementing type qualification",
+        )
 
     it("default_value returns 42"):
-        assert_equal(default_value(), 42, reason="trait associated functions use implementing type qualification")
+        assert_equal(
+            default_value(),
+            42,
+            reason="trait associated functions use implementing type qualification",
+        )
 
     it("converted_value returns 42"):
-        assert_equal(converted_value(), 42, reason="trait associated functions use implementing type qualification")
+        assert_equal(
+            converted_value(),
+            42,
+            reason="trait associated functions use implementing type qualification",
+        )

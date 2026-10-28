@@ -4,5 +4,5 @@ struct Box[+T]:
     value: T
 
 impl[U] Box[U]:
-    pub fn set(&mut self, value: U) -> void:  # diagnostic: invalid-variance
+    pub fn set(&mut self, value: U) -> void: # diagnostic: invalid-variance
         self.value = value

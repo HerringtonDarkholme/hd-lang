@@ -5,4 +5,4 @@ struct Point:
 
 fn demo() -> void:
     origin := Point { x: 0, y: 0 }
-    origin.x = 1  # diagnostic: non-reassignable-binding
+    origin.x = 1 # diagnostic: non-reassignable-binding

@@ -5,5 +5,5 @@ trait Db
 
 type Users = &dyn Db
 
-fn count() -> i32 $ Users:  # diagnostic: unknown-trait
+fn count() -> i32 $ Users: # diagnostic: unknown-trait
     0

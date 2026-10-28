@@ -1,0 +1,38 @@
+# test: println converts Display once and delivers separate raw chunks.
+# Spec 10 Console: module.console.println-two-writes-sync.
+
+let conversions: usize = 0
+
+struct Label:
+    text: string
+
+impl Display for Label:
+    fn to_string(self) -> string:
+        conversions = conversions + 1
+        self.text
+
+struct RecordingConsole:
+    chunks: List[string]
+
+impl Console for RecordingConsole:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.chunks.push(text)
+        .Ok(())
+
+tests:
+    use std.testing.assert_equal
+
+    it("Display runs once before the two raw writes"):
+        conversions = 0
+        let mut console = RecordingConsole { chunks: [] }
+        $.with(Console=&mut console):
+            println(Label { text: "hello" })
+        assert_equal(conversions, 1, reason="the value is converted once")
+        assert_equal(console.chunks, ["hello", "\n"], reason="the newline is a second raw write")
+
+    it("empty values and existing newlines keep both writes"):
+        let mut console = RecordingConsole { chunks: [] }
+        $.with(Console=&mut console):
+            println("")
+            println("line\n")
+        assert_equal(console.chunks, ["", "\n", "line\n", "\n"], reason="raw text is unchanged")

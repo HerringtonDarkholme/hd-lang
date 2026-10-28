@@ -187,6 +187,7 @@ function operationHost(wait, suspends = true, grants = {}, extraEnv = {}, genera
     {
       ...extraEnv,
       module,
+      createPackageRuntime,
       grants: { "pkg.Source": true, ...grants },
       packageBindings(runtime) {
         descriptor = {

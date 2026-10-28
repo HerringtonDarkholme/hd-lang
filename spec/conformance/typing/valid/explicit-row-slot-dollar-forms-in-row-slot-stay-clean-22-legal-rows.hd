@@ -1,13 +1,14 @@
 # test: dollar forms in row slot stay clean
 trait Log
 
-fn provide_log[$R](callback: fn() -> void $ R + Log) -> void $ R:
+fn provide_log[$ R](callback: fn() -> void $ R + Log) -> void $ R:
     pass
 
-fn quiet() -> void: pass
+fn quiet() -> void:
+    pass
 
 fn with_key() -> void $ Log:
     provide_log::[$ Log](quiet)
 
 fn with_empty_row() -> void $ Log:
-    provide_log::[$()](quiet)
+    provide_log::[$ ()](quiet)

@@ -10,7 +10,7 @@ pub struct Token:
     pub badge: Badge
 
 pub trait Vault:
-    fn keep(self, token: Token) -> Token  # diagnostic: boundary-private-field
+    fn keep(self, token: Token) -> Token # diagnostic: boundary-private-field
 
 pub fn main() -> void $ Vault:
     _ := $.use(Vault).keep(Token { owner: "ada", badge: Badge { label: "staff", code: 7 } })

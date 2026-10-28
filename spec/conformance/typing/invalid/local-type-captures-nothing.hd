@@ -3,5 +3,5 @@
 fn make() -> i32:
     n := +1
     struct Box:
-        value: i32 = n  # diagnostic: unknown-name
+        value: i32 = n # diagnostic: unknown-name
     Box {}.value

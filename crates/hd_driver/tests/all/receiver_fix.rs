@@ -5,6 +5,7 @@
 //! read-only trait value reference (spec/lang/09-traits.md
 //! trait.dyn.ref.member.mut). Each fix-it checks clean.
 
+use hd_base::SliceSort as _;
 use hd_diag::{Code, DiagBuf};
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -56,7 +57,7 @@ fn apply_fix(main: &str, diags: &DiagBuf) -> String {
             ));
         }
     }
-    edits.sort_by_key(|e| std::cmp::Reverse((e.0, e.1)));
+    edits.sort_stable_by_key(|e| std::cmp::Reverse((e.0, e.1)));
     let mut out = main.to_owned();
     for (lo, hi, text) in edits {
         out.replace_range(lo..hi, &text);

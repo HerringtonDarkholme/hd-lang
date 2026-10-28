@@ -17,17 +17,25 @@
 #   10           the run's page count  the first page of a large run
 #   11           the run's first page  a later page of a large run
 #
-# The table's first 256 bytes hold each class's list of pages with room
-# and the 20-entry size/reciprocal tables. Entry `p` is at table + 256 + 4 * p. A small page starts with a
+# The table's first 512 bytes hold each class's list of pages with room,
+# the 20-entry size/reciprocal tables and each class's freed list. Entry
+# `p` is at table + 512 + 4 * p. A small page starts with a
 # 16-byte header: its free list (u32), the next and previous pages of its
 # class's list (u32 each), its live count (u16) and its bump offset in
 # units of 16 bytes (u16). Its slots follow from offset 16. A freed slot
 # holds the next free slot's address in its first 4 bytes.
+#
+# A block freed at a known class (`free_class`) goes on its class's freed
+# list, one per class, and its page still counts it live; allocation takes
+# from that list first. Before the heap takes a page, `reclaim` gives every
+# listed block back to its page, so a page whose blocks are all free
+# returns to the pool.
 use std.rt.cycle.{keep, suspect}
 use std.rt.memory.{copy, fill, grow, load_u16, load_u32, store_u16, store_u32}
 
 PAGE := 65536
-LISTS := 256
+LISTS := 512
+FREED := 256
 SIZES := 84
 RECIPROCALS := 164
 SMALL := 0x40000000
@@ -39,9 +47,7 @@ LOW := 0x3fffffff
 CYCLIC := 0x80000000
 BUFFERED := 0x40000000
 
-# The allocation total occupies bytes 244..247 of the copied metadata prefix.
-# The backend's constant-class fast path increments this word too.
-GIVEN := 244
+# Each class's freed list is at FREED + 4 * class.
 
 # The page table's address, 0 until the first allocation.
 let table: usize = 0
@@ -52,14 +58,18 @@ let capacity: usize = 0
 let known: usize = 0
 # No page below this one is free.
 let hint: usize = 0
+# Every address below this one is null or static data, in no block: the
+# table's first page, set by the first allocation (0 before it, when no
+# address is in a block).
+let heap: usize = 0
 
 ## Allocates a block of at least `size` bytes and gives its address, which is a multiple of 16; its bytes are not zeroed.
 pub fn alloc(size: usize) -> usize:
     if table == 0:
         start()
-    store_u32(table + GIVEN, load_u32(table + GIVEN) + 1)
     if size > 2048:
         count := (size + PAGE - 1) / PAGE
+        reclaim()
         first := take(count)
         set(first, u32(RUN + count))
         let j: usize = 1
@@ -68,7 +78,14 @@ pub fn alloc(size: usize) -> usize:
             j = j + 1
         return first * PAGE
     class := class_of(size)
+    freed := usize(load_u32(table + FREED + 4 * class))
+    if freed != 0:
+        store_u32(table + FREED + 4 * class, load_u32(freed))
+        return freed
     let page = head(class)
+    if page == 0:
+        reclaim()
+        page = head(class)
     if page == 0:
         page = take(1) * PAGE
         set(page / PAGE, u32(SMALL + class))
@@ -100,8 +117,14 @@ pub fn alloc_class(size: usize, class: usize) -> usize:
         return alloc(size)
     if table == 0:
         start()
-    store_u32(table + GIVEN, load_u32(table + GIVEN) + 1)
+    freed := usize(load_u32(table + FREED + 4 * class))
+    if freed != 0:
+        store_u32(table + FREED + 4 * class, load_u32(freed))
+        return freed
     let page = head(class)
+    if page == 0:
+        reclaim()
+        page = head(class)
     if page == 0:
         page = take(1) * PAGE
         set(page / PAGE, u32(SMALL + class))
@@ -131,10 +154,6 @@ pub fn alloc_class(size: usize, class: usize) -> usize:
 pub fn metadata() -> usize:
     table
 
-## How many blocks `alloc` has given since the program began, so a test can see that some code allocates nothing.
-pub fn allocated() -> usize:
-    if table == 0: 0 else: usize(load_u32(table + GIVEN))
-
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed; a counted object that is a cycle candidate is left to the collector's next sweep (`std.rt.cycle.keep`).
 pub fn free(address: usize) -> void:
     if !keep(address):
@@ -143,7 +162,7 @@ pub fn free(address: usize) -> void:
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed, as `free` does, for a block the cycle collector never sees.
 pub fn free_block(address: usize) -> void:
     page_number := address / PAGE
-    entry := usize(get(page_number))
+    entry := usize(load_u32(table + LISTS + 4 * page_number))
     kind := entry / SMALL
     if kind == 2:
         fill(table + LISTS + 4 * page_number, 0, 4 * (entry & LOW))
@@ -172,34 +191,29 @@ pub fn free_block(address: usize) -> void:
                 store_u32(next + 8, u32(page))
             set_head(class, page)
 
-# Compiler-private ABI: address is a live block of class, with no buffered
-# candidate bit. The backend handles the head-page case inline.
+# Compiler-private ABI, which the backend inlines: address is a live block
+# of class, with no buffered candidate bit. It goes on its class's freed
+# list; its page keeps counting it until `reclaim`.
 pub fn free_class(address: usize, class: usize) -> void:
     if class == 0:
         free_block(address)
         return
-    page_number := address / PAGE
-    page := page_number * PAGE
-    was_full := full(page, class)
-    store_u32(address, load_u32(page))
-    store_u32(page, u32(address))
-    live := load_u16(page + 12) - 1
-    store_u16(page + 12, live)
-    # An empty page returns to the pool unless it heads its class's
-    # list, so a class that frees its last block and allocates again
-    # keeps its page.
-    if live == 0 && head(class) != page:
-        if !was_full:
-            unlink(page, class)
-        set(page_number, 0)
-        lower_hint(page_number)
-    else if was_full:
-        next := head(class)
-        store_u32(page + 4, u32(next))
-        store_u32(page + 8, 0)
-        if next != 0:
-            store_u32(next + 8, u32(page))
-        set_head(class, page)
+    at := table + FREED + 4 * class
+    store_u32(address, load_u32(at))
+    store_u32(at, u32(address))
+
+## Gives every block on the classes' freed lists back to its page, which returns to the pool when that was its last live block, unless it heads its class's list.
+pub fn reclaim() -> void:
+    let class: usize = 1
+    while class <= 20:
+        at := table + FREED + 4 * class
+        let block = usize(load_u32(at))
+        store_u32(at, 0)
+        while block != 0:
+            next := usize(load_u32(block))
+            free_block(block)
+            block = next
+        class = class + 1
 
 ## The address of the block that holds `address`, a block's own address or one inside it; 0 for an address in static data or in no block.
 pub fn block_of(address: usize) -> usize:
@@ -207,7 +221,7 @@ pub fn block_of(address: usize) -> usize:
     # Before the first allocation `known` is 0 too.
     if page_number >= known:
         return 0
-    entry := usize(get(page_number))
+    entry := usize(load_u32(table + LISTS + 4 * page_number))
     kind := entry / SMALL
     page := page_number * PAGE
     if kind == 2:
@@ -233,6 +247,8 @@ pub fn block_of(address: usize) -> usize:
 
 ## Adds one to the count of the block that holds `address`; an address in static data or in no block has no count.
 pub fn retain(address: usize) -> void:
+    if address < heap:
+        return
     block := block_of(address)
     if block != 0:
         store_u32(block, load_u32(block) + 1)
@@ -247,6 +263,8 @@ pub fn retain_known(address: usize) -> void:
 
 ## Takes one from the count of the block that holds `address` and gives the block when that was its last count, so the caller releases and frees it; else 0. A count left above zero on an object that takes part in cycle collection makes it a candidate (std.rt.cycle); any other object's release is the decrement alone.
 pub fn release(address: usize) -> usize:
+    if address < heap:
+        return 0
     block := block_of(address)
     if block == 0:
         return 0
@@ -275,6 +293,8 @@ pub fn release_known(address: usize) -> usize:
 
 ## Takes one from the count of the block that holds `address`, as `release` does, in a program where no object takes part in cycle collection: the decrement alone, so nothing links the collector.
 pub fn release_acyclic(address: usize) -> usize:
+    if address < heap:
+        return 0
     block := block_of(address)
     if block == 0:
         return 0
@@ -299,7 +319,7 @@ pub fn release_known_acyclic(address: usize) -> usize:
 
 ## The bytes of the block at `block`, which `alloc` gave: its size class's, or its run's whole pages.
 pub fn block_bytes(block: usize) -> usize:
-    entry := usize(get(block / PAGE))
+    entry := usize(load_u32(table + LISTS + 4 * (block / PAGE)))
     if entry / SMALL == 2: (entry & LOW) * PAGE else: class_bytes(entry & LOW)
 
 ## The bytes of the block that `alloc(size)` gives: its size class, or whole pages over 2 KiB.
@@ -394,9 +414,6 @@ fn head(class: usize) -> usize:
 fn set_head(class: usize, page: usize) -> void:
     store_u32(table + 4 * class, u32(page))
 
-fn get(page_number: usize) -> u32:
-    load_u32(table + LISTS + 4 * page_number)
-
 fn set(page_number: usize, entry: u32) -> void:
     store_u32(table + LISTS + 4 * page_number, entry)
 
@@ -409,6 +426,7 @@ fn lower_hint(page_number: usize) -> void:
 fn start() -> void:
     at := grown(1)
     table = at * PAGE
+    heap = table
     capacity = (PAGE - LISTS) / 4
     init_classes()
     claim(at, 1, u32(SMALL))
@@ -421,7 +439,7 @@ fn take(count: usize) -> usize:
     let run: usize = 0
     let page_number = hint
     while page_number < known && run < count:
-        if get(page_number) == 0:
+        if load_u32(table + LISTS + 4 * page_number) == 0:
             run = run + 1
         else:
             first = page_number + 1

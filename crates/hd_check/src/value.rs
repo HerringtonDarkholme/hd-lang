@@ -15,6 +15,7 @@
 //! map value's `Store [%m [%e] .b .x] v` at the number `%e` of the key's
 //! entry (`MapEntry`).
 
+use hd_base::SliceSort as _;
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -195,6 +196,7 @@ impl Ck<'_, '_> {
             }
             Root::Local(l, d) => {
                 self.note_write(l, d);
+                self.note_param_write(l, at);
                 (PlaceRoot::Local(l), fields.collect())
             }
             Root::Global(_, def, ty) => (PlaceRoot::Global(def, ty), fields.collect()),
@@ -261,6 +263,73 @@ impl Ck<'_, '_> {
             }
             self.mut_params.push(l);
             self.mut_locals.push(l);
+        }
+    }
+
+    /// Groups checked mutations by their direct body statement and records
+    /// whether the changed parameter copy is conservatively observed later.
+    pub(crate) fn finish_parameter_writes(&mut self, body: NodeRef<'_>) {
+        let mut writes = std::mem::take(&mut self.param_writes);
+        writes.sort_stable_by_key(|(local, at)| (local.raw(), at.raw()));
+        writes.dedup();
+        let statements: Vec<_> = body.children().collect();
+        for (local, at) in writes {
+            let write = self.cx.src.parse.tree.node(at);
+            let write_span = self.cx.src.span(write);
+            let Some(index) = statements.iter().position(|statement| {
+                let span = self.cx.src.span(*statement);
+                span.lo <= write_span.lo && write_span.hi <= span.hi
+            }) else {
+                continue;
+            };
+            let name = self
+                .cx
+                .names
+                .text(self.b.body_mut().local_name[local.idx()])
+                .to_owned();
+            let span = self.cx.src.span(statements[index]);
+            if self
+                .parameter_writes
+                .iter()
+                .any(|write| write.span == span && write.name == name)
+            {
+                continue;
+            }
+            let captured = statements
+                .iter()
+                .any(|statement| self.captures_parameter(*statement, &name));
+            let observed_after = captured
+                || statements[index + 1..]
+                    .iter()
+                    .any(|statement| self.names_parameter(*statement, &name));
+            self.parameter_writes
+                .push(crate::comparison::ParameterWrite {
+                    span,
+                    receiver: name == "self",
+                    name,
+                    observed_after,
+                });
+        }
+    }
+
+    fn names_parameter(&self, node: NodeRef<'_>, name: &str) -> bool {
+        let source = self.cx.src;
+        node.direct_tokens().any(|token| {
+            matches!(
+                source.tkind(token),
+                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue)
+            ) && source.text(token) == name
+        }) || node
+            .children()
+            .any(|child| self.names_parameter(child, name))
+    }
+
+    fn captures_parameter(&self, node: NodeRef<'_>, name: &str) -> bool {
+        match node.kind() {
+            SyntaxKind::ClosureExpr | SyntaxKind::DeferStmt => self.names_parameter(node, name),
+            _ => node
+                .children()
+                .any(|child| self.captures_parameter(child, name)),
         }
     }
 }

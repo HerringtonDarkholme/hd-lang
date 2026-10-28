@@ -2,6 +2,6 @@
 # Spec 06 Iteration Protocols: flow.for.iterator.shared-reference.
 fn drain(source: &dyn Iterator[i32]) -> i32:
     let total = +0
-    for value in source:  # diagnostic: not-writable
+    for value in source: # diagnostic: not-writable
         total = total + value
     total

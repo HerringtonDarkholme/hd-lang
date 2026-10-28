@@ -7,4 +7,4 @@ trait Seeded:
     fn create() -> Self
 
 fn fresh[T < Factory & Seeded]() -> T:
-    T::create()  # diagnostic: ambiguous-method
+    T::create() # diagnostic: ambiguous-method

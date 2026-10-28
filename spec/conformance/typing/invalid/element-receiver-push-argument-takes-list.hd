@@ -6,4 +6,4 @@ fn open_round(rounds: &mut List[List[i32]]) -> i32:
 
 fn demo() -> void:
     let mut rounds = [[+3, 5]]
-    rounds[0].push(open_round(&mut rounds))  # diagnostic: conflicting-access
+    rounds[0].push(open_round(&mut rounds)) # diagnostic: conflicting-access

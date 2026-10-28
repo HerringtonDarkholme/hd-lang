@@ -1,14 +1,16 @@
 # test: usize is a prelude primitive, the type of lengths and indices, converted to and from u32 by a cast
 # Spec 04 The usize Type: types.usize.primitive, .prelude, .sizes, and .convert.
 fn last(items: List[string]) -> string:
-    items[items.len() - 1]  # panics with integer-overflow when items is empty
+    items[items.len() - 1] # panics with integer-overflow when items is empty
 
 fn middle(items: List[i32]) -> usize:
     items.len() / 2
 
-fn narrowed(size: usize) -> u32: u32(size)
+fn narrowed(size: usize) -> u32:
+    u32(size)
 
-fn widened(count: i32) -> usize: usize(count)
+fn widened(count: i32) -> usize:
+    usize(count)
 
 fn offsets(text: string) -> List[usize]:
     [for (offset, _) in text.char_indices() => offset]

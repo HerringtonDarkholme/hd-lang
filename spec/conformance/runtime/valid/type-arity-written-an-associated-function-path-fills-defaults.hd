@@ -7,9 +7,12 @@ struct Cell[T, U = List[T]]:
     rest: U
 
 impl[T, U] Cell[T, U]:
-    fn make[V = T](v: V) -> V: v
-    fn rest_of(self) -> U: self.rest
-    fn first_of(a: U) -> U: a
+    fn make[V = T](v: V) -> V:
+        v
+    fn rest_of(self) -> U:
+        self.rest
+    fn first_of(a: U) -> U:
+        a
 
 pub fn main() -> void $ Console:
     println(Cell::[i32]::make(3))

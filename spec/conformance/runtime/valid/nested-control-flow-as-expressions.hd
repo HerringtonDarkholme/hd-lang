@@ -15,10 +15,7 @@ fn classify(n: i32) -> string:
     else:
         match n % 2:
             0 =>
-                if n > 100:
-                    "big even"
-                else:
-                    "even"
+                if n > 100: "big even" else: "even"
             _ => "odd"
 
 fn fizz(n: i32) -> string:
@@ -45,8 +42,11 @@ pub fn main() -> void $ Console:
     println("${classify(-5)} ${classify(0)} ${classify(7)} ${classify(8)} ${classify(200)}")
     println("${fizz(3)} ${fizz(5)} ${fizz(15)} ${fizz(7)}")
     println(alternating(+5))
-    nested := (if alternating(+4) > 0: (match alternating(+2):
-        1 => +6
-        _ => +0) else: +1)
+    nested := (if alternating(+4) > 0:
+        (match alternating(+2):
+            1 => +6
+            _ => +0)
+    else:
+        +1)
     println(nested)
     println("${level(+3)} ${level(+300)}")

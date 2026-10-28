@@ -1,11 +1,11 @@
 # test: ScriptedHttp answers an unknown URL with a Connect error that names it, and still records the request
-# Spec std/http Scripted Http: std-http.scripted.missing-reply, std-http.scripted.received-ref, std-http.error.not-granted.plain.
+# Spec std/http Scripted Http: std-http.scripted.missing-reply, std-http.scripted.received-bodies, std-http.error.not-granted.plain.
 # Also covers std-http.error.not-granted, std-http.error.connect.
 # expect: test
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url, get}
 fn ping!(url: string) -> string $ Http:
     match get!(url):
-        .Ok(response) => "status ${response.status}"
+        .Ok(response) => "status ${response.status.code()}"
         .Err(.NotGranted(host)) => "the playground grants no ${host}"
         .Err(.Connect(_)) => "the browser refused the request"
         .Err(error) => "${error}"
@@ -15,11 +15,34 @@ tests:
 
     it("an unknown URL is a Connect error that names it"):
         let mut http = ScriptedHttp::new()
-        http.reply("https://example.com/", .Ok(Response { status: 200, headers: [], body: [] }))
+        http.reply("https://example.com/", .Ok(Response::status(.Ok)))
         $.with(Http=http):
-            assert_equal(get!("https://example.com/missing"), .Err(HttpError.Connect("ScriptedHttp has no response for https://example.com/missing")), reason="names the URL")
-            assert_equal(ping!("https://example.com/other"), "the browser refused the request", reason="a Connect error")
-        assert_equal(http.received(), [Request { url: "https://example.com/missing" }, Request { url: "https://example.com/other" }], reason="unanswered requests count")
+            assert_equal(
+                get!("https://example.com/missing"),
+                .Err(
+                    HttpError.Connect(
+                        "ScriptedHttp has no response for https://example.com/missing",
+                    ),
+                ),
+                reason="names the URL",
+            )
+            assert_equal(
+                ping!("https://example.com/other"),
+                "the browser refused the request",
+                reason="a Connect error",
+            )
+        assert_equal(
+            http.received(),
+            [
+                Request::get(Url::parse("https://example.com/missing").expect("fixture URL")),
+                Request::get(Url::parse("https://example.com/other").expect("fixture URL")),
+            ],
+            reason="unanswered requests count",
+        )
 
     it("a refused host names the host"):
-        assert_equal(HttpError.NotGranted("api.example.com").to_string(), "http access to api.example.com is not granted", reason="plain denial without host-specific advice")
+        assert_equal(
+            HttpError.NotGranted("api.example.com").to_string(),
+            "http access to api.example.com is not granted",
+            reason="plain denial without host-specific advice",
+        )

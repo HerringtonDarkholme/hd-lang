@@ -1,6 +1,6 @@
 # Errors are values. `?` passes them up, `.context` says what you were doing.
 fn start(config: string) -> Result[string, *dyn Error]:
-    n := port(config).context("starting the server")?  # ← early return, with context
+    n := port(config).context("starting the server")? # ← early return, with context
     .Ok("listening on $n")
 
 # For "port = eighty", `report_of(e)` prints:
@@ -17,6 +17,7 @@ tests:
             _ => assert(false, reason="expected Missing")
 
 # ── plumbing ──────────
+use std.annotation.cold
 use std.error.{Error, report_of}
 use std.num.{ParseNumberError}
 @error
@@ -24,7 +25,11 @@ enum ConfigError:
     @error("missing key '$key'")
     Missing(key: string)
     @error("port '$text' is not a number")
-    BadPort(text: string, @source error: ParseNumberError)
+    BadPort(
+        text: string,
+        @source
+        error: ParseNumberError,
+    )
 
 fn lookup(config: string, key: string) -> Result[string, ConfigError]:
     for line in config.lines():
@@ -33,6 +38,10 @@ fn lookup(config: string, key: string) -> Result[string, ConfigError]:
                 if k.trim() == key:
                     return .Ok(v.trim())
             .None => pass
+    missing(key)
+
+@cold
+fn missing(key: string) -> Result[string, ConfigError]:
     .Err(ConfigError.Missing(key))
 
 fn port(config: string) -> Result[i32, ConfigError]:

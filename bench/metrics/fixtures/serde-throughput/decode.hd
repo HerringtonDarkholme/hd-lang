@@ -3,10 +3,10 @@ use pkg.orders.{Order, orders}
 use std.json.{decode, encode}
 
 pub fn main() -> void $ Console:
-    docs := orders(200)  # param: orders
+    docs := orders(200) # param: orders
     text := encode(docs)
     let total: usize = 0
-    let repeat: i64 = 2  # param: repeat
+    let repeat: i64 = 2 # param: repeat
     for _ in 0..repeat:
         back := decode::[List[Order]](text).expect("the document decodes")
         total = total + back.len()

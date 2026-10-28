@@ -1,8 +1,8 @@
-# json: encode 6k records to JSON text, decode it back, check the sums.
+# json: encode records to JSON text, decode them back, check the sums.
 use std.json.{decode, encode}
 use std.serde.{Deserialize, Serialize}
 
-N := 6_000
+N := 170_000
 
 @derive(Serialize, Deserialize)
 struct Record:
@@ -13,14 +13,18 @@ struct Record:
     tags: List[string]
 
 pub fn main() -> void $ Console:
-    let mut records: List[Record] = []
-    for i in 0..N:
-        records.push(Record { id: i64(i), name: "user$i", active: i % 3 == 0, score: i64(i * 37 % 1000), tags: ["t${i % 10}", "g${i % 7}"] })
+    records := [for i in 0..N => Record {
+        id: i64(i),
+        name: "user$i",
+        active: i % 3 == 0,
+        score: i64(i * 37 % 1000),
+        tags: ["t${i % 10}", "g${i % 7}"],
+    }]
     text := encode(records)
     back := match decode::[List[Record]](text):
         .Ok(list) => list
         .Err(e) => panic("decode: $e")
     let sum: i64 = 0
     for r in back:
-        sum = sum + r.score + i64(r.tags[1].len()) + (if r.active: 1 else: 0)
+        sum += r.score + i64(r.tags[1].len()) + (if r.active: 1 else: 0)
     println("${text.len()} $sum")

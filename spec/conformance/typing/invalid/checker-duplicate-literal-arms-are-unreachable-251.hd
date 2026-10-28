@@ -2,5 +2,5 @@
 fn f(p: (string, i32)) -> i32:
     match p:
         ("a", _) => 1
-        ("a", 2) => 2  # diagnostic: unreachable-match-arm
+        ("a", 2) => 2 # diagnostic: unreachable-match-arm
         _ => 3

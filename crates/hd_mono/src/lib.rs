@@ -13,6 +13,7 @@ pub mod layout;
 pub mod opaque;
 pub mod plan;
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -68,6 +69,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
+    /// Whether the function is marked `@cold`: each direct call of it goes
+    /// through the function table (`annot.inline.cold`).
+    fn cold(&self, _def: DefId) -> bool {
+        false
+    }
     /// The requirement keys of an instance's row, each the whole trait
     /// value type with its substituted arguments and bindings (`crates/hd_mono/DESIGN.md`
     /// §13.18), in key order (`key_order`, §12.4): the declared keys, and
@@ -112,6 +118,11 @@ pub trait ProgramEnv: LayoutEnv {
     /// `std.json`'s `encode`, `decode`, their two trait declarations, and
     /// `std.result`'s checked unwrap after a boundary `decode`.
     fn json_items(&self) -> Option<JsonItems>;
+    /// Public HD capability -> internal wire trait and ordinary generic
+    /// library adapter. Rich message state never crosses a host boundary.
+    fn host_bridge(&self, _key: Ty) -> Option<HostBridge> {
+        None
+    }
     /// A package-declared host trait selects the value-preserving JS bridge.
     fn is_package_host_trait(&self, _def: DefId) -> bool {
         false
@@ -273,7 +284,7 @@ pub fn key_order(
         .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
         .map(|k| (canon(pool, path_hash, &mut memo, k), k))
         .collect();
-    keyed.sort_by_key(|p| p.0);
+    keyed.sort_stable_by_key(|p| p.0);
     keyed.dedup_by_key(|p| p.0);
     keyed.into_iter().map(|p| p.1).collect()
 }
@@ -404,6 +415,12 @@ pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty,
         }
     }
     false
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct HostBridge {
+    pub wire: Ty,
+    pub adapter: DefId,
 }
 
 /// The `std.json` and `std.serde` items a host boundary codec calls: JSON
@@ -537,9 +554,29 @@ impl DefIdOrd {
 #[must_use]
 pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
     let s = substitute(pool, env, item, args, t);
-    let s = opaque::reveal_with(
+    let s = reveal(pool, env, s).unwrap_or(Ty::POISON);
+    if pool.has_assoc(s) {
+        let types = pool.types();
+        let cell = env.ref_cell();
+        let source = types.raise_refs(cell, s);
+        let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
+        types.lower_refs(cell, normalized)
+    } else {
+        s
+    }
+}
+
+/// `t` with every opaque result in it replaced by its hidden type, as
+/// [`subst`] opens them; `None` when one cannot be opened (a trait
+/// method's result at a receiver that selects no impl, a cycle).
+#[must_use]
+pub fn reveal(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
+    if !pool.has_opaque(t) {
+        return Some(t);
+    }
+    opaque::reveal_with(
         pool,
-        s,
+        t,
         &|owner, site, args| opaque_result(pool, env, owner, site, args),
         &|owner, site| {
             env.opaque_trait(owner)
@@ -550,16 +587,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
                 .map_or(0, |trait_| 1 + env.trait_arity(trait_))
         },
     )
-    .unwrap_or(Ty::POISON);
-    if pool.has_assoc(s) {
-        let types = pool.types();
-        let cell = env.ref_cell();
-        let source = types.raise_refs(cell, s);
-        let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
-        types.lower_refs(cell, normalized)
-    } else {
-        s
-    }
+    .ok()
 }
 
 /// Substitute parameters without opening another hidden-result equation.
@@ -1130,7 +1158,7 @@ fn layout_hash(
         .into_iter()
         .map(|d| declarations_hash(pool, env, d, canons, memo))
         .collect();
-    hashes.sort_unstable();
+    hashes.sort_stable();
     hashes.dedup();
     h.u32(u32::try_from(hashes.len()).expect("items"));
     for x in hashes {
@@ -1181,7 +1209,7 @@ fn declarations_hash(
             h.hash(canon(pool, &ph, canons, t));
             items_in(pool, t, &mut names, &mut seen);
         }
-        names.sort_unstable_by_key(|n| n.raw());
+        names.sort_stable_by_key(|n| n.raw());
         names.dedup();
         (h.finish(), names)
     };
@@ -1235,8 +1263,8 @@ fn declarations_hash(
                 }
             }
         }
-        owns.sort_unstable();
-        outside.sort_unstable();
+        owns.sort_stable();
+        outside.sort_stable();
         outside.dedup();
         let mut h = StableHasher::new("declarations");
         h.u32(u32::try_from(owns.len()).expect("items"));
@@ -2151,6 +2179,10 @@ impl Cx<'_> {
             );
         }
         while let Some((key, package)) = keys.pop() {
+            if let Some(bridge) = self.env.host_bridge(key) {
+                keys.push((bridge.wire, package));
+                continue;
+            }
             let TyData::TraitValue {
                 def: trait_,
                 args: targs,
@@ -2222,8 +2254,14 @@ impl Cx<'_> {
                             TyData::Mut(inner) => inner,
                             _ => inner,
                         };
-                        let at = self.pool.list(&[inner]);
-                        let wrap = self.target(json.host_provider, at, InstId::NONE)?;
+                        let (provider, value) = self
+                            .env
+                            .host_bridge(inner)
+                            .map_or((json.host_provider, inner), |bridge| {
+                                (bridge.adapter, bridge.wire)
+                            });
+                        let at = self.pool.list(&[value]);
+                        let wrap = self.target(provider, at, InstId::NONE)?;
                         self.out.boundary.entry(ty).or_default().handle_ref = Some(wrap.key);
                     }
                     todo.extend(self.pool.list_items(args).iter().copied());

@@ -15,5 +15,5 @@ struct User:
 impl User by Structure:
     name += [tag("n")]
 
-impl User by Structure:  # diagnostic: overlapping-impl
+impl User by Structure: # diagnostic: overlapping-impl
     email += [tag("e")]

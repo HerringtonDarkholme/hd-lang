@@ -13,7 +13,9 @@ fn letter(name: string, order: i32) -> string:
 pub fn main() -> void $ Console:
     text := letter("Ada", +7)
     println(text)
-    println(text == "Dear Ada,\n    your order #7 shipped.\n\"quoted\" and \"\"two\"\" stay, tab:\tend")
+    println(
+        text == "Dear Ada,\n    your order #7 shipped.\n\"quoted\" and \"\"two\"\" stay, tab:\tend",
+    )
     blank := """
 
 """

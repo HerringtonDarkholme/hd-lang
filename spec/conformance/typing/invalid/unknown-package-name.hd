@@ -2,7 +2,7 @@
 # Spec 10 Use Forms: module.use.private-or-missing.
 # Spec 10 Use Forms: module.use.missing-name.
 # fixture-package-tree: self-current/src/c.hd
-use pkg.b.{missing}  # diagnostic: unknown-import
+use pkg.b.{missing} # diagnostic: unknown-import
 
 pub fn label() -> string:
     missing()

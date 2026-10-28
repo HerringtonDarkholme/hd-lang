@@ -57,12 +57,24 @@ fn verify[K < Eq & Hash & Debug](set: Set[K], replay: Set[K], model: List[K]) ->
     assert_equal(actual.len(), model.len(), reason="iteration yields every element once")
     let mut seen: List[K] = []
     for key in actual:
-        assert_equal(model_contains(model, key), true, reason="every iterated element belongs to the model")
-        assert_equal(model_contains(seen, key), false, reason="iteration never repeats an equal element")
+        assert_equal(
+            model_contains(model, key),
+            true,
+            reason="every iterated element belongs to the model",
+        )
+        assert_equal(
+            model_contains(seen, key),
+            false,
+            reason="iteration never repeats an equal element",
+        )
         seen.push(key)
     for key in model:
         assert_equal(set.contains(key), true, reason="every model element can be found")
-    assert_equal(listed(replay), actual, reason="the same operations have the same deterministic order")
+    assert_equal(
+        listed(replay),
+        actual,
+        reason="the same operations have the same deterministic order",
+    )
     assert_equal(replay, set, reason="the replay has the same value")
 
 # Five operation forms: insert, duplicate insert, remove, contains, and
@@ -78,24 +90,48 @@ fn run_sequence[K < Eq & Hash & Debug](operations: List[u8], make: fn(i32, usize
         action := operation % 5
         present := model_contains(model, key)
         if action == 0 || action == 1:
-            assert_equal(set.insert(key), !present, reason="insert reports exactly whether the element was absent")
-            assert_equal(replay.insert(key), !present, reason="replayed insert reports the same change")
+            assert_equal(
+                set.insert(key),
+                !present,
+                reason="insert reports exactly whether the element was absent",
+            )
+            assert_equal(
+                replay.insert(key),
+                !present,
+                reason="replayed insert reports the same change",
+            )
             if !present:
                 model.push(key)
             if action == 1:
                 before := listed(set)
                 duplicate := make(i32(operation / 5), index + 1000)
-                assert_equal(set.insert(duplicate), false, reason="an equal duplicate changes nothing")
-                assert_equal(replay.insert(duplicate), false, reason="the replay also rejects the duplicate")
+                assert_equal(
+                    set.insert(duplicate),
+                    false,
+                    reason="an equal duplicate changes nothing",
+                )
+                assert_equal(
+                    replay.insert(duplicate),
+                    false,
+                    reason="the replay also rejects the duplicate",
+                )
                 assert_equal(listed(set), before, reason="a duplicate does not change iteration")
         else if action == 2 || action == 4:
             before := listed(set)
             removed := model_remove(model, key)
             model = removed._0
             assert_equal(set.remove(key), removed._1, reason="remove reports model membership")
-            assert_equal(replay.remove(key), removed._1, reason="replayed removal reports the same change")
+            assert_equal(
+                replay.remove(key),
+                removed._1,
+                reason="replayed removal reports the same change",
+            )
             if !removed._1:
-                assert_equal(listed(set), before, reason="removing an absent element changes nothing")
+                assert_equal(
+                    listed(set),
+                    before,
+                    reason="removing an absent element changes nothing",
+                )
             if action == 4:
                 assert_equal(set.insert(key), true, reason="a removed element can be reinserted")
                 assert_equal(replay.insert(key), true, reason="replayed reinsertion succeeds")
@@ -111,101 +147,155 @@ struct Sequence:
     operations: List[u8]
 
 tests:
-    it_prop("Set primitive-key operation sequences match a linear model", cases=100, prop=fn!(operations: List[u8]):
-        run_sequence(operations, primitive_key)
+    it_prop(
+        "Set primitive-key operation sequences match a linear model",
+        cases=100,
+        prop=fn!(operations: List[u8]): run_sequence(operations, primitive_key)
+        ,
     )
 
-    it_prop("Set constant-hash operation sequences match a linear model", cases=100, prop=fn!(operations: List[u8]):
-        run_sequence(operations, colliding_key)
+    it_prop(
+        "Set constant-hash operation sequences match a linear model",
+        cases=100,
+        prop=fn!(operations: List[u8]): run_sequence(operations, colliding_key)
+        ,
     )
 
-    it_prop("Set collect keeps distinct first occurrences", cases=100, prop=fn!(values: List[u8]):
-        let mut expected: List[i32] = []
-        let mut input: List[i32] = []
-        for value in values:
-            key := i32(value % 8)
-            input.push(key)
-            if !model_contains(expected, key):
-                expected.push(key)
-        found := input.iter().collect::[Set[i32]]()
-        assert_equal(listed(found), expected, reason="collect's explicit first-occurrence order")
+    it_prop(
+        "Set collect keeps distinct first occurrences",
+        cases=100,
+        prop=fn!(values: List[u8]):
+            let mut expected: List[i32] = []
+            let mut input: List[i32] = []
+            for value in values:
+                key := i32(value % 8)
+                input.push(key)
+                if !model_contains(expected, key):
+                    expected.push(key)
+            found := input.iter().collect::[Set[i32]]()
+            assert_equal(
+                listed(found),
+                expected,
+                reason="collect's explicit first-occurrence order",
+            )
+        ,
     )
 
-    it_prop("Set cursors and value copies survive mutations", cases=100, prop=fn!(values: List[u8]):
-        let mut original: Set[i32] = Set::new()
-        for value in values:
-            _ := original.insert(i32(value))
-        before := listed(original)
-        let mut snapshot = original.iter()
-        let mut copy = original
-        for key in before:
-            _ := original.remove(key)
-        _ := original.insert(1000)
-        assert_equal(listed(copy), before, reason="mutating the original leaves its value copy unchanged")
-        _ := copy.insert(2000)
-        if before.len() > 0:
-            _ := copy.remove(before[0])
-        let mut walked: List[i32] = []
-        while true:
-            match snapshot.next():
-                .Some(key) => walked.push(key)
-                .None => break
-        assert_equal(walked, before, reason="the cursor walks its original snapshot")
-        assert_equal(listed(original), [1000], reason="mutating the copy leaves the original unchanged")
-        assert_equal(copy.contains(2000), true, reason="the copy receives its own new element")
-        assert_equal(copy.contains(1000), false, reason="the copy never received the original's later insertion")
+    it_prop(
+        "Set cursors and value copies survive mutations",
+        cases=100,
+        prop=fn!(values: List[u8]):
+            let mut original: Set[i32] = Set::new()
+            for value in values:
+                _ := original.insert(i32(value))
+            before := listed(original)
+            let mut snapshot = original.iter()
+            let mut copy = original
+            for key in before:
+                _ := original.remove(key)
+            _ := original.insert(1000)
+            assert_equal(
+                listed(copy),
+                before,
+                reason="mutating the original leaves its value copy unchanged",
+            )
+            _ := copy.insert(2000)
+            if before.len() > 0:
+                _ := copy.remove(before[0])
+            let mut walked: List[i32] = []
+            while true:
+                match snapshot.next():
+                    .Some(key) => walked.push(key)
+                    .None => break
+            assert_equal(walked, before, reason="the cursor walks its original snapshot")
+            assert_equal(
+                listed(original),
+                [1000],
+                reason="mutating the copy leaves the original unchanged",
+            )
+            assert_equal(copy.contains(2000), true, reason="the copy receives its own new element")
+            assert_equal(
+                copy.contains(1000),
+                false,
+                reason="the copy never received the original's later insertion",
+            )
+        ,
     )
 
-    it_each("Set adversarial operation sequences", rows=[
-        Sequence { name: "empty", operations: [] },
-        Sequence { name: "duplicate inserts", operations: [0, 0, 1, 1] },
-        Sequence { name: "absent removals", operations: [2, 2, 7] },
-        Sequence { name: "membership in an empty set", operations: [3, 8, 13] },
-        Sequence { name: "remove first then reinsert", operations: [0, 5, 10, 2, 0] },
-        Sequence { name: "remove middle then reinsert", operations: [0, 5, 10, 7, 5] },
-        Sequence { name: "every operation on one key", operations: [0, 1, 3, 2, 4] },
-        Sequence { name: "repeated absent reinsert", operations: [4, 9, 14, 4, 9, 14] }
-    ], body=fn!(row: Sequence):
-        run_sequence(row.operations, primitive_key)
-        run_sequence(row.operations, colliding_key)
+    it_each(
+        "Set adversarial operation sequences",
+        rows=[
+            Sequence { name: "empty", operations: [] },
+            Sequence { name: "duplicate inserts", operations: [0, 0, 1, 1] },
+            Sequence { name: "absent removals", operations: [2, 2, 7] },
+            Sequence { name: "membership in an empty set", operations: [3, 8, 13] },
+            Sequence { name: "remove first then reinsert", operations: [0, 5, 10, 2, 0] },
+            Sequence { name: "remove middle then reinsert", operations: [0, 5, 10, 7, 5] },
+            Sequence { name: "every operation on one key", operations: [0, 1, 3, 2, 4] },
+            Sequence { name: "repeated absent reinsert", operations: [4, 9, 14, 4, 9, 14] },
+        ],
+        body=fn!(row: Sequence):
+            run_sequence(row.operations, primitive_key)
+            run_sequence(row.operations, colliding_key)
+        ,
     )
 
-    it_each("Set constant-hash growth removal and reinsertion", rows=[0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256, 257], body=fn!(count: usize):
-        let mut set: Set[CollisionKey] = Set::new()
-        let mut replay: Set[CollisionKey] = Set::new()
-        let mut model: List[CollisionKey] = []
-        for id in 0..count:
-            key := colliding_key(i32(id), 0)
-            assert_equal(set.insert(key), true, reason="every colliding identity is distinct")
-            _ := replay.insert(key)
-            model.push(key)
-        verify(set, replay, model)
-        before := listed(set)
-        for id in 0..count:
-            assert_equal(set.insert(colliding_key(i32(id), 1)), false, reason="duplicate identities remain duplicates across growth")
-            _ := replay.insert(colliding_key(i32(id), 1))
-        assert_equal(listed(set), before, reason="duplicate insertion changes no element or order")
-        for key in listed(set):
-            assert_equal(key.generation, 0, reason="duplicate insertion preserves the original equal element")
-        let mut remaining: List[CollisionKey] = []
-        for key in model:
-            if key.id % 2 == 0:
-                assert_equal(set.remove(key), true, reason="remove an existing colliding key")
-                _ := replay.remove(key)
-            else:
-                remaining.push(key)
-        model = remaining
-        verify(set, replay, model)
-        for offset in 0..count:
-            id := count - 1 - offset
-            if id % 2 == 0:
-                key := colliding_key(i32(id), 2)
-                assert_equal(set.insert(key), true, reason="reinsert a removed collision in reverse order")
+    it_each(
+        "Set constant-hash growth removal and reinsertion",
+        rows=[0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256, 257],
+        body=fn!(count: usize):
+            let mut set: Set[CollisionKey] = Set::new()
+            let mut replay: Set[CollisionKey] = Set::new()
+            let mut model: List[CollisionKey] = []
+            for id in 0..count:
+                key := colliding_key(i32(id), 0)
+                assert_equal(set.insert(key), true, reason="every colliding identity is distinct")
                 _ := replay.insert(key)
                 model.push(key)
-        verify(set, replay, model)
-        let mut reverse: Set[CollisionKey] = Set::new()
-        for offset in 0..model.len():
-            _ := reverse.insert(model[model.len() - 1 - offset])
-        assert_equal(set, reverse, reason="equality ignores insertion order")
+            verify(set, replay, model)
+            before := listed(set)
+            for id in 0..count:
+                assert_equal(
+                    set.insert(colliding_key(i32(id), 1)),
+                    false,
+                    reason="duplicate identities remain duplicates across growth",
+                )
+                _ := replay.insert(colliding_key(i32(id), 1))
+            assert_equal(
+                listed(set),
+                before,
+                reason="duplicate insertion changes no element or order",
+            )
+            for key in listed(set):
+                assert_equal(
+                    key.generation,
+                    0,
+                    reason="duplicate insertion preserves the original equal element",
+                )
+            let mut remaining: List[CollisionKey] = []
+            for key in model:
+                if key.id % 2 == 0:
+                    assert_equal(set.remove(key), true, reason="remove an existing colliding key")
+                    _ := replay.remove(key)
+                else:
+                    remaining.push(key)
+            model = remaining
+            verify(set, replay, model)
+            for offset in 0..count:
+                id := count - 1 - offset
+                if id % 2 == 0:
+                    key := colliding_key(i32(id), 2)
+                    assert_equal(
+                        set.insert(key),
+                        true,
+                        reason="reinsert a removed collision in reverse order",
+                    )
+                    _ := replay.insert(key)
+                    model.push(key)
+            verify(set, replay, model)
+            let mut reverse: Set[CollisionKey] = Set::new()
+            for offset in 0..model.len():
+                _ := reverse.insert(model[model.len() - 1 - offset])
+            assert_equal(set, reverse, reason="equality ignores insertion order")
+        ,
     )

@@ -48,12 +48,14 @@ before(async () => {
   directory = await mkdtemp(join(tmpdir(), "hd-playground-"));
   // The compiler wasm is a build output (not committed); build it when a
   // fresh checkout has none.
-  if (!existsSync(COMPILER_WASM))
+  if (!existsSync(COMPILER_WASM) || !existsSync(join(playground, "assets/hd_wat.wasm")))
     execFileSync(process.execPath, [join(playground, "../../scripts/build-web-compiler.js")], {
       stdio: "inherit",
     });
   const { createRustRunner } = await bundled<typeof RustRunnerModule>("rust-runner.ts");
-  rust = createRustRunner(await readFile(COMPILER_WASM));
+  rust = createRustRunner(await readFile(COMPILER_WASM), () =>
+    readFile(join(playground, "assets/hd_wat.wasm")),
+  );
 });
 
 /** Run, Check or Test, as the worker serves them. */
@@ -270,11 +272,11 @@ test("Http reaches the page's own origin through the browser, and no other", asy
   globals.XMLHttpRequest = FakeRequest;
   try {
     const source = [
-      "use std.http.{Http, HttpError, Method, Request, get}",
+      "use std.http.{Http, HttpError, Method, Request, Url, get}",
       "",
       "fn ping!(url: string) -> string $ Http:",
       "    match get!(url):",
-      '        .Ok(response) => "status ${response.status} ${response.text()} ${response.header("Content-Type").unwrap_or("-")}"',
+      '        .Ok(response) => "status ${response.status.code()} ${response.text().expect("body")} ${response.header(.ContentType).unwrap_or("-")}"',
       '        .Err(.NotGranted(host)) => "the playground grants no ${host}"',
       '        .Err(.Connect(_)) => "the browser refused the request"',
       '        .Err(error) => "${error}"',
@@ -285,8 +287,8 @@ test("Http reaches the page's own origin through the browser, and no other", asy
       '    println(ping!("http://127.0.0.1:8123/cors"))',
       '    println(ping!("https://example.com/"))',
       '    println(ping!("http://127.0.0.1:9999/"))',
-      '    match Request { method: Method.Post, url: "http://127.0.0.1:8123/echo", headers: [("X-Tag", "a")], body: "hi".to_utf8() }.send!():',
-      "        .Ok(response) => println(response.text())",
+      '    match Request::post(Url::parse("http://127.0.0.1:8123/echo").expect("URL")).set_header(.Other("X-Tag"), "a").set_bytes("hi".to_utf8()).send!():',
+      '        .Ok(response) => println(response.text().expect("body"))',
       '        .Err(error) => println("${error}")',
     ].join("\n");
     const result = await run(single(source), "run");
@@ -297,7 +299,7 @@ test("Http reaches the page's own origin through the browser, and no other", asy
       "the browser refused the request",
       "the playground grants no example.com",
       "the playground grants no 127.0.0.1",
-      "X-Tag=a|hi",
+      "x-tag=a|hi",
     ]);
     // Another origin never reaches the browser (std-http.playground.other-origin).
     assert.deepEqual(sent, [
@@ -336,10 +338,10 @@ test("Http rejects disabled redirects before constructing a browser request", as
   globals.XMLHttpRequest = UnexpectedRequest;
   try {
     const source = [
-      "use std.http.{Http, Request}",
+      "use std.http.{Http, Request, Url}",
       "",
       "pub fn main!() -> void $ Console + Http:",
-      '    match Request::get("http://127.0.0.1:8123/redirect").redirects(0).send!():',
+      '    match Request::get(Url::parse("http://127.0.0.1:8123/redirect").expect("URL")).send!(0):',
       "        .Err(.Other(message)) => println(message)",
       '        .Ok(_) => println("unexpected response")',
       '        .Err(error) => println("$error")',
@@ -601,11 +603,11 @@ test("Test passes and fails the cases hd test passes and fails", async () => {
   );
   // hd test's report of the same file, without its frames and repro lines.
   assert.deepEqual(result.stdout, [
-    "PANIC src/main.hd:18: joins with a dash",
+    "PANIC src/main.hd:22: joins with a dash",
     '    panic: assertion-failed: joined: actual "a-b", expected "a_b"',
-    "PANIC src/main.hd:21: keeps each word[1]",
+    "PANIC src/main.hd:25: keeps each word[1]",
     '    panic: assertion-failed: unchanged: actual "hd", expected "Hd"',
-    "PANIC src/main.hd:29: a number stays small",
+    "PANIC src/main.hd:33: a number stays small",
     "    panic: assertion-failed: small",
     "    input: 100",
   ]);
@@ -936,10 +938,7 @@ test("the WAT view shows diagnostics when compilation fails", async () => {
   const shown = await rust.watProject(single('pub fn main() -> void:\n    let x: i32 = "no"\n'));
   assert.equal(shown.status, "compile-error");
   assert.equal(shown.module, undefined);
-  assert.deepEqual(located(shown), [
-    "src/main.hd:2:9:unused-local-binding",
-    "src/main.hd:2:18:type-mismatch",
-  ]);
+  assert.deepEqual(located(shown), ["src/main.hd:2:18:type-mismatch"]);
   const unlinked = await rust.watProject({
     files: { "src/main.hd": "use pkg.gone.{X}\n" },
     main: "src/main.hd",
@@ -966,4 +965,25 @@ test("without main, the WAT is the script's module", async () => {
   const shown = await rust.watProject(single('x := 20\nprintln("start")\nx + 1\nx * 2\n'));
   assert.equal(shown.status, "ok", shown.summary);
   assert.match(shown.module!.wat, /^\(module/);
+});
+
+test("ordinary compiler modes do not load WAT, including a failed WAT compile", async () => {
+  const { createRustRunner } = await bundled<typeof RustRunnerModule>("rust-runner.ts");
+  let loads = 0;
+  const runner = createRustRunner(await readFile(COMPILER_WASM), async () => {
+    loads += 1;
+    throw new Error("printer offline");
+  });
+  const project = single("pub fn main() -> void:\n    pass\n");
+  for (const mode of ["check", "run", "test"] as const) await runner.compileProject(project, mode);
+  assert.equal(loads, 0);
+  const broken = await runner.watProject(single('pub fn main() -> void:\n    let x: i32 = "no"\n'));
+  assert.equal(broken.status, "compile-error");
+  assert.equal(loads, 0);
+  const failed = await runner.watProject(project);
+  assert.equal(failed.status, "failure");
+  assert.match(failed.summary, /printer offline/);
+  assert.equal(loads, 1);
+  await runner.compileProject(project, "check");
+  assert.equal(loads, 1);
 });

@@ -3,13 +3,13 @@
 
 fn make_sum(seed: i32) -> fn(i32) -> i32:
     sum := fn(n: i32) -> i32:
-        if n == 0: seed
-        else: n + sum(n - 1)
+        if n == 0: seed else: n + sum(n - 1)
     sum
 
 fn nested_sum(seed: i32, limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
-        if n == 0: seed
+        if n == 0:
+            seed
         else:
             next := fn() -> i32: sum(n - 1)
             n + next()
@@ -17,21 +17,20 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
 
 fn generic_sum(limit: i32) -> string:
     fn repeat[T](n: i32, value: T) -> T:
-        if n == 0: value
-        else: repeat(n - 1, value)
+        if n == 0: value else: repeat(n - 1, value)
     repeat(limit, "kept")
 
 fn reassigned_sum() -> i32:
     let sum = fn(n: i32) -> i32:
-        if n == 0: 0
-        else: 1 + sum(n - 1)
+        if n == 0: 0 else: 1 + sum(n - 1)
     saved := sum
     sum = fn(n: i32) -> i32: 100
     saved(3)
 
 fn addressed_sum(limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
-        if n == 0: 0
+        if n == 0:
+            0
         else:
             saved := &sum
             n + (*saved)(n - 1)

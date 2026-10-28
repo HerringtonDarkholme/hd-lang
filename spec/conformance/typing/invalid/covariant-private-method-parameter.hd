@@ -4,5 +4,5 @@ struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
-    fn replace(self, next: T) -> void:  # diagnostic: invalid-variance
+    fn replace(self, next: T) -> void: # diagnostic: invalid-variance
         pass

@@ -1,6 +1,6 @@
 # test: an unknown method scrutinee reports once
 fn run(v: i32) -> i32:
-    match v.nothing():  # diagnostic: unknown-method
+    match v.nothing(): # diagnostic: unknown-method
         .Some(n) => n
         .None => 0
 

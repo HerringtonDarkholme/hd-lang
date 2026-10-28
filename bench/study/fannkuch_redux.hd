@@ -1,15 +1,11 @@
 # fannkuch-redux, n = 10 (benchmarks game). Prints checksum and max flips.
-N := 9
+N := 10
 
 pub fn main() -> void $ Console:
     n := N
-    let mut perm: List[usize] = []
-    let mut perm1: List[usize] = []
-    let mut count: List[usize] = []
-    for i in 0..n:
-        perm.push(0)
-        perm1.push(i)
-        count.push(0)
+    let mut perm = [for _ in 0..n => 0]
+    let mut perm1 = [for i in 0..n => i]
+    let mut count = [for _ in 0..n => 0]
     let max_flips: i64 = 0
     let checksum: i64 = 0
     let perm_count: i64 = 0
@@ -17,7 +13,7 @@ pub fn main() -> void $ Console:
     while true:
         while r != 1:
             count[r - 1] = r
-            r = r - 1
+            r -= 1
         for i in 0..n:
             perm[i] = perm1[i]
         let flips: i64 = 0
@@ -29,9 +25,9 @@ pub fn main() -> void $ Console:
                 t := perm[i]
                 perm[i] = perm[j]
                 perm[j] = t
-                i = i + 1
-                j = j - 1
-            flips = flips + 1
+                i += 1
+                j -= 1
+            flips += 1
             k = perm[0]
         if flips > max_flips:
             max_flips = flips
@@ -42,12 +38,12 @@ pub fn main() -> void $ Console:
             for i in 0..r:
                 perm1[i] = perm1[i + 1]
             perm1[r] = p0
-            count[r] = count[r] - 1
+            count[r] -= 1
             if count[r] > 0:
                 done = false
                 break
-            r = r + 1
+            r += 1
         if done:
             break
-        perm_count = perm_count + 1
+        perm_count += 1
     println("$checksum $max_flips")

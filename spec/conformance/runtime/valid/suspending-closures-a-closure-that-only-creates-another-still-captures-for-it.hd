@@ -1,7 +1,8 @@
 # test: a closure that only creates another still captures for it
 # expect-stdout: 42
 # expect-stdout: 43
-fn child!(value: i32) -> i32: value
+fn child!(value: i32) -> i32:
+    value
 
 fn make() -> fn!() -> i32:
     let count: i32 = 40

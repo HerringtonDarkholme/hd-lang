@@ -11,7 +11,11 @@ tests:
     it("collects distinct items in first-seen order"):
         found := distinct(["b", "a", "b", "c", "a"])
         assert_equal(found.len(), 3, reason="three distinct")
-        assert_equal(found.iter().collect::[List[string]](), ["b", "a", "c"], reason="first-seen order")
+        assert_equal(
+            found.iter().collect::[List[string]](),
+            ["b", "a", "c"],
+            reason="first-seen order",
+        )
     it("an empty iterator gives an empty set"):
         found := distinct([])
         assert_equal(found.len(), 0, reason="empty")

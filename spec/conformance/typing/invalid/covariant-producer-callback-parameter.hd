@@ -5,5 +5,5 @@ struct Feed[+T]:
     latest: T
 
 impl[T] Feed[T]:
-    pub fn refill(self, source: fn() -> T) -> void:  # diagnostic: invalid-variance
+    pub fn refill(self, source: fn() -> T) -> void: # diagnostic: invalid-variance
         pass

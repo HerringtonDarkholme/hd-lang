@@ -5,9 +5,21 @@ use std.process.ExitCode
 use std.console.MemoryConsole
 
 fn notes() -> *mut ArgParser:
-    build := ArgParser::new("notes build", "Convert the notes to HTML.").arg(Arg { name: "format", choices: ["json", "markdown"] }).arg(Arg { name: "file", kind: .Positional, required: true })
+    build := ArgParser::new("notes build", "Convert the notes to HTML.")
+        .arg(Arg { name: "format", choices: ["json", "markdown"] })
+        .arg(Arg { name: "file", kind: .Positional, required: true })
     clean := ArgParser::new("notes clean", "Remove the output directory.")
-    ArgParser::new("notes", "Build a static site from Markdown notes.").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "Print each file as it is converted." }).command("build", *build).command("clean", *clean)
+    ArgParser::new("notes", "Build a static site from Markdown notes.")
+        .arg(
+            Arg {
+                name: "verbose",
+                kind: .Flag,
+                short: 'v',
+                help: "Print each file as it is converted.",
+            },
+        )
+        .command("build", *build)
+        .command("clean", *clean)
 
 fn help(parser: &ArgParser, args: List[string]) -> string:
     match parser.parse(args):
@@ -23,31 +35,69 @@ tests:
         parser := notes()
         assert_equal(help(parser, ["--help"]), expected, reason="exact top-level text")
         assert_equal(help(parser, ["-h"]), expected, reason="short alias")
-        assert_equal(help(parser, ["-v", "--help", "publish"]), expected, reason="stop before unknown or missing commands")
+        assert_equal(
+            help(parser, ["-v", "--help", "publish"]),
+            expected,
+            reason="stop before unknown or missing commands",
+        )
 
     it("child help contains that child's arguments and choices"):
         usage := help(notes(), ["build", "--help"])
-        assert(usage.starts_with("usage: notes build [options] <file>"), reason="child command context")
+        assert(
+            usage.starts_with("usage: notes build [options] <file>"),
+            reason="child command context",
+        )
         assert(usage.contains("Convert the notes to HTML."), reason="child description")
         assert(usage.contains("[choices: json, markdown]"), reason="choice list")
         assert(!usage.contains("--verbose"), reason="outer option is out of scope")
         assert_equal(help(notes(), ["build", "-h"]), usage, reason="child short alias")
-        assert(help(notes(), ["clean", "--help"]).starts_with("usage: notes clean [options]"), reason="other command context")
+        assert(
+            help(notes(), ["clean", "--help"]).starts_with("usage: notes clean [options]"),
+            reason="other command context",
+        )
 
     it("help is successful stdout while usage errors remain stderr with status two"):
         console := MemoryConsole::new()
         usage := help(notes(), ["--help"])
         $.with(Console=console):
             assert_equal(CliError.Help(usage).exit(), ExitCode(0), reason="help success")
-        assert_equal(console.output(), ["$usage\n"], reason="one stdout line containing the usage")
+        assert_equal(
+            console.output(),
+            ["$usage", "\n"],
+            reason="one stdout line containing the usage",
+        )
         assert_equal(console.error_output(), [], reason="no stderr for help")
         $.with(Console=console):
-            assert_equal(CliError.UnknownOption("--wrong").exit(), ExitCode(2), reason="usage failure")
-        assert_equal(console.error_output(), ["unknown option --wrong\n"], reason="error goes to stderr")
+            assert_equal(
+                CliError.UnknownOption("--wrong").exit(),
+                ExitCode(2),
+                reason="usage failure",
+            )
+        assert_equal(
+            console.error_output(),
+            ["unknown option --wrong\n"],
+            reason="error goes to stderr",
+        )
 
     it("help tokens consumed as values or after end-of-options retain normal meanings"):
         parser := ArgParser::new("tool").arg(Arg { name: "out" })
-        assert_equal(parser.parse(["--out", "--help"]).expect("option value").value("out"), .Some("--help"), reason="a value starting with dash stays a value")
-        assert_equal(parser.parse(["--", "--help"]).expect("positional").positionals(), ["--help"], reason="end of options")
-        assert_equal(parser.parse(["--help=bad"]), .Err(CliError.UnexpectedValue("help")), reason="help takes no value")
-        assert_equal(parser.parse(["--wrong", "--help"]), .Err(CliError.UnknownOption("--wrong")), reason="an earlier error still wins")
+        assert_equal(
+            parser.parse(["--out", "--help"]).expect("option value").value("out"),
+            .Some("--help"),
+            reason="a value starting with dash stays a value",
+        )
+        assert_equal(
+            parser.parse(["--", "--help"]).expect("positional").positionals(),
+            ["--help"],
+            reason="end of options",
+        )
+        assert_equal(
+            parser.parse(["--help=bad"]),
+            .Err(CliError.UnexpectedValue("help")),
+            reason="help takes no value",
+        )
+        assert_equal(
+            parser.parse(["--wrong", "--help"]),
+            .Err(CliError.UnknownOption("--wrong")),
+            reason="an earlier error still wins",
+        )

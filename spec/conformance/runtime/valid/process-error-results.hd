@@ -29,8 +29,18 @@ tests:
         let mut refusing = RefusingProcess {}
         $.with(Process=&mut refusing):
             match start!("locked"):
-                .Err(error) => assert_equal(error == ProcessError.PermissionDenied(program="locked"), true, reason="the variant is PermissionDenied")
+                .Err(error) =>
+                    assert_equal(
+                        error == ProcessError.PermissionDenied(program="locked"),
+                        true,
+                        reason="the variant is PermissionDenied",
+                    )
                 .Ok(_) => assert_equal(true, false, reason="locked never starts")
             match start!("broken"):
-                .Err(error) => assert_equal(error == ProcessError.Other(message="exec format error"), true, reason="Other keeps its message")
+                .Err(error) =>
+                    assert_equal(
+                        error == ProcessError.Other(message="exec format error"),
+                        true,
+                        reason="Other keeps its message",
+                    )
                 .Ok(_) => assert_equal(true, false, reason="broken never starts")

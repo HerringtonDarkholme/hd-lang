@@ -6,5 +6,6 @@ enum ReadError:
     @error("closed")
     Closed
 
-impl Display for ReadError:  # diagnostic: overlapping-impl
-    fn to_string(self) -> string: "read error"
+impl Display for ReadError: # diagnostic: overlapping-impl
+    fn to_string(self) -> string:
+        "read error"

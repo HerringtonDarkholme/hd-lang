@@ -6,6 +6,12 @@ struct DiskError:
 @error
 enum App[E]:
     @error("inner")
-    Inner(@from error: DiskError)
+    Inner(
+        @from
+        error: DiskError,
+    )
     @error("list")
-    Items(@source items: E?)
+    Items(
+        @source
+        items: E?,
+    )

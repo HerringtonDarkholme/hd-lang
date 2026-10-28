@@ -377,7 +377,7 @@ tests/common/mod.hd    # a shared test module, reached as self.common
 9. r[module.test.integration.beside-directory] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is an error. It has no fix-it, and its message names the file's target, `tests/common/mod.hd`. Error: `duplicate-module-name`.
 10. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
 11. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
-12. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
+12. r[module.test.integration.shared-unused.lint] Lint reports an unused shared-test declaration only when no integration test program uses that declaration.
 13. r[module.test.integration.pkg-root] In an integration test module, the `pkg` root names the package's library modules, each with only its public declarations.
 14. r[module.test.integration.self-shared] An integration test program uses a shared test module through `self`, as in `use self.common` for `tests/common/mod.hd`.
 15. r[module.test.no-tests-root] There is no `tests` use root: test code reaches the test root only through `self` and `super`. A use path that starts with `tests` is an error. Error: `unknown-module`.
@@ -973,7 +973,7 @@ hd build --release   # error: dbg-in-release; the fix-it deletes the dbg stateme
 3. r[module.dbg.release.debug-build] A debug or test build accepts a reference to `dbg` with no warning.
 4. r[module.dbg.own-code] The user's own code is the root package, every member of its [workspace](#workspaces), and every package that a [path requirement](#path-requirements) reaches.
 5. r[module.dbg.dependency] In a package fetched for a version requirement, a `dbg` call prints nothing in every build. It still evaluates its arguments, as [`module.dbg.body.print`](#r-module.dbg.body.print) says.
-6. r[module.dbg.dependency.warning] A build that compiles such a call warns once per fetched package, naming the package. Warning: `dbg-in-dependency`.
+6. r[module.dbg.dependency.lint] A fetched package containing such a call produces one lint finding naming the package. Warning: `dbg-in-dependency`.
 7. r[module.dbg.dependency.function-value] A function value referring to `dbg` in a fetched package follows the same suppression and warning rules as a direct call.
 
 > **Why.** A `dbg` call is never meant to ship, so a release build stops
@@ -982,7 +982,7 @@ hd build --release   # error: dbg-in-release; the fix-it deletes the dbg stateme
 
 #### Debug Text Hint
 
-1. r[module.dbg.debug-hint] An expression statement that calls the prelude function `debug` discards the text that `debug` returns. It warns, and the message suggests `dbg`. Warning: `unused-debug-text`.
+1. r[module.dbg.debug-lint] An expression statement discarding prelude `debug` text produces a lint finding whose message suggests `dbg`. Warning: `unused-debug-text`.
 
 ```text
 fn trace(prices: List[i32]) -> void:
@@ -999,10 +999,10 @@ The standard console surface includes:
 
 ```text
 trait Console:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write!(text)
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_sync(text)
 
 pub enum ConsoleError:
     Closed
@@ -1011,57 +1011,55 @@ pub enum ConsoleError:
 ```
 
 1. r[module.console.host-trait] `Console` is a host capability trait.
-2. r[module.console.write-ref.mutable] `write!` takes `&mut self`, so `Console` is a [mutable requirement trait](11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(Console)` is a `&mut dyn Console` by [`req.ref.use.reference-values`](11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it writes.
-3. r[module.console.write-error.raw] `write_error!` writes its text unchanged to error output, which a host keeps apart from the output of `write!`.
-4. r[module.console.write-error.forwarding] The default `write_error!` body calls `write!` once with the same text.
-5. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
-6. r[module.console.error.variants] `ConsoleError` is a public enum with `Closed`, `NotGranted(subject: string)`, and `Other(message: string)`.
-7. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
-8. r[module.console.println-one-write] `println(value)` calls the covering provider's `write!` once with `value.to_string()` followed by `"\n"`.
-9. r[module.console.println-drive.raw-write] `println` drives that `write!` call with [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature), exactly as `block_on` drives a stored suspension, and returns after the call completes.
-10. r[module.console.println-drive.pending-write] When a poll of that call returns `Pending` on a host write, `println` keeps driving the call until it finishes, as `block_on` does.
-11. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
-12. r[module.console.println-write-error] If that `write!` call returns `.Err(ConsoleError)`, `println` panics.
-13. r[module.console.println-write-cancelled] If that `write!` call turns out cancelled, so that `block_on` returns `.Cancelled` or `.Abandoned`, `println` returns without a panic, and the line is lost. Only the provider can cancel the call, since `println` holds the only reference to it.
-14. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
-15. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
-16. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
-17. r[module.console.println-block-on] `println` follows every rule of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature): its forbidden contexts, the error and the panic there, and its behavior under an active driver.
-18. r[module.console.println-block-on.under-driver] So a `println` call while a driver is active, as in `main!` or a test body, writes its line and returns.
-19. r[module.console.println-block-on.forbidden-direct] A `println` call written directly in a `defer` suite, a default expression, a fact expression, or non-entry module initialization is an error. Error: `suspension-forbidden-context`. In non-entry module initialization the call is also `missing-requirement` by [`module.init.requirement-free.non-script`](#r-module.init.requirement-free.non-script), and the compiler reports both.
-20. r[module.console.println-block-on.indirect] A `println` call reached through another call while one of those contexts runs panics. Panic: `suspension-forbidden-context`.
-21. r[module.console.println-script] A `println` call at the top level of a [script](#r-module.init.script) is valid, since only non-entry module initialization bans `block_on`.
+2. r[module.console.write-sync-ref.mutable] `write_sync` takes `&mut self`, so `Console` is a [mutable requirement trait](11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(Console)` is a `&mut dyn Console` by [`req.ref.use.reference-values`](11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it writes.
+3. r[module.console.write-sync.never-suspends] `write_sync` and `write_error_sync` are not bang methods: a call never suspends. A host's provider may block the program until the stream takes the text.
+4. r[module.console.write-error-sync.raw] `write_error_sync` writes its text unchanged to error output, which a host keeps apart from the output of `write_sync`.
+5. r[module.console.write-error-sync.forwarding] The default `write_error_sync` body calls `write_sync` once with the same text.
+6. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
+7. r[module.console.error.variants] `ConsoleError` is a public enum with `Closed`, `NotGranted(subject: string)`, and `Other(message: string)`.
+8. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
+9. r[module.console.println-two-writes-sync] `println(value)` calls the covering provider's `write_sync` once with `value.to_string()`, then once with `"\n"` after the first returns `.Ok(())`.
+10. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
+11. r[module.console.println-no-drive] `println` drives no suspension, so the forbidden contexts of [`block_on`](11-requirements-and-suspension.md#r-req.drive.block-on.signature) do not apply to it.
+12. r[module.console.println-write-error.either] If either write returns `.Err(ConsoleError)`, `println` panics.
+13. r[module.console.println-std] `println` is an ordinary function of the standard library's prelude.
+14. r[module.console.println-panics] Its panics are ordinary panics that `std` raises, each with a message `std` defines. No panic category is specific to `println`.
+15. r[module.console.println-error.category] The `.Err` panic is an ordinary `panic` call in `std`, so its category is `explicit-panic`. Panic: `explicit-panic`.
 
-22. r[module.console.write.raw] `write!` writes its text unchanged, without adding a line ending.
-23. r[module.console.write.signature] `Console` declares `fn write!(&mut self, text: string) -> Result[void, ConsoleError]`.
-24. r[module.console.write-error.signature] `Console` declares `fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]`.
-25. r[module.console.error.closed-meaning] `Closed` reports a closed console stream.
-26. r[module.console.error.not-granted] `NotGranted(subject)` reports console access that was not granted.
-27. r[module.console.error.other] `Other(message)` reports another console failure with its message.
+16. r[module.console.write-sync.raw] `write_sync` writes its text unchanged, without adding a line ending.
+17. r[module.console.write-sync.signature] `Console` declares `fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]`.
+18. r[module.console.write-error-sync.signature] `Console` declares `fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]`.
+19. r[module.console.error.closed-meaning] `Closed` reports a closed console stream.
+20. r[module.console.error.not-granted] `NotGranted(subject)` reports console access that was not granted.
+21. r[module.console.error.other] `Other(message)` reports another console failure with its message.
 
 ```text
 pub fn main() -> void:
     println("missing")  # error: missing-requirement
-
-fn report() -> void $ Console:
-    defer:
-        println("done")  # error: suspension-forbidden-context
-    pass
 ```
 
-A recording provider receives each line that `println` writes:
+A `println` call in a `defer` suite is valid, since it drives nothing:
+
+```text
+fn report() -> void $ Console:
+    defer:
+        println("done")
+    println("working")
+```
+
+A recording provider receives the text and newline as separate writes:
 
 ```text
 struct MemoryConsole:
     lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write!(text)
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_sync(text)
 
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
@@ -1070,28 +1068,27 @@ pub fn main() -> void $ Console:
     let mut console = MemoryConsole { lines: [] }
     $.with(Console=&mut console):
         greet("Ada")
-    println("recorded: ${console.lines[0]}")  # recorded: hello, Ada
+    println("recorded: ${console.lines[0]}${console.lines[1]}")  # recorded: hello, Ada
 ```
 
-Suspending code, such as `main!` or a test body, may also call
-`write!` directly:
+Code that must handle a console error calls `write_sync` directly:
 
 ```text
-pub fn main!() -> Result[void, ConsoleError] $ Console:
+pub fn main() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write!("done")
+    console.write_sync("done")
 ```
 
 > **Why.** Rust's `println!` and Go's `fmt.Println` are synchronous, so
-> every caller keeps its signature. Rust's `println!` also panics when the
-> write to standard output fails. `println` is ordinary `std` code that
-> drives its write as `block_on` does, so it has `block_on`'s rules and
-> no language rule of its own.
+> every caller keeps its signature, and each may block on a full stream.
+> Rust's `println!` also panics when the write to standard output fails.
+> A console write completes at once on every host, so it carries no
+> suspension. Separate writes avoid a concatenated string.
 
-> **Note.** Code that must handle a console error calls `write!`
-> directly.
+> **Note.** Non-blocking output for a server is a future buffered log
+> writer, not `Console`.
 
-> **Note.** `print`, `eprintln`, which writes through `write_error!`, and the
+> **Note.** `print`, `eprintln`, which writes through `write_error_sync`, and the
 > input trait `ConsoleInput` are stdlib tier:
 > [Console](../std/console.md) in `std.console`.
 
@@ -2093,7 +2090,7 @@ pub fn main() -> void:
 4. r[module.entry.row.host] Every key in that row must be a host capability trait of the selected runtime profile. Any other key is an error. Error: `nonhost-entry-requirement`.
 5. r[module.entry.private-main] A top-level `main` that is not public is an ordinary function and is not an entry point.
 6. r[module.entry.suspending] A suspending entry point is spelled `main!`.
-7. r[module.entry.private-main.warn] A top-level `main` or `main!` that is not public in an entry module gets a warning. Its message is "main is not pub, so it is not the entry point". Warning: `private-main`.
+7. r[module.entry.private-main.lint] A private top-level `main` or `main!` in an entry module produces the lint message "main is not pub, so it is not the entry point". Warning: `private-main`.
 8. r[module.entry.parameters] A public top-level `main` or `main!` in an entry module that declares parameters or generic parameters is an error. Error: `entry-point-parameters`.
 9. r[module.entry.private-main.fix] The `private-main` warning must offer a fix-it inserting `pub ` before the function keyword.
 10. r[module.entry.private-main.fix.conflict] When adding `pub` could clash with another public `main`, the fix-it must remain a suggestion.
@@ -2108,8 +2105,8 @@ pub fn main(args: List[string]) -> void:  # error: entry-point-parameters
     pass
 ```
 
-> **Why.** An agent that drops `pub` from `main` gets a program that does
-> nothing, with no error. The warning names the cause.
+> **Why.** Lint suggests adding `pub` before an execution request needs
+> an entry point. Checking still accepts private helper functions named `main`.
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 

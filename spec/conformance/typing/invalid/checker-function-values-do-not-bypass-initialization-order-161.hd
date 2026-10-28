@@ -6,7 +6,7 @@ fn run(f: fn() -> i32) -> i32:
 fn run_with(f: fn(Meter) -> i32, m: Meter) -> i32:
     f(m)
 made := Meter { scale: +2 }
-bound := made::read  # diagnostic: top-level-read-before-initialization
+bound := made::read # diagnostic: top-level-read-before-initialization
 offset := +1
 fn helper() -> i32:
     offset

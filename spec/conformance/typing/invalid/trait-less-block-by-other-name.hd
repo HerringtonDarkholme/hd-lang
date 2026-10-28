@@ -7,4 +7,4 @@ struct Account:
     Audit
     id: i64
 
-impl Account by Audit  # diagnostic: invalid-delegation
+impl Account by Audit # diagnostic: invalid-delegation

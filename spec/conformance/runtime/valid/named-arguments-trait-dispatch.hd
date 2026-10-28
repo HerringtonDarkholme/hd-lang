@@ -7,8 +7,10 @@ trait Mixer:
 struct Calculator: pass
 
 impl Mixer for Calculator:
-    fn blend(self, left: i32, right: i32) -> i32: left * 10 + right
-    fn load!(self, left: i32, right: i32) -> i32: left * 10 + right
+    fn blend(self, left: i32, right: i32) -> i32:
+        left * 10 + right
+    fn load!(self, left: i32, right: i32) -> i32:
+        left * 10 + right
 
 fn main!() -> i32:
     calculator := Calculator {}
@@ -22,4 +24,8 @@ tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main!(), 42, reason="named arguments work through static and dynamic trait dispatch")
+        assert_equal(
+            main!(),
+            42,
+            reason="named arguments work through static and dynamic trait dispatch",
+        )

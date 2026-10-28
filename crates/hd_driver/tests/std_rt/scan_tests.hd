@@ -208,8 +208,18 @@ fn changed(at: usize, pick: usize) -> u8:
 
 # Both views for one comparison: the right one differs at `at` when
 # `at` is below the shorter length.
-fn pair(left_start: usize, left_len: usize, right_start: usize, right_len: usize, at: usize, pick: usize) -> List[string]:
-    [mview(left_start, left_len, 1000, 0, 1), mview(right_start, right_len, at, changed(at, pick), 2)]
+fn pair(
+    left_start: usize,
+    left_len: usize,
+    right_start: usize,
+    right_len: usize,
+    at: usize,
+    pick: usize,
+) -> List[string]:
+    [
+        mview(left_start, left_len, 1000, 0, 1),
+        mview(right_start, right_len, at, changed(at, pick), 2),
+    ]
 
 @derive(Debug)
 struct Mismatch:
@@ -228,13 +238,21 @@ fn mismatch_case(c: &mut Choices) -> Mismatch:
     let shape: usize = c.int(0..4)
     let right_len: usize = match shape:
         0 => left_len
-        1 => if left_len > 0: left_len - 1 else: 0
+        1 =>
+            if left_len > 0: left_len - 1 else: 0
         2 => left_len + 1
         _ => c.int(0..=80)
     let bigger = if left_len > right_len: left_len else: right_len
     let at: usize = c.int(0..=bigger)
     let pick: usize = c.int(0..8)
-    Mismatch { left_start: left_start, left_len: left_len, right_start: right_start, right_len: right_len, at: at, pick: pick }
+    Mismatch {
+        left_start: left_start,
+        left_len: left_len,
+        right_start: right_start,
+        right_len: right_len,
+        at: at,
+        pick: pick,
+    }
 
 fn continuation(byte: u8) -> bool:
     byte >= 128 && byte < 192
@@ -321,29 +339,41 @@ fn utf8_char(k: usize) -> List[u8]:
 fn bad_sequence(kind: usize, pick: usize) -> List[u8]:
     p := pick % 2
     match kind:
-        0 => if p == 0: [192, 128] else: [193, 191]
-        1 => if p == 0: [224, 128, 128] else: [224, 159, 191]
-        2 => if p == 0: [240, 128, 128, 128] else: [240, 143, 191, 191]
-        3 => if p == 0: [237, 160, 128] else: [237, 191, 191]
-        4 => match pick % 3:
-            0 => [244, 144, 128, 128]
-            1 => [245, 128, 128, 128]
-            _ => [255]
-        5 => match pick % 3:
-            0 => [195]
-            1 => [226, 130]
-            _ => [240, 159, 152]
-        6 => if p == 0: [128] else: [191]
-        7 => if p == 0: [226, 65, 172] else: [195, 195]
-        8 => if p == 0: [226, 130, 65] else: [240, 159, 65, 128]
-        _ => if p == 0: [240, 159, 152, 65] else: [244, 143, 191, 240]
+        0 =>
+            if p == 0: [192, 128] else: [193, 191]
+        1 =>
+            if p == 0: [224, 128, 128] else: [224, 159, 191]
+        2 =>
+            if p == 0: [240, 128, 128, 128] else: [240, 143, 191, 191]
+        3 =>
+            if p == 0: [237, 160, 128] else: [237, 191, 191]
+        4 =>
+            match pick % 3:
+                0 => [244, 144, 128, 128]
+                1 => [245, 128, 128, 128]
+                _ => [255]
+        5 =>
+            match pick % 3:
+                0 => [195]
+                1 => [226, 130]
+                _ => [240, 159, 152]
+        6 =>
+            if p == 0: [128] else: [191]
+        7 =>
+            if p == 0: [226, 65, 172] else: [195, 195]
+        8 =>
+            if p == 0: [226, 130, 65] else: [240, 159, 65, 128]
+        _ =>
+            if p == 0: [240, 159, 152, 65] else: [244, 143, 191, 240]
 
 # The `k`th character of fill style `mix`: all ASCII (0), ASCII with a
 # multibyte character every 7 (1), all multibyte (2), or every kind (3).
 fn fill_char(mix: usize, k: usize) -> List[u8]:
     match mix % 4:
-        0 => utf8_char(if k % 3 == 0: 12 else: 0)
-        1 => if k % 7 == 6: utf8_char(k / 7 % 11 + 1) else: utf8_char(0)
+        0 =>
+            utf8_char(if k % 3 == 0: 12 else: 0)
+        1 =>
+            if k % 7 == 6: utf8_char(k / 7 % 11 + 1) else: utf8_char(0)
         2 => utf8_char(k % 11 + 1)
         _ => utf8_char(k)
 
@@ -427,7 +457,16 @@ fn background(k: usize, first: u8, last: u8) -> u8:
 # `a + gap`, each when inside the view. The buffer outside the view is
 # `first` (fill 0), `last` (fill 1), or alternating runs of `gap` of each
 # (fill 2), so that a scan that reads outside the view finds a pair there.
-fn pair_view(start: usize, len: usize, gap: usize, first: u8, last: u8, fill: usize, a: usize, d: usize) -> string:
+fn pair_view(
+    start: usize,
+    len: usize,
+    gap: usize,
+    first: u8,
+    last: u8,
+    fill: usize,
+    a: usize,
+    d: usize,
+) -> string:
     let mut bytes: List[u8] = []
     let g = if gap == 0: 1 else: gap
     let k: usize = 0
@@ -473,7 +512,17 @@ fn pair_case(c: &mut Choices) -> PairCase:
     let a: usize = c.int(0..=len + 1)
     let d: usize = c.int(0..=len + 1)
     let from: usize = c.int(0..=len + 2)
-    PairCase { start: start, len: len, gap: gap, first: first, last: last, fill: fill, a: a, d: d, from: from }
+    PairCase {
+        start: start,
+        len: len,
+        gap: gap,
+        first: first,
+        last: last,
+        fill: fill,
+        a: a,
+        d: d,
+        from: from,
+    }
 
 # A text of `len` bytes over `a` and `b` (or only `a` when `wide` is 1),
 # `start` bytes into its buffer, from a counter.
@@ -537,14 +586,31 @@ fn search_case(c: &mut Choices) -> Search:
     let needle_start: usize = c.int(0..32)
     let needle_len: usize = c.int(2..=20)
     let needle_seed: usize = c.int(0..1000)
-    Search { start: start, len: len, seed: seed, wide: wide, needle_start: needle_start, needle_len: needle_len, needle_seed: needle_seed }
+    Search {
+        start: start,
+        len: len,
+        seed: seed,
+        wide: wide,
+        needle_start: needle_start,
+        needle_len: needle_len,
+        needle_seed: needle_seed,
+    }
 
 tests:
     use std.testing.{assert_equal, it, it_prop_with}
 
-    it_prop_with("bytes_index_json gives what its reference body gives", gen=scan, cases=2000, prop=fn!(s: Scan):
-        text := view(s.start, s.len, s.at, s.byte)
-        assert_equal(bytes_index_json(text, s.from), reference_json(text, s.from), reason=debug(s))
+    it_prop_with(
+        "bytes_index_json gives what its reference body gives",
+        gen=scan,
+        cases=2000,
+        prop=fn!(s: Scan):
+            text := view(s.start, s.len, s.at, s.byte)
+            assert_equal(
+                bytes_index_json(text, s.from),
+                reference_json(text, s.from),
+                reason=debug(s),
+            )
+        ,
     )
 
     it("bytes_index_json agrees at every length, view start and 16-byte edge"):
@@ -560,7 +626,11 @@ tests:
                         got := bytes_index_json(text, 0)
                         want := reference_json(text, 0)
                         if got != want:
-                            assert_equal(got, want, reason="start $start, length $len, byte ${edge_byte(k)} at $at")
+                            assert_equal(
+                                got,
+                                want,
+                                reason="start $start, length $len, byte ${edge_byte(k)} at $at",
+                            )
                         k = k + 1
                     at = at + 1
                 len = len + 1
@@ -582,9 +652,18 @@ tests:
                 len = len + 1
             start = start + 1
 
-    it_prop_with("bytes_index gives what its reference body gives", gen=index_case, cases=2000, prop=fn!(s: Index):
-        text := needle_view(s.start, s.len, s.at, s.needle)
-        assert_equal(bytes_index(text, s.from, s.needle), reference_index(text, s.from, s.needle), reason=debug(s))
+    it_prop_with(
+        "bytes_index gives what its reference body gives",
+        gen=index_case,
+        cases=2000,
+        prop=fn!(s: Index):
+            text := needle_view(s.start, s.len, s.at, s.needle)
+            assert_equal(
+                bytes_index(text, s.from, s.needle),
+                reference_index(text, s.from, s.needle),
+                reason=debug(s),
+            )
+        ,
     )
 
     it("bytes_index agrees at every length, view start and 16-byte edge"):
@@ -601,7 +680,11 @@ tests:
                         got := bytes_index(text, 0, needle)
                         want := reference_index(text, 0, needle)
                         if got != want:
-                            assert_equal(got, want, reason="start $start, length $len, byte $needle at $at")
+                            assert_equal(
+                                got,
+                                want,
+                                reason="start $start, length $len, byte $needle at $at",
+                            )
                         k = k + 1
                     at = at + 1
                 len = len + 1
@@ -633,17 +716,30 @@ tests:
         assert_equal(bytes_index(text, 99, 9), 20, reason="bytes_index(text, 99, 9)")
         assert_equal(bytes_index("", 0, 9), 0, reason="bytes_index(\"\", 0, 9)")
 
-    it_prop_with("bytes_mismatch gives what its reference body gives", gen=mismatch_case, cases=2000, prop=fn!(m: Mismatch):
-        views := pair(m.left_start, m.left_len, m.right_start, m.right_len, m.at, m.pick)
-        left := views[0]
-        right := views[1]
-        assert_equal(bytes_mismatch(left, right), reference_mismatch(left, right), reason=debug(m))
-        assert_equal(bytes_mismatch(right, left), reference_mismatch(right, left), reason=debug(m))
-        assert_equal(left == right, reference_equal(left, right), reason=debug(m))
-        assert_equal(left != right, !reference_equal(left, right), reason=debug(m))
-        assert_equal(left < right, reference_compare(left, right) < 0, reason=debug(m))
-        assert_equal(left >= right, reference_compare(left, right) >= 0, reason=debug(m))
-        assert_equal(right > left, reference_compare(right, left) > 0, reason=debug(m))
+    it_prop_with(
+        "bytes_mismatch gives what its reference body gives",
+        gen=mismatch_case,
+        cases=2000,
+        prop=fn!(m: Mismatch):
+            views := pair(m.left_start, m.left_len, m.right_start, m.right_len, m.at, m.pick)
+            left := views[0]
+            right := views[1]
+            assert_equal(
+                bytes_mismatch(left, right),
+                reference_mismatch(left, right),
+                reason=debug(m),
+            )
+            assert_equal(
+                bytes_mismatch(right, left),
+                reference_mismatch(right, left),
+                reason=debug(m),
+            )
+            assert_equal(left == right, reference_equal(left, right), reason=debug(m))
+            assert_equal(left != right, !reference_equal(left, right), reason=debug(m))
+            assert_equal(left < right, reference_compare(left, right) < 0, reason=debug(m))
+            assert_equal(left >= right, reference_compare(left, right) >= 0, reason=debug(m))
+            assert_equal(right > left, reference_compare(right, left) > 0, reason=debug(m))
+        ,
     )
 
     it("bytes_mismatch agrees at every pair of view starts and 16-byte edge"):
@@ -671,7 +767,11 @@ tests:
                         got := bytes_mismatch(views[0], views[1])
                         want := reference_mismatch(views[0], views[1])
                         if got != want:
-                            assert_equal(got, want, reason="starts $left_start and $right_start, lengths $left_len and $right_len, at $at")
+                            assert_equal(
+                                got,
+                                want,
+                                reason="starts $left_start and $right_start, lengths $left_len and $right_len, at $at",
+                            )
                         place = place + 1
                     shape = shape + 1
                 right_start = right_start + 1
@@ -685,7 +785,14 @@ tests:
                 shorter := if left_len < right_len: left_len else: right_len
                 let at: usize = 0
                 while at <= shorter:
-                    views := pair((left_len * 5 + at) % 32, left_len, (right_len * 3 + at) % 32, right_len, at, left_len + at)
+                    views := pair(
+                        (left_len * 5 + at) % 32,
+                        left_len,
+                        (right_len * 3 + at) % 32,
+                        right_len,
+                        at,
+                        left_len + at,
+                    )
                     got := bytes_mismatch(views[0], views[1])
                     want := reference_mismatch(views[0], views[1])
                     if got != want:
@@ -713,10 +820,15 @@ tests:
         assert_equal("abc" == "abc", true, reason="equal")
         assert_equal("abc" == "abd", false, reason="not equal")
 
-    it_prop_with("utf8_valid_len and from_utf8 give what the reference loop gives", gen=utf8_case, cases=2000, prop=fn!(u: Utf8Case):
-        bytes := utf8_bytes(u.mix, u.at, u.kind, u.pick, u.len)
-        assert_equal(utf8_valid_len(bytes), reference_valid_len(bytes), reason=debug(u))
-        assert_equal(decode(bytes), reference_decode(bytes), reason=debug(u))
+    it_prop_with(
+        "utf8_valid_len and from_utf8 give what the reference loop gives",
+        gen=utf8_case,
+        cases=2000,
+        prop=fn!(u: Utf8Case):
+            bytes := utf8_bytes(u.mix, u.at, u.kind, u.pick, u.len)
+            assert_equal(utf8_valid_len(bytes), reference_valid_len(bytes), reason=debug(u))
+            assert_equal(decode(bytes), reference_decode(bytes), reason=debug(u))
+        ,
     )
 
     it("utf8_valid_len and from_utf8 agree for every malformed category at every offset"):
@@ -732,18 +844,28 @@ tests:
                         got := utf8_valid_len(bytes)
                         want := reference_valid_len(bytes)
                         if got != want || want != at:
-                            assert_equal(got, want, reason="mix $mix, kind $kind, pick $pick, at $at")
+                            assert_equal(
+                                got,
+                                want,
+                                reason="mix $mix, kind $kind, pick $pick, at $at",
+                            )
                             assert_equal(want, at, reason="the sequence starts at $at")
                         decoded := decode(bytes)
                         expected := reference_decode(bytes)
                         if decoded != expected:
-                            assert_equal(decoded, expected, reason="mix $mix, kind $kind, pick $pick, at $at")
+                            assert_equal(
+                                decoded,
+                                expected,
+                                reason="mix $mix, kind $kind, pick $pick, at $at",
+                            )
                         at = at + 1
                     pick = pick + 1
                 kind = kind + 1
             mix = mix + 1
 
-    it("utf8_valid_len accepts valid input of every length and characters across each 16-byte edge"):
+    it(
+        "utf8_valid_len accepts valid input of every length and characters across each 16-byte edge",
+    ):
         let mix: usize = 0
         while mix < 4:
             let len: usize = 0
@@ -751,7 +873,11 @@ tests:
                 let seed: usize = 0
                 while seed < 4:
                     bytes := utf8_bytes(mix, seed, 10, 0, len)
-                    assert_equal(utf8_valid_len(bytes), len, reason="mix $mix, length $len, seed $seed")
+                    assert_equal(
+                        utf8_valid_len(bytes),
+                        len,
+                        reason="mix $mix, length $len, seed $seed",
+                    )
                     seed = seed + 1
                 len = len + 1
             mix = mix + 1
@@ -778,8 +904,16 @@ tests:
                     while j < at + cut:
                         short.push(bytes[j])
                         j = j + 1
-                    assert_equal(utf8_valid_len(short), at, reason="character $k at $at cut after $cut")
-                    assert_equal(decode(short), reference_decode(short), reason="character $k at $at cut after $cut")
+                    assert_equal(
+                        utf8_valid_len(short),
+                        at,
+                        reason="character $k at $at cut after $cut",
+                    )
+                    assert_equal(
+                        decode(short),
+                        reference_decode(short),
+                        reason="character $k at $at cut after $cut",
+                    )
                     cut = cut + 1
                 at = at + 1
             k = k + 1
@@ -792,9 +926,18 @@ tests:
         assert_equal(decode([97, 226, 130]), .Err(Utf8Error.Truncated(1)), reason="truncated")
         assert_equal(decode([226, 130, 172]), .Ok(3), reason="euro")
 
-    it_prop_with("bytes_index_pair gives what its reference body gives", gen=pair_case, cases=3000, prop=fn!(s: PairCase):
-        text := pair_view(s.start, s.len, s.gap, s.first, s.last, s.fill, s.a, s.d)
-        assert_equal(bytes_index_pair(text, s.from, s.first, s.last, s.gap), reference_pair(text, s.from, s.first, s.last, s.gap), reason=debug(s))
+    it_prop_with(
+        "bytes_index_pair gives what its reference body gives",
+        gen=pair_case,
+        cases=3000,
+        prop=fn!(s: PairCase):
+            text := pair_view(s.start, s.len, s.gap, s.first, s.last, s.fill, s.a, s.d)
+            assert_equal(
+                bytes_index_pair(text, s.from, s.first, s.last, s.gap),
+                reference_pair(text, s.from, s.first, s.last, s.gap),
+                reason=debug(s),
+            )
+        ,
     )
 
     it("bytes_index_pair agrees at every length, view start, gap and match position"):
@@ -811,8 +954,10 @@ tests:
                         # and the end, and none (`len + 1` is outside).
                         a := match m:
                             0 => 0
-                            1 => if len > gap: len - gap - 1 else: 0
-                            2 => if len > gap: len - gap else: 0
+                            1 =>
+                                if len > gap: len - gap - 1 else: 0
+                            2 =>
+                                if len > gap: len - gap else: 0
                             3 => len / 2
                             4 => len
                             _ => len + 1
@@ -822,7 +967,11 @@ tests:
                         got := bytes_index_pair(text, 0, first, last, gap)
                         want := reference_pair(text, 0, first, last, gap)
                         if got != want:
-                            assert_equal(got, want, reason="start $start, length $len, gap $gap, match $a, bytes $first $last")
+                            assert_equal(
+                                got,
+                                want,
+                                reason="start $start, length $len, gap $gap, match $a, bytes $first $last",
+                            )
                         m = m + 1
                     g = g + 1
                 len = len + 1
@@ -842,7 +991,11 @@ tests:
                         got := bytes_index_pair(text, from, 255, 128, gap)
                         want := reference_pair(text, from, 255, 128, gap)
                         if got != want:
-                            assert_equal(got, want, reason="start $start, length $len, gap $gap, from $from")
+                            assert_equal(
+                                got,
+                                want,
+                                reason="start $start, length $len, gap $gap, from $from",
+                            )
                         from = from + 1
                     g = g + 1
                 len = len + 1
@@ -862,23 +1015,72 @@ tests:
         assert_equal(bytes_index_pair(text, 99, 1, 9, 1), 21, reason="from past the end")
         assert_equal(bytes_index_pair("", 0, 1, 9, 0), 0, reason="empty")
 
-    it_prop_with("find and split with a multi-byte needle give what a naive search gives", gen=search_case, cases=3000, prop=fn!(s: Search):
-        text := ab_text(s.start, s.len, s.seed, s.wide)
-        needle := ab_text(s.needle_start, s.needle_len, s.needle_seed, s.wide % 2)
-        assert_equal(text.find(needle), naive_find(text, needle, 0), reason="find in ${debug(s)}")
-        assert_equal(text.split(needle), naive_split(text, needle), reason="split in ${debug(s)}")
-        assert_equal(text.contains(needle), naive_find(text, needle, 0) != .None, reason="contains in ${debug(s)}")
+    it_prop_with(
+        "find and split with a multi-byte needle give what a naive search gives",
+        gen=search_case,
+        cases=3000,
+        prop=fn!(s: Search):
+            text := ab_text(s.start, s.len, s.seed, s.wide)
+            needle := ab_text(s.needle_start, s.needle_len, s.needle_seed, s.wide % 2)
+            assert_equal(
+                text.find(needle),
+                naive_find(text, needle, 0),
+                reason="find in ${debug(s)}",
+            )
+            assert_equal(
+                text.split(needle),
+                naive_split(text, needle),
+                reason="split in ${debug(s)}",
+            )
+            assert_equal(
+                text.contains(needle),
+                naive_find(text, needle, 0) != .None,
+                reason="contains in ${debug(s)}",
+            )
+        ,
     )
 
     it("find and split agree with a naive search on overlapping and repeated patterns"):
-        texts := ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "abababababababababababababababababababab", "aabaabaabaabaabaabaabaabaabaabaab", "abaababaabaababaabaababaabaababaab", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"]
-        needles := ["aa", "aaa", "ab", "aba", "abab", "aab", "aabaab", "abaab", "ba", "aaaaaaaaaaaaaaaaaab", "abababababababababab", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "abaababaabaababaab", "b", "baab"]
+        texts := [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "abababababababababababababababababababab",
+            "aabaabaabaabaabaabaabaabaabaabaab",
+            "abaababaabaababaabaababaabaababaab",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+        ]
+        needles := [
+            "aa",
+            "aaa",
+            "ab",
+            "aba",
+            "abab",
+            "aab",
+            "aabaab",
+            "abaab",
+            "ba",
+            "aaaaaaaaaaaaaaaaaab",
+            "abababababababababab",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+            "abaababaabaababaab",
+            "b",
+            "baab",
+        ]
         for text in texts:
             for needle in needles:
-                assert_equal(text.find(needle), naive_find(text, needle, 0), reason="find $needle in $text")
-                assert_equal(text.split(needle), naive_split(text, needle), reason="split $needle in $text")
+                assert_equal(
+                    text.find(needle),
+                    naive_find(text, needle, 0),
+                    reason="find $needle in $text",
+                )
+                assert_equal(
+                    text.split(needle),
+                    naive_split(text, needle),
+                    reason="split $needle in $text",
+                )
 
-    it("find and split agree with a naive search on long dense texts, across the hand-over between loops"):
+    it(
+        "find and split agree with a naive search on long dense texts, across the hand-over between loops",
+    ):
         let wide: usize = 0
         while wide < 3:
             text := ab_text(5, 30000, 7 + wide, wide)
@@ -887,15 +1089,31 @@ tests:
                 let width: usize = 2
                 while width <= 12:
                     needle := bytes_slice(text, at, at + width)
-                    assert_equal(text.find(needle), naive_find(text, needle, 0), reason="find $width bytes at $at, wide $wide")
+                    assert_equal(
+                        text.find(needle),
+                        naive_find(text, needle, 0),
+                        reason="find $width bytes at $at, wide $wide",
+                    )
                     width = width + 5
                 at = at + 3989
             needle := bytes_slice(text, 29000, 29011)
             assert_equal(text.split(needle), naive_split(text, needle), reason="split wide $wide")
             # A `c` inside the needle: no match in the text, then one at the end.
             for pattern in ["acb", "abcbbbbbba", "aaacaaaa", "bcbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]:
-                assert_equal(text.find(pattern), naive_find(text, pattern, 0), reason="find $pattern, wide $wide")
+                assert_equal(
+                    text.find(pattern),
+                    naive_find(text, pattern, 0),
+                    reason="find $pattern, wide $wide",
+                )
                 ended := text + pattern
-                assert_equal(ended.find(pattern), .Some(30000), reason="find $pattern at the end, wide $wide")
-                assert_equal(ended.split(pattern), [text, ""], reason="split $pattern at the end, wide $wide")
+                assert_equal(
+                    ended.find(pattern),
+                    .Some(30000),
+                    reason="find $pattern at the end, wide $wide",
+                )
+                assert_equal(
+                    ended.split(pattern),
+                    [text, ""],
+                    reason="split $pattern at the end, wide $wide",
+                )
             wide = wide + 1

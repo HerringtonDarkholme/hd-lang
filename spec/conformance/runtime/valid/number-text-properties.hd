@@ -29,17 +29,40 @@ fn reference_integer[N < Integer](value: N, radix: u32) -> string:
     digits := reference_unsigned(magnitude, radix)
     if negative: "-" + digits else: digits
 
-fn check_integer[N < Integer & Parse[Error = ParseNumberError] & Debug](value: N, reader: fn(string, u32) -> Result[N, ParseNumberError]) -> void:
+fn check_integer[N < Integer & Parse[Error = ParseNumberError] & Debug](
+    value: N,
+    reader: fn(string, u32) -> Result[N, ParseNumberError],
+) -> void:
     decimal := reference_integer(value, 10)
     assert_equal(value.to_string(), decimal, reason="decimal formatting agrees with digit division")
-    assert_equal(decimal.parse::[N](), .Ok(value), reason="decimal parsing returns the original width")
+    assert_equal(
+        decimal.parse::[N](),
+        .Ok(value),
+        reason="decimal parsing returns the original width",
+    )
     if value >= N::zero():
-        assert_equal(("+" + decimal).parse::[N](), .Ok(value), reason="an explicit plus is accepted")
+        assert_equal(
+            ("+" + decimal).parse::[N](),
+            .Ok(value),
+            reason="an explicit plus is accepted",
+        )
     for radix in u32(2)..u32(37):
         expected := reference_integer(value, radix)
-        assert_equal(value.to_radix(radix), expected, reason="radix formatting agrees with digit division")
-        assert_equal(reader(expected, radix), .Ok(value), reason="radix text returns the original width")
-        assert_equal(reader(expected.upper(), radix), .Ok(value), reason="uppercase letters have the same digit values")
+        assert_equal(
+            value.to_radix(radix),
+            expected,
+            reason="radix formatting agrees with digit division",
+        )
+        assert_equal(
+            reader(expected, radix),
+            .Ok(value),
+            reason="radix text returns the original width",
+        )
+        assert_equal(
+            reader(expected.upper(), radix),
+            .Ok(value),
+            reason="uppercase letters have the same digit values",
+        )
 
 @derive(Debug)
 enum Width:
@@ -53,7 +76,9 @@ enum Width:
     U64
     Usize
 
-fn decimal[N < Parse[Error = ParseNumberError] & Display](text: string) -> Result[string, ParseNumberError]:
+fn decimal[N < Parse[Error = ParseNumberError] & Display](
+    text: string,
+) -> Result[string, ParseNumberError]:
     match text.parse::[N]():
         .Ok(value) => .Ok(value.to_string())
         .Err(error) => .Err(error)
@@ -70,7 +95,9 @@ fn parse_width(width: Width, text: string) -> Result[string, ParseNumberError]:
         .U64 => decimal::[u64](text)
         .Usize => decimal::[usize](text)
 
-fn number_text[N < Display](result: Result[N, ParseNumberError]) -> Result[string, ParseNumberError]:
+fn number_text[N < Display](
+    result: Result[N, ParseNumberError],
+) -> Result[string, ParseNumberError]:
     match result:
         .Ok(value) => .Ok(value.to_string())
         .Err(error) => .Err(error)
@@ -164,7 +191,11 @@ fn check_float(text: string, expected: FloatExpected) -> void:
     match expected:
         .Bits(bits) =>
             value := text.parse::[f64]().expect("valid float text")
-            assert_equal(value.to_bits(), bits, reason="the exact IEEE value, including zero's sign")
+            assert_equal(
+                value.to_bits(),
+                bits,
+                reason="the exact IEEE value, including zero's sign",
+            )
         .Nan => assert(text.parse::[f64]().expect("NaN text").is_nan(), reason="special NaN word")
         .Error(error) =>
             match text.parse::[f64]():
@@ -218,83 +249,219 @@ fn float_edges() -> List[(string, FloatExpected)]:
     ]
 
 tests:
-    it_prop("decimal and all radices i8", cases=100, examples=[i8(-128), i8(127), i8(0)], prop=fn!(value: i8):
-        check_integer(value, fn(text: string, radix: u32) -> Result[i8, ParseNumberError]: i8::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices i8",
+        cases=100,
+        examples=[i8(-128), i8(127), i8(0)],
+        prop=fn!(value: i8):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[i8, ParseNumberError]:
+                    i8::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices i16", cases=100, examples=[i16(-32768), i16(32767), i16(0)], prop=fn!(value: i16):
-        check_integer(value, fn(text: string, radix: u32) -> Result[i16, ParseNumberError]: i16::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices i16",
+        cases=100,
+        examples=[i16(-32768), i16(32767), i16(0)],
+        prop=fn!(value: i16):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[i16, ParseNumberError]:
+                    i16::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices i32", cases=100, examples=[i32(-2147483648), i32(2147483647), i32(0)], prop=fn!(value: i32):
-        check_integer(value, fn(text: string, radix: u32) -> Result[i32, ParseNumberError]: i32::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices i32",
+        cases=100,
+        examples=[i32(-2147483648), i32(2147483647), i32(0)],
+        prop=fn!(value: i32):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[i32, ParseNumberError]:
+                    i32::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices i64", cases=100, examples=[i64(-9223372036854775807) - 1, i64(9223372036854775807), i64(0)], prop=fn!(value: i64):
-        check_integer(value, fn(text: string, radix: u32) -> Result[i64, ParseNumberError]: i64::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices i64",
+        cases=100,
+        examples=[i64(-9223372036854775807) - 1, i64(9223372036854775807), i64(0)],
+        prop=fn!(value: i64):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[i64, ParseNumberError]:
+                    i64::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices u8", cases=100, examples=[u8(0), u8(255), u8(0)], prop=fn!(value: u8):
-        check_integer(value, fn(text: string, radix: u32) -> Result[u8, ParseNumberError]: u8::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices u8",
+        cases=100,
+        examples=[u8(0), u8(255), u8(0)],
+        prop=fn!(value: u8):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[u8, ParseNumberError]:
+                    u8::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices u16", cases=100, examples=[u16(0), u16(65535), u16(0)], prop=fn!(value: u16):
-        check_integer(value, fn(text: string, radix: u32) -> Result[u16, ParseNumberError]: u16::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices u16",
+        cases=100,
+        examples=[u16(0), u16(65535), u16(0)],
+        prop=fn!(value: u16):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[u16, ParseNumberError]:
+                    u16::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices u32", cases=100, examples=[u32(0), u32(4294967295), u32(0)], prop=fn!(value: u32):
-        check_integer(value, fn(text: string, radix: u32) -> Result[u32, ParseNumberError]: u32::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices u32",
+        cases=100,
+        examples=[u32(0), u32(4294967295), u32(0)],
+        prop=fn!(value: u32):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[u32, ParseNumberError]:
+                    u32::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices u64", cases=100, examples=[u64(0), u64(18446744073709551615), u64(0)], prop=fn!(value: u64):
-        check_integer(value, fn(text: string, radix: u32) -> Result[u64, ParseNumberError]: u64::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices u64",
+        cases=100,
+        examples=[u64(0), u64(18446744073709551615), u64(0)],
+        prop=fn!(value: u64):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[u64, ParseNumberError]:
+                    u64::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_prop("decimal and all radices usize", cases=100, examples=[usize(0), usize(4294967295), usize(0)], prop=fn!(value: usize):
-        check_integer(value, fn(text: string, radix: u32) -> Result[usize, ParseNumberError]: usize::parse_radix(text, radix))
+    it_prop(
+        "decimal and all radices usize",
+        cases=100,
+        examples=[usize(0), usize(4294967295), usize(0)],
+        prop=fn!(value: usize):
+            check_integer(
+                value,
+                fn(text: string, radix: u32) -> Result[usize, ParseNumberError]:
+                    usize::parse_radix(text, radix)
+                ,
+            )
+        ,
     )
 
-    it_each("integer range and sign adversaries", integer_edges(), body=fn!(row: (Width, string, Result[string, ParseNumberError])):
-        assert_equal(parse_width(row._0, row._1), row._2, reason="the exact width and input text")
+    it_each(
+        "integer range and sign adversaries",
+        integer_edges(),
+        body=fn!(row: (Width, string, Result[string, ParseNumberError])):
+            assert_equal(
+                parse_width(row._0, row._1),
+                row._2,
+                reason="the exact width and input text",
+            )
+        ,
     )
 
-    it_each("integer grammar adversaries", [
-        ("", ParseNumberError.Empty),
-        ("+", ParseNumberError.InvalidDigit(1)),
-        (" 1", ParseNumberError.InvalidDigit(0)),
-        ("1 ", ParseNumberError.InvalidDigit(1)),
-        ("1_0", ParseNumberError.InvalidDigit(1)),
-        ("0x1", ParseNumberError.InvalidDigit(1)),
-        ("1u8", ParseNumberError.InvalidDigit(1)),
-        ("é1", ParseNumberError.InvalidDigit(0)),
-        ("1é", ParseNumberError.InvalidDigit(1)),
-    ], body=fn!(row: (string, ParseNumberError)):
-        for width in [Width.I8, Width.I16, Width.I32, Width.I64, Width.U8, Width.U16, Width.U32, Width.U64, Width.Usize]:
-            assert_equal(parse_width(width, row._0), .Err(row._1), reason="every width rejects this grammar")
+    it_each(
+        "integer grammar adversaries",
+        [
+            ("", ParseNumberError.Empty),
+            ("+", ParseNumberError.InvalidDigit(1)),
+            (" 1", ParseNumberError.InvalidDigit(0)),
+            ("1 ", ParseNumberError.InvalidDigit(1)),
+            ("1_0", ParseNumberError.InvalidDigit(1)),
+            ("0x1", ParseNumberError.InvalidDigit(1)),
+            ("1u8", ParseNumberError.InvalidDigit(1)),
+            ("é1", ParseNumberError.InvalidDigit(0)),
+            ("1é", ParseNumberError.InvalidDigit(1)),
+        ],
+        body=fn!(row: (string, ParseNumberError)):
+            for width in [
+                Width.I8,
+                Width.I16,
+                Width.I32,
+                Width.I64,
+                Width.U8,
+                Width.U16,
+                Width.U32,
+                Width.U64,
+                Width.Usize,
+            ]:
+                assert_equal(
+                    parse_width(width, row._0),
+                    .Err(row._1),
+                    reason="every width rejects this grammar",
+                )
+        ,
     )
 
-    it_each("radix grammar and range adversaries", radix_edges(), body=fn!(row: (Width, string, u32, Result[string, ParseNumberError])):
-        assert_equal(parse_radix_width(row._0, row._1, row._2), row._3, reason="the radix reader's exact result")
+    it_each(
+        "radix grammar and range adversaries",
+        radix_edges(),
+        body=fn!(row: (Width, string, u32, Result[string, ParseNumberError])):
+            assert_equal(
+                parse_radix_width(row._0, row._1, row._2),
+                row._3,
+                reason="the radix reader's exact result",
+            )
+        ,
     )
 
-    it_prop("finite f64 shortest text preserves all bits", cases=100, examples=[
-        Finite { bits: 0 },
-        Finite { bits: 0x8000000000000000 },
-        Finite { bits: 1 },
-        Finite { bits: 0x8000000000000001 },
-        Finite { bits: 0x000fffffffffffff },
-        Finite { bits: 0x0010000000000000 },
-        Finite { bits: 0x3fb999999999999a },
-        Finite { bits: 0x3ff0000000000001 },
-        Finite { bits: 0x7fefffffffffffff },
-        Finite { bits: 0xffefffffffffffff },
-    ], prop=fn!(sample: Finite):
-        value := f64::from_bits(sample.bits)
-        assert(value.is_finite(), reason="the generator always supplies a finite value")
-        found := value.to_string().parse::[f64]().expect("finite display parses")
-        assert_equal(found.to_bits(), sample.bits, reason="IEEE bits are an independent exact-value oracle")
+    it_prop(
+        "finite f64 shortest text preserves all bits",
+        cases=100,
+        examples=[
+            Finite { bits: 0 },
+            Finite { bits: 0x8000000000000000 },
+            Finite { bits: 1 },
+            Finite { bits: 0x8000000000000001 },
+            Finite { bits: 0x000fffffffffffff },
+            Finite { bits: 0x0010000000000000 },
+            Finite { bits: 0x3fb999999999999a },
+            Finite { bits: 0x3ff0000000000001 },
+            Finite { bits: 0x7fefffffffffffff },
+            Finite { bits: 0xffefffffffffffff },
+        ],
+        prop=fn!(sample: Finite):
+            value := f64::from_bits(sample.bits)
+            assert(value.is_finite(), reason="the generator always supplies a finite value")
+            found := value.to_string().parse::[f64]().expect("finite display parses")
+            assert_equal(
+                found.to_bits(),
+                sample.bits,
+                reason="IEEE bits are an independent exact-value oracle",
+            )
+        ,
     )
 
-    it_each("float grammar and IEEE adversaries", float_edges(), body=fn!(row: (string, FloatExpected)):
-        check_float(row._0, row._1)
+    it_each(
+        "float grammar and IEEE adversaries",
+        float_edges(),
+        body=fn!(row: (string, FloatExpected)): check_float(row._0, row._1)
+        ,
     )

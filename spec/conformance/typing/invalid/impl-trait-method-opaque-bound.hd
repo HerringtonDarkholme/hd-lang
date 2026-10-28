@@ -2,4 +2,5 @@ trait Source:
     fn hidden(&self) -> impl Display
 struct Value: pass
 impl Source for Value:
-    fn hidden(&self) -> impl Eq: +1 # diagnostic: unsatisfied-trait-bound
+    fn hidden(&self) -> impl Eq: # diagnostic: unsatisfied-trait-bound
+        +1

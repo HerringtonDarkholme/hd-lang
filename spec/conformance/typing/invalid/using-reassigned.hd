@@ -11,4 +11,4 @@ impl Disposable for Lock:
 
 fn swap!() -> void:
     using lock = Lock { name: "a" }
-    lock = Lock { name: "b" }  # diagnostic: non-reassignable-binding
+    lock = Lock { name: "b" } # diagnostic: non-reassignable-binding

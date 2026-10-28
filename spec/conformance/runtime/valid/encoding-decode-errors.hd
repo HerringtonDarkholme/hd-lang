@@ -12,62 +12,220 @@ tests:
 
     it("hex errors"):
         assert_equal(hex_decode("abc"), .Err(DecodeError.InvalidLength(3)), reason="odd length")
-        assert_equal(hex_decode("0g"), .Err(DecodeError.InvalidCharacter(1)), reason="not a hex digit")
+        assert_equal(
+            hex_decode("0g"),
+            .Err(DecodeError.InvalidCharacter(1)),
+            reason="not a hex digit",
+        )
         assert_equal(hex_decode("é00"), .Err(DecodeError.InvalidCharacter(0)), reason="not ASCII")
-        assert_equal(hex_decode("é0"), .Err(DecodeError.InvalidLength(3)), reason="the length in bytes")
-        assert_equal(hex_decode("zz1"), .Err(DecodeError.InvalidLength(3)), reason="the length comes first")
-        assert_equal(hex_decode("0x1f"), .Err(DecodeError.InvalidCharacter(1)), reason="no radix prefix")
+        assert_equal(
+            hex_decode("é0"),
+            .Err(DecodeError.InvalidLength(3)),
+            reason="the length in bytes",
+        )
+        assert_equal(
+            hex_decode("zz1"),
+            .Err(DecodeError.InvalidLength(3)),
+            reason="the length comes first",
+        )
+        assert_equal(
+            hex_decode("0x1f"),
+            .Err(DecodeError.InvalidCharacter(1)),
+            reason="no radix prefix",
+        )
 
     it("base64 length errors"):
-        assert_equal(Base64.Standard.decode("Zg="), .Err(DecodeError.InvalidLength(3)), reason="short padding")
-        assert_equal(Base64.Standard.decode("Zg"), .Err(DecodeError.InvalidLength(2)), reason="no padding")
-        assert_equal(Base64.Standard.decode("Zm9v\n"), .Err(DecodeError.InvalidLength(5)), reason="a line break")
-        assert_equal(Base64.Standard.decode("Zé=="), .Err(DecodeError.InvalidLength(5)), reason="the length in bytes")
-        assert_equal(Base64.Standard.decode("Zé="), .Err(DecodeError.InvalidCharacter(1)), reason="not in the alphabet")
+        assert_equal(
+            Base64.Standard.decode("Zg="),
+            .Err(DecodeError.InvalidLength(3)),
+            reason="short padding",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zg"),
+            .Err(DecodeError.InvalidLength(2)),
+            reason="no padding",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zm9v\n"),
+            .Err(DecodeError.InvalidLength(5)),
+            reason="a line break",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zé=="),
+            .Err(DecodeError.InvalidLength(5)),
+            reason="the length in bytes",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zé="),
+            .Err(DecodeError.InvalidCharacter(1)),
+            reason="not in the alphabet",
+        )
 
     it("base64 character errors"):
-        assert_equal(Base64.Standard.decode("Zm-_"), .Err(DecodeError.InvalidCharacter(2)), reason="the URL-safe symbols")
-        assert_equal(Base64.Standard.decode("Zm9v!A=="), .Err(DecodeError.InvalidCharacter(4)), reason="punctuation")
-        assert_equal(Base64.Standard.decode("!h=="), .Err(DecodeError.InvalidCharacter(0)), reason="the smallest position wins")
+        assert_equal(
+            Base64.Standard.decode("Zm-_"),
+            .Err(DecodeError.InvalidCharacter(2)),
+            reason="the URL-safe symbols",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zm9v!A=="),
+            .Err(DecodeError.InvalidCharacter(4)),
+            reason="punctuation",
+        )
+        assert_equal(
+            Base64.Standard.decode("!h=="),
+            .Err(DecodeError.InvalidCharacter(0)),
+            reason="the smallest position wins",
+        )
 
     it("base64 padding errors"):
-        assert_equal(Base64.Standard.decode("Zg=a"), .Err(DecodeError.InvalidPadding(2)), reason="= before a symbol")
-        assert_equal(Base64.Standard.decode("Z==="), .Err(DecodeError.InvalidPadding(1)), reason="three =")
-        assert_equal(Base64.Standard.decode("===="), .Err(DecodeError.InvalidPadding(0)), reason="only =")
-        assert_equal(Base64.Standard.decode("Zg==Zg=="), .Err(DecodeError.InvalidPadding(2)), reason="= inside the text")
-        assert_equal(Base64.Standard.decode("Zh=="), .Err(DecodeError.InvalidPadding(1)), reason="pad bits under ==")
-        assert_equal(Base64.Standard.decode("Zm9="), .Err(DecodeError.InvalidPadding(2)), reason="pad bits under =")
+        assert_equal(
+            Base64.Standard.decode("Zg=a"),
+            .Err(DecodeError.InvalidPadding(2)),
+            reason="= before a symbol",
+        )
+        assert_equal(
+            Base64.Standard.decode("Z==="),
+            .Err(DecodeError.InvalidPadding(1)),
+            reason="three =",
+        )
+        assert_equal(
+            Base64.Standard.decode("===="),
+            .Err(DecodeError.InvalidPadding(0)),
+            reason="only =",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zg==Zg=="),
+            .Err(DecodeError.InvalidPadding(2)),
+            reason="= inside the text",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zh=="),
+            .Err(DecodeError.InvalidPadding(1)),
+            reason="pad bits under ==",
+        )
+        assert_equal(
+            Base64.Standard.decode("Zm9="),
+            .Err(DecodeError.InvalidPadding(2)),
+            reason="pad bits under =",
+        )
 
     it("padded encodings need the padding"):
-        assert_equal(Base64.Url.decode("Zg"), .Err(DecodeError.InvalidLength(2)), reason="Url without padding")
-        assert_equal(Base64.Url.decode("Zm9vYmE"), .Err(DecodeError.InvalidLength(7)), reason="Url without padding")
-        assert_equal(Base64.Url.decode("Zg=a"), .Err(DecodeError.InvalidPadding(2)), reason="= before a symbol")
-        assert_equal(Base64.Url.decode("Zh=="), .Err(DecodeError.InvalidPadding(1)), reason="pad bits")
+        assert_equal(
+            Base64.Url.decode("Zg"),
+            .Err(DecodeError.InvalidLength(2)),
+            reason="Url without padding",
+        )
+        assert_equal(
+            Base64.Url.decode("Zm9vYmE"),
+            .Err(DecodeError.InvalidLength(7)),
+            reason="Url without padding",
+        )
+        assert_equal(
+            Base64.Url.decode("Zg=a"),
+            .Err(DecodeError.InvalidPadding(2)),
+            reason="= before a symbol",
+        )
+        assert_equal(
+            Base64.Url.decode("Zh=="),
+            .Err(DecodeError.InvalidPadding(1)),
+            reason="pad bits",
+        )
 
     it("no-pad encodings reject ="):
-        assert_equal(Base64.StandardNoPad.decode("Zg=="), .Err(DecodeError.InvalidPadding(2)), reason="padded text")
-        assert_equal(Base64.UrlNoPad.decode("Zm8="), .Err(DecodeError.InvalidPadding(3)), reason="padded text")
-        assert_equal(Base64.UrlNoPad.decode("=g"), .Err(DecodeError.InvalidPadding(0)), reason="= first")
-        assert_equal(Base64.UrlNoPad.decode("Zm9v=A"), .Err(DecodeError.InvalidPadding(4)), reason="= inside the text")
-        assert_equal(Base64.UrlNoPad.decode("!h=="), .Err(DecodeError.InvalidCharacter(0)), reason="the smallest position wins")
+        assert_equal(
+            Base64.StandardNoPad.decode("Zg=="),
+            .Err(DecodeError.InvalidPadding(2)),
+            reason="padded text",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Zm8="),
+            .Err(DecodeError.InvalidPadding(3)),
+            reason="padded text",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("=g"),
+            .Err(DecodeError.InvalidPadding(0)),
+            reason="= first",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Zm9v=A"),
+            .Err(DecodeError.InvalidPadding(4)),
+            reason="= inside the text",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("!h=="),
+            .Err(DecodeError.InvalidCharacter(0)),
+            reason="the smallest position wins",
+        )
 
     it("no-pad encodings check the length and the pad bits"):
-        assert_equal(Base64.StandardNoPad.decode("Z"), .Err(DecodeError.InvalidLength(1)), reason="one symbol")
-        assert_equal(Base64.UrlNoPad.decode("Zm9vY"), .Err(DecodeError.InvalidLength(5)), reason="one symbol over")
-        assert_equal(Base64.UrlNoPad.decode("Z\n"), .Err(DecodeError.InvalidCharacter(1)), reason="a line break")
-        assert_equal(Base64.UrlNoPad.decode("Zm9vY\n"), .Err(DecodeError.InvalidCharacter(5)), reason="a line break")
-        assert_equal(Base64.StandardNoPad.decode("Zh"), .Err(DecodeError.InvalidPadding(1)), reason="pad bits of two symbols")
-        assert_equal(Base64.UrlNoPad.decode("Zm9"), .Err(DecodeError.InvalidPadding(2)), reason="pad bits of three symbols")
-        assert_equal(Base64.UrlNoPad.decode("Zé"), .Err(DecodeError.InvalidCharacter(1)), reason="not in the alphabet")
+        assert_equal(
+            Base64.StandardNoPad.decode("Z"),
+            .Err(DecodeError.InvalidLength(1)),
+            reason="one symbol",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Zm9vY"),
+            .Err(DecodeError.InvalidLength(5)),
+            reason="one symbol over",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Z\n"),
+            .Err(DecodeError.InvalidCharacter(1)),
+            reason="a line break",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Zm9vY\n"),
+            .Err(DecodeError.InvalidCharacter(5)),
+            reason="a line break",
+        )
+        assert_equal(
+            Base64.StandardNoPad.decode("Zh"),
+            .Err(DecodeError.InvalidPadding(1)),
+            reason="pad bits of two symbols",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Zm9"),
+            .Err(DecodeError.InvalidPadding(2)),
+            reason="pad bits of three symbols",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Zé"),
+            .Err(DecodeError.InvalidCharacter(1)),
+            reason="not in the alphabet",
+        )
 
     it("each alphabet rejects the other's symbols"):
-        assert_equal(Base64.Standard.decode("Zm-_"), .Err(DecodeError.InvalidCharacter(2)), reason="- in Standard")
-        assert_equal(Base64.StandardNoPad.decode("Zm_v"), .Err(DecodeError.InvalidCharacter(2)), reason="_ in StandardNoPad")
-        assert_equal(Base64.Url.decode("Zm+/"), .Err(DecodeError.InvalidCharacter(2)), reason="+ in Url")
-        assert_equal(Base64.UrlNoPad.decode("Zm9/"), .Err(DecodeError.InvalidCharacter(3)), reason="/ in UrlNoPad")
+        assert_equal(
+            Base64.Standard.decode("Zm-_"),
+            .Err(DecodeError.InvalidCharacter(2)),
+            reason="- in Standard",
+        )
+        assert_equal(
+            Base64.StandardNoPad.decode("Zm_v"),
+            .Err(DecodeError.InvalidCharacter(2)),
+            reason="_ in StandardNoPad",
+        )
+        assert_equal(
+            Base64.Url.decode("Zm+/"),
+            .Err(DecodeError.InvalidCharacter(2)),
+            reason="+ in Url",
+        )
+        assert_equal(
+            Base64.UrlNoPad.decode("Zm9/"),
+            .Err(DecodeError.InvalidCharacter(3)),
+            reason="/ in UrlNoPad",
+        )
 
     it("DecodeError implements Eq and Display"):
         assert(DecodeError.InvalidLength(3) == DecodeError.InvalidLength(3), reason="same position")
-        assert(DecodeError.InvalidLength(3) != DecodeError.InvalidLength(4), reason="another position")
-        assert(DecodeError.InvalidPadding(2) != DecodeError.InvalidCharacter(2), reason="another variant")
+        assert(
+            DecodeError.InvalidLength(3) != DecodeError.InvalidLength(4),
+            reason="another position",
+        )
+        assert(
+            DecodeError.InvalidPadding(2) != DecodeError.InvalidCharacter(2),
+            reason="another variant",
+        )
         assert("${DecodeError.InvalidCharacter(4)}".len() > 0, reason="Display text")

@@ -1,0 +1,15 @@
+# @dump: wat
+# Emitter: an optional reference is its address, null for .None, so a
+# match tests the address and a .Some stores it alone.
+struct Node:
+    next: (*Node)?
+
+fn depth(node: &Node) -> i32:
+    # subject
+    match node.next:
+        .None => 1
+        .Some(next) => 1 + depth(next)
+
+fn link(next: *Node) -> *Node:
+    &Node { next: .Some(next) }
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^

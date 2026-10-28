@@ -9,9 +9,16 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError)
+    Write(
+        path: string,
+        @source
+        error: DiskError,
+    )
     @error("disk")
-    Disk(@from error: DiskError)
+    Disk(
+        @from
+        error: DiskError,
+    )
 
 @error
 enum HttpError(i32):

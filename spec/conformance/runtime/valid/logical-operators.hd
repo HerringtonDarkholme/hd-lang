@@ -1,5 +1,6 @@
 # test: && and || combine bools, prefix ! negates, and != stays one token
-fn fetch!(id: i32) -> bool: id > 0
+fn fetch!(id: i32) -> bool:
+    id > 0
 
 fn missing!(id: i32) -> bool:
     !fetch!(id)
@@ -27,4 +28,4 @@ tests:
     it("!= is one token after a name"):
         f := 1
         g := 2
-        assert(f!=g, reason="f!=g lexes as f != g")
+        assert(f != g, reason="f!=g lexes as f != g")

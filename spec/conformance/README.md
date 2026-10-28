@@ -332,8 +332,8 @@ behind a trait value reference
 - `console` is the profile a fixture gets when it names no profile. The
   runner selects no runtime profile for it. It implements the prelude
   `Console` ([Prelude](../lang/10-modules.md#prelude)): each
-  `write!(text)` completes on its first poll, writes the UTF-8 encoding
-  of `text` unchanged to standard output, and returns `.Ok(())`.
+  `write_sync(text)` writes the UTF-8 encoding of `text` unchanged to
+  standard output and returns `.Ok(())`.
 - `serde-vault` implements the fixture's
   `trait Vault: fn keep(self, token: Token) -> Token`, where `Token` is the
   fixture's own data type. `keep` returns its argument's boundary value
@@ -361,10 +361,12 @@ behind a trait value reference
     second `close`, returns `.Err(E.Closed)` and must not trap.
 - `pending-gate` implements the fixture's
   `trait Gate: fn wait!(self) -> void`. Every poll of `wait!` stays pending.
-- `pending-write` implements the prelude `Console`, as `console` does,
-  except that each `write!(text)` call is pending on its first poll.
-  Its second poll writes the text as `console` does, and completes with
-  `.Ok(())`.
+- `tick` implements the prelude `Console`, as `console` does, and the
+  fixture's `pub trait Tick: fn tick!(&mut self, note: string) -> void`.
+  Each `tick!` call completes on its first poll and ignores `note`.
+- `pending-tick` implements the same `Tick` as `tick` does, except that
+  each `tick!` call is pending on its first poll and completes on its
+  second.
 - `misbehaving-host` implements the fixture's
   `trait Gauge: fn level(self) -> u8` with a host that breaks its contract.
   Every call of `level` returns the integer 300, which no `u8` holds, so
@@ -434,9 +436,10 @@ its own `PollContext`.
 
 - `pending-first-poll`:
   1. Run steps 1 and 2 of [Runtime Execution](#runtime-execution), the entry
-     and then the test cases, in one run under the `console` profile, except that every `write!` call is pending on
-     its first poll, as under `pending-write`. The call's second poll writes
-     the text and completes with `.Ok(())`.
+     and then the test cases, in one run under the `pending-tick` profile.
+     The fixture names the `tick` profile, so the ordinary run's `tick!`
+     calls complete at once, and this run's are pending on their first
+     poll.
   2. The case passes when that run exits 0, as the ordinary `test FILE` run
      of the same fixture does. The runner runs the ordinary `test FILE`
      first, so the case passes only when both runs succeed.
@@ -444,8 +447,8 @@ its own `PollContext`.
 `pending-first-poll` is a fixture format, not a language rule: it shows that
 a program's observable result does not depend on whether a host call
 completes at once or after one pending poll. The fixture is a `runtime`
-`accept` case, names no runtime profile, and reaches every suspension point
-through a `Console` call, because only host calls become pending.
+`accept` case, names the `tick` profile, and reaches every suspension point
+through a `tick!` call, because only host calls become pending.
 
 `# fixture-runtime-pending-function: NAME` makes the deterministic runtime
 hold every call of the named suspending function. The directive is valid only

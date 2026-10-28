@@ -13,11 +13,19 @@ tests:
         assert_equal(gap(3, 10), 7, reason="b above a")
         assert_equal(gap(10, 3), 7, reason="a above b")
         assert_equal(gap(-5, 5), 10, reason="across zero")
-        assert_equal(gap(-2147483647 - 1, 2147483647), 4294967295, reason="the minimum to the maximum")
+        assert_equal(
+            gap(-2147483647 - 1, 2147483647),
+            4294967295,
+            reason="the minimum to the maximum",
+        )
 
     it("i64 distances are u64"):
         let smallest: i64 = -9223372036854775807 - 1
         let largest: i64 = 9223372036854775807
-        assert_equal(wide_gap(smallest, largest), 18446744073709551615, reason="the minimum to the maximum")
+        assert_equal(
+            wide_gap(smallest, largest),
+            18446744073709551615,
+            reason="the minimum to the maximum",
+        )
         assert_equal(wide_gap(largest, smallest), 18446744073709551615, reason="either order")
         assert_equal(wide_gap(4, 4), 0, reason="equal values")

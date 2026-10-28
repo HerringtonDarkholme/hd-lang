@@ -9,4 +9,5 @@
 ##
 ## println(greet("ada"))
 ## ```
-pub fn greet(name: string) -> string: "hello, $name"
+pub fn greet(name: string) -> string:
+    "hello, $name"

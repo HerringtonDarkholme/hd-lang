@@ -3,6 +3,7 @@
 //! rewritten in the source file to the text the call saw. A call in a doc
 //! test (`cli.test.doc.update-prefix`) is rewritten inside its `##` lines.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::PathBuf;
@@ -109,7 +110,7 @@ impl Updates {
             let Some(text) = text else {
                 continue;
             };
-            edits.sort_by_key(|e| std::cmp::Reverse(e.0));
+            edits.sort_stable_by_key(|e| std::cmp::Reverse(e.0));
             // Two sites never share a span, but a call that two lines both
             // name would; the later edit is dropped.
             edits.dedup_by(|b, a| b.1 > a.0);
@@ -123,7 +124,7 @@ impl Updates {
             match write(&path(file), &text, &out) {
                 Ok(()) => {
                     let mut lines: Vec<u32> = edits.iter().map(|e| e.3).collect();
-                    lines.sort_unstable();
+                    lines.sort_stable();
                     done.notes
                         .extend(lines.iter().map(|l| format!("updated {file}:{l}")));
                 }

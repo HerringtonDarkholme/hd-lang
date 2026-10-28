@@ -2,6 +2,7 @@
 //! library entry, as Markdown.
 
 use super::{Module, Package, impls, module_page, shown_name, stdref};
+use hd_base::SliceSort as _;
 
 /// The most suggestions a missing NAME gets.
 const SUGGESTIONS: usize = 8;
@@ -10,7 +11,7 @@ const SUGGESTIONS: usize = 8;
 /// segment first, then the rest, at most [`SUGGESTIONS`].
 pub(crate) fn rank(mut names: Vec<String>, wanted: &str) -> Vec<String> {
     let last = wanted.rsplit('.').next().unwrap_or(wanted).to_lowercase();
-    names.sort();
+    names.sort_stable();
     names.dedup();
     let (mut close, rest): (Vec<String>, Vec<String>) = names
         .into_iter()

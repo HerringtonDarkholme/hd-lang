@@ -1,6 +1,7 @@
 //! The disk `SourceSet` and program discovery: the package root, its
 //! name from `hd.toml`, and the entry module.
 
+use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -41,7 +42,7 @@ impl DiskSources {
             path: path.to_owned(),
             size: text.len() as u64,
         });
-        self.files.sort_by(|a, b| a.path.cmp(&b.path));
+        self.files.sort_stable_by(|a, b| a.path.cmp(&b.path));
         self.synthetic
             .push((path.to_owned(), Arc::from(text.as_bytes())));
     }
@@ -186,7 +187,7 @@ fn walk_below(
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut paths: Vec<(PathBuf, Kind)> =
         entries.flatten().map(|e| (e.path(), kind_of(&e))).collect();
-    paths.sort_by(|a, b| a.0.cmp(&b.0));
+    paths.sort_stable_by(|a, b| a.0.cmp(&b.0));
     for (p, kind) in paths {
         let name = p
             .file_name()
@@ -253,6 +254,9 @@ pub struct Program {
     pub package_dir: Option<PathBuf>,
     /// Its executables' entry modules, by path below the source root.
     pub entries: Vec<String>,
+    /// This selected package's `[lint]` table. Dependency policy is never
+    /// carried into the root command.
+    pub lint: Option<hd_project::LintTable>,
 }
 
 /// A package that a path requirement reaches.
@@ -289,6 +293,7 @@ impl Program {
             entry_capabilities: true,
             instruction_origins: false,
             checked: false,
+            verify_own: false,
             requires: self.requires.clone(),
             deps: self
                 .deps
@@ -830,6 +835,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         dev_capabilities: Vec::new(),
         package_dir: package_root(root),
         entries: Vec::new(),
+        lint: None,
     })
 }
 
@@ -861,6 +867,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         dev_capabilities: Vec::new(),
         package_dir: None,
         entries: Vec::new(),
+        lint: None,
     })
 }
 
@@ -894,6 +901,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
         dev_capabilities: Vec::new(),
         package_dir: None,
         entries: Vec::new(),
+        lint: None,
     })
 }
 
@@ -927,6 +935,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
             dev_capabilities: Vec::new(),
             package_dir: Some(root.to_path_buf()),
             entries: Vec::new(),
+            lint: None,
         });
     }
     let sources = sources_of(root)?;
@@ -975,6 +984,7 @@ fn loaded_package(
         problems,
     } = selected;
     let problems = manifest_problems(root, &package, problems, local_paths)?;
+    let lint = manifest_of(root)?.and_then(|manifest| manifest.lint);
     let entries = executables(root, &package)
         .iter()
         .filter(|e| e.file.starts_with("src/"))
@@ -995,6 +1005,7 @@ fn loaded_package(
         dev_capabilities: dev_capabilities(root)?,
         package_dir: Some(root.to_path_buf()),
         entries,
+        lint,
     })
 }
 
@@ -1135,7 +1146,7 @@ fn manifest_problems(
         ));
     }
     out.extend(executable_problems(root, &m));
-    out.sort_by_key(|(line, _)| *line);
+    out.sort_stable_by_key(|(line, _)| *line);
     if let Some(d) = unlisted_member(root)? {
         out.insert(0, (None, d));
     }
@@ -1306,7 +1317,7 @@ pub fn tasks(root: &Path) -> Vec<Runnable> {
             })
         })
         .collect();
-    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out.sort_stable_by(|a, b| a.name.cmp(&b.name));
     out
 }
 

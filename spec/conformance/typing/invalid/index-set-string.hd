@@ -7,4 +7,4 @@ fn store[C < IndexSet[usize, u8]](items: &mut C, byte: u8) -> void:
 
 fn invalid(text: string) -> void:
     let mut copy = text
-    store(&mut copy, 65)  # diagnostic: unsatisfied-trait-bound
+    store(&mut copy, 65) # diagnostic: unsatisfied-trait-bound

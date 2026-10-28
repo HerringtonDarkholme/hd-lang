@@ -7,4 +7,4 @@ fn run(items: List[string]) -> i32:
     let i = 0
     if i < items.len():
         return 0
-    take(i)  # diagnostic: type-mismatch
+    take(i) # diagnostic: type-mismatch

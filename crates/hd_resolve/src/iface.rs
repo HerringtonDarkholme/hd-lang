@@ -4,6 +4,7 @@
 //! blob carries them through entry-local tables.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -453,6 +454,10 @@ pub struct Item {
     /// A function marked `@num_suffix` (`LITERAL_SUFFIX`) or `@str_prefix`
     /// (`LITERAL_PREFIX`), or 0 (`expr.literal-fn.marker`).
     pub literal_fn: u8,
+    /// A function's or method's `@inline` or `@cold` line, as one of
+    /// `INLINE_AUTO`, `INLINE_ALWAYS`, `INLINE_NEVER` and `COLD`, or 0
+    /// (`annot.inline.recognized`).
+    pub inline: u8,
     /// A function whose decorators attach values: `facts_of` of it reads
     /// its facts body (`annot.facts-of.result`).
     pub has_facts: bool,
@@ -484,6 +489,15 @@ pub const LITERAL_SUFFIX: u8 = 1;
 /// `Item::literal_fn` of a prefix function.
 pub const LITERAL_PREFIX: u8 = 2;
 
+/// `Item::inline` of `@inline` and `@inline(.Auto)`.
+pub const INLINE_AUTO: u8 = 1;
+/// `Item::inline` of `@inline(.Always)`.
+pub const INLINE_ALWAYS: u8 = 2;
+/// `Item::inline` of `@inline(.Never)`.
+pub const INLINE_NEVER: u8 = 3;
+/// `Item::inline` of `@cold`.
+pub const COLD: u8 = 4;
+
 impl Item {
     #[must_use]
     pub fn new(def: DefId, name: Symbol, public: bool, data: ItemData) -> Self {
@@ -495,6 +509,7 @@ impl Item {
             intrinsic: None,
             targets: None,
             literal_fn: 0,
+            inline: 0,
             has_facts: false,
             fact_pattern: None,
             fills_defaults: false,
@@ -619,7 +634,7 @@ pub fn std_import_hint<'a>(
     }
     let mut paths: Vec<String> = items.into_values().map(|(_, path)| path).collect();
     paths.extend(modules);
-    paths.sort();
+    paths.sort_stable();
     paths.dedup();
     match paths.as_slice() {
         [] => String::new(),
@@ -1169,6 +1184,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(it.intrinsic.map_or(u32::MAX, |s| t.sym(s)));
     w.u32(it.targets.map_or(u32::MAX, u32::from));
     w.u8(it.literal_fn);
+    w.u8(it.inline);
     w.u8(u8::from(it.has_facts));
     w.u32(opt_ty(t, it.fact_pattern)?);
     w.u8(u8::from(it.fills_defaults));
@@ -1269,6 +1285,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         m => Some(u16::try_from(m).ok()?),
     };
     let literal_fn = r.u8();
+    let inline = r.u8();
     let has_facts = r.u8() != 0;
     let fact_pattern = get_opt_ty(r, t).ok()?;
     let fills_defaults = r.u8() != 0;
@@ -1354,6 +1371,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         intrinsic,
         targets,
         literal_fn,
+        inline,
         has_facts,
         fact_pattern,
         fills_defaults,
@@ -1408,7 +1426,7 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
     w.bytes.extend_from_slice(&index.bytes);
     w.blob(&body.bytes);
     let mut ex: Vec<&Export> = exports.iter().collect();
-    ex.sort_by(|a, b| {
+    ex.sort_stable_by(|a, b| {
         (a.module.as_str(), names.text(a.name)).cmp(&(b.module.as_str(), names.text(b.name)))
     });
     w.len_of(&ex);
@@ -1703,7 +1721,7 @@ impl<'a> IntoIterator for &'a Items {
 #[must_use]
 pub fn deep_hash(api_hash: Hash128, mentions: &[(String, Hash128)]) -> Hash128 {
     let mut m: Vec<&(String, Hash128)> = mentions.iter().collect();
-    m.sort();
+    m.sort_stable();
     let mut h = StableHasher::new("deep");
     h.hash(api_hash);
     h.u32(u32::try_from(m.len()).expect("mentions"));
@@ -1973,7 +1991,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             _ => None,
         })
         .collect();
-    rows.sort_by_key(|r| (names.path_hash(r.0), r.6));
+    rows.sort_stable_by_key(|r| (names.path_hash(r.0), r.6));
     let mut t = ImplTable::default();
     for (n, (trait_, def, self_ty, args, kind, n_params, rank)) in rows.into_iter().enumerate() {
         let n = u32::try_from(n).expect("impls");
@@ -2226,13 +2244,13 @@ fn show_row_in(
         .iter()
         .map(|k| show_ty_opts(names, pool, *k, false, qualified))
         .collect();
-    parts.sort();
+    parts.sort_stable();
     let mut ps: Vec<String> = d
         .params
         .iter()
         .map(|p| names.param_name(p.owner, p.index))
         .collect();
-    ps.sort();
+    ps.sort_stable();
     parts.extend(ps);
     format!("$ {}", parts.join(" + "))
 }

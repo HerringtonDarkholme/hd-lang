@@ -1,9 +1,11 @@
 # test: requirements / row union
 
-fn invoke[$R](callback: fn() -> i32 $ R + Logger) -> i32 $ R + Logger:
+fn invoke[$ R](callback: fn() -> i32 $ R + Logger) -> i32 $ R + Logger:
     callback()
-fn logged() -> i32 $ Logger: 42
-fn run() -> i32 $ Logger: invoke(logged)
+fn logged() -> i32 $ Logger:
+    42
+fn run() -> i32 $ Logger:
+    invoke(logged)
 
 trait Logger
 

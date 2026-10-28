@@ -1,4 +1,5 @@
 # test: checker prelude names cannot be shadowed
-fn consume(console: i32) -> i32: console
+fn consume(console: i32) -> i32:
+    console
 pub fn main() -> void:
     pass

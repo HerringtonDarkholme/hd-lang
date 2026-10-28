@@ -10,13 +10,11 @@ struct Tally:
     count: i32
 
 fn pick(t: Tally, ok: bool) -> Tally?:
-    if ok:
-        .Some(t)
-    else:
-        .None
+    if ok: .Some(t) else: .None
 
 fn total(t: Tally, ok: bool) -> usize:
-    let .Some(Tally { mut tags, name }) = pick(t, ok) else: return 0
+    let .Some(Tally { mut tags, name }) = pick(t, ok) else:
+        return 0
     tags.push(name)
     tags.len()
 

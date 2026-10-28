@@ -3,5 +3,5 @@
 pub fn main() -> void $ Console:
     a := +0
     println(a)
-    a := b := +1  # diagnostic: duplicate-binding
+    a := b := +1 # diagnostic: duplicate-binding
     println("$a $b")

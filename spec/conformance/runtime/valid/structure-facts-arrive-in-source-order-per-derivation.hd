@@ -112,7 +112,11 @@ impl Probe for Point by Structure:
 @tag("e")
 enum Event:
     @note("v0")
-    Start(@flag("p0") at: i32, by: string)
+    Start(
+        @flag("p0")
+        at: i32,
+        by: string,
+    )
     Stop
 
 pub fn main() -> void $ Console:

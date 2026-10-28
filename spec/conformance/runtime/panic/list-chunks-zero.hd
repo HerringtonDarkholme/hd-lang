@@ -4,7 +4,7 @@
 use std.collections.ListView
 
 fn pieces(items: List[i32]) -> List[ListView[i32]]:
-    items.chunks(0)  # panic: explicit-panic
+    items.chunks(0) # panic: explicit-panic
 
 tests:
     it("rejects a zero size"):

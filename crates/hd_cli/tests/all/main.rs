@@ -3,6 +3,30 @@
 //! `cli_conformance.rs` stays a separate target: it judges the whole CLI tier
 //! against `KNOWN_FAILURES.tsv` and runs its own worker pool.
 
+fn normalize_std_lines(text: &str) -> String {
+    let mut normalized = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while let Some(found) = text[cursor..].find("<std>/") {
+        let frame = cursor + found;
+        let Some(suffix) = text[frame..].find(".hd:") else {
+            break;
+        };
+        let digits = frame + suffix + ".hd:".len();
+        let end = text[digits..]
+            .find(|character: char| !character.is_ascii_digit())
+            .map_or(text.len(), |end| digits + end);
+        if end == digits {
+            cursor = digits;
+            continue;
+        }
+        normalized.push_str(&text[cursor..digits]);
+        normalized.push_str("LINE");
+        cursor = end;
+    }
+    normalized.push_str(&text[cursor..]);
+    normalized
+}
+
 mod affected;
 mod cache_gc;
 mod check_cmd;

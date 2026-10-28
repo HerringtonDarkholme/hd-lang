@@ -1,4 +1,4 @@
 # Spec 08 Generic And Recursive Enums: data.enum.no-recursion, through a tuple element (data.struct.contains).
 enum Pairing:
     Single(value: i32)
-    Both(pair: (i32, Pairing))  # diagnostic: recursive-value-type
+    Both(pair: (i32, Pairing)) # diagnostic: recursive-value-type

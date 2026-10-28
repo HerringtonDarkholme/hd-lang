@@ -4,4 +4,5 @@ trait Counter:
     fn reset(mut self) -> void
 
 impl Counter for i32:
-    fn reset(mut self) -> void: pass
+    fn reset(mut self) -> void:
+        pass

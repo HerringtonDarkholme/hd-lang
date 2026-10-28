@@ -398,19 +398,67 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+    /// The link's whole-object fact (`hd_opt::whole`): the reference targets
+    /// some counted reference may point inside an object of, or `None`
+    /// when the link has no fact and every reference may.
+    static INTERIOR: std::cell::RefCell<Option<hd_base::HashSet<Ty>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Sets the link's whole-object fact ([`whole_ref`]) until the guard
+/// drops, and forgets every walk computed before it.
+pub(crate) fn whole_refs(interior: Option<hd_base::HashSet<Ty>>) -> impl Drop {
+    struct Reset(Option<hd_base::HashSet<Ty>>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            INTERIOR.set(self.0.take());
+            WALKS.with(|w| {
+                if let Some(w) = w.borrow_mut().as_mut() {
+                    w.clear();
+                }
+            });
+        }
+    }
+    let outer = INTERIOR.replace(interior);
+    WALKS.with(|w| {
+        if let Some(w) = w.borrow_mut().as_mut() {
+            w.clear();
+        }
+    });
+    Reset(outer)
+}
+
+/// Whether every counted reference to `target`, once stripped, is null or
+/// a payload start (§23.30): a concrete target the release link's
+/// whole-program scan found no interior reference to.
+fn whole_ref(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
+    let target = strip(pool, env, target);
+    !hd_mono::is_open(pool, target)
+        && INTERIOR.with(|s| s.borrow().as_ref().is_some_and(|s| !s.contains(&target)))
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
 /// [`walk`] compute each type once, so a long chain of types held by
 /// value costs its length, not its square, at every use.
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
-    let outer = (MEMS.take(), WALKS.take());
+    struct Reset {
+        mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
+        walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+    }
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            MEMS.set(self.mems.take());
+            WALKS.set(self.walks.take());
+        }
+    }
+
+    let _reset = Reset {
+        mems: MEMS.take(),
+        walks: WALKS.take(),
+    };
     MEMS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
-    let r = link();
-    MEMS.set(outer.0);
-    WALKS.set(outer.1);
-    r
+    link()
 }
 
 /// [`cached`], unless a cache is in place already, which `link` then
@@ -475,7 +523,10 @@ fn mem_one(
         },
         TyData::Never => Mem::EMPTY,
         TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
-        TyData::Option(inner) => enum_mem_by(&[vec![], vec![inner]], part)?.0,
+        TyData::Option(inner) => {
+            let variants = [vec![], vec![inner]];
+            enum_mem_by(&variants, nullable(pool, env, &variants), part)?.0
+        }
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map | StdKind::Buffer => Mem::address(),
@@ -483,7 +534,9 @@ fn mem_one(
                 Kind::Data(_) | Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
                 Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
                 Kind::Value => match env.enum_variants(def, args) {
-                    Some(variants) => enum_mem_by(&variants, part)?.0,
+                    Some(variants) => {
+                        enum_mem_by(&variants, nullable(pool, env, &variants), part)?.0
+                    }
                     None => payload_mem_by(&value_parts(pool, env, t), part)?.0,
                 },
             },
@@ -507,13 +560,23 @@ fn mem_one(
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Walk {
     /// Value `k` is an address in a counted object, or in static data: a
-    /// data value, a boxed enum's cell, a string's bytes.
+    /// string's bytes, a reference, an open value; counting finds its
+    /// block through the page table (§23.5).
     Ref(u32),
+    /// Value `k` is null, a static object's, or the payload start of a
+    /// counted object, eight bytes after its header: a data value, a boxed
+    /// enum's cell, a collection's buffer, a closure's environment, a
+    /// release link's whole-object reference ([`block_start`]); counting
+    /// reads the header at `k - 8` (§23.30).
+    Known(u32),
     /// Each part in turn.
     Seq(Vec<Walk>),
     /// Value `k` is an enum's tag; arm `v`, when there is one, walks
     /// variant `v`'s payload.
     Switch(u32, Vec<Option<Walk>>),
+    /// A [`nullable`] enum's address, which the inner walk counts unless
+    /// it is null.
+    Nullable(Box<Walk>),
 }
 
 impl Walk {
@@ -522,6 +585,7 @@ impl Walk {
     pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
+            Walk::Known(k) => Walk::Known(to(*k)),
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
             Walk::Switch(k, arms) => Walk::Switch(
                 to(*k),
@@ -529,6 +593,7 @@ impl Walk {
                     .map(|a| a.as_ref().map(|w| w.remap(to)))
                     .collect(),
             ),
+            Walk::Nullable(w) => Walk::Nullable(Box::new(w.remap(to))),
         }
     }
 
@@ -538,6 +603,7 @@ impl Walk {
     pub fn without(&self, skip: &[u32]) -> Option<Walk> {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
+            Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
             Walk::Switch(k, arms) => Some(Walk::Switch(
                 *k,
@@ -545,6 +611,17 @@ impl Walk {
                     .map(|a| a.as_ref().and_then(|w| w.without(skip)))
                     .collect(),
             )),
+            Walk::Nullable(w) => w.without(skip).map(|w| Walk::Nullable(Box::new(w))),
+        }
+    }
+
+    /// The value index when the walk is one counted address, of either
+    /// kind.
+    #[must_use]
+    pub fn single(&self) -> Option<u32> {
+        match self {
+            Walk::Ref(k) | Walk::Known(k) => Some(*k),
+            Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
 
@@ -579,14 +656,20 @@ fn walk_one(
     }
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
-        TyData::Fn { .. } => Some(Walk::Ref(1)),
-        TyData::TraitValue { .. } | TyData::Context(_) => Some(Walk::Ref(0)),
+        TyData::Fn { .. } => Some(Walk::Known(1)),
+        TyData::TraitValue { .. } => Some(Walk::Ref(0)),
+        TyData::Context(_) => Some(Walk::Known(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
-        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Ref(0)),
+        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
         TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
-                Kind::Data(_) | Kind::Boxed | Kind::Ref { .. } => Some(Walk::Ref(0)),
+                Kind::Data(_) | Kind::Boxed => Some(Walk::Known(0)),
+                Kind::Ref { target, fat } => Some(if !fat && whole_ref(pool, env, target) {
+                    Walk::Known(0)
+                } else {
+                    Walk::Ref(0)
+                }),
                 Kind::Value => {
                     if let Some(variants) = env.enum_variants(def, args) {
                         return switch_walk_by(pool, env, &variants, part);
@@ -601,7 +684,8 @@ fn walk_one(
 }
 
 /// Whether this representation's counted pointer is a payload start,
-/// never a string's interior bytes or an interior/erased reference.
+/// never a string's interior bytes or an interior/erased reference: a
+/// reference is one only where the link's whole-object fact holds.
 pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
     if hd_mono::is_open(pool, t) {
@@ -610,7 +694,11 @@ pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Fn { .. } | TyData::Context(_) => true,
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
-        _ => matches!(kind(pool, env, t), Kind::Data(_) | Kind::Boxed),
+        _ => match kind(pool, env, t) {
+            Kind::Data(_) | Kind::Boxed => true,
+            Kind::Ref { target, fat } => !fat && whole_ref(pool, env, target),
+            Kind::Value => false,
+        },
     }
 }
 
@@ -700,7 +788,7 @@ pub fn env_mem(
         .filter_map(|((t, shared), p)| {
             let at = u32::try_from(p.first).expect("values");
             if *shared {
-                Some(Walk::Ref(at))
+                Some(Walk::Known(at))
             } else {
                 walk(pool, env, *t).map(|w| w.remap(&|k| at + k))
             }
@@ -722,6 +810,10 @@ fn switch_walk_by(
     variants: &[Vec<Ty>],
     part: &dyn Fn(Ty) -> Option<Walk>,
 ) -> Option<Walk> {
+    if nullable(pool, env, variants) {
+        // The address is value 0, null for variant 0.
+        return part(variants[1][0]).map(|w| Walk::Nullable(Box::new(w)));
+    }
     let (_, positions) = enum_mem(pool, env, variants).ok()?;
     let arms: Vec<Option<Walk>> = variants
         .iter()
@@ -813,22 +905,39 @@ const SLOT_ORDER: [Val; 4] = [Val::I32, Val::F32, Val::I64, Val::F64];
 /// the enum's values.
 pub type Positions = Vec<Vec<Vec<usize>>>;
 
+/// Whether an enum of `variants` is a nullable address
+/// (`types.option.repr`): variant 0 has no payload and variant 1 one thin
+/// reference, never null. Its one value is that address, null for variant
+/// 0; it has no tag.
+pub fn nullable(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -> bool {
+    matches!(variants, [none, some] if none.is_empty()
+        && some.len() == 1
+        && matches!(kind(pool, env, some[0]), Kind::Ref { fat: false, .. }))
+}
+
 /// An enum's layout from its variants' payload types: the tag, 1, 2 or 4
 /// bytes by the variant count, then the shared slots, each 4 or 8 bytes
-/// wide; and where each payload field's values lie.
+/// wide; and where each payload field's values lie. A [`nullable`] enum
+/// is its payload's address alone.
 pub fn enum_mem(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     variants: &[Vec<Ty>],
 ) -> StageResult<(Mem, Positions)> {
-    enum_mem_by(variants, &|f| mem(pool, env, f))
+    enum_mem_by(variants, nullable(pool, env, variants), &|f| {
+        mem(pool, env, f)
+    })
 }
 
 /// [`enum_mem`], with each payload field's layout read by `part`.
 fn enum_mem_by(
     variants: &[Vec<Ty>],
+    nullable: bool,
     part: &dyn Fn(Ty) -> StageResult<Mem>,
 ) -> StageResult<(Mem, Positions)> {
+    if nullable {
+        return Ok((Mem::address(), vec![vec![], vec![vec![0]]]));
+    }
     let mut payloads = Vec::new();
     let mut slots = [0usize; 4];
     for fields in variants {
@@ -904,6 +1013,45 @@ fn enum_mem_by(
     ))
 }
 
+/// Field `f` of struct, tuple or newtype `t`: its type and offset, as
+/// `Em::path_step` lays it out (the whole-object scan's
+/// `hd_opt::whole::ObjectLayout::field`).
+pub fn field_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<(Ty, u32)> {
+    let unmut = match pool.get(t) {
+        TyData::Mut(inner) => inner,
+        _ => t,
+    };
+    if let TyData::Adt { def, args } = pool.get(unmut)
+        && env.newtype_base(def).is_some()
+    {
+        let base = *env.data_fields(def)?.first()?;
+        return Some((subst(pool, env, def, args, base), 0));
+    }
+    let (_, parts) = struct_mem(pool, env, t).ok()?;
+    let s = strip(pool, env, t);
+    let fields = match pool.get(s) {
+        TyData::Tuple { .. } => tuple_members(pool, s),
+        TyData::Adt { def, args } => env
+            .data_fields(def)?
+            .into_iter()
+            .map(|f| subst(pool, env, def, args, f))
+            .collect(),
+        _ => return None,
+    };
+    Some((*fields.get(f as usize)?, parts.get(f as usize)?.offset))
+}
+
+/// The offset of field `f` in a data object's payload of `fields`.
+pub fn payload_offset(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    fields: &[Ty],
+    f: usize,
+) -> Option<u32> {
+    let (_, parts) = payload_mem(pool, env, fields).ok()?;
+    parts.get(f).map(|part| part.offset)
+}
+
 /// The variants' payload types of an enum or optional type, `None` for
 /// any other type.
 pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Vec<Vec<Ty>>> {
@@ -935,5 +1083,126 @@ pub fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
         },
         TyData::Mut(inner) => num(pool, inner),
         _ => (32, false, false),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use super::*;
+
+    fn caches_are_absent() -> bool {
+        MEMS.with(|m| m.borrow().is_none()) && WALKS.with(|w| w.borrow().is_none())
+    }
+
+    #[test]
+    fn a_panicking_cache_scope_restores_absent_caches() {
+        assert!(caches_are_absent());
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            cached(|| panic!("cache scope test"));
+        }));
+        assert!(result.is_err());
+        assert!(caches_are_absent());
+    }
+
+    #[test]
+    fn a_panicking_nested_cache_scope_restores_both_outer_caches() {
+        cached(|| {
+            MEMS.with(|m| {
+                m.borrow_mut()
+                    .as_mut()
+                    .expect("outer layout cache")
+                    .insert(Ty::VOID, Ok(Mem::EMPTY));
+            });
+            WALKS.with(|w| {
+                w.borrow_mut()
+                    .as_mut()
+                    .expect("outer walk cache")
+                    .insert(Ty::VOID, Some(Walk::Ref(7)));
+            });
+
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                cached(|| {
+                    MEMS.with(|m| {
+                        assert!(m.borrow().as_ref().is_some_and(hd_base::HashMap::is_empty));
+                    });
+                    WALKS.with(|w| {
+                        assert!(w.borrow().as_ref().is_some_and(hd_base::HashMap::is_empty));
+                    });
+                    panic!("nested cache scope test");
+                });
+            }));
+            assert!(result.is_err());
+
+            MEMS.with(|m| {
+                let m = m.borrow();
+                let saved = m
+                    .as_ref()
+                    .and_then(|m| m.get(&Ty::VOID))
+                    .expect("restored outer layout");
+                assert!(saved.as_ref().is_ok_and(|m| *m == Mem::EMPTY));
+            });
+            WALKS.with(|w| {
+                let w = w.borrow();
+                assert_eq!(
+                    w.as_ref().and_then(|w| w.get(&Ty::VOID)),
+                    Some(&Some(Walk::Ref(7)))
+                );
+            });
+        });
+        assert!(caches_are_absent());
+    }
+
+    fn tuple_mem(pool: &InternPool, ty: Ty) -> StageResult<Mem> {
+        if let Some(saved) = MEMS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&ty)).cloned()) {
+            return saved;
+        }
+        let TyData::Tuple { elems, .. } = pool.get(ty) else {
+            panic!("test tuple");
+        };
+        let item = pool.list_items(elems)[0];
+        let computed = match pool.get(item) {
+            TyData::Prim(Prim::I64) => Mem::one(Val::I64, 8, false),
+            TyData::Prim(Prim::String) => record(&[Mem::address(), Mem::address()]).0,
+            _ => panic!("test tuple item"),
+        };
+        MEMS.with(|m| {
+            m.borrow_mut()
+                .as_mut()
+                .expect("layout cache")
+                .insert(ty, Ok(computed.clone()));
+        });
+        Ok(computed)
+    }
+
+    #[test]
+    fn a_later_layout_from_a_different_pool_matches_a_clean_cache() {
+        let earlier = InternPool::default();
+        let earlier_ty = earlier.intern_ty(&TyData::Tuple {
+            elems: earlier.list(&[Ty::prim(Prim::I64)]),
+            rest: None,
+        });
+        let later = InternPool::default();
+        let later_ty = later.intern_ty(&TyData::Tuple {
+            elems: later.list(&[Ty::STRING]),
+            rest: None,
+        });
+        assert_eq!(earlier_ty, later_ty, "the pools reuse the same type index");
+        let clean = cached(|| tuple_mem(&later, later_ty)).expect("clean layout");
+
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            cached(|| {
+                assert_eq!(
+                    tuple_mem(&earlier, earlier_ty).expect("earlier layout"),
+                    Mem::one(Val::I64, 8, false)
+                );
+                panic!("caught compiler panic");
+            });
+        }));
+        assert!(result.is_err());
+
+        let after = cached_here(|| tuple_mem(&later, later_ty)).expect("later layout");
+        assert_eq!(after, clean);
     }
 }

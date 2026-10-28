@@ -4,5 +4,5 @@ use std.cli.{Arg, ArgParser}
 
 pub fn main() -> void:
     parser := ArgParser::new("tool").arg(Arg { name: "file", kind: .Positional })
-    parser.command("run", *ArgParser::new("tool run"))  # panic: explicit-panic
+    parser.command("run", *ArgParser::new("tool run")) # panic: explicit-panic
     pass

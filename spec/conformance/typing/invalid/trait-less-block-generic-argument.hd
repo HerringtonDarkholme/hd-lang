@@ -11,5 +11,5 @@ fn tag(text: string) -> Tag:
 struct Box[T]:
     item: T
 
-impl Box[i32] by Structure:  # diagnostic: misplaced-derivation
+impl Box[i32] by Structure: # diagnostic: misplaced-derivation
     item += [tag("a")]

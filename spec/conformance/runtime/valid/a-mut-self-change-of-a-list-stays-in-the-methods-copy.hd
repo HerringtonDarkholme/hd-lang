@@ -96,7 +96,7 @@ tests:
         assert_equal(xs, [], reason="no push reached the local")
 
     it("a map value and a map keep their contents"):
-        let mut lists: Map[string, List[i64]] = {"a": [1]}
+        let mut lists: Map[string, List[i64]] = { "a": [1] }
         assert_equal(lists["a"].grow(2), 2, reason="the map value's call")
         let mut counts: Map[string, i64] = {}
         assert_equal(counts.grow(6), 1, reason="the map's call")

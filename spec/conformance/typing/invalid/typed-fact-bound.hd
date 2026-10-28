@@ -12,5 +12,5 @@ fn positive[F < Integer]() -> Positive[F]:
 struct Account:
     @positive
     id: i64
-    @positive  # diagnostic: unsatisfied-trait-bound
+    @positive # diagnostic: unsatisfied-trait-bound
     name: string

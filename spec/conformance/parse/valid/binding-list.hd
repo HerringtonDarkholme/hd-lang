@@ -1,6 +1,7 @@
 # test: a let tuple pattern takes a chained binding or a suite expression as its initializer
 # Spec 02 Let Statements: grammar.stmt.let-pattern.tuple (owner decision LP1-one, batch 26, 2026-09-30).
-fn pair() -> (i32, i32): (1, 2)
+fn pair() -> (i32, i32):
+    (1, 2)
 
 fn split(flag: bool) -> i32:
     let (low, high) = pair()

@@ -101,7 +101,6 @@ function stateFor(context) {
           request: {
             method: method(request.method),
             url,
-            query: [],
             headers,
             body: Buffer.concat(chunks),
             redirects: 10,

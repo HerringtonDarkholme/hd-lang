@@ -3,4 +3,4 @@ use std.num.Float
 
 struct Handle: pass
 
-impl Float for Handle  # diagnostic: sealed-trait-implementation
+impl Float for Handle # diagnostic: sealed-trait-implementation

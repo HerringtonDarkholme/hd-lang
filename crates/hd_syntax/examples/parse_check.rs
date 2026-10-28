@@ -5,6 +5,7 @@
 //! diagnostic, so `scripts/hd-conformance.sh` serves it as the `parse`
 //! action of the conformance command contract.
 
+use hd_base::SliceSort as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -39,7 +40,7 @@ fn main() -> ExitCode {
             files(Path::new(&argument), &mut paths);
         }
     }
-    paths.sort();
+    paths.sort_stable();
     let mut clean = 0;
     for path in &paths {
         let Ok(source) = fs::read_to_string(path) else {

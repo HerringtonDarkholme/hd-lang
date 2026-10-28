@@ -8,12 +8,19 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError)
+    Write(
+        path: string,
+        @source
+        error: DiskError,
+    )
 
 @error
 enum SyncError:
     @error("sync failed")
-    Save(@from error: SaveError)
+    Save(
+        @from
+        error: SaveError,
+    )
 
 tests:
     use std.testing.assert_equal
@@ -21,11 +28,19 @@ tests:
     it("report_of keeps the message and each source"):
         report := report_of(&SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
         assert_equal(report.message, "sync failed", reason="the error's own message")
-        assert_equal(report.sources, ["cannot save notes.txt", "disk full"], reason="the sources, outermost first")
+        assert_equal(
+            report.sources,
+            ["cannot save notes.txt", "disk full"],
+            reason="the sources, outermost first",
+        )
 
     it("a report displays one source line per source"):
         report := report_of(&SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
-        assert_equal(report.to_string(), "sync failed\nsource: cannot save notes.txt\nsource: disk full", reason="the entry-point text")
+        assert_equal(
+            report.to_string(),
+            "sync failed\nsource: cannot save notes.txt\nsource: disk full",
+            reason="the entry-point text",
+        )
 
     it("an error without a source has no source line"):
         report := report_of(&DiskError { free: 0 })

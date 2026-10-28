@@ -3,7 +3,7 @@
 struct Money:
     cents: i64
 
-impl Add[Money] for Money:  # diagnostic: unknown-trait
+impl Add[Money] for Money: # diagnostic: unknown-trait
     type Out = Money
 
     fn add(self, other: Money) -> Money:

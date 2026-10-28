@@ -35,4 +35,4 @@ struct Account:
     token: Token
 
 impl Show for Account by Structure:
-    token = pass  # diagnostic: omitted-member-without-default
+    token = pass # diagnostic: omitted-member-without-default

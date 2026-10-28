@@ -8,7 +8,8 @@ trait Summable < Add[Out = Self]:
     fn label(self) -> string
 
 impl Summable for i32:
-    fn label(self) -> string: "i32"
+    fn label(self) -> string:
+        "i32"
 
 fn describe(value: &dyn Summable) -> string:
     value.label()

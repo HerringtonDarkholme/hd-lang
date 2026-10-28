@@ -15,12 +15,14 @@ struct Cell:
 impl Counter for Cell:
     fn bump(&mut self) -> void:
         self.n = self.n + 1
-    fn count(&self) -> i32: self.n
+    fn count(&self) -> i32:
+        self.n
 
 struct Fixed: pass
 
 impl Base for Fixed:
-    fn value(self) -> i32: 40
+    fn value(self) -> i32:
+        40
 
 fn tick() -> i32 $ Base + Counter:
     let (base, counter) = $.use(Base, Counter)

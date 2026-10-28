@@ -1,0 +1,9 @@
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-token","severity":"error","message":"identifier 'áя' is not NFC-normalized","file":"src/main.hd","line":2,"column":9,"fixes":[]},{"kind":"diagnostic","code":"invalid-token","severity":"error","message":"identifier 'áя' is not NFC-normalized","file":"src/main.hd","line":3,"column":10,"fixes":[]},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd lint --allow mixed-script-identifier --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-token","severity":"error","message":"identifier 'áя' is not NFC-normalized","file":"src/main.hd","line":2,"column":9,"fixes":[]},{"kind":"diagnostic","code":"invalid-token","severity":"error","message":"identifier 'áя' is not NFC-normalized","file":"src/main.hd","line":3,"column":10,"fixes":[]},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd lint --deny mixed-script-identifier --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-token","severity":"error","message":"identifier 'áя' is not NFC-normalized","file":"src/main.hd","line":2,"column":9,"fixes":[]},{"kind":"diagnostic","code":"invalid-token","severity":"error","message":"identifier 'áя' is not NFC-normalized","file":"src/main.hd","line":3,"column":10,"fixes":[]},{"kind":"summary","errors":2,"warnings":0,"status":101}]

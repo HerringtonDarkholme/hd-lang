@@ -12,4 +12,4 @@ fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:
     [for item in items => transform(item)]
 
 fn clear(counters: List[Counter]) -> List[void]:
-    apply_all(counters, Counter::reset)  # diagnostic: type-mismatch
+    apply_all(counters, Counter::reset) # diagnostic: type-mismatch

@@ -5,5 +5,5 @@ use std.ops.Neg
 
 fn run() -> i8:
     let i = +1
-    let m: i8 = i.neg()  # diagnostic: implicit-narrowing
+    let m: i8 = i.neg() # diagnostic: implicit-narrowing
     m

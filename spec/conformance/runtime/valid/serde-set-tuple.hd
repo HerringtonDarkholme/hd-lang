@@ -24,7 +24,11 @@ tests:
     use std.testing.assert_equal
 
     it("a set and a tuple are lists in a derived type"):
-        assert_equal(encode(order()), "{\"tags\":[\"rush\",\"gift\"],\"line\":[3,\"pen\"]}", reason="text")
+        assert_equal(
+            encode(order()),
+            "{\"tags\":[\"rush\",\"gift\"],\"line\":[3,\"pen\"]}",
+            reason="text",
+        )
 
     it("a derived type with both round trips"):
         text := encode(order())
@@ -45,7 +49,15 @@ tests:
         assert_equal(encode(rest), "[1,[2,3]]", reason="rest")
 
     it("a short list for a tuple fails at the path"):
-        assert_equal("${failure("{\"tags\":[],\"line\":[3]}")}", "expected tuple element at \$.line", reason="short")
+        assert_equal(
+            "${failure("{\"tags\":[],\"line\":[3]}")}",
+            "expected tuple element at \$.line",
+            reason="short",
+        )
 
     it("a long list for a tuple fails at the path"):
-        assert_equal("${failure("{\"tags\":[],\"line\":[3,\"a\",4]}")}", "expected end of the tuple at \$.line[2]", reason="long")
+        assert_equal(
+            "${failure("{\"tags\":[],\"line\":[3,\"a\",4]}")}",
+            "expected end of the tuple at \$.line[2]",
+            reason="long",
+        )

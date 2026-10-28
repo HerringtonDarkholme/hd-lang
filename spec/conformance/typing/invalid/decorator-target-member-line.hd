@@ -14,4 +14,4 @@ struct Page:
     title: string
 
 impl Page by Structure:
-    title = [route("/title")]  # diagnostic: decorator-target-kind
+    title = [route("/title")] # diagnostic: decorator-target-kind

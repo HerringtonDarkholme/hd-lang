@@ -24,7 +24,14 @@ struct Team:
     lead: User?
 
 fn ada() -> User:
-    User { name: "Ada", age: 36, admin: true, tags: ["math", "code"], scores: { "b": 2, "a": -1 }, address: Address { city: "London", zip: .None } }
+    User {
+        name: "Ada",
+        age: 36,
+        admin: true,
+        tags: ["math", "code"],
+        scores: { "b": 2, "a": -1 },
+        address: Address { city: "London", zip: .None },
+    }
 
 fn save(address: Address) -> string:
     encode(address)
@@ -41,10 +48,28 @@ tests:
     use std.testing.assert_equal
 
     it("a data type is an object with one key per member, in declaration order"):
-        assert_equal(encode(ada()), "{\"name\":\"Ada\",\"age\":36,\"admin\":true,\"tags\":[\"math\",\"code\"],\"scores\":{\"b\":2,\"a\":-1},\"address\":{\"city\":\"London\",\"zip\":null}}", reason="user")
+        assert_equal(
+            encode(ada()),
+            "{\"name\":\"Ada\",\"age\":36,\"admin\":true,\"tags\":[\"math\",\"code\"],\"scores\":{\"b\":2,\"a\":-1},\"address\":{\"city\":\"London\",\"zip\":null}}",
+            reason="user",
+        )
 
     it("a nested value round trips through its text"):
-        team := Team { title: "core", members: [ada(), User { name: "Bo", age: 7, admin: false, tags: [], scores: {}, address: Address { city: "Oslo", zip: .Some("0150") } }], lead: .Some(ada()) }
+        team := Team {
+            title: "core",
+            members: [
+                ada(),
+                User {
+                    name: "Bo",
+                    age: 7,
+                    admin: false,
+                    tags: [],
+                    scores: {},
+                    address: Address { city: "Oslo", zip: .Some("0150") },
+                },
+            ],
+            lead: .Some(ada()),
+        }
         text := encode(team)
         back := read::[Team](text)
         assert_equal(encode(back), text, reason="same text")
@@ -53,11 +78,23 @@ tests:
         assert_equal(back.lead.map(fn(found): found.name), .Some("Ada"), reason="optional data")
 
     it("save and load an address"):
-        assert_equal(save(Address { city: "London", zip: .None }), "{\"city\":\"London\",\"zip\":null}", reason="save")
-        assert_equal(load("{\"city\":\"London\",\"zip\":null}").map(fn(found): found.city), .Ok("London"), reason="load")
+        assert_equal(
+            save(Address { city: "London", zip: .None }),
+            "{\"city\":\"London\",\"zip\":null}",
+            reason="save",
+        )
+        assert_equal(
+            load("{\"city\":\"London\",\"zip\":null}").map(fn(found): found.city),
+            .Ok("London"),
+            reason="load",
+        )
 
     it("to_json gives the Json that encode prints"):
-        assert_equal("${to_json(ada().address)}", "{\"city\":\"London\",\"zip\":null}", reason="to_json")
+        assert_equal(
+            "${to_json(ada().address)}",
+            "{\"city\":\"London\",\"zip\":null}",
+            reason="to_json",
+        )
 
     it("decoding reads keys in any order and ignores unknown keys"):
         address := read::[Address]("{\"extra\":[1,2],\"zip\":\"N1\",\"city\":\"London\"}")

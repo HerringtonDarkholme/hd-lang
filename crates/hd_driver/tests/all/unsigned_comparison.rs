@@ -1,7 +1,5 @@
-//! Always-true/false unsigned comparisons with zero (spec 05
-//! `expr.ord.unsigned-zero`): `t >= 0`, `0 <= t`, `t < 0` and `0 > t`
-//! with an unsigned `t` warn `unsigned-comparison-always`; signed
-//! operands and other operators stay silent.
+//! Unsigned comparisons remain accepted and quiet in ordinary checking.
+//! Advice lives in `hd_lint` (`expr.ord.unsigned-zero.lint`).
 
 use hd_cache::MemoryStore;
 use hd_diag::{Code, Severity};
@@ -49,23 +47,19 @@ fn check(body: &str) -> Output {
 }
 
 #[test]
-fn each_fixed_form_warns() {
+fn each_fixed_form_is_quiet_in_check() {
     for body in ["a >= 0", "0 <= a", "a < 0", "0 > a", "a >= 0x0", "a >= 0_0"] {
         let out = check(body);
         assert!(errors(&out).is_empty(), "{body}: {}", out.render());
-        assert_eq!(
-            warnings(&out),
-            vec![Code::UnsignedComparisonAlways],
-            "{body}"
-        );
+        assert!(warnings(&out).is_empty(), "{body}: {}", out.render());
     }
 }
 
 #[test]
-fn a_usize_default_warns() {
+fn a_usize_default_is_quiet_in_check() {
     let out = analyze("fn f() -> bool:\n    let t = 10\n    t >= 0\n");
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(warnings(&out), vec![Code::UnsignedComparisonAlways]);
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]

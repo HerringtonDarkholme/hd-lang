@@ -2,6 +2,7 @@
 //! stage gets: `cargo run -p hd_driver --example stages -- DIR [PACKAGE]`.
 //! With no argument it reads `lib/std` as package `std`.
 
+use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -12,7 +13,7 @@ fn walk(root: &Path, dir: &Path, out: &mut MemorySources) {
         return;
     };
     let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
-    paths.sort();
+    paths.sort_stable();
     for p in paths {
         if p.is_dir() {
             walk(root, &p, out);
@@ -62,7 +63,7 @@ fn main() {
         out.memo.hits, out.memo.misses
     );
     let mut br: Vec<(&String, &usize)> = report.body_reasons.iter().collect();
-    br.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    br.sort_stable_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
     for (r, n) in br.into_iter().take(40) {
         println!("{n:>4}  {r}");
     }
@@ -73,7 +74,7 @@ fn main() {
     }
     println!("\nmost frequent not-implemented reasons:");
     let mut reasons: Vec<(&String, &usize)> = report.reasons.iter().collect();
-    reasons.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    reasons.sort_stable_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
     for (r, n) in reasons.into_iter().take(15) {
         println!("{n:>4}  {r}");
     }

@@ -6,5 +6,5 @@ fn run() -> i32:
         seen := i
         i = i + 1
     else:
-        seen  # diagnostic: unknown-name
+        seen # diagnostic: unknown-name
     i

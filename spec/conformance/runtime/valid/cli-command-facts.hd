@@ -47,26 +47,39 @@ tests:
         match ShortCommand::parse(["stop"]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "action", reason="source field")
-                assert_equal(reason, "subcommand field `action` cannot have a short option", reason="named refusal")
+                assert_equal(
+                    reason,
+                    "subcommand field `action` cannot have a short option",
+                    reason="named refusal",
+                )
             _ => panic("expected Short refusal")
 
     it("Positional is refused with the actual field name"):
         match PositionalCommand::parse(["stop"]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "operation", reason="source field")
-                assert_equal(reason, "subcommand field `operation` cannot be a positional value", reason="named refusal")
+                assert_equal(
+                    reason,
+                    "subcommand field `operation` cannot be a positional value",
+                    reason="named refusal",
+                )
             _ => panic("expected Positional refusal")
 
     it("both facts are refused deterministically rather than ignored"):
         match BothFacts::parse([]):
             .Err(.InvalidValue(name, reason)) =>
                 assert_equal(name, "both", reason="source field")
-                assert_equal(reason, "subcommand field `both` cannot have a short option", reason="first refusal")
+                assert_equal(
+                    reason,
+                    "subcommand field `both` cannot have a short option",
+                    reason="first refusal",
+                )
             _ => panic("expected both-facts refusal")
 
     it("optional and newtype wrappers retain the fact refusal"):
         match OptionalCommand::parse([]):
-            .Err(.InvalidValue(name, _)) => assert_equal(name, "optional", reason="optional wrapper")
+            .Err(.InvalidValue(name, _)) =>
+                assert_equal(name, "optional", reason="optional wrapper")
             _ => panic("expected optional Short refusal")
         match WrappedCommand::parse([]):
             .Err(.InvalidValue(name, _)) => assert_equal(name, "wrapped", reason="newtype wrapper")

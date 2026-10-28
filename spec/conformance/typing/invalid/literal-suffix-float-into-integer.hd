@@ -3,8 +3,9 @@
 use std.ops.num_suffix
 
 @num_suffix
-fn secs(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64:
+    count * 1000
 
 fn wait() -> void:
-    half := 1.5secs  # diagnostic: type-mismatch
+    half := 1.5secs # diagnostic: type-mismatch
     pass

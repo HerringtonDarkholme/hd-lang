@@ -3,4 +3,4 @@
 fn invalid(flag: bool) -> string:
     if flag && (name := "Ada") != "":
         pass
-    name  # diagnostic: possibly-uninitialized-binding
+    name # diagnostic: possibly-uninitialized-binding

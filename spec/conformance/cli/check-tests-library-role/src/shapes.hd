@@ -12,7 +12,8 @@ pub fn squares() -> i32:
 
 tests:
     impl Shape for Square:
-        fn sides(self) -> i32: 4
+        fn sides(self) -> i32:
+            4
 
     it("counts"):
         pass

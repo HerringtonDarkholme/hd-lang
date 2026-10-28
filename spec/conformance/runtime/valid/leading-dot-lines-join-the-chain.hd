@@ -10,9 +10,12 @@ struct Meter:
     value: i32
 
 impl Meter:
-    fn add(self, amount: i32) -> Meter: Meter { value: self.value + amount }
-    fn double(self) -> Meter: Meter { value: self.value * 2 }
-    fn read(self) -> i32: self.value
+    fn add(self, amount: i32) -> Meter:
+        Meter { value: self.value + amount }
+    fn double(self) -> Meter:
+        Meter { value: self.value * 2 }
+    fn read(self) -> i32:
+        self.value
 
 fn mapped(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
     let mut out: List[i32] = []
@@ -22,34 +25,28 @@ fn mapped(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
 
 fn classify(n: i32) -> Result[i32, string]:
     match n:
-        0 =>
-            .Err("zero")
-        _ =>
-            .Ok(n)
+        0 => .Err("zero")
+        _ => .Ok(n)
 
 fn gate(open: bool) -> Result[i32, string]:
-    if open:
-        .Ok(1)
-    else:
-        .Err("closed")
+    if open: .Ok(1) else: .Err("closed")
 
 pub fn main() -> void $ Console:
-    total := Meter { value: +3 }
-        .add(+4)
+    total := Meter { value: +3 }.add(+4)
 
         # comment and blank lines before a leading-dot line do not end the chain
 
         .double()
         .read()
     println(total)
-    count := mapped([+1, +2, +3], fn(x): x * 2)
-        .len()
+    count := mapped([+1, +2, +3], fn(x): x * 2).len()
     println(count)
-    nested := mapped([+1], fn(x):
-        doubled := Meter { value: x + 3 }
-            .double()
-            .read()
-        doubled
+    nested := mapped(
+        [+1],
+        fn(x):
+            doubled := Meter { value: x + 3 }.double().read()
+            doubled
+        ,
     )
         .len()
     println(mapped([+4], fn(x): x + x)[0])

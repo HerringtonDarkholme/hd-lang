@@ -1,6 +1,6 @@
 # test: requirements / row pack
 
-fn invoke[$R](callback: fn() -> i32 $ R) -> i32 $ R:
+fn invoke[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
 fn read() -> i32 $ Clock + Logger:

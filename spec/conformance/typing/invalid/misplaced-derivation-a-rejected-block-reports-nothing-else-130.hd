@@ -32,4 +32,4 @@ struct Opaque:
 
 type Wrapped(Opaque)
 
-impl Show for Wrapped by Structure  # diagnostic: misplaced-derivation
+impl Show for Wrapped by Structure # diagnostic: misplaced-derivation

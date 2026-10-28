@@ -1,0 +1,13 @@
+# test: @from and @source on one member is rejected
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error
+enum AppError:
+    @error("$cause")
+    Disk(
+        @from
+        @source # diagnostic: invalid-error-marker
+        cause: DiskError,
+    )

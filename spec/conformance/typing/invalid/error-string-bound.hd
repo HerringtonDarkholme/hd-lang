@@ -6,4 +6,4 @@ fn accept[E < Error](error: E) -> void:
     pass
 
 pub fn main() -> void:
-    accept("disk full")  # diagnostic: unsatisfied-trait-bound
+    accept("disk full") # diagnostic: unsatisfied-trait-bound

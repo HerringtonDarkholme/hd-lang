@@ -36,6 +36,10 @@ tests:
         assert_equal(copy.updated_at, 1, reason="the copy-update holds its own part")
         r := &mut post
         r.touch(20)
-        assert_equal(post.updated_at, 20, reason="a promoted method through &mut changes the referenced value")
+        assert_equal(
+            post.updated_at,
+            20,
+            reason="a promoted method through &mut changes the referenced value",
+        )
         post.Timestamps = copy.Timestamps
         assert_equal(post.updated_at, 1, reason="assigning the embedded field replaces the part")

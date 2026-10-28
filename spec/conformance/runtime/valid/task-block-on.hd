@@ -11,8 +11,8 @@ fn fetch!(id: i32) -> string:
 fn name_of(id: i32) -> string:
     match block_on(fetch(id)):
         .Completed(name) => name
-        .Cancelled => "cancelled"        # its cleanup ran to its end
-        .Abandoned => "cut short"        # its cleanup was cut short
+        .Cancelled => "cancelled" # its cleanup ran to its end
+        .Abandoned => "cut short" # its cleanup was cut short
 
 fn describe(end: BlockOn[string]) -> string:
     match end:

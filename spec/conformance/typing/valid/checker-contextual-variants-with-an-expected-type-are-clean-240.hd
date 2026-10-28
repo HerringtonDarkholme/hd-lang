@@ -1,5 +1,6 @@
 # test: checker contextual variants with an expected type are clean
-fn take(v: i32?) -> bool: true
+fn take(v: i32?) -> bool:
+    true
 fn f() -> bool:
     take(.None)
 pub fn main() -> void:

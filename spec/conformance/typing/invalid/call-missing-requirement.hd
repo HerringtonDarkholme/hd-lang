@@ -1,7 +1,9 @@
 # test: requirements / missing requirement
 
-fn read() -> i32 $ Clock: 1
+fn read() -> i32 $ Clock:
+    1
 
-pub fn value() -> i32: read()  # diagnostic: missing-requirement
+pub fn value() -> i32:
+    read() # diagnostic: missing-requirement
 
 trait Clock

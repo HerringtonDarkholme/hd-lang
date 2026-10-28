@@ -44,4 +44,8 @@ tests:
     use std.testing.assert_equal
 
     it("the data variant's facts are empty"):
-        assert_equal(Point { x: 1 }.probe(), "variant:none;type:p_", reason="type-level facts come from T::facts()")
+        assert_equal(
+            Point { x: 1 }.probe(),
+            "variant:none;type:p_",
+            reason="type-level facts come from T::facts()",
+        )

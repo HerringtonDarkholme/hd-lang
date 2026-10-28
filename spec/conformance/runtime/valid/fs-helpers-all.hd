@@ -5,7 +5,18 @@
 # std-fs.helper.remove, std-fs.helper.rename, and std-fs.helper.row.
 # expect: test
 use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs}
-use std.fs.{append_text, create_dir_all, list_dir, read_bytes, read_text, remove, rename, stat, write_bytes, write_text}
+use std.fs.{
+    append_text,
+    create_dir_all,
+    list_dir,
+    read_bytes,
+    read_text,
+    remove,
+    rename,
+    stat,
+    write_bytes,
+    write_text,
+}
 use std.path.Path
 
 fn log_twice!(path: Path) -> Result[string, FsError] $ FsRead + FsWrite:
@@ -35,7 +46,11 @@ tests:
         $.with(FsRead=files, FsWrite=files):
             assert_equal(write_text!(Path("a.txt"), "tea"), .Ok(()), reason="seeded")
             assert_equal(stat!(Path("b.txt")), .Ok(.None), reason="missing is not an error")
-            assert_equal(stat!(Path("a.txt")), .Ok(.Some(Entry { path: Path("a.txt"), kind: EntryKind.File, size: 3 })), reason="a file of 3 bytes")
+            assert_equal(
+                stat!(Path("a.txt")),
+                .Ok(.Some(Entry { path: Path("a.txt"), kind: EntryKind.File, size: 3 })),
+                reason="a file of 3 bytes",
+            )
             assert_equal(probe!(Path("a.txt")), .Ok(true), reason="a row of FsRead alone")
 
     it("stat! is .None below a file"):
@@ -50,10 +65,16 @@ tests:
             assert_equal(create_dir_all!(Path("d/sub")), .Ok(()), reason="made")
             assert_equal(write_text!(Path("d/b.txt"), "b"), .Ok(()), reason="seeded")
             assert_equal(write_text!(Path("d/a.txt"), "a"), .Ok(()), reason="seeded")
-            names := list_dir!(Path("d")).unwrap_or([]).map(fn(entry: Entry) -> string: "${entry.path}")
+            names := list_dir!(Path("d"))
+                .unwrap_or([])
+                .map(fn(entry: Entry) -> string: "${entry.path}")
             assert_equal(names, ["d/a.txt", "d/b.txt", "d/sub"], reason="ordered by path text")
             assert_equal(rename!(Path("d/a.txt"), Path("d/c.txt")), .Ok(()), reason="renamed")
             assert_equal(stat!(Path("d/a.txt")), .Ok(.None), reason="old name gone")
             assert_equal(remove!(Path("d/c.txt")), .Ok(()), reason="removed")
             assert_equal(stat!(Path("d/c.txt")), .Ok(.None), reason="file gone")
-            assert_equal(remove!(Path("nothing")), .Err(FsError.NotFound(path=Path("nothing"))), reason="a missing path")
+            assert_equal(
+                remove!(Path("nothing")),
+                .Err(FsError.NotFound(path=Path("nothing"))),
+                reason="a missing path",
+            )

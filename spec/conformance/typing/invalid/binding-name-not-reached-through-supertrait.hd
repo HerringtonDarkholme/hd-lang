@@ -7,5 +7,5 @@ trait Supplier:
 trait NamedSupplier < Supplier:
     fn name(self) -> string
 
-fn first[I < NamedSupplier[Element = i32]](source: I) -> I::Item:  # diagnostic: unknown-associated-type
+fn first[I < NamedSupplier[Element = i32]](source: I) -> I::Item: # diagnostic: unknown-associated-type
     source.get()

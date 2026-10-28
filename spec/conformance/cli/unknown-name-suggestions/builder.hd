@@ -1,1 +1,2 @@
-fn use_builder(value: StringBuilder) -> void: pass
+fn use_builder(value: StringBuilder) -> void:
+    pass

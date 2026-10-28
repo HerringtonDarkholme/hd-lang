@@ -9,12 +9,7 @@ enum Packet:
     Empty
 
 fn packet(kind: usize, seed: string) -> Packet:
-    if kind == 0:
-        .Pair(seed + "L", seed + "R")
-    else if kind == 1:
-        .Single(seed + "S")
-    else:
-        .Empty
+    if kind == 0: .Pair(seed + "L", seed + "R") else if kind == 1: .Single(seed + "S") else: .Empty
 
 fn partial(kind: usize, seed: string) -> string:
     match packet(kind, seed):
@@ -94,8 +89,16 @@ tests:
         assert_equal(partial(2, seed), "empty", reason="no payload")
 
     it("a failed guard can reuse extracted fields in a later arm"):
-        assert_equal(guarded("guard 7"), "guard 7Lguard 7R", reason="the second pair arm still sees both fields")
-        assert_equal(rejected_guard("guard 8"), "rejected", reason="the failed guard's binding still cleans up")
+        assert_equal(
+            guarded("guard 7"),
+            "guard 7Lguard 7R",
+            reason="the second pair arm still sees both fields",
+        )
+        assert_equal(
+            rejected_guard("guard 8"),
+            "rejected",
+            reason="the failed guard's binding still cleans up",
+        )
 
     it("named values and their aliases stay intact"):
         saved := packet(0, "alias 9")
@@ -129,8 +132,16 @@ tests:
 
     it("Result and optional propagation move success and failure payloads"):
         assert_equal(propagate("result ", true), .Ok("result ok!"), reason="success payload")
-        assert_equal(propagate("result ", false), .Err("result err"), reason="early-returned failure payload")
-        assert_equal(propagate_optional("option ", true), .Some("option some!"), reason="Some payload")
+        assert_equal(
+            propagate("result ", false),
+            .Err("result err"),
+            reason="early-returned failure payload",
+        )
+        assert_equal(
+            propagate_optional("option ", true),
+            .Some("option some!"),
+            reason="Some payload",
+        )
         assert_equal(propagate_optional("option ", false), .None, reason="None has no payload")
 
     it("nested patterns transfer the selected inner field"):
@@ -140,4 +151,8 @@ tests:
         original := recursive("boxed ")
         copy := original
         assert_equal(left_word(original), "boxed left", reason="the original is readable")
-        assert_equal(left_word(copy), "boxed left", reason="the shared referenced value is not drained")
+        assert_equal(
+            left_word(copy),
+            "boxed left",
+            reason="the shared referenced value is not drained",
+        )

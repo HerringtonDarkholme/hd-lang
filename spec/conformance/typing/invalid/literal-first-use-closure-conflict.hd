@@ -6,4 +6,4 @@ fn take(n: i32) -> i32:
 fn run(items: List[string]) -> i32:
     let i = 0
     at_end := fn() -> bool: i == items.len()
-    take(i)  # diagnostic: type-mismatch
+    take(i) # diagnostic: type-mismatch

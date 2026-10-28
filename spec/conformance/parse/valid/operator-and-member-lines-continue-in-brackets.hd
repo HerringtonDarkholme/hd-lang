@@ -2,9 +2,5 @@
 # expect: parse
 
 fn total(values: List[i32], offset: i32) -> i32:
-    result := (
-        values
-        .len()
-        + offset
-    )
+    result := values.len() + offset
     result

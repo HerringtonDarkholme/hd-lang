@@ -21,13 +21,16 @@ type Services = $ Clock + Logger
 
 type OnlyClock = $ Clock
 
-type Silent = $()
+type Silent = $ ()
 
-fn cells(grid: Grid) -> usize: grid[0].len() + grid[1].len() + 8
+fn cells(grid: Grid) -> usize:
+    grid[0].len() + grid[1].len() + 8
 
-fn timed(callback: fn() -> i32 $ Services) -> i32 $ Services: callback()
+fn timed(callback: fn() -> i32 $ Services) -> i32 $ Services:
+    callback()
 
-fn quiet(callback: fn() -> i32 $ Silent) -> i32: callback()
+fn quiet(callback: fn() -> i32 $ Silent) -> i32:
+    callback()
 
 pub fn main() -> void $ Console:
     let grid: Grid = [[+1, +2], [+3, +4]]

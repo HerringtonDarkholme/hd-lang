@@ -3,5 +3,6 @@ use std.task.{Poll, PollContext}
 
 struct Replay: pass
 
-impl Suspend[i32] for Replay:  # diagnostic: unknown-trait
-    fn poll(&mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)
+impl Suspend[i32] for Replay: # diagnostic: unknown-trait
+    fn poll(&mut self, context: PollContext) -> Poll[i32]:
+        Poll.Ready(1)

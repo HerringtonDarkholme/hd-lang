@@ -8,10 +8,12 @@ first := Tag { n: 1 } < Tag { n: 2 } # diagnostic: top-level-read-before-initial
 later := +5
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool: true
+    fn eq(self, other: Tag) -> bool:
+        true
 
 impl PartialOrd for Tag:
-    fn partial_cmp(self, other: Tag) -> Ordering?: (self.n + later).partial_cmp(other.n)
+    fn partial_cmp(self, other: Tag) -> Ordering?:
+        (self.n + later).partial_cmp(other.n)
 
 pub fn main() -> void $ Console:
     println(first)

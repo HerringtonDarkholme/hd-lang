@@ -17,4 +17,4 @@ fn serve_all(handlers: List[fn() -> string $ Db + Clock + Log]) -> void:
 
 fn wire() -> void:
     handlers := [health, orders]
-    serve_all(handlers)  # diagnostic: type-mismatch
+    serve_all(handlers) # diagnostic: type-mismatch

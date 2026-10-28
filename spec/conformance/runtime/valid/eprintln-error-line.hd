@@ -1,16 +1,16 @@
-# test: eprintln writes through write_error! of the covering Console provider
-# Spec std/console Standard Error: std-console.eprintln.one-write (batch 64, STD-4).
+# test: eprintln writes through write_error_sync of the covering Console provider
+# Spec std/console Standard Error: std-console.eprintln.one-write-sync (batch 64, STD-4).
 use std.console.eprintln
 struct SplitConsole:
     out: List[string]
     err: List[string]
 
 impl Console for SplitConsole:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.out.push(text)
         .Ok(())
 
-    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.err.push(text)
         .Ok(())
 
@@ -28,5 +28,5 @@ tests:
         let mut console = SplitConsole { out: [], err: [] }
         $.with(Console=&mut console):
             report(2)
-        assert_equal(console.out, ["done\n"], reason="println uses write!")
-        assert_equal(console.err, ["warning: 2 skipped\n"], reason="eprintln uses write_error!")
+        assert_equal(console.out, ["done", "\n"], reason="println uses write_sync")
+        assert_equal(console.err, ["warning: 2 skipped\n"], reason="eprintln uses write_error_sync")

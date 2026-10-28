@@ -6,12 +6,15 @@ trait Pick[T]:
 struct Item: pass
 
 impl Pick[bool] for Item:
-    fn pick(self, value: bool) -> i32: 0
+    fn pick(self, value: bool) -> i32:
+        0
 
 impl Pick[i32] for Item:
-    fn pick(self, value: i32) -> i32: value
+    fn pick(self, value: i32) -> i32:
+        value
 
-fn inferred(): +42
+fn inferred():
+    +42
 
 fn main() -> i32:
     Item {}.pick(inferred())

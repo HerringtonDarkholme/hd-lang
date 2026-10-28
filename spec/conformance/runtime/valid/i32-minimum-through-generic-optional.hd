@@ -15,4 +15,8 @@ tests:
     use std.testing.assert_equal
 
     it("i32 minimum survives a generic and an optional"):
-        assert_equal(through_generic(), -2147483648, reason="minimum survives a generic round trip and an optional unwrap")
+        assert_equal(
+            through_generic(),
+            -2147483648,
+            reason="minimum survives a generic round trip and an optional unwrap",
+        )

@@ -47,7 +47,7 @@ tests:
         assert_equal(made(), [+1, 2], reason="a new call makes a new list")
 
     it("a map value bound and returned is a value of its own"):
-        let mut m: Map[string, List[i32]] = {"k": [+1]}
+        let mut m: Map[string, List[i32]] = { "k": [+1] }
         y := entry(m)
         m["k"].push(2)
         assert_equal(y, [+1], reason="the result is its own list")

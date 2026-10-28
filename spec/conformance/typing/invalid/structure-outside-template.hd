@@ -1,5 +1,5 @@
 # test: outside a template, Structure may be named only in its use and after by in a block header
 use std.structure.Structure
 
-fn fields[X < Structure]() -> void:  # diagnostic: structure-outside-template
+fn fields[X < Structure]() -> void: # diagnostic: structure-outside-template
     pass

@@ -1,2 +1,2 @@
-defer:  # diagnostic: defer-outside-cleanup-scope
+defer: # diagnostic: defer-outside-cleanup-scope
     pass

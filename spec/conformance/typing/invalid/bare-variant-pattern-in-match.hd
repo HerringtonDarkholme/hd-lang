@@ -7,5 +7,5 @@ enum Flag:
 
 fn main(flag: Flag) -> i32:
     match flag:
-        On => 1  # diagnostic: bare-variant-pattern
+        On => 1 # diagnostic: bare-variant-pattern
         .Off => 0

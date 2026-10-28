@@ -2,22 +2,23 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "8b263e56d5657a52678161fe79c1c166c1c0ffbc",
-    "compilerBaseRevision": "8b263e56d5657a52678161fe79c1c166c1c0ffbc",
-    "compilerSha256": "f41efcd929a65e3997c3c9f4d44afc42fc2d29621901aa731bd8b0632c19c83a",
-    "referenceWasmSha256": "5ea05e3e5c89cdac3885bddf50e0d747984ecdba3c704e68ca11cb843705898a",
-    "referenceContractSha256": "39202dee64e1a19986515726d54d28384c61fc1c3b735a5c4d898755653c623e",
-    "probeSha256": "944168255af1002af5ff9732d0fd01b3b5d205bd9c3b96441f01308752e90e52",
+    "sourceBaseRevision": "8c8f93fe0b6d60bc89ea3df915a014402ddf4fc3",
+    "compilerBaseRevision": "8c8f93fe0b6d60bc89ea3df915a014402ddf4fc3",
+    "compilerSha256": "c555a1d9817f34ed2abc3709ccc67f4d29dc257dfa622837b0763dfd41d5ead3",
+    "referenceWasmSha256": "80301235abeaa6fc568050d95f3ea3fee12e18ca712855846c598dfc4cacffc9",
+    "referenceContractSha256": "9da3388553a87a7536d3baf7d2b9b57529f59b3f8c2e006d9045db7f90ade4e7",
+    "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
-      "packages/server-sdk/src/server.hd": "5825f5245b249a625c113b6be7b033f62217d155ac38495eb8ddb823906c1eab",
-      "lib/std/console.hd": "f24ba01178bd5583a5b66ac7d92bb44422ff598098310b12b1cc98c0a9710ae2",
-      "lib/std/http.hd": "3cab8efa2864536249fd9498817f49548a789b13ddc591309f58c797c4adfd54",
-      "lib/std/time.hd": "47936ab15caf80205da34a0edebf75cd5f31aee857dd7e3e77ac28b1772146e3"
+      "packages/server-sdk/src/server.hd": "f0421a49787f4bf08313d823f07dad074f14f3ea32aa296db373bf037854318b",
+      "lib/std/console.hd": "a385fcd716e2633a3c5100748bd6f179b84fec5630eb7707813437750847b953",
+      "lib/std/http.hd": "32d22c2e4431f88cd263ca616d3a954d3b5cda24dab66dee66835cd912bf6e0e",
+      "lib/std/http_wire.hd": "d58415dc76138985a78a6283a085c1e2f78ea908ca40240bdc31502297d63484",
+      "lib/std/time.hd": "d59ae209988e88c14db543c683909e8b87d3589a8ce253a753d365b1640ddcfd"
     }
   },
   "coverage": {
     "server.HttpServer": ["accept", "cancelled", "client", "clock", "console", "finish", "respond"],
-    "console.Console": ["write", "write_error"],
+    "console.Console": ["write_error_sync", "write_sync"],
     "http.Http": ["send"],
     "time.Clock": ["monotonic", "now", "sleep"]
   },
@@ -77,7 +78,6 @@
                             ]
                           ],
                           ["url", [6]],
-                          ["query", [8, [10, [[6], [6]]]]],
                           ["headers", [8, [10, [[6], [6]]]]],
                           ["body", [7]],
                           ["redirects", [3, 32, false]]
@@ -227,9 +227,9 @@
         "handle": true,
         "methods": [
           {
-            "name": "write",
-            "member": "write",
-            "wait": "may",
+            "name": "write_error_sync",
+            "member": "write_error_sync",
+            "wait": "never",
             "params": [[6]],
             "result": [
               13,
@@ -245,9 +245,9 @@
             ]
           },
           {
-            "name": "write_error",
-            "member": "write_error",
-            "wait": "may",
+            "name": "write_sync",
+            "member": "write_sync",
+            "wait": "never",
             "params": [[6]],
             "result": [
               13,
@@ -298,7 +298,6 @@
                     ]
                   ],
                   ["url", [6]],
-                  ["query", [8, [10, [[6], [6]]]]],
                   ["headers", [8, [10, [[6], [6]]]]],
                   ["body", [7]],
                   ["redirects", [3, 32, false]]
@@ -339,6 +338,78 @@
                             ["headers", [8, [10, [[6], [6]]]]],
                             ["body", [7]],
                             ["url", [6]]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  ["InvalidHeader", [["name", [6]]]],
+                  [
+                    "Body",
+                    [
+                      [
+                        "error",
+                        [
+                          12,
+                          [
+                            ["Used", []],
+                            [
+                              "Json",
+                              [
+                                [
+                                  "error",
+                                  [
+                                    12,
+                                    [
+                                      ["UnexpectedEnd", [["position", [3, 32, false]]]],
+                                      ["UnexpectedCharacter", [["position", [3, 32, false]]]],
+                                      ["InvalidEscape", [["position", [3, 32, false]]]],
+                                      ["LoneSurrogate", [["position", [3, 32, false]]]],
+                                      ["ControlCharacter", [["position", [3, 32, false]]]],
+                                      ["NumberOutOfRange", [["position", [3, 32, false]]]],
+                                      ["NestingTooDeep", [["position", [3, 32, false]]]],
+                                      [
+                                        "WrongType",
+                                        [
+                                          ["path", [6]],
+                                          ["expected", [6]]
+                                        ]
+                                      ],
+                                      ["MissingField", [["path", [6]]]],
+                                      [
+                                        "UnknownVariant",
+                                        [
+                                          ["path", [6]],
+                                          ["name", [6]]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ],
+                            [
+                              "Form",
+                              [
+                                [
+                                  "error",
+                                  [
+                                    12,
+                                    [
+                                      ["Unsupported", [["field", [6]]]],
+                                      ["Missing", [["field", [6]]]],
+                                      [
+                                        "Invalid",
+                                        [
+                                          ["field", [6]],
+                                          ["text", [6]]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
                           ]
                         ]
                       ]
@@ -384,5 +455,5 @@
       }
     ]
   },
-  "fingerprint": "6c42308927af71d468947a2a51689f3b4fc422a84b2a91d007dde64c626db8d4"
+  "fingerprint": "3f7514e803962353e150d2422fc545aad66c66cce6ab0326dbbeab6ae0deb126"
 }

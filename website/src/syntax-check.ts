@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { instantiateCompilerModule } from "../playground/src/compiler-host.ts";
+
 import { diagnosticCodePhases } from "../../spec/tools/diagnostic-codes.ts";
 import {
   compileRequest,
@@ -26,7 +28,7 @@ function load(): { exports: CompilerExports; syntax: ReadonlySet<string> } {
         stdio: "inherit",
       });
     const module = new WebAssembly.Module(readFileSync(COMPILER_WASM));
-    compiler = new WebAssembly.Instance(module, {}).exports as unknown as CompilerExports;
+    compiler = instantiateCompilerModule(module).exports as unknown as CompilerExports;
     const phases = diagnosticCodePhases(
       readFileSync(join(REPO_DIR, "spec/README.md"), "utf8"),
       readFileSync(join(REPO_DIR, "spec/conformance/cases.tsv"), "utf8"),

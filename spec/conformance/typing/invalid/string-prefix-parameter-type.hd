@@ -2,6 +2,6 @@
 # Spec 14 Member-Typed Facts: annot.typed-fact.check; `@str_prefix` on `fn count(n: i32)` (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.str_prefix
 
-@str_prefix  # diagnostic: type-mismatch
+@str_prefix # diagnostic: type-mismatch
 fn count(n: i32) -> i32:
     n

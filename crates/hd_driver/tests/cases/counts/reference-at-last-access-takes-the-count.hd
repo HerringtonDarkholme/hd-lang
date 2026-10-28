@@ -1,9 +1,9 @@
 # @dump: counts
 # @build: v8 release
 # `&mut tally` is the local's last access, so the reference takes the
-# cell's count: no retain for it and no release of the cell after it.
-# Only the reference's release after the call remains, besides the exit's
-# releases of places already zeroed (DESIGN.md §23.20).
+# local. `tally` lives in a slot of the frame (DESIGN.md §23.38), so the
+# reference is a loan: no retain for it, and its drop after the call
+# releases the value in the slot, which has no counted part here.
 struct Tally:
     n: i64
 

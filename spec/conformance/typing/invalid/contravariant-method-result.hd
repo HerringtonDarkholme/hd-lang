@@ -5,5 +5,5 @@ struct Handler[-T]:
     handle: fn(T) -> void
 
 impl[T] Handler[T]:
-    pub fn replay(self, source: fn() -> T) -> T:  # diagnostic: invalid-variance
+    pub fn replay(self, source: fn() -> T) -> T: # diagnostic: invalid-variance
         source()

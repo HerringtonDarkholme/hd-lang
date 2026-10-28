@@ -9,7 +9,8 @@ struct FixedCounter:
     current: i32
 
 impl Counter for FixedCounter:
-    fn value(self) -> i32: self.current
+    fn value(self) -> i32:
+        self.current
 
 fn read_counter!() -> i32 $ Counter:
     $.use(Counter).value()

@@ -21,7 +21,11 @@ tests:
 
     it("a string writes its UTF-8 length as a u64, then its UTF-8 bytes"):
         assert_equal(bytes_of("hd"), [2, 0, 0, 0, 0, 0, 0, 0, 104, 100], reason="two bytes")
-        assert_equal(bytes_of("\u{E9}"), [2, 0, 0, 0, 0, 0, 0, 0, 195, 169], reason="the length counts bytes, not chars")
+        assert_equal(
+            bytes_of("\u{E9}"),
+            [2, 0, 0, 0, 0, 0, 0, 0, 195, 169],
+            reason="the length counts bytes, not chars",
+        )
         assert_equal(bytes_of(""), [0, 0, 0, 0, 0, 0, 0, 0], reason="only the length")
 
     it("a list writes its length as a u64, then each item"):
@@ -32,10 +36,17 @@ tests:
 
     it("a tuple writes each element in order, with no length"):
         let pair: (u8, string) = (7, "a")
-        assert_equal(bytes_of(pair), [7, 1, 0, 0, 0, 0, 0, 0, 0, 97], reason="the u8, then the string")
+        assert_equal(
+            bytes_of(pair),
+            [7, 1, 0, 0, 0, 0, 0, 0, 0, 97],
+            reason="the u8, then the string",
+        )
 
     it("strings in a tuple keep their boundaries"):
-        assert(bytes_of(("ab", "c")) != bytes_of(("a", "bc")), reason="each string writes its length")
+        assert(
+            bytes_of(("ab", "c")) != bytes_of(("a", "bc")),
+            reason="each string writes its length",
+        )
 
     it("an optional writes a tag byte, then a present payload"):
         let present: i32? = .Some(5)

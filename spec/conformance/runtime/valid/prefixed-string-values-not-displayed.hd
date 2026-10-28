@@ -17,4 +17,8 @@ tests:
     use std.testing.assert_equal
 
     it("the value goes to the template, not into the text"):
-        assert_equal(show(Secret { value: 7 }), "a=|!|7", reason="pieces around the value, and the value itself")
+        assert_equal(
+            show(Secret { value: 7 }),
+            "a=|!|7",
+            reason="pieces around the value, and the value itself",
+        )

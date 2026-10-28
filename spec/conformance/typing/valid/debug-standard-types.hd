@@ -8,7 +8,7 @@ fn render_all() -> List[string]:
         debug(true),
         debug("text"),
         debug([1, 2]),
-        debug({"a": 1}),
+        debug({ "a": 1 }),
         debug(maybe),
         debug(outcome),
         debug((1, "one")),

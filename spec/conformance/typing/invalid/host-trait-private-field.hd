@@ -5,7 +5,7 @@ pub struct IoError:
     message: string
 
 pub trait FileHandle:
-    fn read!(&mut self) -> Result[string, IoError]  # diagnostic: boundary-private-field
+    fn read!(&mut self) -> Result[string, IoError] # diagnostic: boundary-private-field
 
 pub trait Files:
     fn open!(&self) -> *mut dyn FileHandle

@@ -12,7 +12,11 @@ tests:
         words_rng := Rng::new(7)
         let mut words: List[string] = ["ant", "bee", "cat", "dog", "eel"]
         words_rng.shuffle(&mut words)
-        assert_equal(words, ["eel", "dog", "bee", "ant", "cat"], reason="a permutation of the words")
+        assert_equal(
+            words,
+            ["eel", "dog", "bee", "ant", "cat"],
+            reason="a permutation of the words",
+        )
         assert_equal(words.sorted(), ["ant", "bee", "cat", "dog", "eel"], reason="the same items")
 
     it("a list of fewer than two items draws nothing"):
@@ -39,7 +43,11 @@ tests:
         assert_equal(deck.sample(cards, 3), [8, 3, 4], reason="the seeded sample")
         assert_equal(cards, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], reason="the input is unchanged")
         words_rng := Rng::new(7)
-        assert_equal(words_rng.sample(["ant", "bee", "cat", "dog", "eel"], 2), ["cat", "bee"], reason="two words")
+        assert_equal(
+            words_rng.sample(["ant", "bee", "cat", "dog", "eel"], 2),
+            ["cat", "bee"],
+            reason="two words",
+        )
         all := Rng::new(11)
         every := all.sample(cards, 10)
         assert_equal(every.sorted(), cards, reason="a full sample is a permutation")

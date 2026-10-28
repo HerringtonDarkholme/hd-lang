@@ -3,4 +3,4 @@
 trait Marker
 
 impl Marker for string?
-impl Marker for Option[string]  # diagnostic: overlapping-impl
+impl Marker for Option[string] # diagnostic: overlapping-impl

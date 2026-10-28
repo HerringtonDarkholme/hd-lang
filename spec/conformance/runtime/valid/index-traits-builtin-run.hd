@@ -21,7 +21,7 @@ tests:
         assert_equal(numbers[1], 9, reason="index_set replaces the element")
 
     it("a map reads a present key as V and stores through IndexSet"):
-        let mut ages: Map[string, i32] = {"ada": 36}
+        let mut ages: Map[string, i32] = { "ada": 36 }
         put(&mut ages, "grace", 45)
         assert_equal(lookup(ages, "ada"), 36, reason="Out is V, not V?")
         assert_equal(lookup(ages, "grace"), 45, reason="index_set inserts")

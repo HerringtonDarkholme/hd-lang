@@ -6,10 +6,7 @@ fn main() -> i32:
     let map_total = +0
     for (key, value) in by_left:
         map_total = map_total + key + value
-    if pairs.len() == 4 && pairs[0] == 11 && pairs[3] == 23 && map_total == 46:
-        42
-    else:
-        0
+    if pairs.len() == 4 && pairs[0] == 11 && pairs[3] == 23 && map_total == 46: 42 else: 0
 
 tests:
     use std.testing.assert_equal

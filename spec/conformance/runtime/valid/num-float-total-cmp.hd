@@ -24,7 +24,11 @@ tests:
             let other: usize = 0
             while other < ordered.len():
                 expected := position_order(at, other)
-                assert_equal(ordered[at].total_cmp(ordered[other]), expected, reason="position " + at.to_string() + " against " + other.to_string())
+                assert_equal(
+                    ordered[at].total_cmp(ordered[other]),
+                    expected,
+                    reason="position " + at.to_string() + " against " + other.to_string(),
+                )
                 other = other + 1
             at = at + 1
 
@@ -41,7 +45,11 @@ tests:
         assert_equal(result[5].is_nan(), true, reason="a positive NaN last")
         negative_nan := f64::from_bits(18444492273895866368)
         with_negative := sorted([nan, 1.0, negative_nan, -infinity])
-        assert_equal(with_negative[0].to_bits(), 18444492273895866368, reason="a negative NaN first")
+        assert_equal(
+            with_negative[0].to_bits(),
+            18444492273895866368,
+            reason="a negative NaN first",
+        )
         assert_equal(with_negative[1], -infinity, reason="then negative infinity")
 
     it("f64 payloads"):
@@ -51,7 +59,11 @@ tests:
         assert_equal(low.total_cmp(low), .Equal, reason="the same bits are equal")
         negative_low := f64::from_bits(18444492273895866368)
         negative_high := f64::from_bits(18444492273895866369)
-        assert_equal(negative_high.total_cmp(negative_low), .Less, reason="negative payloads reverse")
+        assert_equal(
+            negative_high.total_cmp(negative_low),
+            .Less,
+            reason="negative payloads reverse",
+        )
         assert_equal((-0.0).total_cmp(0.0), .Less, reason="negative zero is below zero")
         assert_equal(1.0.total_cmp(1.0), .Equal, reason="equal values")
         assert_equal((-3.0).total_cmp(-2.0), .Less, reason="negative values by magnitude")
@@ -65,12 +77,25 @@ tests:
         let zero: f32 = 0.0
         let small: f32 = -2.5
         let large: f32 = 2.5
-        ordered := [negative_nan, negative_infinity, small, negative_zero, zero, large, infinity, positive_nan]
+        ordered := [
+            negative_nan,
+            negative_infinity,
+            small,
+            negative_zero,
+            zero,
+            large,
+            infinity,
+            positive_nan,
+        ]
         let at: usize = 0
         while at < ordered.len():
             let other: usize = 0
             while other < ordered.len():
                 expected := position_order(at, other)
-                assert_equal(ordered[at].total_cmp(ordered[other]), expected, reason="position " + at.to_string() + " against " + other.to_string())
+                assert_equal(
+                    ordered[at].total_cmp(ordered[other]),
+                    expected,
+                    reason="position " + at.to_string() + " against " + other.to_string(),
+                )
                 other = other + 1
             at = at + 1

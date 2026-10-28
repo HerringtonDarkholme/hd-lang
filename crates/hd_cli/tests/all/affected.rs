@@ -11,6 +11,7 @@
 //! `src/stock.hd`, and the integration test files `tests/bill.hd`, which
 //! uses billing, and `tests/count.hd`, which uses stock.
 
+use hd_base::SliceSort as _;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -87,7 +88,7 @@ fn ran(root: &Path, args: &[&str]) -> Vec<String> {
         .filter_map(|l| l.strip_prefix("{\"kind\":\"test\",\"name\":\""))
         .filter_map(|l| l.split_once('"').map(|(n, _)| n.to_owned()))
         .collect();
-    names.sort();
+    names.sort_stable();
     names
 }
 

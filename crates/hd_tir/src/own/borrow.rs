@@ -12,10 +12,13 @@
 //!
 //! 1. **Every use lends**: no use consumes the value (an owned argument, a
 //!    construction's part, a `Return` or `Break` value, a block's tail),
-//!    passes it on as another value (a coercion), or addresses its storage
-//!    (a `Ref` rooted at it). A copy of it for a consumer is a read rooted
-//!    at it, which lends. One consumer is let through: a `Store` of the
-//!    read into all of a **binding local** (below).
+//!    passes it on as another value (a coercion that changes its values),
+//!    or addresses its storage (a `Ref` rooted at it). A copy of it for a
+//!    consumer is a read rooted at it, which lends. Two consumers are let
+//!    through: a `Store` of the read into all of a **binding local**
+//!    (below), and a coercion that keeps its values
+//!    ([`Body::same_value_coercion`]) whose own uses lend, which is then a
+//!    borrow too, its drops gone, the span running to its last drop.
 //! 2. **Nothing writes what it reads.** The place is resolved through the
 //!    values its root reads (`%h = Read [$xs]` makes `[%h [%i]]` an
 //!    element of `$xs`), and through binding locals to the read they hold:
@@ -34,13 +37,16 @@
 //!    local needs the local unaddressed and unshared with a closure; then
 //!    only the body's own instructions change it, calls included, and so
 //!    the buffer of a list it holds, when every value stored into it is a
-//!    fresh one (a call's result, a copy or snapshot, a literal) and so
+//!    fresh one (a call's result, a copy, a literal) and so
 //!    shares its header with no other place. Any other place (behind a
 //!    dereference, in a top-level binding, or in the buffer of a shared or
 //!    unknown header) is the **heap**: no write that reaches the heap, and
 //!    no call, may stand in the span; a call that may not write
 //!    (`OwnCx::may_write`) is allowed when the one dereference is of a
-//!    reference that a parameter the body never stores holds.
+//!    reference that a local holds over the span: a parameter the body
+//!    never stores, or another local, which rule 2 keeps from being
+//!    stored or dropped in the span (`frame := self.top()` and then
+//!    `member_name(m, frame.facts)`).
 //! 4. **No suspension point** stands in the span.
 //!
 //! A **binding local** is a local whose one `Store` is of a read that
@@ -61,7 +67,9 @@
 //! A binding local holds a borrowed value, so it owns nothing: its `Drop`s
 //! go, it leaves the exit set, and its reads resolve through it to the
 //! read it holds. The backend stores into it with no count
-//! (`Moves::loan_locals`).
+//! (`Moves::loan_locals`). One whose read keeps its `Drop`s (below) keeps
+//! its own `Drop`s and its row in the exit set: they release the value
+//! only where an instance made it fresh.
 //!
 //! A **lent parameter** ([`OwnCx::received`]) that the body never stores,
 //! addresses, captures or changes in place (an `IsUnique` gives up a count
@@ -154,8 +162,10 @@ struct Chain {
     /// What the place names may be reached by calls and by writes through
     /// references (rule 3's heap).
     heap: bool,
-    /// The one dereference is of a reference a never-stored parameter
-    /// holds, read whole: calls that may not write leave it alone.
+    /// The one dereference is of a reference that a local holds over the
+    /// span (a parameter the body never stores, or another local, which
+    /// rule 2 keeps from being stored or dropped there), read whole: calls
+    /// that may not write leave it alone.
     param: bool,
 }
 
@@ -168,6 +178,9 @@ pub(crate) struct Tables {
     keeps: Vec<bool>,
     stored: Vec<u32>,
     last_drop: Vec<u32>,
+    /// Per value: the coercion that keeps its values and consumes it
+    /// ([`Body::same_value_coercion`]), or `NONE`.
+    alias: Vec<u32>,
     /// Per local: the stores into it, whether a reference or a closure
     /// reaches it, whether an `IsUnique` or a `Pin` changes it in place,
     /// whether every value stored into it is fresh, the first and last read
@@ -224,6 +237,7 @@ impl Tables {
         fill(&mut self.keeps, n, false);
         fill(&mut self.stored, n, NONE);
         fill(&mut self.last_drop, n, NONE);
+        fill(&mut self.alias, n, NONE);
         fill(&mut self.stores, locals, 0);
         fill(&mut self.reached, locals, false);
         fill(&mut self.changed, locals, false);
@@ -310,8 +324,10 @@ impl Tables {
                     let param = b.local_flags[li] & local_flags::PARAM != 0;
                     chain.ok = !self.reached[li];
                     chain.heap = derefs > 0 || (elem && (param || !self.fresh[li]));
+                    // A parameter never stored, or another local, whose
+                    // stores and drops rule 2 keeps out of the span.
                     chain.param =
-                        derefs == 1 && first_deref && !above && param && self.stores[li] == 0;
+                        derefs == 1 && first_deref && !above && (!param || self.stores[li] == 0);
                     return chain;
                 }
                 Root::Value(v) => {
@@ -479,7 +495,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 if let Some(l) = b.local_in_place(a) {
                     let li = l.idx();
                     t.stores[li] += 1;
-                    // A fresh value shares its header with no place.
+                    // A fresh value shares its header with no place: a
+                    // read is a copy, one more count of the buffer that a
+                    // change elsewhere copies first, unless it borrows,
+                    // and then the local is a binding local, which a
+                    // chain follows to the place it borrows.
                     let fresh = Ref(w).as_inst().is_none_or(|_| {
                         matches!(
                             b.tags.get(w as usize),
@@ -490,12 +510,9 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                                     | Tag::DefaultCall
                                     | Tag::NewList
                                     | Tag::NewMap
+                                    | Tag::Read
                             )
-                        ) || (b.tags.get(w as usize) == Some(&Tag::Intrinsic)
-                            && matches!(
-                                IntrinsicOp::from_u32(b.data[w as usize][0]),
-                                Some(IntrinsicOp::SnapBegin)
-                            ))
+                        )
                     });
                     t.fresh[li] &= fresh;
                 }
@@ -537,6 +554,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             }
             t.uses[v] += 1;
             let keeps = match op.role {
+                // Decided once the coercion's own uses are known.
+                Role::Consume if b.same_value_coercion(i) && t.alias[v] == NONE => {
+                    t.alias[v] = u32_of(i);
+                    false
+                }
                 Role::Consume if tag == Tag::Store && op.at == Loc::Data(1) => {
                     if t.stored[v] == NONE {
                         t.stored[v] = u32_of(i);
@@ -583,6 +605,17 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     t.ops = ops;
+    // A value a coercion consumes is kept where the coercion's value is
+    // (by a use, a store, another coercion) or where it has another use.
+    // Coercions follow their operands in the columns, so a chain resolves
+    // from its end.
+    for v in (0..n).rev() {
+        let c = t.alias[v];
+        if c != NONE {
+            let c = c as usize;
+            t.keeps[v] |= t.keeps[c] || t.stored[c] != NONE || t.alias[c] != NONE || t.uses[v] > 1;
+        }
+    }
 }
 
 /// Indexes every write by the roots it writes, and the heap writes, the
@@ -742,8 +775,19 @@ fn decide(
         return;
     }
     let x = u32_of(r);
-    // The span's end: the read's last drop, or a binding local's.
-    let (end, bind) = if t.last_drop[r] != NONE && t.stored[r] == NONE {
+    // A read that a coercion keeping its values consumes lives on as the
+    // coercion's value: the span ends at that value's last drop, and the
+    // coercion is a borrow too. One whose instance may make it fresh
+    // keeps its count.
+    let alias = t.alias[r];
+    if alias != NONE && (keeps_drops(b, cx, r) || t.last_drop[alias as usize] == NONE) {
+        return;
+    }
+    // The span's end: the read's last drop, a binding local's, or the
+    // coercion's.
+    let (end, bind) = if alias != NONE {
+        (t.last_drop[alias as usize], NONE)
+    } else if t.last_drop[r] != NONE && t.stored[r] == NONE {
         (t.last_drop[r], NONE)
     } else if t.last_drop[r] == NONE && t.stored[r] != NONE && t.uses[r] == 1 {
         match binding(b, t, t.stored[r]) {
@@ -759,8 +803,7 @@ fn decide(
     // only that part, less than a copy of all of it, unless the read into
     // the binding could move: no read of its local follows the span.
     if bind != NONE
-        && (keep
-            || t.kept_whole[bind as usize] > 0
+        && (t.kept_whole[bind as usize] > 0
             || (t.kept_read[bind as usize] > 0 && !read_after(b, t, r, end)))
     {
         return;
@@ -793,7 +836,16 @@ fn decide(
     }
     b.data[r][1] = ReadMode::Borrow as u32;
     let locals = u32_of(b.local_ty.len());
-    if bind == NONE {
+    if alias != NONE {
+        // The coercion's value is the borrow: its drops go.
+        for k in t.start[(locals + alias) as usize]..t.start[(locals + alias) as usize + 1] {
+            let d = t.rows[k as usize].at;
+            if is_whole_drop(b, d, Root::Value(alias)) {
+                t.gone[d as usize] = true;
+                edits.remove(d);
+            }
+        }
+    } else if bind == NONE {
         if !keep {
             for k in t.start[(locals + x) as usize]..t.start[(locals + x) as usize + 1] {
                 let d = t.rows[k as usize].at;
@@ -813,6 +865,12 @@ fn decide(
             t.kept_whole[l as usize] -= u32::from(p.whole());
         }
         t.holds[bind as usize] = x;
+        // A read whose value an instance may make fresh keeps the
+        // binding's `Drop`s and its row in the exit set: there the binding
+        // holds that value's count, which they release.
+        if keep {
+            return;
+        }
         t.unowned[bind as usize] = true;
         for k in t.start[bind as usize]..t.start[bind as usize + 1] {
             let d = t.rows[k as usize].at;
@@ -898,9 +956,10 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
 /// The kept bits of `b`'s summary (`crate::own::Summary::kept`), from the
 /// tables of its last run: parameter k may outlive the call when the body
 /// owns some of it ([`lent_params`] left it owned) or a read of it keeps
-/// its value. A parameter whose type an instance decides is kept, and one
-/// with no counted leaf keeps nothing. `None` for a body that is no
-/// function's or that suspends.
+/// its value, whether its type is closed or one an instance decides: an
+/// instance that makes it a reference or gives it no counted leaf takes no
+/// count of a lent one anyway. One with no counted leaf keeps nothing.
+/// `None` for a body that is no function's or that suspends.
 pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<u64> {
     if (b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance) || cx.suspending(b.item) {
         return None;
@@ -910,8 +969,7 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<u64> {
         let l = l as usize;
         let keeps = match cx.counted(b.local_ty[l]) {
             Tri::No => false,
-            Tri::Maybe => true,
-            Tri::Yes => !t.unowned[l] || t.kept_read[l] > 0,
+            Tri::Maybe | Tri::Yes => !t.unowned[l] || t.kept_read[l] > 0,
         };
         if keeps && k < 64 {
             kept |= 1 << k;
@@ -1022,7 +1080,7 @@ fn statement(b: &Body, topo: &Topology, mut x: u32, h: u32) -> Option<u32> {
 /// Whether read `r` keeps its `Drop`s when it borrows: an instance may
 /// make its value fresh (see the module). A read of a bare local never
 /// does.
-fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
+pub(crate) fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
     let word = b.data[r][0];
     if word & place::BARE_LOCAL != 0 {
         return false;

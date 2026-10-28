@@ -22,4 +22,4 @@ fn show(v: View[fn() -> void $ Db + Clock]) -> void:
     pass
 
 fn wire(v: View[fn() -> void $ Db]) -> void:
-    show(v)  # diagnostic: type-mismatch
+    show(v) # diagnostic: type-mismatch

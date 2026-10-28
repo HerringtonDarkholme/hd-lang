@@ -7,6 +7,7 @@ use std.ops.str_prefix
 fn sql(t: Template[i32]) -> i32:
     1
 
-fn find() -> i32: sql"select"
+fn find() -> i32:
+    sql"select"
 pub fn main() -> void:
     pass

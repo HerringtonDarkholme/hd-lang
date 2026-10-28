@@ -9,7 +9,8 @@ struct Clock:
     hour: i32
 
 impl Show for Clock:
-    fn show(self) -> string: "${self.hour}h"
+    fn show(self) -> string:
+        "${self.hour}h"
 
 fn announce[T < Show](t: T) -> string:
     "now ${t.show()}"
@@ -17,8 +18,9 @@ fn announce[T < Show](t: T) -> string:
 tests:
     use std.testing.assert_equal
 
-    impl Show for Clock:  # diagnostic: overlapping-impl
-        fn show(self) -> string: "clock:${self.hour}"
+    impl Show for Clock: # diagnostic: overlapping-impl
+        fn show(self) -> string:
+            "clock:${self.hour}"
 
     it("announces the clock"):
         assert_equal(announce(Clock { hour: 3 }), "now 3h", reason="the module's impl")

@@ -1,5 +1,5 @@
 # Split a program across files. Each folder's `mod.hd` is its public surface.
-use pkg.models.{User, greeting}  # ← `models/mod.hd` re-exports `models/user.hd`
+use pkg.models.{User, greeting} # ← `models/mod.hd` re-exports `models/user.hd`
 
 pub fn main() -> void $ Console:
     users := [User { name: "Ada", visits: 3 }, User { name: "Grace", visits: 1 }]

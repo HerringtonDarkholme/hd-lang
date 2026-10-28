@@ -4,6 +4,6 @@ enum Expr:
     Add(left: *Expr, right: *Expr)
 
 fn eval(e: &Expr) -> i64:
-    match e:  # diagnostic: nonexhaustive-match
+    match e: # diagnostic: nonexhaustive-match
         .Num(n) => n
         .Add(.Num(a), right) => a + eval(right)

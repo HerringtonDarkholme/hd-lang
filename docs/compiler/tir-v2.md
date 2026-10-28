@@ -1,7 +1,11 @@
 # TIR v2: Places And Explicit Ownership
 
-Status: detailed design, 2026-10-21, for issue #667. Stages 1 and 2 are
-implemented, and stage 3 through 3h (3i to 3k are stopped; see #180).
+Status: detailed design, 2026-10-21, from issue #667 (closed 2026-10-26).
+Stages 1 and 2 are implemented, and stage 3 through 3h (3i to 3k are
+stopped: the map stays in Rust, #180 closed). The costs this design left
+open were measured as misses and closed on 2026-10-28: #857, #858 and #859;
+#860's size lever moved to #941. The concluded string
+experiments #861 and #862 remain in #426's history.
 As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:
@@ -72,8 +76,8 @@ exists (stage 3).
 collector, never Wasm GC. A reference is one thin address. No
 whole-program or cross-function analysis (#702 and #703 stay held). No
 second copies of a callee for result demand (#681). Bounds-check
-elimination is separate (#711). The bit-0 tag on interior references
-(#704) is decided after stage 2; [Stage 2](#stage-2) says what places
+elimination is separate (#711). Interior references carry no tag: #704
+shipped as a release-only whole-program fact per reference target (`crates/hd_opt/src/whole.rs`, 2026-10-26); [Stage 2](#stage-2) says what places
 make cheaper. TIR v2 replaces TIR: the checker emits it, the emitter
 consumes it, and nothing sits between them. Compile time, memory,
 compiler size and cognitive load count as much as run time.
@@ -195,9 +199,13 @@ emitter emits the same loads for all four.
 `move` read, a `Ref` of a celled local, `Interp` and a `Closure` produce
 owned values. A use of a value either **consumes** it (a `Store`, an
 owned argument, a construction part, a `Return` or `Break` value, a
-capture) or **lends** it (a borrowed argument, an operand of `Prim`, an
-element index, the root of a place). After the passes, every owned
-value has exactly one consumer or one `Drop`.
+capture, a coercion that keeps its operand's values) or **lends** it (a
+borrowed argument, an operand of `Prim`, an element index, the root of a
+place). After the passes, every owned value has exactly one consumer or
+one `Drop`. A coercion that keeps its operand's values (`Weaken`,
+`Variance`, `RowSubsume`, `SuspendFnToCtor`, `Identity`,
+`ProviderAsRef`) is its operand under another type: it takes the
+operand's count, and a coercion of a `borrow` read is a borrow too.
 
 ### Ownership statements
 
@@ -821,6 +829,8 @@ on the place's count. A read borrows when all of these hold over its
 
 1. **Every use lends.** No consumer needs a count of its own (an owned
    argument, a store, a return). A borrowed value has no count to give.
+   A coercion that keeps the value's values passes the read on: the
+   coercion's uses must lend, and the span runs to its last use.
 2. **Nothing writes an overlapping place.** No `Store`, `Drop`, `move`
    read, `IsUnique` or mutable `Ref` of a place that overlaps the read's
    place stands in the span.
@@ -917,9 +927,10 @@ loop's entry test so an empty loop copies nothing, when:
 
 1. the `IsUnique` runs on every iteration that is entered (no `If` or
    `Match` around it skips it), or whenever an inner loop is entered that
-   stands so in the loop, at any depth, the inner loop having an entry
-   test; a shared buffer then costs a copy the loop did not need only if
-   no iteration enters that inner loop;
+   stands so in the loop, at any depth; a shared buffer then costs a copy
+   the loop did not need only if no iteration enters that inner loop. A
+   loop with no entry test (`while true`) runs its body whenever it is
+   entered, so its check runs before it unguarded;
 2. the loop never copies `p` or an overlapping place, takes no `Ref` of
    it, pins nothing, and holds no suspension point;
 3. no call in the loop may write, unless `p`'s root is a local that is
@@ -1798,7 +1809,8 @@ is worth deciding only if they are hot.
 8. Borrow.
    As built: `own/borrow.rs`, between insertion and move. One walk in
    instruction order decides each `copy` read of a counted type. It
-   borrows when every use lends (no consumer, no coercion, no `Ref` into
+   borrows when every use lends (no consumer, no coercion other than one
+   that keeps the value's values and whose own uses lend, no `Ref` into
    the value itself) and nothing in its span writes what it reads, may
    reach it from outside the body, or suspends. The span is the
    statements of its `Drop`'s block from the one that holds the read to
@@ -1829,7 +1841,11 @@ is worth deciding only if they are hot.
      read that borrows, no parameter, unaddressed, uncaptured, whose reads
      lie in the span (which then ends at the local's last `Drop`), holds
      a borrowed value and owns nothing: its drops go and it leaves the
-     exit set. The loop's element binding is one, so with the element
+     exit set. One whose read keeps its drops (below) keeps its own
+     drops and its exit row too, and holds the count only where an
+     instance made the value fresh: so an inlined `is_empty` on a list
+     read through a reference borrows, as `len` does (#898). The loop's
+     element binding is one, so with the element
      read of the private snapshot it is §23.25's loop-element loan, and
      `count_tests.hd`'s "immutable loop elements add no per-element
      counts" holds its 2,000-retain bound on the new path.
@@ -2890,12 +2906,83 @@ instructions). The ownership passes then run on the combined body, so a
 `ListIter.next` inlined into a loop borrows its list like a hand-written
 index loop.
 
+One selection rule covers std and user callees (2026-10-26, #856): a
+callee of at most 16 instructions (`INLINE_LIMIT`) that takes no
+reference and is not recursive. A reference parameter would be bound in a local, where it is
+counted and makes a local it points at a counted cell; a call lends both,
+so such a callee stays a call. The build profile is the only difference:
+a dev build copies std callees only, so user code stays as written for
+stepping, stack traces and `dbg`; a release build copies both, like the
+other cross-function work, which is release-only. 16 lets a one-line
+helper such as spectral_norm's `a(i, j)` (15) be no call in a hot loop,
+which V8's baseline tier would run as a call. A function marked
+`@inline(.Never)` or `@cold` is copied nowhere
+([`annot.inline.never`](../../spec/lang/14-annotations.md#r-annot.inline.never)),
+and each direct call of a `@cold` function goes through the function
+table, so V8 does not copy it either
+([`annot.inline.cold`](../../spec/lang/14-annotations.md#r-annot.inline.cold)).
+
+The rule was tuned on the 18 programs of bench/study and
+bench/runtime/progs against JavaScript, on three V8 tiers (default,
+`--no-liftoff`, `--liftoff-only`), with Wasm bytes and json's release
+compile time. Limits of 8, 12, 16 and 20, each with reference
+parameters refused or allowed and with leaves required or not:
+
+- **Reference parameters.** Allowing them in a callee that calls on
+  copies `StringBuilder.push` (`&mut self`, calls `bytes_append`) into
+  a loop: string_build 92 to 130 ms and map_count 121 to 138 ms on the
+  default tier, the same on the other two. Refusing them costs json
+  about 4 KB (+3.8%), as `&self` methods such as `Field.default` that
+  were copied are now functions; its run time moves within noise.
+- **Leaves.** Requiring a leaf as well changes no run time beyond noise
+  and adds bytes where a small wrapper of a call stays a call
+  (fannkuch_redux +31 B, nbody +33 B). Allowing reference parameters
+  in leaves only copies more of json's cold paths, such as
+  `Parser.unexpected` (+2.6 KB), for no run time.
+- **Limit.** At 12, spectral_norm's `a(i, j)` stays a call: 262 to
+  543 ms with `--liftoff-only`. 20 adds bytes (nbody +90 B) and no run
+  time. json's release compile time is the same at every limit
+  (0.33 to 0.34 s CPU, within noise).
+
+Against the earlier rules (std at 8 with references, user leaves at 16
+without), the geomean of hd over JS goes from 1.212 to 1.182 on the
+default tier, 1.128 to 1.105 with `--no-liftoff` and 1.616 to 1.566
+with `--liftoff-only`; hello's Wasm does not change.
+
+A release build inlines bottom-up (2026-10-26): before a call's callee
+is measured, its own calls are copied into it as far as their callees
+allow, at the call's types, and the limit applies to the result. A
+function that only wraps a call of a leaf is then a leaf too and is
+copied in turn; a generic function and an impl method count at the
+instance the call names, so `apply[Double]`, whose body is
+`s.step(x)`, becomes `Double.step`'s arithmetic, and a loop over
+`apply(double, x)` calls nothing (bench/runtime/progs/trait-dispatch).
+A function on the way down is never copied into itself or into a callee
+it reaches, and a function that calls itself, or that the walk finds on
+a cycle of calls, is copied nowhere, so recursion stays a call. A callee that outgrows the
+limit this way is copied as written, when that fits. Each instance is made
+once per run. A copy inside a copy keeps its frame: its `Body::inlined`
+row is called at an anchor in the outer copy's row, so a panic reports
+each inlined frame.
+
 A copy's parameter bound from a binding local borrows it the way any
 binding local does, and does not stop that local from borrowing in turn
 (2026-10-24, #667): in `for part in parts: n += part.len()`, the copied
 `len`'s `self` borrows `part` and `part` borrows the element, with no
 count per element. It is the borrow pass's local rule for a binding local
 read into another; the copy is not treated differently.
+
+The copy's `Store`s and its root's `Break`s join the caller's values to
+the callee's, so both sides must agree on types where a call lets them
+differ (2026-10-26, #851). A call of a function returning `impl Trait`
+has the opaque result type, while the copy, substituted by the call's
+type arguments, has the hidden one; so once a copy goes in, the caller
+opens its own opaque results too (`hd_mono::reveal`), as an instance
+would. A `mut self` parameter of a type with no changeable copy of its
+own (a primitive, an enum, a collection) is `mut T` in the callee, where
+the call passes a `T`; the copy's local takes the argument's type. A
+copy whose parameters or result still differ from the call's, or whose
+types do not open, stays a call.
 
 **What it costs.**
 

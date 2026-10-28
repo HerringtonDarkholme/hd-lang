@@ -1,4 +1,6 @@
 # test: generics / functions / inconsistent inference
 
-fn choose[T](left: T, right: T) -> T: left
-fn main() -> i32: choose(1, true)  # diagnostic: type-mismatch
+fn choose[T](left: T, right: T) -> T:
+    left
+fn main() -> i32:
+    choose(1, true) # diagnostic: type-mismatch

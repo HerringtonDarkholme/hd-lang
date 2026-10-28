@@ -3,5 +3,5 @@
 
 fn single() -> (i32,):
     let t: (i32,) = (1,)
-    let _grouped: (i32,) = (1)  # diagnostic: type-mismatch
+    let _grouped: (i32,) = (1) # diagnostic: type-mismatch
     t

@@ -1,5 +1,5 @@
 # test: from type parameter on data is rejected
 @error("x")
 struct D[E]:
-    @from  # diagnostic: invalid-error-marker
+    @from # diagnostic: invalid-error-marker
     inner: E

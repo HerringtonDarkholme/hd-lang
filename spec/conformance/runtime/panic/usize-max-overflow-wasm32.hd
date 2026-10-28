@@ -3,7 +3,7 @@
 # Spec 04 The usize Type: types.usize.width, types.usize.behavior; Integer Arithmetic: types.arith.checked.
 
 fn grown(size: usize) -> usize:
-    size + 1  # panic: integer-overflow
+    size + 1 # panic: integer-overflow
 
 pub fn main() -> void:
     let max: usize = 4294967295

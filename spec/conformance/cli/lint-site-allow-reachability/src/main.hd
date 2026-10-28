@@ -1,0 +1,6 @@
+fn condition(value: u32) -> bool:
+    # lint-allow: unused-local-binding
+    value == 0
+
+pub fn main() -> void:
+    _ := condition(1)

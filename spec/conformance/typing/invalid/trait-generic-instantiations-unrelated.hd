@@ -10,10 +10,11 @@ struct User:
 struct Feed: pass
 
 impl Source[i32] for Feed:
-    fn first(self) -> i32: 1
+    fn first(self) -> i32:
+        1
 
 fn take(source: &dyn Source[User]) -> void:
     pass
 
 fn run() -> void:
-    take(Feed {})  # diagnostic: type-mismatch
+    take(Feed {}) # diagnostic: type-mismatch

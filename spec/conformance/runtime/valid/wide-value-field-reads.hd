@@ -77,11 +77,99 @@ struct Wide:
     c54: Chunk
 
 fn make(text: string) -> Wide:
-    chunk := Chunk { s0: text, s1: text, s2: text, s3: text, s4: text, s5: text, s6: text, s7: text, s8: text, s9: text, s10: text, s11: text, s12: text, s13: text, s14: text }
-    Wide { c0: chunk, c1: chunk, c2: chunk, c3: chunk, c4: chunk, c5: chunk, c6: chunk, c7: chunk, c8: chunk, c9: chunk, c10: chunk, c11: chunk, c12: chunk, c13: chunk, c14: chunk, c15: chunk, c16: chunk, c17: chunk, c18: chunk, c19: chunk, c20: chunk, c21: chunk, c22: chunk, c23: chunk, c24: chunk, c25: chunk, c26: chunk, c27: chunk, c28: chunk, c29: chunk, c30: chunk, c31: chunk, c32: chunk, c33: chunk, c34: chunk, c35: chunk, c36: chunk, c37: chunk, c38: chunk, c39: chunk, c40: chunk, c41: chunk, c42: chunk, c43: chunk, c44: chunk, c45: chunk, c46: chunk, c47: chunk, c48: chunk, c49: chunk, c50: chunk, c51: chunk, c52: chunk, c53: chunk, c54: chunk }
+    chunk := Chunk {
+        s0: text,
+        s1: text,
+        s2: text,
+        s3: text,
+        s4: text,
+        s5: text,
+        s6: text,
+        s7: text,
+        s8: text,
+        s9: text,
+        s10: text,
+        s11: text,
+        s12: text,
+        s13: text,
+        s14: text,
+    }
+    Wide {
+        c0: chunk,
+        c1: chunk,
+        c2: chunk,
+        c3: chunk,
+        c4: chunk,
+        c5: chunk,
+        c6: chunk,
+        c7: chunk,
+        c8: chunk,
+        c9: chunk,
+        c10: chunk,
+        c11: chunk,
+        c12: chunk,
+        c13: chunk,
+        c14: chunk,
+        c15: chunk,
+        c16: chunk,
+        c17: chunk,
+        c18: chunk,
+        c19: chunk,
+        c20: chunk,
+        c21: chunk,
+        c22: chunk,
+        c23: chunk,
+        c24: chunk,
+        c25: chunk,
+        c26: chunk,
+        c27: chunk,
+        c28: chunk,
+        c29: chunk,
+        c30: chunk,
+        c31: chunk,
+        c32: chunk,
+        c33: chunk,
+        c34: chunk,
+        c35: chunk,
+        c36: chunk,
+        c37: chunk,
+        c38: chunk,
+        c39: chunk,
+        c40: chunk,
+        c41: chunk,
+        c42: chunk,
+        c43: chunk,
+        c44: chunk,
+        c45: chunk,
+        c46: chunk,
+        c47: chunk,
+        c48: chunk,
+        c49: chunk,
+        c50: chunk,
+        c51: chunk,
+        c52: chunk,
+        c53: chunk,
+        c54: chunk,
+    }
 
 fn chunk_sum(value: Chunk) -> usize:
-    value.s0.len() + value.s1.len() + value.s2.len() + value.s3.len() + value.s4.len() + value.s5.len() + value.s6.len() + value.s7.len() + value.s8.len() + value.s9.len() + value.s10.len() + value.s11.len() + value.s12.len() + value.s13.len() + value.s14.len()
+    (
+        value.s0.len()
+        + value.s1.len()
+        + value.s2.len()
+        + value.s3.len()
+        + value.s4.len()
+        + value.s5.len()
+        + value.s6.len()
+        + value.s7.len()
+        + value.s8.len()
+        + value.s9.len()
+        + value.s10.len()
+        + value.s11.len()
+        + value.s12.len()
+        + value.s13.len()
+        + value.s14.len()
+    )
 
 fn sum_value(value: Wide) -> usize:
     let sum: usize = 0
@@ -206,7 +294,6 @@ fn recurse(value: Wide, depth: usize) -> usize:
         return chunk_sum(value.c0)
     recurse(value, depth - 1) + chunk_sum(value.c54)
 
-
 fn repeated_ref(value: &Wide, stop: bool) -> usize:
     let sum: usize = 0
     for i in 0..3:
@@ -238,4 +325,8 @@ tests:
         value := factory.hold(make("word${+7}")).item
         assert_equal(sum_ref(value), 4125, reason="erased getter retains the selected field")
         assert_equal(repeated_ref(value, false), 225, reason="each loop getter releases its box")
-        assert_equal(repeated_ref(value, true), 150, reason="early return releases the selected field")
+        assert_equal(
+            repeated_ref(value, true),
+            150,
+            reason="early return releases the selected field",
+        )

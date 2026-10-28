@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# `f(&mut tally)` calls a function value, whose body is unknown, at the
+# last access of `tally`. A `&mut` argument never outlives its call by
+# declaration, so `tally` lives in a slot of the frame with no summary:
+# no `rt:new` cell, and no count of the reference.
+struct Tally:
+    n: i64
+
+# subject
+fn through(f: fn(&mut Tally) -> void) -> void:
+    let mut tally = Tally { n: 0 }
+    f(&mut tally)

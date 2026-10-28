@@ -2,6 +2,7 @@
 //! available-keys stack, closure rows, row subsumption, and the least
 //! solution of a callee's row parameters.
 
+use hd_base::SliceSort as _;
 use hd_diag::Code;
 use hd_resolve::{FnSig, HeadKind, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
@@ -482,14 +483,14 @@ impl Ck<'_, '_> {
             .iter()
             .map(|k| hd_resolve::show_ty_in(&self.cx.names, self.pool(), *k))
             .collect();
-        keys.sort();
+        keys.sort_stable();
         let mut params: Vec<String> = d
             .params
             .iter()
             .filter_map(|p| self.row_gens.iter().find(|(_, g)| g == p))
             .map(|(s, _)| self.cx.names.text(*s).to_owned())
             .collect();
-        params.sort();
+        params.sort_stable();
         keys.extend(params);
         let expanded = if keys.is_empty() {
             "$()".to_owned()
@@ -513,7 +514,7 @@ impl Ck<'_, '_> {
             .filter(|k| matches!(pool.get(*k), TyData::TraitValue { .. }))
             .map(|k| (hd_resolve::show_ty_in(&self.cx.names, self.pool(), k), k))
             .collect();
-        keys.sort_by(|a, b| a.0.cmp(&b.0));
+        keys.sort_stable_by(|a, b| a.0.cmp(&b.0));
         for (_, k) in keys {
             self.require_key(k, n);
         }
@@ -523,7 +524,7 @@ impl Ck<'_, '_> {
                 .find(|(_, g)| g == p)
                 .map_or_else(String::new, |(s, _)| self.cx.names.text(*s).to_owned())
         };
-        d.params.sort_by_cached_key(&name_of);
+        d.params.sort_stable_by_cached_key(&name_of);
         for p in d.params {
             // Only this body's own row parameters reach here substituted;
             // another owner's are a callee's that was not instantiated.
@@ -644,7 +645,7 @@ impl Ck<'_, '_> {
                 missing.push(name);
             }
         }
-        missing.sort();
+        missing.sort_stable();
         if let Some(k) = missing.first() {
             let msg = format!(
                 "in {what}: the function's row lists `{k}`, which the expected row does not"
@@ -832,7 +833,7 @@ impl Ck<'_, '_> {
             }
         }
         let mut params = used.params;
-        params.sort_by_key(|p| (p.owner.raw(), p.index));
+        params.sort_stable_by_key(|p| (p.owner.raw(), p.index));
         params.dedup();
         let edges = edges.into_iter().map(|e| self.zonk_edge(e)).collect();
         RowFacts {

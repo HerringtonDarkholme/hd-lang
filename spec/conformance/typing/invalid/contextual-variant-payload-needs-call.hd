@@ -5,5 +5,5 @@ enum Status:
     Refunded(cents: i32, reason: string)
 
 fn invalid() -> Status:
-    let status: Status = .Refunded  # diagnostic: unsaturated-enum-constructor
+    let status: Status = .Refunded # diagnostic: unsaturated-enum-constructor
     status

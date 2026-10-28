@@ -13,5 +13,5 @@ fn wire(tag: string) -> Wire:
 struct User:
     id: i64
 
-@wire("id")  # diagnostic: decorator-target-kind
+@wire("id") # diagnostic: decorator-target-kind
 type UserId(i64)

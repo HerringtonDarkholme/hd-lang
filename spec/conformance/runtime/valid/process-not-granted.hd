@@ -22,10 +22,20 @@ tests:
         let mut process = GrantedProcess {}
         $.with(Process=&mut process):
             match start!("curl"):
-                .Err(error) => assert_equal(error == ProcessError.NotGranted, true, reason="the grant refused it")
+                .Err(error) =>
+                    assert_equal(
+                        error == ProcessError.NotGranted,
+                        true,
+                        reason="the grant refused it",
+                    )
                 .Ok(_) => assert_equal(true, false, reason="curl is not granted")
             match start!("locked"):
-                .Err(error) => assert_equal(error == ProcessError.NotGranted, false, reason="the operating system refused it")
+                .Err(error) =>
+                    assert_equal(
+                        error == ProcessError.NotGranted,
+                        false,
+                        reason="the operating system refused it",
+                    )
                 .Ok(_) => assert_equal(true, false, reason="locked never starts")
             match start!("git"):
                 .Ok(output) => assert_equal(output.stdout, "ran", reason="git is granted")

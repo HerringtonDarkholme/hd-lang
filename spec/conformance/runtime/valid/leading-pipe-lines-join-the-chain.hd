@@ -3,25 +3,22 @@
 # expect-stdout: 4
 # expect-stdout: 10
 # expect-stdout: 4
-fn twice(n: usize) -> usize: n * 2
+fn twice(n: usize) -> usize:
+    n * 2
 
-fn increment(n: usize) -> usize: n + 1
+fn increment(n: usize) -> usize:
+    n + 1
 
 fn label(raw: string) -> usize:
-    raw
-        |> _.slice(0, 4)
-        |> _.len()
+    raw |> _.slice(0, 4) |> _.len()
 
 pub fn main() -> void $ Console:
     println(label("pipeline"))
-    size := "abcd"
-        .len()
+    size := "abcd".len()
         # a comment line and a blank line may precede the first pipe line
 
         |> twice
         |> increment
     println(size + 1)
-    steps := [+1, +2, +3, +4]
-
-        |> _.len()
+    steps := [+1, +2, +3, +4] |> _.len()
     println(steps)

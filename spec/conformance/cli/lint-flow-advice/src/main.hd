@@ -1,0 +1,19 @@
+fn stopped() -> i32:
+    return +1
+    debug(+2)
+    +3
+
+fn forever() -> void:
+    while true:
+        pass
+    pass
+
+fn trace() -> void:
+    debug(+4)
+
+pub fn main() -> void:
+    pass
+
+tests:
+    it("quiet ordinary commands"):
+        pass

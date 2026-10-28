@@ -1,5 +1,5 @@
 use dep.server_sdk.server.{HttpServer, serve}
-use std.http.{Http, Request, Response, HttpError}
+use std.http.{Http, Request, Response, HttpError, Url}
 use std.ops.Disposable
 use std.task.block_on
 use std.time.{Clock, sleep, ms, s}
@@ -10,7 +10,8 @@ struct State:
 struct InfiniteCleanup: pass
 impl Disposable for InfiniteCleanup:
     fn dispose!(&mut self) -> void:
-        while true: pass
+        while true:
+            pass
 
 struct WaitingCleanup:
     wait: mut Suspend[void]
@@ -27,41 +28,45 @@ impl Disposable for HttpCleanup:
         _ := wait!()
 
 fn spin() -> void:
-    while true: pass
+    while true:
+        pass
+
+fn forward!(target: string) -> Result[Response, HttpError] $ Http:
+    Request::get(Url::parse(target)?).send!()
 
 fn handle!(request: Request, state: &mut State) -> Response $ Http + Clock:
     state.hits += 1
-    if request.url.ends_with("/cpu"):
+    if request.url.path.ends_with("/cpu"):
         spin()
-    if request.url.ends_with("/trap"):
+    if request.url.path.ends_with("/trap"):
         panic("private HD panic must not reach a client")
-    if request.url.ends_with("/cleanup-cpu"):
+    if request.url.path.ends_with("/cleanup-cpu"):
         using closing = InfiniteCleanup {}
-        url := string::from_utf8(request.body).expect("entry acknowledgement URL")
-        _ := Request::get(url).send!()
+        url := request.text().expect("entry acknowledgement URL")
+        _ := forward!(url)
         sleep!(s(60))
-        return Response { status: 200 }
-    if request.url.ends_with("/cleanup-wait"):
+        return Response::status(.Ok)
+    if request.url.path.ends_with("/cleanup-wait"):
         using closing = WaitingCleanup { wait: sleep(s(60)) }
-        url := string::from_utf8(request.body).expect("entry acknowledgement URL")
-        _ := Request::get(url).send!()
+        url := request.text().expect("entry acknowledgement URL")
+        _ := forward!(url)
         sleep!(s(60))
-        return Response { status: 200 }
-    if request.url.ends_with("/slow"):
+        return Response::status(.Ok)
+    if request.url.path.ends_with("/slow"):
         sleep!(ms(80))
-    if request.url.ends_with("/ack"):
-        url := string::from_utf8(request.body).expect("cleanup URL")
-        using closing = HttpCleanup { wait: Request::get(url).send() }
-        return Response { status: 200, body: "after cleanup".to_utf8() }
-    if request.url.ends_with("/block-pending"):
-        url := string::from_utf8(request.body).expect("upstream URL")
-        _ := block_on(Request::get(url).send())
-    if request.url.ends_with("/proxy"):
-        url := string::from_utf8(request.body).expect("upstream URL")
-        return match Request::get(url).send!():
+    if request.url.path.ends_with("/ack"):
+        url := request.text().expect("cleanup URL")
+        using closing = HttpCleanup { wait: forward(url) }
+        return Response::status(.Ok).set_text("after cleanup")
+    if request.url.path.ends_with("/block-pending"):
+        url := request.text().expect("upstream URL")
+        _ := block_on(forward(url))
+    if request.url.path.ends_with("/proxy"):
+        url := request.text().expect("upstream URL")
+        return match forward!(url):
             .Ok(response) => response
-            .Err(error) => Response { status: 502, body: "${error}".to_utf8() }
-    Response { status: 200, body: "${state.hits}".to_utf8() }
+            .Err(error) => Response::status(.BadGateway).set_text("$error")
+    Response::status(.Ok).set_text("${state.hits}")
 
 pub fn main!() -> void $ HttpServer + Http + Clock:
     serve!(4, &mut State { hits: 0 }, handle).expect("server")

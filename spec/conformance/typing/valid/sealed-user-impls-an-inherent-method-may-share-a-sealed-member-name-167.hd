@@ -5,4 +5,5 @@ struct User:
     name: string
 
 impl User:
-    fn runtime_type(self) -> string: self.name
+    fn runtime_type(self) -> string:
+        self.name

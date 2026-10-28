@@ -2,5 +2,5 @@
 # Spec 11 Requirement Keys: req.key.traits.
 
 fn run() -> void:
-    $.with(Mailer=1):  # diagnostic: unknown-trait
+    $.with(Mailer=1): # diagnostic: unknown-trait
         pass

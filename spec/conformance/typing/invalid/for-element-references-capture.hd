@@ -7,5 +7,5 @@ fn demo() -> usize:
     let mut points = [Point { x: 1 }, Point { x: 2 }]
     let mut steps: List[fn() -> void] = []
     for point in &mut points:
-        steps.push(fn() -> void: point.x = point.x + 10)  # diagnostic: element-reference-outlives-call
+        steps.push(fn() -> void: point.x = point.x + 10) # diagnostic: element-reference-outlives-call
     steps.len()

@@ -6,5 +6,5 @@ struct Account:
 
 impl Account by Structure:
     id = []
-    fn label(self) -> string:  # diagnostic: misplaced-derivation
+    fn label(self) -> string: # diagnostic: misplaced-derivation
         "account"

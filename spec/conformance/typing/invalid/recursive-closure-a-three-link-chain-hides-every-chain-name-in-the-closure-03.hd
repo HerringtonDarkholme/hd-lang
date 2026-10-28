@@ -3,6 +3,5 @@
 
 pub fn main() -> void $ Console:
     a := b := c := fn(n: i32) -> i32:
-        if n == 0: 0
-        else: n + c(n - 1)  # diagnostic: unknown-name
+        if n == 0: 0 else: n + c(n - 1) # diagnostic: unknown-name
     println(a(3) + b(3) + c(3))

@@ -28,4 +28,8 @@ tests:
 
     it("calls a function through its covariant result view"):
         create := widen_result(new_user)
-        assert_equal(create().name, "Ada", reason="permission weakening preserves the returned reference")
+        assert_equal(
+            create().name,
+            "Ada",
+            reason="permission weakening preserves the returned reference",
+        )

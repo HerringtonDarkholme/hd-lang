@@ -7,7 +7,8 @@ struct Cell[T]:
 
 impl[T] Apply for Cell[T]:
     type Out = T
-    fn apply(self) -> T: self.value
+    fn apply(self) -> T:
+        self.value
 
 impl[T] Update[T] for Cell[T]:
     fn update(&mut self, value: T) -> void:
@@ -18,5 +19,5 @@ fn live[T](value: T) -> Cell[T]:
 
 fn invalid() -> i32:
     view := live(+0)
-    view() = 1  # diagnostic: not-writable
+    view() = 1 # diagnostic: not-writable
     view()

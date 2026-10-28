@@ -21,6 +21,28 @@ import {
 } from "../wire.mjs";
 
 // Each std type a host method crosses, from its declaration in lib/std.
+export const JsonError = variants({
+  UnexpectedEnd: { position: unsigned },
+  UnexpectedCharacter: { position: unsigned },
+  InvalidEscape: { position: unsigned },
+  LoneSurrogate: { position: unsigned },
+  ControlCharacter: { position: unsigned },
+  NumberOutOfRange: { position: unsigned },
+  NestingTooDeep: { position: unsigned },
+  WrongType: { path: str, expected: str },
+  MissingField: { path: str },
+  UnknownVariant: { path: str, name: str },
+});
+export const FormError = variants({
+  Unsupported: { field: str },
+  Missing: { field: str },
+  Invalid: { field: str, text: str },
+});
+export const BodyError = variants({
+  Used: {},
+  Json: { error: JsonError },
+  Form: { error: FormError },
+});
 export const Path = newtype(str);
 export const Command = data({
   program: str,
@@ -73,23 +95,6 @@ export const HostError = variants({
   InvalidValue: { name: str, reason: str },
   Missing: { name: str },
 });
-export const Response = data({
-  status: unsigned,
-  headers: list(tuple(str, str)),
-  body: bytes,
-  url: str,
-});
-export const HttpError = variants({
-  NotGranted: { host: str },
-  InvalidUrl: { url: str },
-  Dns: { host: str },
-  Connect: { message: str },
-  Tls: { message: str },
-  Timeout: {},
-  TooManyRedirects: { url: str },
-  Other: { message: str },
-  Status: { response: Response },
-});
 export const Method = variants({
   Get: {},
   Head: {},
@@ -128,17 +133,35 @@ export const PropertyCase = data({
   size: signed,
   replay: list(signed64),
 });
-export const Request = data({
+export const TcpListener = handle;
+export const TcpStream = handle;
+export const UdpSocket = handle;
+export const WireResponse = data({
+  status: unsigned,
+  headers: list(tuple(str, str)),
+  body: bytes,
+  url: str,
+});
+export const WireHttpError = variants({
+  NotGranted: { host: str },
+  InvalidUrl: { url: str },
+  Dns: { host: str },
+  Connect: { message: str },
+  Tls: { message: str },
+  Timeout: {},
+  TooManyRedirects: { url: str },
+  Other: { message: str },
+  Status: { response: WireResponse },
+  InvalidHeader: { name: str },
+  Body: { error: BodyError },
+});
+export const WireRequest = data({
   method: Method,
   url: str,
-  query: list(tuple(str, str)),
   headers: list(tuple(str, str)),
   body: bytes,
   redirects: unsigned,
 });
-export const TcpListener = handle;
-export const TcpStream = handle;
-export const UdpSocket = handle;
 
 // Each host method by import module and name (crates/hd_run_wasmtime/DESIGN.md
 // §17.2): `wait` is "never" for one import or "may" for `.start` and
@@ -147,14 +170,14 @@ export const UdpSocket = handle;
 // exchange buffer.
 export const METHODS = {
   "hd:Console": {
-    write: {
-      wait: "may",
+    write_sync: {
+      wait: "never",
       resource: null,
       params: [str],
       result: result(unit, ConsoleError),
     },
-    write_error: {
-      wait: "may",
+    write_error_sync: {
+      wait: "never",
       resource: null,
       params: [str],
       result: result(unit, ConsoleError),
@@ -282,8 +305,8 @@ export const METHODS = {
     send: {
       wait: "may",
       resource: "host",
-      params: [Request],
-      result: result(Response, HttpError),
+      params: [WireRequest],
+      result: result(WireResponse, WireHttpError),
     },
   },
   "hd:Net": {

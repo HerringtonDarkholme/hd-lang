@@ -65,7 +65,10 @@ const extensions = editorExtensions({
 const view = new EditorView({ parent: byId("editor") });
 const output = new OutputPanel(byId("output"), jumpTo);
 const wat = new WatPanel(byId("wat"), jumpTo, downloadWat);
-const compiler = new CompilerClient({ onReady: () => setStatus("Compiler ready") });
+const compiler = new CompilerClient({
+  onReady: () => setStatus("Compiler ready"),
+  onWatLoading: () => wat.message("Loading WAT printer…"),
+});
 
 function setStatus(text: string): void {
   status.textContent = text;

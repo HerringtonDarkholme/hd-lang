@@ -7,5 +7,5 @@ trait Source[T]:
 trait Factory:
     fn create() -> Self
 
-fn refresh() -> void $ Source[Factory]:  # diagnostic: trait-used-as-type
+fn refresh() -> void $ Source[Factory]: # diagnostic: trait-used-as-type
     pass

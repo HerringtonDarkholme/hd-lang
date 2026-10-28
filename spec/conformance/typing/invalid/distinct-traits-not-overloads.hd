@@ -15,8 +15,9 @@ trait Other:
     fn apply(self, run: fn(bool) -> bool) -> i32
 
 impl Other for Item:
-    fn apply(self, run: fn(bool) -> bool) -> i32: 0
+    fn apply(self, run: fn(bool) -> bool) -> i32:
+        0
 
 fn probe() -> i32:
     item := Item { value: 40 }
-    item.apply(fn(value): value + 2)  # diagnostic: ambiguous-method
+    item.apply(fn(value): value + 2) # diagnostic: ambiguous-method

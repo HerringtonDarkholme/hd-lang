@@ -33,7 +33,7 @@ use hd_mono::{Collected, ProgramEnv};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty, TyData};
 
-pub use module::Sym;
+pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
 
@@ -60,6 +60,12 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
 /// its length, not its square, at every query.
 pub fn with_layout_cache<R>(f: impl FnOnce() -> R) -> R {
     layout::cached_here(f)
+}
+
+/// The layout queries of the whole-object scan (`hd_opt::whole`), which
+/// the driver answers its `ObjectLayout` with.
+pub mod object_layout {
+    pub use crate::layout::{Kind, field_at, kind, payload_offset, strip, variants};
 }
 
 /// Whether `ty` is a reference (`&T`, `&mut T`, a trait value
@@ -246,6 +252,7 @@ impl Entry {
 
 /// What [`build`] reads: the program's instances in content order, with
 /// each one's TIR body and collection's call targets.
+#[derive(Clone)]
 pub struct Input<'a> {
     pub pool: &'a InternPool,
     pub env: &'a dyn ProgramEnv,
@@ -261,10 +268,19 @@ pub struct Input<'a> {
     /// Each instance's TIR body, by instance: its instance body (a
     /// default argument's or a plan's), its supplied body, or its item's.
     pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
+    /// Concrete `std.json.encode`/`encode_pretty` instances whose selected
+    /// `Serialize` walk is statically regular, and the two private fallback
+    /// functions. Emission makes those instances' fallback arms unreachable,
+    /// so final reachability does not root the tree writer.
+    pub direct_json_encoders: &'a hd_base::HashSet<Hash128>,
+    pub json_fallbacks: [DefId; 2],
     pub entry: Entry,
     /// The release profile: integer arithmetic wraps and shift counts are
     /// masked (`types.arith.release`).
     pub release: bool,
+    /// Whether the optimized pipeline is selected, independently of arithmetic
+    /// and count-auditing profiles. Whole-program decoder proofs run only here.
+    pub optimized: bool,
     /// The instances of std's runtime that counting calls. Without them a
     /// module counts nothing and allocates from a bump pointer.
     pub runtime: Option<Runtime>,
@@ -280,6 +296,10 @@ pub struct Input<'a> {
     /// (`docs/compiler/tir-v2.md`, "Stage 2"); from these facts it learns
     /// which use consumes each value (`hd_tir::own::consumers`).
     pub own_cx: &'a dyn hd_tir::own::OwnCx,
+    /// The whole-object scan (`hd_opt::whole::interior_targets`): the
+    /// reference targets some counted reference may point inside, or
+    /// `None` when any may. Called only when the link uses the fact.
+    pub interior_targets: &'a dyn Fn() -> Option<hd_base::HashSet<Ty>>,
 }
 
 /// The std module whose functions emitted code calls by key, and their
@@ -327,9 +347,9 @@ pub const CHECKED_FNS: &[&str] = &[
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
-/// runtimes link: `collect`, `due`, `track` and `opaque`.
+/// runtimes link: `collect`, `due`, `opaque` and `visit`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
-pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "track", "opaque", "visit"];
+pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "opaque", "visit"];
 
 /// The runtime module a build links: the checked one in checked mode.
 #[must_use]
@@ -369,7 +389,6 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
         .chain([
             (RUNTIME_MODULE, "metadata"),
             (RUNTIME_MODULE, "alloc_class"),
-            (RUNTIME_MODULE, "free_class"),
             (RUNTIME_MODULE, "block_of"),
         ])
         .collect()
@@ -398,7 +417,6 @@ pub struct Runtime {
 pub struct SmallAlloc {
     pub metadata: Hash128,
     pub alloc: Hash128,
-    pub free: Hash128,
 }
 
 /// The runtime's free and releases without collector hooks, which a
@@ -413,15 +431,13 @@ pub struct Acyclic {
 }
 
 /// The cycle collector's functions (`crates/hd_wasm_linear/DESIGN.md` §23.28):
-/// `collect(trace, release, free)`, `due()`, whether the candidate buffer
-/// is full, `track(block)`, which zeroes a new object's collector word,
+/// `collect(trace, release, free)`, `due()`, whether a collection is due,
 /// `opaque(address)`, which marks a new frame as never entered, and
 /// `visit(address)`, which takes a reference that traced glue releases.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cycle {
     pub collect: Hash128,
     pub due: Hash128,
-    pub track: Hash128,
     pub opaque: Hash128,
     pub visit: Hash128,
 }
@@ -451,7 +467,7 @@ impl Runtime {
     #[must_use]
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
-        let (keys, [metadata, alloc_class, free_class, block_of]) = keys.split_last_chunk::<4>()?;
+        let (keys, [metadata, alloc_class, block_of]) = keys.split_last_chunk::<3>()?;
         let (counts, rest) = keys.split_first_chunk::<9>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
@@ -475,7 +491,7 @@ impl Runtime {
             }
             _ => return None,
         };
-        let [collect, due, track, opaque, visit] = *rest else {
+        let [collect, due, opaque, visit] = *rest else {
             return None;
         };
         let [
@@ -500,12 +516,10 @@ impl Runtime {
             small: SmallAlloc {
                 metadata: *metadata,
                 alloc: *alloc_class,
-                free: *free_class,
             },
             cycle: Cycle {
                 collect,
                 due,
-                track,
                 opaque,
                 visit,
             },
@@ -523,35 +537,104 @@ impl Runtime {
 /// backend does not lower yet.
 pub fn build(input: &Input<'_>) -> StageResult<Vec<u8>> {
     // Every layout and walk the link asks for is computed once.
-    layout::cached(|| link(input, false)).map(|mapped| mapped.wasm)
+    layout::cached(|| link(input, false, None, None)).map(|mapped| mapped.wasm)
 }
 
 /// Builds the same module bytes as [`build`], with instruction origins separately.
 pub fn build_with_origins(input: &Input<'_>) -> StageResult<MappedModule> {
-    layout::cached(|| link(input, true))
+    layout::cached(|| link(input, true, None, None))
 }
 
-/// Both entry points run this link with the same layout cache.
-fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
+/// Builds a REPL base and records the symbols its later modules can import.
+/// The ordinary program entry points never expose this private ABI.
+pub fn build_session_base(input: &Input<'_>) -> StageResult<(Vec<u8>, Session)> {
+    let mut session = Session::default();
+    let mapped = layout::cached(|| link(input, false, Some(&mut session), None))?;
+    Ok((mapped.wasm, session))
+}
+
+/// Builds an extension importing the previous modules' initialized storage.
+pub fn build_session_extension(
+    input: &Input<'_>,
+    previous: &Session,
+) -> StageResult<(Vec<u8>, Session)> {
+    let mut session = Session::default();
+    let mapped = layout::cached(|| link(input, false, Some(&mut session), Some(previous)))?;
+    Ok((mapped.wasm, session))
+}
+
+/// Every entry point runs this link with the same layout cache.
+fn link(
+    input: &Input<'_>,
+    track_origins: bool,
+    session: Option<&mut Session>,
+    previous: Option<&Session>,
+) -> StageResult<MappedModule> {
+    let prepared = previous.map(|previous| {
+        let mut prepared = input.clone();
+        previous.prepare(&mut prepared.entry);
+        prepared
+    });
+    let input = prepared.as_ref().unwrap_or(input);
     let mut m = module::Module::default();
     m.track_origins = track_origins;
+    m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
     m.runtime = input.runtime;
     m.release = input.release;
     m.inline_counts = input.inline_counts;
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
         m.inst_of.insert(key, *id);
-        if (input.path)(input.collected.table.item[id.idx()]).starts_with("std/rt.cycle/") {
+        let item = input.collected.table.item[id.idx()];
+        if (input.path)(item).starts_with("std/rt.cycle/") {
             m.cycle_insts.insert(key);
         }
+        if input.env.cold(item) {
+            m.cold_insts.insert(key);
+        }
     }
-    address_globals(input, &mut m)?;
+    // Release only (#704): the whole-program fact that a reference type's
+    // counted addresses are payload starts, for every walk from here on.
+    let _whole = layout::whole_refs(
+        (input.optimized && !m.open_world && input.runtime.is_some())
+            .then(|| (input.interior_targets)())
+            .flatten(),
+    );
+    address_globals(input, &mut m, session.is_some(), previous)?;
     drive::collect(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;
+    if let Some(session) = session {
+        // Retain the base runtime even when input 1 does not use a facility
+        // that a later input needs. Its state must have one owner.
+        let runtime: Vec<_> = input
+            .order
+            .iter()
+            .filter_map(|id| {
+                (input.path)(input.collected.table.item[id.idx()])
+                    .starts_with("std/rt.")
+                    .then_some(input.collected.table.key[id.idx()])
+            })
+            .collect();
+        m.retain_instances(&runtime);
+        if previous.is_none() {
+            // Extension constants are static storage, not counted heap
+            // objects. The private bump allocator owns pages outside std's
+            // object allocator, so block_of never retains or frees them.
+            m.export("hd.session.alloc", Sym::Helper(Helper::Alloc));
+        }
+        let (mapped, mut linked) = if let Some(previous) = previous {
+            m.finish_extension(previous)?
+        } else {
+            m.finish_session(true)?
+        };
+        linked.complete(&input.entry);
+        *session = linked;
+        return Ok(mapped);
+    }
     if track_origins {
         m.finish_with_origins()
     } else {
@@ -565,23 +648,48 @@ fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
 /// Gives each top-level binding that some reference refers to a static
 /// slot of its layout, which its reads and writes use from then on
 /// (`crates/hd_wasm_linear/DESIGN.md` §23.20): a reference is its address.
-fn address_globals(input: &Input<'_>, m: &mut module::Module) -> StageResult<()> {
+fn address_globals(
+    input: &Input<'_>,
+    m: &mut module::Module,
+    session: bool,
+    previous: Option<&Session>,
+) -> StageResult<()> {
     for id in input.order {
         let Some(b) = (input.body)(*id) else {
             continue;
         };
         for i in 0..b.len() {
-            let Some((def, ty)) = referenced_global(b, i) else {
+            let global =
+                if session && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store) {
+                    b.decode_place(b.data[i][0]).and_then(|p| match p.root {
+                        hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
+                        _ => None,
+                    })
+                } else {
+                    referenced_global(b, i)
+                };
+            let Some((def, ty)) = global else {
                 continue;
             };
             let h = input.env.path_hash(def);
             if m.addressed.contains_key(&h) {
                 continue;
             }
-            let lay = layout::mem(input.pool, input.env, ty)?;
-            let at = m.static_slot(lay.size, lay.align.max(4));
-            m.label_static(at, &(input.path)(def));
-            m.addressed.insert(h, at);
+            let address = if session {
+                if !previous.is_some_and(|p| p.has_binding(h)) {
+                    let lay = layout::mem(input.pool, input.env, ty)?;
+                    let at = m.static_slot(lay.size, lay.align.max(4));
+                    m.binding_slots.insert(h, at);
+                    m.label_static(at, &(input.path)(def));
+                }
+                module::Address::Binding(h)
+            } else {
+                let lay = layout::mem(input.pool, input.env, ty)?;
+                let at = m.static_slot(lay.size, lay.align.max(4));
+                m.label_static(at, &(input.path)(def));
+                module::Address::Static(at)
+            };
+            m.addressed.insert(h, address);
         }
     }
     Ok(())

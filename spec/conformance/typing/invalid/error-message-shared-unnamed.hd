@@ -5,5 +5,5 @@
 enum HttpError(i32):
     @error("denied: $_0")
     Denied(string) -> HttpError(403)
-    @error("status $_0")  # diagnostic: unknown-name
+    @error("status $_0") # diagnostic: unknown-name
     Missing -> HttpError(404)

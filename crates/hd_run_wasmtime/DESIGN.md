@@ -19,7 +19,7 @@ build.
 | Piece | Where | Notes |
 | --- | --- | --- |
 | `Set`, `Deque`, `Heap`, `ListView`, string operations, formatting, `Debug`, `Display`, JSON, iterators | hd in `lib/std` | over `Array[T]` and string intrinsics; `Deque` and `Heap` store `T?` in `List` slots, laid out as in crates/hd_wasm_linear/DESIGN.md §15.2 |
-| `Map` | hd in `lib/std`: a compact insertion-ordered table | Implementation differs: `Map`'s table is runtime helpers the emitter writes (`hd_wasm/src/map.rs`), which is worse: library code in the compiler. See #180 |
+| `Map` | hd in `lib/std`: a compact insertion-ordered table | Implementation differs: `Map`'s table is runtime helpers the emitter writes (`hd_wasm/src/map.rs`), which is worse: library code in the compiler. It stays in Rust for now (#180 closed 2026-10-26) |
 | `Choices`, shrink-free generators, structured assert diffs | hd in `lib/std` (`std.testing`) | the runner shrinks on the host side |
 | `block_on`, `all!`, `race!`'s frame, `Waker` | compiler intrinsics | the spec names them so ([Standard Combinators](../../spec/lang/11-requirements-and-suspension.md#standard-combinators)); `race!` itself is hd in `std.task` |
 | default-profile provider types (`HostConsole`, `HostFs`, ...) | hd declarations in `lib/std` whose method bodies are intrinsic | an intrinsic body maps to a host import by the ABI table (§17.1); the signature is plain hd |
@@ -298,7 +298,7 @@ the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
   their total length. Scalar arguments stay Wasm parameters, before it.
   A method whose only argument is a `string` passes the string's bytes
   alone, with no length prefix: the parameter is the length
-  (`Console.write`, `Env.get`, `TestRunner.snapshot_check`).
+  (`Console.write_sync`, `Env.get`, `TestRunner.snapshot_check`).
 - **Results.** A waiting method's result is always in the buffer. A
   method that never waits returns a scalar as its Wasm result, a struct
   value of one `i64` field (`Timestamp`, `Instant`) as that `i64`, and a
@@ -384,9 +384,9 @@ the variant index and the path.
   runtime, driven on a dedicated `hd-io` thread and started by the first
   offloaded operation (`runtime/io.rs`). A `.start` that cannot finish at
   once spawns a task there and returns its handle; the task delivers its
-  result into its instance's reactor inbox (`runtime/reactor.rs`). Timers,
-  `Console.write`, `Console.write_error` and standard-input
-  lines complete through the same inbox. One runtime per process, not one
+  result into its instance's reactor inbox (`runtime/reactor.rs`). Timers
+  and standard-input lines complete through the same inbox; a console
+  write never waits (`host/output.rs` blocks until the stream takes it). One runtime per process, not one
   per worker thread, is better: a program that never offloads starts no
   thread, and workers share one I/O driver.
 - **The driver loop** (§14.4) runs in `hd_run_wasmtime`: poll, then wait
@@ -433,7 +433,7 @@ the variant index and the path.
 Implementation differs: `host/web.mjs` runs the program in a dedicated
 worker and answers every host call synchronously: `Http.send` is a
 synchronous `XMLHttpRequest` that finishes inside `.start`, and only
-`Clock.sleep` and `Console.write` complete later. Not judged: it
+`Clock.sleep` completes later. Not judged: it
 is far simpler and needs no JSPI, but an HTTP request cannot be
 cancelled and holds the worker until it ends.
 

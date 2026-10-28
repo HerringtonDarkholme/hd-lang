@@ -2,5 +2,5 @@
 # Spec 07 Suspending Function Values: fn.type.suspend.ctor.
 use std.function.{Fn, SuspendFn}
 
-fn lowered(fetch: SuspendFn[(string,), string, $()]) -> Fn[(string,), mut Suspend[string], $()]:
+fn lowered(fetch: SuspendFn[(string,), string, $ ()]) -> Fn[(string,), mut Suspend[string], $ ()]:
     fetch

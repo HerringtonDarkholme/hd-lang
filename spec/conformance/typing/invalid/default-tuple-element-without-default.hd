@@ -9,4 +9,4 @@ fn fresh[T < Default]() -> T:
     T::default()
 
 fn start() -> (i32, Secret):
-    fresh()  # diagnostic: unsatisfied-trait-bound
+    fresh() # diagnostic: unsatisfied-trait-bound

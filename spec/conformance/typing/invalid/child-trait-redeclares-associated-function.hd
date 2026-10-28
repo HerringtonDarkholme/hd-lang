@@ -4,5 +4,5 @@ trait Factory:
     fn create() -> Self
 
 trait SeededFactory < Factory:
-    fn create() -> Self  # diagnostic: duplicate-trait-member
+    fn create() -> Self # diagnostic: duplicate-trait-member
     fn seed(self) -> i32

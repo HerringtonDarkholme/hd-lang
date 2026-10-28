@@ -15,9 +15,7 @@
 //!    session's state).
 //! 3. `hd_output(kind)` and `hd_output_len(kind)` give the address and length
 //!    of the response: kind 0 is the JSON text, kind 1 the program's bytes,
-//!    or a REPL request's module (length 0 when there is none), kind 2 the
-//!    program's WebAssembly text (length 0 unless the request's goal was
-//!    wat).
+//!    or a REPL request's module (length 0 when there is none).
 //!
 //! An address stays valid until the next call. Memory may grow during any
 //! call, so JS takes a fresh view of `memory.buffer` after each one.
@@ -27,13 +25,43 @@ use std::cell::RefCell;
 use crate::Session;
 use crate::wire;
 
-#[derive(Default)]
 struct State {
     session: Session,
     input: Vec<u8>,
     json: Vec<u8>,
     wasm: Vec<u8>,
-    wat: Vec<u8>,
+}
+
+// The input is borrowed only for each import call; Rust owns the result
+// buffer and validates UTF-8 before making its String. No raw pointer is
+// dereferenced in Rust. JS obtains fresh memory views after allocation.
+#[link(wasm_import_module = "hd_web")]
+unsafe extern "C" {
+    safe fn nfc_utf8(input: *const u8, input_len: usize, output: *mut u8, capacity: usize)
+    -> usize;
+}
+
+fn normalize_nfc(text: &str) -> String {
+    let len = nfc_utf8(text.as_ptr(), text.len(), std::ptr::null_mut(), 0);
+    let mut output = vec![0; len];
+    let written = nfc_utf8(text.as_ptr(), text.len(), output.as_mut_ptr(), output.len());
+    assert_eq!(
+        written, len,
+        "the NFC host changed the required buffer length"
+    );
+    String::from_utf8(output).expect("the NFC host returned invalid UTF-8")
+}
+
+impl Default for State {
+    fn default() -> Self {
+        hd_syntax::set_nfc_normalizer(normalize_nfc);
+        Self {
+            session: Session::new(),
+            input: Vec::new(),
+            json: Vec::new(),
+            wasm: Vec::new(),
+        }
+    }
 }
 
 thread_local! {
@@ -60,23 +88,21 @@ pub extern "C" fn hd_compile() -> u32 {
             input,
             json,
             wasm,
-            wat,
         } = s;
         let response = wire::respond(session, input);
         *json = response.json.into_bytes();
         *wasm = response.wasm;
-        *wat = response.wat.into_bytes();
         response.status
     })
 }
 
-/// The address of output `kind` (0 JSON, 1 wasm, 2 WAT); null for another kind.
+/// The address of output `kind` (0 JSON, 1 wasm); null for another kind.
 #[unsafe(no_mangle)]
 pub extern "C" fn hd_output(kind: u32) -> *const u8 {
     STATE.with_borrow(|s| output(s, kind).map_or(std::ptr::null(), <[u8]>::as_ptr))
 }
 
-/// The length of output `kind` (0 JSON, 1 wasm, 2 WAT); 0 for another kind.
+/// The length of output `kind` (0 JSON, 1 wasm); 0 for another kind.
 #[unsafe(no_mangle)]
 pub extern "C" fn hd_output_len(kind: u32) -> usize {
     STATE.with_borrow(|s| output(s, kind).map_or(0, <[u8]>::len))
@@ -86,7 +112,6 @@ fn output(s: &State, kind: u32) -> Option<&[u8]> {
     match kind {
         0 => Some(&s.json),
         1 => Some(&s.wasm),
-        2 => Some(&s.wat),
         _ => None,
     }
 }

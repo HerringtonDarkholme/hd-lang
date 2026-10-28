@@ -6,8 +6,5 @@ fn run(c: bool) -> i32:
     x := (match c:
         true => 40
         false => 0)
-    y := (if c:
-        1
-    else:
-        2)
+    y := (if c: 1 else: 2)
     x + y

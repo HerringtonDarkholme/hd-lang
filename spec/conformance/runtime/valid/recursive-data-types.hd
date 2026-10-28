@@ -29,7 +29,9 @@ tests:
     it("a directly recursive comment thread"):
         thread := Comment {
             body: "release notes?",
-            replies: [Comment { body: "tomorrow", replies: [Comment { body: "thanks", replies: [] }] }],
+            replies: [
+                Comment { body: "tomorrow", replies: [Comment { body: "thanks", replies: [] }] },
+            ],
         }
         assert_equal(count(thread), 3, reason="root, reply, and nested reply")
 

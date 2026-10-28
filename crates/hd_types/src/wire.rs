@@ -4,6 +4,7 @@
 //! the rows into this run's tables. Rows refer only to earlier rows.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use hd_base::wire::{Reader, Writer};
 use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
@@ -160,10 +161,10 @@ impl<'a> TableWriter<'a> {
             w.u32(at);
             keyed.push((w.bytes, *k));
         }
-        keyed.sort_by(|a, b| a.0.cmp(&b.0));
+        keyed.sort_stable_by(|a, b| a.0.cmp(&b.0));
         d.keys = keyed.into_iter().map(|(_, k)| k).collect();
         let paths = self.paths;
-        d.params.sort_by_cached_key(|p| {
+        d.params.sort_stable_by_cached_key(|p| {
             (
                 paths.display(PathId::from_raw(p.owner.raw())).to_string(),
                 p.index,
@@ -273,7 +274,7 @@ impl<'a> TableWriter<'a> {
                 self.ty_words[words.start + 1] = args;
                 let mut bindings = bindings;
                 let paths = self.paths;
-                bindings.sort_by_cached_key(|(d, _)| {
+                bindings.sort_stable_by_cached_key(|(d, _)| {
                     paths.display(PathId::from_raw(d.raw())).to_string()
                 });
                 for (index, (d, b)) in bindings.into_iter().enumerate() {

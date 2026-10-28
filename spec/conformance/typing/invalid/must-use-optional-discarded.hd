@@ -4,5 +4,5 @@ fn find(name: string) -> i32?:
     .None
 
 fn lookup() -> void:
-    find("ada")  # diagnostic: discarded-must-use-value
+    find("ada") # diagnostic: discarded-must-use-value
     pass

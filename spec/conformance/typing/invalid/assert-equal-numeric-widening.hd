@@ -12,4 +12,4 @@ tests:
     use std.testing.assert_equal
 
     it("mixed widths need a cast"):
-        assert_equal(large(), small(), reason="no widening")  # diagnostic: type-mismatch
+        assert_equal(large(), small(), reason="no widening") # diagnostic: type-mismatch

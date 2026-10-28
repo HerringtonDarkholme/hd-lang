@@ -6,6 +6,6 @@ struct User:
 
 type Person = User
 
-impl Person:  # diagnostic: invalid-impl-target
+impl Person: # diagnostic: invalid-impl-target
     fn label(self) -> string:
         self.name

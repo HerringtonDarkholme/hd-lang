@@ -18,5 +18,5 @@ fn stamp() -> i64 $ Clock:
 
 fn run() -> i64:
     let mut clock = ManualClock { now: 0 }
-    $.with(Clock=&clock):  # diagnostic: mutable-upgrade
+    $.with(Clock=&clock): # diagnostic: mutable-upgrade
         stamp()

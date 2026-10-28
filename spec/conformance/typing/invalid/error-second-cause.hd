@@ -8,4 +8,9 @@ struct DiskError:
 @error
 enum SaveError:
     @error("two sources")
-    Both(@source first: DiskError, @source second: DiskError)  # diagnostic: invalid-error-marker
+    Both(
+        @source
+        first: DiskError,
+        @source # diagnostic: invalid-error-marker
+        second: DiskError,
+    )

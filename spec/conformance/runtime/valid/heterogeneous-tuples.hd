@@ -1,7 +1,9 @@
 # test: heterogeneous tuples
 
-fn load!() -> i32: 36
-fn pair[T](left: T, right: i32) -> (T, i32): (left, right)
+fn load!() -> i32:
+    36
+fn pair[T](left: T, right: i32) -> (T, i32):
+    (left, right)
 
 fn main!() -> i32:
     let (loaded, text) = (load!(), "a")

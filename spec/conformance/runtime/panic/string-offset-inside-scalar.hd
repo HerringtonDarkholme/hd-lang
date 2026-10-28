@@ -4,4 +4,4 @@
 tests:
     it("slices inside é"):
         text := "é"
-        _ := text.slice(0, 1)  # panic: index-out-of-bounds
+        _ := text.slice(0, 1) # panic: index-out-of-bounds

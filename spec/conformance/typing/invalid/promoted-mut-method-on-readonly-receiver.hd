@@ -14,4 +14,4 @@ struct Post:
     title: string
 
 fn invalid(post: Post) -> void:
-    post.touch(5)  # diagnostic: not-writable
+    post.touch(5) # diagnostic: not-writable

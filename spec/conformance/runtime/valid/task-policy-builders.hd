@@ -9,10 +9,13 @@ enum Failure:
     Deadline(value: TimedOut)
 
 impl From[TimedOut] for Failure:
-    fn from(value: TimedOut) -> Failure: .Deadline(value)
+    fn from(value: TimedOut) -> Failure:
+        .Deadline(value)
 
-fn number!() -> Result[usize, TimedOut]: .Ok(7)
-fn word!() -> Result[string, Failure]: .Ok("kept")
+fn number!() -> Result[usize, TimedOut]:
+    .Ok(7)
+fn word!() -> Result[string, Failure]:
+    .Ok("kept")
 
 struct Calls:
     number: usize
@@ -24,7 +27,10 @@ fn eventually_number!(calls: *mut Calls) -> Result[usize, TimedOut]:
 
 fn eventually_word!(calls: *mut Calls) -> Result[string, Failure]:
     calls.word += 1
-    if calls.word == 1: .Err(.Deadline(TimedOut { limit: 1ms, cleanup: .Finished })) else: .Ok("again")
+    if calls.word == 1:
+        .Err(.Deadline(TimedOut { limit: 1ms, cleanup: .Finished }))
+    else:
+        .Ok("again")
 
 tests:
     use std.testing.assert_equal
@@ -43,10 +49,26 @@ tests:
                 eventually_number!(calls)
             retried_word := apply!(again):
                 eventually_word!(calls)
-            assert_equal(numeric, .Ok(7), reason="a zero deadline still lets ready numeric work win")
-            assert_equal(textual, .Ok("kept"), reason="the same deadline value accepts another typed result")
-            assert_equal(retried_number, .Ok(9), reason="the retry value accepts TimedOut as its error")
-            assert_equal(retried_word, .Ok("again"), reason="the same retry value accepts another error type")
+            assert_equal(
+                numeric,
+                .Ok(7),
+                reason="a zero deadline still lets ready numeric work win",
+            )
+            assert_equal(
+                textual,
+                .Ok("kept"),
+                reason="the same deadline value accepts another typed result",
+            )
+            assert_equal(
+                retried_number,
+                .Ok(9),
+                reason="the retry value accepts TimedOut as its error",
+            )
+            assert_equal(
+                retried_word,
+                .Ok("again"),
+                reason="the same retry value accepts another error type",
+            )
         assert_equal(calls.number, 2, reason="numeric work is repeated rather than memoized")
         assert_equal(calls.word, 2, reason="text work is independently repeated")
 
@@ -58,8 +80,18 @@ tests:
             result := apply!(policy):
                 word!()
             stopped := apply!(selected):
-                let failed: Result[string, Failure] = .Err(.Deadline(TimedOut { limit: 2ms, cleanup: .Abandoned }))
+                let failed: Result[string, Failure] = .Err(
+                    .Deadline(TimedOut { limit: 2ms, cleanup: .Abandoned }),
+                )
                 failed
             assert_equal(result, .Ok("kept"), reason="with_timeout makes the supplied policy inner")
-            assert_equal(stopped, .Err(Failure.Deadline(TimedOut { limit: 2ms, cleanup: .Abandoned })), reason="the selected predicate returns the unchanged typed error")
-        assert_equal(clock.now().unix_milliseconds(), 0i64, reason="ready work and rejected retry perform no delay")
+            assert_equal(
+                stopped,
+                .Err(Failure.Deadline(TimedOut { limit: 2ms, cleanup: .Abandoned })),
+                reason="the selected predicate returns the unchanged typed error",
+            )
+        assert_equal(
+            clock.now().unix_milliseconds(),
+            0i64,
+            reason="ready work and rejected retry perform no delay",
+        )

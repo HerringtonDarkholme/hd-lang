@@ -15,4 +15,4 @@ impl Factory for Invoice:
         Invoice { total: 100 }
 
 fn draft() -> Invoice:
-    Invoice::draft()  # diagnostic: unknown-method
+    Invoice::draft() # diagnostic: unknown-method

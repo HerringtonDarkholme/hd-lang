@@ -9,4 +9,4 @@ struct Pair[K, V]:
     value: V
 
 trait Make:
-    fn make() -> Both[i32]  # diagnostic: partial-generic-arguments
+    fn make() -> Both[i32] # diagnostic: partial-generic-arguments

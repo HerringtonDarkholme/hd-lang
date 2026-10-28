@@ -10,4 +10,4 @@ tests:
 
     it("doubles"):
         assert_equal(twice(2), 4, reason="double")
-    total := twice(5)  # diagnostic: invalid-test-statement
+    total := twice(5) # diagnostic: invalid-test-statement

@@ -2,4 +2,4 @@
 
 flag := true
 if flag:
-    return  # diagnostic: return-outside-function
+    return # diagnostic: return-outside-function

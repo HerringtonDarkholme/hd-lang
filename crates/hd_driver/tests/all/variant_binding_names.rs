@@ -47,18 +47,12 @@ fn errors(out: &Output) -> Vec<Code> {
 const PAIR: &str = "enum Pair:\n    Values(left: i32, right: i32)\n\n";
 
 #[test]
-fn swapped_positional_bindings_warn() {
+fn swapped_positional_bindings_are_accepted_without_lint() {
     let out = analyze(&format!(
         "{PAIR}fn read(value: Pair) -> i32:\n    match value:\n        Pair.Values(right, left) => left - right\n"
     ));
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(
-        warnings(&out),
-        vec![
-            Code::VariantBindingNameMismatch,
-            Code::VariantBindingNameMismatch
-        ]
-    );
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]

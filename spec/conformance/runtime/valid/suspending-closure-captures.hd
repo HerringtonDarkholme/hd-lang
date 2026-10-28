@@ -4,13 +4,11 @@ fn delayed!(value: i32) -> i32:
     value
 
 fn drive_captured_closure!(base: i32) -> i32:
-    loader := fn!(offset: i32) -> i32:
-        delayed!(base + offset)
+    loader := fn!(offset: i32) -> i32: delayed!(base + offset)
     loader!(2)
 
 fn drive_stored_captured_closure!(base: i32) -> i32:
-    loader := fn!(offset: i32) -> i32:
-        delayed!(base + offset)
+    loader := fn!(offset: i32) -> i32: delayed!(base + offset)
     let pending: mut Suspend[i32] = loader(2)
     pending!()
 

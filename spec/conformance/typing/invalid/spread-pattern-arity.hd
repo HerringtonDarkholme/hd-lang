@@ -2,5 +2,5 @@
 # Spec 06 Spread Patterns: flow.match.spread.arity (owner decision Q6, batch 34, 2026-10-01).
 
 fn short(t: (i32, i32, List[i32]...)) -> i32:
-    let (first, rest...) = t  # diagnostic: type-mismatch
+    let (first, rest...) = t # diagnostic: type-mismatch
     first

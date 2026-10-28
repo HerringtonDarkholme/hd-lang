@@ -1,6 +1,7 @@
 //! The architecture driver over the real `lib/std`: every stage is called,
 //! none panics, and the stages that are real today get every file through.
 
+use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 
 use hd_base::Stage;
@@ -13,7 +14,7 @@ fn walk(root: &Path, dir: &Path, out: &mut MemorySources, n: &mut usize) {
         .flatten()
         .map(|e| e.path())
         .collect();
-    paths.sort();
+    paths.sort_stable();
     for p in paths {
         if p.is_dir() {
             walk(root, &p, out, n);

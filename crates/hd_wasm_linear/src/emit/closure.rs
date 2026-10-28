@@ -9,6 +9,7 @@
 
 use crate::op::Op as I;
 use hd_base::HashSet;
+use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, NodeIdx, StageResult};
 use hd_mono::Target;
 use hd_tir::ir::{
@@ -81,9 +82,12 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
 /// call's `Await`), and whose `Drop`, if any, follows in the same block,
 /// with nothing between that opens a block or ends, replaces or moves the
 /// whole local. Such a reference ends before the local does, so nothing
-/// needs the slot after the local's own release. A parameter, a local a
-/// closure captures, one in a closure's body and one a `Ref` takes
-/// (`ref_word::TAKES`) keep their cells.
+/// needs the slot after the local's own release. A reference that takes
+/// the local at its last access (`ref_word::TAKES`, the move pass's rule
+/// 4, which deletes the local's `Drop`) needs its `Drop` in that block:
+/// it releases the slot's value there ([`Em::slot_takes`]). A parameter,
+/// a local a closure captures and one in a closure's body keep their
+/// cells.
 pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
     let mut out: HashSet<usize> = roots
         .iter()
@@ -101,7 +105,7 @@ pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet
             continue;
         };
         let w = b.data[i][1];
-        if w & ref_word::LOCAL == 0 || w & ref_word::TAKES != 0 || topo.sub[i] != 0 {
+        if w & ref_word::LOCAL == 0 || topo.sub[i] != 0 {
             out.remove(&l);
         }
         refs.insert(u32::try_from(i).expect("instructions"), l);
@@ -154,10 +158,11 @@ pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet
             let ([j], d) = (calls.get(&r).map_or(&[][..], Vec::as_slice), drops.get(&r)) else {
                 return false;
             };
+            let takes = b.data[r as usize][1] & ref_word::TAKES != 0;
             let end = match d.map(Vec::as_slice) {
-                None | Some([]) => *j,
+                None | Some([]) if !takes => *j,
                 Some([d]) => *d,
-                Some(_) => return false,
+                _ => return false,
             };
             let blk = topo.blk[r as usize];
             if blk == NONE || topo.blk[*j as usize] != blk || topo.blk[end as usize] != blk {
@@ -358,7 +363,7 @@ impl Em<'_, '_, '_> {
         if ls.is_empty() {
             return Ok(());
         }
-        ls.sort_unstable();
+        ls.sort_stable();
         let mut size = 0;
         for l in ls {
             let (m, _) = self.cell_mem(l)?;
@@ -443,6 +448,9 @@ impl Em<'_, '_, '_> {
             self.store_part(at, &m, part, src)?;
             return Ok(at);
         }
+        if let Some(key) = self.static_cells {
+            return self.static_cell(key, l, src);
+        }
         let (m, walk) = self.cell_mem(l)?;
         let cyclic = self.cyclic_holding(&[self.cell_ty(l)]);
         let at = self.object(&m, walk.as_ref(), cyclic);
@@ -452,6 +460,36 @@ impl Em<'_, '_, '_> {
         {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }
+        let part = Part {
+            first: 0,
+            count: m.leaves.len(),
+            offset: 0,
+        };
+        self.store_part(at, &m, part, src)?;
+        Ok(at)
+    }
+
+    /// Local `l`'s cell in a handle body, whose once-cell has key `key`:
+    /// a static object, a zero count word and then the value, which lives
+    /// as long as the program, so no count changes it and every reference
+    /// to it is one address no count reaches (`annot.handle.constants`).
+    /// A checked run's teardown releases the value, as the once-cell's.
+    fn static_cell(&mut self, key: Hash128, l: usize, src: &Src) -> StageResult<u32> {
+        let (m, _) = self.cell_mem(l)?;
+        let header = crate::module::HEADER;
+        let base = self.m.static_slot(header + m.size, 8);
+        let addr = base + header;
+        let mut bytes = key.0.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&u32::try_from(l).expect("locals").to_le_bytes());
+        let t = self.cell_ty(l);
+        self.note_stored(
+            hd_base::hash128(&bytes),
+            t,
+            Some((crate::module::Address::Static(addr), m.leaves.clone())),
+        )?;
+        let at = self.f.local(Val::I32);
+        self.f.static_addr(addr);
+        self.f.set(at);
         let part = Part {
             first: 0,
             count: m.leaves.len(),

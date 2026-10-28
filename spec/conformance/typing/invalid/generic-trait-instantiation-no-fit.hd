@@ -14,4 +14,4 @@ impl Combine[Money] for Money:
         self.cents + other.cents
 
 fn invalid(price: Money) -> i32:
-    price.combine("five")  # diagnostic: type-mismatch
+    price.combine("five") # diagnostic: type-mismatch

@@ -1,3 +1,4 @@
+use hd_base::SliceSort as _;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,7 +32,7 @@ fn corpus() -> Vec<PathBuf> {
     let mut files = Vec::new();
     hd_files(&root.join("spec/conformance"), &mut files);
     hd_files(&root.join("lib/std"), &mut files);
-    files.sort();
+    files.sort_stable();
     files
 }
 
@@ -72,6 +73,9 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/fix-parser-punctuation/src/lib.hd",
     "cli/fix-elif-continuations/src/lib.hd",
     "cli/fix-legacy-syntax/src/lib.hd",
+    // A lint case whose identifier is deliberately not NFC, to show that
+    // lint reports compiler errors first.
+    "cli/lint-mixed-script-prerequisites/src/main.hd",
 ];
 
 /// The cases `KNOWN_FAILURES.tsv` lists: a fixture path, or a CLI case
@@ -110,7 +114,7 @@ fn valid_sources() -> Vec<PathBuf> {
     for directory in ["lib/std", "examples"] {
         hd_files(&root.join(directory), &mut files);
     }
-    files.sort();
+    files.sort_stable();
     files
 }
 

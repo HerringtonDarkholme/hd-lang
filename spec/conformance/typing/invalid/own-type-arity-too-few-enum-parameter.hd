@@ -9,4 +9,5 @@ enum Choice[T]:
 
 type Wrap[T](T)
 
-fn h(c: Choice) -> i32: c  # diagnostic: partial-generic-arguments
+fn h(c: Choice) -> i32: # diagnostic: partial-generic-arguments
+    c

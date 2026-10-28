@@ -15,4 +15,4 @@ impl Combine[u8] for Money:
         "u8"
 
 fn invalid(price: Money) -> string:
-    price.combine(5)  # diagnostic: type-mismatch
+    price.combine(5) # diagnostic: type-mismatch

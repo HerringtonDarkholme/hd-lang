@@ -8,4 +8,4 @@ impl Counter:
         Counter { value: +0 }
 
 fn reset(counter: Counter) -> Counter:
-    counter.zero()  # diagnostic: unknown-method
+    counter.zero() # diagnostic: unknown-method

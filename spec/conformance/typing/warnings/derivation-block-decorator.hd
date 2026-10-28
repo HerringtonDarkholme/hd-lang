@@ -1,5 +1,5 @@
-# test: a decorator before a derivation block warns, since no derivation reads it
-# Spec 14 Facts: annot.fact.unused-block-decorator (stress test decision 5).
+# test: ordinary checks accept an unread decorator before a derivation block; lint supplies advice
+# Spec 14 Facts: annot.fact.unused-block-decorator.lint (stress test decision 5).
 use std.structure.Structure
 
 struct Style:
@@ -11,6 +11,6 @@ fn style(prefix: string = "") -> Style:
 struct Loud:
     id: i64
 
-@style(prefix="l_")  # warning: unused-derivation-fact
+@style(prefix="l_")
 impl Loud by Structure:
     id += ["key"]

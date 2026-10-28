@@ -3,5 +3,5 @@
 # expect: missing-return-value
 
 fn describe(text: string) -> string:
-    if text == "":  # diagnostic: missing-return-value
+    if text == "": # diagnostic: missing-return-value
         "empty"

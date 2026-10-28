@@ -2,4 +2,4 @@
 # Spec 04 Neutral Uses: types.literal.local.erased.reference-values (ONE-FIT).
 
 fn run() -> void:
-    let x: &dyn Any = &4294967296  # diagnostic: integer-literal-range
+    let x: &dyn Any = &4294967296 # diagnostic: integer-literal-range

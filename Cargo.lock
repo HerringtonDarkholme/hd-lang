@@ -676,6 +676,7 @@ dependencies = [
  "hd_driver",
  "hd_fmt",
  "hd_host_abi",
+ "hd_lint",
  "hd_project",
  "hd_resolve",
  "hd_run",
@@ -733,6 +734,7 @@ dependencies = [
  "hd_cache",
  "hd_check",
  "hd_diag",
+ "hd_fmt",
  "hd_host_abi",
  "hd_intern",
  "hd_mono",
@@ -755,6 +757,7 @@ dependencies = [
 name = "hd_fmt"
 version = "0.0.0"
 dependencies = [
+ "hd_base",
  "hd_diag",
  "hd_syntax",
 ]
@@ -763,6 +766,7 @@ dependencies = [
 name = "hd_host_abi"
 version = "0.0.0"
 dependencies = [
+ "hd_base",
  "hd_syntax",
 ]
 
@@ -771,6 +775,23 @@ name = "hd_intern"
 version = "0.0.0"
 dependencies = [
  "hd_base",
+]
+
+[[package]]
+name = "hd_lint"
+version = "0.0.0"
+dependencies = [
+ "hd_base",
+ "hd_cache",
+ "hd_check",
+ "hd_diag",
+ "hd_driver",
+ "hd_project",
+ "hd_resolve",
+ "hd_sched",
+ "hd_syntax",
+ "hd_testkit",
+ "hd_types",
 ]
 
 [[package]]
@@ -789,6 +810,7 @@ dependencies = [
  "hd_base",
  "hd_mono",
  "hd_tir",
+ "hd_types",
 ]
 
 [[package]]
@@ -800,7 +822,6 @@ dependencies = [
  "hd_syntax",
  "toml",
  "unicode-ident",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -942,14 +963,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "hd_wat"
+version = "0.0.0"
+dependencies = [
+ "wasmprinter 0.261.0",
+]
+
+[[package]]
 name = "hd_web"
 version = "0.0.0"
 dependencies = [
+ "hd_base",
  "hd_cache",
  "hd_diag",
  "hd_driver",
  "hd_project",
  "hd_sched",
+ "hd_syntax",
  "wasmprinter 0.261.0",
 ]
 

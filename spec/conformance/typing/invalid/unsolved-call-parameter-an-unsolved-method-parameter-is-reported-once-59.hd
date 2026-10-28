@@ -23,4 +23,4 @@ impl Reader:
 
 pub fn main() -> void:
     r := Reader { id: 1 }
-    _ := r.size()  # diagnostic: cannot-infer-type
+    _ := r.size() # diagnostic: cannot-infer-type

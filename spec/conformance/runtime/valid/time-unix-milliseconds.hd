@@ -7,10 +7,26 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("round trip"):
-        let values: List[i64] = [0, 1, -1, 1700000000500, -86400000, 9223372036854775807, -9223372036854775807]
+        let values: List[i64] = [
+            0,
+            1,
+            -1,
+            1700000000500,
+            -86400000,
+            9223372036854775807,
+            -9223372036854775807,
+        ]
         for millis in values:
-            assert_equal(Timestamp::from_unix_milliseconds(millis).unix_milliseconds(), millis, reason="the same milliseconds")
-            assert_equal(Instant::from_milliseconds(millis).as_milliseconds(), millis, reason="the same instant milliseconds")
+            assert_equal(
+                Timestamp::from_unix_milliseconds(millis).unix_milliseconds(),
+                millis,
+                reason="the same milliseconds",
+            )
+            assert_equal(
+                Instant::from_milliseconds(millis).as_milliseconds(),
+                millis,
+                reason="the same instant milliseconds",
+            )
 
     it("follows arithmetic and parsing"):
         later := Timestamp::from_unix_milliseconds(1000) + s(2)

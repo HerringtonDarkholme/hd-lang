@@ -25,4 +25,6 @@ pub fn main() -> void $ Console:
     println("$first $other $again")
     println(seen.len())
     made := &Node { label: "a" }
-    println("${Id { target: &a } == Id { target: &mut a }} ${seen.get(Id { target: made }).is_some()}")
+    println(
+        "${Id { target: &a } == Id { target: &mut a }} ${seen.get(Id { target: made }).is_some()}",
+    )

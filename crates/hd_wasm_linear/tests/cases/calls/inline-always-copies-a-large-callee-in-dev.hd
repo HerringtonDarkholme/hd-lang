@@ -1,0 +1,30 @@
+# @dump: wat
+# `@inline(.Always)` has no instruction limit, including in a dev build.
+use std.annotation.inline
+
+@inline(.Always)
+fn mix(value: i32) -> i32:
+    let out = value + 1
+    out = out * 3
+    out = out + 5
+    out = out * 7
+    out = out + 11
+    out = out * 13
+    out = out + 17
+    out = out * 19
+    out = out + 23
+    out = out * 29
+    out = out + 31
+    out = out * 37
+    out = out + 41
+    out = out * 43
+    out = out + 47
+    out = out * 53
+    out = out + 59
+    out = out * 61
+    out = out + 67
+    out
+
+fn apply(value: i32) -> i32:
+    mix(value)
+    #^^^^^^^^^^

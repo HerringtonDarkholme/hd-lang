@@ -4,5 +4,5 @@ trait Shape:
     fn area(self) -> i32
 
 fn consume() -> void:
-    let value: dyn Shape = panic("unreachable")  # diagnostic: trait-used-as-type
+    let value: dyn Shape = panic("unreachable") # diagnostic: trait-used-as-type
     _ := value

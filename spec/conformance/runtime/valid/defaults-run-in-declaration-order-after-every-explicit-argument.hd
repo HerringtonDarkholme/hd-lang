@@ -12,7 +12,12 @@ fn note(log: &mut List[string], text: string) -> string:
     log.push(text)
     text
 
-fn join(log: &mut List[string], first: string, second: string = note(log, "second"), third: string = note(log, "third")) -> string:
+fn join(
+    log: &mut List[string],
+    first: string,
+    second: string = note(log, "second"),
+    third: string = note(log, "third"),
+) -> string:
     "$first $second $third"
 
 pub fn main() -> void $ Console:

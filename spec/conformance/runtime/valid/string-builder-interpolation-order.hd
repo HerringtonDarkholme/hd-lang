@@ -1,5 +1,5 @@
 # test: builder interpolation evaluates every expression before appending its parts
-# Spec std/text Joining And Building: std-text.builder.push-ref, std-text.builder.build-empties.
+# Spec std/text Joining And Building: std-text.builder.push-local, std-text.builder.build-local.
 use std.text.StringBuilder
 use std.testing.assert_equal
 
@@ -17,10 +17,17 @@ tests:
         out := StringBuilder::new()
         let mut log: List[string] = []
         out.push_char('é')
-        select(out, &mut log).push("left${piece(out, &mut log, "one")}middle${piece(out, &mut log, "two")}right")
+        select(out, &mut log)
+            .push("left${piece(out, &mut log, "one")}middle${piece(out, &mut log, "two")}right")
         assert_equal(log, ["receiver", "one", "two"], reason="left to right, exactly once")
         first := out.build()
         assert_equal(first, "éonetwoleftonemiddletworight", reason="effects precede every append")
-        out.push("${+3}").push_char('λ').push("${""}")
-        assert_equal(first, "éonetwoleftonemiddletworight", reason="an earlier result is its own string")
+        out.push("${+3}")
+        out.push_char('λ')
+        out.push("${""}")
+        assert_equal(
+            first,
+            "éonetwoleftonemiddletworight",
+            reason="an earlier result is its own string",
+        )
         assert_equal(out.build(), "3λ", reason="mixed text and characters retain order")

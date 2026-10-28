@@ -19,7 +19,8 @@ fn total[S < Source](source: S) -> i32:
         sum += x
     sum
 
-fn make_source() -> impl Source: Evens {}
+fn make_source() -> impl Source:
+    Evens {}
 
 pub fn main() -> void $ Console:
     println("${total(Evens {})} ${total(Doubles {})} ${total(make_source())}")

@@ -6,9 +6,11 @@ struct P:
     n: i32
 
 impl Greet for P:
-    fn greet(self) -> string: "hi"
+    fn greet(self) -> string:
+        "hi"
 
-fn use_it[T < Greet](x: T) -> string: x.greet()
+fn use_it[T < Greet](x: T) -> string:
+    x.greet()
 
 pub fn main() -> void $ Console:
     let x: *dyn Greet = &P { n: 1 }

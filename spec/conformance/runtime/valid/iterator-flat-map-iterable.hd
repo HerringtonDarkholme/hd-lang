@@ -24,7 +24,11 @@ tests:
     use std.testing.assert_equal
 
     it("flat_map keeps Some payloads and drops None results"):
-        assert_equal([+1, 2, 3, 4].iter().flat_map(even).collect(), [+2, 4], reason="optional results")
+        assert_equal(
+            [+1, 2, 3, 4].iter().flat_map(even).collect(),
+            [+2, 4],
+            reason="optional results",
+        )
         assert_equal([+1, 3].iter().flat_map(even).collect(), [], reason="all None")
         let empty: List[i32] = []
         assert_equal(empty.iter().flat_map(even).collect(), [], reason="empty source")
@@ -70,10 +74,13 @@ tests:
     it("a custom Iterable is opened once and exhausted before the next result"):
         counter := &mut Counter { opened: 0 }
         let transformed: usize = 0
-        let mut flat = [+0, 2, 1].iter().flat_map(fn(n: i32) -> Batch:
-            transformed += 1
-            Batch { items: if n == 0: [] else: [n, n * 10], counter: counter }
-        )
+        let mut flat = [+0, 2, 1].iter()
+            .flat_map(
+                fn(n: i32) -> Batch:
+                    transformed += 1
+                    Batch { items: if n == 0: [] else: [n, n * 10], counter: counter }
+                ,
+            )
         assert_equal(transformed, 0, reason="lazy transform")
         assert_equal(counter.opened, 0, reason="lazy iter")
         assert_equal(flat.next(), .Some(2), reason="skip empty result")

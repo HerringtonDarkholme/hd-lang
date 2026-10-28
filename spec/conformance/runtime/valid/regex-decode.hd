@@ -79,8 +79,14 @@ struct RenamedCapture:
 
 tests:
     it("decodes access-log Hit records, optional referrers and skips malformed lines"):
-        pattern := re(r"^(?P<ip>\S+) \S+ \S+ \[[^\]]+\] \"(?P<method>[A-Z]+) (?P<path>\S+) [^\"]*\" (?P<status>\d{3}) (?P<bytes>\d+) (?P<seconds>\d+\.\d+)(?: \"(?P<referrer>[^\"]*)\")?$")
-        lines := ["127.0.0.1 - - [21/Oct/2026] \"GET /notes HTTP/1.1\" 200 42 0.125 \"https://example.test/\"", "127.0.0.1 - - [21/Oct/2026] \"GET /notes HTTP/1.1\" 200 42 0.125", "malformed"]
+        pattern := re(
+            r"^(?P<ip>\S+) \S+ \S+ \[[^\]]+\] \"(?P<method>[A-Z]+) (?P<path>\S+) [^\"]*\" (?P<status>\d{3}) (?P<bytes>\d+) (?P<seconds>\d+\.\d+)(?: \"(?P<referrer>[^\"]*)\")?$",
+        )
+        lines := [
+            "127.0.0.1 - - [21/Oct/2026] \"GET /notes HTTP/1.1\" 200 42 0.125 \"https://example.test/\"",
+            "127.0.0.1 - - [21/Oct/2026] \"GET /notes HTTP/1.1\" 200 42 0.125",
+            "malformed",
+        ]
         let hits = 0
         let skipped = 0
         for line in lines:
@@ -92,7 +98,11 @@ tests:
                     assert_equal(hit.status, 200, reason="status")
                     assert_equal(hit.bytes, 42, reason="bytes")
                     assert_equal(hit.seconds, 0.125, reason="seconds")
-                    assert_equal(hit.referrer, if hits == 0: .Some("https://example.test/") else: .None, reason="optional group")
+                    assert_equal(
+                        hit.referrer,
+                        if hits == 0: .Some("https://example.test/") else: .None,
+                        reason="optional group",
+                    )
                     hits += 1
                 .Err(.NoMatch) => skipped += 1
                 .Err(error) => panic("$error")
@@ -100,47 +110,165 @@ tests:
 
     it("Captures.decode agrees with Regex.decode and scalar conversions keep their checks"):
         pattern := re("^(?P<value>.*)$")
-        assert_equal(pattern.captures("255").expect("matched").decode::[Count](), .Ok(Count { value: 255 }), reason="capture set decoding")
-        assert_equal(pattern.decode::[Count]("256"), .Err(.WrongType("value", "u8")), reason="integer range")
-        assert_equal(pattern.decode::[Count]("-1"), .Err(.WrongType("value", "u8")), reason="unsigned sign")
-        assert_equal(pattern.decode::[Count]("no"), .Err(.WrongType("value", "u8")), reason="integer grammar")
+        assert_equal(
+            pattern.captures("255").expect("matched").decode::[Count](),
+            .Ok(Count { value: 255 }),
+            reason="capture set decoding",
+        )
+        assert_equal(
+            pattern.decode::[Count]("256"),
+            .Err(.WrongType("value", "u8")),
+            reason="integer range",
+        )
+        assert_equal(
+            pattern.decode::[Count]("-1"),
+            .Err(.WrongType("value", "u8")),
+            reason="unsigned sign",
+        )
+        assert_equal(
+            pattern.decode::[Count]("no"),
+            .Err(.WrongType("value", "u8")),
+            reason="integer grammar",
+        )
         assert_equal(pattern.decode::[Flag]("true"), .Ok(Flag { value: true }), reason="bool")
-        assert_equal(pattern.decode::[Flag]("TRUE"), .Err(.WrongType("value", "bool")), reason="bool grammar")
-        assert_equal(pattern.decode::[Character]("λ"), .Ok(Character { value: 'λ' }), reason="one Unicode scalar")
-        assert_equal(pattern.decode::[Character]("ab"), .Err(.WrongType("value", "char")), reason="one char only")
-        assert_equal(float32_error("NaN"), .Some(.WrongType("value", "f32")), reason="Deserialize rejects nonfinite f32")
-        assert_equal(float32_error("1e99"), .Some(.WrongType("value", "f32")), reason="Deserialize rejects overflowing f32")
+        assert_equal(
+            pattern.decode::[Flag]("TRUE"),
+            .Err(.WrongType("value", "bool")),
+            reason="bool grammar",
+        )
+        assert_equal(
+            pattern.decode::[Character]("λ"),
+            .Ok(Character { value: 'λ' }),
+            reason="one Unicode scalar",
+        )
+        assert_equal(
+            pattern.decode::[Character]("ab"),
+            .Err(.WrongType("value", "char")),
+            reason="one char only",
+        )
+        assert_equal(
+            float32_error("NaN"),
+            .Some(.WrongType("value", "f32")),
+            reason="Deserialize rejects nonfinite f32",
+        )
+        assert_equal(
+            float32_error("1e99"),
+            .Some(.WrongType("value", "f32")),
+            reason="Deserialize rejects overflowing f32",
+        )
         assert_equal(float32_error("1.25"), .None, reason="finite f32")
-        assert_equal(pattern.decode::[Float64]("NaN").expect("f64 NaN").value.is_nan(), true, reason="f64 follows its Deserialize implementation")
+        assert_equal(
+            pattern.decode::[Float64]("NaN").expect("f64 NaN").value.is_nan(),
+            true,
+            reason="f64 follows its Deserialize implementation",
+        )
 
     it("reads signed unsigned and platform-width integers"):
-        pattern := re(r"^(?P<signed>\S+) (?P<unsigned>\S+) (?P<narrow>\S+) (?P<wide>\S+) (?P<word>\S+)$")
-        assert_equal(pattern.decode::[Integers]("-9223372036854775808 18446744073709551615 -128 4294967295 12"), .Ok(Integers { signed: -9223372036854775808, unsigned: 18446744073709551615, narrow: -128, wide: 4294967295, word: 12 }), reason="full integer widths")
+        pattern := re(
+            r"^(?P<signed>\S+) (?P<unsigned>\S+) (?P<narrow>\S+) (?P<wide>\S+) (?P<word>\S+)$",
+        )
+        assert_equal(
+            pattern.decode::[Integers](
+                "-9223372036854775808 18446744073709551615 -128 4294967295 12",
+            ),
+            .Ok(
+                Integers {
+                    signed: -9223372036854775808,
+                    unsigned: 18446744073709551615,
+                    narrow: -128,
+                    wide: 4294967295,
+                    word: 12,
+                },
+            ),
+            reason="full integer widths",
+        )
 
     it("distinguishes a missing name, a nonparticipating group and empty captured text"):
-        assert_equal(re("^(?P<other>.*)$").decode::[Count]("1"), .Err(.MissingGroup("value")), reason="missing required name")
-        assert_equal(re("^(?P<other>.*)$").decode::[OptionalCount]("1"), .Err(.MissingGroup("value")), reason="optional member still needs its named group")
+        assert_equal(
+            re("^(?P<other>.*)$").decode::[Count]("1"),
+            .Err(.MissingGroup("value")),
+            reason="missing required name",
+        )
+        assert_equal(
+            re("^(?P<other>.*)$").decode::[OptionalCount]("1"),
+            .Err(.MissingGroup("value")),
+            reason="optional member still needs its named group",
+        )
         pattern := re(r"^(?P<value>\d+)?$")
-        assert_equal(pattern.decode::[OptionalCount](""), .Ok(OptionalCount { value: .None }), reason="group took no part")
-        assert_equal(pattern.decode::[Count](""), .Err(.MissingGroup("value")), reason="required absent group")
-        assert_equal(re("^(?P<value>.*)$").decode::[OptionalCount](""), .Err(.WrongType("value", "u8")), reason="empty text participated")
+        assert_equal(
+            pattern.decode::[OptionalCount](""),
+            .Ok(OptionalCount { value: .None }),
+            reason="group took no part",
+        )
+        assert_equal(
+            pattern.decode::[Count](""),
+            .Err(.MissingGroup("value")),
+            reason="required absent group",
+        )
+        assert_equal(
+            re("^(?P<value>.*)$").decode::[OptionalCount](""),
+            .Err(.WrongType("value", "u8")),
+            reason="empty text participated",
+        )
 
     it("accepts a selected unit variant and refuses selected payloads and other shapes"):
         pattern := re("^(?P<value>.*)$")
-        assert_equal(pattern.decode::[Choice]("Read"), .Ok(Choice { value: .Read }), reason="unit variant in a mixed enum")
-        assert_equal(pattern.decode::[Choice]("Write"), .Err(.WrongType("value", "payload-free variant")), reason="selected payload")
-        assert_equal(pattern.decode::[Choice]("Other"), .Err(.WrongType("value", "variant")), reason="unknown variant")
+        assert_equal(
+            pattern.decode::[Choice]("Read"),
+            .Ok(Choice { value: .Read }),
+            reason="unit variant in a mixed enum",
+        )
+        assert_equal(
+            pattern.decode::[Choice]("Write"),
+            .Err(.WrongType("value", "payload-free variant")),
+            reason="selected payload",
+        )
+        assert_equal(
+            pattern.decode::[Choice]("Other"),
+            .Err(.WrongType("value", "variant")),
+            reason="unknown variant",
+        )
         assert_equal(pattern.decode::[Items]("a"), .Err(.WrongType("value", "list")), reason="list")
-        assert_equal(pattern.decode::[Nested]("1"), .Err(.WrongType("value", "record")), reason="nested record")
+        assert_equal(
+            pattern.decode::[Nested]("1"),
+            .Err(.WrongType("value", "record")),
+            reason="nested record",
+        )
         assert_equal(pattern.decode::[u32]("1"), .Err(.WrongType("0", "u32")), reason="scalar root")
-        assert_equal(pattern.decode::[Mode]("Read"), .Err(.WrongType("0", "record")), reason="enum root")
+        assert_equal(
+            pattern.decode::[Mode]("Read"),
+            .Err(.WrongType("0", "record")),
+            reason="enum root",
+        )
 
     it("reports decode errors with their group and expected type"):
         assert_equal("${RegexError.NoMatch}", "the regex did not match", reason="no match text")
-        assert_equal("${RegexError.MissingGroup("value")}", "missing regex group value", reason="missing group text")
-        assert_equal("${RegexError.WrongType("value", "u8")}", "cannot decode regex group value as u8", reason="wrong type text")
+        assert_equal(
+            "${RegexError.MissingGroup("value")}",
+            "missing regex group value",
+            reason="missing group text",
+        )
+        assert_equal(
+            "${RegexError.WrongType("value", "u8")}",
+            "cannot decode regex group value as u8",
+            reason="wrong type text",
+        )
 
     it("capture lookup and errors honor format-neutral rename"):
-        assert_equal(re("^(?P<wire>.*)$").decode::[RenamedCapture]("7").map(fn(found): found.source_name), .Ok(7), reason="wire group")
-        assert_equal(re("^(?P<source_name>.*)$").decode::[RenamedCapture]("7").map(fn(found): found.source_name), .Err(.MissingGroup("wire")), reason="source name is not the wire name")
-        assert_equal(re("^(?P<wire>.*)$").decode::[RenamedCapture]("bad").map(fn(found): found.source_name), .Err(.WrongType("wire", "u8")), reason="error names the group")
+        assert_equal(
+            re("^(?P<wire>.*)$").decode::[RenamedCapture]("7").map(fn(found): found.source_name),
+            .Ok(7),
+            reason="wire group",
+        )
+        assert_equal(
+            re("^(?P<source_name>.*)$")
+                .decode::[RenamedCapture]("7")
+                .map(fn(found): found.source_name),
+            .Err(.MissingGroup("wire")),
+            reason="source name is not the wire name",
+        )
+        assert_equal(
+            re("^(?P<wire>.*)$").decode::[RenamedCapture]("bad").map(fn(found): found.source_name),
+            .Err(.WrongType("wire", "u8")),
+            reason="error names the group",
+        )

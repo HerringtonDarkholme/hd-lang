@@ -3,5 +3,5 @@
 trait Repo[T]
 fn choose[T, U](first: *dyn Repo[T], second: *dyn Repo[U]) -> void:
     $.with(Repo[T]=first):
-        $.with(Repo[U]=second):  # diagnostic: generic-requirement-key-collision
+        $.with(Repo[U]=second): # diagnostic: generic-requirement-key-collision
             pass

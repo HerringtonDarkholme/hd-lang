@@ -6,7 +6,8 @@ base := +40
 
 total := add_base(2)
 
-fn add_base(n: i32): base + n
+fn add_base(n: i32):
+    base + n
 
 fn note(value: i32):
     _ := value

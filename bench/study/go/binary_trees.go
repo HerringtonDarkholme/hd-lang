@@ -3,7 +3,7 @@ package main
 
 import "fmt"
 
-const maxDepth, minDepth = 14, 4
+const maxDepth, minDepth = 17, 4
 
 type node struct{ left, right *node }
 

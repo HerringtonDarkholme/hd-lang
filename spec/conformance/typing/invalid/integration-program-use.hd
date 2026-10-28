@@ -2,7 +2,7 @@
 # Spec 10 Test Modules: module.test.integration.program.
 # Spec 10 Test Modules: module.test.integration.program-use (Batch 47 TASK-MODULE).
 # fixture-package-tree: integration-shared/tests/checkout.hd
-use self.smoke.{smoke_name}  # diagnostic: unknown-module
+use self.smoke.{smoke_name} # diagnostic: unknown-module
 
 pub fn shown() -> string:
     smoke_name()

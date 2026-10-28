@@ -63,7 +63,10 @@ impl Deserializer for Gappy:
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
         .Ok(0)
 
-    fn member(&mut self, m: Member) -> Result[void, string]:
+    fn begin_newtype_variant(&mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn member(&mut self, m: &Member) -> Result[void, string]:
         self.log.push("member:${m.name}")
         self.missing = self.gaps.contains(m.name)
         .Ok(())
@@ -122,7 +125,10 @@ impl Deserializer for Plain:
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
         .Ok(0)
 
-    fn member(&mut self, m: Member) -> Result[void, string]:
+    fn begin_newtype_variant(&mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn member(&mut self, m: &Member) -> Result[void, string]:
         self.log.push("member:${m.name}")
         .Ok(())
 
@@ -152,18 +158,30 @@ tests:
 
     it("an absent member with a default takes it, and its type's deserialize is not called"):
         read := gappy([5], ["retries"])
-        assert_equal(read._1, "member:count uint member:retries absent?", reason="no uint call for retries")
+        assert_equal(
+            read._1,
+            "member:count uint member:retries absent?",
+            reason="no uint call for retries",
+        )
         assert_equal(read._0.map(fn(found): found.retries), .Ok(3), reason="the default")
 
     it("a member with a default that is present is read"):
         read := gappy([5, 7], [])
-        assert_equal(read._1, "member:count uint member:retries absent? uint", reason="asked, then read")
+        assert_equal(
+            read._1,
+            "member:count uint member:retries absent? uint",
+            reason="asked, then read",
+        )
         assert_equal(read._0.map(fn(found): found.retries), .Ok(7), reason="read")
 
     it("a member with no default is never asked, so an absent one is read and fails"):
         read := gappy([], ["count"])
         assert_equal(read._1, "member:count uint", reason="no absent? for count")
-        assert_equal(read._0.map(fn(found): found.count), .Err("missing"), reason="the reader's error")
+        assert_equal(
+            read._0.map(fn(found): found.count),
+            .Err("missing"),
+            reason="the reader's error",
+        )
 
     it("the default is_absent is false, so the member is read"):
         read := plain([5, 7])

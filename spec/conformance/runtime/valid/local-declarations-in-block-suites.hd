@@ -15,7 +15,8 @@ pub fn main() -> void $ Console:
     trait Label:
         fn label(self) -> string
     impl Label for Seat:
-        fn label(self) -> string: "R${self.row}C${self.col}"
+        fn label(self) -> string:
+            "R${self.row}C${self.col}"
     type Tag = string
     fn mood_name(m: Mood) -> Tag:
         match m:
@@ -23,9 +24,10 @@ pub fn main() -> void $ Console:
             .Tense(level) => "tense ${level}"
     fn nothing() -> void:
         pass
-    fn twice(n: i32) -> i32: n * 2
+    fn twice(n: i32) -> i32:
+        n * 2
     nothing()
     seat := Seat { row: +2, col: +7 }
     println("${seat.label()} ${mood_name(Mood.Steady)}")
-    println(mood_name(Mood.Tense(level = +3)))
+    println(mood_name(Mood.Tense(level=+3)))
     println(twice(+7))

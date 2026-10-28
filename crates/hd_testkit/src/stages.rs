@@ -11,6 +11,7 @@ mod own;
 mod wat;
 pub use wat::{wat, wat_for};
 
+use hd_base::SliceSort as _;
 use hd_driver::{Executor, Goal, Host, NoClock, PositionPool, build};
 use hd_sched::SerialOrder;
 use std::collections::BTreeMap;
@@ -564,7 +565,7 @@ fn run_cases(dir: &Path, views: &Views<'_>, bless: bool) {
     }
     let mut files = Vec::new();
     collect(dir, &mut files);
-    files.sort();
+    files.sort_stable();
     assert!(!files.is_empty(), "no `.hd` cases in {}", dir.display());
     let baseline_root = dir.parent().expect("tests directory").join("baselines");
     // Cases run on a pool of threads; results merge in file order, so the

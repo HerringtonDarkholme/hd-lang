@@ -12,7 +12,12 @@ use std.time.s
 fn quote_literal(literal: string) -> string:
     let result = ""
     for character in literal.chars():
-        if (character >= '!' && character <= '/') || (character >= ':' && character <= '@') || (character >= '[' && character <= '`') || (character >= '{' && character <= '~'):
+        if (
+            (character >= '!' && character <= '/')
+            || (character >= ':' && character <= '@')
+            || (character >= '[' && character <= '`')
+            || (character >= '{' && character <= '~')
+        ):
             result += "\\"
         result += character.to_string()
     result
@@ -67,10 +72,20 @@ fn literal_all(literal: string, text: string) -> List[Match]:
     result
 
 fn verify_match(found: Match, text: string) -> void:
-    assert(found.start <= found.end && found.end <= text.len(), reason="match span lies in the input")
+    assert(
+        found.start <= found.end && found.end <= text.len(),
+        reason="match span lies in the input",
+    )
     positions := boundaries(text)
-    assert(positions.contains(found.start) && positions.contains(found.end), reason="match offsets are Unicode scalar boundaries")
-    assert_equal(found.text, text.slice(found.start, found.end), reason="match text is its exact byte slice")
+    assert(
+        positions.contains(found.start) && positions.contains(found.end),
+        reason="match offsets are Unicode scalar boundaries",
+    )
+    assert_equal(
+        found.text,
+        text.slice(found.start, found.end),
+        reason="match text is its exact byte slice",
+    )
 
 fn verify_all(found: List[Match], text: string) -> void:
     let previous: Match? = .None
@@ -80,9 +95,15 @@ fn verify_all(found: List[Match], text: string) -> void:
             .Some(before) =>
                 assert(current.start >= before.end, reason="matches never overlap")
                 if before.start == before.end:
-                    assert(current.start >= next_boundary(text, before.end), reason="an empty match advances by a whole scalar")
+                    assert(
+                        current.start >= next_boundary(text, before.end),
+                        reason="an empty match advances by a whole scalar",
+                    )
                 if current.start == current.end:
-                    assert(current.start != before.end, reason="an empty match at the previous end is dropped")
+                    assert(
+                        current.start != before.end,
+                        reason="an empty match at the previous end is dropped",
+                    )
             .None => pass
         previous = .Some(current)
 
@@ -92,7 +113,10 @@ fn verify_captures(found: Captures, whole: Match, text: string) -> void:
         match found.get(index):
             .Some(group) =>
                 verify_match(group, text)
-                assert(group.start >= whole.start && group.end <= whole.end, reason="a capture lies within the whole match")
+                assert(
+                    group.start >= whole.start && group.end <= whole.end,
+                    reason="a capture lies within the whole match",
+                )
             .None => pass
     assert_equal(found.get(found.len()), .None, reason="a nonexistent group has no capture")
     assert_equal(found.name("not_a_group"), .None, reason="an unknown named group has no capture")
@@ -105,7 +129,29 @@ fn generated_text(values: List[u8]) -> string:
     text
 
 fn patterns() -> List[string]:
-    ["", "a*", "a|ab", "(a*)", "(a|b)+", "(a+?)(a*)", "(?<head>[éλ]?)(?<tail>.*)", "(a)|(b)", "(?:x)(a?)", "((a)?b*)", "(a*)*", "(a*)+", "(a|)+", "(a)?", "()", "(?<u>é|λ|😀)+", "([α-γ]+)", "(a{0,3})(b?)", "(a*)(b*)", "^a", "a\$"]
+    [
+        "",
+        "a*",
+        "a|ab",
+        "(a*)",
+        "(a|b)+",
+        "(a+?)(a*)",
+        "(?<head>[éλ]?)(?<tail>.*)",
+        "(a)|(b)",
+        "(?:x)(a?)",
+        "((a)?b*)",
+        "(a*)*",
+        "(a*)+",
+        "(a|)+",
+        "(a)?",
+        "()",
+        "(?<u>é|λ|😀)+",
+        "([α-γ]+)",
+        "(a{0,3})(b?)",
+        "(a*)(b*)",
+        "^a",
+        "a\$",
+    ]
 
 struct MatchCase:
     pattern: string
@@ -127,139 +173,351 @@ struct LongCase:
     end: usize?
 
 tests:
-    it_prop("literal find agrees with an independent scalar scan", cases=100, prop=fn!(pair: (string, string)):
-        literal := pair._0
-        compiled := Regex::new(quote_literal(literal)).expect("an escaped literal compiles")
-        assert_equal(compiled.find(pair._1), literal_find(literal, pair._1, 0), reason="arbitrary input")
-        text := pair._1 + literal + pair._1
-        assert_equal(compiled.find(text), literal_find(literal, text, 0), reason="the literal is deliberately present")
+    it_prop(
+        "literal find agrees with an independent scalar scan",
+        cases=100,
+        prop=fn!(pair: (string, string)):
+            literal := pair._0
+            compiled := Regex::new(quote_literal(literal)).expect("an escaped literal compiles")
+            assert_equal(
+                compiled.find(pair._1),
+                literal_find(literal, pair._1, 0),
+                reason="arbitrary input",
+            )
+            text := pair._1 + literal + pair._1
+            assert_equal(
+                compiled.find(text),
+                literal_find(literal, text, 0),
+                reason="the literal is deliberately present",
+            )
+        ,
     )
 
-    it_prop("literal find_all agrees with nonoverlapping scalar searches", cases=100, prop=fn!(pair: (string, string)):
-        literal := pair._0
-        text := pair._1 + literal + pair._1 + literal
-        compiled := Regex::new(quote_literal(literal)).expect("an escaped literal compiles")
-        actual := compiled.find_all(text)
-        assert_equal(actual, literal_all(literal, text), reason="independent nonoverlapping searches")
-        verify_all(actual, text)
+    it_prop(
+        "literal find_all agrees with nonoverlapping scalar searches",
+        cases=100,
+        prop=fn!(pair: (string, string)):
+            literal := pair._0
+            text := pair._1 + literal + pair._1 + literal
+            compiled := Regex::new(quote_literal(literal)).expect("an escaped literal compiles")
+            actual := compiled.find_all(text)
+            assert_equal(
+                actual,
+                literal_all(literal, text),
+                reason="independent nonoverlapping searches",
+            )
+            verify_all(actual, text)
+        ,
     )
 
-    it_prop("the empty pattern advances across Unicode scalar boundaries", cases=100, prop=fn!(text: string):
-        let mut expected: List[Match] = []
-        for boundary in boundaries(text):
-            expected.push(Match { start: boundary, end: boundary, text: "" })
-        actual := Regex::new("").expect("empty compiles").find_all(text)
-        assert_equal(actual, expected, reason="one empty match at each boundary including both ends")
-        verify_all(actual, text)
+    it_prop(
+        "the empty pattern advances across Unicode scalar boundaries",
+        cases=100,
+        prop=fn!(text: string):
+            let mut expected: List[Match] = []
+            for boundary in boundaries(text):
+                expected.push(Match { start: boundary, end: boundary, text: "" })
+            actual := Regex::new("").expect("empty compiles").find_all(text)
+            assert_equal(
+                actual,
+                expected,
+                reason="one empty match at each boundary including both ends",
+            )
+            verify_all(actual, text)
+        ,
     )
 
-    it_prop("is_match agrees with find and all matches advance", cases=100, prop=fn!(values: List[u8]):
-        text := generated_text(values)
-        for pattern in patterns():
-            compiled := Regex::new(pattern).expect("the supported pattern compiles")
-            assert_equal(compiled.is_match(text), compiled.find(text).is_some(), reason="search APIs agree")
-            verify_all(compiled.find_all(text), text)
+    it_prop(
+        "is_match agrees with find and all matches advance",
+        cases=100,
+        prop=fn!(values: List[u8]):
+            text := generated_text(values)
+            for pattern in patterns():
+                compiled := Regex::new(pattern).expect("the supported pattern compiles")
+                assert_equal(
+                    compiled.is_match(text),
+                    compiled.find(text).is_some(),
+                    reason="search APIs agree",
+                )
+                verify_all(compiled.find_all(text), text)
+        ,
     )
 
-    it_prop("capture spans stay inside the chosen whole match", cases=100, prop=fn!(values: List[u8]):
-        text := generated_text(values)
-        for pattern in patterns():
-            compiled := Regex::new(pattern).expect("the supported pattern compiles")
-            match compiled.captures(text):
-                .Some(groups) => verify_captures(groups, compiled.find(text).expect("captures imply a match"), text)
-                .None => assert_equal(compiled.find(text), .None, reason="no capture set means no match")
-            matches := compiled.find_all(text)
-            captured := compiled.captures_all(text)
-            assert_equal(captured.len(), matches.len(), reason="captures_all reports every find_all match")
-            for index in 0..matches.len():
-                verify_captures(captured[index], matches[index], text)
+    it_prop(
+        "capture spans stay inside the chosen whole match",
+        cases=100,
+        prop=fn!(values: List[u8]):
+            text := generated_text(values)
+            for pattern in patterns():
+                compiled := Regex::new(pattern).expect("the supported pattern compiles")
+                match compiled.captures(text):
+                    .Some(groups) =>
+                        verify_captures(
+                            groups,
+                            compiled.find(text).expect("captures imply a match"),
+                            text,
+                        )
+                    .None =>
+                        assert_equal(
+                            compiled.find(text),
+                            .None,
+                            reason="no capture set means no match",
+                        )
+                matches := compiled.find_all(text)
+                captured := compiled.captures_all(text)
+                assert_equal(
+                    captured.len(),
+                    matches.len(),
+                    reason="captures_all reports every find_all match",
+                )
+                for index in 0..matches.len():
+                    verify_captures(captured[index], matches[index], text)
+        ,
     )
 
-    it_each("empty anchors multiline and Unicode classes have explicit spans", rows=[
-        MatchCase { pattern: "", text: "", found: [Match { start: 0, end: 0, text: "" }] },
-        MatchCase { pattern: "", text: "é😀", found: [Match { start: 0, end: 0, text: "" }, Match { start: 2, end: 2, text: "" }, Match { start: 6, end: 6, text: "" }] },
-        MatchCase { pattern: "a*", text: "baaac", found: [Match { start: 0, end: 0, text: "" }, Match { start: 1, end: 4, text: "aaa" }, Match { start: 5, end: 5, text: "" }] },
-        MatchCase { pattern: "aa", text: "aaaaa", found: [Match { start: 0, end: 2, text: "aa" }, Match { start: 2, end: 4, text: "aa" }] },
-        MatchCase { pattern: "^", text: "a\nb", found: [Match { start: 0, end: 0, text: "" }] },
-        MatchCase { pattern: "\$", text: "a\nb", found: [Match { start: 3, end: 3, text: "" }] },
-        MatchCase { pattern: "^b", text: "a\nb", found: [] },
-        MatchCase { pattern: "b\$", text: "a\nb", found: [Match { start: 2, end: 3, text: "b" }] },
-        MatchCase { pattern: "^a\$", text: "a\n", found: [] },
-        MatchCase { pattern: "^a\$", text: "a", found: [Match { start: 0, end: 1, text: "a" }] },
-        MatchCase { pattern: "[éλ]+", text: "xéλy", found: [Match { start: 1, end: 5, text: "éλ" }] },
-        MatchCase { pattern: "[α-γ]+", text: "aβγ!", found: [Match { start: 1, end: 5, text: "βγ" }] },
-        MatchCase { pattern: "[^a]+", text: "a\nλa", found: [Match { start: 1, end: 4, text: "\nλ" }] },
-        MatchCase { pattern: ".", text: "😀\né", found: [Match { start: 0, end: 4, text: "😀" }, Match { start: 5, end: 7, text: "é" }] },
-        MatchCase { pattern: "é", text: "Éé", found: [Match { start: 2, end: 4, text: "é" }] },
-        MatchCase { pattern: "[Éé]", text: "Éé", found: [Match { start: 0, end: 2, text: "É" }, Match { start: 2, end: 4, text: "é" }] }
-    ], body=fn!(row: MatchCase):
-        compiled := Regex::new(row.pattern).expect("the explicit pattern compiles")
-        assert_equal(compiled.find_all(row.text), row.found, reason="exact leftmost-first and byte-offset expectations")
-        let first: Match? = .None
-        if row.found.len() > 0:
-            first = .Some(row.found[0])
-        assert_equal(compiled.find(row.text), first, reason="find is the first listed match")
-        assert_equal(compiled.is_match(row.text), first.is_some(), reason="is_match agrees")
-        verify_all(row.found, row.text)
+    it_each(
+        "empty anchors multiline and Unicode classes have explicit spans",
+        rows=[
+            MatchCase { pattern: "", text: "", found: [Match { start: 0, end: 0, text: "" }] },
+            MatchCase {
+                pattern: "",
+                text: "é😀",
+                found: [
+                    Match { start: 0, end: 0, text: "" },
+                    Match { start: 2, end: 2, text: "" },
+                    Match { start: 6, end: 6, text: "" },
+                ],
+            },
+            MatchCase {
+                pattern: "a*",
+                text: "baaac",
+                found: [
+                    Match { start: 0, end: 0, text: "" },
+                    Match { start: 1, end: 4, text: "aaa" },
+                    Match { start: 5, end: 5, text: "" },
+                ],
+            },
+            MatchCase {
+                pattern: "aa",
+                text: "aaaaa",
+                found: [
+                    Match { start: 0, end: 2, text: "aa" },
+                    Match { start: 2, end: 4, text: "aa" },
+                ],
+            },
+            MatchCase { pattern: "^", text: "a\nb", found: [Match { start: 0, end: 0, text: "" }] },
+            MatchCase {
+                pattern: "\$",
+                text: "a\nb",
+                found: [Match { start: 3, end: 3, text: "" }],
+            },
+            MatchCase { pattern: "^b", text: "a\nb", found: [] },
+            MatchCase {
+                pattern: "b\$",
+                text: "a\nb",
+                found: [Match { start: 2, end: 3, text: "b" }],
+            },
+            MatchCase { pattern: "^a\$", text: "a\n", found: [] },
+            MatchCase {
+                pattern: "^a\$",
+                text: "a",
+                found: [Match { start: 0, end: 1, text: "a" }],
+            },
+            MatchCase {
+                pattern: "[éλ]+",
+                text: "xéλy",
+                found: [Match { start: 1, end: 5, text: "éλ" }],
+            },
+            MatchCase {
+                pattern: "[α-γ]+",
+                text: "aβγ!",
+                found: [Match { start: 1, end: 5, text: "βγ" }],
+            },
+            MatchCase {
+                pattern: "[^a]+",
+                text: "a\nλa",
+                found: [Match { start: 1, end: 4, text: "\nλ" }],
+            },
+            MatchCase {
+                pattern: ".",
+                text: "😀\né",
+                found: [
+                    Match { start: 0, end: 4, text: "😀" },
+                    Match { start: 5, end: 7, text: "é" },
+                ],
+            },
+            MatchCase { pattern: "é", text: "Éé", found: [Match { start: 2, end: 4, text: "é" }] },
+            MatchCase {
+                pattern: "[Éé]",
+                text: "Éé",
+                found: [
+                    Match { start: 0, end: 2, text: "É" },
+                    Match { start: 2, end: 4, text: "é" },
+                ],
+            },
+        ],
+        body=fn!(row: MatchCase):
+            compiled := Regex::new(row.pattern).expect("the explicit pattern compiles")
+            assert_equal(
+                compiled.find_all(row.text),
+                row.found,
+                reason="exact leftmost-first and byte-offset expectations",
+            )
+            let first: Match? = .None
+            if row.found.len() > 0:
+                first = .Some(row.found[0])
+            assert_equal(compiled.find(row.text), first, reason="find is the first listed match")
+            assert_equal(compiled.is_match(row.text), first.is_some(), reason="is_match agrees")
+            verify_all(row.found, row.text)
+        ,
     )
 
-    it_each("optional repeated and Unicode captures have explicit spans", rows=[
-        CaptureCase { pattern: "(a)|(b)", text: "b", groups: [.Some(Match { start: 0, end: 1, text: "b" }), .None, .Some(Match { start: 0, end: 1, text: "b" })] },
-        CaptureCase { pattern: "x(y?)z", text: "xz", groups: [.Some(Match { start: 0, end: 2, text: "xz" }), .Some(Match { start: 1, end: 1, text: "" })] },
-        CaptureCase { pattern: "(a*)*", text: "b", groups: [.Some(Match { start: 0, end: 0, text: "" }), .None] },
-        CaptureCase { pattern: "(a*)+", text: "b", groups: [.Some(Match { start: 0, end: 0, text: "" }), .Some(Match { start: 0, end: 0, text: "" })] },
-        CaptureCase { pattern: "(?<word>é|λ)+", text: "xéλ", groups: [.Some(Match { start: 1, end: 5, text: "éλ" }), .Some(Match { start: 3, end: 5, text: "λ" })] },
-        CaptureCase { pattern: "([α-γ]+)([0-9]?)", text: "xβγ7", groups: [.Some(Match { start: 1, end: 6, text: "βγ7" }), .Some(Match { start: 1, end: 5, text: "βγ" }), .Some(Match { start: 5, end: 6, text: "7" })] },
-        CaptureCase { pattern: "((a)?b*)", text: "bbb", groups: [.Some(Match { start: 0, end: 3, text: "bbb" }), .Some(Match { start: 0, end: 3, text: "bbb" }), .None] },
-        CaptureCase { pattern: "(a+?)(a*)", text: "aaa", groups: [.Some(Match { start: 0, end: 3, text: "aaa" }), .Some(Match { start: 0, end: 1, text: "a" }), .Some(Match { start: 1, end: 3, text: "aa" })] }
-    ], body=fn!(row: CaptureCase):
-        found := Regex::new(row.pattern).expect("the explicit pattern compiles").captures(row.text).expect("the explicit text matches")
-        assert_equal(found.len(), row.groups.len(), reason="capture group count")
-        for index in 0..row.groups.len():
-            assert_equal(found.get(index), row.groups[index], reason="exact group span and optional participation")
-        verify_captures(found, row.groups[0].expect("whole match"), row.text)
+    it_each(
+        "optional repeated and Unicode captures have explicit spans",
+        rows=[
+            CaptureCase {
+                pattern: "(a)|(b)",
+                text: "b",
+                groups: [
+                    .Some(Match { start: 0, end: 1, text: "b" }),
+                    .None,
+                    .Some(Match { start: 0, end: 1, text: "b" }),
+                ],
+            },
+            CaptureCase {
+                pattern: "x(y?)z",
+                text: "xz",
+                groups: [
+                    .Some(Match { start: 0, end: 2, text: "xz" }),
+                    .Some(Match { start: 1, end: 1, text: "" }),
+                ],
+            },
+            CaptureCase {
+                pattern: "(a*)*",
+                text: "b",
+                groups: [.Some(Match { start: 0, end: 0, text: "" }), .None],
+            },
+            CaptureCase {
+                pattern: "(a*)+",
+                text: "b",
+                groups: [
+                    .Some(Match { start: 0, end: 0, text: "" }),
+                    .Some(Match { start: 0, end: 0, text: "" }),
+                ],
+            },
+            CaptureCase {
+                pattern: "(?<word>é|λ)+",
+                text: "xéλ",
+                groups: [
+                    .Some(Match { start: 1, end: 5, text: "éλ" }),
+                    .Some(Match { start: 3, end: 5, text: "λ" }),
+                ],
+            },
+            CaptureCase {
+                pattern: "([α-γ]+)([0-9]?)",
+                text: "xβγ7",
+                groups: [
+                    .Some(Match { start: 1, end: 6, text: "βγ7" }),
+                    .Some(Match { start: 1, end: 5, text: "βγ" }),
+                    .Some(Match { start: 5, end: 6, text: "7" }),
+                ],
+            },
+            CaptureCase {
+                pattern: "((a)?b*)",
+                text: "bbb",
+                groups: [
+                    .Some(Match { start: 0, end: 3, text: "bbb" }),
+                    .Some(Match { start: 0, end: 3, text: "bbb" }),
+                    .None,
+                ],
+            },
+            CaptureCase {
+                pattern: "(a+?)(a*)",
+                text: "aaa",
+                groups: [
+                    .Some(Match { start: 0, end: 3, text: "aaa" }),
+                    .Some(Match { start: 0, end: 1, text: "a" }),
+                    .Some(Match { start: 1, end: 3, text: "aa" }),
+                ],
+            },
+        ],
+        body=fn!(row: CaptureCase):
+            found := Regex::new(row.pattern)
+                .expect("the explicit pattern compiles")
+                .captures(row.text)
+                .expect("the explicit text matches")
+            assert_equal(found.len(), row.groups.len(), reason="capture group count")
+            for index in 0..row.groups.len():
+                assert_equal(
+                    found.get(index),
+                    row.groups[index],
+                    reason="exact group span and optional participation",
+                )
+            verify_captures(found, row.groups[0].expect("whole match"), row.text)
+        ,
     )
 
     # Flags and Unicode property escapes are intentionally unsupported by
     # this spec. In particular (?i) must not silently promise case folding.
-    it_each("invalid and unsupported patterns return typed RegexError values", rows=[
-        BadPattern { pattern: "(?i)é", error: .UnsupportedGroup(0) },
-        BadPattern { pattern: "(?i:é)", error: .UnsupportedGroup(0) },
-        BadPattern { pattern: "(?m)^a\$", error: .UnsupportedGroup(0) },
-        BadPattern { pattern: "\\p{L}+", error: .BadEscape(0) },
-        BadPattern { pattern: "\\q", error: .BadEscape(0) },
-        BadPattern { pattern: "é(", error: .MissingParen(2) },
-        BadPattern { pattern: "é[", error: .MissingBracket(2) },
-        BadPattern { pattern: "[λ-α]", error: .BadRange(1) },
-        BadPattern { pattern: "*a", error: .NothingToRepeat(0) },
-        BadPattern { pattern: "a**", error: .NothingToRepeat(2) },
-        BadPattern { pattern: "a{1001}", error: .BadRepeat(1) },
-        BadPattern { pattern: "a{3,2}", error: .BadRepeat(1) },
-        BadPattern { pattern: "(?=a)", error: .UnsupportedGroup(0) },
-        BadPattern { pattern: "(a)\\1", error: .BadEscape(3) },
-        BadPattern { pattern: "(?<>a)", error: .BadGroupName(0) },
-        BadPattern { pattern: "(?<x>a)(?P<x>b)", error: .DuplicateGroupName(7) },
-        BadPattern { pattern: "(?:a{1000}){10}b", error: .TooLarge(0) }
-    ], body=fn!(row: BadPattern):
-        assert_equal(Regex::new(row.pattern).err(), .Some(row.error), reason="the typed error and its byte offset are part of the contract")
+    it_each(
+        "invalid and unsupported patterns return typed RegexError values",
+        rows=[
+            BadPattern { pattern: "(?i)é", error: .UnsupportedGroup(0) },
+            BadPattern { pattern: "(?i:é)", error: .UnsupportedGroup(0) },
+            BadPattern { pattern: "(?m)^a\$", error: .UnsupportedGroup(0) },
+            BadPattern { pattern: "\\p{L}+", error: .BadEscape(0) },
+            BadPattern { pattern: "\\q", error: .BadEscape(0) },
+            BadPattern { pattern: "é(", error: .MissingParen(2) },
+            BadPattern { pattern: "é[", error: .MissingBracket(2) },
+            BadPattern { pattern: "[λ-α]", error: .BadRange(1) },
+            BadPattern { pattern: "*a", error: .NothingToRepeat(0) },
+            BadPattern { pattern: "a**", error: .NothingToRepeat(2) },
+            BadPattern { pattern: "a{1001}", error: .BadRepeat(1) },
+            BadPattern { pattern: "a{3,2}", error: .BadRepeat(1) },
+            BadPattern { pattern: "(?=a)", error: .UnsupportedGroup(0) },
+            BadPattern { pattern: "(a)\\1", error: .BadEscape(3) },
+            BadPattern { pattern: "(?<>a)", error: .BadGroupName(0) },
+            BadPattern { pattern: "(?<x>a)(?P<x>b)", error: .DuplicateGroupName(7) },
+            BadPattern { pattern: "(?:a{1000}){10}b", error: .TooLarge(0) },
+        ],
+        body=fn!(row: BadPattern):
+            assert_equal(
+                Regex::new(row.pattern).err(),
+                .Some(row.error),
+                reason="the typed error and its byte offset are part of the contract",
+            )
+        ,
     )
 
-    it_each("nested and counted repetitions complete on 10000-byte inputs", timeout=10s, rows=[
-        LongCase { pattern: "(a*)*b", suffix: "", end: .None },
-        LongCase { pattern: "(a*)*b", suffix: "b", end: .Some(10000) },
-        LongCase { pattern: "(a|aa)*c", suffix: "", end: .None },
-        LongCase { pattern: "(a|aa)*c", suffix: "c", end: .Some(10000) },
-        LongCase { pattern: "a{0,1000}", suffix: "", end: .Some(1000) }
-    ], body=fn!(row: LongCase):
-        text := "a".repeat(10000 - row.suffix.len()) + row.suffix
-        compiled := Regex::new(row.pattern).expect("the bounded pattern compiles")
-        assert_equal(text.len(), 10000, reason="the adversarial input has exactly 10000 bytes")
-        assert_equal(compiled.is_match(text), row.end.is_some(), reason="expected existence without backtracking")
-        match (compiled.find(text), row.end):
-            (.Some(found), .Some(end)) =>
-                assert_equal(found.start, 0, reason="the long match starts at the beginning")
-                assert_equal(found.end, end, reason="greedy repetition ends at its expected bound")
-                verify_match(found, text)
-            (.None, .None) => pass
-            _ => panic("unexpected long-input match")
+    it_each(
+        "nested and counted repetitions complete on 10000-byte inputs",
+        timeout=10s,
+        rows=[
+            LongCase { pattern: "(a*)*b", suffix: "", end: .None },
+            LongCase { pattern: "(a*)*b", suffix: "b", end: .Some(10000) },
+            LongCase { pattern: "(a|aa)*c", suffix: "", end: .None },
+            LongCase { pattern: "(a|aa)*c", suffix: "c", end: .Some(10000) },
+            LongCase { pattern: "a{0,1000}", suffix: "", end: .Some(1000) },
+        ],
+        body=fn!(row: LongCase):
+            text := "a".repeat(10000 - row.suffix.len()) + row.suffix
+            compiled := Regex::new(row.pattern).expect("the bounded pattern compiles")
+            assert_equal(text.len(), 10000, reason="the adversarial input has exactly 10000 bytes")
+            assert_equal(
+                compiled.is_match(text),
+                row.end.is_some(),
+                reason="expected existence without backtracking",
+            )
+            match (compiled.find(text), row.end):
+                (.Some(found), .Some(end)) =>
+                    assert_equal(found.start, 0, reason="the long match starts at the beginning")
+                    assert_equal(
+                        found.end,
+                        end,
+                        reason="greedy repetition ends at its expected bound",
+                    )
+                    verify_match(found, text)
+                (.None, .None) => pass
+                _ => panic("unexpected long-input match")
+        ,
     )

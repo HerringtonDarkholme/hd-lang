@@ -9,62 +9,64 @@ struct Named:
     label: string
 
 impl Tag for Named:
-    fn name(self) -> string: self.label
+    fn name(self) -> string:
+        self.label
 
-fn invoke[$R](callback: fn() -> string $ R) -> string $ R:
+fn invoke[$ R](callback: fn() -> string $ R) -> string $ R:
     callback()
 
 trait Runner:
-    fn run[$R](self, job: fn() -> string $ R) -> string $ R
-    fn provide[$R](self, job: fn() -> string $ R + Tag) -> string $ R
-    fn tagged[$R](self, job: fn() -> string $ R) -> string $ R + Tag
-    fn through[$R](self, job: fn() -> string $ R) -> string $ R
-    fn scoped[$R](self, job: fn() -> string $ R + Tag) -> string $ R
-    fn wrapped[$R](self, job: fn() -> string $ R) -> string $ R
-    fn apply[T, $R](self, x: T, f: fn(T) -> T $ R) -> T $ R
-    fn both[$S, $T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T
-    fn again[$R](self, other: &dyn Runner, job: fn() -> string $ R) -> string $ R
-    fn fallback[$R](self, job: fn() -> string $ R) -> string $ R:
+    fn run[$ R](self, job: fn() -> string $ R) -> string $ R
+    fn provide[$ R](self, job: fn() -> string $ R + Tag) -> string $ R
+    fn tagged[$ R](self, job: fn() -> string $ R) -> string $ R + Tag
+    fn through[$ R](self, job: fn() -> string $ R) -> string $ R
+    fn scoped[$ R](self, job: fn() -> string $ R + Tag) -> string $ R
+    fn wrapped[$ R](self, job: fn() -> string $ R) -> string $ R
+    fn apply[T, $ R](self, x: T, f: fn(T) -> T $ R) -> T $ R
+    fn both[$ S, $ T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T
+    fn again[$ R](self, other: &dyn Runner, job: fn() -> string $ R) -> string $ R
+    fn fallback[$ R](self, job: fn() -> string $ R) -> string $ R:
         "default " + job()
 
 struct Plain:
     prefix: string
 
 impl Runner for Plain:
-    fn run[$R](self, job: fn() -> string $ R) -> string $ R:
+    fn run[$ R](self, job: fn() -> string $ R) -> string $ R:
         self.prefix + job()
 
-    fn provide[$R](self, job: fn() -> string $ R + Tag) -> string $ R:
+    fn provide[$ R](self, job: fn() -> string $ R + Tag) -> string $ R:
         $.with(Tag=Named { label: "inner" }):
             self.prefix + job()
 
-    fn tagged[$R](self, job: fn() -> string $ R) -> string $ R + Tag:
+    fn tagged[$ R](self, job: fn() -> string $ R) -> string $ R + Tag:
         $.use(Tag).name() + job()
 
-    fn through[$R](self, job: fn() -> string $ R) -> string $ R:
+    fn through[$ R](self, job: fn() -> string $ R) -> string $ R:
         self.prefix + invoke(job)
 
-    fn scoped[$R](self, job: fn() -> string $ R + Tag) -> string $ R:
+    fn scoped[$ R](self, job: fn() -> string $ R + Tag) -> string $ R:
         $.with(Tag=Named { label: "scoped" }):
             invoke(job)
 
-    fn wrapped[$R](self, job: fn() -> string $ R) -> string $ R:
+    fn wrapped[$ R](self, job: fn() -> string $ R) -> string $ R:
         f := fn() -> string: self.prefix + job()
         f() + invoke(f)
 
-    fn apply[T, $R](self, x: T, f: fn(T) -> T $ R) -> T $ R:
+    fn apply[T, $ R](self, x: T, f: fn(T) -> T $ R) -> T $ R:
         f(x)
 
-    fn both[$S, $T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T:
+    fn both[$ S, $ T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T:
         a() + self.prefix + b()
 
-    fn again[$R](self, other: &dyn Runner, job: fn() -> string $ R) -> string $ R:
+    fn again[$ R](self, other: &dyn Runner, job: fn() -> string $ R) -> string $ R:
         self.prefix + other.run(job)
 
 fn read_tag() -> string $ Tag:
     $.use(Tag).name()
 
-fn plain() -> string: "plain"
+fn plain() -> string:
+    "plain"
 
 fn double(x: i32) -> i32 $ Tag:
     x * 2

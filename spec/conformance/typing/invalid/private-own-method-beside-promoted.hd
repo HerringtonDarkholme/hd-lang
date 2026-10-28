@@ -10,5 +10,5 @@ struct Page:
     Base
 
 impl Page:
-    fn describe(self) -> string:  # diagnostic: ambiguous-promoted-member
+    fn describe(self) -> string: # diagnostic: ambiguous-promoted-member
         "page"

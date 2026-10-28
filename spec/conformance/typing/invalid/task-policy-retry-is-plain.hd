@@ -3,4 +3,4 @@
 use std.task.{Backoff, Retry, retry}
 
 pub fn bad!() -> Retry:
-    retry!(Backoff {})  # diagnostic: not-suspending
+    retry!(Backoff {}) # diagnostic: not-suspending

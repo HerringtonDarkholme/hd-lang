@@ -1,6 +1,7 @@
 use std.task.race
 
-fn plain() -> string: "ready"
+fn plain() -> string:
+    "ready"
 
 pub fn main!() -> void:
     race!(plain!())

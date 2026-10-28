@@ -27,4 +27,4 @@ fn b() -> void:
     pass
 
 pub fn main() -> void:
-    _ := facts_of(a).find::[Route]()  # panic: fact-evaluation-failed
+    _ := facts_of(a).find::[Route]() # panic: fact-evaluation-failed

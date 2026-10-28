@@ -7,12 +7,14 @@ struct Table:
 
 impl Index[usize] for Table:
     type Out = i32
-    fn index(self, key: usize) -> i32: self.value
+    fn index(self, key: usize) -> i32:
+        self.value
 
 impl Index[string] for Table:
     type Out = i32
-    fn index(self, key: string) -> i32: self.value
+    fn index(self, key: string) -> i32:
+        self.value
 
 pub fn main() -> void $ Console:
     table := Table { value: +1 }
-    println("${table[+0]}")  # diagnostic: type-mismatch
+    println("${table[+0]}") # diagnostic: type-mismatch

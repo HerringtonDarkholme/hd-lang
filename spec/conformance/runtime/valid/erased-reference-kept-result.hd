@@ -5,13 +5,13 @@ use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
 
 trait Factory:
     fn make![T](self, value: T) -> *mut T $ Clock:
-            sleep!(ms(1))
-            let mut local = value
-            &mut local
+        sleep!(ms(1))
+        let mut local = value
+        &mut local
 
     fn share![T](self, source: *mut T) -> *mut T $ Clock:
-            sleep!(ms(1))
-            source
+        sleep!(ms(1))
+        source
 
 struct Maker: pass
 impl Factory for Maker
@@ -34,7 +34,11 @@ tests:
             *pair = (+20, "pair")
             assert_equal(*number, +10, reason="a returned integer reference survives its frame")
             assert_equal(*text, "changed", reason="a returned string reference survives its frame")
-            assert_equal(*pair, (+20, "pair"), reason="a returned tuple reference survives its frame")
+            assert_equal(
+                *pair,
+                (+20, "pair"),
+                reason="a returned tuple reference survives its frame",
+            )
 
     it("preserves aliases and identity through a kept reference result"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
@@ -44,12 +48,27 @@ tests:
             let mut kept = factory.share(&mut source)
             source = "before polling"
             shared := kept!()
-            assert(shared is &mut source, reason="a kept reference result has the caller's identity")
-            assert_equal(*shared, "before polling", reason="a cold argument retains its original storage")
+            assert(
+                shared is &mut source,
+                reason="a kept reference result has the caller's identity",
+            )
+            assert_equal(
+                *shared,
+                "before polling",
+                reason="a cold argument retains its original storage",
+            )
             source = "after polling"
-            assert_equal(*shared, "after polling", reason="the returned reference follows later writes")
+            assert_equal(
+                *shared,
+                "after polling",
+                reason="the returned reference follows later writes",
+            )
             *shared = "through result"
-            assert_equal(source, "through result", reason="a returned reference still writes the caller")
+            assert_equal(
+                source,
+                "through result",
+                reason="a returned reference still writes the caller",
+            )
 
     it("cancels a kept reference result without changing its caller"):
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
@@ -59,4 +78,8 @@ tests:
             let mut kept = factory.share(&mut source)
             _ := kept.cancel!()
             source = "still writable"
-            assert_equal(source, "still writable", reason="cancel releases the cold reference argument and wrapper")
+            assert_equal(
+                source,
+                "still writable",
+                reason="cancel releases the cold reference argument and wrapper",
+            )

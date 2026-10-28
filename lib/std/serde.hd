@@ -5,12 +5,24 @@
 # (spec/std/json.md#typed-json) and the host boundary
 # (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
-use std.annotation.annotate
-use std.text.StringBuilder
+use std.annotation.{annotate, cold}
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
-use std.structure.{Structure, Walker, Describer, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts, skips}
+use std.structure.{
+    Structure,
+    Walker,
+    Describer,
+    Source,
+    Variant,
+    VariantInfo,
+    Field,
+    Member,
+    Members,
+    Key,
+    Facts,
+    skips,
+}
 
 ## A named member's document name, independent of its hd field name.
 ## See [std-serde.rename.fact](../../spec/std/serde.md#r-std-serde.rename.fact).
@@ -70,7 +82,7 @@ pub fn rename_all(style: RenameCase) -> RenameAll:
 
 ## Resolves a wire name: member rename, then container rename_all, then source name.
 ## See [std-serde.member-name.precedence](../../spec/std/serde.md#r-std-serde.member-name.precedence).
-pub fn member_name(member: Member, container: Facts) -> string:
+pub fn member_name(member: &Member, container: Facts) -> string:
     # Most members and containers have no facts, so the searches are skipped.
     if !member.facts.items.is_empty():
         match member.facts.find::[Rename]():
@@ -93,6 +105,10 @@ fn case_name(name: string, style: RenameCase) -> string:
         .PascalCase => joined_name(name, false)
         .CamelCase => joined_name(name, true)
 
+# The case changes are ASCII byte changes (r-std-serde.rename-all.conversion):
+# they keep the bytes valid UTF-8, and they call no Display or builder, so a
+# call of `member_name` writes nothing its caller reaches and borrows its
+# arguments.
 fn uppercase_name(name: string) -> string:
     let mut bytes = name.to_utf8()
     let changed = false
@@ -103,23 +119,31 @@ fn uppercase_name(name: string) -> string:
             changed = true
     if !changed:
         return name
-    string::from_utf8(bytes).expect("ASCII case preserves UTF-8")
+    string_from_bytes(bytes)
 
 fn joined_name(name: string, camel: bool) -> string:
-    out := StringBuilder::new()
+    let mut out: List[u8] = []
     let word_start = true
     let first = true
-    for character in name.chars():
-        if character == '_':
+    for byte in name.to_utf8():
+        if byte == 95:
             word_start = true
             continue
-        let text = character.to_string()
-        if word_start && text.len() == 1:
-            text = if camel && first: text.lower() else: text.upper()
-        out.push(text)
+        let next = byte
+        if word_start && camel && first:
+            if byte >= 65 && byte <= 90:
+                next = byte + 32
+        else if word_start && byte >= 97 && byte <= 122:
+            next = byte - 32
+        out.push(next)
         word_start = false
         first = false
-    out.build()
+    string_from_bytes(out)
+
+# The string of `bytes`, which the caller has checked are UTF-8.
+@intrinsic("string_from_bytes")
+fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
 
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).
@@ -152,8 +176,9 @@ pub trait Serializer:
     fn begin_map(&mut self, len: usize) -> Result[void, Self::Error]
     fn key(&mut self, key: string) -> Result[void, Self::Error]
     fn end_map(&mut self) -> Result[void, Self::Error]
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, Self::Error]
-    fn member(&mut self, m: Member) -> Result[void, Self::Error]
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
+    fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
 
 # What a self-describing format holds next (r-std-serde.read.peek).
@@ -186,8 +211,13 @@ pub trait Deserializer:
     fn next_item(&mut self) -> Result[bool, Self::Error]
     fn begin_map(&mut self) -> Result[void, Self::Error]
     fn next_key(&mut self) -> Result[string?, Self::Error]
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, Self::Error]
-    fn member(&mut self, m: Member) -> Result[void, Self::Error]
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, Self::Error]
+    fn begin_newtype_variant(&mut self) -> Result[void, Self::Error]
+    fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
     fn invalid(&mut self, expected: string) -> Self::Error
     # Whether the member that `member(m)` just positioned has no value at
@@ -222,25 +252,34 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
     type Error = W::Error
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
-        self.out.begin_variant(self.facts, v.info)
+        self.out.begin_variant(self.facts, &v.info)
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Serialize` here, as `member` needs `F < Serialize`.
-    fn rest[T < Serialize](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, W::Error]:
+    fn rest[T < Serialize](
+        &mut self,
+        h: Field[S, List[T]],
+        items: List[T],
+    ) -> Result[void, W::Error]:
         self.member(h, items)
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
-        if !h.info.facts.items.is_empty():
-            if h.fact::[Skip]().is_some():
-                return .Ok(())
-            match h.fact::[SkipNone[F]]():
-                .Some(fact) =>
-                    if (fact.absent)(value):
-                        return .Ok(())
-                .None => pass
-        self.out.member(h.info)?
+        if !h.info.facts.items.is_empty() && skipped(h, value):
+            return .Ok(())
+        self.out.member(&h.info)?
         value.serialize(self.out)
+
+# Whether a member's facts omit it with `value`: a `Skip`, or a `SkipNone`
+# whose test holds. Out of line, since most members have no facts: each
+# `member` instance then keeps only the test for an empty list.
+@cold
+fn skipped[S, F](h: Field[S, F], value: F) -> bool:
+    if h.fact::[Skip]().is_some():
+        return true
+    match h.fact::[SkipNone[F]]():
+        .Some(fact) => (fact.absent)(value)
+        .None => false
 
 # Derived `Deserialize`: `begin_variant` picks the variant, then each member
 # in declaration order is positioned with `member` and read with its own
@@ -282,7 +321,10 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         while self.at < members.infos.len():
             at := self.at
             self.at += 1
-            if members.infos[at].facts.items.is_empty() || members.infos[at].facts.find::[Skip]().is_none():
+            if (
+                members.infos[at].facts.items.is_empty()
+                || members.infos[at].facts.find::[Skip]().is_none()
+            ):
                 position := members.infos[at].position
                 return .Ok(members.at(position))
         .Ok(.None)
@@ -290,7 +332,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
     # An absent member that declares a default takes it, and is not read
     # (r-std-serde.derive.deserialize.unskipped-default).
     fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
-        self.input.member(h.info)?
+        self.input.member(&h.info)?
         if h.has_default() && self.input.is_absent():
             match h.default():
                 .Some(value) => return .Ok(value)
@@ -302,7 +344,8 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
             panic("std.serde: the source names every unskipped member")
         match h.default():
             .Some(value) => .Ok(value)
-            .None => .Err(self.input.invalid("skipped field `${h.info.name}` needs a declared default"))
+            .None =>
+                .Err(self.input.invalid("skipped field `${h.info.name}` needs a declared default"))
 
 # ---------------------------------------------------------------------------
 # The standard implementations (spec/std/serde.md#standard-implementations).
@@ -346,13 +389,22 @@ impl Deserialize for char:
 
 # A signed integer in `low` to `high`, or the reader's error for `expected`
 # (r-std-serde.std.range).
-fn signed_in[R < Deserializer](input: &mut R, low: i64, high: i64, expected: string) -> Result[i64, R::Error]:
+fn signed_in[R < Deserializer](
+    input: &mut R,
+    low: i64,
+    high: i64,
+    expected: string,
+) -> Result[i64, R::Error]:
     found := input.int(expected)?
     if found >= low && found <= high:
         return .Ok(found)
     .Err(input.invalid(expected))
 
-fn unsigned_in[R < Deserializer](input: &mut R, high: u64, expected: string) -> Result[u64, R::Error]:
+fn unsigned_in[R < Deserializer](
+    input: &mut R,
+    high: u64,
+    expected: string,
+) -> Result[u64, R::Error]:
     found := input.uint(expected)?
     if found <= high:
         return .Ok(found)
@@ -487,6 +539,44 @@ impl[T < Deserialize] Deserialize for T?:
         if input.is_null()?:
             return .Ok(.None)
         .Ok(.Some(T::deserialize(input)?))
+
+# `Result` uses the format-neutral newtype-variant protocol
+# (r-std-serde.std.result).
+fn result_variant(name: string, index: usize) -> VariantInfo:
+    VariantInfo {
+        name: name,
+        index: index,
+        facts: Facts { items: [] },
+        doc: .None,
+        of_data: false,
+        shared: [],
+        self_ref: .Absent,
+    }
+
+impl[T < Serialize, E < Serialize] Serialize for Result[T, E]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        match self:
+            .Ok(value) =>
+                variant := result_variant("Ok", 0)
+                out.begin_newtype_variant(Facts { items: [] }, &variant)?
+                value.serialize(out)?
+            .Err(error) =>
+                variant := result_variant("Err", 1)
+                out.begin_newtype_variant(Facts { items: [] }, &variant)?
+                error.serialize(out)?
+        out.end_variant()
+
+impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Result[T, E], R::Error]:
+        variants := [result_variant("Ok", 0), result_variant("Err", 1)]
+        index := input.begin_variant(Facts { items: [] }, variants)?
+        input.begin_newtype_variant()?
+        let found: Result[T, E] = match index:
+            0 => Result.Ok(T::deserialize(input)?)
+            1 => Result.Err(E::deserialize(input)?)
+            _ => panic("std.serde: invalid Result variant index")
+        input.end_variant()?
+        .Ok(found)
 
 # A reference writes the value it refers to, and reads into a new object
 # (r-std-serde.std.reference).

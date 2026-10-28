@@ -8,4 +8,8 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @from error: DiskError)  # diagnostic: decorator-target-kind
+    Write(
+        path: string,
+        @from # diagnostic: decorator-target-kind
+        error: DiskError,
+    )

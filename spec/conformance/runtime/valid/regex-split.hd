@@ -27,4 +27,8 @@ tests:
 
     it("empty matches split between characters"):
         assert_equal(pieces("", "ab"), ["", "a", "b", ""], reason="the empty pattern")
-        assert_equal(pieces("x*", "axb"), ["", "a", "b", ""], reason="x* matches the empty text too")
+        assert_equal(
+            pieces("x*", "axb"),
+            ["", "a", "b", ""],
+            reason="x* matches the empty text too",
+        )

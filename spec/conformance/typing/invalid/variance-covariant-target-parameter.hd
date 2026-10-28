@@ -7,5 +7,5 @@ struct Producer[+T]:
     produce: fn() -> T
 
 impl[U] Box[Producer[U]]:
-    pub fn feed(self, value: U) -> void:  # diagnostic: invalid-variance
+    pub fn feed(self, value: U) -> void: # diagnostic: invalid-variance
         pass

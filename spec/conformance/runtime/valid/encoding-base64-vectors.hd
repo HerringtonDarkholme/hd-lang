@@ -50,9 +50,17 @@ tests:
         assert_equal(payload(.StandardNoPad, ""), .Ok(bytes_of("")), reason="NoPad empty")
         assert_equal(payload(.StandardNoPad, "Zg"), .Ok(bytes_of("f")), reason="NoPad f")
         assert_equal(payload(.StandardNoPad, "Zm8"), .Ok(bytes_of("fo")), reason="NoPad fo")
-        assert_equal(payload(.StandardNoPad, "Zm9vYmE"), .Ok(bytes_of("fooba")), reason="NoPad fooba")
+        assert_equal(
+            payload(.StandardNoPad, "Zm9vYmE"),
+            .Ok(bytes_of("fooba")),
+            reason="NoPad fooba",
+        )
         assert_equal(payload(.UrlNoPad, "Zm9vYg"), .Ok(bytes_of("foob")), reason="UrlNoPad foob")
-        assert_equal(payload(.UrlNoPad, "Zm9vYmFy"), .Ok(bytes_of("foobar")), reason="UrlNoPad foobar")
+        assert_equal(
+            payload(.UrlNoPad, "Zm9vYmFy"),
+            .Ok(bytes_of("foobar")),
+            reason="UrlNoPad foobar",
+        )
 
     it("uses + and / in the standard encodings and - and _ in the URL encodings"):
         assert_equal(token(.Standard, [0xfb, 0xff, 0xbf]), "+/+/", reason="Standard")
@@ -63,7 +71,11 @@ tests:
         assert_equal(token(.Url, [0xfb, 0xff]), "-_8=", reason="Url two bytes")
         assert_equal(token(.UrlNoPad, [0xfb, 0xff]), "-_8", reason="UrlNoPad two bytes")
         assert_equal(payload(.Standard, "+/+/"), .Ok([0xfb, 0xff, 0xbf]), reason="Standard")
-        assert_equal(payload(.StandardNoPad, "+/+/"), .Ok([0xfb, 0xff, 0xbf]), reason="StandardNoPad")
+        assert_equal(
+            payload(.StandardNoPad, "+/+/"),
+            .Ok([0xfb, 0xff, 0xbf]),
+            reason="StandardNoPad",
+        )
         assert_equal(payload(.Url, "-_-_"), .Ok([0xfb, 0xff, 0xbf]), reason="Url")
         assert_equal(payload(.UrlNoPad, "-_-_"), .Ok([0xfb, 0xff, 0xbf]), reason="UrlNoPad")
         assert_equal(payload(.UrlNoPad, "-_8"), .Ok([0xfb, 0xff]), reason="UrlNoPad two bytes")
@@ -73,7 +85,11 @@ tests:
         let count: usize = 0
         while count < 12:
             for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:
-                assert_equal(payload(encoding, token(encoding, bytes)), .Ok(bytes), reason="round trip")
+                assert_equal(
+                    payload(encoding, token(encoding, bytes)),
+                    .Ok(bytes),
+                    reason="round trip",
+                )
             bytes.push(u8(count * 29 + 200))
             count = count + 1
 

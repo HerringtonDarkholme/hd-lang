@@ -3,7 +3,7 @@
 use std.num.ParseNumberError
 
 fn run() -> Result[i32, ParseNumberError]:
-    i32::parse_radix("1", 1)  # panic: explicit-panic
+    i32::parse_radix("1", 1) # panic: explicit-panic
 
 tests:
     it("rejects the radix"):

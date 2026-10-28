@@ -20,6 +20,7 @@
 //! size depends on the implementation. Each module contributes a compact
 //! summary; the driver checks the joined graph of its folder's modules.
 
+use hd_base::SliceSort as _;
 use hd_base::{DefId, Hash128, HashMap, HashSet, NodeIdx, Span};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::ItemData;
@@ -95,7 +96,7 @@ pub fn growing_cycles(edges: &[&Edge], diags: &mut DiagBuf) {
             }
         }
     }
-    found.sort_by_key(|(span, _)| (span.file.raw(), span.lo, span.hi));
+    found.sort_stable_by_key(|(span, _)| (span.file.raw(), span.lo, span.hi));
     for (span, e) in found {
         let mut cycle = vec![e.caller.as_str(), e.callee.as_str()];
         for k in path(&succ, edges, &ids, e.to, e.from) {
@@ -182,7 +183,7 @@ fn body_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
             let whole = strip_mut(pool, arg);
             let mut params = Vec::new();
             params_in(pool, arg, &mut params);
-            params.sort_by_key(|p| (p.owner.raw(), p.index));
+            params.sort_stable_by_key(|p| (p.owner.raw(), p.index));
             params.dedup();
             for p in params {
                 let grows = !matches!(pool.get(whole), TyData::Param(q) if q == p);

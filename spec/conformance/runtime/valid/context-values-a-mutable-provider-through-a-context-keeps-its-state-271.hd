@@ -9,7 +9,8 @@ struct Memory:
     value: i32
 
 impl Counter for Memory:
-    fn count(&self) -> i32: self.value
+    fn count(&self) -> i32:
+        self.value
 
     fn bump(&mut self) -> void:
         self.value = self.value + 1

@@ -26,7 +26,8 @@ fn ready!() -> string:
     "won"
 
 fn racer!(log: *mut List[string]) -> string $ Clock:
-    defer: log.push("racer defer")
+    defer:
+        log.push("racer defer")
     winner := race!(slow(log), ready())
     log.push("racer got ${winner}")
     winner

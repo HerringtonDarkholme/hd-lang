@@ -5,4 +5,4 @@
 use pkg.cart.{Cart}
 
 fn charge(cart: Cart) -> i32:
-    cart.price()  # diagnostic: unknown-method
+    cart.price() # diagnostic: unknown-method

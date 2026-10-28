@@ -28,15 +28,19 @@ struct Dog:
 impl Tame for Dog
 
 impl Dog:
-    pub fn renamed(self, name: string) -> Dog: Dog { name: name }
+    pub fn renamed(self, name: string) -> Dog:
+        Dog { name: name }
 
 impl Named for Dog:
-    fn name(self) -> string: self.name
-    fn kind() -> string: "dog"
+    fn name(self) -> string:
+        self.name
+    fn kind() -> string:
+        "dog"
 
 impl Animal for Dog:
     type Food = string
-    fn eat(self, meal: string) -> string: "${self.name} eats $meal"
+    fn eat(self, meal: string) -> string:
+        "${self.name} eats $meal"
 
 struct Kennel:
     Dog
@@ -48,7 +52,8 @@ struct Crate[T]:
     item: T
 
 impl[T < Named] Show for Crate[T]:
-    fn show(self) -> string: "crate of ${self.item.name()}"
+    fn show(self) -> string:
+        "crate of ${self.item.name()}"
 
 pub fn main() -> void $ Console:
     rex := Dog { name: "Rex" }

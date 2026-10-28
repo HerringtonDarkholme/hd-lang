@@ -4,4 +4,5 @@
 use std.testing.assert_equal
 @derive(Debug)
 struct Value: pass
-fn main() -> void: assert_equal(Value {}, Value {}, reason="not derived")  # diagnostic: unsatisfied-trait-bound
+fn main() -> void:
+    assert_equal(Value {}, Value {}, reason="not derived") # diagnostic: unsatisfied-trait-bound

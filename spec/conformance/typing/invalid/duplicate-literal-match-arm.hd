@@ -3,5 +3,5 @@
 fn classify(value: char) -> i32:
     match value:
         'x' => 1
-        'x' => 2  # diagnostic: unreachable-match-arm
+        'x' => 2 # diagnostic: unreachable-match-arm
         _ => 0

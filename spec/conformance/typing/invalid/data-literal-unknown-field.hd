@@ -4,4 +4,5 @@
 struct Point:
     x: i32
 
-fn main() -> i32: Point { y: 1 }.x  # diagnostic: unknown-field
+fn main() -> i32:
+    Point { y: 1 }.x # diagnostic: unknown-field

@@ -2,4 +2,4 @@
 # Spec 10 Use Roots: module.root.use-only.error.
 # Spec 10 Use Roots: module.root.use-only.
 fn timeout(seconds: i64) -> void:
-    std.time.s(seconds)  # diagnostic: unknown-name
+    std.time.s(seconds) # diagnostic: unknown-name

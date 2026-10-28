@@ -3,10 +3,7 @@
 fn countdown(start: i32) -> string:
     separator := ", "
     fn from(n: i32) -> string:
-        if n == 0:
-            "liftoff"
-        else:
-            "${n}${separator}${from(n - 1)}"
+        if n == 0: "liftoff" else: "${n}${separator}${from(n - 1)}"
     from(start)
 
 pub fn main() -> void $ Console:

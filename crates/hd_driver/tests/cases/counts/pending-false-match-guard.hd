@@ -9,7 +9,7 @@ fn message(seed: string) -> Message:
     .Word(seed + "!")
 
 fn reject!(text: string) -> bool $ Console:
-    _ := $.use(Console).write!("${text}\n")
+    _ := $.use(Console).write_sync("${text}\n")
     false
 
 pub fn main!() -> void $ Console:

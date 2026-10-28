@@ -38,8 +38,8 @@ import { crossImpl } from "./oracles/cross-impl.ts";
 import { phaseConsistency } from "./oracles/phase-consistency.ts";
 import type { Execution, Observation } from "./oracles/types.ts";
 
-type FuzzerName = "contract" | "cross" | "parse" | "phase" | "wasm";
-const allFuzzers: readonly FuzzerName[] = ["parse", "contract", "phase", "cross", "wasm"];
+type FuzzerName = "contract" | "cross" | "fmt" | "parse" | "phase" | "wasm";
+const allFuzzers: readonly FuzzerName[] = ["parse", "contract", "phase", "fmt", "cross", "wasm"];
 
 interface Options {
   readonly adapters: ReadonlySet<string>;
@@ -216,6 +216,10 @@ class Corpus {
 
   async input(fuzzer: FuzzerName, index: number): Promise<Input> {
     if (fuzzer === "parse") return this.parseInput(index);
+    if (fuzzer === "fmt") {
+      const input = await this.contractInput(index);
+      return { ...input, actions: ["parse"] };
+    }
     if (fuzzer === "cross")
       return index % 2 === 0 ? this.parseInput(index / 2) : this.contractInput((index - 1) / 2);
     return this.contractInput(index);
@@ -223,6 +227,7 @@ class Corpus {
 }
 
 class Executor {
+  private readonly formats = new Map<string, Promise<{ outcome: Outcome; source?: string }>>();
   private readonly outcomes = new Map<string, Promise<Outcome>>();
   private readonly files = new Map<string, string>();
   calls = 0;
@@ -275,6 +280,33 @@ class Executor {
     return (await this.outcome(0, "parse", source)).kind === "accept";
   }
 
+  format(compiler: number, source: string): Promise<{ outcome: Outcome; source?: string }> {
+    const key = `${compiler}\u0000${hash(source)}`;
+    let found = this.formats.get(key);
+    if (!found) {
+      const directory = join(this.options.work, `${hash(source)}-fmt-c${compiler}`);
+      mkdirSync(directory, { recursive: true });
+      const path = join(directory, "case.hd");
+      writeFileSync(path, source);
+      found = invoke(
+        this.options.compilers[compiler]!,
+        "fmt",
+        path,
+        [],
+        this.options.timeoutMs,
+      ).then((result) => {
+        this.calls += 1;
+        this.callMs += result.ms;
+        const outcome = classify(result, "fmt", path, this.inventory);
+        return outcome.kind === "accept"
+          ? { outcome, source: readFileSync(path, "utf8") }
+          : { outcome };
+      });
+      this.formats.set(key, found);
+    }
+    return found;
+  }
+
   async execute(source: string, actions: readonly Action[]): Promise<Execution[]> {
     const executions: Execution[] = [];
     for (let compiler = 0; compiler < this.options.compilers.length; compiler += 1) {
@@ -322,14 +354,55 @@ async function evaluate(
     return { executions, observations };
   }
   const executions = await executor.execute(input.source, input.actions);
+  const formatting: Observation[] = [];
+  for (let compiler = 0; fuzzer === "fmt" && compiler < executions.length; compiler += 1) {
+    const parsed = executions[compiler]?.parse;
+    if (parsed?.kind !== "accept") continue;
+    const tag = options.compilers.length > 1 ? `c${compiler}:` : "";
+    const once = await executor.format(compiler, input.source);
+    if (once.outcome.kind !== "accept" || once.source === undefined) {
+      formatting.push({
+        detail: once.outcome.detail,
+        signature: `fmt|${tag}${outcomeLabel(once.outcome)}`,
+      });
+      continue;
+    }
+    const reparsed = await executor.outcome(compiler, "parse", once.source);
+    if (reparsed.kind !== "accept")
+      formatting.push({
+        detail: reparsed.detail,
+        signature: `fmt|${tag}reparse-${outcomeLabel(reparsed)}`,
+      });
+    const twice = await executor.format(compiler, once.source);
+    if (twice.outcome.kind !== "accept" || twice.source === undefined)
+      formatting.push({
+        detail: twice.outcome.detail,
+        signature: `fmt|${tag}second-${outcomeLabel(twice.outcome)}`,
+      });
+    else if (twice.source !== once.source)
+      formatting.push({
+        detail: "the second formatter pass changed the first pass",
+        signature: `fmt|${tag}not-idempotent`,
+      });
+    const originalCheck =
+      executions[compiler]?.check ?? (await executor.outcome(compiler, "check", input.source));
+    const formattedCheck = await executor.outcome(compiler, "check", once.source);
+    if (outcomeLabel(originalCheck) !== outcomeLabel(formattedCheck))
+      formatting.push({
+        detail: `original ${outcomeLabel(originalCheck)}, formatted ${outcomeLabel(formattedCheck)}`,
+        signature: `fmt|${tag}check-verdict`,
+      });
+  }
   const oracleInput = { executions };
   // The `parse` fuzzer judges its `parse` results by the command contract.
   const observations =
-    fuzzer === "parse" || fuzzer === "contract"
-      ? contract(oracleInput, fuzzer)
-      : fuzzer === "phase"
-        ? phaseConsistency(oracleInput)
-        : crossImpl(oracleInput);
+    fuzzer === "fmt"
+      ? formatting
+      : fuzzer === "parse" || fuzzer === "contract"
+        ? contract(oracleInput, fuzzer)
+        : fuzzer === "phase"
+          ? phaseConsistency(oracleInput)
+          : crossImpl(oracleInput);
   return { executions, observations };
 }
 

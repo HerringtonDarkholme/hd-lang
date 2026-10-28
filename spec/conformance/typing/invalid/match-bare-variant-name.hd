@@ -6,5 +6,5 @@ enum Status:
 
 fn label(status: Status) -> string:
     match status:
-        Ready => "ready"  # diagnostic: bare-variant-pattern
+        Ready => "ready" # diagnostic: bare-variant-pattern
         .Waiting => "waiting"

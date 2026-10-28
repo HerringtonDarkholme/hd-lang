@@ -8,6 +8,6 @@ fn tagged() -> void:
 fn plain() -> void:
     pass
 
-value := facts_of(tagged, plain)  # diagnostic: argument-count
+value := facts_of(tagged, plain) # diagnostic: argument-count
 pub fn main() -> void:
     pass

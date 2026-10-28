@@ -9,9 +9,16 @@ struct DiskError:
 @error
 enum RepoError:
     @error("cannot write $path")
-    Write(path: string, @source error: DiskError?)
+    Write(
+        path: string,
+        @source
+        error: DiskError?,
+    )
     @error(transparent)
-    Disk(@from error: DiskError)
+    Disk(
+        @from
+        error: DiskError,
+    )
 
 @error("sync failed")
 struct SyncError:
@@ -19,7 +26,9 @@ struct SyncError:
     repo: RepoError
 
 fn load() -> Result[i32, *dyn Error]:
-    let failed: Result[i32, RepoError] = .Err(RepoError.Write("a.txt", .Some(DiskError { free: 0 })))
+    let failed: Result[i32, RepoError] = .Err(
+        RepoError.Write("a.txt", .Some(DiskError { free: 0 })),
+    )
     value := failed?
     .Ok(value)
 
@@ -30,11 +39,19 @@ tests:
     use std.testing.assert_equal
 
     it("an absent optional source ends the chain"):
-        assert_equal(texts(&RepoError.Write("a.txt", .None)), ["cannot write a.txt"], reason="no source")
+        assert_equal(
+            texts(&RepoError.Write("a.txt", .None)),
+            ["cannot write a.txt"],
+            reason="no source",
+        )
 
     it("a transparent variant skips its member"):
         failure := SyncError { repo: RepoError.Disk(DiskError { free: 0 }) }
-        assert_equal(texts(&failure), ["sync failed", "disk full"], reason="the member is not listed twice")
+        assert_equal(
+            texts(&failure),
+            ["sync failed", "disk full"],
+            reason="the member is not listed twice",
+        )
 
     it("an erased error reports its sources"):
         match load():
@@ -45,4 +62,8 @@ tests:
                 assert_equal(report.sources, ["disk full"], reason="sources")
 
     it("an empty report displays its message alone"):
-        assert_equal(ErrorReport { message: "m", sources: [] }.to_string(), "m", reason="no source line")
+        assert_equal(
+            ErrorReport { message: "m", sources: [] }.to_string(),
+            "m",
+            reason="no source line",
+        )

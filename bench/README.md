@@ -154,19 +154,15 @@ The Go range-labelled case reuses its interface pipeline, so it is not a
 separate range-adapter comparison. Long-case checksums are
 `66666653333334`; the short-chain aggregate is `653400000`.
 
-Allocation probes use a scratch Wasm wrapper around `hd.poll` to return
-`std.rt.alloc`'s existing block counter (heap memory 1, metadata offset
-244). They preserve the original poll and guest output, refuse totals
-that cannot fit the status channel, and run on both actual engines.
-No runtime or compiler source is modified. The helper checks exact output,
-unknown layouts, nonlinear counts, and the overflow guard:
-
 ```sh
 node bench/study/run.mjs --hd target/debug/hd --only dyn_iter --no-refs --runs 1
 go build -o target/dyn-iter-go bench/study/go/dyn_iter.go
 target/dyn-iter-go
-python3 bench/study/iterator-alloc.py target/debug/hd
 ```
+
+The block counts below came from a probe of release builds' allocation
+total, which #938 removed; checked builds count allocations
+(`std.rt.checked.allocated`).
 
 | Variant | blocks per call, Node | blocks per call, wasmtime | per element |
 | --- | ---: | ---: | ---: |

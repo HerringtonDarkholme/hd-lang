@@ -1,4 +1,4 @@
 fn mixed(flag: bool) -> Result[impl Display, string]:
     if flag:
         return .Ok(+1)
-    .Ok("one")  # diagnostic: type-mismatch
+    .Ok("one") # diagnostic: type-mismatch

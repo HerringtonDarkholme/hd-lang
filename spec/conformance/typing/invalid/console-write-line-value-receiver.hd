@@ -1,8 +1,8 @@
-# test: prelude / Console / a provider whose write! takes mut self does not match the &mut self method
-# Spec 10 Console: module.console.write-ref.mutable.
+# test: prelude / Console / a provider whose write_sync takes mut self does not match the &mut self method
+# Spec 10 Console: module.console.write-sync-ref.mutable.
 struct Quiet:
     count: i32
 
 impl Console for Quiet:
-    fn write!(mut self, text: string) -> Result[void, ConsoleError]:  # diagnostic: trait-method-signature
+    fn write_sync(mut self, text: string) -> Result[void, ConsoleError]: # diagnostic: trait-method-signature
         .Ok(())

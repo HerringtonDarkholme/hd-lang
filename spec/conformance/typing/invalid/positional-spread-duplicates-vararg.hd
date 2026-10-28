@@ -1,6 +1,7 @@
 # test: a positional spread and another positional value supply one vararg twice
 # Spec 05 Positional Spreads: expr.call.spread.vararg-duplicate.
-fn collect(values...: List[i32]) -> List[i32]: values
+fn collect(values...: List[i32]) -> List[i32]:
+    values
 
 fn duplicate(nums: List[i32]) -> List[i32]:
-    collect(nums..., +4)  # diagnostic: duplicate-argument
+    collect(nums..., +4) # diagnostic: duplicate-argument

@@ -1,0 +1,6 @@
+# test: a panic used as an operator operand panics before the operation
+# Spec 04 The never Type: types.never.assignable; Spec 05: expr.order.left-to-right (issue #850).
+
+pub fn main() -> void $ Console:
+    a := +1
+    println("${a + panic("no operand")}") # panic: explicit-panic

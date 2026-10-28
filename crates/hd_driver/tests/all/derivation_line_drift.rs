@@ -47,12 +47,12 @@ fn errors(out: &Output) -> Vec<Code> {
 const PRELUDE: &str = "use std.structure.Structure\nuse std.serde.Serialize\n\nstruct Session:\n    id: i64\n    cache: i64 = 0\n\n";
 
 #[test]
-fn blocks_with_different_lines_warn_on_the_later_block() {
+fn blocks_with_different_lines_are_quiet_in_ordinary_check() {
     let out = analyze(&format!(
         "{PRELUDE}impl Debug for Session by Structure:\n    cache = pass\n\nimpl Serialize for Session by Structure:\n    id = []\n"
     ));
     assert!(errors(&out).is_empty(), "{}", out.render());
-    assert_eq!(warnings(&out), vec![Code::DerivationLineDrift]);
+    assert!(warnings(&out).is_empty(), "{}", out.render());
 }
 
 #[test]

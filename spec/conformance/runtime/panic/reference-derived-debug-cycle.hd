@@ -9,4 +9,4 @@ pub fn main() -> void:
     first := &mut Node { value: +1, next: .None }
     second := &mut Node { value: +2, next: .Some(first) }
     first.next = .Some(second)
-    _ := debug(*first)  # panic: stack-exhausted
+    _ := debug(*first) # panic: stack-exhausted

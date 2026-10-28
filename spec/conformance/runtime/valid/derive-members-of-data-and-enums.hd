@@ -50,10 +50,13 @@ impl Serializer for Log:
     fn end_map(&mut self) -> Result[void, never]:
         self.add("}")
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("<${v.name}>")
 
-    fn member(&mut self, m: Member) -> Result[void, never]:
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.add("<${v.name}>")
+
+    fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("${m.name}@${m.position}:")
 
     fn end_variant(&mut self) -> Result[void, never]:
@@ -88,11 +91,23 @@ tests:
 
     it("a data type's members are its fields in declaration order, an embedded field first"):
         post := Post { Stamp: Stamp { at: 7 }, id: "p1", views: 3 }
-        assert_equal(send(post), "<Post> Stamp@0: <Stamp> at@0: 7 </> id@1: p1 views@2: 3 </>", reason="embedded field is member 0")
+        assert_equal(
+            send(post),
+            "<Post> Stamp@0: <Stamp> at@0: 7 </> id@1: p1 views@2: 3 </>",
+            reason="embedded field is member 0",
+        )
 
     it("an unnamed payload parameter is _0, _1 by position, beside a named one"):
-        assert_equal(send(Shipment.Sent("DHL", tracking="JD01")), "<Sent> _0@0: DHL tracking@1: JD01 </>", reason="_0 then tracking")
-        assert_equal(send(Shipment.Lost("DHL", "JD02")), "<Lost> _0@0: DHL _1@1: JD02 </>", reason="_0 then _1")
+        assert_equal(
+            send(Shipment.Sent("DHL", tracking="JD01")),
+            "<Sent> _0@0: DHL tracking@1: JD01 </>",
+            reason="_0 then tracking",
+        )
+        assert_equal(
+            send(Shipment.Lost("DHL", "JD02")),
+            "<Lost> _0@0: DHL _1@1: JD02 </>",
+            reason="_0 then _1",
+        )
 
     it("shared constructor data is not a member"):
         assert_equal(send(Shipment.Packed), "<Packed> </>", reason="no days member")

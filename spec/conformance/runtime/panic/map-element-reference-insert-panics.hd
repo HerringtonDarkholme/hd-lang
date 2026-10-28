@@ -1,7 +1,7 @@
 # test: a store of a new key into a map reached through a &mut parameter during an element reference's call panics with collection-pinned
 # Spec 13 Call-Scoped Access: ref.elem.pinned.map.
 fn change(stock: &mut Map[string, i32], apples: &mut i32) -> void:
-    stock["pear"] = 1  # panic: collection-pinned
+    stock["pear"] = 1 # panic: collection-pinned
     *apples += 1
 
 fn through(stock: &mut Map[string, i32]) -> void:
@@ -9,5 +9,5 @@ fn through(stock: &mut Map[string, i32]) -> void:
 
 tests:
     it("a new key changes the length of a pinned map"):
-        let mut stock: Map[string, i32] = {"apple": 3}
+        let mut stock: Map[string, i32] = { "apple": 3 }
         through(&mut stock)

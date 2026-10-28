@@ -1,0 +1,9 @@
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","severity":"error","message":"`missing` is not defined","file":"src/main.hd","line":2,"column":5,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd lint --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","severity":"error","message":"`missing` is not defined","file":"src/main.hd","line":2,"column":5,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd lint --allow unselected-main --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","severity":"error","message":"`missing` is not defined","file":"src/main.hd","line":2,"column":5,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]

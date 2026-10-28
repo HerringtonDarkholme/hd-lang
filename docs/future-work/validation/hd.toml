@@ -6,6 +6,3 @@ Console = true
 Args = true
 Env = true
 FsRead = true
-
-[dependencies]
-http = { path = "../http" }

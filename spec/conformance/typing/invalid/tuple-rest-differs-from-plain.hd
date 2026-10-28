@@ -2,4 +2,4 @@
 # Spec 04 Type System: types.tuple.rest.same.
 
 fn plain(values: (i32, List[i32]...)) -> (i32, List[i32]):
-    values  # diagnostic: type-mismatch
+    values # diagnostic: type-mismatch

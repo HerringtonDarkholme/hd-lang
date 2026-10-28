@@ -7,5 +7,5 @@ tests:
     use std.testing.assert_equal
 
     it("a rest tuple key finds its entry"):
-        let counts: Map[(i32, List[i32]...), i32] = {(1, 2, 3): 7}
+        let counts: Map[(i32, List[i32]...), i32] = { (1, 2, 3): 7 }
         assert_equal(lookup(counts), 7, reason="an equal rest tuple hashes the same")

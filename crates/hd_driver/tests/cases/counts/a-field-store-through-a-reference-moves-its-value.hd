@@ -1,0 +1,12 @@
+# @dump: counts
+# @build: v8 release
+# Storing a value the store consumes into a field through `&mut self`
+# moves its count into the field: the old value's release is the only
+# count (json: `TextWriter.name_next` keeps each member's key).
+struct Writer:
+    pending: string
+
+impl Writer:
+    fn name(&mut self, key: string) -> void:
+        # subject
+        self.pending = key

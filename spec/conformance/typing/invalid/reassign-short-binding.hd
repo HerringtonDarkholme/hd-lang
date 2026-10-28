@@ -1,3 +1,3 @@
 fn invalid() -> void:
     name := "Ada"
-    name = "Grace"  # diagnostic: non-reassignable-binding
+    name = "Grace" # diagnostic: non-reassignable-binding

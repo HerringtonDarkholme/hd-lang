@@ -37,10 +37,16 @@
 // alone, and passes it on as that signal, once. A terminal's Ctrl-C also
 // reaches this process, so a process told of such a signal ignores SIGINT
 // (the listener below), else the one interrupt would arrive twice.
-import { readPackageContract } from "./package-providers.mjs";
-import { CANCEL_STATUS, HostContract, entryCancel } from "./core.mjs";
-import { createHost, exitPast, PROGRAM_TIME_LIMIT, reportIn } from "./node.mjs";
 import { createOutput } from "./output.mjs";
+import { createStartupHost } from "./startup.mjs";
+import {
+  CANCEL_STATUS,
+  HostContract,
+  entryCancel,
+  exitPast,
+  PROGRAM_TIME_LIMIT,
+  reportIn,
+} from "./run-support.mjs";
 
 // Builtins come from `process.getBuiltinModule`, which skips the ESM
 // facade an `import` builds (node.mjs).
@@ -103,7 +109,9 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
   module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
   const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
   if (sections.length > 1) throw new HostContract("duplicate package host contracts");
-  const required = sections.length ? readPackageContract(new Uint8Array(sections[0])) : [];
+  const required = sections.length
+    ? (await import("./package-contract.mjs")).readPackageContract(new Uint8Array(sections[0]))
+    : [];
   const registrations = new Map();
   const grants = { ...config.grants };
   for (const registration of config.hostProviders ?? []) {
@@ -128,10 +136,15 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
     grants[registration.grantPath] = true;
   }
   let packageBindings = null;
+  let createPackageRuntime = null;
   if (required.length) {
     // This module was regenerated from validated data by hd, in its private
     // host directory. It is never JavaScript obtained from a guest section.
-    const generated = await import("./main.host.mjs");
+    const [{ createPackageRuntime: createRuntime }, generated] = await Promise.all([
+      import("./package-providers.mjs"),
+      import("./main.host.mjs"),
+    ]);
+    createPackageRuntime = createRuntime;
     const providers = new Map();
     for (const [module, registration] of registrations) {
       providers.set(module, (await import(pathToFileURL(registration.path).href)).default);
@@ -139,7 +152,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
     packageBindings = (runtime) => generated.bind(runtime, providers);
   }
   const profile = config.profile ? await import("./profiles.mjs") : null;
-  const host = createHost(sink, {
+  const host = await createStartupHost(module, sink, {
     processLauncher: config.processLauncher,
     module,
     args,
@@ -147,6 +160,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
     grants,
     providers: profile ? (io) => profile.providers(config.profile, io) : null,
     packageBindings,
+    createPackageRuntime,
     deadline,
   });
   try {

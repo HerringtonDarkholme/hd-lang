@@ -1,0 +1,7 @@
+# test: an @inline argument other than .Auto, .Always or .Never
+# Spec 14 Inline And Cold: annot.inline.argument.
+use std.annotation.inline
+
+@inline(.Sometimes) # diagnostic: invalid-inline-decorator
+fn twice(x: i32) -> i32:
+    x * 2

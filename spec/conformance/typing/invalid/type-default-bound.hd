@@ -6,5 +6,5 @@ trait Blank:
 
 struct Plain: pass
 
-fn empty[C < Blank = Plain]() -> C:  # diagnostic: unsatisfied-trait-bound
+fn empty[C < Blank = Plain]() -> C: # diagnostic: unsatisfied-trait-bound
     C::blank()

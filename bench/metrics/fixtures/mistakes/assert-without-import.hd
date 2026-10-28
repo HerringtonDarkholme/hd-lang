@@ -4,5 +4,5 @@
 # fixed:     if n % 2 != 0: panic("odd")
 
 fn half(n: i32) -> i32:
-    assert(n % 2 == 0, reason="even")  # diagnostic: unknown-name
+    assert(n % 2 == 0, reason="even") # diagnostic: unknown-name
     n / 2

@@ -9,15 +9,15 @@ exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"List[(usize, i32)] does not implement FromIterator[(usize, usize)]; integer literals defaulted to `usize`","line":2,"column":15,"fixes":[],"file":"collect.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json container-explicit.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]","line":13,"column":5,"fixes":[],"file":"container-explicit.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]","line":14,"column":5,"fixes":[],"file":"container-explicit.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json container.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]; integer literals defaulted to `usize`","line":13,"column":5,"fixes":[],"file":"container.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]; integer literals defaulted to `usize`","line":14,"column":5,"fixes":[],"file":"container.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json convert-fixed.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json convert.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"ambiguous-method","message":"Packet: Convert[string], Convert[i32] fit this call: choose `Convert::[i32]::convert(packet)` or `Convert::[string]::convert(packet)`","line":13,"column":16,"fixes":[],"file":"convert.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"ambiguous-method","message":"Packet: Convert[string], Convert[i32] fit this call: choose `Convert::[i32]::convert(packet)` or `Convert::[string]::convert(packet)`","line":15,"column":16,"fixes":[],"file":"convert.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json derive.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"mixed-derived-law","message":"`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits; missing `PartialOrd`","line":1,"column":1,"fixes":[],"file":"derive.hd"},{"kind":"diagnostic","code":"mixed-derived-law","message":"`@derive` must list the traits a derived trait needs, and cannot mix with hand-written related traits; missing `Eq`","line":5,"column":1,"fixes":[],"file":"derive.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]
@@ -47,4 +47,4 @@ exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"string? does not implement Display; use `debug(value)` or `unwrap_or(...)`","line":2,"column":8,"fixes":[],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json probe-does-not-learn.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]; integer literals defaulted to `usize`","line":14,"column":5,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"in binding: expected Wrapper[i32], found Wrapper[usize]","line":15,"column":32,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]; integer literals defaulted to `usize`","line":15,"column":5,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"in binding: expected Wrapper[i32], found Wrapper[usize]","line":16,"column":32,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]

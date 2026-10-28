@@ -3,4 +3,4 @@
 use std.testing.it_each
 
 fn helper() -> void:
-    it_each("doubles", [1, 2], body=fn!(value: i32): pass)  # diagnostic: misplaced-test-case
+    it_each("doubles", [1, 2], body=fn!(value: i32): pass) # diagnostic: misplaced-test-case

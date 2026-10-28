@@ -5,5 +5,5 @@ fn find(id: i32) -> i32?:
 
 fn read(id: i32) -> i32:
     let .Some(value) = find(id) else:
-        return value  # diagnostic: unknown-name
+        return value # diagnostic: unknown-name
     value + 1

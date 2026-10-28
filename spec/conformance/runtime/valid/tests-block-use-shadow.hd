@@ -3,7 +3,8 @@
 fn snapshot(text: string) -> string:
     "module"
 
-fn main() -> string: snapshot("outside")
+fn main() -> string:
+    snapshot("outside")
 
 tests:
     use std.testing.snapshot

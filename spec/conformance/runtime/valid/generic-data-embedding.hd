@@ -9,9 +9,10 @@ tests:
     use std.testing.assert_equal
 
     it("explicit generic construction promotes embedded fields"):
-        shipment := Shipment::[i32] {
-            Box: Box::[i32] { value: 40 },
-            id: "hd",
-        }
-        assert_equal(shipment.value + 2, 42, reason="embedded fields preserve their instantiated types")
+        shipment := Shipment::[i32] { Box: Box::[i32] { value: 40 }, id: "hd" }
+        assert_equal(
+            shipment.value + 2,
+            42,
+            reason="embedded fields preserve their instantiated types",
+        )
         assert_equal(shipment.id.len(), 2, reason="the own field keeps its type")

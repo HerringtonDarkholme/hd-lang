@@ -4,10 +4,11 @@
 # fixture-package-tree: lib-root/src/catalog.hd
 use std.task.block_on
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 let pending: mut Suspend[i32] = ready()
-total := block_on(pending)  # diagnostic: suspension-forbidden-context
+total := block_on(pending) # diagnostic: suspension-forbidden-context
 
 pub fn item_count() -> i32:
     match total:

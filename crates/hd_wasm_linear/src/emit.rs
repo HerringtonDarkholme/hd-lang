@@ -10,6 +10,7 @@
 //! around a loop. Integer arithmetic follows §13.15 of
 //! `crates/hd_mono/DESIGN.md`, including its panic checks.
 
+use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::op::Op as Instruction;
@@ -116,7 +117,8 @@ fn body_func<'a>(
     };
     let roots = ref_roots(input, b, item, args, suspending);
     let cells = closure::cell_locals(b, &roots);
-    let mut em = Em::new(input, m, b, (item, args), targets, cells);
+    let direct_json = input.direct_json_encoders.contains(&own.key);
+    let mut em = Em::new(input, m, b, (item, args), targets, cells, direct_json);
     // A local only local references lend lives in the frame (§23.38): a
     // plain function's own, at a runtime that counts.
     if sub == 0 && !suspending && erased.is_none() && own.cold.is_none() && input.runtime.is_some()
@@ -280,6 +282,9 @@ fn body_func<'a>(
         fact,
     });
     if let Some(cell) = &once {
+        if b.kind == BodyKind::Handle {
+            em.static_cells = Some(key);
+        }
         if em.m.track_origins {
             let name = format!("{}#once", (input.path)(item));
             em.m.storage_names.insert(key, name);
@@ -329,7 +334,7 @@ fn body_func<'a>(
     // every return must publish the cached value and end fact evaluation.
     em.counting = em.counts_anything() || once.is_some();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-    held.sort_unstable();
+    held.sort_stable();
     if em.counting {
         em.ret = results.iter().map(|v| em.f.local(*v)).collect();
     }
@@ -420,7 +425,7 @@ fn body_func<'a>(
     em.prepare_own_loans();
     let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
-    let tail = b.data[root as usize][1];
+    let tail = em.live_tail(root);
     if !results.is_empty() {
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
@@ -455,7 +460,7 @@ fn body_func<'a>(
     if em.f.local_names.is_some() {
         let mut named: Vec<(usize, Vec<u32>)> =
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        named.sort_unstable();
+        named.sort_stable();
         for (l, ls) in named {
             if let [w] = ls[..] {
                 em.f.name_local(w, format!("${l}"));
@@ -929,6 +934,12 @@ enum Ctl {
     Scope(u32),
 }
 
+#[derive(Clone, Copy)]
+struct MapProbe {
+    hash: u32,
+    entry: u32,
+}
+
 struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
@@ -936,12 +947,16 @@ struct Em<'i, 'a, 'm> {
     /// This final body's instruction types at the instance's arguments.
     inst_ty: Vec<Ty>,
     item: DefId,
+    direct_json: bool,
     origin_root: u32,
     args: TyList,
     calls: &'i HashMap<u32, Target>,
     f: Func,
     /// Each computed instruction's locals.
     vals: HashMap<u32, Vec<u32>>,
+    /// A map read's hash and entry locals, for a following store that the
+    /// TIR proves reaches the same map and key without an intervening change.
+    map_probes: HashMap<u32, MapProbe>,
     /// Each TIR local's locals.
     locals: HashMap<usize, Vec<u32>>,
     /// The providers in scope: each key's data and vtable locals.
@@ -1024,9 +1039,19 @@ struct Em<'i, 'a, 'm> {
     /// local stack, not in a counted cell (§23.38), each with its slot's
     /// offset in the frame ([`closure::slot_locals`]).
     slots: HashMap<usize, u32>,
+    /// A handle body's once-cell key: its cells live in static data, as
+    /// the body runs once per instance ([`closure::Em::raw_cell`]).
+    static_cells: Option<Hash128>,
+    /// The references that take a slot local's value at its last access
+    /// (`ref_word::TAKES`), each with its local: a loan, whose `Drop`
+    /// releases the value in the slot, as the local's `Drop` the move
+    /// pass deleted would have.
+    slot_takes: HashMap<u32, usize>,
     /// With slots: the local holding the frame's address, and the
     /// frame's size.
     frame: Option<(u32, u32)>,
+    /// One reusable caller-local host leaf, after ordinary addressable locals.
+    drive_buffer: Option<(u32, u32)>,
     /// In an erased body, the local holding the address of its thunks'
     /// table, read from the witness (`erased.rs`).
     ops: Option<u32>,
@@ -1060,7 +1085,7 @@ struct Em<'i, 'a, 'm> {
     changed: Option<u32>,
     /// Each `block_on` whose cold dynamic call went through its drive
     /// slot (§23.39): the locals holding that call's results.
-    driven: HashMap<u32, Vec<u32>>,
+    driven: HashMap<u32, (Vec<u32>, u32)>,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1093,6 +1118,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         (item, args): (DefId, TyList),
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
+        direct_json: bool,
     ) -> Self {
         let f = m.func("", vec![], vec![]);
         let mut em = Em {
@@ -1101,11 +1127,13 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             b,
             inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
             item,
+            direct_json,
             origin_root: b.sub_root[0],
             args,
             calls,
             f,
             vals: HashMap::default(),
+            map_probes: HashMap::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
             open_ctx: None,
@@ -1137,7 +1165,10 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
             slots: HashMap::default(),
+            static_cells: None,
+            slot_takes: HashMap::default(),
             frame: None,
+            drive_buffer: None,
             ops: None,
             owned: false,
             sub_id: 0,
@@ -1241,6 +1272,44 @@ impl Em<'_, '_, '_> {
         self.inst_ty[i as usize]
     }
 
+    /// The position of the first of `items`, a block's, that has type
+    /// `never` and is followed by code that reads values, such as a
+    /// `panic(..)` used as a call argument. Nothing after it runs, and the
+    /// values that code would read, such as the call's other arguments,
+    /// were never computed: the block ends there, with that item as its
+    /// tail. A `break`, `continue` or `return` ends its path itself, and
+    /// drops after an item read no value of it, so both stay as they are.
+    fn dead_from(&self, items: &[u32], tail: u32) -> Option<usize> {
+        let k = items.iter().position(|&i| {
+            !matches!(
+                self.b.tags[i as usize],
+                Tag::Block | Tag::Break | Tag::Continue | Tag::Return | Tag::Unreachable
+            ) && self.diverges(i)
+        })?;
+        let reads = (tail != NONE && tail != items[k])
+            || items[k + 1..]
+                .iter()
+                .any(|&i| self.b.tags[i as usize] != Tag::Drop);
+        reads.then_some(k)
+    }
+
+    /// The value block `blk` ends with: its tail, or the item
+    /// [`Em::dead_from`] ends it at.
+    fn live_tail(&self, blk: u32) -> u32 {
+        let [list, tail] = self.b.data[blk as usize];
+        let items = self.items(list);
+        self.dead_from(&items, tail).map_or(tail, |k| items[k])
+    }
+
+    /// The instructions of block list `list`, without the blocks it holds,
+    /// which run where the instruction that owns them runs.
+    fn items(&self, list: u32) -> Vec<u32> {
+        self.rec(list)
+            .into_iter()
+            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
+            .collect()
+    }
+
     /// Whether value `r` never produces a value: its type is `never`.
     fn diverges(&self, r: u32) -> bool {
         self.pool().get(self.ty_of(r)) == TyData::Never
@@ -1276,7 +1345,7 @@ impl Em<'_, '_, '_> {
                 return unsupported("a component a constant does not have");
             };
             for op in ops {
-                self.f.op(op);
+                self.f.push(op);
             }
             return Ok(());
         }
@@ -1290,7 +1359,7 @@ impl Em<'_, '_, '_> {
     /// Pushes constant `r`.
     fn konst(&mut self, r: u32) -> StageResult<()> {
         for op in self.konst_ops(r)?.into_iter().flatten() {
-            self.f.op(op);
+            self.f.push(op);
         }
         Ok(())
     }
@@ -1317,7 +1386,7 @@ impl Em<'_, '_, '_> {
     /// Constant `r`'s values, each as the instructions that push it: a
     /// string's bytes are static data, and the string is their address
     /// and length.
-    fn konst_ops(&mut self, r: u32) -> StageResult<Vec<Vec<Instruction>>> {
+    fn konst_ops(&mut self, r: u32) -> StageResult<Vec<Vec<Ins>>> {
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
         let ty = self.sub(ty);
         let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), ty);
@@ -1332,12 +1401,12 @@ impl Em<'_, '_, '_> {
             self.f.mark_static(at);
             let len = u32::try_from(text.len()).expect("string constant");
             return Ok(vec![
-                vec![I::I32Const(at.cast_signed())],
-                vec![I::I32Const(len.cast_signed())],
+                vec![Ins::Static(at)],
+                vec![Ins::Op(I::I32Const(len.cast_signed()))],
             ]);
         }
         let low = u32::try_from(bits & 0xffff_ffff).expect("low bits");
-        Ok(match self.vals(ty)?.as_slice() {
+        let ops = match self.vals(ty)?.as_slice() {
             [] => vec![],
             [Val::I32] => vec![vec![I::I32Const(low.cast_signed())]],
             [Val::I64] => vec![vec![I::I64Const(bits.cast_signed())]],
@@ -1349,7 +1418,11 @@ impl Em<'_, '_, '_> {
             ]],
             [Val::F64] => vec![vec![I::F64Const(wasm_encoder::Ieee64::new(bits))]],
             _ => return unsupported(format!("a constant of type `{}`", self.pool().display(ty))),
-        })
+        };
+        Ok(ops
+            .into_iter()
+            .map(|ops| ops.into_iter().map(Ins::Op).collect())
+            .collect())
     }
 
     /// Instruction `i`'s locals, made on first use.
@@ -1362,6 +1435,24 @@ impl Em<'_, '_, '_> {
         let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
         self.vals.insert(i, ls.clone());
         Ok(ls)
+    }
+
+    /// Coercion `i` of `a` that keeps its values: a consumed operand's
+    /// locals become `i`'s, count and all, with nothing emitted; any other
+    /// is copied with a count of its own. In a suspending body the operand
+    /// keeps its locals, which a cancelled point's unwind may release.
+    fn same_value(&mut self, i: u32, a: u32) -> StageResult<()> {
+        if self.take(a)
+            && self.susp.is_none()
+            && !self.vals.contains_key(&i)
+            && let Some(ls) = self.vals.remove(&a)
+        {
+            self.vals.insert(i, ls);
+            return Ok(());
+        }
+        let moved = self.moving.contains(&(i, a));
+        self.push(a)?;
+        self.store_as(i, moved)
     }
 
     /// Stores the values on the stack as instruction `i`'s, a copy that
@@ -1416,16 +1507,16 @@ impl Em<'_, '_, '_> {
         if self.b.tags[blk as usize] != Tag::Block {
             return unsupported("a block operand that is not a block");
         }
-        let [list, tail] = self.b.data[blk as usize];
+        let [list, mut tail] = self.b.data[blk as usize];
         let labelled = self.topo.label_of[blk as usize] != NONE;
         if labelled {
             self.open(Ctl::Brk(blk));
         }
-        let items: Vec<u32> = self
-            .rec(list)
-            .into_iter()
-            .filter(|i| self.b.tags[*i as usize] != Tag::Block)
-            .collect();
+        let mut items = self.items(list);
+        if let Some(k) = self.dead_from(&items, tail) {
+            tail = items[k];
+            items.truncate(k + 1);
+        }
         if self.range(blk).is_some() {
             self.resume_list(&items)?;
         } else {
@@ -1685,9 +1776,10 @@ impl Em<'_, '_, '_> {
                         }
                         // A function value's code looks its row up in the
                         // context its caller passes, so a row that changes
-                        // changes nothing (`ctx.rs`).
-                        self.push(a)?;
-                        self.store(i)?;
+                        // changes nothing (`ctx.rs`). The value is the
+                        // operand's, which it consumes: it takes the
+                        // operand's count, or none of a borrow.
+                        self.same_value(i, a)?;
                     }
                     k if k == Coercion::WrapSome as u32 => {
                         self.new_variant(i, 1, &[value::Src::Ref(a)])?;
@@ -1704,10 +1796,7 @@ impl Em<'_, '_, '_> {
                     }
                     k if k == Coercion::RefAsProvider as u32 => self.ref_as_provider(i, a)?,
                     // The provider is the reference itself.
-                    k if k == Coercion::ProviderAsRef as u32 => {
-                        self.push(a)?;
-                        self.store(i)?;
-                    }
+                    k if k == Coercion::ProviderAsRef as u32 => self.same_value(i, a)?,
                     _ => return unsupported("provider references and `Any` coercions"),
                 }
             }
@@ -1818,13 +1907,24 @@ impl Em<'_, '_, '_> {
                 }
                 if let Some(&Target::Open(k)) = self.calls.get(&i) {
                     self.open_call(i, k)?;
-                } else if self.b.tags[i as usize] == Tag::SwitchTag {
-                    self.tag(a)?;
-                } else {
+                    self.f.u32(case);
+                    self.f.op(Instruction::I32Eq);
+                } else if self.b.tags[i as usize] == Tag::SwitchTag && self.nullable(self.ty_of(a))
+                {
+                    // Variant 1 is a non-null address.
                     self.comp(a, 0)?;
+                    if case == 0 {
+                        self.f.op(Instruction::I32Eqz);
+                    }
+                } else {
+                    if self.b.tags[i as usize] == Tag::SwitchTag {
+                        self.tag(a)?;
+                    } else {
+                        self.comp(a, 0)?;
+                    }
+                    self.f.u32(case);
+                    self.f.op(Instruction::I32Eq);
                 }
-                self.f.u32(case);
-                self.f.op(Instruction::I32Eq);
                 self.resume_branch(i, then);
                 self.f.op(Instruction::If(BlockType::Empty));
                 self.ctl.push(Ctl::Plain);
@@ -1854,8 +1954,7 @@ impl Em<'_, '_, '_> {
                 match op {
                     Some(IntrinsicOp::ListLen) => self.list_len(i, args[0])?,
                     Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
-                    Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,
-                    Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
+                    Some(IntrinsicOp::ListReserve) => self.list_reserve(&args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
@@ -2156,6 +2255,10 @@ impl Em<'_, '_, '_> {
         match self.calls.get(&i).cloned() {
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
+                    if self.direct_json && self.input.json_fallbacks.contains(&ct.item) {
+                        self.f.op(Instruction::Unreachable);
+                        return self.call_results(i, ct.ret);
+                    }
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     let lends = self.env().lends(ct.item);
                     self.push_args(&args, params.as_deref(), lends)?;
@@ -2208,7 +2311,9 @@ impl Em<'_, '_, '_> {
     /// the method's drive slot (§23.39), if one does.
     fn drive_target(&self, i: u32, a: u32) -> Option<u32> {
         let (trait_, method) = crate::drive::callee(self.b, a)?;
-        if !self.m.driven.contains(&method) || !crate::drive::drivable(self.env(), trait_, method) {
+        if !self.m.blocking_driven.contains(&method)
+            || !crate::drive::drivable(self.env(), trait_, method)
+        {
             return None;
         }
         crate::drive::block_on_of(self.b, &self.topo, self.calls, i)
@@ -2222,12 +2327,38 @@ impl Em<'_, '_, '_> {
         let inner = self.susp_inner(self.ty(i))?;
         let res: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
         self.f.helper(Helper::ForbidCheck);
-        self.push_dyn(a, args, None, Some(inner))?;
+        let buffer = self.blocking_buffer(args)?;
+        self.push_dyn(a, args, None, Some((inner, Some(buffer))))?;
         for l in res.iter().rev() {
             self.f.set(*l);
         }
-        self.driven.insert(on, res);
+        self.driven.insert(on, (res, buffer));
         self.store_owned(i)
+    }
+
+    /// Reserve a leaf in the running Wasm invocation's shadow frame. A synchronous
+    /// drive cannot suspend that invocation, so later calls may reuse this storage.
+    fn blocking_buffer(&mut self, args: &[u32]) -> StageResult<u32> {
+        let mut values = 0;
+        for arg in args.iter().skip(1) {
+            values += self.vals(self.ty_of(*arg))?.len();
+        }
+        let capacity =
+            (crate::module::HEADER + crate::task::host_frame_capacity(values)).next_multiple_of(8);
+        let (mut base, size) = self.frame.unwrap_or((NONE, 0));
+        let (offset, previous) = self.drive_buffer.unwrap_or((size, 0));
+        let capacity = previous.max(capacity);
+        if base == NONE {
+            base = self.f.local(Val::I32);
+        }
+        self.frame = Some((base, offset + capacity));
+        self.drive_buffer = Some((offset, capacity));
+        let buffer = self.f.local(Val::I32);
+        self.f.get(base);
+        self.f.u32(offset + crate::module::HEADER);
+        self.f.op(Instruction::I32Add);
+        self.f.set(buffer);
+        Ok(buffer)
     }
 
     /// Pushes a dynamic call's results, of type `result`, or its cold frame
@@ -2241,7 +2372,7 @@ impl Em<'_, '_, '_> {
         a: u32,
         args: &[u32],
         result: Option<Ty>,
-        drive: Option<Ty>,
+        drive: Option<(Ty, Option<u32>)>,
     ) -> StageResult<()> {
         let Some(Callee::TraitMethod {
             trait_,
@@ -2273,13 +2404,15 @@ impl Em<'_, '_, '_> {
         let kept = result.is_some() && self.env().suspends(method);
         let results = match (result, &open, drive) {
             // The drive slot (§23.39): the frame or 0, then the results.
-            (_, _, Some(t)) => [vec![Val::I32], self.vals(t)?].concat(),
+            (_, _, Some((t, _))) => [vec![Val::I32], self.vals(t)?].concat(),
             (Some(_), Some(o), _) if o.ret => vec![Val::I32],
             (Some(t), _, _) => self.vals(t)?,
             (None, _, _) => vec![Val::I32],
         };
         let slot = match drive {
-            Some(_) => crate::drive::index(self.env(), self.m, trait_, method) as usize,
+            Some((_, buffer)) => {
+                crate::drive::index(self.env(), self.m, trait_, method, buffer.is_some()) as usize
+            }
             None => slot,
         };
         let Some((&recv, rest)) = args.split_first() else {
@@ -2335,6 +2468,10 @@ impl Em<'_, '_, '_> {
         } else {
             None
         };
+        if let Some((_, Some(buffer))) = drive {
+            self.f.get(buffer);
+            params.push(Val::I32);
+        }
         let steps = self.dyn_steps(value_ty, trait_, targs)?;
         if let Some(value) = &payload {
             self.f.get(value[1]);
@@ -2736,7 +2873,7 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// `std.rt.memory`'s intrinsics on the heap, memory 1
+    /// `std.rt.memory`'s intrinsics on the heap, memory 0
     /// (`module.rt.memory.*`): each is one instruction. A load or a store
     /// is little-endian and takes any address; `grow` reads Wasm's `-1` as
     /// `.None`; `copy` is `memory.copy`, which allows overlap. A new
@@ -2880,7 +3017,7 @@ impl Em<'_, '_, '_> {
             self.f.local(Val::I32),
         );
         let tmp: Vec<u32> = match &fused {
-            Some(ls) => ls.clone(),
+            Some((ls, _)) => ls.clone(),
             None => result.iter().map(|v| self.f.local(*v)).collect(),
         };
         self.comp(s, 0)?;
@@ -2991,6 +3128,37 @@ impl Em<'_, '_, '_> {
         self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
         self.release_locals(&tmp, inner)?;
         self.close();
+        if let Some((_, buffer)) = fused {
+            self.f.get(frame);
+            self.f.get(buffer);
+            self.f.op(Instruction::I32Eq);
+            self.f.op(Instruction::If(BlockType::Empty));
+            let drop = self.f.local(Val::I32);
+            self.f.get(frame);
+            self.f.op(Instruction::I32Load(mem(
+                HEAP,
+                crate::task::BORROWED_DROP,
+                2,
+            )));
+            self.f.op(Instruction::LocalTee(drop));
+            self.f.i32(0);
+            self.f.op(Instruction::I32GeS);
+            self.f.op(Instruction::If(BlockType::Empty));
+            // Static shadow storage has no automatic descriptor drop. Clear the
+            // callback before invoking it, so every terminal outcome drops once.
+            self.f.get(frame);
+            self.f.i32(-1);
+            self.f.op(Instruction::I32Store(mem(
+                HEAP,
+                crate::task::BORROWED_DROP,
+                2,
+            )));
+            self.f.get(frame);
+            self.f.get(drop);
+            self.f.call_indirect(vec![Val::I32], vec![]);
+            self.f.op(Instruction::End);
+            self.f.op(Instruction::End);
+        }
         Ok(())
     }
 
@@ -3033,12 +3201,14 @@ impl Em<'_, '_, '_> {
                 let no = self.m.static_bytes(b"false", 1);
                 self.f.mark_static(yes);
                 self.f.mark_static(no);
-                for (a, b) in [(yes, no), (4, 5)] {
-                    self.f.u32(a);
-                    self.f.u32(b);
-                    self.comp(args[0], 0)?;
-                    self.f.op(I::Select);
-                }
+                self.f.static_addr(yes);
+                self.f.static_addr(no);
+                self.comp(args[0], 0)?;
+                self.f.op(I::Select);
+                self.f.u32(4);
+                self.f.u32(5);
+                self.comp(args[0], 0)?;
+                self.f.op(I::Select);
                 self.store(i)
             }
             "to_string" if t == Ty::STRING => {

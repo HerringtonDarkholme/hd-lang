@@ -11,13 +11,13 @@
 //! state. The session thread, with the stack a guest needs, owns the
 //! [`ReplSession`].
 //!
-//! Each input `N` builds as `repl#N` with `Goal::ReplInput`, in one module
-//! with every input the session keeps (`hd_driver::Packages::inputs_from`),
-//! on the linear backend. The session then runs that module: it replays
-//! the kept inputs from its journal of host calls, so none is made again
-//! (`cli.repl.host.once`) and nothing prints again, and runs the new input
-//! live (`ReplSession::run`): every input is a rebuild by
-//! `cli.repl.rebuild`. An input that ends with status 0 joins the session.
+//! Each input `N` builds as `repl#N` with `Goal::ReplInput`, importing
+//! completed inputs through the driver's initialized session ABI. Its
+//! runtime runs only that input. Completed outcomes commit the compiler's
+//! new ABI; stopped or cancelled inputs commit neither code nor bindings.
+//! The runtime checkpoints completed state when its active call record
+//! exceeds the threshold, retaining historical results for `:reload`.
+//! An input that ends with status 0 joins the session.
 //! One that fails to build adds nothing, nor does one that was stopped or
 //! cancelled, which the next rebuild skips and reports
 //! (`cli.repl.rebuild.stopped`). One that panicked or ended with another
@@ -561,6 +561,8 @@ struct Repl {
     cwd: PathBuf,
     program: disk::Program,
     store: DiskStore,
+    /// Source/check entries and initialized code ABI of completed inputs.
+    metadata: hd_driver::Session,
     /// The number of the last input read (`repl#N`).
     next: u32,
     /// The inputs the session keeps, by number; each one's file is among
@@ -586,7 +588,12 @@ fn build_session(
     failed: &[u32],
     number: u32,
     target: EngineTarget,
-) -> (Option<Vec<u8>>, Vec<report::Diag>) {
+    metadata: &hd_driver::Session,
+) -> (
+    Option<Vec<u8>>,
+    Option<hd_driver::Session>,
+    Vec<report::Diag>,
+) {
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
@@ -595,11 +602,10 @@ fn build_session(
         clock: &clock,
         executor: crate::executor(),
     };
-    let start = hd_driver::Session::start();
     let packages = hd_driver::Packages {
         target,
         level: OptLevel::Dev,
-        session: Some(&start),
+        session: Some(metadata),
         inputs_from: Some(1),
         failed_inputs: failed,
         ..program.packages()
@@ -611,12 +617,12 @@ fn build_session(
     let mut found = hd_driver::diagnostics::for_input(report::from_output(&out, None), &file);
     report::relocate(&mut found, |f| program.sources.display(f));
     if found.iter().any(report::Diag::is_error) {
-        return (None, found);
+        return (None, None, found);
     }
     if out.wasm.is_none() {
         found.push(report::Diag::error(None, "no Wasm produced").at(&file, None));
     }
-    (out.wasm, found)
+    (out.wasm, out.session_added, found)
 }
 
 impl Repl {
@@ -631,6 +637,7 @@ impl Repl {
             cwd,
             program,
             store: crate::disk_store(),
+            metadata: hd_driver::Session::linked(),
             next: 0,
             inputs: BTreeMap::new(),
             names,
@@ -681,8 +688,14 @@ impl Repl {
         }
         self.program.sources.add_synthetic(&file, text);
         let target = self.session.kind().target();
-        let (wasm, found) =
-            build_session(&self.program, &self.store, &self.failed(), number, target);
+        let (wasm, added, found) = build_session(
+            &self.program,
+            &self.store,
+            &self.failed(),
+            number,
+            target,
+            &self.metadata,
+        );
         for d in &found {
             let _ = writeln!(diags, "{}", d.text());
         }
@@ -736,6 +749,9 @@ impl Repl {
                 self.program.sources.remove_synthetic(&file);
             }
             end => {
+                if let Some(added) = added {
+                    self.metadata.add(added);
+                }
                 let joined = end == End::Exit(0);
                 if joined {
                     self.names.add_input(number, text);
@@ -830,18 +846,20 @@ impl Repl {
         let before = |cut: &Option<(u32, Vec<report::Diag>)>, n: u32| {
             cut.as_ref().is_none_or(|(first, _)| n < *first)
         };
-        let wasm = loop {
+        let start = hd_driver::Session::linked();
+        let (wasm, added) = loop {
             let Some(last) = self.inputs.keys().copied().rev().find(|n| before(&cut, *n)) else {
-                break None;
+                break (None, None);
             };
             let failed: Vec<u32> = self
                 .failed()
                 .into_iter()
                 .filter(|n| before(&cut, *n))
                 .collect();
-            let (wasm, found) = build_session(&self.program, &self.store, &failed, last, target);
+            let (wasm, added, found) =
+                build_session(&self.program, &self.store, &failed, last, target, &start);
             if let Some(wasm) = wasm {
-                break Some(wasm);
+                break (Some(wasm), added);
             }
             // The first input with an error no longer builds; the inputs
             // before it do not see the ones after it.
@@ -883,6 +901,9 @@ impl Repl {
                     return;
                 }
             }
+        } else if let Err(error) = self.session.clear() {
+            let _ = writeln!(diags, "error: the rebuild: {error}");
+            return;
         }
         let mut shown = Vec::new();
         if let Some((first, diagnostics)) = cut
@@ -898,6 +919,16 @@ impl Repl {
             shown = diagnostics;
         }
         self.report(&ran, &shown, diags);
+        if !ran.dropped.is_empty() {
+            // The old suffix is no longer in the source program. Recompile
+            // exactly the kept prefix before publishing its initialized ABI.
+            self.rebuild(diags);
+            return;
+        }
+        self.metadata = hd_driver::Session::linked();
+        if let Some(added) = added {
+            self.metadata.add(added);
+        }
         let kept = ran.kept.len();
         let _ = writeln!(
             diags,

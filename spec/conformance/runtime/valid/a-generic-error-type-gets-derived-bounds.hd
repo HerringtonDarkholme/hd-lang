@@ -19,7 +19,12 @@ struct Job:
 @error
 enum TaskError[E, T]:
     @error("task $name failed")
-    Failed(name: string, @source error: E, input: T)
+    Failed(
+        name: string,
+        @source
+        error: E,
+        input: T,
+    )
 
 @error
 enum Wrapped[P]:
@@ -39,7 +44,11 @@ fn show[T < Display](value: Named[T]) -> string:
     value.to_string()
 
 pub fn main() -> void $ Console:
-    let task: TaskError[DiskError, Job] = TaskError.Failed("build", DiskError { free: 0 }, Job { id: 1 })
+    let task: TaskError[DiskError, Job] = TaskError.Failed(
+        "build",
+        DiskError { free: 0 },
+        Job { id: 1 },
+    )
     println(task.to_string())
     println(depth(task))
     let wrapped: Wrapped[TaskError[DiskError, Job]] = Wrapped.Inner(task)

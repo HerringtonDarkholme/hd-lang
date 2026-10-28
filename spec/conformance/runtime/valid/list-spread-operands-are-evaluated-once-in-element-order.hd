@@ -14,7 +14,12 @@ fn many(label: string, log: &mut List[string]) -> List[i32]:
 
 pub fn main() -> void $ Console:
     let mut log: List[string] = []
-    xs := [note("a", +0, &mut log), many("b", &mut log)..., note("c", +3, &mut log), many("d", &mut log)...]
+    xs := [
+        note("a", +0, &mut log),
+        many("b", &mut log)...,
+        note("c", +3, &mut log),
+        many("d", &mut log)...,
+    ]
     println(xs.len())
     println(log.len())
     println(log[0] + log[1] + log[2] + log[3])

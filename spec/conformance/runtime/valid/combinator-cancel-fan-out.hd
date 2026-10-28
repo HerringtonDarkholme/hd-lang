@@ -33,7 +33,8 @@ fn acceptor!(server: &mut Server) -> void $ Clock:
     sleep!(s(60))
 
 fn serve!(server: *mut Server) -> string $ Clock:
-    defer: server.log.push("serve defer")
+    defer:
+        server.log.push("serve defer")
     _ := all!(connections(server), acceptor(server))
     "served"
 

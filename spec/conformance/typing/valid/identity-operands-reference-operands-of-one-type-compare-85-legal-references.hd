@@ -20,7 +20,8 @@ trait Entity < Named
 trait Handle < AnyRef
 
 impl Named for User:
-    fn label(self) -> string: self.name
+    fn label(self) -> string:
+        self.name
 
 impl Entity for User:
     pass

@@ -4,5 +4,5 @@ fn find(id: i32) -> i32?:
     if id == 0: .Some(7) else: .None
 
 fn missing_else(id: i32) -> i32:
-    let .Some(value) = find(id)  # diagnostic: refutable-let-pattern
+    let .Some(value) = find(id) # diagnostic: refutable-let-pattern
     value

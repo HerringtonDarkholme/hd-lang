@@ -12,7 +12,8 @@ struct Square:
     side: f64
 
 impl Shape for Square:
-    fn area(self) -> f64: self.side * self.side
+    fn area(self) -> f64:
+        self.side * self.side
 
 fn report(shape: &dyn Shape) -> f64:
     shape.double()

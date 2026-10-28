@@ -96,7 +96,14 @@ impl Regex:
         let mut program: List[Inst] = []
         compile(parsed.node, &mut program)
         program.push(Inst.Done)
-        .Ok(Regex { text: pattern, program: lower(program), filter: prefilter(parsed.node), names: names })
+        .Ok(
+            Regex {
+                text: pattern,
+                program: lower(program),
+                filter: prefilter(parsed.node),
+                names: names,
+            },
+        )
 
     # The pattern as written.
     ## The pattern the regex was compiled from.
@@ -222,7 +229,8 @@ impl Captures:
             .Some(start) =>
                 match self.slots[2 * index + 1]:
                     .None => .None
-                    .Some(end) => .Some(Match { start: start, end: end, text: self.text.slice(start, end) })
+                    .Some(end) =>
+                        .Some(Match { start: start, end: end, text: self.text.slice(start, end) })
 
     # The group named `name` (r-std-regex.captures.name).
     ## The match of the group named `name`, or `.None` when there is no such group or it took no part.
@@ -309,7 +317,11 @@ impl Deserializer for CaptureReader:
     fn next_key(&mut self) -> Result[string?, RegexError]:
         .Err(self.invalid("map"))
 
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, RegexError]:
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, RegexError]:
         if !self.record:
             if choices.len() == 1 && choices[0].of_data:
                 self.record = true
@@ -327,7 +339,10 @@ impl Deserializer for CaptureReader:
             index += 1
         .Err(self.invalid("variant"))
 
-    fn member(&mut self, m: Member) -> Result[void, RegexError]:
+    fn begin_newtype_variant(&mut self) -> Result[void, RegexError]:
+        .Err(self.invalid("newtype variant"))
+
+    fn member(&mut self, m: &Member) -> Result[void, RegexError]:
         name := member_name(m, self.facts)
         if self.variant:
             return .Err(self.invalid("payload-free variant"))
@@ -412,7 +427,11 @@ struct Step:
     next: usize
 
 # `a|b|c`: one or more concatenations.
-fn parse_alternation(source: Pattern, start: usize, names: &mut List[string]) -> Result[Step, RegexError]:
+fn parse_alternation(
+    source: Pattern,
+    start: usize,
+    names: &mut List[string],
+) -> Result[Step, RegexError]:
     let mut branches: List[Node] = []
     let at = start
     while true:
@@ -429,7 +448,11 @@ fn parse_alternation(source: Pattern, start: usize, names: &mut List[string]) ->
 
 # A run of atoms, each with at most one quantifier, up to `|`, `)`, or the
 # end.
-fn parse_concat(source: Pattern, start: usize, names: &mut List[string]) -> Result[Step, RegexError]:
+fn parse_concat(
+    source: Pattern,
+    start: usize,
+    names: &mut List[string],
+) -> Result[Step, RegexError]:
     let mut items: List[Node] = []
     let at = start
     while at < source.chars.len():
@@ -576,7 +599,11 @@ fn parse_group(source: Pattern, open: usize, names: &mut List[string]) -> Result
             start = start + 2
         else if source.has(start + 1, 'P') && source.has(start + 2, '<'):
             name_start = .Some(start + 3)
-        else if source.has(start + 1, '<') && !source.has(start + 2, '=') && !source.has(start + 2, '!'):
+        else if (
+            source.has(start + 1, '<')
+            && !source.has(start + 2, '=')
+            && !source.has(start + 2, '!')
+        ):
             name_start = .Some(start + 2)
         else:
             return .Err(RegexError.UnsupportedGroup(source.offset(open)))
@@ -644,7 +671,12 @@ fn parse_escape(source: Pattern, at: usize) -> Result[Escape, RegexError]:
             .Err(RegexError.BadEscape(source.offset(at)))
 
 fn ascii_punctuation(c: char) -> bool:
-    (c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~')
+    (
+        (c >= '!' && c <= '/')
+        || (c >= ':' && c <= '@')
+        || (c >= '[' && c <= '`')
+        || (c >= '{' && c <= '~')
+    )
 
 # `[...]` and `[^...]`. A `]` first is a literal (r-std-regex.syntax.class).
 fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
@@ -665,12 +697,20 @@ fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
         low := class_char(source, at)?
         match low.item:
             .Some(item) =>
-                if source.has(low.next, '-') && source.at(low.next + 1).is_some() && !source.has(low.next + 1, ']'):
+                if (
+                    source.has(low.next, '-')
+                    && source.at(low.next + 1).is_some()
+                    && !source.has(low.next + 1, ']')
+                ):
                     return .Err(RegexError.BadRange(source.offset(at)))
                 items.push(item)
                 at = low.next
             .None =>
-                if source.has(low.next, '-') && source.at(low.next + 1).is_some() && !source.has(low.next + 1, ']'):
+                if (
+                    source.has(low.next, '-')
+                    && source.at(low.next + 1).is_some()
+                    && !source.has(low.next + 1, ']')
+                ):
                     high := class_char(source, low.next + 1)?
                     if high.item.is_some() || high.value < low.value:
                         return .Err(RegexError.BadRange(source.offset(at)))
@@ -945,10 +985,28 @@ fn summarize(node: Node) -> Summary:
 
 fn exact_summary(text: string, firsts: List[u64]) -> Summary:
     size := i64(bytes_len(text))
-    Summary { min: size, max: size, exact: .Some(text), prefix: text, literal: text, lo: 0, hi: 0, firsts: firsts }
+    Summary {
+        min: size,
+        max: size,
+        exact: .Some(text),
+        prefix: text,
+        literal: text,
+        lo: 0,
+        hi: 0,
+        firsts: firsts,
+    }
 
 fn open_summary(min: i64, max: i64, firsts: List[u64]) -> Summary:
-    Summary { min: min, max: max, exact: .None, prefix: "", literal: "", lo: 0, hi: 0, firsts: firsts }
+    Summary {
+        min: min,
+        max: max,
+        exact: .None,
+        prefix: "",
+        literal: "",
+        lo: 0,
+        hi: 0,
+        firsts: firsts,
+    }
 
 # A class's first bytes are the UTF-8 first bytes of the scalars in its
 # ranges. For a negated class they are every first byte but the ASCII
@@ -993,7 +1051,15 @@ fn in_class(ranges: List[i32], point: i32) -> bool:
 # The first bytes of the scalars from `low` to `high` that UTF-8 writes
 # with the same length, those from `first` to `last`: `base` plus the
 # scalar divided by `unit`.
-fn add_leads(set: &mut List[u64], low: i32, high: i32, first: i32, last: i32, unit: i32, base: i32) -> void:
+fn add_leads(
+    set: &mut List[u64],
+    low: i32,
+    high: i32,
+    first: i32,
+    last: i32,
+    unit: i32,
+    base: i32,
+) -> void:
     from := if low > first: low else: first
     to := if high < last: high else: last
     if from <= to:
@@ -1059,7 +1125,16 @@ fn concat_summary(items: List[Node]) -> Summary:
         hi = run_hi
     prefix := head.join("")
     let whole: string? = if exact: .Some(prefix) else: .None
-    Summary { min: min, max: max, exact: whole, prefix: prefix, literal: literal, lo: lo, hi: hi, firsts: firsts }
+    Summary {
+        min: min,
+        max: max,
+        exact: whole,
+        prefix: prefix,
+        literal: literal,
+        lo: lo,
+        hi: hi,
+        firsts: firsts,
+    }
 
 # Alternatives: a literal is required only when every alternative holds
 # it, and the alternatives' common prefix is one too.
@@ -1093,20 +1168,34 @@ fn alternate_summary(branches: List[Node]) -> Summary:
         literal = prefix
         lo = 0
         hi = 0
-    Summary { min: min, max: max, exact: exact, prefix: prefix, literal: literal, lo: lo, hi: hi, firsts: firsts }
+    Summary {
+        min: min,
+        max: max,
+        exact: exact,
+        prefix: prefix,
+        literal: literal,
+        lo: lo,
+        hi: hi,
+        firsts: firsts,
+    }
 
 fn same_text(left: string?, right: string?) -> string?:
     match left:
         .Some(a) =>
             match right:
-                .Some(b) => if a == b: .Some(a) else: .None
+                .Some(b) =>
+                    if a == b: .Some(a) else: .None
                 .None => .None
         .None => .None
 
 # The longest common prefix that ends at a scalar boundary.
 fn common_prefix(left: string, right: string) -> string:
     let size: usize = 0
-    while size < bytes_len(left) && size < bytes_len(right) && bytes_at(left, size) == bytes_at(right, size):
+    while (
+        size < bytes_len(left)
+        && size < bytes_len(right)
+        && bytes_at(left, size) == bytes_at(right, size)
+    ):
         size = size + 1
     while size > 0 && size < bytes_len(left) && continuation(bytes_at(left, size)):
         size = size - 1
@@ -1137,8 +1226,27 @@ fn repeat_summary(body: Summary, min: usize, max: usize?) -> Summary:
                     if count == min:
                         exact = .Some(whole)
                 .None => pass
-            Summary { min: low, max: high, exact: exact, prefix: whole, literal: whole, lo: 0, hi: 0, firsts: body.firsts }
-        .None => Summary { min: low, max: high, exact: .None, prefix: body.prefix, literal: body.literal, lo: body.lo, hi: body.hi, firsts: body.firsts }
+            Summary {
+                min: low,
+                max: high,
+                exact: exact,
+                prefix: whole,
+                literal: whole,
+                lo: 0,
+                hi: 0,
+                firsts: body.firsts,
+            }
+        .None =>
+            Summary {
+                min: low,
+                max: high,
+                exact: .None,
+                prefix: body.prefix,
+                literal: body.literal,
+                lo: body.lo,
+                hi: body.hi,
+                firsts: body.firsts,
+            }
 
 # Whether `literal`, within `hi` bytes of a match's start, makes a better
 # prefilter than `best` within `best_hi`: a bounded place first, since it
@@ -1526,7 +1634,11 @@ fn find_literal(text: string, literal: string, from: usize) -> i64:
         at := bytes_index(text, from, bytes_at(literal, 0))
         return if at < size: i64(at) else: -1
     let index: usize = 0
-    while index < width && from + index < size && bytes_at(text, from + index) == bytes_at(literal, index):
+    while (
+        index < width
+        && from + index < size
+        && bytes_at(text, from + index) == bytes_at(literal, index)
+    ):
         index = index + 1
     if index == width:
         return i64(from)
@@ -1574,7 +1686,14 @@ fn scalar_point(text: string, at: usize, after: usize, lead: u8) -> i32:
 # length. An instruction already in the list is not visited again. A save
 # sets its slot for the instructions after it and puts the old value back
 # after them, so `vm.scratch` is unchanged on return.
-fn add_thread(vm: &mut Vm, program: &Program, side: usize, count: usize, start: usize, at: usize) -> usize:
+fn add_thread(
+    vm: &mut Vm,
+    program: &Program,
+    side: usize,
+    count: usize,
+    start: usize,
+    at: usize,
+) -> usize:
     ops := program.ops
     slot_count := vm.slot_count
     dense := vm.dense
@@ -1675,7 +1794,12 @@ fn reference_at(template: Pattern, at: usize) -> Found?:
             if digits.next == close && close > at + 2:
                 return .Some(Found { reference: Reference.Index(digits.value), next: close + 1 })
             if group_name(template, at + 2, close):
-                return .Some(Found { reference: Reference.Name(template.piece(at + 2, close)), next: close + 1 })
+                return .Some(
+                    Found {
+                        reference: Reference.Name(template.piece(at + 2, close)),
+                        next: close + 1,
+                    },
+                )
             .None
         _ =>
             digits := number_at(template, at + 1)?
@@ -1728,8 +1852,35 @@ fn class_ranges(items: List[ClassItem]) -> List[i32]:
                 ranges.push(i32(char_scalar(low)))
                 ranges.push(i32(char_scalar(high)))
             .Digit(negated) => push_ranges(&mut ranges, [+48, +57], negated)
-            .Word(negated) => push_ranges(&mut ranges, [+48, +57, +65, +90, +95, +95, +97, +122], negated)
-            .Space(negated) => push_ranges(&mut ranges, [+9, +13, +32, +32, +133, +133, +160, +160, +5760, +5760, +8192, +8202, +8232, +8233, +8239, +8239, +8287, +8287, +12288, +12288], negated)
+            .Word(negated) =>
+                push_ranges(&mut ranges, [+48, +57, +65, +90, +95, +95, +97, +122], negated)
+            .Space(negated) =>
+                push_ranges(
+                    &mut ranges,
+                    [
+                        +9,
+                        +13,
+                        +32,
+                        +32,
+                        +133,
+                        +133,
+                        +160,
+                        +160,
+                        +5760,
+                        +5760,
+                        +8192,
+                        +8202,
+                        +8232,
+                        +8233,
+                        +8239,
+                        +8239,
+                        +8287,
+                        +8287,
+                        +12288,
+                        +12288,
+                    ],
+                    negated,
+                )
     ranges
 
 # Pushes the sorted ranges `set`, or, when `negated`, the ranges between

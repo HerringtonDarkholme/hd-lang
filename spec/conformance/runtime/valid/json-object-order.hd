@@ -20,7 +20,11 @@ tests:
 
     it("keys come back in the order the text wrote them"):
         assert_equal(keys(read("{\"b\":1,\"a\":2,\"c\":3}")), ["b", "a", "c"], reason="parse order")
-        assert_equal("${read("{\"b\":1,\"a\":2,\"c\":3}")}", "{\"b\":1,\"a\":2,\"c\":3}", reason="Display order")
+        assert_equal(
+            "${read("{\"b\":1,\"a\":2,\"c\":3}")}",
+            "{\"b\":1,\"a\":2,\"c\":3}",
+            reason="Display order",
+        )
 
     it("a duplicate key keeps its first place and takes the last value"):
         value := read("{\"b\":1,\"a\":2,\"b\":3}")
@@ -34,13 +38,21 @@ tests:
         fields.set("a", Json.Null)
         fields.set("m", Json.Array([]))
         fields.set("z", Json.Null)
-        assert_equal("${Json.Object(fields)}", "{\"z\":null,\"a\":null,\"m\":[]}", reason="insertion order")
+        assert_equal(
+            "${Json.Object(fields)}",
+            "{\"z\":null,\"a\":null,\"m\":[]}",
+            reason="insertion order",
+        )
         assert_equal(fields.keys(), ["z", "a", "m"], reason="keys")
 
     it("nested objects keep their order at every level"):
         text := "{\"y\":{\"q\":1,\"p\":2},\"x\":[{\"b\":0,\"a\":0}]}"
         assert_equal("${read(text)}", text, reason="nested")
-        assert_equal(read(text).pretty(), "{\n  \"y\": {\n    \"q\": 1,\n    \"p\": 2\n  },\n  \"x\": [\n    {\n      \"b\": 0,\n      \"a\": 0\n    }\n  ]\n}", reason="pretty")
+        assert_equal(
+            read(text).pretty(),
+            "{\n  \"y\": {\n    \"q\": 1,\n    \"p\": 2\n  },\n  \"x\": [\n    {\n      \"b\": 0,\n      \"a\": 0\n    }\n  ]\n}",
+            reason="pretty",
+        )
 
     it("objects with the same members in another order are equal but print differently"):
         left := read("{\"a\":1,\"b\":2}")

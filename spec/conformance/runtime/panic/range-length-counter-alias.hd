@@ -7,7 +7,7 @@ fn fail() -> void:
     alias := &mut i
     while i < n:
         *alias = n
-        _ := xs[i]  # panic: index-out-of-bounds
+        _ := xs[i] # panic: index-out-of-bounds
         i += 1
 
 fail()

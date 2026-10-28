@@ -1,5 +1,5 @@
 # test: a type parameter written as mut T is rejected at the mut T type
 # Spec 04 Value Types: types.value.no-mut.written.
 
-fn reset[T](value: mut T) -> void:  # diagnostic: mut-on-struct
+fn reset[T](value: mut T) -> void: # diagnostic: mut-on-struct
     pass

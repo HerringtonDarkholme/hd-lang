@@ -10,6 +10,8 @@ impl Arbitrary for Reading:
         Reading { level: c.int(0..=9) }
 
 tests:
-    it_prop("levels stay small", prop=fn!(reading: Reading):  # diagnostic: unsatisfied-trait-bound
-        pass
+    it_prop( # diagnostic: unsatisfied-trait-bound
+        "levels stay small",
+        prop=fn!(reading: Reading): pass
+        ,
     )

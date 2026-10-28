@@ -19,4 +19,4 @@ struct Slot:
     handler: fn() -> void $ Db + Clock
 
 fn wide(handlers: List[fn() -> void $ Db]) -> List[fn() -> void $ Db + Clock]:
-    handlers  # diagnostic: type-mismatch
+    handlers # diagnostic: type-mismatch

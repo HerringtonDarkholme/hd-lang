@@ -1,6 +1,7 @@
 use std.task.block_on
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 fn drive_inside!() -> i32:
     let stored: mut Suspend[i32] = ready()

@@ -84,8 +84,8 @@ needs `$ FsRead` and returns `Result[string, FsError]`.
   with `i32(n)` or `usize(n)`. Casts are calls; nothing is implicit.
 - A list, map or struct you change in place is `let mut`:
   `let mut xs: List[string] = []`. A number or string needs only `let`,
-  which is already reassignable; `let mut n = 0` is the `redundant-let-mut`
-  warning.
+  which is already reassignable. `hd lint` reports `let mut n = 0` as
+  `redundant-let-mut`; ordinary `hd check` accepts it without advice.
 - Tuples: `pair._0`, `pair._1`, or `let (a, b) = pair`.
 
 ```hd
@@ -120,15 +120,21 @@ A `struct`, an enum, a tuple, a `List`, a `Map` and a `string` are values:
 assigning, passing or returning one copies it, and a copy never changes
 the original. Sharing is written at the place it happens.
 
-- `&T` reads a value where it lives, with no copy. `&mut T` also writes
-  it. A `&mut` is not exclusive: two copies of one reference see each
-  other's writes.
+- Prefer `&T` and `&mut T` for a value lent to one call. These **local
+  references** cannot be put in a field or collection, returned, or
+  captured. Use the visibly more expensive `*T` or `*mut T` only when a
+  reference must be kept past the call. Both kinds are counted at run time.
+- `&T` and `*T` read a value where it lives, with no copy. `&mut T` and
+  `*mut T` also write it. Writable references are not exclusive: two
+  references to one place see each other's writes.
 - `&x` and `&mut x` refer to the variable or field `x` itself. `&mut`
   needs a writable place: a `let mut` variable, a field of one, or
   anything reached through a `&mut`. A `:=` binding, a plain `let` and a
   parameter are not writable.
-- `&mut Point { ... }` (or `&Point { ... }`) on anything that is not a
-  place makes a new object that every holder of the reference shares.
+- Reference expressions still start with `&` or `&mut`. An expected local
+  type makes a local reference; an expected `*T`/`*mut T`, or no expected
+  type, makes a counted one. Annotate a kept reference so that choice is
+  visible: `let shared: *mut Point = &mut Point { ... }`.
 - A method takes `&self` to read and `&mut self` to change its receiver,
   and `p.shift(1)` needs no mark at the call. `self` alone is a read-only
   copy.
@@ -158,7 +164,7 @@ pub fn main() -> void $ Console:
     b := a                                # a copy: nothing is shared
     a.shift(10)                           # changes `a` only
     bump(&mut a)                          # lends `a`; the callee's write shows here
-    shared := &mut Point { x: 0, y: 0 }   # a new object that references share
+    let shared: *mut Point = &mut Point { x: 0, y: 0 }  # kept, counted reference
     alias := shared
     alias.x = 5
     println("${a.x} ${b.x} ${shared.x} ${norm(&a)}")
@@ -213,13 +219,14 @@ pub fn main() -> void $ Console:
 ```
 
 `defer:` takes a suite (`defer: save()` on one line, or an indented body).
-It runs when the block exits, and it cannot print, make bang calls, or
-use `?`. `dbg(x)` prints `x` with its location to stderr and returns `void`,
+It runs when the block exits, and it cannot make bang calls or use `?`;
+`println` is fine there. `dbg(x)` prints `x` with its location to stderr and returns `void`,
 so it is a statement, not a wrapper.
 
 ## Structs, Enums, Match, Errors
 
 ```hd
+use std.annotation.{cold, inline}
 
 struct Item:
     name: string
@@ -239,6 +246,7 @@ enum OrderError:
     @error("bad quantity: $text")
     BadQuantity(text: string)
 
+@inline(.Always)
 fn describe(status: Status) -> string:
     match status:
         .Pending => "pending"
@@ -246,6 +254,7 @@ fn describe(status: Status) -> string:
         .Paid(cents) => "paid $cents"
         .Refunded(cents, reason) => "refunded $cents: $reason"
 
+@cold
 fn quantity(text: string) -> Result[i32, OrderError]:
     match text.parse::[i32]():
         .Ok(n) => .Ok(n)
@@ -285,14 +294,23 @@ pub fn main() -> void $ Console:
   `@derive(Debug)`. JSON needs `@derive(Serialize, Deserialize)` and
   `use std.serde.{Deserialize, Serialize}`; decode with
   `decode::[Config](text)` from `std.json`.
+- Import `inline` and `cold` from `std.annotation`. Bare `@inline` means
+  `.Auto`; `.Always` and `.Never` request the two fixed choices. `@cold`
+  prevents inlining and sends direct calls through the function table. The
+  hints never change output, panics, or panic frames.
+- In a derivation template, `Field[S, F]`, `Variant[S]`, `Members[S]`, and
+  `Key[S]` are read-only counted handles to static structure metadata, not
+  copied metadata records. A handle may therefore be stored or returned.
 
 ## Traits, Trait Values, And Operators
 
 A bound `[T < Shape]` dispatches statically. A trait used as a value is a
-reference, `&dyn Shape` or `&mut dyn Shape`, and the `&` is always
-written: `[&Circle { radius: 1.0 }]` makes new objects, and `&mut c`
-shares `c`. A bare `List[Shape]` is `trait-used-as-type`. Operator traits
-live in `std.ops` and must be imported; the result type is `type Out`.
+reference: prefer local `&dyn Shape` or `&mut dyn Shape` parameters, and
+write counted `*dyn Shape` or `*mut dyn Shape` only when the value escapes,
+as a collection element does. A reference expression is still written
+`&Circle { radius: 1.0 }`; the expected `List[*dyn Shape]` makes it counted.
+A bare `List[Shape]` is `trait-used-as-type`. Operator traits live in
+`std.ops` and must be imported; the result type is `type Out`.
 
 ```hd
 use std.ops.Add
@@ -396,11 +414,13 @@ tests:
 ```
 
 To test printing, bind `console := MemoryConsole::new()` from
-`std.console` (a `&mut MemoryConsole`), run the code inside
+`std.console` (a `*mut MemoryConsole`), run the code inside
 `$.with(Console=console):` and read `console.output()`
 ([tour: requirements](../../../website/tour/12-requirements.md)).
-`MemoryFs`, `ScriptedProcess`, `ScriptedHttp` and `Command::new` return
-`&mut` handles the same way.
+`MemoryFs`, `ScriptedProcess`, `ScriptedHttp`, `ManualClock`,
+`Command::new`, and `ArgParser::new` return `*mut` handles the same way.
+These builders intentionally outlive one call; ordinary parameters and
+receivers should stay local `&` references.
 `it_each` and `it_prop` are in [tour: tests](../../../website/tour/13-tests.md).
 A function that makes a bang call is itself `fn name!(...)`, and so is
 every call to it ([tour: suspension](../../../website/tour/16-suspension.md)).
@@ -430,10 +450,11 @@ no `tests:` block; `hd_run!(Command::new("NAME"))` runs the built program
 
 ## Prelude And std
 
-No `use` needed: the primitive types, `string`, `List`, `Map`, `Option`,
-`Result`, `Display`, `Debug`, `Eq`, `Ord`, `Hash`, `Iterator`, `Console`,
-`ConsoleError`, `println`, `panic`, `debug`, `dbg`, and `it`, `assert`,
-`assert_equal` in tests
+No `use` needed: `never`, the primitive types, `string`, `void`, `List`,
+`Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `Display`, `Debug`,
+`Eq`, `PartialOrd`, `Ord`, `Ordering`, `Hash`, `Iterator`, `Iterable`,
+`Console`, `ConsoleError`, `println`, `panic`, `debug`, `dbg`, `Suspend`,
+and `it`, `assert`, `assert_equal` in tests
 ([full list](../../../spec/lang/10-modules.md#prelude)). Everything else
 is imported:
 
@@ -468,7 +489,7 @@ the code `hd check` reports today.
 | --- | --- | --- |
 | `fn f() -> i32 {` | `syntax-error` | `fn f() -> i32:` and an indented body |
 | `pub fn main() -> void:` calling `println` | `missing-requirement` | `pub fn main() -> void $ Console:` |
-| `fn main()` with no `pub` | `private-main` warning, nothing runs | `pub fn main()` |
+| `fn main()` with no `pub` | `private-main` from `hd lint`; `hd run` reports `missing-entry-point` | `pub fn main()` |
 | `pub fn main()` calling `read_line!()` | `bang-call-outside-suspension` | `pub fn main!()` |
 | `?` in `main!() -> void` | `invalid-result-propagation` | `-> Result[void, ConsoleError]`, end with `.Ok(())` |
 | `$ Console, Clock` | `syntax-error` | `$ Console + Clock` |
@@ -477,7 +498,7 @@ the code `hd check` reports today.
 | `s.len()` used as a character count | (none: wrong result) | `len()` counts bytes; characters are `s.chars().count()` |
 | asserting a test got the error you expected | (none) | `assert_equal(r.is_err(), true, reason=...)`, or `match r:` with `.Err(.Low(balance=b)) => assert_equal(b, 5, ...)` and `.Ok(_) => panic("expected Low")` |
 | `n := +0` then `n = n + 1` | `non-reassignable-binding` | `let n = +0` |
-| `let mut n = +0` | `redundant-let-mut` warning | `let n = +0` |
+| `let mut n = +0` | `redundant-let-mut` from `hd lint` | `let n = +0` |
 | `total: i64 = 0` | `missing-let` | `let total: i64 = 0` |
 | `pub let LIMIT = 3`, `pub LIMIT := 3` | `syntax-error` | private `LIMIT := +3`, plus `pub fn limit() -> i32: LIMIT` |
 | `let xs: List[string] = []` then `xs.push(x)` | `not-writable` | `let mut xs: List[string] = []` |
@@ -488,13 +509,13 @@ the code `hd check` reports today.
 | `p.bump()` on a `:=` binding, `bump` takes `&mut self` | `not-writable` | `let mut p = ...` |
 | `bump(p)` where `bump` takes `&mut P` | `type-mismatch` | `bump(&mut p)` |
 | a write through a `&P` parameter | `not-writable` | take `&mut P` |
+| storing, returning, capturing, or collecting an `&P` | `local-reference-escapes` | keep `&P` local to calls; write `*P` only for the escaping reference |
 | `a == b` on two references | `reference-equality` | `a is b`, or `*a == *b` |
 | `$.with(Mailer=fake)` | `type-mismatch` | `$.with(Mailer=&mut fake)` |
 | `data Item:` | `syntax-error` | `struct Item:` |
 | `xs.append(x)` | `unknown-method` | `xs.push(x)` |
 | `pair.0` | `syntax-error` | `pair._0` |
 | `defer save()` | `syntax-error` | `defer: save()` |
-| `println` inside `defer:` | `suspension-forbidden-context` | record into a list; print after |
 | `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `&Circle { ... }` |
 | `impl Add for Money` with no import | `unknown-trait` | `use std.ops.Add` |
 | `type Output = Money` | `extra-trait-member` | `type Out = Money` |
@@ -513,14 +534,16 @@ the code `hd check` reports today.
 
 ## Recovering An Erased Concrete Type
 
-Import `std.inspect.Inspectable`. Store an erased shared reference as
-`&dyn Inspectable`, or a mutable one as `&mut dyn Inspectable`.
+Import `std.inspect.Inspectable`. Accept a nonescaping erased value as
+`&dyn Inspectable` or `&mut dyn Inspectable`; store or return one as
+`*dyn Inspectable` or `*mut dyn Inspectable`.
 `value.downcast_ref::[User]()` returns `(*User)?`;
 `value.downcast_mut::[User]()` returns `(*mut User)?`.
 The target names the referent: use `User` for an erased `&User`.
 If the referent itself is a reference value, its reference type is the
 target instead. The recovered reference keeps identity with the original reference. Copy its value with `*found`, or with
-`.map(fn(found): *found)`. A written bare `dyn Trait` type is an error; write `&dyn Trait` or `&mut dyn Trait`.
+`.map(fn(found): *found)`. A written bare `dyn Trait` type is an error;
+write local `&dyn Trait` or counted `*dyn Trait`, with `mut` when needed.
 
 ```hd
 use std.inspect.Inspectable

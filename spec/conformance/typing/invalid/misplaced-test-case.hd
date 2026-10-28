@@ -2,5 +2,5 @@
 # Spec 10 Test Cases: a call of it inside a test-only function is misplaced-test-case.
 tests:
     fn helper() -> void:
-        it("nested"):  # diagnostic: misplaced-test-case
+        it("nested"): # diagnostic: misplaced-test-case
             pass

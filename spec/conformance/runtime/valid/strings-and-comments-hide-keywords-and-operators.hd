@@ -18,11 +18,12 @@ use std.ops.str_prefix
 use std.ops.Template
 
 @str_prefix
-fn raw(t: Template[string]) -> string: t.raw_parts[0]
+fn raw(t: Template[string]) -> string:
+    t.raw_parts[0]
 
 pub fn main() -> void $ Console:
-    println("cats and dogs")    # "and" is text here, and in this comment: and or not is in
-    println("not a keyword: if x: y else: z")    # fn if else match while for := => < > $ " ' ` all inert
+    println("cats and dogs") # "and" is text here, and in this comment: and or not is in
+    println("not a keyword: if x: y else: z") # fn if else match while for := => < > $ " ' ` all inert
     println("fn main(): pass => x := 1 -> a :: b ... 1..=2")
     println("a < b > c && d || e == f != g")
     println("costs $5 or $ or \${name}")
@@ -30,7 +31,7 @@ pub fn main() -> void $ Console:
     println(raw"#!/bin/sh")
     println("[ x ] ( y ) { z }")
     println("`fn` stays text")
-    println("\"triple\" quotes")    # a comment with a """ inside it
+    println("\"triple\" quotes") # a comment with a """ inside it
     println("'#' '$' '\"' '{'")
     text := """# also not a comment
 fn x(): pass"""

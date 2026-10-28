@@ -1,3 +1,3 @@
 # test: a type name that reaches nothing in a local annotation is unknown
 fn use_it() -> void:
-    let _values: Missing = []  # diagnostic: unknown-type
+    let _values: Missing = [] # diagnostic: unknown-type

@@ -8,5 +8,5 @@ struct Feed[+T]:
     latest: T
 
 impl[T] Feed[T]:
-    fn warm(self, job: fn() -> void $ Cache[T]) -> void:  # diagnostic: invalid-variance
+    fn warm(self, job: fn() -> void $ Cache[T]) -> void: # diagnostic: invalid-variance
         pass

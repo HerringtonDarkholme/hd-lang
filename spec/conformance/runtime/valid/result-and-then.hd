@@ -30,23 +30,33 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("and_then runs the step on Ok"):
-        assert_equal(port({"port": "9000"}), 9000, reason="both steps succeed")
-        assert_equal(port({"host": "local"}), 8080, reason="the first step fails")
-        assert_equal(port({"port": "9x"}), 8080, reason="the second step fails")
+        assert_equal(port({ "port": "9000" }), 9000, reason="both steps succeed")
+        assert_equal(port({ "host": "local" }), 8080, reason="the first step fails")
+        assert_equal(port({ "port": "9x" }), 8080, reason="the second step fails")
 
     it("and_then keeps the first error and skips the step"):
         let calls = 0
-        result := setting({}, "port").and_then(fn(text: string) -> Result[i32, ConfigError]:
-            calls = calls + 1
-            number(text)
-        )
+        result := setting({}, "port")
+            .and_then(
+                fn(text: string) -> Result[i32, ConfigError]:
+                    calls = calls + 1
+                    number(text)
+                ,
+            )
         assert(missing(result), reason="the first error is kept")
         assert_equal(calls, 0, reason="the step never runs for Err")
 
     it("map_err maps only the error"):
-        assert(bad_digit(setting({"port": "9x"}, "port").and_then(number)), reason="the parse error is wrapped")
+        assert(
+            bad_digit(setting({ "port": "9x" }, "port").and_then(number)),
+            reason="the parse error is wrapped",
+        )
         let ok: Result[i32, string] = .Ok(3)
-        assert_equal(ok.map_err(fn(error: string) -> usize: error.len()), .Ok(3), reason="Ok passes through")
+        assert_equal(
+            ok.map_err(fn(error: string) -> usize: error.len()),
+            .Ok(3),
+            reason="Ok passes through",
+        )
 
     it("unwrap_or keeps an Ok value"):
         let ok: Result[i32, string] = .Ok(3)

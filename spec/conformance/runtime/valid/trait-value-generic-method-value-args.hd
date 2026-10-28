@@ -23,8 +23,7 @@ impl Labeler for Brackets:
         self.open + value.to_string() + self.close
 
     fn first[T](self, items: List[T], fallback: T) -> T:
-        if items.len() == 0: fallback
-        else: items[0]
+        if items.len() == 0: fallback else: items[0]
 
 fn labeler() -> *dyn Labeler:
     &Brackets { open: "[", close: "]" }

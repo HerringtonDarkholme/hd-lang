@@ -3,4 +3,4 @@ struct User:
     name: string
 
 fn invalid(user: &User) -> void:
-    user.name = "Grace"  # diagnostic: not-writable
+    user.name = "Grace" # diagnostic: not-writable

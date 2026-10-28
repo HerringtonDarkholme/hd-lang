@@ -15,13 +15,15 @@ impl Disposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
-        wait!()                  # block_on waits here on the host timer
+        wait!() # block_on waits here on the host timer
         self.log.push("closed")
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 fn work!(log: &mut List[string]) -> string $ Clock:
-    defer: log.push("work defer")
+    defer:
+        log.push("work defer")
     sleep!(s(60))
     "late"
 
@@ -35,7 +37,8 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 # cancelled, and so is `both`, the suspension that block_on drives. Its
 # cleanup waits in the dispose of `conn`, and block_on drives it to its end.
 fn both!(job: mut Suspend[string], log: *mut List[string]) -> string $ Clock:
-    defer: log.push("both defer")
+    defer:
+        log.push("both defer")
     using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     let (worked, stopped) = all!(job, stop(job, log))
     "${worked} ${stopped}"

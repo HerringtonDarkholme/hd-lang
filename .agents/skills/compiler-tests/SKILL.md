@@ -1,6 +1,6 @@
 ---
 name: compiler-tests
-description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance with bench/study (about 300 ms per program, --quick, hd-only before/after). Use when adding or changing a compiler test, checking what a stage emits for some code, or measuring a perf change.
+description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance (perf jobs: attribute, then a ceiling experiment, then build), run the gates for a compiler change (conformance in three modes, stage tests), and report perf and size in the standard table (every bench program against JS, the three V8 tier columns, sizes, compile time). Use when adding or changing a compiler test, checking what a stage emits for some code, gating a compiler change, or measuring a perf change.
 ---
 
 # Test The hd Compiler
@@ -113,19 +113,101 @@ dead branch), add a case for it under a topic such as `counts/` or
 fix it. The fix then shows up as a reviewed baseline diff. Do not fix it by
 special-casing the pattern in the emitter; fix the cause.
 
-## Benchmarks
+## Gates For A Compiler Change
 
-`bench/study/` has each program in hd, JavaScript, Go and Python, tuned
-so hd on V8 takes about 300 ms. Results and the Wasm GC-era column are in
-[bench/README.md](../../../bench/README.md).
+Run these in the background, and grep each whole log for
+`FAILED|panicked`; the count must be 0. Use `nice` and `-j 4`, with the
+dev profile for tests.
 
-- `node bench/study/run.mjs --quick`: hd on V8 only, 3 runs, about a
-  minute. Use it before and after every perf change.
-- `node bench/study/run.mjs`: hd on V8 and wasmtime plus the references,
-  median of 5, about 7 minutes. Run it once after a batch of perf work.
-- Report integer milliseconds. For a perf issue, measure **hd only, before
-  and after**, on the programs it targets, on the same machine; note the
-  load if it is high.
-- Owner target: every program at most 1.2x its Wasm GC-era time, then
-  Node parity.
-- Release builds wrap integer overflow (`--release`), as Rust does.
+- `cargo fmt --check`, and `cargo clippy --all-targets -- -D warnings`.
+- Driver conformance in three modes: `cargo test -p hd_driver --test
+  conformance`, again with `HD_CONFORMANCE_PIPELINE=optimized`, and again
+  with `HD_CONFORMANCE_CHECKED=1`.
+- `cargo test -p hd_driver`, the touched crates' tests, `cargo test -p
+  hd_check --test stages`, and `bash spec/check.sh`.
+- Add the rest of shared-rules.md "Git And Safety" for other touched
+  paths: `hd_cli` tests, the web compiler, UI.
+- Bless a baseline only for an intended change, and list each blessed
+  file in the report.
+
+## Perf Work: Attribute, Ceiling, Build
+
+Every perf job runs these three steps in order. A step that shows the
+job can't pay ends it: close the issue with the numbers, as a measured
+miss. Don't build first and measure after.
+
+1. **Attribute.** Count where the cost actually is before changing
+   anything: a call counter keyed by call site or type, a profile, or
+   TurboFan node counts per function. Check the ticket's guess against it,
+   because tickets are often wrong. #909 guessed trait values, and the
+   cost was one `List[string]` field. #920 guessed the inlined callees, and
+   the cause was caller size. Post the breakdown in the report.
+Size every measurement as a benchmark: about 300 ms of work per run
+(matklad's rule of thumb), and report throughput (items per run) or run
+time, never per-call nanoseconds. Fixed costs swamp shorter runs.
+
+2. **Ceiling.** Build the cheapest hack that removes the attributed cost
+   entirely. It may be unsafe, behind an environment variable, or only
+   valid for the bench. Measure it at all three V8 tiers, interleaved.
+   That is the most the real change can win. If it's under about 3% on the
+   target program, or it only helps one tier while hurting another, stop.
+   Examples: #704's count-only hack showed −14% on binary_trees before it
+   was built; #901's add-or-remove-every-lookup run bounded it at 4–9%;
+   #876's shadow-stack run showed returns into a slot only grew code.
+3. **Build.** Only now write the real change, with fixtures and the
+   gates, one cause per commit. Then report it with the table below.
+
+The 3% bar decides whether a change is worth *building*. It doesn't block
+*merging*. A change that is already built, small, sound, and slows no tier
+and no program (a pure win, even if under 3%) merges. Example: moving the
+collector-due check to the slow path, -1.8% default and -7.8% Liftoff.
+Don't merge a change that adds real complexity for a sub-3% gain: #893 was
+92 bytes of hello for about 200 lines.
+
+Known measured misses not to retry without new evidence: inlining count
+fast paths on V8 (#644, #910), removing inline targets to shrink TurboFan
+graphs (#884, #920), a flag bit or fat views for strings (#901), returns
+into a caller slot (#876), removing local shuffles for TurboFan time
+(#926: `local.get/set/tee` build no TurboFan nodes, so they cost bytes
+only).
+
+## Perf And Size Report
+
+Every perf change reports the same table, so results compare across jobs.
+
+- **Every program, hd only, base and head:** the 11 study programs plus
+  every one in `bench/runtime/progs` (20 in all today; count the directory). Use
+  `node bench/study/run.mjs --no-refs` in release mode with `--engines node`,
+  or interleaved runs of the two compilers' modules. Give each program's
+  ms before and after, the geometric mean of head/base, and the machine
+  load.
+- **Three V8 columns** for any program whose Wasm changed: default tier,
+  `--no-liftoff` and `--liftoff-only`. Wasm has no on-stack replacement,
+  so one long call stays in Liftoff (#724; the owner leaves tiering
+  alone). Name any default-tier change that comes only from tiering.
+- **Interleaved base/head runs** for each program whose Wasm changed.
+  Pick the run count by purpose: about 5 (`--runs 5`) to fast-check
+  whether an idea moves anything; 15 for this table, baselines and
+  iterating; 31 only when a result is under about 3% or the two sides'
+  spreads overlap. Machine load and tier-up timing cost more accuracy
+  than a smaller run count does, so record the load. Programs whose Wasm is
+  byte-identical (check md5) need no timing.
+- **Sizes:**
+  - hello.wasm in dev and release; unexplained growth blocks the commit;
+  - each program's Wasm bytes;
+  - the web compiler's gzip size (`node scripts/build-web-compiler.js`;
+    2 MB is a hard cap).
+- **Compile time:** json release compile, cold cache, interleaved. The
+  compiler must not get slower.
+- **Reference languages** (hand-written JS, MoonBit linear and wasm-gc,
+  Rust, Go, Python, any added later) are not part of a per-commit report.
+  The orchestrator runs them once after a round of merges (owner,
+  2026-10-26): `node bench/study/run.mjs` with references,
+  `node bench/runtime/run.mjs --release`, and
+  `node bench/study/moonbit/compare.mjs`.
+- **Goal:** beat hand-written JS on every program except
+  `progs/string-build` (the deliberately naive `out + s` loop). Then beat
+  MoonBit's linear backend clearly on every program at every tier (#866).
+  Then MoonBit's wasm-gc backend (#913).
+- Report integer milliseconds. Release builds wrap integer overflow, as
+  Rust does.

@@ -12,15 +12,19 @@ trait Badged < Titled:
 struct Chief: pass
 
 impl Named for Chief:
-    fn name(self) -> string: "ada"
+    fn name(self) -> string:
+        "ada"
 
 impl Titled for Chief:
-    fn title(self) -> string: "chief"
+    fn title(self) -> string:
+        "chief"
 
 impl Badged for Chief:
-    fn badge(self) -> string: "gold"
+    fn badge(self) -> string:
+        "gold"
 
-fn named(value: *dyn Badged) -> *dyn Named: value
+fn named(value: *dyn Badged) -> *dyn Named:
+    value
 
 tests:
     use std.testing.assert_equal

@@ -33,10 +33,7 @@ fn break_value!(ms: i64) -> i32 $ Clock:
     total + 1
 
 fn branch_tail!(flag: bool, ms: i64) -> i32 $ Clock:
-    if flag:
-        fetch!(5, ms)
-    else:
-        fetch!(6, ms)
+    if flag: fetch!(5, ms) else: fetch!(6, ms)
 
 fn range_sum!(ms: i64) -> i32 $ Clock:
     let sum = +0
@@ -56,4 +53,6 @@ pub fn main!() -> void $ Console + Clock:
     for ms in [0, 1]:
         xs := guarded!([1, 2, 3], ms)
         trailing_if!(ms)
-        println("${xs.len()} ${xs[0]} ${xs[1]} ${while_body!(ms)} ${break_value!(ms)} ${branch_tail!(true, ms)} ${branch_tail!(false, ms)} ${range_sum!(ms)} ${retry!(ms)}")
+        println(
+            "${xs.len()} ${xs[0]} ${xs[1]} ${while_body!(ms)} ${break_value!(ms)} ${branch_tail!(true, ms)} ${branch_tail!(false, ms)} ${range_sum!(ms)} ${retry!(ms)}",
+        )

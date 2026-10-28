@@ -4,7 +4,7 @@ struct Meter:
     scale: i32
 
 made := Meter { scale: +2 }
-reading := made.read()  # diagnostic: top-level-read-before-initialization
+reading := made.read() # diagnostic: top-level-read-before-initialization
 
 offset := +1
 

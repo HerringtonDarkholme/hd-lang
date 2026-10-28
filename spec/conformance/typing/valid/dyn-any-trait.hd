@@ -10,9 +10,12 @@ struct Square:
     side: f64
 
 impl Shape for Square:
-    fn area(self) -> f64: self.side * self.side
-    fn same(self, other: Square) -> bool: self.side == other.side
-    fn unit() -> Square: Square { side: 1.0 }
+    fn area(self) -> f64:
+        self.side * self.side
+    fn same(self, other: Square) -> bool:
+        self.side == other.side
+    fn unit() -> Square:
+        Square { side: 1.0 }
 
 fn total(shapes: List[*dyn Shape]) -> f64:
     let sum = 0.0

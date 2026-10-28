@@ -61,7 +61,9 @@ recommendation is advice, labeled as such.
    human readability, implementation cost, and evolution.
 8. **Recommend.** Under a heading **Recommendation**, pick one option or
    an ordering and say why in a short list. Say what the recommendation
-   gives up, and name the next best option.
+   gives up, and name the next best option. When the survey shows a best
+   practice, recommend it unless an anti case shows it doesn't fit hd;
+   state that anti case and the trade-off.
 9. **Ask.** End with numbered questions for the owner, one idea each. Each
    question lists its options, the recommended one, and a short example.
 

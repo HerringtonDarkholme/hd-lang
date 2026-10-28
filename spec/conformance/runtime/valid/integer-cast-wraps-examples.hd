@@ -1,7 +1,9 @@
 # test: an integer cast keeps the low bits, so 300 as u8 is 44 and 200 as i8 is -56
 # Spec 04 Numeric Conversions: types.cast.wrap.example.
-fn byte(value: i32) -> u8: u8(value)
-fn signed_byte(value: i32) -> i8: i8(value)
+fn byte(value: i32) -> u8:
+    u8(value)
+fn signed_byte(value: i32) -> i8:
+    i8(value)
 
 tests:
     use std.testing.assert_equal

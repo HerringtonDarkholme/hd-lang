@@ -5,5 +5,5 @@ trait Cache[T]:
     fn get(self, key: string) -> T?
 
 enum Refresh[-T]:
-    Scheduled(job: fn() -> void $ Cache[T])  # diagnostic: invalid-variance
+    Scheduled(job: fn() -> void $ Cache[T]) # diagnostic: invalid-variance
     Idle

@@ -18,5 +18,9 @@ tests:
     use std.testing.assert_equal
 
     it("the marked variant is the default"):
-        assert_equal(Shape::default(), Shape.Square(0.0, ""), reason="payload members take their defaults")
+        assert_equal(
+            Shape::default(),
+            Shape.Square(0.0, ""),
+            reason="payload members take their defaults",
+        )
         assert_equal(Level::default(), Level.Mid, reason="a payload-free marked variant")

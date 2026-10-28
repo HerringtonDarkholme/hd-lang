@@ -6,10 +6,12 @@ trait Choose[T]:
 struct Item: pass
 
 impl Choose[bool] for Item:
-    fn choose[U](self, run: fn(bool) -> U) -> U: run(true)
+    fn choose[U](self, run: fn(bool) -> U) -> U:
+        run(true)
 
 impl Choose[i32] for Item:
-    fn choose[U](self, run: fn(i32) -> U) -> U: run(40)
+    fn choose[U](self, run: fn(i32) -> U) -> U:
+        run(40)
 
 fn main() -> i32:
     Item {}.choose::[i32](run=fn(value): value + 2)

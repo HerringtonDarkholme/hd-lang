@@ -18,13 +18,15 @@ fn total(values...: List[i32]) -> i32:
         sum = sum + value
     sum
 
-fn joined(a: usize, b: usize, xs...: List[i32]) -> usize: a + b + xs.len()
+fn joined(a: usize, b: usize, xs...: List[i32]) -> usize:
+    a + b + xs.len()
 
 fn tail_count(t: (usize, List[i32]...)) -> usize:
     let (_, xs...) = t
     xs.len()
 
-fn pair_up(a: i32, b: i32) -> (i32, i32): (a, b)
+fn pair_up(a: i32, b: i32) -> (i32, i32):
+    (a, b)
 
 pub fn main() -> void $ Console:
     nums := [+1, +2, +3]

@@ -1,0 +1,26 @@
+# @dump: own
+fn digits(value: u64) -> List[u8]:
+    let mut buf: List[u8] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    let i: usize = 21
+    let v = value
+    while v > 0:
+        i = i - 1
+        buf[i] = 49
+        v = v / 10
+    buf
+
+fn pushes(n: usize) -> List[i32]:
+    let mut items: List[i32] = []
+    items.push(+1)
+    if n > 2:
+        items.push(+2)
+    items[0] = +3
+    let p = items.pop()
+    items
+
+fn copied(n: usize) -> List[i32]:
+    let mut items: List[i32] = [+1]
+    other := items
+    items.push(+2)
+    items[0] = other[0]
+    items

@@ -1,9 +1,8 @@
-//! `Console` and `ConsoleInput`. A write that goes straight to its stream
-//! in full completes at its `.start`. What a full pipe leaves stays
-//! pending until the ordered writer thread writes it, so a full pipe
-//! cannot block polling.
-//! `write_error` uses that same queue after prior standard output
-//! (`module.console.write-error.raw`);
+//! `Console` and `ConsoleInput`. A write never suspends: it goes straight
+//! to its stream when it can, and otherwise blocks until the ordered
+//! writer thread has written it (`module.console.write-sync.never-suspends`).
+//! `write_error_sync` uses that same queue after prior standard output
+//! (`module.console.write-error-sync.raw`);
 //! `read_line` and `read_all` are pending until the reactor's reader thread
 //! has read the next line, or the rest, of standard input, so a program's
 //! other operations go on while it waits for input.
@@ -14,9 +13,8 @@ use crate::abi::{ConsoleError, HostMethod, Id};
 use crate::host::{Host, Ret, Stop, bytes, handle, int_arg};
 use crate::runtime::reactor::{Stream, Work};
 
-/// A `Console.write`, `Console.write_error` or
-/// `ConsoleInput.read_line` `.start`, or its
-/// `.finish` when `finish`.
+/// A `Console.write_sync` or `Console.write_error_sync` call, or a
+/// `ConsoleInput` `.start`, or its `.finish` when `finish`.
 pub(crate) fn call(
     method: &'static HostMethod,
     finish: bool,
@@ -24,36 +22,20 @@ pub(crate) fn call(
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
     Ok(match method.id {
-        Id::ConsoleWrite | Id::ConsoleWriteError if finish => {
-            let h = int_arg(params, 0)?;
-            caller.data_mut().reactor.remove(handle(h));
-            Ret::value(&Ok::<(), ConsoleError>(()))
-        }
-        Id::ConsoleWrite | Id::ConsoleWriteError => {
+        Id::ConsoleWriteSync | Id::ConsoleWriteErrorSync => {
             let line = bytes(caller, int_arg(params, 0)?)?;
+            let out = method.id == Id::ConsoleWriteSync;
             if !caller.data().grants.allows("Console") {
-                let subject = if method.id == Id::ConsoleWrite {
-                    "stdout"
-                } else {
-                    "stderr"
-                };
-                return Ret::ready(crate::codec::encode(&Err::<(), _>(
-                    ConsoleError::NotGranted {
-                        subject: subject.into(),
-                    },
-                )));
+                let subject = if out { "stdout" } else { "stderr" };
+                return Ok(Ret::value(&Err::<(), _>(ConsoleError::NotGranted {
+                    subject: subject.into(),
+                })));
             }
             // Normalize invalid UTF-8 through the text boundary.
             let line = String::from_utf8_lossy(&line).into_owned().into_bytes();
-            let to = if method.id == Id::ConsoleWrite {
-                Stream::Out
-            } else {
-                Stream::Err
-            };
-            match caller.data_mut().write_console(to, line) {
-                Some(h) => Ret::pair(1, h),
-                None => Ret::ready(crate::codec::encode(&Ok::<(), ConsoleError>(())))?,
-            }
+            let to = if out { Stream::Out } else { Stream::Err };
+            caller.data_mut().write_console(to, line);
+            Ret::value(&Ok::<(), ConsoleError>(()))
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.

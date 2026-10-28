@@ -6,6 +6,7 @@
 //! Constants: `Ref::konst(i)` names row `i` of the body's own constant
 //! column (`consts`), so a body and its TIR hash need no run-wide table.
 
+use hd_base::SliceSort as _;
 use std::fmt::Write as _;
 
 use hd_base::{
@@ -269,13 +270,6 @@ pub enum IntrinsicOp {
     MapSlotNext,
     /// `(map, slot) -> (K, V)`: the entry in a live slot.
     MapSlotEntry,
-    /// `(collection) -> collection`: the snapshot a counted `for` over a
-    /// list or a map iterates (`flow.for.snapshot`): it shares the
-    /// collection's buffer, which a change during the loop copies first.
-    SnapBegin,
-    /// `(collection, snapshot)`: the loop over `snapshot` has ended; a
-    /// collection the loop did not change stops copying for it.
-    SnapEnd,
     /// `(map, key) -> usize`: the number of the key's entry, a panic
     /// `index-out-of-bounds` when the map holds no equal key. A map value
     /// is a place, `[%m [%e]]` at that number (`ref.elem.map`,
@@ -284,10 +278,15 @@ pub enum IntrinsicOp {
     /// place checks its index there. Entry numbers survive the copy that
     /// makes a map's table unique; only growth renumbers them.
     MapEntry,
+    /// `(list, count)`: room for `count` more elements, so that many
+    /// pushes grow no buffer (std's `list_reserve` on a value). A
+    /// comprehension over a source of known length reserves its result
+    /// once before its loop. It changes the list as a push does.
+    ListReserve,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 16] = [
+    pub const ALL: [IntrinsicOp; 15] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -301,9 +300,8 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlots,
         IntrinsicOp::MapSlotNext,
         IntrinsicOp::MapSlotEntry,
-        IntrinsicOp::SnapBegin,
-        IntrinsicOp::SnapEnd,
         IntrinsicOp::MapEntry,
+        IntrinsicOp::ListReserve,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {
@@ -894,8 +892,9 @@ pub struct Body {
     /// The inliner's copies, each `[first, len, callee, call]`, sorted:
     /// an anchor `INLINED | a` with `first <= a < first + len` names
     /// instruction `a - first` of the callee's checker body, which the
-    /// copy's call at anchor `call` ran ([`Body::inlined_frame`]). Never
-    /// written to the wire.
+    /// copy's call at anchor `call` ran ([`Body::inlined_frame`]); `call`
+    /// is itself `INLINED | a` of an earlier row for a copy made inside a
+    /// copy (release, bottom-up). Never written to the wire.
     pub inlined: Vec<[u32; 4]>,
 }
 
@@ -945,6 +944,40 @@ impl Body {
         } else {
             self.anchors.get(i as usize).copied().unwrap_or(NONE)
         }
+    }
+
+    /// Whether instruction `i` is a `Coerce` that keeps its operand's
+    /// values as they are (`Weaken`, `Variance`, `RowSubsume`,
+    /// `SuspendFnToCtor`, `Identity`, `ProviderAsRef`): its value is its
+    /// operand's, so it takes the operand's count, or none of a borrow.
+    #[must_use]
+    pub fn same_value_coercion(&self, i: usize) -> bool {
+        self.tags.get(i) == Some(&Tag::Coerce)
+            && self
+                .extra
+                .get(self.data[i][1] as usize + 1)
+                .is_some_and(|&k| {
+                    [
+                        Coercion::Weaken,
+                        Coercion::Variance,
+                        Coercion::RowSubsume,
+                        Coercion::SuspendFnToCtor,
+                        Coercion::Identity,
+                        Coercion::ProviderAsRef,
+                    ]
+                    .iter()
+                    .any(|c| *c as u32 == k)
+                })
+    }
+
+    /// Whether value `v` is a [`Body::same_value_coercion`] of a `borrow`
+    /// read: a borrow too, which holds no count.
+    #[must_use]
+    pub fn is_borrowed_coercion(&self, v: u32) -> bool {
+        Ref(v).as_inst().is_some()
+            && (v as usize) < self.len()
+            && self.same_value_coercion(v as usize)
+            && self.is_borrow(self.data[v as usize][0])
     }
 
     /// Whether value `v` is a `borrow` read's value.
@@ -1800,7 +1833,7 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
                 let (cases, default) = r.split_at(r.len().saturating_sub(1));
                 if default.first().is_some_and(|d| *d == NONE) {
                     let mut seen: Vec<u32> = cases.iter().step_by(2).copied().collect();
-                    seen.sort_unstable();
+                    seen.sort_stable();
                     seen.dedup();
                     let have = u32::try_from(seen.len()).expect("cases");
                     if let Some(n) = ty_of(a).and_then(|t| cx.variant_count(t))
@@ -1942,7 +1975,7 @@ pub fn global_place_types(b: &Body) -> Vec<usize> {
         })
         .map(|(word, _)| word as usize + 3)
         .collect();
-    out.sort_unstable();
+    out.sort_stable();
     out.dedup();
     out
 }
@@ -1982,7 +2015,7 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
             tag => is_suspension(tag),
         })
         .collect();
-    out.sort_unstable();
+    out.sort_stable();
     out
 }
 
@@ -2379,7 +2412,7 @@ fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
         let mut rows = slot_words(b, i, |s| matches!(s, Word::Value(_) | Word::Provider));
         rows.retain(|&v| v != NONE && v & Ref::CONST_BIT != 0);
         // A constant can fill two slots.
-        rows.sort_unstable();
+        rows.sort_stable();
         rows.dedup();
         for k in rows.into_iter().map(|v| v & !Ref::CONST_BIT) {
             if k as usize >= b.consts.len() {

@@ -10,18 +10,19 @@ mod doctest;
 pub mod edit;
 mod manifest;
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, ModuleId};
+use hd_base::{FileId, FolderId, ModuleId, Span};
 use hd_diag::Code;
 
 pub use doctest::{DocTest, doc_tests};
 pub use manifest::{
-    CAPABILITY_KEYS, Executable, Grant, HostDeclarations, HostPath, HostProvider, Manifest,
-    ManifestError, Problem, Requirement, Version, Workspace, capability_insertion,
-    capability_insertion_for, compatibility_line, grant_problem, host_path, is_capability_selector,
-    key_problem, parse_manifest, problems, requirement_problem,
+    CAPABILITY_KEYS, Executable, Grant, HostDeclarations, HostPath, HostProvider, LintNames,
+    LintTable, Manifest, ManifestError, Problem, Requirement, Version, Workspace,
+    capability_insertion, capability_insertion_for, compatibility_line, grant_problem, host_path,
+    is_capability_selector, key_problem, parse_manifest, problems, requirement_problem,
 };
 
 /// One file of a source set: its package-relative path with `/`.
@@ -78,6 +79,19 @@ pub enum Role {
     Exe,
     Test,
     Task,
+}
+
+/// A written top-level `main` and its module's discovered source role.
+/// Tools decide whether it needs advice; no diagnostic or policy is stored here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MainSite {
+    pub span: Span,
+    pub public: bool,
+    pub entry_module: bool,
+    pub make_public_exact: bool,
+    pub role: Role,
+    pub entry: bool,
+    pub source_root: bool,
 }
 
 /// The root a file's module path and its relative uses start from (§4.7).
@@ -548,11 +562,10 @@ fn invalid_module_component(file: &str) -> Option<String> {
 /// files), which no source spells, so they are exempt.
 fn is_module_ident(comp: &str) -> bool {
     use unicode_ident::{is_xid_continue, is_xid_start};
-    use unicode_normalization::UnicodeNormalization;
     if comp.contains('$') {
         return true;
     }
-    if comp.is_empty() || !comp.nfc().eq(comp.chars()) {
+    if comp.is_empty() || !hd_syntax::is_nfc(comp) {
         return false;
     }
     let mut chars = comp.chars();
@@ -950,14 +963,17 @@ fn fold_case(c: char, out: &mut String) {
 /// Full default Unicode case folding followed by NFC per component
 /// (`module.path.case-collision`). Turkic-only mappings are excluded.
 fn folded_path(path: &str) -> String {
-    use unicode_normalization::UnicodeNormalization;
     path.split('.')
         .map(|part| {
             let mut folded = String::new();
             for c in part.chars() {
                 fold_case(c, &mut folded);
             }
-            folded.nfc().collect::<String>()
+            if folded.is_ascii() {
+                folded
+            } else {
+                hd_syntax::normalize_nfc(&folded)
+            }
         })
         .collect::<Vec<_>>()
         .join(".")
@@ -1043,7 +1059,7 @@ impl ModuleTable {
         for (pi, p) in packages.iter().enumerate() {
             let pi = u16::try_from(pi).expect("packages");
             let mut entries = p.sources.list();
-            entries.sort_by(|a, b| a.path.cmp(&b.path));
+            entries.sort_stable_by(|a, b| a.path.cmp(&b.path));
             if p.scope == Scope::Library {
                 entries.retain(|e| {
                     matches!(Root::of(&e.path), (Root::Source, rest) if rest != "main.hd")
@@ -1393,7 +1409,7 @@ impl ModuleTable {
                 .extend(old[i].modules.iter().copied());
         }
         for f in &mut self.folders {
-            f.modules.sort_by_key(|m| m.raw());
+            f.modules.sort_stable_by_key(|m| m.raw());
             for &m in &f.modules {
                 self.modules[m.idx()].folder = f.id;
             }
@@ -1595,7 +1611,7 @@ impl FolderGraph {
                 }
             }
             if scc.len() > 1 {
-                scc.sort_by_key(|g| g.raw());
+                scc.sort_stable_by_key(|g| g.raw());
                 self.cycles.push(scc);
             }
         }

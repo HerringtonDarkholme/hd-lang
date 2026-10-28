@@ -10,7 +10,8 @@ later := +5
 
 impl Apply for Tag:
     type Out = i32
-    fn apply(self) -> i32: self.n + later
+    fn apply(self) -> i32:
+        self.n + later
 
 pub fn main() -> void $ Console:
     println(first)

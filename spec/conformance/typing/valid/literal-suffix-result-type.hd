@@ -10,7 +10,7 @@ fn ticks(count: i64) -> Millis:
     Millis { count: count }
 
 fn delay() -> Millis:
-    250ticks  # ticks(250): Millis
+    250ticks # ticks(250): Millis
 
 fn both() -> List[Millis]:
     [5ticks, 250ticks]

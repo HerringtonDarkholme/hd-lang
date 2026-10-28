@@ -42,6 +42,12 @@ before relying on one, because they change.
   `defer` stays. Do not propose `Drop` or `using` as the answer.
 - Per-tool authority reports are application-level. Do not raise them as a
   language next step.
+- Follow prior art's best practice by default: the behavior of the
+  established reference (serde and serde_json for serialization, Go
+  net/http and reqwest for HTTP, Rust std for collections). A design that
+  differs states the difference, the anti case where the prior art fails
+  or doesn't fit hd, and the trade-off. An undiscussed difference is a
+  review finding.
 
 ## Spec Tiers
 
@@ -154,9 +160,6 @@ blocks.forEach((m, i) => {
   another agent's full check runs, unless the owner asks for parallel runs.
 - Before any check, run `git fetch origin` and rebase on `origin/main`. A
   stale `origin/main` gets the push rejected anyway.
-- Never read, print, or copy credential files: `~/.npmrc`, `~/.netrc`,
-  `~/.git-credentials`, `~/.ssh/*`, `.env` files, `~/.config/gh/*`, or any
-  token store.
 
 ## Writing hd Code
 

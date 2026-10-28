@@ -4,4 +4,4 @@
 # fixed:     {}
 
 fn empty() -> Map[i64, string]:
-    Map.new()  # diagnostic: unknown-method
+    Map.new() # diagnostic: unknown-method

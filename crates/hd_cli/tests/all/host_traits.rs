@@ -573,23 +573,23 @@ fn http_server() -> u16 {
     port
 }
 
-const HTTP_PROGRAM: &str = "use std.http.{Http, HttpError, Method, Request, Response, get}
+const HTTP_PROGRAM: &str = "use std.http.{Http, HttpError, Method, Request, Response, Url, get}
 use std.host.{Args, args}
 
 fn show!(r: Result[Response, HttpError]) -> string:
     match r:
-        .Ok(response) => \"${response.status} ${response.text()} ${debug(response.header(\"SET-COOKIE\"))} ${response.headers.len()}\"
-        .Err(.Status(response)) => \"status error ${response.status} ${response.text()}\"
+        .Ok(response) => \"${response.status.code()} ${response.text().expect(\"body\")} ${debug(response.header(.SetCookie))} ${response.headers.entries().len()}\"
+        .Err(.Status(response)) => \"status error ${response.status.code()} ${response.text().expect(\"body\")}\"
         .Err(e) => \"${debug(e)}\"
 
 pub fn main!() -> void $ Console + Http + Args:
     base := args()[0]
     println(show!(get!(\"${base}/ok\")))
     println(show!(get!(\"${base}/redirect\")))
-    println(show!(Request::get(\"${base}/redirect\").redirects(0).send!()))
+    println(show!(Request::get(Url::parse(\"${base}/redirect\").expect(\"URL\")).send!(0)))
     println(show!(get!(\"${base}/nothing\")))
     println(show!(get!(\"${base}/loop\")))
-    println(show!(Request { method: Method.Post, url: \"${base}/echo\", headers: [(\"Content-Type\", \"text/plain\")], body: \"abc\".to_utf8() }.send!()))
+    println(show!(Request::post(Url::parse(\"${base}/echo\").expect(\"URL\")).set_text(\"abc\").send!()))
     println(show!(get!(\"http://example.com/\")))
     println(show!(get!(\"ftp://127.0.0.1/\")))
     println(show!(get!(\"http://bücher.example/\")))
@@ -678,7 +678,7 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
         &dir.join("src/lib.hd"),
         "use std.http.{Http, get}\nuse std.task.block_on\n\n\
          pub fn status_of(url: string) -> u16 $ Http:\n    \
-         match block_on(get(url)):\n        .Completed(.Ok(response)) => response.status\n        _ => 0\n",
+         match block_on(get(url)):\n        .Completed(.Ok(response)) => response.status.code()\n        _ => 0\n",
     );
     write(
         &dir.join("tests/fetch.hd"),
@@ -847,16 +847,16 @@ fn http_requests_carry_a_host_header() {
     let dir = work("host-http-host");
     write(
         &dir.join("main.hd"),
-        "use std.http.{Http, Request, get}
+        "use std.http.{Http, Request, Url, get}
 use std.host.{Args, args}
 
 pub fn main!() -> void $ Console + Http + Args:
     base := args()[0]
     match get!(\"${base}/host\"):
-        .Ok(r) => println(r.text())
+        .Ok(r) => println(r.text().expect(\"body\"))
         .Err(e) => println(debug(e))
-    match Request { url: \"${base}/host\", headers: [(\"Host\", \"example.test\")] }.send!():
-        .Ok(r) => println(r.text())
+    match Request::get(Url::parse(\"${base}/host\").expect(\"URL\")).set_header(.Host, \"example.test\").send!():
+        .Ok(r) => println(r.text().expect(\"body\"))
         .Err(e) => println(debug(e))
 ",
     );

@@ -9,7 +9,7 @@ fn ticks(count: i64) -> Millis:
     Millis { count: count }
 
 fn delay() -> i64:
-    250ticks  # diagnostic: type-mismatch
+    250ticks # diagnostic: type-mismatch
 
 pub fn main() -> void:
     pass

@@ -395,7 +395,7 @@ fn charge(price: Money) -> Money:
 > written, and an error never blames a distant line.
 
 > **Note.** `let mut i = 0` gets the warning of
-> [`types.bind.let-mut-primitive-unused`](#r-types.bind.let-mut-primitive-unused)
+> [`types.bind.let-mut-primitive-lint`](#r-types.bind.let-mut-primitive-lint)
 > unless `&mut i` is taken: a number is primitive at every width.
 
 > **Note.** A type that only an implementation names is not one the
@@ -1173,7 +1173,7 @@ fn invalid() -> void:
 ```
 
 3. r[types.bind.let-mut-primitive-local] `let mut` on a local whose type is primitive, as in `let mut n = 0`, is valid, since `&mut n` needs a writable place.
-4. r[types.bind.let-mut-primitive-unused] When no `&mut` of such a local is taken, its `mut` changes nothing, and it gets a warning whose fix-it removes the `mut`. Warning: `redundant-let-mut`.
+4. r[types.bind.let-mut-primitive-lint] When no `&mut` of such a local is taken, its redundant `mut` produces a lint finding with a removal fix-it. Warning: `redundant-let-mut`.
 5. r[types.bind.let-mut-primitive-top] `let mut` on a top-level binding whose type is primitive is an error. Error: `mut-on-primitive`.
 6. r[types.bind.let-mut-primitive.hint] The diagnostic says that a plain `let` is already reassignable.
 7. r[types.bind.let-mut-tuple-valid] `let mut` on a name whose type is a tuple, as in `let mut pair = (1, 2)`, is valid.

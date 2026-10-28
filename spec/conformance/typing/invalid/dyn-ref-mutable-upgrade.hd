@@ -3,4 +3,4 @@ trait Counter:
     fn bump(&mut self) -> void
 
 fn upgrade(counter: *dyn Counter) -> *mut dyn Counter:
-    counter  # diagnostic: mutable-upgrade
+    counter # diagnostic: mutable-upgrade

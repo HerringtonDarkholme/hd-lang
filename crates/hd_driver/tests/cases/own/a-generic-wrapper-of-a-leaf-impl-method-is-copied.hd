@@ -1,0 +1,25 @@
+# @dump: own
+# @build: v8 release
+# Release inlining bottom-up: `apply[Double]`'s body is a call of
+# `Double.step`, a leaf; once that call is a copy, the instance calls
+# nothing, so each call of `apply` is a copy too and the loop calls nothing.
+trait Step:
+    fn step(self, x: i32) -> i32
+
+struct Double:
+    k: i32
+
+impl Step for Double:
+    fn step(self, x: i32) -> i32:
+        x * 2 + self.k
+
+fn apply[S < Step](s: S, x: i32) -> i32:
+    s.step(x)
+
+fn drive(n: i32) -> i32:
+    double := Double { k: 3 }
+    let x = +1
+    # subject
+    for _ in 0..n:
+        x = apply(double, x) % 1000003
+    x

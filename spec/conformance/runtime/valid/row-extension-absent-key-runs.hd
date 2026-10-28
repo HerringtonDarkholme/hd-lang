@@ -9,15 +9,17 @@ trait Tag:
 struct FixedLogger: pass
 
 impl Logger for FixedLogger:
-    fn prefix(self) -> string: "log:"
+    fn prefix(self) -> string:
+        "log:"
 
 struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
-    fn name(self) -> string: self.value
+    fn name(self) -> string:
+        self.value
 
-fn provide_logger[$R](callback: fn() -> string $ R + Logger) -> string $ R:
+fn provide_logger[$ R](callback: fn() -> string $ R + Logger) -> string $ R:
     $.with(Logger=FixedLogger {}):
         callback()
 

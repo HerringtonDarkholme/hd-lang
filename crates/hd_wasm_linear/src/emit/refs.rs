@@ -58,8 +58,7 @@ impl Em<'_, '_, '_> {
         let m = mem_of(self.pool(), self.env(), ty)?;
         let walk = self.counted(ty);
         let boxed = self.vals(ty)? != [Val::I32]
-            || crate::layout::walk(self.pool(), self.env(), ty)
-                != Some(crate::layout::Walk::Ref(0));
+            || crate::layout::walk(self.pool(), self.env(), ty).and_then(|w| w.single()) != Some(0);
         Ok(RefLayout {
             known: crate::layout::block_start(self.pool(), self.env(), ty),
             size: m.size,
@@ -506,13 +505,18 @@ impl Em<'_, '_, '_> {
         // address, owned, and the local left empty. Where the reference
         // is no cell's address at this instance (a trait value's, an open
         // cell's view), it takes a count of its own and the local's count
-        // is released here, as the `Drop` the pass deleted did.
+        // is released here, as the `Drop` the pass deleted did. A slot's
+        // is a loan whose `Drop` releases the slot's value
+        // ([`Em::slot_takes`]).
         if self.owned && self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
             let p = self.place(self.b.data[i as usize][0])?;
             let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
                 return unsupported("a reference that takes the count of no whole local");
             };
             let x = l.idx();
+            if self.slots.contains_key(&x) {
+                return self.counted_ref(i);
+            }
             let fat = self.ref_target(self.ty(i)).is_some_and(|(_, f)| f);
             let cell = self.is_cell(x);
             let view =
@@ -1078,8 +1082,10 @@ impl Em<'_, '_, '_> {
     fn deref_write_at(&mut self, at: u32, target: Ty, v: u32) -> StageResult<()> {
         let value = self.ref_layout(target)?;
         let ls: Vec<u32> = value.leaves.iter().map(|l| self.f.local(l.val)).collect();
+        // A value the store consumes moves its count into the place.
+        let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
-        rt::ref_store(&mut self.f, at, &ls, &value);
+        rt::ref_store(&mut self.f, at, &ls, &value, moved);
         Ok(())
     }
 
@@ -1098,6 +1104,8 @@ impl Em<'_, '_, '_> {
         let parent = self.ref_layout(target)?;
         let field = self.ref_layout(ft)?;
         let ls: Vec<u32> = field.leaves.iter().map(|l| self.f.local(l.val)).collect();
+        // A value the store consumes moves its count into the place.
+        let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
         let view = self.f.local(Val::I32);
         self.f.get(at);
@@ -1126,7 +1134,7 @@ impl Em<'_, '_, '_> {
         }
         self.f.op(I::End);
         self.f.set(dst);
-        rt::ref_store(&mut self.f, dst, &ls, &field);
+        rt::ref_store(&mut self.f, dst, &ls, &field, moved);
         if self.input.runtime.is_some() {
             self.f.get(view);
             self.f.op(I::If(wasm_encoder::BlockType::Empty));
@@ -1154,15 +1162,15 @@ impl Em<'_, '_, '_> {
 
     /// The static slot of top-level binding `def`, when some reference
     /// refers to it.
-    pub(super) fn def_slot(&self, def: DefId) -> Option<u32> {
+    pub(super) fn def_slot(&self, def: DefId) -> Option<crate::module::Address> {
         self.m.addressed.get(&self.env().path_hash(def)).copied()
     }
 
     /// `Read [@g]` `i` of a binding in static slot `at`.
-    pub(super) fn slot_get(&mut self, i: u32, at: u32) -> StageResult<()> {
+    pub(super) fn slot_get(&mut self, i: u32, at: crate::module::Address) -> StageResult<()> {
         let m = mem_of(self.pool(), self.env(), self.ty(i))?;
         for leaf in &m.leaves {
-            self.f.static_addr(at);
+            self.f.address(at);
             self.f.op(leaf.load(0));
         }
         self.store(i)
@@ -1225,7 +1233,7 @@ impl Em<'_, '_, '_> {
                 let t = self.sub(t);
                 if let Some(slot) = self.def_slot(def) {
                     let a = self.f.local(Val::I32);
-                    self.f.static_addr(slot);
+                    self.f.address(slot);
                     self.f.set(a);
                     return Ok((At::Mem(a, 0), t));
                 }

@@ -1,7 +1,9 @@
 # test: sequential suspending calls
 
-fn left!(value: i32) -> i32: value
-fn right!(value: i32) -> i32: value
+fn left!(value: i32) -> i32:
+    value
+fn right!(value: i32) -> i32:
+    value
 fn main!() -> i32:
     base := +1
     left_value := left!(20)

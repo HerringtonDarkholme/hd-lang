@@ -19,7 +19,7 @@ impl[S] Describer[S] for MemberCount:
         .Ok(())
 
 fn titled(name: string, count: i32) -> string:
-    println("loud")  # diagnostic: missing-requirement
+    println("loud") # diagnostic: missing-requirement
     "The ${name}/${count}"
 
 impl[T] Named for T by Structure:

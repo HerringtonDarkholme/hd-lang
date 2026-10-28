@@ -1,6 +1,7 @@
 //! A pipeline's body-unit passes as the `hd_mono::plan::Planner` the
 //! driver hands collection (`crates/hd_opt/DESIGN.md` (optimization pipelines) §1.2, §2.2).
 
+use hd_base::SliceSort as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -101,7 +102,7 @@ impl Planner for PipelinePlanner {
         let spec = facts.closure_spec;
         let mut direct = facts.known_callees;
         direct.extend(spec.param_calls);
-        direct.sort_unstable_by_key(|d| d.0);
+        direct.sort_stable_by_key(|d| d.0);
         let plan = BodyPlan {
             direct,
             spec_args: spec.spec_args,

@@ -3,7 +3,8 @@
 use std.ops.{Template, str_prefix}
 
 @str_prefix
-fn pieces(t: Template[i32]) -> List[string]: t.raw_parts
+fn pieces(t: Template[i32]) -> List[string]:
+    t.raw_parts
 
 tests:
     use std.testing.assert_equal
@@ -12,4 +13,8 @@ tests:
         a := +1
         b := +2
         found := pieces"\t$a \"q\" \n${b}\u{41}"
-        assert_equal(found, ["\\t", " \\\"q\\\" \\n", "\\u{41}"], reason="no escape is processed in any piece")
+        assert_equal(
+            found,
+            ["\\t", " \\\"q\\\" \\n", "\\u{41}"],
+            reason="no escape is processed in any piece",
+        )

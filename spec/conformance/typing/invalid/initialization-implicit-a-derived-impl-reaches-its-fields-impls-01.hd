@@ -11,7 +11,8 @@ first := Wrap { t: Tag { n: 1 } } == Wrap { t: Tag { n: 6 } } # diagnostic: top-
 later := +5
 
 impl Eq for Tag:
-    fn eq(self, other: Tag) -> bool: self.n + later == other.n
+    fn eq(self, other: Tag) -> bool:
+        self.n + later == other.n
 
 pub fn main() -> void $ Console:
     println(first)

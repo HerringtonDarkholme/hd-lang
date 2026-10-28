@@ -7,12 +7,14 @@ trait Repo[T]:
 struct Ints: pass
 
 impl Repo[i32] for Ints:
-    fn get(self) -> i32: 5
+    fn get(self) -> i32:
+        5
 
 struct Words: pass
 
 impl Repo[string] for Words:
-    fn get(self) -> string: "five"
+    fn get(self) -> string:
+        "five"
 
 fn fetch[T](ctx: $.Context[$ Repo[T]]) -> T:
     $.with(ctx...):

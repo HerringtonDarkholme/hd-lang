@@ -9,7 +9,8 @@ trait Source:
 struct Fast: pass
 
 impl Source for Fast:
-    fn fetch![T](self, x: T) -> T: x
+    fn fetch![T](self, x: T) -> T:
+        x
 
 pub fn main() -> void $ Console:
     let source: &dyn Source = &Fast {}

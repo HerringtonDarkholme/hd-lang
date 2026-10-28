@@ -23,23 +23,57 @@ tests:
         assert_equal(describe("+42".parse::[i32]()), "ok 42", reason="a plus sign")
         assert_equal(describe("042".parse::[i32]()), "ok 42", reason="a leading zero")
         assert_equal(describe("-17".parse::[i32]()), "ok -17", reason="a minus sign")
-        assert_equal(describe("-2147483648".parse::[i32]()), "ok -2147483648", reason="the i32 minimum")
-        assert_equal(describe("9223372036854775807".parse::[i64]()), "ok 9223372036854775807", reason="the i64 maximum")
+        assert_equal(
+            describe("-2147483648".parse::[i32]()),
+            "ok -2147483648",
+            reason="the i32 minimum",
+        )
+        assert_equal(
+            describe("9223372036854775807".parse::[i64]()),
+            "ok 9223372036854775807",
+            reason="the i64 maximum",
+        )
 
     it("errors"):
         assert_equal(describe("".parse::[i32]()), "empty", reason="empty text")
-        assert_equal(describe("-".parse::[i32]()), "invalid digit at 1", reason="a lone minus ends where a digit must follow")
-        assert_equal(describe("+".parse::[i64]()), "invalid digit at 1", reason="a lone plus ends where a digit must follow")
+        assert_equal(
+            describe("-".parse::[i32]()),
+            "invalid digit at 1",
+            reason="a lone minus ends where a digit must follow",
+        )
+        assert_equal(
+            describe("+".parse::[i64]()),
+            "invalid digit at 1",
+            reason="a lone plus ends where a digit must follow",
+        )
         assert_equal(describe(" 42".parse::[i32]()), "invalid digit at 0", reason="whitespace")
         assert_equal(describe("1_000".parse::[i32]()), "invalid digit at 1", reason="a separator")
         assert_equal(describe("0x10".parse::[i32]()), "invalid digit at 1", reason="a radix prefix")
-        assert_equal(describe("12a".parse::[i32]()), "invalid digit at 2", reason="the first bad character")
-        assert_equal(describe("2147483648".parse::[i32]()), "out of range", reason="one past the i32 maximum")
-        assert_equal(describe("99999999999x".parse::[i32]()), "out of range", reason="the first error wins")
+        assert_equal(
+            describe("12a".parse::[i32]()),
+            "invalid digit at 2",
+            reason="the first bad character",
+        )
+        assert_equal(
+            describe("2147483648".parse::[i32]()),
+            "out of range",
+            reason="one past the i32 maximum",
+        )
+        assert_equal(
+            describe("99999999999x".parse::[i32]()),
+            "out of range",
+            reason="the first error wins",
+        )
         assert_equal(port("70000000000"), 65535, reason="out of range")
         assert_equal(port("eighty"), 8080, reason="not digits")
 
     it("ParseNumberError implements Eq"):
-        assert(ParseNumberError.InvalidDigit(2) == ParseNumberError.InvalidDigit(2), reason="same position")
-        assert(ParseNumberError.InvalidDigit(2) != ParseNumberError.InvalidDigit(3), reason="another position")
+        assert(
+            ParseNumberError.InvalidDigit(2) == ParseNumberError.InvalidDigit(2),
+            reason="same position",
+        )
+        assert(
+            ParseNumberError.InvalidDigit(2) != ParseNumberError.InvalidDigit(3),
+            reason="another position",
+        )
         assert(ParseNumberError.Empty != ParseNumberError.OutOfRange, reason="another variant")

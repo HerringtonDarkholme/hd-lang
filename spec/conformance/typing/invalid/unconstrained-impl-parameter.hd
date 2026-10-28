@@ -10,6 +10,6 @@ trait Summary:
 struct Feed[I]:
     items: I
 
-impl[T < Display, I < Holder[T]] Summary for Feed[I]:  # diagnostic: unconstrained-impl-parameter
+impl[T < Display, I < Holder[T]] Summary for Feed[I]: # diagnostic: unconstrained-impl-parameter
     fn summary(self) -> string:
         "items"

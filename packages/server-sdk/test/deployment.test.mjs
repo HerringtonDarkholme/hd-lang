@@ -110,6 +110,9 @@ test(
     const { createCoreHost } = await import(
       pathToFileURL(join(directory, "runtime/core.mjs")).href
     );
+    const { createPackageRuntime } = await import(
+      pathToFileURL(join(directory, "runtime/package-providers.mjs")).href
+    );
     const { createApplication } = await import(
       pathToFileURL(join(directory, "sdk/application.mjs")).href
     );
@@ -124,6 +127,7 @@ test(
       module: new WebAssembly.Module(readFileSync(join(directory, "app.wasm"))),
       bindings,
       createCoreHost,
+      createPackageRuntime,
       grants: JSON.parse(readFileSync(join(directory, "grants.json"), "utf8")),
       sink: { out: (text) => out.push(text), err: (text) => err.push(text) },
       onStopped: stopped,
@@ -133,7 +137,6 @@ test(
         const result = await application.dispatch({
           method: { tag: "Post", fields: {} },
           url: "https://installed.test/slow",
-          query: [],
           headers: [],
           redirects: 10,
           body: new TextEncoder().encode(JSON.stringify({ message })),

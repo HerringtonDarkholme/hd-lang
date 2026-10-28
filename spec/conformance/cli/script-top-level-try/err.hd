@@ -5,7 +5,8 @@ pub struct Refused:
     reason: string
 
 impl Display for Refused:
-    fn to_string(self) -> string: "refused: ${self.reason}"
+    fn to_string(self) -> string:
+        "refused: ${self.reason}"
 
 impl Error for Refused
 

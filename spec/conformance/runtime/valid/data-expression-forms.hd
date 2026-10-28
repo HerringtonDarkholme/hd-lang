@@ -38,5 +38,5 @@ pub fn main() -> void $ Console:
     note := Note { Stamp: stamp, title: "Ada" }
     println("${spread_first.x} ${spread_first.y} ${note.title}")
     println(note.created)
-    table := {"x": +5}
+    table := { "x": +5 }
     println("${table.get("x").unwrap_or(+0)} ${spread_first.x}")

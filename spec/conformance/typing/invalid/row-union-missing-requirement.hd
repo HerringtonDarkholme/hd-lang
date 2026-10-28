@@ -13,4 +13,4 @@ fn orders() -> string $ Db:
 fn serve() -> void $ Clock:
     handlers := [health, orders]
     for handler in handlers:
-        _ := handler()  # diagnostic: missing-requirement
+        _ := handler() # diagnostic: missing-requirement

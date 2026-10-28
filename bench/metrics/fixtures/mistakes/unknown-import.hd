@@ -3,7 +3,7 @@
 # expect: unknown-import
 # fixed: use std.testing.assert_equal
 
-use std.testing.assert_eq  # diagnostic: unknown-import
+use std.testing.assert_eq # diagnostic: unknown-import
 
 fn one() -> i32:
     1

@@ -7,4 +7,4 @@ struct Box[T]:
 trait Marker
 
 impl[T] Marker for Box[T]
-impl Marker for Box[i32]  # diagnostic: overlapping-impl
+impl Marker for Box[i32] # diagnostic: overlapping-impl

@@ -13,7 +13,8 @@ impl Named for User:
     fn name(self) -> string:
         "trait"
 
-fn field_value() -> string: "field"
+fn field_value() -> string:
+    "field"
 
 tests:
     use std.testing.assert_equal

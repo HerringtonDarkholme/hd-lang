@@ -6,5 +6,4 @@ fn take(v: i32??) -> void:
 
 pub fn main() -> void:
     let nested: i32?? = 1
-> warning: main.hd:157..163: unused-local-binding: `nested` is never read; name it `_nested` to keep it
 > error: main.hd:173..174: type-mismatch: in binding: expected i32??, found an integer literal

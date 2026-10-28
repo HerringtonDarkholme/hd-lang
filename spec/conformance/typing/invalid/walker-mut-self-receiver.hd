@@ -11,5 +11,5 @@ impl[S] Walker[S] for Tally:
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
 
-    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]:  # diagnostic: trait-method-signature
+    fn member[F](mut self, h: Field[S, F], value: F) -> Result[void, never]: # diagnostic: trait-method-signature
         .Ok(())

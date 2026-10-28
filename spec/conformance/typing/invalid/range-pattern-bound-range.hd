@@ -2,4 +2,4 @@
 # Spec 06 Range Patterns: flow.match.range.bound-type (batch 49).
 fn too_wide(n: u8) -> string:
     match n:
-        0..=300 => "byte"  # diagnostic: integer-literal-range
+        0..=300 => "byte" # diagnostic: integer-literal-range

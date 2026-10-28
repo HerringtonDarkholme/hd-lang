@@ -9,7 +9,8 @@ struct D:
     n: i32
 
 impl Maker for D:
-    fn make() -> i32: 7
+    fn make() -> i32:
+        7
 
 fn only() -> i32 $ Maker:
     1

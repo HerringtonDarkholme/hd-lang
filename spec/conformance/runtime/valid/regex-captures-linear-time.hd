@@ -6,13 +6,33 @@ tests:
 
     it("captures with nested loops on 20,000 a"):
         text := "a".repeat(20000)
-        assert_equal(Regex::new("(a*)*b").expect("compiles").captures(text).is_none(), true, reason="no b")
+        assert_equal(
+            Regex::new("(a*)*b").expect("compiles").captures(text).is_none(),
+            true,
+            reason="no b",
+        )
         found := Regex::new("((a|aa)*)(c?)\$").expect("compiles").captures(text).expect("matches")
         assert_equal(found.get(1).expect("group 1").end, 20000, reason="group 1 runs to the end")
-        assert_equal(found.get(2).expect("group 2").start, 19999, reason="the last iteration is one a")
-        assert_equal(found.get(3).expect("group 3").start, 20000, reason="c? matches the empty text at the end")
+        assert_equal(
+            found.get(2).expect("group 2").start,
+            19999,
+            reason="the last iteration is one a",
+        )
+        assert_equal(
+            found.get(3).expect("group 3").start,
+            20000,
+            reason="c? matches the empty text at the end",
+        )
 
     it("find_all and replace_all on 20,000 a"):
         text := "a".repeat(20000)
-        assert_equal(Regex::new("(a)").expect("compiles").find_all(text).len(), 20000, reason="one match per a")
-        assert_equal(Regex::new("(a)a").expect("compiles").replace_all(text, "$1").len(), 10000, reason="each pair becomes one a")
+        assert_equal(
+            Regex::new("(a)").expect("compiles").find_all(text).len(),
+            20000,
+            reason="one match per a",
+        )
+        assert_equal(
+            Regex::new("(a)a").expect("compiles").replace_all(text, "$1").len(),
+            10000,
+            reason="each pair becomes one a",
+        )

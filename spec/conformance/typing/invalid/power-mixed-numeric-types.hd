@@ -1,3 +1,4 @@
 # test: power mixed numeric types
 
-fn main() -> f64: 2 ** 2.0  # diagnostic: type-mismatch
+fn main() -> f64:
+    2 ** 2.0 # diagnostic: type-mismatch

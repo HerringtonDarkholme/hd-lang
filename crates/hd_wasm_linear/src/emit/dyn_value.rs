@@ -14,7 +14,7 @@ use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Leaf, Part, Walk, mem as mem_of, walk};
+use crate::layout::{Leaf, Part, mem as mem_of, walk};
 use crate::module::{HEAP, Ins, Sym, Val, mem};
 use crate::rt::{Helper, RefRead, TypeIdParts};
 use crate::unsupported;
@@ -96,7 +96,8 @@ impl Em<'_, '_, '_> {
             return unsupported("a trait-value coercion that collection did not record");
         };
         let vs = self.vals(from)?;
-        let direct = vs == [Val::I32] && walk(self.pool(), self.env(), from) == Some(Walk::Ref(0));
+        let direct = vs == [Val::I32]
+            && walk(self.pool(), self.env(), from).and_then(|w| w.single()) == Some(0);
         if direct || vs.is_empty() {
             // A value of no Wasm values needs no box: its slots load
             // nothing. A value that is one counted address is the data
@@ -446,8 +447,8 @@ impl Em<'_, '_, '_> {
         // The payload as `trait_value` stored it: the data itself, no
         // values, or a box of the target's layout.
         let vs = self.vals(target)?;
-        let direct =
-            vs == [Val::I32] && walk(self.pool(), self.env(), target) == Some(Walk::Ref(0));
+        let direct = vs == [Val::I32]
+            && walk(self.pool(), self.env(), target).and_then(|w| w.single()) == Some(0);
         let m = mem_of(self.pool(), self.env(), target)?;
         self.f.get(same);
         self.f.op(I::If(wasm_encoder::BlockType::Empty));

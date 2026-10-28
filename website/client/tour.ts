@@ -30,18 +30,47 @@ import type { RunDiagnostic, RunMode } from "../playground/src/runner.ts";
 const MAIN = "src/main.hd";
 const STORAGE_PREFIX = "hd-tour:";
 
-function loadEdit(key: string): string | undefined {
-  try {
-    return localStorage.getItem(STORAGE_PREFIX + key) ?? undefined;
-  } catch {
-    return undefined;
-  }
+interface SavedEdit {
+  readonly originalHash: string;
+  readonly code: string;
 }
 
-function saveEdit(key: string, code: string | undefined): void {
+/** A small stable hash for versioning saved edits, not for security. */
+function sourceHash(source: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${source.length.toString(16)}-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function loadEdit(key: string, original: string): string | undefined {
+  try {
+    const storageKey = STORAGE_PREFIX + key;
+    const item = localStorage.getItem(storageKey);
+    if (item === null) return undefined;
+    const saved = JSON.parse(item) as Partial<SavedEdit>;
+    if (saved.originalHash === sourceHash(original) && typeof saved.code === "string")
+      return saved.code;
+    localStorage.removeItem(storageKey);
+  } catch {
+    try {
+      localStorage.removeItem(STORAGE_PREFIX + key);
+    } catch {
+      // Storage can be unavailable altogether.
+    }
+  }
+  return undefined;
+}
+
+function saveEdit(key: string, original: string, code: string | undefined): void {
   try {
     if (code === undefined) localStorage.removeItem(STORAGE_PREFIX + key);
-    else localStorage.setItem(STORAGE_PREFIX + key, code);
+    else {
+      const saved: SavedEdit = { originalHash: sourceHash(original), code };
+      localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(saved));
+    }
   } catch {
     // Kept edits are a convenience; the page works without storage.
   }
@@ -159,7 +188,11 @@ function start(root: HTMLElement): void {
     check: () => void run("check"),
     changed: () => {
       const text = view.state.doc.toString();
-      saveEdit(storageKey(current), text === originals[current] ? undefined : text);
+      saveEdit(
+        storageKey(current),
+        originals[current]!,
+        text === originals[current] ? undefined : text,
+      );
     },
   });
   // The editor column is narrow, so long lines wrap instead of scrolling.
@@ -169,7 +202,7 @@ function start(root: HTMLElement): void {
       extensions: [extensions, EditorView.lineWrapping, hangingIndent],
     });
   for (const path of paths)
-    states.set(path, newState(loadEdit(storageKey(path)) ?? originals[path]!));
+    states.set(path, newState(loadEdit(storageKey(path), originals[path]!) ?? originals[path]!));
   const view = new EditorView({ state: states.get(MAIN)! });
   code.replaceChildren(view.dom);
 
@@ -180,7 +213,7 @@ function start(root: HTMLElement): void {
     open(MAIN);
     for (const path of paths) {
       states.set(path, newState(originals[path]!));
-      saveEdit(storageKey(path), undefined);
+      saveEdit(storageKey(path), originals[path]!, undefined);
     }
     view.setState(states.get(MAIN)!);
     showHint();

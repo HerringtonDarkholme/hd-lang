@@ -6,5 +6,5 @@ struct Shelf:
     apples: i32
 
 fn demo(shelf: *Shelf) -> void:
-    $.with(Label=shelf):  # diagnostic: type-mismatch
+    $.with(Label=shelf): # diagnostic: type-mismatch
         pass

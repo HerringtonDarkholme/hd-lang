@@ -25,4 +25,4 @@ impl IndexSet[string, i32] for Table:
         self.size = value + 1000
 
 fn read(table: Table, k: u8) -> i32:
-    table[k]  # diagnostic: type-mismatch
+    table[k] # diagnostic: type-mismatch

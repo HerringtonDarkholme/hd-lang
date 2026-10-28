@@ -12,20 +12,19 @@ struct Token:
     text: string
 
 impl Token:
-    fn `match`(self, `in`: string) -> bool: self.`type` == `in`
+    fn `match`(self, `in`: string) -> bool:
+        self.`type` == `in`
 
-fn `use`(`for`: i32) -> i32: `for` + 1
+fn `use`(`for`: i32) -> i32:
+    `for` + 1
 
 fn label(token: Token, `if`: bool) -> string:
-    if `if`:
-        token.`type`
-    else:
-        token.text
+    if `if`: token.`type` else: token.text
 
 pub fn main() -> void $ Console:
     token := Token { `type`: "word", `data`: 7, text: "hi" }
     println("kw ${token.`type`} ${token.`data`}")
-    println(label(token, `if` = false))
+    println(label(token, `if`=false))
     println(`use`(7))
     name := "same"
     println(`name`)

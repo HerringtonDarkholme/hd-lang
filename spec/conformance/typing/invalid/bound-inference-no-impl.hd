@@ -11,4 +11,4 @@ fn read[U, S < Source[U]](source: S) -> U:
     source.take()
 
 fn none(plain: Plain) -> void:
-    value := read(plain)  # diagnostic: unsatisfied-trait-bound
+    value := read(plain) # diagnostic: unsatisfied-trait-bound

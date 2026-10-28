@@ -6,6 +6,7 @@ import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync }
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createCoreHost } from "../../../host/core.mjs";
+import { createPackageRuntime } from "../../../host/package-providers.mjs";
 import { createApplication } from "../adapters/application.mjs";
 import { createSupervisor } from "../adapters/supervisor.mjs";
 
@@ -47,7 +48,6 @@ after(() => {
 const request = (path) => ({
   method: { tag: "Get", fields: {} },
   url: "https://logs.test/" + path,
-  query: [],
   headers: [["x-private", "not SDK metadata"]],
   body: new TextEncoder().encode("not SDK metadata"),
   redirects: 10,
@@ -59,6 +59,7 @@ test("actual concurrent HD handler and cleanup logs retain their lease and corou
     ports = [];
   const app = createApplication({
     module,
+    createPackageRuntime,
     bindings: {
       ...bindings,
       bind(runtime, providers) {
@@ -99,7 +100,7 @@ test("actual concurrent HD handler and cleanup logs retain their lease and corou
         ],
       );
       assert.ok(own.every(({ record }) => record.lease.generation === String(id.generation)));
-      assert.throws(() => ports[index].value.write("late"), /expired request lease/);
+      assert.throws(() => ports[index].value.write_sync("late"), /expired request lease/);
     }
     assert.equal(records.length, 7);
     assert.equal(app.active(), 0);
@@ -112,6 +113,7 @@ test("actual HD Console denial returns NotGranted and produces no application re
   const records = [];
   const app = createApplication({
     module,
+    createPackageRuntime,
     bindings,
     createCoreHost,
     grants: { [source.selectors[0]]: true, Console: false, Clock: true },
@@ -142,6 +144,7 @@ test(
         module,
         bindingsURL,
         runtimeURL: new URL("../../../host/core.mjs", import.meta.url).href,
+        packageRuntimeURL: new URL("../../../host/package-providers.mjs", import.meta.url).href,
         applicationURL: new URL("../adapters/application.mjs", import.meta.url).href,
         grants: { [source.selectors[0]]: true, Console: true, Clock: true },
       },

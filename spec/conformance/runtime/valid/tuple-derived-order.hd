@@ -9,5 +9,5 @@ tests:
         assert_equal((1, "a") < (1, "b"), true, reason="then the second")
 
     it("tuples are map keys"):
-        counts := {(1, "a"): 10, (2, "b"): 20}
+        counts := { (1, "a"): 10, (2, "b"): 20 }
         assert_equal(counts[(2, "b")], 20, reason="hashing is by value")

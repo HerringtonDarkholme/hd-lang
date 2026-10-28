@@ -40,7 +40,7 @@ tests:
         assert_equal(from.next(), .Some(255), reason="the largest value")
 
     it("a map's cursor yields its entries"):
-        let mut entries: MapEntries[string, i32] = {"a": +1, "b": +2}.iter()
+        let mut entries: MapEntries[string, i32] = { "a": +1, "b": +2 }.iter()
         assert_equal(entries.next(), .Some(("a", 1)), reason="insertion order")
         assert_equal(entries.count(), 1, reason="one left")
 

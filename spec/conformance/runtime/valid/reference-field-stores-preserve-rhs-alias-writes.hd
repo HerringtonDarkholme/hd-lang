@@ -90,5 +90,9 @@ tests:
         source.push("caller")
         value.items.push("field")
         assert_equal(source, ["first", "caller"], reason="the caller owns its list header")
-        assert_equal(value.items, ["first", "field"], reason="the assigned field owns a separate list header")
+        assert_equal(
+            value.items,
+            ["first", "field"],
+            reason="the assigned field owns a separate list header",
+        )
         assert_equal(value.text, "kept", reason="the neighboring string is preserved")

@@ -1,0 +1,11 @@
+# @dump: wat
+# `@inline(.Always)` copies a call that computes an omitted default.
+use std.annotation.inline
+
+@inline(.Always)
+fn add(value: i32 = +1) -> i32:
+    value + 1
+
+fn apply() -> i32:
+    add()
+    #^^^^^

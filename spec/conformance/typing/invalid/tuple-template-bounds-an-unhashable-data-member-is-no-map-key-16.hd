@@ -2,4 +2,4 @@
 struct Secret:
     value: i32
 
-let m: Map[(Secret, i32), string] = {}  # diagnostic: unsatisfied-trait-bound
+let m: Map[(Secret, i32), string] = {} # diagnostic: unsatisfied-trait-bound

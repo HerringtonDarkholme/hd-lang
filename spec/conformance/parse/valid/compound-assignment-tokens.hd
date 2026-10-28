@@ -12,7 +12,8 @@ fn update(flag: bool) -> i64:
     x ^= 5
     x <<= 1
     x >>= 1
-    x-=1
-    if flag: x += 1
+    x -= 1
+    if flag:
+        x += 1
     x += if flag: 1 else: 2
     x

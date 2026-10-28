@@ -4,6 +4,7 @@ use std.ops as ops
 fn kb(count: i32) -> i32:
     count
 
-fn delay() -> i32: 250kb
+fn delay() -> i32:
+    250kb
 pub fn main() -> void:
     pass

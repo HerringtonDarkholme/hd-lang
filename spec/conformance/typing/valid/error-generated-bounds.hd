@@ -16,7 +16,12 @@ struct Job:
 @error
 enum TaskError[E, T]:
     @error("task $name failed")
-    Failed(name: string, @source error: E, input: T)
+    Failed(
+        name: string,
+        @source
+        error: E,
+        input: T,
+    )
 
 @error
 enum Wrapped[P]:

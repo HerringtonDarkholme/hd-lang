@@ -6,7 +6,8 @@ struct Pair[T]:
     first: T
     second: T
 
-fn source() -> Pair[i32]: Pair { first: 20, second: 1 }
+fn source() -> Pair[i32]:
+    Pair { first: 20, second: 1 }
 
 pub fn main() -> void $ Console:
     pair := Pair { ...source(), second: 22 }

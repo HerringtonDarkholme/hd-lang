@@ -2,6 +2,6 @@
 # Spec 14 Member-Typed Facts: annot.typed-fact.check, with annot.typed-fact.monomorphic; reported at the decorator (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 
-@num_suffix  # diagnostic: unsatisfied-trait-bound
+@num_suffix # diagnostic: unsatisfied-trait-bound
 fn same[N](n: N) -> N:
     n

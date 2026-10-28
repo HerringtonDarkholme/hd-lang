@@ -7,4 +7,4 @@ tests:
     use std.testing.assert
 
     it("compares"):
-        assert(1 == 1)  # diagnostic: argument-count
+        assert(1 == 1) # diagnostic: argument-count

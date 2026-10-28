@@ -2,5 +2,6 @@
 # Rules: fn.local.declare, fn.generic.call-list.
 # expect-stdout: 4
 pub fn main() -> void $ Console:
-    fn id[U](u: U) -> U: u
+    fn id[U](u: U) -> U:
+        u
     println(id(+4))

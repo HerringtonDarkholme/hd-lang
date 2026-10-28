@@ -15,4 +15,4 @@ fn find(id: string) -> User $ Store[Item = User]:
     $.use(Store[Item = User]).load(id)
 
 fn wrong(id: string) -> User $ Store[Item = Post]:
-    find(id)  # diagnostic: missing-requirement
+    find(id) # diagnostic: missing-requirement

@@ -38,4 +38,4 @@ enum Reply:
     Busy
 
 impl Show for Reply by Structure:
-    id = [rename("x")]  # diagnostic: unknown-annotation-member
+    id = [rename("x")] # diagnostic: unknown-annotation-member

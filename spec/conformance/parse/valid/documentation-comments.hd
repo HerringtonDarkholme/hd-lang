@@ -11,4 +11,5 @@ struct Point:
 fn read(
     ## Point to inspect.
     point: Point,
-) -> i32: point.x
+) -> i32:
+    point.x

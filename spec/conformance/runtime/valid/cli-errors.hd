@@ -2,37 +2,113 @@
 # Spec std/cli Parse Errors: std-cli.error.required-argument, std-cli.error.traits, std-cli.error.unknown, std-cli.error.missing-value, std-cli.error.unexpected-value, std-cli.error.missing-argument, std-cli.error.first-required, std-cli.form.no-clusters (task #242).
 use std.cli.{Arg, ArgParser, CliError}
 fn tool() -> *mut ArgParser:
-    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" }).arg(Arg { name: "root", kind: .Positional, required: true, help: "where to start" })
+    ArgParser::new("count")
+        .arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
+        .arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" })
+        .arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
+        .arg(Arg { name: "root", kind: .Positional, required: true, help: "where to start" })
 
 tests:
     use std.testing.assert_equal
 
     it("an unknown option names the argument as written"):
-        assert_equal(tool().parse(["--colour", "a", "b"]), .Err(CliError.UnknownOption("--colour")), reason="a long name")
-        assert_equal(tool().parse(["--colour=red", "a", "b"]), .Err(CliError.UnknownOption("--colour")), reason="up to the =")
-        assert_equal(tool().parse(["-x", "a", "b"]), .Err(CliError.UnknownOption("-x")), reason="a short name")
-        assert_equal(tool().parse(["-vo", "a", "b"]), .Err(CliError.UnknownOption("-vo")), reason="no clusters")
-        assert_equal(tool().parse(["-ofile", "a", "b"]), .Err(CliError.UnknownOption("-ofile")), reason="no attached short value")
-        assert_equal(tool().parse(["-o=file", "a", "b"]), .Err(CliError.UnknownOption("-o=file")), reason="no = after a short name")
+        assert_equal(
+            tool().parse(["--colour", "a", "b"]),
+            .Err(CliError.UnknownOption("--colour")),
+            reason="a long name",
+        )
+        assert_equal(
+            tool().parse(["--colour=red", "a", "b"]),
+            .Err(CliError.UnknownOption("--colour")),
+            reason="up to the =",
+        )
+        assert_equal(
+            tool().parse(["-x", "a", "b"]),
+            .Err(CliError.UnknownOption("-x")),
+            reason="a short name",
+        )
+        assert_equal(
+            tool().parse(["-vo", "a", "b"]),
+            .Err(CliError.UnknownOption("-vo")),
+            reason="no clusters",
+        )
+        assert_equal(
+            tool().parse(["-ofile", "a", "b"]),
+            .Err(CliError.UnknownOption("-ofile")),
+            reason="no attached short value",
+        )
+        assert_equal(
+            tool().parse(["-o=file", "a", "b"]),
+            .Err(CliError.UnknownOption("-o=file")),
+            reason="no = after a short name",
+        )
 
     it("an option at the end has no value"):
-        assert_equal(tool().parse(["a", "b", "--out"]), .Err(CliError.MissingValue("out")), reason="long")
-        assert_equal(tool().parse(["a", "b", "-o"]), .Err(CliError.MissingValue("out")), reason="short, named by its long name")
+        assert_equal(
+            tool().parse(["a", "b", "--out"]),
+            .Err(CliError.MissingValue("out")),
+            reason="long",
+        )
+        assert_equal(
+            tool().parse(["a", "b", "-o"]),
+            .Err(CliError.MissingValue("out")),
+            reason="short, named by its long name",
+        )
 
     it("a flag takes no value"):
-        assert_equal(tool().parse(["--verbose=yes", "a", "b"]), .Err(CliError.UnexpectedValue("verbose")), reason="flag with =")
+        assert_equal(
+            tool().parse(["--verbose=yes", "a", "b"]),
+            .Err(CliError.UnexpectedValue("verbose")),
+            reason="flag with =",
+        )
 
     it("a missing positional names the first one missing"):
-        assert_equal(tool().parse([]), .Err(CliError.MissingArgument("<pattern>")), reason="none given")
-        assert_equal(tool().parse(["a", "-v"]), .Err(CliError.MissingArgument("<root>")), reason="one given")
+        assert_equal(
+            tool().parse([]),
+            .Err(CliError.MissingArgument("<pattern>")),
+            reason="none given",
+        )
+        assert_equal(
+            tool().parse(["a", "-v"]),
+            .Err(CliError.MissingArgument("<root>")),
+            reason="one given",
+        )
 
     it("the first error in argument order wins"):
-        assert_equal(tool().parse(["--colour", "--verbose=yes"]), .Err(CliError.UnknownOption("--colour")), reason="unknown before unexpected")
-        assert_equal(tool().parse(["--verbose=yes", "--out"]), .Err(CliError.UnexpectedValue("verbose")), reason="before the missing value")
-        assert_equal(tool().parse(["--out"]), .Err(CliError.MissingValue("out")), reason="before the missing positionals")
+        assert_equal(
+            tool().parse(["--colour", "--verbose=yes"]),
+            .Err(CliError.UnknownOption("--colour")),
+            reason="unknown before unexpected",
+        )
+        assert_equal(
+            tool().parse(["--verbose=yes", "--out"]),
+            .Err(CliError.UnexpectedValue("verbose")),
+            reason="before the missing value",
+        )
+        assert_equal(
+            tool().parse(["--out"]),
+            .Err(CliError.MissingValue("out")),
+            reason="before the missing positionals",
+        )
 
     it("Display texts"):
-        assert_equal("${CliError.UnknownOption("--colour")}", "unknown option --colour", reason="unknown")
-        assert_equal("${CliError.MissingValue("out")}", "option --out needs a value", reason="missing value")
-        assert_equal("${CliError.UnexpectedValue("verbose")}", "flag --verbose takes no value", reason="unexpected value")
-        assert_equal("${CliError.MissingArgument("<root>")}", "missing argument <root>", reason="missing positional")
+        assert_equal(
+            "${CliError.UnknownOption("--colour")}",
+            "unknown option --colour",
+            reason="unknown",
+        )
+        assert_equal(
+            "${CliError.MissingValue("out")}",
+            "option --out needs a value",
+            reason="missing value",
+        )
+        assert_equal(
+            "${CliError.UnexpectedValue("verbose")}",
+            "flag --verbose takes no value",
+            reason="unexpected value",
+        )
+        assert_equal(
+            "${CliError.MissingArgument("<root>")}",
+            "missing argument <root>",
+            reason="missing positional",
+        )

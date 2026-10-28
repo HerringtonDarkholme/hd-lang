@@ -14,4 +14,4 @@ fn read[U, S < Source[U?]](source: S) -> U?:
     source.take()
 
 fn invalid(source: Number) -> i32?:
-    read(source)  # diagnostic: unsatisfied-trait-bound
+    read(source) # diagnostic: unsatisfied-trait-bound

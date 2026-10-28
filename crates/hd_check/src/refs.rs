@@ -25,7 +25,7 @@
 //! in the backend.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
-use hd_diag::{Code, FixSafety, Severity};
+use hd_diag::{Code, FixSafety};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Coercion, NONE, Place as TirPlace, PlaceRoot, Proj, ReadMode, Ref, Tag, TirSink, local_flags,
@@ -436,7 +436,10 @@ impl Ck<'_, '_> {
                 if mutable && !self.place_writable(&p, e) {
                     return Ok(self.ref_poison(n));
                 }
-                if mutable && let Root::Local(l, _) = p.root {
+                if mutable
+                    && self.cx.source_facts.is_some()
+                    && let Root::Local(l, _) = p.root
+                {
                     self.ref_taken.push(l);
                 }
                 p
@@ -1296,40 +1299,31 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    /// `redundant-let-mut` (`types.bind.let-mut-primitive-unused`): a
-    /// `let mut` local of a primitive type, or with a `mut Suspend[T]`
-    /// annotation, whose address no
-    /// `&mut` takes changes nothing that the binding would not without it.
-    pub(crate) fn redundant_primitive_let_mut(&mut self) {
-        for (l, pat, kind) in std::mem::take(&mut self.prim_let_mut) {
-            if self.ref_taken.contains(&l) {
-                continue;
-            }
-            let node = self.cx.src.parse.tree.node(pat);
-            let span = self.cx.src.span(node);
-            let msg = match kind {
-                LetMutKind::Primitive => {
-                    "`let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable"
+    /// Source facts for a written binding, before reference lowering erases its form.
+    pub(crate) fn binding_mutability(
+        &self,
+        local: LocalId,
+        pattern: NodeIdx,
+        kind: Option<LetMutKind>,
+    ) -> crate::comparison::Mutability {
+        let node = self.cx.src.parse.tree.node(pattern);
+        let token = node
+            .direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
+            .map(|tok| {
+                let lo = self.cx.src.token_span(tok).lo;
+                let next = hd_base::TokenIdx::from_raw(tok.raw() + 1);
+                let hi = self.cx.src.token_span(next).lo.max(lo);
+                hd_base::Span {
+                    file: self.cx.src.file,
+                    lo,
+                    hi,
                 }
-                LetMutKind::Annotated => {
-                    "the annotation already grants `mut`, and no `&mut` of this binding is taken; remove the `mut` before the name"
-                }
-            };
-            self.diags
-                .push(Code::RedundantLetMut, Severity::Warning, span, msg, None);
-            let Some(tok) = node.direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut) else {
-                continue;
-            };
-            let lo = self.cx.src.token_span(tok).lo;
-            let next = hd_base::TokenIdx::from_raw(tok.raw() + 1);
-            let hi = self.cx.src.token_span(next).lo.max(lo);
-            let span = hd_base::Span {
-                file: self.cx.src.file,
-                lo,
-                hi,
-            };
-            self.diags
-                .add_fix("remove `mut`", FixSafety::Exact, &[(span, "")]);
+            });
+        crate::comparison::Mutability {
+            primitive: kind == Some(LetMutKind::Primitive),
+            annotation_writable: kind == Some(LetMutKind::Annotated),
+            address_taken: self.ref_taken.contains(&local),
+            token,
         }
     }
 

@@ -2,18 +2,20 @@
 //! "Where and when the passes run", "What the passes read"): every body
 //! the program reaches goes through `hd_tir::own` once, after decoding
 //! (`Run::body_of`) or after collection generates it (a supplied or a
-//! `dbg` body), and checked and debug builds verify the result
+//! `dbg` body), and checked and debug builds, and any build that asks
+//! (`Packages::verify_own`), verify the result
 //! (`hd_tir::ir::verify_owned`). [`Env`] answers the passes' questions
 //! from signatures and layouts, never from another body, and remembers
 //! each answer for the run.
 
+use hd_base::SliceSort as _;
 use std::cell::RefCell;
 use std::fmt::Write as _;
 
 use hd_base::HashMap;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
-use hd_tir::inline::Site;
+use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_tir::ir::{Body, Callee, ChoiceKind};
 use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri};
 use hd_types::solver::{
@@ -45,6 +47,8 @@ pub(super) struct Summaries {
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(DefId, u32), bool>>,
+    /// The inliner's copies and the functions it found recursive.
+    inline: hd_opt::inline::Memo,
 }
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
@@ -90,17 +94,18 @@ thread_local! {
     static ROOTS: RefCell<hd_tir::ir::RootTables> = RefCell::new(hd_tir::ir::RootTables::default());
 }
 
-/// The most instructions a callee's body may have for a call of it to
-/// inline (`docs/compiler/tir-v2.md`, "The inliner", tuned at 8 in
-/// commit 4: the smallest code of 8, 12, 16 and 20); 0 turns the inliner
-/// off.
-const INLINE_LIMIT: usize = 8;
-
 /// The intrinsics that read only their arguments and write nothing
-/// (`OwnCx::may_write`): the scalar square root and the byte reads of a
-/// string, which return a scalar and never change memory.
+/// (`OwnCx::may_write`): the scalar square root, a trait value's downcasts
+/// and type identity, which compare its type and return it or nothing,
+/// the reads and conversions of a string, a character or a number, which
+/// return a scalar or a new value, and the panic, which never returns.
+/// One that writes through a `&mut` argument is not here: a caller's
+/// passes read that write from `may_write` alone.
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
+    "downcast_ref",
+    "downcast_mut",
+    "type_id_of",
     "bytes_len",
     "bytes_at",
     "bytes_index",
@@ -108,6 +113,20 @@ const PURE_INTRINSICS: &[&str] = &[
     "bytes_index_pair",
     "bytes_mismatch",
     "utf8_valid_len",
+    "bytes_slice",
+    "bytes_concat",
+    "concat_all",
+    "string_to_bytes",
+    "string_from_bytes",
+    "string_lower",
+    "string_upper",
+    "char_from_scalar",
+    "char_scalar",
+    "format_int",
+    "format_f64",
+    "format_f32",
+    "format_f64_fixed",
+    "panic",
 ];
 
 /// The intrinsics that own their value arguments, as a function's value
@@ -371,7 +390,7 @@ impl Env<'_> {
                 format!("the ownership passes refused `{}`: {what}", path()),
             ));
         }
-        if cfg!(debug_assertions) || self.run.checked {
+        if cfg!(debug_assertions) || self.run.checked || self.run.verify_own {
             let errs = hd_tir::ir::verify_owned(&body, self);
             if let Some(e) = errs.first() {
                 return Err(NotImplemented::bug(
@@ -390,62 +409,74 @@ impl Env<'_> {
         Ok((body, summary))
     }
 
-    /// Copies into `body` each call of a small std function outside
-    /// `std.rt` (`docs/compiler/tir-v2.md`, "The inliner"), before the
-    /// passes, each parameter bound by its pass mode, and returns the
-    /// body's hash with each copied callee's TIR hash.
-    fn inline_calls(&self, body: &mut Body, hash: Hash128) -> Hash128 {
-        let pool = &self.run.pool;
-        let mut k = StableHasher::new("inline");
-        k.hash(hash);
-        let (mut sites, mut hashes) = (Vec::new(), Vec::new());
-        for c in (0..body.len()).rev() {
-            let Some((def, targs)) =
-                hd_tir::inline::plain_call(body, c).and_then(|callee| match callee {
-                    Callee::Item { def, targs } => Some((def, targs)),
-                    Callee::TraitMethod { .. } => self.impl_target(&callee),
-                })
-            else {
-                continue;
-            };
-            let Some((mut copy, callee_hash)) = self.inline_callee(def, body.item) else {
-                continue;
-            };
-            let ty = |t: Ty| hd_mono::subst(pool, self, def, targs, t);
-            let list = |l| {
-                pool.list(
-                    &pool
-                        .list_items(l)
-                        .iter()
-                        .map(|&t| ty(t))
-                        .collect::<Vec<_>>(),
-                )
-            };
-            hd_tir::ir::map_body_types(&mut copy, &ty, &list);
-            // A projection left open names a type the caller's bounds may
-            // fix, which the call's type already shows; such a copy waits.
-            if copy
-                .ty
-                .iter()
-                .chain(&copy.local_ty)
-                .any(|&t| pool.has_assoc(t))
-            {
-                continue;
-            }
-            hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
-            sites.push(Site { call: c, copy });
-            hashes.push(callee_hash);
+    /// A body collection generates (a supplied method's, a `dbg` body),
+    /// after the ownership passes. Its places are rooted at their locals
+    /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
+    pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
+        ROOTS.with(|r| {
+            let (types, item) = (self.run.pool.types(), body.item);
+            let open = |t| hd_tir::ir::erasable(types, item, t);
+            hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut());
+        });
+        Ok(self.own_passes(body, false)?.0)
+    }
+}
+
+/// The inliner's view of the program (`hd_opt::inline`): the driver's
+/// tables and decoded bodies, and the backend's layout facts.
+impl InlineEnv for Env<'_> {
+    fn pool(&self) -> &hd_types::InternPool {
+        &self.run.pool
+    }
+
+    fn memo(&self) -> Option<&hd_opt::inline::Memo> {
+        self.run.summaries.as_ref().map(|all| &all.inline)
+    }
+
+    fn module_text(&self, def: DefId) -> std::borrow::Cow<'_, str> {
+        self.run.item_module_text(def)
+    }
+
+    fn inline_hint(&self, def: DefId) -> InlineHint {
+        self.p
+            .items
+            .get(def)
+            .map_or(InlineHint::Default, |i| match i.inline {
+                hd_resolve::iface::INLINE_AUTO => InlineHint::Auto,
+                hd_resolve::iface::INLINE_ALWAYS => InlineHint::Always,
+                hd_resolve::iface::INLINE_NEVER | hd_resolve::iface::COLD => InlineHint::Never,
+                _ => InlineHint::Default,
+            })
+    }
+
+    fn signature(&self, def: DefId) -> Option<(Vec<Ty>, bool, bool)> {
+        let sig = self.sig(def)?;
+        Some((
+            sig.params.iter().map(|&(_, t)| t).collect(),
+            sig.suspends,
+            sig.row != hd_types::RowId::EMPTY,
+        ))
+    }
+
+    fn checked_body(&self, def: DefId) -> Option<&(Body, Hash128)> {
+        self.run.decode(self.run.lazy_body(self.p, def)?)
+    }
+
+    fn fresh_body(&self, def: DefId) -> Option<Body> {
+        let run = self.run;
+        let (m, entry, at) = run.lazy_body(self.p, def)?.wire.as_ref()?;
+        let mut fresh =
+            hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
+        // A fetched package's `dbg` prints nothing (`module.dbg.dependency`):
+        // the copy keeps the suppression `decode` gave its body.
+        if run.fetched[usize::from(run.table.modules[*m].package)] {
+            crate::dbg::suppress(&mut fresh, &run.names());
         }
-        // All of the body's copies in one rebuild.
-        let copied = hd_tir::inline::inline_calls(body, sites).unwrap_or_default();
-        for (_, &h) in copied.iter().zip(&hashes).filter(|(c, _)| **c) {
-            k.hash(h);
-        }
-        if copied.contains(&true) {
-            k.finish()
-        } else {
-            hash
-        }
+        Some(fresh)
+    }
+
+    fn reference(&self, t: Ty) -> bool {
+        self.layout_facts(t).1
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:
@@ -529,54 +560,10 @@ impl Env<'_> {
             Selection::Builtin(_) => None,
         }
     }
-
-    /// A fresh decoding of the checker's body of `def`, for the caller to
-    /// change, and its hash, when a call of it inlines: a std function
-    /// outside `std.rt`, not the caller, with a body of its own, that
-    /// does not suspend, and that [`hd_tir::inline::inlinable`] allows at
-    /// [`INLINE_LIMIT`].
-    fn inline_callee(&self, def: DefId, caller: DefId) -> Option<(Body, Hash128)> {
-        let module = self.run.item_module_text(def);
-        let rt = module == "std.rt" || module.starts_with("std.rt.");
-        if INLINE_LIMIT == 0
-            || def == caller
-            || !module.starts_with("std.")
-            || rt
-            || self.intrinsic(def).is_some()
-        {
-            return None;
-        }
-        if self.sig(def)?.suspends {
-            return None;
-        }
-        let path = self.run.paths.hash(hd_base::PathId::from_raw(def.raw()));
-        let lazy = self.p.bodies.all.get(&path)?;
-        let (body, hash) = self.run.decode(lazy)?;
-        if !hd_tir::inline::inlinable(body, INLINE_LIMIT) {
-            return None;
-        }
-        let (_, entry, at) = lazy.wire.as_ref()?;
-        let run = self.run;
-        let fresh =
-            hd_tir::wire::read_body(entry.get(at.clone())?, &run.pool, &run.paths, &run.syms)?;
-        Some((fresh, *hash))
-    }
-
-    /// A body collection generates (a supplied method's, a `dbg` body),
-    /// after the ownership passes. Its places are rooted at their locals
-    /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
-    pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
-        ROOTS.with(|r| {
-            let (types, item) = (self.run.pool.types(), body.item);
-            let open = |t| hd_tir::ir::erasable(types, item, t);
-            hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut());
-        });
-        Ok(self.own_passes(body, false)?.0)
-    }
 }
 
 impl Env<'_> {
-    /// Inlined body `body`, with hash `hash` ([`Env::inline_calls`]), after
+    /// Inlined body `body`, with hash `hash` (`hd_opt::inline::inline_calls`), after
     /// the ownership passes, and its hash, which changes with them; in
     /// release, its summary is recorded.
     fn own_inlined(&self, body: Body, hash: Hash128) -> StageResult<(Body, Hash128)> {
@@ -681,64 +668,6 @@ impl Env<'_> {
     }
 }
 
-/// Visits the call graph from `root` bottom-up with an iterative Tarjan
-/// walk, so a deep call chain cannot overflow the stack: `scc` gets each
-/// strongly connected component once every component its members call
-/// has had its turn, with whether it is recursive (two members, or one
-/// that calls itself). `done` marks the nodes an earlier walk finished,
-/// which this one skips; `callees` gives a node's edges, once per node.
-pub(super) fn bottom_up<N: Copy + Eq + std::hash::Hash>(
-    root: N,
-    done: &dyn Fn(N) -> bool,
-    callees: &mut dyn FnMut(N) -> Vec<N>,
-    scc: &mut dyn FnMut(&mut Vec<N>, bool),
-) {
-    if done(root) {
-        return;
-    }
-    // Per node: its index, its low link, and whether it is on the stack.
-    let mut index: HashMap<N, (u32, u32, bool)> = HashMap::default();
-    let (mut stack, mut next) = (Vec::new(), 0);
-    let mut work: Vec<(N, Option<Vec<N>>, usize)> = vec![(root, None, 0)];
-    while let Some((n, edges, at)) = work.last_mut() {
-        let n = *n;
-        let edges = edges.get_or_insert_with(|| {
-            index.insert(n, (next, next, true));
-            next += 1;
-            stack.push(n);
-            callees(n)
-        });
-        if let Some(&c) = edges.get(*at) {
-            *at += 1;
-            match index.get(&c) {
-                None if !done(c) => work.push((c, None, 0)),
-                Some(&(ci, _, true)) => {
-                    let low = &mut index.get_mut(&n).expect("visited").1;
-                    *low = (*low).min(ci);
-                }
-                _ => {}
-            }
-            continue;
-        }
-        let calls_itself = edges.contains(&n);
-        work.pop();
-        let (i, low, _) = index[&n];
-        if let Some(&(parent, ..)) = work.last() {
-            let up = &mut index.get_mut(&parent).expect("visited").1;
-            *up = (*up).min(low);
-        }
-        if i == low {
-            let from = stack.iter().rposition(|&m| m == n).expect("on the stack");
-            let mut members: Vec<N> = stack.drain(from..).collect();
-            for m in &members {
-                index.get_mut(m).expect("visited").2 = false;
-            }
-            let recursive = members.len() > 1 || calls_itself;
-            scc(&mut members, recursive);
-        }
-    }
-}
-
 impl Run<'_> {
     /// The body table's entry for `def`.
     pub(super) fn lazy_body<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p LazyBody> {
@@ -773,7 +702,7 @@ impl Run<'_> {
     ) -> Option<(Body, Hash128)> {
         let owned = self.with_env(p, |env| {
             let mut body = body;
-            let hash = env.inline_calls(&mut body, hash);
+            let hash = hd_opt::inline::inline_calls(env, &mut body, hash);
             env.own_inlined(body, hash)
         });
         match owned {
@@ -803,13 +732,13 @@ impl Run<'_> {
                     return Vec::new();
                 };
                 let mut body = raw.clone();
-                let hash = env.inline_calls(&mut body, *hash);
+                let hash = hd_opt::inline::inline_calls(env, &mut body, *hash);
                 let out = env.summarized_callees(&body);
                 inlined.borrow_mut().insert(d, (body, hash));
                 out
             };
             let mut own = |members: &mut Vec<DefId>, recursive: bool| {
-                members.sort_by_cached_key(|&m| self.names().path(m));
+                members.sort_stable_by_cached_key(|&m| self.names().path(m));
                 // Writes, before the passes read them: the least fixed
                 // point over the component, from every member writing
                 // nothing (a member with no inlined body writes).
@@ -845,82 +774,7 @@ impl Run<'_> {
                     }
                 }
             };
-            bottom_up(root, &done, &mut callees, &mut own);
+            hd_opt::inline::bottom_up(root, &done, &mut callees, &mut own);
         });
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::cell::RefCell;
-    use std::collections::BTreeMap;
-
-    use super::bottom_up;
-
-    /// Walks `edges` from each of `roots` in turn, as collection demands
-    /// bodies, and gives each node a summary that reads its callees'
-    /// outside its component, as the release passes will: per node, the
-    /// summary and its component's sorted members and recursion flag.
-    fn walk(edges: &[(u32, u32)], roots: &[u32]) -> BTreeMap<u32, (u64, Vec<u32>, bool)> {
-        let out = RefCell::new(BTreeMap::<u32, (u64, Vec<u32>, bool)>::new());
-        let callees =
-            |n: u32| -> Vec<u32> { edges.iter().filter(|e| e.0 == n).map(|e| e.1).collect() };
-        for &root in roots {
-            let done = |n: u32| out.borrow().contains_key(&n);
-            let mut scc = |members: &mut Vec<u32>, recursive: bool| {
-                members.sort_unstable();
-                let mut out = out.borrow_mut();
-                for &m in members.iter() {
-                    let mut s = u64::from(m) + 1;
-                    for c in callees(m).into_iter().filter(|c| !members.contains(c)) {
-                        // Callees first: every outside callee is summarized.
-                        s = s * 31 + out.get(&c).expect("callee first").0;
-                    }
-                    out.insert(m, (s, members.clone(), recursive));
-                }
-            };
-            bottom_up(root, &done, &mut |n| callees(n), &mut scc);
-        }
-        out.into_inner()
-    }
-
-    /// The summaries do not depend on the order collection demands bodies
-    /// in: a cycle, a self call, shared callees and an unreached node, from
-    /// roots in three orders.
-    #[test]
-    fn summaries_do_not_depend_on_the_order_of_the_roots() {
-        let edges = [
-            (0, 1),
-            (1, 2),
-            (2, 1),
-            (2, 3),
-            (3, 3),
-            (4, 0),
-            (4, 3),
-            (5, 2),
-        ];
-        let first = walk(&edges, &[0, 4, 5]);
-        assert_eq!(first[&1].1, vec![1, 2]);
-        assert!(first[&3].2 && !first[&0].2, "{first:?}");
-        assert!(!first.contains_key(&6));
-        for roots in [&[5, 4, 0][..], &[3, 5, 1, 4, 0], &[2, 0, 5, 4]] {
-            assert_eq!(first, walk(&edges, roots), "roots {roots:?}");
-        }
-    }
-
-    /// The walk is iterative: a chain of 200,000 calls does not overflow
-    /// the stack, and is owned from its far end.
-    #[test]
-    fn a_deep_call_chain_does_not_overflow() {
-        let edges: Vec<(u32, u32)> = (0..200_000).map(|n| (n, n + 1)).collect();
-        let order = RefCell::new(Vec::new());
-        let mut scc = |members: &mut Vec<u32>, _: bool| order.borrow_mut().extend(&*members);
-        let callees = |n: u32| edges.get(n as usize).map(|e| vec![e.1]).unwrap_or_default();
-        bottom_up(0, &|_| false, &mut |n| callees(n), &mut scc);
-        let order = order.into_inner();
-        assert_eq!(
-            (order.len(), order[0], order[200_000]),
-            (200_001, 200_000, 0)
-        );
     }
 }

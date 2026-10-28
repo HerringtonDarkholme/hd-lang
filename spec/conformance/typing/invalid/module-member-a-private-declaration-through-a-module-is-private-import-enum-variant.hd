@@ -3,5 +3,5 @@
 use pkg.shapes
 
 pub fn main() -> void:
-    only := shapes.Hidden.Only  # diagnostic: private-import
+    only := shapes.Hidden.Only # diagnostic: private-import
     pass

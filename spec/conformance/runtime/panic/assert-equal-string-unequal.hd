@@ -3,4 +3,4 @@ tests:
     use std.testing.assert_equal
 
     it("unequal string values fail assert_equal"):
-        assert_equal("ada", "Ada", reason="deliberately unequal strings")  # panic: assertion-failed
+        assert_equal("ada", "Ada", reason="deliberately unequal strings") # panic: assertion-failed

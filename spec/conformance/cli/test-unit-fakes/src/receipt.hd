@@ -8,4 +8,8 @@ tests:
 
     it("stamps the receipt with the clock's time"):
         $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
-            assert_equal(receipt_header("Main St"), "Main St at 1970-01-01T00:00:00Z", reason="a fixed clock")
+            assert_equal(
+                receipt_header("Main St"),
+                "Main St at 1970-01-01T00:00:00Z",
+                reason="a fixed clock",
+            )

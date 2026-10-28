@@ -10,7 +10,8 @@ later := +5
 
 impl Index[i32] for Tag:
     type Out = i32
-    fn index(self, key: i32) -> i32: self.n + key + later
+    fn index(self, key: i32) -> i32:
+        self.n + key + later
 
 first := Tag { n: 1 }[2]
 

@@ -1,4 +1,4 @@
 # Spec 08 Generic And Recursive Enums: data.enum.no-recursion, through an optional payload (data.struct.contains).
 enum Chain:
     End
-    Link(next: Chain?)  # diagnostic: recursive-value-type
+    Link(next: Chain?) # diagnostic: recursive-value-type

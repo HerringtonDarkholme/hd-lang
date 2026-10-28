@@ -1,0 +1,52 @@
+# fixture-runtime-profile: pending-tick
+# expect-stdout: first 1
+# expect-stdout: middle
+# expect-stdout: last 2
+# expect-stdout: between
+# expect-stdout: escaped 3
+# test: immediate host drives before and after an async yield preserve owned arguments and caller-local storage.
+use std.task.block_on
+use std.testing.assert
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+# This counted provider and its argument escape the helper's local scope.
+fn cold_tick(text: string) -> mut Suspend[void] $ Tick:
+    let ticker: *mut dyn Tick = $.use(Tick)
+    ticker.tick(text)
+
+pub fn main!() -> void $ Console + Tick:
+    let console: &mut dyn Console = $.use(Console)
+    let ticker: &mut dyn Tick = $.use(Tick)
+    let first: mut Suspend[void] = ticker.tick("first ${+1}\n")
+    first_completed := match block_on(first):
+        .Completed(_) => true
+        _ => false
+    assert(first_completed, reason="the first owned call completed")
+    _ := console.write_sync("first ${+1}\n")
+    _ := console.write_sync("middle\n")
+    let last: mut Suspend[void] = ticker.tick("last ${+2}\n")
+    last_completed := match block_on(last):
+        .Completed(_) => true
+        _ => false
+    assert(last_completed, reason="the resumed body used fresh caller-local storage")
+    _ := console.write_sync("last ${+2}\n")
+
+    let escaped: mut Suspend[void] = cold_tick("escaped ${+3}\n")
+    _ := console.write_sync("between\n")
+    escaped_completed := match block_on(escaped):
+        .Completed(_) => true
+        _ => false
+    assert(escaped_completed, reason="the cold frame and owned argument survived return and yield")
+    _ := console.write_sync("escaped ${+3}\n")
+
+    let cancelled: mut Suspend[void] = cold_tick("cancelled ${+4}\n")
+    _ := cancelled.cancel!()
+    was_cancelled := match block_on(cancelled):
+        .Cancelled => true
+        _ => false
+    assert(was_cancelled, reason="cancelling the cold call released its argument once")
+
+    let abandoned: mut Suspend[void] = cold_tick("abandoned ${+5}\n")
+    abandoned.abandon()

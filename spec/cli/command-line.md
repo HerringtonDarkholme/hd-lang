@@ -37,6 +37,7 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd run [--release] [--engine NAME]`, `hd run [--release] [--engine NAME] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
 | `hd build [--release] [--engine NAME]` | builds the [package](#building-and-checking), or one FILE, in that profile |
 | `hd check`, `hd test [--release] [--engine NAME]` | work on the [package](#building-and-checking), or on one FILE; `hd test` is [always checked](#r-cli.profile.test) |
+| `hd lint [FILE] [--all] [--allow CODE] [--warn CODE] [--deny CODE]` | [reports lint findings](#linting), without running or rewriting a program |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd add [--dev] [--name NAME] TARGET[@QUERY]...`, `hd update [NAME[@QUERY]]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
@@ -174,14 +175,17 @@ module = "tools.migrate"
 1. r[cli.exe.table] Each `[[executable]]` table declares one **executable**: `name` names it, and `module` names its entry module by its module path under the source root.
 2. r[cli.exe.several] A package may declare several executables, with unique names.
 3. r[cli.exe.missing-module] An executable whose `module` names no module of the package is an error. Error: `missing-entry-point`.
-4. r[cli.exe.unselected-main] A public `main` or `main!` in a module under the source root that no executable names is an ordinary function, and `hd` warns about it. Warning: `unselected-main`.
-5. r[cli.exe.default-main] With no `[[executable]]` table in `hd.toml`, `src/main.hd` is the package's **default executable**, as Cargo's `src/main.rs` is.
-6. r[cli.exe.main-unlisted] When `hd.toml` has an `[[executable]]` table, a `src/main.hd` that no table names is an error. Its fix-it adds a table for it, with the package's name and `module = "main"`. Error: `unlisted-entry`.
-7. r[cli.exe.other-module] An executable's entry module other than `src/main.hd`, such as `src/tools/migrate.hd`, resolves relative uses as an ordinary module does: `self` is its own module.
-8. r[cli.exe.entry-program] Every executable's entry module is its own program and never part of the package's library, as `src/main.hd` is by [`module.path.main-file`](../lang/10-modules.md#r-module.path.main-file).
-9. r[cli.exe.entry-no-use] A use of an executable's entry module from another module is an error. Error: `unknown-module`.
-10. r[cli.exe.default-name] The default executable is named after the package, the `name` of its `[package]` table, as Cargo names `src/main.rs`.
-11. r[cli.exe.default-name.clash] A task with the package's name therefore clashes with the default executable, by [`cli.task.name-clash`](#r-cli.task.name-clash).
+4. r[cli.exe.unselected-main.lint] A public `main` or `main!` in a source-root module named by no executable produces a lint finding. Warning: `unselected-main`.
+5. r[cli.exe.unselected-main.function] Such a `main` or `main!` remains an ordinary function.
+6. r[cli.exe.private-main.missing] A run/build request requiring an entry fails when its only `main` is private, naming that function. Error: `missing-entry-point`.
+7. r[cli.exe.private-main.analysis] Checking, tests and library-module analysis accept an ordinary private `main`.
+8. r[cli.exe.default-main] With no `[[executable]]` table in `hd.toml`, `src/main.hd` is the package's **default executable**, as Cargo's `src/main.rs` is.
+9. r[cli.exe.main-unlisted] When `hd.toml` has an `[[executable]]` table, a `src/main.hd` that no table names is an error. Its fix-it adds a table for it, with the package's name and `module = "main"`. Error: `unlisted-entry`.
+10. r[cli.exe.other-module] An executable's entry module other than `src/main.hd`, such as `src/tools/migrate.hd`, resolves relative uses as an ordinary module does: `self` is its own module.
+11. r[cli.exe.entry-program] Every executable's entry module is its own program and never part of the package's library, as `src/main.hd` is by [`module.path.main-file`](../lang/10-modules.md#r-module.path.main-file).
+12. r[cli.exe.entry-no-use] A use of an executable's entry module from another module is an error. Error: `unknown-module`.
+13. r[cli.exe.default-name] The default executable is named after the package, the `name` of its `[package]` table, as Cargo names `src/main.rs`.
+14. r[cli.exe.default-name.clash] A task with the package's name therefore clashes with the default executable, by [`cli.task.name-clash`](#r-cli.task.name-clash).
 
 ```toml
 [package]
@@ -232,7 +236,7 @@ modules that tasks share:
 8. r[cli.task.above-root] In a shared task module, a `super` that moves above `tasks` is an error. Error: `unknown-module`.
 9. r[cli.task.program-use] A use of a task from another module is an error. Error: `unknown-module`.
 10. r[cli.task.shared-copy] Each task gets its own copy of the shared task modules it uses, so their top-level statements run once per task.
-11. r[cli.task.shared-unused] A warning that a declaration of a shared task module is unused is given only when no task uses that declaration.
+11. r[cli.task.shared-unused.lint] Lint reports an unused declaration in a shared task module only when no task uses that declaration.
 12. r[cli.task.uses] A task may use the package's modules through `pkg`.
 13. r[cli.task.dev-dependencies] A task may use the package's dependencies and its [dev dependencies](../lang/10-modules.md#r-module.test.dev-dependency).
 14. r[cli.task.cyclic-dev-dependency] A task may use a dev dependency that itself depends on the package, as an integration test module may.
@@ -297,7 +301,7 @@ profile**, which binds these traits:
 
 | Trait | Module | What `hd` binds |
 | --- | --- | --- |
-| `Console` | `std.console` | `write!` writes to standard output, and `write_error!` to standard error |
+| `Console` | `std.console` | `write_sync` writes to standard output, and `write_error_sync` to standard error |
 | `ConsoleInput` | `std.console` | reads standard input |
 | `Args` | `std.host` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
 | `Env` | `std.host` | the environment of the `hd` process |
@@ -313,7 +317,7 @@ profile**, which binds these traits:
 3. r[cli.host.script-binding] When `hd` runs a script, it binds every trait of the default profile, as the [REPL](#repl) does, so the script's top level may use each of them. The script's [capability grant](#capability-grants) still limits the resources they touch.
 4. r[cli.host.default-profile.main-row] The row of `main` or `main!` still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-binding`](#r-cli.host.entry-binding).
 5. r[cli.host.default-profile.other.with-package-host] A row key outside the built-in profile and package-declared host traits is an error. Error: `nonhost-entry-requirement`.
-6. r[cli.host.default-profile.console-write-closed] Under the default profile, `write!` and `write_error!` return `.Err(ConsoleError.Closed)` when the host cannot write the text. One such case is a pipe whose reader has closed it.
+6. r[cli.host.default-profile.console-write-closed] Under the default profile, `write_sync` and `write_error_sync` return `.Err(ConsoleError.Closed)` when the host cannot write the text. One such case is a pipe whose reader has closed it.
 7. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
 8. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
 9. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.
@@ -329,7 +333,7 @@ hd run        # the default profile binds Console: prints hello
 ```
 
 > **Why.** A closed pipe makes `println` panic, by
-> [`module.console.println-write-error`](../lang/10-modules.md#r-module.console.println-write-error),
+> [`module.console.println-write-error.either`](../lang/10-modules.md#r-module.console.println-write-error.either),
 > as Rust's `println!` does; `hd FILE | head -1` stops the program
 > instead of writing into nothing.
 
@@ -633,9 +637,8 @@ hd check --summary         # a count per code and file, in place of each diagnos
 ```sh
 hd check --summary
 # error: src/cart.hd: type-mismatch: 2
-# warning: src/cart.hd: unused-local-binding: 1
 # error: src/tax.hd: unknown-name: 1
-# check result: FAILED. errors: 3; warnings: 1
+# check result: FAILED. errors: 3; warnings: 0
 ```
 
 > **Why.** An agent with a hundred errors reads the first few, fixes them,
@@ -827,6 +830,69 @@ hd test tasks/seed.hd      # only the tests of task seed
 > A task without tests then never fails `hd test` for printing at its top
 > level.
 
+## Linting
+
+`hd lint` is an explicit, read-only request for advice about accepted code.
+It keeps advisory findings separate from errors that reject a program.
+
+```sh
+hd lint
+hd lint src/main.hd --format json
+hd lint --deny unsigned-comparison-always
+hd lint --all --allow unused-local-binding
+```
+
+1. r[cli.lint.select] `hd lint` selects files, packages, workspace members, tests and tasks by the same selection rules as `hd check`.
+2. r[cli.lint.options] `hd lint` accepts `--format`, `--summary`, `--max-errors`, `--jobs`, `--tests`, `--all`, and `-p` as checking does.
+3. r[cli.lint.prerequisites] `hd lint` reports ordinary compiler errors before running analyses that need successfully checked code.
+4. r[cli.lint.read-only] `hd lint` runs no program and changes no source, manifest, or lockfile.
+5. r[cli.lint.ordinary-errors] `hd check`, `hd build`, `hd test`, REPL evaluation, and the playground report compiler errors only.
+6. r[cli.lint.report-command] Only `hd lint` reports the optional findings listed in the diagnostic registry.
+7. r[cli.lint.default] Each registered lint runs at its declared default level.
+8. r[cli.lint.levels] A lint level is allow, warn, or deny, with the effects in the table below.
+9. r[cli.lint.exact-names] `--allow CODE`, `--warn CODE`, and `--deny CODE` take exact registered lint names and may repeat.
+10. r[cli.lint.unknown-name] An unknown lint name is an error, including a name in a site suppression.
+11. r[cli.lint.cli-conflict] Contradictory CLI levels for one lint are an error regardless of argument order.
+12. r[cli.lint.manifest] The selected package’s `[lint]` table accepts `allow`, `warn`, and `deny` lists of exact lint names.
+13. r[cli.lint.manifest-invalid] A non-list policy value, non-string list element, or conflicting manifest levels for one lint is an error.
+14. r[cli.lint.cli-override] An explicit CLI level overrides the selected package’s manifest level for that exact lint.
+15. r[cli.lint.no-inherit] A package inherits no parent-directory or workspace lint policy implicitly.
+16. r[cli.lint.standalone] A standalone file uses registered defaults and explicit CLI levels.
+17. r[cli.lint.dependency-policy] A dependency cannot impose lint policy on its caller.
+18. r[cli.lint.site-allow] A full-line `# lint-allow: CODE` immediately before a statement suppresses that code for calls directly owned by that statement.
+19. r[cli.lint.site-allow-reachability] A site suppression that names a registered lint which cannot report a directly owned call is a configuration error; it tells the user to set that code in `[lint]` instead.
+20. r[cli.lint.site-scope] A declaration’s site suppression never extends into its nested function or closure body.
+21. r[cli.lint.site-precedence] A site suppression overrides manifest and CLI deny for its code.
+22. r[cli.lint.errors-unsuppressible] Lint levels and suppressions never suppress compiler errors or make invalid code valid.
+23. r[cli.lint.order] Findings are ordered by package-relative path, source span, then stable lint code.
+24. r[cli.lint.output] Lint reuses the diagnostic objects and final summary of machine output.
+25. r[cli.lint.text-stream] Lint text diagnostics and summaries go to standard error; JSON output goes to standard output.
+26. r[cli.lint.totals] Diagnostic truncation changes no total count or exit status.
+27. r[cli.lint.status-warning] A successful lint run with only warning-level findings exits with status 0.
+28. r[cli.lint.status-error] A lint run with a compiler error, denied finding, invocation error, or configuration error exits with status 101.
+29. r[cli.lint.stable-messages] Moving an existing warning into lint preserves its stable diagnostic code, message, source span and fix-it information.
+30. r[cli.lint.lost-write] A change to a `mut` parameter or `mut self` copy produces `lost-write` when the changed copy is never read afterwards, returned, stored, passed on, or captured. A change is a whole reassignment, a struct field write, a list or map element store, or a call of an `&mut self` method such as `push`. The message suggests a mutable reference when the caller's value was meant to change. Warning: `lost-write`.
+31. r[cli.lint.lost-write.scope] `lost-write` judges changes in direct statements of a function body. It stays silent when a later statement names the parameter, or when a closure or `defer` in the body captures it.
+
+| Level | Effect |
+| --- | --- |
+| `allow` | Suppresses that lint finding. |
+| `warn` | Reports a warning and does not change an otherwise successful exit status. |
+| `deny` | Reports the finding as an error and makes lint fail. |
+
+```toml
+[lint]
+allow = ["unused-local-binding"]
+warn = ["redundant-let-mut"]
+deny = ["unsigned-comparison-always"]
+```
+
+> **Why.** Choosing advice is a tooling policy. It must not alter program
+> validity, execution, or the compiler errors that every command reports.
+
+See also: [Machine Output](#machine-output), [Exit Status](#exit-status),
+[Diagnostics](../README.md#diagnostics).
+
 ## Build Profiles
 
 A **build profile** decides whether integer overflow panics or wraps:
@@ -923,7 +989,7 @@ hd build --release     # error: dbg-in-release
 4. r[cli.dbg.release] `hd build --release` and `hd run --release` reject a `dbg` call in the user's own code, by [`module.dbg.release`](../lang/10-modules.md#r-module.dbg.release), and `hd run --release` then runs nothing.
 5. r[cli.dbg.release.file] `hd --release FILE` rejects such a call too, and then runs nothing.
 6. r[cli.dbg.test-release] `hd test --release` accepts a `dbg` call, since it builds in the test profile by [`module.dbg.release.debug-build`](../lang/10-modules.md#r-module.dbg.release.debug-build).
-5. r[cli.dbg.dependency] `hd check` and `hd build` warn once for each fetched dependency that calls `dbg`, by [`module.dbg.dependency.warning`](../lang/10-modules.md#r-module.dbg.dependency.warning).
+7. r[cli.dbg.dependency.lint] Lint reports fetched-package `dbg` use once per package, by [`module.dbg.dependency.lint`](../lang/10-modules.md#r-module.dbg.dependency.lint). Warning: `dbg-in-dependency`.
 
 > **Note.** The browser playground shows `dbg` lines in its output panel,
 > marked as debug output.
@@ -1051,11 +1117,13 @@ hd doc --private     # the private items and members too
 
 1. r[cli.doc.dir] `hd doc` writes into the directory `doc` of the [build directory](#r-cli.build.directory), as `build/doc`. `--out DIR` writes into DIR instead.
 2. r[cli.doc.open] `--open` opens the entry page `index.html` of the output with the platform's default program, after the files are written.
-3. r[cli.doc.files] The output holds the files of the table below. A module's HTML and Markdown pages sit side by side.
-4. r[cli.doc.root-page] The root module's pages are named `pkg`, as [`module.path.reserved-pkg`](../lang/10-modules.md#r-module.path.reserved-pkg) reserves the name, so no user module's page takes their file names.
-5. r[cli.doc.index-module] A top-level module named `index` has its pages at `index/index.html` and `index/index.md`, so the entry page keeps the names `index.html` and `index.md`.
-6. r[cli.doc.relative] A link between the output's files is a relative path, so the output works from any base path.
-7. r[cli.doc.html] A module's HTML page holds everything its Markdown page holds, under the same anchors. Its styling and navigation are not specified.
+3. r[cli.doc.open.failure] Failure to launch the browser for `hd doc --open` is a command failure with non-zero status.
+4. r[cli.doc.open.failure.path] The failed command still prints the documentation path and retains the files already written.
+5. r[cli.doc.files] The output holds the files of the table below. A module's HTML and Markdown pages sit side by side.
+6. r[cli.doc.root-page] The root module's pages are named `pkg`, as [`module.path.reserved-pkg`](../lang/10-modules.md#r-module.path.reserved-pkg) reserves the name, so no user module's page takes their file names.
+7. r[cli.doc.index-module] A top-level module named `index` has its pages at `index/index.html` and `index/index.md`, so the entry page keeps the names `index.html` and `index.md`.
+8. r[cli.doc.relative] A link between the output's files is a relative path, so the output works from any base path.
+9. r[cli.doc.html] A module's HTML page holds everything its Markdown page holds, under the same anchors. Its styling and navigation are not specified.
 
 | Files | Hold |
 | --- | --- |
@@ -1119,7 +1187,8 @@ build/doc/llms.txt        # the index for agents
 2. r[cli.doc.link.scope] NAME resolves in the module scope of the documented item: its own declarations and the names its `use` declarations bind. A dotted NAME names a member or a path through modules.
 3. r[cli.doc.link.resolved] A resolved link becomes a link to the target's anchor, on the target's page.
 4. r[cli.doc.link.external] A NAME that resolves to a `std` item links to the page for that item in the standard library reference. A NAME that resolves into a dependency is checked, but shows as plain code.
-5. r[cli.doc.link.broken] A NAME that resolves to no item is a warning, as is one that resolves to a private item the run does not document. The text shows as plain code. Warning: `broken-doc-link`.
+5. r[cli.doc.link.broken.lint] An unresolved documentation NAME or an undocumented private target produces a lint finding. Warning: `broken-doc-link`.
+6. r[cli.doc.link.unresolved-text] Documentation renders an unresolved NAME or an undocumented private target as plain code.
 
 ```sh
 # in the doc comments of src/text.hd:
@@ -1146,7 +1215,7 @@ hd doc std.json.parse    # parse's signature, summary, and reference link
 
 > **Why.** The Markdown pages let an agent fetch one module in one
 > request, and `hd doc NAME` answers a lookup without any file. A broken
-> link is a warning, so a rename does not block a build. Anchors equal
+> link is a lint finding, so a rename does not block a build. Anchors equal
 > doc-test names, so one name finds the item, its page section, and its
 > examples.
 
@@ -1232,7 +1301,7 @@ hd check --format json
 6. r[cli.exit.cancelled] `hd FILE` or `hd run` exits with status 130 when its program is cancelled or stopped, by [Cancelling A Run](#cancelling-a-run).
 
 ```sh
-hd check; echo $?     # 0: warnings do not change it
+hd lint; echo $?      # 0: warning-level findings do not change it
 hd test; echo $?      # 1 when a test case failed
 hd run; echo $?       # the program's own status
 ```
@@ -1313,6 +1382,37 @@ hd fmt --check          # writes nothing; lists each file that would change
 5. r[cli.fmt.check] `hd fmt --check` writes no file. It prints the path of each file that formatting would change.
 6. r[cli.fmt.syntax-error] A file with a syntax error is left untouched, and `hd fmt` reports its syntax diagnostics. It still formats the other files.
 7. r[cli.fmt.no-check] `hd fmt` reads no other module and checks no type, so a file with a type error is still formatted.
+8. r[cli.fmt.canonical] Output depends only on syntax, comments, and authored sibling blank lines, not authored spacing or wrapping.
+9. r[cli.fmt.fixed-style] The standard layout uses 100 columns and four-space indentation, with no style settings.
+10. r[cli.fmt.width.fit] A syntactic group stays flat when its canonical line fits 100 columns, counting each Unicode scalar value as one column, and breaks otherwise.
+11. r[cli.fmt.width.elements] An overlong struct literal, call, parameter list, or list literal places one element per line.
+12. r[cli.fmt.width.comma-groups] Other comma-delimited groups use the same layout, including tuples, maps, use groups, generic parameters, and type arguments.
+13. r[cli.fmt.width.indent] A broken group's elements are indented four spaces beyond the line holding its opening delimiter.
+14. r[cli.fmt.width.close] A broken group's closing delimiter starts a separate line at the opening line's indentation.
+15. r[cli.fmt.width.signature] An overlong function signature breaks its parameter list before breaking its result type.
+16. r[cli.fmt.width.binary-continuation] A broken binary chain uses parentheses only in positions that require them for line continuation.
+17. r[cli.fmt.width.binary-delimited] A broken binary chain inside brackets or braces places its operands on separate lines without adding parentheses.
+18. r[cli.fmt.width.binary-operands] A broken binary chain places one operand per line, with the operator before each later operand.
+19. r[cli.fmt.width.protected] Comment and string literal text remains as written, even when it exceeds the width.
+20. r[cli.fmt.width.trailing-comma] A comma-delimited group written one element per line ends its last element with a comma.
+21. r[cli.fmt.width.flat-comma] A trailing comma that is not required by the syntax is absent when its group stays flat.
+22. r[cli.fmt.spacing] Formatting normalizes spacing around keywords, assignments, binary operators, commas, colons, and nonempty flat record braces.
+23. r[cli.fmt.spacing.equal] Value-level named arguments and provider bindings have no spaces around `=`, while type-level bindings and every other `=` have one space on each side.
+24. r[cli.fmt.suite.vertical] Function bodies and statement suites stay on lines below their headers.
+25. r[cli.fmt.suite.value] Match arms, closures, and value-position `if` expressions stay inline only when their complete canonical form fits.
+26. r[cli.fmt.suite.if-value] A tail `if` with `else` is a value unless its function declares `-> void`; an omitted result type counts as a value.
+27. r[cli.fmt.suite.if-statement] An `if` without `else`, or a tail `if` in a `-> void` function, is a statement.
+28. r[cli.fmt.suite.final-comma] In a broken comma-delimited group whose final element ends in a suite, the final comma is placed after that suite dedents to the element's indentation.
+29. r[cli.fmt.comments] Formatting preserves comment bytes and whether each comment is inline or standalone.
+30. r[cli.fmt.comments.width] An inline comment does not make its preceding canonical code group break.
+31. r[cli.fmt.parentheses] Formatting preserves parentheses except obsolete continuation wrappers in noncallee value and suite-header positions.
+32. r[cli.fmt.parentheses.callee] Formatting preserves parentheses around a call target.
+33. r[cli.fmt.chain] A broken postfix chain keeps its first complete call as the head, then places each remaining dot segment on a leading-dot line.
+34. r[cli.fmt.chain.header] A broken chain in a suite header has one complete continuation wrapper before its colon.
+35. r[cli.fmt.pipe] A broken pipe chain keeps its head unparenthesized and places each pipe step on a leading-`|>` line.
+36. r[cli.fmt.blank-lines] Formatting keeps at most one authored blank line between sibling statements.
+37. r[cli.fmt.line-endings] Generated layout uses LF and exactly one final newline, while an empty file remains empty.
+38. r[cli.fmt.width.unbreakable] An unbreakable token or syntax form may exceed 100 columns.
 
 > **Why.** Formatting around a syntax error could rewrite code that the
 > parser misread, so the file waits until it parses.
@@ -1638,6 +1738,10 @@ hd> count = count + 1                          # a `let` binding is assigned, no
 1. r[cli.repl.rebuild] An implementation may rebuild a session by running its inputs again in order, with each host call's result served from a record of the first run. A rebuild repeats no host call.
 2. r[cli.repl.rebuild.prefix] A rebuild keeps the longest prefix of inputs that still check and make the same host calls as before. The first input that does not, and every later input, is dropped, and the REPL reports the first one.
 3. r[cli.repl.rebuild.stopped] A rebuild skips an input that was stopped, so that input's changes to earlier values may be lost. The REPL reports each stopped input that a rebuild skipped.
+4. r[cli.repl.checkpoint.continue] When the active host-call record exceeds its limit, the REPL checkpoints completed inputs and continues accepting inputs.
+5. r[cli.repl.checkpoint.initialized] Later inputs import the checkpoint's initialized bindings and code without executing the checkpointed inputs again.
+6. r[cli.repl.checkpoint.effects] Creating or restoring a checkpoint repeats no host call.
+7. r[cli.repl.checkpoint.history] The REPL retains the recorded host results needed to rebuild checkpointed inputs by [`cli.repl.rebuild.prefix`](#r-cli.repl.rebuild.prefix).
 
 > **Note.** A browser session is rebuilt after a Stop of a busy input or
 > a page reload, and a session is rebuilt after its package's files
@@ -2072,13 +2176,12 @@ See also: [Cache](#cache), [Cleaning](#cleaning).
 
 ## Package Tooling
 
-A manifest key that no rule gives a meaning is a warning, as Cargo's
-"unused manifest key" is:
+A manifest key that no rule gives a meaning is an error on load for every command:
 
 ```toml
 [package]
 name = "shop"
-version = "1.0.0"   # warning: unknown-manifest-key, since a tag is the version
+version = "1.0.0"   # error: unknown-manifest-key, since a tag is the version
 ```
 
 | Table | Keys with a meaning |
@@ -2090,8 +2193,9 @@ version = "1.0.0"   # warning: unknown-manifest-key, since a tag is the version
 | `[dependencies]`, `[dev-dependencies]` | every key, each a [dependency requirement](../lang/10-modules.md#dependency-requirements) |
 | `[workspace]` | `members`, `exclude` |
 | `[toolchain]` | `pin` |
+| `[lint]` | `allow`, `warn`, `deny`, by [Linting](#linting) |
 
-1. r[cli.manifest.unknown-key.with-host] A table or key of `hd.toml` that the table above does not list is a warning at its line. Warning: `unknown-manifest-key`.
+1. r[cli.manifest.unknown-key.error] Every command rejects a table or key of `hd.toml` that the table above does not list, at its line. Error: `unknown-manifest-key`.
 2. r[cli.manifest.known-key] A listed key whose value breaks the rule that gives it a meaning stays an error.
 3. r[cli.manifest.invalid] An error in the content of `hd.toml` for which no other rule names a code is an error at its line in `hd.toml`. Error: `invalid-manifest`.
 4. r[cli.manifest.invalid.cases] These errors include a bad key or value of [Capability Grants](#capability-grants), an `[[executable]]` table without a string `name` and `module`, and a `[source] root` that is no source root. They also include a package that its workspace manifest neither lists nor excludes.

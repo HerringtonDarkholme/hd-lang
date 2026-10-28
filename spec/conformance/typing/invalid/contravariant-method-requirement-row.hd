@@ -8,5 +8,5 @@ struct Handler[-T]:
     handle: fn(T) -> void
 
 impl[T] Handler[T]:
-    fn warmer(self) -> (fn() -> void $ Cache[T]):  # diagnostic: invalid-variance
+    fn warmer(self) -> (fn() -> void $ Cache[T]): # diagnostic: invalid-variance
         fn() -> void: pass

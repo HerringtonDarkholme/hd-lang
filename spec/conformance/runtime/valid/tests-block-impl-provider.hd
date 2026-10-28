@@ -22,11 +22,16 @@ tests:
         label: string
 
     impl Mailer for OutboxMailer:
-        fn send(self, to: string) -> string: "outbox:${self.label}:$to"
+        fn send(self, to: string) -> string:
+            "outbox:${self.label}:$to"
 
     it("installs the test-only mailer as the provider"):
         $.with(Mailer=OutboxMailer { label: "case" }):
-            assert_equal(register("ada@example.com"), "outbox:case:ada@example.com", reason="the installed fake")
+            assert_equal(
+                register("ada@example.com"),
+                "outbox:case:ada@example.com",
+                reason="the installed fake",
+            )
 
     it("passes the test-only mailer to generic and trait-value parameters"):
         mailer := OutboxMailer { label: "direct" }

@@ -8,7 +8,8 @@ struct User:
     name: string
 
 impl Named for User:
-    fn name(self) -> string: self.name
+    fn name(self) -> string:
+        self.name
 
 fn recorded_is_static[T < Inspectable](value: &T) -> bool:
     value.runtime_type() == TypeId::of::[T]()

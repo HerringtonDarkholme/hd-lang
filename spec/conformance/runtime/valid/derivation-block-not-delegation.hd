@@ -58,5 +58,13 @@ tests:
     use std.testing.assert_equal
 
     it("walks the members rather than calling the part's probe"):
-        assert_equal(Outer { Inner: Inner { code: 1 }, id: 2 }.probe(), "Inner=-/-;id=-/-;", reason="the part is one walked member")
-        assert_equal(Inner { code: 1 }.probe(), "inner", reason="the part keeps its own implementation")
+        assert_equal(
+            Outer { Inner: Inner { code: 1 }, id: 2 }.probe(),
+            "Inner=-/-;id=-/-;",
+            reason="the part is one walked member",
+        )
+        assert_equal(
+            Inner { code: 1 }.probe(),
+            "inner",
+            reason="the part keeps its own implementation",
+        )

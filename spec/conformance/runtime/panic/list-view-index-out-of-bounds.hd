@@ -2,4 +2,4 @@
 # std Collections, Views: std-collections.view.index.range (batch 49).
 items := [1, 2, 3]
 view := items.view(0, 2)
-value := view[2]  # panic: index-out-of-bounds
+value := view[2] # panic: index-out-of-bounds

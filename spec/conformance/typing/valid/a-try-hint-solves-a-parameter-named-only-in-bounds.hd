@@ -1,0 +1,36 @@
+# test: a type argument solved from a ? hint lets call inference solve a parameter named only in bounds
+# Spec 05 Try Expected Type: expr.try.expected.result. Spec 04 Bounds-Only Parameters: types.generic.infer.bound.after, types.generic.infer.bound.one.
+use std.convert.From
+
+trait Decode:
+    type Failure
+    fn decode(text: string) -> Result[Self, Self::Failure]
+
+impl Decode for u16:
+    type Failure = string
+    fn decode(text: string) -> Result[u16, string]:
+        if text == "": .Err("empty") else: .Ok(80)
+
+struct LookupError:
+    name: string
+
+fn read_as[T < Decode[Failure = F], F](name: string) -> Result[T?, LookupError]:
+    match T::decode(name):
+        .Ok(value) => .Ok(.Some(value))
+        .Err(_) => .Ok(.None)
+
+struct AppError:
+    reason: string
+
+impl From[LookupError] for AppError:
+    fn from(error: LookupError) -> AppError:
+        AppError { reason: error.name }
+
+fn port() -> Result[u16?, AppError]:
+    let value: u16? = read_as("PORT")?
+    .Ok(value)
+
+pub fn main() -> void $ Console:
+    match port():
+        .Ok(found) => println("${found.unwrap_or(0)}")
+        .Err(error) => println(error.reason)

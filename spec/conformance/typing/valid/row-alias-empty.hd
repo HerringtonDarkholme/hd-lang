@@ -2,9 +2,10 @@
 
 use std.function.Fn
 
-type NoRow = $()
+type NoRow = $ ()
 
-fn quiet() -> i32 $ NoRow: 1
+fn quiet() -> i32 $ NoRow:
+    1
 
 fn plain() -> Fn[(), i32, $ NoRow]:
     quiet

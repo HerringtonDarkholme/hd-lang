@@ -77,29 +77,35 @@ const use = (path: string): string => {
   return fixture(path);
 };
 
-async function checkDir(hd: HdCommand, dir: string, file?: string): Promise<Diagnostic[]> {
-  const result = await runHd(
-    hd,
-    ["check", "--tests", "--format", "json", ...(file ? [file] : [])],
-    {
-      cwd: dir,
-      env: { HD_CACHE: makeTempDir("cache") },
-      timeoutMs: TIMEOUT_MS,
-    },
-  );
-  if (result.timedOut) throw new Error(`hd check timed out after ${TIMEOUT_MS / 1000} s`);
+async function checkDir(
+  hd: HdCommand,
+  dir: string,
+  file?: string,
+  tool: Mistake["tool"] = "check",
+): Promise<Diagnostic[]> {
+  const result = await runHd(hd, [tool, "--tests", "--format", "json", ...(file ? [file] : [])], {
+    cwd: dir,
+    env: { HD_CACHE: makeTempDir("cache") },
+    timeoutMs: TIMEOUT_MS,
+  });
+  if (result.timedOut) throw new Error(`hd ${tool} timed out after ${TIMEOUT_MS / 1000} s`);
   const found = diagnosticsOf(result.stdout + result.stderr);
   if (result.status !== 0 && found.length === 0)
     throw new Error(
-      `hd check exited ${String(result.status)}: ${(result.stdout + result.stderr).trim().slice(0, 300)}`,
+      `hd ${tool} exited ${String(result.status)}: ${(result.stdout + result.stderr).trim().slice(0, 300)}`,
     );
   return found;
 }
 
-const checkFile = async (hd: HdCommand, file: string, text: string) => {
+const checkFile = async (
+  hd: HdCommand,
+  file: string,
+  text: string,
+  tool: Mistake["tool"] = "check",
+) => {
   const dir = makeTempDir("fixture");
   writeFileSync(join(dir, file), text);
-  return checkDir(hd, dir, file);
+  return checkDir(hd, dir, file, tool);
 };
 
 const clean = (found: readonly Diagnostic[]): string | undefined =>
@@ -209,7 +215,7 @@ function mistakeChecks(hd: HdCommand, verbose: boolean): Check[] {
       {
         name: `mistake ${mistake.name}`,
         run: async () => {
-          const found = await checkFile(hd, file, mistake.text);
+          const found = await checkFile(hd, file, mistake.text, mistake.tool);
           if (verbose) console.log(`${mistake.name}: ${describe(found)}`);
           return mistakeProblem(mistake, found);
         },
@@ -219,7 +225,7 @@ function mistakeChecks(hd: HdCommand, verbose: boolean): Check[] {
       const fixed = mistake.fixedText;
       checks.push({
         name: `mistake ${mistake.name}, fixed`,
-        run: async () => clean(await checkFile(hd, file, fixed)),
+        run: async () => clean(await checkFile(hd, file, fixed, mistake.tool)),
       });
     }
     return checks;

@@ -5,4 +5,4 @@ use std.inspect.{Inspectable, TypeId}
 
 trait Plugin < Inspectable:
     fn name(self) -> string
-    fn runtime_type(self) -> TypeId  # diagnostic: sealed-trait-implementation
+    fn runtime_type(self) -> TypeId # diagnostic: sealed-trait-implementation

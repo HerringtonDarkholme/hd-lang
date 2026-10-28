@@ -1,6 +1,23 @@
 # @dump: wat
 # @build: v8 release
-# expected: `word` hashed once (one `rt:map_hash`) for the read and the write
-# of the same key (map_count: two hashes and two probes per word).
+# expected: `word` is hashed and probed once for a get/store pair and for
+# `+=`; an intervening map change makes the final store hash and probe again.
 fn tally(counts: &mut Map[string, i64], word: string) -> void:
     counts[word] = counts.get(word).unwrap_or(0) + 1
+
+fn tally_match(counts: &mut Map[string, i64], word: string) -> void:
+    counts[word] = match counts.get(word):
+        .Some(seen) => seen + 1
+        .None => 1
+
+fn increment_existing(counts: &mut Map[string, i64], word: string) -> void:
+    counts[word] += 1
+
+fn changed_between(
+    counts: &mut Map[string, i64],
+    word: string,
+    other: string,
+) -> void:
+    seen := counts.get(word).unwrap_or(0)
+    counts[other] = 0
+    counts[word] = seen + 1

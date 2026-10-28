@@ -1,4 +1,4 @@
 # test: declaration checks a closure parameter does not reuse a type parameter
 fn work[T](value: T) -> i32:
-    f := fn(T: i32) -> i32: T  # diagnostic: duplicate-binding
+    f := fn(T: i32) -> i32: T # diagnostic: duplicate-binding
     f(1)

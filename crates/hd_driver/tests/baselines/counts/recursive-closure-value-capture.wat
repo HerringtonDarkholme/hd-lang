@@ -4,68 +4,52 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 1 funcref))
-  (func $sum_to#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $sum.0 i32) (local $sum.1 i32) (local $seed i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
+  (import "fixture" "table0" (table $table0 3 funcref))
+  (func $sum_to#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $seed i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
     i32.const 0
-    local.set $sum.0
+    local.set $ctx
     local.get $env
-    local.set $sum.1
     local.get $env
     i32.load $heap
     local.set $seed
-    local.get $sum.1
     call $rt:retain_known
     block
     ;; 7 |         if n == 0: seed
       local.get $n
       i32.eqz
       if
-        local.get $seed
-        local.set $t0
       else
     ;; 8 |         else: n + sum(n - 1)
-        local.get $sum.0
-        local.get $sum.1
-        local.set $t1
-        local.set $t2
-        local.get $t1
+        local.get $env
         call $rt:retain_known
-        local.get $t1
+        local.get $env
         local.get $n
         i32.const 1
         i32.sub
         i32.const 0
-        local.get $t2
+        local.get $ctx
         call_indirect $table0 (param i32 i32 i32) (result i32)
-        local.set $t3
+        local.set $ctx
     ;; 7 |         if n == 0: seed
-        local.get $t1
+        local.get $env
         call $rt:release_ref
-        i32.const 0
-        local.set $t2
-        i32.const 0
-        local.set $t1
     ;; 8 |         else: n + sum(n - 1)
         local.get $n
-        local.get $t3
+        local.get $ctx
         i32.add
     ;; 7 |         if n == 0: seed
-        local.set $t0
+        local.set $seed
       end
     ;; 6 |     sum := fn(n: i32) -> i32:
-      local.get $sum.1
+      local.get $env
       call $rt:release_ref
-      i32.const 0
-      local.set $sum.0
-      i32.const 0
-      local.set $sum.1
-      local.get $t0
-      local.set $t4
+      local.get $seed
+      local.set $env
     end
-    local.get $t4
+    local.get $env
   )
-  (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $sum.0 i32) (local $sum.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
+  (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $t0 i32)
     block
     ;; 6 |     sum := fn(n: i32) -> i32:
       i32.const 0
@@ -75,31 +59,19 @@
       local.tee $t0
       local.get $seed
       i32.store $heap
-      local.get $t0
-      local.set $t1
-      local.set $t2
-      local.get $t2
-      local.get $t1
-      local.set $sum.1
-      local.set $sum.0
-      i32.const 0
-      local.set $t2
-      i32.const 0
-      local.set $t1
     ;; 9 |     sum(limit)
-      local.get $sum.0
-      local.get $sum.1
-      local.set $t3
-      local.set $t4
-      local.get $t3
+      local.set $seed
+      local.get $t0
       call $rt:retain_known
+    ;; 6 |     sum := fn(n: i32) -> i32:
+      local.get $t0
       ;; ...
-      local.get $t3
+    ;; 9 |     sum(limit)
+      local.get $t0
       local.get $limit
       i32.const 0
-      local.get $t4
+      local.get $seed
       call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $t5
       ;; ...
     end
     ;; ...

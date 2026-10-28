@@ -3,7 +3,7 @@
 use std.time.{Duration, s}
 
 fn rewind(now: Duration, back: Duration) -> Duration:
-    now - back  # panic: explicit-panic
+    now - back # panic: explicit-panic
 
 tests:
     it("panics when the right side is longer"):

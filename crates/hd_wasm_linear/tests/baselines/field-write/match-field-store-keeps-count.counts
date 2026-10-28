@@ -14,6 +14,5 @@ fn value(node: &Node, other: &mut Node) -> i64:
 >   release &app.main.Node?
         .Some(left) =>
             other.left = .None
->   retain counted reference
 >   release counted reference
             left.value

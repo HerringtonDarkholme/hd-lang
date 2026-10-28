@@ -4,4 +4,4 @@ struct P:
 
 pub fn main() -> void $ Console:
     p := P { x: 1 }
-    println(p.y)  # diagnostic: unknown-field
+    println(p.y) # diagnostic: unknown-field

@@ -3,8 +3,8 @@
 // count, each file's path and text, the entry path, then one goal byte and
 // the goal's own fields; counts, numbers and lengths are unsigned LEB128 and
 // strings UTF-8 (crates/hd_web/src/wire.rs). The response is JSON text plus
-// the program's bytes; the wat goal compiles as run and also answers the
-// program's WebAssembly text, output kind 2. The REPL goals build one module
+// the program's bytes. WAT uses those same Run bytes with the optional
+// hd_wat printer module. The REPL goals build one module
 // of a REPL session per request (encodeReplStart, encodeReplInput,
 // encodeReplOutcome). The playground's Rust runner and the Node smoke test
 // (scripts/test-web-compiler.js) share this module.
@@ -18,10 +18,10 @@ export const GOAL = {
   run: 0,
   check: 1,
   test: 2,
-  wat: 3,
   replStart: 4,
   replInput: 5,
   replOutcome: 6,
+  replRebuildInput: 7,
 } as const;
 /**
  * The outcome byte of a `replOutcome` request: the module ended with status
@@ -105,8 +105,6 @@ export interface Compiled {
   readonly json: WireResponse;
   /** The programs one after another; empty when the compile produced none. */
   readonly wasm: Uint8Array;
-  /** The wat goal's text of the program; empty for every other goal. */
-  readonly wat: string;
 }
 
 /** The bytes of each of the test goal's programs, in order. */
@@ -172,6 +170,14 @@ export function encodeReplInput(text: string, number?: number): Uint8Array {
   return Uint8Array.from(out);
 }
 
+/** Build a whole initialized-base candidate for historical replay. */
+export function encodeReplRebuildInput(text: string, number: number): Uint8Array {
+  const out = header({}, "", GOAL.replRebuildInput);
+  string(out, text);
+  leb(out, number);
+  return Uint8Array.from(out);
+}
+
 /**
  * Reports how input `input` ended: `OUTCOME.joined` after status 0,
  * `OUTCOME.failed` after a panic or another status (it stays for replays,
@@ -201,6 +207,5 @@ export function compileRequest(exports: CompilerExports, request: Uint8Array): C
     status,
     json: JSON.parse(new TextDecoder().decode(output(0))) as WireResponse,
     wasm: output(1),
-    wat: new TextDecoder().decode(output(2)),
   };
 }

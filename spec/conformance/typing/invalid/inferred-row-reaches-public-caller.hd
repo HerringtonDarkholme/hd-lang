@@ -10,4 +10,4 @@ fn forward():
     read_clock()
 
 pub fn top() -> void:
-    forward()  # diagnostic: missing-requirement
+    forward() # diagnostic: missing-requirement

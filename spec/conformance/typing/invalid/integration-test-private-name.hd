@@ -2,7 +2,7 @@
 # Spec 10 Test Modules: module.test.integration.view, module.test.integration.pkg-root;
 # Use Forms: module.use.private-name. The tree's src/lib.hd declares discount without pub.
 # fixture-package-tree: shop-lib/tests/discounts.hd
-use pkg.{discount}  # diagnostic: private-import
+use pkg.{discount} # diagnostic: private-import
 
 it("discounts three items"):
     pass

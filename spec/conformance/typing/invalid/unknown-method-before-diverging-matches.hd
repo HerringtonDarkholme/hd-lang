@@ -1,7 +1,7 @@
 # test: an unknown method's value flows into matches whose other arms return
 # Spec 03 Methods Not Found: names.method-lookup.unknown.
 fn apply(line: string) -> Result[void, string]:
-    words := line.tokens()  # diagnostic: unknown-method
+    words := line.tokens() # diagnostic: unknown-method
     cmd := match words.get(0):
         .Some(w) => w
         .None => return .Err("empty")

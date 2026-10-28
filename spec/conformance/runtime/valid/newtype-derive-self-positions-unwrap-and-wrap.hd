@@ -24,13 +24,16 @@ trait Step:
     fn zero() -> Self
 
 impl Step for i32:
-    fn next(self) -> i32: self + 1
-    fn plus(self, other: i32) -> i32: self + other
+    fn next(self) -> i32:
+        self + 1
+    fn plus(self, other: i32) -> i32:
+        self + other
     fn before(self, limit: i32) -> i32?:
         if self < limit: .Some(self) else: .None
     fn guard(self, limit: i32) -> Result[i32, string]:
         if self < limit: .Ok(self) else: .Err("too big")
-    fn spread(self) -> List[i32]: [self, self + 1, self + 2]
+    fn spread(self) -> List[i32]:
+        [self, self + 1, self + 2]
     fn total(self, rest: List[i32]) -> i32:
         let sum = self
         for r in rest:
@@ -40,7 +43,8 @@ impl Step for i32:
         match other:
             .Some(v) => v
             .None => self
-    fn zero() -> i32: 0
+    fn zero() -> i32:
+        0
 
 @derive(Step)
 type Level(i32)

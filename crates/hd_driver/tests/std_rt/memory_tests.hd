@@ -3,7 +3,20 @@
 # file to std as `std.rt.memory_tests` and runs its cases on the linear
 # backend (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case
 # runs in an instance of its own, so each starts with a fresh heap.
-use std.rt.memory.{copy, fill, grow, load_u8, load_u16, load_u32, load_u64, pages, store_u8, store_u16, store_u32, store_u64}
+use std.rt.memory.{
+    copy,
+    fill,
+    grow,
+    load_u8,
+    load_u16,
+    load_u32,
+    load_u64,
+    pages,
+    store_u8,
+    store_u16,
+    store_u32,
+    store_u64,
+}
 
 # The address of a page this case grows the heap by, which no other part of
 # the program uses (module.rt.memory.grow.owner).

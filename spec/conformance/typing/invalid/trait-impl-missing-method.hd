@@ -5,4 +5,4 @@ trait Named:
     fn name(self) -> string
 struct User:
     value: i32
-impl Named for User  # diagnostic: missing-trait-method
+impl Named for User # diagnostic: missing-trait-method

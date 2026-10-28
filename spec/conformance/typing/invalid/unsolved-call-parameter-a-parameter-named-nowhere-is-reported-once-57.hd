@@ -22,4 +22,4 @@ impl Reader:
         self.id
 
 pub fn main() -> void:
-    _ := missing()  # diagnostic: cannot-infer-type
+    _ := missing() # diagnostic: cannot-infer-type

@@ -1,4 +1,5 @@
 # test: prelude Console cannot be shadowed
 # Spec 10 Prelude: module.prelude.no-shadow.
 
-fn consume(Console: i32) -> i32: Console  # diagnostic: prelude-name-shadow
+fn consume(Console: i32) -> i32: # diagnostic: prelude-name-shadow
+    Console

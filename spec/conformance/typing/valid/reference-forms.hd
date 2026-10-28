@@ -12,10 +12,7 @@ struct Outer:
     hook: fn() -> void
 
 fn first(items: List[*User]) -> *User?:
-    if items.len() > 0:
-        .Some(items[0])
-    else:
-        .None
+    if items.len() > 0: .Some(items[0]) else: .None
 
 fn names(o: &Outer) -> string:
     (o.hook)()

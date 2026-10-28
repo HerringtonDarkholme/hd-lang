@@ -3,5 +3,5 @@
 
 @error
 enum ParseError:
-    @error("bad token $token")  # diagnostic: unknown-name
+    @error("bad token $token") # diagnostic: unknown-name
     BadToken(text: string)

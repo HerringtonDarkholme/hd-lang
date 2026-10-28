@@ -18,7 +18,8 @@ impl Lookup for PhoneBook:
             if self.names[index] == key:
                 return .Some(self.numbers[index])
         .None
-    fn keys(self) -> List[string]: self.names
+    fn keys(self) -> List[string]:
+        self.names
 
 struct Squares:
     size: i32
@@ -45,8 +46,10 @@ struct Pair[K]:
 impl[K] Lookup for Pair[K]:
     type Key = K
     type Value = K
-    fn find(self, key: K) -> K?: .Some(self.key)
-    fn keys(self) -> List[K]: [self.key]
+    fn find(self, key: K) -> K?:
+        .Some(self.key)
+    fn keys(self) -> List[K]:
+        [self.key]
 
 fn numbers(book: &dyn Lookup[Key = string, Value = i32]) -> void:
     pass

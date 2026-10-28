@@ -7,6 +7,14 @@ tests:
     it("calls the method on the operands"):
         small := i16(300)
         large := i64(5000000000)
-        assert_equal(i64(small) + large, Add::[i64]::add(i64(small), large), reason="an explicit i64 conversion")
-        assert_equal(f64(f32(1.5)) + 2.0, Add::[f64]::add(f64(f32(1.5)), 2.0), reason="an explicit f64 conversion")
+        assert_equal(
+            i64(small) + large,
+            Add::[i64]::add(i64(small), large),
+            reason="an explicit i64 conversion",
+        )
+        assert_equal(
+            f64(f32(1.5)) + 2.0,
+            Add::[f64]::add(f64(f32(1.5)), 2.0),
+            reason="an explicit f64 conversion",
+        )
         assert(i64(small) < large, reason="the comparison takes one type too")

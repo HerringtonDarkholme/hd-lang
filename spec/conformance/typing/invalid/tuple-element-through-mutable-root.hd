@@ -4,4 +4,4 @@ struct Holder:
     pair: (i32, i32)
 
 fn reset(holder: &mut Holder) -> void:
-    holder.pair._0 = 0  # diagnostic: invalid-assignment-target
+    holder.pair._0 = 0 # diagnostic: invalid-assignment-target

@@ -13,12 +13,16 @@ tests:
 
     it("parse wraps the text"):
         assert_equal("a/b".parse::[Path](), .Ok(Path("a/b")), reason="a relative path")
-        assert_equal("/srv/a.txt".parse::[Path](), .Ok(Path("/srv/a.txt")), reason="an absolute path")
+        assert_equal(
+            "/srv/a.txt".parse::[Path](),
+            .Ok(Path("/srv/a.txt")),
+            reason="an absolute path",
+        )
         assert_equal("".parse::[Path](), .Ok(Path("")), reason="empty text parses")
         assert_equal("a//b/./".parse::[Path](), .Ok(Path("a//b/./")), reason="no normalization")
 
     it("env_as reads a path"):
-        vars := ScriptedEnv::new({"OUT_DIR": "build/out", "EMPTY": ""})
+        vars := ScriptedEnv::new({ "OUT_DIR": "build/out", "EMPTY": "" })
         $.with(Env=vars):
             assert_equal(env_as::[Path]("OUT_DIR"), .Ok(.Some(Path("build/out"))), reason="set")
             assert_equal(env_as::[Path]("EMPTY"), .Ok(.Some(Path(""))), reason="empty is set")

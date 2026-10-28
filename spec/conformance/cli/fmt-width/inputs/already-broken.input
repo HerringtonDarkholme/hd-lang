@@ -1,0 +1,9 @@
+fn missing():
+    consume(
+        value # last argument  
+    )
+
+fn present():
+    consume(
+        value, # already has its comma  
+    )

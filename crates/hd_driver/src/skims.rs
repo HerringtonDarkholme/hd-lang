@@ -39,7 +39,7 @@ pub(crate) struct FileSkim {
     /// `cli.exe.unselected-main` is about.
     pub(crate) public_main: Option<(u32, u32)>,
     /// The header span of a top-level `main` or `main!` that is not
-    /// `pub` (`module.entry.private-main.warn`).
+    /// `pub` (`module.entry.private-main.lint`).
     pub(crate) private_main: Option<(u32, u32)>,
 }
 

@@ -16,6 +16,6 @@ tests:
     use std.testing.assert_equal
 
     it("a loop reads through both kinds of map reference"):
-        let mut stock: Map[string, i32] = {"a": 1, "b": 2, "c": 3}
+        let mut stock: Map[string, i32] = { "a": 1, "b": 2, "c": 3 }
         assert_equal(readonly_sum(&stock), 6, reason="a readonly reference reads the map")
         assert_equal(writable_sum(&mut stock), 6, reason="a writable reference reads the map")

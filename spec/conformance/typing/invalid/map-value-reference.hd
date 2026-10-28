@@ -4,5 +4,5 @@ struct Stock:
     count: i32
 
 fn count(shelves: Map[string, Stock]) -> i32:
-    found := &shelves["apple"]  # diagnostic: element-reference-outlives-call
+    found := &shelves["apple"] # diagnostic: element-reference-outlives-call
     found.count

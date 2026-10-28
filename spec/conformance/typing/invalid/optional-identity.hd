@@ -4,4 +4,4 @@ struct User:
     name: string
 
 fn users(left: User?, right: User?) -> bool:
-    left is right  # diagnostic: identity-requires-references
+    left is right # diagnostic: identity-requires-references

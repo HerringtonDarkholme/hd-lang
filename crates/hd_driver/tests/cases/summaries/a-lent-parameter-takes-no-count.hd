@@ -6,13 +6,14 @@
 # `weight` through a function value: the value's caller passes `f` owned,
 # and the adapter releases it after the call. `set_first` keeps nothing,
 # but `pinned` passes it a mutable reference into `xs` beside `xs`, so
-# `xs` is copied for the call.
+# `xs` is copied for the call. `weight` has more than 16 instructions, so
+# a release build leaves it a call.
 struct Field:
     name: string
     n: i64
 
 fn weight(f: Field) -> i64:
-    f.n + 1
+    (f.n + 1) * (f.n + 2) * (f.n + 3) * (f.n + 4) * (f.n + 5) / (f.n + 6)
 
 fn remember(all: &mut List[Field], f: Field) -> void:
     all.push(f)

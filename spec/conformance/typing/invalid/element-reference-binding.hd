@@ -2,5 +2,5 @@
 # Spec 13 Call-Scoped Access: ref.elem.kept.
 fn demo() -> i32:
     let mut scores = [+1, 2]
-    best := &mut scores[1]  # diagnostic: element-reference-outlives-call
+    best := &mut scores[1] # diagnostic: element-reference-outlives-call
     *best

@@ -26,7 +26,7 @@ pub fn main() -> void $ Console:
     value := Plain { x: +7 }
     dbg(Outer { plain: value, custom: Custom {} })
     dbg(Choice.Empty, Choice.Named(value=value), Wrapped(value))
-    dbg([value], {"p": value}, (value,), Option.Some(value))
+    dbg([value], { "p": value }, (value,), Option.Some(value))
     let result: Result[Plain, Plain] = .Err(value)
     dbg(result)
     ring := &mut Ring { next: .None }

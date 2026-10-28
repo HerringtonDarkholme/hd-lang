@@ -2,7 +2,8 @@
 # test: block_on called under main!'s driver drives its own suspension to completion
 use std.task.block_on
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 fn nested() -> i32:
     let pending: mut Suspend[i32] = ready()
@@ -12,4 +13,4 @@ fn nested() -> i32:
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write!("${nested()}\n")
+    console.write_sync("${nested()}\n")

@@ -4,7 +4,9 @@
 # Release writes, the controls: `prune` clears the parent's field,
 # `prune_global` stores through the top-level alias `ROOT`, and `ping`
 # calls `pong`, which writes, in one component. The child each caller
-# holds keeps its count across the call.
+# holds keeps its count across the call. `prune_global` calls itself,
+# so it stays a call, and the others take a reference, so a release
+# build copies none of them into its caller.
 struct Node:
     left: (*Node)?
     value: i64
@@ -29,14 +31,23 @@ fn prune(parent: *mut Node) -> i64:
 >   summary kept [] writes
     0
 
-fn prune_global() -> i64:
+fn prune_global(k: i64) -> i64:
     ROOT.left = .None
 > app/main/prune_global
+>   local $0 k: i64 [param read]
 >   %0 = NewVariant #0 [] : Ref[Node]?
 >   %1 = Store [*@app/main/ROOT .left] %0 : ()
->   %2 = Block 0:i64 : i64
->   summary kept [] writes
-    0
+>   %10 = Block %9 : i64
+    if k > 0: prune_global(k - 1) else: 0
+>   %2 = Read copy [$0] : i64
+>   %3 = Prim Gt [%2 0:i64] : bool
+>   %4 = Read copy [$0] : i64
+>   %5 = Prim Sub [%4 1:i64] : i64
+>   %6 = Call app/main/prune_global[] (%5) : i64
+>   %7 = Block %6 : i64
+>   %8 = Block 0:i64 : i64
+>   %9 = If %3 [%7 %8] : i64
+>   summary kept [] writes recursive
 
 fn ping(node: *mut Node, k: i64) -> i64:
     if k == 0:
@@ -116,8 +127,8 @@ fn through_alias(node: &Node) -> i64:
 >   %8 = Block - : never
 >   %16 = Block - : never
 >   %17 = SwitchTag %0 [#0 %8 %16] : never
-        .Some(left) => prune_global() + left.value
->   %2 = Call app/main/prune_global[] () : i64
+        .Some(left) => prune_global(0) + left.value
+>   %2 = Call app/main/prune_global[] (0:i64) : i64
 >   %3 = Read copy [*$1 .value] : i64
 >   %4 = Prim Add [%2 %3] : i64
 >   %5 = Block %4 : i64

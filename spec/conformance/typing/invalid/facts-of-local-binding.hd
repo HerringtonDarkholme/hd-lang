@@ -1,7 +1,8 @@
 # test: facts_of rejects a binding that holds a function value
 use std.annotation.facts_of
 
-fn get_user(id: string) -> string: id
+fn get_user(id: string) -> string:
+    id
 
 handler := get_user
-handler_facts := facts_of(handler)  # diagnostic: invalid-facts-of-target
+handler_facts := facts_of(handler) # diagnostic: invalid-facts-of-target

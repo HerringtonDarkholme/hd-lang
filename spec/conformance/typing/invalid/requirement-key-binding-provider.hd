@@ -15,11 +15,12 @@ struct PostStore: pass
 
 impl Store for PostStore:
     type Item = Post
-    fn load(self, id: string) -> Post: Post { title: id }
+    fn load(self, id: string) -> Post:
+        Post { title: id }
 
 fn find(id: string) -> User $ Store[Item = User]:
     $.use(Store[Item = User]).load(id)
 
 fn serve(id: string) -> User:
-    $.with(Store[Item = User]=PostStore {}):  # diagnostic: type-mismatch
+    $.with(Store[Item = User]=PostStore {}): # diagnostic: type-mismatch
         find(id)

@@ -2,17 +2,16 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $bound (result i64) (local $tally i32) (local $t0 i32)
+  (func $bound (result i64) (local $tally i32)
     block
     ;; 14 |     let mut tally = Tally { n: 0 }
       i32.const 8
       i32.const 0
       call $rt:new/class-1
-      local.tee $t0
+      local.tee $tally
       i64.const 0
       i64.store $heap
-      local.get $t0
-      local.tee $tally
+      local.get $tally
       ;; ...
     end
     ;; ...

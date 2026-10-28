@@ -8,4 +8,8 @@ tests:
         for score in &mut scores:
             *score += scores[0]
             scores[2] = 9
-        assert_equal(scores, [+2, 4, 9], reason="each step read slot 0, and the last write to slot 2 wins")
+        assert_equal(
+            scores,
+            [+2, 4, 9],
+            reason="each step read slot 0, and the last write to slot 2 wins",
+        )

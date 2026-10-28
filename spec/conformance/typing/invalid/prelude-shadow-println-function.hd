@@ -1,4 +1,5 @@
 # test: prelude println cannot be shadowed
 # Spec 10 Prelude: module.prelude.no-shadow.
 
-fn println() -> void: pass  # diagnostic: prelude-name-shadow
+fn println() -> void: # diagnostic: prelude-name-shadow
+    pass

@@ -15,13 +15,29 @@ tests:
 
     it("file_stem"):
         assert_equal(name(Path("/a/b.txt").file_stem()), "some b", reason="one dot")
-        assert_equal(name(Path("a.tar.gz").file_stem()), "some a.tar", reason="only the last dot splits")
+        assert_equal(
+            name(Path("a.tar.gz").file_stem()),
+            "some a.tar",
+            reason="only the last dot splits",
+        )
         assert_equal(name(Path("a").file_stem()), "some a", reason="no extension")
-        assert_equal(name(Path(".bashrc").file_stem()), "some .bashrc", reason="a dotfile keeps its name")
-        assert_equal(name(Path(".a.b").file_stem()), "some .a", reason="a dotfile with an extension")
+        assert_equal(
+            name(Path(".bashrc").file_stem()),
+            "some .bashrc",
+            reason="a dotfile keeps its name",
+        )
+        assert_equal(
+            name(Path(".a.b").file_stem()),
+            "some .a",
+            reason="a dotfile with an extension",
+        )
         assert_equal(name(Path("a.").file_stem()), "some a", reason="a trailing dot is dropped")
         assert_equal(name(Path("a/b/").file_stem()), "some b", reason="a trailing separator")
-        assert_equal(name(Path("dir.d/file").file_stem()), "some file", reason="a dot in a directory name")
+        assert_equal(
+            name(Path("dir.d/file").file_stem()),
+            "some file",
+            reason="a dot in a directory name",
+        )
         assert_equal(name(Path("/").file_stem()), "none", reason="the root")
         assert_equal(name(Path("").file_stem()), "none", reason="empty")
         assert_equal(name(Path("a/..").file_stem()), "none", reason="dot-dot")
@@ -29,32 +45,88 @@ tests:
 
     it("with_extension replaces"):
         assert_equal(Path("a/b.txt").with_extension("md"), Path("a/b.md"), reason="one dot")
-        assert_equal(Path("a.tar.gz").with_extension("zip"), Path("a.tar.zip"), reason="the last extension only")
-        assert_equal(Path("/srv/in.txt").with_extension("out"), Path("/srv/in.out"), reason="absolute")
+        assert_equal(
+            Path("a.tar.gz").with_extension("zip"),
+            Path("a.tar.zip"),
+            reason="the last extension only",
+        )
+        assert_equal(
+            Path("/srv/in.txt").with_extension("out"),
+            Path("/srv/in.out"),
+            reason="absolute",
+        )
         assert_equal(Path("a.").with_extension("md"), Path("a.md"), reason="a trailing dot")
-        assert_equal(Path(".a.b").with_extension("c"), Path(".a.c"), reason="a dotfile with an extension")
-        assert_equal(beside(Path("notes/today.txt"), "bak"), Path("notes/today.bak"), reason="beside the input")
+        assert_equal(
+            Path(".a.b").with_extension("c"),
+            Path(".a.c"),
+            reason="a dotfile with an extension",
+        )
+        assert_equal(
+            beside(Path("notes/today.txt"), "bak"),
+            Path("notes/today.bak"),
+            reason="beside the input",
+        )
 
     it("with_extension adds"):
         assert_equal(Path("a").with_extension("md"), Path("a.md"), reason="no extension")
-        assert_equal(Path(".bashrc").with_extension("bak"), Path(".bashrc.bak"), reason="a dotfile has none")
-        assert_equal(Path("dir.d/file").with_extension("x"), Path("dir.d/file.x"), reason="a dot in a directory name")
-        assert_equal(Path("a").with_extension(".x"), Path("a..x"), reason="a leading dot is kept as written")
+        assert_equal(
+            Path(".bashrc").with_extension("bak"),
+            Path(".bashrc.bak"),
+            reason="a dotfile has none",
+        )
+        assert_equal(
+            Path("dir.d/file").with_extension("x"),
+            Path("dir.d/file.x"),
+            reason="a dot in a directory name",
+        )
+        assert_equal(
+            Path("a").with_extension(".x"),
+            Path("a..x"),
+            reason="a leading dot is kept as written",
+        )
 
     it("with_extension removes"):
-        assert_equal(Path("a.txt").with_extension(""), Path("a"), reason="an empty extension removes it")
+        assert_equal(
+            Path("a.txt").with_extension(""),
+            Path("a"),
+            reason="an empty extension removes it",
+        )
         assert_equal(Path("a.tar.gz").with_extension(""), Path("a.tar"), reason="only the last")
         assert_equal(Path("a").with_extension(""), Path("a"), reason="nothing to remove")
         assert_equal(Path("a.").with_extension(""), Path("a"), reason="a trailing dot goes")
         assert_equal(Path(".bashrc").with_extension(""), Path(".bashrc"), reason="a dotfile stays")
 
     it("with_extension and separators"):
-        assert_equal(Path("a/b/").with_extension("x"), Path("a/b.x"), reason="a trailing separator is dropped")
-        assert_equal(Path("a/b//").with_extension("x"), Path("a/b.x"), reason="several trailing separators")
-        assert_equal(Path("a/b.txt/").with_extension("md"), Path("a/b.md"), reason="trailing separator and extension")
-        assert_equal(Path("a/b/.").with_extension("x"), Path("a/b.x"), reason="a trailing dot component")
-        assert_equal(Path("a//b.txt").with_extension("md"), Path("a//b.md"), reason="a doubled separator before the name stays")
-        assert_equal(Path("./a.txt").with_extension("md"), Path("./a.md"), reason="a leading dot component stays")
+        assert_equal(
+            Path("a/b/").with_extension("x"),
+            Path("a/b.x"),
+            reason="a trailing separator is dropped",
+        )
+        assert_equal(
+            Path("a/b//").with_extension("x"),
+            Path("a/b.x"),
+            reason="several trailing separators",
+        )
+        assert_equal(
+            Path("a/b.txt/").with_extension("md"),
+            Path("a/b.md"),
+            reason="trailing separator and extension",
+        )
+        assert_equal(
+            Path("a/b/.").with_extension("x"),
+            Path("a/b.x"),
+            reason="a trailing dot component",
+        )
+        assert_equal(
+            Path("a//b.txt").with_extension("md"),
+            Path("a//b.md"),
+            reason="a doubled separator before the name stays",
+        )
+        assert_equal(
+            Path("./a.txt").with_extension("md"),
+            Path("./a.md"),
+            reason="a leading dot component stays",
+        )
 
     it("with_extension without a file name"):
         assert_equal(Path("").with_extension("x"), Path(""), reason="empty")

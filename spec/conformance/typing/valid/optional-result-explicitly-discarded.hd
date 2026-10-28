@@ -1,5 +1,7 @@
 # test: optional values may be explicitly discarded
 
-fn maybe() -> i32?: .None
+fn maybe() -> i32?:
+    .None
 
-fn main() -> void: _ := maybe()
+fn main() -> void:
+    _ := maybe()

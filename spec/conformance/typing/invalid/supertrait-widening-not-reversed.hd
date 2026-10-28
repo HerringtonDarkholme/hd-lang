@@ -8,4 +8,4 @@ trait Titled < Named:
     fn title(self) -> string
 
 fn narrow(value: *dyn Named) -> *dyn Titled:
-    value  # diagnostic: type-mismatch
+    value # diagnostic: type-mismatch

@@ -10,5 +10,5 @@ impl Inventory for Shelf:
         self.apples -= qty
 
 fn shared(shelf: *Shelf) -> void:
-    $.with(Inventory=shelf):  # diagnostic: mutable-upgrade
+    $.with(Inventory=shelf): # diagnostic: mutable-upgrade
         pass

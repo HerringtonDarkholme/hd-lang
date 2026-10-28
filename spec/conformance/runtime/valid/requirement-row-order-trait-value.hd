@@ -9,30 +9,47 @@ struct UserRepo: pass
 struct PostRepo: pass
 
 impl Repo[User] for UserRepo:
-    fn count(self) -> i32: 20
+    fn count(self) -> i32:
+        20
 
 impl Repo[Post] for PostRepo:
-    fn count(self) -> i32: 1
+    fn count(self) -> i32:
+        1
 
 trait Factory[A, B]:
     fn keep(self, callback: fn() -> i32 $ Repo[A] + Repo[B]) -> (fn() -> i32 $ Repo[A] + Repo[B])
-    fn keep_later!(self, callback: fn() -> i32 $ Repo[A] + Repo[B]) -> (fn() -> i32 $ Repo[A] + Repo[B])
+    fn keep_later!(
+        self,
+        callback: fn() -> i32 $ Repo[A] + Repo[B],
+    ) -> (fn() -> i32 $ Repo[A] + Repo[B])
 
 struct Forward: pass
 struct Reverse: pass
 
 impl Factory[User, Post] for Forward:
-    fn keep(self, callback: fn() -> i32 $ Repo[User] + Repo[Post]) -> (fn() -> i32 $ Repo[User] + Repo[Post]):
+    fn keep(
+        self,
+        callback: fn() -> i32 $ Repo[User] + Repo[Post],
+    ) -> (fn() -> i32 $ Repo[User] + Repo[Post]):
         callback
 
-    fn keep_later!(self, callback: fn() -> i32 $ Repo[User] + Repo[Post]) -> (fn() -> i32 $ Repo[User] + Repo[Post]):
+    fn keep_later!(
+        self,
+        callback: fn() -> i32 $ Repo[User] + Repo[Post],
+    ) -> (fn() -> i32 $ Repo[User] + Repo[Post]):
         callback
 
 impl Factory[Post, User] for Reverse:
-    fn keep(self, callback: fn() -> i32 $ Repo[Post] + Repo[User]) -> (fn() -> i32 $ Repo[Post] + Repo[User]):
+    fn keep(
+        self,
+        callback: fn() -> i32 $ Repo[Post] + Repo[User],
+    ) -> (fn() -> i32 $ Repo[Post] + Repo[User]):
         callback
 
-    fn keep_later!(self, callback: fn() -> i32 $ Repo[Post] + Repo[User]) -> (fn() -> i32 $ Repo[Post] + Repo[User]):
+    fn keep_later!(
+        self,
+        callback: fn() -> i32 $ Repo[Post] + Repo[User],
+    ) -> (fn() -> i32 $ Repo[Post] + Repo[User]):
         callback
 
 fn activity() -> i32 $ Repo[User] + Repo[Post]:
@@ -52,6 +69,8 @@ tests:
             let forward: &dyn Factory[User, Post] = &Forward {}
             let reverse: &dyn Factory[Post, User] = &Reverse {}
             first := forward.keep_later!(activity)
-            let pending: mut Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = reverse.keep_later(activity)
+            let pending: mut Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = reverse.keep_later(
+                activity,
+            )
             second := pending!()
             assert_equal(first() + second(), 402, reason="both callables read 201")

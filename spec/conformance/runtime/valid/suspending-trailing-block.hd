@@ -1,7 +1,8 @@
 # test: a trailing block passed for an fn! parameter is a suspending closure
 # Spec 07 Trailing Callback Blocks: fn.trailing.suspending holds for every callee, so the
 # block may make bang calls.
-fn fetch_count!() -> i32: 3
+fn fetch_count!() -> i32:
+    3
 
 fn twice!(body: fn!() -> i32) -> i32:
     body!() + body!()

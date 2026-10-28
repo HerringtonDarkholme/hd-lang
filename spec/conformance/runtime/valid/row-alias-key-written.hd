@@ -9,7 +9,8 @@ struct Names: pass
 
 impl Store for Names:
     type Item = string
-    fn first(self) -> string: "ada"
+    fn first(self) -> string:
+        "ada"
 
 type NameRow = $ Store[Item = string]
 

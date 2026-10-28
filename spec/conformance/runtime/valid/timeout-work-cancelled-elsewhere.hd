@@ -14,14 +14,16 @@ struct Runner:
 
 impl Disposable for Runner:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("runner defer")
+        defer:
+            self.log.push("runner defer")
         let (result, _) = all!(self.timed, self.stop)
         match result:
             .Ok(value) => self.log.push("work gave ${value}")
             .Err(_) => self.log.push("timed out")
 
 fn target!(log: &mut List[string]) -> string $ Clock:
-    defer: log.push("target defer")
+    defer:
+        log.push("target defer")
     sleep!(s(60))
     "late"
 
@@ -30,14 +32,22 @@ fn stop_later!(target: mut Suspend[string], log: &mut List[string]) -> void $ Cl
     _ := target.cancel!()
     log.push("target cancelled")
 
-fn run!(log: *mut List[string], timed: mut Suspend[Result[string, TimedOut]], stop: mut Suspend[void]) -> void:
+fn run!(
+    log: *mut List[string],
+    timed: mut Suspend[Result[string, TimedOut]],
+    stop: mut Suspend[void],
+) -> void:
     using runner = &mut Runner { log: log, timed: timed, stop: stop }
     log.push("run body")
 
 pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
     let job: mut Suspend[string] = target(&mut log)
-    let timed: mut Suspend[Result[string, TimedOut]] = apply(timeout(s(60)), work=fn!() -> Result[string, TimedOut]: .Ok(job!()))
+    let timed: mut Suspend[Result[string, TimedOut]] = apply(
+        timeout(s(60)),
+        work=fn!() -> Result[string, TimedOut]: .Ok(job!())
+        ,
+    )
     let runner: mut Suspend[void] = run(&mut log, timed, stop_later(job, &mut log))
     runner!()
     println(log.join(", "))

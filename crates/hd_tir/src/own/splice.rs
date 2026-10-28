@@ -14,6 +14,7 @@
 //! suspension rows, the fallback rows).
 
 use hd_base::NodeIdx;
+use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::Loc;
@@ -166,7 +167,7 @@ impl Pending {
         for i in 0..n {
             let (a, z) = (self.row_start[i] as usize, self.row_start[i + 1] as usize);
             if z - a > 1 {
-                self.row[a..z].sort_by_key(|&e| (edits.edits[e as usize].pos, e));
+                self.row[a..z].sort_stable_by_key(|&e| (edits.edits[e as usize].pos, e));
             }
         }
     }
@@ -208,7 +209,7 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
         };
         t.anchor.push((at, u32_of(e)));
     }
-    t.anchor.sort_unstable();
+    t.anchor.sort_stable();
     // Append the new instructions, numbered n.. in the old numbering.
     for ed in &t.edits {
         b.tags.push(ed.tag);
@@ -226,12 +227,12 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
             t.per_block.push((ed.blk, ed.pos, u32_of(e)));
         }
     }
-    t.per_block.sort_unstable();
+    t.per_block.sort_stable();
     t.blocks.clear();
     t.blocks.extend(t.edits.iter().map(|ed| ed.blk));
     t.blocks
         .extend(t.removed.iter().map(|&x| topo.blk[x as usize]));
-    t.blocks.sort_unstable();
+    t.blocks.sort_stable();
     t.blocks.dedup();
     let mut x = 0;
     for z in 0..t.blocks.len() {
@@ -345,7 +346,6 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     for i in 0..b.len() {
         let w = b.data[i][1];
         match b.tags[i] {
-            Tag::CallDyn if w != NONE => return Err("`CallDyn`".into()),
             Tag::Call | Tag::Await if w != NONE => {
                 if let Some(&kind @ 3..) = b.record(w).iter().rev().nth(2) {
                     return Err(format!("call providers of kind {kind}"));

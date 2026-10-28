@@ -40,13 +40,11 @@ export const FEATURES: readonly Feature[] = [
     example: "effects-in-signature",
     ranges: [
       {
-        from: "fn welcome!(email: string) -> void $ Mailer + Clock:  # ← sends mail, reads the clock",
+        from: "fn welcome!(email: string) -> void $ Mailer + Clock: # ← sends mail, reads the clock",
         lines: 4,
       },
     ],
-    marks: [
-      "fn welcome!(email: string) -> void $ Mailer + Clock:  # ← sends mail, reads the clock",
-    ],
+    marks: ["fn welcome!(email: string) -> void $ Mailer + Clock: # ← sends mail, reads the clock"],
   },
   {
     title: "Tests without mocks",
@@ -54,14 +52,14 @@ export const FEATURES: readonly Feature[] = [
     contrast: "Python: `mock.patch` or a DI container.",
     example: "effects-in-signature",
     ranges: [{ from: 'it("welcome mails the user at a fixed time, no mocks"):', lines: 5 }],
-    marks: ["$.with(Mailer=&mut outbox, Clock=epoch()):  # ← fakes, for this block only"],
+    marks: ["$.with(Mailer=&mut outbox, Clock=epoch()): # ← fakes, for this block only"],
   },
   {
     title: "You can't forget a dependency",
     blurb: "Leave a provider out and the program does not compile.",
     example: "missing-provider",
     ranges: [{ from: "pub fn main!() -> void $ Console:", lines: 5 }],
-    marks: ["$.with(Mailer=&mut outbox):  # ← Clock is missing"],
+    marks: ["$.with(Mailer=&mut outbox): # ← Clock is missing"],
     output: {
       caption: "hd check",
       lines: [
@@ -77,9 +75,9 @@ export const FEATURES: readonly Feature[] = [
     contrast: "Most languages: any imported library can read files or open sockets.",
     example: "least-authority",
     ranges: [
-      { from: "pub fn main!() -> void $ Console:  # ← the console, and nothing else", lines: 5 },
+      { from: "pub fn main!() -> void $ Console: # ← the console, and nothing else", lines: 5 },
     ],
-    marks: ["pub fn main!() -> void $ Console:  # ← the console, and nothing else"],
+    marks: ["pub fn main!() -> void $ Console: # ← the console, and nothing else"],
   },
   {
     title: "Exhaustive match",
@@ -104,7 +102,7 @@ export const FEATURES: readonly Feature[] = [
     contrast: "No exceptions: the signature says what can fail.",
     example: "errors",
     ranges: [{ from: "fn start(config: string) -> Result[string, *dyn Error]:", lines: 2 }],
-    marks: ['n := port(config).context("starting the server")?  # ← early return, with context'],
+    marks: ['n := port(config).context("starting the server")? # ← early return, with context'],
     output: {
       caption: 'report for "port = eighty"',
       lines: [
@@ -122,9 +120,12 @@ export const FEATURES: readonly Feature[] = [
     example: "derive",
     ranges: [
       { from: "@derive(Arbitrary, Debug, Eq)", lines: 3 },
-      { from: 'it_prop("parse undoes print", prop=fn!(m: Money):', lines: 3 },
+      { from: "it_prop(", lines: 4 },
     ],
-    marks: ["@derive(Arbitrary, Debug, Eq)", 'it_prop("parse undoes print", prop=fn!(m: Money):'],
+    marks: [
+      "@derive(Arbitrary, Debug, Eq)",
+      'prop=fn!(m: Money): assert_equal(parse(print(m)), .Some(m), reason="round trip")',
+    ],
     output: {
       caption: "hd test, on the first version of print",
       lines: [
@@ -140,7 +141,7 @@ export const FEATURES: readonly Feature[] = [
     blurb: "`all!` runs both calls at once and joins the results.",
     example: "concurrency",
     ranges: [{ from: "fn page!(id: i32) -> string $ Clock:", lines: 3 }],
-    marks: ["let (profile, orders) = all!(fetch_profile(id), fetch_orders(id))  # ← both at once"],
+    marks: ["let (profile, orders) = all!(fetch_profile(id), fetch_orders(id)) # ← both at once"],
   },
 ];
 

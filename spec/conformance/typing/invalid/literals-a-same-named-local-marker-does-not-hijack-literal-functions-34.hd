@@ -1,12 +1,14 @@
 # test: a same named local marker does not hijack literal functions
 use std.ops.Template
 
-fn str_prefix() -> i32: 1
+fn str_prefix() -> i32:
+    1
 
 @str_prefix
 fn sql(t: Template[i32]) -> i32:
     1
 
-fn find() -> i32: sql"select"  # diagnostic: invalid-string-prefix
+fn find() -> i32:
+    sql"select" # diagnostic: invalid-string-prefix
 pub fn main() -> void:
     pass

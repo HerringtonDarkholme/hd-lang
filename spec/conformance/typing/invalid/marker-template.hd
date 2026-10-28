@@ -5,4 +5,4 @@ trait Tagged:
     fn tag(self) -> string:
         "tagged"
 
-impl[T] Tagged for T by Structure  # diagnostic: marker-template
+impl[T] Tagged for T by Structure # diagnostic: marker-template

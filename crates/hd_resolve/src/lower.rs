@@ -8,6 +8,7 @@
 //! interface is frozen, `ModulePrep` and `Body` resolve them through its
 //! export index instead.
 
+use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -948,7 +949,7 @@ impl Resolver<'_, '_> {
         while chain.len() <= self.pub_uses.len() {
             if let Some(&start) = seen.get(&at) {
                 let mut cycle = chain[start..].to_vec();
-                cycle.sort_by(|a, b| {
+                cycle.sort_stable_by(|a, b| {
                     (self.module_text(a.0), self.cx.names.text(a.1))
                         .cmp(&(self.module_text(b.0), self.cx.names.text(b.1)))
                 });
@@ -1640,6 +1641,7 @@ struct Lower<'a, 'r, 'x> {
     /// For a local declaration: the type parameters (and `Self`) of the
     /// declarations around it.
     outer: Vec<String>,
+    derivation_facts: Option<&'a mut crate::facts::DerivationFacts>,
 }
 
 impl Lower<'_, '_, '_> {
@@ -3377,6 +3379,7 @@ impl Lower<'_, '_, '_> {
                         },
                     );
                     it.intrinsic = self.intrinsic(f);
+                    it.inline = self.inline_hint(f);
                     out.push(it);
                     methods.push((name, def));
                 }
@@ -3449,6 +3452,19 @@ impl Lower<'_, '_, '_> {
         } else {
             None
         }
+    }
+
+    /// Whether a decorator names std's `inline` or `cold`, which attach
+    /// no value (`annot.inline.recognized`).
+    fn inline_marker(&self, d: NodeRef<'_>) -> bool {
+        let def = crate::facts::decorator_def(
+            &self.src,
+            &self.names,
+            self.scope,
+            &|module, name| self.r.export(module, name).ok().map(|x| x.0),
+            d,
+        );
+        def.is_some_and(|def| def == self.names.known.inline || def == self.names.known.cold)
     }
 
     /// `@num_suffix` or `@str_prefix` before a function.
@@ -4263,9 +4279,11 @@ impl Lower<'_, '_, '_> {
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
                 it.intrinsic = self.intrinsic(n);
                 it.literal_fn = self.literal_fn(n);
-                it.has_facts =
-                    !crate::facts::fact_lines(&self.src, n, |d| self.literal_marker(d).is_some())
-                        .is_empty();
+                it.inline = self.inline_hint(n);
+                it.has_facts = !crate::facts::fact_lines(&self.src, n, |d| {
+                    self.literal_marker(d).is_some() || self.inline_marker(d)
+                })
+                .is_empty();
                 out.push(it);
             }
             HeadKind::Data => {
@@ -4549,7 +4567,7 @@ impl Lower<'_, '_, '_> {
                 out.push(i);
             }
         }
-        out.sort_unstable();
+        out.sort_stable();
         out.dedup();
         out
     }
@@ -4664,6 +4682,7 @@ fn lower_aliases(
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             let scan = match h.kind {
                 HeadKind::Alias => Some(h.node),
@@ -4726,6 +4745,7 @@ fn lower_aliases(
                 locals: &locals[mi],
                 at: 0,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             if alias {
                 low.alias_item(h, cyclic, &mut out[mi]);
@@ -4883,7 +4903,7 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
                     break;
                 }
             }
-            comp.sort_unstable();
+            comp.sort_stable();
             st.out.push(comp);
         }
     }
@@ -5256,7 +5276,7 @@ fn related_derives(
                         .filter(|t| !traits.contains(t))
                         .map(|t| names.display_name(t))
                         .collect();
-                    missing.sort_unstable();
+                    missing.sort_stable();
                     missing.dedup();
                     let detail = if missing.is_empty() {
                         String::new()
@@ -5775,6 +5795,18 @@ pub fn build_folder(
     stage: Stage,
     diags: &mut DiagBuf,
 ) -> StageResult<FolderOut> {
+    build_folder_with_facts(cx, mods, frozen, stage, diags, None)
+}
+
+/// Header lowering with optional, uncached declaration metadata for tooling.
+pub fn build_folder_with_facts(
+    cx: &Cx<'_>,
+    mods: &[ModIn<'_>],
+    frozen: Option<Arc<FolderIface>>,
+    stage: Stage,
+    diags: &mut DiagBuf,
+    mut facts: Option<&mut crate::facts::DerivationFacts>,
+) -> StageResult<FolderOut> {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
         .iter()
@@ -5854,6 +5886,7 @@ pub fn build_folder(
                     locals: &locals,
                     at: 0,
                     outer: Vec::new(),
+                    derivation_facts: None,
                 };
                 // The aliases are lowered already (`lower_aliases`).
                 for h in hs
@@ -5933,13 +5966,19 @@ pub fn build_folder(
     drop_extra_methods(&r, &mut out.modules);
     delegations(&r, &mut out.modules);
     if r.frozen.is_none() {
-        let items: HashMap<DefId, &Item> = out
-            .modules
+        supertrait_cycles(&r, mods, &all_heads, diags);
+    }
+    if r.frozen.is_none() || facts.is_some() {
+        // A lint pass may lower one module against a cached folder. Its
+        // decorators still see sibling derive identities from that folder,
+        // exactly as the original whole-folder declaration pass did.
+        let items: HashMap<DefId, &Item> = r
+            .frozen
             .iter()
-            .flat_map(|m| m.items.iter())
+            .flat_map(|iface| iface.items.iter())
+            .chain(out.modules.iter().flat_map(|m| m.items.iter()))
             .map(|i| (i.def, i))
             .collect();
-        supertrait_cycles(&r, mods, &all_heads, diags);
         for (m, o) in mods.iter().zip(&out.modules) {
             let mut low = Lower {
                 r: &r,
@@ -5955,9 +5994,13 @@ pub fn build_folder(
                 locals: &[],
                 at: 0,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
+            low.derivation_facts = facts.as_deref_mut();
             low.check_module_decorators(&items, &o.blocks);
         }
+    }
+    if r.frozen.is_none() {
         decls::check(&r, mods, &all_heads, &out.modules, diags);
         let mut seen = HashSet::default();
         for (m, us) in mods.iter().zip(&all_uses) {
@@ -5994,7 +6037,7 @@ pub fn build_folder(
                 }
             }
         }
-        out.exports.sort_by(|a, b| {
+        out.exports.sort_stable_by(|a, b| {
             (a.module.as_str(), names.text(a.name)).cmp(&(b.module.as_str(), names.text(b.name)))
         });
         for (m, o) in mods.iter().zip(&out.modules) {
@@ -6025,17 +6068,19 @@ pub fn build_folder(
                 }
             }
         }
-        out.module_uses.sort();
+        out.module_uses.sort_stable();
         out.private_names = r
             .own
             .iter()
             .filter(|(_, (_, _, public))| !public)
             .map(|(&(module, name), _)| (r.module_text(module).to_owned(), name))
             .collect();
-        out.private_names
-            .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
-        out.loop_names
-            .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
+        out.private_names.sort_stable_by(|a, b| {
+            (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1)))
+        });
+        out.loop_names.sort_stable_by(|a, b| {
+            (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1)))
+        });
         // A use read quietly while it bound (`bind_uses`); what the
         // lowering made of a name it binds depends on those reads, so
         // they count for each name a lookup consulted.
@@ -6085,6 +6130,7 @@ fn own_trait_generics(
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             let (_, _, generics) = low.trait_generics(h);
             out.entry(h.def).or_insert(generics);
@@ -6351,6 +6397,7 @@ fn own_trait_supers(
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
+                derivation_facts: None,
             };
             let (self_ty, gn, _) = low.trait_generics(h);
             let supers = low.supers(h.node, &gn, self_ty);
@@ -6407,6 +6454,7 @@ pub fn body_nodes<'t>(
 #[cfg(test)]
 mod prelude_tests {
     use super::{PRELUDE, Src, TEST_PRELUDE, use_decls};
+    use hd_base::SliceSort as _;
 
     fn assert_exports(text: &str, table: &[(&str, &[&str])]) {
         let parsed = hd_syntax::parse(text.as_bytes());
@@ -6443,8 +6491,8 @@ mod prelude_tests {
                     .map(|name| ((*module).to_owned(), (*name).to_owned()))
             })
             .collect();
-        exports.sort();
-        expected.sort();
+        exports.sort_stable();
+        expected.sort_stable();
         assert_eq!(exports, expected);
     }
 

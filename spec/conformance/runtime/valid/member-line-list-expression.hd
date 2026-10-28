@@ -64,4 +64,8 @@ tests:
     use std.testing.assert_equal
 
     it("applies named lists as member lines"):
-        assert_equal(Point { x: 1, y: 2, z: 3 }.probe(), "x=a/n;y=-/m;z=c/-;", reason="a named list extends or replaces facts like a list literal")
+        assert_equal(
+            Point { x: 1, y: 2, z: 3 }.probe(),
+            "x=a/n;y=-/m;z=c/-;",
+            reason="a named list extends or replaces facts like a list literal",
+        )

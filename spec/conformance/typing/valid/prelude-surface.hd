@@ -5,7 +5,8 @@ struct Label:
     value: string
 
 impl Display for Label:
-    fn to_string(self) -> string: self.value
+    fn to_string(self) -> string:
+        self.value
 
 impl Hash for Label:
     fn hash(self, state: &mut dyn Hasher) -> void:

@@ -5,6 +5,7 @@
 //! a context sees only the folders of its own closure.
 
 use hd_base::HashMap;
+use hd_base::SliceSort as _;
 
 use hd_base::{DefId, FolderId, ModuleId, PathId};
 use hd_intern::{PathKind, PathTable};
@@ -143,7 +144,7 @@ pub struct RefTable {
 
 impl RefTable {
     fn build(mut rows: Vec<(u32, u64, ImplRef)>) -> Self {
-        rows.sort_unstable_by_key(|(t, k, r)| (*t, *k, r.module.raw(), r.row));
+        rows.sort_stable_by_key(|(t, k, r)| (*t, *k, r.module.raw(), r.row));
         let mut by_trait: HashMap<u32, (u32, u32)> = HashMap::default();
         for (i, (t, _, _)) in rows.iter().enumerate() {
             let i = u32::try_from(i).expect("rows");
@@ -398,7 +399,7 @@ impl<'a> Impls<'a> {
         for a in args {
             owners.extend(v.owners.owner_of_ty(v.paths, pool, *a));
         }
-        owners.sort_unstable_by_key(|f| f.raw());
+        owners.sort_stable_by_key(|f| f.raw());
         owners.dedup();
         let mut refs: Vec<ImplRef> = Vec::new();
         if let Some(t) = v.own {
@@ -422,7 +423,7 @@ impl<'a> Impls<'a> {
             seen.dir = true;
             v.extra.directory.candidates(trait_, key, &mut refs);
         }
-        refs.sort_unstable_by_key(|r| (position(r.module), r.row));
+        refs.sort_stable_by_key(|r| (position(r.module), r.row));
         refs.dedup();
         let mut rows = one_row_per_impl(
             refs.into_iter()

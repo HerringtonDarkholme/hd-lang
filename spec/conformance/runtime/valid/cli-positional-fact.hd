@@ -46,41 +46,98 @@ tests:
     use std.testing.assert_equal
 
     it("two Path fields retain order and the rest excludes options"):
-        value := Files::parse(["input.txt", "output.txt", "one", "--verbose", "two"]).expect("positionals")
+        value := Files::parse(["input.txt", "output.txt", "one", "--verbose", "two"])
+            .expect("positionals")
         assert_equal(value.input_path, Path("input.txt"), reason="first")
         assert_equal(value.output, Path("output.txt"), reason="second")
         assert_equal(value.extras, ["one", "two"], reason="remaining positional values")
         assert_equal(value.verbose, true, reason="interleaved option")
         empty := Files::parse(["a", "b"]).expect("no extras")
         assert_equal(empty.extras, [], reason="absent list")
-        assert_equal(Files::parse([]), .Err(CliError.MissingArgument("<input-path>")), reason="first missing")
-        assert_equal(Files::parse(["a"]), .Err(CliError.MissingArgument("<output>")), reason="second missing")
+        assert_equal(
+            Files::parse([]),
+            .Err(CliError.MissingArgument("<input-path>")),
+            reason="first missing",
+        )
+        assert_equal(
+            Files::parse(["a"]),
+            .Err(CliError.MissingArgument("<output>")),
+            reason="second missing",
+        )
 
     it("defaults and optional values apply when absent"):
-        assert_equal(Optional::parse([]), .Ok(Optional { count: 6, label: .None }), reason="absent fields")
-        assert_equal(Optional::parse(["9", "name"]), .Ok(Optional { count: 9, label: .Some("name") }), reason="ordered values")
-        assert_equal(Optional::parse(["bad"]), .Err(CliError.InvalidValue("count", "invalid digit at position 0")), reason="typed positional error")
+        assert_equal(
+            Optional::parse([]),
+            .Ok(Optional { count: 6, label: .None }),
+            reason="absent fields",
+        )
+        assert_equal(
+            Optional::parse(["9", "name"]),
+            .Ok(Optional { count: 9, label: .Some("name") }),
+            reason="ordered values",
+        )
+        assert_equal(
+            Optional::parse(["bad"]),
+            .Err(CliError.InvalidValue("count", "invalid digit at position 0")),
+            reason="typed positional error",
+        )
 
     it("a rest list retains dash words after end of options"):
         value := Files::parse(["a", "b", "--", "--verbose", "-", "last"]).expect("end of options")
-        assert_equal(value.extras, ["--verbose", "-", "last"], reason="plain values after delimiter")
+        assert_equal(
+            value.extras,
+            ["--verbose", "-", "last"],
+            reason="plain values after delimiter",
+        )
         assert_equal(value.verbose, false, reason="flag not set")
 
     it("rest lists retain typed and nested one-value views"):
-        assert_equal(Switches::parse(["true", "false", "true"]), .Ok(Switches { states: [true, false, true] }), reason="bool values instead of flags")
-        assert_equal(Nested::parse(["one", "two"]), .Ok(Nested { groups: [["one"], ["two"]] }), reason="nested views")
-        assert_equal(Numbers::parse(["3", "9", "12"]), .Ok([3u16, 9u16, 12u16]), reason="root repeatable positional")
+        assert_equal(
+            Switches::parse(["true", "false", "true"]),
+            .Ok(Switches { states: [true, false, true] }),
+            reason="bool values instead of flags",
+        )
+        assert_equal(
+            Nested::parse(["one", "two"]),
+            .Ok(Nested { groups: [["one"], ["two"]] }),
+            reason="nested views",
+        )
+        assert_equal(
+            Numbers::parse(["3", "9", "12"]),
+            .Ok([3u16, 9u16, 12u16]),
+            reason="root repeatable positional",
+        )
 
     it("the builder exposes all values and the last value for a rest slot"):
-        parser := ArgParser::new("files").arg(Arg { name: "head", kind: .Positional, required: true }).arg(Arg { name: "tail", kind: .Positional, repeated: true })
+        parser := ArgParser::new("files")
+            .arg(Arg { name: "head", kind: .Positional, required: true })
+            .arg(Arg { name: "tail", kind: .Positional, repeated: true })
         parsed := parser.parse(["first", "second", "third"]).expect("raw rest")
         assert_equal(parsed.values("tail"), ["second", "third"], reason="all rest values")
         assert_equal(parsed.value("tail"), .Some("third"), reason="last value")
-        assert_equal(parsed.positionals(), ["first", "second", "third"], reason="all raw positional input")
+        assert_equal(
+            parsed.positionals(),
+            ["first", "second", "third"],
+            reason="all raw positional input",
+        )
 
     it("help preserves positional declaration order"):
-        assert_equal(Files::parser().usage().starts_with("usage: files [options] <input-path> <output> [<extras>]"), true, reason="ordered terms")
+        assert_equal(
+            Files::parser()
+                .usage()
+                .starts_with("usage: files [options] <input-path> <output> [<extras>]"),
+            true,
+            reason="ordered terms",
+        )
 
     it("positional enum choices compose with the current main"):
-        assert_equal(Output::parse(["compact-json"]), .Ok(Output { format: .CompactJson }), reason="kebab variant")
-        assert_equal(Output::parse(["other"]), .Err(CliError.InvalidValue("format", "expected compact-json or plain-text, got other")), reason="choice error")
+        assert_equal(
+            Output::parse(["compact-json"]),
+            .Ok(Output { format: .CompactJson }),
+            reason="kebab variant",
+        )
+        assert_equal(
+            Output::parse(["other"]),
+            .Err(CliError.InvalidValue("format", "expected compact-json or plain-text, got other")),
+            reason="choice error",
+        )

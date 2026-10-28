@@ -1,5 +1,6 @@
 use dep.server_sdk.server.{HttpServer, RequestId}
-use std.http.{Request, Response}
+use std.http.{Request, Url}
+use std.http_wire.WireResponse
 use std.time.ms
 
 # Maintenance-only: compile, never execute. Keep every source and handle method reachable.
@@ -7,13 +8,14 @@ pub fn main!() -> void $ HttpServer:
     server := $.use(HttpServer)
     id := RequestId { generation: 0u64, sequence: 0u64 }
     _ := server.accept!()
-    _ := server.respond!(id, Response { status: 200 })
+    _ := server.respond!(id, WireResponse { status: 200 })
     _ := server.cancelled!(id)
     client := server.client(id)
-    _ := client.send!(*Request::get("https://schema.invalid/"))
+    request := Request::get(Url::parse("https://schema.invalid/").expect("probe URL"))
+    _ := client.send!(&request, 0)
     clock := server.clock(id)
     console := server.console(id)
-    _ := console.write!(debug(clock.now()))
-    _ := console.write_error!(debug(clock.monotonic()))
+    _ := console.write_sync(debug(clock.now()))
+    _ := console.write_error_sync(debug(clock.monotonic()))
     clock.sleep!(ms(1))
     server.finish(id, false)

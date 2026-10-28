@@ -3,4 +3,4 @@ struct User:
     name: string
 
 fn make() -> void:
-    x := User  # diagnostic: type-used-as-value
+    x := User # diagnostic: type-used-as-value

@@ -2,5 +2,5 @@
 # Spec 08 Enums: data.enum.unique.
 enum Color:
     Red
-    Red  # diagnostic: duplicate-variant
+    Red # diagnostic: duplicate-variant
     Blue

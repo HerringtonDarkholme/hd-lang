@@ -5,5 +5,5 @@
 
 fn words(text: string) -> List[string]:
     let mut found: List[string] = []
-    found.append(text)  # diagnostic: unknown-method
+    found.append(text) # diagnostic: unknown-method
     found

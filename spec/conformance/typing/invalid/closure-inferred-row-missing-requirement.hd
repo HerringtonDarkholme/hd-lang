@@ -4,6 +4,6 @@ pub fn value() -> i32:
     reader := fn() -> i32:
         _ := $.use(Clock)
         42
-    reader()  # diagnostic: missing-requirement
+    reader() # diagnostic: missing-requirement
 
 trait Clock

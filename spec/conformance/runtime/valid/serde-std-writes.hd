@@ -1,5 +1,5 @@
 # test: each standard Serialize writes exactly one value of the data model with its own call, and a derived newtype writes its base value
-# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries.
+# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.newtype-variant, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.result, std-serde.std.list, std-serde.std.map-entries.
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Facts, VariantInfo, Member}
@@ -51,10 +51,13 @@ impl Serializer for Calls:
     fn end_map(&mut self) -> Result[void, never]:
         self.add("end-map")
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("variant:${v.name}")
 
-    fn member(&mut self, m: Member) -> Result[void, never]:
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.add("newtype:${v.name}")
+
+    fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("member:${m.name}")
 
     fn end_variant(&mut self) -> Result[void, never]:
@@ -114,23 +117,43 @@ tests:
         let lost: i32?? = .Some(.None)
         assert_equal(calls(lost), "null", reason="T?? loses a layer")
 
+    it("a Result writes one newtype variant and its direct payload"):
+        let ok: Result[i32, string] = .Ok(7)
+        let err: Result[i32, string] = .Err("offline")
+        assert_equal(calls(ok), "newtype:Ok int:7 end-variant", reason="Ok")
+        assert_equal(calls(err), "newtype:Err text:offline end-variant", reason="Err")
+
     it("a list writes its length, then each item in order"):
         assert_equal(calls(["pen", "ink"]), "list:2 text:pen text:ink end-list", reason="two items")
         let empty: List[i64] = []
         assert_equal(calls(empty), "list:0 end-list", reason="no item")
         let boxes: List[List[i32]] = [[+1], []]
-        assert_equal(calls(boxes), "list:2 list:1 int:1 end-list list:0 end-list end-list", reason="nested")
+        assert_equal(
+            calls(boxes),
+            "list:2 list:1 int:1 end-list list:0 end-list end-list",
+            reason="nested",
+        )
 
     it("a map writes its length, then a key and a value per entry, in the map's order"):
         let stock: Map[string, u32] = { "pen": 4 }
         assert_equal(calls(stock), "map:1 key:pen uint:4 end-map", reason="one entry")
         let pair: Map[string, u32] = { "pen": 4, "ink": 0 }
         written := calls(pair)
-        assert(written == "map:2 key:pen uint:4 key:ink uint:0 end-map" || written == "map:2 key:ink uint:0 key:pen uint:4 end-map", reason="both entries, in the map's order")
+        assert(
+            (
+                written == "map:2 key:pen uint:4 key:ink uint:0 end-map"
+                || written == "map:2 key:ink uint:0 key:pen uint:4 end-map"
+            ),
+            reason="both entries, in the map's order",
+        )
         let none: Map[string, bool] = {}
         assert_equal(calls(none), "map:0 end-map", reason="no entry")
 
     it("a derived newtype writes its base value"):
         assert_equal(calls(Sku("PEN-01")), "text:PEN-01", reason="string base")
         assert_equal(calls(Cents(1999)), "int:1999", reason="i64 base")
-        assert_equal(calls([Cents(5), Cents(-5)]), "list:2 int:5 int:-5 end-list", reason="inside a list")
+        assert_equal(
+            calls([Cents(5), Cents(-5)]),
+            "list:2 int:5 int:-5 end-list",
+            reason="inside a list",
+        )

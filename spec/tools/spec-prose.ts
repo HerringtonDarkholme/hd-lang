@@ -323,7 +323,9 @@ export function isErrorExample(code: string): boolean {
 export function knownCodes(readme: string, controlFlow: string): Set<string> {
   const codes = new Set<string>();
   for (const line of readme.split("\n")) {
-    const row = /^\| (Error[^|]*|Warning|Boundary failure) \| (.*) \|$/.exec(line);
+    const row = /^\| (Error[^|]*|Warning|Lint finding[^|]*|Boundary failure) \| (.*) \|$/.exec(
+      line,
+    );
     if (row) for (const match of row[2]!.matchAll(/`([a-z0-9-]+)`/g)) codes.add(match[1]!);
   }
   const panics = /Stable panic categories are exactly([\s\S]*?)\.\s/.exec(controlFlow);

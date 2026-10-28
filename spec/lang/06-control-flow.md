@@ -66,7 +66,7 @@ fn save_all(values: List[i32]) -> void:
 
 ### Unused Bindings
 
-1. r[flow.unused.warning] The compiler emits an `unused-local-binding` warning when an ordinary local binding is never read.
+1. r[flow.unused.lint] An ordinary local binding that is never read produces a lint finding. Warning: `unused-local-binding`.
 2. r[flow.unused.underscore] Names beginning with `_` suppress that warning.
 3. r[flow.unused.must-use] The exception is an unread binding of a suspension, which is an error. A suspension counts however it is bound, with `:=`, `let`, or `let mut`. Error: `discarded-must-use-value`. An unread `Result` or `T?` binding is the ordinary `unused-local-binding` warning, because binding a value to a name counts as using it.
 4. r[flow.unused.discard-forms] The two discard forms, `_ := expression` and `let _ = expression`, each explicitly discard a must-use value without binding it. No other form discards one.
@@ -687,7 +687,7 @@ match expr:
 4. r[flow.match.payload.arity] A bare variant pattern for such a variant, or a payload list of a different length, is an error. Error: `pattern-arity`.
 5. r[flow.match.payload.unknown] A named pattern that names no payload field of the variant is an error. Error: `unknown-field`.
 6. r[flow.match.payload.binding] A bare identifier in payload position binds a new arm-local name. It does not need to match the payload field's declaration name.
-7. r[flow.match.payload.name-mismatch] The compiler emits `variant-binding-name-mismatch` when a positional bare binding equals a different payload field's name in that same variant.
+7. r[flow.match.payload.name-mismatch.lint] A positional bare binding equal to another payload field’s name in the same variant produces a lint finding. Warning: `variant-binding-name-mismatch`.
 8. r[flow.match.payload.name-mismatch.example] For example, binding `else_value` in the `then_value` position emits `variant-binding-name-mismatch`.
 9. r[flow.match.literal] A literal pattern requires an equal value.
 10. r[flow.match.variant.shorthand] An enum variant pattern may use `.Variant` when its subject or enclosing payload position fixes one enum type; otherwise it uses the qualified `Enum.Variant` form.
@@ -1054,7 +1054,7 @@ defer:   # error: defer-outside-cleanup-scope
 2. r[flow.defer.restricted] It cannot bang-call, otherwise suspend, propagate with `?`, or transfer control with `return`, `break`, or `continue`.
 3. r[flow.defer.suspend] A bang call or other suspending operation in the suite is an error. Error: `suspension-forbidden-context`.
 4. r[flow.defer.control] Propagation with `?`, or a `return`, `break`, or `continue` that would leave the suite, is an error. Error: `defer-control-flow`.
-5. r[flow.defer.block-on.direct] A call of `std.task.block_on` or `println` written directly in the suite is an error. Error: `suspension-forbidden-context`.
+5. r[flow.defer.block-on.direct-call] A call of `std.task.block_on` written directly in the suite is an error. Error: `suspension-forbidden-context`.
 6. r[flow.defer.block-on.indirect] Such a call reached through another call while the suite runs panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
 
 ```text
@@ -1208,7 +1208,7 @@ This section defines unreachable statements.
 
 1. r[flow.unreachable.def] Statements following an unconditional `return`, `break`, or `continue` in the same suite are unreachable.
 2. r[flow.unreachable.infinite-loop] Statements following an infinite loop that no `break` targets, in the same suite, are unreachable.
-3. r[flow.unreachable.warning] The compiler must emit an `unreachable-code` warning, but the warning does not reject the program by default.
+3. r[flow.unreachable.lint] Unreachable code produces a lint finding without changing program validity. Warning: `unreachable-code`.
 4. r[flow.unreachable.checked] Unreachable code is still parsed and type-checked.
 5. r[flow.unreachable.policy] Tooling may provide a package policy that promotes this warning to an error without changing language semantics.
 

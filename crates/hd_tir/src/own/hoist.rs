@@ -12,16 +12,20 @@
 //!    loop's iteration block, the arm of the **entry test** (the loop
 //!    body's first `If`, one arm of which only breaks out of the loop) that
 //!    goes on, with no `If` or `Match` around it, or of the iteration block
-//!    of an inner loop with an entry test that stands there in turn, at any
-//!    depth, so it runs whenever that inner loop is entered; and the
-//!    statements before the entry test are pure, so the backend can run
-//!    them once more before the loop as its guard;
+//!    of an inner loop that stands there in turn, at any depth, so it runs
+//!    whenever that inner loop is entered; and the statements before the
+//!    entry test are pure, so the backend can run them once more before
+//!    the loop as its guard. A loop with no entry test (`while true`)
+//!    runs its body block whenever it is entered: that block is its
+//!    iteration block, and the hoisted check runs unguarded;
 //! 2. the loop never copies `p` or a place holding it, takes no `Ref` of a
 //!    place that overlaps it, writes no place that holds it, pins nothing
 //!    and holds no suspension point;
 //! 3. no call in the loop may write, unless `p`'s root is a local that is
-//!    never addressed or captured, whose every stored value is fresh, and
-//!    `p` is that whole local, and not a parameter's. Any other
+//!    never addressed or captured, whose every stored value is fresh (a
+//!    call's or a new collection's, or moved out of a local whose own
+//!    values are fresh and that nothing else reaches), and `p` is that
+//!    whole local, and not a parameter's. Any other
 //!    `p` (behind a reference, a field, a parameter's or a shared header)
 //!    may also be reached through another reference or list, so nothing
 //!    in the loop may write through a dereference or into a list's buffer
@@ -33,8 +37,8 @@
 //! never addressed or captured, with one leading dereference at most and
 //! fields; its header is read nowhere in the body with a use that keeps
 //! that very header (a store, an owned argument, a block's value, a
-//! coercion, a pin; a copy or a snapshot outside the loop has a header of
-//! its own, which the hoisted check separates from `p`'s), no
+//! coercion, a pin; a copy outside the loop has a header of its own,
+//! which the hoisted check separates from `p`'s), no
 //! `borrow` of it lives across the loop's entry, and its type names no
 //! type parameter. When the loop hoists `p`, every other `IsUnique` of `p`
 //! in it, at any depth, goes too; one behind a dereference stays, marked
@@ -49,7 +53,7 @@
 //!
 //! Why it is sound: a buffer made unique before the loop stays unique,
 //! since nothing in the loop can make a second owner of it (rule 2: no
-//! copy, snapshot or reference of the header, which is held nowhere
+//! copy or reference of the header, which is held nowhere
 //! else) and nothing outside the body can reach the place while the loop
 //! runs (rule 3). An empty loop runs no `IsUnique`, and uniqueness is never
 //! observable but through its cost. One taken from an inner loop costs a
@@ -63,6 +67,7 @@
 //! range, a loop's instructions being the range from its first to itself;
 //! the edits join the other passes' for the one rebuild.
 
+use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::splice;
@@ -166,7 +171,7 @@ struct Cand {
     external: bool,
     /// Rules 2 and 3 hold so far.
     ok: bool,
-    /// A `ListPush` changes it.
+    /// A `ListPush` or `ListReserve` changes it.
     pushes: bool,
     /// An element read or store, or a `ListLen`, reads it.
     used: bool,
@@ -188,6 +193,8 @@ pub(crate) struct Tables {
     param: Vec<bool>,
     fresh: Vec<bool>,
     escapes: Vec<bool>,
+    /// The stores of a whole local moved from another local: (to, from).
+    moves: Vec<(u32, u32)>,
     /// Per value: its uses (user and role), in compressed rows, and its
     /// last use.
     use_start: Vec<u32>,
@@ -275,7 +282,7 @@ pub(crate) fn writes(b: &Body, cx: &dyn OwnCx, x: usize) -> bool {
     }
 }
 
-/// An intrinsic that changes, copies, pins or snapshots its collection,
+/// An intrinsic that changes, copies or pins its collection,
 /// or calls std code that may.
 fn changes(op: Option<IntrinsicOp>) -> bool {
     !matches!(
@@ -345,8 +352,8 @@ impl Tables {
     }
 
     /// Whether a read's value is kept by a use (rule 2's copy): stored,
-    /// passed owned or as an argument, a block's value, coerced, or copied
-    /// or snapshot by an intrinsic.
+    /// passed owned or as an argument, a block's value, coerced, or
+    /// copied by an intrinsic.
     fn kept(&self, b: &Body, r: u32) -> bool {
         self.uses(r).iter().any(|&(u, role)| keeps(b, u, role))
     }
@@ -358,24 +365,7 @@ pub(crate) fn keeps(b: &Body, user: u32, role: Role) -> bool {
     !matches!(role, Role::Lend | Role::Dropped)
         || b.tags[user as usize] == Tag::Coerce
         || (b.tags[user as usize] == Tag::Intrinsic
-            && matches!(
-                IntrinsicOp::from_u32(b.data[user as usize][0]),
-                Some(IntrinsicOp::SnapBegin | IntrinsicOp::SnapEnd | IntrinsicOp::Item)
-            ))
-}
-
-/// Whether a use by `user` in role `role` makes another holder of the
-/// very header it uses (a store, an owned argument, a block's value, a
-/// coercion), or hands it to std code: then the header may be
-/// reached from outside the loop. A copy or a snapshot makes a header of
-/// its own, which matters only inside the loop ([`keeps`]).
-fn aliases(b: &Body, user: u32, role: Role) -> bool {
-    keeps(b, user, role)
-        && !(b.tags[user as usize] == Tag::Intrinsic
-            && matches!(
-                IntrinsicOp::from_u32(b.data[user as usize][0]),
-                Some(IntrinsicOp::SnapBegin | IntrinsicOp::SnapEnd)
-            ))
+            && IntrinsicOp::from_u32(b.data[user as usize][0]) == Some(IntrinsicOp::Item))
 }
 
 /// Runs hoisting over `b`, as the pending edits leave it, adding its own.
@@ -398,14 +388,14 @@ pub(crate) fn run(
     }
     // Outermost first: an outer loop starts no later and ends later.
     t.loops
-        .sort_unstable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
+        .sort_stable_by_key(|&(f, l)| (f, std::cmp::Reverse(l)));
     facts(b, t);
     fill(&mut t.gone, n, false);
     for k in 0..t.loops.len() {
         let l = t.loops[k].1;
         hoist_loop(b, topo, cx, t, edits, l);
     }
-    b.stable_lists.sort_unstable();
+    b.stable_lists.sort_stable();
     b.stable_lists.dedup();
 }
 
@@ -418,6 +408,7 @@ fn facts(b: &Body, t: &mut Tables) {
     fill(&mut t.param, locals, false);
     fill(&mut t.fresh, locals, true);
     fill(&mut t.escapes, locals, false);
+    t.moves.clear();
     for (l, flags) in b.local_flags.iter().enumerate() {
         t.param[l] = flags & local_flags::PARAM != 0;
         t.captured[l] = flags & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED) != 0;
@@ -486,9 +477,19 @@ fn facts(b: &Body, t: &mut Tables) {
             Tag::Store => {
                 let p = b.view(a);
                 if let Some(l) = p.local().filter(|_| p.whole()) {
-                    let fresh = Ref(w).as_inst().is_none_or(|_| {
+                    // Through coercions that keep the value.
+                    let mut v = w;
+                    while Ref(v).as_inst().is_some() && b.same_value_coercion(v as usize) {
+                        v = b.data[v as usize][0];
+                    }
+                    // A copy read is one more count of the buffer, which a
+                    // change elsewhere copies first. A borrow read makes
+                    // the local a binding local (`borrow.rs`): its place
+                    // changes nowhere while the local lives, the loop
+                    // included.
+                    let fresh = Ref(v).as_inst().is_none_or(|_| {
                         matches!(
-                            b.tags.get(w as usize),
+                            b.tags.get(v as usize),
                             Some(
                                 Tag::Call
                                     | Tag::CallValue
@@ -497,13 +498,22 @@ fn facts(b: &Body, t: &mut Tables) {
                                     | Tag::NewList
                                     | Tag::NewMap
                             )
-                        ) || (b.tags.get(w as usize) == Some(&Tag::Intrinsic)
+                        ) || (b.tags.get(v as usize) == Some(&Tag::Read)
                             && matches!(
-                                IntrinsicOp::from_u32(b.data[w as usize][0]),
-                                Some(IntrinsicOp::SnapBegin)
+                                b.data[v as usize][1],
+                                m if m == ReadMode::Copy as u32 || m == ReadMode::Borrow as u32
                             ))
                     });
-                    t.fresh[l as usize] &= fresh;
+                    // A move out of another local is fresh when that
+                    // local's own value is, settled below.
+                    let moved = Ref(v)
+                        .as_inst()
+                        .filter(|_| b.data[v as usize][1] == ReadMode::Move as u32)
+                        .and_then(|_| b.local_read(v as usize));
+                    match moved {
+                        Some(k) if !fresh => t.moves.push((l, u32_of(k.idx()))),
+                        _ => t.fresh[l as usize] &= fresh,
+                    }
                 }
             }
             Tag::Read if w != ReadMode::Move as u32 => {
@@ -511,10 +521,7 @@ fn facts(b: &Body, t: &mut Tables) {
                 if l == NONE || steps.contains(&ELEM) {
                     continue;
                 }
-                if t.uses(u32_of(i))
-                    .iter()
-                    .any(|&(u, role)| aliases(b, u, role))
-                {
+                if t.uses(u32_of(i)).iter().any(|&(u, role)| keeps(b, u, role)) {
                     t.escapes[l as usize] = true;
                 }
                 if w == ReadMode::Borrow as u32 {
@@ -526,6 +533,20 @@ fn facts(b: &Body, t: &mut Tables) {
     }
     t.steps = steps;
     t.raw = raw;
+    // A local moved from another is fresh when that one is fresh and no
+    // reference, capture or kept read reaches its value: the move hands
+    // over the only holder. Down to the greatest fixed point.
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for &(l, k) in &t.moves {
+            let (l, k) = (l as usize, k as usize);
+            if t.fresh[l] && !(t.fresh[k] && !t.addressed[k] && !t.captured[k] && !t.escapes[k]) {
+                t.fresh[l] = false;
+                changed = true;
+            }
+        }
+    }
 }
 
 /// Adds a candidate for the place resolved into `t.steps` at local `l`,
@@ -630,44 +651,45 @@ fn hoist_loop(
     t.csteps.clear();
     t.hits.clear();
     // Rule 1: the `IsUnique`s of the iteration block, behind a pure
-    // prefix.
-    if let Some(e) = entry_test(b, l) {
-        let mut budget = b.len();
-        let prefix_pure = loop_statements(b, l)
-            .take(e.prefix)
-            .all(|x| pure(b, cx, x, &mut budget));
-        // The iteration block's statements, and those of the iteration
-        // block of each loop that stands among them, at any depth: an
-        // `IsUnique` there runs whenever that inner loop is entered.
-        let mut blocks = if prefix_pure {
-            vec![e.iteration]
-        } else {
-            Vec::new()
-        };
-        while let Some(blk) = blocks.pop() {
-            for k in 0..b.record(b.data[blk as usize][0]).len() {
-                let x = b.record(b.data[blk as usize][0])[k];
-                if b.tags[x as usize] == Tag::Loop
-                    && !t.pending.dead[x as usize]
-                    && let Some(inner) = entry_test(b, x)
-                {
-                    blocks.push(inner.iteration);
-                    continue;
-                }
-                if b.tags[x as usize] != Tag::IsUnique
-                    || t.gone[x as usize]
-                    || t.pending.dead[x as usize]
-                {
-                    continue;
-                }
-                let word = b.data[x as usize][0];
-                let local = match unique_header(b, word) {
-                    Some(h) => header_place(b, cx, t, h),
-                    None => rooted_place(b, t, word, false),
-                };
-                if let Some(local) = local {
-                    candidate(t, local, true);
-                }
+    // prefix; a loop with no entry test runs its body block whenever it
+    // is entered.
+    let mut blocks = match entry_test(b, l) {
+        Some(e) => {
+            let mut budget = b.len();
+            let prefix_pure = loop_statements(b, l)
+                .take(e.prefix)
+                .all(|x| pure(b, cx, x, &mut budget));
+            if prefix_pure {
+                vec![e.iteration]
+            } else {
+                Vec::new()
+            }
+        }
+        None => vec![b.data[l as usize][0]],
+    };
+    // The iteration block's statements, and those of the iteration block
+    // of each loop that stands among them, at any depth: an `IsUnique`
+    // there runs whenever that inner loop is entered.
+    while let Some(blk) = blocks.pop() {
+        for k in 0..b.record(b.data[blk as usize][0]).len() {
+            let x = b.record(b.data[blk as usize][0])[k];
+            if b.tags[x as usize] == Tag::Loop && !t.pending.dead[x as usize] {
+                blocks.push(entry_test(b, x).map_or(b.data[x as usize][0], |e| e.iteration));
+                continue;
+            }
+            if b.tags[x as usize] != Tag::IsUnique
+                || t.gone[x as usize]
+                || t.pending.dead[x as usize]
+            {
+                continue;
+            }
+            let word = b.data[x as usize][0];
+            let local = match unique_header(b, word) {
+                Some(h) => header_place(b, cx, t, h),
+                None => rooted_place(b, t, word, false),
+            };
+            if let Some(local) = local {
+                candidate(t, local, true);
             }
         }
     }
@@ -880,7 +902,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u3
                 let cs = &t.csteps[c.start as usize..(c.start + c.len) as usize];
                 let mine = l == c.local && prefix(cs, &steps);
                 let exact = mine && steps.len() == cs.len();
-                if exact && op == Some(IntrinsicOp::ListPush) {
+                if exact && matches!(op, Some(IntrinsicOp::ListPush | IntrinsicOp::ListReserve)) {
                     c.pushes = true;
                 }
                 if exact && op == Some(IntrinsicOp::ListLen) {

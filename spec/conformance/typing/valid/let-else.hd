@@ -4,7 +4,8 @@ fn find(id: i32) -> i32?:
     if id == 0: .Some(7) else: .None
 
 fn sum(id: i32) -> i32?:
-    let .Some(first) = find(id) else: return .None
+    let .Some(first) = find(id) else:
+        return .None
     let .Some(second) = find(id + 1) else:
         return .None
     .Some(first + second)

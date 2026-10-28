@@ -7,4 +7,4 @@ enum Currency:
     Eur
 
 fn same(a: Currency, b: Currency) -> bool:
-    a == b  # diagnostic: type-mismatch
+    a == b # diagnostic: type-mismatch

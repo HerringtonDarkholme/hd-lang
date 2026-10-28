@@ -1,13 +1,18 @@
+# fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: suspending calls in loops resume after a pending host call, with continue, break values, and cleanup
 use std.testing.assert_equal
 
-fn step!(value: i32) -> i32 $ Console:
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn step!(value: i32) -> i32 $ Console + Tick:
     let mut console = $.use(Console)
-    _ := console.write!("step ${value}\n")
+    $.use(Tick).tick!("step ${value}\n")
+    _ := console.write_sync("step ${value}\n")
     value
 
-pub fn main!() -> void $ Console:
+pub fn main!() -> void $ Console + Tick:
     let index = +0
     let total = +0
     value := while index < 5:
@@ -21,4 +26,8 @@ pub fn main!() -> void $ Console:
             break total
     else:
         0
-    assert_equal(value + total - 44, 42, reason="continue, break value, and cleanup keep their results")
+    assert_equal(
+        value + total - 44,
+        42,
+        reason="continue, break value, and cleanup keep their results",
+    )

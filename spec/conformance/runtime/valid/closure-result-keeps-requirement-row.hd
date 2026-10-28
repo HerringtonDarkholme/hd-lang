@@ -6,7 +6,8 @@ trait Db:
 struct MemoryDb: pass
 
 impl Db for MemoryDb:
-    fn name(self) -> string: "db"
+    fn name(self) -> string:
+        "db"
 
 fn orders() -> string $ Db:
     $.use(Db).name()

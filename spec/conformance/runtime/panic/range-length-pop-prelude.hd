@@ -4,4 +4,4 @@ let mut xs = [+1, 2]
 n := xs.len()
 _ := xs.pop()
 for i in 0..n:
-    _ := xs[i]  # panic: index-out-of-bounds
+    _ := xs[i] # panic: index-out-of-bounds

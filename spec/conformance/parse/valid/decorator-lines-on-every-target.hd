@@ -4,7 +4,7 @@
 # Spec 02 Enums: grammar.enum.payload-decorator.
 # Spec 02 Traits And Implementations: grammar.impl.inherent, grammar.impl.trait.
 
-@derive(Eq, Hash,)
+@derive(Eq, Hash)
 @Validation
 pub struct Key:
     @max_len(8)
@@ -18,14 +18,19 @@ enum Event:
     @variant_doc("start")
     Started
     @variant_doc("move")
-    Moved(to: string, @rename("why") reason: string)
+    Moved(
+        to: string,
+        @rename("why")
+        reason: string,
+    )
 
 @Tool
 @Describe("fetch")
 pub fn fetch(
     @label("who")
     id: i32,
-    @label("flag") @other(1)
+    @label("flag")
+    @other(1)
     verbose: bool = false,
     values...: List[i32],
 ) -> Key:
@@ -39,15 +44,22 @@ trait Handler:
 @Marker
 impl Handler for Key:
     @route("key")
-    fn handle(self) -> i32: 1
+    fn handle(self) -> i32:
+        1
 
 @Marker
 impl Key:
     @helper
-    pub fn id(self) -> i32: 2
+    pub fn id(self) -> i32:
+        2
 
     @helper
-    fn tag(&mut self, @label("value") value: i32) -> i32: value
+    fn tag(
+        &mut self,
+        @label("value")
+        value: i32,
+    ) -> i32:
+        value
 
 @Sealed
 type Meters(i32)

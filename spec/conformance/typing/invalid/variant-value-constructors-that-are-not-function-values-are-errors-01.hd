@@ -6,4 +6,4 @@ fn apply(make: fn(i32, i32) -> Pair) -> Pair:
     make(1, 2)
 
 fn run() -> Pair:
-    apply(Pair.Both)  # diagnostic: unsaturated-enum-constructor
+    apply(Pair.Both) # diagnostic: unsaturated-enum-constructor

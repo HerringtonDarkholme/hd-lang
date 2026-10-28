@@ -4,8 +4,10 @@
 enum Pair[T]:
     Value(first: T, second: T)
 
-fn first!() -> i32: 1
-fn second!() -> i32: 2
+fn first!() -> i32:
+    1
+fn second!() -> i32:
+    2
 fn main!() -> i32:
     let pair: Pair[i32] = .Value(second=first!(), first=second!())
     match pair:

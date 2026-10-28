@@ -3,7 +3,7 @@
 use std.num.Integer
 
 fn widen[N < Integer](n: N) -> u64:
-    n.to_u64()  # panic: integer-overflow
+    n.to_u64() # panic: integer-overflow
 
 tests:
     it("is negative"):

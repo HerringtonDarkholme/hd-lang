@@ -11,7 +11,8 @@ enum Container:
     Wrap(status: Status)
     Empty
 
-fn initial() -> Status: .Queued
+fn initial() -> Status:
+    .Queued
 
 fn label(status: Status) -> string:
     match status:

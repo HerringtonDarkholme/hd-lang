@@ -12,7 +12,8 @@ struct Item:
     n: i32
 
 impl Named for Item:
-    fn label(&self) -> string: "item${self.n}"
+    fn label(&self) -> string:
+        "item${self.n}"
     fn rename(&mut self, to: i32) -> void:
         self.n = to
 

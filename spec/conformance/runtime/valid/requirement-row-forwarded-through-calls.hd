@@ -1,8 +1,11 @@
 # test: requirement row forwarded through calls
 
-fn read() -> i32 $ Clock: 40
-fn middle() -> i32 $ Clock: read() + 1
-fn run() -> i32 $ Clock: middle() + 1
+fn read() -> i32 $ Clock:
+    40
+fn middle() -> i32 $ Clock:
+    read() + 1
+fn run() -> i32 $ Clock:
+    middle() + 1
 
 trait Clock
 

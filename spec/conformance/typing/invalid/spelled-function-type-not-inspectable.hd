@@ -5,7 +5,8 @@ use std.inspect.Inspectable
 struct Box[T]:
     value: T
 
-fn one() -> i32: 1
+fn one() -> i32:
+    1
 
-fn erase(box: Box[Fn[(), i32, $()]]) -> *dyn Inspectable:
-    box  # diagnostic: type-mismatch
+fn erase(box: Box[Fn[(), i32, $ ()]]) -> *dyn Inspectable:
+    box # diagnostic: type-mismatch

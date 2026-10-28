@@ -2,6 +2,6 @@
 # Spec 14 Member-Typed Facts: annot.typed-fact.check, reported at the decorator (owner decisions ANNOTATE-TYPED and LITERAL-MARKERS, batch 39, 2026-10-01).
 use std.ops.num_suffix
 
-@num_suffix  # diagnostic: type-mismatch
+@num_suffix # diagnostic: type-mismatch
 fn kb(count: i64, unit: i64 = 1024) -> i64:
     count * unit

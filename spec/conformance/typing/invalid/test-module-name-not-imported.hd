@@ -7,4 +7,4 @@ use pkg.cart.{Cart}
 use std.testing.assert_equal
 
 it("totals one item"):
-    assert_equal(total(Cart { items: +1 }), 105, reason="one item and the fee")  # diagnostic: unknown-name
+    assert_equal(total(Cart { items: +1 }), 105, reason="one item and the fee") # diagnostic: unknown-name

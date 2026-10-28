@@ -6,6 +6,6 @@ pub struct Right:
     pub id: string
 
 pub struct Record:
-    id: string  # diagnostic: ambiguous-promoted-member
+    id: string # diagnostic: ambiguous-promoted-member
     Left
     Right

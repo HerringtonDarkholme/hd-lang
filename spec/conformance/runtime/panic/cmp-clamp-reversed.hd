@@ -3,7 +3,7 @@
 use std.cmp.clamp
 
 fn percent(value: i32) -> i32:
-    clamp(value, 100, 0)  # panic: explicit-panic
+    clamp(value, 100, 0) # panic: explicit-panic
 
 tests:
     it("rejects low above high"):

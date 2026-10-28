@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# Release inlining: the call of the small leaf `a` is its body, so V8
+# sees no call in the loop, with or without call feedback.
+fn a(i: usize, j: usize) -> f64:
+    1.0 / f64((i + j) * (i + j + 1) / 2 + i + 1)
+
+fn row(n: usize, i: usize) -> f64:
+    let s = 0.0
+    let j: usize = 0
+    while j < n:
+        s = s + a(i, j)
+        #^^^^^^^^^^^^^^
+        j = j + 1
+    s

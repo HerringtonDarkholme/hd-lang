@@ -1,6 +1,7 @@
 use std.time.{Duration, h, ms}
 
-fn budget() -> Duration: 1h
+fn budget() -> Duration:
+    1h
 
 fn spin(rounds: i32) -> i32:
     let total: i32 = 0

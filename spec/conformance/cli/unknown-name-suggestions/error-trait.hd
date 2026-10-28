@@ -1,1 +1,2 @@
-fn use_error[T < Error](value: T) -> void: pass
+fn use_error[T < Error](value: T) -> void:
+    pass

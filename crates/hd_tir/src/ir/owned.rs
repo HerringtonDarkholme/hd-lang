@@ -22,10 +22,12 @@
 //!   lives on it is ([`borrow_spans`]);
 //! - a local the body does not own holds no count: a binding local, which
 //!   a `borrow` value is stored into, takes only borrows and is never
-//!   dropped, moved out of or addressed; a counted parameter outside the
+//!   moved out of or addressed, nor dropped unless such a borrow keeps
+//!   its drops; a counted parameter outside the
 //!   exit set, which the body does not own, is also never stored into or
 //!   changed in place (an `IsUnique` or a `Pin` of its own storage, which
-//!   would give up a count of its caller's); neither is in the exit set
+//!   would give up a count of its caller's); neither is in the exit set,
+//!   except a binding local whose borrow keeps its drops
 //!   ([`binding_locals`]);
 //! - at each suspension point, whose cancellation leaves through the
 //!   exit, every owned value has a row in the unwind set and every owned
@@ -67,6 +69,7 @@ use crate::own::flow::{
 };
 use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes, operands, tracked};
+use hd_base::SliceSort as _;
 
 /// Verifies a body after the ownership passes: the structural invariants
 /// and invariant 23 ([the module](self)), with the facts `cx` gives the
@@ -120,7 +123,8 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 
 /// What the inliner's copies promise (`crate::inline`). Each anchor with
 /// the `INLINED` bit falls in a `Body::inlined` row; the rows are sorted
-/// and disjoint, and each call's anchor is the caller's own. A place in a
+/// and disjoint, and each call's anchor is the caller's own or, for a copy
+/// inside a copy, an anchor in a row before it. A place in a
 /// copy is rooted at a local the body defines: a parameter or a local some
 /// whole `Store` writes.
 fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
@@ -133,11 +137,12 @@ fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
     }
     let mut end = 0;
     for &[first, len, _, call] in &b.inlined {
-        if first < end || call & INLINED != 0 {
+        // A copy inside a copy is called from one of the rows before it.
+        if first < end || call & INLINED != 0 && call & !INLINED >= first {
             err(
                 errs,
                 NONE,
-                format!("inlined row at {first} out of order, or called in a copy"),
+                format!("inlined row at {first} out of order, or called in a copy after it"),
             );
         }
         end = first + len;
@@ -711,7 +716,7 @@ impl<'a> Empties<'a> {
                 _ => None,
             })
             .collect();
-        by_value.sort_unstable();
+        by_value.sort_stable();
         Empties {
             cx,
             id,
@@ -830,14 +835,17 @@ impl Forward for Empties<'_> {
 /// The locals the body does not own (`docs/compiler/tir-v2.md`,
 /// "Borrow"). A binding local: a `Store` of a `borrow` read goes into all
 /// of it, so it holds borrowed values only: every store into it stores
-/// one, nothing drops it, moves out of it or addresses it, and it is in no
-/// exit set. A lent parameter: a counted parameter outside the exit set,
+/// one, nothing moves out of it or addresses it, and nothing drops it nor
+/// is it in an exit set unless a borrow stored into it keeps its `Drop`s
+/// (one through a dereference, which a view's getter may make fresh: the
+/// local then holds that count, `crate::own::keeps_drops`). A lent parameter: a counted parameter outside the exit set,
 /// which nothing stores into, drops, moves out of or addresses either,
 /// and nothing changes in place: an `IsUnique` or a `Pin` of it would give
 /// up or keep a count that is its caller's.
 fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let mut binding = vec![false; b.local_ty.len()];
+    let mut dropped = vec![false; b.local_ty.len()];
     let mut lent = vec![false; b.local_ty.len()];
     let mut any = false;
     if !b.sub_root.is_empty() {
@@ -864,6 +872,8 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
                 proj,
             }) if proj.is_empty() => {
                 binding[l.idx()] = true;
+                let w = b.data[i][1] as usize;
+                dropped[l.idx()] |= b.tags[w] == Tag::Read && crate::own::keeps_drops(b, own, w);
                 any = true;
             }
             _ => err(
@@ -892,7 +902,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         let what = match b.tags[i] {
             Tag::Store if lent[l.idx()] => "a store into",
             Tag::Store if !b.is_borrow(b.data[i][1]) => "an owned value stored into",
-            Tag::Drop => "a `Drop` of",
+            Tag::Drop if !dropped[l.idx()] => "a `Drop` of",
             Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
             Tag::Ref => "a reference to",
             Tag::IsUnique | Tag::Pin => "a change in place of",
@@ -905,7 +915,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         );
     }
     for &(_, l) in &b.exit_drops {
-        if binding.get(l.idx()).copied().unwrap_or(false) {
+        if binding.get(l.idx()).copied().unwrap_or(false) && !dropped[l.idx()] {
             err(
                 errs,
                 NONE,
@@ -925,7 +935,12 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
 /// `borrow` read rooted at a borrow, and a read of a binding local, whose
 /// store holds a borrow, live on that borrow. A control instruction reads
 /// its operands before it runs its blocks, so a match's scrutinee is not
-/// live in its arms unless they use it.
+/// live in its arms unless they use it. Before an instruction runs its
+/// blocks, no borrow they make has been made: a path that skips the block
+/// (an `Or`'s right operand, an `If` without an `else`) reaches a read of
+/// the binding local that holds it only where that local was never stored,
+/// which definite initialization rules out, so the walk keeps such a borrow
+/// live from no point before the instruction.
 fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let n = b.len();
@@ -954,11 +969,25 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
             holds[l.idx()] = b.data[i][1];
         }
     }
+    // Each borrow, by bit, at every instruction that runs a block it is in.
+    let mut inside = vec![Vec::new(); n];
+    for (k, &r) in at.iter().enumerate() {
+        let mut blk = cx.topo.blk[r as usize];
+        while blk != NONE {
+            let owner = cx.topo.owner[blk as usize];
+            if owner == NONE {
+                break;
+            }
+            inside[owner as usize].push(u32_of(k));
+            blk = cx.topo.blk[owner as usize];
+        }
+    }
     let mut walk = Live {
         cx,
         bit,
         at,
         holds,
+        inside,
         reported: vec![false; n],
         errs: Vec::new(),
     };
@@ -975,6 +1004,8 @@ struct Live<'a> {
     bit: Vec<u32>,
     at: Vec<u32>,
     holds: Vec<u32>,
+    /// Per instruction, the bits of the borrows inside the blocks it runs.
+    inside: Vec<Vec<u32>>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
@@ -1028,6 +1059,13 @@ impl Backward for Live<'_> {
         }
     }
 
+    /// Before `x` runs its blocks, none of the borrows in them is made.
+    fn ran(&mut self, _: &Body, x: u32, s: &mut BitArena, live: usize) {
+        for &k in &self.inside[x as usize] {
+            s.set(live, k, false);
+        }
+    }
+
     /// Besides the operands (a borrow's own `Drop`, which the walk skips,
     /// releases only a value an instance made fresh, which lives on
     /// nothing): the borrow a binding local holds, and a suspension point.
@@ -1047,10 +1085,15 @@ impl Backward for Live<'_> {
         }
     }
 
-    /// A use of value `v`: it, and every borrow it lives on.
+    /// A use of value `v`: it, and every borrow it lives on. A coercion
+    /// of a borrow is that borrow ([`Body::is_borrowed_coercion`]).
     fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
         let mut x = v;
         for _ in 0..b.len() {
+            if b.is_borrowed_coercion(x) {
+                x = b.data[x as usize][0];
+                continue;
+            }
             let Some(&k) = self.bit.get(x as usize) else {
                 return;
             };

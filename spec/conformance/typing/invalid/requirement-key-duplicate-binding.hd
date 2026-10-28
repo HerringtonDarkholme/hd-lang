@@ -5,5 +5,5 @@ trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-fn count() -> i32 $ Store[Item = i32, Item = i32]:  # diagnostic: duplicate-associated-binding
+fn count() -> i32 $ Store[Item = i32, Item = i32]: # diagnostic: duplicate-associated-binding
     0

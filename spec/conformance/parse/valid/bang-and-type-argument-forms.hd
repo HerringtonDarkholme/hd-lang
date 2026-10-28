@@ -10,7 +10,7 @@ fn run!(id: i32) -> bool:
     second := parser.load!::[User](text)
     third := Store::load!::[User](key)
     nested := !(fetch!(id) && other!(id))
-    same := f!=g
+    same := f != g
     names := tuple._0._1
     ok
 

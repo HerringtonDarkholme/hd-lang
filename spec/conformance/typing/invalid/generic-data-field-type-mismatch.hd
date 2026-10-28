@@ -4,4 +4,4 @@ struct Box[T]:
     value: T
 
 fn main() -> void:
-    let box: Box[i32] = Box { value: true }  # diagnostic: type-mismatch
+    let box: Box[i32] = Box { value: true } # diagnostic: type-mismatch

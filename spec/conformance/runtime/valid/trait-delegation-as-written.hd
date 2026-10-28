@@ -32,6 +32,18 @@ tests:
     it("delegation is written forwarding"):
         service := Service { Logger: Logger { name: "api" } }
         written := Written { Logger: Logger { name: "api" } }
-        assert_equal(Describe::describe(service), Describe::describe(written), reason="describe forwards")
-        assert_equal(Describe::headline(service), Describe::headline(written), reason="headline forwards")
-        assert_equal(Describe::headline(service), "* api", reason="the part's default runs with the part as receiver")
+        assert_equal(
+            Describe::describe(service),
+            Describe::describe(written),
+            reason="describe forwards",
+        )
+        assert_equal(
+            Describe::headline(service),
+            Describe::headline(written),
+            reason="headline forwards",
+        )
+        assert_equal(
+            Describe::headline(service),
+            "* api",
+            reason="the part's default runs with the part as receiver",
+        )

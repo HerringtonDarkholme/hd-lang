@@ -12,49 +12,42 @@ fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
     for x in xs:
 > app/main/run_all
 >   local $0 xs: List[fn() -> ()] [param read]
->   local $1 $orig: List[fn() -> ()] [assigned]
->   local $2 $coll: List[fn() -> ()] [assigned]
->   local $3 $len: usize [assigned]
->   local $4 $pos: usize [assigned]
->   local $5 $end: usize [assigned]
->   local $6 x: fn() -> () [read assigned]
+>   local $1 $coll: List[fn() -> ()] [assigned]
+>   local $2 $len: usize [assigned]
+>   local $3 $pos: usize [assigned]
+>   local $4 $end: usize [assigned]
+>   local $5 x: fn() -> () [read assigned]
 >   %0 = Read [$0] : List[fn() -> ()]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$1] : List[fn() -> ()]
->   %3 = Intrinsic SnapBegin [%2] : List[fn() -> ()]
+>   %3 = Intrinsic ListLen [%2] : usize
 >   %4 = Store [$2] %3 : ()
->   %5 = Read [$2] : List[fn() -> ()]
->   %6 = Intrinsic ListLen [%5] : usize
->   %7 = Store [$3] %6 : ()
+>   %5 = Read [$2] : usize
+>   %6 = Store [$4] %5 : ()
+>   %7 = Store [$3] 0:usize : ()
 >   %8 = Read [$3] : usize
->   %9 = Store [$5] %8 : ()
->   %10 = Store [$4] 0:usize : ()
->   %11 = Read [$4] : usize
->   %12 = Read [$5] : usize
->   %13 = Prim Lt [%11 %12] : bool
->   %14 = Read [$2] : List[fn() -> ()]
->   %15 = Read [$4] : usize
->   %16 = Read [%14 [%15]] : fn() -> ()
->   %17 = Read [$4] : usize
->   %18 = Prim Add [%17 1:usize] : usize
->   %19 = Store [$4] %18 : ()
->   %22 = Block - : ()
->   %23 = Store [$6] %16 : ()
->   %25 = Block - : never
->   %26 = Match %16 [%25 %22] : ()
->   %27 = Block - : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If %13 [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
->   %33 = Read [$1] : List[fn() -> ()]
->   %34 = Read [$2] : List[fn() -> ()]
->   %35 = Intrinsic SnapEnd [%33 %34] : ()
->   %36 = Block - : ()
+>   %9 = Read [$4] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read [$1] : List[fn() -> ()]
+>   %12 = Read [$3] : usize
+>   %13 = Read [%11 [%12]] : fn() -> ()
+>   %14 = Read [$3] : usize
+>   %15 = Prim Add [%14 1:usize] : usize
+>   %16 = Store [$3] %15 : ()
+>   %19 = Block - : ()
+>   %20 = Store [$5] %13 : ()
+>   %22 = Block - : never
+>   %23 = Match %13 [%22 %19] : ()
+>   %24 = Block - : ()
+>   %25 = Break L0 - : never
+>   %26 = Block - : ()
+>   %27 = If %10 [%24 %26] : ()
+>   %28 = Block - : ()
+>   %29 = Loop %28 - : ()
+>   %30 = Block - : ()
         x()
->   %20 = Read [$6] : fn() -> ()
->   %21 = CallValue %20 [] : ()
+>   %17 = Read [$5] : fn() -> ()
+>   %18 = CallValue %17 [] : ()
 
 fn quiet() -> void:
     pass

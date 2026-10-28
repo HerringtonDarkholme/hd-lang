@@ -17,7 +17,7 @@ fn request(
     if method == 7 {
         e = e.str("CUSTOM");
     }
-    e = e.str(url).leb(0).leb(headers.len() as u64);
+    e = e.str(url).leb(headers.len() as u64);
     for (name, value) in headers {
         e = e.str(name).str(value);
     }
@@ -29,7 +29,7 @@ fn request(
 /// The expected response. Both hosts deliver a header name in lowercase
 /// (`std-http.headers.case`), so the expectation lowercases the names the
 /// fixture server writes; the values of one name keep their order. `url`
-/// is the last request's URL (`std-http.response.url`).
+/// is the last request's URL (`std-http.response.optional-url`).
 fn response(status: u16, headers: &[(&str, &str)], body: &[u8], url: &str) -> Vec<u8> {
     let mut e = Enc::default()
         .leb(0)
@@ -92,7 +92,7 @@ fn http_statuses_binary_bodies_header_case_and_repeats() {
     }
 }
 
-/// This Node transport preserves raw pairs (`std-http.headers.fields`), however
+/// This Node transport preserves raw pairs (`std-http.headers.typed-fields`), however
 /// many. Node's default limit is 1000 pairs. The wasmtime host's HTTP
 /// library stops at 128 (ureq-proto `MAX_RESPONSE_HEADERS`), so this runs
 /// on the Node host alone.

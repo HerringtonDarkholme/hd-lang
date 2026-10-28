@@ -10,7 +10,8 @@ fn read(flag: Flag) -> i32:
         .On(value) => value
         .Off => 0
 
-fn main() -> i32: read(Flag.On(42))
+fn main() -> i32:
+    read(Flag.On(42))
 
 tests:
     use std.testing.assert_equal

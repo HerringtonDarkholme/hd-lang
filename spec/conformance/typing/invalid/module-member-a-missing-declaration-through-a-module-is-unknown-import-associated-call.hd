@@ -3,5 +3,5 @@
 use pkg.shapes
 
 pub fn main() -> void:
-    other := shapes.Missing::new()  # diagnostic: unknown-import
+    other := shapes.Missing::new() # diagnostic: unknown-import
     pass

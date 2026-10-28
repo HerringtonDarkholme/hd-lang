@@ -4,29 +4,35 @@
 run: hd fetch --format json
 stdout-json: [{"kind":"summary","errors":0,"status":0}]
 run: hd check --format json
-stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json
-stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning","message":"fetched package `money` contains `dbg`; its debug output is suppressed"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning","message":"fetched package `money` contains `dbg`; its debug output is suppressed"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --allow dbg-in-dependency --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd build --format json
-stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd build --release --format json
-stdout-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd run --format json
-stderr-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stderr-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 stdout: direct
 stdout: named
 stdout: spread
 stdout: value
 stdout: done
 run: hd run --format json
-stderr-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stderr-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 stdout: direct
 stdout: named
 stdout: spread
 stdout: value
 stdout: done
 run: hd run --release --format json
-stderr-json: [{"kind":"diagnostic","code":"dbg-in-dependency","severity":"warning"},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+stderr-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 stdout: direct
 stdout: named
 stdout: spread

@@ -1,8 +1,8 @@
 # Distinct same-named items identify their declaring modules.
 run: hd check --format json clash/src/main.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected pkg.main.Shape, found pkg.other.Shape","file":"src/main.hd","line":9},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected pkg.main.Shape, found pkg.other.Shape","file":"src/main.hd","line":10},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 # Ordinary messages keep their short type names.
 run: hd check --format json ordinary.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected i32, found string","file":"ordinary.hd","line":4},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected i32, found string","file":"ordinary.hd","line":5},{"kind":"summary","errors":1,"warnings":0,"status":101}]

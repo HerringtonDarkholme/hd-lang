@@ -8,7 +8,7 @@ tests:
     use std.testing.assert_equal
 
     it("an insert during the loop"):
-        let mut entries: Map[string, i32] = {"a": +1}
+        let mut entries: Map[string, i32] = { "a": +1 }
         grow(&mut entries)
         assert_equal(entries.len(), 2, reason="the loop ran once, for a")
         assert_equal(entries["a!"], 1, reason="the insert reached the map")

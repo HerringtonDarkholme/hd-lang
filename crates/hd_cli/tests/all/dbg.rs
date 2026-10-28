@@ -289,11 +289,11 @@ tests:
     let ran = hd(&dir, &["test"]);
     assert_eq!(ran.code, Some(1), "{}", ran.err);
     assert_eq!(
-        ran.out,
+        crate::normalize_std_lines(&ran.out),
         "\
 PANIC src/lib.hd:11: fails loudly
     panic: assertion-failed: double: actual 6, expected 7
-    <std>/testing.hd:634 std.testing.check_equal
+    <std>/testing.hd:LINE std.testing.check_equal
     src/lib.hd:12 test \"fails loudly\"
     src/lib.hd:2:5: x = 3
     repro: hd test src/lib.hd --filter \"fails loudly\"

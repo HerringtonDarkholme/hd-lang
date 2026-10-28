@@ -27,3 +27,7 @@ spec/conformance/cli/fix-empty-map-constructor/** text eol=lf
 spec/conformance/cli/fix-collection-interpolation/*.hd text eol=lf
 spec/conformance/cli/fix-collection-interpolation/src/*.hd text eol=lf
 spec/conformance/cli/fix-collection-interpolation/want/*.hd text eol=lf
+spec/conformance/cli/lint-binding-patterns/** text eol=lf
+spec/conformance/cli/lint-flow-advice/** text eol=lf
+
+spec/conformance/cli/fmt-width/** text eol=lf

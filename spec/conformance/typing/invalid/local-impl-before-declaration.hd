@@ -8,9 +8,10 @@ fn invoice_label(number: string) -> string:
         fn label(self) -> string
 
     invoice := Invoice { number }
-    early := invoice.label()  # diagnostic: unknown-method
+    early := invoice.label() # diagnostic: unknown-method
 
     impl Labeled for Invoice:
-        fn label(self) -> string: "INV-" + self.number
+        fn label(self) -> string:
+            "INV-" + self.number
 
     early

@@ -25,10 +25,18 @@ tests:
         let mut right = left
         assert_equal(left.next(), .Some(["one"]), reason="the first cursor advances")
         items[1] = ["changed"]
-        assert_equal(left.next(), .Some(["two"]), reason="the cursor yields the list as iter found it")
+        assert_equal(
+            left.next(),
+            .Some(["two"]),
+            reason="the cursor yields the list as iter found it",
+        )
         assert_equal(right.next(), .Some(["one"]), reason="the copy kept its own position")
         assert_equal(right.next(), .Some(["two"]), reason="both cursors iterate the same snapshot")
         assert_equal(items[1], ["changed"], reason="the list itself has the replacement")
-        assert_equal(snapshot, [["one"], ["two"]], reason="the independent collection value stays unchanged")
+        assert_equal(
+            snapshot,
+            [["one"], ["two"]],
+            reason="the independent collection value stays unchanged",
+        )
         assert_equal(left.next(), .None, reason="the first cursor is exhausted")
         assert_equal(right.next(), .None, reason="the second cursor is exhausted")

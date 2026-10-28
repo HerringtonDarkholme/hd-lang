@@ -6,4 +6,4 @@ struct User:
 trait Service
 
 fn invariant(f: fn(fn() -> void $ Service) -> void) -> fn(fn() -> void) -> void:
-    f  # diagnostic: type-mismatch
+    f # diagnostic: type-mismatch

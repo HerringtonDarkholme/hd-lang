@@ -4,4 +4,4 @@ struct User:
     name: string
 
 fn invariant(f: fn() -> *mut List[*mut User]) -> fn() -> *mut List[*User]:
-    f  # diagnostic: type-mismatch
+    f # diagnostic: type-mismatch

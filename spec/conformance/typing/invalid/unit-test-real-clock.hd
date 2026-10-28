@@ -7,4 +7,4 @@ fn receipt_header(store: string) -> string $ Clock:
 
 tests:
     it("reads the real clock"):
-        _ := receipt_header("Main St")  # diagnostic: missing-requirement
+        _ := receipt_header("Main St") # diagnostic: missing-requirement

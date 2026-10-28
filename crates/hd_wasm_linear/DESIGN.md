@@ -156,7 +156,7 @@ what the spec names as intrinsic or what only it can build.
 | references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, the ownership passes' `Drop`s for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) |
 | host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) |
 | checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, with checked allocation/count auditing enabled (§23.24) |
-| iterative release | `rt.rs::release_ref`: nested releases enqueue through `ReleaseHead`, and the outer release drains the queue |
+| iterative release | `rt.rs::release_ref`: nested releases enqueue through `ReleaseHead`; the outer release hands its block to `rt:release_drain`, which runs it and then the queue. The drain calls the glue of up to eight recursive types (those allocated with `CYCLIC`; `Module::drain_glues`) directly when a block's descriptor names it, so V8 can inline it, and any other glue through the table |
 | the cycle collector | hd in `std.rt.cycle`, called by emitted code, which runs each object's release glue as its trace (§23.28) |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -166,8 +166,8 @@ runtime can change its representation without breaking a program.
 
 | Memory | Holds | Exported as |
 | --- | --- | --- |
-| 0 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
-| 1 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only memory 0 (§23.23) |
+| 0 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only `hd.x` (§23.23) |
+| 1 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
 | 2 | the shadow stack: the frames of wide calls, declared only when a signature is wide (§23.29) | not exported |
 
 - **Why two memories.** The exchange buffer grows from address 0 as the
@@ -176,7 +176,10 @@ runtime can change its representation without breaking a program.
   and wasmtime) keeps the host contract unchanged, so both hosts run the same
   compiled module: the module's own codecs move values between its
   layouts and the buffer's bytes (§23.23). A string crosses with one
-  `memory.copy` from memory 1 to memory 0.
+  `memory.copy` from memory 0 to memory 1. The heap is memory 0 because
+  every load and store names its memory, and memory 0's needs no index
+  byte: the Wasm is about 2% smaller, and V8's optimizing compiler takes
+  less time over it.
 - **Addresses** are `i32`, unsigned (`usize` on wasm32). Address 0 is
   null: `.None` of `Option[&T]`. The first 16 bytes are never used.
 - **Static data** starts at address 16 in page 0: string literals, the
@@ -185,7 +188,7 @@ runtime can change its representation without breaking a program.
   static in the page table, so a count update through an address in them
   does nothing.
 - **Pages** are Wasm's 64 KiB pages. The heap grows with `memory.grow`
-  on memory 1 and never shrinks: a program's footprint is its high-water
+  on memory 0 and never shrinks: a program's footprint is its high-water
   mark (REFCOUNT_RUNTIME.md §6).
 
 ### 23.3 Values
@@ -231,16 +234,17 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 24 the release glue's function-table slot plus one (0 for none), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
-| the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color and the frame flag (REFCOUNT_RUNTIME.md §7.2, §23.28) |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
   `address - 8`.
 - **The descriptor word** identifies shared release glue, not a nominal
-  type record. Its low 25 bits are the glue's table slot plus one; five
-  bits carry an allocator class, and the top two are collector flags.
+  type record. Its low 22 bits are the glue's table slot plus one; three
+  bits are the collector's state, five carry an allocator class, and the
+  top two are collector flags. Every block is header plus payload, so a
+  cycle-capable type's object takes the same class as any other.
   The allocator supplies the block size. An interior reference finds its
   block through the page table, then runs that block's glue. Types with
   identical layouts may share the descriptor and have no stored type name.
@@ -267,7 +271,7 @@ the page table:
 4. A static or free page: no count; static pages are immortal, and a live
    reference never points into a free page.
 
-The page table is one 4-byte entry per heap page, an array in memory 1
+The page table is one 4-byte entry per heap page, an array in memory 0
 whose base and length are allocator globals, after 256 bytes that hold
 each class's list of pages with room and the size/reciprocal tables.
 It starts at one page (16,320
@@ -299,6 +303,11 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
   the page's free list, popped and pushed in constant time; a page whose
   live count falls to zero returns to the page pool, unless it heads its
   class's list.
+- **Freed lists.** A block freed at its known class goes on one list per
+  class instead, with no page update; allocation pops that list first.
+  Its page still counts it live until the heap needs a page: then every
+  listed block goes back to its page first, so empty pages still return
+  to the pool.
 - **Large blocks** (over 2 KiB) are runs of whole pages, first fit from
   the pool's runs, coalesced with free neighbors on free; every page of a
   run points at its first (§23.5).
@@ -371,9 +380,9 @@ of a pinned list copies it at once.
   value of the binding's layout, set by its group's init function (§15.4).
 - **Runtime state** (the panic flag, the woken flag, the
   forbidden-context counter) are `i32` globals; the wake table and the
-  candidate buffer are counted buffers in memory 1.
+  candidate buffer are counted buffers in memory 0.
 - **Exports and imports** are `hd.init`, `hd.poll`, `hd.wake`,
-  `hd.x` (memory 0), `hd.cancel` for a scenario, and the `hd:rt`,
+  `hd.x` (memory 1), `hd.cancel` for a scenario, and the `hd:rt`,
   `hd:prim` and capability imports of crates/hd_run_wasmtime/DESIGN.md
   §17.2.
 - **Panics** call a stub that writes the report through `hd:rt` and
@@ -405,7 +414,7 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 - **`std.rt.memory`.** spec/lang/10-modules.md "Memory Intrinsics": plain
   hd declarations in `lib/std/rt/memory.hd` whose bodies are
   `@intrinsic`, with the `mem_` keys of `hd_host_abi::INTRINSICS`. The
-  linear backend lowers each to one instruction on memory 1: a
+  linear backend lowers each to one instruction on memory 0: a
   little-endian load or store at any address, `memory.size`,
   `memory.grow` with its `-1` read as `.None`, `memory.copy`, which
   allows overlap, and `memory.fill`. Only std can reach one.
@@ -553,6 +562,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   through the page table (§23.5), so a string's view and a slice count
   their buffer, and static data, which is in no block, is never counted:
   literals, the empty string and fieldless data objects need no check.
+  An address below the heap's first page (null, or static data, which
+  precedes every page the allocator takes) returns before the lookup.
   `release` hands back the block at its last count; `rt:release_ref` then
   calls the descriptor's glue on the payload and frees the block.
 - **Which values count.** A type's `layout::walk` identifies counted
@@ -733,7 +744,7 @@ changes preserve collection value semantics (§23.7).
   one static empty
   buffer, whose count word is 0, a static object's, so no count changes it and a change always copies it first. A
   tuple's rest list is its last member.
-- **Copies.** Every count of a list or a map, and `SnapBegin`, counts
+- **Copies.** Every count of a list or a map counts
   one more holder of the same buffer, or clones a pinned or exposed one
   (`rt:coll_copy`), and the result replaces the value in the copy: a
   count of a struct copies each list among its fields at any depth
@@ -753,6 +764,21 @@ changes preserve collection value semantics (§23.7).
   the old block without releasing its elements, which moved. Either
   stores the new buffer into the place the change names. A store counts
   the new element before it releases the old one.
+- **Cold calls** (#165). The copy of a shared buffer (`rt:list_copy`,
+  behind `rt:list_unique`'s check), a `push`'s `rt:list_grow`, the panics
+  that format a string (`rt:panic_str`, `rt:panic_with`) and the
+  exchange buffer's growth failure in `rt:to_buf`, and the collector's
+  `collect` before an allocation and `visit` in a release (§23.28), are
+  called through the function table (`Func::cold_helper`), not with
+  `call`. V8 inlines no
+  `call_indirect` by default, and without call feedback (`--no-liftoff`)
+  it inlines small direct callees by size. Through a `call`,
+  `rt:list_unique` brought the copy loop, the allocator and its panics
+  into each function that changes a list, and the cycle of a panic and
+  `rt:to_buf` was unrolled about 20 calls deep, so the caller's budget
+  never reached its own small callees (spectral_norm's `a`). What the
+  engine inlines now is the check: a few loads and a compare. A table
+  slot costs a few bytes per call site.
 - **Bulk appends.** std's `list_extend(items: &mut List[T], other)`
   (`List.extend`) reads the list through its reference, as
   `list_truncate` does, and stores the buffer back. `rt:list_extend`
@@ -778,13 +804,16 @@ changes preserve collection value semantics (§23.7).
   neither copies nor panics on a pin. After it the list has room for
   `count` more elements with no further growth: a shared buffer, or one
   short of room, becomes one new buffer as above; a buffer the list owns
-  with the room stays.
+  with the room stays. The TIR's `ListReserve` (a list comprehension
+  over a range or a list, before its loop) is the same routine on a
+  list value, as `ListPush` is: its new buffer goes back into the
+  operand's place.
 - **Release.** A buffer's release glue (`rt:drop_elems`) releases each element's counted references up to the
   length. A list of strings or of structs holding lists frees everything
   at its last release.
-- **Loops.** `SnapEnd` gives the snapshot's buffer back at once, so after
-  the loop the list's next change copies only when something else still
-  shares the buffer.
+- **Loops.** A `for` loop's copy of its list is an ordinary value: its
+  drop after the loop gives the buffer back, so the list's next change
+  copies only when something else still shares the buffer.
 - **Pins.** The passes' `Pin` gives the buffer its owner word while
   element references hold counts of the buffer, and a `push` into a
   pinned list panics `collection-pinned`. Element
@@ -802,7 +831,7 @@ changes preserve collection value semantics (§23.7).
   shared or pinned buffer is copied into a new string buffer and loses
   the count. A view into a former list buffer is released as any
   interior view is: the page table finds the block, and a `List[u8]`
-  buffer has no release glue and no collector word, so its last release
+  buffer has no release glue, so its last release
   frees it as it frees a `rt:str` buffer. `StringBuilder` is one such
   `List[u8]`: `push` appends a string's bytes (`bytes_append`, above) and
   `build` moves the list out of the builder into `string_from_bytes`, so
@@ -849,7 +878,7 @@ Each operation implements collection value semantics (§15.2;
   count: probes pass it, iteration skips it, and the survivors keep
   their order. The result takes its own count of the value before the
   table releases the entry's key and value.
-- **Copies and changes.** Copies, `SnapBegin` and `SnapEnd` are the
+- **Copies and changes.** Copies are the
   list ones (§23.17), with the owner word where a list's is. `m[k] = v`,
   `remove` and a change through a value place first make the table the
   map's own (`rt:map_unique`): a shared table is copied whole, each live entry
@@ -977,12 +1006,17 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   - a top-level binding some reference refers to lives in a static slot
     of its layout instead of Wasm globals (`Module::addressed`), whose
     address no count changes;
+  - a local in a structure handle's body (kind `Handle`), which runs once
+    per instance, lives in a static cell: a zero count word, then the
+    value, which the program never releases (`Em::static_cell`), so a
+    `Field`, `Variant`, `Members` or `Key` value is one static address;
   - a place through a reference is that address plus the path's offset;
   - a field of a compiler-supplied data object is its payload address
     plus the field's offset;
   - a list element is its address in the buffer (below).
   A read loads the target's values from the address and a write stores
-  them, counting the new value before it releases the old. A struct field
+  them, moving in a value the store consumes and counting any other,
+  before it releases the old. A struct field
   assignment through a reference is one `Store [*r .f]` of that field,
   without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment
@@ -1106,7 +1140,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 
 Suspending code uses §14's state machine, waker, entry driver
 and cancellation (spec/lang/11-requirements-and-suspension.md, Cancellation) over
-counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
+counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
 
 - **The frame.** A frame is a counted object. Its payload starts with
   the task prefix: the poll slot (`F_POLL`, a table slot), the cancel
@@ -1254,12 +1288,12 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
 (`boundary.rs`).
 
 - **One wire format, generated in the module.** The host contract stays
-  crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is memory 0,
+  crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is the memory exported as
   `hd.x`, and every structured argument and result crosses in it in the
   §17.4 encoding. This backend generates the encoders and decoders over
   its own layouts, so `host/*.mjs` and the wasmtime host share one
   exchange-buffer contract, and the
-  ordinary boundary methods never read the heap (memory 1). Checked
+  ordinary boundary methods never read the heap (memory 0). Checked
   reports inspect its exported counters separately (§23.24). The alternative,
   host codecs that read the heap's layouts, would need the host to know each
   type's offsets and slot sharing (§23.3) and to allocate counted
@@ -1620,12 +1654,14 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   `ACTIVE` or `RUNNING` is set, its saved slots may be stale: what it
   holds counts as held from outside, and its candidate stays buffered
   until an idle collection. An idle frame participates like any other object.
-- **The collector word** sits in the last 4 bytes of the block; the
-  allocator supplies its size. `rt:new` asks for 4 more
-  bytes when the descriptor has `CYCLIC` and has std's `track` zero the
-  word; any other object has no collector word. Its low 2 bits are the
-  color (black, gray, white) and bit 2 marks a frame. Only a collection
-  reads it: no release or free needs the block's size.
+- **The collector's state** is three bits of the descriptor word
+  (§23.4): bits 22 and 23 are the color (black, gray, white) and bit 24
+  marks a frame. `rt:new` writes the descriptor whole, so a new object is
+  black and no frame with no store of its own, and its block holds only
+  the header and the payload (#938; before it a 4-byte word at the
+  block's end held them, which put binary-trees' 8-byte node in the
+  32-byte class). Only a collection and `opaque` change them, and no
+  release or free reads them; the glue mask leaves them out.
 - **Candidates.** Std's `release` (`std.rt.alloc`'s and
   `std.rt.checked`'s) buffers a `CYCLIC` object when it leaves a count
   above zero (`suspect`). Bit 30 of the descriptor word (`BUFFERED`) says
@@ -1691,7 +1727,12 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   only frees them (a sweep). A sweep walks the buffer once, so waiting
   for as many dead candidates as live ones makes each cost a bounded
   share, and the blocks waiting for it number no more than the live
-  candidates, or 64.
+  candidates, or 64. An allocation of a known size class asks `due` only
+  on its slow path, when its class's head page is full or missing: a
+  collection only becomes due as candidates keep blocks that nothing
+  frees, so their class's pages fill and the next page waits for it.
+  That delays a due collection by at most a page of each class, and the
+  heap never grows by a page while one is due.
 - **Memory.** The buffer grows with the live candidates and the dead
   ones a sweep waits for, at most as many again. The
   buffer, the work list and the lists of white and released objects are
@@ -1762,7 +1803,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   reach for a descriptor that `rt::push_desc` pushed with `CYCLIC`. When
   there is none, it sets `Module::acyclic`, points the runtime at the
   releases without hooks, and builds every helper again. `rt:new` then
-  asks for no collector word and never collects, `rt:release_ref` has no
+  never collects, `rt:release_ref` has no
   `Tracing` check, and neither the entry's poll nor checked mode's
   shutdown collects. The init of `std.rt.cycle` is skipped too, unless
   code still calls the collector directly, as std's own tests do.
@@ -1846,8 +1887,38 @@ physical or erased references without a block-start proof.
   only `CYCLIC` objects; a `BUFFERED` block's free waits for the collector. Collection
   header copies inherit their original cycle eligibility. The emitter uses
   this path for cells, nominal heap objects, closure environments,
-  suspension and collection headers, and collection buffers. Untyped
-  aggregate walks conservatively keep general counts.
+  suspension and collection headers, and collection buffers.
+- **Known leaves in walks.** A value's walk (`layout::Walk`) marks each
+  counted leaf whose type proves a payload start (`layout::block_start`)
+  as `Walk::Known`, so aggregate glue counts those leaves through the
+  known path: the retain and release helpers of struct and enum values,
+  a data object's release glue, list element and map entry glue. A
+  string's bytes, a reference and an open value stay `Walk::Ref`, counted
+  through the page table. On json at 6,000 records this moved 846,000 of
+  3,450,000 page-table counts to the known path, with the count total
+  unchanged.
+- **Whole-object references** (#704), release only. The optimized
+  pipeline's closed-world link scans every instance's TIR before
+  emission (`hd_opt::whole`, through the driver) for the reference targets that some `Ref` may
+  give an interior address: an element (`&xs[i]`, `&map[k]`), a field at
+  a nonzero offset, a top-level binding's static slot, or a coercion or
+  zero-offset dereference of such a target's reference. Every other
+  target's `*T` is null, a payload start, or a slot or static cell with
+  a zero count word, so its walk is `Walk::Known` and `block_start`
+  holds. An interior reference to an open target, which an erased body
+  may make for any type, turns the fact off. Dev builds, sessions and
+  open-world builds keep the page-table path for every reference.
+  binary_trees goes from 3,222,220 `block_of` calls to 30, json from
+  1,176,031 to 468,040, the rest mostly string slices.
+- **Lent references** (#909). The scan skips a body instance's `Ref`
+  that the borrow pass marks lent (`ref_word::LENT`, a field of what a
+  lent parameter refers to, every use lending): it takes no count, and
+  its value's only release is of the new object a view's projection
+  makes. A `&mut self` method's `self.items.pop()` no longer makes
+  `List[T]` interior. On json, `JsonWriter.close` did that for
+  `List[string]`, so `TextWriter.parts`, a `*mut List[string]`, took
+  156,003 page-table counts per run; `block_of` calls drop from 468,015
+  to 312,012, all left on strings.
 - **Checked proofs.** Checked mode verifies that every claimed payload
   start agrees with `block_of`, then performs the existing audited count
   update. An incorrect proof fails even when the ordinary count would
@@ -1867,6 +1938,16 @@ physical or erased references without a block-start proof.
   Field projection cannot originate a view without a parent view. A
   module that can construct erased representation views keeps the full
   discriminator; the #619 erased-reference fixtures audit that path.
+- **Counts on constants** (issue #910, `opt::static_counts`). A count
+  whose every operand is a constant goes at link, in every pipeline. A
+  constant address is null or static data, which no runtime counts:
+  `retain` returns below `heap`, and the known path skips a count of 0.
+  An operand is constant when a constant push makes it, through tees, or
+  when it is read from a local that only such values are written to. A
+  local proven only from itself, such as a loop counter, does not
+  qualify. A string literal or a capture-free closure then takes no
+  count. On json this removes 17 calls and 334 bytes, among them
+  `Record.structure handle`'s retain of its static record.
 - **Inline fast paths** (issue #644, `opt::inline_counts`), for the
   wasmtime target only: its pipelines carry the link pass
   `inline_counts` (`crates/hd_opt/DESIGN.md` §3.1), which sets
@@ -2176,21 +2257,27 @@ frame on the **local stack** instead.
   `CallValue` or `CallDyn`, never a bang call's `Await`. Its `Drop`, if
   any, follows in the same block, and nothing between opens a block or
   ends, replaces or moves the whole local. The reference then ends
-  before the local does. Every other local keeps its cell: a parameter,
-  a closure's capture, a local of a closure's body or a suspending one,
-  an erased body's, one a counted `*T` refers to, one a `Ref` takes at
-  its last access (`TAKES`), and a reference bound to a local.
+  before the local does. A `Ref` that takes the local at its last access
+  (`TAKES`, whose pass deleted the local's `Drop`) needs that `Drop`.
+  Every other local keeps its cell: a parameter, a closure's capture, a
+  local of a closure's body or a suspending one, an erased body's, one a
+  counted `*T` refers to, and a reference bound to a local.
 - **The slot** is the cell's layout with a zero count word before it, as
   a static object has, so `retain_known` and `release_known` do
   nothing there. The value is stored at the declaration, after the last
   value in the slot is released. The local's release releases the value,
-  not the slot. A `Ref` of the whole local is a loan, with no count.
-- **The local stack** grows down in memory 1, in pages the program grows
+  not the slot. A `Ref` of the whole local is a loan, with no count. A
+  taking one's `Drop` releases the value in the slot, as the local's
+  deleted `Drop` would have (`Em::slot_takes`). Before this, a taking
+  `Ref` kept the local in a cell, so nbody's `bodies`, last read by
+  `energy(&bodies)`, paid a retain and a release around each of 1.15M
+  `advance(&mut bodies)` calls (#165).
+- **The local stack** grows down in memory 0, in pages the program grows
   itself. The allocator marks those pages static, as it does every page
   it did not grow (§23.5), so a count update through a slot's address,
   as a callee's, does nothing. A function with slots reserves its frame
   at entry and gives it back at every exit (`wide::locals_frame`). A
-  frame that does not fit in the newest segment grows memory 1 by a new
+  frame that does not fit in the newest segment grows memory 0 by a new
   one. Each frame gives back its own top, so segments need no links. The
   stack is never shrunk: its size is the deepest chain of such frames.
   A module with no slot has none of it.
@@ -2240,14 +2327,11 @@ in one (`drive.rs`).
   and the module one table entry and one function per drive slot. The
   host slot still links the leaf frame for a pending call, so the module
   does not shrink.
-- **Hosts.** Both hosts answer a `Console.write` ready at its `.start`
-  when the write went straight to the stream in full (`host/output.mjs`,
-  `hd_run_wasmtime/src/host/output.rs`). Only a write a full pipe
-  leaves, or one queued behind the writer thread, is pending. So
-  `println` makes no frame unless the pipe is full.
+- **Hosts.** A host answers a may-wait call ready at its `.start` when
+  it completed there. Console output no longer waits at all: since
+  #936 `Console.write_sync` is one import that may block, so `println`
+  makes no frame.
 - **Yielding.** A ready drive continues at once, as a bang call of an
-  hd provider that never waits does. So a print loop under `all!` no
-  longer gives its siblings a turn at each write; no fixture depends on
-  that turn (the `pending-write` profile still answers each write
-  pending). Yielding when a sibling could run is not built: the guest
-  has no run queue to read, and due timers are known only to the host.
+  hd provider that never waits does. Yielding when a sibling could run
+  is not built: the guest has no run queue to read, and due timers are
+  known only to the host.

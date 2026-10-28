@@ -8,26 +8,27 @@ struct Named:
     label: string
 
 impl Tag for Named:
-    fn name(self) -> string: self.label
+    fn name(self) -> string:
+        self.label
 
 trait Runner:
-    fn with_tag[$R](self, callback: fn() -> string $ R + Tag) -> string $ R
-    fn twice[$R](self, callback: fn() -> string $ R) -> string $ R
-    fn twice_later![$R](self, callback: fn!() -> string $ R) -> string $ R
+    fn with_tag[$ R](self, callback: fn() -> string $ R + Tag) -> string $ R
+    fn twice[$ R](self, callback: fn() -> string $ R) -> string $ R
+    fn twice_later![$ R](self, callback: fn!() -> string $ R) -> string $ R
 
 struct Plain: pass
 
 impl Runner for Plain:
-    fn with_tag[$R](self, callback: fn() -> string $ R + Tag) -> string $ R:
+    fn with_tag[$ R](self, callback: fn() -> string $ R + Tag) -> string $ R:
         $.with(Tag=Named { label: "inner" }):
             callback()
 
-    fn twice[$R](self, callback: fn() -> string $ R) -> string $ R:
+    fn twice[$ R](self, callback: fn() -> string $ R) -> string $ R:
         first := callback()
         $.with(Tag=Named { label: "inner" }):
             first + " " + callback()
 
-    fn twice_later![$R](self, callback: fn!() -> string $ R) -> string $ R:
+    fn twice_later![$ R](self, callback: fn!() -> string $ R) -> string $ R:
         first := callback!()
         $.with(Tag=Named { label: "inner" }):
             first + " " + callback!()

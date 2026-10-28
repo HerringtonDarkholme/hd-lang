@@ -5,8 +5,16 @@ use std.testing.assert_equal
 it("rewrote only the failing literals"):
     greet := read_text!(Path("src/greet.hd")).expect("greet.hd")
     assert_equal(greet.contains("expect=\"hello, Ada\")"), true, reason="the failing literal")
-    assert_equal(greet.contains("snapshot(greeting(\"Grace\"), expect=\"hello, Grace\")"), true, reason="the omitted literal")
+    assert_equal(
+        greet.contains("snapshot(greeting(\"Grace\"), expect=\"hello, Grace\")"),
+        true,
+        reason="the omitted literal",
+    )
     assert_equal(greet.contains("expect=\"hello,\\u{20}Lin\")"), true, reason="the passing literal")
-    assert_equal(greet.contains("snapshot(\"two\", expect=\"two\")"), true, reason="the second literal")
+    assert_equal(
+        greet.contains("snapshot(\"two\", expect=\"two\")"),
+        true,
+        reason="the second literal",
+    )
     rows := read_text!(Path("src/rows.hd")).expect("rows.hd")
     assert_equal(rows.contains("expect=\"wrong\""), true, reason="the rows' literal")

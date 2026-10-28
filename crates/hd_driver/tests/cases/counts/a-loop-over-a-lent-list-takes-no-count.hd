@@ -1,0 +1,12 @@
+# @dump: counts
+# A `for` over a lent parameter's list holds the list without a count:
+# nothing in the body can change the caller's list, a call that may write
+# included, so the loop needs no snapshot of it (#870;
+# `List[T].serialize`). Read again after the loop, the list is not moved.
+fn show(names: List[string]) -> usize $ Console:
+    let n: usize = 0
+    for name in names:
+    #^^^^^^^^^^^^^^^^^
+        println(name)
+        n += 1
+    n + names.len()

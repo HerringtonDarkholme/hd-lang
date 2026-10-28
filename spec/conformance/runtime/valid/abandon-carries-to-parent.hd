@@ -25,7 +25,8 @@ fn child!(log: *mut List[string]) -> string $ Clock:
     "child"
 
 fn parent!(kid: mut Suspend[string], log: &mut List[string]) -> string:
-    defer: log.push("parent defer")
+    defer:
+        log.push("parent defer")
     kid!()
 
 fn ready!() -> string:

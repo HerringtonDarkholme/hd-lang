@@ -1,1 +1,2 @@
-pub fn label() -> string: "shop"
+pub fn label() -> string:
+    "shop"

@@ -1,4 +1,4 @@
 # test: layers never drop or double
 pub fn main() -> void:
     let single: i32? = .None
-    let triple: i32??? = single  # diagnostic: type-mismatch
+    let triple: i32??? = single # diagnostic: type-mismatch

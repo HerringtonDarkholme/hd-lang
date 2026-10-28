@@ -14,19 +14,27 @@ tests:
 
     it("map transforms Ok and keeps Err"):
         assert_equal(describe(doubled("21")), "ok 42", reason="Ok")
-        assert_equal(describe(doubled("")), "error: ${ParseNumberError.Empty}", reason="Err passes through")
+        assert_equal(
+            describe(doubled("")),
+            "error: ${ParseNumberError.Empty}",
+            reason="Err passes through",
+        )
 
     it("map calls the transform at most once"):
         let calls = 0
         let good: Result[i32, string] = .Ok(4)
         let bad: Result[i32, string] = .Err("bad")
-        text := good.map(fn(value: i32) -> string:
-            calls = calls + 1
-            "$value"
+        text := good.map(
+            fn(value: i32) -> string:
+                calls = calls + 1
+                "$value"
+            ,
         )
         assert_equal(text, .Ok("4"), reason="the transform's result")
-        _ := bad.map(fn(value: i32) -> string:
-            calls = calls + 1
-            "$value"
+        _ := bad.map(
+            fn(value: i32) -> string:
+                calls = calls + 1
+                "$value"
+            ,
         )
         assert_equal(calls, 1, reason="once for Ok, never for Err")

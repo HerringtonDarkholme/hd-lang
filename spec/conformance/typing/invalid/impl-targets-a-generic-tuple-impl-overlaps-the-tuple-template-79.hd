@@ -28,6 +28,6 @@ impl[T < Tuple] Encode for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-impl[A, B] Encode for (A, B):  # diagnostic: overlapping-impl
+impl[A, B] Encode for (A, B): # diagnostic: overlapping-impl
     fn encode(self) -> string:
         "hand"

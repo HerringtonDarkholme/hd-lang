@@ -12,4 +12,4 @@ fn only(values: (List[i32]...,)) -> usize:
 
 fn first(t: (i32, List[i32]...)) -> i32:
     match t:
-        (n, _...,) => n
+        (n, _...) => n

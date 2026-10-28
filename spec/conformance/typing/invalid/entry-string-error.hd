@@ -1,3 +1,3 @@
 # test: an entry or test result needs Error, even when string has Display
-pub fn main() -> Result[void, string]:  # diagnostic: unsatisfied-trait-bound
+pub fn main() -> Result[void, string]: # diagnostic: unsatisfied-trait-bound
     .Err("plain text")

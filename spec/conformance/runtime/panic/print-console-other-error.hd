@@ -5,9 +5,9 @@ use std.console.print
 struct Failed: pass
 
 impl Console for Failed:
-    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         .Err(ConsoleError.Other("sink failed"))
 
 pub fn main() -> void:
     $.with(Console=&mut Failed {}):
-        print("lost")  # panic: explicit-panic
+        print("lost") # panic: explicit-panic

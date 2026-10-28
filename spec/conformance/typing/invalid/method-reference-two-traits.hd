@@ -10,10 +10,12 @@ struct Book:
     pages: i32
 
 impl Label for Book:
-    fn name(self) -> string: "label"
+    fn name(self) -> string:
+        "label"
 
 impl Title for Book:
-    fn name(self) -> string: "title"
+    fn name(self) -> string:
+        "title"
 
 fn namer() -> fn(Book) -> string:
-    Book::name  # diagnostic: ambiguous-method
+    Book::name # diagnostic: ambiguous-method

@@ -12,4 +12,4 @@ fn load(plugin: &dyn Plugin) -> string:
     plugin.run()
 
 fn start() -> string:
-    load(Echo { text: "hi" })  # diagnostic: type-mismatch
+    load(Echo { text: "hi" }) # diagnostic: type-mismatch

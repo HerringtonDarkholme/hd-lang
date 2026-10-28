@@ -10,4 +10,4 @@ impl Item:
 
 fn demo() -> void:
     let mut items = [Item { n: 0 }]
-    items[0].grow(&mut items)  # diagnostic: conflicting-access
+    items[0].grow(&mut items) # diagnostic: conflicting-access

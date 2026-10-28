@@ -22,15 +22,20 @@ struct Cube:
     tags: List[string]
 
 impl Shape for Square:
-    fn area(self) -> i32: self.side * self.side
-    fn name(self) -> string: "square"
+    fn area(self) -> i32:
+        self.side * self.side
+    fn name(self) -> string:
+        "square"
 
 impl Shape for Cube:
-    fn area(self) -> i32: 6 * self.side * self.side
-    fn name(self) -> string: "cube ${self.tags.len()}"
+    fn area(self) -> i32:
+        6 * self.side * self.side
+    fn name(self) -> string:
+        "cube ${self.tags.len()}"
 
 impl Solid for Cube:
-    fn volume(self) -> i32: self.side * self.side * self.side
+    fn volume(self) -> i32:
+        self.side * self.side * self.side
 
 fn label(n: i32) -> string:
     "k$n"

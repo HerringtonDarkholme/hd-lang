@@ -4,7 +4,6 @@
 # The default profile binds host `Args`, `Env`, and `Sys`
 # (src/commands/default-profile.ts).
 use std.error.Error
-use std.annotation.annotate
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Facts, Member, VariantInfo}
 use std.text.Parse
@@ -44,22 +43,10 @@ pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, Hos
         .Ok(value) => .Ok(.Some(value))
         .Err(error) => .Err(HostError.InvalidValue(name, error.to_string()))
 
-## The environment variable name used when deserializing this field.
-## See [std-host.env-decode.name-fact](../../spec/std/host.md#r-std-host.env-decode.name-fact).
-@annotate(.Field)
-@derive(Debug)
-pub struct EnvName:
-    pub name: string
-
-## Overrides the environment variable name for one field.
-## See [std-host.env-decode.name-constructor](../../spec/std/host.md#r-std-host.env-decode.name-constructor).
-pub fn env_name(name: string) -> EnvName:
-    EnvName { name: name }
-
 ## Reads a record from its declared environment variables through Deserialize.
-## See [std-host.env-decode.decl](../../spec/std/host.md#r-std-host.env-decode.decl).
-pub fn env_decode[T < Deserialize]() -> Result[T, HostError] $ Env:
-    let mut reader = EnvReader { vars: $.use(Env) }
+## See [std-host.env-decode.prefix-decl](../../spec/std/host.md#r-std-host.env-decode.prefix-decl).
+pub fn env_decode[T < Deserialize](prefix: string = "") -> Result[T, HostError] $ Env:
+    let mut reader = EnvReader { vars: $.use(Env), prefix: prefix }
     T::deserialize(&mut reader)
 
 # A flat environment format: root record, named members, and scalar text
@@ -67,6 +54,7 @@ pub fn env_decode[T < Deserialize]() -> Result[T, HostError] $ Env:
 # supplies declared defaults after is_absent reports an unset variable.
 struct EnvReader:
     vars: *dyn Env
+    prefix: string
     record: bool = false
     positioned: bool = false
     name: string = ""
@@ -86,7 +74,10 @@ impl EnvReader:
             .Some(text) => .Ok(text)
             .None => .Err(HostError.Missing(self.name))
 
-    fn parse[T < Parse[Error = E], E < Display](&mut self, expected: string) -> Result[T, HostError]:
+    fn parse[T < Parse[Error = E], E < Display](
+        &mut self,
+        expected: string,
+    ) -> Result[T, HostError]:
         text := self.read_text(expected)?
         match T::parse(text):
             .Ok(value) => .Ok(value)
@@ -148,7 +139,11 @@ impl Deserializer for EnvReader:
     fn next_key(&mut self) -> Result[string?, HostError]:
         .Err(self.invalid("a scalar or list"))
 
-    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, HostError]:
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, HostError]:
         if self.record:
             return .Err(self.invalid("a scalar or list"))
         if choices.len() != 1 || !choices[0].of_data || choices[0].name == "":
@@ -156,14 +151,13 @@ impl Deserializer for EnvReader:
         self.record = true
         .Ok(0)
 
-    fn member(&mut self, m: Member) -> Result[void, HostError]:
+    fn begin_newtype_variant(&mut self) -> Result[void, HostError]:
+        .Err(self.invalid("a newtype variant"))
+
+    fn member(&mut self, m: &Member) -> Result[void, HostError]:
         if m.positional:
             return .Err(self.root_error())
-        self.name = match m.facts.find::[EnvName]():
-            .Some(fact) => fact.name
-            .None => m.name.upper()
-        if self.name == "":
-            return .Err(HostError.InvalidValue(m.name, "empty environment name"))
+        self.name = self.prefix + m.name.upper()
         self.positioned = true
         self.current = self.vars.get(self.name)
         self.items = []
@@ -280,7 +274,8 @@ impl Sys for ScriptedSys:
 
     fn cpu_count(self) -> Result[u32, HostError]:
         match self.values.get("cpu_count"):
-            .Some(text) => match text.parse::[u32]():
-                .Ok(count) => .Ok(count)
-                .Err(_) => .Err(HostError.Unsupported("cpu_count"))
+            .Some(text) =>
+                match text.parse::[u32]():
+                    .Ok(count) => .Ok(count)
+                    .Err(_) => .Err(HostError.Unsupported("cpu_count"))
             .None => .Err(HostError.Unsupported("cpu_count"))

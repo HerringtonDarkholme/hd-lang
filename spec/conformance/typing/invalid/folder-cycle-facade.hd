@@ -2,7 +2,7 @@
 # Spec 10 Folder Graph: module.cycle.folder-edge.
 # Spec 10 Folder Graph: module.cycle.acyclic (Dependency Cycles DC2, DC11).
 # fixture-package-tree: facade-error/src/shop/mod.hd
-use pkg.error.{Error}  # diagnostic: folder-cycle
+use pkg.error.{Error} # diagnostic: folder-cycle
 
 pub struct Cart:
     pub count: i32

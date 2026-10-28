@@ -56,9 +56,21 @@ tests:
     it("empty and ordinary ranges read only existing elements"):
         assert_equal(total(&[]), 0, reason="an empty range performs no reads")
         assert_equal(total(&[+1, 2, 3]), 6, reason="each exact index is in range")
-        assert_equal(odds(&[+1, 2, 3, 4]), 6, reason="continue still advances before the next iteration")
-        assert_equal(nested(&[+1, 2, 3]), 18, reason="nested induction variables have independent proofs")
-        assert_equal(wide(&[+1, 2, 3]), 6, reason="wide indices keep their correct bounds semantics")
+        assert_equal(
+            odds(&[+1, 2, 3, 4]),
+            6,
+            reason="continue still advances before the next iteration",
+        )
+        assert_equal(
+            nested(&[+1, 2, 3]),
+            18,
+            reason="nested induction variables have independent proofs",
+        )
+        assert_equal(
+            wide(&[+1, 2, 3]),
+            6,
+            reason="wide indices keep their correct bounds semantics",
+        )
 
     it("inclusive ranges reach their full-width endpoint without overflowing"):
         let sum = 0u32
@@ -84,7 +96,15 @@ tests:
         list := maker.hold([+1, 2, 3]).item
         assert_equal(total(list), 6, reason="view-backed exact indices read the current list")
         *list = [+4, 5]
-        assert_equal(total(list), 9, reason="replacing the viewed list changes its length and contents")
+        assert_equal(
+            total(list),
+            9,
+            reason="replacing the viewed list changes its length and contents",
+        )
 
     it("ordinary while conditions keep their checked indexing"):
-        assert_equal(constant_bound(&[+1, 2, 3]), 6, reason="literal bounds and a constant false loop are compiled safely")
+        assert_equal(
+            constant_bound(&[+1, 2, 3]),
+            6,
+            reason="literal bounds and a constant false loop are compiled safely",
+        )

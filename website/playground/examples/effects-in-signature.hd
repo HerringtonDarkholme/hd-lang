@@ -1,5 +1,5 @@
 # Effects you can review. Tests without mocks.
-fn welcome!(email: string) -> void $ Mailer + Clock:  # ← sends mail, reads the clock
+fn welcome!(email: string) -> void $ Mailer + Clock: # ← sends mail, reads the clock
     mailer := $.use(Mailer)
     mailer.send!(email, "Welcome at ${$.use(Clock).now()}")
 
@@ -8,9 +8,13 @@ tests:
 
     it("welcome mails the user at a fixed time, no mocks"):
         let mut outbox = Outbox { sent: [] }
-        $.with(Mailer=&mut outbox, Clock=epoch()):  # ← fakes, for this block only
+        $.with(Mailer=&mut outbox, Clock=epoch()): # ← fakes, for this block only
             welcome!("ada@example.com")
-        assert_equal(outbox.sent[0], "ada@example.com|Welcome at 1970-01-01T00:00:00Z", reason="body")
+        assert_equal(
+            outbox.sent[0],
+            "ada@example.com|Welcome at 1970-01-01T00:00:00Z",
+            reason="body",
+        )
 
 # ── plumbing ──────────
 use std.time.{Clock, ManualClock, Timestamp}

@@ -12,5 +12,5 @@ impl Storage for MemoryStorage:
         .None
 
 fn run() -> void:
-    $.with(Storage=MemoryStorage {}):  # diagnostic: inspectable-requirement
+    $.with(Storage=MemoryStorage {}): # diagnostic: inspectable-requirement
         pass

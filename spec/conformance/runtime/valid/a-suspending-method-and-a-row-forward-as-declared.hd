@@ -10,8 +10,10 @@ struct Disk:
     base: i32
 
 impl Source for Disk:
-    fn fetch!(self, n: i32) -> i32: self.base + n
-    fn show(self) -> void $ Console: println(self.base)
+    fn fetch!(self, n: i32) -> i32:
+        self.base + n
+    fn show(self) -> void $ Console:
+        println(self.base)
 
 struct Cache:
     Disk

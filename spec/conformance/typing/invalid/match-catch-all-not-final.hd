@@ -7,4 +7,4 @@ enum Flag:
 fn choose(flag: Flag) -> i32:
     match flag:
         _ => +1
-        .Off => +0  # diagnostic: unreachable-match-arm
+        .Off => +0 # diagnostic: unreachable-match-arm

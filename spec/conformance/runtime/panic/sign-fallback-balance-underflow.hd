@@ -3,7 +3,7 @@
 
 fn settle():
     let balance = 100
-    balance = balance - 150  # panic: integer-overflow
+    balance = balance - 150 # panic: integer-overflow
     balance
 
 result := settle()

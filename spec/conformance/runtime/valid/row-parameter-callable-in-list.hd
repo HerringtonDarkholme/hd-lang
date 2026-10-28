@@ -6,12 +6,13 @@ trait Inventory:
 struct Warehouse: pass
 
 impl Inventory for Warehouse:
-    fn stock(self) -> i32: 42
+    fn stock(self) -> i32:
+        42
 
 fn count_stock() -> i32 $ Inventory:
     $.use(Inventory).stock()
 
-fn run_first[T, $R](jobs: List[fn() -> T $ R]) -> T $ R:
+fn run_first[T, $ R](jobs: List[fn() -> T $ R]) -> T $ R:
     job := jobs[0]
     job()
 

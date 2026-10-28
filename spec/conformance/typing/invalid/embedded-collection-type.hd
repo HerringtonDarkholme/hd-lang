@@ -1,5 +1,5 @@
 # test: embedding a builtin collection type is rejected
 
 struct Job:
-    List[i32]  # diagnostic: embedded-non-data
+    List[i32] # diagnostic: embedded-non-data
     id: string

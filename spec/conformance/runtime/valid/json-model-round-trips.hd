@@ -33,7 +33,11 @@ fn quoted(text: string) -> string:
             out += "\\t"
         else if character < ' ':
             byte := usize(character.to_string()[0])
-            out += "\\u00" + digits.slice(byte / 16, byte / 16 + 1) + digits.slice(byte % 16, byte % 16 + 1)
+            out += (
+                "\\u00"
+                + digits.slice(byte / 16, byte / 16 + 1)
+                + digits.slice(byte % 16, byte % 16 + 1)
+            )
         else:
             out += character.to_string()
     out + "\""
@@ -103,8 +107,30 @@ fn event_text(value: Event) -> string:
     match value:
         .Empty => quoted("Empty")
         .Count(count) => "{" + field("Count", "{" + field("value", integer(i64(count))) + "}") + "}"
-        .Pair(count, text) => "{" + field("Pair", "{" + field("_0", integer(i64(count))) + "," + field("_1", quoted(text)) + "}") + "}"
-        .Flags(flags, label) => "{" + field("Flags", "{" + field("flags", list_bool(flags)) + "," + field("label", optional_text(label)) + "}") + "}"
+        .Pair(count, text) =>
+            (
+                "{"
+                + field(
+                    "Pair",
+                    "{" + field("_0", integer(i64(count))) + "," + field("_1", quoted(text)) + "}",
+                )
+                + "}"
+            )
+        .Flags(flags, label) =>
+            (
+                "{"
+                + field(
+                    "Flags",
+                    (
+                        "{"
+                        + field("flags", list_bool(flags))
+                        + ","
+                        + field("label", optional_text(label))
+                        + "}"
+                    ),
+                )
+                + "}"
+            )
 
 @derive(Arbitrary, Debug)
 struct OptionalInput:
@@ -142,7 +168,10 @@ struct Renamed:
     cached: i32 = 7
 
 fn renamed_text(value: Renamed) -> string:
-    let mut fields = [field("orderId", integer(i64(value.order_id))), field("wire/title~λ", quoted(value.user_name))]
+    let mut fields = [
+        field("orderId", integer(i64(value.order_id))),
+        field("wire/title~λ", quoted(value.user_name)),
+    ]
     match value.optional_label:
         .Some(text) => fields.push(field("optionalLabel", quoted(text)))
         .None => pass
@@ -151,66 +180,152 @@ fn renamed_text(value: Renamed) -> string:
 fn check[T < Serialize & Deserialize & Eq & Debug](value: T, expected: string) -> void:
     text := encode(value)
     assert_equal(text, expected, reason="encoding agrees with the independent text model")
-    assert_equal(decode::[T](text), .Ok(value), reason="decoding the encoded value returns the same typed value")
-    assert_equal(decode::[T](expected), .Ok(value), reason="decoding the independent text returns the same typed value")
+    assert_equal(
+        decode::[T](text),
+        .Ok(value),
+        reason="decoding the encoded value returns the same typed value",
+    )
+    assert_equal(
+        decode::[T](expected),
+        .Ok(value),
+        reason="decoding the independent text returns the same typed value",
+    )
 
 tests:
-    it_prop("derived records round trip against a text model", cases=100, examples=[
-        Record { id: 0, name: "\"\\\u{8}\u{C}\n\r\t\u{0}\u{1F}éλ😀/", active: false, note: .Some("\"\\\u{0}"), values: [i16(-7)], labels: {"\"\\\n": -7}, pair: (0, true) },
-    ], prop=fn!(value: Record):
-        check(value, record_text(value))
+    it_prop(
+        "derived records round trip against a text model",
+        cases=100,
+        examples=[
+            Record {
+                id: 0,
+                name: "\"\\\u{8}\u{C}\n\r\t\u{0}\u{1F}éλ😀/",
+                active: false,
+                note: .Some("\"\\\u{0}"),
+                values: [i16(-7)],
+                labels: { "\"\\\n": -7 },
+                pair: (0, true),
+            },
+        ],
+        prop=fn!(value: Record): check(value, record_text(value))
+        ,
     )
 
-    it_prop("derived enum variants round trip against an external-tag model", cases=100, prop=fn!(value: Event):
-        check(value, event_text(value))
+    it_prop(
+        "derived enum variants round trip against an external-tag model",
+        cases=100,
+        prop=fn!(value: Event): check(value, event_text(value))
+        ,
     )
 
-    it_prop("optional derived records round trip", cases=100, prop=fn!(input: OptionalInput):
-        expected := match input.value:
-            .None => "null"
-            .Some(record) => record_text(record)
-        check(input.value, expected)
+    it_prop(
+        "optional derived records round trip",
+        cases=100,
+        prop=fn!(input: OptionalInput):
+            expected := match input.value:
+                .None => "null"
+                .Some(record) => record_text(record)
+            check(input.value, expected)
+        ,
     )
 
-    it_prop("lists of derived records round trip", cases=100, prop=fn!(input: ListInput):
-        expected := "[" + [for record in input.value => record_text(record)].join(",") + "]"
-        check(input.value, expected)
+    it_prop(
+        "lists of derived records round trip",
+        cases=100,
+        prop=fn!(input: ListInput):
+            expected := "[" + [for record in input.value => record_text(record)].join(",") + "]"
+            check(input.value, expected)
+        ,
     )
 
-    it_prop("maps of derived records round trip in the map's own order", cases=100, prop=fn!(input: MapInput):
-        let mut fields: List[string] = []
-        for (key, value) in input.value:
-            fields.push(field(key, record_text(value)))
-        check(input.value, "{" + fields.join(",") + "}")
+    it_prop(
+        "maps of derived records round trip in the map's own order",
+        cases=100,
+        prop=fn!(input: MapInput):
+            let mut fields: List[string] = []
+            for (key, value) in input.value:
+                fields.push(field(key, record_text(value)))
+            check(input.value, "{" + fields.join(",") + "}")
+        ,
     )
 
-    it_prop("tuples round trip as ordered lists", cases=100, prop=fn!(input: TupleInput):
-        expected := "[" + integer(i64(input.value._0)) + "," + quoted(input.value._1) + "," + list_bool(input.value._2) + "]"
-        check(input.value, expected)
+    it_prop(
+        "tuples round trip as ordered lists",
+        cases=100,
+        prop=fn!(input: TupleInput):
+            expected := (
+                "["
+                + integer(i64(input.value._0))
+                + ","
+                + quoted(input.value._1)
+                + ","
+                + list_bool(input.value._2)
+                + "]"
+            )
+            check(input.value, expected)
+        ,
     )
 
-    it_prop("Sets round trip as distinct list elements", cases=100, prop=fn!(input: SetInput):
-        let mut unique: List[i32] = []
-        let mut value: Set[i32] = Set::new()
-        for item in input.values:
-            _ := value.insert(item)
-            if !unique.contains(item):
-                unique.push(item)
-        expected := "[" + [for item in unique => integer(i64(item))].join(",") + "]"
-        check(value, expected)
+    it_prop(
+        "Sets round trip as distinct list elements",
+        cases=100,
+        prop=fn!(input: SetInput):
+            let mut unique: List[i32] = []
+            let mut value: Set[i32] = Set::new()
+            for item in input.values:
+                _ := value.insert(item)
+                if !unique.contains(item):
+                    unique.push(item)
+            expected := "[" + [for item in unique => integer(i64(item))].join(",") + "]"
+            check(value, expected)
+        ,
     )
 
-    it_prop("renamed skipped and omitted optional members round trip", cases=100, prop=fn!(value: Renamed):
-        assert_equal(value.cached, 7, reason="the arbitrary fact generates the skipped member's declared default")
-        check(value, renamed_text(value))
+    it_prop(
+        "renamed skipped and omitted optional members round trip",
+        cases=100,
+        prop=fn!(value: Renamed):
+            assert_equal(
+                value.cached,
+                7,
+                reason="the arbitrary fact generates the skipped member's declared default",
+            )
+            check(value, renamed_text(value))
+        ,
     )
 
-    it_each("skipped nondefault values normalize to the declared default", [
-        Renamed { order_id: 42, user_name: "quote \" slash \\", optional_label: .None, cached: 99 },
-        Renamed { order_id: -1, user_name: "éλ😀", optional_label: .Some("\u{0}\n"), cached: -1 },
-    ], body=fn!(raw: Renamed):
-        expected := Renamed { order_id: raw.order_id, user_name: raw.user_name, optional_label: raw.optional_label, cached: 7 }
-        text := encode(raw)
-        assert_equal(text, renamed_text(raw), reason="a skipped value is absent regardless of its in-memory value")
-        assert_equal(decode::[Renamed](text), .Ok(expected), reason="only the skipped field normalizes to its declared default")
+    it_each(
+        "skipped nondefault values normalize to the declared default",
+        [
+            Renamed {
+                order_id: 42,
+                user_name: "quote \" slash \\",
+                optional_label: .None,
+                cached: 99,
+            },
+            Renamed {
+                order_id: -1,
+                user_name: "éλ😀",
+                optional_label: .Some("\u{0}\n"),
+                cached: -1,
+            },
+        ],
+        body=fn!(raw: Renamed):
+            expected := Renamed {
+                order_id: raw.order_id,
+                user_name: raw.user_name,
+                optional_label: raw.optional_label,
+                cached: 7,
+            }
+            text := encode(raw)
+            assert_equal(
+                text,
+                renamed_text(raw),
+                reason="a skipped value is absent regardless of its in-memory value",
+            )
+            assert_equal(
+                decode::[Renamed](text),
+                .Ok(expected),
+                reason="only the skipped field normalizes to its declared default",
+            )
+        ,
     )

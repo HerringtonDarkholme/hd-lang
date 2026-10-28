@@ -6,4 +6,4 @@ fn kind_of[T < Inspectable](value: T) -> TypeId:
     TypeId::of::[T]()
 
 fn unreachable_kind() -> TypeId:
-    kind_of(panic("no value"))  # diagnostic: unsatisfied-trait-bound
+    kind_of(panic("no value")) # diagnostic: unsatisfied-trait-bound

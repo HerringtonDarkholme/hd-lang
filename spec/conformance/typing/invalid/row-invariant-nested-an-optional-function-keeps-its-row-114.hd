@@ -22,4 +22,4 @@ fn maybe(f: (fn() -> void $ Db + Clock)?) -> void:
     pass
 
 fn wire(f: (fn() -> void $ Db)?) -> void:
-    maybe(f)  # diagnostic: type-mismatch
+    maybe(f) # diagnostic: type-mismatch

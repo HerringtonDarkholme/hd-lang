@@ -19,4 +19,7 @@ tests:
 
     it("the two TypeIds and their names differ"):
         assert(TypeId::of::[left.Item]() != TypeId::of::[right.Item](), reason="different modules")
-        assert(TypeId::of::[left.Item]().to_string() != TypeId::of::[right.Item]().to_string(), reason="different names")
+        assert(
+            TypeId::of::[left.Item]().to_string() != TypeId::of::[right.Item]().to_string(),
+            reason="different names",
+        )

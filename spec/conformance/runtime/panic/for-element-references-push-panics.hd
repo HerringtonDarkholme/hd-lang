@@ -2,7 +2,7 @@
 # Spec 06 Element Reference Loops: flow.for.ref.pinned.
 fn doubled(list: &mut List[i32]) -> void:
     for x in &mut list:
-        list.push(*x)  # panic: collection-pinned
+        list.push(*x) # panic: collection-pinned
 
 tests:
     it("the loop pins its list"):

@@ -3,6 +3,6 @@ use std.inspect.Inspectable
 struct Counter:
     count: i32
 fn invalid(value: &dyn Inspectable) -> void:
-    match value.downcast_mut::[Counter]():  # diagnostic: not-writable
+    match value.downcast_mut::[Counter](): # diagnostic: not-writable
         .Some(_) => pass
         .None => pass

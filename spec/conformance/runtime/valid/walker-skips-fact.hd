@@ -13,7 +13,8 @@ trait Write:
     fn write(self) -> string
 
 impl Write for i32:
-    fn write(self) -> string: "${self}"
+    fn write(self) -> string:
+        "${self}"
 
 struct Writing:
     pub out: string
@@ -66,7 +67,11 @@ struct Record:
     cached: Cached
 
 enum Event:
-    Hit(count: i32, @skip() cached: Cached)
+    Hit(
+        count: i32,
+        @skip()
+        cached: Cached,
+    )
 
 impl Write for Event by Structure
 
@@ -74,10 +79,22 @@ tests:
     use std.testing.assert_equal
 
     it("the walker never sees the skipped member"):
-        assert_equal(Record { count: 2, cached: Cached {} }.write(), "count=2;", reason="cached is omitted")
+        assert_equal(
+            Record { count: 2, cached: Cached {} }.write(),
+            "count=2;",
+            reason="cached is omitted",
+        )
 
     it("another derivation still walks the skipped member"):
-        assert_equal(Record { count: 2, cached: Cached {} }.names(), "count;cached;", reason="Names walks both")
+        assert_equal(
+            Record { count: 2, cached: Cached {} }.names(),
+            "count;cached;",
+            reason="Names walks both",
+        )
 
     it("a payload member is omitted the same way"):
-        assert_equal(Event.Hit(3, Cached {}).write(), "count=3;", reason="the payload member is omitted")
+        assert_equal(
+            Event.Hit(3, Cached {}).write(),
+            "count=3;",
+            reason="the payload member is omitted",
+        )

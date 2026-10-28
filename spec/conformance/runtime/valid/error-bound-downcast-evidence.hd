@@ -3,7 +3,8 @@ use std.error.Error
 struct Timeout:
     seconds: i32
 impl Display for Timeout:
-    fn to_string(self) -> string: "timeout"
+    fn to_string(self) -> string:
+        "timeout"
 impl Error for Timeout
 fn recover[T < Error](error: &dyn Error) -> (*T)?:
     error.downcast_ref::[T]()

@@ -1,2 +1,1 @@
-
-invalid := +"hello"  # diagnostic: type-mismatch
+invalid := +"hello" # diagnostic: type-mismatch

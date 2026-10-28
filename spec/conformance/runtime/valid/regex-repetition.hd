@@ -3,7 +3,8 @@
 use std.regex.{Regex, Match}
 fn found(pattern: string, text: string) -> string?:
     match Regex::new(pattern):
-        .Ok(compiled) => compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
+        .Ok(compiled) =>
+            compiled.find(text).map(fn(m: Match) -> string: "${m.start}-${m.end}:${m.text}")
         .Err(error) => .Some("error ${error}")
 
 tests:
@@ -30,6 +31,10 @@ tests:
         assert_equal(found("a{2,3}?", "aaaa"), .Some("0-2:aa"), reason="lazy between")
 
     it("the preference picks among matches that start at one position"):
-        assert_equal(found("a*?b", "aab"), .Some("0-3:aab"), reason="lazy, but the match must reach b")
+        assert_equal(
+            found("a*?b", "aab"),
+            .Some("0-3:aab"),
+            reason="lazy, but the match must reach b",
+        )
         assert_equal(found("<.+?>", "<a><b>"), .Some("0-3:<a>"), reason="the first close")
         assert_equal(found("<.+>", "<a><b>"), .Some("0-6:<a><b>"), reason="the last close")

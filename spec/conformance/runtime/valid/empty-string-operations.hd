@@ -17,9 +17,17 @@ tests:
 
     it("empty separator and empty input"):
         let no_pieces: List[string] = []
-        assert_equal("".split(""), no_pieces, reason="empty input with empty separator is an empty list")
+        assert_equal(
+            "".split(""),
+            no_pieces,
+            reason="empty input with empty separator is an empty list",
+        )
 
     it("split keeps empty pieces between and around separators"):
-        assert_equal(",a,,b,".split(","), ["", "a", "", "b", ""], reason="leading, inner, trailing empties")
+        assert_equal(
+            ",a,,b,".split(","),
+            ["", "a", "", "b", ""],
+            reason="leading, inner, trailing empties",
+        )
         assert_equal("abc".split(","), ["abc"], reason="no separator present")
         assert_equal(",".split(","), ["", ""], reason="separator only")

@@ -11,14 +11,27 @@ fn small(choices: &mut Choices) -> i32:
     choices.int(0..=9)
 
 tests:
-    it_prop_with("stateful counter", gen=seven, cases=5, shrink=20, expect_panic="assertion-failed", prop=fn!(value: i32):
-        count = count + 1
-        assert(count < 3, reason="the third call fails")
+    it_prop_with(
+        "stateful counter",
+        gen=seven,
+        cases=5,
+        shrink=20,
+        expect_panic="assertion-failed",
+        prop=fn!(value: i32):
+            count = count + 1
+            assert(count < 3, reason="the third call fails")
+        ,
     )
 
     # std-testing.prop.shrink-fresh, std-testing.prop.generate-and-shrink.
-    it_prop_with("fresh shrink", gen=small, cases=5, shrink=40, prop=fn!(value: i32):
-        shrink_count = shrink_count + 1
-        assert(shrink_count == 1, reason="every shrink starts fresh")
-        assert(value < 3, reason="the smallest failure is three")
+    it_prop_with(
+        "fresh shrink",
+        gen=small,
+        cases=5,
+        shrink=40,
+        prop=fn!(value: i32):
+            shrink_count = shrink_count + 1
+            assert(shrink_count == 1, reason="every shrink starts fresh")
+            assert(value < 3, reason="the smallest failure is three")
+        ,
     )

@@ -2,7 +2,8 @@
 # Rules: fn.local.declare, fn.generic.call-list.
 # expect-stdout: [3] [new] [3]
 fn badges() -> string:
-    fn badge[U < Display](label: U) -> string: "[${label}]"
+    fn badge[U < Display](label: U) -> string:
+        "[${label}]"
     "${badge(+3)} ${badge("new")} ${badge(+3)}"
 
 pub fn main() -> void $ Console:

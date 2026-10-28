@@ -33,6 +33,6 @@ impl[T < Tuple] Encode for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-@derive(Encode)  # diagnostic: underivable-trait
+@derive(Encode) # diagnostic: underivable-trait
 struct Point:
     x: i64

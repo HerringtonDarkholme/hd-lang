@@ -3,7 +3,7 @@
 use std.text.r
 
 fn digits(count: i32) -> string:
-    r"\d{$count}"  # the text \d{ then count, then }
+    r"\d{$count}" # the text \d{ then count, then }
 
 fn label(name: string, ok: bool) -> string:
     r"$name: ${ok}\n"

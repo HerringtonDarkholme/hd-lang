@@ -60,15 +60,14 @@ compile is one serial driver run (`Executor::Serial`) with `NoClock`, on
 the browser pipeline (`EngineTarget::Browser`, `OptLevel::Dev`).
 
 ```ts
-type Goal = "run" | "check" | "test" | "wat" | "replStart" | "replInput" | "replOutcome";
+type Goal = "run" | "check" | "test" | "wat" | "replStart" | "replInput" | "replOutcome" | "replRebuildInput";
 interface CompileRequest {
   files: Record<string, string>;  // "src/main.hd" -> text (playground paths as they are)
   entry: string;                  // "src/main.hd"
   goal: Goal;
 }
 interface CompileResult {
-  wat?: string;                   // goal "wat": the program as WebAssembly text (wasmprinter); output kind 2
-  wasm?: Uint8Array;              // run, wat and test, when there are no errors; test: the programs one after another
+  wasm?: Uint8Array;              // run and test, when there are no errors; test: the programs one after another
   diagnostics: RunDiagnostic[];   // path, code, severity, message, line, column, endLine, endColumn
   programs?: { file: string | null; size: number }[];  // goal "test": the unit-test program, then each tests/ file's
   tests?: TestCase[];             // goal "test": hd_driver::TestCase, in hd test's report order
@@ -83,9 +82,18 @@ interface CompileResult {
   programs `hd test` builds (`hd_driver::test_programs`): the unit-test
   program, then each integration test file as its own `Goal::Tests`
   build.
-- `wat` compiles as `run`, then prints the program with `wasmprinter`
-  (no default features: no validation, no component model). Names come
-  from the name section `hd_wasm_linear` writes.
+- The worker's `wat` request compiles as `run`, then prints the same
+  program bytes with the independent `hd_wat.wasm`. Only that request
+  loads the printer; Run, Check, Test and REPL do not. The WAT panel
+  shows “Loading WAT printer…” during the first load. The printer uses
+  the same folded `wasmprinter` configuration, with no default features.
+  Names come from the name section `hd_wasm_linear` writes.
+- `hd_wat` owns its input and output buffers. `hd_input(len)` gives the
+  input address; `hd_print()` returns 0 for success or 1 for an error.
+  `hd_output()` and `hd_output_len()` describe UTF-8 WAT or error text.
+  Like the compiler exports, they have no unsafe blocks or raw-pointer
+  dereferences. JS takes fresh memory views after calls. A failed
+  download can be retried; a successful instance is reused.
 - `hd_project::Root::of` maps `src/`, `tests/` and `tasks/` paths, so
   playground paths pass through unchanged.
 - Diagnostics use `hd_driver::diagnostics::from_output`, the shape the
@@ -98,7 +106,8 @@ interface CompileResult {
 **Wire format** (`hd_web::wire`, which documents each goal's fields and
 answers). Requests are LEB128 length-prefixed UTF-8: the file count,
 then path and text pairs, then the entry, then a goal byte (0 run,
-1 check, 2 test, 3 wat, 4 repl start, 5 repl input, 6 repl outcome),
+1 check, 2 test, 3 wat, 4 repl start, 5 repl input, 6 repl outcome,
+7 repl rebuild input),
 then the goal's own fields. A response is JSON text, written by hand
 (rule 2.2.4: no serde), plus the program bytes in a second buffer. The
 exports are `hd_input(len) -> ptr`, `hd_compile() -> status`,
@@ -106,28 +115,33 @@ exports are `hd_input(len) -> ptr`, `hd_compile() -> status`,
 buffers the crate owns, so Rust needs no raw-pointer `unsafe` blocks
 (§6).
 
-**REPL goals** drive one REPL session per worker,
-`Session::repl_start`, `repl_input` and `repl_outcome`. Each request
-builds or settles one module of the session; JS links and runs the
-modules.
+**REPL goals** drive one REPL session per worker through
+`Session::repl_start`, `repl_input`, `repl_rebuild_input_as` and
+`repl_outcome`. Each request builds or settles one module; JS links it.
 
 | Goal byte | Request after the goal byte | Response JSON | Output kind 1 |
 | --- | --- | --- | --- |
 | 4 repl start | nothing; the files are the session's package, entry empty | `{"diagnostics","input":0}` | empty |
-| 5 repl input | the input's text, then optionally its number N; no files, entry empty | `{"diagnostics","input":N}` | the whole-history module, when it built |
-| 6 repl outcome | module number, then outcome byte (0 joined, 1 dropped); no files, entry empty | `{"diagnostics":[],"input":N,"joined"}` | empty |
+| 5 repl input | the input's text, then optionally its number N; no files, entry empty | `{"diagnostics","input":N}` | base or extension, when it built |
+| 6 repl outcome | module number, then outcome byte (0 joined, 1 dropped, 2 failed); no files, entry empty | `{"diagnostics":[],"input":N,"outcome"}` | empty |
+| 7 repl rebuild input | the input's text, then its number N; no files, entry empty | `{"diagnostics","input":N}` | a whole linked base for historical replay |
 
-- Repl start drops the previous session and records the package sources.
-- Repl input builds the whole kept history plus the new `repl#N` input as
-  one module. The host replays earlier inputs from recorded host results
-  with output muted, then executes input N live.
-- There are no cross-module session imports or exported session keys.
+- Repl start drops the previous compiler session and records its package.
+- Repl input builds a base on the first input, then extensions importing
+  completed inputs' storage and functions through the private session ABI.
+  The host executes only the new input. Completed boundaries above the
+  active journal threshold produce a memory/global checkpoint and archive
+  the historical call rows.
+- Rebuild input instead compiles the whole kept prefix as a fresh base.
+  The host replays recorded results with output muted, then adopts the
+  initialized base before any later extension. A divergent suffix is
+  removed from both the compiler ABI and runtime state.
 - **Outcomes travel as their own request.** A module that built waits
-  until JS reports how it ended. Outcome byte 0 means status 0: the
-  module joins (`hd_driver::Session::add`), and later inputs see its
-  names. Byte 1 covers a failed instantiation, a panic, a stop or
-  cancel, and a nonzero status. The input then adds nothing and its
-  file leaves the source set (`cli.repl.panic.binding`). A failed input does not join the visible bindings.
+  until JS reports its outcome. Byte 0 commits its initialized ABI and
+  visible declarations. Byte 1 drops an unexecuted, stopped or cancelled
+  input without committing code or bindings. Byte 2 commits completed
+  failed code and mutations while hiding its declarations from later
+  inputs (`cli.repl.panic.binding`).
 - While a module waits, another repl input is refused. So is an
   outcome for another module, or any REPL request before a start.
   These answer status 2 with `{"error"}`, as a malformed request does.
@@ -224,3 +238,30 @@ In rough order, none built:
 2. IndexedDB persistence of store entries (crates/hd_cache/DESIGN.md §5.8);
 3. stepping slices with cancel on edit (crates/hd_sched/DESIGN.md §6.2);
 4. a threaded browser build (#189).
+
+The web build script builds both modules with the same web profile and
+relocation compression, and copies them beside the worker. The compiler
+has no normal dependency on `wasmprinter`; native tests use a dev dependency.
+
+## Web Unicode Normalization
+
+On wasm32, the lexer and module-path checks share `hd_syntax`'s installed
+NFC callback. The existing exports state installs it before compiling.
+Native builds keep `unicode-normalization`; web builds contain no Unicode
+normalization tables. Case-fold data remains in `hd_project`, and its NFC
+step uses the same callback as the identifier predicate.
+
+The single `hd_web.nfc_utf8(input, input_len, output, capacity)` import
+returns the required normalized UTF-8 length. A zero-capacity call queries
+it; the caller allocates an owned Rust buffer, then calls again to fill
+it. JS uses `String.prototype.normalize("NFC")`, writes only when the
+buffer fits, and takes fresh memory views on every call. Rust verifies
+the returned length and UTF-8 before taking the buffer as a String.
+No input reference or memory view is retained across calls.
+
+ASCII identifiers and case-folded paths return before the callback.
+`compiler-host.ts` supplies the same imports to workers, the synchronous
+website syntax checker, and the smoke/REPL tests. Guest program imports
+are unchanged. The web smoke checks ASCII host-call count, composed and
+decomposed identifiers, raw identifiers, and module collisions; native
+lexer/project tests retain the Rust-normalizer checks.

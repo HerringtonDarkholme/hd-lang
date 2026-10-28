@@ -2,7 +2,7 @@
 # Spec 10 Single-File Programs: module.single-file.definition.
 # Spec 10 Single-File Programs: module.single-file.roots (Batch 46 NONPKG).
 use std.process.ExitCode
-use self.util.{helper}  # diagnostic: unknown-module
+use self.util.{helper} # diagnostic: unknown-module
 
 pub fn main() -> ExitCode:
     ExitCode(0)

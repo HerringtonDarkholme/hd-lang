@@ -9,4 +9,4 @@ fn pick[T](left: T, right: T) -> T:
     left
 
 fn first(owned: List[*mut User], shared: List[*User]) -> List[*User]:
-    pick(owned, shared)  # diagnostic: type-mismatch
+    pick(owned, shared) # diagnostic: type-mismatch

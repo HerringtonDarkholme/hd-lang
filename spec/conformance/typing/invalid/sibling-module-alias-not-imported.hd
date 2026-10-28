@@ -4,5 +4,5 @@
 # fixture-package-tree: module-names/src/checkout.hd
 use pkg.cart.{Cart, total}
 
-fn charge(cart: Cart) -> Cents:  # diagnostic: unknown-type
+fn charge(cart: Cart) -> Cents: # diagnostic: unknown-type
     total(cart)

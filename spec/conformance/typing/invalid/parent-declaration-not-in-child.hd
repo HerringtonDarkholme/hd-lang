@@ -3,4 +3,4 @@
 # declares greeting.
 # fixture-package-tree: user-modules/src/user/badge.hd
 pub fn badge(name: string) -> string:
-    greeting(name)  # diagnostic: unknown-name
+    greeting(name) # diagnostic: unknown-name

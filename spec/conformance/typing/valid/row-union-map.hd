@@ -11,7 +11,7 @@ fn orders() -> string $ Db:
     "orders"
 
 fn serve() -> string $ Db + Clock:
-    routes := {"health": health, "orders": orders}
+    routes := { "health": health, "orders": orders }
     let text = ""
     for (name, route) in routes:
         text = text + name + route()

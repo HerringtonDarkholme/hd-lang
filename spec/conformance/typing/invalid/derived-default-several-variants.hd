@@ -6,5 +6,5 @@ use std.ops.{Default, default}
 enum Level:
     @default
     Low
-    @default  # diagnostic: invalid-default-variant
+    @default # diagnostic: invalid-default-variant
     High

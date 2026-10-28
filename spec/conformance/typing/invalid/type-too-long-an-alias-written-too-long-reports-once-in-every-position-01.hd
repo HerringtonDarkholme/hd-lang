@@ -17,4 +17,5 @@ enum Choice[T]:
 
 type Wrap[T](T)
 
-fn f(b: Both[i32, string, bool]) -> i32: 0  # diagnostic: argument-count
+fn f(b: Both[i32, string, bool]) -> i32: # diagnostic: argument-count
+    0

@@ -37,6 +37,7 @@ tests:
                 log.push("next")
                 at = at + 1
                 .Some(at * 10)
+            ,
         }
         let mut pairs = [1].iter().zip(probe)
         assert_equal(log, ["iter"], reason="iter at the call, and no next")

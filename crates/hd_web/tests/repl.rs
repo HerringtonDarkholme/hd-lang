@@ -1,6 +1,6 @@
 //! The playground's REPL sessions: each input builds the session program,
-//! every kept input and the new one in one module, which the JS host runs
-//! after replaying the kept inputs; the host reports how the input ended.
+//! initialized input modules are imported by later extensions. The host
+//! reports an outcome before the compiler commits an extension's ABI.
 
 use hd_web::{ReplBuild, ReplError, ReplOutcome, Session};
 
@@ -71,7 +71,7 @@ fn joined(s: &mut Session, text: &str) -> ReplBuild {
 
 /// The spec's Redefinition example (`cli.repl.redeclare.binding`): a
 /// binding, functions that read it, calls, and a redeclared name. Each
-/// input's module holds every input so far, each with its entry exports.
+/// input's module imports the earlier initialized modules.
 #[test]
 fn a_session_returns_one_program_per_input() {
     let mut s = started(&[]);
@@ -82,11 +82,16 @@ fn a_session_returns_one_program_per_input() {
     let call = joined(&mut s, "total()\n");
     assert_eq!(call.input, 4);
     let names = exports(call.wasm.as_deref().expect("a module"));
-    for n in 1..=4 {
-        assert!(names.contains(&format!("hd.init.{n}")), "{names:?}");
-        assert!(names.contains(&format!("hd.poll.{n}")), "{names:?}");
+    assert!(names.contains(&"hd.init.4".to_owned()), "{names:?}");
+    assert!(names.contains(&"hd.poll.4".to_owned()), "{names:?}");
+    for n in 1..4 {
+        assert!(!names.contains(&format!("hd.init.{n}")), "{names:?}");
+        assert!(!names.contains(&format!("hd.poll.{n}")), "{names:?}");
     }
-    assert!(names.iter().any(|n| n == "hd.reset"), "{names:?}");
+    let base_names = exports(rate.wasm.as_deref().expect("base module"));
+    assert!(base_names.iter().any(|n| n == "hd.reset"), "{base_names:?}");
+    let wat = wasmprinter::print_bytes(call.wasm.as_deref().unwrap()).unwrap();
+    assert!(wat.contains("\"hd:session:"), "{wat}");
 
     let redeclared = s
         .repl_input("fn price(n: i32) -> i32: n * rate + 1\n")
@@ -125,9 +130,13 @@ fn a_failed_input_does_not_join() {
     );
     let x = joined(&mut s, "x := 2\n");
     assert_eq!(x.input, 3);
-    // The failed input stays in the program, for replays.
-    let names = exports(x.wasm.as_deref().expect("a module"));
-    assert!(names.iter().any(|n| n == "hd.init.1"), "{names:?}");
+    // Failed input code remains in its initialized epoch, although the
+    // compiler hides its declarations from subsequent source inputs.
+    let bytes = x.wasm.as_deref().expect("a module");
+    let names = exports(bytes);
+    assert!(!names.iter().any(|n| n == "hd.init.1"), "{names:?}");
+    let wat = wasmprinter::print_bytes(bytes).unwrap();
+    assert!(wat.contains("\"hd:session:0\""), "{wat}");
 
     let stopped = s.repl_input("z := 3\n").expect("input");
     s.repl_outcome(stopped.input, ReplOutcome::Dropped)
@@ -198,4 +207,53 @@ fn a_request_out_of_turn_is_refused() {
     // An outcome is taken once.
     assert!(s.repl_outcome(1, ReplOutcome::Joined).is_err());
     assert!(s.repl_start([("repl#1", "x := 1\n")]).is_err());
+}
+
+/// A compiled but unexecuted/stopped input never consumes a linking epoch.
+#[test]
+fn dropped_inputs_do_not_commit_their_initialized_module_abi() {
+    let mut s = started(&[]);
+    joined(&mut s, "let count = +1\n");
+    let dropped = s.repl_input("ghost := count + 10\n").expect("input");
+    assert!(errors(&dropped).is_empty(), "{:?}", errors(&dropped));
+    s.repl_outcome(dropped.input, ReplOutcome::Dropped)
+        .expect("drop");
+    let next = joined(&mut s, "count = count + 1\ncount\n");
+    let wat = wasmprinter::print_bytes(next.wasm.as_deref().unwrap()).unwrap();
+    assert!(wat.contains("\"hd:session:0\""), "{wat}");
+    assert!(!wat.contains("\"hd:session:1\""), "{wat}");
+    let missing = s.repl_input("ghost\n").expect("input");
+    assert!(missing.wasm.is_none());
+    assert!(
+        missing
+            .diagnostics
+            .iter()
+            .any(|d| d.code.map(hd_diag::Code::as_str) == Some("unknown-name"))
+    );
+}
+
+/// The final historical build is a self-contained base. The next live
+/// input imports it as epoch zero, regardless of the source input count.
+#[test]
+fn rebuilding_sources_publishes_one_initialized_base_abi() {
+    let mut session = started(&[]);
+    let one = session
+        .repl_rebuild_input_as(1, "let count = +1\n")
+        .unwrap();
+    assert!(errors(&one).is_empty(), "{:?}", errors(&one));
+    session.repl_outcome(1, ReplOutcome::Joined).unwrap();
+    let two = session
+        .repl_rebuild_input_as(2, "count = count + 1\n")
+        .unwrap();
+    assert!(errors(&two).is_empty(), "{:?}", errors(&two));
+    let names = exports(two.wasm.as_deref().unwrap());
+    assert!(names.iter().any(|name| name == "hd.init.1"));
+    assert!(names.iter().any(|name| name == "hd.init.2"));
+    let base = wasmprinter::print_bytes(two.wasm.as_deref().unwrap()).unwrap();
+    assert!(!base.contains("\"hd:session:0\""));
+    session.repl_outcome(2, ReplOutcome::Joined).unwrap();
+    let three = joined(&mut session, "count\n");
+    let tail = wasmprinter::print_bytes(three.wasm.as_deref().unwrap()).unwrap();
+    assert!(tail.contains("\"hd:session:0\""), "{tail}");
+    assert!(!tail.contains("\"hd:session:1\""), "{tail}");
 }

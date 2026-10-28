@@ -4,6 +4,6 @@ use std.ops.Neg
 
 fn run() -> u32:
     let i: u32 = 1
-    let flipped = i.neg()  # diagnostic: unknown-method
+    let flipped = i.neg() # diagnostic: unknown-method
     let count: u32 = i
     count

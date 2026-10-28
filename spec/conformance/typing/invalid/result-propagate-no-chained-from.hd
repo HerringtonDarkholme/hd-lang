@@ -23,4 +23,4 @@ fn low() -> Result[i32, Low]:
     .Err(Low.Fail)
 
 fn high() -> Result[i32, High]:
-    .Ok(low()?)  # diagnostic: invalid-result-propagation
+    .Ok(low()?) # diagnostic: invalid-result-propagation

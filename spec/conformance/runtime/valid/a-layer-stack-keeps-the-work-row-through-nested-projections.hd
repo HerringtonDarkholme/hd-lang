@@ -9,16 +9,17 @@ trait Layer[W]:
 
 struct AddConsole: pass
 
-impl[T, $R] Layer[fn() -> T $ R] for AddConsole:
+impl[T, $ R] Layer[fn() -> T $ R] for AddConsole:
     type Output = fn() -> T $ R + Console
     fn wrap(self, work: fn() -> T $ R) -> (fn() -> T $ R + Console):
         fn() -> T $ R + Console: work()
 
 struct Keep: pass
 
-impl[T, $R] Layer[fn() -> T $ R] for Keep:
+impl[T, $ R] Layer[fn() -> T $ R] for Keep:
     type Output = fn() -> T $ R
-    fn wrap(self, work: fn() -> T $ R) -> (fn() -> T $ R): work
+    fn wrap(self, work: fn() -> T $ R) -> (fn() -> T $ R):
+        work
 
 struct Stack[I, O]:
     inner: I
@@ -35,7 +36,8 @@ struct FixedClock: pass
 
 impl Clock for FixedClock
 
-fn timed() -> usize $ Clock: 9
+fn timed() -> usize $ Clock:
+    9
 
 pub fn main() -> void $ Console:
     stack := Stack { inner: AddConsole {}, outer: Keep {} }

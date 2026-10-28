@@ -6,4 +6,5 @@ trait Cache
 
 type AppRow = $ Db + Cache
 
-fn keep(rows: List[AppRow]) -> void: pass  # diagnostic: generic-kind-mismatch
+fn keep(rows: List[AppRow]) -> void: # diagnostic: generic-kind-mismatch
+    pass

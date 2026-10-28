@@ -11,4 +11,8 @@ it("exports the orders into its own directory"):
     orders := read_text!(Path("fixtures/orders.csv")).expect("the orders fixture")
     out := Path("${temp_dir()}/export.csv")
     write_text!(out, orders).expect("the export")
-    assert_equal(read_text!(out).expect("the written export"), orders, reason="the export holds every order")
+    assert_equal(
+        read_text!(out).expect("the written export"),
+        orders,
+        reason="the export holds every order",
+    )

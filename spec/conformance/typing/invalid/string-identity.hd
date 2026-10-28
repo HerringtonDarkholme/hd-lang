@@ -3,7 +3,7 @@ struct User:
     name: string
 
 fn string_identity(left: string, right: string) -> bool:
-    left is right  # diagnostic: identity-requires-references
+    left is right # diagnostic: identity-requires-references
 
 fn composite_identity(left: &User, right: &User) -> bool:
     left is right

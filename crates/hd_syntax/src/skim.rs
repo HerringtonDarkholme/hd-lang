@@ -1,3 +1,4 @@
+use hd_base::SliceSort as _;
 use hd_base::{Hash128, hash128};
 
 use crate::{CommentKind, TokenBuf, TokenKind, lex};
@@ -430,7 +431,7 @@ fn text_hash(
 ) -> Hash128 {
     let mut bytes = Vec::new();
     let mut indents = vec![0_u16];
-    hidden.sort_unstable();
+    hidden.sort_stable();
     let mut hidden = hidden.into_iter().peekable();
     let mut lines = logical.iter().peekable();
     for index in 0..tokens.len() {

@@ -59,7 +59,7 @@ disagreements.
 | `--seed S`                   | `1`                   | any string; the same seed and `spec/conformance/` give the same inputs |
 | `--cases N`                  | `5000`                | cases per fuzzer                                          |
 | `--jobs J`                   | `HD_TEST_JOBS`, else `min(8, cores)` | concurrent cases                           |
-| `--fuzzer a,b`               | all applicable        | `parse`, `contract`, `phase`, `cross`, `wasm`, `all`      |
+| `--fuzzer a,b`               | all applicable        | `parse`, `contract`, `phase`, `fmt`, `cross`, `wasm`, `all` |
 | `--timeout MS`               | `10000`               | per invocation; a timeout is a contract violation         |
 | `--max-signatures N`         | `20`                  | a fuzzer stops after N distinct signatures                |
 | `--minimize`                 | off                   | delta-minimize the first example of each signature        |
@@ -76,8 +76,15 @@ disagreements.
 | `parse`    | 50% mutated seeds, 50% EBNF-generated programs                     | `parse` obeys CONTRACT.md                                              |
 | `contract` | mutated seeds the first implementation's `parse` accepts           | `parse`, `check`, `run`, `test` obey CONTRACT.md                       |
 | `phase`    | the same inputs as `contract` (results are cached, not rerun)      | parse rejects, so check rejects; check rejects, so run and test reject |
+| `fmt`      | parse-accepted contract mutants                                    | output parses, reaches the same check verdict and code, and is byte-idempotent |
 | `cross`    | alternating `parse` and `contract` inputs                          | every implementation gets the same outcome class for every command    |
 | `wasm`     | `contract` inputs that `check` accepts                             | `build` succeeds and the module validates in `wasm-opt` (and `wasm-tools` if on PATH) |
+
+The `fmt` fuzzer sends each parse-accepted input through `fmt`. The first
+formatted result must parse, a second pass must be byte-identical, and the
+original and formatted files must have the same `check` outcome class and
+diagnostic code. These checks use only command outcomes and file bytes, so
+they keep the fuzzer implementation-neutral.
 
 A case's input depends only on `(seed, fuzzer, index)` and, for the
 `contract` stream, on which mutants the first implementation's `parse`
@@ -110,13 +117,13 @@ The smoke run uses the seed `smoke`. A case's input also depends on the seed
 files under `spec/conformance/`, so adding a fixture can change the inputs.
 
 - `spec/check.sh` runs only the import gate.
-- `pnpm run fuzz:smoke` runs the `parse`,
-  `contract`, and `phase` fuzzers with 100 cases each against
-  the Rust `hd` (`scripts/hd-conformance.sh`). It takes about 15 s. Only
-  `phase` can fail it (`--fail-on phase`). The `parse` and `contract`
+- `pnpm run fuzz:smoke` runs the `parse`, `contract`, and `phase` fuzzers
+  with 100 cases each against the Rust `hd` (`scripts/hd-conformance.sh`).
+  Only `phase` can fail it (`--fail-on phase`). The `parse` and `contract`
   signatures are known implementation findings, so they are reported, not
   gated. It is not part of `pnpm run check`; CI runs it as its own step,
   and a change to the parser or the fuzzer should run it locally.
+- The `fmt` fuzzer is an explicit local tool and action, not a smoke or CI gate.
 
 ## Output
 

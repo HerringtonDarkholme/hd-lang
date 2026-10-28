@@ -15,4 +15,3 @@ app/main/total
   %52 = Scope %51 [] : usize
   %53 = Prim Add [%44 %52] : usize
   %54 = Store [$6] %53 : ()
-warning: main.hd:227..228: unused-local-binding: `i` is never read; name it `_i` to keep it

@@ -10,6 +10,8 @@ hd_base = { path = "../hd_base" }
 hd_diag = { path = "../hd_diag" }
 hd_intern = { path = "../hd_intern" }
 unicode-ident = "1.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 unicode-normalization = "0.1"
 
 [dev-dependencies]

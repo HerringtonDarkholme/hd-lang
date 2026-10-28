@@ -38,7 +38,11 @@ pub fn main!() -> Result[void, NetError] $ Net + Clock + Console:
     using writer = pair._1?
     bytes := "abcdefg".repeat(2400000).to_utf8()
     state := &mut State {}
-    let (sent, received, ticks) = all!(send(writer, bytes, state), drain(reader, bytes), ticker(state))
+    let (sent, received, ticks) = all!(
+        send(writer, bytes, state),
+        drain(reader, bytes),
+        ticker(state),
+    )
     sent?
     assert_equal(received?, bytes.len(), reason="the whole payload is drained")
     assert(ticks > 0, reason="a backpressured write yields to its siblings")

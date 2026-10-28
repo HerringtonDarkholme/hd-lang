@@ -14,13 +14,15 @@ struct Channel:
 
 impl Disposable for Channel:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("channel defer")
+        defer:
+            self.log.push("channel defer")
         self.log.push("send close")
         let mut wait = self.ack
         wait!()
         self.log.push("acked")
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 fn quick!(log: *mut List[string], ack: mut Suspend[void]) -> string:
     using channel = &mut Channel { log: log, ack: ack }

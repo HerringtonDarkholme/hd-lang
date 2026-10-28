@@ -8,12 +8,19 @@ struct DiskError:
 @error
 enum SaveError:
     @error("cannot save $path")
-    Write(path: string, @source error: DiskError)
+    Write(
+        path: string,
+        @source
+        error: DiskError,
+    )
 
 @error
 enum SyncError:
     @error("sync failed")
-    Save(@from error: SaveError)
+    Save(
+        @from
+        error: SaveError,
+    )
 
 fn messages(errors: List[*dyn Error]) -> List[string]:
     errors.map(fn(error: &dyn Error) -> string: error.to_string())
@@ -26,7 +33,11 @@ tests:
         let error: *dyn Error = &failure
         errors := error.chain()
         assert_equal(errors.len(), 3, reason="the error and its two sources")
-        assert_equal(messages(errors), ["sync failed", "cannot save notes.txt", "disk full"], reason="outermost first")
+        assert_equal(
+            messages(errors),
+            ["sync failed", "cannot save notes.txt", "disk full"],
+            reason="outermost first",
+        )
 
     it("an error without a source"):
         let error: *dyn Error = &DiskError { free: 0 }

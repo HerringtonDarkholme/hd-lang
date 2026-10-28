@@ -83,10 +83,7 @@ struct Parser:
 
 impl Parser:
     fn peek(&self) -> Spanned?:
-        if self.at < self.toks.len():
-            self.toks[self.at]
-        else:
-            .None
+        if self.at < self.toks.len(): self.toks[self.at] else: .None
 
     fn bump(&mut self) -> void:
         self.at = self.at + 1
@@ -173,10 +170,7 @@ fn eval(e: &Expr) -> Result[i32, CalcError]:
                 .Sub => .Ok(a - b)
                 .Mul => .Ok(a * b)
                 .Div =>
-                    if b == 0:
-                        .Err(CalcError.DivByZero(pos))
-                    else:
-                        .Ok(a / b)
+                    if b == 0: .Err(CalcError.DivByZero(pos)) else: .Ok(a / b)
 
 fn calc(src: string) -> Result[i32, CalcError]:
     eval(parse(src)?)
@@ -194,10 +188,7 @@ fn describe(error: CalcError) -> string:
 fn show(e: &Expr) -> string:
     match e:
         .Lit(v) =>
-            if v == -2147483648:
-                "(0 - 2147483647 - 1)"
-            else:
-                v.to_string()
+            if v == -2147483648: "(0 - 2147483647 - 1)" else: v.to_string()
         .Neg(inner) => "(-${show(inner)})"
         .Bin(op, l, r, _) => "(${show(l)} ${op.symbol()} ${show(r)})"
 
@@ -208,7 +199,12 @@ fn strip(e: &Expr) -> *Expr:
     match e:
         .Lit(v) =>
             if v == -2147483648:
-                &Expr.Bin(.Sub, &Expr.Bin(.Sub, &Expr.Lit(0), &Expr.Lit(2147483647), 0), &Expr.Lit(1), 0)
+                &Expr.Bin(
+                    .Sub,
+                    &Expr.Bin(.Sub, &Expr.Lit(0), &Expr.Lit(2147483647), 0),
+                    &Expr.Lit(1),
+                    0,
+                )
             else if v < 0:
                 &Expr.Neg(&Expr.Lit(0 - v))
             else:
@@ -217,7 +213,15 @@ fn strip(e: &Expr) -> *Expr:
         .Bin(op, l, r, _) => &Expr.Bin(op, strip(l), strip(r), 0)
 
 pub fn main() -> void $ Console:
-    for src in ["1 + 2 * 3", "(1 + 2) * 3", "-4 * (2 - 5)", "10 / (5 - 5)", "2 +", "3 $ 4", "7 / 2"]:
+    for src in [
+        "1 + 2 * 3",
+        "(1 + 2) * 3",
+        "-4 * (2 - 5)",
+        "10 / (5 - 5)",
+        "2 +",
+        "3 $ 4",
+        "7 / 2",
+    ]:
         match calc(src):
             .Ok(v) => println("$src = $v")
             .Err(e) => println("$src -> error: ${describe(e)}")
@@ -235,13 +239,21 @@ tests:
         assert_equal(calc("2 +"), .Err(CalcError.UnexpectedEnd), reason="end")
         assert_equal(calc("2 3"), .Err(CalcError.Unexpected(2)), reason="trailing")
     it("show then parse round-trips a fixed tree"):
-        e := &Expr.Bin(.Mul, &Expr.Neg(&Expr.Lit(2)), &Expr.Bin(.Add, &Expr.Lit(1), &Expr.Lit(3), 0), 0)
+        e := &Expr.Bin(
+            .Mul,
+            &Expr.Neg(&Expr.Lit(2)),
+            &Expr.Bin(.Add, &Expr.Lit(1), &Expr.Lit(3), 0),
+            0,
+        )
         assert_equal(show(e), "((-2) * (1 + 3))", reason="show")
         match parse(show(e)):
             .Ok(back) => assert_equal(strip(back), e, reason="round trip")
             .Err(_) => assert(false, reason="reparse failed")
-    it_prop("show then parse is the identity on trees", prop=fn!(e: *Expr):
-        match parse(show(e)):
-            .Ok(back) => assert_equal(strip(back), strip(e), reason="round trip")
-            .Err(_) => assert(false, reason="reparse failed")
+    it_prop(
+        "show then parse is the identity on trees",
+        prop=fn!(e: *Expr):
+            match parse(show(e)):
+                .Ok(back) => assert_equal(strip(back), strip(e), reason="round trip")
+                .Err(_) => assert(false, reason="reparse failed")
+        ,
     )

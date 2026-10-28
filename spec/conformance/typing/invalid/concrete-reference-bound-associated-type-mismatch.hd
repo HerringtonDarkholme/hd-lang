@@ -18,7 +18,8 @@ impl Lookup for PhoneBook:
             if self.names[index] == key:
                 return .Some(self.numbers[index])
         .None
-    fn keys(self) -> List[string]: self.names
+    fn keys(self) -> List[string]:
+        self.names
 
 struct Squares:
     size: i32
@@ -40,4 +41,4 @@ fn numbers(book: &dyn Lookup[Key = string, Value = i32]) -> void:
     pass
 
 pub fn main() -> void:
-    numbers(Squares { size: 1 })  # diagnostic: type-mismatch
+    numbers(Squares { size: 1 }) # diagnostic: type-mismatch

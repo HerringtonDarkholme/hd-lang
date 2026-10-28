@@ -1,15 +1,18 @@
 # expect-stdout: 7 default 9
 trait Named:
     fn value(&self) -> impl Display
-    fn label(&self) -> string: "label"
+    fn label(&self) -> string:
+        "label"
 
 struct Number: pass
 impl Named for Number:
-    fn value(&self) -> i32: +7
+    fn value(&self) -> i32:
+        +7
 
 trait DefaultValue:
     fn value(&self) -> impl Display:
-        fn result() -> impl Display: "default"
+        fn result() -> impl Display:
+            "default"
         result()
 struct Defaulted: pass
 impl DefaultValue for Defaulted
@@ -17,9 +20,12 @@ impl DefaultValue for Defaulted
 struct Generic[T < Display]:
     item: T
 impl[T < Display] Named for Generic[T]:
-    fn value(&self) -> T: self.item
+    fn value(&self) -> T:
+        self.item
 
-fn show[S < Named](source: S) -> string: source.value().to_string()
-fn show_default[S < DefaultValue](source: S) -> string: source.value().to_string()
+fn show[S < Named](source: S) -> string:
+    source.value().to_string()
+fn show_default[S < DefaultValue](source: S) -> string:
+    source.value().to_string()
 pub fn main() -> void $ Console:
     println("${show(Number {})} ${show_default(Defaulted {})} ${show(Generic { item: +9 })}")

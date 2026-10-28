@@ -6,7 +6,7 @@ fn pair() -> (User, User):
     (User { name: "Ada" }, User { name: "Grace" })
 
 fn edit() -> string:
-    let (mut first, second) = pair()  # let mut User, User
+    let (mut first, second) = pair() # let mut User, User
     first.name = "Lin"
     let (third, mut fourth): (User, User) = pair()
     fourth.name = third.name

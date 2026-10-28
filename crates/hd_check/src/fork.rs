@@ -37,6 +37,7 @@ pub struct BodyFork<'a> {
     tests: Option<TestsView<'a>>,
     session: &'a [hd_base::PathId],
     fuel: u64,
+    collect_source_facts: bool,
 }
 
 // Every thread reads the one copy; `BodyLeft` comes back from them.
@@ -52,6 +53,7 @@ const _: fn() = || {
 pub struct BodyLeft {
     facts: HashMap<DefId, InitFacts>,
     dbg: Vec<DbgRef>,
+    source_facts: crate::comparison::SourceFacts,
     named: Vec<DefId>,
     reads: Vec<DefId>,
 }
@@ -81,6 +83,7 @@ impl<'a> BodyCx<'a> {
             tests: self.tests,
             session: self.session,
             fuel: self.fuel,
+            collect_source_facts: self.source_facts.is_some(),
         }
     }
 
@@ -92,6 +95,10 @@ impl<'a> BodyCx<'a> {
         BodyLeft {
             facts: std::mem::take(&mut self.init.borrow_mut().facts),
             dbg: self.dbg_refs.take(),
+            source_facts: self
+                .source_facts
+                .as_ref()
+                .map_or_else(crate::comparison::SourceFacts::default, RefCell::take),
             named,
             reads,
         }
@@ -101,6 +108,9 @@ impl<'a> BodyCx<'a> {
     /// been checked in this one.
     pub fn join(&self, left: BodyLeft) {
         self.init.borrow_mut().facts.extend(left.facts);
+        if let Some(sink) = &self.source_facts {
+            sink.borrow_mut().extend(left.source_facts);
+        }
         {
             let mut refs = self.dbg_refs.borrow_mut();
             for r in left.dbg {
@@ -129,6 +139,7 @@ impl<'a> BodyFork<'a> {
             init: RefCell::new(self.init.fork()),
             results: RefCell::new(self.results.fork()),
             dbg_refs: RefCell::default(),
+            source_facts: self.collect_source_facts.then(RefCell::default),
             locals: self.locals,
             file_name: self.file_name,
             tests: self.tests,

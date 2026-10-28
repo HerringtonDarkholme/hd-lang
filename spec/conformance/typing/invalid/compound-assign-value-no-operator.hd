@@ -4,5 +4,5 @@ type Meters(i64)
 
 fn walk(step: Meters) -> Meters:
     let walked = Meters(0)
-    walked += step  # diagnostic: type-mismatch
+    walked += step # diagnostic: type-mismatch
     walked

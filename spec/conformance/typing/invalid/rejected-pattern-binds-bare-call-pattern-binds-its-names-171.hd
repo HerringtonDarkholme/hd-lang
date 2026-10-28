@@ -1,7 +1,7 @@
 # test: bare call pattern binds its names
 fn f(r: Result[i32, string]) -> i32:
     match r:
-        Ok(number) => number  # diagnostic: bare-variant-pattern
+        Ok(number) => number # diagnostic: bare-variant-pattern
         .Err(_) => 0
 
 pub fn main() -> void $ Console:

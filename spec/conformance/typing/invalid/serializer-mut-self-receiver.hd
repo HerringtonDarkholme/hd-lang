@@ -15,7 +15,7 @@ impl Serializer for Count:
     fn bool(&mut self, value: bool) -> Result[void, never]:
         .Ok(())
 
-    fn int(mut self, value: i64) -> Result[void, never]:  # diagnostic: trait-method-signature
+    fn int(mut self, value: i64) -> Result[void, never]: # diagnostic: trait-method-signature
         .Ok(())
 
     fn uint(&mut self, value: u64) -> Result[void, never]:
@@ -42,10 +42,13 @@ impl Serializer for Count:
     fn end_map(&mut self) -> Result[void, never]:
         .Ok(())
 
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         .Ok(())
 
-    fn member(&mut self, m: Member) -> Result[void, never]:
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        .Ok(())
+
+    fn member(&mut self, m: &Member) -> Result[void, never]:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, never]:

@@ -8,7 +8,8 @@
 # expect-stdout: 10
 fn map_all(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
     let mut out: List[i32] = []
-    for item in items: out.push(f(item))
+    for item in items:
+        out.push(f(item))
     out
 
 fn size_name(n: i32) -> string:
@@ -22,8 +23,12 @@ pub fn main() -> void $ Console:
     println("${adders[0](+1)} ${adders[1](+1)}")
     println(size_name(+3))
     let sum = +0
-    for i in +1..4: sum = sum + i
+    for i in +1..4:
+        sum = sum + i
     println(sum)
     let steps = +0
-    while steps < 3: steps = steps + 1 else: println("done after $steps")
+    while steps < 3:
+        steps = steps + 1
+    else:
+        println("done after $steps")
     println(sum + 4)

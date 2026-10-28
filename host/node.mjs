@@ -8,12 +8,11 @@
 
 // module.profile.panic-status).
 
-import { createOutput } from "./output.mjs";
 import { receiveReply } from "./worker-control.mjs";
+export { exitPast } from "./run-support.mjs";
 import {
   createCoreHost,
   createGrant as createCoreGrant,
-  createSession,
   Deadlock,
   EndCase,
   HostContract,
@@ -64,6 +63,10 @@ const {
 const { dirname, isAbsolute, join, parse, resolve, sep } = process.getBuiltinModule("node:path");
 
 export { Deadlock, EndCase, panicOfReport, PROGRAM_TIME_LIMIT, reportIn, timeLimitReport };
+
+// Worker clients get this long to acknowledge cancellation before the
+// control thread is replaced.
+const EXIT_GRACE_MS = 500;
 
 // A path resolved as the OS resolves it, so no path escapes a granted
 // directory (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the
@@ -288,33 +291,6 @@ export const syncClient = (file, close = null) => {
   };
 };
 
-// How long the workers still running when a run ends have to exit before
-// the host ends its own process.
-const EXIT_GRACE_MS = 500;
-
-// A worker thread blocked in a system call, such as a read of a FIFO that
-// has no writer, cannot be stopped, and Node cannot exit while one runs:
-// its exit, `process.exit` too, waits for every worker thread. Once the
-// run's output is written, `exitPast(workers, status, statusFile)` gives
-// the `workers` still running EXIT_GRACE_MS to exit. Then it writes the
-// run's `status` to `statusFile`, when there is one, where `hd` reads it
-// in place of the process's exit status, and kills this process.
-export function exitPast(workers, status = 0, statusFile = null) {
-  // A worker's `threadId` is -1 once its thread stopped.
-  const running = workers.filter((w) => w.threadId !== -1);
-  if (!running.length) return;
-  let left = running.length;
-  const timer = setTimeout(() => {
-    if (statusFile) writeFileSync(statusFile, `${status}\n`);
-    process.kill(process.pid, "SIGKILL");
-  }, EXIT_GRACE_MS);
-  for (const w of running) {
-    w.once("exit", () => {
-      if (--left === 0) clearTimeout(timer);
-    });
-  }
-}
-
 // Start/poll/abort are short worker control calls. The response body stays
 // in the worker until complete; the guest can race its clock meanwhile.
 const httpSend = (client, request) => {
@@ -338,7 +314,7 @@ const httpSend = (client, request) => {
 // (cli.host.default-profile.input-closed): the line without its ending,
 // `null` at the end of input (and every time after), or `false` when
 // standard input cannot be read.
-function lineReader(fd) {
+export function lineReader(fd) {
   // A closed standard input is at its end (cli.test.env.stdin).
   if (fd === null) {
     const none = () => null;
@@ -818,7 +794,7 @@ function fsProviders({ grant, flush, fsClient }) {
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.mjs). A
   // special-file call is offloaded after these checks. Output is flushed
-  // first (std-console.host.visible-text). A method that
+  // first (std-console.host.visible-text-sync). A method that
   // creates its directories keeps the OS's own rule for a `..` after a
   // missing name, as the Rust host's `create` does.
   const fsOps = (module, ops) =>
@@ -1011,9 +987,23 @@ const resolveTarget = (path, cwd = process.cwd()) => resolvePath(path, cwd);
 // The grant with Node's path resolution.
 export const createGrant = (limits = {}) => createCoreGrant(limits, resolveTarget, sep);
 
+// `count` bytes of the operating system's random source. Reading the
+// device needs no `crypto`, whose module costs about 3 ms to load.
+function urandom(count) {
+  const out = new Uint8Array(count);
+  const fd = openSync("/dev/urandom", "r");
+  try {
+    for (let at = 0; at < count;) at += readSync(fd, out, at, count - at, null);
+  } finally {
+    closeSync(fd);
+  }
+  return out;
+}
+
 // The Node layer for `createCoreHost`: the providers that touch the
 // machine, and what releases them.
-const nodeLayer = {
+export const nodeLayer = {
+  randomBytes: process.platform === "win32" ? undefined : urandom,
   resolveTarget,
   sep,
   files: nodeFiles,
@@ -1026,7 +1016,7 @@ const nodeLayer = {
     const files = syncClient("fs.mjs", "close");
     const input = syncClient("input.mjs");
     // The program's output reaches its stream before it waits on the host
-    // (std-console.host.visible-text): a run stopped in a wait loses none. Each
+    // (std-console.host.visible-text-sync): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
     const waiting = () => {
       flush();
@@ -1089,93 +1079,8 @@ const nodeLayer = {
 // `env.stdin` is a file descriptor, or `null` for a closed standard input.
 export const createHost = (sink, env = {}) => createCoreHost(sink, env, nodeLayer);
 
-// A REPL session on Node (core.mjs `createSession`); `sink` and `env` are
-// `createHost`'s.
-export const createNodeSession = (sink, env = {}, options = {}) =>
-  createSession(sink, env, nodeLayer, options);
-
-// The CLI owns the user's streams. stdin/stdout of this child carry only
-// framed control messages; even a guest read goes through its own request,
-// so it cannot consume the next session command. Output frames precede the
-// completion frame, which lets the CLI flush them before its next prompt.
+// Loaded only by the REPL child; ordinary programs skip the session graph.
 export async function driveNodeSession() {
-  const control = lineReader(0);
-  const receive = () => {
-    const line = control();
-    if (line === null) return null;
-    if (line === false) throw new Error("cannot read the session control stream");
-    return JSON.parse(line);
-  };
-  const output = createOutput();
-  const frame = (kind, ...fields) => `${[kind, ...fields].join("\t")}\n`;
-  const send = (kind, ...fields) => output.out(frame(kind, ...fields));
-  const input = (all) => {
-    send(all ? "all" : "input");
-    return receive()?.value ?? null;
-  };
-  const readLine = () => input(false);
-  readLine.all = () => input(true);
-  let session;
-  let recording = true;
-  try {
-    for (let request; (request = receive()) !== null;) {
-      try {
-        switch (request.op) {
-          case "open":
-            session = createNodeSession(
-              {
-                write: (fd, text) =>
-                  output.write(1, frame(fd === 1 ? "out" : "err", JSON.stringify(text))),
-                out: (text) => send("out", JSON.stringify(text)),
-                err: (text) => send("err", JSON.stringify(text)),
-              },
-              { args: [], program: "", readLine },
-              { journalCap: request.cap },
-            );
-            send("ready");
-            break;
-          case "run": {
-            // `run(wasm, sources, live)` (core.mjs `createSession`). The
-            // answer is one row: the kept, skipped and dropped inputs,
-            // the reason, then the new input's status, end kind and error
-            // (`-` when it did not run), and the journal flags.
-            const ran = await session.run(
-              readFileSync(request.wasm),
-              request.sources,
-              request.live,
-            );
-            const notice = session.takeJournalNotice();
-            if (notice) recording = false;
-            const live = ran.live;
-            send(
-              "ran",
-              ran.kept.join(","),
-              ran.skipped.join(","),
-              ran.dropped.join(","),
-              JSON.stringify(ran.reason),
-              live === null ? "-" : String(live.status),
-              live === null
-                ? "-"
-                : live.end.kind === "exit"
-                  ? `exit${live.end.status}`
-                  : live.end.kind,
-              JSON.stringify(live?.error ?? null),
-              Number(recording),
-              Number(notice),
-            );
-            break;
-          }
-          case "close":
-            return;
-          default:
-            throw new Error("unknown session control request");
-        }
-      } catch (error) {
-        send("error", JSON.stringify(String(error?.message ?? error)));
-      }
-    }
-  } finally {
-    session?.close();
-    await output.close();
-  }
+  const { driveNodeSession: drive } = await import("./node-session.mjs");
+  return drive();
 }

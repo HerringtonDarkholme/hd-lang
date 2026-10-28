@@ -34,4 +34,8 @@ tests:
     use std.testing.assert_equal
 
     it("calls the operator methods"):
-        assert_equal(budget(Stamp { at: 10 }, Stamp { at: 25 }).length, 70, reason="-(15) * 2 + 100")
+        assert_equal(
+            budget(Stamp { at: 10 }, Stamp { at: 25 }).length,
+            70,
+            reason="-(15) * 2 + 100",
+        )

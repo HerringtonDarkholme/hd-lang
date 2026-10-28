@@ -1,3 +1,3 @@
 # test: a map called with an inferred or written type is a type used as a value
 fn use_it() -> void:
-    let _m = Map::[string, i32]()  # diagnostic: type-used-as-value
+    let _m = Map::[string, i32]() # diagnostic: type-used-as-value

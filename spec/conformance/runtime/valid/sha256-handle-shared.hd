@@ -12,7 +12,9 @@ pub fn main() -> void $ Console:
     alias := hasher
     _ := alias.update([97])
     feed(hasher, [98, 99])
-    println("${hasher.finish() == sha256([97, 98, 99])} ${alias is hasher} ${Sha256::new() is hasher}")
+    println(
+        "${hasher.finish() == sha256([97, 98, 99])} ${alias is hasher} ${Sha256::new() is hasher}",
+    )
     keyed := Sha256::hmac([107])
     feed(keyed, [97])
     println(keyed.finish() == Sha256::hmac([107]).update([97]).finish())

@@ -17,7 +17,7 @@ fn drive!(constructor: fn(i32) -> mut Suspend[i32] $ Clock) -> i32 $ Clock:
     pending!()
 
 fn lost() -> fn(i32) -> mut Suspend[i32]:
-    tick  # diagnostic: type-mismatch
+    tick # diagnostic: type-mismatch
 
 pub fn main() -> void:
     _ := lost

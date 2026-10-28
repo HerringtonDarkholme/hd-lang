@@ -8,4 +8,4 @@ struct Post:
     title: string
 
 fn touch(post: &Post, stamp: Stamp) -> void:
-    post.Stamp = stamp  # diagnostic: not-writable
+    post.Stamp = stamp # diagnostic: not-writable

@@ -1,3 +1,3 @@
 # test: an alias of a non enum has no variants
 pub fn main() -> void:
-    x := i32.Some(3)  # diagnostic: unknown-method
+    x := i32.Some(3) # diagnostic: unknown-method

@@ -1,0 +1,37 @@
+# @dump: counts
+# @build: v8 release
+# Borrow, rule 3: `frame` holds the reference `top` returns, and nothing
+# stores or drops it during the call, so `name` passes `frame.facts` to
+# `member_name`, which writes nothing, with no copy (#904). `tally` writes
+# through `self`, which may reach the same frame, so `count` still copies
+# the facts for its call.
+use std.structure.{Facts, Member}
+use std.serde.member_name
+
+struct Frame:
+    next: usize
+    facts: Facts
+
+struct Reader:
+    frames: List[*mut Frame]
+    seen: usize
+
+impl Reader:
+    fn top(&self) -> *mut Frame:
+        self.frames[self.frames.len() - 1]
+
+    fn tally(&mut self, facts: Facts) -> void:
+        for _ in 0..facts.items.len():
+            self.seen = self.seen + 1
+            _ := self.frames.pop()
+
+    fn name(&mut self, m: &Member) -> string:
+        frame := self.top()
+        name := member_name(m, frame.facts)
+        frame.next = frame.next + 1
+        name
+
+    fn count(&mut self) -> usize:
+        frame := self.top()
+        self.tally(frame.facts)
+        frame.next

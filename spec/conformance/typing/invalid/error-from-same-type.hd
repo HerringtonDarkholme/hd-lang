@@ -8,6 +8,12 @@ struct YamlError:
 @error
 enum RuleError:
     @error("bad utils")
-    Utils(@from error: YamlError)
+    Utils(
+        @from
+        error: YamlError,
+    )
     @error("bad rule")
-    Rule(@from error: YamlError)  # diagnostic: overlapping-impl
+    Rule(
+        @from # diagnostic: overlapping-impl
+        error: YamlError,
+    )

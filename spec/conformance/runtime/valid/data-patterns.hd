@@ -23,7 +23,11 @@ fn nested(envelope: Envelope) -> i32:
         Envelope { user: User { age } } => age
 
 fn main() -> i32:
-    label(User { age: 40, active: true }) + label(User { age: 1, active: false }) + nested(Envelope { user: User { age: 1, active: false } })
+    (
+        label(User { age: 40, active: true })
+        + label(User { age: 1, active: false })
+        + nested(Envelope { user: User { age: 1, active: false } })
+    )
 
 tests:
     use std.testing.assert_equal

@@ -5,4 +5,4 @@ fn put(value: u8) -> u8:
 
 fn mixed() -> u8:
     let xs = [1, 2]
-    put(xs[0])  # diagnostic: implicit-narrowing
+    put(xs[0]) # diagnostic: implicit-narrowing

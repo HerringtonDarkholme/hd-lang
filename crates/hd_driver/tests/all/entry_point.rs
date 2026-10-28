@@ -297,11 +297,7 @@ fn the_erased_error_satisfies_display() {
 fn a_private_main_is_no_entry_point() {
     let out = analyze(&[("main.hd", "fn main(n: i32) -> i32:\n    n\n")]);
     assert!(!out.diags.has_errors(), "{}", out.render());
-    assert!(
-        out.diags.code.contains(&Code::PrivateMain),
-        "{}",
-        out.render()
-    );
+    assert!(!out.diags.code.contains(&Code::PrivateMain));
 }
 
 #[test]

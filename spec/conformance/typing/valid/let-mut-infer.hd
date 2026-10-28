@@ -6,9 +6,9 @@ fn fresh() -> *mut User:
     &mut User { name: "Lin" }
 
 fn edit(user: &User) -> string:
-    let mut draft = &mut User { name: "Ada" }  # mut User
+    let mut draft = &mut User { name: "Ada" } # mut User
     draft.name = "Grace"
-    let mut copy = &mut User { ...*user }       # a fresh copy
+    let mut copy = &mut User { ...*user } # a fresh copy
     copy.name = "Grace"
     let mut made = fresh()
     made.name = draft.name

@@ -3,4 +3,4 @@
 use std.task.PollContext
 
 fn make() -> PollContext:
-    PollContext {}  # diagnostic: private-member
+    PollContext {} # diagnostic: private-member

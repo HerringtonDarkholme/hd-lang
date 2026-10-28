@@ -11,5 +11,5 @@ fn rename_to[T](source: T) -> Rename:
     Rename { name: "mail" }
 
 struct User:
-    @rename_to(block_on(ready()))  # diagnostic: suspension-forbidden-context
+    @rename_to(block_on(ready())) # diagnostic: suspension-forbidden-context
     email: string

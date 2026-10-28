@@ -8,5 +8,5 @@ impl Point:
         self.x += dx
 
 fn moved(p: Point) -> i32:
-    p.shift(1)  # diagnostic: not-writable
+    p.shift(1) # diagnostic: not-writable
     p.x

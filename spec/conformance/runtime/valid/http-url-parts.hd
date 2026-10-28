@@ -1,0 +1,215 @@
+# test: Parsed HTTP URLs retain escaped path separators and explicit empty queries.
+# Spec: std-http.parsed-url.raw-path, std-http.parsed-url.empty-query.
+use std.http.{Url, UrlError, HttpError}
+use std.convert.From
+
+fn parsed(text: string) -> Url:
+    match Url::parse(text):
+        .Ok(url) => url
+        .Err(error) => panic("$error")
+
+tests:
+    it("URL components are decoded values with ordered repeated query pairs"):
+        url := parsed("HTTPS://EXAMPLE.COM:8443/a%2Fb?q=one+two&q=three%2Bfour&empty=#frag%20ment")
+        assert_equal(url.scheme, "https", reason="scheme ASCII case")
+        assert_equal(url.host, "example.com", reason="host ASCII case")
+        assert_equal(url.port, .Some(8443), reason="explicit port")
+        assert_equal(url.path, "/a/b", reason="decoded path")
+        assert_equal(
+            url.query,
+            [("q", "one two"), ("q", "three+four"), ("empty", "")],
+            reason="form-style decoded pairs in order",
+        )
+        assert_equal(url.fragment, .Some("frag ment"), reason="decoded fragment")
+        assert_equal(url.param("q"), .Some("one two"), reason="first duplicate")
+        assert_equal(url.param("Q"), .None, reason="query keys are case-sensitive")
+        assert_equal(
+            url.to_string(),
+            "https://example.com:8443/a%2Fb?q=one%20two&q=three%2Bfour&empty=#frag%20ment",
+            reason="query components encode separately",
+        )
+
+    it("escaped slash stays distinct from a path separator"):
+        escaped := parsed("https://x/a%2Fb")
+        plain := parsed("https://x/a/b")
+        assert_equal(escaped.path, plain.path, reason="same decoded value")
+        assert_equal(
+            escaped.to_string(),
+            "https://x/a%2Fb",
+            reason="original escaped separator retained",
+        )
+        assert_equal(plain.to_string(), "https://x/a/b", reason="real separator retained")
+        assert(escaped != plain, reason="different request targets are distinct URL values")
+        assert_equal(
+            parsed("https://x/a%2fb").to_string(),
+            "https://x/a%2fb",
+            reason="valid escape spelling retained",
+        )
+
+    it("assigning the same decoded path retains the original raw form"):
+        let mut url = parsed("https://x/a%2Fb")
+        url.path = "/a/b"
+        assert_equal(
+            url.to_string(),
+            "https://x/a%2Fb",
+            reason="raw form still decodes to the public path",
+        )
+
+    it("a changed public path invalidates the old raw form"):
+        let mut url = parsed("https://x/a%2Fb")
+        url.path = "/changed/path?literal"
+        assert_equal(
+            url.to_string(),
+            "https://x/changed/path%3Fliteral",
+            reason="changed path is encoded without inventing a query",
+        )
+        url.path = "/percent%name"
+        assert_equal(
+            url.to_string(),
+            "https://x/percent%25name",
+            reason="public path contains decoded data",
+        )
+
+    it("encoded question marks stay in the path and UTF-8 is encoded once"):
+        url := parsed("https://x/a%3Fb")
+        assert_equal(url.path, "/a?b", reason="decoded question mark")
+        assert_equal(url.query, [], reason="escaped question mark is not a separator")
+        assert_equal(url.to_string(), "https://x/a%3Fb", reason="path meaning survives round-trip")
+        unicode := parsed("https://x/caf%C3%A9/茶")
+        assert_equal(unicode.path, "/café/茶", reason="valid UTF-8 decode")
+        assert_equal(
+            unicode.to_string(),
+            "https://x/caf%C3%A9/%E8%8C%B6",
+            reason="literal UTF-8 encoded without escaping existing escapes again",
+        )
+
+    it("an explicit empty query survives until a query writer replaces it"):
+        let mut url = parsed("https://x/a?")
+        assert_equal(url.query, [], reason="public list stays empty")
+        assert_equal(url.to_string(), "https://x/a?", reason="empty and absent query stay distinct")
+        url.add_param("n", 42)
+        assert_equal(
+            url.to_string(),
+            "https://x/a?n=42",
+            reason="adding a pair overrides empty-query marker",
+        )
+        url.query = []
+        assert_equal(url.to_string(), "https://x/a", reason="query writer cleared the old marker")
+        url.add_param("sp ace", "a+b&c")
+        assert_equal(url.param("sp ace"), .Some("a+b&c"), reason="append stores decoded values")
+        assert_equal(
+            url.to_string(),
+            "https://x/a?sp%20ace=a%2Bb%26c",
+            reason="components escape delimiters",
+        )
+        url.fragment = .Some("x?y#z")
+        assert(
+            url.to_string().ends_with("#x?y%23z"),
+            reason="fragment delimiters encoded by context",
+        )
+
+    it("relative references resolve on the encoded path and query presence"):
+        base := parsed("http://a/b/c/d;p?q=1")
+        let references: List[(string, string)] = [
+            ("g", "http://a/b/c/g"),
+            ("./g", "http://a/b/c/g"),
+            ("g/", "http://a/b/c/g/"),
+            ("/g", "http://a/g"),
+            ("//g", "http://g"),
+            ("?y=2", "http://a/b/c/d;p?y=2"),
+            ("#s", "http://a/b/c/d;p?q=1#s"),
+            (".", "http://a/b/c/"),
+            ("..", "http://a/b/"),
+            ("../g", "http://a/b/g"),
+            ("../../g", "http://a/g"),
+            ("?", "http://a/b/c/d;p?"),
+        ]
+        for (reference, expected) in references:
+            assert_equal(
+                base.resolve(reference).map(fn(url): url.to_string()),
+                .Ok(expected),
+                reason="RFC3986 resolution",
+            )
+        assert_equal(
+            parsed("https://x/a%2Fb/c").resolve("../d").map(fn(url): url.to_string()),
+            .Ok("https://x/d"),
+            reason="encoded slash is not a directory boundary",
+        )
+        assert_equal(
+            parsed("https://x/a?").resolve("#fragment").map(fn(url): url.to_string()),
+            .Ok("https://x/a?#fragment"),
+            reason="fragment reference inherits explicit empty query",
+        )
+
+    it("IP literals and port boundaries are parsed without network access"):
+        url := parsed("http://[2001:DB8::1]:80/a")
+        assert_equal(
+            url.host,
+            "[2001:db8::1]",
+            reason="bracketed literal remains an authority host",
+        )
+        assert_equal(url.port, .Some(80), reason="port separated from literal")
+        for host in [
+            "[::]",
+            "[::1]",
+            "[1::]",
+            "[1:2:3:4:5:6:7:8]",
+            "[::ffff:192.0.2.128]",
+            "[v1.alpha:beta]",
+        ]:
+            assert(Url::parse("http://$host/").is_ok(), reason="RFC3986 IP literal")
+        assert_equal(parsed("https://x:0").port, .Some(0), reason="u16 lower boundary")
+        assert_equal(parsed("https://x:65535").port, .Some(65535), reason="u16 upper boundary")
+
+    it("invalid absolute URLs retain their input and relative URLs need a base"):
+        for text in [
+            "ftp://x/",
+            "https:missing-authority",
+            "https://",
+            "https://bücher.example/",
+            "https://x:65536/",
+            "https://x:-1/",
+            "https://x:abc/",
+            "https://[1:::2]/",
+            "https://[1::2::3]/",
+            "https://[1:2:3:4:5:6:7]/",
+            "https://[::1:2:3:4:5:6:7:8]/",
+            "https://[::ffff:999.0.2.1]/",
+            "https://x/%GG",
+            "https://x/%FF",
+            "https://x/?a=%C3%28",
+            "https://x/#%FF",
+            "https://x/\r\n",
+        ]:
+            assert_equal(Url::parse(text), .Err(UrlError.Invalid(text)), reason="invalid URL")
+        for text in ["relative/path", "/absolute/path", "//x/path"]:
+            assert_equal(
+                Url::parse(text),
+                .Err(UrlError.RelativeWithoutBase(text)),
+                reason="no base for a relative reference",
+            )
+
+    it("user-info is rejected with an Authorization hint"):
+        text := "https://user:password@example.com/private"
+        match Url::parse(text):
+            .Err(error) =>
+                assert_equal(
+                    error,
+                    UrlError.Invalid(text),
+                    reason="input retained in the typed payload",
+                )
+                assert(error.to_string().contains("Authorization"), reason="actionable alternative")
+                assert(
+                    !error.to_string().contains("password"),
+                    reason="credential text omitted from display",
+                )
+                converted := HttpError::from(error)
+                assert(
+                    converted.to_string().contains("Authorization"),
+                    reason="hint survives ordinary error propagation",
+                )
+                assert(
+                    !converted.to_string().contains("password"),
+                    reason="propagated error also omits credentials",
+                )
+            .Ok(_) => panic("user-info must not enter a request URL")

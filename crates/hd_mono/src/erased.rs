@@ -9,6 +9,7 @@
 //! each erased body in the program, and pushes the thunks of every pair
 //! and body of one family, to a fixed point.
 
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 
 use hd_base::{DefId, Hash128, InstId, StableHasher, StageResult};
@@ -506,8 +507,7 @@ impl WitnessCx {
         let mut out = Witnesses::default();
         // A call can reach a family no vtable of the program fills: its
         // witnesses have no fields.
-        let families: std::collections::BTreeSet<&Hash128> =
-            self.bodies.keys().chain(self.pairs.keys()).collect();
+        let families = hd_base::btree_set(self.bodies.keys().chain(self.pairs.keys()));
         for family in families {
             let mut keys: Vec<Hash128> = self
                 .bodies
@@ -516,7 +516,7 @@ impl WitnessCx {
                 .flatten()
                 .map(|e| e.key)
                 .collect();
-            keys.sort_unstable();
+            keys.sort_stable();
             for args in self.pairs.get(family).into_iter().flat_map(BTreeMap::keys) {
                 let fields = keys
                     .iter()

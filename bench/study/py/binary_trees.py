@@ -1,5 +1,5 @@
 """Allocate and traverse binary trees, maximum depth 14."""
-MAX = 14
+MAX = 17
 MIN = 4
 
 

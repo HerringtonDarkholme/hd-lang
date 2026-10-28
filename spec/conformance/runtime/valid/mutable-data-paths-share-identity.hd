@@ -17,10 +17,7 @@ fn main() -> i32:
     let mut parent = &mut Parent { child: child, snapshot: &mut Child { name: "old" } }
     readonly := parent
     rename(parent)
-    if readonly.child.name == "Grace" && readonly.snapshot.name == "updated":
-        42
-    else:
-        0
+    if readonly.child.name == "Grace" && readonly.snapshot.name == "updated": 42 else: 0
 
 tests:
     use std.testing.assert_equal

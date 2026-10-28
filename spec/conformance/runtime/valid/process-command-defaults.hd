@@ -16,7 +16,11 @@ tests:
         assert_equal(command.stdin, "", reason="empty standard input")
 
     it("a Command literal keeps each argument as one item"):
-        command := Command { program: "tool", args: ["a b", "--flag=1 2", ""], env: [("A", "1"), ("A", "2")] }
+        command := Command {
+            program: "tool",
+            args: ["a b", "--flag=1 2", ""],
+            env: [("A", "1"), ("A", "2")],
+        }
         assert_equal(command.args.len(), 3, reason="three arguments, none split")
         assert_equal(command.env[1], ("A", "2"), reason="pairs keep their order")
 

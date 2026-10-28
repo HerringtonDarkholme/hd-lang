@@ -65,11 +65,18 @@ tests:
 
     it("splits a chunk at max, ends at an empty chunk, and stays ended"):
         net := ScriptedNet::new()
-        net.add_connection("feed.local:9000", ScriptedStream::new(["hello".to_utf8(), "!".to_utf8(), [], "late".to_utf8()]))
+        net.add_connection(
+            "feed.local:9000",
+            ScriptedStream::new(["hello".to_utf8(), "!".to_utf8(), [], "late".to_utf8()]),
+        )
         $.with(Net=net):
             let mut stream = open_stream!("feed.local", 9000)
             assert_equal(bytes_of(stream.read!(2)), "he".to_utf8(), reason="the first two bytes")
-            assert_equal(bytes_of(stream.read!(10)), "llo".to_utf8(), reason="the rest of the front chunk")
+            assert_equal(
+                bytes_of(stream.read!(10)),
+                "llo".to_utf8(),
+                reason="the rest of the front chunk",
+            )
             assert_equal(bytes_of(stream.read!(10)), "!".to_utf8(), reason="the next chunk")
             assert_equal(bytes_of(stream.read!(10)), [], reason="the empty chunk is the close")
             assert_equal(bytes_of(stream.read!(10)), [], reason="and stays closed")
@@ -80,7 +87,11 @@ tests:
         $.with(Net=net):
             let mut stream = open_stream!("feed.local", 9000)
             assert_equal(bytes_of(stream.read!(10)), "x".to_utf8(), reason="the chunk")
-            assert_equal(outcome(stream.read!(10)), "other: ScriptedStream has no more reads", reason="nothing more scripted")
+            assert_equal(
+                outcome(stream.read!(10)),
+                "other: ScriptedStream has no more reads",
+                reason="nothing more scripted",
+            )
 
     it("a failing stream fails reads and writes after its chunks"):
         peer := ScriptedStream::failing(["ok".to_utf8()], NetError.Other("reset"))
@@ -113,14 +124,24 @@ tests:
         net.add_connection("db.local:5432", ScriptedStream::new([]))
         $.with(Net=net):
             client := $.use(Net)
-            assert_equal(client.connect!("db.local", 5432).is_err(), true, reason="the scripted failure first")
+            assert_equal(
+                client.connect!("db.local", 5432).is_err(),
+                true,
+                reason="the scripted failure first",
+            )
             assert_equal(client.connect!("db.local", 5432).is_ok(), true, reason="then the stream")
             match client.connect!("db.local", 5432):
                 .Ok(_) => panic("the queue is empty")
-                .Err(error) => assert_equal(error, NetError.Refused("db.local:5432"), reason="an emptied queue")
+                .Err(error) =>
+                    assert_equal(
+                        error,
+                        NetError.Refused("db.local:5432"),
+                        reason="an emptied queue",
+                    )
             match client.connect!("other.local", 1):
                 .Ok(_) => panic("nothing scripted")
-                .Err(error) => assert_equal(error, NetError.Refused("other.local:1"), reason="no entry")
+                .Err(error) =>
+                    assert_equal(error, NetError.Refused("other.local:1"), reason="no entry")
         assert_equal(net.received().len(), 4, reason="the failed calls are recorded too")
 
     it("answers a scripted lookup and fails an unknown host with Dns"):
@@ -128,7 +149,19 @@ tests:
         net.add_host("cache.local", ["10.0.0.5", "10.0.0.6"])
         $.with(Net=net):
             client := $.use(Net)
-            assert_equal(client.lookup!("cache.local"), .Ok(["10.0.0.5", "10.0.0.6"]), reason="the scripted addresses")
-            assert_equal(client.lookup!("nowhere.local"), .Err(NetError.Dns("nowhere.local")), reason="an unknown host")
+            assert_equal(
+                client.lookup!("cache.local"),
+                .Ok(["10.0.0.5", "10.0.0.6"]),
+                reason="the scripted addresses",
+            )
+            assert_equal(
+                client.lookup!("nowhere.local"),
+                .Err(NetError.Dns("nowhere.local")),
+                reason="an unknown host",
+            )
             assert_equal(client.connect!("cache.local", 80).is_err(), true, reason="a socket call")
-        assert_equal(net.received(), ["cache.local", "nowhere.local", "cache.local:80"], reason="a lookup records the host alone")
+        assert_equal(
+            net.received(),
+            ["cache.local", "nowhere.local", "cache.local:80"],
+            reason="a lookup records the host alone",
+        )

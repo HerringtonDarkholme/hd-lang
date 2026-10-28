@@ -14,9 +14,9 @@
 //   A method that never waits is one import; one that may wait is
 //   `.start`, which returns `[status, value]`, then `.finish(h)`. Status 0:
 //   done at once, the result is in the buffer and `value` is its length.
-//   Status 1: pending, `value` is its handle. `hd:Console` `write`
-//   and `write_error` can wait for output backpressure; captured/browser
-//   sinks complete immediately. `hd:Clock`
+//   Status 1: pending, `value` is its handle. `hd:Console` `write_sync`
+//   and `write_error_sync` never wait: each is one call, which may block
+//   on output backpressure. `hd:Clock`
 //   `sleep` completes when its duration has passed. External I/O can stay
 //   pending through generic readiness and cancellation hooks; other methods
 //   run synchronously and finish at once.
@@ -42,21 +42,17 @@
 //   in one growing set of instances, records a journal of its host calls
 //   at the import call sites, and rebuilds itself from a journal
 //   (journal.mjs), as `hd_run_wasmtime`'s session does.
-import { cycleReport } from "./checked-report.mjs";
 import { shortest, fixed, lower, upper, parse } from "./float.mjs";
-import { HttpError, METHODS } from "./gen/abi.mjs";
-import {
-  Diverged,
-  Recorder,
-  Replay,
-  SESSION_CAP,
-  callArgs,
-  importTypes,
-  ran as ranText,
-  recorded,
-} from "./journal.mjs";
+import { WireHttpError as HttpError, METHODS } from "./gen/abi.mjs";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mjs";
-import { createPackageRuntime, readPackageContract } from "./package-providers.mjs";
+export {
+  CANCEL_STATUS,
+  entryCancel,
+  factHead,
+  PROGRAM_TIME_LIMIT,
+  reportIn,
+} from "./run-support.mjs";
+import { CANCEL_STATUS, factHead, PROGRAM_TIME_LIMIT, reportIn } from "./run-support.mjs";
 
 export { HostContract };
 
@@ -91,65 +87,18 @@ const wasmFrames = (e) =>
 export const timeLimitReport = (ms) =>
   `panic: time-limit: the test case ran longer than its timeout of ${ms}ms\n`;
 
-// The panic report of a program that ran past its `--time-limit`.
-export const PROGRAM_TIME_LIMIT = "panic: time-limit: the program exceeded its time limit\n";
-
 // What `hd.poll` returns for a root that ended cancelled, its cleanup run
 // to its end, and one less when a part of it was cut short (rt.rs
 // `CANCELLED_END`, req.entry.cancelled).
 const CANCELLED_END = -2;
-
-// The status of a run whose entry ended cancelled, and of one a Ctrl-C
-// stopped while it computed: 128 plus SIGINT's number, as a shell reports a
-// process that SIGINT ended (cli.cancel.status).
-export const CANCEL_STATUS = 130;
-
-// A host's cancellation of the entry (req.entry.cancel, cli.cancel.ctrl-c):
-// `request()` asks for it, as a Ctrl-C does. `run` cancels the entry at the
-// first request that finds it waiting on the host, and abandons it at the
-// next one, or once `boundMs` milliseconds have passed since that cancel,
-// its cleanup bound (cli.cancel.bound). `wait(ms)` is a host wait that a
-// request ends at once; `onWait(true)` and `onWait(false)` hear each such
-// wait start and end, so a platform can listen for its interrupt only
-// while the program waits. `run` reads `requests()`, the count so far.
-export function entryCancel(boundMs, onWait = null) {
-  let requests = 0;
-  let wake = null;
-  return {
-    boundMs,
-    request: () => {
-      requests += 1;
-      wake?.();
-    },
-    requests: () => requests,
-    wait: (ms) =>
-      new Promise((resolve) => {
-        const done = () => {
-          clearTimeout(timer);
-          wake = null;
-          onWait?.(false);
-          resolve();
-        };
-        const timer = setTimeout(done, ms);
-        wake = done;
-        onWait?.(true);
-      }),
-  };
-}
 
 // The start of every panic report after its `panic: `, the instance's
 // and the host's own, while the facts labeled `fact` are evaluated, or ""
 // when none are (`fact` null): a panic while a facts body runs is
 // `fact-evaluation-failed`, naming its facts before the original category
 // (annot.fact.eval.panic-runtime).
-export const factHead = (fact) =>
-  fact == null ? "" : `fact-evaluation-failed: the facts of \`${fact}\` panicked with `;
-
 // The host's own panic report `report`, `panic: CATEGORY: MESSAGE` and a
 // newline, as it is written while the facts labeled `fact` are evaluated.
-export const reportIn = (fact, report) =>
-  `panic: ${factHead(fact)}${report.slice("panic: ".length)}`;
-
 // The category and message of a recorded panic report, the text after
 // `panic: `: `CATEGORY: MESSAGE` and a newline, or `CATEGORY` alone. The
 // category is the compiler's or the host's, never program text, so the
@@ -311,7 +260,7 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
     // The run's map hash key: 64 random bits. The instance asks once and
     // keeps it in a runtime global; a session's journal records the call,
     // so a rebuild hashes with the same key.
-    hash_seed: () => new DataView(randomBytes(8).buffer).getBigInt64(0, true),
+    hash_seed: () => new DataView(st.random(8).buffer).getBigInt64(0, true),
   };
 }
 
@@ -367,7 +316,7 @@ function abortOperation(st, h) {
   st.ops.delete(h);
   operation?.abort?.();
 }
-function clearOperations(st) {
+export function clearOperations(st) {
   for (const h of st.ops.keys()) abortOperation(st, h);
 }
 
@@ -424,37 +373,27 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
   return out;
 }
 
-// `hd:Console`: one text chunk per `write`; `write_error` writes its text
-// to standard error, after the held output
-// (module.console.write-error.raw). A write that completes during its
-// `.start` answers at once: every write to a captured sink, and a direct
-// write of every byte (output.mjs). Otherwise it is pending. With
-// `pending`, the `pending-write` fixture profile's Console, every write
-// is pending at its start and written when the host completes it.
-function consoleProvider({ st, sink, flush, grant, pending = false }) {
+// `hd:Console`: one text chunk per `write_sync`; `write_error_sync` writes
+// its text to standard error, after the held output
+// (module.console.write-error-sync.raw). Each write returns once its text
+// is written (module.console.write-sync.never-suspends): a captured sink
+// takes it at once, and a direct sink (output.mjs) blocks until the
+// stream has taken every byte.
+function consoleProvider({ st, sink, flush, grant }) {
   const denied = (subject) => Err({ tag: "NotGranted", subject });
-  const held = (write) =>
-    later(performance.now(), () => {
-      write();
-      return Ok(undefined);
-    });
   return {
-    write: (text) =>
+    write_sync: (text) =>
       !grant.allows("Console")
         ? denied("stdout")
-        : pending
-          ? held(() => (sink.write ? (flush(), sink.out(text)) : st.out.push(text)))
-          : sink.write
-            ? (flush(), sink.write(1, text))
-            : (st.out.push(text), Ok(undefined)),
-    write_error: (text) =>
+        : sink.write
+          ? (flush(), sink.write(1, text))
+          : (st.out.push(text), Ok(undefined)),
+    write_error_sync: (text) =>
       !grant.allows("Console")
         ? denied("stderr")
-        : pending
-          ? held(() => (flush(), sink.err(text)))
-          : sink.write
-            ? (flush(), sink.write(2, text))
-            : (flush(), sink.err(text), Ok(undefined)),
+        : sink.write
+          ? (flush(), sink.write(2, text))
+          : (flush(), sink.err(text), Ok(undefined)),
   };
 }
 
@@ -468,6 +407,8 @@ function clockProvider() {
 }
 
 // `count` random bytes (`getRandomValues` takes at most 65536 at a time).
+// A platform layer may supply its own (`layer.randomBytes`): on Node the
+// first use of `crypto` loads its module, about 3 ms of a run.
 function randomBytes(count) {
   const out = new Uint8Array(count);
   for (let at = 0; at < count; at += 65536) crypto.getRandomValues(out.subarray(at, at + 65536));
@@ -477,10 +418,10 @@ function randomBytes(count) {
 // The operating system's random source (cli.host.default-profile).
 // `Random` has no scope entries: a grant of `false` refuses the whole
 // program at startup (cli.cap.total.refuse).
-function randomProvider() {
+function randomProvider(random) {
   return {
-    next_u64: () => new DataView(randomBytes(8).buffer).getBigInt64(0, true),
-    fill: (count) => randomBytes(count >>> 0),
+    next_u64: () => new DataView(random(8).buffer).getBigInt64(0, true),
+    fill: (count) => random(count >>> 0),
   };
 }
 
@@ -577,9 +518,11 @@ export function httpProvider(send) {
   };
 }
 
-function initialState(env) {
+function initialState(env, layer) {
   return {
     memory: null,
+    // The operating system's random bytes: the platform's, or webcrypto.
+    random: layer?.randomBytes ?? randomBytes,
     // The labels of the facts bodies running, innermost last (`hd:rt`
     // `fact`): a panic report names the innermost.
     facts: [],
@@ -673,7 +616,16 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case
   // files, pending operations, output, and noticed names.
-  const st = initialState(env);
+  const st = initialState(env, layer);
+  const reportsCycles =
+    env.module instanceof WebAssembly.Module &&
+    WebAssembly.Module.customSections(env.module, "hd.cycles").length === 1;
+  const writeCycleReport = async (instance) => {
+    if (!reportsCycles) return;
+    const { cycleReport } = await import("./checked-report.mjs");
+    const report = cycleReport(env.module, instance);
+    if (report !== null) sink.err(report);
+  };
   const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
   const text = (len) => decodeUtf8(view(len));
   // Writes an encoded result (or its bytes) at offset 0, growing the
@@ -770,7 +722,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   const providers = {
     "hd:Console": consoleProvider({ st, sink, flush, grant }),
     "hd:Clock": clockProvider(),
-    "hd:Random": randomProvider(),
+    "hd:Random": randomProvider(st.random),
     "hd:Args": argsProvider({ program, args }),
     "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
     "hd:PropertyRunner": propertyRunnerProvider({ env }),
@@ -801,11 +753,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
   // A runtime profile's own providers (`env.providers`, profiles.mjs):
   // `pending` registers a wait the driver wakes, `finish` drops one.
-  // `pendingConsole()` is the Console of the `pending-write` profile.
-  const pendingConsole = () =>
-    traitImports("hd:Console", consoleProvider({ st, sink, flush, grant, pending: true }), io);
-  if (env.providers)
-    Object.assign(imports, env.providers({ put, Enc, pending, finish, pendingConsole }));
+  if (env.providers) Object.assign(imports, env.providers({ put, Enc, pending, finish }));
 
   // Invoker-selected package providers use signature-generated glue. A guest
   // descriptor is data only: it never selects or loads a JavaScript module.
@@ -819,7 +767,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
       writtenHost,
     });
     const console = Object.freeze({ allows: () => grant.allows("Console") });
-    packageRuntime = createPackageRuntime({ ...io, http, console }, env);
+    if (typeof env.createPackageRuntime !== "function")
+      throw new HostContract("package host runtime was not supplied");
+    packageRuntime = env.createPackageRuntime({ ...io, http, console }, env);
     try {
       Object.assign(imports, env.packageBindings(packageRuntime));
     } catch (error) {
@@ -832,7 +782,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
       const sections = WebAssembly.Module.customSections(env.module, "hd.capabilities");
       if (sections.length > 1) throw new HostContract("duplicate package host contracts");
       if (sections.length) {
-        const required = readPackageContract(new Uint8Array(sections[0]));
+        if (typeof env.readPackageContract !== "function")
+          throw new HostContract("package host contract reader was not supplied");
+        const required = env.readPackageContract(new Uint8Array(sections[0]));
         const i = required.find((i) => !i.handle) ?? required[0];
         if (i)
           throw new HostContract(
@@ -877,13 +829,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // else waits for it instead of deadlocking. A root that ends cancelled,
   // whoever cancelled it, ends the run with `cancelled` on standard error
   // and status 130 (cli.cancel.end).
-  const run = async (instance, init, poll, driver = null, cancel = null) => {
-    if (st.drivingMode === "sync")
-      throw new HostContract("the host already has a synchronous driver");
-    st.drivingMode = "async";
-    prime(instance);
-    const ex = instance.exports;
-    let status = 0;
+  const continueRun = async (instance, ex, poll, status, driver, cancel, firstError = null) => {
     let trapped = false;
     let ended = false;
     let limited = false;
@@ -897,9 +843,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     let cleanupBy = null;
     let abandoned = false;
     try {
-      ex[init]();
-      driver?.poll();
-      status = ex[poll](0);
+      if (firstError !== null) throw firstError;
       while (status === -1) {
         let n;
         if (driver?.replaying()) n = driver.served();
@@ -955,8 +899,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     } catch (e) {
       flush();
       if (e instanceof EndCase) {
-        const report = cycleReport(env.module, instance);
-        if (report !== null) sink.err(report);
+        await writeCycleReport(instance);
         return { status: 0, trapped: false, ended: true };
       }
       if (e instanceof HostContract) {
@@ -974,7 +917,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
         frames = wasmFrames(e);
       } else if (e instanceof WebAssembly.RuntimeError) {
         frames = wasmFrames(e);
-      } else if (e instanceof Diverged) {
+      } else if (env.isReplayDivergence?.(e)) {
         st.reported = true;
       } else if (!(e instanceof Deadlock)) {
         throw e;
@@ -995,9 +938,50 @@ export function createCoreHost(sink, env = {}, layer = null) {
     }
     // A trap's panic as the host recorded it, or null.
     const panic = trapped && st.panic !== null ? panicOfReport(st.panic) : null;
-    const report = cycleReport(env.module, instance);
-    if (report !== null) sink.err(report);
+    await writeCycleReport(instance);
     return { status, trapped, ended, frames, panic, cancelled: cancelled && !trapped };
+  };
+
+  // Keep the common no-suspension path apart from the full async driver:
+  // a fresh Node process can compile this small wrapper without compiling
+  // cancellation, waits, traps and wake delivery that it never reaches.
+  const run = (instance, init, poll, driver = null, cancel = null) => {
+    if (st.drivingMode === "sync")
+      return Promise.reject(new HostContract("the host already has a synchronous driver"));
+    st.drivingMode = "async";
+    try {
+      prime(instance);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const ex = instance.exports;
+    let status;
+    try {
+      ex[init]();
+      driver?.poll();
+      status = ex[poll](0);
+    } catch (error) {
+      return continueRun(instance, ex, poll, 0, driver, cancel, error);
+    }
+    if (status === -1 || status === CANCELLED_END || status === CANCELLED_END - 1)
+      return continueRun(instance, ex, poll, status, driver, cancel);
+    try {
+      flush();
+      if (overran()) return continueRun(instance, ex, poll, status, driver, cancel);
+      const result = {
+        status,
+        trapped: false,
+        ended: false,
+        frames: [],
+        panic: null,
+        cancelled: false,
+      };
+      return reportsCycles
+        ? writeCycleReport(instance).then(() => result)
+        : Promise.resolve(result);
+    } catch (error) {
+      return Promise.reject(error);
+    }
   };
 
   // Releases what the platform layer holds (its client threads, its
@@ -1036,409 +1020,5 @@ export function createCoreHost(sink, env = {}, layer = null) {
     seed,
     tempDir: platform?.tempDir,
     core,
-  };
-}
-
-// --- REPL sessions ------------------------------------------------------
-
-// Which journal row a call of an import writes (`Kind::record` in
-// hd_run_wasmtime): none for `hd:prim`, which answers from its arguments
-// alone, or `hd:rt` `fact`, which only marks where a facts body runs, so a
-// replay makes them again.
-function recordOf(module, name) {
-  if (module === "hd:prim" || (module === "hd:rt" && name === "fact")) return "skip";
-  if (module === "hd:rt" && (name === "block" || name === "abort")) return name;
-  return name.endsWith(".finish") ? "finish" : "call";
-}
-
-// The parameter that holds the length of the exchange buffer bytes a call
-// reads, with its scalar parameters the call's request; null for none
-// (`Kind::input`). A host method's is after its scalar parameters, when
-// it takes a structured one (gen/abi.mjs `METHODS`).
-function readsArgs(module, name) {
-  if (module === "hd:rt") return name === "stderr" || name === "stdout" ? 0 : null;
-  const starts = name.endsWith(".start");
-  const m = METHODS[module]?.[starts ? name.slice(0, -".start".length) : name];
-  if (!m || (m.wait === "may") !== starts) return null;
-  const scalars = m.params.filter((p) => typeof p === "string").length;
-  return scalars < m.params.length ? scalars : null;
-}
-
-// A reply value as a Wasm result of type `type`: a narrower integer keeps
-// its low bits.
-function resultOf(v, type) {
-  if (type === "i64") return BigInt.asIntN(64, BigInt(v));
-  if (type === "f64" || type === "f32") return Number(v);
-  return Number(BigInt.asIntN(32, BigInt(v)));
-}
-
-// A host import's reply as the journal holds it, from the JS value it
-// returned and its result types.
-function replyOf(ret, results) {
-  if (ret === undefined) return { tag: 0 };
-  if (Array.isArray(ret)) return { tag: 3, v: Number(ret[0]) | 0, w: Number(ret[1]) | 0 };
-  if (results[0] === "f64" || results[0] === "f32") {
-    const dv = new DataView(new ArrayBuffer(8));
-    dv.setFloat64(0, Number(ret), true);
-    return { tag: 2, v: dv.getBigUint64(0, true) };
-  }
-  return { tag: 1, v: typeof ret === "bigint" ? ret : BigInt(Math.trunc(Number(ret))) };
-}
-
-// The JS value of a served reply, for an import with result types
-// `results`.
-function servedValue(value, results) {
-  switch (value.tag) {
-    case 0:
-      return undefined;
-    case 1:
-      return resultOf(value.v, results[0]);
-    case 2: {
-      const dv = new DataView(new ArrayBuffer(8));
-      dv.setBigUint64(0, value.v, true);
-      return dv.getFloat64(0, true);
-    }
-    default:
-      return [resultOf(value.v, results[0]), resultOf(value.w, results[1])];
-  }
-}
-
-// The handle a `.finish` or `abort` names; no live one is negative.
-const handleParam = (args) => {
-  const h = Number(args[0]);
-  return Number.isInteger(h) && h >= 0 && h <= 0xffffffff ? h : 0xffffffff;
-};
-
-// A REPL session (spec `cli.repl.*`), as `hd_run_wasmtime`'s
-// `WasmtimeSession` runs one. It holds no instance from one input to the
-// next: its state is its host and its journal (journal.mjs), the record of
-// every input that ran and of each host call it made. `sink`, `env` and
-// `layer` are `createCoreHost`'s: one host serves every input.
-//
-// - `run(wasm, sources, live, journal)` runs the session program `wasm`,
-//   one module of every input the session keeps and the new one
-//   (`hd_wasm_linear::Entry::Inputs`: `hd.init.N` and `hd.poll.N` run input
-//   N). It instantiates it once and replays the journal's inputs (the
-//   session's own, or `journal`), each of its text in `sources` (pairs of
-//   number and text), with every host result served from the record
-//   (`cli.repl.host.once`) and nothing printed: a rebuild by
-//   `cli.repl.rebuild`. It skips stopped and cancelled inputs
-//   (`cli.repl.rebuild.stopped`) and drops the first input whose text
-//   changed or that asks for what its record does not hold, with every
-//   later one (`cli.repl.rebuild.prefix`); then the kept ones replay
-//   again in a new instance, and the new input runs only when each
-//   dropped input is one `sources` leaves out. It runs input `live` (a
-//   number, or null for none) as `hd run` runs an entry, recording it. It answers `{ kept, skipped, dropped, reason,
-//   live }`, with `live` the new input's `{ status, end, joined, error }`
-//   or null: status 0 joins the session; a panicking input ends with
-//   status 3, its report on standard error. It throws when the journal
-//   passed its cap or the module cannot be linked or instantiated.
-// - After an input that did not end with status 0, the session drops the
-//   host operations it left pending and calls `hd.reset`, so the next
-//   input starts as the first did (`cli.repl.panic`); what it changed in
-//   earlier values stays (`cli.repl.panic.mutations`).
-// - `stop()` cancels the input that waits on the host: it calls the
-//   input's `hd.cancel`, so its `defer` suites run, and the input ends as
-//   a panicking input does, `cancelled` (`cli.repl.cancel`). An input that
-//   computes cannot hear it; the page terminates the worker and rebuilds.
-export function createSession(sink, env = {}, layer = null, options = {}) {
-  // Output is dropped while a rebuild replays (`cli.repl.host.once`).
-  let muted = false;
-  const host = createCoreHost(
-    {
-      out: (text) => muted || sink.out(text),
-      err: (text) => muted || sink.err(text),
-    },
-    env,
-    layer,
-  );
-  const { st, put, deadlock, flush } = host.core;
-  const execution = crypto.getRandomValues(new Uint8Array(16));
-  let recorder = new Recorder(options.journalCap ?? SESSION_CAP, execution);
-  let replay = null;
-  // The host calls made, not served from a record.
-  let calls = 0;
-  // A stop request, the wait it ends, and how it ended the input.
-  let stopped = false;
-  let wakeWait = null;
-  let halt = null;
-
-  const handlesAt = (n) => {
-    const words = new DataView(st.memory.buffer);
-    return Array.from({ length: n }, (_, i) => words.getUint32(4 * i, true));
-  };
-  const handleBytes = (handles) => {
-    const out = new Uint8Array(4 * handles.length);
-    handles.forEach((h, i) => new DataView(out.buffer).setUint32(4 * i, h, true));
-    return out;
-  };
-  // A call's arguments as the journal holds them: its scalar parameters,
-  // then the exchange buffer bytes it reads.
-  const requestOf = (args, params, reads) => {
-    if (reads === null) return callArgs(args, params, null);
-    const len = Number(args[reads]);
-    if (!(len >= 0 && len <= st.memory.buffer.byteLength)) {
-      throw new HostContract("an argument length is past the exchange buffer");
-    }
-    return callArgs(args, params, new Uint8Array(st.memory.buffer, 0, len));
-  };
-  // Answers a call of a replayed input from its record; a call the record
-  // does not hold next throws `Diverged`, which ends the input.
-  const serve = (record, module, name, args, request) => {
-    switch (record) {
-      case "call":
-        return replay.call(module, name, request);
-      case "finish":
-        return replay.finish(handleParam(args));
-      case "abort":
-        replay.abort(handleParam(args));
-        return { value: { tag: 0 }, result: null };
-      default: {
-        const handles = replay.block();
-        // The first run's block found nothing pending either.
-        if (handles === null) deadlock();
-        const result = handles.length ? handleBytes(handles) : null;
-        return { value: { tag: 1, v: BigInt(handles.length) }, result };
-      }
-    }
-  };
-  // The import `module` `name` of type `type`, as a session calls it: the
-  // recorder and the replayer sit here, where every host call is made.
-  const site = (module, name, f, type) => {
-    const record = recordOf(module, name);
-    if (record === "skip") return f;
-    const reads = readsArgs(module, name);
-    const params = type?.params ?? [];
-    const results = type?.results ?? [];
-    // A replayed call is recorded again, so the new journal holds it.
-    const write = (args, request, value, result) => {
-      if (record === "call") recorder.call(module, name, request, value, result);
-      else if (record === "finish") recorder.finish(handleParam(args), value, result);
-      else if (record === "abort") recorder.abort(handleParam(args));
-      else recorder.block(handlesAt(Number(value.v)));
-    };
-    return (...args) => {
-      const request = record === "call" ? requestOf(args, params, reads) : null;
-      if (replay) {
-        const { value, result } = serve(record, module, name, args, request);
-        if (result) put(result);
-        write(args, request, value, result);
-        return servedValue(value, results);
-      }
-      calls += 1;
-      st.payload = null;
-      const ret = f(...args);
-      const value = replyOf(ret, results);
-      write(args, request, value, st.payload);
-      return ret;
-    };
-  };
-  const sites = new Map();
-
-  const driver = {
-    poll: () => {
-      recorder.poll();
-      replay?.poll();
-    },
-    replaying: () => replay !== null,
-    served: () => {
-      // A replayed input waits when its record wakes it next.
-      if (!replay.wakeNext()) deadlock();
-      const handles = replay.wake();
-      if (handles.length) put(handleBytes(handles));
-      return handles.length;
-    },
-    woke: (n) => recorder.wake(handlesAt(n)),
-    wait: (ms) =>
-      new Promise((resolve) => {
-        if (stopped) {
-          resolve();
-          return;
-        }
-        const timer = setTimeout(resolve, ms);
-        wakeWait = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-      }).finally(() => {
-        wakeWait = null;
-      }),
-    stopping: (cancels) => {
-      if (!stopped) return null;
-      stopped = false;
-      if (!cancels) {
-        halt = { kind: "stopped" };
-        return "stopped";
-      }
-      recorder.cancel();
-      halt = { kind: "cancelled" };
-      return "cancelled";
-    },
-  };
-
-  // After an input that did not end with status 0: drops the host
-  // operations it left pending, then clears the runtime state a trap
-  // leaves set.
-  const reset = (instance) => {
-    clearOperations(st);
-    instance.exports["hd.reset"]?.();
-  };
-
-  // Links the session program: its host imports through their call
-  // sites. Throws for a host import this host does not have.
-  const link = (module, wasm) => {
-    const types = importTypes(wasm);
-    const object = {};
-    for (const { module: m, name, kind } of WebAssembly.Module.imports(module)) {
-      const f = host.imports[m]?.[name];
-      if (kind !== "function" || typeof f !== "function") {
-        throw new Error(`the import \`${m}\` \`${name}\` is not in this host`);
-      }
-      const key = `${m}\0${name}`;
-      if (!sites.has(key)) sites.set(key, site(m, name, f, types.get(key)));
-      object[m] ??= {};
-      object[m][name] = sites.get(key);
-    }
-    return object;
-  };
-
-  // Runs input `number` of the text `source` from `instance`'s exports
-  // `hd.init.N` and `hd.poll.N`, recording it.
-  const runInput = async (instance, number, source, wasm) => {
-    halt = null;
-    // A panic or standard error of an earlier input does not hide this
-    // one's internal error.
-    st.reported = false;
-    st.panic = null;
-    recorder.input(number, source, wasm);
-    let outcome;
-    try {
-      const { status, trapped } = await host.run(
-        instance,
-        `hd.init.${number}`,
-        `hd.poll.${number}`,
-        driver,
-      );
-      const end = halt ?? (trapped ? { kind: "trapped" } : { kind: "exit", status });
-      outcome = { status, end, joined: status === 0 && !trapped, error: null };
-    } catch (e) {
-      flush();
-      outcome = { status: null, end: { kind: "failed" }, joined: false };
-      outcome.error = String(e?.message ?? e);
-    }
-    if (!outcome.joined) reset(instance);
-    recorder.end(outcome.end);
-    return outcome;
-  };
-
-  // Starts the instance again with a journal that starts as `journal`,
-  // over the same host.
-  const restart = (journal) => {
-    flush();
-    clearOperations(st);
-    st.reported = false;
-    st.panic = null;
-    st.memory = null;
-    st.facts = [];
-    recorder = journal;
-    replay = null;
-    muted = false;
-  };
-
-  // Runs `input` again from `instance`, of the text `source`, with its host
-  // calls and wakes served from its record and its output dropped. Throws
-  // the divergence: it asked for what the record does not hold, or ended
-  // otherwise.
-  const replayInput = async (instance, input, source, wasm) => {
-    replay = new Replay(input);
-    muted = true;
-    let outcome;
-    try {
-      outcome = await runInput(instance, input.number, source, wasm);
-    } finally {
-      muted = false;
-    }
-    const served = replay;
-    replay = null;
-    served.end(outcome.end, input.end);
-  };
-
-  const run = async (wasm, sources, live = null, journal = recorder.journal()) => {
-    if (journal === null) {
-      throw new Error("the session's record of host calls is full, so it cannot run another input");
-    }
-    const record = recorded(journal);
-    const texts = new Map(sources);
-    // A stop that came while no input ran is dropped; one that comes
-    // while the inputs replay is for the new input.
-    stopped = false;
-    const cap = recorder.cap;
-    const module = await WebAssembly.compile(wasm);
-    const start = async () => {
-      // Refusing an import or failing instantiation must not replace the
-      // last good journal. HD modules have no Wasm start function; their
-      // effects begin only when runInput invokes the numbered entry.
-      const instance = await WebAssembly.instantiate(module, link(module, wasm));
-      restart(new Recorder(cap, record.execution));
-      return instance;
-    };
-    let instance = await start();
-    const ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };
-    const kept = [];
-    for (const [at, input] of record.inputs.entries()) {
-      if (input.end?.kind === "stopped" || input.end?.kind === "cancelled") {
-        ran.skipped.push(input.number);
-        continue;
-      }
-      const source = texts.get(input.number);
-      try {
-        if (source === undefined) throw new Error(`input ${input.number} is not in the session`);
-        if (!ranText(input, source)) {
-          throw new Error(`input ${input.number} is not the text the session ran`);
-        }
-        await replayInput(instance, input, source, wasm);
-      } catch (e) {
-        ran.dropped = record.inputs.slice(at).map((i) => i.number);
-        ran.reason = String(e?.message ?? e);
-        break;
-      }
-      ran.kept.push(input.number);
-      kept.push([input, source]);
-    }
-    if (ran.dropped.length > 0) {
-      instance = await start();
-      for (const [input, source] of kept) {
-        try {
-          await replayInput(instance, input, source, wasm);
-        } catch (e) {
-          throw new Error(`the rebuild did not repeat itself: ${e.message}`);
-        }
-      }
-      // An input left out of `sources` is one the caller forgot: the
-      // program does not hold it, so the new input still runs. One that
-      // diverged may have declared what the new input uses.
-      if (ran.dropped.some((n) => texts.has(n))) return ran;
-    }
-    if (live !== null) {
-      const source = texts.get(live);
-      if (source === undefined) throw new Error(`input ${live} has no text`);
-      ran.live = await runInput(instance, live, source, wasm);
-    }
-    return ran;
-  };
-
-  return {
-    run,
-    // A copy of the journal so far, or null once it passed its cap.
-    journal: () => recorder.journal()?.slice() ?? null,
-    setJournalCap: (cap) => recorder.setCap(cap),
-    // True once, after the input in which the journal passed its cap.
-    takeJournalNotice: () => recorder.takeNotice(),
-    stop: () => {
-      stopped = true;
-      wakeWait?.();
-    },
-    hostCalls: () => calls,
-    close: () => host.close(),
   };
 }

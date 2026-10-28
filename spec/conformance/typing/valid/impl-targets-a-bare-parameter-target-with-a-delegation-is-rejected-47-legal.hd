@@ -6,7 +6,8 @@ struct Inner:
     n: i32
 
 impl Describe for Inner:
-    fn describe(self) -> string: "inner"
+    fn describe(self) -> string:
+        "inner"
 
 struct Outer:
     Inner

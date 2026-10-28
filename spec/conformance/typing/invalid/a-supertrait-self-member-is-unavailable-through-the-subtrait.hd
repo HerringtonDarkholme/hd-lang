@@ -8,7 +8,7 @@ trait Sub < Base:
     fn extra(self) -> i32
 
 fn show(s: &dyn Sub) -> i32:
-    s.merge(s).id()  # diagnostic: dyn-member-unavailable
+    s.merge(s).id() # diagnostic: dyn-member-unavailable
 
 pub fn main() -> void:
     pass

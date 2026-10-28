@@ -5,4 +5,4 @@ tests:
     use std.testing.hd_run
 
     it("runs the binary"):
-        _ := hd_run!(*Command::new("hello"))  # diagnostic: test-only-use
+        _ := hd_run!(*Command::new("hello")) # diagnostic: test-only-use

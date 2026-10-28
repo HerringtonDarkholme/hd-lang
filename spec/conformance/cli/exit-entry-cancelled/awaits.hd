@@ -1,6 +1,7 @@
 use std.testing.assert
 
-fn ready!() -> i32: 42
+fn ready!() -> i32:
+    42
 
 tests:
     it("awaits a cancelled suspension"):
