@@ -366,7 +366,7 @@ Reader aliases do not change that identity.
 The current generator assigns positions before omitting members, which the model tests using a leading omitted member.
 Each checked operation scopes its path/name mapping to its target type, avoiding a global TypeId registry.
 
-JSON must use Deserialize's rename and rename_all facts, CLI its own option metadata, and environment its actual EnvName/prefix rules.
+JSON must use Deserialize's rename and rename_all facts, CLI its own option metadata, and environment its call-scoped prefix rules.
 Format-owned checked helpers can record names through existing declaration/member callbacks without changing those callback signatures.
 This alias-table integration is unimplemented; its allocations and nested/default cases are a separate measured phase.
 No second decode is allowed merely to discover names, since custom decoding may have observable effects.
@@ -453,8 +453,8 @@ Proposed `env_as_checked[T < Parse[Error = E] & Validate, E < Display](name: str
 An unset variable remains Ok(None); a set value is parsed once and validated once.
 Its root location is the actual requested name.
 
-Proposed `env_decode_checked[T < Deserialize & Validate](...) -> Result[T, CheckedReadError[HostError]] $ Env` handles records.
-It preserves current flat environment decoding, EnvName and uppercase/default rules.
+Proposed `env_decode_checked[T < Deserialize & Validate](prefix: string = "", ...) -> Result[T, CheckedReadError[HostError]] $ Env` handles records.
+It preserves current flat environment decoding and prefix/uppercase/default rules.
 It does not depend on the undecided implementation of EnvConfig or invent nested environment spelling.
 Adding nested/list validation does not make every nested type readable by today's environment format.
 
@@ -487,7 +487,7 @@ Line counts exclude blank and whole-line comments and record exact source hashes
 | Derivation | Eq template/walker20code lines; Facts lookup9; Member metadata8 | 0 | Validate traversal, typed rule collection and record callback |
 | JSON integration | Indexed reader357; decode entry7 | 0 | Checked wrapper, alias capture and error mapping |
 | CLI integration | Cli/template199; scalar/container readers102 | 0 | Checked result wrapper and option/subcommand names |
-| Environment | env_as7; env_decode/reader98 | 0 | Scalar/record checked wrappers and EnvName mapping |
+| Environment | env_as7; env_decode/reader98 | 0 | Scalar/record checked wrappers and prefix mapping |
 | Cross-field/reference helpers | Rust validator schema emitter41Rust lines | 0 | Typed callbacks, root/path targeting and definitions |
 | Range/length/custom atoms | Rust emitters44/38/34Rust lines | 0 | hd implementations with selected units and error payloads |
 
@@ -593,7 +593,7 @@ Each slice targets about an hour and must include stdlib rules and focused confo
 | 2b | Regex pattern and remaining container helpers | Existing regex semantics, invalid definitions and empty/optional containers |
 | 3 | JSON checked entry point and alias mapper | Rename/default/skip, enum/list paths and handwritten decoder fallback |
 | 4 | CLI checked parse/parse_args and exit adapter | Help stdout/status0, usage stderr/status2, semantic locations and Args behavior |
-| 5 | Scalar and record environment checked entry points | Unset, parse failure, EnvName/defaults and no unrelated EnvConfig dependency |
+| 5 | Scalar and record environment checked entry points | Unset, parse failure, prefixes/defaults and no unrelated EnvConfig dependency |
 
 If a slice lacks a measured integration budget, its first action is a bounded reference proof rather than an unpriced implementation.
 No phase may call a post-decode walk fused or change another reader's policy to simplify the tests.

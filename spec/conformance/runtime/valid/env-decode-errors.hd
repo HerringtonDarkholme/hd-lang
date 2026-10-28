@@ -1,8 +1,8 @@
 # test: env_decode reports missing or invalid variables and refuses non-record roots
 # Spec std/host Environment: std-host.env-decode.record-root, std-host.env-decode.root-error,
-# std-host.env-decode.empty-name, std-host.env-decode.missing, std-host.env-decode.invalid-value,
-# std-host.error.missing-display.
-use std.host.{Env, HostError, ScriptedEnv, env_decode, env_name}
+# std-host.env-decode.prefixed-field-name, std-host.env-decode.missing,
+# std-host.env-decode.invalid-value, std-host.error.missing-display.
+use std.host.{Env, HostError, ScriptedEnv, env_decode}
 use std.serde.Deserialize
 
 @derive(Deserialize)
@@ -22,19 +22,14 @@ struct Count:
     count: u8
 
 @derive(Deserialize)
-struct BadName:
-    @env_name("")
-    deploy_token: string
-
-@derive(Deserialize)
 enum Mode:
     Fast
     Slow
 
-fn failure[T < Deserialize](values: Map[string, string]) -> HostError:
+fn failure[T < Deserialize](values: Map[string, string], prefix: string = "") -> HostError:
     vars := ScriptedEnv::new(values)
     $.with(Env=&vars):
-        match env_decode::[T]():
+        match env_decode::[T](prefix=prefix):
             .Err(error) => error
             .Ok(_) => panic("decoding should fail")
 
@@ -42,7 +37,7 @@ struct NoReadsEnv: pass
 
 impl Env for NoReadsEnv:
     fn get(self, name: string) -> string?:
-        panic("the refused root or empty name must not read a variable")
+        panic("the refused root must not read a variable")
     fn names(self) -> List[string]:
         panic("env_decode must not enumerate environment names")
 
@@ -57,6 +52,11 @@ tests:
 
     it("absent required scalar and list members name the variable"):
         assert_equal(failure::[Amount]({}), HostError.Missing("AMOUNT"), reason="required scalar")
+        assert_equal(
+            failure::[Amount]({}, prefix="APP_"),
+            HostError.Missing("APP_AMOUNT"),
+            reason="the call prefix precedes the uppercase field name",
+        )
         error := failure::[Items]({})
         assert_equal(
             error,
@@ -96,10 +96,3 @@ tests:
         assert_equal(without_reads::[Map[string, string]](), expected, reason="map root")
         assert_equal(without_reads::[Mode](), expected, reason="enum root")
         assert_equal(without_reads::[(i32, string)](), expected, reason="tuple root")
-
-    it("an empty EnvName names the field and is rejected before Env.get"):
-        assert_equal(
-            without_reads::[BadName](),
-            HostError.InvalidValue("deploy_token", "empty environment name"),
-            reason="the field name identifies the bad override without reading an empty variable",
-        )

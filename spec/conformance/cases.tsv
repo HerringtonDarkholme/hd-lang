@@ -4395,8 +4395,8 @@ runtime/valid/text-properties.hd	runtime	accept	std/text.md#r-std-text.string.sp
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 runtime/valid/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
 runtime/valid/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.private
-runtime/valid/env-decode-errors.hd	runtime	accept	std/host.md#r-std-host.env-decode.decl
-runtime/valid/env-decode-record.hd	runtime	accept	std/host.md#r-std-host.env-decode.decl
+runtime/valid/env-decode-errors.hd	runtime	accept	std/host.md#r-std-host.env-decode.prefix-decl
+runtime/valid/env-decode-record.hd	runtime	accept	std/host.md#r-std-host.env-decode.prefix-decl
 runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.shared-error-signature
 runtime/valid/num-abs.hd	runtime	accept	std/num.md#r-std-num.abs.value
 runtime/panic/num-abs-min-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
