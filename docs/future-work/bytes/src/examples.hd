@@ -1,0 +1,37 @@
+use pkg.bytes.Bytes
+
+## Keeps multipart payloads as shared views, then releases a large parent buffer for one saved part.
+fn multipart_parts(body: Bytes, header_end: usize, saved_end: usize) -> (Bytes, Bytes):
+    header := body[..header_end]
+    payload := body[header_end..]
+    saved := payload[0..saved_end - header_end].compact()
+    (header, saved)
+
+## A digest or codec can borrow bytes for one call without copying the Bytes value.
+fn checksum(bytes: &Bytes) -> u64:
+    if bytes.is_empty():
+        return 0
+    let total = u64(bytes.get(0).unwrap_or(0))
+    let index = 1
+    while index < bytes.len():
+        total = total.wrapping_add(u64(bytes.get(index).unwrap_or(0)))
+        index += 1
+    total
+
+## Iteration and indexing read the selected bytes, not the backing list's unused prefix.
+fn png_prefix(bytes: Bytes) -> bool:
+    if bytes.len() < 4:
+        return false
+    let sum: u64 = 0
+    for byte in bytes:
+        sum = sum.wrapping_add(u64(byte))
+    bytes[0] == 0x89 && sum != 0
+
+## Host boundaries convert explicitly because their wire ABI still owns a mutable List[u8].
+fn host_round_trip(wire: List[u8]) -> List[u8]:
+    snapshot := Bytes::from_list(wire)
+    snapshot.to_list()
+
+## Equality compares the selected byte sequence, independent of its original list and offsets.
+fn same_payload(left: List[u8], right: List[u8]) -> bool:
+    Bytes::from_list(left) == Bytes::from_list(right)
