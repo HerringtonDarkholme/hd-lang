@@ -219,52 +219,44 @@ try {
     assert.deepEqual(workers, [`${origin}${PAGES_BASE}${PLAYGROUND_APP_DIR}/assets/worker.js`]);
     await page.click("#tour-run");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(
-      await output.locator(".stdout").textContent(),
-      "Hello, Ada! Your order has shipped.\n",
-    );
+    assert.equal(await output.locator(".stdout").textContent(), "Hello, Ada!\n");
     assert.equal(
       await page.locator("#sidebar .tour-contents a[aria-current=page]").textContent(),
-      "1Hello, hd",
+      "1Hello",
       "the contents mark the current page",
     );
 
     await page.locator(".tour-pager a[rel=next]").click();
-    await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-mut/`);
+    await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-bindings/`);
     await page.locator("#tour-editor .cm-editor").waitFor();
-    // Change the discount from 10 to 50 percent, one line, as a reader would.
-    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).click();
+    // Increase the quantity by three rather than one, as a reader would.
+    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).click();
     await page.keyboard.press("End");
     await page.keyboard.press("Backspace");
-    await page.keyboard.press("Backspace");
-    await page.keyboard.press("Backspace");
-    await page.keyboard.type("50)");
+    await page.keyboard.type("3");
     await page.keyboard.press("Control+Enter");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(
-      await output.locator(".stdout").textContent(),
-      "A-1042: 5000 cents\nA-1042: 2500 cents\n",
-    );
+    assert.equal(await output.locator(".stdout").textContent(), "5 items cost 6000 cents\n");
 
     // The edit survives a reload; Reset brings back the original.
     await page.reload();
-    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 50)" }).waitFor();
+    await page.locator(".cm-line", { hasText: "quantity = quantity + 3" }).waitFor();
     const savedEdit = await page.evaluate(() => {
       const key = `hd-tour:${document.getElementById("tour-editor")!.dataset.tourKey!}`;
       return { key, value: localStorage.getItem(key)! };
     });
     const parsedEdit = JSON.parse(savedEdit.value) as Record<string, unknown>;
     assert.equal(typeof parsedEdit.originalHash, "string");
-    assert.match(parsedEdit.code as string, /apply_discount\(&mut order, 50\)/);
+    assert.match(parsedEdit.code as string, /quantity = quantity \+ 3/);
     await page.click("#tour-reset");
-    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).waitFor();
+    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).waitFor();
     await page.evaluate(({ key, value }) => {
       const stale = JSON.parse(value) as { originalHash: string };
       stale.originalHash = "an-older-lesson";
       localStorage.setItem(key, JSON.stringify(stale));
     }, savedEdit);
     await page.reload();
-    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).waitFor();
+    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).waitFor();
     assert.equal(
       await page.evaluate((key) => localStorage.getItem(key), savedEdit.key),
       null,
@@ -273,25 +265,21 @@ try {
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-run");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(
-      await output.locator(".stdout").textContent(),
-      "A-1042: 5000 cents\nA-1042: 4500 cents\n",
-    );
+    assert.equal(await output.locator(".stdout").textContent(), "3 items cost 3600 cents\n");
     await page.reload();
-    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).waitFor();
+    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).waitFor();
 
-    // The page's edit, deleting `mut` from the `&mut` parameter, lists its diagnostic.
-    await page
-      .locator(".cm-line", { hasText: "fn apply_discount(order: &mut Order" })
-      .locator(".hd-keyword", { hasText: /^mut$/ })
-      .dblclick();
-    await page.keyboard.press("Backspace");
-    assert.ok(
-      await page.locator(".cm-line", { hasText: "fn apply_discount(order: & Order" }).isVisible(),
-    );
+    // The page's edit turns the reassignable binding into a fixed one.
+    await page.locator(".cm-line", { hasText: "let quantity = +2" }).click();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+End");
+    await page.keyboard.type("quantity := +2");
     await page.click("#tour-run");
     await output.locator(".outcome.failed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await output.locator(".diagnostic .code").textContent(), "not-writable");
+    assert.equal(
+      await output.locator(".diagnostic .code").textContent(),
+      "non-reassignable-binding",
+    );
     await page.click("#tour-reset");
 
     // Alt+Left goes back a page when the focus is outside the editor.
@@ -299,7 +287,7 @@ try {
     await page.keyboard.press("Alt+ArrowLeft");
     await page.waitForURL(`${origin}${PAGES_BASE}tour/1-hello/`);
     await page.keyboard.press("Alt+ArrowRight");
-    await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-mut/`);
+    await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-bindings/`);
     if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "tour-desktop.png") });
     await page.context().close();
   });
@@ -340,7 +328,7 @@ try {
   });
 
   await step("a tour page with tests has a Test button, and wrapped lines hang", async () => {
-    const { page } = await openPage("tour/17-requirements/", { ready: "#tour-editor .cm-editor" });
+    const { page } = await openPage("tour/15-requirements/", { ready: "#tour-editor .cm-editor" });
     const output = page.locator("#tour-output");
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-test");
@@ -368,7 +356,7 @@ try {
     await page.context().close();
 
     // A page with only tests has no Run button, and Ctrl+Enter tests.
-    const tests = await openPage("tour/18-tests/", { ready: "#tour-editor .cm-editor" });
+    const tests = await openPage("tour/13-tests/", { ready: "#tour-editor .cm-editor" });
     assert.equal(await tests.page.locator("#tour-run").count(), 0, "no Run button");
     await tests.page.locator("#tour-status", { hasText: "Ready" }).waitFor({
       timeout: FIRST_REPLY_MS,
@@ -376,7 +364,7 @@ try {
     await tests.page.locator("h1").click();
     await tests.page.keyboard.press("Control+Enter");
     await tests.page
-      .locator("#tour-output .outcome.passed", { hasText: "3 tests passed" })
+      .locator("#tour-output .outcome.passed", { hasText: "4 tests passed" })
       .waitFor({ timeout: FIRST_REPLY_MS });
     await tests.page.context().close();
   });
@@ -384,7 +372,7 @@ try {
   await step(
     "a tour page with several files shows a tab per file and runs them together",
     async () => {
-      const { page } = await openPage("tour/19-modules/", { ready: "#tour-editor .cm-editor" });
+      const { page } = await openPage("tour/14-modules/", { ready: "#tour-editor .cm-editor" });
       const output = page.locator("#tour-output");
       const tab = (name: string) => page.locator(".tour-tab", { hasText: name });
       assert.equal(await tab("main.hd").getAttribute("aria-selected"), "true");
@@ -401,7 +389,7 @@ try {
       for (let index = 0; index < 3; index += 1) await page.keyboard.press("Backspace");
       await page.keyboard.type('"free"');
       await tab("main.hd").click();
-      await page.locator(".cm-line", { hasText: "use pkg.pricing.{Line, total}  #" }).waitFor();
+      await page.locator(".cm-line", { hasText: "use pkg.pricing.{Line, total}" }).waitFor();
       await page.click("#tour-run");
       await output.locator(".outcome.failed").waitFor({ timeout: FIRST_REPLY_MS });
       const location = await output.locator(".diagnostic .location").first().textContent();

@@ -1,35 +1,29 @@
 ---
-title: Hello, hd
+title: Hello
 ---
 
-# A program starts at `main`, and `main` says what it may touch
+# Run a script, print text, and put a value inside a string
 
 This tour runs hd in your browser. Press **Run**, or Ctrl+Enter (Cmd+Enter on
-a Mac), to compile and run the code on the right. Edit it freely: your changes
-stay in this browser, and **Reset** brings back the original.
-
-`$ Console` after the signature is a requirement. It is the whole list of
-outside things this program may use: it may print, and nothing else. No library
-it calls can quietly ask to read your files or open a socket unless `main`
-grants it, so a reviewer learns what the code asks for from one line. A row
-bounds what code asks for, not what a value you pass it already carries.
+a Mac). A script may start with statements, so the first program needs no
+`main`. `println` writes one line, and `${...}` evaluates an expression inside
+a string. These are the few bootstrap forms used before the tour explains
+bindings, functions, and requirements.
 
 ```hd
-# Press Run, or Ctrl+Enter. Then change the name and run it again.
-pub fn main() -> void $ Console:  # ← may print, and nothing else
-    customer := "Ada"
-    println("Hello, $customer! Your order has shipped.")
+# Press Run. Then change Ada and run again.
+println("Hello, ${"Ada"}!")
 
-# Delete `$ Console` from main's signature and Run:
-#     missing-requirement: this needs `$ Console`, which the enclosing function's row does not name
+# Change the line to `println("Hello, $customer!")` and Run:
+#     unknown-name: `customer` is not defined
 ```
 
 ```edit
-replace: pub fn main() -> void $ Console:  # ← may print, and nothing else
-with: pub fn main() -> void:
-error: missing-requirement: this needs `$ Console`, which the enclosing function's row does not name
+replace: println("Hello, ${"Ada"}!")
+with: println("Hello, $customer!")
+error: unknown-name: `customer` is not defined
 ```
 
 ```output
-Hello, Ada! Your order has shipped.
+Hello, Ada!
 ```

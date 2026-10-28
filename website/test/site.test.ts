@@ -241,7 +241,7 @@ describe("website build", () => {
   test("renders the tour: contents, one split page per file, and a static listing offline", async () => {
     const outDir = join(scratch, "pages");
     const tour = loadTour(REPO_DIR);
-    assert.ok(tour.length >= 6);
+    assert.equal(tour.length, 18);
     const index = await readFile(join(outDir, "tour/index.html"), "utf8");
     assert.match(index, /<a href="\/hd-lang\/tour\/" aria-current="page">Tour<\/a>/);
     for (const page of tour) {

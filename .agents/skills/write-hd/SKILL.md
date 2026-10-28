@@ -417,7 +417,7 @@ tests:
 To test printing, bind `console := MemoryConsole::new()` from
 `std.console` (a `*mut MemoryConsole`), run the code inside
 `$.with(Console=console):` and read `console.output()`
-([tour: requirements](../../../website/tour/12-requirements.md)).
+([tour: requirements](../../../website/tour/15-requirements.md)).
 `MemoryFs`, `ScriptedProcess`, `ScriptedHttp`, `ManualClock`,
 `Command::new`, and `ArgParser::new` return `*mut` handles the same way.
 These builders intentionally outlive one call; ordinary parameters and
@@ -446,7 +446,7 @@ pub fn main() -> void $ Console:
 
 An integration test in `tests/NAME.hd` has top-level `it(...)` cases and
 no `tests:` block; `hd_run!(Command::new("NAME"))` runs the built program
-([tour: packages](../../../website/tour/14-packages.md)). A doc test is an
+([tour: modules](../../../website/tour/14-modules.md)). A doc test is an
 `hd` fence inside a `##` doc comment, with its own `use` lines.
 
 ## Prelude And std

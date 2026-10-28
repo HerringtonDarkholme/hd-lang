@@ -1,46 +1,40 @@
 ---
-title: Modules and pub
+title: Modules
 ---
 
-# A file shares only what it marks `pub`, so its helpers stay its own business
+# Files expose only `pub` names, and `use` makes dependencies visible
 
-Each file is a module, named by its path: `src/pricing.hd` is `pricing`. A
-declaration is private to its file unless it says `pub`, and another file sees
-a public name only after it asks for it with `use`. So the shipping fee rule in
-`fee` can change, or vanish, without breaking any other file: no other file can
-call it. The `use` line at the top of a file lists everything it takes from
-elsewhere, and the `pub` items of a file are its whole interface. Open the
-`pricing.hd` tab to see both sides.
+Each file is a module. A declaration is private unless it says `pub`, and
+another file asks for public names with `use`. A folder's `mod.hd` is the
+folder interface: its `pub use` declarations decide what the folder offers.
+Installed packages use the same rule under the `dep` root. Open the other tabs
+to see both sides of this boundary.
 
 ```hd
-use pkg.pricing.{Line, total}  # ← the names this file takes from pricing.hd
+use pkg.pricing.{Line, total}
 
-pub fn main() -> void $ Console:
-    cart := [Line { item: "lamp", cents: 3200 }, Line { item: "bulb", cents: 450 }]
-    println("total: ${total(cart)} cents")
+cart := [Line { item: "lamp", cents: 3200 }, Line { item: "bulb", cents: 450 }]
+println("total: ${total(cart)} cents")
 
-# `fee` in pricing.hd has no `pub`. Ask for it anyway: change the
-# first line to `use pkg.pricing.{Line, total, fee}` and Run:
+# Import the private `fee` helper and Run:
 #     private-import: 'fee' is private to module 'playground.pricing'
 ```
 
 ```hd src/pricing.hd
-# Public: the interface other files may use.
 pub struct Line:
     pub item: string
     pub cents: i32
 
 pub fn total(lines: List[Line]) -> i32:
-    subtotal := lines.iter().fold(0, fn(sum: i32, line: Line) -> i32: sum + line.cents)
+    subtotal := lines.iter().map(fn(line: Line) -> i32: line.cents).sum()
     subtotal + fee(subtotal)
 
-# Private: only this file can call it, so this rule can change freely.
 fn fee(subtotal: i32) -> i32:
     if subtotal >= 5000: 0 else: 499
 ```
 
 ```edit
-replace: use pkg.pricing.{Line, total}  # ← the names this file takes from pricing.hd
+replace: use pkg.pricing.{Line, total}
 with: use pkg.pricing.{Line, total, fee}
 error: private-import: 'fee' is private to module 'playground.pricing'
 ```

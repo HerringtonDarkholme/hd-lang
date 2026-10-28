@@ -1,54 +1,34 @@
 ---
-title: Suspension and all!
+title: Suspension
 ---
 
-# A function that can wait says so with `!`, and so does every call to it
+# A function that may wait ends in `!`, and every waiting call shows `!`
 
-A call that waits, for a timer, a disk, or a server, is a point where other
-work can run and the world can change. In hd such a function's name ends in
-`!`, and so does each call that waits for it, so you can spot every pause
-point by reading. Like `?`, the mark travels up: a function that makes a `!`
-call must be a `!` function itself. Writing the call without `!`, as in
-`fetch_orders(user)`, does not run it yet; `all!` takes such calls, runs them
-as tasks, and waits until all are done. Reading a file or a line of input is
-such a wait, so a program that does I/O through a `!` call starts at `main!`.
-A plain `main` that calls `read_line!()` is an error: only a `!` function may make a `!` call. The clock is provided, so a test can
-use a fake one.
+A timer, file, or server may suspend while other work runs. A suspending
+function ends in `!`, and so does every call that waits for it. The marker
+travels up to `main!`, making every pause point visible. This entry point names
+the clock and console it uses directly as `$ Clock + Console`.
 
 ```hd
-fn dashboard!(user: string) -> string $ Clock:
-    let (orders, unpaid) = all!(fetch_orders(user), fetch_unpaid(user))  # ← wait for both
-    "$user: $orders orders, $unpaid unpaid invoices"
+use std.time.{Clock, ms, sleep}
 
-pub fn main!() -> void $ Console:
-    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
-    $.with(Clock=clock):
-        println(dashboard!("ada"))
+fn ready!() -> string $ Clock:
+    sleep!(1ms)
+    "ready"
 
-# Delete the `!` from `fn dashboard!` and Run. A function that waits
-# can't pretend it doesn't:
+pub fn main!() -> void $ Clock + Console:
+    println(ready!())
+
+# Delete `!` from the declaration of `ready!` and Run:
 #     bang-call-outside-suspension: a bang call needs a suspending function or closure
-
-# ── plumbing ──
-use std.task.all
-use std.time.{Clock, ManualClock, Timestamp, ms}
-
-# Stand-ins for two services: each waits on the clock it is given.
-fn fetch_orders!(user: string) -> i32 $ Clock:
-    $.use(Clock).sleep!(120ms)
-    3
-
-fn fetch_unpaid!(user: string) -> i32 $ Clock:
-    $.use(Clock).sleep!(80ms)
-    1
 ```
 
 ```edit
-replace: fn dashboard!(user: string) -> string $ Clock:
-with: fn dashboard(user: string) -> string $ Clock:
+replace: fn ready!() -> string $ Clock:
+with: fn ready() -> string $ Clock:
 error: bang-call-outside-suspension: a bang call needs a suspending function or closure
 ```
 
 ```output
-ada: 3 orders, 1 unpaid invoices
+ready
 ```

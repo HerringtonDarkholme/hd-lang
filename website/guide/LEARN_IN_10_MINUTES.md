@@ -54,7 +54,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput:
 ## Bindings, Numbers, and Strings
 
 `:=` binds a name that cannot be reassigned. `let` declares a variable that
-can be ([tour: values and mut](../tour/02-values-and-mut.md)).
+can be ([tour: values and bindings](../tour/02-values-and-bindings.md)).
 
 ```hd
 name := "Ada"
@@ -67,7 +67,7 @@ lengths and indices, `f32`, and `f64`. A plain integer literal takes its type
 from its uses; with none, it is `usize`, or `i32` when written with a sign,
 as `+5`. Conversions are calls, and none is implicit. Strings interpolate
 `$name` and `${expression}`, are UTF-8 bytes, and slice by byte range
-([tour: strings and numbers](../tour/03-strings-and-numbers.md)).
+([tour: values and bindings](../tour/02-values-and-bindings.md)).
 
 ```text
 use std.text.r
@@ -86,7 +86,7 @@ pattern := r"\d+ costs $5"
 `List[T]` and `Map[K, V]` come from the prelude, and tuples are built in.
 Comprehensions put the clauses before `=>` and the produced value after it.
 A list you will change is a `let mut` variable, and a list is a value, so
-`b := a` copies it ([tour: collections](../tour/10-lists-and-maps.md)).
+`b := a` copies it ([tour: collections](../tour/04-lists-maps-and-loops.md)).
 
 ```hd
 names := ["Ada", "Grace", "Linus"]
@@ -104,7 +104,7 @@ Parameters and results are typed, and the last expression is the value.
 Parameters may have defaults, and calls may name arguments. Closures use the
 same `fn` syntax, generic parameters go in square brackets, and a bound is
 written with `<` ([tour: functions](../tour/03-functions.md),
-[generics](../tour/10-generics.md)).
+[traits and generics](../tour/09-traits-and-generics.md)).
 
 ```hd
 fn connect(host: string, port: i32 = 443) -> string:
@@ -120,7 +120,8 @@ fn show[T < Display](value: T) -> string:
 ```
 
 A pipe feeds a value into the next step, and `_` marks where it goes
-([tour: pipes](../tour/08-pipes.md)): `cents |> discounted(_, 10) |> format`.
+([tour: functions and pipes](../tour/03-functions.md)):
+`cents |> discounted(_, 10) |> format`.
 
 ### Inlining and cold paths
 
@@ -154,7 +155,8 @@ fn validate_url(text: string) -> Result[string, string]:
 The whole list: `if`, `match`, `for`, `while`, `break`, `continue`, and
 `else` on a loop. There is no `loop`; write `while true:`. `if`, `match`, and
 loops with `else` are expressions, and a `match` must be exhaustive
-([tour: control flow](../tour/07-expressions.md)).
+([tour: functions](../tour/03-functions.md),
+[lists, maps, and loops](../tour/04-lists-maps-and-loops.md)).
 
 ```text
 label := if score >= 90: "excellent" else: "passing"
@@ -177,8 +179,8 @@ in place. Sharing is written: `&T` reads a value where it lives with no
 copy, `&mut T` also writes it, and `&mut draft` lends a `let mut` variable
 to a callee, whose writes the caller sees. `&mut User { ... }` makes a new
 object that every holder of the reference shares
-([tour: values and mut](../tour/02-values-and-mut.md),
-[data](../tour/09-data.md)).
+([tour: structs](../tour/06-structs.md),
+[references](../tour/07-references.md)).
 
 ```hd
 struct User:
@@ -202,7 +204,7 @@ println(label(&renamed))
 
 An `enum` is a closed set of variants, which may carry fields. `.Variant`
 names one where the type is known. `==` on an enum needs `@derive(Eq)`
-([tour: enums](../tour/04-enums-and-match.md)).
+([tour: enums](../tour/08-enums-and-match.md)).
 
 ```hd
 enum Shape:
@@ -218,8 +220,8 @@ fn area(shape: Shape) -> f64:
 `T?` is `Option[T]`: `.Some(value)` or `.None`. `Result[T, E]` is
 `.Ok(value)` or `.Err(error)`. Postfix `?` unwraps, or returns the `.None` or
 `.Err` from the current function. `@error` writes an error enum's messages
-and conversions ([tour: option](../tour/05-option.md),
-[errors](../tour/06-errors.md), [error context](../tour/15-error-context.md)).
+and conversions ([tour: absence and failure](../tour/10-absence-and-failure.md),
+[typed errors](../tour/11-typed-errors.md)).
 
 ```hd
 @error
@@ -240,8 +242,8 @@ fn port(path: string) -> Result[string, ConfigError]:
 A trait lists methods, and each implementation is explicit. A bound
 dispatches statically; a trait value, `&dyn Trait` or `&mut dyn Trait`,
 dispatches dynamically and is always written with its `&`. `@derive` writes
-standard implementations ([tour: traits](../tour/11-traits.md),
-[derive](../tour/18-derive.md)).
+standard implementations ([tour: traits and generics](../tour/09-traits-and-generics.md),
+[derivation](../tour/12-derivation.md)).
 
 ```text
 trait Describe:
@@ -267,8 +269,7 @@ reference, not the member or variant metadata it names.
 A row after `$` lists the traits a function needs. `$.use` retrieves a
 provider and `$.with` supplies one for a block, as a reference to a new
 object (`&FixedClock { at: 42 }`), so a test installs a fake
-([tour: requirements](../tour/12-requirements.md),
-[least authority](../tour/17-least-authority.md)). A name ending in `!`
+([tour: requirements](../tour/15-requirements.md)). A name ending in `!`
 can suspend, and so does every call to it
 ([tour: suspension](../tour/16-suspension.md)).
 
@@ -305,7 +306,7 @@ tests:
 ```
 
 After `hd add ../money`, another package's public names are `dep.money`
-([tour: packages](../tour/14-packages.md),
+([tour: modules and packages](../tour/14-modules.md),
 [Packages And Dependencies](WORKING_WITH_DATA.md#packages-and-dependencies)):
 
 ```text
