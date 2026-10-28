@@ -1,0 +1,21 @@
+use std.annotation.annotate
+
+## Selects how an enum is represented by Serialize and Deserialize.
+@derive(Debug, Eq)
+@annotate(.Enum)
+pub enum EnumTagging:
+    Internal(tag: string)
+    Adjacent(tag: string, content: string)
+    Untagged
+
+## Places the variant name in the payload object under `tag`.
+pub fn internal(tag: string) -> EnumTagging:
+    panic("todo")
+
+## Places the variant name and payload in adjacent object members.
+pub fn adjacent(tag: string, content: string) -> EnumTagging:
+    panic("todo")
+
+## Writes only the variant payload and tries variants in declaration order when reading.
+pub fn untagged() -> EnumTagging:
+    panic("todo")

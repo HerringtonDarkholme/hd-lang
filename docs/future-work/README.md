@@ -28,6 +28,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 ### Language and library
 
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
+- [Enum Tagging Facts](ENUM_TAGGING.md): proposed internal, adjacent, and untagged serde enum representations, with checked facts and JSON examples (#954).
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
 

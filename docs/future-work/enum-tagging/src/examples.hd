@@ -1,0 +1,35 @@
+use pkg.enum_tagging.{adjacent, internal, untagged}
+use std.serde.{Deserialize, Serialize}
+
+@derive(Serialize, Deserialize, Debug, Eq)
+@internal(tag="type")
+enum Shape:
+    Rect(width: i32, height: i32)
+    Empty
+
+fn internal_example() -> (Shape, string):
+    (Shape.Rect(width=2, height=3), "{\"type\":\"Rect\",\"width\":2,\"height\":3}")
+
+@derive(Serialize, Deserialize, Debug, Eq)
+@adjacent(tag="t", content="c")
+enum Block:
+    Para(List[string])
+    Rule
+
+fn adjacent_example() -> (Block, string):
+    (Block.Para(["one", "two"]), "{\"t\":\"Para\",\"c\":[\"one\",\"two\"]}")
+
+@derive(Serialize, Deserialize, Debug, Eq)
+@untagged()
+enum Port:
+    Number(u16)
+    Service(string)
+
+fn untagged_example() -> (Port, string):
+    (Port.Number(443), "443")
+
+tests:
+    it("shows one JSON document for each form"):
+        assert_equal(internal_example()._1.starts_with("{\"type\":"), true, reason="internal tag")
+        assert_equal(adjacent_example()._1.starts_with("{\"t\":"), true, reason="adjacent tag")
+        assert_equal(untagged_example()._1, "443", reason="untagged payload")
