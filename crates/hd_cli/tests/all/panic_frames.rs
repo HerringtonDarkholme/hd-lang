@@ -49,6 +49,20 @@ tests:
         drop_far(&mut xs)
 ";
 
+const OPTIONAL_REASONS: &str = "\
+use std.testing.{assert, assert_equal}
+
+tests:
+    it(\"equal without reason\"):
+        assert_equal(1, 2)
+
+    it(\"condition without reason\"):
+        assert(false)
+
+    it(\"equal with reason\"):
+        assert_equal(3, 4, reason=\"three is not four\")
+";
+
 /// A fresh package `shop` whose `src/lib.hd` is `lib`.
 fn package(name: &str, lib: &str) -> Scratch {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
@@ -105,6 +119,38 @@ PANIC src/lib.hd:26: drops past the end
     src/lib.hd:28 test \"drops past the end\"
     repro: hd test src/lib.hd --filter \"drops past the end\"
 test result: FAILED. 1 passed; 3 failed; 0 ignored
+",
+        "{}",
+        text(&out.stderr)
+    );
+    assert_eq!(out.status.code(), Some(1));
+}
+
+/// An omitted assertion reason prints no empty reason text. `assert_equal`
+/// still prints both values, and both forms still identify the source line.
+#[test]
+fn assertion_reasons_are_optional_in_failure_reports() {
+    let root = package("hd-optional-assertion-reasons", OPTIONAL_REASONS);
+    let out = hd(&root, &["test"]);
+    assert_eq!(
+        text(&out.stdout),
+        "\
+PANIC src/lib.hd:4: equal without reason
+    panic: assertion-failed: actual 1, expected 2
+    <std>/testing.hd:LINE std.testing.check_equal
+    src/lib.hd:5 test \"equal without reason\"
+    repro: hd test src/lib.hd --filter \"equal without reason\"
+PANIC src/lib.hd:7: condition without reason
+    panic: assertion-failed
+    <std>/testing.hd:LINE std.testing.assert
+    src/lib.hd:8 test \"condition without reason\"
+    repro: hd test src/lib.hd --filter \"condition without reason\"
+PANIC src/lib.hd:10: equal with reason
+    panic: assertion-failed: three is not four: actual 3, expected 4
+    <std>/testing.hd:LINE std.testing.check_equal
+    src/lib.hd:11 test \"equal with reason\"
+    repro: hd test src/lib.hd --filter \"equal with reason\"
+test result: FAILED. 0 passed; 3 failed; 0 ignored
 ",
         "{}",
         text(&out.stderr)

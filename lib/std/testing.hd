@@ -1,7 +1,7 @@
 # std.testing, the part written in hd (spec/lang/10-modules.md#standard-testing).
-# `it` and `assert_equal` are compiler-provided. `it_each`, `it_prop`,
+# `it` is compiler-provided. `assert_equal`, `it_each`, `it_prop`,
 # `it_prop_with`, and `snapshot` are declared here, and the compiler checks
-# their calls (spec/lang/10-modules.md#registration-calls, #snapshots);
+# their calls (spec/lang/10-modules.md#standard-testing, #registration-calls, #snapshots);
 # `Choices`, `Arbitrary`, and `snapshot_file` too (Testing T53), with the
 # bodies that the compiler gives an `it_each`, `it_prop`, or `it_prop_with`
 # test case and the runner capabilities they use. `std.testing.arbitrary`
@@ -703,24 +703,31 @@ fn case_timeout(limit: Duration) -> void $ TestRunner:
     $.use(TestRunner).report_timeout(limit.as_milliseconds())
 
 # A false `condition` is a failed assertion, a checked runtime panic
-# (spec/lang/10-modules.md#r-module.testing.assert-panic) that shows
-# `reason` (spec/lang/10-modules.md#r-module.testing.shows-reason).
-## A false `condition` is a failed assertion: a checked runtime panic that shows `reason`.
+# (spec/lang/10-modules.md#r-module.testing.assert-panic) that shows a
+# nonempty `reason` (spec/lang/10-modules.md#r-module.testing.assertions.reason-shown).
+## A false `condition` is a failed assertion: a checked runtime panic that shows a nonempty `reason`.
 ## See [module.testing.assert-panic](../../spec/lang/10-modules.md#r-module.testing.assert-panic).
-pub fn assert(condition: bool, reason: string) -> void:
+pub fn assert(condition: bool, reason: string = "") -> void:
     if !condition:
         panic_with("assertion-failed", reason)
 
+# Compares `actual` and `expected`; a direct call is checked here, then the
+# compiler runs `check_equal` with the call's static type and defaulted reason.
+@intrinsic("assert_equal")
+## Compares two values and fails the assertion when they are unequal.
+## See [module.testing.assertions.signatures](../../spec/lang/10-modules.md#r-module.testing.assertions.signatures).
+pub fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string = "") -> void:
+    check_equal(actual, expected, reason)
+
 # What a checked `assert_equal` or `snapshot` call runs, with `T` the
 # readonly type of `actual`; the compiler checks the call itself. A failure
-# shows the reason and both values as `debug` renders them
+# shows a nonempty reason and both values as `debug` renders them
 # (spec/lang/10-modules.md#r-module.testing.assert-equal-debug).
 fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
     if actual != expected:
-        panic_with(
-            "assertion-failed",
-            "${reason}: actual ${debug(actual)}, expected ${debug(expected)}",
-        )
+        details := "actual ${debug(actual)}, expected ${debug(expected)}"
+        message := if reason == "": details else: "${reason}: ${details}"
+        panic_with("assertion-failed", message)
 
 # The checked runtime panic of `category`, such as `assertion-failed`,
 # showing `message`, or no message when it is empty; it does not return.

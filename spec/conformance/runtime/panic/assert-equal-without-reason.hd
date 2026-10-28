@@ -1,0 +1,6 @@
+# Spec 10 Standard Testing: module.testing.assertions.reason-empty.
+tests:
+    use std.testing.assert_equal
+
+    it("unequal values need no reason"):
+        assert_equal(3, 4) # panic: assertion-failed

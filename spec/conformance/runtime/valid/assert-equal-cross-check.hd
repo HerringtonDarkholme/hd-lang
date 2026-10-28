@@ -1,4 +1,4 @@
-# Spec 10 Standard Testing: module.testing.exports.
+# Spec 10 Standard Testing: module.testing.assertions.signatures.
 @derive(Debug)
 enum Shape:
     Circle(radius: i32)

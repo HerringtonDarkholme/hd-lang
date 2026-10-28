@@ -400,7 +400,7 @@ tests:
     use std.testing.assert_equal
 
     it("counts the sample orders"):
-        assert_equal(order_count(sample_orders()), 2, reason="two sample orders")
+        assert_equal(order_count(sample_orders()), 2)
 ```
 
 > **Why.** Each integration test program builds on its own, as each Cargo
@@ -431,7 +431,7 @@ A fenced `hd` block in a documentation comment is a test of its own, which
 ## use pkg.text.{slugify}
 ## use std.testing.assert_equal
 ##
-## assert_equal(slugify("Ship It Now"), "Ship-It-Now", reason="each space becomes a hyphen")
+## assert_equal(slugify("Ship It Now"), "Ship-It-Now")
 ## ```
 pub fn slugify(title: string) -> string:
     let slug = ""
@@ -1305,17 +1305,22 @@ fn first_word(text: string) -> string:
 `std.testing` exports these normative assertion functions:
 
 ```text
-fn assert(condition: bool, reason: string) -> void
-fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void
+fn assert(condition: bool, reason: string = "") -> void
+fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string = "") -> void
 ```
 
-1. r[module.testing.exports] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.
-2. r[module.testing.reason] `reason` is required and must explain the checked condition.
+1. r[module.testing.assertions.signatures] `std.testing` exports the normative assertion functions `assert` and `assert_equal` with the signatures above.
+2. r[module.testing.assertions.reason-optional] An assertion's `reason` may be omitted, in which case its value is the empty string.
 3. r[module.testing.assert-panic] A failed assertion causes a runtime panic, inside a test case or not. Panic: `assertion-failed`.
-4. r[module.testing.shows-reason] A failed `assert` or `assert_equal` shows its `reason`.
-5. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
-6. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `unsatisfied-trait-bound`.
-7. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
+4. r[module.testing.assertions.reason-shown] A failed assertion with a nonempty `reason` shows that reason.
+5. r[module.testing.assertions.reason-empty] A failed assertion with an empty `reason` emits no empty reason text.
+6. r[module.testing.uses-eq] `assert_equal` uses `Eq.eq`.
+7. r[module.testing.no-implicit-eq] `assert_equal` does not grant implicit equality to its argument type. An argument type without `Eq` is an error. Error: `unsatisfied-trait-bound`.
+8. r[module.testing.assert-equal-debug] `assert_equal` also requires `T < Debug`, and a failure shows both values as `debug` renders them. A type without `Debug` is an error. Error: `unsatisfied-trait-bound`.
+
+> **Why.** The failed expression's source line, and both values for
+> `assert_equal`, already identify the check. Rust, pytest, JUnit, and Kotlin
+> likewise make the extra assertion message optional.
 
 ```text
 @derive(Debug)
@@ -1327,7 +1332,7 @@ tests:
 
     it("result equality needs Eq"):
         let actual: Result[i32, Error] = .Ok(1)
-        assert_equal(actual, .Ok(1), reason="values match")  # error: unsatisfied-trait-bound
+        assert_equal(actual, .Ok(1))  # error: unsatisfied-trait-bound
 ```
 
 ### Test Cases
@@ -1341,10 +1346,10 @@ tests:
     use std.testing.assert_equal
 
     it("adds two values"):
-        assert_equal(add(2, 3), 5, reason="small sums")
+        assert_equal(add(2, 3), 5)
 
     it("adds large values", ignore="slow on shared runners"):
-        assert_equal(add(1000, 2000), 3000, reason="large sums")
+        assert_equal(add(1000, 2000), 3000)
 ```
 
 `std.testing` declares `it` as an ordinary function:
@@ -1862,7 +1867,7 @@ tests:
     use std.testing.assert_equal
 
     it("seeds two rows"):
-        assert_equal(rows().len(), 2, reason="the seed rows")
+        assert_equal(rows().len(), 2)
 ```
 
 > **Why.** A test run never runs `main`, and a script's top level plays

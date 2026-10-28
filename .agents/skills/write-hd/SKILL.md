@@ -374,7 +374,8 @@ A provider is a trait value, so it is written `&mut fake` (or
 `&StdoutMailer {}` for a new object).
 A public function's row may name only public traits. Tests live in one
 `tests:` block at the end of the file; each `it("name"):` is a case, and
-`assert` and `assert_equal` are in scope there, with a required `reason=`.
+`assert` and `assert_equal` are in scope there. Their optional `reason=`
+adds context when the checked expression and values are not enough.
 
 ```hd
 pub trait Mailer:
@@ -408,8 +409,8 @@ tests:
     it("mails every user"):
         let mut fake = FakeMailer { sent: [] }
         $.with(Mailer=&mut fake):
-            assert_equal(remind(["a", "b"]), 2, reason="two users")
-        assert_equal(fake.sent, ["a", "b"], reason="in order")
+            assert_equal(remind(["a", "b"]), 2)
+        assert_equal(fake.sent, ["a", "b"])
         assert(fake.sent.len() == 2, reason="two mails")
 ```
 
@@ -519,7 +520,6 @@ the code `hd check` reports today.
 | `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `&Circle { ... }` |
 | `impl Add for Money` with no import | `unknown-trait` | `use std.ops.Add` |
 | `type Output = Money` | `extra-trait-member` | `type Out = Money` |
-| `assert_equal(a, b)` | `argument-count` | `assert_equal(a, b, reason="...")` |
 | `assert_equal` with no import | `unknown-name` | `use std.testing.assert_equal` in `tests:` |
 | `if not ok`, `a and b`, `elif` | `syntax-error` | `!ok`, `a && b`, `else if` |
 | `loop:` | `unknown-name` | `while true:` |

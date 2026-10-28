@@ -317,8 +317,9 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 )),
             );
             // `assert_equal[T < Eq & Debug](actual: T, expected: T, reason:
-            // string)` (module.testing.exports): the checker checks the
-            // call and runs std's `check_equal` (lib/std/testing.hd).
+            // string = "")` (module.testing.assertions.signatures): the
+            // checker checks the call and runs std's `check_equal`
+            // (lib/std/testing.hd).
             let ae = names.item(module, "assert_equal");
             let t = param(names, ae, 0);
             let tv = |d| {
@@ -334,19 +335,17 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 bounds: vec![tv(eq), tv(names.known.debug)],
                 ..Generic::plain(sym(names, "T"))
             };
-            item(
-                "assert_equal",
-                vec![],
-                ItemData::Fn(FnSig::simple(
-                    vec![g],
-                    vec![
-                        (sym(names, "actual"), t),
-                        (sym(names, "expected"), t),
-                        (sym(names, "reason"), Ty::STRING),
-                    ],
-                    Ty::VOID,
-                )),
+            let mut sig = FnSig::simple(
+                vec![g],
+                vec![
+                    (sym(names, "actual"), t),
+                    (sym(names, "expected"), t),
+                    (sym(names, "reason"), Ty::STRING),
+                ],
+                Ty::VOID,
             );
+            sig.defaults[2] = true;
+            item("assert_equal", vec![], ItemData::Fn(sig));
         }
         _ => {}
     }

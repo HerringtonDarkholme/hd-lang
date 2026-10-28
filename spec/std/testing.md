@@ -199,7 +199,7 @@ fn span(c: &mut Choices) -> i64:
 tests:
     # the first generated cases draw the edges: -10, 10, and 0
     it_prop_with("the span holds", gen=span, cases=8, prop=fn!(n: i64):
-        assert(n >= -10 && n <= 10, reason="in range")
+        assert(n >= -10 && n <= 10)
     )
 ```
 
@@ -398,7 +398,7 @@ tests:
     use std.testing.{assert_equal, it_each}
 
     it_each("doubles", [1, 2, 3], body=fn!(value: i32):
-        assert_equal(double(value), value + value, reason="doubling adds the value to itself")
+        assert_equal(double(value), value + value)
     )
 ```
 
@@ -480,8 +480,8 @@ use std.testing.{assert_equal, hd_run}
 
 it("prints a greeting"):
     let out = hd_run!(*Command::new("hello"))
-    assert_equal(out.stdout, "hello, world\n", reason="the greeting")
-    assert_equal(out.status, 0, reason="a clean exit")
+    assert_equal(out.stdout, "hello, world\n")
+    assert_equal(out.status, 0)
 ```
 
 ```text
@@ -531,7 +531,7 @@ it("exports the orders into its own directory"):
     orders := read_text!(Path("fixtures/orders.csv")).expect("the orders fixture")
     out := Path("${temp_dir()}/export.csv")
     write_text!(out, orders).expect("the export")
-    assert_equal(read_text!(out).expect("the written export"), orders, reason="the export holds every order")
+    assert_equal(read_text!(out).expect("the written export"), orders)
 ```
 
 > **Note.** A unit test may call `temp_dir` too, but it reaches no
@@ -573,7 +573,7 @@ tests:
 
     it("stamps the receipt with the clock's time"):
         $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
-            assert_equal(receipt_header("Main St"), "Main St at 1970-01-01T00:00:00Z", reason="a fixed clock")
+            assert_equal(receipt_header("Main St"), "Main St at 1970-01-01T00:00:00Z")
 
     it("reads the real clock"):
         _ := receipt_header("Main St")  # error: missing-requirement
@@ -737,7 +737,7 @@ tests:
         let system: usize = 0
         for expected in history:
             system += 1
-            assert_equal(system, expected, reason="the command's expected count")
+            assert_equal(system, expected)
     )
 ```
 
@@ -772,7 +772,7 @@ tests:
         let system: usize = 0
         for expected in history:
             system += 1
-            assert_equal(system, expected, reason="the command's expected count")
+            assert_equal(system, expected)
     )
 ```
 

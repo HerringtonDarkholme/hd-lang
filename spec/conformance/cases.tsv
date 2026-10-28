@@ -653,6 +653,7 @@ runtime/valid/count-elision-borrows.hd	runtime	accept	lang/04-type-system.md#r-t
 runtime/valid/display-dispatch.hd	runtime	accept	lang/05-expressions.md#literals
 runtime/valid/float-display.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
 runtime/valid/assert.hd	runtime	accept	lang/10-modules.md#standard-testing
+runtime/valid/assert-optional-reasons.hd	runtime	accept	lang/10-modules.md#r-module.testing.assertions.reason-optional
 runtime/valid/partial-equality-dispatch.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/partial-ordering-dispatch.hd	runtime	accept	lang/09-traits.md#comparison-traits
 runtime/valid/structural-equality.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
@@ -1115,6 +1116,7 @@ runtime/panic/assert-equal-optional-unequal.hd	runtime	panic:assertion-failed	la
 runtime/panic/assert-equal-result-unequal.hd	runtime	panic:assertion-failed	lang/10-modules.md#standard-testing
 runtime/panic/assert-equal-string-unequal.hd	runtime	panic:assertion-failed	lang/10-modules.md#standard-testing
 runtime/panic/assert-equal-tuple-unequal.hd	runtime	panic:assertion-failed	lang/10-modules.md#standard-testing
+runtime/panic/assert-equal-without-reason.hd	runtime	panic:assertion-failed	lang/10-modules.md#r-module.testing.assertions.reason-empty
 runtime/valid/args-binds-tuples-of-every-arity.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 runtime/valid/assert-equal-bool.hd	runtime	accept	lang/10-modules.md#standard-testing
 runtime/valid/assert-equal-char.hd	runtime	accept	lang/10-modules.md#standard-testing

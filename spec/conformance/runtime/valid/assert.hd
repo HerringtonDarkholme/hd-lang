@@ -1,4 +1,4 @@
-# Spec 10 Standard Testing: module.testing.exports, module.testing.reason.
+# Spec 10 Standard Testing: module.testing.assertions.signatures.
 let order = +0
 
 fn ordered_condition() -> bool:
