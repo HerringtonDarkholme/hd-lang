@@ -11,7 +11,8 @@ use hd_syntax::{NodeRef, SyntaxKind};
 use hd_types::Prim;
 
 use crate::comparison::{
-    Binding, DiscardedExpression, Mutability, Operand, SourceFacts, Statement, VariantPattern,
+    Binding, DiscardedExpression, Mutability, Operand, ParameterWrite, SourceFacts, Statement,
+    VariantPattern,
 };
 
 /// An expression operand in one checked comparison.
@@ -46,6 +47,18 @@ impl SourceBinding {
 pub struct SourceStatement(usize);
 
 impl SourceStatement {
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn from_index(index: usize) -> Self {
+        Self(index)
+    }
+}
+
+/// A checked change to a function's own mutable parameter copy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SourceParameterWrite(usize);
+
+impl SourceParameterWrite {
     #[doc(hidden)]
     #[must_use]
     pub const fn from_index(index: usize) -> Self {
@@ -220,6 +233,34 @@ impl MutabilityView<'_> {
 #[derive(Clone, Copy)]
 pub struct StatementView<'v> {
     statement: &'v Statement,
+}
+
+/// A mutation of a `mut` parameter, with its conservative later-use result.
+#[derive(Clone, Copy)]
+pub struct ParameterWriteView<'v> {
+    write: &'v ParameterWrite,
+}
+
+impl<'v> ParameterWriteView<'v> {
+    #[must_use]
+    pub const fn span(self) -> Span {
+        self.write.span
+    }
+
+    #[must_use]
+    pub fn name(self) -> &'v str {
+        &self.write.name
+    }
+
+    #[must_use]
+    pub const fn is_receiver(self) -> bool {
+        self.write.receiver
+    }
+
+    #[must_use]
+    pub const fn observed_after(self) -> bool {
+        self.write.observed_after
+    }
 }
 
 impl<'v> StatementView<'v> {
@@ -402,6 +443,14 @@ impl<'v> CheckedView<'v> {
             .statements
             .get(source.0)
             .map(|statement| StatementView { statement })
+    }
+
+    #[must_use]
+    pub fn parameter_write(self, source: SourceParameterWrite) -> Option<ParameterWriteView<'v>> {
+        self.facts?
+            .parameter_writes
+            .get(source.0)
+            .map(|write| ParameterWriteView { write })
     }
 
     #[must_use]

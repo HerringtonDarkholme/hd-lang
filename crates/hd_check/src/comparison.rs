@@ -69,6 +69,15 @@ pub struct Statement {
     pub reachable: bool,
 }
 
+/// One checked change to a `mut` parameter or `mut self` copy.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParameterWrite {
+    pub span: Span,
+    pub name: String,
+    pub receiver: bool,
+    pub observed_after: bool,
+}
+
 /// An implicit expression statement; explicit `_ := ...` is not a discard here.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiscardedExpression {
@@ -100,6 +109,7 @@ pub struct SourceFacts {
     pub bindings: Vec<Binding>,
     pub patterns: Vec<VariantPattern>,
     pub statements: Vec<Statement>,
+    pub parameter_writes: Vec<ParameterWrite>,
     pub discarded: Vec<DiscardedExpression>,
 }
 
@@ -109,6 +119,7 @@ impl SourceFacts {
         self.bindings.extend(other.bindings);
         self.patterns.extend(other.patterns);
         self.statements.extend(other.statements);
+        self.parameter_writes.extend(other.parameter_writes);
         self.discarded.extend(other.discarded);
     }
 }

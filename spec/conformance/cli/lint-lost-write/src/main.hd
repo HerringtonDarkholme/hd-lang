@@ -1,0 +1,41 @@
+struct Box:
+    value: i32
+
+impl Box:
+    fn set(&mut self, value: i32) -> void:
+        self.value = value
+
+fn push_lost(mut values: List[i32]) -> void:
+    values.push(+1)
+
+fn element_store_lost(mut values: List[i32]) -> void:
+    values[0] = +1
+
+fn map_store_lost(mut values: Map[string, i32]) -> void:
+    values["one"] = +1
+
+fn receiver_call_lost(mut value: Box) -> void:
+    value.set(+1)
+
+fn read_after(mut values: List[i32]) -> usize:
+    values.push(+1)
+    values.len()
+
+fn print_after(mut values: List[i32]) -> void $ Console:
+    values.push(+1)
+    println(values.len())
+
+fn pass_after(mut values: List[i32]) -> usize:
+    values.push(+1)
+    read_after(values)
+
+fn return_after(mut values: List[i32]) -> List[i32]:
+    values.push(+1)
+    values
+
+fn capture_after(mut values: List[i32]) -> fn() -> usize:
+    values.push(+1)
+    fn() -> usize: values.len()
+
+pub fn main() -> void:
+    pass

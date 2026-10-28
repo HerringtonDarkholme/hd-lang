@@ -871,6 +871,8 @@ hd lint --all --allow unused-local-binding
 27. r[cli.lint.status-warning] A successful lint run with only warning-level findings exits with status 0.
 28. r[cli.lint.status-error] A lint run with a compiler error, denied finding, invocation error, or configuration error exits with status 101.
 29. r[cli.lint.stable-messages] Moving an existing warning into lint preserves its stable diagnostic code, message, source span and fix-it information.
+30. r[cli.lint.lost-write] A change to a `mut` parameter or `mut self` copy produces `lost-write` when the changed copy is never read afterwards, returned, stored, passed on, or captured. A change is a whole reassignment, a struct field write, a list or map element store, or a call of an `&mut self` method such as `push`. The message suggests a mutable reference when the caller's value was meant to change. Warning: `lost-write`.
+31. r[cli.lint.lost-write.scope] `lost-write` judges changes in direct statements of a function body. It stays silent when a later statement names the parameter, or when a closure or `defer` in the body captures it.
 
 | Level | Effect |
 | --- | --- |

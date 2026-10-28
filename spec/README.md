@@ -89,7 +89,7 @@ maps each exercised code to its fixture.
 | Error | `defer-control-flow`, `defer-outside-cleanup-scope` |
 | Error | `inline-always-uncopyable` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
-| Lint finding (default warning) | `broken-doc-link`, `dbg-in-dependency`, `derivation-line-drift`, `mixed-script-identifier`, `private-main`, `redundant-let-mut`, `unreachable-code`, `unselected-main`, `unsigned-comparison-always`, `unused-debug-text`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
+| Lint finding (default warning) | `broken-doc-link`, `dbg-in-dependency`, `derivation-line-drift`, `lost-write`, `mixed-script-identifier`, `private-main`, `redundant-let-mut`, `unreachable-code`, `unselected-main`, `unsigned-comparison-always`, `unused-debug-text`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
 | Runtime panic | The complete closed category list is defined in [Control Flow](lang/06-control-flow.md#runtime-panics). |
 | Boundary failure | `boundary-cycle`, `boundary-decoder-panic` |
 

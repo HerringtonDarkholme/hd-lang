@@ -3,7 +3,8 @@
 use hd_base::SliceSort as _;
 use hd_base::{FileId, Span, TokenIdx};
 use hd_check::analysis::{
-    CheckedView, SourceBinding, SourceCall, SourceExpr, SourcePattern, SourceStatement,
+    CheckedView, SourceBinding, SourceCall, SourceExpr, SourceParameterWrite, SourcePattern,
+    SourceStatement,
 };
 use hd_check::comparison::SourceFacts;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
@@ -30,12 +31,14 @@ impl Events {
     pub const DERIVATIONS: Self = Self(1 << 8);
     pub const MAIN_SITE: Self = Self(1 << 9);
     pub const FETCHED_DEBUG: Self = Self(1 << 10);
+    pub const PARAMETER_WRITE: Self = Self(1 << 11);
     pub const CHECKED: Self = Self(
         Self::COMPARISON.0
             | Self::BINDING.0
             | Self::STATEMENT.0
             | Self::PATTERN.0
-            | Self::DISCARD.0,
+            | Self::DISCARD.0
+            | Self::PARAMETER_WRITE.0,
     );
     pub const SOURCE: Self = Self(Self::IDENT.0 | Self::DECL.0 | Self::MODULE.0);
     pub const MODULE_ANALYSIS: Self =
@@ -112,6 +115,7 @@ pub enum Event<'v> {
     Comparison(ComparisonEvent),
     Binding(SourceBinding),
     Statement(SourceStatement),
+    ParameterWrite(SourceParameterWrite),
     Pattern(SourcePattern),
     Discard(SourceCall),
     Derivations(DerivationsEvent<'v>),
@@ -129,6 +133,7 @@ impl Event<'_> {
             Self::Comparison(_) => Events::COMPARISON,
             Self::Binding(_) => Events::BINDING,
             Self::Statement(_) => Events::STATEMENT,
+            Self::ParameterWrite(_) => Events::PARAMETER_WRITE,
             Self::Pattern(_) => Events::PATTERN,
             Self::Discard(_) => Events::DISCARD,
             Self::Derivations(_) => Events::DERIVATIONS,
@@ -364,6 +369,20 @@ pub(crate) fn walk<'v>(
                 family: 1,
                 event: Event::Binding(SourceBinding::from_index(i)),
             }));
+        }
+        if interests.contains(Events::PARAMETER_WRITE) {
+            pending.extend(
+                facts
+                    .parameter_writes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, fact)| Pending {
+                        at: fact.span.lo,
+                        finish: false,
+                        family: 5,
+                        event: Event::ParameterWrite(SourceParameterWrite::from_index(i)),
+                    }),
+            );
         }
         if interests.contains(Events::PATTERN) {
             pending.extend(facts.patterns.iter().enumerate().map(|(i, fact)| Pending {

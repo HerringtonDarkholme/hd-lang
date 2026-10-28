@@ -72,6 +72,7 @@ impl AnalysisSink for Recorder {
             Event::Comparison(_) => "comparison".to_owned(),
             Event::Binding(_) => "binding".to_owned(),
             Event::Statement(_) => "statement".to_owned(),
+            Event::ParameterWrite(_) => "parameter-write".to_owned(),
             Event::Pattern(_) => "pattern".to_owned(),
             Event::Discard(_) => "discard".to_owned(),
             Event::Derivations(_) => "derivations".to_owned(),
@@ -157,6 +158,15 @@ impl AnalysisSink for TypedRecorder {
             Event::Statement(source) => {
                 let statement = view.statement(*source).unwrap();
                 format!("statement:{}", statement.is_reachable())
+            }
+            Event::ParameterWrite(source) => {
+                let write = view.parameter_write(*source).unwrap();
+                format!(
+                    "parameter-write:{}:{}:{}",
+                    write.name(),
+                    write.is_receiver(),
+                    write.observed_after()
+                )
             }
             Event::Pattern(source) => {
                 let pattern = view.pattern(*source).unwrap();

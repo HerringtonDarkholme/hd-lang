@@ -62,6 +62,7 @@ task-name-clash	cli.task.name-clash,cli.exe.default-name.clash,cli.name.task
 lint-default-and-policy	cli.lint.exact-names,cli.lint.levels,cli.lint.cli-conflict,cli.lint.unknown-name,cli.lint.status-warning,cli.lint.status-error
 lint-derivation-advice	cli.lint.stable-messages,cli.lint.default,cli.lint.levels,cli.lint.ordinary-errors
 lint-errors-unsuppressible	cli.lint.prerequisites,cli.lint.errors-unsuppressible
+lint-lost-write	cli.lint.lost-write,cli.lint.lost-write.scope,cli.lint.default,cli.lint.ordinary-errors
 lint-manifest-precedence	cli.lint.manifest,cli.lint.cli-override
 lint-ordinary-commands-quiet	cli.lint.ordinary-errors
 lint-private-entry	cli.exe.private-main.missing,cli.exe.private-main.analysis

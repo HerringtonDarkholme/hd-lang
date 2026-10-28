@@ -535,6 +535,7 @@ impl Ck<'_, '_> {
     /// `let mut` binding or a `mut` parameter. Reports why not otherwise.
     fn receiver_local_writable(&mut self, l: LocalId, at: NodeRef<'_>, name: &str) -> bool {
         if self.mut_locals.contains(&l) {
+            self.note_param_write(l, at.index());
             return true;
         }
         let (sym, flags, syn) = {

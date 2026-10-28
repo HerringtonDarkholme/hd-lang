@@ -254,6 +254,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
     /// copy.
     pub mut_params: Vec<LocalId>,
+    /// Checked mutations of those copies, before direct-statement grouping.
+    pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
+    /// Neutral facts published to optional post-check analysis.
+    pub parameter_writes: Vec<crate::comparison::ParameterWrite>,
     /// Source-only mutable-address and written binding facts requested by tooling.
     pub ref_taken: Vec<LocalId>,
     pub mut_bindings: Vec<(LocalId, hd_base::NodeIdx, Option<LetMutKind>)>,
@@ -564,6 +568,8 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_locals: Vec::new(),
         changed_locals: Vec::new(),
         mut_params: Vec::new(),
+        param_writes: Vec::new(),
+        parameter_writes: Vec::new(),
         ref_taken: Vec::new(),
         mut_bindings: Vec::new(),
         variant_patterns: Vec::new(),
@@ -1082,6 +1088,7 @@ fn fn_body_steps(
         })?
     };
     let root = ck.b.close_block(blk, tail, ret, body.index());
+    ck.finish_parameter_writes(body);
     ck.finish_with(root, ret, Some(node))
 }
 
@@ -1558,6 +1565,13 @@ impl Ck<'_, '_> {
             self.add_flags(l, local_flags::MUTATED);
         }
         self.add_flags(l, local_flags::ASSIGNED);
+    }
+
+    /// Records a checked mutation of a function's own mutable parameter copy.
+    pub(crate) fn note_param_write(&mut self, l: LocalId, at: hd_base::NodeIdx) {
+        if self.cx.source_facts.is_some() && self.mut_params.contains(&l) {
+            self.param_writes.push((l, at));
+        }
     }
 
     pub(crate) fn sym_of(&self, n: NodeRef<'_>) -> Symbol {
@@ -3834,6 +3848,7 @@ impl Ck<'_, '_> {
                     }
                 };
                 self.note_write(l, depth);
+                self.note_param_write(l, s.index());
                 self.set_local(l, v, s.index());
             }
             SyntaxKind::FieldExpr => {
@@ -4769,6 +4784,7 @@ impl Ck<'_, '_> {
             sink.bindings.extend(bindings);
             sink.patterns.extend(self.variant_patterns);
             sink.statements.extend(self.statements);
+            sink.parameter_writes.extend(self.parameter_writes);
             sink.discarded.extend(self.discarded);
         }
         Ok((body, ret, facts))

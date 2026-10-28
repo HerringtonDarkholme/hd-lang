@@ -15,6 +15,7 @@ use hd_types::Prim;
 
 pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
 pub const DBG_IN_DEPENDENCY: &str = Code::DbgInDependency.as_str();
+pub const LOST_WRITE: &str = Code::LostWrite.as_str();
 pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
 pub const MIXED_SCRIPT: &str = Code::MixedScriptIdentifier.as_str();
 pub const PRIVATE_MAIN: &str = Code::PrivateMain.as_str();
@@ -81,6 +82,12 @@ pub const RULES: &[Rule] = &[
         Level::Warn,
         Events::DERIVATIONS,
         derivation::drift,
+    ),
+    Rule::new(
+        Code::LostWrite,
+        Level::Warn,
+        Events::PARAMETER_WRITE,
+        lost_write,
     ),
     Rule::new(
         Code::MixedScriptIdentifier,
@@ -156,6 +163,33 @@ fn dbg_in_dependency(event: &Event<'_>, _view: &CheckedView<'_>, out: &mut DiagB
             "fetched package `{}` contains `dbg`; its debug output is suppressed",
             event.package
         ),
+        None,
+    );
+}
+
+fn lost_write(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::ParameterWrite(source) = event else {
+        return;
+    };
+    let Some(write) = view.parameter_write(*source) else {
+        return;
+    };
+    if write.observed_after() {
+        return;
+    }
+    let message = if write.is_receiver() {
+        "this write to `self` is lost: the copy is never read afterwards or returned; take `&mut self` to change the caller's value".to_owned()
+    } else {
+        format!(
+            "this write to the parameter `{}` is lost: the copy is never read afterwards or returned; take `&mut T` to change the caller's value",
+            write.name()
+        )
+    };
+    out.push(
+        Code::LostWrite,
+        Severity::Warning,
+        write.span(),
+        &message,
         None,
     );
 }
