@@ -79,18 +79,34 @@ Existing reader behavior is unchanged until an application calls validation.
 
 ## Cost
 
-The API is not implemented, but its dispatch representations were measured in release Wasm on `a121c3ffd` with Node v24.19.0.
-Each path ran the same eight predicates over four values for 100,000 validations; construction stayed outside the timed region.
-Five warmups preceded 30 paired samples across two fresh processes, each sample aggregating ten batches.
+The API is not implemented, but its dispatch representations were measured for PR head `395e511e6` in release Wasm on `a121c3ffd` with Node v24.19.0.
+Each fresh process ran a tier-specific fixed batch sized to about 300 ms of hand-written work.
+Fifteen runs were rotated and interleaved per variant at the default, `--no-liftoff` and `--liftoff-only` tiers.
+The in-Wasm timer covered validation only; every path produced the same issue count and checksum.
+Ratios are median paired throughput ratios, so higher is better.
 
 Inline `env_as(...)?` inside the custom-error example reports `a type argument named only in bounds has no solution; write it explicitly`.
 An expected `Result[Port?, HostError]` binding resolves it without naming the parse error type; direct HostError-returning controls also pass.
 
-| Representation | Median / 100k | Hand-written | Ratio | Paired range |
-| --- | ---: | ---: | ---: | ---: |
-| Distinct data facts, static calls | 6.2 ms | 5.5 ms | **1.13×** | 1.05–1.19× |
-| One dynamic composite per field | 10.3 ms | 5.5 ms | **1.87×** | 1.80–1.96× |
-| Dynamic `Rules[F]` list | 15.0 ms | 5.6 ms | **2.68×** | 2.57–2.80× |
+| Variant | Default validations / 300 ms | Ratio | `--no-liftoff` validations / 300 ms | Ratio | `--liftoff-only` validations / 300 ms | Ratio |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Hand-written checks | 5,182,724 | 1.000× | 6,437,086 | 1.000× | 2,101,911 | 1.000× |
+| Distinct data facts, static calls | 5,032,258 | 0.969× | 5,062,500 | 0.786× | 1,696,658 | 0.802× |
+| One dynamic composite per field | 2,765,957 | 0.536× | 2,963,415 | 0.463× | 1,120,543 | 0.530× |
+| Dynamic `Rules[F]` list | 2,063,492 | 0.398× | 2,044,164 | 0.318× | 706,638 | 0.335× |
+
+The end-to-end pair freshly decoded the same four `Signup` documents on every validation.
+Both arms allocated the same paths, problems and violations; the derived arm added `Structure::walk`, metadata lookup and static rule dispatch.
+The dispatch probes use separate prefix, contains and excludes fact types so all four representations execute identical leaf checks.
+
+| Variant | Default values / 300 ms | Ratio | `--no-liftoff` values / 300 ms | Ratio | `--liftoff-only` values / 300 ms | Ratio |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| JSON decode + hand-written checks | 305,085 | 1.000× | 252,632 | 1.000× | 94,839 | 1.000× |
+| JSON decode + derived distinct facts | 204,545 | 0.663× | 174,545 | 0.690× | 65,479 | 0.692× |
+
+Static facts meet the 1.5× validation-only bar at every tier; both dynamic representations miss it clearly.
+Decode does not erase derivation cost: the real derived path retains 66–69% of hand-written end-to-end throughput.
+The measured Wasm sizes were 12,562/13,526/15,066/17,892B for hand-written/static/composite/list validation and 56,221/62,581B for hand-written/derived JSON.
 
 | Component | Estimated ordinary hd code and cost |
 | --- | --- |
@@ -101,12 +117,12 @@ An expected `Result[Port?, HostError]` binding resolves it without naming the pa
 | Reader-name resolvers | 80–160 lines; new std hooks, no compiler intrinsic proposed |
 | Value combinator | 10–20 lines; zero duplicated readers or generic read-error enum |
 | Compile time | Additional monomorphizations; full increment unmeasured |
-| Runtime | Static path meets the 1.5× bar; both dynamic representations are rejected |
+| Runtime | Static calls retain 0.79–0.97× validation throughput; real decode plus derived traversal retains 0.66–0.69×; both dynamic paths are rejected |
 | Web compiler | Recorded baseline 1,972,480B gzip / 2,000,000B cap; implementation increment unmeasured |
 
 The previous [bounded model](https://github.com/HerringtonDarkholme/hd-lang/issues/846#issuecomment-6406520802) measured control/model at 123,453/143,901B, 326/398 functions, and 100,826/116,174 code-section bytes.
 Five-launch startup-inclusive medians were Node 55.4/60.4ms and Wasmtime 41.0/46.3ms; the control omitted equivalent diagnostic paths.
-Those sources stay in scratch, and the broader revision needs fresh implementation measurements.
+Those sources stay in scratch, and the full implementation still needs compile-time, size and runtime measurements.
 
 <a id="appendix-c-stress-test"></a>
 
@@ -267,8 +283,8 @@ hd takes typed custom checks and explicit length semantics, but proposes automat
 | Six checked-reader variants | One named read-and-validate operation | Six wrappers and generic read-error composition; HTTP needs another |
 | `reader()?.validated()` | Works after any reader and on existing values | Extra traversal and name resolvers |
 | Cooperative validation during construction | Can reject before parent construction finishes | Build hooks, defaults/completion and custom-reader contracts |
-| Dynamic `Rules[F]` list | One extensible erased collection | Measured 2.68× hand-written; misses the 1.5× bar |
-| One dynamic composite per field | One indirect call per field | Measured 1.87×; still misses the bar |
+| Dynamic `Rules[F]` list | One extensible erased collection | Retains only 0.32–0.40× hand-written throughput and adds 42% Wasm in the ceiling |
+| One dynamic composite per field | One indirect call per field | Retains only 0.46–0.54× throughput and adds 20% Wasm in the ceiling |
 
 **Recommendation:** the value combinator, the smallest ordinary-library addition.
 Distinct facts preserve today's duplicate rule, like `rename` and `env_name`.
