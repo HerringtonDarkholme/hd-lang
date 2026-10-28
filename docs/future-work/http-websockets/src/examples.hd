@@ -11,6 +11,9 @@ use std.error.Error
 use std.http.{HeaderName, Headers, Request, Response, Url}
 use std.ops.Disposable
 
+# These checked examples use today's accepted Disposable/using protocol.
+# If #967's split is accepted, WebSocket uses AsyncDisposable and both bindings become using!.
+
 ## A client that sends and reads one text message, verifies liveness, and closes cleanly.
 fn echo_client!(url: Url) -> Result[(string, string?), *dyn Error] $ WebSocketClient:
     request := Request::get(url).set_header(.Authorization, "Bearer example-token")

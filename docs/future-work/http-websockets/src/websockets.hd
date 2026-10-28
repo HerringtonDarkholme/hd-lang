@@ -31,6 +31,8 @@ pub enum WebSocketCloseCode:
 pub enum WebSocketError:
     @error("HTTP request failed: $error")
     Http(error: HttpError)
+    @error("WebSocket $operation is not supported by this host")
+    UnsupportedHost(operation: string)
     @error("WebSocket upgrade was rejected")
     Rejected(response: Response)
     @error("WebSocket handshake failed: $reason")
