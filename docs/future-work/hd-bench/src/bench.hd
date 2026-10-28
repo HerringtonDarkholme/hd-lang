@@ -1,0 +1,67 @@
+use std.host.Args
+use std.time.Clock
+
+## The completed work one callback represents for throughput reporting.
+@derive(Debug, Eq)
+pub enum Throughput:
+    Operations(count: usize)
+    Bytes(count: usize)
+    Items(count: usize)
+
+## Why a benchmark root could not produce a valid measurement.
+@derive(Debug, Eq)
+@error
+pub enum BenchError:
+    @error("invalid benchmark definition: $message")
+    Definition(message: string)
+    @error("benchmark work failed: $message")
+    Work(message: string)
+    @error("benchmark clock failed: $message")
+    Clock(message: string)
+    @error("benchmark protocol failed: $message")
+    Protocol(message: string)
+
+## The timed-loop controller passed to one benchmark case.
+pub struct Bencher:
+    state: usize
+
+impl Bencher:
+    ## Repeats and measures `work`, reporting `throughput` per completed invocation.
+    pub fn iter![$ R](
+        &mut self,
+        throughput: Throughput,
+        work: fn!() -> Result[void, BenchError] $ R,
+    ) -> Result[void, BenchError] $ R + Clock:
+        panic("todo")
+
+    ## Prepares a fresh `S` outside timing, then measures one call with a local writable reference.
+    pub fn iter_batched![S, $ R](
+        &mut self,
+        throughput: Throughput,
+        setup: fn!() -> Result[S, BenchError] $ R,
+        work: fn!(&mut S) -> Result[void, BenchError] $ R,
+    ) -> Result[void, BenchError] $ R + Clock:
+        panic("todo")
+
+## A list of named benchmark callbacks with one compatible function type.
+pub struct Benchmarks[F]:
+    cases: List[(string, F)]
+
+impl[F] Benchmarks[F]:
+    ## Registers one benchmark callback under `name`.
+    pub fn add(&mut self, name: string, work: F) -> void:
+        panic("todo")
+
+## Constructs an empty benchmark registry for callbacks of type `F`.
+pub fn benchmarks[F]() -> Benchmarks[F]:
+    panic("todo")
+
+## Returns `value` unchanged while blocking optimization assumptions across this call.
+pub fn black_box[T](value: T) -> T:
+    panic("todo")
+
+## Runs a registry under the CLI benchmark protocol and writes its framed records.
+pub fn run![$ R](
+    suite: &mut Benchmarks[fn!(&mut Bencher) -> Result[void, BenchError] $ R + Clock],
+) -> Result[void, BenchError] $ R + Args + Clock + Console:
+    panic("todo")

@@ -33,6 +33,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Tooling
 
+- [`hd bench`](HD_BENCH.md): proposed `benches/` roots, calibrated throughput, clustered intervals, paired comparisons and machine-readable reports (#184).
 - [hd fmt](HD_FMT.md): the approved formatter architecture: one fixed style, comment attachment and a bounded document printer (#906); implemented (#899).
 - [hd lint](HD_LINT.md): the approved shared lint architecture: one rule registry, one analysis walk, policy applied once, a per-module findings cache (#908); the #855 migration onto it is complete.
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
