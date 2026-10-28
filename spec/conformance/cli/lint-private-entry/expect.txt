@@ -1,7 +1,13 @@
 run: hd build --format json
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"missing-entry-point","severity":"error","message":null},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"missing-entry-point","severity":"error","message":"`lint_fixture.main` has a private `main`; make it `pub` to use it as the entry point","file":"src/main.hd","line":1,"column":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd run --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"missing-entry-point","severity":"error","message":"`lint_fixture.main` has a private `main`; make it `pub` to use it as the entry point","file":"src/main.hd","line":1,"column":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd test --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"private-main","severity":"warning","message":"main is not pub, so it is not the entry point","file":"src/main.hd","line":1,"column":1,"fixes":[{"message":"make `main` public","edits":[{"file":"src/main.hd","start":0,"end":0,"text":"pub "}]}]},{"kind":"summary","errors":0,"warnings":1,"status":0}]

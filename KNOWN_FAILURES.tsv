@@ -1,2 +1,1 @@
 path	issue	engine	reason
-cli/lint-private-entry	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.

@@ -4,7 +4,7 @@ use hd_driver::analysis::Events;
 use hd_lint::{Level, Policy, RULES};
 use hd_project::parse_manifest;
 
-const EXPECTED: [(&str, Code, Events); 10] = [
+const EXPECTED: [(&str, Code, Events); 11] = [
     (
         "derivation-line-drift",
         Code::DerivationLineDrift,
@@ -15,6 +15,7 @@ const EXPECTED: [(&str, Code, Events); 10] = [
         Code::MixedScriptIdentifier,
         Events::IDENT,
     ),
+    ("private-main", Code::PrivateMain, Events::MAIN_SITE),
     ("redundant-let-mut", Code::RedundantLetMut, Events::BINDING),
     ("unreachable-code", Code::UnreachableCode, Events::STATEMENT),
     ("unselected-main", Code::UnselectedMain, Events::MAIN_SITE),
@@ -61,7 +62,7 @@ fn policy_free_findings() -> DiagBuf {
 }
 
 #[test]
-fn registry_is_the_exact_unique_ten_rule_surface() {
+fn registry_is_the_exact_unique_eleven_rule_surface() {
     assert_eq!(RULES.len(), EXPECTED.len());
     for (rule, (name, code, events)) in RULES.iter().zip(EXPECTED) {
         assert_eq!(rule.name(), name);

@@ -3041,13 +3041,27 @@ impl Run<'_> {
         if module.package != 0 {
             return None;
         }
-        let (lo, hi) = self.skim_of(m).file.public_main?;
+        let skim = &self.skim_of(m).file;
+        let (lo, hi, public) = skim
+            .public_main
+            .map(|(lo, hi)| (lo, hi, true))
+            .or_else(|| skim.private_main.map(|(lo, hi)| (lo, hi, false)))?;
         Some(hd_project::MainSite {
             span: Span {
                 file: module.file,
                 lo,
                 hi,
             },
+            public,
+            entry_module: self.entry_module(m),
+            make_public_exact: !self
+                .table
+                .modules
+                .iter()
+                .enumerate()
+                .any(|(other, candidate)| {
+                    candidate.package == 0 && self.skim_of(other).file.public_main.is_some()
+                }),
             role: module.role,
             entry: module.entry,
             source_root: self.table.files[module.file.idx()].starts_with("src/"),
@@ -3317,7 +3331,7 @@ impl Run<'_> {
     }
 
     /// Whether module `m` of the root package is an entry module that the
-    /// entry-point rules cover (`module.entry.private-main.warn`,
+    /// entry-point rules cover (`module.entry.private-main.lint`,
     /// `module.entry.parameters`): a root file other than the library
     /// root, an executable's module, or the file of a single-file program.
     fn entry_module(&self, m: usize) -> bool {
@@ -3401,62 +3415,6 @@ impl Run<'_> {
                 && self.reached.as_ref().is_none_or(|r| r[m])
                 && checked.is_none_or(|(reach, _)| reach[m])
         };
-        // `module.entry.private-main.warn`: a `main` or `main!` that is not
-        // `pub` in an entry module is an ordinary function.
-        for (m, module) in self.table.modules.iter().enumerate() {
-            if !self.entry_module(m) || !builds_module(m) {
-                continue;
-            }
-            if let Some((lo, hi)) = self.skim_of(m).file.private_main {
-                let span = Span {
-                    file: module.file,
-                    lo,
-                    hi,
-                };
-                let safety = if self
-                    .table
-                    .modules
-                    .iter()
-                    .enumerate()
-                    .any(|(other, candidate)| {
-                        candidate.package == 0 && self.skim_of(other).file.public_main.is_some()
-                    }) {
-                    hd_diag::FixSafety::Suggestion
-                } else {
-                    hd_diag::FixSafety::Exact
-                };
-                let header = self.texts[m].get(lo as usize..hi as usize).unwrap_or("");
-                let lexed = hd_syntax::lex(header.as_bytes());
-                let keyword = lexed
-                    .tokens
-                    .kind
-                    .iter()
-                    .position(|kind| *kind == hd_syntax::TokenKind::KwFn);
-                let mut diags = lock(&self.diags);
-                diags.push(
-                    Code::PrivateMain,
-                    Severity::Warning,
-                    span,
-                    "main is not pub, so it is not the entry point",
-                    None,
-                );
-                if let Some(keyword) = keyword {
-                    let at = lo + lexed.tokens.start[keyword];
-                    diags.add_fix(
-                        "make `main` public",
-                        safety,
-                        &[(
-                            Span {
-                                file: span.file,
-                                lo: at,
-                                hi: at,
-                            },
-                            "pub ",
-                        )],
-                    );
-                }
-            }
-        }
         for c in &graph.cycles {
             if c.iter()
                 .any(|f| self.table.folders[f.idx()].package != 0 || !builds(*f))
@@ -8535,6 +8493,28 @@ impl Run<'_> {
             }
             Goal::Analyze | Goal::CheckTests => return,
         };
+        if matches!(self.goal, Goal::Program { .. } | Goal::Scenario { .. })
+            && let Some(m) = self
+                .table
+                .modules
+                .iter()
+                .position(|module| module.path == entry_key)
+            && let Some((lo, hi)) = self.skim_of(m).file.private_main
+        {
+            let span = Span {
+                file: self.table.modules[m].file,
+                lo,
+                hi,
+            };
+            lock(&self.diags).error(
+                Code::MissingEntryPoint,
+                span,
+                &format!(
+                    "`{entry_key}` has a private `main`; make it `pub` to use it as the entry point"
+                ),
+            );
+            return;
+        }
         let mut modules: Vec<(&str, Hash128)> = Vec::new();
         // std's content is in the toolchain key; a dependency's reached
         // modules count as the root's do.

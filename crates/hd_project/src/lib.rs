@@ -81,11 +81,14 @@ pub enum Role {
     Task,
 }
 
-/// A written public `main` and its module's discovered source role.
+/// A written top-level `main` and its module's discovered source role.
 /// Tools decide whether it needs advice; no diagnostic or policy is stored here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MainSite {
     pub span: Span,
+    pub public: bool,
+    pub entry_module: bool,
+    pub make_public_exact: bool,
     pub role: Role,
     pub entry: bool,
     pub source_root: bool,

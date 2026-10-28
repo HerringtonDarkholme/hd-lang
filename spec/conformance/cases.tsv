@@ -2983,8 +2983,8 @@ runtime/valid/primitive-char-cmp-method-direct.hd	runtime	accept	lang/05-express
 runtime/valid/primitive-string-cmp-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.string-bytes
 runtime/valid/primitive-bool-eq-method-direct.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.std
 runtime/valid/multiply-by-zero-64.hd	runtime	accept	lang/05-expressions.md#r-expr.arith.int.checked
-typing/warnings/private-main.hd	type	warn:private-main	lang/10-modules.md#r-module.entry.private-main.lint
-typing/warnings/private-main-suspending.hd	type	warn:private-main	lang/10-modules.md#r-module.entry.private-main.lint
+typing/warnings/private-main.hd	type	accept	lang/10-modules.md#r-module.entry.private-main.lint
+typing/warnings/private-main-suspending.hd	type	accept	lang/10-modules.md#r-module.entry.private-main.lint
 typing/invalid/option-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant
 typing/invalid/result-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant.result
 typing/invalid/covariant-optional-field.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.option.invariant

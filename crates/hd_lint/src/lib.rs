@@ -16,6 +16,7 @@ use hd_types::Prim;
 pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
 pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
 pub const MIXED_SCRIPT: &str = Code::MixedScriptIdentifier.as_str();
+pub const PRIVATE_MAIN: &str = Code::PrivateMain.as_str();
 pub const UNSELECTED_MAIN: &str = Code::UnselectedMain.as_str();
 pub const UNREACHABLE: &str = Code::UnreachableCode.as_str();
 pub const UNUSED_DEBUG: &str = Code::UnusedDebugText.as_str();
@@ -79,6 +80,12 @@ pub const RULES: &[Rule] = &[
         Level::Warn,
         Events::IDENT,
         syntax::mixed_script,
+    ),
+    Rule::new(
+        Code::PrivateMain,
+        Level::Warn,
+        Events::MAIN_SITE,
+        modules::private_main,
     ),
     Rule::new(
         Code::RedundantLetMut,

@@ -1,5 +1,5 @@
 use hd_cache::MemoryStore;
-use hd_diag::Code;
+use hd_diag::{Code, FixSafety};
 use hd_driver::{
     Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
 };
@@ -72,6 +72,63 @@ fn public_main_findings_use_the_lint_cache_without_poisoning_check_entries() {
     assert!(following.counters.modules_checked.is_empty());
     assert!(following.analysis_diags.is_empty());
     assert!(!following.diags.code.contains(&Code::UnselectedMain));
+}
+
+#[test]
+fn private_main_is_lint_only_and_library_private_mains_stay_quiet() {
+    let mut sources = MemorySources::default();
+    sources.insert(
+        "src/main.hd",
+        "use pkg.helper.value\nfn main() -> void:\n    _ := value()\n",
+    );
+    sources.insert(
+        "src/helper.hd",
+        "fn main() -> i32: +1\npub fn value() -> i32: main()\n",
+    );
+    let store = MemoryStore::default();
+    let normal = checked(&sources, &store, &Packages::default(), false);
+    assert!(!normal.diags.has_errors(), "{}", normal.render());
+    assert!(!normal.diags.code.contains(&Code::PrivateMain));
+    for warm in [false, true] {
+        let out = checked(&sources, &store, &Packages::default(), true);
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        assert_eq!(out.counters.modules_checked.is_empty(), warm);
+        let findings = Policy::default().apply(&out.analysis_diags);
+        assert_eq!(findings.code, [Code::PrivateMain]);
+        assert_eq!(out.files[findings.primary[0].file.idx()], "src/main.hd");
+        assert_eq!(findings.fixes[0].len, 1);
+        let fix = findings.fixes[0].start as usize;
+        assert_eq!(findings.fix_safety[fix], FixSafety::Exact);
+        assert_eq!(
+            findings.get_text(findings.fix_title[fix]),
+            "make `main` public"
+        );
+        let edit = findings.fix_edits[fix].start as usize;
+        assert_eq!(findings.edits[edit].span.lo, 21);
+        assert_eq!(findings.get_text(findings.edits[edit].text), "pub ");
+    }
+}
+
+#[test]
+fn private_main_fix_is_a_suggestion_when_another_public_main_exists() {
+    let mut sources = MemorySources::default();
+    sources.insert("src/main.hd", "fn main() -> void:\n    pass\n");
+    sources.insert("src/helper.hd", "pub fn main() -> void:\n    pass\n");
+    let store = MemoryStore::default();
+    let out = checked(
+        &sources,
+        &store,
+        &Packages {
+            entries: vec!["main".to_owned(), "helper".to_owned()],
+            ..Packages::default()
+        },
+        true,
+    );
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    let findings = Policy::default().apply(&out.analysis_diags);
+    assert_eq!(findings.code, [Code::PrivateMain]);
+    let fix = findings.fixes[0].start as usize;
+    assert_eq!(findings.fix_safety[fix], FixSafety::Suggestion);
 }
 
 #[test]

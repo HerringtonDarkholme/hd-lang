@@ -8,7 +8,8 @@ Slices 0–6 are done: checked callee identity, the registry/indexed policy, the
 feature-gated analysis walk, borrowed typed views, the per-module policy-free
 findings cache, registered dispatch for all ten rules, and the unified
 manifest/CLI/source policy path. The parked producer migrations now resume on
-that architecture.
+that architecture. The `private-main` producer and its run/build entry failure
+are the first completed migration on that path; eleven rules are registered.
 
 ## Approved design
 
@@ -508,11 +509,10 @@ ideas remain in #651 and git history. They are not new accepted behavior.
 Operational decisions from #855 remain fixed: unknown manifest keys are load
 errors; run/build without a public entry report `missing-entry-point` and name
 the private `main`; failed `doc --open` is a command failure retaining its path.
-Their implementation status does not turn them into registry-controlled warnings.
-Manifest precedence and site allow do not work today; `cli/lint-manifest-precedence`
-and `cli/lint-site-allow` remain in root `KNOWN_FAILURES.tsv` under #855. The
-policy/suppression slice below is new implementation, not code moved from the
-current command.
+These operational errors remain separate from lint findings; the private-main
+advice itself is now registry-controlled. Manifest precedence and site allow
+were implemented by slice 6. Remaining operational slices are tracked in #855
+and root `KNOWN_FAILURES.tsv`.
 
 ## E. Signatures, invariants and delivery
 
