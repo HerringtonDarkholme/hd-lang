@@ -1,6 +1,6 @@
 # Compile-Time Values
 
-Status: design exploration, 2026-10-28; nothing here is decided or in the specification.
+Status: direction accepted 2026-10-28; not specified or implemented.
 
 This record explores [issue #875](https://github.com/HerringtonDarkholme/hd-lang/issues/875).
 It reviews const generic parameters, compile-time-only value parameters, and validation of static inputs.
@@ -19,8 +19,7 @@ It also uses the SIMD evidence in the [Performance Roadmap](PERFORMANCE_ROADMAP.
 - [Option: Promoted Literal Types](#option-promoted-literal-types)
 - [Option: Purpose-Built Compiler Operations](#option-purpose-built-compiler-operations)
 - [Comparison](#comparison)
-- [Recommendation](#recommendation)
-- [Questions For The Owner](#questions-for-the-owner)
+- [Direction](#direction)
 - [Sources](#sources)
 - [Parse Log](#parse-log)
 
@@ -119,7 +118,9 @@ fn must_compile(pattern: const string) -> Regex:  # hypothetical syntax
 
 `N` is part of `Array`'s type identity. A const value parameter is known at the call but need not appear in its result type.
 
-Initial const types would be integers, `bool`, `char`, and `string`. Type positions would initially accept literals, const bindings, and standalone const parameters, not symbolic arithmetic.
+Initial const types would be integers, `bool`, `char`, and `string`. A const context accepts literals, named consts, scalar operators, and calls of explicit const functions.
+
+The accepted spelling is `[N < const usize]` for a const generic and `pattern: const string` for a compile-time-only value parameter. A generic type body may use `N` alone in a type argument, but the first slice does not normalize symbolic expressions such as `N + 1`.
 
 Const functions would reject requirements, host calls, suspension, mutable references, pointer identity, and recursion without a compiler fuel limit. Failure while evaluation is required would be a compile-time diagnostic at the call.
 
@@ -232,13 +233,15 @@ By the repository's cost order, purpose-built operations have the preferred cost
 
 The other three options all require syntax. Among them, typed const parameters restrict evaluation more than unified comptime, while promoted literals add the largest type-system mechanism.
 
-## Recommendation
+## Direction
 
-Choose **typed const parameters and explicit const functions**, in staged slices.
+The accepted direction is **typed const parameters and explicit const functions**, in staged slices.
 
 1. First add scalar const generic parameters with closed evaluated arguments and standalone parameters in type positions.
 2. Then add const value parameters and explicit const functions, excluding requirements, suspension, references, and host effects.
 3. Add frozen materialization only for immutable value graphs before promising `Regex::must_compile` or `Url::must_parse`.
+
+Building these slices is not scheduled and needs a separate go-ahead.
 
 This is less magical than unified comptime execution. It keeps declaration intent visible and gives diagnostics a stable function boundary.
 
@@ -247,58 +250,6 @@ The first slice supports arrays and SIMD without committing to compile-time heap
 This gives up arbitrary ordinary-code evaluation and symbolic generic arithmetic. The next-best option is unified comptime if the owner values one metaprogramming mechanism above a narrow boundary.
 
 The purpose-built option ranks better by mechanism under hd's design-cost order. It loses because the issue also asks for user-defined const generics and validators, not only four built-ins.
-
-## Questions For The Owner
-
-1. **Should constness be a generic-parameter kind and parameter modifier?**
-   - **Recommended:** `[N < const usize]` and `pattern: const string`.
-   - Alternative: `@const` decorators on parameters.
-   - Alternative: one Zig-like `comptime` modifier.
-
-```text
-struct Array[T, N < const usize]:  # hypothetical syntax
-    pass
-```
-
-2. **Which constant expressions should the first slice accept?**
-   - **Recommended:** literals, named consts, scalar operators, and calls of explicit const functions.
-   - Smaller: literals, named consts, and standalone const parameters only.
-   - Larger: any ordinary function whose reached path is compile-time eligible.
-
-```text
-const fn lanes(bytes: usize) -> usize:  # hypothetical syntax
-    bytes / 4
-type Words = Array[u32, lanes(64)]  # hypothetical syntax
-```
-
-3. **May a const function produce heap-shaped immutable values?**
-   - **Recommended:** yes, after scalar const generics, as frozen strings, lists, structs, and enums without identity.
-   - Smaller: scalar results only; static regex and URL constructors wait.
-   - Larger: materialize arbitrary graphs, including shared references.
-
-```text
-const fn static_regex(pattern: string) -> Regex:  # hypothetical syntax
-    Regex::new(pattern).expect("invalid static regex")
-```
-
-4. **How much const arithmetic belongs in type identity initially?**
-   - **Recommended:** evaluate closed arguments, but allow only standalone parameters inside generic type bodies.
-   - Larger: normalize expressions such as `N + 1` symbolically.
-   - Smallest: accept literal arguments only.
-
-```text
-fn split[N < const usize](block: Array[u8, N]) -> void:  # hypothetical syntax
-    pass
-```
-
-5. **Should const values be inferred only from static argument types?**
-   - **Recommended:** yes; infer `N` from `Array[T, N]`, never from a runtime integer value.
-   - Alternative: require every const argument explicitly.
-
-```text
-fn width[N < const usize](items: Array[u8, N]) -> usize:  # hypothetical syntax
-    N
-```
 
 ## Sources
 
@@ -327,8 +278,3 @@ Parsing checks syntax only; it does not type-check examples.
 | Unified comptime | Rejected with `syntax-error` on the marked comptime generic and parameter syntax |
 | Promoted literals | Rejected with `syntax-error` on the marked value operation and literal type argument |
 | Purpose-built operations | Rejected with `syntax-error` on the marked literal type argument |
-| Question 1 | Rejected with `syntax-error` on the marked const generic syntax |
-| Question 2 | Rejected with `syntax-error` on the marked const function and computed type argument syntax |
-| Question 3 | Rejected with `syntax-error` on the marked const function syntax |
-| Question 4 | Rejected with `syntax-error` on the marked const generic syntax |
-| Question 5 | Rejected with `syntax-error` on the marked const generic syntax |
