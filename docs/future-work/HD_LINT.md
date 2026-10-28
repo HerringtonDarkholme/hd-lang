@@ -3,15 +3,15 @@
 Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/hd-lang/issues/908).
 The accepted command/policy rules remain in [the CLI spec](../../spec/cli/command-line.md#linting).
 This replaces the earlier implementation plan, not those decisions.
-Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
-Slices 0–6 are done: checked callee identity, the registry/indexed policy, the
+It was implemented in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855), complete on 2026-10-28.
+Slices 0–6 built checked callee identity, the registry/indexed policy, the
 feature-gated analysis walk, borrowed typed views, the per-module policy-free
 findings cache, registered dispatch for all ten rules, and the unified
-manifest/CLI/source policy path. The parked producer migrations now resume on
-that architecture. The `private-main` producer and its run/build entry failure
+manifest/CLI/source policy path. Every compiler warning now runs on that
+architecture. The `private-main` producer and its run/build entry failure
 are complete; `dbg-in-dependency` now derives from cached neutral references,
 and `broken-doc-link` from `hd_doc`'s neutral resolution results, only during
-lint. Thirteen rules are registered; `hd doc` reports errors only.
+lint. Fourteen rules are registered, `lost-write` (#817) the latest; `hd doc` reports errors only.
 
 ## Approved design
 
@@ -515,8 +515,8 @@ errors; run/build without a public entry report `missing-entry-point` and name
 the private `main`; failed `doc --open` is a command failure retaining its path.
 These operational errors remain separate from lint findings; the private-main
 advice itself is now registry-controlled. Manifest precedence and site allow
-were implemented by slice 6. Remaining operational slices are tracked in #855
-and root `KNOWN_FAILURES.tsv`.
+were implemented by slice 6. No operational slice remains, and root
+`KNOWN_FAILURES.tsv` has no lint rows.
 
 ## E. Signatures, invariants and delivery
 
