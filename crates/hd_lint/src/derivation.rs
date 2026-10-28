@@ -1,23 +1,22 @@
 //! Derivation advice over nominal, resolved declaration facts.
 
-use std::sync::Arc;
-
 use hd_base::{SliceSort as _, Span};
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
+use hd_driver::analysis::Event;
 use hd_resolve::facts::{BlockDecorator, DerivationFacts};
 
-use crate::Policy;
-
-/// The existing block-decorator and member-line advice, with independent policy.
-#[must_use]
-pub fn analyze_derivations(facts: &DerivationFacts, texts: &[Arc<str>], policy: Policy) -> DiagBuf {
-    policy.apply(&collect_derivations(facts, texts))
+pub(crate) fn unused(
+    event: &Event<'_>,
+    view: &hd_check::analysis::CheckedView<'_>,
+    out: &mut DiagBuf,
+) {
+    let Event::Derivations(event) = event else {
+        return;
+    };
+    collect_unused(event.facts(), view.source().text(), out);
 }
 
-/// Build derivation findings without command policy.
-#[must_use]
-pub fn collect_derivations(facts: &DerivationFacts, texts: &[Arc<str>]) -> DiagBuf {
-    let mut diags = DiagBuf::default();
+fn collect_unused(facts: &DerivationFacts, text: &str, out: &mut DiagBuf) {
     let mut decorators: Vec<_> = facts.decorators.iter().collect();
     decorators.sort_stable_by_key(|d| (d.span.file.raw(), d.span.lo, d.span.hi));
     decorators.dedup();
@@ -25,21 +24,29 @@ pub fn collect_derivations(facts: &DerivationFacts, texts: &[Arc<str>]) -> DiagB
         if decorator.marker || !decorator.valid {
             continue;
         }
-        diags.push(
+        out.push(
             Code::UnusedDerivationFact,
             Severity::Warning,
             decorator.span,
             "no derivation reads this value; write it in the block as `Self += [...]`",
             None,
         );
-        move_fix(&mut diags, decorator, texts);
+        move_fix_text(out, decorator, text);
     }
+}
+
+pub(crate) fn drift(event: &Event<'_>, _: &hd_check::analysis::CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::Derivations(event) = event else {
+        return;
+    };
+    collect_drift(event.facts(), out);
+}
+
+fn collect_drift(facts: &DerivationFacts, out: &mut DiagBuf) {
     let mut blocks: Vec<_> = facts.blocks.iter().collect();
     blocks.sort_stable_by_key(|b| (b.span.file.raw(), b.span.lo, b.span.hi));
     blocks.dedup();
     for (i, block) in blocks.iter().enumerate() {
-        // The old resolver compares blocks within one module. Nominal
-        // identities separate unrelated target types and trait packages.
         let first = blocks[..i].iter().find(|first| {
             first.span.file == block.span.file
                 && first.target == block.target
@@ -74,7 +81,7 @@ pub fn collect_derivations(facts: &DerivationFacts, texts: &[Arc<str>]) -> DiagB
             ))
         });
         if let Some(message) = message {
-            diags.push(
+            out.push(
                 Code::DerivationLineDrift,
                 Severity::Warning,
                 block.span,
@@ -83,16 +90,12 @@ pub fn collect_derivations(facts: &DerivationFacts, texts: &[Arc<str>]) -> DiagB
             );
         }
     }
-    diags
 }
 
-fn move_fix(diags: &mut DiagBuf, fact: &BlockDecorator, texts: &[Arc<str>]) {
-    let (Some(value), Some(first), Some(text)) =
-        (fact.value, fact.first, texts.get(fact.span.file.idx()))
-    else {
+fn move_fix_text(diags: &mut DiagBuf, fact: &BlockDecorator, text: &str) {
+    let (Some(value), Some(first)) = (fact.value, fact.first) else {
         return;
     };
-    let text = text.as_ref();
     let (start, end, first) = (fact.span.lo as usize, value.hi as usize, first.lo as usize);
     let Some(prefix) = text.get(..start) else {
         return;
@@ -135,4 +138,157 @@ fn move_fix(diags: &mut DiagBuf, fact: &BlockDecorator, texts: &[Arc<str>]) {
         FixSafety::Exact,
         &[(delete, ""), (insert, &member)],
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use hd_base::{DefId, FileId, PathId, Span};
+    use hd_diag::{Code, DiagBuf};
+    use hd_resolve::facts::{BlockDecorator, DerivationBlock, DerivationFacts, Derived};
+
+    use super::{collect_drift, collect_unused};
+
+    fn span(lo: usize, hi: usize) -> Span {
+        Span {
+            file: FileId::from_raw(0),
+            lo: u32::try_from(lo).unwrap(),
+            hi: u32::try_from(hi).unwrap(),
+        }
+    }
+
+    fn block(lo: u32, trait_: u32, name: &str, member: &str) -> DerivationBlock {
+        DerivationBlock {
+            folder: 0,
+            target: DefId::from_raw(1),
+            package: PathId::from_raw(2),
+            trait_: DefId::from_raw(trait_),
+            trait_name: name.to_owned(),
+            target_name: "Session".to_owned(),
+            lines: vec![(member.to_owned(), false, vec!["pass".to_owned()])],
+            span: Span {
+                file: FileId::from_raw(0),
+                lo,
+                hi: lo + 1,
+            },
+        }
+    }
+
+    #[test]
+    fn drift_prefers_the_first_nominal_block_then_the_derive_fallback() {
+        let first = block(1, 3, "Print", "cache");
+        let second = block(2, 4, "Encode", "id");
+        let facts = DerivationFacts {
+            blocks: vec![second, first.clone()],
+            derived: vec![
+                Derived {
+                    folder: 0,
+                    target: first.target,
+                    package: first.package,
+                    trait_: DefId::from_raw(6),
+                    name: "Zed".to_owned(),
+                },
+                Derived {
+                    folder: 0,
+                    target: first.target,
+                    package: first.package,
+                    trait_: DefId::from_raw(7),
+                    name: "Alpha".to_owned(),
+                },
+            ],
+            ..DerivationFacts::default()
+        };
+        let mut findings = DiagBuf::default();
+        collect_drift(&facts, &mut findings);
+        assert_eq!(findings.code, [Code::DerivationLineDrift; 2]);
+        assert_eq!(
+            findings.get_text(findings.message[0]),
+            "`Print` configures member lines for `Session` that its `@derive(Alpha)` does not",
+        );
+        assert_eq!(
+            findings.get_text(findings.message[1]),
+            "`Encode` configures different member lines for `Session` than `Print` does",
+        );
+    }
+
+    #[test]
+    fn utf8_comments_and_crlf_are_preserved_in_move_fixes() {
+        let newline = "\r\n";
+        let source = format!(
+            "# café{newline}@\"雪\"  # note{newline}impl T by Structure:{newline}    pass{newline}",
+        );
+        let start = source.find('@').unwrap();
+        let value = start + 1;
+        let end = value + "\"雪\"".len();
+        let first = source.find("pass").unwrap();
+        let fact = BlockDecorator {
+            span: span(start, end),
+            value: Some(span(value, end)),
+            first: Some(span(first, first + 4)),
+            marker: false,
+            valid: true,
+        };
+        let facts = DerivationFacts {
+            decorators: vec![fact.clone(), fact],
+            ..DerivationFacts::default()
+        };
+        let mut findings = DiagBuf::default();
+        collect_unused(&facts, &source, &mut findings);
+        assert_eq!(findings.code, [Code::UnusedDerivationFact]);
+        assert_eq!(findings.edits.len(), 2);
+        assert_eq!(
+            findings.get_text(findings.edits[1].text),
+            "    Self += [\"雪\"]  # note\r\n",
+        );
+    }
+
+    #[test]
+    fn consumed_markers_and_invalid_occurrences_are_quiet() {
+        let occurrence = BlockDecorator {
+            span: span(0, 1),
+            value: None,
+            first: None,
+            marker: false,
+            valid: true,
+        };
+        let facts = DerivationFacts {
+            decorators: vec![
+                occurrence.clone(),
+                BlockDecorator {
+                    marker: true,
+                    ..occurrence.clone()
+                },
+                BlockDecorator {
+                    valid: false,
+                    ..occurrence
+                },
+            ],
+            ..DerivationFacts::default()
+        };
+        let mut findings = DiagBuf::default();
+        collect_unused(&facts, "x", &mut findings);
+        assert_eq!(findings.code, [Code::UnusedDerivationFact]);
+    }
+
+    #[test]
+    fn block_drift_keeps_file_target_and_package_boundaries() {
+        let first = block(1, 3, "Print", "cache");
+        let mut other_file = block(2, 4, "Encode", "id");
+        other_file.span.file = FileId::from_raw(1);
+        let mut other_target = block(3, 5, "Inspect", "id");
+        other_target.target = DefId::from_raw(11);
+        let mut other_package = block(4, 6, "Visit", "id");
+        other_package.package = PathId::from_raw(12);
+        let mut facts = DerivationFacts {
+            blocks: vec![first, other_file.clone(), other_target, other_package],
+            ..DerivationFacts::default()
+        };
+        let mut findings = DiagBuf::default();
+        collect_drift(&facts, &mut findings);
+        assert!(findings.is_empty());
+
+        other_file.span.file = FileId::from_raw(0);
+        facts.blocks.push(other_file);
+        collect_drift(&facts, &mut findings);
+        assert_eq!(findings.code, [Code::DerivationLineDrift]);
+    }
 }

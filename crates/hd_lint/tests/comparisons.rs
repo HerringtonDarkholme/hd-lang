@@ -1,28 +1,33 @@
 use hd_cache::MemoryStore;
 use hd_diag::{Code, DiagBuf, Severity};
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
-use hd_lint::{Level, Policy, UNSIGNED_COMPARISON, analyze};
+use hd_driver::{
+    Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
+};
+use hd_lint::{ANALYZER, Level, Policy, UNSIGNED_COMPARISON};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn checked(source: &str, store: &MemoryStore, collect: bool, executor: Executor) -> Output {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
-    build_packages(
-        &Host {
-            render_tir: &[],
-            sources: &sources,
-            store,
-            clock: &NoClock,
-            executor,
-        },
-        "app",
-        &Packages {
-            collect_source_facts: collect,
-            ..Packages::default()
-        },
-        &Goal::Analyze,
-    )
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store,
+        clock: &NoClock,
+        executor,
+    };
+    if collect {
+        build_packages_with_analysis(
+            &host,
+            "app",
+            &Packages::default(),
+            &Goal::Analyze,
+            Some(&ANALYZER),
+        )
+    } else {
+        build_packages(&host, "app", &Packages::default(), &Goal::Analyze)
+    }
 }
 
 fn lint(source: &str, policy: Policy) -> (Output, DiagBuf) {
@@ -33,7 +38,7 @@ fn lint(source: &str, policy: Policy) -> (Output, DiagBuf) {
         Executor::Serial(SerialOrder::Priority),
     );
     assert!(!out.diags.has_errors(), "{}", out.render());
-    let findings = analyze(&out.source_facts, &out.texts, policy);
+    let findings = policy.apply(&out.analysis_diags);
     (out, findings)
 }
 
@@ -129,16 +134,13 @@ fn lint_rechecks_warm_normal_entries_and_never_caches_a_finding() {
     let store = MemoryStore::default();
     let serial = Executor::Serial(SerialOrder::Priority);
     let normal = checked(source, &store, false, serial);
-    assert!(normal.source_facts.comparisons.is_empty());
+    assert!(normal.analysis_diags.is_empty());
     for _ in 0..2 {
         let out = checked(source, &store, true, serial);
-        assert_eq!(
-            analyze(&out.source_facts, &out.texts, Policy::default()).len(),
-            2
-        );
+        assert_eq!(Policy::default().apply(&out.analysis_diags).len(), 2);
     }
     let normal = checked(source, &store, false, serial);
-    assert!(normal.source_facts.comparisons.is_empty());
+    assert!(normal.analysis_diags.is_empty());
     assert!(!normal.diags.code.contains(&Code::UnsignedComparisonAlways));
     assert!(
         normal.counters.modules_checked.is_empty(),
@@ -156,7 +158,7 @@ fn inferred_bodies_and_parallel_batches_keep_their_facts_once() {
     for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
         let out = checked(&source, &MemoryStore::default(), true, executor);
         assert!(!out.diags.has_errors(), "{}", out.render());
-        let findings = analyze(&out.source_facts, &out.texts, Policy::default());
+        let findings = Policy::default().apply(&out.analysis_diags);
         assert_eq!(findings.len(), 65, "{executor:?}");
     }
 }
@@ -173,15 +175,6 @@ impl Parse[bool] for Item:
 fn choose(value: u32) -> bool:
     Item::parse(fn(): value >= 0)
 ";
-    let (out, findings) = lint(source, Policy::default());
+    let (_, findings) = lint(source, Policy::default());
     assert_eq!(findings.len(), 1);
-    let span = findings.primary[0];
-    assert_eq!(
-        out.source_facts
-            .comparisons
-            .iter()
-            .filter(|fact| fact.span == span)
-            .count(),
-        1
-    );
 }

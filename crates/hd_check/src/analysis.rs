@@ -176,6 +176,16 @@ impl<'v> BindingView<'v> {
             .as_ref()
             .map(|fact| MutabilityView { fact })
     }
+
+    #[must_use]
+    pub fn same_owner(self, other: Self) -> bool {
+        self.binding.body == other.binding.body
+    }
+
+    #[must_use]
+    pub fn precedes(self, other: Self) -> bool {
+        self.binding.local.raw() < other.binding.local.raw()
+    }
 }
 
 /// Checked properties of a written `let mut` binding.
@@ -311,6 +321,22 @@ impl CallView<'_> {
             None => 0,
         }
     }
+
+    #[must_use]
+    pub const fn standard_debug(self) -> bool {
+        match &self.discarded.call {
+            Some(call) => call.standard_debug,
+            None => false,
+        }
+    }
+
+    #[must_use]
+    pub const fn standard_dbg(self) -> bool {
+        match &self.discarded.call {
+            Some(call) => call.standard_dbg,
+            None => false,
+        }
+    }
 }
 
 /// The completed compiler state visible during one analysis callback.
@@ -363,6 +389,11 @@ impl<'v> CheckedView<'v> {
             .bindings
             .get(source.0)
             .map(|binding| BindingView { binding })
+    }
+
+    pub fn bindings(self) -> impl Iterator<Item = SourceBinding> + 'v {
+        let len = self.facts.map_or(0, |facts| facts.bindings.len());
+        (0..len).map(SourceBinding)
     }
 
     #[must_use]

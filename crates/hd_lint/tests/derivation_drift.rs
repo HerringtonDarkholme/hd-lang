@@ -5,7 +5,7 @@
 
 use hd_cache::MemoryStore;
 use hd_diag::{Code, Severity};
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
+use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages_with_analysis};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -17,14 +17,12 @@ fn build_with(src: &MemorySources, store: &MemoryStore) -> Output {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let mut out = build_packages(
+    let mut out = build_packages_with_analysis(
         &host,
         "app",
-        &Packages {
-            collect_source_facts: true,
-            ..Packages::default()
-        },
+        &Packages::default(),
         &Goal::Analyze,
+        Some(&hd_lint::ANALYZER),
     );
     if !out.diags.has_errors() {
         assert!(
@@ -32,11 +30,7 @@ fn build_with(src: &MemorySources, store: &MemoryStore) -> Output {
             "ordinary checks are quiet: {}",
             out.render()
         );
-        let findings = hd_lint::analyze_derivations(
-            &out.derivation_facts,
-            &out.texts,
-            hd_lint::Policy::default(),
-        );
+        let findings = hd_lint::Policy::default().apply(&out.analysis_diags);
         out.diags.append(&findings);
     }
     out

@@ -4,10 +4,11 @@ Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/
 The accepted command/policy rules remain in [the CLI spec](../../spec/cli/command-line.md#linting).
 This replaces the earlier implementation plan, not those decisions.
 Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
-Slices 0–2 are done: checked callee identity, the registry/indexed policy, and
-the feature-gated source/declaration/module analysis walk.
-The per-module policy-free findings cache and borrowed typed views are also done;
-the remaining work adds registered dispatch and the single policy finish path.
+Slices 0–5 are done: checked callee identity, the registry/indexed policy, the
+feature-gated analysis walk, borrowed typed views, the per-module policy-free
+findings cache and registered dispatch for all ten rules. The remaining work is
+the single policy/suppression finish path, then the parked producer migrations
+resume on that architecture.
 
 ## Approved design
 

@@ -1,20 +1,42 @@
 use hd_base::{FileId, Span};
 use hd_diag::{Code, DiagBuf, Severity};
+use hd_driver::analysis::Events;
 use hd_lint::{Level, Policy, RULES};
 
-const EXPECTED: [(&str, Code); 10] = [
-    ("derivation-line-drift", Code::DerivationLineDrift),
-    ("mixed-script-identifier", Code::MixedScriptIdentifier),
-    ("redundant-let-mut", Code::RedundantLetMut),
-    ("unreachable-code", Code::UnreachableCode),
-    ("unselected-main", Code::UnselectedMain),
-    ("unsigned-comparison-always", Code::UnsignedComparisonAlways),
-    ("unused-debug-text", Code::UnusedDebugText),
-    ("unused-derivation-fact", Code::UnusedDerivationFact),
-    ("unused-local-binding", Code::UnusedLocalBinding),
+const EXPECTED: [(&str, Code, Events); 10] = [
+    (
+        "derivation-line-drift",
+        Code::DerivationLineDrift,
+        Events::DERIVATIONS,
+    ),
+    (
+        "mixed-script-identifier",
+        Code::MixedScriptIdentifier,
+        Events::IDENT,
+    ),
+    ("redundant-let-mut", Code::RedundantLetMut, Events::BINDING),
+    ("unreachable-code", Code::UnreachableCode, Events::STATEMENT),
+    ("unselected-main", Code::UnselectedMain, Events::MAIN_SITE),
+    (
+        "unsigned-comparison-always",
+        Code::UnsignedComparisonAlways,
+        Events::COMPARISON,
+    ),
+    ("unused-debug-text", Code::UnusedDebugText, Events::DISCARD),
+    (
+        "unused-derivation-fact",
+        Code::UnusedDerivationFact,
+        Events::DERIVATIONS,
+    ),
+    (
+        "unused-local-binding",
+        Code::UnusedLocalBinding,
+        Events::BINDING,
+    ),
     (
         "variant-binding-name-mismatch",
         Code::VariantBindingNameMismatch,
+        Events::PATTERN,
     ),
 ];
 
@@ -40,10 +62,11 @@ fn policy_free_findings() -> DiagBuf {
 #[test]
 fn registry_is_the_exact_unique_ten_rule_surface() {
     assert_eq!(RULES.len(), EXPECTED.len());
-    for (rule, (name, code)) in RULES.iter().zip(EXPECTED) {
+    for (rule, (name, code, events)) in RULES.iter().zip(EXPECTED) {
         assert_eq!(rule.name(), name);
         assert_eq!(rule.code(), code);
         assert_eq!(rule.default_level(), Level::Warn);
+        assert_eq!(rule.events(), events);
     }
     for (i, rule) in RULES.iter().enumerate() {
         assert!(

@@ -73,6 +73,8 @@ impl AnalysisSink for Recorder {
             Event::Statement(_) => "statement".to_owned(),
             Event::Pattern(_) => "pattern".to_owned(),
             Event::Discard(_) => "discard".to_owned(),
+            Event::Derivations(_) => "derivations".to_owned(),
+            Event::MainSite(_) => "main-site".to_owned(),
         };
         self.events.lock().unwrap().push(shown);
     }
@@ -168,7 +170,11 @@ impl AnalysisSink for TypedRecorder {
                     selected.is_some_and(hd_check::analysis::DeclRef::is_prelude_debug)
                 )
             }
-            Event::Ident(_) | Event::Decl(_) | Event::Module(_) => unreachable!(),
+            Event::Ident(_)
+            | Event::Decl(_)
+            | Event::Module(_)
+            | Event::Derivations(_)
+            | Event::MainSite(_) => unreachable!(),
         };
         self.events.lock().unwrap().push(shown);
     }
@@ -187,12 +193,6 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
     assert!(!out.diags.has_errors(), "{}", out.render());
     assert_eq!(out.counters.miss("lint"), 1);
     assert_eq!(out.counters.modules_checked, ["app.main"]);
-    assert!(out.source_facts.comparisons.is_empty());
-    assert!(out.source_facts.bindings.is_empty());
-    assert!(out.source_facts.patterns.is_empty());
-    assert!(out.source_facts.statements.is_empty());
-    assert!(out.source_facts.discarded.is_empty());
-
     let events = sink.take();
     assert!(
         events

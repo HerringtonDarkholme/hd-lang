@@ -1,28 +1,33 @@
 use hd_cache::MemoryStore;
 use hd_diag::{Code, DiagBuf, Severity};
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
-use hd_lint::{Level, Policy, UNUSED_BINDING, analyze};
+use hd_driver::{
+    Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
+};
+use hd_lint::{ANALYZER, Level, Policy, UNUSED_BINDING};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn checked(source: &str, store: &MemoryStore, collect: bool, executor: Executor) -> Output {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
-    build_packages(
-        &Host {
-            render_tir: &[],
-            sources: &sources,
-            store,
-            clock: &NoClock,
-            executor,
-        },
-        "app",
-        &Packages {
-            collect_source_facts: collect,
-            ..Packages::default()
-        },
-        &Goal::Analyze,
-    )
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store,
+        clock: &NoClock,
+        executor,
+    };
+    if collect {
+        build_packages_with_analysis(
+            &host,
+            "app",
+            &Packages::default(),
+            &Goal::Analyze,
+            Some(&ANALYZER),
+        )
+    } else {
+        build_packages(&host, "app", &Packages::default(), &Goal::Analyze)
+    }
 }
 
 fn lint(source: &str, policy: Policy) -> (Output, DiagBuf) {
@@ -33,7 +38,7 @@ fn lint(source: &str, policy: Policy) -> (Output, DiagBuf) {
         Executor::Serial(SerialOrder::Priority),
     );
     assert!(!out.diags.has_errors(), "{}", out.render());
-    let findings = analyze(&out.source_facts, &out.texts, policy);
+    let findings = policy.apply(&out.analysis_diags);
     (out, findings)
 }
 
@@ -52,10 +57,6 @@ fn actual_names_patterns_and_captures_preserve_advice() {
         let span = findings.primary[i];
         assert_eq!(&source[span.lo as usize..span.hi as usize], text);
     }
-    let facts = &out.source_facts.bindings;
-    assert!(facts.iter().any(|b| b.name == "captured" && b.read));
-    assert!(facts.iter().any(|b| b.name == "_exempt" && !b.read));
-    assert!(facts.iter().any(|b| b.name == "second" && !b.read));
 }
 
 #[test]
@@ -123,7 +124,7 @@ fn unused_policy_is_independent_and_never_suppresses_must_use_errors() {
         );
         policy = Policy::default();
         policy.set(UNUSED_BINDING, Level::Allow).unwrap();
-        assert!(analyze(&out.source_facts, &out.texts, policy).is_empty());
+        assert!(policy.apply(&out.analysis_diags).is_empty());
     }
 }
 
@@ -134,23 +135,15 @@ fn warm_checks_keep_facts_ephemeral_and_rejected_trials_unique() {
     let store = MemoryStore::default();
     let serial = Executor::Serial(SerialOrder::Priority);
     let normal = checked(source, &store, false, serial);
-    assert!(normal.source_facts.bindings.is_empty());
+    assert!(normal.analysis_diags.is_empty());
     for _ in 0..2 {
         let out = checked(source, &store, true, serial);
         assert!(!out.diags.has_errors(), "{}", out.render());
-        let findings = analyze(&out.source_facts, &out.texts, Policy::default());
+        let findings = Policy::default().apply(&out.analysis_diags);
         assert_eq!(findings.len(), 1);
-        assert_eq!(
-            out.source_facts
-                .bindings
-                .iter()
-                .filter(|b| b.name == "extra")
-                .count(),
-            1
-        );
     }
     let normal = checked(source, &store, false, serial);
-    assert!(normal.source_facts.bindings.is_empty());
+    assert!(normal.analysis_diags.is_empty());
     assert!(!normal.diags.code.contains(&Code::UnusedLocalBinding));
     assert!(normal.counters.modules_checked.is_empty());
 }
@@ -169,14 +162,13 @@ fn inferred_and_parallel_bodies_keep_each_binding_once() {
     for executor in [Executor::Serial(SerialOrder::Priority), Executor::Pool(4)] {
         let out = checked(&source, &MemoryStore::default(), true, executor);
         assert!(!out.diags.has_errors(), "{}", out.render());
-        let findings = analyze(&out.source_facts, &out.texts, Policy::default());
+        let findings = Policy::default().apply(&out.analysis_diags);
         assert_eq!(
             findings.len(),
             65,
             "{executor:?}: {}",
             findings.render_json()
         );
-        assert_eq!(out.source_facts.bindings.len(), 65, "{executor:?}");
     }
 }
 
@@ -195,7 +187,7 @@ fn choose(value: u32) -> bool:
         value >= 0
     )
 ";
-    let (out, findings) = lint(source, Policy::default());
+    let (_, findings) = lint(source, Policy::default());
     assert_eq!(
         findings
             .code
@@ -209,14 +201,6 @@ fn choose(value: u32) -> bool:
             .code
             .iter()
             .filter(|c| **c == Code::UnsignedComparisonAlways)
-            .count(),
-        1
-    );
-    assert_eq!(
-        out.source_facts
-            .bindings
-            .iter()
-            .filter(|b| b.name == "extra")
             .count(),
         1
     );

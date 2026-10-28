@@ -1,28 +1,33 @@
 use hd_cache::MemoryStore;
 use hd_diag::{Code, DiagBuf, Severity};
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
-use hd_lint::{Level, Policy, REDUNDANT_MUT, UNUSED_BINDING, VARIANT_BINDING, analyze};
+use hd_driver::{
+    Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
+};
+use hd_lint::{ANALYZER, Level, Policy, REDUNDANT_MUT, UNUSED_BINDING, VARIANT_BINDING};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn checked(source: &str, store: &MemoryStore, collect: bool, executor: Executor) -> Output {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
-    build_packages(
-        &Host {
-            render_tir: &[],
-            sources: &sources,
-            store,
-            clock: &NoClock,
-            executor,
-        },
-        "app",
-        &Packages {
-            collect_source_facts: collect,
-            ..Packages::default()
-        },
-        &Goal::Analyze,
-    )
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store,
+        clock: &NoClock,
+        executor,
+    };
+    if collect {
+        build_packages_with_analysis(
+            &host,
+            "app",
+            &Packages::default(),
+            &Goal::Analyze,
+            Some(&ANALYZER),
+        )
+    } else {
+        build_packages(&host, "app", &Packages::default(), &Goal::Analyze)
+    }
 }
 
 fn lint(source: &str, mut policy: Policy) -> (Output, DiagBuf) {
@@ -34,7 +39,7 @@ fn lint(source: &str, mut policy: Policy) -> (Output, DiagBuf) {
         Executor::Serial(SerialOrder::Priority),
     );
     assert!(!out.diags.has_errors(), "{}", out.render());
-    let findings = analyze(&out.source_facts, &out.texts, policy);
+    let findings = policy.apply(&out.analysis_diags);
     (out, findings)
 }
 
@@ -80,17 +85,8 @@ fn primitive_and_annotation_messages_and_fix_spans_are_preserved() {
 #[test]
 fn mutable_addressing_and_shadowing_keep_binding_identity() {
     let source = "fn f() -> i32:\n    let mut counter = +0\n    if true:\n        let mut counter = +1\n        pointer := &mut counter\n        *pointer += +1\n    counter\n";
-    let (out, findings) = lint(source, Policy::default());
+    let (_, findings) = lint(source, Policy::default());
     assert_eq!(findings.code, [Code::RedundantLetMut]);
-    let facts: Vec<_> = out
-        .source_facts
-        .bindings
-        .iter()
-        .filter_map(|b| b.mutability.as_ref())
-        .collect();
-    assert_eq!(facts.len(), 2);
-    assert!(!facts[0].address_taken);
-    assert!(facts[1].address_taken);
 }
 
 #[test]
@@ -145,7 +141,7 @@ fn policy_levels_are_independent_and_module_errors_cannot_be_suppressed() {
     assert_eq!(out.diags.code, [Code::MutOnPrimitive]);
     let mut policy = Policy::default();
     policy.set(REDUNDANT_MUT, Level::Allow).unwrap();
-    assert!(analyze(&out.source_facts, &out.texts, policy).is_empty());
+    assert!(policy.apply(&out.analysis_diags).is_empty());
 }
 
 #[test]
@@ -153,17 +149,8 @@ fn rejected_trials_keep_only_selected_mutability_and_pattern_facts() {
     let source = format!(
         "{PAIR}trait Parse[T]:\n    fn parse(f: fn() -> T) -> bool\nstruct Item: pass\nimpl Parse[i32] for Item:\n    fn parse(f: fn() -> i32) -> bool: f() >= +0\nimpl Parse[bool] for Item:\n    fn parse(f: fn() -> bool) -> bool: f()\nfn choose(value: Pair) -> bool:\n    Item::parse(fn():\n        let mut extra = +1\n        extra += +1\n        match value:\n            .Values(right, left) => right + extra >= left\n    )\n"
     );
-    let (out, findings) = lint(&source, Policy::default());
+    let (_, findings) = lint(&source, Policy::default());
     assert_eq!(findings.len(), 3, "{}", findings.render_json());
-    assert_eq!(out.source_facts.patterns.len(), 1);
-    assert_eq!(
-        out.source_facts
-            .bindings
-            .iter()
-            .filter(|b| b.mutability.is_some())
-            .count(),
-        1
-    );
 }
 
 #[test]
@@ -179,16 +166,15 @@ fn inferred_parallel_and_cached_bodies_keep_each_site_once() {
         let store = MemoryStore::default();
         let normal = checked(&source, &store, false, executor);
         assert!(normal.diags.is_empty(), "{}", normal.render());
-        assert!(normal.source_facts.patterns.is_empty());
+        assert!(normal.analysis_diags.is_empty());
         for _ in 0..2 {
             let (out, findings) = {
                 let out = checked(&source, &store, true, executor);
-                let findings = analyze(&out.source_facts, &out.texts, Policy::default());
+                let findings = Policy::default().apply(&out.analysis_diags);
                 (out, findings)
             };
             assert!(!out.diags.has_errors(), "{}", out.render());
             assert_eq!(findings.len(), 195, "{executor:?}");
-            assert_eq!(out.source_facts.patterns.len(), 65);
         }
         let normal = checked(&source, &store, false, executor);
         assert!(normal.diags.is_empty());

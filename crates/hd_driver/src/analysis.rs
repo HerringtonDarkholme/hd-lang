@@ -7,7 +7,9 @@ use hd_check::analysis::{
 };
 use hd_check::comparison::SourceFacts;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
+use hd_project::MainSite;
 use hd_resolve::Src;
+use hd_resolve::facts::DerivationFacts;
 use hd_syntax::{Decl, SyntaxKind, TokenKind};
 
 use crate::{Lines, Reader, Writer};
@@ -25,6 +27,8 @@ impl Events {
     pub const STATEMENT: Self = Self(1 << 5);
     pub const PATTERN: Self = Self(1 << 6);
     pub const DISCARD: Self = Self(1 << 7);
+    pub const DERIVATIONS: Self = Self(1 << 8);
+    pub const MAIN_SITE: Self = Self(1 << 9);
     pub const CHECKED: Self = Self(
         Self::COMPARISON.0
             | Self::BINDING.0
@@ -33,7 +37,8 @@ impl Events {
             | Self::DISCARD.0,
     );
     pub const SOURCE: Self = Self(Self::IDENT.0 | Self::DECL.0 | Self::MODULE.0);
-    pub const ALL: Self = Self(Self::SOURCE.0 | Self::CHECKED.0);
+    pub const ALL: Self =
+        Self(Self::SOURCE.0 | Self::CHECKED.0 | Self::DERIVATIONS.0 | Self::MAIN_SITE.0);
 
     #[must_use]
     pub const fn union(self, other: Self) -> Self {
@@ -76,8 +81,21 @@ pub struct ModuleEvent<'v> {
     pub span: Span,
 }
 
+/// Resolved derivation metadata for one verified module.
+#[derive(Clone, Copy, Debug)]
+pub struct DerivationsEvent<'v> {
+    facts: &'v DerivationFacts,
+}
+
+impl<'v> DerivationsEvent<'v> {
+    #[must_use]
+    pub const fn facts(self) -> &'v DerivationFacts {
+        self.facts
+    }
+}
+
 /// One neutral event in the verified module's source-order walk.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum Event<'v> {
     Ident(Span),
     Decl(DeclEvent),
@@ -87,6 +105,8 @@ pub enum Event<'v> {
     Statement(SourceStatement),
     Pattern(SourcePattern),
     Discard(SourceCall),
+    Derivations(DerivationsEvent<'v>),
+    MainSite(MainSite),
 }
 
 impl Event<'_> {
@@ -101,6 +121,8 @@ impl Event<'_> {
             Self::Statement(_) => Events::STATEMENT,
             Self::Pattern(_) => Events::PATTERN,
             Self::Discard(_) => Events::DISCARD,
+            Self::Derivations(_) => Events::DERIVATIONS,
+            Self::MainSite(_) => Events::MAIN_SITE,
         }
     }
 }
@@ -244,6 +266,8 @@ pub(crate) fn walk<'v>(
     interests: Events,
     src: Src<'v>,
     facts: Option<&'v SourceFacts>,
+    derivations: Option<&'v DerivationFacts>,
+    main_site: Option<MainSite>,
     module_path: &'v str,
     out: &mut DiagBuf,
 ) {
@@ -257,11 +281,21 @@ pub(crate) fn walk<'v>(
                 pending.push(Pending {
                     at: span.lo,
                     finish: false,
-                    family: 5,
+                    family: 6,
                     event: Event::Ident(span),
                 });
             }
         }
+    }
+    if interests.contains(Events::MAIN_SITE)
+        && let Some(site) = main_site
+    {
+        pending.push(Pending {
+            at: site.span.lo,
+            finish: false,
+            family: 5,
+            event: Event::MainSite(site),
+        });
     }
     if interests.contains(Events::DECL) {
         for node in src.root().descendants() {
@@ -342,6 +376,16 @@ pub(crate) fn walk<'v>(
                 event: Event::Discard(SourceCall::from_index(i)),
             }));
         }
+    }
+    if interests.contains(Events::DERIVATIONS)
+        && let Some(facts) = derivations
+    {
+        pending.push(Pending {
+            at: u32::try_from(src.text.len()).expect("source length"),
+            finish: true,
+            family: 1,
+            event: Event::Derivations(DerivationsEvent { facts }),
+        });
     }
     pending.sort_stable_by_key(Pending::key);
     for pending in pending {

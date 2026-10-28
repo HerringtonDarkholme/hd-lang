@@ -5,17 +5,9 @@ mod derivation;
 mod modules;
 mod syntax;
 
-pub use derivation::{analyze_derivations, collect_derivations};
-pub use modules::{analyze_modules, collect_modules};
-pub use syntax::{analyze_sources, collect_sources};
-
-use std::sync::Arc;
-
-use hd_base::SliceSort as _;
-use hd_check::comparison::{
-    Binding, Comparison, DiscardedExpression, SourceFacts, Statement, VariantPattern,
-};
+use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
+use hd_driver::analysis::{AnalysisSink, Event, Events};
 use hd_syntax::TokenKind;
 use hd_types::Prim;
 
@@ -30,17 +22,25 @@ pub const VARIANT_BINDING: &str = Code::VariantBindingNameMismatch.as_str();
 pub const UNUSED_BINDING: &str = Code::UnusedLocalBinding.as_str();
 pub const UNSIGNED_COMPARISON: &str = Code::UnsignedComparisonAlways.as_str();
 
-/// One stable lint entry. Checks move behind this registry in a later
-/// architecture slice; policy already uses the registry as its sole index.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One stable lint entry: identity, default policy, requested events and check.
+#[derive(Clone, Copy, Debug)]
 pub struct Rule {
     code: Code,
     default: Level,
+    events: Events,
+    check: Check,
 }
 
+type Check = for<'v> fn(&Event<'v>, &CheckedView<'v>, &mut DiagBuf);
+
 impl Rule {
-    const fn new(code: Code, default: Level) -> Self {
-        Self { code, default }
+    const fn new(code: Code, default: Level, events: Events, check: Check) -> Self {
+        Self {
+            code,
+            default,
+            events,
+            check,
+        }
     }
 
     #[must_use]
@@ -57,21 +57,103 @@ impl Rule {
     pub const fn default_level(self) -> Level {
         self.default
     }
+
+    #[must_use]
+    pub const fn events(self) -> Events {
+        self.events
+    }
 }
 
 /// The complete migrated lint surface, in stable registry order.
 pub const RULES: &[Rule] = &[
-    Rule::new(Code::DerivationLineDrift, Level::Warn),
-    Rule::new(Code::MixedScriptIdentifier, Level::Warn),
-    Rule::new(Code::RedundantLetMut, Level::Warn),
-    Rule::new(Code::UnreachableCode, Level::Warn),
-    Rule::new(Code::UnselectedMain, Level::Warn),
-    Rule::new(Code::UnsignedComparisonAlways, Level::Warn),
-    Rule::new(Code::UnusedDebugText, Level::Warn),
-    Rule::new(Code::UnusedDerivationFact, Level::Warn),
-    Rule::new(Code::UnusedLocalBinding, Level::Warn),
-    Rule::new(Code::VariantBindingNameMismatch, Level::Warn),
+    Rule::new(
+        Code::DerivationLineDrift,
+        Level::Warn,
+        Events::DERIVATIONS,
+        derivation::drift,
+    ),
+    Rule::new(
+        Code::MixedScriptIdentifier,
+        Level::Warn,
+        Events::IDENT,
+        syntax::mixed_script,
+    ),
+    Rule::new(
+        Code::RedundantLetMut,
+        Level::Warn,
+        Events::BINDING,
+        redundant_mut,
+    ),
+    Rule::new(
+        Code::UnreachableCode,
+        Level::Warn,
+        Events::STATEMENT,
+        unreachable,
+    ),
+    Rule::new(
+        Code::UnselectedMain,
+        Level::Warn,
+        Events::MAIN_SITE,
+        modules::unselected_main,
+    ),
+    Rule::new(
+        Code::UnsignedComparisonAlways,
+        Level::Warn,
+        Events::COMPARISON,
+        unsigned_comparison,
+    ),
+    Rule::new(
+        Code::UnusedDebugText,
+        Level::Warn,
+        Events::DISCARD,
+        unused_debug,
+    ),
+    Rule::new(
+        Code::UnusedDerivationFact,
+        Level::Warn,
+        Events::DERIVATIONS,
+        derivation::unused,
+    ),
+    Rule::new(
+        Code::UnusedLocalBinding,
+        Level::Warn,
+        Events::BINDING,
+        unused_binding,
+    ),
+    Rule::new(
+        Code::VariantBindingNameMismatch,
+        Level::Warn,
+        Events::PATTERN,
+        variant_binding,
+    ),
 ];
+
+/// The single registered consumer used by `hd lint`.
+pub struct Analyzer;
+
+pub static ANALYZER: Analyzer = Analyzer;
+
+impl AnalysisSink for Analyzer {
+    fn interests(&self) -> Events {
+        RULES
+            .iter()
+            .fold(Events::default(), |events, rule| events.union(rule.events))
+    }
+
+    fn diagnostic_code(&self, name: &str) -> Option<Code> {
+        RULES
+            .iter()
+            .find(|rule| rule.name() == name)
+            .map(|rule| rule.code())
+    }
+
+    fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+        let family = event.family();
+        for rule in RULES.iter().filter(|rule| rule.events.contains(family)) {
+            (rule.check)(event, view, out);
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Level {
@@ -122,210 +204,217 @@ impl Policy {
     }
 }
 
-/// Preserves the existing literal-zero predicate, exact message, and comparison span.
-#[must_use]
-pub fn analyze(facts: &SourceFacts, texts: &[Arc<str>], policy: Policy) -> DiagBuf {
-    policy.apply(&collect(facts, texts))
-}
-
-/// Build all checked-source findings without command policy.
-#[must_use]
-pub fn collect(facts: &SourceFacts, texts: &[Arc<str>]) -> DiagBuf {
-    let mut diags = comparisons(&facts.comparisons, texts);
-    bindings(&mut diags, &facts.bindings, texts);
-    mutability(&mut diags, &facts.bindings);
-    patterns(&mut diags, &facts.patterns);
-    statements(&mut diags, &facts.statements);
-    discarded(&mut diags, &facts.discarded, texts);
-    diags
-}
-
-fn comparisons(facts: &[Comparison], texts: &[Arc<str>]) -> DiagBuf {
-    let mut diags = DiagBuf::default();
-    let mut facts: Vec<_> = facts.iter().collect();
-    facts.sort_stable_by(|a, b| {
-        (a.span.file.raw(), a.span.lo, a.span.hi).cmp(&(b.span.file.raw(), b.span.lo, b.span.hi))
-    });
-    facts.dedup();
-    for fact in facts {
-        let (left, operand, always, operator) = match fact.operator {
-            TokenKind::GtEq if fact.right.unsuffixed_zero => (true, &fact.left, true, ">="),
-            TokenKind::LtEq if fact.left.unsuffixed_zero => (false, &fact.right, true, "<="),
-            TokenKind::Lt if fact.right.unsuffixed_zero => (true, &fact.left, false, "<"),
-            TokenKind::Gt if fact.left.unsuffixed_zero => (false, &fact.right, false, ">"),
-            _ => continue,
-        };
-        let Some(primitive) = operand.primitive.filter(|p| p.is_unsigned()) else {
-            continue;
-        };
-        let name = texts
-            .get(operand.span.file.idx())
-            .and_then(|text| text.get(operand.span.lo as usize..operand.span.hi as usize))
-            .unwrap_or("the value");
-        let form = if left {
-            format!("{name} {operator} 0")
-        } else {
-            format!("0 {operator} {name}")
-        };
-        let ordering = if always {
-            "always true"
-        } else {
-            "always false"
-        };
-        let mut message = format!("`{name}` is unsigned, so `{form}` is {ordering}");
-        if primitive == Prim::Usize {
-            message.push_str("; consider a signed literal such as `+10` or another condition");
-        }
-        diags.push(
-            Code::UnsignedComparisonAlways,
-            Severity::Warning,
-            fact.span,
-            &message,
-            None,
-        );
+fn unsigned_comparison(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::Comparison(event) = event else {
+        return;
+    };
+    let Some(left) = view.expression(event.left) else {
+        return;
+    };
+    let Some(right) = view.expression(event.right) else {
+        return;
+    };
+    let (operand, always, operator) = match event.operator {
+        TokenKind::GtEq if right.is_unsuffixed_zero() => (event.left, true, ">="),
+        TokenKind::LtEq if left.is_unsuffixed_zero() => (event.right, true, "<="),
+        TokenKind::Lt if right.is_unsuffixed_zero() => (event.left, false, "<"),
+        TokenKind::Gt if left.is_unsuffixed_zero() => (event.right, false, ">"),
+        _ => return,
+    };
+    let Some(primitive) = view
+        .adjusted_type(operand)
+        .and_then(hd_check::analysis::TypeRef::primitive)
+        .filter(|primitive| primitive.is_unsigned())
+    else {
+        return;
+    };
+    let Some(operand) = view.expression(operand) else {
+        return;
+    };
+    let name = view.source().text_at(operand.span()).unwrap_or("the value");
+    let left_operand = operand.span() == left.span();
+    let form = if left_operand {
+        format!("{name} {operator} 0")
+    } else {
+        format!("0 {operator} {name}")
+    };
+    let ordering = if always {
+        "always true"
+    } else {
+        "always false"
+    };
+    let mut message = format!("`{name}` is unsigned, so `{form}` is {ordering}");
+    if primitive == Prim::Usize {
+        message.push_str("; consider a signed literal such as `+10` or another condition");
     }
-    diags
+    out.push(
+        Code::UnsignedComparisonAlways,
+        Severity::Warning,
+        event.span,
+        &message,
+        None,
+    );
 }
 
-/// Preserve the original first unread binding per source line, independently per body.
-fn bindings(diags: &mut DiagBuf, facts: &[Binding], texts: &[Arc<str>]) {
-    let mut facts: Vec<_> = facts.iter().collect();
-    facts.sort_stable_by(|a, b| {
-        (a.span.file.raw(), a.body.raw(), a.local.raw()).cmp(&(
-            b.span.file.raw(),
-            b.body.raw(),
-            b.local.raw(),
-        ))
+fn unused_binding(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::Binding(source) = event else {
+        return;
+    };
+    let Some(binding) = view.binding(*source) else {
+        return;
+    };
+    if binding.is_read() || binding.name().starts_with('_') {
+        return;
+    }
+    let text = view.source().text();
+    let line_of = |span: hd_base::Span| {
+        let lo = (span.lo as usize).min(text.len());
+        text.get(..lo).and_then(|prefix| prefix.rfind('\n'))
+    };
+    let line = line_of(binding.span());
+    let earlier = view.bindings().any(|other| {
+        let Some(other) = view.binding(other) else {
+            return false;
+        };
+        !other.is_read()
+            && !other.name().starts_with('_')
+            && other.same_owner(binding)
+            && other.precedes(binding)
+            && line_of(other.span()) == line
     });
-    facts.dedup();
-    let mut lines = hd_base::HashSet::default();
-    for fact in facts {
-        if fact.read || fact.name.starts_with('_') {
-            continue;
-        }
-        let source = texts.get(fact.span.file.idx()).map_or("", |s| s.as_ref());
-        let lo = (fact.span.lo as usize).min(source.len());
-        let line = source.get(..lo).and_then(|prefix| prefix.rfind('\n'));
-        if !lines.insert((fact.span.file, fact.body, line)) {
-            continue;
-        }
-        let name = &fact.name;
-        diags.push(
-            Code::UnusedLocalBinding,
-            Severity::Warning,
-            fact.span,
-            &format!("`{name}` is never read; name it `_{name}` to keep it"),
-            None,
-        );
+    if earlier {
+        return;
+    }
+    let name = binding.name();
+    out.push(
+        Code::UnusedLocalBinding,
+        Severity::Warning,
+        binding.span(),
+        &format!("`{name}` is never read; name it `_{name}` to keep it"),
+        None,
+    );
+}
+
+fn redundant_mut(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::Binding(source) = event else {
+        return;
+    };
+    let Some(binding) = view.binding(*source) else {
+        return;
+    };
+    let Some(fact) = binding.mutability() else {
+        return;
+    };
+    if fact.mutable_address_taken() {
+        return;
+    }
+    let message = if fact.is_primitive() {
+        "`let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable"
+    } else if fact.annotation_is_writable() {
+        "the annotation already grants `mut`, and no `&mut` of this binding is taken; remove the `mut` before the name"
+    } else {
+        return;
+    };
+    out.push(
+        Code::RedundantLetMut,
+        Severity::Warning,
+        binding.span(),
+        message,
+        None,
+    );
+    if let Some(span) = fact.token() {
+        out.add_fix("remove `mut`", FixSafety::Exact, &[(span, "")]);
     }
 }
 
-fn mutability(diags: &mut DiagBuf, facts: &[Binding]) {
-    for binding in facts {
-        let Some(fact) = &binding.mutability else {
+fn variant_binding(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::Pattern(source) = event else {
+        return;
+    };
+    let Some(pattern) = view.pattern(*source) else {
+        return;
+    };
+    for binding in pattern.bindings() {
+        let Some(field) = pattern.fields().get(binding.position) else {
             continue;
         };
-        if fact.address_taken {
+        if !binding.bare
+            || binding.name == *field
+            || !pattern
+                .fields()
+                .iter()
+                .enumerate()
+                .any(|(i, name)| i != binding.position && *name == binding.name)
+        {
             continue;
         }
-        let message = if fact.primitive {
-            "`let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable"
-        } else if fact.annotation_writable {
-            "the annotation already grants `mut`, and no `&mut` of this binding is taken; remove the `mut` before the name"
-        } else {
-            continue;
-        };
-        diags.push(
-            Code::RedundantLetMut,
+        out.push(
+            Code::VariantBindingNameMismatch,
             Severity::Warning,
             binding.span,
-            message,
+            &format!(
+                "`{}` is also a field of `{}`; the field in this position is `{field}`",
+                binding.name,
+                pattern.variant()
+            ),
             None,
         );
-        if let Some(span) = fact.token {
-            diags.add_fix("remove `mut`", FixSafety::Exact, &[(span, "")]);
-        }
     }
 }
 
-fn patterns(diags: &mut DiagBuf, facts: &[VariantPattern]) {
-    for pattern in facts {
-        for binding in &pattern.bindings {
-            let Some(field) = pattern.fields.get(binding.position) else {
-                continue;
-            };
-            if !binding.bare
-                || binding.name == *field
-                || !pattern
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .any(|(i, name)| i != binding.position && *name == binding.name)
-            {
-                continue;
-            }
-            diags.push(
-                Code::VariantBindingNameMismatch,
-                Severity::Warning,
-                binding.span,
-                &format!(
-                    "`{}` is also a field of `{}`; the field in this position is `{field}`",
-                    binding.name, pattern.variant
-                ),
-                None,
-            );
-        }
-    }
-}
-
-fn statements(diags: &mut DiagBuf, facts: &[Statement]) {
-    for fact in facts {
-        if !fact.reachable {
-            diags.push(
-                Code::UnreachableCode,
-                Severity::Warning,
-                fact.span,
-                "this statement is unreachable",
-                None,
-            );
-        }
-    }
-}
-
-fn discarded(diags: &mut DiagBuf, facts: &[DiscardedExpression], texts: &[Arc<str>]) {
-    for fact in facts {
-        if !fact.prelude_debug {
-            continue;
-        }
-        diags.push(
-            Code::UnusedDebugText,
+fn unreachable(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::Statement(source) = event else {
+        return;
+    };
+    let Some(statement) = view.statement(*source) else {
+        return;
+    };
+    if !statement.is_reachable() {
+        out.push(
+            Code::UnreachableCode,
             Severity::Warning,
-            fact.span,
-            "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
+            statement.span(),
+            "this statement is unreachable",
             None,
         );
-        let Some(call) = &fact.call else {
-            continue;
-        };
-        let Some(span) = call.name else {
-            continue;
-        };
-        let name = texts
-            .get(span.file.idx())
-            .and_then(|text| text.get(span.lo as usize..span.hi as usize));
-        if name == Some("debug")
-            && call.positional == 1
-            && call.named == 0
-            && !call.spread
-            && call.after_spread == 0
-            && call.standard_debug
-            && call.standard_dbg
-        {
-            diags.add_fix(
-                "replace discarded `debug` with `dbg`",
-                FixSafety::Exact,
-                &[(span, "dbg")],
-            );
-        }
+    }
+}
+
+fn unused_debug(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::Discard(source) = event else {
+        return;
+    };
+    if !view
+        .selected_declaration(*source)
+        .is_some_and(hd_check::analysis::DeclRef::is_prelude_debug)
+    {
+        return;
+    }
+    let Some(call) = view.call(*source) else {
+        return;
+    };
+    out.push(
+        Code::UnusedDebugText,
+        Severity::Warning,
+        call.span(),
+        "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
+        None,
+    );
+    let Some(span) = call.name() else {
+        return;
+    };
+    if view.source().text_at(span) == Some("debug")
+        && call.positional() == 1
+        && call.named() == 0
+        && !call.has_spread()
+        && call.after_spread() == 0
+        && call.standard_debug()
+        && call.standard_dbg()
+    {
+        out.add_fix(
+            "replace discarded `debug` with `dbg`",
+            FixSafety::Exact,
+            &[(span, "dbg")],
+        );
     }
 }

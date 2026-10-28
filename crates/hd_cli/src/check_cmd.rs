@@ -2,7 +2,7 @@
 //! `cli.file.check-test`, `cli.json.*`): the pipeline through checking and
 //! coherence, with no collection or emission.
 
-use hd_base::{FileId, SliceSort as _};
+use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt::Write as _;
@@ -14,7 +14,7 @@ use hd_cache::{CacheStore, DeferredStore};
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output};
 
-use hd_project::{ModuleTable, Role, SourceSet, role_of};
+use hd_project::{ModuleTable, Role, role_of};
 
 use crate::report::{self, Diag, Summary};
 use crate::{HD_FAILURE, Wall, disk, executor, fail, package_of_cwd};
@@ -265,40 +265,27 @@ fn check_role(
     // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
-    packages.collect_source_facts = lint.is_some();
-    packages.collect_main_sites = lint.is_some();
     packages.check_roots = t.only.as_ref().map(|only| {
         std::iter::once(only.clone())
             .chain(docs.iter().map(|d| d.path.clone()))
             .collect()
     });
-    let mut out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
+    let mut out = if lint.is_some() {
+        hd_driver::build_packages_with_analysis(
+            &host,
+            &t.program.package,
+            &packages,
+            goal,
+            Some(&hd_lint::ANALYZER),
+        )
+    } else {
+        hd_driver::build_packages(&host, &t.program.package, &packages, goal)
+    };
     if let Some(policy) = lint
         && !shown(&out, t, docs).iter().any(Diag::is_error)
     {
-        let derivations = hd_lint::analyze_derivations(&out.derivation_facts, &out.texts, policy);
-        out.diags.append(&derivations);
-        let findings = hd_lint::analyze(&out.source_facts, &out.texts, policy);
+        let findings = policy.apply(&out.analysis_diags);
         out.diags.append(&findings);
-        out.diags
-            .append(&hd_lint::analyze_modules(&out.main_sites, policy));
-        let roots: hd_base::HashSet<_> = sources.list().into_iter().map(|file| file.path).collect();
-        let reached = reached_files(&out, t, docs);
-        let selected = out
-            .files
-            .iter()
-            .enumerate()
-            .filter(|(i, path)| {
-                roots.contains(*path) && reached.as_ref().is_none_or(|files| files[*i])
-            })
-            .map(|(i, _)| {
-                (
-                    FileId::from_raw(u32::try_from(i).expect("files")),
-                    out.texts[i].as_ref(),
-                )
-            });
-        out.diags
-            .append(&hd_lint::analyze_sources(selected, policy));
     }
     let mut shown = shown(&out, t, docs);
     for x in &mut shown {

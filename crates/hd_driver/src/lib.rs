@@ -603,12 +603,6 @@ pub struct Output {
     /// Policy-free findings from the optional post-verification walk.
     #[cfg(feature = "analysis")]
     pub analysis_diags: DiagBuf,
-    /// Requested checked source facts, without messages or severity policy.
-    pub source_facts: hd_check::comparison::SourceFacts,
-    /// Requested public-main sites in the selected root modules, without advice.
-    pub main_sites: Vec<hd_project::MainSite>,
-    /// Optional resolved declaration metadata; never serialized advice.
-    pub derivation_facts: hd_resolve::facts::DerivationFacts,
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
     pub wasm: Option<Vec<u8>>,
@@ -811,6 +805,9 @@ struct PrepOut {
     /// may not be in the run's diagnostics yet when a body asks
     /// ([`Run::file_has_errors`]) or the module finishes.
     use_errors: bool,
+    /// Neutral resolver observations requested by the optional analysis sink.
+    #[cfg(feature = "analysis")]
+    derivations: hd_resolve::facts::DerivationFacts,
 }
 
 /// A folder's stage-A diagnostics, with the module each belongs to, the
@@ -1405,11 +1402,6 @@ struct Run<'a> {
     analysis: Option<(&'a dyn analysis::AnalysisSink, analysis::Events)>,
     #[cfg(feature = "analysis")]
     analysis_diags: Vec<OnceLock<DiagBuf>>,
-    collect_source_facts: bool,
-    collect_main_sites: bool,
-    source_facts: Mutex<hd_check::comparison::SourceFacts>,
-    main_sites: OnceLock<Vec<hd_project::MainSite>>,
-    derivation_facts: Mutex<hd_resolve::facts::DerivationFacts>,
     host: &'a Host<'a>,
     package: String,
     /// Whether the root package is a single-file program
@@ -1783,11 +1775,6 @@ pub struct Dependency<'a> {
 /// The packages around a build's root package.
 #[derive(Default)]
 pub struct Packages<'a> {
-    /// Collect root-package source facts for tooling, rechecking selected bodies.
-    /// Ordinary runs leave this false and retain their normal cache behavior.
-    pub collect_source_facts: bool,
-    /// Collect selected root public-main/module facts, including warm checks.
-    pub collect_main_sites: bool,
     /// Source/manifest host declaration metadata, with no authority implied.
     pub host_packages: Vec<HostPackage>,
     /// Expose checked root entry rows for manifest validation. This
@@ -2196,11 +2183,6 @@ fn build_packages_inner(
             .filter(|(_, interests)| *interests != analysis::Events::default()),
         #[cfg(feature = "analysis")]
         analysis_diags: (0..n).map(|_| OnceLock::new()).collect(),
-        collect_source_facts: packages.collect_source_facts,
-        collect_main_sites: packages.collect_main_sites,
-        source_facts: Mutex::default(),
-        main_sites: OnceLock::new(),
-        derivation_facts: Mutex::default(),
         host,
         package: package.to_owned(),
         single_file: packages.single_file,
@@ -2518,9 +2500,6 @@ fn build_packages_inner(
             }
             findings
         },
-        source_facts: lock(&run.source_facts).clone(),
-        main_sites: run.main_sites.get().cloned().unwrap_or_default(),
-        derivation_facts: lock(&run.derivation_facts).clone(),
         entry_capabilities,
         tests: cases,
         wasm,
@@ -3013,13 +2992,10 @@ struct OptInFinding {
 
 impl Run<'_> {
     /// Whether this root module needs the narrow completed checker facts used
-    /// by either the legacy producer path or the optional analysis sink.
+    /// by the optional analysis sink.
     fn collect_checked_facts(&self, m: usize) -> bool {
         if self.table.modules[m].package != 0 {
             return false;
-        }
-        if self.collect_source_facts {
-            return true;
         }
         #[cfg(feature = "analysis")]
         {
@@ -3030,6 +3006,37 @@ impl Run<'_> {
         {
             false
         }
+    }
+
+    #[cfg(feature = "analysis")]
+    fn collect_derivation_facts(&self, m: usize) -> bool {
+        self.table.modules[m].package == 0
+            && self
+                .analysis
+                .is_some_and(|(_, events)| events.contains(analysis::Events::DERIVATIONS))
+    }
+
+    #[cfg(feature = "analysis")]
+    fn analysis_main_site(&self, m: usize) -> Option<hd_project::MainSite> {
+        let (_, events) = self.analysis?;
+        if !events.contains(analysis::Events::MAIN_SITE) {
+            return None;
+        }
+        let module = &self.table.modules[m];
+        if module.package != 0 {
+            return None;
+        }
+        let (lo, hi) = self.skim_of(m).file.public_main?;
+        Some(hd_project::MainSite {
+            span: Span {
+                file: module.file,
+                lo,
+                hi,
+            },
+            role: module.role,
+            entry: module.entry,
+            source_root: self.table.files[module.file.idx()].starts_with("src/"),
+        })
     }
 
     /// Whether the build links the linear backend's checked runtime
@@ -3379,31 +3386,6 @@ impl Run<'_> {
                 && self.reached.as_ref().is_none_or(|r| r[m])
                 && checked.is_none_or(|(reach, _)| reach[m])
         };
-        // Ephemeral source-role facts are read from skims even on a fully warm
-        // check. Ordinary compiler clients neither collect nor report advice.
-        if self.collect_main_sites {
-            let sites = self
-                .table
-                .modules
-                .iter()
-                .enumerate()
-                .filter(|(m, module)| module.package == 0 && builds_module(*m))
-                .filter_map(|(m, module)| {
-                    let (lo, hi) = self.skim_of(m).file.public_main?;
-                    Some(hd_project::MainSite {
-                        span: Span {
-                            file: module.file,
-                            lo,
-                            hi,
-                        },
-                        role: module.role,
-                        entry: module.entry,
-                        source_root: self.table.files[m].starts_with("src/"),
-                    })
-                })
-                .collect();
-            let _ = self.main_sites.set(sites);
-        }
         // `module.entry.private-main.warn`: a `main` or `main!` that is not
         // `pub` in an entry module is an ordinary function.
         for (m, module) in self.table.modules.iter().enumerate() {
@@ -5624,8 +5606,9 @@ impl Run<'_> {
         lock(&self.counters)
             .check_keys
             .insert(self.table.modules[mi].path.clone(), key);
-        // Source facts are deliberately off-band, not persisted in check entries.
-        // Recheck selected root bodies, while dependencies keep ordinary cache hits.
+        // Typed analysis facts are deliberately off-band, not persisted in Check
+        // entries. Recheck selected root bodies on a Lint miss; dependencies keep
+        // ordinary cache hits, and a Lint hit skips the analysis walk entirely.
         #[cfg(feature = "analysis")]
         let analyze = self.analysis.is_some() && self.table.modules[mi].package == 0;
         #[cfg(feature = "analysis")]
@@ -5650,9 +5633,7 @@ impl Run<'_> {
         let analysis_missing = analyze && cached_analysis.is_none();
         #[cfg(not(feature = "analysis"))]
         let analysis_missing = false;
-        let cached = if (self.collect_source_facts && self.table.modules[mi].package == 0)
-            || analysis_missing
-        {
+        let cached = if analysis_missing {
             None
         } else {
             self.lookup(EntryKind::Check, key)
@@ -5687,7 +5668,10 @@ impl Run<'_> {
         }
         let mut scratch = DiagBuf::default();
         let mut facts = hd_resolve::facts::DerivationFacts::default();
-        let collect = self.collect_source_facts && self.table.modules[mi].package == 0;
+        #[cfg(feature = "analysis")]
+        let collect = self.collect_derivation_facts(mi);
+        #[cfg(not(feature = "analysis"))]
+        let collect = false;
         let items = self
             .lower_module_with_facts(
                 mi,
@@ -5696,9 +5680,6 @@ impl Run<'_> {
                 collect.then_some(&mut facts),
             )
             .map(|o| o.map(|o| o.items));
-        if collect {
-            lock(&self.derivation_facts).extend(facts);
-        }
         let Some(Some(items)) = self.stage(Stage::ModulePrep, items) else {
             self.blocked(Stage::Body);
             self.blocked(Stage::ModuleFinish);
@@ -5716,6 +5697,8 @@ impl Run<'_> {
             items,
             diags: DiagBuf::default(),
             use_errors,
+            #[cfg(feature = "analysis")]
+            derivations: facts,
         }));
         let pr = self.graph.get().map(|g| g.package_result)?;
         // A REPL input's bodies read the earlier inputs' bindings.
@@ -6488,6 +6471,9 @@ impl Run<'_> {
                 interests,
                 cx.src,
                 facts.as_deref(),
+                self.collect_derivation_facts(m)
+                    .then_some(&prep.derivations),
+                self.analysis_main_site(m),
                 &module.path,
                 &mut findings,
             );
@@ -6507,11 +6493,6 @@ impl Run<'_> {
         let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
         let dbg = cx.dbg_refs.take();
-        if self.collect_source_facts
-            && let Some(facts) = &cx.source_facts
-        {
-            lock(&self.source_facts).extend(facts.take());
-        }
         // A REPL input's interface carries its bindings for later inputs.
         let bindings = if input {
             hd_check::init::input_bindings(&cx)

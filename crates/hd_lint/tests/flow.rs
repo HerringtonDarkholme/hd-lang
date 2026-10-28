@@ -1,8 +1,10 @@
 use hd_cache::MemoryStore;
 use hd_diag::{Code, DiagBuf, Severity};
-use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
+use hd_driver::{
+    Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
+};
 use hd_lint::{
-    Level, Policy, UNREACHABLE, UNSIGNED_COMPARISON, UNUSED_BINDING, UNUSED_DEBUG, analyze,
+    ANALYZER, Level, Policy, UNREACHABLE, UNSIGNED_COMPARISON, UNUSED_BINDING, UNUSED_DEBUG,
 };
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -10,21 +12,24 @@ use hd_sched::SerialOrder;
 fn checked(source: &str, store: &MemoryStore, collect: bool, executor: Executor) -> Output {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
-    build_packages(
-        &Host {
-            render_tir: &[],
-            sources: &sources,
-            store,
-            clock: &NoClock,
-            executor,
-        },
-        "app",
-        &Packages {
-            collect_source_facts: collect,
-            ..Packages::default()
-        },
-        &Goal::Analyze,
-    )
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store,
+        clock: &NoClock,
+        executor,
+    };
+    if collect {
+        build_packages_with_analysis(
+            &host,
+            "app",
+            &Packages::default(),
+            &Goal::Analyze,
+            Some(&ANALYZER),
+        )
+    } else {
+        build_packages(&host, "app", &Packages::default(), &Goal::Analyze)
+    }
 }
 
 fn policy() -> Policy {
@@ -42,7 +47,7 @@ fn lint(source: &str, policy: Policy) -> (Output, DiagBuf) {
         Executor::Serial(SerialOrder::Priority),
     );
     assert!(!out.diags.has_errors(), "{}", out.render());
-    let findings = analyze(&out.source_facts, &out.texts, policy);
+    let findings = policy.apply(&out.analysis_diags);
     (out, findings)
 }
 
@@ -67,13 +72,6 @@ fn exact_debug_message_expression_spans_and_utf8_fix_ranges_are_preserved() {
         let edit = findings.edits[i];
         assert_eq!((edit.span.lo, edit.span.hi), (start, start + 5));
         assert_eq!(findings.get_text(edit.text), "dbg");
-        let fact = out
-            .source_facts
-            .discarded
-            .iter()
-            .find(|fact| fact.span == span)
-            .unwrap();
-        assert_eq!(fact.call.as_ref().unwrap().name.unwrap().lo, start);
     }
 }
 
@@ -190,24 +188,8 @@ fn independent_levels_never_suppress_core_discard_or_dead_code_errors() {
 #[test]
 fn rejected_trials_rollback_statement_and_discard_facts() {
     let source = "trait Parse[T]:\n    fn parse(f: fn() -> T) -> bool\nstruct Item: pass\nimpl Parse[i32] for Item:\n    fn parse(f: fn() -> i32) -> bool: f() >= +0\nimpl Parse[bool] for Item:\n    fn parse(f: fn() -> bool) -> bool: f()\nfn choose(value: u32) -> bool:\n    Item::parse(fn():\n        debug(value)\n        return value >= 0\n        debug(value)\n        true\n    )\n";
-    let (out, findings) = lint(source, policy());
+    let (_, findings) = lint(source, policy());
     assert_eq!(findings.len(), 4, "{}", findings.render_json());
-    assert_eq!(
-        out.source_facts
-            .discarded
-            .iter()
-            .filter(|f| f.prelude_debug)
-            .count(),
-        2
-    );
-    assert_eq!(
-        out.source_facts
-            .statements
-            .iter()
-            .filter(|f| !f.reachable)
-            .count(),
-        2
-    );
 }
 
 #[test]
@@ -225,33 +207,16 @@ fn inferred_parallel_and_warm_checks_keep_each_site_once_and_normal_caches_quiet
         let store = MemoryStore::default();
         let normal = checked(&source, &store, false, executor);
         assert!(normal.diags.is_empty(), "{}", normal.render());
-        assert!(normal.source_facts.statements.is_empty());
-        assert!(normal.source_facts.discarded.is_empty());
+        assert!(normal.analysis_diags.is_empty());
         for _ in 0..2 {
             let out = checked(&source, &store, true, executor);
             assert!(!out.diags.has_errors(), "{}", out.render());
-            let findings = analyze(&out.source_facts, &out.texts, policy());
+            let findings = policy().apply(&out.analysis_diags);
             assert_eq!(
                 findings.len(),
                 130,
                 "{executor:?}: {}",
                 findings.render_json()
-            );
-            assert_eq!(
-                out.source_facts
-                    .discarded
-                    .iter()
-                    .filter(|f| f.prelude_debug)
-                    .count(),
-                65
-            );
-            assert_eq!(
-                out.source_facts
-                    .statements
-                    .iter()
-                    .filter(|f| !f.reachable)
-                    .count(),
-                65
             );
         }
         let normal = checked(&source, &store, false, executor);
