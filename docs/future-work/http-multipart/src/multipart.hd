@@ -51,12 +51,20 @@ impl Multipart:
         )
         self
 
+## Signature-only adapter for methods proposed as inherent methods of std.http.Request.
+## The design package cannot add inherent methods to a type in another package.
+pub trait MultipartRequest:
     ## Encodes the parts once, replaces the request body, and sets Content-Type.
-    pub fn into_request(self, request: Request) -> Result[Request, MultipartError]:
-        panic("todo")
+    fn set_multipart(self, form: Multipart) -> Result[Request, MultipartError]
 
     ## Claims the request body and parses its Content-Type boundary and ordered parts.
-    pub fn from_request(request: &Request) -> Result[Multipart, MultipartError]:
+    fn multipart(&self) -> Result[Multipart, MultipartError]
+
+impl MultipartRequest for Request:
+    fn set_multipart(self, form: Multipart) -> Result[Request, MultipartError]:
+        panic("todo")
+
+    fn multipart(&self) -> Result[Multipart, MultipartError]:
         panic("todo")
 
 ## Why a buffered multipart message could not be built or read.

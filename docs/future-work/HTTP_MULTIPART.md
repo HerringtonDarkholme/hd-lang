@@ -11,28 +11,27 @@ The [checked package](http-multipart/) contains every proposed signature and rea
 `Multipart` is an ordered list of `MultipartPart` values.
 Each part reuses `Body` for read-once bytes and `Headers` for metadata.
 Encoding attaches a generated boundary, body, and `Content-Type` to an existing `Request`.
-Decoding claims an existing request body and returns fresh unread part bodies.
+Decoding reads those headers, claims the request body, and returns fresh unread part bodies.
 
 ```text
 form := Multipart::new()
     .text("caption", "launch day")
     .file("photo", "launch.png", "image/png", photo)
-request := form.into_request(Request::post(url))?
+request := Request::post(url).set_multipart(form)?
 response := request.send!()?.ok()?
 ```
 
 ## Open questions
 
-1. Approve `Multipart::into_request` and `from_request` rather than more `Request` methods? **Recommended: yes**, so multipart-specific validation stays with its codec.
-2. Require a media type for the `file` convenience method rather than guessing from the filename? **Recommended: yes**, because std has no MIME registry.
-3. Preserve a received filename exactly after UTF-8 validation rather than stripping path components? **Recommended: yes**, with docs that it is untrusted display metadata.
+1. Require a media type for the `file` convenience method rather than guessing from the filename? **Recommended: yes**, because std has no MIME registry.
+2. Preserve a received filename exactly after UTF-8 validation rather than stripping path components? **Recommended: yes**, with docs that it is untrusted display metadata.
 
 ## Problems it solves
 
 | Today | With this proposal |
 | --- | --- |
 | `set_form` can send only URL-encoded scalar data | `Multipart.text` and `Multipart.file` build one buffered upload |
-| A server can read only the whole request body | `Multipart::from_request` returns ordered named parts |
+| A server can read only the whole request body | `request.multipart()` returns ordered named parts |
 | File metadata must be parsed by application code | Each part exposes `name`, optional `filename`, `Headers`, and `Body` |
 | Custom parts need a second body/header abstraction | A `MultipartPart` literal uses the existing `Body` and `Headers` |
 
@@ -44,12 +43,14 @@ response := request.send!()?.ok()?
 | --- | --- |
 | `Multipart` | ordered buffered parts; `new`, `add`, `text`, and `file` builders |
 | `MultipartPart` | name, optional filename, ordinary `Headers`, and a read-once `Body` |
-| `Multipart.into_request` | validate and encode once, then replace one request's body and Content-Type |
-| `Multipart::from_request` | validate Content-Type, claim the request body, and parse one multipart level |
+| `Request.set_multipart` | validate and encode once, then replace the request body and Content-Type |
+| `Request.multipart` | validate Content-Type, claim the request body, and parse one multipart level |
 | `MultipartError` | typed body, header, boundary, disposition, and framing failures |
 
 The API is ordinary stdlib code. It adds no syntax, intrinsic, lang item, capability, or host call.
 The full signatures are in [`http-multipart/src/multipart.hd`](http-multipart/src/multipart.hd).
+That package uses a `MultipartRequest` adapter only because it cannot add inherent methods to `std.http.Request`.
+The proposed std API has inherent `Request` methods and no public adapter trait.
 
 ### Client encoding
 
@@ -57,7 +58,7 @@ Parts remain in insertion order, including repeated names.
 `text` writes UTF-8 with `text/plain; charset=utf-8`; `file` uses the caller's media type.
 `add` preserves custom headers and bytes.
 
-`into_request` claims every part body once, validates names, filenames, and headers, then buffers the wire body.
+`Request.set_multipart` claims every part body once, validates names, filenames, and headers, then buffers the wire body.
 It rejects carriage return, line feed, and NUL in names and filenames.
 It quotes `"` and `\` in `Content-Disposition` parameters and otherwise writes UTF-8.
 
@@ -67,7 +68,8 @@ The method replaces `Content-Type` with `multipart/form-data; boundary=...` and 
 
 ### Server decoding
 
-`from_request` requires a `multipart/form-data` Content-Type and a valid boundary parameter.
+`Request.multipart` requires a `multipart/form-data` Content-Type and a valid boundary parameter.
+It belongs on the request, rather than `Body`, because the boundary is a request header.
 The boundary follows RFC 2046's one-to-seventy-character limit and permitted ASCII set, with no trailing space.
 It claims `request.body` before parsing, preserving the existing read-once rule.
 A failure leaves the request body used, just like JSON and URL-encoded readers.
@@ -174,8 +176,8 @@ hd keeps that common path typed as `text` and `file`, and exposes arbitrary part
 
 ## Appendix C: Alternatives considered
 
-**Add only `Request.set_multipart` and `Request.multipart`.** This matches current message convenience methods.
-It spreads multipart-specific validation across `Request`; the proposal keeps the codec's two directions together.
+**Put conversion methods on `Multipart`.** `form.into_request(request)` keeps the codec's two directions together.
+It reads backwards at the call site and differs from `Request.set_form` and reqwest's request-builder method.
 
 **Represent fields and files as separate enums.** This simplifies the common server match.
 It duplicates `Body` and `Headers` behavior and cannot represent an ordinary custom part without another variant.
@@ -202,8 +204,8 @@ The proposal changes no accepted behavior and drops no existing API.
 ## Appendix E: Implementation phases
 
 1. Add `MultipartPart`, `Multipart`, and validation helpers; test repeated names and unsafe metadata.
-2. Add deterministic buffered encoding and `into_request`; test collision selection and exact CRLF framing.
-3. Add Content-Type and Content-Disposition parsing plus `from_request`; test every typed error.
+2. Add deterministic buffered encoding and `Request.set_multipart`; test collision selection and exact CRLF framing.
+3. Add Content-Type and Content-Disposition parsing plus `Request.multipart`; test every typed error.
 4. Add focused client/server conformance on Node and Wasmtime using raw wire bodies.
 5. Measure optimized Wasm and web-compiler gzip; stop for owner review if the ordinary HTTP surface grows materially.
 
