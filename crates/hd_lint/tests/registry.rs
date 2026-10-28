@@ -4,7 +4,12 @@ use hd_driver::analysis::Events;
 use hd_lint::{Level, Policy, RULES};
 use hd_project::parse_manifest;
 
-const EXPECTED: [(&str, Code, Events); 11] = [
+const EXPECTED: [(&str, Code, Events); 12] = [
+    (
+        "dbg-in-dependency",
+        Code::DbgInDependency,
+        Events::FETCHED_DEBUG,
+    ),
     (
         "derivation-line-drift",
         Code::DerivationLineDrift,
@@ -62,7 +67,7 @@ fn policy_free_findings() -> DiagBuf {
 }
 
 #[test]
-fn registry_is_the_exact_unique_eleven_rule_surface() {
+fn registry_is_the_exact_unique_twelve_rule_surface() {
     assert_eq!(RULES.len(), EXPECTED.len());
     for (rule, (name, code, events)) in RULES.iter().zip(EXPECTED) {
         assert_eq!(rule.name(), name);

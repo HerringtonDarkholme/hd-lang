@@ -14,6 +14,7 @@ use hd_syntax::{CommentKind, SyntaxKind, TokenKind};
 use hd_types::Prim;
 
 pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
+pub const DBG_IN_DEPENDENCY: &str = Code::DbgInDependency.as_str();
 pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
 pub const MIXED_SCRIPT: &str = Code::MixedScriptIdentifier.as_str();
 pub const PRIVATE_MAIN: &str = Code::PrivateMain.as_str();
@@ -69,6 +70,12 @@ impl Rule {
 
 /// The complete migrated lint surface, in stable registry order.
 pub const RULES: &[Rule] = &[
+    Rule::new(
+        Code::DbgInDependency,
+        Level::Warn,
+        Events::FETCHED_DEBUG,
+        dbg_in_dependency,
+    ),
     Rule::new(
         Code::DerivationLineDrift,
         Level::Warn,
@@ -136,6 +143,22 @@ pub const RULES: &[Rule] = &[
         variant_binding,
     ),
 ];
+
+fn dbg_in_dependency(event: &Event<'_>, _view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let Event::FetchedDebug(event) = event else {
+        return;
+    };
+    out.push(
+        Code::DbgInDependency,
+        Severity::Warning,
+        event.span,
+        &format!(
+            "fetched package `{}` contains `dbg`; its debug output is suppressed",
+            event.package
+        ),
+        None,
+    );
+}
 
 /// The single registered consumer used by `hd lint`.
 pub struct Analyzer;

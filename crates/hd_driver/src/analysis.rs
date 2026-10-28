@@ -29,6 +29,7 @@ impl Events {
     pub const DISCARD: Self = Self(1 << 7);
     pub const DERIVATIONS: Self = Self(1 << 8);
     pub const MAIN_SITE: Self = Self(1 << 9);
+    pub const FETCHED_DEBUG: Self = Self(1 << 10);
     pub const CHECKED: Self = Self(
         Self::COMPARISON.0
             | Self::BINDING.0
@@ -37,8 +38,9 @@ impl Events {
             | Self::DISCARD.0,
     );
     pub const SOURCE: Self = Self(Self::IDENT.0 | Self::DECL.0 | Self::MODULE.0);
-    pub const ALL: Self =
+    pub const MODULE_ANALYSIS: Self =
         Self(Self::SOURCE.0 | Self::CHECKED.0 | Self::DERIVATIONS.0 | Self::MAIN_SITE.0);
+    pub const ALL: Self = Self(Self::MODULE_ANALYSIS.0 | Self::FETCHED_DEBUG.0);
 
     #[must_use]
     pub const fn union(self, other: Self) -> Self {
@@ -87,6 +89,13 @@ pub struct DerivationsEvent<'v> {
     facts: &'v DerivationFacts,
 }
 
+/// The first cached `dbg` reference found in one fetched package.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FetchedDebugEvent<'v> {
+    pub package: &'v str,
+    pub span: Span,
+}
+
 impl<'v> DerivationsEvent<'v> {
     #[must_use]
     pub const fn facts(self) -> &'v DerivationFacts {
@@ -107,6 +116,7 @@ pub enum Event<'v> {
     Discard(SourceCall),
     Derivations(DerivationsEvent<'v>),
     MainSite(MainSite),
+    FetchedDebug(FetchedDebugEvent<'v>),
 }
 
 impl Event<'_> {
@@ -123,6 +133,7 @@ impl Event<'_> {
             Self::Discard(_) => Events::DISCARD,
             Self::Derivations(_) => Events::DERIVATIONS,
             Self::MainSite(_) => Events::MAIN_SITE,
+            Self::FetchedDebug(_) => Events::FETCHED_DEBUG,
         }
     }
 }
@@ -133,6 +144,19 @@ pub trait AnalysisSink: Sync {
     /// Resolves a stable diagnostic name from a policy-free cache entry.
     fn diagnostic_code(&self, name: &str) -> Option<Code>;
     fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf);
+}
+
+/// Dispatch one graph-level event against the source view that owns its span.
+/// These events reuse neutral facts from the ordinary Check entry and need no
+/// checked-body facts.
+pub(crate) fn dispatch(
+    sink: &dyn AnalysisSink,
+    event: &Event<'_>,
+    src: Src<'_>,
+    out: &mut DiagBuf,
+) {
+    let view = CheckedView::from_source(src, None);
+    sink.event(event, &view, out);
 }
 
 /// Encodes one module's policy-free findings with line-relative spans.

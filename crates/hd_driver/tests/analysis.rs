@@ -8,7 +8,8 @@ use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_driver::analysis::{AnalysisSink, Event, Events};
 use hd_driver::{
-    Executor, Goal, Host, NoClock, Packages, build_packages, build_packages_with_analysis,
+    Dependency, Executor, Goal, Host, NoClock, Packages, build_packages,
+    build_packages_with_analysis,
 };
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -75,6 +76,18 @@ impl AnalysisSink for Recorder {
             Event::Discard(_) => "discard".to_owned(),
             Event::Derivations(_) => "derivations".to_owned(),
             Event::MainSite(_) => "main-site".to_owned(),
+            Event::FetchedDebug(event) => {
+                let reference = source.text_at(event.span).unwrap();
+                assert!(reference.starts_with("dbg"), "{reference}");
+                out.push(
+                    Code::DbgInDependency,
+                    Severity::Warning,
+                    event.span,
+                    "synthetic fetched debug finding",
+                    None,
+                );
+                format!("fetched-debug:{}:{reference}", event.package)
+            }
         };
         self.events.lock().unwrap().push(shown);
     }
@@ -174,9 +187,59 @@ impl AnalysisSink for TypedRecorder {
             | Event::Decl(_)
             | Event::Module(_)
             | Event::Derivations(_)
-            | Event::MainSite(_) => unreachable!(),
+            | Event::MainSite(_)
+            | Event::FetchedDebug(_) => unreachable!(),
         };
         self.events.lock().unwrap().push(shown);
+    }
+}
+
+#[test]
+fn fetched_debug_event_reuses_dependency_check_entries_without_body_rechecks() {
+    let mut root = MemorySources::default();
+    root.insert(
+        "src/main.hd",
+        "use dep.money.{cents}\npub fn main() -> void:\n    _ := cents(+1)\n",
+    );
+    let mut money = MemorySources::default();
+    money.insert(
+        "src/lib.hd",
+        "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    n * 100\n",
+    );
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &root,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let packages = Packages {
+        requires: vec![("money".to_owned(), 1)],
+        deps: vec![Dependency {
+            name: "money".to_owned(),
+            identity: "/w/money".to_owned(),
+            sources: &money,
+            requires: Vec::new(),
+            fetched: true,
+        }],
+        ..Packages::default()
+    };
+    let goal = Goal::Analyze;
+
+    let checked = build_packages(&host, "app", &packages, &goal);
+    assert!(checked.diags.is_empty(), "{}", checked.render());
+    assert!(!checked.counters.modules_checked.is_empty());
+
+    for _ in 0..2 {
+        let sink = Recorder::new(Events::FETCHED_DEBUG);
+        let lint = build_packages_with_analysis(&host, "app", &packages, &goal, Some(&sink));
+        assert!(lint.diags.is_empty(), "{}", lint.render());
+        let events = sink.take();
+        assert_eq!(events.len(), 1);
+        assert!(events[0].starts_with("fetched-debug:money:dbg("));
+        assert_eq!(lint.analysis_diags.code, [Code::DbgInDependency]);
+        assert!(lint.counters.modules_checked.is_empty());
     }
 }
 

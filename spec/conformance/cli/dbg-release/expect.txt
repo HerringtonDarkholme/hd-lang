@@ -1,6 +1,9 @@
 # dbg lines go to standard error, so standard output holds only the program's line.
 run: hd run
 stdout: 1250
+# A path dependency is the user's own code, not a fetched package, so lint is quiet.
+run: hd lint --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 # A path dependency is the user's own code, so its dbg call is an error in a
 # release build too: one error in money, and two in shop: the call and the function value.
 run: hd build --release --format json

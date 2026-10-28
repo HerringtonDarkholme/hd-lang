@@ -9,7 +9,8 @@ feature-gated analysis walk, borrowed typed views, the per-module policy-free
 findings cache, registered dispatch for all ten rules, and the unified
 manifest/CLI/source policy path. The parked producer migrations now resume on
 that architecture. The `private-main` producer and its run/build entry failure
-are the first completed migration on that path; eleven rules are registered.
+are complete; `dbg-in-dependency` now derives from cached neutral references
+only during lint. Twelve rules are registered.
 
 ## Approved design
 
@@ -484,6 +485,7 @@ before reference/place transformations erase distinctions.
 
 | Existing lint (all default Warn) | Shared view it reads | Diagnostic owner | Site allow reaches it? |
 | --- | --- | --- | --- |
+| `dbg-in-dependency` | Cached `dbg` references and fetched-package identity. | Package | No. |
 | `unsigned-comparison-always` | Checked expression type, operator and unsuffixed-zero syntax. | Statement | Yes: the operator is its directly owned semantic call. |
 | `unused-local-binding` | Local-binding kind/identity/name and final reads/captures. | Statement | No: the binding is not a call. |
 | `redundant-let-mut` | Binding annotation/permission, written mut span and mutable-address uses. | Statement | No: the binding is not a call. |

@@ -5583,7 +5583,10 @@ impl Run<'_> {
         // entries. Recheck selected root bodies on a Lint miss; dependencies keep
         // ordinary cache hits, and a Lint hit skips the analysis walk entirely.
         #[cfg(feature = "analysis")]
-        let analyze = self.analysis.is_some() && self.table.modules[mi].package == 0;
+        let analyze = self.analysis.is_some_and(|(_, events)| {
+            self.table.modules[mi].package == 0
+                && events.intersects(analysis::Events::MODULE_ANALYSIS)
+        });
         #[cfg(feature = "analysis")]
         let cached_analysis = if analyze {
             let (sink, _) = self.analysis.expect("analysis sink");
@@ -7683,9 +7686,17 @@ impl Run<'_> {
         }
     }
 
-    /// Report outside the cached check entry, once per fetched package,
-    /// including when every module or the whole program is cached.
-    fn dbg_in_dependencies(&self) {
+    /// Send one neutral cached-`dbg` event per fetched package to optional
+    /// lint analysis. Dependency bodies stay on ordinary Check cache hits;
+    /// the event is reconstructed cheaply from the cached reference section.
+    #[cfg(feature = "analysis")]
+    fn lint_dbg_in_dependencies(&self) {
+        let Some((sink, interests)) = self.analysis else {
+            return;
+        };
+        if !interests.contains(analysis::Events::FETCHED_DEBUG) {
+            return;
+        }
         let mut warned = BTreeSet::new();
         for (m, module) in self.table.modules.iter().enumerate() {
             let package = usize::from(module.package);
@@ -7696,16 +7707,17 @@ impl Run<'_> {
                 continue;
             };
             if warned.insert(package) {
-                lock(&self.diags).push(
-                    Code::DbgInDependency,
-                    Severity::Warning,
-                    reference.span,
-                    &format!(
-                        "fetched package `{}` contains `dbg`; its debug output is suppressed",
-                        self.table.packages[package]
-                    ),
-                    None,
+                let mut findings = DiagBuf::default();
+                analysis::dispatch(
+                    sink,
+                    &analysis::Event::FetchedDebug(analysis::FetchedDebugEvent {
+                        package: &self.table.packages[package],
+                        span: reference.span,
+                    }),
+                    self.src(m),
+                    &mut findings,
                 );
+                let _ = self.analysis_diags[m].set(findings);
             }
         }
     }
@@ -8143,7 +8155,8 @@ impl Run<'_> {
             t
         };
         self.dbg_in_release();
-        self.dbg_in_dependencies();
+        #[cfg(feature = "analysis")]
+        self.lint_dbg_in_dependencies();
         match &self.goal {
             Goal::Program { .. }
             | Goal::ReplInput { .. }
