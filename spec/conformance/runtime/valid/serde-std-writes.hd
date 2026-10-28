@@ -1,5 +1,5 @@
 # test: each standard Serialize writes exactly one value of the data model with its own call, and a derived newtype writes its base value
-# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries.
+# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.newtype-variant, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.result, std-serde.std.list, std-serde.std.map-entries.
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Facts, VariantInfo, Member}
@@ -53,6 +53,9 @@ impl Serializer for Calls:
 
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("variant:${v.name}")
+
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.add("newtype:${v.name}")
 
     fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("member:${m.name}")
@@ -113,6 +116,12 @@ tests:
         assert_equal(calls(some), "text:gift wrap", reason=".Some")
         let lost: i32?? = .Some(.None)
         assert_equal(calls(lost), "null", reason="T?? loses a layer")
+
+    it("a Result writes one newtype variant and its direct payload"):
+        let ok: Result[i32, string] = .Ok(7)
+        let err: Result[i32, string] = .Err("offline")
+        assert_equal(calls(ok), "newtype:Ok int:7 end-variant", reason="Ok")
+        assert_equal(calls(err), "newtype:Err text:offline end-variant", reason="Err")
 
     it("a list writes its length, then each item in order"):
         assert_equal(calls(["pen", "ink"]), "list:2 text:pen text:ink end-list", reason="two items")

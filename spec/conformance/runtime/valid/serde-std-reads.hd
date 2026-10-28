@@ -1,5 +1,5 @@
 # test: each standard Deserialize reads one value with its own call and expected name, and a value that does not fit is the reader's invalid error
-# Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries, std-serde.std.range, std-serde.std.float-read.
+# Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.newtype-variant, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.result, std-serde.std.list, std-serde.std.map-entries, std-serde.std.range, std-serde.std.float-read.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Facts, VariantInfo, Member}
 # One scripted value or step of a sensor feed.
@@ -123,6 +123,10 @@ impl Deserializer for Feed:
             Tok.Pick(index) => .Ok(index)
             _ => .Err("no variant")
 
+    fn begin_newtype_variant(&mut self) -> Result[void, string]:
+        self.add("newtype")
+        .Ok(())
+
     fn member(&mut self, m: &Member) -> Result[void, string]:
         self.add("member:${m.name}")
         .Ok(())
@@ -226,6 +230,18 @@ tests:
             read::[i32?]([Tok.Int(12)]),
             (.Ok(.Some(+12)), "is-null int:i32", 1),
             reason="present",
+        )
+
+    it("a Result reads one newtype variant and its direct payload"):
+        assert_equal(
+            read::[Result[i32, string]]([Tok.Pick(0), Tok.Int(7)]),
+            (.Ok(.Ok(7)), "variant:Ok|Err newtype int:i32 end-variant", 2),
+            reason="Ok",
+        )
+        assert_equal(
+            read::[Result[i32, string]]([Tok.Pick(1), Tok.Text("offline")]),
+            (.Ok(.Err("offline")), "variant:Ok|Err newtype text:string end-variant", 2),
+            reason="Err",
         )
 
     it("a list reads next_item before each item"):

@@ -69,6 +69,9 @@ impl Serializer for Envelope:
             .None => "-"
         self.add("<$on ${v.name}#${v.index} data=${v.of_data}>")
 
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.begin_variant(facts, v)
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         let key: string = match m.facts.find::[Rename]():
             .Some(found) => found.name

@@ -55,6 +55,9 @@ impl Serializer for Calls:
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("variant:${v.name}")
 
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.add("newtype:${v.name}")
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("member:${m.name}")
 

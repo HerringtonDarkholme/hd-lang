@@ -74,6 +74,9 @@ impl Serializer for Tally:
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("variant:${v.name}")
 
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.add("newtype:${v.name}")
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("member:${m.name}")
 
@@ -127,6 +130,9 @@ impl Deserializer for Script:
 
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
         .Ok(0)
+
+    fn begin_newtype_variant(&mut self) -> Result[void, string]:
+        .Ok(())
 
     fn member(&mut self, m: &Member) -> Result[void, string]:
         self.members.push(m.name)
