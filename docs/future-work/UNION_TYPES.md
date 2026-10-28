@@ -1,6 +1,6 @@
 # Positional Union Types
 
-Proposal, 2026-10-28; domain: language types and errors; **not accepted**.
+Status: design complete 2026-10-28; not specified or implemented.
 This record turns the decisions in [#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)
 into an implementation-sized design. It changes no specification or compiler
 behavior. A prior [twelve-case stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/UNION_TYPES.md)
@@ -40,25 +40,6 @@ enum Union[A, B]:
 type LoadError = Union[HttpError, JsonError]
 ```
 
-## Owner Questions
-
-1. **What is `Error.source` for an error union?** **Recommendation:** return
-   `.Some(&active_payload)` when that payload implements `Error`; otherwise
-   `.None`. This makes the active concrete error discoverable by the existing
-   source-chain API. Transparent forwarding to the payload's own source would
-   avoid one possibly repetitive display layer, but would hide the active
-   payload itself from `find`-style traversal.
-2. **What does the name `Union` mean?** **Recommendation:** make it a
-   compiler-known constructor namespace, resolved only from the expected
-   anonymous-union type. `Union._1` is the one-payload variant function of that
-   expected union. With no expected type, use the existing
-   `cannot-infer-type` diagnostic and ask for an annotation. This preserves the
-   spelling already chosen in #804 without adding a declaration, prelude item
-   or source-level variadic generic.
-
-All other semantic choices in this record are decisions already made in
-#804. Approval of the two recommended answers makes the design complete.
-
 ## Problems It Solves
 
 Named enums remain the right public boundary when member names, messages,
@@ -83,9 +64,12 @@ priority to `?`.
   on each side.
 - Type identity includes arity, order, duplicates and nesting. Aliases expand
   normally, so aliases of the same union are the same type.
-- Construction uses `._k(value)` where an expected union is already known, or
-  `Union._k(value)` where a constructor function is needed. Matching uses the
-  same positional variant names and ordinary enum exhaustiveness.
+- Construction uses `._k(value)` where an expected union is already known.
+  `Union._k(value)` uses a compiler-known constructor namespace, resolved from
+  the expected anonymous-union type; it is not a declaration, prelude item or
+  source-level variadic generic. Without an expected union type it reports
+  `cannot-infer-type` and asks for an annotation. Matching uses the same
+  positional variant names and ordinary enum exhaustiveness.
 - `?` is unchanged. A programmer first uses `map_err(Union._k)`, then `?`
   propagates the resulting union because its type already matches.
 - Representation, drop behavior, copying, borrowing and pattern lowering are
@@ -93,8 +77,9 @@ priority to `?`.
   and inner discriminant; flat `A | B | C` has one.
 - Conditional `Eq`, `Debug`, `Display` and `Error` implementations follow the
   member types. Equality compares the tag then the payload. Debug includes
-  `Union._k`; Display delegates to the active payload. `Error.source` is the
-  open question above.
+  `Union._k`. Like thiserror's transparent wrapper, Display and `Error.source`
+  forward to the active payload's own Display and source; the union does not
+  add itself or the active payload as another source-chain layer.
 - No automatic `Structure`, `Serialize`, `Deserialize`, `Ord` or public field
   names are introduced. Use a named enum when those semantics are needed.
 
@@ -129,7 +114,7 @@ HTTP/JSON and full policy ports.
 | --- | --- | --- |
 | thiserror HTTP + JSON | distinct transport and decode failures | works; three explicit maps replace conversions |
 | anyhow context | add operation and path context | union alone does not add context; keep a wrapper |
-| Go wrapped errors | inspect concrete causes through a chain | depends on the `Error.source` answer |
+| Go wrapped errors | inspect concrete causes through a chain | transparent forwarding preserves the active payload's existing chain |
 | Effect selected recovery | remove one error from a residual set | requires explicit remapping; no set subtraction |
 | generic retry | preserve arbitrary `E` | works without constructing a union |
 | generic timeout | return `E` or `TimedOut` | works; two explicit constructors; `E = TimedOut` is unambiguous by position |
@@ -212,8 +197,9 @@ type system. hd's candidate is an ordinary sum usable outside errors.
 ### Go: concrete errors in a source chain
 
 Go's `errors.As` traverses wrapped errors to find a concrete member. The Go
-team also warns that wrapping exposes the wrapped error as API. That is why
-the active payload should appear in hd's source chain rather than be skipped.
+team also warns that wrapping exposes the wrapped error as API. hd's union is
+transparent instead: its `source` is the active payload's own source, so the
+anonymous wrapper adds no extra chain layer.
 [Source](https://go.dev/blog/go1.13-errors)
 
 ```go
@@ -248,11 +234,11 @@ func load() throws(LoadError) -> Document
 | Scala/Kotlin set union | syntax, semantic exceptions, checker mechanisms | implicit injection and set algebra | erases order and duplicates; new conversion and type-test rules |
 | Ordered positional union | syntax plus reuse of enum machinery | exact local sum with explicit boundaries | still costs one type syntax and a compiler-known constructor namespace |
 
-The radical simplification is to do nothing: retain named enums and close
-#804. It has zero implementation cost and remains preferable if the measured
-wrapper burden does not justify the budget above. If a feature is accepted,
-the ordered design is cheaper semantically than a set union because it adds no
-subtyping, injection or error-specific algebra.
+The radical simplification considered was to do nothing and retain named
+enums. It has zero implementation cost and remains the fallback if the
+measured wrapper burden does not justify the budget above. The decided ordered
+design is cheaper semantically than a set union because it adds no subtyping,
+injection or error-specific algebra.
 
 ## Appendix D: Today In hd
 
@@ -302,7 +288,8 @@ Implementation is deliberately split into hour-sized, revertible slices:
 2. Add canonical ordered identity, alias expansion and diagnostic rendering.
 3. Resolve positional constructors and patterns through ordinary enum checks.
 4. Lower flat and nested unions through enum layout, ownership and matches.
-5. Add conditional trait templates after the two owner questions are answered.
+5. Add the decided conditional trait templates, including transparent Display
+   and `Error.source` forwarding.
 6. Add conformance, both-engine runtime parity, compile-time and Wasm-size
    comparisons against named controls; update the spec only in this final job.
 

@@ -27,8 +27,8 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #807).
 
 ### Language and library
 
-- [Positional Union Types](UNION_TYPES.md): proposed ordered anonymous enums
-  with explicit positional construction; two owner questions remain (#804).
+- [Positional Union Types](UNION_TYPES.md): complete, not-yet-specified design
+  for ordered anonymous enums with explicit positional construction (#804).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
