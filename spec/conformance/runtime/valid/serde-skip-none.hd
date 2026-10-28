@@ -1,5 +1,5 @@
 # test: skip_none omits only an absent outer optional and leaves ordinary nulls and present optional payloads intact
-# Spec std/serde Absent Optional Members: std-serde.skip-none.fact, std-serde.skip-none.constructor, std-serde.skip-none.omit, std-serde.skip-none.present, std-serde.skip-none.read.
+# Spec std/serde Absent Optional Members: std-serde.skip-none.fact, std-serde.skip-none.constructor, std-serde.skip-none.named-omit, std-serde.skip-none.present, std-serde.skip-none.read.
 use std.serde.{Serialize, Deserialize, skip_none}
 use std.json.{decode, encode, from_json, parse, to_json}
 use std.http.{Request, Url}
@@ -93,11 +93,11 @@ tests:
             reason="shared walker omits the absent member",
         )
 
-    it("an enum uses its unit form when every payload member is omitted"):
+    it("a named enum keeps its object form when every payload member is omitted"):
         assert_equal(
             encode(Choice.Payload(.None)),
-            "\"Payload\"",
-            reason="empty serialized payload",
+            "{\"Payload\":{}}",
+            reason="the declared named form stays an object",
         )
         assert_equal(
             encode(Choice.Payload(.Some(9))),
@@ -105,7 +105,7 @@ tests:
             reason="present payload remains an object",
         )
         assert_equal(
-            decode::[Choice]("\"Payload\"").map(fn(value): encode(value)),
-            .Ok("\"Payload\""),
+            decode::[Choice]("{\"Payload\":{}}").map(fn(value): encode(value)),
+            .Ok("{\"Payload\":{}}"),
             reason="normal optional decoding reads the omitted member",
         )

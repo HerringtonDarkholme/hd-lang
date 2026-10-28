@@ -1,10 +1,10 @@
 # test: derived serde and JSON round trips agree with independent bounded text models
 # Spec std/json: std-json.derive.from-json.inverse, std-json.display.text,
 # std-json.display.escapes, std-json.derive.to-json.data-included-members,
-# std-json.derive.to-json.enum-included-members, std-json.decode.direct.
+# std-json.derive.to-json.included-enum-form, std-json.decode.direct.
 # Spec std/serde: std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries,
 # std-serde.std.tuple, std-serde.std.set, std-serde.member-name.precedence,
-# std-serde.skip.read, std-serde.skip.write, std-serde.skip-none.omit.
+# std-serde.skip.named-read-default, std-serde.skip.write, std-serde.skip-none.named-omit.
 use std.collections.Set
 use std.json.{decode, encode}
 use std.serde.{Deserialize, Serialize, rename, rename_all, skip, skip_none}
@@ -108,14 +108,7 @@ fn event_text(value: Event) -> string:
         .Empty => quoted("Empty")
         .Count(count) => "{" + field("Count", "{" + field("value", integer(i64(count))) + "}") + "}"
         .Pair(count, text) =>
-            (
-                "{"
-                + field(
-                    "Pair",
-                    "{" + field("_0", integer(i64(count))) + "," + field("_1", quoted(text)) + "}",
-                )
-                + "}"
-            )
+            "{" + field("Pair", "[" + integer(i64(count)) + "," + quoted(text) + "]") + "}"
         .Flags(flags, label) =>
             (
                 "{"

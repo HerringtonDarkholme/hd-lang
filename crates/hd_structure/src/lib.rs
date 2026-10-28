@@ -119,6 +119,9 @@ pub struct Mem {
     pub has_default: bool,
     /// Omitted by the derivation's member lines (`annot.omit.skip`).
     pub omitted: bool,
+    /// An omitted positional member whose value comes from its type's
+    /// `Default`, rather than from a declared member default.
+    pub type_default: Option<(ChoiceKind, u32)>,
     /// A tuple's rest member (`annot.tuple.rest`): `walk` passes it to
     /// `rest` (`annot.walk.rest`).
     pub rest: bool,
@@ -201,6 +204,7 @@ pub fn tuple_target(pool: &InternPool, ty: Ty) -> Option<Target> {
             positional: true,
             has_default: false,
             omitted: false,
+            type_default: None,
             rest,
             self_ref: 0,
             facts: None,
@@ -1104,6 +1108,24 @@ impl<'a, 'n> Gen<'a, 'n> {
         let doc = self.doc_value(v, None, false)?;
         let type_doc = self.doc_value(v, None, true)?;
         let of_data = self.bool_(v.of_data());
+        let positional = self.usize_(
+            v.members
+                .iter()
+                .filter(|m| m.positional)
+                .fold(0, |n, _| n + 1),
+        );
+        let named = self.usize_(
+            v.members
+                .iter()
+                .filter(|m| !m.positional)
+                .fold(0, |n, _| n + 1),
+        );
+        let included_positional = self.usize_(
+            v.members
+                .iter()
+                .filter(|m| m.positional && !m.omitted)
+                .fold(0, |n, _| n + 1),
+        );
         let shared = self.shared_pairs(v)?;
         let self_ref = self.self_ref(v.self_ref);
         self.new_data(
@@ -1116,6 +1138,9 @@ impl<'a, 'n> Gen<'a, 'n> {
                 ("doc", doc),
                 ("type_doc", type_doc),
                 ("of_data", of_data),
+                ("positional", positional),
+                ("named", named),
+                ("included_positional", included_positional),
                 ("shared", shared),
                 ("self_ref", self_ref),
             ],
@@ -1363,7 +1388,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// The traversal of one variant: `variant`, then each member it does
-    /// not omit (`annot.walk.match`, `annot.walk.members`,
+    /// not omit (`annot.walk.enum-match`, `annot.walk.enum-members`,
     /// `annot.describe.order`); `walk` passes a rest member to `rest`
     /// (`annot.walk.rest`). `value` is the walked value, or `None` for
     /// `describe`.
@@ -1375,8 +1400,10 @@ impl<'a, 'n> Gen<'a, 'n> {
         value: Option<Ref>,
         ret: Ty,
     ) -> StageResult<()> {
+        let data = trait_ == self.names.known.walker && v.shape == Shape::Data;
         let h = self.variant_handle(v);
-        let r = self.protocol_call(trait_, "variant", w, &[], &[h])?;
+        let method = if data { "data_variant" } else { "variant" };
+        let r = self.protocol_call(trait_, method, w, &[], &[h])?;
         self.try_void(r, ret)?;
         for m in v.members.iter().filter(|m| !m.omitted) {
             let f = strip_mut(self.names, m.ty);
@@ -1385,7 +1412,9 @@ impl<'a, 'n> Gen<'a, 'n> {
             let (method, targ) = match value {
                 Some(s) => {
                     args.push(self.read(s, v, m, f));
-                    if m.rest {
+                    if data {
+                        ("data_member", f)
+                    } else if m.rest {
                         ("rest", self.list_item(f)?)
                     } else {
                         ("member", f)
@@ -1482,6 +1511,25 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok(self.b.emit(Tag::DefaultCall, a, bw, t, SYN))
     }
 
+    /// `T::default()` for a skipped positional member whose type is `T`.
+    fn type_default(&mut self, t: Ty, choice: (ChoiceKind, u32)) -> Ref {
+        let trait_ = self.names.known.default;
+        let method = self.names.member(trait_, PathKind::Member, "default");
+        self.b.call(
+            &Callee::TraitMethod {
+                trait_,
+                method,
+                self_ty: t,
+                targs: TyList::EMPTY,
+                choice,
+            },
+            &[],
+            Providers::None,
+            t,
+            SYN,
+        )
+    }
+
     /// Builds variant `v` from the source `src` (`annot.build.next-option` to
     /// `annot.build.construct`, `annot.tuple.build`): `next` until
     /// `.None`, `member` per key with the value read so far, `missing` per
@@ -1531,7 +1579,10 @@ impl<'a, 'n> Gen<'a, 'n> {
         let mut k = 0;
         for m in &v.members {
             if m.omitted {
-                values.push(self.default_of(v, m, m.ty)?);
+                values.push(match m.type_default {
+                    Some(choice) => self.type_default(m.ty, choice),
+                    None => self.default_of(v, m, m.ty)?,
+                });
                 continue;
             }
             let slot = slots[k];
@@ -1583,7 +1634,12 @@ impl<'a, 'n> Gen<'a, 'n> {
         let ot = pool.intern_ty(&TyData::Option(m.ty));
         let h = self.field_handle(v, m, m.ty);
         let prev = self.b.get(slots[0], ot, SYN);
-        let r = self.protocol_call(self.names.known.source, "member", src, &[m.ty], &[h, prev])?;
+        let method = if v.shape == Shape::Data {
+            "data_member"
+        } else {
+            "member"
+        };
+        let r = self.protocol_call(self.names.known.source, method, src, &[m.ty], &[h, prev])?;
         let x = self.try_value(r, ret)?;
         let rec = self.b.refs_record(&[x]);
         let some = self.b.emit(Tag::NewVariant, 1, rec, ot, SYN);
@@ -1596,7 +1652,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok(())
     }
 
-    /// `build(s)` (`annot.build.variant`): the source chooses among every
+    /// `build(s)` (`annot.build.enum-variant`): the source chooses among every
     /// variant, then the chosen one is built.
     fn build_body(mut self, sig: &FnSig, vars: &[Var]) -> StageResult<(Body, Vec<Handle>)> {
         let ps = self.params(sig);
@@ -1606,12 +1662,18 @@ impl<'a, 'n> Gen<'a, 'n> {
         let names = self.names;
         let ret = sig.ret;
         let blk = self.b.open_block();
-        let choices = self.choices();
-        let r = self.protocol_call(names.known.source, "variant", src, &[], &[choices])?;
-        let chosen = self.try_value(r, ret)?;
         let value = match vars {
-            [v] if v.of_data() => self.build_variant(v, src, ret)?,
+            [v] if v.shape == Shape::Data => {
+                let choice = self.variant_handle(v);
+                let r =
+                    self.protocol_call(names.known.source, "data_variant", src, &[], &[choice])?;
+                let _ = self.try_value(r, ret)?;
+                self.build_variant(v, src, ret)?
+            }
             _ => {
+                let choices = self.choices();
+                let r = self.protocol_call(names.known.source, "variant", src, &[], &[choices])?;
+                let chosen = self.try_value(r, ret)?;
                 let path = [
                     (self.std("VariantRecord"), "info"),
                     (self.std("VariantInfo"), "index"),

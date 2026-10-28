@@ -1,5 +1,5 @@
 # test: each standard Deserialize reads one value with its own call and expected name, and a value that does not fit is the reader's invalid error
-# Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.newtype-variant, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.result, std-serde.std.list, std-serde.std.map-entries, std-serde.std.range, std-serde.std.float-read.
+# Spec std/serde Reading, Standard Implementations: std-serde.read.scalar, std-serde.read.expected, std-serde.read.invalid, std-serde.read.is-null, std-serde.read.list, std-serde.read.map, std-serde.read.newtype-variant, std-serde.read.tuple-variant-default, std-serde.read.one-value, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.result, std-serde.std.list, std-serde.std.map-entries, std-serde.std.range, std-serde.std.float-read.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Facts, VariantInfo, Member}
 # One scripted value or step of a sensor feed.
@@ -242,6 +242,14 @@ tests:
             read::[Result[i32, string]]([Tok.Pick(1), Tok.Text("offline")]),
             (.Ok(.Err("offline")), "variant:Ok|Err newtype text:string end-variant", 2),
             reason="Err",
+        )
+
+    it("a reader must opt in to tuple variants"):
+        let mut input = Feed { toks: [], at: 0, log: "" }
+        assert_equal(
+            input.begin_tuple_variant(2),
+            .Err("invalid tuple variant"),
+            reason="the default rejects through invalid",
         )
 
     it("a list reads next_item before each item"):

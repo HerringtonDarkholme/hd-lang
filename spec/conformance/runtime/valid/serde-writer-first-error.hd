@@ -60,6 +60,14 @@ impl Serializer for Sink:
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, string]:
         self.add("newtype:${v.name}")
 
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, string]:
+        self.add("tuple:${v.name}:$len")
+
     fn member(&mut self, m: &Member) -> Result[void, string]:
         self.add("member:${m.name}")
 

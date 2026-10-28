@@ -697,7 +697,7 @@ A trait method may hide its result behind an `impl Trait` bound.
 3. r[trait.impl.generics.markers] Each parameter keeps the trait method's bounds.
 4. r[trait.impl.generics.bounds] The same bounds are the same traits, with the same instantiated arguments and associated type bindings, written in the same order.
 5. r[trait.impl.generics.default] Each parameter also repeats the trait method's [default](04-type-system.md#type-argument-defaults), instantiated as the bounds are, or has none when the trait method's has none. A missing, extra, or different default is a mismatch.
-6. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member`](14-annotations.md#r-annot.walker.strengthen-member) allows.
+6. r[trait.impl.generics.fixed-member-hook-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member-hook`](14-annotations.md#r-annot.walker.strengthen-member-hook) allows.
 7. r[trait.impl.generics.error] Any mismatch is an error reported at the implementation method. Error: `trait-method-signature`.
 
 ```text

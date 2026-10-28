@@ -789,6 +789,9 @@ pub struct VariantInfo:
     pub doc: string?
     pub type_doc: string? = .None
     pub of_data: bool
+    pub positional: usize = 0
+    pub named: usize = 0
+    pub included_positional: usize = 0
     pub shared: List[(string, *dyn Any)]
     pub self_ref: SelfRef
 
@@ -832,7 +835,11 @@ pub struct KeyRecord[S]:
 
 pub trait Walker[S]:
     type Error
+    fn data_variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]:
+        self.variant(v)
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn data_member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]:
+        self.member(h, value)
     fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
     fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]: pass
 
@@ -843,8 +850,12 @@ pub trait Describer[S]:
 
 pub trait Source[S]:
     type Error
+    fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], Self::Error]:
+        self.variant([choice])
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]
+    fn data_member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]:
+        self.member(h, previous)
     fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
@@ -1375,18 +1386,22 @@ struct User:
 
 ### Walk, Describe, And Build
 
-The compiler generates three traversals for each derivation. A struct is
-traversed as an enum with one variant.
+The compiler generates three traversals for each derivation. A struct uses
+the data hooks, while an enum and a tuple use the variant hooks.
 
 #### Walk
 
-1. r[annot.walk.match] Generated `walk` matches the value once and calls `w.variant(v)` for the value's variant.
-2. r[annot.walk.members] It then calls `w.member(h, value)` for each member of that variant, in declaration order.
-3. r[annot.walk.value] Each member value is read from `self`, so it has the member's declared type.
-4. r[annot.walk.error] The first `.Err` that `variant` or `member` returns ends the walk, and `walk` returns it. Otherwise `walk` returns `.Ok(())`.
-5. r[annot.walk.nested] A member is passed as one value. Its own members are reached only through its own type's implementations.
-6. r[annot.walk.rest] For a [rest member](#r-annot.tuple.rest), generated `walk` calls `w.rest(h, items)` in place of `w.member`, with the rest element's list as `items`.
-7. r[annot.walk.rest.default] `Walker`'s default `rest` calls `self.member(h, items)`. So a walker that does not implement `rest` sees the rest member as one `List[T]` member.
+1. r[annot.walk.enum-match] Generated `walk` matches the value once and calls `w.variant(v)` for an enum or tuple value's variant.
+2. r[annot.walk.data-variant-hook] For a struct value, generated `walk` calls `w.data_variant(v)` for its one variant.
+3. r[annot.walk.enum-members] Generated `walk` calls `w.member(h, value)` for each member of an enum or tuple variant, in declaration order.
+4. r[annot.walk.data-member-hook] For a struct, generated `walk` calls `w.data_member(h, value)` for each member in declaration order.
+5. r[annot.walk.value] Each member value is read from `self`, so it has the member's declared type.
+6. r[annot.walk.error] The first `.Err` that `variant` or `member` returns ends the walk, and `walk` returns it. Otherwise `walk` returns `.Ok(())`.
+7. r[annot.walk.nested] A member is passed as one value. Its own members are reached only through its own type's implementations.
+8. r[annot.walk.rest] For a [rest member](#r-annot.tuple.rest), generated `walk` calls `w.rest(h, items)` in place of `w.member`, with the rest element's list as `items`.
+9. r[annot.walk.rest.default] `Walker`'s default `rest` calls `self.member(h, items)`. So a walker that does not implement `rest` sees the rest member as one `List[T]` member.
+10. r[annot.walk.data-hook-defaults] `Walker`'s default `data_variant` calls `self.variant(v)`, and its default `data_member` calls `self.member(h, value)`.
+11. r[annot.walk.data-hook-error] The first `.Err` that `data_variant` or `data_member` returns ends the walk, and `walk` returns it.
 
 ```hd
 @derive(Debug)
@@ -1439,14 +1454,17 @@ fn demo() -> List[string]:
 
 #### Build
 
-1. r[annot.build.variant] Generated `build` first calls `s.variant(choices)` once, with every variant in declaration order. A struct offers its one variant.
-2. r[annot.build.next-option] It then calls `s.next(members)` with the chosen variant's members, repeatedly, until the source returns `.Ok(.None)`.
-3. r[annot.build.member] For each member key, it calls `s.member(h, previous)`, where `previous` is the value already read for that member, or `.None`.
-4. r[annot.build.missing-after-none] After `.Ok(.None)`, it calls `s.missing(h)` once for each member that the source never named.
-5. r[annot.build.construct] It then constructs the chosen variant from one local per member, and returns it.
-6. r[annot.build.errors] The first `.Err` from a source method ends the build and is returned. Generated code never creates an error value of its own.
-7. r[annot.build.foreign-key] A key that does not name one of the chosen variant's members is a checked runtime panic with category `structure-variant-mismatch`.
-8. r[annot.build.shared] `build` never reads shared constructor data: the chosen variant's `->` expression fixes it.
+1. r[annot.build.enum-variant] Generated `build` first calls `s.variant(choices)` once for an enum or tuple, with every variant in declaration order.
+2. r[annot.build.data-variant-hook] For a struct, generated `build` first calls `s.data_variant(choice)` with its one variant.
+3. r[annot.build.next-option] It then calls `s.next(members)` with the chosen variant's members, repeatedly, until the source returns `.Ok(.None)`.
+4. r[annot.build.enum-member] For each enum or tuple member key, it calls `s.member(h, previous)`, where `previous` is the value already read for that member, or `.None`.
+5. r[annot.build.data-member-hook] For each struct member key, it calls `s.data_member(h, previous)`, where `previous` is the value already read for that member, or `.None`.
+6. r[annot.build.missing-after-none] After `.Ok(.None)`, it calls `s.missing(h)` once for each member that the source never named.
+7. r[annot.build.construct] It then constructs the chosen variant from one local per member, and returns it.
+8. r[annot.build.errors] The first `.Err` from a source method ends the build and is returned. Generated code never creates an error value of its own.
+9. r[annot.build.foreign-key] A key that does not name one of the chosen variant's members is a checked runtime panic with category `structure-variant-mismatch`.
+10. r[annot.build.shared] `build` never reads shared constructor data: the chosen variant's `->` expression fixes it.
+11. r[annot.build.data-hook-defaults] `Source`'s default `data_variant` calls `self.variant([choice])`, and its default `data_member` calls `self.member(h, previous)`.
 
 ```hd
 use std.ops.Default
@@ -1477,6 +1495,10 @@ fn demo() -> Config:
 13. r[annot.variant.type-documentation] Every variant of a declared type carries that type's attached documentation in `type_doc`, or `.None` when absent.
 14. r[annot.variant.type-documentation-same] Every variant of the same type carries the same `type_doc`.
 15. r[annot.variant.type-documentation-default] A manually constructed `VariantInfo` defaults `type_doc` to `.None`.
+16. r[annot.variant.member-counts] `VariantInfo.positional` and `VariantInfo.named` are the numbers of the variant's positional and named payload members.
+17. r[annot.variant.member-counts-default] A manually constructed `VariantInfo` defaults `positional` and `named` to `0`.
+18. r[annot.variant.included-positional] `VariantInfo.included_positional` is the number of positional payload members that this derivation's view includes.
+19. r[annot.variant.included-positional-default] A manually constructed `VariantInfo` defaults `included_positional` to `0`.
 
 ```hd
 use std.structure.{Describer, Field, Structure, Variant}
@@ -1689,18 +1711,16 @@ impl[S] Walker[S] for Encoder:
         .Ok(())
 ```
 
-1. r[annot.walker.strengthen-member] An implementation of `Walker`, `Describer`, or `Source` may strengthen the bound on `member[F]`, as `F < Encode` above.
-2. r[annot.walker.strengthen-rest] An implementation of `Walker` may implement `rest` and strengthen the bound on its `T`, as `rest[T < Display]` does.
-3. r[annot.walker.missing-fixed] A `Source` implementation must not strengthen the bound on `missing[F]`: it keeps the trait's unbounded `F`.
-4. r[annot.walker.missing-fixed.error] A strengthened bound on `missing[F]` is an error, reported at the implementation method. Error: `trait-method-signature`.
-5. r[annot.walker.not-sealed] `Walker`, `Describer`, and `Source` are not sealed. Any package may implement them.
-6. r[annot.walker.obligation] Every member that a derivation walks, describes, or builds must satisfy the strengthened bounds of the walker, describer, or source that the template passes.
-7. r[annot.walker.obligation.rest] For a rest member, a walker that implements `rest` puts the obligation on the item type `T`, by `rest`'s bound. Otherwise the obligation is on `List[T]`, by `member`'s bound.
-8. r[annot.walker.obligation.error] The obligation is checked at the opt-in. A member that fails it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
-9. r[annot.walker.generic-member-call] `member` may be called through a generic walker, describer, or source type only by generated code. Such a call written in source is an error. Error: `generic-member-call`.
-10. r[annot.walker.generic-rest-call] `rest` may likewise be called through a generic walker type only by generated code and by its own default body. Any other such call is an error. Error: `generic-member-call`.
-11. r[annot.walker.generic-missing] Code outside generated code may call `missing` through a generic source type.
-12. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
+1. r[annot.walker.strengthen-member-hook] An implementation of `Walker`, `Describer`, or `Source` may strengthen the bound on a generic parameter that stands for a walked member's type. This applies to `member`, `data_member`, and `rest`; it does not apply to `missing`.
+2. r[annot.walker.missing-fixed] A `Source` implementation must not strengthen the bound on `missing[F]`: it keeps the trait's unbounded `F`.
+3. r[annot.walker.missing-fixed.error] A strengthened bound on `missing[F]` is an error, reported at the implementation method. Error: `trait-method-signature`.
+4. r[annot.walker.not-sealed] `Walker`, `Describer`, and `Source` are not sealed. Any package may implement them.
+5. r[annot.walker.obligation] Every member that a derivation walks, describes, or builds must satisfy the strengthened bounds of the walker, describer, or source that the template passes.
+6. r[annot.walker.obligation.rest] For a rest member, a walker that implements `rest` puts the obligation on the item type `T`, by `rest`'s bound. Otherwise the obligation is on `List[T]`, by `member`'s bound.
+7. r[annot.walker.obligation.error] The obligation is checked at the opt-in. A member that fails it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
+8. r[annot.walker.generic-member-hook-call] A member hook whose generic parameter stands for the walked member's type may be called through a generic walker, describer, or source type only by generated code or a protocol default body. Any other such call is an error. Error: `generic-member-call`.
+9. r[annot.walker.generic-missing] Code outside generated code may call `missing` through a generic source type.
+10. r[annot.walker.concrete-call] A call on a concrete walker, describer, or source type applies that type's own bounds.
 
 ```text
 @derive(Show)  # error: member-not-derivable
@@ -1789,6 +1809,11 @@ that member's type need not implement `Write`.
 10. r[annot.impl-fact.skips.scope] The omission changes only that derivation. Every other derivation of the type still walks, describes, and builds the member.
 11. r[annot.impl-fact.skips.no-default] In a derivation whose template calls `build`, an omitted member that declares no default is an error, reported at the opt-in and naming the member. Error: `omitted-member-without-default`.
 
+> **Note.** Derived serde deserialization gives a skipped positional payload
+> the separate type-level [`Default` rule](../std/serde.md#r-std-serde.skip.positional-read-default);
+> named members and other derivation protocols still use the declared-member
+> rule above.
+
 > **Why.** The source knows that it would answer a defaulted member with
 > its default anyway. Saying so on the source keeps that knowledge in the
 > library, instead of a compiler rule about one trait.
@@ -1844,7 +1869,7 @@ fn demo() -> Cart:
 > **Note.** A template declares no compile-time constants of its own, and
 > shared constructor data has no typed handles. A wrapper walker cannot
 > forward to a generic inner walker's `member`, as
-> [`annot.walker.generic-member-call`](#r-annot.walker.generic-member-call)
+> [`annot.walker.generic-member-hook-call`](#r-annot.walker.generic-member-hook-call)
 > states.
 
 > **Note.** Wire stability is documented, not checked. Reordering or

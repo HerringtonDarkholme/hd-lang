@@ -251,13 +251,12 @@ impl Ck<'_, '_> {
                 }
             })
         };
-        // A walker, describer or source may strengthen `member`'s bound,
-        // and a walker `rest`'s (annot.walker.strengthen-member).
+        // A structure protocol's method may strengthen the generic that
+        // stands for the walked member (`annot.walker.strengthen-member-hook`).
         let known = self.cx.names.known;
-        let mname = self.cx.names.text(it.name);
         let free_bounds =
-            (trait_ == known.walker || trait_ == known.describer || trait_ == known.source)
-                && (mname == "member" || (mname == "rest" && trait_ == known.walker));
+            crate::derive::structure_member_role(self.cx.names, self.cx.lookup, trait_, tm)
+                .is_some();
         // A result left out is `missing-result-type` already.
         let omitted = hd_resolve::Src::type_child(node).is_none();
         let own_copy_receiver = self.is_struct_ty(self_ty)

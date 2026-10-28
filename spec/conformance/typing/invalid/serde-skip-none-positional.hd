@@ -1,0 +1,10 @@
+# test: skip_none cannot make a positional enum payload conditional
+# Spec std/serde Absent Optional Members: std-serde.skip-none.positional-error.
+use std.serde.{Serialize, skip_none}
+
+@derive(Serialize) # diagnostic: member-not-derivable
+enum Choice:
+    Payload(
+        @skip_none()
+        i32?,
+    )

@@ -56,6 +56,14 @@ impl Serializer for Log:
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("<${v.name}>")
 
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
+        self.add("<${v.name} tuple=$len>")
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("${m.name}@${m.position}:")
 
@@ -105,7 +113,7 @@ tests:
         )
         assert_equal(
             send(Shipment.Lost("DHL", "JD02")),
-            "<Lost> _0@0: DHL _1@1: JD02 </>",
+            "<Lost tuple=2> DHL JD02 </>",
             reason="_0 then _1",
         )
 

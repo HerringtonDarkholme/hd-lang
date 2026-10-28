@@ -1,7 +1,7 @@
-# test: a derived Serialize calls begin_variant, then member and the value for each walked member, then end_variant; a list is begin_list, items, end_list
+# test: a derived Serialize uses the data hooks for a struct and the variant hooks for an enum; each writes members in order, and a list is begin_list, items, end_list
 # Spec 02 Traits And Implementations: grammar.impl.by-structure.
-# Spec std/serde Data Model, Derived Implementations: std-serde.derive.serialize.included-order, std-serde.model.variant, std-serde.model.list, std-serde.derive.omitted (task #320).
-# Spec std/serde Data Model, Derived Implementations: std-serde.model.map, std-serde.model.len, std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.member-args.local-ref, std-serde.derive.serialize.template.
+# Spec std/serde Data Model, Derived Implementations: std-serde.derive.serialize.data-and-enum-forms, std-serde.model.data-record, std-serde.model.enum-record, std-serde.model.list, std-serde.derive.omitted (task #320).
+# Spec std/serde Data Model, Derived Implementations: std-serde.model.map, std-serde.model.container-len, std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.member-args.local-ref, std-serde.derive.serialize.template.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Structure, Facts, VariantInfo, Member}
 # Records each call as a word, so the test reads the call order.
@@ -52,14 +52,28 @@ impl Serializer for Calls:
     fn end_map(&mut self) -> Result[void, never]:
         self.add("end-map")
 
+    fn begin_data(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.add("data:${v.name}")
+
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("variant:${v.name}")
 
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("newtype:${v.name}")
 
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
+        self.add("tuple:${v.name}:$len")
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("member:${m.name}")
+
+    fn end_data(&mut self) -> Result[void, never]:
+        self.add("end-data")
 
     fn end_variant(&mut self) -> Result[void, never]:
         self.add("end-variant")
@@ -80,6 +94,8 @@ impl Serialize for Order by Structure:
 enum Step:
     Start
     Move(by: i32)
+    Token(i32)
+    Pair(i32, string)
 
 fn calls[T < Serialize](value: T) -> string:
     let mut out = Calls { log: "" }
@@ -93,7 +109,7 @@ tests:
         order := Order { id: 7, lines: [1, -2], note: .None }
         assert_equal(
             calls(order),
-            "variant:Order member:id uint:7 member:lines list:2 int:1 int:-2 end-list member:note null end-variant",
+            "data:Order member:id uint:7 member:lines list:2 int:1 int:-2 end-list member:note null end-data",
             reason="omitted cache is not written",
         )
 
@@ -103,6 +119,16 @@ tests:
             calls(Step.Move(3)),
             "variant:Move member:by int:3 end-variant",
             reason="one member",
+        )
+        assert_equal(
+            calls(Step.Token(4)),
+            "newtype:Token int:4 end-variant",
+            reason="one positional member",
+        )
+        assert_equal(
+            calls(Step.Pair(5, "x")),
+            "tuple:Pair:2 int:5 text:x end-variant",
+            reason="several positional members",
         )
 
     it("a map writes a key before each value"):

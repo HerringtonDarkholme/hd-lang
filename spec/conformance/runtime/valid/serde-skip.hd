@@ -1,10 +1,11 @@
 # test: skip omits serialization and restores defaults without decoding the field
-# Spec std/serde Skipped Members: std-serde.skip.fact, std-serde.skip.constructor, std-serde.skip.write, std-serde.skip.read, std-serde.skip.unknown-fact.
+# Spec std/serde Skipped Members: std-serde.skip.fact, std-serde.skip.constructor, std-serde.skip.write, std-serde.skip.named-read-default, std-serde.skip.positional-read-default, std-serde.skip.named-unknown-fact, std-serde.skip.positional-form.
 use std.json.{decode, encode, from_json, parse, to_json}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, skip, rename, skip_none}
 use std.http.{Request, Url}
 use std.inspect.Inspectable
 use std.regex.Regex
+use std.ops.Default
 
 struct NeverRead: pass
 
@@ -15,6 +16,10 @@ impl Serialize for NeverRead:
 impl Deserialize for NeverRead:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[NeverRead, R::Error]:
         panic("skipped deserialize must not be called")
+
+impl Default for NeverRead:
+    fn default() -> NeverRead:
+        NeverRead {}
 
 @derive(Serialize, Deserialize)
 struct Value:
@@ -70,6 +75,25 @@ struct CombinedFacts:
     @skip_none()
     conditional: i32?
 
+@derive(Serialize, Deserialize)
+enum PositionalSkip:
+    Static(
+        @skip()
+        NeverRead,
+    )
+    Pair(
+        i32,
+        @skip()
+        NeverRead,
+    )
+
+@derive(Serialize)
+enum NamedSkip:
+    Named(
+        @skip()
+        hidden: NeverRead,
+    )
+
 tests:
     use std.testing.{assert, assert_equal}
 
@@ -85,6 +109,40 @@ tests:
             "kept=3".to_utf8(),
             reason="form serializer also omits skipped fields",
         )
+
+    it("a known positional skip selects the form from the included payloads"):
+        assert_equal(
+            encode(PositionalSkip.Static(NeverRead {})),
+            "\"Static\"",
+            reason="a skipped newtype becomes a unit variant",
+        )
+        assert_equal(
+            encode(PositionalSkip.Pair(3, NeverRead {})),
+            "{\"Pair\":3}",
+            reason="one included payload uses newtype form",
+        )
+        assert_equal(
+            encode(NamedSkip.Named(hidden=NeverRead {})),
+            "{\"Named\":{}}",
+            reason="a named declaration keeps object form when its only member is skipped",
+        )
+        assert_equal(
+            to_json(NamedSkip.Named(hidden=NeverRead {})),
+            parse("{\"Named\":{}}").expect("JSON"),
+            reason="the tree writer keeps the same empty object form",
+        )
+
+    it("a reader fills skipped positional payloads from their type's Default"):
+        match decode::[PositionalSkip]("\"Static\"").expect("unit form"):
+            .Static(_) => pass
+            .Pair(_, _) => panic("expected Static")
+        match decode::[PositionalSkip]("{\"Pair\":3}").expect("newtype form"):
+            .Pair(value, _) => assert_equal(value, +3, reason="included payload decoded")
+            .Static(_) => panic("expected Pair")
+        match from_json::[PositionalSkip](parse("{\"Pair\":4}").expect("JSON")):
+            .Ok(.Pair(value, _)) => assert_equal(value, +4, reason="tree reader")
+            .Ok(.Static(_)) => panic("expected Pair")
+            .Err(error) => panic(error.to_string())
 
     it("readers use defaults even when skipped keys are present"):
         text := "{\"kept\":4,\"hidden\":false,\"number\":\"ignored\"}"

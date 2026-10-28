@@ -81,6 +81,15 @@ pub struct VariantInfo:
     ## Whether the variant belongs to a data type.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub of_data: bool
+    ## The variant's number of positional payload members.
+    ## See [annot.variant.member-counts](../../spec/lang/14-annotations.md#r-annot.variant.member-counts).
+    pub positional: usize = 0
+    ## The variant's number of named payload members.
+    ## See [annot.variant.member-counts](../../spec/lang/14-annotations.md#r-annot.variant.member-counts).
+    pub named: usize = 0
+    ## The positional payload members included in this derivation's view.
+    ## See [annot.variant.included-positional](../../spec/lang/14-annotations.md#r-annot.variant.included-positional).
+    pub included_positional: usize = 0
     ## The facts the variants share.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub shared: List[(string, *dyn Inspectable)]
@@ -218,7 +227,11 @@ impl[HdS] MembersRecord[HdS]:
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
 pub trait Walker[S]:
     type Error
+    fn data_variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]:
+        self.variant(v)
     fn variant(&mut self, v: Variant[S]) -> Result[void, Self::Error]
+    fn data_member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]:
+        self.member(h, value)
     fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, Self::Error]
     fn rest[T](&mut self, h: Field[S, List[T]], items: List[T]) -> Result[void, Self::Error]:
         self.member(h, items)
@@ -234,8 +247,12 @@ pub trait Describer[S]:
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
 pub trait Source[S]:
     type Error
+    fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], Self::Error]:
+        self.variant([choice])
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]
+    fn data_member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]:
+        self.member(h, previous)
     fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 

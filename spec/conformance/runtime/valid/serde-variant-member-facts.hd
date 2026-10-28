@@ -1,5 +1,5 @@
 # test: begin_variant gets the type's facts and the variant's VariantInfo, and member gets each member's Member with the facts its derivation sees
-# Spec std/serde Data Model: std-serde.model.variant-args.local-ref, std-serde.model.member-args.local-ref, std-serde.model.variant.
+# Spec std/serde Data Model: std-serde.model.data-args.local-ref, std-serde.model.variant-args.local-ref, std-serde.model.member-args.local-ref, std-serde.model.data-record, std-serde.model.enum-record.
 # Spec 14 Structure: annot.structure.per-derivation.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Structure, Facts, VariantInfo, Member}
@@ -70,6 +70,14 @@ impl Serializer for Envelope:
         self.add("<$on ${v.name}#${v.index} data=${v.of_data}>")
 
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.begin_variant(facts, v)
+
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
         self.begin_variant(facts, v)
 
     fn member(&mut self, m: &Member) -> Result[void, never]:
