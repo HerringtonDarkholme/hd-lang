@@ -1,6 +1,6 @@
 # Enum Tagging Facts
 
-Status: proposal, 2026-10-28; domain: `std.serde` enum representation; not accepted.
+Status: design accepted 2026-10-28; domain: `std.serde` enum representation; not implemented.
 
 This note addresses [#954](https://github.com/HerringtonDarkholme/hd-lang/issues/954).
 It reviews the current [serde facts](../../spec/std/serde.md#member-names),
@@ -30,15 +30,6 @@ enum Shape:
 ```
 
 The checked [signatures and examples](enum-tagging/) show every constructor and JSON form.
-
-## Open questions
-
-1. **Conflict handling. Recommendation: one fact type.** Then `@tag("type") @untagged` is
-   `duplicate-fact`; three fact types would need a new cross-type conflict error.
-2. **No-match diagnostics. Recommendation: one `WrongType`.** `decode::[Port]("{}")` should report
-   the enum path, rather than one candidate's error or an unstable aggregate.
-3. **Collision safety. Recommendation: static names.** Reject `@tag(tag_name())` and a
-   computed member rename, rather than permit a runtime duplicate key.
 
 ## Problems it solves
 
@@ -70,7 +61,8 @@ pub fn untagged() -> EnumTagging: panic("todo")
 ```
 
 `EnumTagging` is one concrete fact type.
-Two representation decorators on one enum therefore use the existing `duplicate-fact` error.
+All three spellings produce that fact, so a second representation decorator uses the existing
+`duplicate-fact` error on the later decorator.
 The fact belongs on the enum declaration, so `Serialize` and `Deserialize` see the same choice.
 
 | Form | Serde | Proposed hd | Rejected separate name |
@@ -117,7 +109,8 @@ A failed attempt must restore the reader completely before the next attempt.
 The checker validates every variant when `tag(...)` selects internal form, not only a reached variant.
 A generic payload is rejected unless its declared type proves that it is a struct or map.
 That is stricter than Serde's runtime failure and gives hd's requested checker error.
-Literal tag names also make every statically known member collision a checker error.
+The `tag` and `content` arguments are static string literals.
+The checker rejects equal adjacent names and every known internal tag/member wire-name collision.
 
 ### Decode path
 
@@ -131,6 +124,8 @@ JSON's tree reader checkpoints its current value; its text reader checkpoints va
 
 The derive template asks `build` to use one candidate, rewinds on `.Err`, and retries the next candidate.
 No attempt may leak member positions, path frames, or a partial value into the next attempt.
+When every candidate fails, decoding returns one `WrongType` at the enum's original input path.
+Candidate errors are not selected or aggregated.
 Fact-less and externally tagged types keep their current path and must not link retry support.
 
 ## Cost
@@ -224,8 +219,8 @@ If an object contains both keys and unknown keys are ignored, the first variant 
 | `@tag("kind")` on `Text(string)` | Checker error on `string`; a runtime-only failure is rejected |
 | Two untagged unit variants reading `null` | The first declaration always wins |
 | Broad untagged record before a narrow record | The broad record may accept and discard distinguishing unknown members |
-| No untagged variant accepts input | One no-match error at the original enum path |
-| Internal tag equals a renamed member key | Ambiguous object; static naming in recommendation 3 rejects it |
+| No untagged variant accepts input | One `WrongType` at the original enum path |
+| Internal tag equals a renamed member key | Ambiguous object; the accepted static-name rule rejects it |
 
 The last two rows are the hard cases.
 Variant ordering is observable API, and internal key collision needs a rule before implementation.
@@ -294,7 +289,7 @@ Hd takes ordered retry but keeps retry code out of types without `untagged`.
 
 `InternalTag`, `AdjacentTag`, and `Untagged` let the checker identify internal form by fact type.
 They also permit contradictory facts unless the checker adds a second conflict system.
-One enum fact reuses `duplicate-fact` and is the recommendation.
+One enum fact reuses `duplicate-fact` and is the accepted design.
 
 ### Separate `internal` and `adjacent` constructors
 
@@ -338,7 +333,7 @@ The design therefore names retry support as an implementation prerequisite, not 
 - **Specification:** add stdlib serde rules, language diagnostic registration, and conformance fixtures together.
 - **No-feature alternative:** keep external tagging or write both serde implementations by hand.
 
-Implementation phases, after approval:
+Implementation phases:
 
 0. Add explicit and `rename_all` variant wire names; test precedence and snake-case tagged streams.
 1. Add `tag`, `untagged`, checker diagnostics, and invalid/valid declaration fixtures.
