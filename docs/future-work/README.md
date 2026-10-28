@@ -19,7 +19,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Application and host
 
-- [HTTP Response Decompression](HTTP_DECOMPRESSION.md): proposed default gzip and deflate decoding in `Client.send!`, a separate encoded-body terminal, and a lower `std.compression` module (#949).
+- [HTTP Response Decompression](HTTP_DECOMPRESSION.md): accepted host-side gzip and deflate decoding for every send, with a 64 MiB decoded-body cap; not implemented (#949).
 - [Validation](VALIDATION.md): proposed own-derivation rules, post-decode checked JSON/CLI/environment readers and structural error paths; owner review before implementation (#846).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).

@@ -1,5 +1,4 @@
 use std.http.{CookieJar, Http, HttpError, Request, Response}
-use std.time.Clock
 
 pub struct Client:
     pub jar: CookieJar
@@ -15,12 +14,5 @@ impl Client:
         &mut self,
         request: &Request,
         redirects: usize = 10,
-    ) -> Result[Response, HttpError] $ Http + Clock:
+    ) -> Result[Response, HttpError] $ Http:
         panic("todo: host-decoded client send")
-
-    pub fn send_encoded!(
-        &mut self,
-        request: &Request,
-        redirects: usize = 10,
-    ) -> Result[Response, HttpError] $ Http + Clock:
-        panic("todo: encoded client send")
