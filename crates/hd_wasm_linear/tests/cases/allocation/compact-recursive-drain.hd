@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# A two-child recursive object fits the inline drain budget. The otherwise
+# identical three-child shape stays on the generic release path.
+
+struct Node:
+    left: (*Node)?
+    right: (*Node)?
+
+struct Wide:
+    first: (*Wide)?
+    second: (*Wide)?
+    third: (*Wide)?
+
+fn node() -> *Node:
+    &Node { left: .None, right: .None }
+
+fn wide() -> *Wide:
+    &Wide { first: .None, second: .None, third: .None }

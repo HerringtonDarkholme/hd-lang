@@ -933,6 +933,10 @@ pub struct Module {
     /// at most [`DRAIN_GLUES`]: `rt:release_drain` calls these directly
     /// when a block's descriptor names one (§23.28).
     pub drain_glues: Vec<Sym>,
+    /// Compact fixed-class release glues selected for inline per-type drains.
+    /// `rt:release_drain` matches these before the ordinary glue dispatch;
+    /// each drain also frees its parent, so that match skips `free_object`.
+    pub(crate) type_drains: Vec<TypeDrain>,
     /// Reachable all! nodes use generation-checked weak waker targets.
     pub wakers: bool,
     /// Reachable program operations or exported entry hooks can cancel.
@@ -956,25 +960,107 @@ pub struct Stored {
     pub slot: Option<(Address, Vec<crate::layout::Leaf>)>,
 }
 
+/// One compact fixed-class glue selected for inline emission in
+/// `rt:release_drain`.
+#[derive(Clone, Debug)]
+pub(crate) struct TypeDrain {
+    pub glue: Sym,
+    pub class: u32,
+    pub leaves: Vec<crate::layout::Leaf>,
+    pub walk: crate::layout::Walk,
+}
+
 /// Whether `f` allocates an object that takes part in cycle collection:
 /// a descriptor word with [`CYCLIC`], which `rt::push_desc` pushes as a
 /// constant right after its glue's table slot.
 /// How many release glues `rt:release_drain` calls directly.
 pub const DRAIN_GLUES: usize = 8;
 
-/// The release glue that `f` puts in a descriptor with [`CYCLIC`]: the
-/// recursive types, whose last release drains a structure of any size.
-fn cyclic_glues(f: &Func, out: &mut Vec<Sym>) {
-    for w in f.body.windows(2) {
-        if let [Ins::TableSlot(id), Ins::Op(Instruction::I32Const(c))] = w
-            && c.cast_unsigned() & CYCLIC != 0
-        {
-            let s = f.symbol(*id).clone();
-            if out.len() < DRAIN_GLUES && !out.contains(&s) {
-                out.push(s);
-            }
+/// Each release glue that `f` puts in a descriptor, whether the descriptor
+/// has [`CYCLIC`], and its constant allocation class when it goes straight
+/// to a [`Helper::NewFixed`]. A non-fixed or differently classed use of the
+/// same glue disqualifies a per-type drain: the drain dispatch sees only the
+/// glue slot, not which allocation site produced the block.
+fn descriptor_allocations(f: &Func, out: &mut Vec<(Sym, bool, Option<u32>)>) {
+    for (i, w) in f.body.windows(3).enumerate() {
+        let [
+            Ins::TableSlot(id),
+            Ins::Op(Instruction::I32Const(c)),
+            Ins::Op(Instruction::I32Add),
+        ] = w
+        else {
+            continue;
+        };
+        let bits = c.cast_unsigned();
+        if bits != 1 && bits & CYCLIC == 0 {
+            continue;
         }
+        let glue = f.symbol(*id).clone();
+        let call = f.body[i + 3..]
+            .iter()
+            .find(|ins| !matches!(ins, Ins::Anchor(_)));
+        let class = match call {
+            Some(Ins::Call(id)) => match &*f.symbol(*id) {
+                Sym::Helper(Helper::NewFixed { size }) => size
+                    .checked_add(HEADER)
+                    .and_then(crate::rt::small_class)
+                    .map(|(class, _)| class),
+                _ => None,
+            },
+            _ => None,
+        };
+        out.push((glue, bits & CYCLIC != 0, class));
     }
+}
+
+/// The fixed-class helper for one compact known-child release glue.
+fn type_drain(glue: &Sym, class: u32) -> Option<TypeDrain> {
+    let Sym::Helper(Helper::DropFields { leaves, walk }) = glue else {
+        return None;
+    };
+    crate::cycle::compact_drain(leaves.len(), walk).then(|| TypeDrain {
+        glue: glue.clone(),
+        class,
+        leaves: leaves.clone(),
+        walk: walk.clone(),
+    })
+}
+
+/// The generic recursive glues and bounded per-type drains selected from all
+/// reachable allocation sites. A session is open-world, so it keeps only the
+/// generic path.
+fn release_drains(
+    allocations: Vec<(Sym, bool, Option<u32>)>,
+    session: bool,
+) -> (Vec<Sym>, Vec<TypeDrain>) {
+    let mut glues = Vec::new();
+    let mut classes = BTreeMap::<Sym, Option<u32>>::new();
+    for (glue, cyclic, class) in allocations {
+        if cyclic && !glues.contains(&glue) {
+            glues.push(glue.clone());
+        }
+        classes
+            .entry(glue)
+            .and_modify(|known| {
+                if *known != class {
+                    *known = None;
+                }
+            })
+            .or_insert(class);
+    }
+    let type_drains = if session {
+        Vec::new()
+    } else {
+        glues
+            .iter()
+            .filter_map(|glue| {
+                let class = classes.get(glue).copied().flatten()?;
+                type_drain(glue, class)
+            })
+            .take(DRAIN_GLUES)
+            .collect()
+    };
+    (glues.into_iter().take(DRAIN_GLUES).collect(), type_drains)
 }
 
 fn cyclic_desc(f: &Func) -> bool {
@@ -1347,16 +1433,20 @@ impl Module {
                     Sym::Helper(crate::rt::Helper::WakerNew)
                 )
             });
-        let mut glues = Vec::new();
+        let mut allocations = Vec::new();
         for (k, f) in self.funcs.iter().enumerate() {
             if let Some(f) = f
                 && seen.contains(SymId(u32::try_from(k).expect("symbols")))
             {
-                cyclic_glues(f, &mut glues);
+                descriptor_allocations(f, &mut allocations);
             }
         }
-        self.drain_glues = glues;
-        if self.fixed_allocations || self.wakers || !self.drain_glues.is_empty() {
+        (self.drain_glues, self.type_drains) = release_drains(allocations, session);
+        if self.fixed_allocations
+            || self.wakers
+            || !self.drain_glues.is_empty()
+            || !self.type_drains.is_empty()
+        {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
         if let Some(r) = self.runtime
@@ -2438,6 +2528,91 @@ fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> 
     wasm_encoder::CustomSection {
         name: "hd.names".into(),
         data: data.into(),
+    }
+}
+
+#[cfg(test)]
+mod type_drain_tests {
+    use super::*;
+    use crate::layout::{Leaf, Walk};
+
+    fn leaf(offset: u32) -> Leaf {
+        Leaf {
+            offset,
+            val: Val::I32,
+            bytes: 4,
+            signed: false,
+        }
+    }
+
+    #[test]
+    fn a_compact_fixed_descriptor_selects_its_class() {
+        let module = Module::default();
+        let glue = Sym::Helper(Helper::DropFields {
+            leaves: vec![leaf(0), leaf(4)],
+            walk: Walk::Seq(vec![
+                Walk::Nullable(Box::new(Walk::Known(0))),
+                Walk::Nullable(Box::new(Walk::Known(1))),
+            ]),
+        });
+        let mut f = module.func("allocation", vec![], vec![]);
+        f.table_slot(glue.clone());
+        f.u32(CYCLIC + 1);
+        f.op(Instruction::I32Add);
+        f.helper(Helper::NewFixed { size: 8 });
+
+        let mut allocations = Vec::new();
+        descriptor_allocations(&f, &mut allocations);
+        assert_eq!(allocations, vec![(glue.clone(), true, Some(1))]);
+        let drain = type_drain(&glue, 1).expect("two known children fit");
+        assert_eq!(drain.class, 1);
+        assert_eq!(drain.leaves.len(), 2);
+    }
+
+    #[test]
+    fn a_nonfixed_use_of_the_same_glue_is_recorded() {
+        let module = Module::default();
+        let glue = Sym::Helper(Helper::DropFields {
+            leaves: vec![leaf(0)],
+            walk: Walk::Known(0),
+        });
+        let mut f = module.func("allocation", vec![], vec![]);
+        f.table_slot(glue.clone());
+        f.i32(1);
+        f.op(Instruction::I32Add);
+        f.helper(Helper::New);
+
+        let mut allocations = Vec::new();
+        descriptor_allocations(&f, &mut allocations);
+        assert_eq!(allocations, vec![(glue, false, None)]);
+    }
+
+    #[test]
+    fn selection_keeps_wide_and_large_leaf_glues_generic() {
+        let compact = Sym::Helper(Helper::DropFields {
+            leaves: vec![leaf(0), leaf(4)],
+            walk: Walk::Seq(vec![Walk::Known(0), Walk::Known(1)]),
+        });
+        let wide = Sym::Helper(Helper::DropFields {
+            leaves: vec![leaf(0), leaf(4), leaf(8)],
+            walk: Walk::Seq(vec![Walk::Known(0), Walk::Known(1), Walk::Known(2)]),
+        });
+        let many_scalars = Sym::Helper(Helper::DropFields {
+            leaves: (0..16).map(|k| leaf(k * 4)).collect(),
+            walk: Walk::Known(0),
+        });
+        let (generic, selected) = release_drains(
+            vec![
+                (compact.clone(), true, Some(1)),
+                (wide.clone(), true, Some(2)),
+                (many_scalars.clone(), true, Some(4)),
+            ],
+            false,
+        );
+        assert_eq!(generic, vec![compact.clone(), wide, many_scalars]);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].glue, compact);
+        assert_eq!(selected[0].class, 1);
     }
 }
 

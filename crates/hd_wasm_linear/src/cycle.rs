@@ -33,7 +33,43 @@ use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
 use hd_types::{InternPool, Ty, TyData};
 
-use crate::layout::{Kind, kind, strip, tuple_members, value_parts, variants};
+use crate::layout::{Kind, Walk, kind, strip, tuple_members, value_parts, variants};
+
+/// The largest estimated body, in encoded Wasm bytes, for a release drain
+/// specialized to one fixed-class type. The estimate charges every payload
+/// leaf that the glue loads as well as each inlined known-child count path,
+/// so scalar fields cannot make a selected body grow without bound. The two
+/// nullable children of `binary_trees` fit, while a third child and wide serde
+/// walks stay on the generic drain. The ceiling experiment for #939 measured
+/// the two-child function at 227 bytes.
+pub(crate) const TYPE_DRAIN_MAX_BYTES: usize = 256;
+
+/// Whether `walk` is a compact walk of known payload starts, and therefore
+/// has a bounded per-type drain under [`TYPE_DRAIN_MAX_BYTES`]. A reference
+/// that needs `block_of`, or a tag-dispatched walk, keeps the generic path.
+pub(crate) fn compact_drain(leaves: usize, walk: &Walk) -> bool {
+    const BASE: usize = 32;
+    const LEAF: usize = 12;
+    const KNOWN: usize = 80;
+    const NULLABLE: usize = 4;
+
+    fn bytes(walk: &Walk) -> Option<usize> {
+        match walk {
+            Walk::Known(_) => Some(KNOWN),
+            Walk::Seq(walks) => walks
+                .iter()
+                .try_fold(0usize, |n, walk| n.checked_add(bytes(walk)?)),
+            Walk::Nullable(walk) => NULLABLE.checked_add(bytes(walk)?),
+            Walk::Ref(_) | Walk::Switch(_, _) => None,
+        }
+    }
+
+    leaves
+        .checked_mul(LEAF)
+        .and_then(|n| BASE.checked_add(n))
+        .and_then(|n| n.checked_add(bytes(walk)?))
+        .is_some_and(|n| n <= TYPE_DRAIN_MAX_BYTES)
+}
 
 /// Whether an object of type `t` takes part: a list's buffer,
 /// a map's table, a data value's object or a self-recursive enum's cell.
@@ -117,4 +153,29 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compact_drain;
+    use crate::layout::Walk;
+
+    #[test]
+    fn only_compact_known_child_walks_get_a_type_drain() {
+        let binary_tree = Walk::Seq(vec![
+            Walk::Nullable(Box::new(Walk::Known(0))),
+            Walk::Nullable(Box::new(Walk::Known(1))),
+        ]);
+        assert!(compact_drain(2, &binary_tree));
+        assert!(!compact_drain(
+            3,
+            &Walk::Seq(vec![Walk::Known(0), Walk::Known(1), Walk::Known(2),])
+        ));
+        assert!(!compact_drain(1, &Walk::Ref(0)));
+        assert!(!compact_drain(
+            2,
+            &Walk::Switch(0, vec![Some(Walk::Known(1))],)
+        ));
+        assert!(!compact_drain(16, &Walk::Known(0)));
+    }
 }

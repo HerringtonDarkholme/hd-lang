@@ -2291,6 +2291,111 @@ fn fields_glue(
     f
 }
 
+/// Emits a compact fixed-class release glue into the active outer drain,
+/// with the parent block in `block`. The outer [`Helper::ReleaseRef`] already
+/// checked collector tracing, and [`Global::Releasing`] is set, so each final
+/// child links directly onto the worklist instead of re-entering either
+/// helper. Emitting it here also leaves no engine inlining decision.
+fn drain_fields_body(
+    f: &mut Func,
+    m: &Module,
+    block: u32,
+    class: u32,
+    leaves: &[Leaf],
+    walk: &Walk,
+) {
+    let values: Vec<u32> = leaves.iter().map(|leaf| f.local(leaf.val)).collect();
+    for (leaf, value) in leaves.iter().zip(&values) {
+        f.get(block);
+        f.op(leaf.load(HEADER));
+        f.set(*value);
+    }
+    let (address, child, count) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    walk_code(f, walk, &|f, k| f.get(values[k as usize]), &|f, known| {
+        assert!(known, "a type drain child is a known payload start");
+        f.set(address);
+        // Null and static zero-count objects have no count to take.
+        f.get(address);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(address);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::LocalTee(child));
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.op(Instruction::LocalTee(count));
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(count);
+        f.i32(1);
+        f.op(Instruction::I32Eq);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(child);
+        f.global_get(Global::ReleaseHead);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+        f.get(child);
+        f.global_set(Global::ReleaseHead);
+        f.op(Instruction::Else);
+        f.get(child);
+        f.get(count);
+        f.i32(1);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+        f.get(child);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.u32(crate::module::CYCLIC);
+        f.op(Instruction::I32And);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(child);
+        f.call(Sym::Inst(
+            m.runtime.expect("a type drain runtime").cycle.suspect,
+        ));
+        f.op(Instruction::End);
+        f.op(Instruction::End);
+        f.op(Instruction::End);
+        f.op(Instruction::End);
+    });
+    free_fixed_class(f, m, block, class);
+}
+
+/// Frees `block` to one statically known allocator class. A buffered cycle
+/// candidate still goes through std's `free`, which leaves it for the next
+/// collector sweep.
+fn free_fixed_class(f: &mut Func, m: &Module, block: u32, class: u32) {
+    let Some(r) = m.runtime else {
+        return;
+    };
+    if r.checked.is_some() {
+        free_object(f, m, block);
+        return;
+    }
+    let table = f.local(Val::I32);
+    f.get(block);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.u32(crate::module::BUFFERED);
+    f.op(Instruction::I32And);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(block);
+    f.call(Sym::Inst(r.free));
+    f.op(Instruction::Else);
+    f.call(Sym::Inst(r.small.metadata));
+    f.set(table);
+    f.get(block);
+    f.get(table);
+    f.op(Instruction::I32Load(mem(
+        HEAP,
+        u64::from(FREED + class * 4),
+        2,
+    )));
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(table);
+    f.get(block);
+    f.op(Instruction::I32Store(mem(
+        HEAP,
+        u64::from(FREED + class * 4),
+        2,
+    )));
+    f.op(Instruction::End);
+}
+
 /// Pushes a new object's descriptor word: its release glue's table slot
 /// plus one, or 0 for none; with [`CYCLIC`] when its type is cycle-capable
 /// (`crate::cycle`), which only an object with glue can be.
@@ -2314,7 +2419,7 @@ pub(crate) fn glue_of(f: &mut Func) {
 
 /// The allocator's twenty small classes, including the object's header.
 /// Zero/large objects keep the ordinary path.
-fn small_class(size: u32) -> Option<(u32, u32)> {
+pub(crate) fn small_class(size: u32) -> Option<(u32, u32)> {
     const BYTES: [u32; 20] = [
         16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600,
         2048,
@@ -2644,24 +2749,52 @@ fn release_drain(m: &Module) -> Func {
     f.i32(1);
     f.global_set(Global::Releasing);
     f.op(Instruction::Loop(BlockType::Empty));
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    glue_of(&mut f);
-    f.op(Instruction::LocalTee(slot));
-    f.op(Instruction::If(BlockType::Empty));
-    if m.drain_glues.is_empty() {
+    if m.type_drains.is_empty() {
         f.get(block);
-        f.u32(HEADER);
-        f.op(Instruction::I32Add);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        glue_of(&mut f);
+        f.op(Instruction::LocalTee(slot));
+        f.op(Instruction::If(BlockType::Empty));
+        if m.drain_glues.is_empty() {
+            f.get(block);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f.get(slot);
+            f.i32(1);
+            f.op(Instruction::I32Sub);
+            f.call_indirect(vec![Val::I32], vec![]);
+        } else {
+            dispatch_glue(&mut f, &m.drain_glues, block, slot);
+        }
+        f.op(Instruction::End);
+        free_object(&mut f, m, block);
+    } else {
+        // A specialized drain frees the parent itself. Its branch exits this
+        // block, past both the ordinary glue and `free_object`.
+        f.op(Instruction::Block(BlockType::Empty));
+        f.get(block);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        glue_of(&mut f);
+        f.op(Instruction::LocalTee(slot));
+        f.op(Instruction::If(BlockType::Empty));
         f.get(slot);
         f.i32(1);
         f.op(Instruction::I32Sub);
-        f.call_indirect(vec![Val::I32], vec![]);
-    } else {
-        dispatch_glue(&mut f, &m.drain_glues, block, slot);
+        f.set(slot);
+        for drain in &m.type_drains {
+            f.get(slot);
+            f.table_slot(drain.glue.clone());
+            f.op(Instruction::I32Eq);
+            f.op(Instruction::If(BlockType::Empty));
+            drain_fields_body(&mut f, m, block, drain.class, &drain.leaves, &drain.walk);
+            f.op(Instruction::Br(2));
+            f.op(Instruction::End);
+        }
+        dispatch_glue_slot(&mut f, &m.drain_glues, block, slot);
+        f.op(Instruction::End);
+        free_object(&mut f, m, block);
+        f.op(Instruction::End);
     }
-    f.op(Instruction::End);
-    free_object(&mut f, m, block);
     f.global_get(Global::ReleaseHead);
     f.op(Instruction::LocalTee(block));
     f.op(Instruction::If(BlockType::Empty));
@@ -2683,6 +2816,12 @@ fn dispatch_glue(f: &mut Func, glues: &[Sym], block: u32, slot: u32) {
     f.i32(1);
     f.op(Instruction::I32Sub);
     f.set(slot);
+    dispatch_glue_slot(f, glues, block, slot);
+}
+
+/// [`dispatch_glue`], after `slot` has had the descriptor's plus one
+/// removed. A type-drain dispatch shares this tail after its own matches.
+fn dispatch_glue_slot(f: &mut Func, glues: &[Sym], block: u32, slot: u32) {
     f.op(Instruction::Block(BlockType::Empty));
     for glue in glues {
         f.get(slot);

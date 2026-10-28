@@ -347,9 +347,9 @@ pub const CHECKED_FNS: &[&str] = &[
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
-/// runtimes link: `collect`, `due`, `opaque` and `visit`.
+/// runtimes link: `collect`, `due`, `opaque`, `visit` and `suspect`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
-pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "opaque", "visit"];
+pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "suspect"];
 
 /// The runtime module a build links: the checked one in checked mode.
 #[must_use]
@@ -432,14 +432,18 @@ pub struct Acyclic {
 
 /// The cycle collector's functions (`crates/hd_wasm_linear/DESIGN.md` §23.28):
 /// `collect(trace, release, free)`, `due()`, whether a collection is due,
-/// `opaque(address)`, which marks a new frame as never entered, and
-/// `visit(address)`, which takes a reference that traced glue releases.
+/// `opaque(address)`, which marks a new frame as never entered,
+/// `visit(address)`, which takes a reference that traced glue releases, and
+/// `suspect(block)`, which records a decremented cyclic object.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cycle {
     pub collect: Hash128,
     pub due: Hash128,
     pub opaque: Hash128,
     pub visit: Hash128,
+    /// Marks a released cyclic block as a collection candidate. Type drains
+    /// call it only after an inlined decrement leaves a live count.
+    pub suspect: Hash128,
 }
 
 /// The checked runtime's audit functions (`crates/hd_wasm_linear/DESIGN.md`
@@ -491,7 +495,7 @@ impl Runtime {
             }
             _ => return None,
         };
-        let [collect, due, opaque, visit] = *rest else {
+        let [collect, due, opaque, visit, suspect] = *rest else {
             return None;
         };
         let [
@@ -522,6 +526,7 @@ impl Runtime {
                 due,
                 opaque,
                 visit,
+                suspect,
             },
             acyclic: Acyclic {
                 free: acyclic_free,
