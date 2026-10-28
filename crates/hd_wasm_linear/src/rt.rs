@@ -2325,26 +2325,6 @@ fn small_class(size: u32) -> Option<(u32, u32)> {
     })
 }
 
-/// The allocation total is in the copied allocator metadata prefix.
-fn note_allocation(f: &mut Func, m: &Module, table: u32) {
-    let next = f.local(Val::I32);
-    f.get(table);
-    f.op(Instruction::I32Load(mem(HEAP, 244, 2)));
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.set(next);
-    if !m.release {
-        f.get(next);
-        f.op(Instruction::I32Eqz);
-        f.op(Instruction::If(BlockType::Empty));
-        f.helper(Helper::Panic("integer-overflow: integer overflow".into()));
-        f.op(Instruction::End);
-    }
-    f.get(table);
-    f.get(next);
-    f.op(Instruction::I32Store(mem(HEAP, 244, 2)));
-}
-
 /// The offset of each class's freed list in std's allocator metadata
 /// (`std.rt.alloc`'s `FREED`): class `c`'s is at `FREED + 4 * c`.
 const FREED: u32 = 256;
@@ -2389,7 +2369,6 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     f.get(slot);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32Store(mem(HEAP, freed, 2)));
-    note_allocation(&mut f, m, table);
     f.get(slot);
     f.op(Instruction::Return);
     f.op(Instruction::End);
@@ -2438,7 +2417,6 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     f.op(Instruction::I32Add);
     f.set(slot);
     f.op(Instruction::End);
-    note_allocation(&mut f, m, table);
     f.get(page);
     f.get(page);
     f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));

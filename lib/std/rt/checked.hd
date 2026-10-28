@@ -26,6 +26,8 @@ BUFFERED := 0x40000000
 
 # How many blocks `allocate` has given and `free` has not taken back.
 let held: usize = 0
+# How many blocks `allocate` has given over the program's run.
+let given: usize = 0
 
 # How many counts `retain` added and `release` took, over the program's
 # run: what the entry exports as `hd.counts` for measuring elision.
@@ -35,6 +37,7 @@ let releases: u64 = 0
 ## Allocates a block of at least `size` bytes, as `std.rt.alloc.alloc` does, and fills it with FRESH bytes.
 pub fn allocate(size: usize) -> usize:
     held = held + 1
+    given = given + 1
     block := alloc(size)
     fill(block, 0xa5, block_bytes(block))
     block
@@ -116,6 +119,10 @@ pub fn release_known_acyclic(address: usize) -> usize:
 ## How many blocks are allocated and not yet freed.
 pub fn live() -> usize:
     held
+
+## How many blocks `allocate` has given since the program started, so a test can see that some code allocates nothing; std.rt.alloc keeps no such total.
+pub fn allocated() -> usize:
+    given
 
 ## How many counts `retain` has added since the program started.
 pub fn retained() -> u64:

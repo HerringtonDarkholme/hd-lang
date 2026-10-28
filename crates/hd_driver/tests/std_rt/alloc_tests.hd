@@ -6,7 +6,6 @@
 use std.rt.alloc.{
     alloc,
     alloc_class,
-    allocated,
     block_bytes,
     block_of,
     block_size,
@@ -231,7 +230,7 @@ tests:
         assert(pending() == before, "the collection frees it and empties its entry")
         assert(alloc(64) == block, "its block is reused")
 
-    it("constant classes agree with block classification and allocation totals"):
+    it("constant classes agree with block classification"):
         let sizes: List[usize] = [
             16,
             32,
@@ -256,9 +255,7 @@ tests:
         ]
         for i in 0..sizes.len():
             bytes := sizes[i]
-            before := allocated()
             first := alloc_class(bytes - 1, i + 1)
-            assert(allocated() == before + 1, "the class path records exactly one allocation")
             assert(block_bytes(first) == bytes, "the supplied class matches the page table")
             assert(block_of(first + bytes - 1) == first, "the entire class belongs to the block")
             free_class(first, i + 1)

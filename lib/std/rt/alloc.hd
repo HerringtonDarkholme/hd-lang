@@ -47,10 +47,7 @@ LOW := 0x3fffffff
 CYCLIC := 0x80000000
 BUFFERED := 0x40000000
 
-# The allocation total occupies bytes 244..247 of the copied metadata prefix;
-# each class's freed list is at FREED + 4 * class.
-# The backend's constant-class fast path increments this word too.
-GIVEN := 244
+# Each class's freed list is at FREED + 4 * class.
 
 # The page table's address, 0 until the first allocation.
 let table: usize = 0
@@ -70,7 +67,6 @@ let heap: usize = 0
 pub fn alloc(size: usize) -> usize:
     if table == 0:
         start()
-    store_u32(table + GIVEN, load_u32(table + GIVEN) + 1)
     if size > 2048:
         count := (size + PAGE - 1) / PAGE
         reclaim()
@@ -121,7 +117,6 @@ pub fn alloc_class(size: usize, class: usize) -> usize:
         return alloc(size)
     if table == 0:
         start()
-    store_u32(table + GIVEN, load_u32(table + GIVEN) + 1)
     freed := usize(load_u32(table + FREED + 4 * class))
     if freed != 0:
         store_u32(table + FREED + 4 * class, load_u32(freed))
@@ -158,10 +153,6 @@ pub fn alloc_class(size: usize, class: usize) -> usize:
 # allocation or collection, since growing the table can relocate it.
 pub fn metadata() -> usize:
     table
-
-## How many blocks `alloc` has given since the program began, so a test can see that some code allocates nothing.
-pub fn allocated() -> usize:
-    if table == 0: 0 else: usize(load_u32(table + GIVEN))
 
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed; a counted object that is a cycle candidate is left to the collector's next sweep (`std.rt.cycle.keep`).
 pub fn free(address: usize) -> void:
