@@ -8,7 +8,9 @@ A closure is an unnamed `fn` value. It may read a surrounding binding, as the
 filter reads `threshold`. `iter()` begins a lazy chain: `filter` and `map`
 describe work, while `sum()` pulls values through it. The call count is zero
 before `sum()` and two afterwards, showing exactly when the closures run. A
-closure's parameter and result types are checked like any function.
+closure's parameter and result types are checked like any function. The
+function returns three values as one tuple, `(i32, i32, i32)`, and
+`let (before, after, total) = ...` unpacks it; `row._0` reads one position.
 
 ```hd
 fn measure_fees(amounts: List[i32], threshold: i32) -> (i32, i32, i32):
