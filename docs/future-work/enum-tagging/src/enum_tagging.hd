@@ -8,12 +8,8 @@ pub enum EnumTagging:
     Adjacent(tag: string, content: string)
     Untagged
 
-## Places the variant name in the payload object under `tag`.
-pub fn internal(tag: string) -> EnumTagging:
-    panic("todo")
-
-## Places the variant name and payload in adjacent object members.
-pub fn adjacent(tag: string, content: string) -> EnumTagging:
+## Places the variant name under `tag`; `content` selects adjacent form when present.
+pub fn tag(tag: string, content: string? = .None) -> EnumTagging:
     panic("todo")
 
 ## Writes only the variant payload and tries variants in declaration order when reading.

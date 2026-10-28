@@ -1,17 +1,18 @@
-use pkg.enum_tagging.{adjacent, internal, untagged}
-use std.serde.{Deserialize, Serialize}
+use pkg.enum_tagging.{tag, untagged}
+use std.serde.{Deserialize, Serialize, rename_all}
 
 @derive(Serialize, Deserialize, Debug, Eq)
-@internal(tag="type")
+@rename_all(.SnakeCase)
+@tag("type")
 enum Shape:
     Rect(width: i32, height: i32)
     Empty
 
 fn internal_example() -> (Shape, string):
-    (Shape.Rect(width=2, height=3), "{\"type\":\"Rect\",\"width\":2,\"height\":3}")
+    (Shape.Rect(width=2, height=3), "{\"type\":\"rect\",\"width\":2,\"height\":3}")
 
 @derive(Serialize, Deserialize, Debug, Eq)
-@adjacent(tag="t", content="c")
+@tag("t", content="c")
 enum Block:
     Para(List[string])
     Rule
@@ -20,7 +21,7 @@ fn adjacent_example() -> (Block, string):
     (Block.Para(["one", "two"]), "{\"t\":\"Para\",\"c\":[\"one\",\"two\"]}")
 
 @derive(Serialize, Deserialize, Debug, Eq)
-@untagged()
+@untagged
 enum Port:
     Number(u16)
     Service(string)
