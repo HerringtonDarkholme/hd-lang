@@ -105,10 +105,41 @@ fn defer_read(mut values: List[i32]) -> void:
     defer:
         _ := values.len()
     values.push(+1)
+
+fn countdown(mut n: i32) -> i32:
+    let steps = +0
+    while n > 0:
+        n = n - 1
+        steps = steps + 1
+    steps
+
+fn count_new(mut seen: List[i32], items: List[i32]) -> usize:
+    let n: usize = 0
+    for x in items:
+        if !seen.contains(x):
+            seen.push(x)
+            n = n + 1
+    n
 ";
     let findings = lint(source);
     assert!(
         !findings.code.contains(&Code::LostWrite),
+        "{}",
+        findings.render_json()
+    );
+}
+
+#[test]
+fn a_loop_mutation_without_another_use_is_still_lost() {
+    let source = r"
+fn push_each(mut values: List[i32], items: List[i32]) -> void:
+    for item in items:
+        values.push(item)
+";
+    let findings = lint(source);
+    assert_eq!(
+        findings.code,
+        [Code::LostWrite],
         "{}",
         findings.render_json()
     );

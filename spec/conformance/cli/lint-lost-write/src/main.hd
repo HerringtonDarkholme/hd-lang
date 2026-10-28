@@ -37,5 +37,20 @@ fn capture_after(mut values: List[i32]) -> fn() -> usize:
     values.push(+1)
     fn() -> usize: values.len()
 
+fn countdown(mut n: i32) -> i32:
+    let steps = +0
+    while n > 0:
+        n = n - 1
+        steps = steps + 1
+    steps
+
+fn count_new(mut seen: List[i32], items: List[i32]) -> usize:
+    let n: usize = 0
+    for x in items:
+        if !seen.contains(x):
+            seen.push(x)
+            n = n + 1
+    n
+
 pub fn main() -> void:
     pass

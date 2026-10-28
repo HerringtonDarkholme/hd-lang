@@ -16,7 +16,7 @@
 //! entry (`MapEntry`).
 
 use hd_base::SliceSort as _;
-use hd_base::{DefId, LocalId, StageResult};
+use hd_base::{DefId, LocalId, Span, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags};
@@ -299,6 +299,7 @@ impl Ck<'_, '_> {
                 .iter()
                 .any(|statement| self.captures_parameter(*statement, &name));
             let observed_after = captured
+                || self.loop_observes_parameter(statements[index], write_span, &name)
                 || statements[index + 1..]
                     .iter()
                     .any(|statement| self.names_parameter(*statement, &name));
@@ -310,6 +311,41 @@ impl Ck<'_, '_> {
                     observed_after,
                 });
         }
+    }
+
+    /// Whether the top-level statement containing a write also has a loop
+    /// that contains the write and another use of the parameter. A loop's
+    /// condition or body can observe a value written by an earlier iteration,
+    /// even though both uses belong to the same top-level statement.
+    fn loop_observes_parameter(&self, node: NodeRef<'_>, write_span: Span, name: &str) -> bool {
+        let span = self.cx.src.span(node);
+        if write_span.lo < span.lo || write_span.hi > span.hi {
+            return false;
+        }
+        if matches!(node.kind(), SyntaxKind::WhileExpr | SyntaxKind::ForExpr)
+            && self.names_parameter_outside(node, write_span, name)
+        {
+            return true;
+        }
+        node.children()
+            .any(|child| self.loop_observes_parameter(child, write_span, name))
+    }
+
+    /// Whether `node` names `name` anywhere outside the syntax recorded as
+    /// the mutation itself.
+    fn names_parameter_outside(&self, node: NodeRef<'_>, write_span: Span, name: &str) -> bool {
+        let source = self.cx.src;
+        node.direct_tokens().any(|token| {
+            let span = source.token_span(token);
+            !(write_span.lo <= span.lo && span.hi <= write_span.hi)
+                && matches!(
+                    source.tkind(token),
+                    Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue)
+                )
+                && source.text(token) == name
+        }) || node
+            .children()
+            .any(|child| self.names_parameter_outside(child, write_span, name))
     }
 
     fn names_parameter(&self, node: NodeRef<'_>, name: &str) -> bool {
