@@ -181,9 +181,13 @@ Every perf change reports the same table, so results compare across jobs.
   `--no-liftoff` and `--liftoff-only`. Wasm has no on-stack replacement,
   so one long call stays in Liftoff (#724; the owner leaves tiering
   alone). Name any default-tier change that comes only from tiering.
-- **Interleaved base/head runs,** median of 15 or more, for each program
-  whose Wasm changed. Programs whose Wasm is byte-identical (check md5)
-  need no timing.
+- **Interleaved base/head runs** for each program whose Wasm changed.
+  Pick the run count by purpose: about 5 (`--runs 5`) to fast-check
+  whether an idea moves anything; 15 for this table, baselines and
+  iterating; 31 only when a result is under about 3% or the two sides'
+  spreads overlap. Machine load and tier-up timing cost more accuracy
+  than a smaller run count does, so record the load. Programs whose Wasm is
+  byte-identical (check md5) need no timing.
 - **Sizes:**
   - hello.wasm in dev and release; unexplained growth blocks the commit;
   - each program's Wasm bytes;
