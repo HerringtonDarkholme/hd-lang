@@ -937,9 +937,9 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     for (path, line) in &m.unknown {
         out.push(Problem {
             code: Some(Code::UnknownManifestKey),
-            severity: Severity::Warning,
+            severity: Severity::Error,
             line: Some(*line),
-            message: format!("`{path}` has no meaning in `hd.toml`, so it is ignored"),
+            message: format!("`{path}` has no meaning in `hd.toml`; remove it"),
         });
     }
     out.sort_stable_by_key(|p| p.line);
@@ -952,7 +952,7 @@ mod tests {
         Grant, Version, grant_problem, is_capability_selector, key_problem, parse_manifest,
         problems,
     };
-    use hd_diag::Code;
+    use hd_diag::{Code, Severity};
 
     #[test]
     fn versions_order_by_semver_precedence() {
@@ -990,6 +990,42 @@ mod tests {
         )
         .expect("manifest");
         assert!(problems(&ok, "0.1.0").is_empty());
+    }
+
+    #[test]
+    fn unknown_manifest_keys_are_load_errors() {
+        let manifest = parse_manifest(
+            "[package]\nname = \"app\"\nversion = \"1.0.0\"\n\n[profile]\nrelease = true\n",
+        )
+        .unwrap();
+        let got: Vec<_> = problems(&manifest, "0.1.0")
+            .into_iter()
+            .map(|problem| {
+                (
+                    problem.code,
+                    problem.severity,
+                    problem.line,
+                    problem.message,
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (
+                    Some(Code::UnknownManifestKey),
+                    Severity::Error,
+                    Some(3),
+                    "`package.version` has no meaning in `hd.toml`; remove it".to_owned(),
+                ),
+                (
+                    Some(Code::UnknownManifestKey),
+                    Severity::Error,
+                    Some(5),
+                    "`profile` has no meaning in `hd.toml`; remove it".to_owned(),
+                ),
+            ]
+        );
     }
 
     #[test]
