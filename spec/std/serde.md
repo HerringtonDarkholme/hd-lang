@@ -42,8 +42,8 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 | r[std-serde.model.map] Map | entries in order, each with a `string` key | `begin_map(len)`, then per entry `key(k)` and one value, then `end_map()` |
 | r[std-serde.model.data-record] Data record | a struct value | `begin_data(facts, v)`, then per member `member(m)` and one value, then `end_data()` |
 | r[std-serde.model.enum-record] Enum record | a unit, named, or mixed enum variant | `begin_variant(facts, v)`, then per member `member(m)` and one value, then `end_variant()` |
-| r[std-serde.model.newtype-variant] Newtype variant | an enum variant with one direct payload | `begin_newtype_variant(facts, v)`, then the payload value, then `end_variant()` |
-| r[std-serde.model.tuple-variant] Tuple variant | an enum variant with several direct payloads | `begin_tuple_variant(facts, v, len)`, then the payload values in order, then `end_variant()` |
+| r[std-serde.model.required-newtype-variant] Newtype variant | an enum variant with one direct payload | `begin_newtype_variant(facts, v)`, then the payload value, then `end_variant()`; the hook is required, so each format must support the shape or return its own error |
+| r[std-serde.model.required-tuple-variant] Tuple variant | an enum variant with several direct payloads | `begin_tuple_variant(facts, v, len)`, then the payload values in order, then `end_variant()`; the hook is required, so each format must support the shape or return its own error |
 
 1. r[std-serde.model.one-value] A `serialize` call writes exactly one value of the table: one scalar call, or one begin call, its contents, and the matching end call.
 2. r[std-serde.model.container-len] The `len` of `begin_list`, `begin_map`, or `begin_tuple_variant` is the number of items, entries, or direct payload values that follow.
@@ -73,7 +73,7 @@ A `Deserializer` reads the same tree, one call per value:
 | r[std-serde.read.map] Map | `begin_map()`, then `next_key()` before each entry | `next_key` is the entry's key, or `.None` after the last |
 | r[std-serde.read.data-record] Data record | `begin_data(facts, choices)`, then the calls for its members, then `end_data()` | `begin_data` is the index of the one struct variant; its default calls `begin_variant`, and `end_data`'s default calls `end_variant` |
 | r[std-serde.read.enum-record] Enum record | `begin_variant(facts, choices)`, then the calls for its payload, then `end_variant()` | `begin_variant` is the index in `choices` of the variant read |
-| r[std-serde.read.newtype-variant] Newtype variant | `begin_variant(facts, choices)`, `begin_newtype_variant()`, then the direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_newtype_variant` positions the reader at its direct payload |
+| r[std-serde.read.required-newtype-variant] Newtype variant | `begin_variant(facts, choices)`, `begin_newtype_variant()`, then the direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_newtype_variant` is required, so each format must position the reader at the direct payload or return its own error |
 | r[std-serde.read.tuple-variant] Tuple variant | `begin_variant(facts, choices)`, `begin_tuple_variant(len)`, then `next_item()` before each direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_tuple_variant` positions a payload of exactly `len` items |
 | r[std-serde.read.invalid] `invalid` | `invalid(expected)` | the format's error for the value just read, which does not fit `expected` |
 | r[std-serde.read.absent] `is_absent` | `is_absent()` | `true` when the member that `member(m)` just positioned has no value at all, which reads nothing; the trait's default body gives `false` |
