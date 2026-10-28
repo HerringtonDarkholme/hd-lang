@@ -1,0 +1,333 @@
+# Proposed signatures (#846); bodies are unexecuted stubs.
+# Each rule kind is one distinct, data-only fact. Check is the sole callback rule.
+use std.annotation.annotate
+use std.hash.Hash
+use std.structure.{Field, Member, Structure, Variant, Walker}
+
+pub enum PathStep:
+    Field(member: Member)
+    Index(value: usize)
+    Key(name: string)
+
+pub struct Problem:
+    pub code: string
+    pub message: string
+
+pub struct Violation:
+    pub path: List[PathStep]
+    pub problem: Problem
+
+impl Violation:
+    ## Renders this issue with names chosen by the reader that produced the value.
+    pub fn display_with(&self, name: fn(PathStep) -> string) -> string:
+        panic("todo")
+
+@error
+pub enum ValidationError:
+    @error("${format_issues(&issues, truncated)}")
+    Invalid(issues: List[Violation], truncated: bool)
+    @error("invalid validation rule: $reason")
+    Definition(path: List[PathStep], reason: string)
+
+impl ValidationError:
+    pub fn issues(&self) -> List[Violation]:
+        panic("todo")
+
+# Display uses source field names. Readers use Violation.display_with for their spellings.
+fn format_issues(issues: &List[Violation], truncated: bool) -> string:
+    panic("todo")
+
+pub struct ValidationContext:
+    placeholder: usize
+
+impl ValidationContext:
+    pub fn reject(&mut self, code: string, message: string) -> void:
+        panic("todo")
+
+pub trait Validate:
+    fn collect(&self, context: &mut ValidationContext) -> void
+    ## Skipped when the positive issue cap stops validation before record checks.
+    fn record(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+    ## Returns the same value without conversion or normalization.
+    fn validated(self, max_errors: usize = 64) -> Result[Self, ValidationError]:
+        panic("todo")
+
+impl[T] Validate for T by Structure:
+    # Required template walk is unreachable: the stub panics before constructing it.
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        let mut walker: ValidationWalker[T] = panic("todo")
+        _ := Structure::walk(*self, &mut walker)
+
+struct ValidationWalker[S]: pass
+
+impl[S] Walker[S] for ValidationWalker[S]:
+    type Error = never
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        panic("todo")
+    fn member[F](&mut self, field: Field[S, F], value: F) -> Result[void, never]:
+        panic("todo")
+
+# Containers recurse automatically; plain leaves have no-op validation.
+impl[T < Validate] Validate for List[T]:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[T < Validate] Validate for T?:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[K < Eq & Hash & Validate, V < Validate] Validate for Map[K, V]:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl Validate for string:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl Validate for u8:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl Validate for u32:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl Validate for bool:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        panic("todo")
+
+## Applies one statically dispatched rule. Concrete facts contain only rule data.
+pub trait Rule[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void
+
+## Static composition for a rule; wrappers remain discoverable exact fact types.
+pub trait RuleExt[F] < Rule[F]:
+    fn optional(self) -> Optional[F, Self]:
+        panic("todo")
+    fn each(self) -> Each[F, Self]:
+        panic("todo")
+    fn each_key(self) -> EachKey[F, Self]:
+        panic("todo")
+    fn each_value(self) -> EachValue[F, Self]:
+        panic("todo")
+
+## Replaces one rule's user-facing message without changing its fact type.
+pub trait MessageRule:
+    fn message(self, text: string) -> Self:
+        panic("todo")
+
+## Strings count Unicode scalars; collections count elements or entries.
+pub trait HasLength:
+    fn length(&self) -> usize
+impl HasLength for string:
+    fn length(&self) -> usize:
+        panic("todo")
+impl[T] HasLength for List[T]:
+    fn length(&self) -> usize:
+        panic("todo")
+impl[K < Eq & Hash, V] HasLength for Map[K, V]:
+    fn length(&self) -> usize:
+        panic("todo")
+
+@annotate::[F?](.Field)
+pub struct Optional[F, R]:
+    rule: R
+    message: string?
+impl[F, R < Rule[F]] Rule[F?] for Optional[F, R]:
+    fn apply(&self, value: &(F?), context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F, R < Rule[F]] RuleExt[F?] for Optional[F, R]
+impl[F, R] MessageRule for Optional[F, R]
+
+@annotate::[List[F]](.Field)
+pub struct Each[F, R]:
+    rule: R
+    message: string?
+impl[F, R < Rule[F]] Rule[List[F]] for Each[F, R]:
+    fn apply(&self, value: &List[F], context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F, R < Rule[F]] RuleExt[List[F]] for Each[F, R]
+impl[F, R] MessageRule for Each[F, R]
+
+@annotate(.Field)
+pub struct EachKey[K, R]:
+    rule: R
+    message: string?
+impl[K < Eq & Hash, V, R < Rule[K]] Rule[Map[K, V]] for EachKey[K, R]:
+    fn apply(&self, value: &Map[K, V], context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[K < Eq & Hash, V, R < Rule[K]] RuleExt[Map[K, V]] for EachKey[K, R]
+impl[K, R] MessageRule for EachKey[K, R]
+
+@annotate(.Field)
+pub struct EachValue[V, R]:
+    rule: R
+    message: string?
+impl[K < Eq & Hash, V, R < Rule[V]] Rule[Map[K, V]] for EachValue[V, R]:
+    fn apply(&self, value: &Map[K, V], context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[K < Eq & Hash, V, R < Rule[V]] RuleExt[Map[K, V]] for EachValue[V, R]
+impl[V, R] MessageRule for EachValue[V, R]
+
+@annotate::[F](.Field)
+pub struct Range[F < PartialOrd]:
+    low: F
+    high: F
+    message: string?
+impl[F < PartialOrd] Rule[F] for Range[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < PartialOrd] RuleExt[F] for Range[F]
+impl[F < PartialOrd] MessageRule for Range[F]
+
+@annotate::[F](.Field)
+pub struct Min[F < PartialOrd]:
+    bound: F
+    message: string?
+impl[F < PartialOrd] Rule[F] for Min[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < PartialOrd] RuleExt[F] for Min[F]
+impl[F < PartialOrd] MessageRule for Min[F]
+
+@annotate::[F](.Field)
+pub struct Max[F < PartialOrd]:
+    bound: F
+    message: string?
+impl[F < PartialOrd] Rule[F] for Max[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < PartialOrd] RuleExt[F] for Max[F]
+impl[F < PartialOrd] MessageRule for Max[F]
+
+@annotate(.Field)
+pub struct Length:
+    minimum: usize
+    maximum: usize
+    message: string?
+impl[F < HasLength] Rule[F] for Length:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < HasLength] RuleExt[F] for Length
+impl MessageRule for Length
+
+@annotate::[F](.Field)
+pub struct MinLength[F]:
+    minimum: usize
+    message: string?
+impl[F < HasLength] Rule[F] for MinLength[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < HasLength] RuleExt[F] for MinLength[F]
+impl[F] MessageRule for MinLength[F]
+
+@annotate::[F](.Field)
+pub struct MaxLength[F]:
+    maximum: usize
+    message: string?
+impl[F < HasLength] Rule[F] for MaxLength[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < HasLength] RuleExt[F] for MaxLength[F]
+impl[F] MessageRule for MaxLength[F]
+
+@annotate::[string](.Field)
+pub struct ByteLength:
+    minimum: usize
+    maximum: usize
+    message: string?
+impl Rule[string] for ByteLength:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl RuleExt[string] for ByteLength
+impl MessageRule for ByteLength
+
+@annotate::[string](.Field)
+pub struct Pattern:
+    source: string
+    message: string?
+impl Rule[string] for Pattern:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl RuleExt[string] for Pattern
+impl MessageRule for Pattern
+
+@annotate::[string](.Field)
+pub struct Email:
+    message: string?
+impl Rule[string] for Email:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl RuleExt[string] for Email
+impl MessageRule for Email
+
+@annotate::[string](.Field)
+pub struct Url:
+    message: string?
+impl Rule[string] for Url:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl RuleExt[string] for Url
+impl MessageRule for Url
+
+@annotate::[string](.Field)
+pub struct Uuid:
+    message: string?
+impl Rule[string] for Uuid:
+    fn apply(&self, value: &string, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl RuleExt[string] for Uuid
+impl MessageRule for Uuid
+
+@annotate::[F](.Field)
+pub struct OneOf[F]:
+    values: List[F]
+    message: string?
+impl[F < Eq] Rule[F] for OneOf[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < Eq] RuleExt[F] for OneOf[F]
+impl[F] MessageRule for OneOf[F]
+
+@annotate::[F](.Field)
+pub struct Check[F]:
+    test: fn(&F) -> Result[void, Problem]
+    message: string?
+impl[F] Rule[F] for Check[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F] RuleExt[F] for Check[F]
+impl[F] MessageRule for Check[F]
+
+@annotate::[List[F]](.Field)
+pub struct Unique[F]:
+    message: string?
+impl[F < Eq & Hash] Rule[List[F]] for Unique[F]:
+    fn apply(&self, value: &List[F], context: &mut ValidationContext) -> void:
+        panic("todo")
+impl[F < Eq & Hash] RuleExt[List[F]] for Unique[F]
+impl[F] MessageRule for Unique[F]
+
+pub fn check[F](test: fn(&F) -> Result[void, Problem]) -> Check[F]:
+    panic("todo")
+pub fn range[F < PartialOrd](low: F, high: F) -> Range[F]:
+    panic("todo")
+pub fn min[F < PartialOrd](bound: F) -> Min[F]:
+    panic("todo")
+pub fn max[F < PartialOrd](bound: F) -> Max[F]:
+    panic("todo")
+pub fn length(minimum: usize, maximum: usize) -> Length:
+    panic("todo")
+pub fn min_length[F < HasLength](minimum: usize) -> MinLength[F]:
+    panic("todo")
+pub fn max_length[F < HasLength](maximum: usize) -> MaxLength[F]:
+    panic("todo")
+pub fn byte_length(minimum: usize, maximum: usize) -> ByteLength:
+    panic("todo")
+pub fn pattern(source: string) -> Pattern:
+    panic("todo")
+pub fn email() -> Email:
+    panic("todo")
+pub fn url() -> Url:
+    panic("todo")
+pub fn uuid() -> Uuid:
+    panic("todo")
+pub fn one_of[F < Eq](values...: List[F]) -> OneOf[F]:
+    panic("todo")
+pub fn unique[F < Eq & Hash]() -> Unique[F]:
+    panic("todo")

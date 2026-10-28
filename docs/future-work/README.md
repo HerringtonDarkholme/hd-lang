@@ -19,7 +19,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Application and host
 
-- [Validation](VALIDATION.md): proposed own-derivation rules, post-decode checked JSON/CLI/environment readers and structural error paths; owner review before implementation (#846).
+- [Validation](VALIDATION.md): short design and [checked signatures and examples](validation/) for typed JSON/CLI/environment validation; design accepted 2026-10-28, implementation not started (#846).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
