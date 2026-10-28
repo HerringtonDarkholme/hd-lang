@@ -71,6 +71,10 @@ pub fn on_exit[$R](action: fn() -> void $ R) -> ScopeGuard[$R]:
 
 ### Auto-closing guard calls
 
+**Deferred to tier 2 (#978).** The marker trait, decorator, and the library
+`defer(action)` / `ensure(action)` helpers below are accepted design only; the
+current #962 build does not implement them.
+
 The matched working names are marker trait `AutoClosing` and decorator
 `@auto_closing`. An `AutoClosing` type exists only to register cleanup; its
 marker implementation refines its synchronous `Disposable` or suspending
