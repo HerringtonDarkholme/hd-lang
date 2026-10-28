@@ -27,7 +27,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Language and library
 
-- [Scope Guards](SCOPE_GUARDS.md): proposed visible `using` / `using!` split for synchronous and suspending scope cleanup, with the tier-2 lifetime requirement for guards over local references (#962).
+- [Scope Guards](SCOPE_GUARDS.md): accepted, not implemented: visible `using` / `using!`, the matched `AutoClosing` / `@auto_closing` guard convention, error-level `unbound-disposable`, and tier-2 guard lifetimes (#962).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).

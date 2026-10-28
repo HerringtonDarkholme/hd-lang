@@ -1,10 +1,10 @@
 # Scope Guards
 
-**Status:** proposal for owner review. Nothing here is accepted language or
-library behavior. The checked package beside this document models only what
-current hd can express; comments marked `Target` are hypothetical.
+**Status:** design accepted 2026-10-28; not implemented. The checked package
+beside this document models only what current hd can express; comments marked
+`Target` are hypothetical.
 
-## Proposal
+## Accepted Design
 
 Keep `defer:`. Add a synchronous disposal protocol and make the cleanup effect
 visible in the binding:
@@ -30,15 +30,15 @@ The latter spelling follows hd's existing bang convention rather than adding
 C#'s second effect word, `await`. The current suspending `Disposable` becomes
 `AsyncDisposable`; current `using` sites become `using!` sites.
 
-An ordinary `let` or `:=` binding never disposes a value implicitly. A reader
-can find every end-of-scope action by looking for `defer:`, `using`, and
-`using!`. A constructor name such as `on_exit` is not the convention: its
-result runs only when the caller chooses one of the two visible bindings.
+An ordinary `let` or `:=` binding never disposes an ordinary `Disposable` or
+`AsyncDisposable` implicitly. A reader can find every end-of-scope action by
+looking for `defer:`, `using`, `using!`, or the accepted auto-closing call
+convention below.
 
 Both forms register on the existing lexical cleanup stack. `defer:` and
 synchronous disposal run inline; asynchronous disposal is awaited. All three
 run in reverse registration order and otherwise keep the accepted cleanup
-semantics. This proposal changes neither panic cleanup nor cancellation.
+semantics. This design changes neither panic cleanup nor cancellation.
 
 The standard library can then provide an ordinary guard:
 
@@ -46,7 +46,8 @@ The standard library can then provide an ordinary guard:
 pub struct ScopeGuard:
     action: fn() -> void
 
-pub fn on_exit(action: fn() -> void) -> ScopeGuard
+pub fn on_exit(action: fn() -> void) -> ScopeGuard:
+    panic("todo")
 
 impl Disposable for ScopeGuard:
     fn dispose(&mut self) -> void
@@ -64,34 +65,32 @@ row instead of erasing it:
 pub struct ScopeGuard[$R]:
     action: fn() -> void $ R
 
-pub fn on_exit[$R](action: fn() -> void $ R) -> ScopeGuard[$R]
+pub fn on_exit[$R](action: fn() -> void $ R) -> ScopeGuard[$R]:
+    panic("todo")
 ```
 
-## Questions For The Owner
+### Auto-closing guard calls
 
-1. **Should synchronous and suspending cleanup have separate protocols and
-   binding spellings?** **Recommendation: yes: `Disposable` / `using` and
-   `AsyncDisposable` / `using!`.** The call site says whether scope exit may
-   suspend, ordinary functions need no driver, and a type implementing both is
-   unambiguous. The cost is a breaking rename of today's protocol and sites.
+The matched working names are marker trait `AutoClosing` and decorator
+`@auto_closing`. An `AutoClosing` type exists only to register cleanup; its
+marker implementation refines its synchronous `Disposable` or suspending
+`AsyncDisposable` protocol and identifies which cleanup entry to register.
 
-2. **Should an ordinary binding ever invoke disposal?** **Recommendation: no.**
-   Requiring `using` or `using!` is the single visible convention. Automatic
-   `Drop` would make guard construction shorter, but would hide scope-exit code
-   behind an ordinary call.
+`@auto_closing` is valid only on a function whose return type implements
+`AutoClosing`. Any other return type is an error at the declaration. Calling an
+auto-closing function as a statement registers its result on the same cleanup
+stack as `defer:`, `using`, and `using!`. The entries keep one LIFO order. Using
+the call as a value is an error.
 
-3. **What must tier 2 guarantee for a guard over locals?**
-   **Recommendation: a guard carries the capture lifetime of its action, cannot
-   outlive any captured local, and is destroyed before those locals.** A
-   mutable capture is exclusive for the guard's lifetime; code that still
-   needs the value must access it through a guard designed to expose it. Making
-   a deferred mutable capture coexist with direct later access would need an
-   additional tier-2 rule and is deliberately not proposed here.
+A marker-typed result can never sit unregistered. Binding it with `:=` or
+`let`, storing it, or returning it from a function without `@auto_closing` is a
+compile error. Ordinary disposable values keep explicit `using` / `using!` and
+the lint rule below; only the marker opts into this stricter convention.
 
-4. **Should `hd lint` warn when a disposable result is kept by an ordinary
-   binding?** **Recommendation: yes, as `unbound-disposable`.** A disposable
-   value must be bound with `using` / `using!`, returned, or passed onward.
-   The lint catches a guard that looks registered but is inert.
+The standard library can express `defer(action)` and `ensure(action)` as
+ordinary functions with `@auto_closing` once the accepted dependencies are
+implemented. The decorator and marker have the same `auto_closing` stem so the
+registration rule is searchable at both the producer and call.
 
 ## The Three Gaps
 
@@ -109,9 +108,9 @@ fn record(log: &mut List[string]) -> void:
     )
 ```
 
-Tier 2 must make the lifetime visible in both the closure and the guard. The
-guard may be returned only if `{log}` remains valid, may not be stored in a
-global or longer-lived object, and must run before `log` dies. The action is
+The accepted tier-2 direction makes the lifetime visible in both the closure
+and the guard. The guard may be returned only if `{log}` remains valid, may not
+be stored in a global or longer-lived object, and must run before `log` dies. The action is
 `fn once` and the guard is noncopyable so cleanup happens once.
 
 The corresponding hypothetical library shape is:
@@ -159,17 +158,18 @@ ignored := on_exit(fn(): audit("not registered"))
 using registered = on_exit(fn(): audit("runs at scope exit"))
 ```
 
-The type alone does not cause action at a distance. Code search for `using`,
-`using!`, or `defer:` finds every registration point. The variable need not
-follow a naming convention; names such as `guard` are documentation, not
-semantics.
+An ordinary constructor remains inert: `using` / `using!` registers its result.
+An auto-closing function is the one exception, visible on its declaration, and
+its statement call registers immediately rather than waiting for an ordinary
+binding to die. Variable names such as `guard` are documentation, not semantics.
 
-### Unbound guard lint
+### Unbound disposable lint
 
 `hd lint` reports `unbound-disposable` when a created `Disposable` or
-`AsyncDisposable` value is stored by an ordinary binding or discarded. It is
-quiet when the value is bound by `using` / `using!`, returned, or passed to
-another call:
+`AsyncDisposable` value is used as a statement or bound by ordinary `:=` or
+`let`. Its default level is error, and a package or site may allow it. The lint
+is quiet when the value is bound by `using` / `using!`, passed on, returned, or
+stored:
 
 ```text
 ignored := on_exit(fn(): audit("not registered")) # lint: unbound-disposable
@@ -177,8 +177,10 @@ using registered = on_exit(fn(): audit("runs at scope exit"))
 install(on_exit(fn(): audit("the callee owns this guard"))) # quiet
 ```
 
-This is lint advice, not a type error. It preserves deliberate transfer while
-catching the spelling most likely to be mistaken for a registered guard.
+This remains an `hd lint` finding rather than a type error. It preserves
+deliberate transfer while catching the spellings most likely to be mistaken for
+a registered cleanup. `AutoClosing` values use the compile errors above instead
+and cannot allow an unregistered state.
 
 ## How Scope Exit Works
 
@@ -205,10 +207,11 @@ the current `using` transfer rules.
 ## Cost
 
 This is one syntax extension (`using!`), one semantic split of the existing
-`using` rule, one renamed plus one new protocol, and one lint. It adds no
-intrinsic: guard storage, once-only callbacks, and `on_exit` remain library
-code. The compiler already has lexical cleanup entries and asynchronous
-disposal; it adds an inline synchronous entry.
+`using` rule, one renamed plus one new protocol, one marker/decorator
+convention, and one lint. It adds no intrinsic: guard storage, once-only
+callbacks, `on_exit`, `defer(action)`, and `ensure(action)` remain library code.
+The compiler already has lexical cleanup entries and asynchronous disposal; it
+adds an inline synchronous entry and the auto-closing registration checks.
 
 The source migration is mechanical but broad: current `Disposable` becomes
 `AsyncDisposable`, and current `using` becomes `using!`. The benefit is that
@@ -223,7 +226,7 @@ cleanup may suspend.
 | Automatic drop | compiler proves exactly-once destruction after captured locals remain live | semantic rule plus compiler-known destruction; cleanup is invisible |
 | Keep only `defer:` | existing lexical capture rules remain the sole cleanup path | no change, but reusable guards remain weaker |
 
-The recommended option has the most expensive change in the project's design
+The accepted option has the most expensive change in the project's design
 cost order: syntax. It wins despite that cost because the cheaper one-spelling
 alternative needs an ambiguity rule and conceals suspension at scope exit.
 
@@ -239,12 +242,13 @@ alternative needs an ambiguity rule and conceals suspension at scope exit.
 | Return a local guard | rejected unless all captured lifetimes outlive the result | capture set appears in the result type |
 | Copy a guard | rejected | guard and `fn once` action are noncopyable |
 | Type implements both protocols | caller chooses `using` or `using!` | no protocol inference |
-| Ordinary binding of a disposable | no cleanup | only visible cleanup bindings register |
-| Guard kept by an ordinary binding | `unbound-disposable` lint advice | return or pass onward remains allowed |
+| Ordinary statement/binding of a disposable | `unbound-disposable`, error level by default | allow is available; transfer, return and storage stay quiet |
+| Auto-closing call statement | its marker-typed result registers cleanup | using the call as a value is an error |
+| Unregistered marker-typed value | rejected | plain binding, storage and undecorated return are errors |
 | Mixed `defer`, `using`, `using!` | one reverse-order stack | async entries are awaited in place |
 
-The proposal cannot express a stored closure that mutably captures a local
-while unrelated code keeps accessing that local directly. That is the
+The accepted design cannot express a stored closure that mutably captures a
+local while unrelated code keeps accessing that local directly. That is the
 deliberate anti-case: accepting it as an ordinary `&mut` capture would violate
 tier 2's exclusivity rule. `defer:` remains the direct spelling for late
 lexical access.
@@ -280,14 +284,15 @@ conditions, not automatic drop: `using` stays visible at the binding.
 C#'s
 [`CA2000`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2000)
 warns when a disposable object is not disposed before references leave scope.
-Hd's lint is narrower: it checks the visible binding or transfer at creation.
+Hd's lint is narrower and defaults to error level: it checks the visible
+binding or transfer at creation, and remains allow-able like other lint rules.
 
 ### Python
 
 Python [`contextlib.contextmanager`](https://docs.python.org/3/library/contextlib.html#contextlib.contextmanager)
 turns `try` / `yield` / `finally` into a value used by a visible `with` block.
 The visible block is a good fit; generator-driven dynamic cleanup and exception
-suppression are not part of this proposal.
+suppression are not part of this design.
 
 ### Go And Zig
 
@@ -344,10 +349,17 @@ comments.
 
 ## Appendix E: Details Deferred Elsewhere
 
-- Tier-2 lifetime syntax and capture checking remain in #163 and #833.
+- The accepted tier-2 lifetime and exclusivity direction is recorded in #978;
+  it is not built in this slice.
 - #961 supplies `ScopeGuard[$R]`, so `on_exit` retains the action's requirement
   row instead of accepting only an empty-row callback.
-- The exact std module for `ScopeGuard` is an implementation decision after
-  the language design is accepted.
+- The exact std module for `ScopeGuard` is an implementation decision.
 - Panic and cancellation cleanup keep their accepted behavior and are not
   reopened here.
+
+## Appendix F: Parse Log
+
+All nine `text` blocks were checked with `scripts/hd-conformance.sh parse` on
+2026-10-28. The five current-syntax blocks parse. The four blocks containing
+target `using!`, `fn once`, or lifetime syntax reject as expected. Parsing
+validates syntax only, not the proposed names or behavior.
