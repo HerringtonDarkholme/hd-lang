@@ -2,10 +2,10 @@
 //
 // For each program in progs/: build the .hd with `hd build`, run the .wasm
 // through the checked-in host runner (host/run.mjs), run the .js
-// directly, 1 warmup + 5 measured runs each, p50/p95. Prints a markdown
+// directly, 1 warmup + 5 measured runs each (`--runs N`), p50/p95. Prints a markdown
 // report to stdout. Fails loudly when hd and JS outputs differ.
 //
-// Usage: node bench/runtime/run.mjs [workdir] [--release] [--hd PATH] [--only a,b]
+// Usage: node bench/runtime/run.mjs [workdir] [--release] [--hd PATH] [--only a,b] [--runs N]
 // With --release, programs are built with `hd build --release` and the
 // release-profile Wasm is timed; otherwise the debug profile. Every build
 // passes `--engine node`, so its Wasm is tuned for V8, which runs it here,
@@ -20,7 +20,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 const NEW_HD = join(REPO, "target", "release", "hd");
 const RUNNER = join(REPO, "host", "run.mjs");
-const RUNS = 5;
+let RUNS = 5;
 const TIMEOUT_MS = 300_000;
 
 const args = process.argv.slice(2);
@@ -33,6 +33,7 @@ for (let i = 0; i < args.length; i++) {
   if (arg === "--release") release = true;
   else if (arg === "--hd" && args[i + 1]) hdBinary = resolve(args[++i]);
   else if (arg === "--only" && args[i + 1]) only = args[++i].split(",");
+  else if (arg === "--runs" && args[i + 1]) RUNS = Number(args[++i]);
   else if (!arg.startsWith("--") && workRoot === undefined) workRoot = arg;
   else throw new Error(`unknown argument ${arg}`);
 }
@@ -56,7 +57,8 @@ function sh(cmd, argv, opts = {}) {
 
 function stats(samples) {
   const s = [...samples].sort((a, b) => a - b);
-  return { p50: s[2], p95: s[4], min: s[0], max: s[4] };
+  const max = s[s.length - 1];
+  return { p50: s[Math.floor(s.length / 2)], p95: max, min: s[0], max };
 }
 
 function measure(fn) {
