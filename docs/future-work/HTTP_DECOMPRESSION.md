@@ -1,13 +1,14 @@
 # HTTP Response Decompression
 
-**Status:** proposal, 2026-10-28; domain: `std.http` and a new
-`std.compression`; nothing here is accepted behavior.
+**Status:** proposal, 2026-10-28; domain: `std.http` and its host providers;
+nothing here is accepted behavior.
 
 ## Proposal
 
-`Client.send!` advertises gzip and deflate and returns a response whose body
-readers decode them. `Client.send_encoded!` is the explicit wire-body path.
-The decoder lives below HTTP in `std.compression`.
+`Client.send!` advertises gzip and deflate and asks the host for a decoded
+response. `Client.send_encoded!` is the explicit wire-body path on hosts that
+can expose one. Decoding happens in the host before `Response` reaches Wasm;
+HTTP decompression adds no inflater to a program.
 
 ```text
 use std.http.{Client, Http, HttpError, Request, Url}
@@ -29,12 +30,10 @@ The checked signatures and examples are in
 1. **Opt-out:** separate `send_encoded!` or a client flag?
    **Recommendation:** a separate terminal. Its name makes the body
    representation stable; a boolean would change every body reader's meaning.
-2. **Decoded body limit:** fixed 64 MiB or unbounded like today's buffered
-   body? **Recommendation:** 64 MiB, reported as `InflateError.OutputTooLarge`.
-   Larger bodies should use the streaming design rather than one allocation.
-3. **Brotli in the first release:** yes or no? **Recommendation:** no. Gzip and
-   deflate share one DEFLATE core; Brotli adds a second decoder whose Wasm cost
-   has not been justified.
+2. **Brotli in the portable guarantee:** yes or no? **Recommendation:** no.
+   Every host guarantees gzip and deflate. Fetch-based hosts may decode more
+   codings before hd receives the response, but portable code cannot depend on
+   that larger set.
 
 ## Problems Solved
 
@@ -42,22 +41,21 @@ The checked signatures and examples are in
 | --- | --- | --- |
 | Read a compressed JSON API | `response.json()` sees gzip bytes and fails | `Client.send!` advertises and decodes before the body reader |
 | Save the exact server payload | Client code has no explicit raw mode | `send_encoded!` preserves bytes and encoding headers |
-| Reuse inflate outside HTTP | no std inflater | `std.compression` exposes bounded gzip and zlib decoders |
-| Receive corrupt compressed data | often appears as lossy text | the body reader returns a typed inflate error |
+| Avoid charging each HTTP program for inflate | a Wasm decoder would add about 69 KB | the host decodes with its platform library; Wasm adds zero decoder bytes |
+| Receive corrupt compressed data | often appears as lossy text | `send!` returns a typed content-decoding error |
 
 ## Public Shape
 
 | Item | Purpose |
 | --- | --- |
 | `Client.send!` | decoded buffered response, the default |
-| `Client.send_encoded!` | encoded buffered response with wire headers intact |
-| `gzip_decode(bytes, max_output)` | gzip members, including checksum checks |
-| `zlib_decode(bytes, max_output)` | RFC 1950 zlib wrapper around DEFLATE |
-| `InflateError` | malformed input or a decoded-size limit |
-| `BodyError.Decompression` | maps a body coding and its `InflateError` into HTTP |
+| `Client.send_encoded!` | encoded buffered response with wire headers intact, or `EncodedResponseUnavailable` |
+| `HttpError.InvalidContentEncoding(encoding)` | a supported coding was malformed |
+| `HttpError.EncodedResponseUnavailable` | this host cannot expose bytes before platform decoding |
 
-`std.compression` depends only on byte collections. `std.http` depends on it;
-the compression module never imports HTTP.
+This proposal does not add `std.compression`. A separate proposal may add
+general gzip/zlib functions for non-HTTP work such as reading a `.gz` file,
+but that API must justify its own linked size and is not reachable from HTTP.
 
 ## Client Rules
 
@@ -65,54 +63,77 @@ Before every request, decoded `send!` adds `Accept-Encoding: gzip, deflate`
 only when the request has neither `Accept-Encoding` nor `Range`.
 `send_encoded!` adds nothing. An explicit request header is preserved.
 
-On a final response, decoded `send!` parses every `Content-Encoding` token.
-It decodes supported stacked codings in reverse order. `identity` is a no-op.
-If every coding is supported, it removes `Content-Encoding` and
-`Content-Length`; those fields described the encoded representation.
+On a final response, the host parses every `Content-Encoding` token. It
+decodes supported stacked codings in reverse order. `identity` is a no-op. If
+every coding is supported, it removes `Content-Encoding` and `Content-Length`;
+those fields described the encoded representation.
 
-An unsupported coding leaves the entire body and both headers unchanged,
-matching reqwest rather than partially decoding a stack. `send_encoded!`
-always leaves them unchanged. Cookies and redirects are processed before the
-final response is wrapped, so redirect bodies are not inflated.
+On raw-transport hosts, an unsupported coding leaves the entire body and both
+headers unchanged, matching reqwest rather than partially decoding a stack.
+Fetch-based hosts may already have decoded a coding before the hd adapter can
+inspect it; the adapter treats that platform-decoded representation as the
+decoded result and removes stale representation headers. Cookies and redirects
+are processed before the final response is returned, so redirect bodies are
+not decoded for Wasm.
 
 A `Range` request, a 206 response, a HEAD response, and 1xx, 204, or 304
 responses are not wrapped. Their representation headers remain intact. HTTP
 `deflate` means the RFC 1950 zlib wrapper; a raw DEFLATE stream is invalid.
 
-Decoding is lazy at the read-once `Body`: `bytes`, `text`, `json`, and `form`
-all see decoded bytes and can return `BodyError.Decompression`. This retains
-the status and headers when compressed data is corrupt and fits the planned
-streaming decoder. The first read still consumes the body on either success or
-failure.
+Decoding is eager in the host while it buffers the response. `bytes`, `text`,
+`json`, and `form` therefore all see the same decoded bytes. A corrupt
+supported stream makes `send!` return
+`HttpError.InvalidContentEncoding(encoding)`; no partially decoded `Response`
+is constructed.
 
-`Request.send!` remains the low-level provider terminal and returns encoded
-bytes. Only `Client.send!` has the new default. This keeps the provider ABI and
-scripted transports independent of compression policy.
+The provider request gains a response-representation mode. `Client.send!`
+uses `Decoded`; `Client.send_encoded!` uses `Encoded`; the existing
+`Request.send!` uses `Native` and keeps its low-level host representation.
+`ScriptedHttp` treats its queued response as the requested representation and
+does no compression work. This keeps deterministic tests independent of a
+decoder while making the real host, not Wasm, own decoding policy.
+
+### Exact Host Behavior
+
+| Host | `send!` | `send_encoded!` |
+| --- | --- | --- |
+| Node CLI (`host/http.mjs`) | Node `zlib` decodes gzip/zlib stacks and normalizes headers | raw `http.request` bytes and original representation headers |
+| Wasmtime | native `flate2` decoding (the ureq `gzip` feature supplies the gzip path) and normalized headers | ureq decoding disabled; original bytes and representation headers |
+| Browser playground (`XMLHttpRequest`) | the browser-decoded body; the adapter removes stale encoding/length headers | `HttpError.EncodedResponseUnavailable` before starting the request |
+| Cloudflare/Fetch server host | the Fetch-decoded body; the adapter removes stale encoding/length headers | `HttpError.EncodedResponseUnavailable` before starting the request |
+| Vercel Fetch adapter | the Fetch-decoded body; the adapter removes stale encoding/length headers | `HttpError.EncodedResponseUnavailable` before starting the request |
+| `ScriptedHttp` | the queued response, interpreted as decoded | the queued response, interpreted as encoded |
+
+There is no approximate encoded result. A method named `send_encoded!` either
+returns the encoded representation or reports that the host cannot provide it.
 
 ## Differences From Today's API
 
 - `Client.send!` changes from encoded to decoded bodies for recognized
   content codings.
-- `send_encoded!` is new and preserves today's client result.
-- `BodyError` gains `Decompression(encoding, error)`.
-- `Request.send!`, `Http.send!`, `Response`, and `ScriptedHttp` keep their
-  existing wire behavior.
+- `send_encoded!` is new. It preserves today's native-client result and is
+  explicitly unavailable on Fetch/XHR hosts.
+- `HttpError` gains `InvalidContentEncoding(encoding)` and
+  `EncodedResponseUnavailable`.
+- The host-provider request gains `Native`, `Decoded`, and `Encoded` response
+  modes; `Request.send!` keeps `Native`.
+- `Response`, `BodyError`, and body readers do not change.
 - No request body is compressed.
 
 ## Cost
 
 | Component | Cost |
 | --- | --- |
-| std code | one DEFLATE core, gzip/zlib framing, HTTP header glue |
-| Compile time | decoder bodies compile only when reachable |
-| Runtime | O(encoded + decoded bytes); one 32 KiB history window |
-| Memory | decoded body plus the history window, capped at 64 MiB |
-| Program Wasm | budget +70 KB raw / +40 KB gzip for the full decoder |
-| Programs using only encoded sends | no decoder functions are reachable, so no inflater is linked |
-| Web compiler | std source increases its packed input; implementation must remain below the 2 MB gzip gate |
+| std code | request-mode and error plumbing only |
+| Host code | Node built-in `zlib`; native `flate2`; Fetch/XHR use platform decoding |
+| Runtime | host buffering plus host decoding; no second Wasm-side pass |
+| Memory | the host's encoded input and decoded response buffer |
+| Program Wasm | **zero decoder bytes**; only ordinary HTTP call glue |
+| Web compiler | no inflater source or decoder bodies added |
 
-Every proposed item is stdlib tier. The implementation needs no syntax,
-semantic exception, intrinsic, or host ABI change.
+The public items are stdlib tier. The implementation needs no syntax,
+semantic exception, or intrinsic. It does change the ordinary `Http` provider
+and wire-host request to carry the representation mode.
 
 The program-Wasm budget is a measured proxy. A scratch Rust `cdylib` linked
 flate2 1.1.10's multi-member gzip and zlib readers for
@@ -120,7 +141,9 @@ flate2 1.1.10's multi-member gzip and zlib readers for
 panics, stripping, and `gzip -9 -n`. The empty export was 75 bytes raw /
 91 bytes gzip; the inflater was 68,869 / 40,042. The delta was
 **68,794 raw / 39,951 gzip**.
-The hd implementation must report its own before/after numbers.
+Those numbers reject in-Wasm HTTP decoding: its decoder alone was almost the
+size of the 71 KB JSON program used for comparison. A future non-HTTP
+`std.compression` proposal must report its own hd before/after numbers.
 
 ## Appendix A: Stress Test
 
@@ -132,12 +155,12 @@ The hd implementation must report its own before/after numbers.
 | `Content-Encoding: gzip, deflate` | zlib is decoded first, then gzip |
 | `Content-Encoding: br, gzip` | no partial transform; body and headers remain encoded |
 | Concatenated gzip members | all members concatenate, and each trailer is checked |
-| Bad gzip CRC or truncated deflate | first body read returns `BodyError.Decompression` |
-| 1 KiB expands past 64 MiB | first body read returns `OutputTooLarge(67108864)` |
+| Bad gzip CRC or truncated deflate | `send!` returns `InvalidContentEncoding` |
 | HEAD, 204, or 304 with an empty body | no decoder runs for an empty body |
 | Redirect with a compressed body | body is skipped; only the final response is wrapped |
-| Scripted response | the client applies the same policy after `ScriptedHttp.send!` |
-| Save a signed encoded artifact | `send_encoded!` preserves bytes, `Content-Encoding`, and `Content-Length` |
+| Scripted response | its queued value is already the representation requested by the test |
+| Save a signed encoded artifact on Node/native | `send_encoded!` preserves bytes, `Content-Encoding`, and `Content-Length` |
+| Save a signed encoded artifact in a browser | `send_encoded!` returns `EncodedResponseUnavailable` without a request |
 
 The adversarial finding is stacked codings. Decoding only a known suffix would
 make the headers lie about the transformed bytes. The design therefore either
@@ -187,18 +210,6 @@ ranges. Browsers also control `Accept-Encoding`. Hd adopts decoding before
 body readers, while retaining an explicit encoded-body API for tools that need
 wire bytes.
 
-### Inflater
-
-```rust
-let mut decoder = flate2::read::MultiGzDecoder::new(input);
-decoder.take(limit).read_to_end(&mut output)?;
-```
-
-[`miniz_oxide`](https://docs.rs/miniz_oxide/latest/miniz_oxide/inflate/index.html)
-provides raw-DEFLATE and zlib decoding, including output-limited entry points.
-Hd takes the bounded decoder shape and adds gzip framing and trailer checks in
-`std.compression`.
-
 ## Appendix C: Alternatives
 
 ### Client Boolean
@@ -214,16 +225,19 @@ API, but a header-setting helper far from the body read changes its meaning.
 Hd keeps explicit headers and still decodes supported codings under `send!`;
 `send_encoded!` is the local opt-out.
 
-### Decode In The Host
+### Decode In Wasm
 
-Node Fetch may decode already, while native transports can expose wire bytes.
-Depending on host behavior would violate engine parity and make raw access
-unreliable. The shared std layer owns the policy.
+A shared Wasm decoder could make the same raw transport policy available to
+Node and native hosts. It cannot run on Fetch/XHR hosts because those platforms
+have already decoded the response, and it costs about 69 KB raw / 40 KB gzip
+when linked. Host-side decoding gives the default path the same decoded-body
+contract at zero decoder bytes; strict raw access is an explicit host
+capability instead.
 
 ### Brotli Now
 
-Brotli is common in browsers and optional in reqwest, but it shares no DEFLATE
-core. Without a measured Wasm budget it is excluded from the first release.
+Brotli is common in browsers and optional in reqwest. Without a portable host
+guarantee it is excluded from the first release.
 
 ## Appendix D: Today In hd
 
@@ -234,28 +248,30 @@ read-once copy with JSON, text, and form readers layered above it.
 The header enum already includes `AcceptEncoding` and `ContentEncoding`.
 [`spec/std/http.md`](../../spec/std/http.md#client) specifies no decoding, and
 the native host test `client_keeps_status_headers_bytes_and_does_not_decode_gzip`
-records raw gzip behavior. There is no inflater in `lib/std`.
+records raw gzip behavior. The Node and native hosts currently preserve those
+bytes; XHR and Fetch already expose decoded bytes. There is no inflater in
+`lib/std`.
 
 ## Appendix E: Details And Phases
 
-- **Errors:** malformed supported data is `BodyError.Decompression`; unknown
-  codings remain raw and discoverable in headers.
-- **Ownership:** decoding replaces a read-once body's payload without changing
-  copies' shared consumption state.
-- **Cancellation:** buffered inflate is synchronous; the enclosing send's
-  cancellation rules do not change.
-- **Parity:** Node and native providers both return wire bytes; std alone
-  applies decoding.
-- **Streaming:** the future reader wraps its source in the same decoder and
-  enforces the same output limit incrementally.
-- **Phase 1:** `std.compression` gzip/zlib functions, vectors, corrupt inputs,
-  bomb limit, and linked-size measurement.
-- **Phase 2:** encoded `Body` state, reverse coding lists, header normalization,
-  and read-once errors.
-- **Phase 3:** `Client.send!` advertisement plus `send_encoded!`, redirects,
-  scripted-provider tests, and Node/native parity.
-- **Rollback:** remove the client wrapper and new terminal; the lower
-  compression module remains independently useful.
+- **Errors:** malformed supported data is `HttpError.InvalidContentEncoding`;
+  raw hosts leave an unsupported stack untouched.
+- **Ownership:** the host constructs one final body representation before
+  Wasm receives the response; read-once body ownership is unchanged.
+- **Cancellation:** decoding belongs to the bounded host request and completes
+  or fails before the host posts its result.
+- **Parity:** every host returns decoded gzip/deflate through `Client.send!`;
+  strict encoded access is capability-dependent and fails explicitly.
+- **Streaming:** a future host streaming reader applies the same decoding and
+  header normalization before yielding bytes to Wasm.
+- **Phase 1:** add representation mode and errors to the provider contract;
+  implement Node/native decoding with stacked and corrupt fixtures.
+- **Phase 2:** normalize browser/Fetch headers and reject encoded mode before
+  network I/O; add cross-host parity cases.
+- **Phase 3:** add `Client.send!` advertisement and `send_encoded!`, redirects,
+  and scripted-provider mode tests.
+- **Rollback:** remove the new terminal and provider mode; no lower compression
+  module remains coupled to HTTP.
 
 ## Parse Log
 
