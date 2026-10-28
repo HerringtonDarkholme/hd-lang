@@ -1,0 +1,22 @@
+use pkg.http_decompression.{Client, InflateError, gzip_decode, zlib_decode}
+use std.http.{CookieJar, Http, HttpError, Request, Url}
+use std.time.Clock
+
+pub fn gzip_text!(url: string) -> Result[string, HttpError] $ Http + Clock:
+    let mut client = Client::new()
+    request := Request::get(Url::parse(url)?)
+    response := client.send!(&request)?
+    .Ok(response.text()?)
+
+pub fn encoded_bytes!(url: string) -> Result[List[u8], HttpError] $ Http + Clock:
+    let mut client = Client::with_jar(CookieJar::new())
+    request := Request::get(Url::parse(url)?)
+    response := client.send_encoded!(&request)?
+    .Ok(response.bytes()?)
+
+pub fn decode_archives(
+    gzip: List[u8],
+    deflate: List[u8],
+) -> Result[(List[u8], List[u8]), InflateError]:
+    limit := 1_048_576
+    .Ok((gzip_decode(gzip, limit)?, zlib_decode(deflate, limit)?))

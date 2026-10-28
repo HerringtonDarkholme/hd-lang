@@ -1,0 +1,40 @@
+use std.http.{CookieJar, Http, HttpError, Request, Response}
+use std.time.Clock
+
+@error
+@derive(Debug, Eq)
+pub enum InflateError:
+    @error("invalid compressed data")
+    InvalidData
+    @error("decoded body exceeds the $limit byte limit")
+    OutputTooLarge(limit: usize)
+
+pub fn gzip_decode(bytes: List[u8], max_output: usize) -> Result[List[u8], InflateError]:
+    panic("todo: gzip decoder")
+
+pub fn zlib_decode(bytes: List[u8], max_output: usize) -> Result[List[u8], InflateError]:
+    panic("todo: zlib decoder")
+
+pub struct Client:
+    pub jar: CookieJar
+
+impl Client:
+    pub fn new() -> Client:
+        Client { jar: CookieJar::new() }
+
+    pub fn with_jar(jar: CookieJar) -> Client:
+        Client { jar: jar }
+
+    pub fn send!(
+        &mut self,
+        request: &Request,
+        redirects: usize = 10,
+    ) -> Result[Response, HttpError] $ Http + Clock:
+        panic("todo: decoded client send")
+
+    pub fn send_encoded!(
+        &mut self,
+        request: &Request,
+        redirects: usize = 10,
+    ) -> Result[Response, HttpError] $ Http + Clock:
+        panic("todo: encoded client send")

@@ -1,0 +1,6 @@
+[package]
+name = "http-decompression-design"
+
+[capabilities]
+Http = true
+Clock = true
