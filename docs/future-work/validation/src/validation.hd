@@ -165,7 +165,7 @@ impl[K < Eq & Hash, V, R < Rule[V]] RuleExt[Map[K, V]] for EachValue[V, R]
 impl[V, R] MessageRule for EachValue[V, R]
 
 @annotate::[F](.Field)
-pub struct Range[F]:
+pub struct Range[F < PartialOrd]:
     low: F
     high: F
     message: string?
@@ -173,27 +173,27 @@ impl[F < PartialOrd] Rule[F] for Range[F]:
     fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
         panic("todo")
 impl[F < PartialOrd] RuleExt[F] for Range[F]
-impl[F] MessageRule for Range[F]
+impl[F < PartialOrd] MessageRule for Range[F]
 
 @annotate::[F](.Field)
-pub struct Min[F]:
+pub struct Min[F < PartialOrd]:
     bound: F
     message: string?
 impl[F < PartialOrd] Rule[F] for Min[F]:
     fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
         panic("todo")
 impl[F < PartialOrd] RuleExt[F] for Min[F]
-impl[F] MessageRule for Min[F]
+impl[F < PartialOrd] MessageRule for Min[F]
 
 @annotate::[F](.Field)
-pub struct Max[F]:
+pub struct Max[F < PartialOrd]:
     bound: F
     message: string?
 impl[F < PartialOrd] Rule[F] for Max[F]:
     fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
         panic("todo")
 impl[F < PartialOrd] RuleExt[F] for Max[F]
-impl[F] MessageRule for Max[F]
+impl[F < PartialOrd] MessageRule for Max[F]
 
 @annotate(.Field)
 pub struct Length:
