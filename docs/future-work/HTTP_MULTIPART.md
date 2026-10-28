@@ -1,6 +1,6 @@
 # HTTP Multipart Forms
 
-Status: design proposal, 2026-10-28; domain: standard library HTTP messages; not accepted.
+Status: design accepted 2026-10-28; not implemented; domain: standard library HTTP messages.
 
 This proposal addresses [#948](https://github.com/HerringtonDarkholme/hd-lang/issues/948).
 It adds buffered `multipart/form-data` building and reading to `std.http`.
@@ -12,6 +12,7 @@ The [checked package](http-multipart/) contains every proposed signature and rea
 Each part reuses `Body` for read-once bytes and `Headers` for metadata.
 Encoding attaches a generated boundary, body, and `Content-Type` to an existing `Request`.
 Decoding reads those headers, claims the request body, and returns fresh unread part bodies.
+Both entry points are inherent `Request` methods: `set_multipart` for clients and `multipart` for servers.
 
 ```text
 form := Multipart::new()
@@ -20,11 +21,6 @@ form := Multipart::new()
 request := Request::post(url).set_multipart(form)?
 response := request.send!()?.ok()?
 ```
-
-## Open questions
-
-1. Require a media type for the `file` convenience method rather than guessing from the filename? **Recommended: yes**, because std has no MIME registry.
-2. Preserve a received filename exactly after UTF-8 validation rather than stripping path components? **Recommended: yes**, with docs that it is untrusted display metadata.
 
 ## Problems it solves
 
@@ -55,7 +51,7 @@ The proposed std API has inherent `Request` methods and no public adapter trait.
 ### Client encoding
 
 Parts remain in insertion order, including repeated names.
-`text` writes UTF-8 with `text/plain; charset=utf-8`; `file` uses the caller's media type.
+`text` writes UTF-8 with `text/plain; charset=utf-8`; `file` requires the caller's media type and never guesses from the filename.
 `add` preserves custom headers and bytes.
 
 `Request.set_multipart` claims every part body once, validates names, filenames, and headers, then buffers the wire body.
@@ -75,7 +71,8 @@ It claims `request.body` before parsing, preserving the existing read-once rule.
 A failure leaves the request body used, just like JSON and URL-encoded readers.
 
 Every part must have `Content-Disposition: form-data` with one nonempty `name` parameter.
-The optional `filename` is returned as untrusted text; it is never treated as a path.
+After UTF-8 and header validation, the optional `filename` is returned exactly as sent.
+It is untrusted display metadata, never a path; the decoder does not strip path components.
 Other part headers use `Headers`, and a caller reads Content-Type with `part.headers.get(.ContentType)`.
 
 Each parsed payload becomes a fresh `Body`, so the caller chooses `bytes`, `text`, `json`, or another existing typed reader.
