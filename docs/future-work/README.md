@@ -15,7 +15,7 @@ action at a distance.
 ## What Remains
 
 Parked designs are not kept here; each lives in its GitHub issue, indexed by #833, which
-stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
+stays open (#18, #163, #166, #181, #182, #184, #646, #807).
 
 ### Application and host
 
@@ -29,6 +29,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 ### Language and library
 
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
+- [Positional Union Types](UNION_TYPES.md): ordered anonymous enums with explicit positional construction; design complete 2026-10-28, not scheduled (#804).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Build-Profile-Dependent Code](BUILD_PROFILE_CODE.md): accepted `@cfg(.Debug)` and
   `@cfg(.Release)` declaration variants, checked in every profile (#965).
