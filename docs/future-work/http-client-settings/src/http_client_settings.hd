@@ -1,0 +1,84 @@
+use std.http.{CookieJar, Http, HttpError, Request, Response, Url}
+use std.time.{Clock, Duration}
+
+## A validated HTTP CONNECT proxy endpoint.
+@derive(Debug, Eq)
+pub struct Proxy:
+    url: Url
+
+impl Proxy:
+    ## Validates an `http` proxy endpoint without credentials.
+    pub fn http(url: Url) -> Result[Proxy, ClientConfigError]:
+        panic("todo")
+
+## One PEM-encoded certificate that may extend the host's trusted roots.
+@derive(Debug, Eq)
+pub struct Certificate:
+    pem: string
+
+impl Certificate:
+    ## Parses one PEM certificate.
+    pub fn from_pem(pem: string) -> Result[Certificate, ClientConfigError]:
+        panic("todo")
+
+## A PEM client certificate chain and its PEM private key.
+## Debug is deliberately absent so diagnostics cannot print key material.
+pub struct Identity:
+    certificate_chain: string
+    private_key: string
+
+impl Identity:
+    ## Parses a PEM certificate chain and matching private key.
+    pub fn from_pem(
+        certificate_chain: string,
+        private_key: string,
+    ) -> Result[Identity, ClientConfigError]:
+        panic("todo")
+
+## Why a client setting could not be constructed.
+@error
+@derive(Debug, Eq)
+pub enum ClientConfigError:
+    @error("invalid HTTP proxy URL: $url")
+    InvalidProxy(url: string)
+    @error("invalid PEM certificate")
+    InvalidCertificate
+    @error("invalid PEM client identity")
+    InvalidIdentity
+
+## A reusable cookie-aware client builder with one I/O terminal, `send!`.
+pub struct Client:
+    pub jar: CookieJar
+
+impl Client:
+    ## Starts a client with an empty cookie jar and host-default transport.
+    pub fn new() -> *mut Client:
+        panic("todo")
+
+    ## Starts a client with an existing cookie jar.
+    pub fn with_jar(jar: CookieJar) -> *mut Client:
+        panic("todo")
+
+    ## Applies the existing task timeout policy around every later send.
+    pub fn timeout(*mut self, limit: Duration) -> *mut Client:
+        panic("todo")
+
+    ## Routes every later send through one HTTP CONNECT proxy.
+    pub fn proxy(*mut self, proxy: Proxy) -> *mut Client:
+        panic("todo")
+
+    ## Adds one root certificate to the host's ordinary trust store.
+    pub fn root_certificate(*mut self, certificate: Certificate) -> *mut Client:
+        panic("todo")
+
+    ## Supplies one client identity for mutual TLS.
+    pub fn identity(*mut self, identity: Identity) -> *mut Client:
+        panic("todo")
+
+    ## Sends one request through the configured client.
+    pub fn send!(
+        &mut self,
+        request: &Request,
+        redirects: usize = 10,
+    ) -> Result[Response, HttpError] $ Http + Clock:
+        panic("todo")

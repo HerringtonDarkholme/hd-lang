@@ -1,0 +1,34 @@
+use pkg.http_client_settings.{Certificate, Client, ClientConfigError, Identity, Proxy}
+use std.http.{CookieJar, Http, HttpError, Request, Response, Url}
+use std.time.{Clock, s}
+
+fn url(text: string) -> Url:
+    match Url::parse(text):
+        .Ok(value) => value
+        .Err(_) => panic("the example URL must parse")
+
+## A reusable client whose sends get the existing five-second timeout policy.
+pub fn bounded_client() -> *mut Client:
+    Client::new().timeout(5s)
+
+## A client that sends every origin through one HTTP CONNECT proxy.
+pub fn proxied_client() -> Result[*mut Client, ClientConfigError]:
+    proxy := Proxy::http(url("http://proxy.internal:8080"))?
+    .Ok(Client::new().proxy(proxy))
+
+## A client that trusts the host roots plus one private root certificate.
+pub fn private_root_client(root_pem: string) -> Result[*mut Client, ClientConfigError]:
+    root := Certificate::from_pem(root_pem)?
+    .Ok(Client::new().root_certificate(root))
+
+## A cookie-aware mutual-TLS client.
+pub fn mutual_tls_client(
+    certificate_chain_pem: string,
+    private_key_pem: string,
+) -> Result[*mut Client, ClientConfigError]:
+    identity := Identity::from_pem(certificate_chain_pem, private_key_pem)?
+    .Ok(Client::with_jar(CookieJar::new()).identity(identity))
+
+## The one terminal works the same for every configured client.
+pub fn fetch!(client: *mut Client, target: Url) -> Result[Response, HttpError] $ Http + Clock:
+    client.send!(&Request::get(target))
