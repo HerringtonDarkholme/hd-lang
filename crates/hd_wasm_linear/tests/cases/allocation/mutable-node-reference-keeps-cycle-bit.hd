@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: release
+# A mutable counted reference can write a back edge into an existing Node.
+
+struct Node:
+    next: (*Node)?
+
+fn keep_mutable(node: *mut Node) -> *mut Node:
+    node
+
+fn make() -> *Node:
+    &Node { next: .None }

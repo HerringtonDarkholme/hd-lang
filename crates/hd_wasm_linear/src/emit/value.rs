@@ -124,7 +124,13 @@ impl Em<'_, '_, '_> {
     /// address. Its descriptor names the release glue of its payload, and
     /// says whether it takes part in cycle collection (`cyclic`, from
     /// `crate::cycle`).
-    pub(super) fn object(&mut self, m: &Mem, walk: Option<&Walk>, cyclic: bool) -> u32 {
+    pub(super) fn object(
+        &mut self,
+        m: &Mem,
+        walk: Option<&Walk>,
+        cyclic: bool,
+        recursive: bool,
+    ) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.u32(m.size);
         let glue = walk.map(|w| {
@@ -133,7 +139,7 @@ impl Em<'_, '_, '_> {
                 walk: w.clone(),
             })
         });
-        crate::rt::push_desc(&mut self.f, glue, cyclic);
+        crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
         if self.input.runtime.is_some_and(|r| r.checked.is_none())
             && m.size
                 .checked_add(crate::module::HEADER)
@@ -228,7 +234,8 @@ impl Em<'_, '_, '_> {
                     let walk = self.payload_walk(&tys);
                     let srcs = self.count_refs(&fields, &tys)?;
                     let cyclic = self.cyclic_object(t);
-                    let at = self.object(&m, walk.as_ref(), cyclic);
+                    let recursive = self.recursive_object(t);
+                    let at = self.object(&m, walk.as_ref(), cyclic, recursive);
                     for (s, p) in srcs.iter().zip(&parts) {
                         self.store_part(at, &m, *p, s)?;
                     }
@@ -417,7 +424,8 @@ impl Em<'_, '_, '_> {
                     let srcs: Vec<Option<Src>> =
                         (0..tys.len()).map(|f| replaced(f).map(Src::Ref)).collect();
                     let cyclic = self.cyclic_object(t);
-                    let at = self.object(&m, walk.as_ref(), cyclic);
+                    let recursive = self.recursive_object(t);
+                    let at = self.object(&m, walk.as_ref(), cyclic, recursive);
                     for (f, p) in parts.iter().enumerate() {
                         match &srcs[f] {
                             Some(s) => self.store_part(at, &m, *p, s)?,
@@ -623,7 +631,8 @@ impl Em<'_, '_, '_> {
         if matches!(self.kind(t), Kind::Boxed) {
             let walk = self.cell_walk(t);
             let cyclic = self.cyclic_object(t);
-            let cell = self.object(&m, walk.as_ref(), cyclic);
+            let recursive = self.recursive_object(t);
+            let cell = self.object(&m, walk.as_ref(), cyclic, recursive);
             for (p, l) in m.leaves.iter().enumerate() {
                 self.store_leaf(
                     &|em: &mut Self| {

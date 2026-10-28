@@ -192,6 +192,11 @@ impl Em<'_, '_, '_> {
         self.input.runtime.is_some() && crate::cycle::object(self.pool(), self.env(), t)
     }
 
+    /// Whether an object's release can reach the same release glue again.
+    pub(super) fn recursive_object(&self, t: Ty) -> bool {
+        self.input.runtime.is_some() && crate::cycle::recursive_object(self.pool(), self.env(), t)
+    }
+
     /// Whether a new object holding values of `parts`, which only an open
     /// value can hold, takes part in cycle collection (`crate::cycle`).
     pub(super) fn cyclic_holding(&self, parts: &[Ty]) -> bool {

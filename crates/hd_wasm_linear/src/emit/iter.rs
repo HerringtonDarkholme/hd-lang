@@ -62,7 +62,7 @@ impl Em<'_, '_, '_> {
         }
         let walk = fields_walk(self.pool(), self.env(), &tys);
         let cyclic = self.cyclic_holding(&tys);
-        let env = self.object(&m, walk.as_ref(), cyclic);
+        let env = self.object(&m, walk.as_ref(), cyclic, false);
         let h = self.buffer(coll)?;
         let store = |em: &mut Self, m: &Mem, p: Part, v: &dyn Fn(&mut Self) -> StageResult<()>| {
             em.store_leaf(

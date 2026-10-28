@@ -2298,11 +2298,20 @@ fn fields_glue(
 /// plus one, or 0 for none; with [`CYCLIC`] when its type is cycle-capable
 /// (`crate::cycle`), which only an object with glue can be.
 pub(crate) fn push_desc(f: &mut Func, glue: Option<Sym>, cyclic: bool) {
+    push_desc_recursive(f, glue, cyclic, false);
+}
+
+/// [`push_desc`], with a code-only marker for a release glue that can call
+/// itself recursively even when the object is not cycle-capable.
+pub(crate) fn push_desc_recursive(f: &mut Func, glue: Option<Sym>, cyclic: bool, recursive: bool) {
     match glue {
         Some(g) => {
-            f.table_slot(g);
+            f.table_slot(g.clone());
             f.u32(if cyclic { CYCLIC + 1 } else { 1 });
             f.op(Instruction::I32Add);
+            if cyclic || recursive {
+                f.drain_glue(g);
+            }
         }
         None => f.i32(0),
     }
@@ -2665,7 +2674,15 @@ fn release_ref(m: &Module, known: bool) -> Func {
     f.op(Instruction::Return);
     f.op(Instruction::End);
     f.get(block);
-    f.helper(Helper::ReleaseDrain);
+    if m.acyclic && known && !m.drain_glues.is_empty() {
+        // Keep the recursive drain across a call boundary in optimizing
+        // engines. This indirect call runs once for the outer structure;
+        // the drain still dispatches its per-object recursive glue directly.
+        f.table_slot(Sym::Helper(Helper::ReleaseDrain));
+        f.call_indirect(vec![Val::I32], vec![]);
+    } else {
+        f.helper(Helper::ReleaseDrain);
+    }
     f
 }
 

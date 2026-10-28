@@ -28,18 +28,104 @@
 //! scalar. A copied/moved capture is walked as a value. An ordinary `fn`
 //! field remains open and capable: no callee/capture summary is inferred.
 
-use hd_base::HashSet;
+use hd_base::{DefId, HashSet};
 use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
 use hd_types::{InternPool, Ty, TyData};
 
 use crate::layout::{Kind, kind, strip, tuple_members, value_parts, variants};
 
+thread_local! {
+    /// The link's closed-world set of types whose existing objects may be
+    /// written. `None` keeps every reference edge conservatively capable.
+    static MUTATION_TARGETS: std::cell::RefCell<Option<HashSet<Ty>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Sets the closed-world mutation fact until the returned guard drops.
+pub(crate) fn mutation_targets(targets: Option<HashSet<Ty>>) -> impl Drop {
+    struct Reset(Option<HashSet<Ty>>);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            MUTATION_TARGETS.set(self.0.take());
+        }
+    }
+    Reset(MUTATION_TARGETS.replace(targets))
+}
+
+fn writable(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
+    let target = strip(pool, env, target);
+    MUTATION_TARGETS.with(|targets| {
+        targets
+            .borrow()
+            .as_ref()
+            .is_none_or(|targets| targets.contains(&target))
+    })
+}
+
 /// Whether an object of type `t` takes part: a list's buffer,
 /// a map's table, a data value's object or a self-recursive enum's cell.
 pub fn object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
     reaches(pool, env, &contents(pool, env, t))
+}
+
+/// Whether releasing an object of type `t` can recursively reach another
+/// object with the same release glue. This is independent of whether the
+/// objects participate in cycle collection.
+pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    let root = strip(pool, env, t);
+    let mut work: Vec<(Ty, Vec<DefId>)> = contents(pool, env, root)
+        .into_iter()
+        .map(|t| (t, Vec::new()))
+        .collect();
+    while let Some((t, path)) = work.pop() {
+        let t = strip(pool, env, t);
+        if t == root {
+            return true;
+        }
+        if hd_mono::is_open(pool, t) {
+            continue;
+        }
+        let children = match pool.get(t) {
+            TyData::Prim(_) | TyData::Never => Vec::new(),
+            TyData::Tuple { .. } => tuple_members(pool, t),
+            TyData::Option(inner) => vec![inner],
+            TyData::Adt { def, args } => {
+                // A declaration that reaches itself at growing arguments
+                // (`E[T?]` in `E[T]`) is one finite release-glue edge per
+                // concrete type, not recursion back to this glue.
+                if path.contains(&def) {
+                    continue;
+                }
+                match env.std_kind(def) {
+                    StdKind::List | StdKind::Map | StdKind::Buffer => {
+                        pool.list_items(args).to_vec()
+                    }
+                    StdKind::Suspend => Vec::new(),
+                    StdKind::Other => match kind(pool, env, t) {
+                        Kind::Ref { target, .. } => vec![target],
+                        Kind::Data(fields) => fields,
+                        Kind::Boxed => variants(pool, env, t)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .flatten()
+                            .collect(),
+                        Kind::Value => value_parts(pool, env, t),
+                    },
+                }
+            }
+            _ => Vec::new(),
+        };
+        let mut child_path = path;
+        if let TyData::Adt { def, .. } = pool.get(t) {
+            child_path.push(def);
+        }
+        for child in children {
+            work.push((child, child_path.clone()));
+        }
+    }
+    false
 }
 
 /// Whether an object holding values of `parts` takes part, when only
@@ -76,44 +162,52 @@ fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
 }
 
 /// Whether a walk from `start` over the types they hold meets a
-/// reference or an open value. Repeated value types end that branch.
+/// reference or an open value. Repeated data declarations end that branch,
+/// including recursion at growing type arguments.
 fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
-    let mut seen: HashSet<Ty> = HashSet::default();
-    let mut work: Vec<Ty> = start.to_vec();
-    while let Some(t) = work.pop() {
+    let mut work: Vec<(Ty, Vec<DefId>)> = start.iter().map(|t| (*t, Vec::new())).collect();
+    while let Some((t, path)) = work.pop() {
         let t = strip(pool, env, t);
-        if !seen.insert(t) {
-            continue;
-        }
         if hd_mono::is_open(pool, t) {
             return true;
         }
-        match pool.get(t) {
-            TyData::Prim(_) | TyData::Never => {}
-            TyData::Tuple { .. } => work.extend(tuple_members(pool, t)),
-            TyData::Option(inner) => work.push(inner),
-            TyData::Adt { def, args } => match env.std_kind(def) {
-                StdKind::List | StdKind::Map | StdKind::Buffer => {
-                    work.extend(pool.list_items(args).iter().copied());
+        let children = match pool.get(t) {
+            TyData::Prim(_) | TyData::Never => Vec::new(),
+            TyData::Tuple { .. } => tuple_members(pool, t),
+            TyData::Option(inner) => vec![inner],
+            TyData::Adt { def, args } => {
+                // Walk declarations, not an infinite sequence of their
+                // growing substitutions. All positions in this declaration
+                // were already exposed on the first visit along this path.
+                if path.contains(&def) {
+                    continue;
                 }
-                StdKind::Suspend => return true,
-                StdKind::Other => match kind(pool, env, t) {
-                    Kind::Ref { .. } => return true,
-                    Kind::Data(fields) => {
-                        work.extend(fields);
+                match env.std_kind(def) {
+                    StdKind::List | StdKind::Map | StdKind::Buffer => {
+                        pool.list_items(args).to_vec()
                     }
-                    Kind::Boxed => {
-                        work.extend(
-                            variants(pool, env, t)
-                                .unwrap_or_default()
-                                .into_iter()
-                                .flatten(),
-                        );
-                    }
-                    Kind::Value => work.extend(value_parts(pool, env, t)),
-                },
-            },
+                    StdKind::Suspend => return true,
+                    StdKind::Other => match kind(pool, env, t) {
+                        Kind::Ref { target, .. } if writable(pool, env, target) => return true,
+                        Kind::Ref { target, .. } => vec![target],
+                        Kind::Data(fields) => fields,
+                        Kind::Boxed => variants(pool, env, t)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .flatten()
+                            .collect(),
+                        Kind::Value => value_parts(pool, env, t),
+                    },
+                }
+            }
             _ => return true,
+        };
+        let mut child_path = path;
+        if let TyData::Adt { def, .. } = pool.get(t) {
+            child_path.push(def);
+        }
+        for child in children {
+            work.push((child, child_path.clone()));
         }
     }
     false

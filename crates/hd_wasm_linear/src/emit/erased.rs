@@ -458,7 +458,7 @@ impl Em<'_, '_, '_> {
             Cross::Box(m) => {
                 let w = self.counted(ct);
                 let cyclic = self.cyclic_holding(&[ct]);
-                let at = self.object(&m, w.as_ref(), cyclic);
+                let at = self.object(&m, w.as_ref(), cyclic, false);
                 let part = Part {
                     first: 0,
                     count: m.leaves.len(),

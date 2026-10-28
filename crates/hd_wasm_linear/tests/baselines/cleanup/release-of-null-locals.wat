@@ -10,7 +10,7 @@
       if (result i32)
     ;; 13 |         &Node { left: .None, right: .None }
         i32.const 8
-        i32.const -2147483646
+        i32.const 2
         call $rt:new/class-1
         local.tee $depth
         i32.const 0
@@ -33,7 +33,7 @@
         local.set $t0
         local.set $depth
         i32.const 8
-        i32.const -2147483646
+        i32.const 2
         call $rt:new/class-1
         local.tee $t1
         local.get $depth

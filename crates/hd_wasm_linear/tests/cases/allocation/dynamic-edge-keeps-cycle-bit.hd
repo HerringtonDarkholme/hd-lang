@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: release
+# A dynamic value can hide a back edge of any concrete reference type.
+
+trait Value:
+    fn value(&self) -> i32
+
+struct DynNode:
+    next: (*dyn Value)?
+
+impl Value for DynNode:
+    fn value(&self) -> i32: +1
+
+fn make() -> *dyn Value:
+    &DynNode { next: .None }

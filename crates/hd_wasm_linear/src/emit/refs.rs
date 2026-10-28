@@ -720,7 +720,8 @@ impl Em<'_, '_, '_> {
                 // object holding a copy (`ref.expr.allocate`).
                 let w = self.counted(ty);
                 let cyclic = self.cyclic_holding(&[ty]);
-                let obj = self.object(&m, w.as_ref(), cyclic);
+                let recursive = self.recursive_object(ty);
+                let obj = self.object(&m, w.as_ref(), cyclic, recursive);
                 let src = Src::Locals(ls[first..first + m.leaves.len()].to_vec());
                 let all = Part {
                     first: 0,

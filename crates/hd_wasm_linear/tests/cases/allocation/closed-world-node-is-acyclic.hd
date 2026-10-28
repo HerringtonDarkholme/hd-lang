@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: release
+# A closed-world recursive type whose counted edges are read-only has no
+# collector bit in its descriptor.
+
+struct Node:
+    next: (*Node)?
+
+fn make() -> *Node:
+    &Node { next: .None }

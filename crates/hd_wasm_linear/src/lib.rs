@@ -300,6 +300,10 @@ pub struct Input<'a> {
     /// reference targets some counted reference may point inside, or
     /// `None` when any may. Called only when the link uses the fact.
     pub interior_targets: &'a dyn Fn() -> Option<hd_base::HashSet<Ty>>,
+    /// The whole-program scan (`hd_opt::whole::mutation_targets`): concrete
+    /// types whose existing heap objects can be written, or `None` when any
+    /// may. Called only for closed-world optimized release links.
+    pub mutation_targets: &'a dyn Fn() -> Option<hd_base::HashSet<Ty>>,
 }
 
 /// The std module whose functions emitted code calls by key, and their
@@ -598,6 +602,11 @@ fn link(
     let _whole = layout::whole_refs(
         (input.optimized && !m.open_world && input.runtime.is_some())
             .then(|| (input.interior_targets)())
+            .flatten(),
+    );
+    let _acyclic = cycle::mutation_targets(
+        (input.release && input.optimized && !m.open_world && input.runtime.is_some())
+            .then(|| (input.mutation_targets)())
             .flatten(),
     );
     address_globals(input, &mut m, session.is_some(), previous)?;

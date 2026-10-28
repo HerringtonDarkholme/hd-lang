@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: release
+# A counted reference to a reassigned local cell can close a Node cycle.
+
+struct Node:
+    next: (*Node)?
+
+fn make_cycle() -> *Node:
+    let node = Node { next: .None }
+    parent := &Node { next: .Some(&node) }
+    node = Node { next: .Some(parent) }
+    parent

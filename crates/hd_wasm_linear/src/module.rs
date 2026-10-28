@@ -397,6 +397,9 @@ pub enum Ins {
     GlobalSet(GlobalId),
     /// `i32.const` of the function's slot in the function table.
     TableSlot(SymId),
+    /// A descriptor's release glue can recursively reach itself. This is a
+    /// code-only marker: [`Module::finish`] emits no Wasm instruction for it.
+    DrainGlue(SymId),
     /// A checked descriptor alias: a distinct slot, the same release glue.
     #[cfg(feature = "checked-report")]
     Descriptor(SymId, u8),
@@ -493,6 +496,10 @@ impl Func {
         let id = self.intern(s);
         self.push(Ins::TableSlot(id));
     }
+    pub fn drain_glue(&mut self, s: Sym) {
+        let id = self.intern(s);
+        self.push(Ins::DrainGlue(id));
+    }
     pub fn intern_labels(&mut self, labels: Vec<u32>) -> LabelListId {
         let id = LabelListId(u32::try_from(self.labels.len()).expect("branch tables"));
         self.labels.push(labels);
@@ -507,7 +514,7 @@ impl Func {
     }
     fn edge(ins: Ins) -> Option<Edge> {
         match ins {
-            Ins::Call(s) | Ins::TableSlot(s) => Some(Edge::Function(s)),
+            Ins::Call(s) | Ins::TableSlot(s) | Ins::DrainGlue(s) => Some(Edge::Function(s)),
             #[cfg(feature = "checked-report")]
             Ins::Descriptor(s, _) => Some(Edge::Function(s)),
             Ins::VTable(k) => Some(Edge::VTable(k)),
@@ -956,19 +963,14 @@ pub struct Stored {
     pub slot: Option<(Address, Vec<crate::layout::Leaf>)>,
 }
 
-/// Whether `f` allocates an object that takes part in cycle collection:
-/// a descriptor word with [`CYCLIC`], which `rt::push_desc` pushes as a
-/// constant right after its glue's table slot.
 /// How many release glues `rt:release_drain` calls directly.
 pub const DRAIN_GLUES: usize = 8;
 
-/// The release glue that `f` puts in a descriptor with [`CYCLIC`]: the
-/// recursive types, whose last release drains a structure of any size.
-fn cyclic_glues(f: &Func, out: &mut Vec<Sym>) {
-    for w in f.body.windows(2) {
-        if let [Ins::TableSlot(id), Ins::Op(Instruction::I32Const(c))] = w
-            && c.cast_unsigned() & CYCLIC != 0
-        {
+/// The recursive release glues marked by allocations in `f`, whose last
+/// release drains a structure of any size.
+fn recursive_glues(f: &Func, out: &mut Vec<Sym>) {
+    for ins in &f.body {
+        if let Ins::DrainGlue(id) = ins {
             let s = f.symbol(*id).clone();
             if out.len() < DRAIN_GLUES && !out.contains(&s) {
                 out.push(s);
@@ -1250,7 +1252,7 @@ impl Module {
         for f in self.funcs.iter_mut().flatten() {
             for ins in &mut f.body {
                 match ins {
-                    Ins::Call(id) | Ins::TableSlot(id) => rewrite(id),
+                    Ins::Call(id) | Ins::TableSlot(id) | Ins::DrainGlue(id) => rewrite(id),
                     #[cfg(feature = "checked-report")]
                     Ins::Descriptor(id, _) => rewrite(id),
                     _ => {}
@@ -1352,10 +1354,18 @@ impl Module {
             if let Some(f) = f
                 && seen.contains(SymId(u32::try_from(k).expect("symbols")))
             {
-                cyclic_glues(f, &mut glues);
+                recursive_glues(f, &mut glues);
             }
         }
         self.drain_glues = glues;
+        for f in self.funcs.iter_mut().flatten() {
+            for k in (0..f.body.len()).rev() {
+                if matches!(f.body[k], Ins::DrainGlue(_)) {
+                    f.remove(k);
+                }
+            }
+            f.rebuild_callees();
+        }
         if self.fixed_allocations || self.wakers || !self.drain_glues.is_empty() {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
@@ -1539,7 +1549,7 @@ impl Module {
         for f in self.funcs.iter().flatten() {
             for i in &f.body {
                 match i {
-                    Ins::Call(id) | Ins::TableSlot(id) => {
+                    Ins::Call(id) | Ins::TableSlot(id) | Ins::DrainGlue(id) => {
                         if matches!(&*self.symbols.get(*id), Sym::Import(_)) {
                             import_ids.insert(*id);
                         }
@@ -1813,7 +1823,7 @@ impl Module {
                     folded -= 1;
                     continue;
                 }
-                if self.track_origins && !matches!(i, Ins::Anchor(_)) {
+                if self.track_origins && !matches!(i, Ins::Anchor(_) | Ins::DrainGlue(_)) {
                     mapped_instructions.push(crate::InstructionOrigin {
                         offset: u32::try_from(body.byte_len()).expect("offset"),
                         origin: f.source_origin(f.origins.as_ref().and_then(|o| o[position])),
@@ -1954,6 +1964,7 @@ impl Module {
                             k.wrapping_add(plus).cast_signed(),
                         ))
                     }
+                    Ins::DrainGlue(_) => &mut body,
                     Ins::CallIndirect(id) => {
                         let signature = self.symbols.signature(*id);
                         body.instruction(&WasmInstruction::CallIndirect {

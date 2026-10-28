@@ -9896,6 +9896,14 @@ impl Run<'_> {
             };
             hd_opt::whole::interior_targets(&self.pool, &env, &env, &instances)
         };
+        let mutation_targets = || {
+            let instances = hd_opt::whole::Instances {
+                table: &c.collected.table,
+                order: &c.order,
+                body: &body,
+            };
+            hd_opt::whole::mutation_targets(&self.pool, &env, &env, &instances)
+        };
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
@@ -9916,6 +9924,7 @@ impl Run<'_> {
             host_refs: &c.host_refs,
             own_cx: &env,
             interior_targets: &interior_targets,
+            mutation_targets: &mutation_targets,
         };
         let linked = self.session.and_then(|s| s.linked.as_ref());
         let built = if let Some(previous) = linked {
@@ -10950,6 +10959,36 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
     }
     fn strip(&self, t: Ty) -> Ty {
         hd_wasm_linear::object_layout::strip(&self.run.pool, self, t)
+    }
+    fn mutable_counted_ref_target(&self, t: Ty) -> Option<Ty> {
+        if let TyData::Ref {
+            inner,
+            mutable: true,
+            counted: true,
+        } = self.run.pool.get(t)
+        {
+            return Some(hd_wasm_linear::object_layout::strip(
+                &self.run.pool,
+                self,
+                self.low(inner),
+            ));
+        }
+        let t = self.low(t);
+        let TyData::Adt { def, args } = self.run.pool.get(t) else {
+            return None;
+        };
+        if def != self.run.known.ref_cell {
+            return None;
+        }
+        let &target = self.run.pool.list_items(args).first()?;
+        let TyData::Mut(target) = self.run.pool.get(target) else {
+            return None;
+        };
+        Some(hd_wasm_linear::object_layout::strip(
+            &self.run.pool,
+            self,
+            target,
+        ))
     }
     fn payload_offset(&self, fields: &[Ty], f: usize) -> Option<u32> {
         hd_wasm_linear::object_layout::payload_offset(&self.run.pool, self, fields, f)

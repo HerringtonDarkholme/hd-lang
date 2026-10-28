@@ -6,7 +6,7 @@
     ;; 14 |     &Node { left: .None, right: .None }
     block
       i32.const 8
-      i32.const -2147483646
+      i32.const 2
       call $rt:new/class-1
       local.tee $t0
       i32.const 0
