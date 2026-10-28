@@ -4,11 +4,11 @@ Architecture approved 2026-10-27; [#908](https://github.com/HerringtonDarkholme/
 The accepted command/policy rules remain in [the CLI spec](../../spec/cli/command-line.md#linting).
 This replaces the earlier implementation plan, not those decisions.
 Implementation proceeds in reviewed slices under [#855](https://github.com/HerringtonDarkholme/hd-lang/issues/855).
-Slices 0–5 are done: checked callee identity, the registry/indexed policy, the
+Slices 0–6 are done: checked callee identity, the registry/indexed policy, the
 feature-gated analysis walk, borrowed typed views, the per-module policy-free
-findings cache and registered dispatch for all ten rules. The remaining work is
-the single policy/suppression finish path, then the parked producer migrations
-resume on that architecture.
+findings cache, registered dispatch for all ten rules, and the unified
+manifest/CLI/source policy path. The parked producer migrations now resume on
+that architecture.
 
 ## Approved design
 
@@ -66,7 +66,8 @@ Today four analysis calls collect three fact results and emit
 `unsigned-comparison-always`. The proposal emits the same code, span, message
 and fix from one `COMPARISON` event and `adjusted_type(remaining)`.
 
-This valid suppression is accepted policy but is still a known failure today:
+Before slice 6, this valid suppression was accepted policy but still reported a
+finding:
 
 ```hd
 fn expired(remaining: usize) -> bool:
@@ -74,7 +75,7 @@ fn expired(remaining: usize) -> bool:
     remaining < 0
 ```
 
-Today `cli/lint-site-allow` can still report the warning. The proposal attaches
+The implemented path attaches
 the full-line comment to the following statement and filters the owned finding
 after loading or computing it; the result is quiet.
 
@@ -620,7 +621,7 @@ Implementation slices, each about an hour and independently reviewed:
 3. Minimal borrowed type/binding/flow/callee view; post-verification walk and type-lifetime controls.
 4. Per-module policy-free Lint cache keyed by Check key, line-relative spans; cold miss, warm hit, comment-shift, module invalidation and derivation controls.
 5. Move all ten checks to registered dispatch; delete old flags/results/analyzer entry points; exact diagnostic/fix parity.
-6. Implement the one policy/suppression finish path, all-Allow validation and workspace error scopes; resume remaining #855 producers on these view families.
+6. Implement the one policy/suppression finish path, all-Allow validation and workspace error scopes; resume remaining #855 producers on these view families. (Done.)
 
 Adding a lint needs one metadata/check entry plus specification/fixture changes
 for a genuinely new rule; stable diagnostic codes continue to be generated from

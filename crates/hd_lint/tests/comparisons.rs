@@ -3,7 +3,7 @@ use hd_diag::{Code, DiagBuf, Severity};
 use hd_driver::{
     Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
 };
-use hd_lint::{ANALYZER, Level, Policy, UNSIGNED_COMPARISON};
+use hd_lint::{ANALYZER, Level, Policy, SourcePolicy, UNSIGNED_COMPARISON};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -177,4 +177,75 @@ fn choose(value: u32) -> bool:
 ";
     let (_, findings) = lint(source, Policy::default());
     assert_eq!(findings.len(), 1);
+}
+
+fn selected_root(out: &Output) -> Vec<bool> {
+    out.files.iter().map(|file| file == "main.hd").collect()
+}
+
+#[test]
+fn a_site_allow_suppresses_its_direct_statement_only() {
+    let source =
+        "fn f(a: u32) -> bool:\n    # lint-allow: unsigned-comparison-always\n    a >= 0\n";
+    let out = checked(
+        source,
+        &MemoryStore::default(),
+        true,
+        Executor::Serial(SerialOrder::Priority),
+    );
+    let source_policy = SourcePolicy::from_output(&out, &selected_root(&out)).unwrap();
+    assert!(
+        Policy::default()
+            .apply_with_source(&out.analysis_diags, &source_policy)
+            .is_empty()
+    );
+
+    let nested = "fn f(a: u32) -> bool:\n    # lint-allow: unsigned-comparison-always\n    if true:\n        a >= 0\n    else:\n        true\n";
+    let out = checked(
+        nested,
+        &MemoryStore::default(),
+        true,
+        Executor::Serial(SerialOrder::Priority),
+    );
+    let source_policy = SourcePolicy::from_output(&out, &selected_root(&out)).unwrap();
+    assert_eq!(
+        Policy::default()
+            .apply_with_source(&out.analysis_diags, &source_policy)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn site_allow_validates_names_and_reachability_without_a_finding() {
+    for (name, expected) in [
+        ("not-a-lint", "unknown lint `not-a-lint`"),
+        (
+            "unused-local-binding",
+            "site allow cannot reach `unused-local-binding`; allow it in `[lint]`",
+        ),
+    ] {
+        let source = format!("fn f(a: u32) -> bool:\n    # lint-allow: {name}\n    a == 0\n");
+        let out = checked(
+            &source,
+            &MemoryStore::default(),
+            false,
+            Executor::Serial(SerialOrder::Priority),
+        );
+        let errors = SourcePolicy::from_output(&out, &selected_root(&out)).unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].file, "main.hd");
+        assert_eq!(errors[0].line, 2);
+        assert_eq!(errors[0].message, expected);
+    }
+
+    let source =
+        "fn f(a: u32) -> bool:\n    # lint-allow: unsigned-comparison-always\n    a == 0\n";
+    let out = checked(
+        source,
+        &MemoryStore::default(),
+        false,
+        Executor::Serial(SerialOrder::Priority),
+    );
+    assert!(SourcePolicy::from_output(&out, &selected_root(&out)).is_ok());
 }

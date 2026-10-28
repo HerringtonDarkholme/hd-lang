@@ -7,8 +7,10 @@ mod syntax;
 
 use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
+use hd_driver::Output;
 use hd_driver::analysis::{AnalysisSink, Event, Events};
-use hd_syntax::TokenKind;
+use hd_project::LintTable;
+use hd_syntax::{CommentKind, SyntaxKind, TokenKind};
 use hd_types::Prim;
 
 pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
@@ -181,6 +183,64 @@ impl Policy {
         Ok(())
     }
 
+    /// The selected package's manifest policy, before explicit CLI levels
+    /// are overlaid.
+    pub fn from_manifest(table: Option<&LintTable>) -> Result<Self, ManifestPolicyError> {
+        let Some(table) = table else {
+            return Ok(Self::default());
+        };
+        if !table.table {
+            return Err(ManifestPolicyError {
+                line: table.line,
+                message: "`[lint]` must be a table".to_owned(),
+            });
+        }
+        let mut policy = Self::default();
+        for (level_name, entry, level) in [
+            ("allow", table.allow.as_ref(), Level::Allow),
+            ("warn", table.warn.as_ref(), Level::Warn),
+            ("deny", table.deny.as_ref(), Level::Deny),
+        ] {
+            let Some(entry) = entry else { continue };
+            let Some(names) = &entry.names else {
+                return Err(ManifestPolicyError {
+                    line: entry.line,
+                    message: format!("`lint.{level_name}` must be a list of strings"),
+                });
+            };
+            for name in names {
+                policy
+                    .set(name, level)
+                    .map_err(|message| ManifestPolicyError {
+                        line: entry.line,
+                        message,
+                    })?;
+            }
+        }
+        Ok(policy)
+    }
+
+    /// Explicit command-line levels win over the manifest for the same
+    /// exact code. Conflicts were already rejected within each source.
+    #[must_use]
+    pub fn overlay(mut self, explicit: Self) -> Self {
+        for (level, over) in self.levels.iter_mut().zip(explicit.levels) {
+            if over.is_some() {
+                *level = over;
+            }
+        }
+        self
+    }
+
+    /// Whether no registered rule can emit after level policy. Source
+    /// directives still need validation in this state.
+    #[must_use]
+    pub fn all_allow(self) -> bool {
+        RULES
+            .iter()
+            .all(|rule| self.level(rule.code) == Level::Allow)
+    }
+
     fn level(self, code: Code) -> Level {
         let index = RULES
             .iter()
@@ -192,15 +252,222 @@ impl Policy {
     /// Apply command policy after analysis has built a policy-free buffer.
     #[must_use]
     pub fn apply(self, findings: &DiagBuf) -> DiagBuf {
+        self.apply_with_source(findings, &SourcePolicy::default())
+    }
+
+    /// Apply level policy and then source-site allows to policy-free
+    /// findings. Compiler errors never enter this path.
+    #[must_use]
+    pub fn apply_with_source(self, findings: &DiagBuf, source: &SourcePolicy) -> DiagBuf {
         let mut selected = DiagBuf::default();
-        selected.append_if(findings, &|code| self.level(code) != Level::Allow);
-        for (code, severity) in selected.code.iter().zip(&mut selected.severity) {
-            *severity = match self.level(*code) {
+        for row in 0..findings.len() {
+            let code = findings.code[row];
+            if self.level(code) == Level::Allow || source.suppresses(code, findings.primary[row]) {
+                continue;
+            }
+            append_row(&mut selected, findings, row);
+            let severity = selected
+                .severity
+                .last_mut()
+                .expect("appended lint diagnostic has severity");
+            *severity = match self.level(code) {
                 Level::Deny => Severity::Error,
                 Level::Warn | Level::Allow => Severity::Warning,
             };
         }
         selected
+    }
+}
+
+/// A located invalid `[lint]` policy value.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ManifestPolicyError {
+    pub line: u32,
+    pub message: String,
+}
+
+/// A located invalid source suppression.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SourcePolicyError {
+    pub file: String,
+    pub line: usize,
+    pub message: String,
+}
+
+/// Valid source-site allows for one selected build.
+#[derive(Debug, Default)]
+pub struct SourcePolicy {
+    allows: Vec<SiteAllow>,
+}
+
+#[derive(Debug)]
+struct SiteAllow {
+    file: usize,
+    code: Code,
+    owner: (u32, u32),
+    nested: Vec<(u32, u32)>,
+}
+
+impl SourcePolicy {
+    /// Read and validate directives in the selected root files of an
+    /// already-built output. Existing parses are reused; a warm build that
+    /// retained only text materializes syntax without checking bodies.
+    pub fn from_output(output: &Output, selected: &[bool]) -> Result<Self, Vec<SourcePolicyError>> {
+        let mut policy = Self::default();
+        let mut errors = Vec::new();
+        for file in 0..output.files.len() {
+            if !selected.get(file).copied().unwrap_or(false) {
+                continue;
+            }
+            let (Some(text), Some(parsed)) = (output.texts.get(file), output.source_parse(file))
+            else {
+                continue;
+            };
+            let tokens = &parsed.tokens;
+            for comment in 0..tokens.com_start.len() {
+                if tokens.com_kind[comment] != CommentKind::Plain {
+                    continue;
+                }
+                let start = tokens.com_start[comment] as usize;
+                let end_offset = tokens.com_end[comment];
+                let end = end_offset as usize;
+                let line_start = text[..start].rfind('\n').map_or(0, |at| at + 1);
+                if !text[line_start..start]
+                    .bytes()
+                    .all(|byte| matches!(byte, b' ' | b'\t'))
+                {
+                    continue;
+                }
+                let Some(name) = text[start..end].strip_prefix("# lint-allow:") else {
+                    continue;
+                };
+                let name = name.trim();
+                let line = tokens.line_of(tokens.com_start[comment]) + 1;
+                let Some(rule) = RULES.iter().find(|rule| rule.name() == name) else {
+                    errors.push(SourcePolicyError {
+                        file: output.files[file].clone(),
+                        line,
+                        message: format!("unknown lint `{name}`"),
+                    });
+                    continue;
+                };
+                if !site_reachable(rule.code) {
+                    errors.push(SourcePolicyError {
+                        file: output.files[file].clone(),
+                        line,
+                        message: format!("site allow cannot reach `{name}`; allow it in `[lint]`"),
+                    });
+                    continue;
+                }
+                let boundary = tokens.start.partition_point(|&at| at < end_offset);
+                let Some(&next_start) = tokens.start.get(boundary) else {
+                    continue;
+                };
+                if tokens.line_of(next_start) != line {
+                    continue;
+                }
+                let Some(owner) = parsed
+                    .tree
+                    .root()
+                    .descendants()
+                    .filter(|node| statement_kind(node.kind()))
+                    .filter(|node| {
+                        let (first, _) = parsed.tree.span_tokens(node.index());
+                        first.get().is_some_and(|first| first.idx() == boundary)
+                    })
+                    .min_by_key(|node| {
+                        let (first, last) = parsed.tree.span_tokens(node.index());
+                        last.raw().saturating_sub(first.raw())
+                    })
+                else {
+                    continue;
+                };
+                let span = |node: hd_syntax::NodeRef<'_>| {
+                    let (first, last) = parsed.tree.span_tokens(node.index());
+                    (tokens.start[first.idx()], tokens.end[last.idx()])
+                };
+                let nested = owner
+                    .descendants()
+                    .filter(|node| statement_kind(node.kind()))
+                    .map(span)
+                    .collect();
+                policy.allows.push(SiteAllow {
+                    file,
+                    code: rule.code,
+                    owner: span(owner),
+                    nested,
+                });
+            }
+        }
+        if errors.is_empty() {
+            Ok(policy)
+        } else {
+            Err(errors)
+        }
+    }
+
+    fn suppresses(&self, code: Code, span: hd_base::Span) -> bool {
+        self.allows.iter().any(|allow| {
+            allow.file == span.file.idx()
+                && allow.code == code
+                && contains(allow.owner, span.lo, span.hi)
+                && !allow
+                    .nested
+                    .iter()
+                    .any(|&nested| contains(nested, span.lo, span.hi))
+        })
+    }
+}
+
+fn contains(range: (u32, u32), lo: u32, hi: u32) -> bool {
+    range.0 <= lo && hi <= range.1
+}
+
+fn statement_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::LetStmt
+            | SyntaxKind::DiscardStmt
+            | SyntaxKind::AssignmentStmt
+            | SyntaxKind::ReturnStmt
+            | SyntaxKind::BreakStmt
+            | SyntaxKind::ContinueStmt
+            | SyntaxKind::DeferStmt
+            | SyntaxKind::UsingStmt
+            | SyntaxKind::ExprStmt
+    )
+}
+
+fn site_reachable(code: Code) -> bool {
+    matches!(code, Code::UnsignedComparisonAlways | Code::UnusedDebugText)
+}
+
+fn append_row(out: &mut DiagBuf, source: &DiagBuf, row: usize) {
+    if !out.push(
+        source.code[row],
+        source.severity[row],
+        source.primary[row],
+        source.get_text(source.message[row]),
+        source.root[row],
+    ) {
+        return;
+    }
+    for label in source.labels[row].range() {
+        out.add_label(
+            source.label_span[label],
+            source.get_text(source.label_msg[label]),
+        );
+    }
+    for fix in source.fixes[row].range() {
+        let edits: Vec<_> = source.edits[source.fix_edits[fix].range()]
+            .iter()
+            .map(|edit| (edit.span, source.get_text(edit.text)))
+            .collect();
+        out.add_fix(
+            source.get_text(source.fix_title[fix]),
+            source.fix_safety[fix],
+            &edits,
+        );
     }
 }
 

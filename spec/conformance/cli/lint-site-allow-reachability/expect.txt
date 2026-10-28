@@ -1,0 +1,3 @@
+run: hd lint --allow derivation-line-drift --allow mixed-script-identifier --allow redundant-let-mut --allow unreachable-code --allow unselected-main --allow unsigned-comparison-always --allow unused-debug-text --allow unused-derivation-fact --allow unused-local-binding --allow variant-binding-name-mismatch --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":null,"severity":"error","file":"src/main.hd","line":2,"message":null},{"kind":"summary","errors":1,"warnings":0,"status":101}]

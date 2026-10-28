@@ -2,6 +2,7 @@ use hd_base::{FileId, Span};
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_driver::analysis::Events;
 use hd_lint::{Level, Policy, RULES};
+use hd_project::parse_manifest;
 
 const EXPECTED: [(&str, Code, Events); 10] = [
     (
@@ -138,6 +139,66 @@ fn registry_names_reject_unknown_and_conflicting_levels() {
         policy.set(EXPECTED[0].0, Level::Deny),
         Err(format!("conflicting levels for lint `{}`", EXPECTED[0].0))
     );
+}
+
+#[test]
+fn manifest_policy_validates_then_cli_levels_overlay_it() {
+    let manifest = parse_manifest(
+        "[lint]\ndeny = [\"unsigned-comparison-always\"]\nallow = [\"unused-debug-text\"]\n",
+    )
+    .unwrap();
+    let policy = Policy::from_manifest(manifest.lint.as_ref()).unwrap();
+    let raw = policy_free_findings();
+    let applied = policy.apply(&raw);
+    assert!(!applied.code.contains(&Code::UnusedDebugText));
+    let unsigned = applied
+        .code
+        .iter()
+        .position(|code| *code == Code::UnsignedComparisonAlways)
+        .unwrap();
+    assert_eq!(applied.severity[unsigned], Severity::Error);
+
+    let mut explicit = Policy::default();
+    explicit
+        .set("unsigned-comparison-always", Level::Allow)
+        .unwrap();
+    let applied = policy.overlay(explicit).apply(&raw);
+    assert!(!applied.code.contains(&Code::UnsignedComparisonAlways));
+}
+
+#[test]
+fn invalid_manifest_values_names_and_conflicts_keep_their_line() {
+    for (text, line, message) in [
+        (
+            "[lint]\nallow = \"unused-debug-text\"\n",
+            2,
+            "`lint.allow` must be a list of strings",
+        ),
+        (
+            "[lint]\nallow = [\"not-a-lint\"]\n",
+            2,
+            "unknown lint `not-a-lint`",
+        ),
+        (
+            "[lint]\nallow = [\"unused-debug-text\"]\ndeny = [\"unused-debug-text\"]\n",
+            3,
+            "conflicting levels for lint `unused-debug-text`",
+        ),
+    ] {
+        let manifest = parse_manifest(text).unwrap();
+        let error = Policy::from_manifest(manifest.lint.as_ref()).unwrap_err();
+        assert_eq!(error.line, line);
+        assert_eq!(error.message, message);
+    }
+}
+
+#[test]
+fn an_explicit_allow_for_every_registered_rule_disables_analysis() {
+    let mut policy = Policy::default();
+    for rule in RULES {
+        policy.set(rule.name(), Level::Allow).unwrap();
+    }
+    assert!(policy.all_allow());
 }
 
 #[test]

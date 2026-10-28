@@ -66,6 +66,7 @@ lint-manifest-precedence	cli.lint.manifest,cli.lint.cli-override
 lint-ordinary-commands-quiet	cli.lint.ordinary-errors
 lint-private-entry	cli.exe.private-main.missing,cli.exe.private-main.analysis
 lint-site-allow	cli.lint.site-allow,cli.lint.site-precedence
+lint-site-allow-reachability	cli.lint.site-allow-reachability,cli.lint.unknown-name,cli.lint.status-error
 lint-unsigned-comparisons	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors
 manifest-unknown-key	cli.manifest.unknown-key.error,cli.exit.hd-failure
 build-output	cli.build.directory,cli.build.output,cli.build.output.file,cli.profile.release

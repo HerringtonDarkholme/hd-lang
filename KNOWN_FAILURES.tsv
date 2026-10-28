@@ -1,5 +1,3 @@
 path	issue	engine	reason
-cli/lint-manifest-precedence	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.
 cli/lint-private-entry	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.
-cli/lint-site-allow	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.
 cli/manifest-unknown-key	#855		Approved lint migration and operational errors await the producer/CLI implementation slices.

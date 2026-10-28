@@ -3,7 +3,7 @@
 //! coherence, with no collection or emission.
 
 use hd_base::SliceSort as _;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::path::Path;
@@ -14,7 +14,7 @@ use hd_cache::{CacheStore, DeferredStore};
 use hd_diag::Code;
 use hd_driver::{Goal, Host, Output};
 
-use hd_project::{ModuleTable, Role, role_of};
+use hd_project::{ModuleTable, Role, SourceSet, role_of};
 
 use crate::report::{self, Diag, Summary};
 use crate::{HD_FAILURE, Wall, disk, executor, fail, package_of_cwd};
@@ -191,6 +191,18 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     if t.program.problems.iter().any(Diag::is_error) {
         return (t.program.problems, 0);
     }
+    let lint = match o.lint {
+        None => None,
+        Some(explicit) => match hd_lint::Policy::from_manifest(t.program.lint.as_ref()) {
+            Ok(manifest) => Some(manifest.overlay(explicit)),
+            Err(error) => {
+                t.program.problems.push(
+                    Diag::error(None, &error.message).at("hd.toml", Some(error.line as usize)),
+                );
+                return (t.program.problems, 0);
+            }
+        },
+    };
     let (tests, left_out) = scope(&mut t, o);
     // `cli.check.tests.doc`: the doc tests too, but for compile-fail ones.
     let docs: Vec<crate::test_cmd::Doc> = if tests && t.program.as_written.is_none() {
@@ -214,7 +226,7 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[], o.lint);
+    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[], lint);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
@@ -225,7 +237,7 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
             &t.program.sources,
             &Goal::CheckTests,
             &docs,
-            o.lint,
+            lint,
         );
         for x in more {
             if !shown.contains(&x) {
@@ -270,30 +282,70 @@ fn check_role(
             .chain(docs.iter().map(|d| d.path.clone()))
             .collect()
     });
-    let mut out = if lint.is_some() {
-        hd_driver::build_packages_with_analysis(
+    let mut out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
+    let Some(policy) = lint else {
+        let mut shown = shown(&out, t, docs);
+        relocate_docs(&mut shown, docs);
+        return (shown, out.counters.modules_checked);
+    };
+    if shown(&out, t, docs).iter().any(Diag::is_error) {
+        let mut shown = shown(&out, t, docs);
+        relocate_docs(&mut shown, docs);
+        return (shown, out.counters.modules_checked);
+    }
+
+    let root_files: BTreeSet<_> = sources.list().into_iter().map(|entry| entry.path).collect();
+    let reached = reached_files(&out, t, docs);
+    let selected: Vec<_> = out
+        .files
+        .iter()
+        .enumerate()
+        .map(|(file, path)| {
+            root_files.contains(path)
+                && reached
+                    .as_ref()
+                    .is_none_or(|reached| reached.get(file).copied().unwrap_or(false))
+        })
+        .collect();
+    let source_policy =
+        match hd_lint::SourcePolicy::from_output(&out, &selected) {
+            Ok(policy) => policy,
+            Err(errors) => {
+                let mut shown = shown(&out, t, docs);
+                shown.extend(errors.into_iter().map(|error| {
+                    Diag::error(None, &error.message).at(&error.file, Some(error.line))
+                }));
+                relocate_docs(&mut shown, docs);
+                return (shown, out.counters.modules_checked);
+            }
+        };
+    if !policy.all_allow() {
+        out = hd_driver::build_packages_with_analysis(
             &host,
             &t.program.package,
             &packages,
             goal,
             Some(&hd_lint::ANALYZER),
-        )
-    } else {
-        hd_driver::build_packages(&host, &t.program.package, &packages, goal)
-    };
-    if let Some(policy) = lint
-        && !shown(&out, t, docs).iter().any(Diag::is_error)
-    {
-        let findings = policy.apply(&out.analysis_diags);
-        out.diags.append(&findings);
-    }
-    let mut shown = shown(&out, t, docs);
-    for x in &mut shown {
-        if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {
-            d.relocate(x);
+        );
+        if !shown(&out, t, docs).iter().any(Diag::is_error) {
+            let findings = policy.apply_with_source(&out.analysis_diags, &source_policy);
+            out.diags.append(&findings);
         }
     }
+    let mut shown = shown(&out, t, docs);
+    relocate_docs(&mut shown, docs);
     (shown, out.counters.modules_checked)
+}
+
+fn relocate_docs(shown: &mut [Diag], docs: &[crate::test_cmd::Doc]) {
+    for diagnostic in shown {
+        if let Some(doc) = docs
+            .iter()
+            .find(|doc| diagnostic.file.as_ref() == Some(&doc.path))
+        {
+            doc.relocate(diagnostic);
+        }
+    }
 }
 
 /// Whole-package diagnostics including tests and tasks, as `hd check --all`

@@ -860,16 +860,17 @@ hd lint --all --allow unused-local-binding
 16. r[cli.lint.standalone] A standalone file uses registered defaults and explicit CLI levels.
 17. r[cli.lint.dependency-policy] A dependency cannot impose lint policy on its caller.
 18. r[cli.lint.site-allow] A full-line `# lint-allow: CODE` immediately before a statement suppresses that code for calls directly owned by that statement.
-19. r[cli.lint.site-scope] A declaration’s site suppression never extends into its nested function or closure body.
-20. r[cli.lint.site-precedence] A site suppression overrides manifest and CLI deny for its code.
-21. r[cli.lint.errors-unsuppressible] Lint levels and suppressions never suppress compiler errors or make invalid code valid.
-22. r[cli.lint.order] Findings are ordered by package-relative path, source span, then stable lint code.
-23. r[cli.lint.output] Lint reuses the diagnostic objects and final summary of machine output.
-24. r[cli.lint.text-stream] Lint text diagnostics and summaries go to standard error; JSON output goes to standard output.
-25. r[cli.lint.totals] Diagnostic truncation changes no total count or exit status.
-26. r[cli.lint.status-warning] A successful lint run with only warning-level findings exits with status 0.
-27. r[cli.lint.status-error] A lint run with a compiler error, denied finding, invocation error, or configuration error exits with status 101.
-28. r[cli.lint.stable-messages] Moving an existing warning into lint preserves its stable diagnostic code, message, source span and fix-it information.
+19. r[cli.lint.site-allow-reachability] A site suppression that names a registered lint which cannot report a directly owned call is a configuration error; it tells the user to set that code in `[lint]` instead.
+20. r[cli.lint.site-scope] A declaration’s site suppression never extends into its nested function or closure body.
+21. r[cli.lint.site-precedence] A site suppression overrides manifest and CLI deny for its code.
+22. r[cli.lint.errors-unsuppressible] Lint levels and suppressions never suppress compiler errors or make invalid code valid.
+23. r[cli.lint.order] Findings are ordered by package-relative path, source span, then stable lint code.
+24. r[cli.lint.output] Lint reuses the diagnostic objects and final summary of machine output.
+25. r[cli.lint.text-stream] Lint text diagnostics and summaries go to standard error; JSON output goes to standard output.
+26. r[cli.lint.totals] Diagnostic truncation changes no total count or exit status.
+27. r[cli.lint.status-warning] A successful lint run with only warning-level findings exits with status 0.
+28. r[cli.lint.status-error] A lint run with a compiler error, denied finding, invocation error, or configuration error exits with status 101.
+29. r[cli.lint.stable-messages] Moving an existing warning into lint preserves its stable diagnostic code, message, source span and fix-it information.
 
 | Level | Effect |
 | --- | --- |

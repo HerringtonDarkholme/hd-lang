@@ -40,9 +40,31 @@ pub struct Manifest {
     pub executables: Vec<Executable>,
     /// `[workspace]` (`cli.mode.workspace`).
     pub workspace: Option<Workspace>,
+    /// The package's `[lint]` table. Policy names stay uninterpreted here;
+    /// `hd_lint` owns the registry and validates them for `hd lint`.
+    pub lint: Option<LintTable>,
     /// Each table or key that no rule gives a meaning, by its dotted path,
     /// and its line (`cli.manifest.unknown-key.with-host`).
     pub unknown: Vec<(String, u32)>,
+}
+
+/// The syntactic contents of a `[lint]` table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LintTable {
+    /// `false` preserves a non-table value for a located configuration error.
+    pub table: bool,
+    pub line: u32,
+    pub allow: Option<LintNames>,
+    pub warn: Option<LintNames>,
+    pub deny: Option<LintNames>,
+}
+
+/// One policy level as written in `[lint]`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LintNames {
+    /// `None` means the value was not a list containing only strings.
+    pub names: Option<Vec<String>>,
+    pub line: u32,
 }
 
 /// The package's trait-to-provider map and its manifest location.
@@ -428,6 +450,36 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
                         .get("workspace.members")
                         .copied()
                         .unwrap_or_else(|| at("workspace")),
+                });
+            }
+            ("lint", toml::Value::Table(t)) => {
+                only(&mut unknowns, "lint", t, &["allow", "warn", "deny"]);
+                let names = |level: &str| {
+                    t.get(level).map(|value| LintNames {
+                        names: value.as_array().and_then(|items| {
+                            items
+                                .iter()
+                                .map(|item| item.as_str().map(str::to_owned))
+                                .collect()
+                        }),
+                        line: at(&format!("lint.{level}")),
+                    })
+                };
+                m.lint = Some(LintTable {
+                    table: true,
+                    line: at("lint"),
+                    allow: names("allow"),
+                    warn: names("warn"),
+                    deny: names("deny"),
+                });
+            }
+            ("lint", _) => {
+                m.lint = Some(LintTable {
+                    table: false,
+                    line: at("lint"),
+                    allow: None,
+                    warn: None,
+                    deny: None,
                 });
             }
             ("executable", toml::Value::Array(items)) => {

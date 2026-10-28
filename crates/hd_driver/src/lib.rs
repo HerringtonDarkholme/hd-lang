@@ -737,6 +737,21 @@ impl Output {
         Positions::new(pool, self)
     }
 
+    /// The syntax tree for one output file, reusing the parse retained by
+    /// this build when it has one. A warm cache hit may retain only source
+    /// text; analysis clients then materialize syntax without rechecking a
+    /// body or changing the ordinary Check entry.
+    #[cfg(feature = "analysis")]
+    #[must_use]
+    pub fn source_parse(&self, file: usize) -> Option<Arc<hd_syntax::Parse>> {
+        let input = self.position_inputs.get(file)?;
+        if let Some(parse) = &input.parse {
+            return Some(Arc::clone(parse));
+        }
+        let text = self.texts.get(file)?;
+        Some(Arc::new(hd_syntax::parse(text.as_bytes())))
+    }
+
     fn file_name(&self, s: Span) -> String {
         s.file
             .get()

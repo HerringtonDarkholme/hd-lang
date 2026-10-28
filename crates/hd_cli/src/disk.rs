@@ -254,6 +254,9 @@ pub struct Program {
     pub package_dir: Option<PathBuf>,
     /// Its executables' entry modules, by path below the source root.
     pub entries: Vec<String>,
+    /// This selected package's `[lint]` table. Dependency policy is never
+    /// carried into the root command.
+    pub lint: Option<hd_project::LintTable>,
 }
 
 /// A package that a path requirement reaches.
@@ -832,6 +835,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         dev_capabilities: Vec::new(),
         package_dir: package_root(root),
         entries: Vec::new(),
+        lint: None,
     })
 }
 
@@ -863,6 +867,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         dev_capabilities: Vec::new(),
         package_dir: None,
         entries: Vec::new(),
+        lint: None,
     })
 }
 
@@ -896,6 +901,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
         dev_capabilities: Vec::new(),
         package_dir: None,
         entries: Vec::new(),
+        lint: None,
     })
 }
 
@@ -929,6 +935,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
             dev_capabilities: Vec::new(),
             package_dir: Some(root.to_path_buf()),
             entries: Vec::new(),
+            lint: None,
         });
     }
     let sources = sources_of(root)?;
@@ -977,6 +984,7 @@ fn loaded_package(
         problems,
     } = selected;
     let problems = manifest_problems(root, &package, problems, local_paths)?;
+    let lint = manifest_of(root)?.and_then(|manifest| manifest.lint);
     let entries = executables(root, &package)
         .iter()
         .filter(|e| e.file.starts_with("src/"))
@@ -997,6 +1005,7 @@ fn loaded_package(
         dev_capabilities: dev_capabilities(root)?,
         package_dir: Some(root.to_path_buf()),
         entries,
+        lint,
     })
 }
 
