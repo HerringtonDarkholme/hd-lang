@@ -1907,12 +1907,25 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ("rt/json_tests.hd", include_str!("std_rt/json_tests.hd")),
 ];
 
+/// The [`STD_RT_TESTS`] files that read `std.rt.checked.allocated()`, which
+/// only the checked runtime counts: they also run checked in every mode.
+const STD_RT_CHECKED_TOO: &[&str] = &["rt/ref_tests.hd"];
+
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
 /// on the engines of the mode, as a `tests` case of the suite would.
 #[test]
 fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
     let store = MemoryStore::default();
-    for (serial, (path, text)) in STD_RT_TESTS.iter().enumerate() {
+    let runs = STD_RT_TESTS
+        .iter()
+        .map(|file| (file, checked_runtime()))
+        .chain(
+            STD_RT_TESTS
+                .iter()
+                .filter(|(path, _)| !checked_runtime() && STD_RT_CHECKED_TOO.contains(path))
+                .map(|file| (file, true)),
+        );
+    for (serial, ((path, text), checked)) in runs.enumerate() {
         let mut sources = hd_driver::std_sources();
         sources.insert(path, text);
         let fixture = Fixture {
@@ -1921,7 +1934,7 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             text: (*text).to_owned(),
             tree: false,
             deps: Vec::new(),
-            checked: checked_runtime(),
+            checked,
             package: "std",
         };
         let case = Case {
@@ -1946,7 +1959,8 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             built.out.render()
         );
         println!(
-            "std runtime hd tests (linear backend) on {}: {path}, {} cases pass",
+            "std runtime hd tests (linear backend{}) on {}: {path}, {} cases pass",
+            if checked { ", checked" } else { "" },
             engine_mode().name(),
             built.out.tests.len()
         );

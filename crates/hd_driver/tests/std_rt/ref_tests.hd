@@ -5,7 +5,8 @@
 # bounded memory. A reference is an address, so writing through one to a
 # local allocates nothing. Only std may read the heap's size, so the
 # conformance runner adds this file to std as `std.rt.ref_tests`. Only the
-# checked runtime counts allocations: in a build without it `allocated()`
+# checked runtime counts allocations, so the runner also builds this file
+# checked in every mode (`STD_RT_CHECKED_TOO`); without it `allocated()`
 # stays 0, and the cases that compare it check nothing.
 use std.rt.memory.pages
 use std.rt.checked.{allocated, released}
