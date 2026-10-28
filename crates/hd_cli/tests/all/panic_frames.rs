@@ -383,11 +383,10 @@ fn custom_sections(wasm: &[u8]) -> Vec<String> {
 }
 
 /// A debug build keeps the standard `name` section beside `hd.lines`; a
-/// release build drops it for the compact `hd.names`, so its panics still
-/// name their functions (`crates/hd_wasm_linear/DESIGN.md` §15.5). Both carry
-/// `hd.positions`, the anchors `hd build` resolved.
+/// release build drops both name sections after copying the names its traces
+/// need into `hd.positions`.
 #[test]
-fn release_builds_name_functions_in_hd_names() {
+fn release_builds_keep_names_only_in_positions() {
     let root = package(
         "hd-frames-release",
         "pub fn main() -> void $ Console:\n    println(42)\n",
@@ -403,10 +402,7 @@ fn release_builds_name_functions_in_hd_names() {
     let out = hd(&root, &["build", "--release"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let release = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
-    assert_eq!(
-        custom_sections(&release),
-        ["hd.lines", "hd.names", "hd.positions"]
-    );
+    assert_eq!(custom_sections(&release), ["hd.lines", "hd.positions"]);
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
 }
 
@@ -425,8 +421,9 @@ fn a_copy_inside_a_copy_reports_each_frame() {
     assert!(out.status.success(), "{}", text(&out.stderr));
     let wasm = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
     let named = |f: &[u8]| wasm.windows(f.len()).any(|w| w == f);
-    assert!(named(b"/main#") && !named(b"/outer#") && !named(b"/inner#"));
-    let out = hd(&root, &["run", "--release"]);
+    assert!(!named(b"/main#") && !named(b"/outer#") && !named(b"/inner#"));
+    assert!(named(b"shop.main.main") && named(b"shop.main.outer") && named(b"shop.main.inner"));
+    let out = hd(&root, &["build/release/shop.wasm"]);
     assert_eq!(
         text(&out.stderr),
         "\
