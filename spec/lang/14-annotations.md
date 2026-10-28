@@ -2151,8 +2151,9 @@ status code, so `Missing` has no `_0` in scope.
 2. r[annot.error.cause.member] A variant's or struct's cause member is its `@from` or `@source` member.
 3. r[annot.error.cause.explicit] A variant or struct without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
 4. r[annot.error.cause.one] A variant or struct has at most one `@from` or `@source` member. A second one is an error, reported on that member. Error: `invalid-error-marker`.
-5. r[annot.error.cause.type] A cause member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
-6. r[annot.error.cause.optional] A `@source` member may instead have the type `E?`, where `E` implements `Error`. A `.None` member gives no cause.
+5. r[annot.error.cause.one-marker] A member carries at most one of `@from` and `@source`; `@from` already marks the cause. A second cause marker on one member is an error, reported on that marker. Error: `invalid-error-marker`.
+6. r[annot.error.cause.type] A cause member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
+7. r[annot.error.cause.optional] A `@source` member may instead have the type `E?`, where `E` implements `Error`. A `.None` member gives no cause.
 
 ```text
 @error("disk full")

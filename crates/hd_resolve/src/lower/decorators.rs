@@ -370,6 +370,12 @@ impl Lower<'_, '_, '_> {
                     } else if !deco.bare {
                         let msg = format!("`@{}` takes no argument", deco.name);
                         self.marker_error(span, &msg);
+                    } else if cause {
+                        // `@from` already marks the cause
+                        // (`annot.error.cause.one-marker`).
+                        let msg =
+                            "this member already has a cause marker; `@from` alone marks the cause";
+                        self.marker_error(span, msg);
                     } else {
                         cause = true;
                         let bare_param = deco.name == "from"

@@ -136,6 +136,7 @@ typing/invalid/error-markers-from-type-parameter-is-by-resolution-not-spelling-1
 typing/invalid/error-markers-from-type-parameter-on-data-is-rejected-18.hd	type	reject:invalid-error-marker	lang/14-annotations.md#error-types
 typing/invalid/error-markers-marker-argument-is-rejected-12.hd	type	reject:invalid-error-marker	lang/14-annotations.md#error-types
 typing/invalid/error-markers-second-cause-in-data-type-is-rejected-14.hd	type	reject:invalid-error-marker	lang/14-annotations.md#error-types
+typing/invalid/error-markers-from-and-source-on-one-member-is-rejected.hd	type	reject:invalid-error-marker	lang/14-annotations.md#error-types
 typing/invalid/error-markers-transparent-requires-exactly-one-member-1.hd	type	reject:decorator-target-kind	lang/14-annotations.md#error-types
 typing/invalid/error-markers-transparent-requires-exactly-one-member-2.hd	type	reject:decorator-target-kind	lang/14-annotations.md#error-types
 typing/invalid/error-markers-transparent-requires-exactly-one-member-3.hd	type	reject:decorator-target-kind	lang/14-annotations.md#error-types
