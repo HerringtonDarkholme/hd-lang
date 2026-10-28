@@ -21,6 +21,7 @@ use std.structure.{
     Members,
     Key,
     Facts,
+    SelfRef,
     skips,
 }
 
@@ -537,6 +538,64 @@ impl[T < Deserialize] Deserialize for T?:
         if input.is_null()?:
             return .Ok(.None)
         .Ok(.Some(T::deserialize(input)?))
+
+# `Result` uses the same named-variant form as a derived enum
+# (r-std-serde.std.result).
+fn result_variant(name: string, index: usize) -> VariantInfo:
+    VariantInfo {
+        name: name,
+        index: index,
+        facts: Facts { items: [] },
+        doc: .None,
+        of_data: false,
+        shared: [],
+        self_ref: .Absent,
+    }
+
+fn result_member(name: string) -> Member:
+    Member {
+        name: name,
+        position: 0,
+        facts: Facts { items: [] },
+        doc: .None,
+        embedded: false,
+        positional: false,
+        self_ref: SelfRef.Absent,
+    }
+
+impl[T < Serialize, E < Serialize] Serialize for Result[T, E]:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        match self:
+            .Ok(value) =>
+                variant := result_variant("Ok", 0)
+                member := result_member("value")
+                out.begin_variant(Facts { items: [] }, &variant)?
+                out.member(&member)?
+                value.serialize(out)?
+            .Err(error) =>
+                variant := result_variant("Err", 1)
+                member := result_member("error")
+                out.begin_variant(Facts { items: [] }, &variant)?
+                out.member(&member)?
+                error.serialize(out)?
+        out.end_variant()
+
+impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Result[T, E], R::Error]:
+        variants := [result_variant("Ok", 0), result_variant("Err", 1)]
+        index := input.begin_variant(Facts { items: [] }, variants)?
+        let found: Result[T, E] = match index:
+            0 =>
+                member := result_member("value")
+                input.member(&member)?
+                Result.Ok(T::deserialize(input)?)
+            1 =>
+                member := result_member("error")
+                input.member(&member)?
+                Result.Err(E::deserialize(input)?)
+            _ => panic("std.serde: invalid Result variant index")
+        input.end_variant()?
+        .Ok(found)
 
 # A reference writes the value it refers to, and reads into a new object
 # (r-std-serde.std.reference).
