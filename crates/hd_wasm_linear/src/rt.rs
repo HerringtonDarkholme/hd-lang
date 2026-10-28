@@ -233,6 +233,8 @@ pub enum Helper {
     },
     /// Free an object using its descriptor class when available.
     FreeClass,
+    /// Free an object using its already loaded descriptor and decoded class.
+    FreeClassLoaded,
     /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, a
     /// counted object with nothing to release in it.
     Str,
@@ -1681,6 +1683,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::NewFixed { size } => new_object(m, Some(*size)),
         Helper::AllocClass { class, bytes } => alloc_class(m, *class, *bytes),
         Helper::FreeClass => free_class(m),
+        Helper::FreeClassLoaded => free_class_loaded(m),
         Helper::Str => {
             let mut f = m.func("rt:str", vec![Val::I32], vec![Val::I32]);
             f.get(0);
@@ -2462,7 +2465,7 @@ fn free_class(m: &Module) -> Func {
         f.call(Sym::Inst(r.free));
         return f;
     }
-    let (desc, class, list) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let (desc, class) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.set(desc);
@@ -2472,6 +2475,32 @@ fn free_class(m: &Module) -> Func {
     f.u32(crate::module::CLASS_SHIFT);
     f.op(Instruction::I32ShrU);
     f.set(class);
+    f.get(0);
+    f.get(desc);
+    f.get(class);
+    f.helper(Helper::FreeClassLoaded);
+    f
+}
+
+/// The fixed-class free after its caller has loaded the descriptor and decoded
+/// its class. Keeping this body out of the drain preserves its compact hot loop
+/// while avoiding the old helper's descriptor reload and class decode.
+fn free_class_loaded(m: &Module) -> Func {
+    let mut f = m.func("rt:free_class_loaded", vec![Val::I32; 3], vec![]);
+    free_class_body(&mut f, m, 0, 1, 2);
+    f
+}
+
+/// Emits the fixed-class free after the caller has loaded the descriptor and
+/// decoded its class. A release drain already needs the descriptor for glue
+/// dispatch, so its generic path can reuse both values instead of loading and
+/// decoding the word again in [`Helper::FreeClass`].
+fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) {
+    let Some(r) = m.runtime else {
+        return;
+    };
+    let list = f.local(Val::I32);
+    f.op(Instruction::Block(BlockType::Empty));
     f.get(class);
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32Eqz);
@@ -2487,18 +2516,18 @@ fn free_class(m: &Module) -> Func {
     f.op(Instruction::I32Shl);
     f.op(Instruction::I32Add);
     f.set(list);
-    f.get(0);
+    f.get(block);
     f.get(list);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(FREED), 2)));
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
     f.get(list);
-    f.get(0);
+    f.get(block);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(FREED), 2)));
-    f.op(Instruction::Return);
+    f.op(Instruction::Br(1));
     f.op(Instruction::End);
-    f.get(0);
+    f.get(block);
     f.call(Sym::Inst(r.free));
-    f
+    f.op(Instruction::End);
 }
 
 fn free_object(f: &mut Func, m: &Module, block: u32) {
@@ -2598,6 +2627,11 @@ fn release_ref(m: &Module, known: bool) -> Func {
     };
     let block = f.local(Val::I32);
     if !m.acyclic {
+        // A drain cannot overlap collector tracing. Nested releases therefore
+        // bypass the collector test; only the outer release performs it.
+        f.op(Instruction::Block(BlockType::Empty));
+        f.global_get(Global::Releasing);
+        f.op(Instruction::BrIf(0));
         f.global_get(Global::Tracing);
         f.op(Instruction::If(BlockType::Empty));
         f.get(0);
@@ -2607,6 +2641,7 @@ fn release_ref(m: &Module, known: bool) -> Func {
         f.call_indirect(vec![Val::I32], vec![Val::I32]);
         f.op(Instruction::If(BlockType::Empty));
         f.op(Instruction::Return);
+        f.op(Instruction::End);
         f.op(Instruction::End);
         f.op(Instruction::End);
     }
@@ -2640,12 +2675,13 @@ fn release_ref(m: &Module, known: bool) -> Func {
 /// table.
 fn release_drain(m: &Module) -> Func {
     let mut f = m.func("rt:release_drain", vec![Val::I32], vec![]);
-    let (block, slot) = (0, f.local(Val::I32));
+    let (block, slot, desc) = (0, f.local(Val::I32), f.local(Val::I32));
     f.i32(1);
     f.global_set(Global::Releasing);
     f.op(Instruction::Loop(BlockType::Empty));
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.op(Instruction::LocalTee(desc));
     glue_of(&mut f);
     f.op(Instruction::LocalTee(slot));
     f.op(Instruction::If(BlockType::Empty));
@@ -2661,7 +2697,7 @@ fn release_drain(m: &Module) -> Func {
         dispatch_glue(&mut f, &m.drain_glues, block, slot);
     }
     f.op(Instruction::End);
-    free_object(&mut f, m, block);
+    free_loaded_object(&mut f, m, block, desc);
     f.global_get(Global::ReleaseHead);
     f.op(Instruction::LocalTee(block));
     f.op(Instruction::If(BlockType::Empty));
@@ -2674,6 +2710,31 @@ fn release_drain(m: &Module) -> Func {
     f.i32(0);
     f.global_set(Global::Releasing);
     f
+}
+
+/// Frees a block whose descriptor is already in `desc`. The generic drain
+/// has loaded it for glue dispatch, so a fixed allocation can decode its
+/// class once and enter the same free body without a helper reload.
+fn free_loaded_object(f: &mut Func, m: &Module, block: u32, desc: u32) {
+    let Some(r) = m.runtime else {
+        return;
+    };
+    if m.fixed_allocations && r.checked.is_none() {
+        let class = f.local(Val::I32);
+        f.get(desc);
+        f.u32(crate::module::CLASS_MASK);
+        f.op(Instruction::I32And);
+        f.u32(crate::module::CLASS_SHIFT);
+        f.op(Instruction::I32ShrU);
+        f.set(class);
+        f.get(block);
+        f.get(desc);
+        f.get(class);
+        f.helper(Helper::FreeClassLoaded);
+    } else {
+        f.get(block);
+        f.call(Sym::Inst(r.free));
+    }
 }
 
 /// Runs the glue at table slot `slot` plus one over the payload of
