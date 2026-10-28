@@ -68,6 +68,11 @@ impl AnalysisSink for Recorder {
             Event::Module(event) => {
                 format!("module:{}", event.path)
             }
+            Event::Comparison(_) => "comparison".to_owned(),
+            Event::Binding(_) => "binding".to_owned(),
+            Event::Statement(_) => "statement".to_owned(),
+            Event::Pattern(_) => "pattern".to_owned(),
+            Event::Discard(_) => "discard".to_owned(),
         };
         self.events.lock().unwrap().push(shown);
     }
@@ -84,6 +89,143 @@ fn run(store: &MemoryStore, source: &str, sink: Option<&dyn AnalysisSink>) -> hd
         executor: Executor::Serial(SerialOrder::Priority),
     };
     build_packages_with_analysis(&host, "app", &Packages::default(), &Goal::Analyze, sink)
+}
+
+#[derive(Default)]
+struct TypedRecorder {
+    events: Mutex<Vec<String>>,
+}
+
+impl TypedRecorder {
+    fn take(&self) -> Vec<String> {
+        std::mem::take(&mut *self.events.lock().unwrap())
+    }
+}
+
+impl AnalysisSink for TypedRecorder {
+    fn interests(&self) -> Events {
+        Events::CHECKED
+    }
+
+    fn diagnostic_code(&self, _: &str) -> Option<Code> {
+        None
+    }
+
+    fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, _: &mut DiagBuf) {
+        let shown = match event {
+            Event::Comparison(event) => {
+                let left = view.expression(event.left).unwrap();
+                let right = view.expression(event.right).unwrap();
+                let primitive = view.adjusted_type(event.left).unwrap().primitive();
+                format!(
+                    "comparison:{:?}:{primitive:?}:{}:{}",
+                    event.operator,
+                    view.source().text_at(left.span()).unwrap(),
+                    right.is_unsuffixed_zero()
+                )
+            }
+            Event::Binding(source) => {
+                let binding = view.binding(*source).unwrap();
+                let mutability = binding.mutability();
+                format!(
+                    "binding:{}:{}:{}",
+                    binding.name(),
+                    binding.is_read(),
+                    mutability.is_some_and(|fact| {
+                        fact.is_primitive()
+                            && !fact.annotation_is_writable()
+                            && !fact.mutable_address_taken()
+                            && fact.token().is_some()
+                    })
+                )
+            }
+            Event::Statement(source) => {
+                let statement = view.statement(*source).unwrap();
+                format!("statement:{}", statement.is_reachable())
+            }
+            Event::Pattern(source) => {
+                let pattern = view.pattern(*source).unwrap();
+                let bindings: Vec<_> = pattern
+                    .bindings()
+                    .iter()
+                    .map(|binding| binding.name.as_str())
+                    .collect();
+                format!(
+                    "pattern:{}:{:?}:{bindings:?}",
+                    pattern.variant(),
+                    pattern.fields()
+                )
+            }
+            Event::Discard(source) => {
+                let call = view.call(*source).unwrap();
+                let selected = view.selected_declaration(*source);
+                format!(
+                    "discard:{}:{}:{}:{}:{}",
+                    call.positional(),
+                    call.named(),
+                    call.has_spread(),
+                    call.after_spread(),
+                    selected.is_some_and(hd_check::analysis::DeclRef::is_prelude_debug)
+                )
+            }
+            Event::Ident(_) | Event::Decl(_) | Event::Module(_) => unreachable!(),
+        };
+        self.events.lock().unwrap().push(shown);
+    }
+}
+
+#[test]
+fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
+    let source = "enum Pair:\n    Values(left: i32, right: i32)\nfn inspect(value: Pair, remaining: usize) -> bool:\n    let mut count = +1\n    _ := count\n    match value:\n        .Values(right, left) =>\n            debug(+1)\n            remaining < 0\n";
+    let store = MemoryStore::default();
+    let checked = run(&store, source, None);
+    assert!(!checked.diags.has_errors(), "{}", checked.render());
+    assert_eq!(checked.counters.modules_checked, ["app.main"]);
+
+    let sink = TypedRecorder::default();
+    let out = run(&store, source, Some(&sink));
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    assert_eq!(out.counters.miss("lint"), 1);
+    assert_eq!(out.counters.modules_checked, ["app.main"]);
+    assert!(out.source_facts.comparisons.is_empty());
+    assert!(out.source_facts.bindings.is_empty());
+    assert!(out.source_facts.patterns.is_empty());
+    assert!(out.source_facts.statements.is_empty());
+    assert!(out.source_facts.discarded.is_empty());
+
+    let events = sink.take();
+    assert!(
+        events
+            .iter()
+            .any(|event| event == "comparison:Lt:Some(Usize):remaining:true"),
+        "{events:#?}"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| event == "binding:count:true:true"),
+        "{events:#?}"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| { event == "pattern:Values:[\"left\", \"right\"]:[\"right\", \"left\"]" }),
+        "{events:#?}"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| event == "discard:1:0:false:0:true"),
+        "{events:#?}"
+    );
+    assert!(events.iter().any(|event| event == "statement:true"));
+
+    let warm = TypedRecorder::default();
+    let out = run(&store, source, Some(&warm));
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    assert!(warm.take().is_empty());
+    assert_eq!(out.counters.hit("lint"), 1);
+    assert!(out.counters.modules_checked.is_empty());
 }
 
 #[test]
@@ -104,14 +246,14 @@ fn verified_source_walk_is_ordered_then_loads_the_lint_cache() {
         "decl:beta",
         "module:app.main",
     ];
-    let cold_sink = Recorder::new(Events::ALL);
+    let cold_sink = Recorder::new(Events::SOURCE);
     let cold = run(&store, source, Some(&cold_sink));
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     assert_eq!(cold_sink.take(), expected);
     assert_eq!(cold.analysis_diags.code, [Code::MixedScriptIdentifier]);
     assert_eq!(cold.counters.miss("lint"), 1);
 
-    let warm_sink = Recorder::new(Events::ALL);
+    let warm_sink = Recorder::new(Events::SOURCE);
     let warm = run(&store, source, Some(&warm_sink));
     assert!(!warm.diags.has_errors(), "{}", warm.render());
     assert!(warm_sink.take().is_empty());
@@ -131,14 +273,14 @@ fn verified_source_walk_is_ordered_then_loads_the_lint_cache() {
 fn cached_finding_spans_follow_comment_only_line_shifts() {
     let store = MemoryStore::default();
     let source = "pub fn main() -> void:\n    pass\n";
-    let cold_sink = Recorder::new(Events::ALL);
+    let cold_sink = Recorder::new(Events::SOURCE);
     let cold = run(&store, source, Some(&cold_sink));
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     assert_eq!(cold.analysis_diags.len(), 1);
 
     let prefix = "# inserted comment\n\n";
     let shifted = format!("{prefix}{source}");
-    let warm_sink = Recorder::new(Events::ALL);
+    let warm_sink = Recorder::new(Events::SOURCE);
     let warm = run(&store, &shifted, Some(&warm_sink));
     assert!(!warm.diags.has_errors(), "{}", warm.render());
     assert!(warm_sink.take().is_empty());
@@ -172,7 +314,7 @@ fn cached_finding_spans_follow_comment_only_line_shifts() {
 fn lint_entries_from_another_toolchain_are_cache_misses() {
     let source = "pub fn main() -> void:\n    pass\n";
     let store = MemoryStore::default();
-    let cold_sink = Recorder::new(Events::ALL);
+    let cold_sink = Recorder::new(Events::SOURCE);
     let cold = run(&store, source, Some(&cold_sink));
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     let key = cold.counters.check_keys["app.main"];
@@ -186,7 +328,7 @@ fn lint_entries_from_another_toolchain_are_cache_misses() {
     );
     store.put(EntryKind::Lint, &key, &foreign);
 
-    let sink = Recorder::new(Events::ALL);
+    let sink = Recorder::new(Events::SOURCE);
     let out = run(&store, source, Some(&sink));
     assert!(!out.diags.has_errors(), "{}", out.render());
     assert!(!sink.take().is_empty());
@@ -217,18 +359,18 @@ fn changing_one_module_misses_only_its_lint_entry() {
     }
 
     let store = MemoryStore::default();
-    let cold_sink = Recorder::new(Events::ALL);
+    let cold_sink = Recorder::new(Events::SOURCE);
     let cold = build(&store, "    pass", &cold_sink);
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     assert_eq!(cold.analysis_diags.len(), 2);
 
-    let warm_sink = Recorder::new(Events::ALL);
+    let warm_sink = Recorder::new(Events::SOURCE);
     let warm = build(&store, "    pass", &warm_sink);
     assert!(!warm.diags.has_errors(), "{}", warm.render());
     assert!(warm_sink.take().is_empty());
     assert_eq!(warm.counters.hit("lint"), 2);
 
-    let changed_sink = Recorder::new(Events::ALL);
+    let changed_sink = Recorder::new(Events::SOURCE);
     let changed = build(&store, "    _ := +1", &changed_sink);
     assert!(!changed.diags.has_errors(), "{}", changed.render());
     assert_eq!(
@@ -249,7 +391,7 @@ fn interests_skip_unrequested_events_and_errors_discard_findings() {
     assert_eq!(sink.take(), ["decl:main", "module:app.main"]);
     assert_eq!(out.analysis_diags.len(), 1);
 
-    let failed = Recorder::new(Events::ALL);
+    let failed = Recorder::new(Events::SOURCE);
     let out = run(
         &MemoryStore::default(),
         "pub fn main() -> void:\n    missing_name\n",

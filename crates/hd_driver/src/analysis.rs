@@ -2,7 +2,10 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{FileId, Span, TokenIdx};
-use hd_check::analysis::CheckedView;
+use hd_check::analysis::{
+    CheckedView, SourceBinding, SourceCall, SourceExpr, SourcePattern, SourceStatement,
+};
+use hd_check::comparison::SourceFacts;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_resolve::Src;
 use hd_syntax::{Decl, SyntaxKind, TokenKind};
@@ -11,13 +14,26 @@ use crate::{Lines, Reader, Writer};
 
 /// Source event families requested by an analysis consumer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Events(u8);
+pub struct Events(u16);
 
 impl Events {
     pub const IDENT: Self = Self(1 << 0);
     pub const DECL: Self = Self(1 << 1);
     pub const MODULE: Self = Self(1 << 2);
-    pub const ALL: Self = Self(Self::IDENT.0 | Self::DECL.0 | Self::MODULE.0);
+    pub const COMPARISON: Self = Self(1 << 3);
+    pub const BINDING: Self = Self(1 << 4);
+    pub const STATEMENT: Self = Self(1 << 5);
+    pub const PATTERN: Self = Self(1 << 6);
+    pub const DISCARD: Self = Self(1 << 7);
+    pub const CHECKED: Self = Self(
+        Self::COMPARISON.0
+            | Self::BINDING.0
+            | Self::STATEMENT.0
+            | Self::PATTERN.0
+            | Self::DISCARD.0,
+    );
+    pub const SOURCE: Self = Self(Self::IDENT.0 | Self::DECL.0 | Self::MODULE.0);
+    pub const ALL: Self = Self(Self::SOURCE.0 | Self::CHECKED.0);
 
     #[must_use]
     pub const fn union(self, other: Self) -> Self {
@@ -28,6 +44,20 @@ impl Events {
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
+
+    #[must_use]
+    pub const fn intersects(self, other: Self) -> bool {
+        self.0 & other.0 != 0
+    }
+}
+
+/// A checked ordering comparison and its two source operands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ComparisonEvent {
+    pub span: Span,
+    pub operator: TokenKind,
+    pub left: SourceExpr,
+    pub right: SourceExpr,
 }
 
 /// A declaration after its complete source subtree has been visited.
@@ -52,6 +82,11 @@ pub enum Event<'v> {
     Ident(Span),
     Decl(DeclEvent),
     Module(ModuleEvent<'v>),
+    Comparison(ComparisonEvent),
+    Binding(SourceBinding),
+    Statement(SourceStatement),
+    Pattern(SourcePattern),
+    Discard(SourceCall),
 }
 
 impl Event<'_> {
@@ -61,6 +96,11 @@ impl Event<'_> {
             Self::Ident(_) => Events::IDENT,
             Self::Decl(_) => Events::DECL,
             Self::Module(_) => Events::MODULE,
+            Self::Comparison(_) => Events::COMPARISON,
+            Self::Binding(_) => Events::BINDING,
+            Self::Statement(_) => Events::STATEMENT,
+            Self::Pattern(_) => Events::PATTERN,
+            Self::Discard(_) => Events::DISCARD,
         }
     }
 }
@@ -186,36 +226,40 @@ pub(crate) fn decode_cache(
     r.ok().then_some(findings)
 }
 
-enum Pending {
-    Ident(Span),
-    Decl(DeclEvent),
+struct Pending<'v> {
+    at: u32,
+    finish: bool,
+    family: u8,
+    event: Event<'v>,
 }
 
-impl Pending {
-    const fn key(&self) -> (u32, u8) {
-        match self {
-            Self::Ident(span) => (span.lo, 0),
-            // Declaration events are finish events, after everything whose
-            // source starts before the declaration's end.
-            Self::Decl(event) => (event.span.hi, 1),
-        }
+impl Pending<'_> {
+    const fn key(&self) -> (u32, bool, u8) {
+        (self.at, self.finish, self.family)
     }
 }
 
-pub(crate) fn walk(
+pub(crate) fn walk<'v>(
     sink: &dyn AnalysisSink,
     interests: Events,
-    src: Src<'_>,
-    module_path: &str,
+    src: Src<'v>,
+    facts: Option<&'v SourceFacts>,
+    module_path: &'v str,
     out: &mut DiagBuf,
 ) {
-    let view = CheckedView::from_source(src);
+    let view = CheckedView::from_source(src, facts);
     let mut pending = Vec::new();
     if interests.contains(Events::IDENT) {
         for raw in 0..src.parse.tokens.len() {
             let token = TokenIdx::from_raw(u32::try_from(raw).expect("source tokens"));
             if src.parse.tokens.kind(token) == TokenKind::Ident {
-                pending.push(Pending::Ident(src.token_span(token)));
+                let span = src.token_span(token);
+                pending.push(Pending {
+                    at: span.lo,
+                    finish: false,
+                    family: 5,
+                    event: Event::Ident(span),
+                });
             }
         }
     }
@@ -224,23 +268,84 @@ pub(crate) fn walk(
             let Some(decl) = Decl::cast(node) else {
                 continue;
             };
-            pending.push(Pending::Decl(DeclEvent {
+            let event = DeclEvent {
                 kind: node.kind(),
                 span: src.span(node),
                 name: decl
                     .name(&src.parse.tokens)
                     .map(|name| src.token_span(name)),
                 public: decl.is_pub(&src.parse.tokens),
+            };
+            pending.push(Pending {
+                at: event.span.hi,
+                finish: true,
+                family: 0,
+                event: Event::Decl(event),
+            });
+        }
+    }
+    if let Some(facts) = facts {
+        if interests.contains(Events::STATEMENT) {
+            pending.extend(
+                facts
+                    .statements
+                    .iter()
+                    .enumerate()
+                    .map(|(i, fact)| Pending {
+                        at: fact.span.lo,
+                        finish: false,
+                        family: 0,
+                        event: Event::Statement(SourceStatement::from_index(i)),
+                    }),
+            );
+        }
+        if interests.contains(Events::BINDING) {
+            pending.extend(facts.bindings.iter().enumerate().map(|(i, fact)| Pending {
+                at: fact.span.lo,
+                finish: false,
+                family: 1,
+                event: Event::Binding(SourceBinding::from_index(i)),
+            }));
+        }
+        if interests.contains(Events::PATTERN) {
+            pending.extend(facts.patterns.iter().enumerate().map(|(i, fact)| Pending {
+                at: fact.span.lo,
+                finish: false,
+                family: 2,
+                event: Event::Pattern(SourcePattern::from_index(i)),
+            }));
+        }
+        if interests.contains(Events::COMPARISON) {
+            pending.extend(
+                facts
+                    .comparisons
+                    .iter()
+                    .enumerate()
+                    .map(|(i, fact)| Pending {
+                        at: fact.span.lo,
+                        finish: false,
+                        family: 3,
+                        event: Event::Comparison(ComparisonEvent {
+                            span: fact.span,
+                            operator: fact.operator,
+                            left: SourceExpr::comparison(i, false),
+                            right: SourceExpr::comparison(i, true),
+                        }),
+                    }),
+            );
+        }
+        if interests.contains(Events::DISCARD) {
+            pending.extend(facts.discarded.iter().enumerate().map(|(i, fact)| Pending {
+                at: fact.span.lo,
+                finish: false,
+                family: 4,
+                event: Event::Discard(SourceCall::from_index(i)),
             }));
         }
     }
     pending.sort_stable_by_key(Pending::key);
-    for event in pending {
-        let event = match event {
-            Pending::Ident(span) => Event::Ident(span),
-            Pending::Decl(event) => Event::Decl(event),
-        };
-        sink.event(&event, &view, out);
+    for pending in pending {
+        sink.event(&pending.event, &view, out);
     }
     if interests.contains(Events::MODULE) {
         sink.event(

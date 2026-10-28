@@ -64,6 +64,7 @@ pub struct VariantPattern {
 /// A statement's source reachability, before dead code can be lowered away.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Statement {
+    pub body: DefId,
     pub span: Span,
     pub reachable: bool,
 }
@@ -72,6 +73,8 @@ pub struct Statement {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiscardedExpression {
     pub span: Span,
+    /// The concrete item selected by checking, when the call has one.
+    pub selected: Option<DefId>,
     /// Declaration identity, including qualified calls and type arguments.
     pub prelude_debug: bool,
     pub call: Option<DiscardedCall>,

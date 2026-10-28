@@ -2849,6 +2849,7 @@ impl Ck<'_, '_> {
             self.move_to(self.cx.src.span(s).lo);
             if self.cx.source_facts.is_some() {
                 self.statements.push(crate::comparison::Statement {
+                    body: self.b.body().item,
                     span: self.cx.src.span(s),
                     reachable: !dead,
                 });
@@ -3403,35 +3404,28 @@ impl Ck<'_, '_> {
     /// Read the selected callee recorded in TIR, never reconstruct it from the
     /// source spelling: a temporary receiver's `.debug` is a method call even
     /// though its last path segment has the prelude function's name.
-    fn is_prelude_debug_call(&self, e: NodeRef<'_>, result: Ref) -> bool {
+    fn selected_item_callee(&self, e: NodeRef<'_>, result: Ref) -> Option<DefId> {
         let call = match e.kind() {
             SyntaxKind::CallExpr => e,
             SyntaxKind::TrailingCallExpr => {
-                match e.children().find(|c| c.kind() == SyntaxKind::CallExpr) {
-                    Some(c) => c,
-                    None => return false,
-                }
+                e.children().find(|c| c.kind() == SyntaxKind::CallExpr)?
             }
-            _ => return false,
+            _ => return None,
         };
-        let Some(inst) = result.as_inst() else {
-            return false;
-        };
+        let inst = result.as_inst()?;
         let i = inst.0 as usize;
         let body = self.b.body();
         if body.syn.get(i) != Some(&call.index())
             || !matches!(body.tags.get(i), Some(Tag::Call | Tag::Await))
         {
-            return false;
+            return None;
         }
-        let Some(data) = body.data.get(i) else {
-            return false;
-        };
-        let Some(callee) = Callee::from_words(body.record(data[0])) else {
-            return false;
-        };
-        let debug_def = self.cx.names.item("std.format", "debug");
-        matches!(callee, Callee::Item { def, .. } if def == debug_def)
+        let data = body.data.get(i)?;
+        let callee = Callee::from_words(body.record(data[0]))?;
+        match callee {
+            Callee::Item { def, .. } => Some(def),
+            Callee::TraitMethod { .. } => None,
+        }
     }
 
     /// The source form and lexical name lookup of a discarded expression.
@@ -3439,7 +3433,7 @@ impl Ck<'_, '_> {
     fn discarded_expression(
         &self,
         expression: NodeRef<'_>,
-        prelude_debug: bool,
+        selected: Option<DefId>,
     ) -> crate::comparison::DiscardedExpression {
         use crate::comparison::{DiscardedCall, DiscardedExpression};
         let call = (expression.kind() == SyntaxKind::CallExpr).then(|| {
@@ -3487,7 +3481,8 @@ impl Ck<'_, '_> {
         });
         DiscardedExpression {
             span: self.cx.src.span(expression),
-            prelude_debug,
+            selected,
+            prelude_debug: selected == Some(self.cx.names.item("std.format", "debug")),
             call,
         }
     }
@@ -3538,8 +3533,10 @@ impl Ck<'_, '_> {
                     && !self.must_use(t);
                 // Ordinary checking needs declaration identity only for this
                 // core exception; other discarded expressions need it in lint.
-                let prelude_debug = (void_value || self.cx.source_facts.is_some())
-                    && self.is_prelude_debug_call(*e, result);
+                let selected = (void_value || self.cx.source_facts.is_some())
+                    .then(|| self.selected_item_callee(*e, result))
+                    .flatten();
+                let prelude_debug = selected == Some(self.cx.names.item("std.format", "debug"));
                 if void_value && !prelude_debug {
                     let open = matches!(self.pool().get(t), TyData::Infer(_))
                         && !matches!(
@@ -3559,7 +3556,7 @@ impl Ck<'_, '_> {
                     self.err(Code::DiscardedMustUseValue, *e, &msg);
                 }
                 if self.cx.source_facts.is_some() {
-                    let fact = self.discarded_expression(*e, prelude_debug);
+                    let fact = self.discarded_expression(*e, selected);
                     self.discarded.push(fact);
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });

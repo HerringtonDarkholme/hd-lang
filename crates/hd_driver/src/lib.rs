@@ -3012,6 +3012,26 @@ struct OptInFinding {
 }
 
 impl Run<'_> {
+    /// Whether this root module needs the narrow completed checker facts used
+    /// by either the legacy producer path or the optional analysis sink.
+    fn collect_checked_facts(&self, m: usize) -> bool {
+        if self.table.modules[m].package != 0 {
+            return false;
+        }
+        if self.collect_source_facts {
+            return true;
+        }
+        #[cfg(feature = "analysis")]
+        {
+            self.analysis
+                .is_some_and(|(_, events)| events.intersects(analysis::Events::CHECKED))
+        }
+        #[cfg(not(feature = "analysis"))]
+        {
+            false
+        }
+    }
+
     /// Whether the build links the linear backend's checked runtime
     /// (the internal allocation/count audit setting).
     fn checked(&self) -> bool {
@@ -5925,7 +5945,8 @@ impl Run<'_> {
             )),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
-            source_facts: (self.collect_source_facts && module.package == 0)
+            source_facts: self
+                .collect_checked_facts(m)
                 .then(std::cell::RefCell::default),
             locals: &locals,
             tests: lowered.tests.as_ref().map(|scope| hd_check::TestsView {
@@ -6461,7 +6482,15 @@ impl Run<'_> {
             && let Some((sink, interests)) = self.analysis
         {
             let mut findings = DiagBuf::default();
-            analysis::walk(sink, interests, cx.src, &module.path, &mut findings);
+            let facts = cx.source_facts.as_ref().map(std::cell::RefCell::borrow);
+            analysis::walk(
+                sink,
+                interests,
+                cx.src,
+                facts.as_deref(),
+                &module.path,
+                &mut findings,
+            );
             let _ = self.analysis_diags[m].set(findings);
         }
         lock(&self.report).body_ok += derived.bodies.len();
@@ -6478,7 +6507,9 @@ impl Run<'_> {
         let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
         let dbg = cx.dbg_refs.take();
-        if let Some(facts) = &cx.source_facts {
+        if self.collect_source_facts
+            && let Some(facts) = &cx.source_facts
+        {
             lock(&self.source_facts).extend(facts.take());
         }
         // A REPL input's interface carries its bindings for later inputs.
