@@ -2,16 +2,43 @@
 use std.cli.Cli
 use std.console.eprintln
 use std.fs.{FsError, FsRead, read_text}
-use std.host.{Args, Env, HostError, env_name, env_as, env_decode}
+use std.host.{Args, Env, EnvName, HostError, env_name, env_as, env_decode}
 use std.json.{JsonError, decode}
 use std.path.Path
 use std.process.ExitCode
-use std.serde.{Deserialize, Serialize, rename}
+use std.serde.{Deserialize, Rename, Serialize, rename}
 use std.structure.Structure
 use std.text.Parse
 use std.num.ParseNumberError
 use dep.http.{Request, Response}
-use pkg.validation.{HasLength, Mode, PathStep, Problem, Range, Rule, NonEmpty, Each, Optional, Validate, ValidationContext, ValidationError, Violation, at_least, at_most, byte_length, check, email, keys, length, list_length, non_empty, one_of, pattern, range, unique, url, uuid, values}
+use pkg.validation.{
+    Each,
+    MessageRule,
+    MinLength,
+    Optional,
+    PathStep,
+    Problem,
+    Range,
+    Rule,
+    RuleExt,
+    Validate,
+    ValidationContext,
+    ValidationError,
+    byte_length,
+    check,
+    email,
+    length,
+    max,
+    max_length,
+    min,
+    min_length,
+    one_of,
+    pattern,
+    range,
+    unique,
+    url,
+    uuid,
+}
 
 @derive(Deserialize, Eq)
 enum Role:
@@ -26,12 +53,15 @@ struct Address:
 impl Deserialize for Address by Structure
 impl Validate for Address by Structure:
     street = [length(1, 120)]
-    city = [non_empty()]
+    city = [min_length(1)]
 
 # Payload facts are on the declaration: derivation lines name whole variants.
 @derive(Deserialize)
 enum Contact:
-    Email(@email() address: string)
+    Email(
+        @email()
+        address: string,
+    )
     Postal(address: Address)
 impl Validate for Contact by Structure
 
@@ -51,30 +81,32 @@ struct Signup:
     invited: bool = false
     invite: string? = .None
 
-fn tag_elements() -> Each[List[string]]:
-    let rule: NonEmpty[string] = non_empty()
-    rule.each()
-
-fn certificate_rule() -> Optional[string?]:
-    let rule: NonEmpty[string] = non_empty()
-    rule.optional()
-
 fn available_name(name: &string) -> Result[void, Problem]:
     if name.starts_with("sys_") || name.contains("admin"):
         return .Err(Problem { code: "reserved-name", message: "choose another username" })
     .Ok(())
 
+fn tag_elements() -> Each[string, MinLength[string]]:
+    min_length::[string](1).each()
+
+fn nonempty_optional() -> Optional[string, MinLength[string]]:
+    min_length::[string](1).optional()
+
 impl Deserialize for Signup by Structure
 impl Validate for Signup by Structure:
-    username = [length(3, 40).message("username must be 3-40 characters"), pattern("^[a-z][a-z0-9_]*$"), check(available_name)]
+    username = [
+        length(3, 40).message("username must be 3-40 characters"),
+        pattern("^[a-z][a-z0-9_]*$"),
+        check(available_name),
+    ]
     email = [email()]
     request_id = [uuid()]
     website = [url().optional()]
-    age = [at_least(18), at_most(130)]
-    role = [one_of([Role.Reader, Role.Writer])]
-    addresses = [list_length(1, 8)] # Address/list elements validate automatically.
-    tags = [non_empty(), unique(), tag_elements()]
-    limits = [keys(pattern("^[a-z]+$")), values(range(1u8, 100u8))]
+    age = [min(18), max(130)]
+    role = [one_of(Role.Reader, Role.Writer)]
+    addresses = [length(1, 8)] # Address/list elements validate automatically.
+    tags = [min_length(1), max_length(20), unique(), tag_elements()]
+    limits = [pattern("^[a-z]+$").each_key(), range(1u8, 100u8).each_value()]
     password = [byte_length(12, 256)]
     invite = [pattern("^[A-Z0-9]{8}$").optional()]
     fn record(&self, context: &mut ValidationContext) -> void:
@@ -94,15 +126,22 @@ fn signup(req: &Request) -> Response:
     value := match req.json::[Signup]():
         .Ok(value) => value
         .Err(error) => return Response::status(.BadRequest).set_text("$error")
-    match value.validated(.All, max_errors=8):
+    match value.validated(max_errors=8):
         .Ok(_) => Response::status(.Created)
         .Err(.Definition(_, reason)) => Response::status(.InternalServerError).set_text(reason)
         .Err(error) =>
-            issues := error.for_json().issues()
-            Response::status(.UnprocessableContent).set_json([for issue in issues => ApiIssue { path: issue.display, code: issue.problem.code, message: issue.problem.message }])
+            issues := error.issues()
+            Response::status(.UnprocessableContent)
+                .set_json(
+                    [for issue in issues => ApiIssue {
+                        path: issue.display_with(json_step),
+                        code: issue.problem.code,
+                        message: issue.problem.message,
+                    }],
+                )
 
 fn review_signup(value: Signup) -> Result[Signup, ValidationError]:
-    value.validated(.First, 1)
+    value.validated(max_errors=1)
 
 # Pydantic's documented UserModel password validator, translated literally.
 # https://docs.pydantic.dev/latest/concepts/validators/#model-validators
@@ -123,14 +162,15 @@ struct ServerConfig:
     port: u32 = 8080
     tls: bool = false
     certificate: string? = .None
-fn port_rule() -> Range[u32]: range(1, 65535)
+fn port_rule() -> Range[u32]:
+    range(1, 65535)
 impl Deserialize for ServerConfig by Structure:
     port = [rename("listenPort"), env_name("APP_PORT")]
     tls = [env_name("APP_TLS")]
     certificate = [env_name("APP_CERTIFICATE")]
 impl Validate for ServerConfig by Structure:
     port = [port_rule()]
-    certificate = [certificate_rule()]
+    certificate = [nonempty_optional()]
     fn record(&self, context: &mut ValidationContext) -> void:
         if self.tls && self.certificate.is_none():
             context.reject("tls-certificate", "TLS needs a certificate")
@@ -138,17 +178,29 @@ impl Validate for ServerConfig by Structure:
 @error
 enum ConfigError:
     @error("$cause")
-    File(@from @source cause: FsError)
+    File(
+        @from
+        @source
+        cause: FsError,
+    )
     @error("$cause")
-    Json(@from @source cause: JsonError)
+    Json(
+        @from
+        @source
+        cause: JsonError,
+    )
     @error("$cause")
-    Validation(@from @source cause: ValidationError)
+    Validation(
+        @from
+        @source
+        cause: ValidationError,
+    )
 fn load_config!(file: Path) -> Result[ServerConfig, ConfigError] $ FsRead:
     text := read_text!(file)?
     value := decode::[ServerConfig](text)?
     match value.validated():
         .Ok(config) => .Ok(config)
-        .Err(error) => .Err(.Validation(error.for_json()))
+        .Err(error) => .Err(.Validation(error))
 
 struct Options:
     port: u32 = 8080
@@ -159,25 +211,29 @@ fn command_line() -> ExitCode $ Args + Console:
     options := match Options::parse_args():
         .Ok(value) => value
         .Err(error) => return error.exit()
-    match options.validated(.First, 1):
+    match options.validated(max_errors=1):
         .Ok(config) =>
             println("listening on ${config.port}")
             ExitCode(0)
         .Err(error) =>
-            eprintln("${error.for_cli()}")
+            eprintln(render_issues(&error, cli_step))
             ExitCode(2)
 
 @error
 enum EnvironmentError:
     @error("$cause")
-    Read(@from @source cause: HostError)
-    @error("$cause")
-    Validation(@from @source cause: ValidationError)
+    Read(
+        @from
+        @source
+        cause: HostError,
+    )
+    @error("$message")
+    Validation(message: string)
 fn config_from_env() -> Result[ServerConfig, EnvironmentError] $ Env:
     value := env_decode::[ServerConfig]()?
     match value.validated():
         .Ok(config) => .Ok(config)
-        .Err(error) => .Err(.Validation(error.for_env()))
+        .Err(error) => .Err(.Validation(render_issues(&error, env_step)))
 
 struct Port:
     value: u32
@@ -196,16 +252,33 @@ fn port_from_env() -> Result[Port?, EnvironmentError] $ Env:
     value := read?
     match value.validated():
         .Ok(port) => .Ok(port)
-        .Err(error) => .Err(.Validation(error.for_env("APP_PORT")))
+        .Err(error) => .Err(.Validation(render_issues(&error, env_step)))
 
-fn highlight(issue: &Violation) -> string:
-    let control = "root"
-    for step in issue.path:
-        match step:
-            .Field(name) => control = "$control.$name"
-            .Index(index) => control = "$control[$index]"
-            .Key(name) => control = "$control[$name]"
-    control
-fn show_errors(error: &ValidationError) -> string:
-    count := error.issues().length()
-    "$count issues: $error"
+fn json_step(step: PathStep) -> string:
+    match step:
+        .Field(member) =>
+            match member.facts.find::[Rename]():
+                .Some(rename) => ".${rename.name}"
+                .None => ".${member.name}"
+        .Index(index) => "[$index]"
+        .Key(name) => "[\"$name\"]"
+
+fn cli_step(step: PathStep) -> string:
+    match step:
+        .Field(member) => "--${member.name.replace("_", "-")}"
+        .Index(index) => "[$index]"
+        .Key(name) => "[$name]"
+
+fn env_step(step: PathStep) -> string:
+    match step:
+        .Field(member) =>
+            match member.facts.find::[EnvName]():
+                .Some(env) => env.name
+                .None => member.name
+        .Index(index) => "[$index]"
+        .Key(name) => "[$name]"
+
+fn render_issues(error: &ValidationError, name: fn(PathStep) -> string) -> string:
+    [for issue in error.issues() => "${issue.display_with(name)}: ${issue.problem.message}"].join(
+        "\n",
+    )

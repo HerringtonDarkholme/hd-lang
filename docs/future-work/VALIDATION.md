@@ -4,7 +4,7 @@ Status: proposal, 2026-10-26; domain: standard library API; not accepted.
 
 Add a separate `Validate` derivation with concrete typed rules, automatic nested checks and ordinary custom functions.
 One `.validated()` combinator follows JSON, HTTP, CLI or environment input.
-Errors already contain their display path, code and message; Display prints one line per issue.
+Errors keep structural field identity, code and message; each reader renders its own names.
 The [signature package](validation/src/validation.hd) and [usage examples](validation/src/examples.hd) are the API under review.
 
 ```text
@@ -27,7 +27,7 @@ signup := req.json::[Signup]()?.validated()?
 ## Open Questions
 
 1. Use one post-reader `validated` combinator instead of checked-reader variants or fused validation? **Recommend yes:** it also covers HTTP and existing values.
-2. Default to All with a positive 64-issue cap and unvisited-check truncation? **Recommend yes:** First remains explicit.
+2. Default to a positive 64-issue cap and unvisited-check truncation? **Recommend yes:** `max_errors=1` is the fail-fast form.
 3. Keep completed-record errors at the record root initially? **Recommend yes:** defer a field-projection API.
 4. Add reader-name resolver hooks with semantic fallback for opaque readers? **Recommend yes:** preserve each reader's naming policy.
 
@@ -55,46 +55,53 @@ The example uses `Email(@email() address: string)` because existing derivation l
 
 | Public API | Purpose |
 | --- | --- |
-| `Validate.validated`, `Mode` | One boundary; First or bounded All |
-| Concrete rule facts, `Rule[F]` | Typed checks; callback/message and optional/element composition protocol |
+| `Validate.validated(max_errors=64)` | One boundary; one positive issue limit |
+| Concrete data facts, `Rule[F]` | One static check per kind; only `Check[F]` stores a user callback |
+| `MessageRule`, `RuleExt[F]` | Same-type messages plus static optional, element, map-key and map-value wrappers |
 | `HasLength` | String scalar length or collection size; byte length is explicit |
 | `ValidationContext`, `Problem` | Borrowed custom checks; `reject(code, message)` |
-| `PathStep`, `Violation` | Names, indices, map keys and ready-to-display errors |
+| `PathStep`, `Violation` | Field identity, indices, map keys and reader-side `display_with` |
 | `ValidationError` | Typed definition errors, issue lists, truncation and line-oriented Display |
 
 The HTTP example returns 400 for decoding, 422 for validation and 500 for invalid rule definitions.
-`for_json()`, `for_cli()` and `for_env()` put reader names directly on each issue.
-Their metadata resolvers are unimplemented; no location-matching loop is left to the caller.
-Opaque readers fall back to semantic names, and record checks initially report at the root.
+JSON, CLI, environment, form and query readers render each `PathStep.Field` through their own metadata.
+Validation does not hard-code a closed reader list; opaque readers fall back to source names.
+Record checks initially report at the root.
 
-All retains at most 64 issues; a positive cap or First stops starting later checks.
+Validation retains at most 64 issues by default; any positive cap stops starting later checks.
 A record callback never starts after stopping; an already-running callback completes normally.
 Truncation means checks remained unvisited, not that another failure was proved.
 Validation observes values without coercion, transforms or permanent validity after mutation.
 
 Contexts, receivers and check arguments use non-escaping `&T`/`&mut T`.
-Stored callbacks own their rule data, never a borrowed input or context.
+Built-in facts contain data only; `Check[F]` owns its user callback and never a borrowed input or context.
 Existing reader behavior is unchanged until an application calls validation.
 
 ## Cost
 
-These are **estimates for the revised proposal**, not measurements of implemented validation.
+The API is not implemented, but its dispatch representations were measured in release Wasm on `a121c3ffd` with Node v24.19.0.
+Each path ran the same eight predicates over four values for 100,000 validations; construction stayed outside the timed region.
+Five warmups preceded 30 paired samples across two fresh processes, each sample aggregating ten batches.
 
-Compiler work still needed: trait-default `.validated()` reports `unsupported: stage Body: a default argument of this callee is not supported`.
-Non-generic `Length`/`Pattern` remove `.message` inference; generic wrappers still need typed helpers (`cannot-infer-type`: `a type argument here has no solution; write it explicitly or give an expected type`).
 Inline `env_as(...)?` inside the custom-error example reports `a type argument named only in bounds has no solution; write it explicitly`.
 An expected `Result[Port?, HostError]` binding resolves it without naming the parse error type; direct HostError-returning controls also pass.
+
+| Representation | Median / 100k | Hand-written | Ratio | Paired range |
+| --- | ---: | ---: | ---: | ---: |
+| Distinct data facts, static calls | 6.2 ms | 5.5 ms | **1.13×** | 1.05–1.19× |
+| One dynamic composite per field | 10.3 ms | 5.5 ms | **1.87×** | 1.80–1.96× |
+| Dynamic `Rules[F]` list | 15.0 ms | 5.6 ms | **2.68×** | 2.57–2.80× |
 
 | Component | Estimated ordinary hd code and cost |
 | --- | --- |
 | Context, paths, report and Display | 50–90 lines; at most the cap's issue records plus paths/name strings |
-| Concrete facts and typed callbacks | 80–140 lines; owned callback captures, no retained input values |
+| Concrete facts and typed callbacks | 80–140 lines; data-only built-ins, one owned callback kind, no retained input values |
 | Built-in formats and collections | 100–200 lines; reuse regex/URL parsing, hashing for uniqueness |
 | Derive, automatic traversal and callbacks | 50–90 lines; one additional semantic traversal |
 | Reader-name resolvers | 80–160 lines; new std hooks, no compiler intrinsic proposed |
 | Value combinator | 10–20 lines; zero duplicated readers or generic read-error enum |
 | Compile time | Additional monomorphizations; full increment unmeasured |
-| Wasm and runtime | Revised feature unmeasured; historical reference below is not its budget |
+| Runtime | Static path meets the 1.5× bar; both dynamic representations are rejected |
 | Web compiler | Recorded baseline 1,972,480B gzip / 2,000,000B cap; implementation increment unmeasured |
 
 The previous [bounded model](https://github.com/HerringtonDarkholme/hd-lang/issues/846#issuecomment-6406520802) measured control/model at 123,453/143,901B, 326/398 functions, and 100,826/116,174 code-section bytes.
@@ -130,25 +137,24 @@ impl Validate for Passwords by Structure:
 ```
 
 Seventeen focused compilation probes were run; the related controls are grouped below.
-Positive controls supply explicit mode/cap only to isolate the known default-method bug.
 Stubs were never executed: “checks” below proves typing, not runtime validation.
 
 | Case | What happened | Verdict / response |
 | --- | --- | --- |
-| Real Pydantic translation | Explicit-argument control checks | Shape works; runtime unproved |
+| Real Pydantic translation | Checks with defaulted `.validated()` | Shape works; runtime unproved |
 | u8 field bounds without type arguments | Checks | Inference works at direct facts |
 | Concrete Length `.message` with Pattern | Checks | Nongeneric facts remove this inference friction |
 | Email fact on a u32 field | `type-mismatch` | Required typed rejection |
 | Two Pattern facts | `duplicate-fact` | Required rejection; combine or use check |
 | Store or capture a borrowed context | Both reject `local-reference-escapes` | Keep contexts local |
-| `.validated()` defaults | `unsupported: stage Body` | Breaks today; compiler bug assigned to orchestrator |
-| Generic non-empty optional/element rule | `cannot-infer-type` | Friction; checked typed policy helper |
+| `.validated()` defaults | Checks after f82d56b49 | Fixed and covered by the compiler fixture |
+| Generic optional/element rule | Checks through an expected helper result | Backward inference is fixed |
 | Inline env_as plus custom-error propagation | Bounds-only `cannot-infer-type` | Typed whole-Result binding checks; direct-return controls also check |
 | Mismatched passwords | Input/call shape checks only | Semantic rejection remains unproved |
 | Invalid regex `[` | Fact/call shape checks only | Definition-error behavior remains unproved |
 
-The exposed failures are default-method lowering, wrapper inference and the narrow env-call inference case.
-The target short calls remain visible; no compiler/spec change or named-list bypass was made.
+The sole remaining compiler gap is the narrow inline environment-call inference case (#882).
+The target short calls remain visible; no compiler/spec change or named-list bypass is proposed here.
 The historical model's seven tests per engine do not prove this broader revision, automatic recursion or reader aliases.
 
 ## Appendix B: Prior Art
@@ -217,11 +223,11 @@ Pydantic's [`errors()`](https://docs.pydantic.dev/latest/errors/errors/) uses `l
 
 | Common capability | hd mapping |
 | --- | --- |
-| Integer, one-sided and inclusive bounds | Static integer types; `at_least`, `at_most`, `range` |
-| Non-empty, length, regex, enum choice | `non_empty`, `length`/`list_length`/`byte_length`, `pattern`, `one_of` |
+| Integer, one-sided and inclusive bounds | Static integer types; `min`, `max`, `range` |
+| Non-empty, length, regex, enum choice | `min_length(1)`, generic `length`/`byte_length`, `pattern`, vararg `one_of` |
 | Email, URL, UUID | Built-in facts; syntactic checks only, no network capability |
 | Nested objects/arrays, optional/nullable, defaults | Recursive Validate/container implementations, `T?`, existing reader defaults |
-| Unique items and map rules | `unique`, `keys`, `values`; ordinary Eq/Hash |
+| Unique items and map rules | `unique`, `.each_key()`, `.each_value()`; ordinary Eq/Hash |
 | Custom checks/messages | `check(fn(&T))`, `reject(code, message)`, per-fact `.message` |
 | Starts-with/contains | Plain string methods inside `check`, shown by the username policy |
 | Coercion/transforms | None; parsing and application transformations remain explicit |
@@ -261,10 +267,12 @@ hd takes typed custom checks and explicit length semantics, but proposes automat
 | Six checked-reader variants | One named read-and-validate operation | Six wrappers and generic read-error composition; HTTP needs another |
 | `reader()?.validated()` | Works after any reader and on existing values | Extra traversal and name resolvers |
 | Cooperative validation during construction | Can reject before parent construction finishes | Build hooks, defaults/completion and custom-reader contracts |
+| Dynamic `Rules[F]` list | One extensible erased collection | Measured 2.68× hand-written; misses the 1.5× bar |
+| One dynamic composite per field | One indirect call per field | Measured 1.87×; still misses the bar |
 
 **Recommendation:** the value combinator, the smallest ordinary-library addition.
 Distinct facts preserve today's duplicate rule, like `rename` and `env_name`.
-Optional/each wrappers erase owned callbacks into concrete typed facts, not an untyped registry.
+Optional, element and map wrappers stay static concrete facts, not an untyped registry.
 
 <a id="context"></a>
 
