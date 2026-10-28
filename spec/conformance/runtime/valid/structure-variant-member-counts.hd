@@ -1,0 +1,96 @@
+# test: variant metadata counts declared payload members and derivation-included positional members
+# expect-stdout: 0 2 0
+# expect-stdout: 0 0 0 1 0 1 2 0 2 0 2 0 1 1 1
+# expect-stdout: 1 0 2 1
+# Spec 14 Typed Derivation: annot.variant.member-counts, annot.variant.included-positional.
+use std.annotation.annotate
+use std.structure.{Describer, Field, Structure, Variant, Walker, skips}
+
+struct Counts:
+    variants: List[(usize, usize, usize)]
+
+impl[S] Describer[S] for Counts:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push((v.info.positional, v.info.named, v.info.included_positional))
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        .Ok(())
+
+trait Counted:
+    fn counts() -> Counts
+
+impl[T] Counted for T by Structure:
+    fn counts() -> Counts:
+        let mut counts = Counts { variants: [] }
+        _ := T::describe(&mut counts)
+        counts
+
+@derive(Counted)
+struct Record:
+    x: i32
+    y: i32
+
+@derive(Counted)
+enum Forms:
+    Unit
+    Newtype(i32)
+    Tuple(i32, i32)
+    Named(x: i32, y: i32)
+    Mixed(i32, y: i32)
+
+@annotate(.Field)
+struct Skip: pass
+
+fn skip() -> Skip:
+    Skip {}
+
+struct IncludedCounts:
+    variants: List[(usize, usize)]
+
+@skips::[Skip]()
+impl[S] Walker[S] for IncludedCounts:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push((v.info.positional, v.info.included_positional))
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        .Ok(())
+
+trait Included:
+    fn included(self) -> IncludedCounts
+
+impl[T] Included for T by Structure:
+    fn included(self) -> IncludedCounts:
+        let mut counts = IncludedCounts { variants: [] }
+        _ := Structure::walk(self, &mut counts)
+        counts
+
+struct Cached: pass
+
+@derive(Included)
+enum Skipped:
+    Static(
+        @skip()
+        Cached,
+    )
+    Pair(
+        i32,
+        @skip()
+        Cached,
+    )
+
+pub fn main() -> void $ Console:
+    record := Record::counts().variants[0]
+    println("${record._0} ${record._1} ${record._2}")
+    forms := Forms::counts().variants
+    println(
+        "${forms[0]._0} ${forms[0]._1} ${forms[0]._2} ${forms[1]._0} ${forms[1]._1} ${forms[1]._2} ${forms[2]._0} ${forms[2]._1} ${forms[2]._2} ${forms[3]._0} ${forms[3]._1} ${forms[3]._2} ${forms[4]._0} ${forms[4]._1} ${forms[4]._2}",
+    )
+    static := Skipped.Static(Cached {}).included().variants[0]
+    pair := Skipped.Pair(3, Cached {}).included().variants[0]
+    println("${static._0} ${static._1} ${pair._0} ${pair._1}")

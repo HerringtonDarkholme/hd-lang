@@ -1,5 +1,5 @@
-# test: a derived Deserialize offers every variant to begin_variant, then reads each built member with member and its own deserialize, then calls end_variant; a hand-written one may peek
-# Spec std/serde Reading, Derived Implementations: std-serde.read.variant, std-serde.read.choices, std-serde.read.member.local-ref, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.unskipped-order, std-serde.derive.omitted, std-serde.derive.shared.
+# test: a derived Deserialize uses the data hooks for a struct and the variant hooks for an enum, then reads each built member with member and its own deserialize; a hand-written one may peek
+# Spec std/serde Reading, Derived Implementations: std-serde.read.data-record, std-serde.read.enum-record, std-serde.read.choice-metadata, std-serde.read.member.local-ref, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.data-and-enum-forms, std-serde.derive.omitted, std-serde.derive.shared.
 # Spec 14 Serialization: annot.serde.by-hand.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Structure, Facts, VariantInfo, Member}
@@ -116,6 +116,12 @@ impl Deserializer for Feed:
             Tok.Key(name) => .Ok(.Some(name))
             _ => .Ok(.None)
 
+    fn begin_data(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        self.add("data:${choices[0].name}")
+        match self.take():
+            Tok.Pick(index) => .Ok(index)
+            _ => .Err("no data")
+
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
         let mut names: List[string] = []
         for choice in choices:
@@ -129,8 +135,16 @@ impl Deserializer for Feed:
         self.add("newtype")
         .Ok(())
 
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, string]:
+        self.add("tuple:$len")
+        .Ok(())
+
     fn member(&mut self, m: &Member) -> Result[void, string]:
         self.add("member:${m.name}")
+        .Ok(())
+
+    fn end_data(&mut self) -> Result[void, string]:
+        self.add("end-data")
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, string]:
@@ -151,6 +165,8 @@ enum Payment:
     Cash
     Card(last4: string, amount: u32)
     Voucher(code: string)
+    Token(string)
+    Pair(string, u32)
 
 @derive(Deserialize)
 struct Order:
@@ -194,7 +210,7 @@ tests:
         card := read::[Payment]([Tok.Pick(1), Tok.Text("4242"), Tok.Uint(1999)])
         assert_equal(
             card._1,
-            "variant:Cash|Card|Voucher member:last4 text:string member:amount uint:u32 end-variant",
+            "variant:Cash|Card|Voucher|Token|Pair member:last4 text:string member:amount uint:u32 end-variant",
             reason="calls",
         )
         match card._0:
@@ -205,15 +221,27 @@ tests:
         cash := read::[Payment]([Tok.Pick(0)])
         assert_equal(
             cash._1,
-            "variant:Cash|Card|Voucher end-variant",
+            "variant:Cash|Card|Voucher|Token|Pair end-variant",
             reason="a variant with no member",
+        )
+        token := read::[Payment]([Tok.Pick(3), Tok.Text("gift")])
+        assert_equal(
+            token._1,
+            "variant:Cash|Card|Voucher|Token|Pair newtype text:string end-variant",
+            reason="a newtype variant reads its direct payload",
+        )
+        pair := read::[Payment]([Tok.Pick(4), Tok.Item, Tok.Text("4242"), Tok.Item, Tok.Uint(1999)])
+        assert_equal(
+            pair._1,
+            "variant:Cash|Card|Voucher|Token|Pair tuple:2 text:string uint:u32 end-variant",
+            reason="a tuple variant reads direct items",
         )
 
     it("a data type offers its one variant, and a member may be absent"):
         order := read::[Order]([Tok.Pick(0), Tok.Uint(7), Tok.Absent])
         assert_equal(
             order._1,
-            "variant:Order member:id uint:u32 member:note is-null end-variant",
+            "data:Order member:id uint:u32 member:note is-null end-data",
             reason="calls",
         )
         assert_equal(order._0.map(fn(found): found.note), .Ok(.None), reason="absent note")
@@ -222,7 +250,7 @@ tests:
         basket := read::[Basket]([Tok.Pick(0), Tok.Text("ada")])
         assert_equal(
             basket._1,
-            "variant:Basket member:owner text:string end-variant",
+            "data:Basket member:owner text:string end-data",
             reason="no member call for cache",
         )
         assert_equal(basket._0.map(fn(found): found.cache.hits), .Ok(0), reason="default")
@@ -244,7 +272,7 @@ tests:
         bad := read::[Payment]([Tok.Pick(1), Tok.Int(4242), Tok.Uint(1999)])
         assert_equal(
             bad._1,
-            "variant:Cash|Card|Voucher member:last4 text:string",
+            "variant:Cash|Card|Voucher|Token|Pair member:last4 text:string",
             reason="nothing after the error",
         )
         assert_equal(

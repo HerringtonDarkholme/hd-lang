@@ -10,8 +10,8 @@
 //! `T < Structure`. What only an instance can check is the generated
 //! traversal: each `walk`, `describe` or `build` call calls the
 //! `member[F]` of its walker, describer or source once per member, with
-//! `F` the member's type (`annot.walk.members`, `annot.describe.order`,
-//! `annot.build.member`). So every member's type must meet that
+//! `F` the member's type (`annot.walk.enum-members`, `annot.describe.order`,
+//! `annot.build.enum-member`). So every member's type must meet that
 //! `member`'s bounds (`annot.walker.obligation`). The walker type is what
 //! ordinary checking infers at the call, wherever its value came from: a
 //! helper that builds the walker counts as one written in place.
@@ -27,12 +27,13 @@
 use hd_base::SliceSort as _;
 use std::cell::{Cell, RefCell};
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::{Item, ItemData, Lookup, Names};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
+use hd_tir::ir::ChoiceKind;
 use hd_types::solver::{Answer, Evidence, MEMBER_PARAM, MemberOn, MemberStep, TraitRef};
-use hd_types::{ParamRef, Ty, TyData};
+use hd_types::{ParamRef, Ty, TyData, TyList};
 
 use crate::body::{BodyCx, Ck, check_fn_in};
 
@@ -43,6 +44,8 @@ pub struct OptInMember {
     pub label: String,
     /// Its type, over the opt-in's parameters.
     pub ty: Ty,
+    /// Whether this is an unnamed enum payload parameter.
+    pub positional: bool,
     /// Whether it declares a default (`data.default`).
     pub has_default: bool,
     /// Its written type position in the data type or enum (`anchor`
@@ -55,6 +58,9 @@ pub struct OptInMember {
     /// are known before the program runs (`annot.impl-fact.skips.known`),
     /// which [`OptIn::set_fact_types`] fills.
     pub facts: Vec<Ty>,
+    /// Whether some fact is supplied by a non-literal member-line list or
+    /// a spread, and is therefore known only at run time.
+    pub opaque_facts: bool,
 }
 
 /// One derivation opt-in: a derived implementation or a derivation block,
@@ -88,8 +94,15 @@ pub struct OptIn {
     /// The instance check fills it.
     skipped: RefCell<Vec<usize>>,
     /// Whether its template calls `build`, so a member it omits needs a
-    /// declared default (`annot.impl-fact.skips.no-default`).
+    /// value: ordinarily its declared default, or, for serde's skipped
+    /// positional payload, its type's `Default`.
     builds: Cell<bool>,
+    /// Positional members omitted from `build` whose types provably do not
+    /// implement `Default`.
+    missing_type_defaults: RefCell<Vec<usize>>,
+    /// The resolved `Default::default` call choice for each skipped
+    /// positional member that a `build` fills.
+    type_default_choices: RefCell<Vec<(usize, (ChoiceKind, u32))>>,
     /// Failing members found so far: member index and the bound it misses.
     failed: RefCell<Vec<(usize, Ty)>>,
 }
@@ -130,17 +143,36 @@ impl OptIn {
             .any(|&i| self.members[i].place == (variant, position))
     }
 
+    /// Whether an omitted positional member is filled from its type's
+    /// `Default` by this derivation's `build`.
+    #[must_use]
+    pub fn type_default_choice_at(
+        &self,
+        variant: usize,
+        position: usize,
+    ) -> Option<(ChoiceKind, u32)> {
+        let i = self
+            .members
+            .iter()
+            .position(|member| member.place == (variant, position) && member.positional)?;
+        self.type_default_choices
+            .borrow()
+            .iter()
+            .find_map(|(member, choice)| (*member == i).then_some(*choice))
+    }
+
     /// Records the known fact types of each member, per slot, as
     /// `hd_check::declaration_types` gives them for the facts this
     /// derivation sees.
-    pub fn set_fact_types(&mut self, types: &[(crate::structure::Slot, Vec<Ty>)]) {
+    pub fn set_fact_types(&mut self, types: &crate::SlotTypes) {
         for m in &mut self.members {
             let (v, i) = m.place;
-            if let Some((_, ts)) = types
+            if let Some((_, ts, opaque)) = types
                 .iter()
-                .find(|(s, _)| *s == crate::structure::Slot::Member(v, i))
+                .find(|(s, ..)| *s == crate::structure::Slot::Member(v, i))
             {
                 m.facts.clone_from(ts);
+                m.opaque_facts = *opaque;
             }
         }
     }
@@ -197,10 +229,12 @@ impl OptIn {
                     members.push(OptInMember {
                         label: l,
                         ty: ty(f.ty),
+                        positional: false,
                         has_default: f.has_default,
                         slot: slot_of(i),
                         place: (0, i),
                         facts: Vec::new(),
+                        opaque_facts: false,
                     });
                 }
             }
@@ -211,13 +245,17 @@ impl OptIn {
                 let mut at = shared.len();
                 for (k, v) in variants.iter().enumerate() {
                     for (j, f) in v.fields.iter().enumerate() {
+                        let positional =
+                            names.text(f.name).starts_with(|c: char| c.is_ascii_digit());
                         members.push(OptInMember {
                             label: format!("{}.{}", names.text(v.name), label(f)),
                             ty: ty(f.ty),
+                            positional,
                             has_default: f.has_default,
                             slot: slot_of(at),
                             place: (k, j),
                             facts: Vec::new(),
+                            opaque_facts: false,
                         });
                         at += 1;
                     }
@@ -237,6 +275,8 @@ impl OptIn {
             lines: false,
             skipped: RefCell::new(Vec::new()),
             builds: Cell::new(false),
+            missing_type_defaults: RefCell::new(Vec::new()),
+            type_default_choices: RefCell::new(Vec::new()),
             failed: RefCell::new(Vec::new()),
         })
     }
@@ -353,8 +393,8 @@ pub fn member_lines<'t>(src: &hd_resolve::Src<'t>, block: NodeRef<'t>) -> Vec<Me
 
 /// What one checked opt-in yields: one message per failing member, with
 /// the member's index in `opt.members`, in member order; one per member
-/// that a skip fact omits but that declares no default for `build`
-/// (`annot.impl-fact.skips.no-default`); and when it checks clean, the
+/// that a skip fact omits but that has no applicable default for `build`;
+/// and when it checks clean, the
 /// checked template bodies by template method.
 pub struct OptInCheck {
     pub failures: Vec<(usize, String)>,
@@ -386,7 +426,7 @@ pub fn check_opt_in(
     failed.dedup_by_key(|f| f.0);
     let names = &cx.names;
     let target = hd_resolve::show_ty(names, opt.target);
-    let failures: Vec<(usize, String)> = failed
+    let mut failures: Vec<(usize, String)> = failed
         .into_iter()
         .map(|(i, bound)| {
             let m = &opt.members[i];
@@ -400,17 +440,74 @@ pub fn check_opt_in(
             (i, msg)
         })
         .collect();
+    if opt.trait_ == names.known.serialize {
+        let skip_none = names.item("std.serde", "SkipNone");
+        for (i, member) in opt.members.iter().enumerate() {
+            let carries_skip_none = member.positional
+                && member.facts.iter().any(|&fact| {
+                    matches!(
+                        names.pool.get(fact),
+                        TyData::Adt { def, .. } if def == skip_none
+                    )
+                });
+            if carries_skip_none {
+                failures.retain(|(member, _)| *member != i);
+                failures.push((
+                    i,
+                    format!(
+                        "the positional member `{}` carries `SkipNone`, whose presence varies per value, so {target} cannot derive Serialize",
+                        member.label
+                    ),
+                ));
+            }
+        }
+        failures.sort_stable_by_key(|failure| failure.0);
+    }
+    if opt.trait_ == names.known.serialize || opt.trait_ == names.known.deserialize {
+        for (i, member) in opt.members.iter().enumerate() {
+            if member.positional && member.opaque_facts {
+                failures.retain(|(member, _)| *member != i);
+                failures.push((
+                    i,
+                    format!(
+                        "the positional member `{}` carries an opaque fact list or spread whose shape-changing facts cannot be known at derive time, so {target} cannot derive {}",
+                        member.label,
+                        names.display_name(opt.trait_)
+                    ),
+                ));
+            }
+        }
+        failures.sort_stable_by_key(|failure| failure.0);
+    }
     let mut skipped = opt.skipped.borrow().clone();
     skipped.sort_stable();
+    let missing_type_defaults = opt.missing_type_defaults.borrow();
     let no_default: Vec<(usize, String)> = skipped
         .into_iter()
-        .filter(|&i| opt.builds.get() && !opt.members[i].has_default)
+        .filter(|&i| {
+            opt.builds.get()
+                && if opt.trait_ == names.known.deserialize && opt.members[i].positional {
+                    missing_type_defaults.contains(&i)
+                } else {
+                    !opt.members[i].has_default
+                }
+        })
         .map(|i| {
-            let msg = format!(
-                "the member `{}` is skipped but declares no default for `build` to use, so {target} cannot derive {}",
-                opt.members[i].label,
-                names.display_name(opt.trait_)
-            );
+            let member = &opt.members[i];
+            let msg = if opt.trait_ == names.known.deserialize && member.positional {
+                format!(
+                    "the positional member `{}` is skipped but its type {} does not implement `Default`, so `build` has no value to use and {target} cannot derive {}; implement `Default` for that type",
+                    member.label,
+                    hd_resolve::show_ty(names, member.ty),
+                    names.display_name(opt.trait_)
+                )
+            } else {
+                format!(
+                    "the member `{}` is skipped but declares no default for `build` to use, so {target} cannot derive {}",
+                    member.label,
+                    names.display_name(opt.trait_)
+                )
+            };
             (i, msg)
         })
         .collect();
@@ -543,6 +640,7 @@ pub fn instance(
 /// `fills_defaults()` (`annot.impl-fact.fills-defaults`).
 struct WalkerBounds {
     member: Vec<(DefId, Ty)>,
+    data_member: Vec<(DefId, Ty)>,
     rest: Option<Vec<(DefId, Ty)>>,
     fills_defaults: bool,
     /// The call is `build`.
@@ -550,6 +648,66 @@ struct WalkerBounds {
     /// The fact types its implementation names with `skips::[F]()`
     /// (`annot.impl-fact.skips`).
     skips: Vec<Ty>,
+}
+
+/// A generic structure-protocol method that receives a walked member's
+/// type. The role follows the protocol signature, not the method's name:
+/// a describer receives the field handle, while a walker or source also
+/// receives the member value. A source's `missing` has no value parameter
+/// and therefore stays outside this exemption (`annot.walker.strengthen-member-hook`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StructureMemberRole {
+    Member,
+    DataMember,
+    Rest,
+}
+
+pub(crate) fn structure_member_role(
+    names: Names<'_>,
+    lookup: &Lookup<'_>,
+    trait_: DefId,
+    method: DefId,
+) -> Option<StructureMemberRole> {
+    let known = names.known;
+    let protocol = trait_ == known.walker || trait_ == known.describer || trait_ == known.source;
+    if !protocol {
+        return None;
+    }
+    let ItemData::Method { sig, has_body, .. } = &lookup.item(method)?.data else {
+        return None;
+    };
+    let generic = sig.generics.first()?;
+    if generic.row {
+        return None;
+    }
+    let uses = sig
+        .params
+        .iter()
+        .skip(1)
+        .filter(|(_, ty)| crate::trial::names_param(names.pool.types(), *ty, method, 0))
+        .count();
+    if trait_ == known.describer {
+        return (uses == 1).then_some(StructureMemberRole::Member);
+    }
+    if uses < 2 {
+        return None;
+    }
+    let value = sig.params.last()?.1;
+    let direct = match names.pool.get(value) {
+        TyData::Param(p) => p.owner == method && p.index == 0,
+        TyData::Option(inner) => matches!(
+            names.pool.get(inner),
+            TyData::Param(p) if p.owner == method && p.index == 0
+        ),
+        _ => false,
+    };
+    if trait_ == known.walker && !direct {
+        Some(StructureMemberRole::Rest)
+    } else if *has_body {
+        Some(StructureMemberRole::DataMember)
+    } else {
+        Some(StructureMemberRole::Member)
+    }
 }
 
 impl<'c> Ck<'_, 'c> {
@@ -586,7 +744,7 @@ impl<'c> Ck<'_, 'c> {
     /// implementation's arguments, the template's `T` and the method's own
     /// parameter. `None` for another call, and for a generic walker, whose
     /// `member` is the trait's and bounds nothing
-    /// (`annot.walker.generic-member-call`).
+    /// (`annot.walker.generic-member-hook-call`).
     fn walker_bounds(
         &mut self,
         template: DefId,
@@ -654,19 +812,30 @@ impl<'c> Ck<'_, 'c> {
                     .collect(),
             )
         };
-        let Some(member) = self.impl_method(def, "member").and_then(bounds) else {
+        let Some(ItemData::Trait(td)) = self.cx.lookup.item(protocol).map(|item| &item.data) else {
             return Ok(None);
         };
-        let rest = if protocol == k.walker {
-            self.impl_method(def, "rest").and_then(bounds)
-        } else {
-            None
+        let role_bounds = |role| {
+            td.methods.iter().find_map(|(name, method)| {
+                (structure_member_role(self.cx.names, self.cx.lookup, protocol, *method)
+                    == Some(role))
+                .then(|| self.impl_method(def, *name))
+                .flatten()
+                .and_then(bounds)
+            })
         };
+        let Some(member) = role_bounds(StructureMemberRole::Member) else {
+            return Ok(None);
+        };
+        let data_member =
+            role_bounds(StructureMemberRole::DataMember).unwrap_or_else(|| member.clone());
+        let rest = role_bounds(StructureMemberRole::Rest);
         let item = self.cx.lookup.item(def);
         let fills_defaults = protocol == k.source && item.is_some_and(|it| it.fills_defaults);
         let skips = item.map(|it| it.skips.clone()).unwrap_or_default();
         Ok(Some(WalkerBounds {
             member,
+            data_member,
             rest,
             fills_defaults,
             source: protocol == k.source,
@@ -710,6 +879,39 @@ impl<'c> Ck<'_, 'c> {
             }
         }
         let skipped = opt.skipped.borrow().clone();
+        if opt.builds.get() && opt.trait_ == self.cx.names.known.deserialize {
+            for &i in &skipped {
+                let member = &opt.members[i];
+                if !member.positional
+                    || opt.missing_type_defaults.borrow().contains(&i)
+                    || opt
+                        .type_default_choices
+                        .borrow()
+                        .iter()
+                        .any(|(member, _)| *member == i)
+                {
+                    continue;
+                }
+                let tref = TraitRef {
+                    trait_: self.cx.names.known.default,
+                    self_ty: member.ty,
+                    args: TyList::EMPTY,
+                };
+                if !pool.has_poison(member.ty) {
+                    match self.solve(tref)? {
+                        Answer::Holds { evidence, .. } => opt
+                            .type_default_choices
+                            .borrow_mut()
+                            .push((i, self.choice_of(Some(&evidence)))),
+                        _ => opt.missing_type_defaults.borrow_mut().push(i),
+                    }
+                }
+            }
+        }
+        let data = matches!(
+            self.cx.lookup.item(opt.data).map(|item| &item.data),
+            Some(ItemData::Data(_))
+        );
         for wb in found {
             if wb.fills_defaults {
                 opt.fills_declared.set(true);
@@ -718,7 +920,8 @@ impl<'c> Ck<'_, 'c> {
                 if skipped.contains(&i) || (wb.fills_defaults && mem.has_default) {
                     continue;
                 }
-                for &(m, b) in &wb.member {
+                let bounds = if data { &wb.data_member } else { &wb.member };
+                for &(m, b) in bounds {
                     let b = pool.subst(b, &|p: ParamRef| {
                         if p.owner == m && p.index == 0 {
                             Some(mem.ty)
@@ -796,16 +999,12 @@ impl<'c> Ck<'_, 'c> {
         Ok(())
     }
 
-    /// The method `name` that a walker, describer or source
-    /// implementation writes.
-    fn impl_method(&self, impl_: DefId, name: &str) -> Option<DefId> {
+    /// The method `name` that a walker, describer or source implementation writes.
+    fn impl_method(&self, impl_: DefId, name: Symbol) -> Option<DefId> {
         let ItemData::Impl { methods, .. } = &self.cx.lookup.item(impl_)?.data else {
             return None;
         };
-        methods
-            .iter()
-            .find(|(n, _)| self.cx.names.text(*n) == name)
-            .map(|(_, d)| *d)
+        methods.iter().find(|(n, _)| *n == name).map(|(_, d)| *d)
     }
 
     /// Whether a member of type `ty` provably misses the trait value

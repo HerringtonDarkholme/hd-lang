@@ -1,5 +1,5 @@
 # test: each standard Serialize writes exactly one value of the data model with its own call, and a derived newtype writes its base value
-# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.newtype-variant, std-serde.model.one-value, std-serde.model.len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.result, std-serde.std.list, std-serde.std.map-entries.
+# Spec std/serde Data Model, Standard Implementations: std-serde.model.null, std-serde.model.bool, std-serde.model.int, std-serde.model.uint, std-serde.model.float, std-serde.model.text, std-serde.model.list, std-serde.model.map, std-serde.model.newtype-variant, std-serde.model.one-value, std-serde.model.container-len, std-serde.std.bool, std-serde.std.text, std-serde.std.char, std-serde.std.signed, std-serde.std.unsigned, std-serde.std.float, std-serde.std.optional, std-serde.std.result, std-serde.std.list, std-serde.std.map-entries.
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Facts, VariantInfo, Member}
@@ -56,6 +56,14 @@ impl Serializer for Calls:
 
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.add("newtype:${v.name}")
+
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
+        self.add("tuple:${v.name}:$len")
 
     fn member(&mut self, m: &Member) -> Result[void, never]:
         self.add("member:${m.name}")

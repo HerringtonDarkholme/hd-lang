@@ -137,8 +137,20 @@ fn literal_elems<'t>(
 }
 
 /// The concrete types of the facts that each slot of a data type or enum
-/// holds, in order, after the layers so far.
-pub type SlotTypes = Vec<(Slot, Vec<Ty>)>;
+/// holds, in order, after the layers so far, and whether some fact is known
+/// only at run time. The latter is true for a non-literal member-line list or
+/// a spread in a literal (`annot.line.duplicate`).
+pub type SlotTypes = Vec<(Slot, Vec<Ty>, bool)>;
+
+fn has_opaque_source(sources: &[FactSource<'_>]) -> bool {
+    sources.iter().any(|source| match *source {
+        FactSource::Value(_) => false,
+        FactSource::List(list) if list.kind() == SyntaxKind::ListExpr => {
+            list.children().any(|e| e.kind() == SyntaxKind::SpreadExpr)
+        }
+        FactSource::List(_) | FactSource::Body(..) => true,
+    })
+}
 
 /// The types of the declaration facts `view` of the type `data`, which
 /// module `cx` declares, in `cx`.
@@ -149,7 +161,7 @@ pub fn declaration_types(cx: &BodyCx<'_>, data: DefId, view: &FactLines<'_>) -> 
         .map(|(slot, sources)| {
             let elems = literal_elems(cx, sources, None);
             let types = report_repeats(cx, data, view.target(slot), (&elems, Some(&[])), None);
-            (slot, types)
+            (slot, types, has_opaque_source(sources))
         })
         .collect()
 }
@@ -171,10 +183,12 @@ pub fn layer_types<'t>(
     let mut diags = diags;
     let mut out = SlotTypes::new();
     for (slot, sources) in view.slots() {
-        let held: &[Ty] = match prior.iter().find(|(s, _)| *s == slot) {
-            Some((_, types)) if !replaced.contains(&slot) => types,
+        let prior = prior.iter().find(|(s, ..)| *s == slot);
+        let held: &[Ty] = match prior {
+            Some((_, types, _)) if !replaced.contains(&slot) => types,
             _ => &[],
         };
+        let held_opaque = !replaced.contains(&slot) && prior.is_some_and(|(_, _, opaque)| *opaque);
         let elems = literal_elems(cx, sources, Some(mine));
         let new = report_repeats(
             cx,
@@ -183,7 +197,11 @@ pub fn layer_types<'t>(
             (&elems, Some(held)),
             diags.as_deref_mut(),
         );
-        out.push((slot, [held, new.as_slice()].concat()));
+        out.push((
+            slot,
+            [held, new.as_slice()].concat(),
+            held_opaque || has_opaque_source(sources),
+        ));
     }
     Some(out)
 }

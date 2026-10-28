@@ -4086,16 +4086,16 @@ impl Ck<'_, '_> {
                     TyData::Mut(i) => i,
                     _ => t,
                 };
-                // `annot.walker.generic-member-call` and
-                // `annot.walker.generic-rest-call`: `member` (and a
-                // walker's `rest`) through a generic protocol type is for
-                // generated code only. The protocol's own `Self` still
-                // calls them, as a `rest` default body must.
-                let known = self.cx.names.known;
-                let protocol =
-                    trait_ == known.walker || trait_ == known.describer || trait_ == known.source;
-                if protocol
-                    && (name == "member" || (name == "rest" && trait_ == known.walker))
+                // `annot.walker.generic-member-hook-call`: a generic
+                // structure member hook is for generated code only. The
+                // protocol's own `Self` still calls it, as a default hook must.
+                if crate::derive::structure_member_role(
+                    self.cx.names,
+                    self.cx.lookup,
+                    trait_,
+                    method,
+                )
+                .is_some()
                     && let TyData::Param(p) = pool.get(t)
                     && (p.owner != trait_ || p.index != 0)
                 {

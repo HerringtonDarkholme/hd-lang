@@ -154,6 +154,9 @@ impl Deserializer for EnvReader:
     fn begin_newtype_variant(&mut self) -> Result[void, HostError]:
         .Err(self.invalid("a newtype variant"))
 
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, HostError]:
+        .Err(self.invalid("a tuple variant"))
+
     fn member(&mut self, m: &Member) -> Result[void, HostError]:
         if m.positional:
             return .Err(self.root_error())

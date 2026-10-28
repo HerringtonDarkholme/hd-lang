@@ -1,7 +1,7 @@
 # test: a missing key takes the member's declared default, then a T? reads .None, and any other member is a MissingField; a present null is read, not defaulted
-# Spec std/json Derived Deserialize: std-json.derive.from-json.default, std-json.derive.from-json.null-present, std-json.derive.from-json.missing, std-json.derive.from-json.payload (issue 371).
+# Spec std/json Derived Deserialize: std-json.derive.from-json.default, std-json.derive.from-json.null-present, std-json.derive.from-json.missing, std-json.derive.from-json.included-payload-form (issue 371).
 # Spec std/serde Derived Implementations: std-serde.derive.deserialize.unskipped-default.
-# Spec 14 Build: annot.build.member.
+# Spec 14 Build: annot.build.enum-member.
 use std.json.{decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 

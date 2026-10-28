@@ -675,6 +675,11 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageRe
             embedded: f.embedded,
             has_default: f.has_default,
             omitted,
+            type_default: if omitted {
+                opt.type_default_choice_at(v, i)
+            } else {
+                None
+            },
             rest: false,
             self_ref: SelfRefs::new(cx, data).member(t),
             facts: fact(v, i),

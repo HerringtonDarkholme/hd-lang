@@ -1,0 +1,114 @@
+# test: a struct uses the data hooks while an enum uses the variant hooks
+# expect-stdout: 1 0 2 0 x=1;y=2;
+# expect-stdout: 0 1 0 2 _0=3;_1=4;
+# expect-stdout: 107 108
+# Spec 14 Typed Derivation: annot.walk.data-variant-hook, annot.walk.data-member-hook,
+# annot.build.data-variant-hook, annot.build.data-member-hook.
+use std.structure.{Structure, Field, Variant, Members, Key, Walker, Source}
+
+struct Trace:
+    data_variants: usize
+    variants: usize
+    data_members: usize
+    members: usize
+    text: string
+
+impl[S] Walker[S] for Trace:
+    type Error = never
+
+    fn data_variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.data_variants += 1
+        .Ok(())
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants += 1
+        .Ok(())
+
+    fn data_member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.data_members += 1
+        self.text += "${h.info.name}=$value;"
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.members += 1
+        self.text += "${h.info.name}=$value;"
+        .Ok(())
+
+trait Seen:
+    fn seen(self) -> string
+
+impl[T] Seen for T by Structure:
+    fn seen(self) -> string:
+        let mut trace = Trace {
+            data_variants: 0,
+            variants: 0,
+            data_members: 0,
+            members: 0,
+            text: "",
+        }
+        _ := Structure::walk(self, &mut trace)
+        "${trace.data_variants} ${trace.variants} ${trace.data_members} ${trace.members} ${trace.text}"
+
+trait Seed:
+    fn seed(n: i32) -> Self
+
+impl Seed for i32:
+    fn seed(n: i32) -> i32:
+        n
+
+struct Counter:
+    next: i32
+    at: usize
+
+impl[S] Source[S] for Counter:
+    type Error = never
+
+    fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], never]:
+        self.next += 100
+        .Ok(choice)
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        info := members.infos[self.at]
+        self.at += 1
+        .Ok(members.at(info.position))
+
+    fn data_member[F < Seed](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        value := F::seed(self.next)
+        self.next += 1
+        .Ok(value)
+
+    fn member[F < Seed](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        panic("an enum is not built in this fixture")
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("the counter names every member")
+
+trait Make:
+    fn make(start: i32) -> Self
+
+impl[T] Make for T by Structure:
+    fn make(start: i32) -> T:
+        let mut counter = Counter { next: start, at: 0 }
+        match T::build(&mut counter):
+            .Ok(value) => value
+            .Err(_) => panic("the counter never fails")
+
+@derive(Seen, Make)
+struct Point:
+    x: i32
+    y: i32
+
+@derive(Seen)
+enum Pair:
+    Both(i32, i32)
+
+pub fn main() -> void $ Console:
+    println(Point { x: 1, y: 2 }.seen())
+    println(Pair.Both(3, 4).seen())
+    point := Point::make(7)
+    println("${point.x} ${point.y}")

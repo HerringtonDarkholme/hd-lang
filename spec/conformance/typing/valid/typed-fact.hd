@@ -5,7 +5,7 @@
 # Handles: annot.handle.member-type, annot.handle.fact.typed,
 # annot.handle.fact.pattern, annot.handle.fact.pattern.example,
 # annot.handle.fact.pattern.written.
-# Walkers: annot.walker.strengthen-member, annot.walker.not-sealed,
+# Walkers: annot.walker.strengthen-member-hook, annot.walker.not-sealed,
 # annot.walker.obligation.
 # (owner decisions O7, batch 36, and ANNOTATE-TYPED, batch 39, 2026-10-01).
 use std.annotation.annotate

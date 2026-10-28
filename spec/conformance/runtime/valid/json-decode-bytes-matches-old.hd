@@ -561,6 +561,22 @@ impl Deserializer for OldReader:
                 .Ok(())
             .None => .Err(self.fail("variant"))
 
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, JsonError]:
+        frame := self.top()
+        self.path = frame.base
+        match frame.variant_payload:
+            .Some(payload) =>
+                match payload:
+                    .Array(items) =>
+                        if items.len() == len:
+                            frame.items = &items
+                            frame.newtype = true
+                            self.present = true
+                            return .Ok(())
+                    _ => pass
+            .None => pass
+        .Err(self.fail("array of $len items"))
+
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member-wire-name).
     fn member(&mut self, m: &Member) -> Result[void, JsonError]:

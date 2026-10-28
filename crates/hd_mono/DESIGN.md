@@ -278,7 +278,7 @@ cancel function (§14.6).
   `describe` and `build`, are ordinary bodies (§4.13.9). With the
   walker's type known at each instance, every `w.member(h, value)` call is
   direct, so a derived `encode` is straight-line code
-  ([`annot.walk.members`](../../spec/lang/14-annotations.md#r-annot.walk.members)).
+  ([`annot.walk.enum-members`](../../spec/lang/14-annotations.md#r-annot.walk.enum-members)).
   Member handles are built once per owner instance and held in globals,
   like facts (see "The derivation's own `Structure`" below).
 - **The derivation's own `Structure`.** Each derivation sees

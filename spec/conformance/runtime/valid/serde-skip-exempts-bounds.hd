@@ -1,5 +1,5 @@
 # test: a skipped member's type needs neither Serialize nor Deserialize, and the value round-trips through JSON
-# Spec std/serde Skipped Members: std-serde.skip.no-bound, std-serde.skip.read.
+# Spec std/serde Skipped Members: std-serde.skip.no-bound, std-serde.skip.named-read-default.
 use std.json.{decode, encode}
 use std.serde.{Serialize, Deserialize, skip}
 
