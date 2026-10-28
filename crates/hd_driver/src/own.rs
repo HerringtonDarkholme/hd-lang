@@ -16,7 +16,7 @@ use hd_base::HashMap;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
 use hd_opt::inline::{InlineEnv, InlineHint};
-use hd_opt::structure_specialize::{GeneratedHandle, StructureAccessor, StructureEnv};
+use hd_opt::structure_specialize::{GeneratedHandle, StructureEnv};
 use hd_tir::ir::{Body, Callee, ChoiceKind};
 use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri};
 use hd_types::solver::{
@@ -586,15 +586,12 @@ impl StructureEnv for Env<'_> {
         }
     }
 
-    fn structure_accessor(&self, def: DefId) -> Option<StructureAccessor> {
-        if self.run.item_module_text(def) != "std.structure" {
-            return None;
-        }
-        match self.run.names().display_name(def) {
-            "get" => Some(StructureAccessor::Get),
-            "holds" => Some(StructureAccessor::Holds),
-            _ => None,
-        }
+    fn field_get(&self) -> DefId {
+        self.run.known.field_get
+    }
+
+    fn variant_holds(&self) -> DefId {
+        self.run.known.variant_holds
     }
 }
 

@@ -29,6 +29,12 @@ pub struct KnownItems {
     pub structure: DefId,
     /// `FieldRecord`, which a `Field` handle refers to.
     pub field: DefId,
+    /// `FieldRecord.get`, whose generated handle call a closed Structure walk
+    /// may replace with a direct projection.
+    pub field_get: DefId,
+    /// `VariantRecord.holds`, whose generated handle call a closed data walk
+    /// may replace with the known result.
+    pub variant_holds: DefId,
     pub walker: DefId,
     pub describer: DefId,
     pub source: DefId,
@@ -169,6 +175,10 @@ impl KnownItems {
         };
         let item =
             |m: &str, n: &str| DefId::from_raw(paths.intern(module(m), PathKind::Item, n).raw());
+        let inherent_method = |m: &str, imp: &str, n: &str| {
+            let owner = paths.intern(module(m), PathKind::Impl, imp);
+            DefId::from_raw(paths.intern(owner, PathKind::Member, n).raw())
+        };
         let any = item("std.core", "Any");
         let any_val = item("std.core", "AnyVal");
         let any_ref = item("std.core", "AnyRef");
@@ -192,6 +202,16 @@ impl KnownItems {
             tuple,
             structure,
             field: item("std.structure", "FieldRecord"),
+            field_get: inherent_method(
+                "std.structure",
+                "impl [ HdS , HdF ] FieldRecord [ HdS , HdF ]",
+                "get",
+            ),
+            variant_holds: inherent_method(
+                "std.structure",
+                "impl [ HdS ] VariantRecord [ HdS ]",
+                "holds",
+            ),
             walker: item("std.structure", "Walker"),
             describer: item("std.structure", "Describer"),
             source: item("std.structure", "Source"),

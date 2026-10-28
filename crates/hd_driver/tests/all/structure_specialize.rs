@@ -51,9 +51,41 @@ impl Total for Manual:
     fn total(self) -> i32:
         self.value
 
+trait Same:
+    fn same(self, other: Self) -> bool
+
+impl Same for i32:
+    fn same(self, other: i32) -> bool:
+        self == other
+
+struct SameWalker[S]:
+    other: S
+    equal: bool
+
+impl[S] Walker[S] for SameWalker[S]:
+    type Error = never
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F < Same](&mut self, handle: Field[S, F], value: F) -> Result[void, never]:
+        other := handle.get(self.other)
+        self.equal = self.equal && value.same(other)
+        .Ok(())
+
+impl[T] Same for T by Structure:
+    fn same(self, other: T) -> bool:
+        let mut walker = SameWalker { other: other, equal: true }
+        _ := Structure::walk(self, &mut walker)
+        walker.equal
+
+@derive(Same)
+enum Shape:
+    Circle(radius: i32)
+    Square(side: i32)
+
 pub fn main() -> void $ Console:
     println(Pair { left: 20, right: 22 }.total() + Manual { value: 1 }.total())
     println(Pair { left: 1, right: 2 } == Pair { left: 1, right: 2 })
+    println(Shape.Circle(+1).same(Shape.Square(+2)))
 ";
 
 fn built(level: OptLevel) -> hd_driver::Output {
@@ -94,7 +126,7 @@ fn own<'a>(output: &'a hd_driver::Output, path: &str) -> &'a str {
 }
 
 #[test]
-fn a_closed_generated_walk_specializes_and_dev_keeps_the_generic_call() {
+fn a_closed_generated_walk_specializes_but_an_enum_get_keeps_its_check() {
     let release = built(OptLevel::Optimized);
     assert!(release.diags.is_empty(), "{}", release.render());
     let release_total = own(&release, "derive Total for Pair.total");
@@ -112,6 +144,11 @@ fn a_closed_generated_walk_specializes_and_dev_keeps_the_generic_call() {
     assert!(
         release_eq.contains("[%13 .left]") || release_eq.contains(".left]"),
         "{release_eq}"
+    );
+    let release_same = own(&release, "derive Same for Shape.same");
+    assert!(
+        release_same.contains("FieldRecord [ HdS , HdF ].get"),
+        "{release_same}"
     );
 
     let dev = built(OptLevel::Dev);

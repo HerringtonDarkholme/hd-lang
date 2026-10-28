@@ -22,8 +22,11 @@ pub trait StructureEnv: InlineEnv {
     /// A generated immutable handle factory, if `def` is one.
     fn generated_structure_handle(&self, def: DefId) -> Option<GeneratedHandle>;
 
-    /// A std Structure record accessor that this pass can fold.
-    fn structure_accessor(&self, def: DefId) -> Option<StructureAccessor>;
+    /// The known `std.structure.FieldRecord.get` method.
+    fn field_get(&self) -> DefId;
+
+    /// The known `std.structure.VariantRecord.holds` method.
+    fn variant_holds(&self) -> DefId;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,7 +36,7 @@ pub enum GeneratedHandle {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StructureAccessor {
+enum StructureAccessor {
     Get,
     Holds,
 }
@@ -87,12 +90,15 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
     key.finish()
 }
 
-/// Replaces the selected field handle's `hd_get` with a direct projection.
-/// A data type's sole variant is known to hold, so its `hd_holds` becomes
-/// true as well. Enum `holds` keeps the generic accessor until a switch can
-/// be rebuilt without changing control-flow order.
+/// Replaces a data type's selected field handle `hd_get` with a direct
+/// projection. Its sole variant is known to hold, so its `hd_holds` becomes
+/// true as well. Enum accessors keep their checks until this pass proves the
+/// active switch arm; projecting an enum field without that proof would skip
+/// `structure-variant-mismatch`.
 fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
     let stores = stored_values(body);
+    let field_get = env.field_get();
+    let variant_holds = env.variant_holds();
     for call in 0..body.len() {
         if body.tags[call] != Tag::Call {
             continue;
@@ -101,7 +107,11 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
         else {
             continue;
         };
-        let Some(accessor) = env.structure_accessor(def) else {
+        let accessor = if def == field_get {
+            StructureAccessor::Get
+        } else if def == variant_holds {
+            StructureAccessor::Holds
+        } else {
             continue;
         };
         let record = body.record(body.data[call][1]).to_vec();
@@ -113,18 +123,18 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
             continue;
         };
         match (accessor, handle, args) {
-            (StructureAccessor::Get, GeneratedHandle::Field { variant, field }, [_, target]) => {
+            (StructureAccessor::Get, GeneratedHandle::Field { field, .. }, [_, target]) => {
                 let Some((def, targs)) = adt_of_ref(body, *target, env) else {
                     continue;
                 };
-                let mut proj = Vec::new();
                 if env.enum_variants(def, targs).is_some() {
-                    proj.push(Proj::Variant(variant));
+                    // The handle's variant is not a proof about `target`:
+                    // user walkers may call `get` with another enum value.
+                    continue;
                 }
-                proj.push(Proj::Field(field));
                 let Some(words) = (Place {
                     root: PlaceRoot::Value(Ref(*target)),
-                    proj,
+                    proj: vec![Proj::Field(field)],
                 })
                 .words() else {
                     continue;

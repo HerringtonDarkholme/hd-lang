@@ -79,6 +79,8 @@ fn every_known_item_is_declared() {
         ("tuple", known.tuple),
         ("structure", known.structure),
         ("field", known.field),
+        ("field_get", known.field_get),
+        ("variant_holds", known.variant_holds),
         ("walker", known.walker),
         ("describer", known.describer),
         ("source", known.source),
