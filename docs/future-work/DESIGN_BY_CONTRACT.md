@@ -1,9 +1,9 @@
 # Design By Contract
 
-Status: design exploration, 2026-10-28; `@cfg` profile selection is decided in
-#965, while the contract API is not accepted or in the specification.
+Status: design accepted 2026-10-28; not implemented. Building waits on `@cfg`
+profile selection in #965.
 
-This record explores [issue #880](https://github.com/HerringtonDarkholme/hd-lang/issues/880).
+This record resolves [issue #880](https://github.com/HerringtonDarkholme/hd-lang/issues/880).
 It reviews [Functions](../../spec/lang/07-functions.md),
 [Deferred Cleanup](../../spec/lang/06-control-flow.md#deferred-cleanup),
 [Runtime Panics](../../spec/lang/06-control-flow.md#runtime-panics), and
@@ -19,9 +19,8 @@ It reviews [Functions](../../spec/lang/07-functions.md),
 6. [Compiler-known contract decorators](#6-compiler-known-contract-decorators)
 7. [Native contract clauses](#7-native-contract-clauses)
 8. [Comparison](#8-comparison)
-9. [Recommendation](#9-recommendation)
-10. [Questions for the owner](#10-questions-for-the-owner)
-11. [Sources and parse log](#11-sources-and-parse-log)
+9. [Accepted design](#9-accepted-design)
+10. [Sources and parse log](#10-sources-and-parse-log)
 
 ## 1. The Domain
 
@@ -142,8 +141,8 @@ Three takeaways follow.
 3. A closure type forbids requirements and suspension, but not captured
    mutation; release-removable checks still need author discipline.
 
-The smallest approved mechanism is ordinary std code selected by `@cfg`.
-Automatic postconditions and invariants still need a separate boundary design.
+The accepted mechanism is ordinary std code selected by `@cfg`.
+Automatic postconditions and invariants are not part of this design.
 
 ## 4. Plain Library Checks
 
@@ -479,12 +478,11 @@ The decorator and clause options have the same hard semantic questions. The
 surface does not solve invariant boundaries, trait composition, cleanup order,
 or `old` aliasing.
 
-## 9. Recommendation
+## 9. Accepted Design
 
-**Recommendation: add the two `@cfg` declarations of
+**Add the two `@cfg` declarations of
 `require(message="requirement failed", condition: fn() -> bool)` first, and
-prefer compiler-known decorators only if automatic postconditions later prove
-necessary.**
+leave automatic postconditions for a later design.**
 
 1. Run `require` in debug and test builds; compile its empty release variant,
    call and closure away.
@@ -492,92 +490,27 @@ necessary.**
    read-only-capture rule; captured mutation is allowed but must not be
    essential program behavior.
 3. Keep the optional message first so the condition is the single trailing
-   block. Initially keep `explicit-panic`; do not spend an intrinsic only for
-   a category.
+   block. Use the existing `explicit-panic`; do not add an intrinsic or a new
+   failure category.
 4. Build `ensure` later as a synchronous `using` guard after #961 and #962.
    Record that a library guard still cannot observe the saved result.
-5. If automatic result postconditions are approved, use `@require` and
-   `@ensure`; existing decorator grammar avoids a new header language.
-6. Do not approve automatic invariants until stable construction and mutation
-   boundaries are chosen.
+5. Do not add automatic invariants. Stable construction and mutation boundaries
+   are not defined, and explicit checks remain available.
 
 This first slice gives up first-class postcondition documentation and all
 release checks. It also accepts the familiar debug-assert hazard that mutation
 inside a condition disappears in release.
 
-The next-best option is native clauses if contracts become central enough to
-justify syntax. Clauses are more honest than compiler-special decorators about
-their control-flow behavior.
+The combinator and automatic decorator/clause alternatives remain documented
+above as rejected or deferred paths. They do not add an accepted API.
 
-The combinator is not recommended as the general answer. It changes reference,
-cleanup, requirement-row and `return` behavior merely to avoid compiler support.
-
-## 10. Questions For The Owner
-
-1. **If automatic postconditions are wanted, which surface should carry them?**
-   - **Recommended:** compiler-known `@require` and `@ensure` decorators.
-   - Native function clauses.
-   - A library `contract(body, post)` wrapper.
-
-```text
-@ensure(fn(result: i64, amount: i64) -> bool: result >= -amount)
-fn change(amount: i64) -> i64:
-    0 - amount
-```
-
-2. **What failure identity should a plain library `require` use?**
-   - **Recommended:** existing `explicit-panic` for the first library-only slice.
-   - Add `contract-violation` immediately through a compiler panic intrinsic.
-   - Reuse `assertion-failed` from `std.testing`.
-
-```text
-fn open(port: u16) -> void:
-    require("port zero is reserved"):
-        port > 0
-```
-
-3. **What does `old` copy?**
-   - **Recommended:** evaluate the written expression once with ordinary hd copy semantics.
-   - Deep-copy every reachable object.
-   - Permit only values, not reference-typed expressions.
-
-```text
-@ensure(fn(result: i64, account: &Account) -> bool:
-    result == old(account.balance)
-)
-fn balance(account: &Account) -> i64:
-    account.balance
-```
-
-4. **Which values may declare an automatic invariant?**
-   - **Recommended:** postpone invariants until construction and mutation boundaries are designed.
-   - Only structs with no public fields, checked after construction and exported methods.
-   - Every struct, checked after each complete construction and each field write.
-
-```text
-@invariant(fn(account: &Account) -> bool: account.balance >= 0)
-struct Account:
-    balance: i64
-```
-
-5. **How should trait contracts compose?**
-   - **Recommended:** a replacement may weaken preconditions and strengthen postconditions.
-   - Require exact contract identity across trait and implementation.
-   - Apply only the contract visible at the static call site.
-
-```text
-trait Store:
-    @ensure(fn(result: bool) -> bool: result)
-    fn save(&mut self, value: string) -> bool
-```
-
-## 11. Sources And Parse Log
+## 10. Sources And Parse Log
 
 Sources were read on 2026-10-28. The survey links the primary source for each
 claim. Repository sources are the spec sections linked in the status and
 problem sections, plus [issue #879](https://github.com/HerringtonDarkholme/hd-lang/issues/879).
 
-All 16 `text` blocks were checked with `scripts/hd-conformance.sh parse`.
-Fourteen current/decorator-surface blocks parse. The two native-clause blocks
+All 11 `text` blocks were checked with `scripts/hd-conformance.sh parse`.
+Nine current/decorator-surface blocks parse. The two native-clause blocks
 reject as expected. Parsing validates syntax only, not proposed names or
 compiler behavior.
