@@ -1,0 +1,85 @@
+use std.http.{Body, BodyError, HeaderError, Headers, Request}
+
+## One named part of a buffered multipart/form-data message.
+@derive(Debug, Eq)
+pub struct MultipartPart:
+    pub name: string
+    pub filename: string? = .None
+    pub headers: Headers = Headers::new()
+    pub body: Body
+
+## Ordered buffered multipart/form-data parts.
+@derive(Debug, Eq)
+pub struct Multipart:
+    pub parts: List[MultipartPart]
+
+impl Multipart:
+    pub fn new() -> Multipart:
+        Multipart { parts: [] }
+
+    ## Adds an arbitrary part without changing its headers or body.
+    pub fn add(mut self, part: MultipartPart) -> Multipart:
+        self.parts.push(part)
+        self
+
+    ## Adds one UTF-8 text field.
+    pub fn text(mut self, name: string, value: string) -> Multipart:
+        let mut headers = Headers::new()
+        headers.set(.ContentType, "text/plain; charset=utf-8")
+        self.parts.push(
+            MultipartPart { name: name, headers: headers, body: Body::from_bytes(value.to_utf8()) },
+        )
+        self
+
+    ## Adds one in-memory file field. The caller supplies its media type.
+    pub fn file(
+        mut self,
+        name: string,
+        filename: string,
+        content_type: string,
+        bytes: List[u8],
+    ) -> Multipart:
+        let mut headers = Headers::new()
+        headers.set(.ContentType, content_type)
+        self.parts.push(
+            MultipartPart {
+                name: name,
+                filename: .Some(filename),
+                headers: headers,
+                body: Body::from_bytes(bytes),
+            },
+        )
+        self
+
+    ## Encodes the parts once, replaces the request body, and sets Content-Type.
+    pub fn into_request(self, request: Request) -> Result[Request, MultipartError]:
+        panic("todo")
+
+    ## Claims the request body and parses its Content-Type boundary and ordered parts.
+    pub fn from_request(request: &Request) -> Result[Multipart, MultipartError]:
+        panic("todo")
+
+## Why a buffered multipart message could not be built or read.
+@error
+@derive(Debug, Eq)
+pub enum MultipartError:
+    @error("multipart body: $error")
+    Body(error: BodyError)
+    @error("missing multipart Content-Type")
+    MissingContentType
+    @error("expected multipart/form-data, got $value")
+    WrongContentType(value: string)
+    @error("missing multipart boundary")
+    MissingBoundary
+    @error("invalid multipart boundary $value")
+    InvalidBoundary(value: string)
+    @error("invalid multipart part name $name")
+    InvalidName(name: string)
+    @error("invalid multipart filename $filename")
+    InvalidFilename(filename: string)
+    @error("invalid multipart header: $error")
+    Header(error: HeaderError)
+    @error("malformed multipart body at byte $position")
+    Malformed(position: usize)
+    @error("multipart part $name was already read")
+    UsedPart(name: string)
