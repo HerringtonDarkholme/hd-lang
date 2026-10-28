@@ -934,6 +934,12 @@ enum Ctl {
     Scope(u32),
 }
 
+#[derive(Clone, Copy)]
+struct MapProbe {
+    hash: u32,
+    entry: u32,
+}
+
 struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
@@ -948,6 +954,9 @@ struct Em<'i, 'a, 'm> {
     f: Func,
     /// Each computed instruction's locals.
     vals: HashMap<u32, Vec<u32>>,
+    /// A map read's hash and entry locals, for a following store that the
+    /// TIR proves reaches the same map and key without an intervening change.
+    map_probes: HashMap<u32, MapProbe>,
     /// Each TIR local's locals.
     locals: HashMap<usize, Vec<u32>>,
     /// The providers in scope: each key's data and vtable locals.
@@ -1124,6 +1133,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             calls,
             f,
             vals: HashMap::default(),
+            map_probes: HashMap::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
             open_ctx: None,

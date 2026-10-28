@@ -319,8 +319,11 @@ pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
     f
 }
 
-/// [`Helper::MapFind`]: `(table, hash, key...) -> entry or -1`. A removed
-/// entry holds hash -1, which no key's hash matches, so a probe passes it.
+/// [`Helper::MapFind`]: `(table, hash, key...) -> probe`. A matching key's
+/// probe is its nonnegative entry number; a missing key's is the bitwise
+/// complement of the empty index slot. A zero-capacity table returns -1;
+/// its subsequent put grows before it uses the slot. A removed entry holds
+/// hash -1, which no key's hash matches, so a probe passes it.
 pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let params = [vec![Val::I32, Val::I32], entry.key_vals()].concat();
     let mut f = m.func("rt:map_find", params, vec![Val::I32]);
@@ -331,14 +334,14 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
         f.local(Val::I32),
         f.local(Val::I32),
     );
-    load_u32(&mut f, 0, USED);
+    load_u32(&mut f, 0, CAP);
+    f.set(cap);
+    f.get(cap);
     f.op(I::I32Eqz);
     f.op(I::If(BlockType::Empty));
     f.i32(-1);
     f.op(I::Return);
     f.op(I::End);
-    load_u32(&mut f, 0, CAP);
-    f.set(cap);
     f.get(cap);
     f.i32(1);
     f.op(I::I32Shl);
@@ -360,7 +363,9 @@ pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.get(slot);
     f.op(I::I32Eqz);
     f.op(I::If(BlockType::Empty));
+    f.get(p);
     f.i32(-1);
+    f.op(I::I32Xor);
     f.op(I::Return);
     f.op(I::End);
     f.get(slot);
@@ -475,31 +480,35 @@ fn index_insert(f: &mut Func, t: u32, cap: u32, h: u32, slot: u32) {
     f.op(I::I32Store(mem(HEAP, u64::from(INDEX), 2)));
 }
 
-/// [`Helper::MapPut`]: `(map, hash, key..., value...) -> map`, taking over one
-/// count of the key and of the value. An equal key's entry keeps its
+/// [`Helper::MapPut`]: `(map, hash, probe, key..., value...) -> map`, taking
+/// over one count of the key and of the value. `probe` is a matching entry
+/// number, or the bitwise complement of the empty index slot found by
+/// [`Helper::MapFind`]. An equal key's entry keeps its
 /// place and takes the value (`types.map.replace.in-place`,
 /// `expr.map.duplicate.last`), and the key given is released; a new key
 /// appends an entry, after growth when the entries are full, and panics
 /// `collection-pinned` while an element reference pins the map
 /// (`ref.elem.pinned.map`). The map's table is its own already.
-pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
+pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
     let nk = entry.keys;
     let n = entry.leaves.len();
-    let params = [vec![Val::I32, Val::I32], entry.key_vals(), entry.val_vals()].concat();
+    let params = [
+        vec![Val::I32, Val::I32, Val::I32],
+        entry.key_vals(),
+        entry.val_vals(),
+    ]
+    .concat();
     let mut f = m.func("rt:map_put", params, vec![Val::I32]);
-    let (cap, e, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    let (t, arg) = (0, |k: usize| 2 + n32(k));
+    let (cap, e, at, grew) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    let (t, arg) = (0, |k: usize| 3 + n32(k));
     load_u32(&mut f, t, CAP);
     f.set(cap);
-    f.get(t);
-    f.get(1);
-    for k in 0..nk {
-        f.get(arg(k));
-    }
-    f.helper(Helper::MapFind {
-        entry: entry.clone(),
-        ops: ops.clone(),
-    });
+    f.get(2);
     f.set(e);
     f.get(e);
     f.i32(0);
@@ -548,6 +557,8 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
         entry: entry.clone(),
     });
     f.set(t);
+    f.i32(1);
+    f.set(grew);
     load_u32(&mut f, t, CAP);
     f.set(cap);
     f.op(I::End);
@@ -572,7 +583,20 @@ pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     f.i32(1);
     f.op(I::I32Add);
     f.set(slot);
+    f.get(grew);
+    f.op(I::If(BlockType::Empty));
     index_insert(&mut f, t, cap, 1, slot);
+    f.op(I::Else);
+    f.get(t);
+    f.get(2);
+    f.i32(-1);
+    f.op(I::I32Xor);
+    f.i32(4);
+    f.op(I::I32Mul);
+    f.op(I::I32Add);
+    f.get(slot);
+    f.op(I::I32Store(mem(HEAP, u64::from(INDEX), 2)));
+    f.op(I::End);
     store_u32(&mut f, t, USED, &|f| f.get(slot));
     store_u32(&mut f, t, LIVE, &|f| {
         load_u32(f, t, LIVE);

@@ -9,12 +9,12 @@ use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, inline_map_key, strip_newtype};
 use hd_mono::{CallTarget, Target, TargetKind, subst};
-use hd_tir::ir::IntrinsicOp;
+use hd_tir::ir::{Callee, IntrinsicOp, NONE, PlaceRoot, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::value::Src;
-use super::{Ctl, Em};
+use super::{Ctl, Em, MapProbe};
 use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, MAP_PINNED, USED, entry_address, hash_address};
 use crate::module::{Global, HEAP, Import, Sym, Val, mem};
@@ -154,14 +154,21 @@ impl Em<'_, '_, '_> {
         self.vals(subst(self.pool(), self.env(), t.item, t.args, p))
     }
 
-    /// Key `r` in fresh locals, and its bucket hash in one.
-    fn map_key(&mut self, r: u32, e: &Entry, ops: &KeyOps) -> StageResult<(Vec<u32>, u32)> {
+    /// Key `r` in fresh locals.
+    fn map_key_locals(&mut self, r: u32, e: &Entry) -> StageResult<Vec<u32>> {
         let key = e.key_vals();
         let kl: Vec<u32> = key.iter().map(|v| self.f.local(*v)).collect();
         for (k, l) in kl.iter().enumerate() {
             self.comp(r, k)?;
             self.f.set(*l);
         }
+        Ok(kl)
+    }
+
+    /// Key `r` in fresh locals, and its bucket hash in one.
+    fn map_key(&mut self, r: u32, e: &Entry, ops: &KeyOps) -> StageResult<(Vec<u32>, u32)> {
+        let key = e.key_vals();
+        let kl = self.map_key_locals(r, e)?;
         for l in &kl {
             self.f.get(*l);
         }
@@ -174,6 +181,23 @@ impl Em<'_, '_, '_> {
         Ok((kl, h))
     }
 
+    /// Probes map table `m` for key `kl` with hash `h`, returning the
+    /// matching entry or the complemented empty index slot.
+    fn map_find(&mut self, m: u32, h: u32, kl: &[u32], e: &Entry, ops: &KeyOps) -> u32 {
+        self.f.get(m);
+        self.f.get(h);
+        for l in kl {
+            self.f.get(*l);
+        }
+        self.f.helper(Helper::MapFind {
+            entry: e.clone(),
+            ops: ops.clone(),
+        });
+        let probe = self.f.local(Val::I32);
+        self.f.set(probe);
+        probe
+    }
+
     /// Puts the key in locals `kl` (hash `h`) with value `v` into the map
     /// table in local `m`, which then holds the table, moved when it grew:
     /// the table takes a count of each, a collection's through its copy
@@ -183,13 +207,14 @@ impl Em<'_, '_, '_> {
         m: u32,
         (kt, vt): (Ty, Ty),
         (e, ops): (&Entry, &KeyOps),
-        (kl, h): (&[u32], u32),
+        (kl, h, probe): (&[u32], u32, u32),
         v: u32,
     ) -> StageResult<()> {
         self.retain_locals(kl, kt)?;
         let s = self.retain_src(&Src::Ref(v), vt)?;
         self.f.get(m);
         self.f.get(h);
+        self.f.get(probe);
         for l in kl {
             self.f.get(*l);
         }
@@ -226,7 +251,8 @@ impl Em<'_, '_, '_> {
         self.f.set(m);
         for pair in items.chunks(2) {
             let (kl, h) = self.map_key(pair[0], &e, &ops)?;
-            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h), pair[1])?;
+            let probe = self.map_find(m, h, &kl, &e, &ops);
+            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), pair[1])?;
         }
         self.f.get(m);
         self.store_owned(i)
@@ -281,6 +307,132 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
+    /// Whether two TIR values are the same map or key value for this
+    /// optimization: the same SSA value, or two reads of the same place.
+    /// The latter is how the checker represents repeated reads of a
+    /// parameter such as `counts` or `word`.
+    fn same_map_value(&self, a: u32, b: u32) -> bool {
+        if a == b {
+            return true;
+        }
+        let (Some(&Tag::Read), Some(&Tag::Read)) =
+            (self.b.tags.get(a as usize), self.b.tags.get(b as usize))
+        else {
+            return false;
+        };
+        self.b.decode_place(self.b.data[a as usize][0])
+            == self.b.decode_place(self.b.data[b as usize][0])
+    }
+
+    /// Whether instruction `i` cannot invalidate a map probe. A plain
+    /// uniqueness copy is safe because map entry numbers survive it.
+    /// Calls use the ownership summary; every indirect call, possibly
+    /// aliasing store, mutable reference and collection change is rejected
+    /// conservatively.
+    fn preserves_map_probe(&self, i: u32, map: u32) -> bool {
+        let k = i as usize;
+        match self.b.tags[k] {
+            Tag::ItemRef
+            | Tag::Prim
+            | Tag::Is
+            | Tag::Coerce
+            | Tag::NewStruct
+            | Tag::CopyStruct
+            | Tag::NewVariant
+            | Tag::NewTuple
+            | Tag::NewList
+            | Tag::NewMap
+            | Tag::RefIdentity
+            | Tag::Read
+            | Tag::Drop
+            | Tag::IsUnique => true,
+            Tag::Call => Callee::from_words(self.b.record(self.b.data[k][0]))
+                .is_some_and(|callee| !self.input.own_cx.may_write(&callee)),
+            Tag::Block => self.block_preserves_map_probe(i, map),
+            Tag::Store => {
+                let map_place = self
+                    .b
+                    .tags
+                    .get(map as usize)
+                    .filter(|&&tag| tag == Tag::Read)
+                    .and_then(|_| self.b.decode_place(self.b.data[map as usize][0]));
+                let stored = self.b.decode_place(self.b.data[k][0]);
+                matches!((map_place, stored), (Some(map), Some(stored))
+                    if matches!((map.root, stored.root),
+                        (PlaceRoot::Local(a), PlaceRoot::Local(b)) if a != b)
+                    && stored.proj.is_empty())
+            }
+            Tag::Match => self
+                .b
+                .record(self.b.data[k][1])
+                .iter()
+                .all(|&block| self.block_preserves_map_probe(block, map)),
+            Tag::SwitchTag
+            | Tag::SwitchInt
+            | Tag::SwitchChar
+            | Tag::SwitchStr
+            | Tag::ToArm
+            | Tag::Unreachable => true,
+            Tag::Intrinsic => matches!(
+                IntrinsicOp::from_u32(self.b.data[k][0]),
+                Some(
+                    IntrinsicOp::ListLen
+                        | IntrinsicOp::MapLen
+                        | IntrinsicOp::MapSlots
+                        | IntrinsicOp::MapSlotNext
+                        | IntrinsicOp::MapSlotEntry
+                        | IntrinsicOp::StrIndex
+                        | IntrinsicOp::StrConcat
+                        | IntrinsicOp::StrEq
+                )
+            ),
+            _ => false,
+        }
+    }
+
+    fn block_preserves_map_probe(&self, block: u32, map: u32) -> bool {
+        self.b.tags.get(block as usize) == Some(&Tag::Block)
+            && self
+                .b
+                .record(self.b.data[block as usize][0])
+                .iter()
+                .all(|&i| self.preserves_map_probe(i, map))
+    }
+
+    /// The preceding `MapGet` or `MapEntry` whose hash and entry a
+    /// `MapSet` may reuse. Both operations must be statements of one
+    /// block, name equivalent reads of the map and key, and have no
+    /// possibly-changing statement between them.
+    fn map_probe_source(&self, i: u32, map: u32, key: u32) -> Option<u32> {
+        let block = *self.topo.blk.get(i as usize)?;
+        let pos = *self.topo.pos.get(i as usize)? as usize;
+        if block == NONE || self.b.tags.get(block as usize) != Some(&Tag::Block) {
+            return None;
+        }
+        let items = self.b.record(self.b.data[block as usize][0]);
+        for &candidate in items.get(..pos)?.iter().rev() {
+            let k = candidate as usize;
+            if self.b.tags.get(k) == Some(&Tag::Intrinsic)
+                && matches!(
+                    IntrinsicOp::from_u32(self.b.data[k][0]),
+                    Some(IntrinsicOp::MapGet | IntrinsicOp::MapEntry)
+                )
+            {
+                let args = self.b.record(self.b.data[k][1]);
+                if args.len() >= 2
+                    && self.same_map_value(args[0], map)
+                    && self.same_map_value(args[1], key)
+                {
+                    return Some(candidate);
+                }
+            }
+            if !self.preserves_map_probe(candidate, map) {
+                return None;
+            }
+        }
+        None
+    }
+
     /// `m.get(k)`, `m[k] = v`, `m.remove(k)` and a map value place's
     /// entry (`MapEntry`): the key is hashed, then its entry probed
     /// for. The passes' `IsUnique` made the table the map's own before a
@@ -290,22 +442,31 @@ impl Em<'_, '_, '_> {
         let (kt, vt, e) = self.entry(self.ty_of(args[0]))?;
         let ops = self.key_ops(i, kt, &e.key_vals())?;
         let m = self.buffer(args[0])?;
-        let (kl, h) = self.map_key(args[1], &e, &ops)?;
         if op == IntrinsicOp::MapSet {
-            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h), args[2])?;
+            let cached = self
+                .map_probe_source(i, args[0], args[1])
+                .and_then(|source| self.map_probes.get(&source).copied());
+            let (kl, h, probe) = if let Some(probe) = cached {
+                (self.map_key_locals(args[1], &e)?, probe.hash, probe.entry)
+            } else {
+                let (kl, h) = self.map_key(args[1], &e, &ops)?;
+                let probe = self.map_find(m, h, &kl, &e, &ops);
+                (kl, h, probe)
+            };
+            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), args[2])?;
             return self.put_back(args[0], m);
         }
-        let ent = self.f.local(Val::I32);
-        self.f.get(m);
-        self.f.get(h);
-        for l in &kl {
-            self.f.get(*l);
+        let (kl, h) = self.map_key(args[1], &e, &ops)?;
+        let ent = self.map_find(m, h, &kl, &e, &ops);
+        if matches!(op, IntrinsicOp::MapGet | IntrinsicOp::MapEntry) {
+            self.map_probes.insert(
+                i,
+                MapProbe {
+                    hash: h,
+                    entry: ent,
+                },
+            );
         }
-        self.f.helper(Helper::MapFind {
-            entry: e.clone(),
-            ops,
-        });
-        self.f.set(ent);
         // The entry's address and its leaves `from..to` in fresh locals.
         let read = |em: &mut Self, from: usize, to: usize| -> (u32, Vec<u32>) {
             let at = em.f.local(Val::I32);
