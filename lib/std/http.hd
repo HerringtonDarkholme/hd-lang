@@ -637,6 +637,12 @@ impl Serializer for MessageFormWriter:
         self.frames.push(MessageFormFrame { path: self.path, facts: facts })
         self.keyed = false
         .Ok(())
+    fn begin_newtype_variant(
+        &mut self,
+        facts: Facts,
+        variant: &VariantInfo,
+    ) -> Result[void, FormError]:
+        .Err(self.unsupported())
     fn member(&mut self, member: &Member) -> Result[void, FormError]:
         if self.frames.is_empty() || self.keyed || self.repeated || self.tagged:
             return .Err(self.unsupported())
@@ -756,6 +762,8 @@ impl Deserializer for MessageFormReader:
             return .Err(self.unsupported())
         self.frames.push(MessageFormFrame { path: self.path, facts: facts })
         .Ok(0)
+    fn begin_newtype_variant(&mut self) -> Result[void, FormError]:
+        .Err(self.unsupported())
     fn member(&mut self, member: &Member) -> Result[void, FormError]:
         if self.tagged || self.frames.is_empty():
             return .Err(self.unsupported())

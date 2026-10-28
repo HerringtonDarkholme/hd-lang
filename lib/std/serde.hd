@@ -21,7 +21,6 @@ use std.structure.{
     Members,
     Key,
     Facts,
-    SelfRef,
     skips,
 }
 
@@ -178,6 +177,7 @@ pub trait Serializer:
     fn key(&mut self, key: string) -> Result[void, Self::Error]
     fn end_map(&mut self) -> Result[void, Self::Error]
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
 
@@ -216,6 +216,7 @@ pub trait Deserializer:
         facts: Facts,
         choices: List[VariantInfo],
     ) -> Result[usize, Self::Error]
+    fn begin_newtype_variant(&mut self) -> Result[void, Self::Error]
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
     fn invalid(&mut self, expected: string) -> Self::Error
@@ -539,7 +540,7 @@ impl[T < Deserialize] Deserialize for T?:
             return .Ok(.None)
         .Ok(.Some(T::deserialize(input)?))
 
-# `Result` uses the same named-variant form as a derived enum
+# `Result` uses the format-neutral newtype-variant protocol
 # (r-std-serde.std.result).
 fn result_variant(name: string, index: usize) -> VariantInfo:
     VariantInfo {
@@ -552,31 +553,16 @@ fn result_variant(name: string, index: usize) -> VariantInfo:
         self_ref: .Absent,
     }
 
-fn result_member(name: string) -> Member:
-    Member {
-        name: name,
-        position: 0,
-        facts: Facts { items: [] },
-        doc: .None,
-        embedded: false,
-        positional: false,
-        self_ref: SelfRef.Absent,
-    }
-
 impl[T < Serialize, E < Serialize] Serialize for Result[T, E]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         match self:
             .Ok(value) =>
                 variant := result_variant("Ok", 0)
-                member := result_member("value")
-                out.begin_variant(Facts { items: [] }, &variant)?
-                out.member(&member)?
+                out.begin_newtype_variant(Facts { items: [] }, &variant)?
                 value.serialize(out)?
             .Err(error) =>
                 variant := result_variant("Err", 1)
-                member := result_member("error")
-                out.begin_variant(Facts { items: [] }, &variant)?
-                out.member(&member)?
+                out.begin_newtype_variant(Facts { items: [] }, &variant)?
                 error.serialize(out)?
         out.end_variant()
 
@@ -584,15 +570,10 @@ impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Result[T, E], R::Error]:
         variants := [result_variant("Ok", 0), result_variant("Err", 1)]
         index := input.begin_variant(Facts { items: [] }, variants)?
+        input.begin_newtype_variant()?
         let found: Result[T, E] = match index:
-            0 =>
-                member := result_member("value")
-                input.member(&member)?
-                Result.Ok(T::deserialize(input)?)
-            1 =>
-                member := result_member("error")
-                input.member(&member)?
-                Result.Err(E::deserialize(input)?)
+            0 => Result.Ok(T::deserialize(input)?)
+            1 => Result.Err(E::deserialize(input)?)
             _ => panic("std.serde: invalid Result variant index")
         input.end_variant()?
         .Ok(found)

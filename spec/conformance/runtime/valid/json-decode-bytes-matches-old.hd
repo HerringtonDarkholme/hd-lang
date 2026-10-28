@@ -308,6 +308,9 @@ struct OldFrame:
     pub items: *List[Json]
     pub keys: *List[string]
     pub fields: JsonObject
+    # A variant's raw payload while its shape is not selected.
+    pub variant_payload: Json?
+    pub newtype: bool
 
 # Reads one `Json` for `from_json`. `value` is the value at the cursor,
 # `present` is false for a member whose key is missing, and `path` is the
@@ -317,7 +320,7 @@ struct OldReader:
     pub value: Json
     pub present: bool
     pub path: string
-    pub frames: List[*OldFrame]
+    pub frames: List[*mut OldFrame]
     pub at: List[usize]
 
 impl OldReader:
@@ -328,11 +331,11 @@ impl OldReader:
             return JsonError.MissingField(self.path)
         JsonError.WrongType(self.path, expected)
 
-    fn push(&mut self, frame: *OldFrame) -> void:
+    fn push(&mut self, frame: *mut OldFrame) -> void:
         self.frames.push(frame)
         self.at.push(0)
 
-    fn top(self) -> *OldFrame:
+    fn top(self) -> *mut OldFrame:
         match self.frames.last():
             .Some(frame) => frame
             .None => panic("std.json: no open container")
@@ -423,6 +426,8 @@ impl Deserializer for OldReader:
                             items: &items,
                             keys: &[],
                             fields: JsonObject::new(),
+                            variant_payload: .None,
+                            newtype: false,
                         },
                     )
                     return .Ok(())
@@ -459,6 +464,8 @@ impl Deserializer for OldReader:
                             items: &items,
                             keys: &keys,
                             fields: JsonObject::new(),
+                            variant_payload: .None,
+                            newtype: false,
                         },
                     )
                     return .Ok(())
@@ -499,6 +506,8 @@ impl Deserializer for OldReader:
                                 items: &[],
                                 keys: &[],
                                 fields: fields,
+                                variant_payload: .None,
+                                newtype: false,
                             },
                         )
                         return .Ok(0)
@@ -525,7 +534,7 @@ impl Deserializer for OldReader:
                 base := "${self.path}.$name"
                 fields := match payload:
                     .Object(found) => found
-                    _ => return .Err(JsonError.WrongType(base, "object"))
+                    _ => JsonObject::new()
                 self.push(
                     &mut OldFrame {
                         base: base,
@@ -533,16 +542,35 @@ impl Deserializer for OldReader:
                         items: &[],
                         keys: &[],
                         fields: fields,
+                        variant_payload: .Some(payload),
+                        newtype: false,
                     },
                 )
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path, name))
 
+    fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
+        frame := self.top()
+        match frame.variant_payload:
+            .Some(payload) =>
+                frame.newtype = true
+                self.value = payload
+                self.present = true
+                self.path = frame.base
+                .Ok(())
+            .None => .Err(self.fail("variant"))
+
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member-wire-name).
     fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         frame := self.top()
+        match frame.variant_payload:
+            .Some(payload) =>
+                match payload:
+                    .Object(_) => pass
+                    _ => return .Err(JsonError.WrongType(frame.base, "object"))
+            .None => pass
         self.path = "${frame.base}.${m.name}"
         match frame.fields.get(m.name):
             .Some(found) =>
@@ -554,6 +582,14 @@ impl Deserializer for OldReader:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, JsonError]:
+        frame := self.top()
+        if !frame.newtype:
+            match frame.variant_payload:
+                .Some(payload) =>
+                    match payload:
+                        .Object(_) => pass
+                        _ => return .Err(JsonError.WrongType(frame.base, "object"))
+                .None => pass
         self.pop()
         .Ok(())
 

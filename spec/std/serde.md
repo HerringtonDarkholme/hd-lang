@@ -41,6 +41,7 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 | r[std-serde.model.list] List | items in order | `begin_list(len)`, one value per item, `end_list()` |
 | r[std-serde.model.map] Map | entries in order, each with a `string` key | `begin_map(len)`, then per entry `key(k)` and one value, then `end_map()` |
 | r[std-serde.model.variant] Variant | a struct value, or an enum value | `begin_variant(facts, v)`, then per member `member(m)` and one value, then `end_variant()` |
+| r[std-serde.model.newtype-variant] Newtype variant | an enum variant with one direct payload | `begin_newtype_variant(facts, v)`, then the payload value, then `end_variant()` |
 
 1. r[std-serde.model.one-value] A `serialize` call writes exactly one value of the table: one scalar call, or one begin call, its contents, and the matching end call.
 2. r[std-serde.model.len] The `len` of `begin_list` or `begin_map` is the number of items or entries that follow.
@@ -51,7 +52,7 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 7. r[std-serde.model.errors] A writer's first `.Err` ends the write. Every standard implementation returns it unchanged, and calls nothing after it.
 8. r[std-serde.model.ref-receivers] Every method of `Serializer` and `Deserializer` takes `&mut self`, and `serialize` and `deserialize` take the writer or reader as `&mut W` or `&mut R`. So a format's writer or reader is a struct that changes in place, and its caller reads the struct's fields after the call.
 
-> **Why.** Fourteen calls cover JSON's kinds, and the variant calls keep
+> **Why.** Fifteen calls cover JSON's kinds, and the variant calls keep
 > names and facts, which a format needs to choose a key or a tag. Fewer
 > calls than serde's 29 keep a format small, and a binary format can
 > still tell `int` from `uint`.
@@ -67,7 +68,8 @@ A `Deserializer` reads the same tree, one call per value:
 | r[std-serde.read.scalar] Scalars | `bool`, `int`, `uint`, `float`, `text` | the next value, when it is of that kind and fits the result type |
 | r[std-serde.read.list] List | `begin_list()`, then `next_item()` before each item | `next_item` is `true` when an item follows, and `false` after the last |
 | r[std-serde.read.map] Map | `begin_map()`, then `next_key()` before each entry | `next_key` is the entry's key, or `.None` after the last |
-| r[std-serde.read.variant] Variant | `begin_variant(facts, choices)`, then per member `member(m)` and one value, then `end_variant()` | `begin_variant` is the index in `choices` of the variant read |
+| r[std-serde.read.variant] Variant | `begin_variant(facts, choices)`, then the calls for its payload, then `end_variant()` | `begin_variant` is the index in `choices` of the variant read |
+| r[std-serde.read.newtype-variant] Newtype variant | `begin_variant(facts, choices)`, `begin_newtype_variant()`, then the direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_newtype_variant` positions the reader at its direct payload |
 | r[std-serde.read.invalid] `invalid` | `invalid(expected)` | the format's error for the value just read, which does not fit `expected` |
 | r[std-serde.read.absent] `is_absent` | `is_absent()` | `true` when the member that `member(m)` just positioned has no value at all, which reads nothing; the trait's default body gives `false` |
 
@@ -215,7 +217,7 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 | r[std-serde.std.unsigned] Unsigned integers | `u8`, `u16`, `u32`, `u64`, and `usize` | `uint` | `uint` within the type's range, the type's name |
 | r[std-serde.std.float] Floats | `f32` and `f64` | `float` of the value as an `f64` | `float`, the type's name |
 | r[std-serde.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload for `.Some` | `.None` when `is_null` is `true`, and `.Some` of what `T` reads otherwise |
-| r[std-serde.std.result] Result | `Result[T, E]`, where `T` and `E` implement the trait | an `Ok` variant with member `value`, or an `Err` variant with member `error` | the corresponding variant and member form |
+| r[std-serde.std.result] Result | `Result[T, E]`, where `T` and `E` implement the trait | a newtype variant named `Ok` with the `T` payload, or one named `Err` with the `E` payload | the corresponding newtype variant and direct payload |
 | r[std-serde.std.list] List | `List[T]`, where `T` implements the trait | a list of the items, in order | a list, item by item |
 | r[std-serde.std.map-entries] Map | `Map[string, V]`, where `V` implements the trait | a map of the entries, in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic) | a map, entry by entry, in its order |
 | r[std-serde.std.set] Set | `Set[T]`, where `T` implements the trait | a list of the elements, in insertion order | a list, element by element; a repeated element keeps one entry |

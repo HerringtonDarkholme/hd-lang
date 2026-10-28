@@ -1426,6 +1426,9 @@ impl Serializer for JsonWriter:
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.open(2, v.name, v.of_data, facts)
 
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        self.open(3, v.name, false, facts)
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         facts := if self.frames.is_empty():
             self.no_facts
@@ -1439,6 +1442,12 @@ impl Serializer for JsonWriter:
     fn end_variant(&mut self) -> Result[void, never]:
         closed := self.close()
         frame := closed._0
+        if frame.kind == 3:
+            if closed._2.len() != 1:
+                panic("std.json: a newtype variant needs one value")
+            let mut outer = JsonObject::new()
+            outer.set(frame.name, closed._2[0])
+            return self.put(Json.Object(outer))
         fields := object_of(closed._1, closed._2)
         if frame.of_data:
             return self.put(Json.Object(fields))
@@ -1466,6 +1475,8 @@ enum FrameKind:
     Record
     # An enum variant: its name, or `{"Variant":{...}}`.
     Tagged
+    # An enum newtype variant: `{"Variant": value}`.
+    Newtype
 
 # The writer met a walk that it does not write directly.
 enum Irregular:
@@ -1561,6 +1572,10 @@ impl TextWriter:
                     self.parts.push(",")
                 line_break(self.parts, self.spaced, self.indent)
                 return .Ok(())
+            .Newtype =>
+                if count > 0:
+                    return self.give_up()
+                return .Ok(())
             _ => pass
         if !self.keyed:
             return self.give_up()
@@ -1626,6 +1641,11 @@ impl TextWriter:
         match kind:
             .Items => self.parts.push("[")
             .Tagged => pass
+            .Newtype =>
+                self.parts.push("{")
+                line_break(self.parts, self.spaced, self.indent + 1)
+                push_quoted(self.parts, name)
+                self.parts.push(if self.spaced: ": " else: ":")
             _ => self.parts.push("{")
         at := self.depth
         if at < self.kinds.len():
@@ -1676,6 +1696,11 @@ impl TextWriter:
                     self.parts.push("}}")
                 else:
                     push_quoted(self.parts, self.names[last])
+            (.Record, .Newtype) =>
+                if count != 1:
+                    return self.give_up()
+                line_break(self.parts, self.spaced, self.indent - 1)
+                self.parts.push("}")
             _ => return self.give_up()
         self.key_count = self.key_starts[last]
         self.depth = last
@@ -1744,6 +1769,9 @@ impl Serializer for TextWriter:
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
         self.open(if v.of_data: FrameKind.Record else: FrameKind.Tagged, v.name, facts)
 
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
+        self.open(FrameKind.Newtype, v.name, facts)
+
     fn member(&mut self, m: &Member) -> Result[void, Irregular]:
         if !self.regular || self.depth == 0:
             return self.give_up()
@@ -1777,6 +1805,10 @@ enum ReadKind:
     Record
     # An enum variant's payload, read with `member`; its path adds `.Variant`.
     Tagged
+    # An enum variant written as its name, with no payload.
+    Unit
+    # An enum newtype variant's one direct payload; its path adds `.Variant`.
+    Newtype
 
 # Reads one `Json` for `from_json`. `value` is the value at the cursor, and
 # `present` is false for a member whose key is missing.
@@ -2112,22 +2144,30 @@ impl Deserializer for JsonReader:
         let index: usize = 0
         while index < choices.len():
             if choices[index].name == name:
-                if !named:
-                    match payload:
-                        .Object(_) => pass
-                        _ =>
-                            return .Err(
-                                JsonError.WrongType(
-                                    concat_all([self.path_to(self.depth), ".", name]),
-                                    "object",
-                                ),
-                            )
                 depth := self.depth
                 self.step_key(depth, name)
-                self.enter(payload, ReadKind.Tagged, depth + 1, name, facts)
+                self.enter(
+                    payload,
+                    if named: ReadKind.Unit else: ReadKind.Tagged,
+                    depth + 1,
+                    name,
+                    facts,
+                )
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
+
+    fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
+        last := self.top()
+        match self.kinds[last]:
+            .Tagged =>
+                self.kinds[last] = ReadKind.Newtype
+                if self.present:
+                    self.value = self.containers[last]
+                    self.depth = self.bases[last]
+                    return .Ok(())
+            _ => pass
+        .Err(self.fail("newtype variant"))
 
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member-wire-name). A list or a map has no members.
@@ -2139,7 +2179,9 @@ impl Deserializer for JsonReader:
             .Record => self.find_member(last, name)
             .Tagged =>
                 self.step_key(base - 1, self.variants[last])
-                self.find_member(last, name)
+                match self.containers[last]:
+                    .Object(_) => self.find_member(last, name)
+                    _ => return .Err(JsonError.WrongType(self.path_to(base), "object"))
             _ =>
                 self.value = Json.Null
                 self.present = false
@@ -2148,6 +2190,16 @@ impl Deserializer for JsonReader:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, JsonError]:
+        last := self.top()
+        match self.kinds[last]:
+            .Tagged =>
+                match self.containers[last]:
+                    .Object(_) => pass
+                    _ =>
+                        base := self.bases[last]
+                        self.step_key(base - 1, self.variants[last])
+                        return .Err(JsonError.WrongType(self.path_to(base), "object"))
+            _ => pass
         self.leave()
         .Ok(())
 
@@ -2168,6 +2220,8 @@ impl Deserializer for JsonReader:
 # tree.
 struct TextReadFrame:
     pub kind: ReadKind
+    # The raw offset of this frame's value.
+    pub at: usize
     # The container's index entry, and its member count there.
     pub entry: usize
     pub count: usize
@@ -2329,6 +2383,7 @@ impl TextReader:
             self.frames.push(
                 &mut TextReadFrame {
                     kind: kind,
+                    at: 0,
                     entry: 0,
                     count: 0,
                     repeats: false,
@@ -2348,8 +2403,16 @@ impl TextReader:
             )
         frame := self.frames[slot]
         frame.kind = kind
+        frame.at = at
         frame.entry = entry
-        head := self.parser.index[entry]
+        let head: usize = 0
+        match kind:
+            .Newtype => pass
+            .Unit => pass
+            .Tagged =>
+                if bytes_at(self.parser.text, at) == 123:
+                    head = self.parser.index[entry]
+            _ => head = self.parser.index[entry]
         frame.count = head / 2
         frame.repeats = head % 2 == 1
         frame.next = 0
@@ -2558,31 +2621,47 @@ impl Deserializer for TextReader:
         let index: usize = 0
         while index < choices.len():
             if choices[index].name == name:
-                let entry: usize = 0
+                let at: usize = self.at
+                let entry: usize = self.entry
+                let present = false
                 match payload:
                     .Some(slot) =>
                         object := self.entry
-                        at := self.parser.index[object + 3 + 2 * slot]
-                        if bytes_at(self.parser.text, at) != 123:
-                            return .Err(
-                                JsonError.WrongType(
-                                    concat_all([self.path_to(self.depth), ".", name]),
-                                    "object",
-                                ),
-                            )
+                        at = self.parser.index[object + 3 + 2 * slot]
                         entry = self.parser.child_of(
                             object,
                             self.parser.index[object] / 2,
                             slot,
                             at,
                         )
+                        present = true
                     .None => pass
                 depth := self.depth
                 self.step_key(depth, name)
-                self.enter(0, entry, ReadKind.Tagged, depth + 1, name, facts)?
+                self.enter(
+                    at,
+                    entry,
+                    if present: ReadKind.Tagged else: ReadKind.Unit,
+                    depth + 1,
+                    name,
+                    facts,
+                )?
                 return .Ok(index)
             index = index + 1
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
+
+    fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
+        frame := self.top()
+        match frame.kind:
+            .Tagged =>
+                frame.kind = ReadKind.Newtype
+                if self.present:
+                    self.at = frame.at
+                    self.entry = frame.entry
+                    self.depth = frame.base
+                    return .Ok(())
+            _ => pass
+        .Err(self.fail("newtype variant"))
 
     fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         frame := self.top()
@@ -2591,7 +2670,10 @@ impl Deserializer for TextReader:
         let record = true
         match frame.kind:
             .Record => pass
-            .Tagged => self.step_key(frame.base - 1, frame.name)
+            .Tagged =>
+                self.step_key(frame.base - 1, frame.name)
+                if bytes_at(self.parser.text, frame.at) != 123:
+                    return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
             _ => record = false
         if record:
             if frame.count <= 16:
@@ -2643,6 +2725,13 @@ impl Deserializer for TextReader:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, JsonError]:
+        frame := self.top()
+        match frame.kind:
+            .Tagged =>
+                if bytes_at(self.parser.text, frame.at) != 123:
+                    self.step_key(frame.base - 1, frame.name)
+                    return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
+            _ => pass
         self.leave()
         .Ok(())
 

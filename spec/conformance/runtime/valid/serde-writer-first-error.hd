@@ -57,6 +57,9 @@ impl Serializer for Sink:
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, string]:
         self.add("variant:${v.name}")
 
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, string]:
+        self.add("newtype:${v.name}")
+
     fn member(&mut self, m: &Member) -> Result[void, string]:
         self.add("member:${m.name}")
 
