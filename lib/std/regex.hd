@@ -342,6 +342,9 @@ impl Deserializer for CaptureReader:
     fn begin_newtype_variant(&mut self) -> Result[void, RegexError]:
         .Err(self.invalid("newtype variant"))
 
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, RegexError]:
+        .Err(self.invalid("tuple variant"))
+
     fn member(&mut self, m: &Member) -> Result[void, RegexError]:
         name := member_name(m, self.facts)
         if self.variant:

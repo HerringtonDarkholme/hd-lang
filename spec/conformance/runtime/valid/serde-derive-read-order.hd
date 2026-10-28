@@ -1,5 +1,5 @@
 # test: a derived Deserialize offers every variant to begin_variant, then reads each built member with member and its own deserialize, then calls end_variant; a hand-written one may peek
-# Spec std/serde Reading, Derived Implementations: std-serde.read.variant, std-serde.read.choices, std-serde.read.member.local-ref, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.unskipped-order, std-serde.derive.omitted, std-serde.derive.shared.
+# Spec std/serde Reading, Derived Implementations: std-serde.read.variant, std-serde.read.choices, std-serde.read.member.local-ref, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.variant-form-order, std-serde.derive.omitted, std-serde.derive.shared.
 # Spec 14 Serialization: annot.serde.by-hand.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Structure, Facts, VariantInfo, Member}
@@ -129,6 +129,10 @@ impl Deserializer for Feed:
         self.add("newtype")
         .Ok(())
 
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, string]:
+        self.add("tuple:$len")
+        .Ok(())
+
     fn member(&mut self, m: &Member) -> Result[void, string]:
         self.add("member:${m.name}")
         .Ok(())
@@ -151,6 +155,8 @@ enum Payment:
     Cash
     Card(last4: string, amount: u32)
     Voucher(code: string)
+    Token(string)
+    Pair(string, u32)
 
 @derive(Deserialize)
 struct Order:
@@ -194,7 +200,7 @@ tests:
         card := read::[Payment]([Tok.Pick(1), Tok.Text("4242"), Tok.Uint(1999)])
         assert_equal(
             card._1,
-            "variant:Cash|Card|Voucher member:last4 text:string member:amount uint:u32 end-variant",
+            "variant:Cash|Card|Voucher|Token|Pair member:last4 text:string member:amount uint:u32 end-variant",
             reason="calls",
         )
         match card._0:
@@ -205,8 +211,20 @@ tests:
         cash := read::[Payment]([Tok.Pick(0)])
         assert_equal(
             cash._1,
-            "variant:Cash|Card|Voucher end-variant",
+            "variant:Cash|Card|Voucher|Token|Pair end-variant",
             reason="a variant with no member",
+        )
+        token := read::[Payment]([Tok.Pick(3), Tok.Text("gift")])
+        assert_equal(
+            token._1,
+            "variant:Cash|Card|Voucher|Token|Pair newtype text:string end-variant",
+            reason="a newtype variant reads its direct payload",
+        )
+        pair := read::[Payment]([Tok.Pick(4), Tok.Item, Tok.Text("4242"), Tok.Item, Tok.Uint(1999)])
+        assert_equal(
+            pair._1,
+            "variant:Cash|Card|Voucher|Token|Pair tuple:2 text:string uint:u32 end-variant",
+            reason="a tuple variant reads direct items",
         )
 
     it("a data type offers its one variant, and a member may be absent"):
@@ -244,7 +262,7 @@ tests:
         bad := read::[Payment]([Tok.Pick(1), Tok.Int(4242), Tok.Uint(1999)])
         assert_equal(
             bad._1,
-            "variant:Cash|Card|Voucher member:last4 text:string",
+            "variant:Cash|Card|Voucher|Token|Pair member:last4 text:string",
             reason="nothing after the error",
         )
         assert_equal(

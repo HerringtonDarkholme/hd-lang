@@ -630,23 +630,25 @@ use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 enum Shape:
-    Circle(radius: u32)
+    Circle(u32)
     Rect(width: i32, height: i32)
     Point(i32, i32)
+    Mixed(i32, label: string)
     Empty
 ```
 
 | Value | `encode` text |
 | --- | --- |
-| `Shape.Circle(7)` | `{"Circle":{"radius":7}}` |
+| `Shape.Circle(7)` | `{"Circle":7}` |
 | `Shape.Rect(2, 3)` | `{"Rect":{"width":2,"height":3}}` |
-| `Shape.Point(4, 5)` | `{"Point":{"_0":4,"_1":5}}` |
+| `Shape.Point(4, 5)` | `{"Point":[4,5]}` |
+| `Shape.Mixed(9, label="pin")` | `{"Mixed":{"_0":9,"label":"pin"}}` |
 | `Shape.Empty` | `"Empty"` |
 
 1. r[std-json.derive.to-json.data-included-members] A struct gives an `Object` with one key per included member that the derivation walks, in declaration order. The key is its [wire name](serde.md#member-names), and its value is the member's `Json`.
-2. r[std-json.derive.to-json.enum-included-members] A variant with included members gives an `Object` with one key, the variant's name. Its value is the `Object` of the variant's members, as for a struct.
-3. r[std-json.derive.to-json.unit-included-members] A variant with no included member for this value gives the `Text` of its name.
-4. r[std-json.derive.to-json.positional-wire-name] A positional member's key is its wire name, defaulting to `_0`, `_1`, and so on.
+2. r[std-json.derive.to-json.enum-form] An enum uses the externally tagged form selected by its variant declaration. A unit variant gives its name as `Text`. One positional member and no named member gives an `Object` whose one key is the variant name and whose value is that member's `Json`. Several positional members and no named member give that object with an `Array` payload in declaration order. A named or mixed variant gives that object with an `Object` payload.
+3. r[std-json.derive.to-json.unit-form] A unit variant gives the `Text` of its name.
+4. r[std-json.derive.to-json.object-positional-wire-name] In the object payload of a mixed variant, a positional member's key is its wire name, defaulting to `_0`, `_1`, and so on.
 5. r[std-json.derive.to-json.embedded-wire-name] An embedded member is one key using its wire name, defaulting to its type's final name, with the part's `Json` as value.
 6. r[std-json.derive.to-json.shared] Shared constructor data is not a member, so it is not written.
 7. r[std-json.derive.to-json.private] A private member is written like any other, since the opt-in covers it.
@@ -666,10 +668,14 @@ JSON reads the form that it writes for a derived `Serialize`:
 | Text read as a `Shape` | Result |
 | --- | --- |
 | `"Empty"` or `{"Empty":{}}` | `.Ok(Shape.Empty)` |
+| `{"Circle":7}` | `.Ok(Shape.Circle(7))` |
+| `{"Point":[4,5]}` | `.Ok(Shape.Point(4, 5))` |
 | `{"Rect":{"height":3,"width":2,"z":0}}` | `.Ok(Shape.Rect(2, 3))` |
 | `"Rect"` | `.Err(MissingField("$.Rect.width"))` |
 | `"Hexagon"` | `.Err(UnknownVariant("$", "Hexagon"))` |
 | `{"Rect":3}` | `.Err(WrongType("$.Rect", "object"))` |
+| `{"Point":[4]}` | `.Err(WrongType("$.Point", "array of 2 items"))` |
+| `{"Point":{"_0":4,"_1":5}}` | `.Err(WrongType("$.Point", "array of 2 items"))` |
 | `{"Rect":{},"Empty":{}}` | `.Err(WrongType("$", "variant"))` |
 
 1. r[std-json.derive.from-json.inverse] A derived `Deserialize` reads the form that a derived `Serialize` writes for the same type.
@@ -682,7 +688,7 @@ JSON reads the form that it writes for a derived `Serialize`:
 8. r[std-json.derive.from-json.enum] An enum reads a `Text`, or an `Object` with exactly one key. The text or the key is the variant's name. Any other value is a `WrongType`.
 9. r[std-json.derive.from-json.name-only] A `Text` reads as an `Object` whose one key is that text and whose value is an empty `Object`.
 10. r[std-json.derive.from-json.unknown-variant] A name that is not a variant of the enum is an `UnknownVariant` at the enum value's path.
-11. r[std-json.derive.from-json.payload] The variant's payload must be an `Object`, or it is a `WrongType` with the segment `.name` of the variant. Its members then read as a struct's do, under that segment.
+11. r[std-json.derive.from-json.payload-form] A variant payload has the form selected by its declaration. One positional member and no named member reads its direct value. Several positional members and no named member read an `Array` of exactly that length. A named or mixed variant reads an `Object`. A wrong payload shape or tuple length is a `WrongType` at the variant-name path segment. Object members read as a struct's do under that segment.
 
 ```text
 use std.json.{decode, JsonError}
@@ -690,9 +696,10 @@ use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 enum Shape:
-    Circle(radius: u32)
+    Circle(u32)
     Rect(width: i32, height: i32)
     Point(i32, i32)
+    Mixed(i32, label: string)
     Empty
 
 fn read(text: string) -> Result[Shape, JsonError]:

@@ -4,7 +4,7 @@
 # std-json.parse.number.nonfinite-parse-result, std-json.parse.string.surrogates,
 # std-json.parse.string.lone-surrogate, std-json.error.position-bytes,
 # std-json.derive.from-json.unknown, std-json.derive.from-json.default,
-# std-json.derive.from-json.unknown-variant, std-json.derive.from-json.payload.
+# std-json.derive.from-json.unknown-variant, std-json.derive.from-json.payload-form.
 # Spec std/serde: std-serde.skip.read, std-serde.std.tuple-length, std-serde.std.range.
 use std.collections.Set
 use std.json.{Json, JsonError, decode, encode, from_json, parse}
@@ -139,8 +139,8 @@ fn event_cases() -> List[EventCase]:
         EventCase { text: "0", expected: .Err(.WrongType("$", "variant")) },
         EventCase { text: "null", expected: .Err(.WrongType("$", "variant")) },
         EventCase {
-            text: "{\"Pair\":{\"_0\":1,\"_1\":null}}",
-            expected: .Err(.WrongType("$.Pair._1", "string")),
+            text: "{\"Pair\":[1,null]}",
+            expected: .Err(.WrongType("$.Pair[1]", "string")),
         },
     ]
 

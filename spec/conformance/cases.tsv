@@ -3213,7 +3213,7 @@ runtime/valid/key-assoc-function-a-dyn-value-of-a-trait-with-an-associated-funct
 runtime/valid/key-assoc-function-a-key-trait-of-associated-functions-only-has-an-empty-vtable.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-with-an-associated-function-provides-its-other-members.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-with-an-associated-type-and-an-associated-function-runs.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
-runtime/valid/json-typed-enum.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.enum-included-members
+runtime/valid/json-typed-enum.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.enum-form
 runtime/valid/json-typed-optional.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.missing
 runtime/valid/json-typed-primitives.hd	runtime	accept	std/json.md#r-std-json.std.integer
 runtime/valid/json-typed-errors.hd	runtime	accept	std/json.md#r-std-json.error.path
@@ -3227,7 +3227,7 @@ typing/invalid/serde-map-key-not-string.hd	type	reject:unsatisfied-trait-bound	s
 runtime/valid/json-serde-private-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.private
 runtime/valid/serde-rename-all.hd	runtime	accept	std/serde.md#member-names
 runtime/valid/serde-rename.hd	runtime	accept	std/serde.md#member-names
-runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.included-order
+runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.variant-form-order
 runtime/valid/time-serde-forms.hd	runtime	accept	std/time.md#r-std-time.serde.text-form
 runtime/valid/boundary-derived-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.in
 typing/invalid/boundary-private-field-no-traits.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
@@ -3798,7 +3798,7 @@ runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.
 runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
 runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
 runtime/valid/serde-result-json.hd	runtime	accept	std/serde.md#r-std-serde.std.result
-runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.unskipped-order
+runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.variant-form-order
 runtime/valid/serde-derive-empty-record.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.template
 runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args.local-ref
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors

@@ -1429,6 +1429,14 @@ impl Serializer for JsonWriter:
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.open(3, v.name, false, facts)
 
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
+        self.open(4, v.name, false, facts)
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         facts := if self.frames.is_empty():
             self.no_facts
@@ -1438,7 +1446,7 @@ impl Serializer for JsonWriter:
         .Ok(())
 
     # A data type is an object; a variant with no member is its name, and
-    # any other variant `{"Variant": {...}}` (r-std-json.derive.to-json.enum-included-members).
+    # other variant forms follow their declarations (r-std-json.derive.to-json.enum-form).
     fn end_variant(&mut self) -> Result[void, never]:
         closed := self.close()
         frame := closed._0
@@ -1447,6 +1455,10 @@ impl Serializer for JsonWriter:
                 panic("std.json: a newtype variant needs one value")
             let mut outer = JsonObject::new()
             outer.set(frame.name, closed._2[0])
+            return self.put(Json.Object(outer))
+        if frame.kind == 4:
+            let mut outer = JsonObject::new()
+            outer.set(frame.name, Json.Array(closed._2))
             return self.put(Json.Object(outer))
         fields := object_of(closed._1, closed._2)
         if frame.of_data:
@@ -1477,6 +1489,8 @@ enum FrameKind:
     Tagged
     # An enum newtype variant: `{"Variant": value}`.
     Newtype
+    # An enum tuple variant: `{"Variant": [values]}`.
+    Tuple
 
 # The writer met a walk that it does not write directly.
 enum Irregular:
@@ -1572,6 +1586,11 @@ impl TextWriter:
                     self.parts.push(",")
                 line_break(self.parts, self.spaced, self.indent)
                 return .Ok(())
+            .Tuple =>
+                if count > 0:
+                    self.parts.push(",")
+                line_break(self.parts, self.spaced, self.indent)
+                return .Ok(())
             .Newtype =>
                 if count > 0:
                     return self.give_up()
@@ -1646,6 +1665,11 @@ impl TextWriter:
                 line_break(self.parts, self.spaced, self.indent + 1)
                 push_quoted(self.parts, name)
                 self.parts.push(if self.spaced: ": " else: ":")
+            .Tuple =>
+                self.parts.push("{")
+                line_break(self.parts, self.spaced, self.indent + 1)
+                push_quoted(self.parts, name)
+                self.parts.push(if self.spaced: ": [" else: ":[")
             _ => self.parts.push("{")
         at := self.depth
         if at < self.kinds.len():
@@ -1666,7 +1690,7 @@ impl TextWriter:
 
     # Ends the innermost frame, which must be of `kind`; `Record` also ends
     # a `Tagged` frame. A variant with no member is its name
-    # (r-std-json.derive.to-json.unit-included-members).
+    # (r-std-json.derive.to-json.unit-form).
     fn close(&mut self, kind: FrameKind) -> Result[void, Irregular]:
         if !self.regular:
             return .Err(Irregular.Walk)
@@ -1701,6 +1725,11 @@ impl TextWriter:
                     return self.give_up()
                 line_break(self.parts, self.spaced, self.indent - 1)
                 self.parts.push("}")
+            (.Record, .Tuple) =>
+                line_break(self.parts, spaced, self.indent - 1)
+                self.parts.push("]")
+                line_break(self.parts, self.spaced, self.indent - 2)
+                self.parts.push("}")
             _ => return self.give_up()
         self.key_count = self.key_starts[last]
         self.depth = last
@@ -1715,6 +1744,7 @@ impl TextWriter:
             return self.give_up()
         match self.kinds[self.depth - 1]:
             .Items => return self.give_up()
+            .Tuple => return self.give_up()
             _ => pass
         self.pending = key
         self.keyed = true
@@ -1772,6 +1802,14 @@ impl Serializer for TextWriter:
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
         self.open(FrameKind.Newtype, v.name, facts)
 
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, Irregular]:
+        self.open(FrameKind.Tuple, v.name, facts)
+
     fn member(&mut self, m: &Member) -> Result[void, Irregular]:
         if !self.regular || self.depth == 0:
             return self.give_up()
@@ -1785,6 +1823,7 @@ impl Serializer for TextWriter:
 fn levels_of(kind: FrameKind) -> usize:
     match kind:
         .Tagged => 2
+        .Tuple => 2
         _ => 1
 
 # A key's length with its first and last bytes: equal keys have equal
@@ -1809,6 +1848,8 @@ enum ReadKind:
     Unit
     # An enum newtype variant's one direct payload; its path adds `.Variant`.
     Newtype
+    # An enum tuple variant's direct array payload; its path adds `.Variant`.
+    Tuple
 
 # Reads one `Json` for `from_json`. `value` is the value at the cursor, and
 # `present` is false for a member whose key is missing.
@@ -2060,6 +2101,13 @@ impl Deserializer for JsonReader:
                             self.read_item(last, items[index], index)
                             return .Ok(true)
                     _ => pass
+            .Tuple =>
+                match self.containers[last]:
+                    .Array(items) =>
+                        if index < items.len():
+                            self.read_item(last, items[index], index)
+                            return .Ok(true)
+                    _ => pass
             .Entries =>
                 match self.containers[last]:
                     .Object(fields) =>
@@ -2168,6 +2216,22 @@ impl Deserializer for JsonReader:
                     return .Ok(())
             _ => pass
         .Err(self.fail("newtype variant"))
+
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, JsonError]:
+        last := self.top()
+        base := self.bases[last]
+        self.depth = base
+        match self.kinds[last]:
+            .Tagged =>
+                match self.containers[last]:
+                    .Array(items) =>
+                        if items.len() == len:
+                            self.kinds[last] = ReadKind.Tuple
+                            self.next[last] = 0
+                            return .Ok(())
+                    _ => pass
+            _ => pass
+        .Err(self.fail("array of $len items"))
 
     # A member reads the value of its key; a missing key is absent
     # (r-std-json.derive.from-json.member-wire-name). A list or a map has no members.
@@ -2543,6 +2607,18 @@ impl Deserializer for TextReader:
                     self.at = at
                     self.entry = entry
                     found = true
+            .Tuple =>
+                byte := self.parser.list_item(frame.cursor)
+                at := self.parser.at
+                if byte != 93:
+                    let entry: usize = 0
+                    if byte == 91 || byte == 123:
+                        entry = self.parser.index[frame.entry + 2 + frame.child]
+                        frame.child = frame.child + 1
+                    frame.cursor = self.parser.value_end(at, entry)
+                    self.at = at
+                    self.entry = entry
+                    found = true
             .Entries =>
                 if index < frame.key_count:
                     self.at = frame.offsets[index]
@@ -2662,6 +2738,36 @@ impl Deserializer for TextReader:
                     return .Ok(())
             _ => pass
         .Err(self.fail("newtype variant"))
+
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, JsonError]:
+        frame := self.top()
+        self.depth = frame.base
+        match frame.kind:
+            .Tagged =>
+                if self.present && bytes_at(self.parser.text, frame.at) == 91:
+                    let count: usize = 0
+                    let cursor = frame.at + 1
+                    let child: usize = 0
+                    while true:
+                        byte := self.parser.list_item(cursor)
+                        at := self.parser.at
+                        if byte == 93:
+                            break
+                        let entry: usize = 0
+                        if byte == 91 || byte == 123:
+                            entry = self.parser.index[frame.entry + 2 + child]
+                            child = child + 1
+                        cursor = self.parser.value_end(at, entry)
+                        count = count + 1
+                    if count == len:
+                        frame.kind = ReadKind.Tuple
+                        frame.count = count
+                        frame.next = 0
+                        frame.cursor = frame.at + 1
+                        frame.child = 0
+                        return .Ok(())
+            _ => pass
+        .Err(self.fail("array of $len items"))
 
     fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         frame := self.top()

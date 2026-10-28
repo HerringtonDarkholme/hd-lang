@@ -34,6 +34,8 @@ impl Deserializer for Reader:
         .Err("unused")
     fn begin_newtype_variant(&mut self) -> Result[void, string]:
         .Err("unused")
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, string]:
+        .Err("unused")
     fn member(&mut self, m: Member) -> Result[void, string]: # diagnostic: trait-method-signature
         .Err("unused")
     fn end_variant(&mut self) -> Result[void, string]:

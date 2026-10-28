@@ -1,13 +1,13 @@
-# test: an enum is externally tagged: a variant without members is its name, any other variant an object with one key
-# Spec std/json Derived Serialize, Derived Deserialize: std-json.derive.to-json.enum-included-members, std-json.derive.to-json.unit-included-members, std-json.derive.from-json.enum, std-json.derive.from-json.name-only (task #241).
-# Spec std/json Derived Serialize: std-json.derive.to-json.positional-wire-name.
-use std.json.{encode, decode}
+# test: a derived enum's externally tagged payload follows its declaration: unit text, one positional value, positional array, or named object
+# Spec std/json Derived Serialize, Derived Deserialize: std-json.derive.to-json.enum-form, std-json.derive.to-json.unit-form, std-json.derive.from-json.enum, std-json.derive.from-json.payload-form.
+use std.json.{encode, encode_pretty, decode, to_json, from_json}
 use std.serde.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
 enum Shape:
-    Circle(radius: u32)
+    Circle(u32)
     Rect(width: i32, height: i32)
     Point(i32, i32)
+    Mixed(i32, label: string)
     Empty
 
 @derive(Serialize, Deserialize)
@@ -23,27 +23,58 @@ fn read(text: string) -> Shape:
         .Ok(value) => value
         .Err(error) => panic("decode failed: $error")
 
+fn point_error(text: string, reason: string) -> (string, string):
+    match decode::[Shape](text):
+        .Err(.WrongType(path, expected)) => (path, expected)
+        .Err(error) => panic("$reason: wrong error: $error")
+        .Ok(_) => panic("$reason: decode succeeded")
+
 tests:
     use std.testing.assert_equal
 
     it("each variant shape encodes in the externally tagged form"):
         assert_equal(encode(Shape.Empty), "\"Empty\"", reason="no members")
-        assert_equal(encode(Shape.Circle(7)), "{\"Circle\":{\"radius\":7}}", reason="one member")
+        assert_equal(encode(Shape.Circle(7)), "{\"Circle\":7}", reason="one positional member")
         assert_equal(
             encode(Shape.Rect(2, 3)),
             "{\"Rect\":{\"width\":2,\"height\":3}}",
             reason="two members",
         )
+        assert_equal(encode(Shape.Point(4, 5)), "{\"Point\":[4,5]}", reason="positional members")
         assert_equal(
-            encode(Shape.Point(4, 5)),
-            "{\"Point\":{\"_0\":4,\"_1\":5}}",
-            reason="positional members",
+            encode(Shape.Mixed(9, label="pin")),
+            "{\"Mixed\":{\"_0\":9,\"label\":\"pin\"}}",
+            reason="mixed members keep the object form",
+        )
+        assert_equal(
+            encode_pretty(Shape.Point(4, 5)),
+            "{\n  \"Point\": [\n    4,\n    5\n  ]\n}",
+            reason="tuple variant pretty text",
         )
 
     it("each variant shape decodes from its encoded text"):
-        for shape in [Shape.Empty, Shape.Circle(7), Shape.Rect(2, 3), Shape.Point(4, 5)]:
+        for shape in [
+            Shape.Empty,
+            Shape.Circle(7),
+            Shape.Rect(2, 3),
+            Shape.Point(4, 5),
+            Shape.Mixed(9, label="pin"),
+        ]:
             text := encode(shape)
             assert_equal(encode(read(text)), text, reason=text)
+
+    it("the tree reader follows the same variant forms"):
+        for shape in [
+            Shape.Empty,
+            Shape.Circle(7),
+            Shape.Rect(2, 3),
+            Shape.Point(4, 5),
+            Shape.Mixed(9, label="pin"),
+        ]:
+            tree := to_json(shape)
+            match from_json::[Shape](tree):
+                .Ok(back) => assert_equal(encode(back), encode(shape), reason="tree round trip")
+                .Err(error) => panic("tree decode failed: $error")
 
     it("a variant name alone reads as the variant with an empty object"):
         assert_equal(
@@ -67,3 +98,14 @@ tests:
         match decode::[Drawing](text):
             .Ok(back) => assert_equal(encode(back), text, reason="round trip")
             .Err(error) => panic("decode failed: $error")
+
+    it("a positional tuple needs the declared array shape and length"):
+        let (short_path, short_expected) = point_error("{\"Point\":[4]}", "wrong length")
+        assert_equal(short_path, "$.Point", reason="wrong length path")
+        assert_equal(short_expected, "array of 2 items", reason="wrong length expected")
+        let (object_path, object_expected) = point_error(
+            "{\"Point\":{\"_0\":4,\"_1\":5}}",
+            "object where array expected",
+        )
+        assert_equal(object_path, "$.Point", reason="object path")
+        assert_equal(object_expected, "array of 2 items", reason="object expected")

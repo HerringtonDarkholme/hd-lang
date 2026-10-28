@@ -72,6 +72,14 @@ impl Serializer for Envelope:
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         self.begin_variant(facts, v)
 
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
+        self.begin_variant(facts, v)
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         let key: string = match m.facts.find::[Rename]():
             .Some(found) => found.name

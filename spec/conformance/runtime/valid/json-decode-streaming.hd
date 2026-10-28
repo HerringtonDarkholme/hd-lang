@@ -53,7 +53,7 @@ tests:
         same::[Choice]("\"Empty\"")
         same::[Choice]("\"User\"")
         same::[Choice]("{\"User\":{\"name\":\"Ada\"}}")
-        same::[Choice]("{\"Pair\":{\"_1\":\"x\",\"_0\":-3}}")
+        same::[Choice]("{\"Pair\":[-3,\"x\"]}")
         same::[Choice]("{\"User\":{\"name\":0}}")
         same::[Choice]("{\"User\":false}")
         same::[Choice]("{\"Unknown\":false}")

@@ -42,9 +42,10 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 | r[std-serde.model.map] Map | entries in order, each with a `string` key | `begin_map(len)`, then per entry `key(k)` and one value, then `end_map()` |
 | r[std-serde.model.variant] Variant | a struct value, or an enum value | `begin_variant(facts, v)`, then per member `member(m)` and one value, then `end_variant()` |
 | r[std-serde.model.newtype-variant] Newtype variant | an enum variant with one direct payload | `begin_newtype_variant(facts, v)`, then the payload value, then `end_variant()` |
+| r[std-serde.model.tuple-variant] Tuple variant | an enum variant with several direct payloads | `begin_tuple_variant(facts, v, len)`, then the payload values in order, then `end_variant()` |
 
 1. r[std-serde.model.one-value] A `serialize` call writes exactly one value of the table: one scalar call, or one begin call, its contents, and the matching end call.
-2. r[std-serde.model.len] The `len` of `begin_list` or `begin_map` is the number of items or entries that follow.
+2. r[std-serde.model.container-len] The `len` of `begin_list`, `begin_map`, or `begin_tuple_variant` is the number of items, entries, or direct payload values that follow.
 3. r[std-serde.model.variant-args.local-ref] `begin_variant(facts: Facts, v: &VariantInfo)` receives the type-level facts and a local reference to the variant's metadata.
 4. r[std-serde.model.data-variant] A struct value has one variant, whose `of_data` is true.
 5. r[std-serde.model.member-args.local-ref] `member(m: &Member)` receives a local reference to the metadata of the member whose value follows.
@@ -52,7 +53,7 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 7. r[std-serde.model.errors] A writer's first `.Err` ends the write. Every standard implementation returns it unchanged, and calls nothing after it.
 8. r[std-serde.model.ref-receivers] Every method of `Serializer` and `Deserializer` takes `&mut self`, and `serialize` and `deserialize` take the writer or reader as `&mut W` or `&mut R`. So a format's writer or reader is a struct that changes in place, and its caller reads the struct's fields after the call.
 
-> **Why.** Fifteen calls cover JSON's kinds, and the variant calls keep
+> **Why.** Sixteen calls cover JSON's kinds, and the variant calls keep
 > names and facts, which a format needs to choose a key or a tag. Fewer
 > calls than serde's 29 keep a format small, and a binary format can
 > still tell `int` from `uint`.
@@ -70,6 +71,7 @@ A `Deserializer` reads the same tree, one call per value:
 | r[std-serde.read.map] Map | `begin_map()`, then `next_key()` before each entry | `next_key` is the entry's key, or `.None` after the last |
 | r[std-serde.read.variant] Variant | `begin_variant(facts, choices)`, then the calls for its payload, then `end_variant()` | `begin_variant` is the index in `choices` of the variant read |
 | r[std-serde.read.newtype-variant] Newtype variant | `begin_variant(facts, choices)`, `begin_newtype_variant()`, then the direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_newtype_variant` positions the reader at its direct payload |
+| r[std-serde.read.tuple-variant] Tuple variant | `begin_variant(facts, choices)`, `begin_tuple_variant(len)`, then `next_item()` before each direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_tuple_variant` positions a payload of exactly `len` items |
 | r[std-serde.read.invalid] `invalid` | `invalid(expected)` | the format's error for the value just read, which does not fit `expected` |
 | r[std-serde.read.absent] `is_absent` | `is_absent()` | `true` when the member that `member(m)` just positioned has no value at all, which reads nothing; the trait's default body gives `false` |
 
@@ -102,9 +104,9 @@ writer or reader with a value's members. For the `Session` of
 | `Session { user: "ada", token: "t", expires_at: 9 }` | `begin_variant`, `member` for `user`, `text("ada")`, `member` for `token`, `text("t")`, `member` for `expires_at`, `int(9)`, `end_variant()` |
 
 1. r[std-serde.derive.serialize.template] `std.serde` declares the template of `Serialize`, which `@derive(Serialize)` instantiates.
-2. r[std-serde.derive.serialize.included-order] Derived `serialize` calls `begin_variant`, then `member(m)` and `serialize` for each included walked member in declaration order, then `end_variant()`.
+2. r[std-serde.derive.serialize.variant-form-order] Derived `serialize` selects the protocol from the variant declaration, writes every included walked member in declaration order, and calls `end_variant()`. A struct, unit variant, named variant, or mixed positional-and-named variant uses `begin_variant` and `member(m)` before each value. A variant with exactly one positional member and no named member uses `begin_newtype_variant` and its direct value. A variant with several positional members and no named member uses `begin_tuple_variant` and its direct values.
 3. r[std-serde.derive.deserialize.template] `std.serde` declares the template of `Deserialize`, which `@derive(Deserialize)` instantiates.
-4. r[std-serde.derive.deserialize.unskipped-order] Derived `deserialize` offers every variant to `begin_variant`, then calls `member(m)` and `deserialize` for each unskipped built member in declaration order, then `end_variant()`.
+4. r[std-serde.derive.deserialize.variant-form-order] Derived `deserialize` offers every variant to `begin_variant`, then selects the same declaration-based form as serialization. It reads every unskipped built member in declaration order and calls `end_variant()`. Record forms call `member(m)` before each value. A newtype form reads its direct value. A tuple form calls `next_item()` before each direct value.
 5. r[std-serde.derive.deserialize.unskipped-default] After `member(m)`, derived deserialization asks `is_absent()` for an unskipped defaulted member, using its declared default instead of `deserialize` when absent.
 6. r[std-serde.derive.omitted] A member omitted with `= pass` is not written. Reading fills it with its declared default, as [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default) states.
 7. r[std-serde.derive.shared] Shared constructor data is not a member, so it is neither written nor read.

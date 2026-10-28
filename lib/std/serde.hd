@@ -178,6 +178,12 @@ pub trait Serializer:
     fn end_map(&mut self) -> Result[void, Self::Error]
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, Self::Error]
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
 
@@ -217,6 +223,7 @@ pub trait Deserializer:
         choices: List[VariantInfo],
     ) -> Result[usize, Self::Error]
     fn begin_newtype_variant(&mut self) -> Result[void, Self::Error]
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, Self::Error]
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
     fn invalid(&mut self, expected: string) -> Self::Error
@@ -230,18 +237,94 @@ pub trait Deserializer:
 
 # Derived `Serialize`: `begin_variant`, then `member` and the member's own
 # `serialize` for each included walked member, then `end_variant`
-# (r-std-serde.derive.serialize.included-order).
+# (r-std-serde.derive.serialize.variant-form-order).
 impl[T] Serialize for T by Structure:
     fn serialize[W < Serializer](self, out: *mut W) -> Result[void, W::Error]:
-        let mut walker = SerializeWalker::[T, W] { out: out, facts: T::facts() }
+        let mut shape = VariantShape { of_data: false, positional: 0, named: 0 }
+        _ := Structure::walk(self, &mut shape)
+        let mut walker = SerializeWalker::[T, W] {
+            out: out,
+            facts: T::facts(),
+            shape: shape,
+            form: VariantForm.Record,
+        }
         Structure::walk(self, &mut walker)?
         out.end_variant()
+
+enum VariantForm:
+    Record
+    Newtype
+    Tuple
+
+struct VariantShape:
+    pub of_data: bool
+    pub positional: usize
+    pub named: usize
+
+impl VariantShape:
+    fn form(&self) -> VariantForm:
+        if self.of_data || self.named > 0 || self.positional == 0:
+            return VariantForm.Record
+        if self.positional == 1:
+            return VariantForm.Newtype
+        VariantForm.Tuple
+
+impl[S] Walker[S] for VariantShape:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.of_data = v.info.of_data
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        if h.info.positional:
+            self.positional = self.positional + 1
+        else:
+            self.named = self.named + 1
+        .Ok(())
+
+struct VariantInfos:
+    pub items: List[VariantInfo]
+
+impl[S] Describer[S] for VariantInfos:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.items.push(v.info)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        .Ok(())
+
+struct SelectedVariantShape:
+    pub wanted: usize
+    pub at: usize
+    pub shape: VariantShape
+
+impl[S] Describer[S] for SelectedVariantShape:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.at = v.info.index
+        if self.at == self.wanted:
+            self.shape.of_data = v.info.of_data
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        if self.at == self.wanted:
+            if h.info.positional:
+                self.shape.positional = self.shape.positional + 1
+            else:
+                self.shape.named = self.shape.named + 1
+        .Ok(())
 
 # The fields are public because the prototype checks the instantiated
 # walker in the deriving module.
 struct SerializeWalker[S, W < Serializer]:
     pub out: *mut W
     pub facts: Facts
+    pub shape: VariantShape
+    pub form: VariantForm
 
 # `skips::[Skip]()` omits a member whose known facts hold `Skip`, so its
 # type needs no `Serialize` (r-std-serde.skip.no-bound). The `Skip` test
@@ -252,7 +335,11 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
     type Error = W::Error
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
-        self.out.begin_variant(self.facts, &v.info)
+        self.form = self.shape.form()
+        match self.form:
+            .Record => self.out.begin_variant(self.facts, &v.info)
+            .Newtype => self.out.begin_newtype_variant(self.facts, &v.info)
+            .Tuple => self.out.begin_tuple_variant(self.facts, &v.info, self.shape.positional)
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Serialize` here, as `member` needs `F < Serialize`.
@@ -267,7 +354,9 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
         # A member with no facts has neither `Skip` nor `SkipNone`.
         if !h.info.facts.items.is_empty() && skipped(h, value):
             return .Ok(())
-        self.out.member(&h.info)?
+        match self.form:
+            .Record => self.out.member(&h.info)?
+            _ => pass
         value.serialize(self.out)
 
 # Whether a member's facts omit it with `value`: a `Skip`, or a `SkipNone`
@@ -284,10 +373,30 @@ fn skipped[S, F](h: Field[S, F], value: F) -> bool:
 # Derived `Deserialize`: `begin_variant` picks the variant, then each member
 # in declaration order is positioned with `member` and read with its own
 # `deserialize`, or given its declared default when absent, then
-# `end_variant` (r-std-serde.derive.deserialize.unskipped-order).
+# `end_variant` (r-std-serde.derive.deserialize.variant-form-order).
 impl[T] Deserialize for T by Structure:
     fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
-        let mut source = DeserializeSource::[T, R] { input: input, facts: T::facts(), at: 0 }
+        let mut variants = VariantInfos { items: [] }
+        _ := T::describe(&mut variants)
+        selected := input.begin_variant(T::facts(), variants.items)?
+        wanted := variants.items[selected].index
+        let mut selected_shape = SelectedVariantShape {
+            wanted: wanted,
+            at: 0,
+            shape: VariantShape { of_data: false, positional: 0, named: 0 },
+        }
+        _ := T::describe(&mut selected_shape)
+        form := selected_shape.shape.form()
+        match form:
+            .Record => pass
+            .Newtype => input.begin_newtype_variant()?
+            .Tuple => input.begin_tuple_variant(selected_shape.shape.positional)?
+        let mut source = DeserializeSource::[T, R] {
+            input: input,
+            at: 0,
+            selected: selected,
+            form: form,
+        }
         built := T::build(&mut source)?
         input.end_variant()?
         .Ok(built)
@@ -296,8 +405,9 @@ impl[T] Deserialize for T by Structure:
 # source in the deriving module.
 struct DeserializeSource[S, R < Deserializer]:
     pub input: *mut R
-    pub facts: Facts
     pub at: usize
+    pub selected: usize
+    pub form: VariantForm
 
 # `skips::[Skip]()` omits a member whose known facts hold `Skip`: `build`
 # fills it from its declared default, and its type needs no `Deserialize`
@@ -309,11 +419,7 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
     type Error = R::Error
 
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
-        let mut infos: List[VariantInfo] = []
-        for choice in choices:
-            infos.push(choice.info)
-        index := self.input.begin_variant(self.facts, infos)?
-        .Ok(choices[index])
+        .Ok(choices[self.selected])
 
     # Every unskipped member, in declaration order.
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
@@ -332,7 +438,12 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
     # An absent member that declares a default takes it, and is not read
     # (r-std-serde.derive.deserialize.unskipped-default).
     fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
-        self.input.member(&h.info)?
+        match self.form:
+            .Record => self.input.member(&h.info)?
+            .Newtype => pass
+            .Tuple =>
+                if !self.input.next_item()?:
+                    return .Err(self.input.invalid("tuple variant item"))
         if h.has_default() && self.input.is_absent():
             match h.default():
                 .Some(value) => return .Ok(value)

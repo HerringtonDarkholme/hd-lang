@@ -48,6 +48,14 @@ impl Serializer for Count:
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
         .Ok(())
 
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
+        .Ok(())
+
     fn member(&mut self, m: &Member) -> Result[void, never]:
         .Ok(())
 
