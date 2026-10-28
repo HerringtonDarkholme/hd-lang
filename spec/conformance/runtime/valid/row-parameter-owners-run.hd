@@ -1,6 +1,6 @@
 # test: a method, an implementation and a row alias declare row parameters that calls then solve
 # expect: test
-# Spec 11 Row Parameters: req.row.param.marked.owners.
+# Spec 11 Row Parameters: req.row.param.declaration-owners.
 use std.function.Fn
 trait Tag:
     fn name(self) -> string

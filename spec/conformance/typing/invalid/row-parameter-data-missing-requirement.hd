@@ -1,0 +1,8 @@
+# test: calling a stored callback still requires the instantiated row
+# Spec 11 Row Parameters: req.row.param.data-substitution.
+
+pub struct OnExit[$R]:
+    run: fn() -> void $ R
+
+pub fn invoke(exit: OnExit[$ Console]) -> void:
+    (exit.run)() # diagnostic: missing-requirement

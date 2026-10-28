@@ -591,7 +591,7 @@ lang/11-requirements-and-suspension.md	8	accept	typing/valid/row-union-list.hd|t
 lang/11-requirements-and-suspension.md	9	mixed	typing/invalid/row-union-list-no-convert.hd|typing/invalid/row-union-if-nested-lists.hd
 lang/11-requirements-and-suspension.md	10	accept	typing/valid/row-parameter-marked.hd
 lang/11-requirements-and-suspension.md	11	mixed	typing/invalid/row-parameter-unmarked.hd|typing/invalid/row-parameter-as-type.hd
-lang/11-requirements-and-suspension.md	12	mixed	typing/invalid/row-parameter-on-data.hd|typing/invalid/row-parameter-on-newtype.hd|typing/invalid/row-parameter-in-context.hd
+lang/11-requirements-and-suspension.md	12	mixed	runtime/valid/row-parameter-on-data.hd|typing/invalid/row-parameter-data-missing-argument.hd|typing/invalid/row-parameter-in-context.hd
 lang/11-requirements-and-suspension.md	13	accept	typing/valid/row-slots.hd
 lang/11-requirements-and-suspension.md	14	mixed	typing/invalid/row-slot-bare-alias-argument.hd|typing/invalid/row-slot-bare-context.hd
 lang/11-requirements-and-suspension.md	15	accept	typing/valid/row-alias.hd

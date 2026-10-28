@@ -223,7 +223,10 @@ impl Ck<'_, '_> {
         if let Some(al) = Src::child(n, SyntaxKind::TypeArgumentList) {
             for a in al.children() {
                 if a.kind() == SyntaxKind::RequirementRow {
-                    row = Some(self.row_of(a)?);
+                    let r = self.row_of(a)?;
+                    row = Some(r);
+                    args.push(pool.intern_ty(&TyData::Row(r)));
+                    arg_nodes.push(a);
                 } else if a.kind() == SyntaxKind::AssociatedTypeBinding {
                     if let (Some(t), Some(ty)) =
                         (a.name(&self.cx.src.parse.tokens), Src::type_child(a))
@@ -306,14 +309,43 @@ impl Ck<'_, '_> {
         // `types.generic.too-long`: no more arguments than parameters, in a
         // type, an alias or a trait alike.
         if let Some(item) = self.cx.lookup.item(def) {
-            let max = item.generics.iter().filter(|g| !g.row).count();
+            let max = item.generics.len();
             if args.len() > max {
+                let kind = if item.generics.iter().any(|g| g.row) {
+                    "generic"
+                } else {
+                    "type"
+                };
                 let msg = format!(
-                    "`{}` takes {max} type arguments, not {}",
+                    "`{}` takes {max} {kind} arguments, not {}",
                     self.cx.names.display_name(def),
                     args.len()
                 );
                 self.err(Code::ArgumentCount, n, &msg);
+                return Ok(Ty::POISON);
+            }
+            if let Some((i, generic)) =
+                args.iter()
+                    .zip(&item.generics)
+                    .enumerate()
+                    .find_map(|(i, (arg, generic))| {
+                        (matches!(pool.get(*arg), TyData::Row(_)) != generic.row)
+                            .then_some((i, generic))
+                    })
+            {
+                let name = self.cx.names.display_name(def);
+                let msg = if generic.row {
+                    format!(
+                        "argument {} of `{name}` is a row parameter: write it after `$`",
+                        i + 1
+                    )
+                } else {
+                    format!(
+                        "argument {} of `{name}` is a type parameter, not a row",
+                        i + 1
+                    )
+                };
+                self.err(Code::GenericKindMismatch, n, &msg);
                 return Ok(Ty::POISON);
             }
         }
@@ -341,13 +373,30 @@ impl Ck<'_, '_> {
             // A written trait value omits its defaulted trailing arguments
             // (`types.generic.default.written`); no `Self` is known here.
             let args = match self.cx.lookup.item(def) {
-                Some(it) => hd_resolve::fill_trait_args(
-                    self.cx.names.pool,
-                    def,
-                    &it.generics,
-                    pool.list(&args),
-                    None,
-                ),
+                Some(it) => {
+                    let filled = hd_resolve::fill_trait_args(
+                        self.cx.names.pool,
+                        def,
+                        &it.generics,
+                        pool.list(&args),
+                        None,
+                    );
+                    if let Some(g) = it
+                        .generics
+                        .iter()
+                        .skip(pool.list_items(filled).len())
+                        .find(|g| g.default.is_none())
+                    {
+                        let msg = format!(
+                            "`{}` is written without its parameter `{}`, which has no default",
+                            self.cx.names.display_name(def),
+                            self.cx.names.text(g.name)
+                        );
+                        self.err(Code::PartialGenericArguments, n, &msg);
+                        return Ok(Ty::POISON);
+                    }
+                    filled
+                }
                 None => pool.list(&args),
             };
             // A binding names the associated type the trait declares or
@@ -380,7 +429,7 @@ impl Ck<'_, '_> {
                 .generics
                 .iter()
                 .skip(filled.len())
-                .find(|g| !g.row && g.default.is_none())
+                .find(|g| g.default.is_none())
             {
                 let msg = format!(
                     "`{}` is written without its parameter `{}`, which has no default",
@@ -808,7 +857,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),
             // A row in a row slot, as an explicit argument for a row
-            // parameter (`req.row.slot.list`).
+            // parameter (`req.row.slot.positions`).
             SyntaxKind::RequirementRow => {
                 let r = self.row_of(n)?;
                 pool.intern_ty(&TyData::Row(r))

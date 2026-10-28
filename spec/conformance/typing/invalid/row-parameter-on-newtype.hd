@@ -1,4 +1,4 @@
-# test: a newtype declares no row parameter, as a data type does not
-# Spec 11 Row Parameters: req.row.param.no-newtype (stress test decision 10).
+# test: a newtype parameter written without the row marker stays type-kinded
+# Spec 11 Row Parameters: req.row.param.unmarked.
 
 type Task[R](fn() -> void $ R) # diagnostic: generic-kind-mismatch

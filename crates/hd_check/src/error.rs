@@ -133,10 +133,27 @@ impl Target<'_, '_> {
         let own = |t: Ty| {
             cx.names.pool.subst(t, &|q: ParamRef| {
                 (q.owner == self.ty).then(|| {
-                    cx.names.pool.intern_ty(&TyData::Param(ParamRef {
-                        owner: def,
-                        index: q.index,
-                    }))
+                    let row = cx
+                        .lookup
+                        .item(self.ty)
+                        .and_then(|item| item.generics.get(usize::from(q.index)))
+                        .is_some_and(|generic| generic.row);
+                    if row {
+                        cx.names.pool.intern_ty(&TyData::Row(cx.names.pool.row(
+                            &hd_types::RowData {
+                                keys: Vec::new(),
+                                params: vec![hd_types::RowParamRef {
+                                    owner: def,
+                                    index: q.index,
+                                }],
+                            },
+                        )))
+                    } else {
+                        cx.names.pool.intern_ty(&TyData::Param(ParamRef {
+                            owner: def,
+                            index: q.index,
+                        }))
+                    }
                 })
             })
         };

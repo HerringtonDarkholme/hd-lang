@@ -351,17 +351,18 @@ fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
 ```
 
 1. r[req.row.param.marked] A generic parameter written with `$` before its name, as `$R` in `fn map[T, U, $R]`, is a row parameter.
-2. r[req.row.param.marked.owners] A function, a method, an implementation, and a row alias may declare row parameters.
+2. r[req.row.param.declaration-owners] A function, method, implementation, row alias, struct, enum, trait, or newtype may declare row parameters.
 3. r[req.row.param.marked.use] Inside a row, a row parameter is written by its name, as in `$ R` or `$ R + Log`.
 4. r[req.row.param.no-inference] A parameter's kind comes only from its declaration. A parameter written without `$` is type-kinded, whatever its uses.
 5. r[req.row.param.unmarked] A parameter written without `$` and used in a row is an error whose fix-it adds `$` to its declaration. Error: `generic-kind-mismatch`.
 6. r[req.row.param.as-type] A row parameter used as a type, as in `value: R` after `$R`, is an error. Error: `generic-kind-mismatch`.
 7. r[req.row.param.one-kind] One parameter cannot be used as both an ordinary type and a requirement row.
-8. r[req.row.param.no-data] A struct, an enum, or a trait declares no row parameter: each of its own generic parameters is type-kinded.
-9. r[req.row.param.no-data.marked] A `$` on a generic parameter of a struct, an enum, a trait, or a newtype, as in `struct Job[$R]`, is an error. Error: `generic-kind-mismatch`.
-10. r[req.row.param.no-data.error] Using such a parameter in requirement position, as in a field of type `fn() -> void $ R`, is an error. Error: `generic-kind-mismatch`.
-11. r[req.row.param.no-newtype] A newtype declares no row parameter either, as a struct does not. So `type Job[R](fn() -> void $ R)` is an error. Error: `generic-kind-mismatch`.
-12. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
+8. r[req.row.param.data-members] A row parameter of a struct, enum, trait, or newtype may occur in its fields, payloads, methods, or base type.
+9. r[req.row.param.data-written] A written application supplies such a row argument in declaration order after `$`, as in `OnExit[$ Console]`.
+10. r[req.row.param.data-written-missing] Omitting that argument from a written application is `partial-generic-arguments`, as for an omitted type argument without a default.
+11. r[req.row.param.data-constructor-inference] A struct, enum, or newtype constructor may infer an omitted row argument from its fields, payload, or base value.
+12. r[req.row.param.data-substitution] Instantiation substitutes each row argument through the declaration's fields, payloads, methods, and base type.
+13. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
 
 ```text
 fn run[R](job: fn() -> void $ R) -> void $ R:  # error: generic-kind-mismatch
@@ -372,17 +373,21 @@ fn keep[$R](value: R) -> void:  # error: generic-kind-mismatch
 ```
 
 ```text
-struct Job[R]:
-    run: fn() -> void $ R  # error: generic-kind-mismatch
+struct OnExit[$R]:
+    run: fn() -> void $ R
 
-type Task[R](fn() -> void $ R)  # error: generic-kind-mismatch
+fn invoke(exit: OnExit[$ Console]) -> void $ Console:
+    (exit.run)()
+
+fn missing(exit: OnExit) -> void:  # error: partial-generic-arguments
+    pass
 
 fn run_job[$R](providers: $.Context[$ R], job: fn() -> void $ R) -> void:  # error: row-parameter-in-context
     $.with(providers...):
         job()
 ```
 
-> **Why.** In `Job[Db]`, nothing shows whether `Db` is a requirement row or
+> **Why.** In `OnExit[Console]`, nothing shows whether `Console` is a requirement row or
 > an ordinary type argument. The marker answers that at the declaration, and
 > no use of the parameter changes its kind.
 
@@ -411,7 +416,7 @@ fn wrap(callback: Fn[(), void, $ Db]) -> Job[$ Db]:
 ```
 
 1. r[req.row.slot] A **row slot** is a place in a type or a type argument list that takes a requirement row.
-2. r[req.row.slot.list] The row slots are the brackets of `$.Context[...]` and the row argument of `Fn` and `SuspendFn`. They also include an argument for a row parameter of an alias. An explicit type argument for a row parameter of a function or method is one too.
+2. r[req.row.slot.positions] The row slots are `$.Context[...]`, the row argument of `Fn` and `SuspendFn`, and an argument for any declared row parameter of a function, method, alias, struct, enum, trait, or newtype.
 3. r[req.row.slot.dollar] Every row in a row slot is written after `$`, including one key and a row alias, as in `Job[$ Db]`, `$.Context[$ AppRow]`, and `Fn[(), void, $ AppRow]`.
 4. r[req.row.slot.empty] The empty row in a row slot is `$()`.
 5. r[req.row.slot.bare] A bare key or a bare row alias in a row slot is an error whose fix-it adds `$`. Error: `generic-kind-mismatch`.

@@ -1,0 +1,8 @@
+# test: a written data type must supply its row argument
+# Spec 11 Row Parameters: req.row.param.data-written-missing.
+
+struct OnExit[$R]:
+    run: fn() -> void $ R
+
+fn hold(exit: OnExit) -> void: # diagnostic: partial-generic-arguments
+    pass

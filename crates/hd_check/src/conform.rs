@@ -379,9 +379,15 @@ impl Ck<'_, '_> {
         if want.suspends != got.suspends {
             return Some("suspension (`!`)");
         }
-        let wk: Vec<Ty> = pool.row_data(want.row).keys.into_iter().map(inst).collect();
-        let gk = pool.row_data(got.row).keys;
-        if wk.len() != gk.len() || wk.iter().any(|k| !gk.contains(k)) {
+        // A trait-level row parameter is part of the row itself, not a
+        // key. Instantiate the whole row so `Invoke[$ Console]` moves the
+        // trait's `$R` into the implementation method just as a type
+        // parameter in a key does.
+        let want_row = pool.intern_ty(&TyData::Row(want.row));
+        let TyData::Row(want_row) = pool.get(inst(want_row)) else {
+            return Some("the requirement row");
+        };
+        if want_row != got.row {
             return Some("the requirement row");
         }
         if want.generics.len() != got.generics.len() {

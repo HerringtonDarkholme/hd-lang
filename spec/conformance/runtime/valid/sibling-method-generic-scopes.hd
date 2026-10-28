@@ -2,7 +2,7 @@
 # expect: test
 # Spec 03 Function And Closure Scopes: names.generic.params.visible.
 # Spec 07 Varargs: fn.vararg.type.kinds.
-# Spec 11 Row Parameters: req.row.param.marked.owners.
+# Spec 11 Row Parameters: req.row.param.declaration-owners.
 use std.function.{Fn, Tuple}
 
 trait Label:

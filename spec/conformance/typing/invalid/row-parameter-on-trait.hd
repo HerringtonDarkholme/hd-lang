@@ -1,4 +1,5 @@
-# test: a trait declares no row parameter
+# test: a trait parameter written without the row marker stays type-kinded
+# Spec 11 Row Parameters: req.row.param.unmarked.
 
 trait Runner[R]:
     fn run(self, job: fn() -> void $ R) -> void # diagnostic: generic-kind-mismatch

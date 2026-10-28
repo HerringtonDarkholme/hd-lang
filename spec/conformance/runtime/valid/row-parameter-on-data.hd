@@ -1,0 +1,63 @@
+# test: structs, enums, traits, and newtypes store and substitute a callback's row
+# expect-stdout: explicit
+# expect-stdout: inferred
+# expect-stdout: bounded
+# expect-stdout: enum
+# expect-stdout: newtype
+# Spec 11 Row Parameters: req.row.param.declaration-owners,
+# req.row.param.data-members, req.row.param.data-written,
+# req.row.param.data-constructor-inference, req.row.param.data-substitution.
+
+trait Invoke[$R]:
+    fn invoke(self) -> void $ R
+
+struct OnExit[$R]:
+    run: fn() -> void $ R
+
+struct ConsoleExit:
+    run: fn() -> void $ Console
+
+impl Invoke[$ Console] for ConsoleExit:
+    fn invoke(self) -> void $ Console:
+        (self.run)()
+
+fn invoke[$R](exit: OnExit[$R]) -> void $ R:
+    (exit.run)()
+
+enum Exit[$R]:
+    Run(fn() -> void $ R)
+
+type Task[$R](OnExit[$R])
+
+fn explicit_message() -> void $ Console:
+    println("explicit")
+
+fn inferred_message() -> void $ Console:
+    println("inferred")
+
+fn bounded_message() -> void $ Console:
+    println("bounded")
+
+fn enum_message() -> void $ Console:
+    println("enum")
+
+fn newtype_message() -> void $ Console:
+    println("newtype")
+
+fn accepts[T < Invoke[$ Console]](value: T) -> void $ Console:
+    value.invoke()
+
+pub fn main() -> void $ Console:
+    let explicit: OnExit[$ Console] = OnExit { run: explicit_message }
+    invoke::[$ Console](explicit)
+
+    inferred := OnExit { run: inferred_message }
+    invoke::[$ Console](inferred)
+
+    accepts(ConsoleExit { run: bounded_message })
+
+    match Exit.Run(enum_message):
+        .Run(run) => run()
+
+    task := Task(OnExit { run: newtype_message })
+    invoke::[$ Console](OnExit(task))

@@ -1023,10 +1023,9 @@ impl Resolver<'_, '_> {
     /// The number of generic parameters a trait declares.
     fn trait_arity(&self, tr: DefId) -> Option<usize> {
         if let Some(g) = self.own_traits.get(&tr) {
-            return Some(g.iter().filter(|g| !g.row).count());
+            return Some(g.len());
         }
-        self.item(tr)
-            .map(|item| item.generics.iter().filter(|g| !g.row).count())
+        self.item(tr).map(|item| item.generics.len())
     }
 
     /// A written type constructor's arguments with the omitted trailing
@@ -1045,7 +1044,7 @@ impl Resolver<'_, '_> {
             let missing = generics
                 .iter()
                 .skip(filled.len())
-                .find(|g| !g.row && g.default.is_none())
+                .find(|g| g.default.is_none())
                 .map(|g| self.cx.names.text(g.name).to_owned());
             (filled, missing, Some(generics.len()))
         };
@@ -1581,8 +1580,6 @@ struct Gen {
     rows: Vec<(Symbol, RowParamRef)>,
     /// Where each type parameter's name is declared.
     decls: Vec<(Symbol, Span)>,
-    /// The header declares no row parameter (`req.row.param.no-data`).
-    type_kinded: bool,
     self_ty: Option<Ty>,
     self_trait: Option<DefId>,
     /// Type parameters written with a bound list. Nothing reads it now:
@@ -1606,14 +1603,14 @@ impl Gen {
             self.bounded.len(),
             self.pending.len(),
         );
-        let context = (self.type_kinded, self.self_ty, self.self_trait);
+        let context = (self.self_ty, self.self_trait);
         let value = lower(self);
         self.tys.truncate(lengths.0);
         self.rows.truncate(lengths.1);
         self.decls.truncate(lengths.2);
         self.bounded.truncate(lengths.3);
         self.pending.truncate(lengths.4);
-        (self.type_kinded, self.self_ty, self.self_trait) = context;
+        (self.self_ty, self.self_trait) = context;
         value
     }
 }
@@ -1852,12 +1849,14 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::UnknownTrait, span, &msg);
             return None;
         }
-        let (mut args, written, _) = self.type_args(n, gn);
-        args.retain(|a| !matches!(self.names.pool.get(*a), TyData::Row(_)));
+        let (args, written, _) = self.type_args(n, gn);
         if let Some(max) = self.r.trait_arity(def)
             && args.len() > max
         {
             self.too_many_args(def, max, args.len(), span);
+            return None;
+        }
+        if !self.generic_arg_kinds(def, &args, span) {
             return None;
         }
         let args = self
@@ -1949,10 +1948,9 @@ impl Lower<'_, '_, '_> {
         self.names.pool.row(&data)
     }
 
-    /// `req.row.param.unmarked`, `req.row.param.no-data.error`: a
-    /// type-kinded parameter written in a row. A function's or
-    /// implementation's parameter gets a fix-it adding `$`. Reports
-    /// whether `name` is such a parameter.
+    /// `req.row.param.unmarked`: a type-kinded parameter written in a row.
+    /// The fix-it adds `$` to its declaration. Reports whether `name` is
+    /// such a parameter.
     fn type_param_in_row(&mut self, c: NodeRef<'_>, name: &str, gn: &Gen) -> bool {
         let Some(decl) = gn
             .decls
@@ -1967,25 +1965,17 @@ impl Lower<'_, '_, '_> {
             return true;
         }
         let span = self.src.span(c);
-        if gn.type_kinded {
-            let msg = format!(
-                "`{name}` is a type parameter, and a data type, enum, trait or newtype declares no row parameter"
-            );
-            self.diags.error(Code::GenericKindMismatch, span, &msg);
-        } else {
-            let msg =
-                format!("`{name}` is a type parameter used in a row: declare it as `${name}`");
-            self.diags.error(Code::GenericKindMismatch, span, &msg);
-            let at = Span {
-                hi: decl.lo,
-                ..decl
-            };
-            self.diags.add_fix(
-                &format!("declare `{name}` as a row parameter"),
-                hd_diag::FixSafety::Exact,
-                &[(at, "$")],
-            );
-        }
+        let msg = format!("`{name}` is a type parameter used in a row: declare it as `${name}`");
+        self.diags.error(Code::GenericKindMismatch, span, &msg);
+        let at = Span {
+            hi: decl.lo,
+            ..decl
+        };
+        self.diags.add_fix(
+            &format!("declare `{name}` as a row parameter"),
+            hd_diag::FixSafety::Exact,
+            &[(at, "$")],
+        );
         true
     }
 
@@ -2130,38 +2120,13 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Data | HeadKind::Enum | HeadKind::Newtype => {
                 // Each argument has the kind of its parameter
-                // (`grammar.type.row-argument.kind`).
-                if let Some((i, row)) = args
-                    .iter()
-                    .zip(self.generic_rows(def))
-                    .enumerate()
-                    .find_map(|(i, (a, row))| {
-                        (matches!(pool.get(*a), TyData::Row(_)) != row).then_some((i, row))
-                    })
-                {
-                    let name = self.names.display_name(def);
-                    let msg = if row {
-                        format!(
-                            "argument {} of `{name}` is a row parameter: write it after `$`",
-                            i + 1
-                        )
-                    } else {
-                        format!(
-                            "argument {} of `{name}` is a type parameter, not a row",
-                            i + 1
-                        )
-                    };
-                    self.diags.error(Code::GenericKindMismatch, span, &msg);
+                // (`req.row.slot.positions`).
+                if !self.generic_arg_kinds(def, args, span) {
                     return Ty::POISON;
                 }
-                let args: Vec<Ty> = args
-                    .iter()
-                    .copied()
-                    .filter(|a| !matches!(pool.get(*a), TyData::Row(_)))
-                    .collect();
                 pool.intern_ty(&TyData::Adt {
                     def,
-                    args: pool.list(&args),
+                    args: pool.list(args),
                 })
             }
             HeadKind::Trait => {
@@ -2576,28 +2541,6 @@ impl Lower<'_, '_, '_> {
             _ => {
                 self.gap("this type form");
                 Ty::POISON
-            }
-        }
-    }
-
-    /// `req.row.param.no-data.marked`: the generic parameters of a data
-    /// type, an enum, a trait or a newtype are type-kinded, so none is
-    /// marked `$`.
-    fn type_kinded(&mut self, gl: Option<NodeRef<'_>>, gn: &mut Gen) {
-        gn.type_kinded = true;
-        if self.r.frozen.is_some() {
-            return;
-        }
-        let toks = &self.src.parse.tokens;
-        for g in gl.iter().flat_map(|gl| gl.children()) {
-            if g.kind() == SyntaxKind::GenericParameter
-                && g.direct_token(toks, TokenKind::Dollar).is_some()
-            {
-                self.diags.error(
-                    Code::GenericKindMismatch,
-                    self.src.span(g),
-                    "a data type, enum, trait or newtype declares no row parameter: drop the `$`",
-                );
             }
         }
     }
@@ -3043,6 +2986,36 @@ impl Lower<'_, '_, '_> {
                 .map(|i| i.generics.iter().map(|g| g.row).collect())
                 .unwrap_or_default(),
         }
+    }
+
+    /// Checks each written generic argument against the declaration's
+    /// type or row kind (`req.row.slot.positions`).
+    fn generic_arg_kinds(&mut self, def: DefId, args: &[Ty], span: Span) -> bool {
+        let pool = self.names.pool;
+        let Some((i, row)) = args
+            .iter()
+            .zip(self.generic_rows(def))
+            .enumerate()
+            .find_map(|(i, (a, row))| {
+                (matches!(pool.get(*a), TyData::Row(_)) != row).then_some((i, row))
+            })
+        else {
+            return true;
+        };
+        let name = self.names.display_name(def);
+        let msg = if row {
+            format!(
+                "argument {} of `{name}` is a row parameter: write it after `$`",
+                i + 1
+            )
+        } else {
+            format!(
+                "argument {} of `{name}` is a type parameter, not a row",
+                i + 1
+            )
+        };
+        self.diags.error(Code::GenericKindMismatch, span, &msg);
+        false
     }
 
     /// The field nodes under `holder`, in the order [`Self::fields`] lowers
@@ -3942,10 +3915,19 @@ impl Lower<'_, '_, '_> {
                         .intern(self.names.module(self.module), PathKind::Impl, &seg)
                         .raw(),
                 );
-                let params: Vec<Ty> = (0..generics.len())
-                    .map(|i| {
+                let params: Vec<Ty> = generics
+                    .iter()
+                    .enumerate()
+                    .map(|(i, g)| {
                         let index = u16::try_from(i).unwrap_or(u16::MAX);
-                        pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }))
+                        if g.row {
+                            pool.intern_ty(&TyData::Row(pool.row(&RowData {
+                                keys: Vec::new(),
+                                params: vec![RowParamRef { owner: def, index }],
+                            })))
+                        } else {
+                            pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }))
+                        }
                     })
                     .collect();
                 // The type's own parameters, moved to the implementation's.
@@ -4117,7 +4099,14 @@ impl Lower<'_, '_, '_> {
             let mut params = Vec::new();
             for (i, decl) in generics.iter().enumerate() {
                 let index = u16::try_from(i).unwrap_or(u16::MAX);
-                let param = pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }));
+                let param = if decl.row {
+                    pool.intern_ty(&TyData::Row(pool.row(&RowData {
+                        keys: Vec::new(),
+                        params: vec![RowParamRef { owner: def, index }],
+                    })))
+                } else {
+                    pool.intern_ty(&TyData::Param(ParamRef { owner: def, index }))
+                };
                 params.push(param);
                 let mut g2 = Generic::plain(decl.name);
                 g2.row = decl.row;
@@ -4217,7 +4206,6 @@ impl Lower<'_, '_, '_> {
             ..Gen::default()
         };
         let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
-        self.type_kinded(gl, &mut gn);
         let generics = self.generics(gl, h.def, 1, &mut gn);
         (self_ty, gn, generics)
     }
@@ -4288,7 +4276,6 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Data => {
                 let mut gn = Gen::default();
-                self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let fields = self.fields(block, &gn);
                 if self.r.frozen.is_none() {
@@ -4308,7 +4295,6 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Enum => {
                 let mut gn = Gen::default();
-                self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let shared_params = Src::child(n, SyntaxKind::ParameterList);
                 let nodes: Vec<NodeRef<'_>> = shared_params
@@ -4412,7 +4398,6 @@ impl Lower<'_, '_, '_> {
             HeadKind::Alias => self.alias_item(h, false, out),
             HeadKind::Newtype => {
                 let mut gn = Gen::default();
-                self.type_kinded(gl, &mut gn);
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
                 // `@derive` on a newtype names implementations from the

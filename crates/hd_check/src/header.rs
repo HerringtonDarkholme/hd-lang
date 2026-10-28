@@ -278,12 +278,20 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
         };
         if let ItemData::Trait(_) = o.data {
             let s = pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
-            let args: Vec<Ty> = (1..=o.generics.len())
-                .map(|i| {
-                    pool.intern_ty(&TyData::Param(ParamRef {
-                        owner,
-                        index: u16::try_from(i).unwrap_or(u16::MAX),
-                    }))
+            let args: Vec<Ty> = o
+                .generics
+                .iter()
+                .enumerate()
+                .map(|(i, g)| {
+                    let index = u16::try_from(i + 1).unwrap_or(u16::MAX);
+                    if g.row {
+                        pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
+                            keys: Vec::new(),
+                            params: vec![hd_types::RowParamRef { owner, index }],
+                        })))
+                    } else {
+                        pool.intern_ty(&TyData::Param(ParamRef { owner, index }))
+                    }
                 })
                 .collect();
             let tv = pool.intern_ty(&TyData::TraitValue {
@@ -1019,11 +1027,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 // arguments written or filled from defaults; a default that
                 // names `Self` cannot fill (`trait.dyn.generic-trait`).
                 let have = pool.list_items(args).len();
-                let want = self
-                    .cx
-                    .lookup
-                    .item(def)
-                    .map_or(0, |t| t.generics.iter().filter(|g| !g.row).count());
+                let want = self.cx.lookup.item(def).map_or(0, |t| t.generics.len());
                 if have < want {
                     let message = format!(
                         "`{}` is written without all of its generic arguments",

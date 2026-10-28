@@ -1,4 +1,5 @@
-# test: a data type declares no row parameter
+# test: a struct parameter written without the row marker stays type-kinded
+# Spec 11 Row Parameters: req.row.param.unmarked.
 
 struct Job[R]:
     run: fn() -> void $ R # diagnostic: generic-kind-mismatch

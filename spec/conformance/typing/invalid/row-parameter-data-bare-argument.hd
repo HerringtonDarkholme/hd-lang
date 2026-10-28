@@ -1,0 +1,8 @@
+# test: a type argument cannot fill a data type's row slot
+# Spec 11 Row Slots: req.row.slot.positions.
+
+struct OnExit[$R]:
+    run: fn() -> void $ R
+
+fn hold(exit: OnExit[i32]) -> void: # diagnostic: generic-kind-mismatch
+    pass
