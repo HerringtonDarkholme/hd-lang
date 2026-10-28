@@ -42,6 +42,12 @@ before relying on one, because they change.
   `defer` stays. Do not propose `Drop` or `using` as the answer.
 - Per-tool authority reports are application-level. Do not raise them as a
   language next step.
+- Follow prior art's best practice by default: the behavior of the
+  established reference (serde and serde_json for serialization, Go
+  net/http and reqwest for HTTP, Rust std for collections). A design that
+  differs states the difference, the anti case where the prior art fails
+  or doesn't fit hd, and the trade-off. An undiscussed difference is a
+  review finding.
 
 ## Spec Tiers
 

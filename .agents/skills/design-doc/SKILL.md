@@ -56,7 +56,9 @@ docs/future-work/<topic>/
   behaviour is listed in the doc, never silent.
 - **Check the basics against prior art** (for HTTP: Fetch, Go net/http,
   reqwest; for collections: Rust std, Go): name each common case they
-  cover and show it in an example or say why it is out.
+  cover and show it in an example or say why it is out. Match their
+  behavior by default; each difference needs an anti case and its
+  trade-off in the doc ([shared rules](../shared-rules.md)).
 - Signatures follow the repo's rules: requirement rows, bang functions,
   receivers (`&self`, `&mut self`, `mut self`, value), error types with
   `@error`, derives, and the stdlib bar (#350): typed by default, the 80%
