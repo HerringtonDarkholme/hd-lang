@@ -1,0 +1,98 @@
+use pkg.decimal.{Decimal, ParseDecimalError, RoundingMode}
+use std.cmp.max
+use std.json.{JsonError, decode, encode}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize)
+struct LineItem:
+    description: string
+    unit_price: Decimal
+    quantity: i64
+
+@derive(Serialize, Deserialize)
+struct Invoice:
+    items: List[LineItem]
+    discount: Decimal
+    tax_rate: Decimal
+
+fn invoice_total(invoice: Invoice) -> Decimal:
+    let subtotal = Decimal::from_i64(0)
+    for item in invoice.items:
+        subtotal = subtotal + item.unit_price * Decimal::from_i64(item.quantity)
+    taxable := subtotal - invoice.discount
+    tax := taxable * invoice.tax_rate
+    (taxable + tax).round(2, .NearestEven)
+
+struct CurrencyRounding:
+    bank_transfer: Decimal
+    cash_refund: Decimal
+    accounting_truncation: Decimal
+    customer_credit: Decimal
+    merchant_charge: Decimal
+
+fn currency_rounding(value: Decimal) -> CurrencyRounding:
+    CurrencyRounding {
+        bank_transfer: value.round(2, RoundingMode.NearestEven),
+        cash_refund: value.round(2, RoundingMode.NearestAwayFromZero),
+        accounting_truncation: value.round(2, RoundingMode.TowardZero),
+        customer_credit: value.round(2, RoundingMode.TowardNegativeInfinity),
+        merchant_charge: value.round(2, RoundingMode.TowardPositiveInfinity),
+    }
+
+struct AllocationAudit:
+    exact_average: Decimal
+    settled_average: Decimal
+    remainder: Decimal
+    refund: Decimal
+    over_threshold: bool
+    higher: Decimal
+
+fn allocation_audit(total: Decimal, parts: i64, threshold: Decimal) -> AllocationAudit:
+    divisor := Decimal::from_i64(parts)
+    AllocationAudit {
+        exact_average: total / divisor,
+        settled_average: total.divide(divisor, 2),
+        remainder: total % divisor,
+        refund: -total,
+        over_threshold: total > threshold,
+        higher: max(total, threshold),
+    }
+
+fn parse_invoice(
+    unit_price: string,
+    discount: string,
+    tax_rate: string,
+) -> Result[Invoice, ParseDecimalError]:
+    .Ok(
+        Invoice {
+            items: [
+                LineItem {
+                    description: "consulting",
+                    unit_price: unit_price.parse::[Decimal]()?,
+                    quantity: 3,
+                },
+            ],
+            discount: discount.parse::[Decimal]()?,
+            tax_rate: tax_rate.parse::[Decimal]()?,
+        },
+    )
+
+fn invoice_json(invoice: Invoice) -> Result[Invoice, JsonError]:
+    wire := encode(invoice)
+    decode::[Invoice](wire)
+
+fn decimal_keyed_totals(amount: Decimal) -> Map[Decimal, string]:
+    { amount: "invoice total" }
+
+fn examples() -> Result[void, ParseDecimalError]:
+    invoice := parse_invoice("19.95", "5.00", "0.0825")?
+    total := invoice_total(invoice)
+    match invoice_json(invoice):
+        .Ok(_round_trip) => pass
+        .Err(_) => pass
+    _rounding := currency_rounding(total)
+    _allocation := allocation_audit(total, 3, "50.00".parse::[Decimal]()?)
+    _totals := decimal_keyed_totals(total)
+    _display := "invoice total: $total"
+    _debug := debug(total)
+    .Ok(())
