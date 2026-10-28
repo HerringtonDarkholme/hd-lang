@@ -606,7 +606,14 @@ fn a_stopped_input_ends_and_the_session_goes_on() {
     use std::time::Duration;
     // 1 once the loop input is sent, 2 once the next input is read.
     let phase = Arc::new(AtomicU8::new(0));
-    let mut script = Script::of(&["let kept = 7", "while true:", "    pass", "", "kept + 1"]);
+    let mut script = Script::of(&[
+        "let kept = 7",
+        "while true:",
+        "    let mut values: List[usize] = []",
+        "    values.push(1)",
+        "",
+        "kept + 1",
+    ]);
     let seen = Arc::clone(&phase);
     script.on_line = Some(Box::new(move |line: &str| match line {
         "" => seen.store(1, Ordering::SeqCst),
@@ -622,13 +629,14 @@ fn a_stopped_input_ends_and_the_session_goes_on() {
     let mut stopping = None;
     let t = session_in(&dir, script, |stopper| {
         // Ctrl-C while the loop runs, as the handler calls it: a stop
-        // before the input starts is dropped, so it repeats.
+        // before the input starts is dropped, so it repeats. Poll often
+        // enough to cover the input's linked-module allocation too.
         stopping = Some(std::thread::spawn(move || {
             while phase.load(Ordering::SeqCst) < 2 {
                 if phase.load(Ordering::SeqCst) == 1 {
                     stopper.stop();
                 }
-                std::thread::sleep(Duration::from_millis(50));
+                std::thread::sleep(Duration::from_millis(1));
             }
         }));
     });

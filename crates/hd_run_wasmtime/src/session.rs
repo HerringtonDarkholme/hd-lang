@@ -556,7 +556,14 @@ impl WasmtimeSession {
                 source: source.to_owned(),
                 data: 0,
             };
-            part.data = self.instantiate_linked(&part, &mut linked.instances, None)?;
+            // A stop is for the input, not the linked module setup before
+            // it. In particular, `hd.session.alloc` may call `rt:alloc`;
+            // an interrupt there used to escape as an input setup error.
+            let interrupt = self.run.store.data_mut().interrupt.take();
+            let instantiated = self.instantiate_linked(&part, &mut linked.instances, None);
+            self.run.store.data_mut().interrupt = interrupt;
+            self.flag.store(false, Ordering::Relaxed);
+            part.data = instantiated?;
             linked.history.take();
             let instance = *linked.instances.last().expect("new instance");
             let outcome = self.input(instance, number, source, wasm)?;
@@ -959,15 +966,24 @@ impl WasmtimeSession {
             &format!("hd.poll.{number}"),
         );
         let end = self.ended(&result);
-        // The stop that ended a new input, if one did, is spent before its
-        // reset runs.
-        if self.run.store.data().replay.is_none() {
-            self.flag.store(false, Ordering::Relaxed);
-        }
+        let live = self.run.store.data().replay.is_none();
         // An input that failed to run is an outcome too.
         let outcome = result.unwrap_or_else(Outcome::Internal);
         if outcome != Outcome::Exit(0) {
-            self.reset(instance)?;
+            if live {
+                // The stop is spent when the input ends. Keep a repeated
+                // request from interrupting the runtime reset between
+                // inputs; that is session setup, not user code.
+                let interrupt = self.run.store.data_mut().interrupt.take();
+                let reset = self.reset(instance);
+                self.run.store.data_mut().interrupt = interrupt;
+                self.flag.store(false, Ordering::Relaxed);
+                reset?;
+            } else {
+                self.reset(instance)?;
+            }
+        } else if live {
+            self.flag.store(false, Ordering::Relaxed);
         }
         Ok((outcome, end))
     }
