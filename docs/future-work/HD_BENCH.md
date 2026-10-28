@@ -9,48 +9,44 @@ The [checked package](hd-bench/) holds the proposed std signatures and examples.
 
 ## Proposal
 
-`hd bench` discovers ordinary executable roots under `benches/`.
-Each root registers named callbacks in `Benchmarks`, then calls one terminal `run!`.
-`Bencher.iter!` owns warmup, calibration, timing, and output observation; work keeps its own requirement row.
+`hd bench` discovers top-level `bench("name"):` registrations in `benches/**/*.hd`.
+The form mirrors top-level `it("name"):` in `tests/**/*.hd`; there is no typed registry or benchmark `main`.
+The runner owns its real clock, while each case keeps only the requirements of its work.
 
 ```text
-use pkg.bench.{Benchmarks, Bencher, BenchError, Throughput, black_box, benchmarks, run}
-use std.host.Args
-use std.time.Clock
+# tests/split.hd
+it("split returns four fields"):
+    assert_equal("red,green,blue,black".split(",").len(), 4, reason="four fields")
 
-fn split_case!(b: &mut Bencher) -> Result[void, BenchError] $ Clock:
+# benches/split.hd
+bench("text/split/21b"):
     input := black_box("red,green,blue,black")
-    b.iter!(Throughput.Bytes(input.len()), fn!() -> Result[void, BenchError]:
+    iter!(Throughput.Bytes(input.len()), fn!() -> Result[void, BenchError]:
         fields := input.split(",")
         if black_box(fields.len()) != 4:
             return .Err(.Work("split returned the wrong fields"))
         .Ok(())
     )
-
-pub fn main!() -> Result[void, BenchError] $ Args + Clock + Console:
-    let mut suite: Benchmarks[fn!(&mut Bencher) -> Result[void, BenchError] $ Clock] = benchmarks()
-    suite.add("text/split/21b", split_case)
-    run!::[$()](&mut suite)
 ```
 
 Illustrative text output, not a measurement from this proposal:
 
 ```console
-text/split/21b  12.8 MiB/s  1.56 us/op  median [1.50, 1.65]  workers=10  stable
+text/split/21b  12.8 MiB/s  1.56 us/op  median  runs=5
 ```
 
 ## Open questions
 
-1. Registration controls language cost: ordinary `suite.add(...)` roots (**recommended**) or compiler-known declarations?
+1. Registration controls language cost: compiler-known top-level `bench("name"):` calls under `benches/` (**recommended**) or ordinary typed registries?
 2. Pure-work timing needs opacity: intrinsic `black_box(value)` (**recommended**) or exclude pure microbenchmarks?
-3. Interval quality sets duration: ten workers near one minute (**recommended**) or three quick workers without a verdict?
-4. CI needs a practical band: opt-in `--fail-regression 3%` (**recommended**) or report-only comparison?
+3. Default depth sets iteration time: five approximately 300 ms runs (**recommended**) or criterion-level statistics on every invocation?
+4. CI needs a practical band: opt-in full comparison with `--fail-regression 3%` (**recommended**) or a default verdict?
 
 ## Problems it solves
 
 | User task | Today | Proposed workflow |
 | --- | --- | --- |
-| Tune one std call | Write an ad-hoc script and interpret raw times | Add a named case, run `hd bench text/split`, inspect interval and noise flags |
+| Tune one std call | Write an ad-hoc script and interpret raw times | Add a named case, run `hd bench text/split`, inspect five-run throughput |
 | Catch a regression | CI has no benchmark verdict | Run interleaved old/new compiler pairs with an explicit 3% threshold |
 | Compare compiler versions | `bench/study` measures whole programs | `--against-compiler` measures identical operation roots; process mode stays separate |
 | Compare two algorithms | Setup and reset boundaries are hand-written | Register two labels using the same seeded input and `iter_batched!` |
@@ -59,15 +55,15 @@ text/split/21b  12.8 MiB/s  1.56 us/op  median [1.50, 1.65]  workers=10  stable
 
 ### Registration and timing
 
-`benches/**/*.hd` files are ordinary executable roots with public `main!` functions.
-The CLI builds them in the release profile and runs only roots matching the filter.
-No declaration is discovered by function name, annotation, or compiler metadata.
+`benches/**/*.hd` files use direct top-level `bench("name"):` calls to register cases.
+This mirrors the compiler-known test position of top-level `it("name"):` calls in `tests/**/*.hd`.
+The CLI builds the matching cases in the release profile; no `main`, registry value, or terminal `run!` call exists.
 
-`run!` and each `Bencher` timing method require the existing real `Clock`, plus `Args` and `Console` at the root.
-The timing method reads `Clock.monotonic()` before and after each work call.
+The runner retains the existing real `Clock`; a case never writes `$ Clock`.
+It reads `Clock.monotonic()` before and after each work batch.
 A workload may bind `ManualClock` inside that work call; its lexical binding ends before the outer meter reads again.
 
-`iter!` measures a complete callback invocation, including awaited completion and normal value release.
+`iter!` uses the runner supplied to benchmark position and measures a complete callback invocation, including awaited completion and normal value release.
 `iter_batched!` prepares fresh values outside timing and passes each as `&mut S` to one measured call.
 Setup and cleanup policies are recorded; no empty-loop or timer constant is subtracted.
 
@@ -77,21 +73,20 @@ Its overhead remains inside the batch and is shown by control cases; it is not a
 
 ### Warmup, samples, and statistics
 
-Each worker is a fresh process and instance.
-It warms the real callback for at least three seconds, doubling iterations while recording V8 or Wasmtime identity and flags.
-Warmup does not claim that V8 TurboFan tiering or host caches are complete.
+Each run is a fresh process and instance.
+The default performs five runs; each doubles iterations during untimed calibration, then retains one approximately 300 ms batch.
+This quick mode records V8 or Wasmtime identity and flags but makes no tier-completion or statistical verdict claim.
 
 Calibration chooses a fixed iteration count whose batch lasts at least 300 ms and 100 observed positive clock ticks.
 It stops at bounded iteration, time, and prepared-input limits.
-Ten fresh workers each retain ten batches; quick mode uses three workers and five batches without a CI verdict.
+`--statistics` uses 15 interleaved fresh runs; `--runs 31` is reserved for a comparison near the 3% decision bar.
 
-For each worker, divide batch elapsed time by completed operations, then take its median.
-The primary estimate is the median of ten worker medians.
-Report MAD, IQR, min/max, raw batches, and a seeded 95% percentile-bootstrap interval over whole workers.
+Quick mode reports the median, min/max, raw runs, and throughput, with no interval or verdict.
+Statistics mode reports MAD, IQR, raw runs, and a seeded 95% percentile-bootstrap interval over whole processes.
 
 Tukey 1.5/3-IQR fences flag mild and severe outliers on log-positive costs.
 Valid outliers remain in every estimate.
-Fewer than ten workers, interval half-width above 5%, worker MAD above 10%, or warmup/retained drift makes the result inconclusive.
+Fewer than 15 runs, interval half-width above 5%, run MAD above 10%, or calibration/retained drift makes a statistics result inconclusive.
 
 `Throughput.Operations`, `.Bytes`, and `.Items` name completed work per callback.
 The primary display is operations, bytes, or items per second; time per callback is secondary.
@@ -100,11 +95,11 @@ A batch average never claims individual-request p95 or p99 latency.
 ### Comparison and noise
 
 `--save-baseline PATH` atomically saves raw versioned JSON; `--baseline PATH` compares a fresh run with it.
-Historical comparisons report median ratios, intervals, and a Mann–Whitney U result on worker medians.
+Historical comparisons report median ratios, intervals, and a Mann–Whitney U result on independent run costs.
 They remain descriptive because a file cannot remove host drift.
 
-`--against-compiler PATH` freezes both artifacts and runs ten seeded AB/BA process pairs sequentially.
-The primary comparison is the geometric mean of paired median ratios with a 99% paired-bootstrap interval.
+`--against-compiler PATH` opts into full statistics, freezes both artifacts, and runs 15 seeded AB/BA process pairs sequentially.
+The primary comparison is the geometric mean of paired run ratios with a 99% paired-bootstrap interval.
 Order subgroups and a time trace expose drift; incompatible workload fingerprints refuse comparison.
 
 `--fail-regression 3%` is opt-in.
@@ -130,12 +125,12 @@ Guest allocation counts are excluded until the runtime has a stable counter; opt
 | Component | Proposed budget or effect |
 | --- | --- |
 | Existing scripts | delete nothing; `bench/runtime` and `bench/study` retain their coarse boundaries |
-| Std API | at most 220 hd lines for registry, batches, clock capture, protocol, and typed errors |
-| CLI | at most 900 Rust lines for discovery, workers, schema, statistics, comparison, and reports |
+| Std API | at most 160 hd lines for registration signatures, batches, runner protocol, and typed errors |
+| CLI | at most 450 Rust lines for discovery, five-run quick mode, schema, and reports; full statistics is a later slice |
 | Compiler | at most 140 Rust lines for `black_box` typing, lowering, and both-engine code checks |
 | Runtime | two clock reads per approximately 300 ms batch; measure actual overhead, never subtract it |
 | Normal Wasm | byte-identical when no benchmark root is built |
-| Benchmark Wasm | implementation budget: at most +8 KiB optimized over the same callback in an ordinary root |
+| Benchmark Wasm | implementation budget: at most +8 KiB optimized over the same callback in a benchmark root |
 | Web compiler | implementation budget: at most +3 KiB gzip under the 2 MB cap for the barrier support |
 | Compile time | benchmark roots build once per compiler/profile/engine, never once per sample |
 
@@ -153,8 +148,8 @@ The implementation must report total Wasm bytes, code-section bytes, function co
 | ManualClock scheduler | The body sees virtual time while the retained outer real `Clock` measures completion |
 | Suspending process/HTTP call | Each `fn!` invocation is awaited; cancellation or panic invalidates the worker and retains evidence |
 | Gradually warming host | All-A-then-B order fabricates a difference; seeded AB/BA pairs and order subgroups expose it |
-| One 20× pause | Tukey marks it, but the valid sample remains in the worker median and raw record |
-| Two workers with 100 batches | Still only two independent process units; the result is inconclusive |
+| One 20× pause | Statistics mode flags it, but the valid run remains in the estimate and raw record |
+| Two runs with 100 batches | Still only two independent process units; the result is inconclusive |
 | Allocation-heavy parser | Timing remains valid; guest allocation claims are excluded without a defined counter |
 
 The stress test rejects one tempting simplification: a plain generic identity function is not an optimization barrier.
@@ -175,7 +170,7 @@ func BenchmarkSplit(b *testing.B) {
 
 `B.Loop` excludes setup and cleanup and uses compiler support to keep loop work alive.
 Benchstat recommends at least ten interleaved runs, reports medians and intervals, and uses Mann–Whitney by default.
-hd takes managed timing and interleaving, but keeps registration ordinary and exposes the barrier directly.
+hd keeps that analysis opt-in, while the default stays at five quick runs.
 [testing.B.Loop](https://pkg.go.dev/testing#B.Loop),
 [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
 
@@ -235,17 +230,16 @@ The preserved Node calibration measured startup, not benchmark precision or a su
 Long batches amortize that granularity.
 `hd bench` currently reports an unknown command, and `std.bench` does not exist.
 
-The API is stdlib tier, command/discovery/reporting is CLI tier, and `black_box` is language tier.
-No syntax change, new clock, host ABI, or test registration rule is proposed.
+The API is stdlib tier, command/discovery/reporting is CLI tier, and `black_box` plus benchmark position are language tier.
+No new token, clock, or host ABI is proposed; top-level `bench` registration follows the existing test-position mechanism.
 
 ## Appendix E: Implementation phases
 
-1. Approve the std signatures and JSON schema; type-check registration, rows, duplicate names, and parameters.
-2. Implement pure statistics and comparison; validate quantiles, resampling, ties, drift, and seeded order against references.
-3. Add `benches/` discovery and JSON framing; test filters, stdout, crashes, Unicode, and atomic baseline writes.
-4. Add bounded worker warmup/calibration through real `Clock`; test coarse/decreasing clocks, limits, and failures.
-5. Add `black_box`; inspect final Node and Wasmtime code for constant folding, hoisting, and result elimination.
-6. Run no-change and known-change studies; calibrate defaults and approve CI policy only after repeatability evidence.
+1. Approve benchmark position and std signatures; type-check registration, rows, duplicate names, and parameters.
+2. Add `benches/` discovery, five-run calibration, and JSON framing; test filters, failures, Unicode, and bounds.
+3. Add opt-in statistics and comparison; validate resampling, ties, drift, seeded order, and baseline writes.
+4. Add `black_box`; inspect final Node and Wasmtime code for constant folding, hoisting, and result elimination.
+5. Run no-change and known-change studies; approve CI policy only after repeatability evidence.
 
 The rollback is removal of the new command, std module, and intrinsic before specification acceptance.
 No existing command, package root, or runtime protocol changes meaning in this proposal.

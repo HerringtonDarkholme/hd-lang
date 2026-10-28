@@ -1,11 +1,2 @@
 [package]
 name = "hd-bench-design"
-
-[capabilities]
-Args = true
-Clock = true
-Console = true
-
-[[executable]]
-name = "examples"
-module = "examples"

@@ -1,6 +1,3 @@
-use std.host.Args
-use std.time.Clock
-
 ## The completed work one callback represents for throughput reporting.
 @derive(Debug, Eq)
 pub enum Throughput:
@@ -21,47 +18,30 @@ pub enum BenchError:
     @error("benchmark protocol failed: $message")
     Protocol(message: string)
 
-## The timed-loop controller passed to one benchmark case.
-pub struct Bencher:
-    state: usize
+## The runner supplied to each registered benchmark body; it owns the real clock.
+pub trait BenchmarkRunner:
+    fn begin(&mut self, throughput: Throughput) -> usize
+    fn finish(&mut self, completed: usize) -> Result[void, BenchError]
 
-impl Bencher:
-    ## Repeats and measures `work`, reporting `throughput` per completed invocation.
-    pub fn iter![$ R](
-        &mut self,
-        throughput: Throughput,
-        work: fn!() -> Result[void, BenchError] $ R,
-    ) -> Result[void, BenchError] $ R + Clock:
-        panic("todo")
+## Registers one named benchmark in benchmark position, like `it` in test position.
+pub fn bench[T < Termination, $ R](name: string, body: fn!() -> T $ R) -> void $ R:
+    panic("std.bench: bench registers cases only in benchmark position")
 
-    ## Prepares a fresh `S` outside timing, then measures one call with a local writable reference.
-    pub fn iter_batched![S, $ R](
-        &mut self,
-        throughput: Throughput,
-        setup: fn!() -> Result[S, BenchError] $ R,
-        work: fn!(&mut S) -> Result[void, BenchError] $ R,
-    ) -> Result[void, BenchError] $ R + Clock:
-        panic("todo")
+## Repeats and measures `work`, reporting `throughput` per completed invocation.
+pub fn iter![$ R](
+    throughput: Throughput,
+    work: fn!() -> Result[void, BenchError] $ R,
+) -> Result[void, BenchError] $ R + BenchmarkRunner:
+    panic("todo")
 
-## A list of named benchmark callbacks with one compatible function type.
-pub struct Benchmarks[F]:
-    cases: List[(string, F)]
-
-impl[F] Benchmarks[F]:
-    ## Registers one benchmark callback under `name`.
-    pub fn add(&mut self, name: string, work: F) -> void:
-        panic("todo")
-
-## Constructs an empty benchmark registry for callbacks of type `F`.
-pub fn benchmarks[F]() -> Benchmarks[F]:
+## Prepares a fresh `S` outside timing, then measures one call with a local writable reference.
+pub fn iter_batched![S, $ R](
+    throughput: Throughput,
+    setup: fn!() -> Result[S, BenchError] $ R,
+    work: fn!(&mut S) -> Result[void, BenchError] $ R,
+) -> Result[void, BenchError] $ R + BenchmarkRunner:
     panic("todo")
 
 ## Returns `value` unchanged while blocking optimization assumptions across this call.
 pub fn black_box[T](value: T) -> T:
-    panic("todo")
-
-## Runs a registry under the CLI benchmark protocol and writes its framed records.
-pub fn run![$ R](
-    suite: &mut Benchmarks[fn!(&mut Bencher) -> Result[void, BenchError] $ R + Clock],
-) -> Result[void, BenchError] $ R + Args + Clock + Console:
     panic("todo")

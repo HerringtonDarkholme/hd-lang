@@ -1,46 +1,39 @@
-use pkg.bench.{Benchmarks, Bencher, BenchError, Throughput, black_box, benchmarks, run}
-use std.host.Args
-use std.time.Clock
+use pkg.bench.{BenchmarkRunner, BenchError, Throughput, bench, black_box, iter, iter_batched}
 
-fn split_case!(b: &mut Bencher) -> Result[void, BenchError] $ Clock:
-    input := black_box("red,green,blue,black")
-    b.iter!(
-        Throughput.Bytes(input.len()),
-        fn!() -> Result[void, BenchError]:
-            fields := input.split(",")
-            if black_box(fields.len()) != 4:
-                return .Err(BenchError.Work("split returned the wrong fields"))
-            .Ok(())
-        ,
-    )
+## Current-syntax model for the target top-level registrations under `benches/` in HD_BENCH.md.
+pub fn registrations() -> void $ BenchmarkRunner:
+    bench("text/split/21b"):
+        input := black_box("red,green,blue,black")
+        iter!(
+            Throughput.Bytes(input.len()),
+            fn!() -> Result[void, BenchError]:
+                fields := input.split(",")
+                if black_box(fields.len()) != 4:
+                    return .Err(BenchError.Work("split returned the wrong fields"))
+                .Ok(())
+            ,
+        )
 
-fn contains_case!(b: &mut Bencher) -> Result[void, BenchError] $ Clock:
-    input := black_box("the quick brown fox")
-    b.iter!(
-        Throughput.Operations(1),
-        fn!() -> Result[void, BenchError]:
-            if !black_box(input.contains("brown")):
-                return .Err(BenchError.Work("contains missed a word"))
-            .Ok(())
-        ,
-    )
+    bench("text/contains"):
+        input := black_box("the quick brown fox")
+        iter!(
+            Throughput.Operations(1),
+            fn!() -> Result[void, BenchError]:
+                if !black_box(input.contains("brown")):
+                    return .Err(BenchError.Work("contains missed a word"))
+                .Ok(())
+            ,
+        )
 
-fn sort_case!(b: &mut Bencher) -> Result[void, BenchError] $ Clock:
-    source := black_box([5i64, 3i64, 4i64, 1i64, 2i64])
-    b.iter_batched!(
-        Throughput.Items(source.len()),
-        fn!() -> Result[List[i64], BenchError]: .Ok(source),
-        fn!(values: &mut List[i64]) -> Result[void, BenchError]:
-            ordered := values.sorted()
-            if black_box(ordered[0]) != 1:
-                return .Err(BenchError.Work("sort returned the wrong first item"))
-            .Ok(())
-        ,
-    )
-
-pub fn main!() -> Result[void, BenchError] $ Args + Clock + Console:
-    let mut suite: Benchmarks[fn!(&mut Bencher) -> Result[void, BenchError] $ Clock] = benchmarks()
-    suite.add("text/split/21b", split_case)
-    suite.add("text/contains", contains_case)
-    suite.add("collections/sort/5", sort_case)
-    run!::[$ ()](&mut suite)
+    bench("collections/sort/5"):
+        source := black_box([5i64, 3i64, 4i64, 1i64, 2i64])
+        iter_batched!(
+            Throughput.Items(source.len()),
+            fn!() -> Result[List[i64], BenchError]: .Ok(source),
+            fn!(values: &mut List[i64]) -> Result[void, BenchError]:
+                ordered := values.sorted()
+                if black_box(ordered[0]) != 1:
+                    return .Err(BenchError.Work("sort returned the wrong first item"))
+                .Ok(())
+            ,
+        )
