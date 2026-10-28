@@ -1,0 +1,37 @@
+use pkg.multipart.{Multipart, MultipartPart, MultipartRequest}
+use std.error.Error
+use std.http.{Body, HeaderName, Headers, Http, Request, Response, Url}
+use std.text.StringBuilder
+
+## A client upload with one field, one file, and one custom byte part.
+fn upload!(url: Url, photo: List[u8], checksum: List[u8]) -> Result[Response, *dyn Error] $ Http:
+    let mut checksum_headers = Headers::new()
+    checksum_headers.set(.ContentType, "application/octet-stream")
+    form := Multipart::new()
+        .text("caption", "launch day")
+        .file("photo", "launch.png", "image/png", photo)
+        .add(
+            MultipartPart {
+                name: "checksum",
+                headers: checksum_headers,
+                body: Body::from_bytes(checksum),
+            },
+        )
+    request := Request::post(url).set_multipart(form)?
+    response := request.send!()?.ok()?
+    .Ok(response)
+
+## A server handler that distinguishes fields from files and uses Body's typed readers.
+fn accept_upload(request: &Request) -> Result[Response, *dyn Error]:
+    form := request.multipart()?
+    summary := StringBuilder::new()
+    for part in form.parts:
+        content_type := part.headers.get(HeaderName.ContentType).unwrap_or("text/plain")
+        match part.filename:
+            .Some(filename) =>
+                bytes := part.body.bytes()?
+                summary.push("$filename (${part.name}, $content_type): ${bytes.len()} bytes\n")
+            .None =>
+                value := part.body.text()?
+                summary.push("${part.name}: $value\n")
+    .Ok(Response::status(.Created).set_text(summary.build()))
