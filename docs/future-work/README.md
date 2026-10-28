@@ -15,7 +15,7 @@ action at a distance.
 ## What Remains
 
 Parked designs are not kept here; each lives in its GitHub issue, indexed by #833, which
-stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
+stays open (#18, #163, #166, #181, #182, #184, #646, #807).
 
 ### Application and host
 
@@ -27,6 +27,8 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #804, #807).
 
 ### Language and library
 
+- [Positional Union Types](UNION_TYPES.md): proposed ordered anonymous enums
+  with explicit positional construction; two owner questions remain (#804).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
