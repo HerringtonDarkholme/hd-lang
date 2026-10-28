@@ -1,7 +1,7 @@
 # Design By Contract
 
-Status: design exploration, 2026-10-28; nothing here is decided or in the
-specification.
+Status: design exploration, 2026-10-28; `@cfg` profile selection is decided in
+#965, while the contract API is not accepted or in the specification.
 
 This record explores [issue #880](https://github.com/HerringtonDarkholme/hd-lang/issues/880).
 It reviews [Functions](../../spec/lang/07-functions.md),
@@ -103,8 +103,9 @@ Hd currently provides these pieces:
   rewrite a type's inherent methods.
 - `&T` and `&mut T` are local references. A closure cannot capture them.
 
-A plain `require(bool, reason)` therefore fits in std immediately. It can call
-`panic`, but it cannot select a new stable panic category without an intrinsic.
+The accepted #965 direction lets std declare `require` twice with one signature:
+the `.Debug` body checks a closure, and the `.Release` body is empty. The
+optimizer removes the release call and its capturing closure.
 
 Automatic `ensure` cannot be an ordinary after-the-body call. The function may
 return earlier, propagate with `?`, or suspend. A callback guard also cannot see
@@ -116,9 +117,10 @@ Automatic invariants have a separate boundary problem. Checking only
 through aliases. Checking every write changes unrelated code and may observe a
 temporarily invalid state.
 
-No option should use contracts for recoverable input errors. A contract
-predicate must not suspend. If checks can disappear, it must also have no
-required side effect, which current hd cannot prove generally.
+No option should use contracts for recoverable input errors. A `fn() -> bool`
+condition has no requirement row and cannot suspend. It may still mutate a
+captured `let`; the owner accepts that without a special purity check, so code
+must not rely on such mutation in release builds.
 
 ## 3. Survey
 
@@ -127,76 +129,131 @@ required side effect, which current hd cannot prove generally.
 | Eiffel | `require` and `ensure` are clauses of every routine. Preconditions are caller obligations; postconditions are supplier guarantees. | A class invariant holds after creation and around exported calls. `old expression` in a postcondition evaluates the entry value. | Assertion monitoring has selectable levels. Contracts also remain interface documentation when checks are disabled. Native support gives the complete model, but it spends syntax and inheritance rules. [Eiffel contracts](https://www.eiffel.org/doc/eiffelstudio/I2E-_Design_by_Contract_and_Assertions), [checking levels](https://www.eiffel.org/doc/eiffel/ET-_Design_by_Contract_%28tm%29%2C_Assertions_and_Exceptions). |
 | D | `in` and `out(result)` blocks run before and after a function. A failed assertion reports a contract failure. | Struct and class invariant functions run around public methods and construction. D has no general `old` expression, so code snapshots values explicitly. | Release builds remove `in`, `out`, and invariants. D warns that contracts are not user-input validation. This makes side effects inside predicates unsafe. [D contracts](https://dlang.org/spec/contracts.html), [D structs and classes](https://dlang.org/book/invariant.html). |
 | Ada 2022 | `Pre` and `Post` are language-defined aspects on callable entities. Class-wide forms compose across dispatching operations. | `Type_Invariant` is an aspect on private types. Postconditions can use the `Old` attribute for entry values. | `Assertion_Policy` independently checks, ignores, or implementation-defines assertion kinds. Ada's aspects show a decorator-like surface still needs language semantics. [Pre and Post](https://www.adaic.org/resources/add_content/standards/22aarm/html/AA-6-1-1.html), [Type invariants](https://www.adaic.org/resources/add_content/standards/22aarm/html/AA-7-3-2.html), [assertion policy](https://www.adaic.org/resources/add_content/standards/12rm/html/RM-11-4-2.html). |
-| Kotlin | `require` is an inline std function which throws `IllegalArgumentException`. `check` similarly reports invalid state with `IllegalStateException`. | Kotlin std supplies no automatic postcondition, old-value, or class-invariant hook. Callers write explicit checks. | Both functions are ordinary always-executed library calls. This is the cheapest useful subset and cleanly separates argument from state failures. [`require`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/require.html), [`check`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/check.html). |
-| Rust | `assert!` is always checked; `debug_assert!` is normally absent from optimized builds. The `contracts` crate adds `requires`, `ensures`, and `invariant` procedural attributes. | The crate exposes the result as `ret` and supports an `old()` pseudo-function in postconditions. It provides always, debug, and test-only modes. | Rust std chooses calls, while a third-party macro performs body rewriting. Hd has no macro system, so the same surface would be compiler-known. [`assert!`](https://doc.rust-lang.org/std/macro.assert.html), [`debug_assert!`](https://doc.rust-lang.org/std/macro.debug_assert.html), [`contracts`](https://docs.rs/contracts/latest/contracts/). |
-| Swift | `precondition` is a std function for conditions needed in production. `assert` is development-only. Neither is recoverable. | Swift std supplies no automatic postcondition or type-invariant construct. Programs write explicit checks. | The split exposes an important policy choice: production preconditions and debug assumptions are different APIs. [Assertions and Preconditions](https://docs.swift.org/swift-book/LanguageGuide/TheBasics.html#Assertions-and-Preconditions), [`precondition`](https://developer.apple.com/documentation/swift/precondition%28_%3A_%3Afile%3Aline%3A%29). |
+| Kotlin | `require` is an inline std function with no message or a lazy message lambda. `check` similarly reports invalid state. | Kotlin std supplies no automatic postcondition, old-value, or class-invariant hook. Callers write explicit checks. | Both functions are ordinary always-executed library calls. Hd takes the optional message, but its condition is the trailing closure. [`require`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/require.html), [`check`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/check.html). |
+| Rust | `assert!` is always checked; `debug_assert!` is normally absent from optimized builds, with optional formatting arguments. The `contracts` crate adds procedural attributes. | The crate exposes the result as `ret` and supports an `old()` pseudo-function in postconditions. It provides always, debug, and test-only modes. | Hd follows `debug_assert!` for the first slice, while later automatic boundaries would still be compiler-known. [`assert!`](https://doc.rust-lang.org/std/macro.assert.html), [`debug_assert!`](https://doc.rust-lang.org/std/macro.debug_assert.html), [`contracts`](https://docs.rs/contracts/latest/contracts/). |
+| Swift | `assert` takes autoclosures for a condition and optional message and is development-only; `precondition` is retained for production requirements. Neither is recoverable. | Swift std supplies no automatic postcondition or type-invariant construct. Programs write explicit checks. | Hd follows the development-only half; its ordinary function uses an explicit trailing condition closure instead of `@autoclosure`. [Assertions and Preconditions](https://docs.swift.org/swift-book/LanguageGuide/TheBasics.html#Assertions-and-Preconditions), [`precondition`](https://developer.apple.com/documentation/swift/precondition%28_%3A_%3Afile%3Aline%3A%29). |
 | Racket | Function contracts wrap a boundary, check arguments and results, and assign blame to the client or provider. Contracts commonly live at module exports. | Stateful and higher-order contracts can monitor values across later uses rather than only one return. | Boundary wrappers are powerful but can add repeated checks and unexpected blame. Hd panics poison an instance and has no recovery, so blame is less useful than a precise category and frame. [Contract boundaries](https://docs.racket-lang.org/guide/contract-boundaries.html), [function contracts](https://docs.racket-lang.org/guide/contract-func.html). |
 
 Three takeaways follow.
 
-1. Kotlin and Swift validate that `require` can be only a library call.
+1. Swift and Rust validate a development-only assertion that release removes.
 2. Every complete postcondition system rewrites the function boundary through
    syntax, aspects, attributes, macros, or wrappers.
-3. Configurable checks require side-effect discipline. Always-on checks avoid
-   that extra semantic rule.
+3. A closure type forbids requirements and suspension, but not captured
+   mutation; release-removable checks still need author discipline.
 
-The strongest prior-art default is therefore a split. Start with ordinary
-always-on checks, then add compiler-known boundary contracts only if automatic
-postconditions and invariants justify them.
+The smallest approved mechanism is ordinary std code selected by `@cfg`.
+Automatic postconditions and invariants still need a separate boundary design.
 
 ## 4. Plain Library Checks
 
-This radical simplification adds ordinary `std.contract` functions and no
-automatic mechanism:
+The leading option is one ordinary std signature with two profile-selected
+bodies. `.Debug` means debug and test builds; `.Release` means release builds:
 
 ```text
-fn require(condition: bool, reason: string) -> void:
-    if !condition:
-        panic("precondition failed: $reason")
+@cfg(.Debug)
+pub fn require(message: string = "requirement failed", condition: fn() -> bool) -> void:
+    if !condition():
+        panic(message)
 
-fn ensure(condition: bool, reason: string) -> void:
-    if !condition:
-        panic("postcondition failed: $reason")
-
-struct Account:
-    balance: i64
-
-fn withdraw(account: &mut Account, amount: i64) -> i64:
-    require(amount >= 0, reason="amount is non-negative")
-    before := account.balance
-    account.balance = account.balance - amount
-    result := account.balance
-    ensure(result == before - amount, reason="balance decreases by amount")
-    result
+@cfg(.Release)
+pub fn require(message: string = "requirement failed", condition: fn() -> bool) -> void:
+    pass
 ```
 
-The stdlib tier adds `require` and perhaps `ensure` or `check`. Each is an
-ordinary function implemented with `panic`. No compiler rule changes.
+The signatures, generics and requirement rows are identical. Both bodies are
+checked in every profile. The release optimizer removes the empty call and its
+capturing closure, verified by #965's required WAT test.
 
-Both checks run in every build. Their conditions may call ordinary code and
-have side effects because hd already evaluates function arguments normally.
+The implementation gate compares release Wasm for one program with these
+`require` calls against the same program with the calls deleted. Bytes, code
+section and function count must be identical.
 
-The failure category is `explicit-panic`. A distinct `contract-violation`
-category would turn this into a compiler intrinsic addition, like the hidden
-panic helper behind `std.testing.assert`.
+The final closure parameter makes the condition the one trailing block. The
+optional message therefore comes first:
 
-This option handles cheap preconditions well. It handles a postcondition only
-when the body reaches one explicit exit. It offers no automatic invariant or
-`old` mechanism.
+```text
+fn withdraw(account: &mut Account, amount: i64) -> i64:
+    require:
+        amount >= 0
+    balance := account.balance
+    require("balance must cover $amount"):
+        balance >= amount
+    account.balance = account.balance - amount
+    account.balance
+```
 
-Early `return` and `?` can bypass `ensure`. A refactor can silently stop checking
-a guarantee. `hd lint` could warn about an `ensure` before some returns, but it
-cannot prove that the call expresses every intended postcondition.
+The closure type enforces two effect boundaries without a compiler-known
+contract rule: its empty requirement row forbids external capabilities, and
+`fn` forbids bang calls. It can mutate a captured `let` variable. That mutation
+runs only in debug/test, by owner decision; a program must not depend on it.
 
-Agents already know this pattern from Kotlin and Swift. The explicit calls are
-readable, and diagnostics point directly to the failed check. The missing
-all-path guarantee is the intentional simplification.
+Current closures cannot capture a local `&T` or `&mut T`. A condition snapshots
+the needed value first, as `balance` above. Tier 2 may later admit read-only
+reference captures; this design adds no special capture kind for `require`.
 
-Traits, requirement rows, suspension, derivation and RC do not change. The
-functions accept evaluated booleans, so no closure or reference escapes.
+The message expression is evaluated before the debug call. Release optimization
+removes the whole empty call, including message construction. A helper is
+ordinary code:
 
-Design-cost kinds: one core-library addition, kind 4. Adding a stable category
-also needs one compiler intrinsic, kind 3.
+```text
+fn amount_message(amount: i64) -> string:
+    "amount $amount must be non-negative"
+
+fn withdraw(account: &mut Account, amount: i64) -> i64:
+    require(amount_message(amount)):
+        amount >= 0
+    account.balance = account.balance - amount
+    account.balance
+```
+
+### Ergonomics check
+
+Several guards read as one short prelude to the body:
+
+```text
+fn debit(balance: i64, same_account: bool, amount: i64) -> i64:
+    require:
+        amount > 0
+    require("source and destination differ"):
+        !same_account
+    require("source balance covers $amount"):
+        balance >= amount
+    balance - amount
+```
+
+The equivalent explicit control flow repeats the failure action and dominates
+the operation:
+
+```text
+fn debit(balance: i64, same_account: bool, amount: i64) -> i64:
+    if amount <= 0:
+        panic("requirement failed")
+    if same_account:
+        panic("source and destination differ")
+    if balance < amount:
+        panic("source balance covers $amount")
+    balance - amount
+```
+
+The trailing condition reads well for several checks and for a multi-line
+predicate. It expands a one-line function into a block, where
+`require(fn(): condition)` would be shorter but less consistent. The message
+helper reads like an ordinary first argument; interpolation stays beside the
+condition it explains.
+
+The failure category remains `explicit-panic`. A stable
+`contract-violation` category would require a compiler panic intrinsic and is
+not part of this ordinary std slice.
+
+This option handles preconditions only. An `ensure` guard becomes ordinary
+library code after #962 adds synchronous `using` and #961 lets its stored
+callback retain a requirement row. Such a guard still cannot see the function's
+saved result, so it cannot implement a general result postcondition.
+
+Design-cost kinds: one core-library addition, kind 4, over #965's already
+decided profile mechanism. Adding a stable category also needs one compiler
+intrinsic, kind 3.
 
 ## 5. A Library Boundary Combinator
 
@@ -218,7 +275,8 @@ struct Account:
     balance: i64
 
 fn withdraw(account: *mut Account, amount: i64) -> i64:
-    require(amount >= 0, reason="amount is non-negative")
+    require("amount is non-negative"):
+        amount >= 0
     before := account.balance
     body := fn() -> i64:
         account.balance = account.balance - amount
@@ -393,21 +451,21 @@ compiler implementation, kind 3.
 
 | Criterion | Plain library checks | Library combinator | Contract decorators | Native clauses |
 | --- | --- | --- | --- | --- |
-| Bad argument | Explicit `require` call | Explicit `require` call | Automatic before body | Automatic before body |
+| Bad argument | Explicit `require:` closure | Explicit `require:` closure | Automatic before body | Automatic before body |
 | Every normal result | No; each exit must call | Yes inside closure only | Yes, including fallthrough, `return`, and `?` | Yes, including fallthrough, `return`, and `?` |
 | Entry values | Explicit local copy | Explicit local copy | `old(expression)` compiler snapshot | `old(expression)` compiler snapshot |
-| `&mut` local receiver | Preserved | Cannot be captured today | Preserved by compiler lowering | Preserved by compiler lowering |
+| `&mut` local receiver | Condition copies needed fields first | Cannot be captured today | Preserved by compiler lowering | Preserved by compiler lowering |
 | Cleanup ordering | Author chooses; easy to bypass | Post runs before outer cleanup | Post runs after saved-result cleanup | Post runs after saved-result cleanup |
 | Suspending function | Ordinary calls work | Needs `contract!` and row-preserving callbacks | Same decorators; checks run while driven | Same clauses; checks run while driven |
 | Type invariant | Explicit calls only | Explicit wrapper only | Possible automatic hook, but boundary rules required | Possible automatic hook, but boundary rules required |
 | Direct public field write | Only checked where author calls | Not intercepted | Must reject, instrument, or exclude | Must reject, instrument, or exclude |
 | Trait composition | No contract inheritance | No contract inheritance | Needs weakening/strengthening rules | Needs weakening/strengthening rules |
-| Release policy | Always checked | Always checked | Recommended always checked | Recommended always checked |
+| Release policy | Debug and test only; release call removed | Depends on wrapper policy | Recommended always checked | Recommended always checked |
 | Failure category | `explicit-panic`, unless intrinsic added | `explicit-panic`, unless intrinsic added | New stable `contract-violation` | New stable `contract-violation` |
 | Tooling | Lint sees calls | Lint sees wrappers | Structured metadata for lint, docs and tests | Structured syntax for lint, docs and tests |
-| Rules added | Two std functions | Std functions and wrappers | Compiler decorators, predicate and boundary semantics | Grammar, predicate and boundary semantics |
+| Rules added | One std function over decided `@cfg` | Std functions and wrappers | Compiler decorators, predicate and boundary semantics | Grammar, predicate and boundary semantics |
 | Rules removed | None | None | None | None |
-| Soundness condition | No automatic claim | Closures cannot outlive captures | Correct all-exit rewrite and invariant boundary | Correct all-exit rewrite and invariant boundary |
+| Soundness condition | No essential captured mutation in a removable check | Closures cannot outlive captures | Correct all-exit rewrite and invariant boundary | Correct all-exit rewrite and invariant boundary |
 | Agent writability | Easiest, but exits are forgettable | Unfamiliar wrapper and changed `return` target | Familiar annotations; errors can name predicates | Clearest intent; most new syntax |
 | Human readability | Checks mixed into body | Body nested inside a call | Contract sits above declaration | Contract is part of declaration |
 | Implementation cost | Smallest | Small std addition; weak semantics | Checker, lowering, metadata and std declarations | Parser, checker, lowering, metadata and docs |
@@ -423,25 +481,29 @@ or `old` aliasing.
 
 ## 9. Recommendation
 
-**Recommendation: adopt plain `require` first, and prefer compiler-known
-decorators if automatic postconditions later prove necessary.**
+**Recommendation: add the two `@cfg` declarations of
+`require(message="requirement failed", condition: fn() -> bool)` first, and
+prefer compiler-known decorators only if automatic postconditions later prove
+necessary.**
 
-1. Add an always-on `std.contract.require(condition, reason)` as an ordinary
-   function. Initially keep `explicit-panic`; do not spend an intrinsic only
-   for a category.
-2. Keep `ensure` explicit in tests and bodies until real code demonstrates
-   repeated early-exit mistakes. A function named `ensure` without all-path
-   semantics is likely to overpromise.
-3. If automatic postconditions are approved, use `@require` and `@ensure`.
-   Existing decorator grammar avoids a new header language and follows Ada
-   aspects and Rust contract attributes.
-4. Keep checks always on. Add a separate debug assertion API for expensive
-   assumptions instead of making contract behavior build-dependent.
-5. Do not approve automatic type invariants until the owner chooses stable
-   boundaries for construction, field writes and same-module mutation.
+1. Run `require` in debug and test builds; compile its empty release variant,
+   call and closure away.
+2. Let the closure type exclude requirements and suspension. Add no
+   read-only-capture rule; captured mutation is allowed but must not be
+   essential program behavior.
+3. Keep the optional message first so the condition is the single trailing
+   block. Initially keep `explicit-panic`; do not spend an intrinsic only for
+   a category.
+4. Build `ensure` later as a synchronous `using` guard after #961 and #962.
+   Record that a library guard still cannot observe the saved result.
+5. If automatic result postconditions are approved, use `@require` and
+   `@ensure`; existing decorator grammar avoids a new header language.
+6. Do not approve automatic invariants until stable construction and mutation
+   boundaries are chosen.
 
-This recommendation gives up first-class postcondition documentation in the
-initial slice. It also gives up release removal of expensive checks.
+This first slice gives up first-class postcondition documentation and all
+release checks. It also accepts the familiar debug-assert hazard that mutation
+inside a condition disappears in release.
 
 The next-best option is native clauses if contracts become central enough to
 justify syntax. Clauses are more honest than compiler-special decorators about
@@ -452,19 +514,7 @@ cleanup, requirement-row and `return` behavior merely to avoid compiler support.
 
 ## 10. Questions For The Owner
 
-1. **Which initial scope should hd adopt?**
-   - **Recommended:** an ordinary always-on `require(condition, reason)` only.
-   - Add plain `require` and explicit `ensure` calls.
-   - Start directly with automatic preconditions and postconditions.
-
-```text
-fn withdraw(account: &mut Account, amount: i64) -> i64:
-    require(amount >= 0, reason="amount is non-negative")
-    account.balance = account.balance - amount
-    account.balance
-```
-
-2. **If automatic postconditions are wanted, which surface should carry them?**
+1. **If automatic postconditions are wanted, which surface should carry them?**
    - **Recommended:** compiler-known `@require` and `@ensure` decorators.
    - Native function clauses.
    - A library `contract(body, post)` wrapper.
@@ -475,27 +525,18 @@ fn change(amount: i64) -> i64:
     0 - amount
 ```
 
-3. **When should approved contracts run?**
-   - **Recommended:** every build; add a separate debug assertion for expensive checks.
-   - Development and tests only.
-   - A package or build-profile policy chooses each contract kind.
-
-```text
-fn reserve(capacity: usize) -> void:
-    require(capacity > 0, reason="capacity is positive")
-```
-
-4. **What failure identity should a plain library `require` use?**
+2. **What failure identity should a plain library `require` use?**
    - **Recommended:** existing `explicit-panic` for the first library-only slice.
    - Add `contract-violation` immediately through a compiler panic intrinsic.
    - Reuse `assertion-failed` from `std.testing`.
 
 ```text
 fn open(port: u16) -> void:
-    require(port > 0, reason="port zero is reserved")
+    require("port zero is reserved"):
+        port > 0
 ```
 
-5. **What does `old` copy?**
+3. **What does `old` copy?**
    - **Recommended:** evaluate the written expression once with ordinary hd copy semantics.
    - Deep-copy every reachable object.
    - Permit only values, not reference-typed expressions.
@@ -508,7 +549,7 @@ fn balance(account: &Account) -> i64:
     account.balance
 ```
 
-6. **Which values may declare an automatic invariant?**
+4. **Which values may declare an automatic invariant?**
    - **Recommended:** postpone invariants until construction and mutation boundaries are designed.
    - Only structs with no public fields, checked after construction and exported methods.
    - Every struct, checked after each complete construction and each field write.
@@ -519,7 +560,7 @@ struct Account:
     balance: i64
 ```
 
-7. **How should trait contracts compose?**
+5. **How should trait contracts compose?**
    - **Recommended:** a replacement may weaken preconditions and strengthen postconditions.
    - Require exact contract identity across trait and implementation.
    - Apply only the contract visible at the static call site.
@@ -536,23 +577,7 @@ Sources were read on 2026-10-28. The survey links the primary source for each
 claim. Repository sources are the spec sections linked in the status and
 problem sections, plus [issue #879](https://github.com/HerringtonDarkholme/hd-lang/issues/879).
 
-Every `text` block was checked with `scripts/hd-conformance.sh parse` from this
-branch. Parsing checks syntax only; it does not type-check proposed names or
+All 16 `text` blocks were checked with `scripts/hd-conformance.sh parse`.
+Fourteen current/decorator-surface blocks parse. The two native-clause blocks
+reject as expected. Parsing validates syntax only, not proposed names or
 compiler behavior.
-
-| Block | Result | Note |
-| --- | --- | --- |
-| Domain baseline | Parsed | Current syntax. |
-| Plain library checks | Parsed | Current syntax. |
-| Library boundary combinator | Parsed | Current syntax; typing would expose the documented ownership change. |
-| Contract decorators | Parsed | Existing decorator syntax with hypothetical compiler semantics. |
-| Decorated invariant | Parsed | Existing decorator syntax with hypothetical compiler semantics. |
-| Native function clauses | Rejected as expected | Lines 2 and 4 reject the hypothetical header clauses. |
-| Native type invariant | Rejected as expected | Line 3 rejects the hypothetical invariant member. |
-| Owner question 1 | Parsed | Current syntax. |
-| Owner question 2 | Parsed | Existing decorator syntax with hypothetical compiler semantics. |
-| Owner question 3 | Parsed | Current syntax. |
-| Owner question 4 | Parsed | Current syntax. |
-| Owner question 5 | Parsed | Existing decorator syntax with hypothetical compiler semantics. |
-| Owner question 6 | Parsed | Existing decorator syntax with hypothetical compiler semantics. |
-| Owner question 7 | Parsed | Existing decorator syntax with hypothetical compiler semantics. |
