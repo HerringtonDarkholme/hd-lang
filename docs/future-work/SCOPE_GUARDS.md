@@ -16,7 +16,8 @@ pub trait Disposable:
 pub trait AsyncDisposable:
     fn dispose!(&mut self) -> void
 
-using guard = on_exit(fn once() ->{audit} void:
+let audit: *mut List[string] = &mut []
+using guard = on_exit(fn() -> void:
     audit.push("closed")
 )
 
@@ -42,18 +43,29 @@ semantics. This proposal changes neither panic cleanup nor cancellation.
 The standard library can then provide an ordinary guard:
 
 ```text
-pub struct ScopeGuard[{l}] ~Copy:
-    # Illustrative tier-2 spelling, not a proposed lifetime mechanism.
-    action: fn once() ->{l} void
+pub struct ScopeGuard:
+    action: fn() -> void
 
-pub fn on_exit[{l}](action: fn once() ->{l} void) -> ScopeGuard[{l}]
+pub fn on_exit(action: fn() -> void) -> ScopeGuard
 
-impl[{l}] Disposable for ScopeGuard[{l}]:
+impl Disposable for ScopeGuard:
     fn dispose(&mut self) -> void
 ```
 
 `ScopeGuard` and `on_exit` are library code. The language knows only the two
-protocols and bindings. Requirement-row polymorphism is separate work in #961.
+protocols and bindings. The current form accepts only a callback with an empty
+requirement row.
+
+#961 adds row parameters to data types, so the guard can retain any callback
+row instead of erasing it:
+
+```text
+# Depends on #961; this row-parameter form is not implemented today.
+pub struct ScopeGuard[$R]:
+    action: fn() -> void $ R
+
+pub fn on_exit[$R](action: fn() -> void $ R) -> ScopeGuard[$R]
+```
 
 ## Questions For The Owner
 
@@ -76,6 +88,11 @@ protocols and bindings. Requirement-row polymorphism is separate work in #961.
    a deferred mutable capture coexist with direct later access would need an
    additional tier-2 rule and is deliberately not proposed here.
 
+4. **Should `hd lint` warn when a disposable result is kept by an ordinary
+   binding?** **Recommendation: yes, as `unbound-disposable`.** A disposable
+   value must be bound with `using` / `using!`, returned, or passed onward.
+   The lint catches a guard that looks registered but is inert.
+
 ## The Three Gaps
 
 ### 1. Local references
@@ -97,6 +114,16 @@ guard may be returned only if `{log}` remains valid, may not be stored in a
 global or longer-lived object, and must run before `log` dies. The action is
 `fn once` and the guard is noncopyable so cleanup happens once.
 
+The corresponding hypothetical library shape is:
+
+```text
+# Illustrative tier-2 spelling, not a proposed lifetime mechanism.
+pub struct ScopeGuard[{l}] ~Copy:
+    action: fn once() ->{l} void
+
+pub fn on_exit[{l}](action: fn once() ->{l} void) -> ScopeGuard[{l}]
+```
+
 There is one important soundness boundary. A normal tier-2 closure that writes
 through `&mut log` holds an exclusive borrow. The example above cannot both
 keep that borrow in `guard` and call `do_work(log)` directly. A library guard
@@ -111,9 +138,9 @@ The current workaround needs a bang function even when its action cannot
 suspend:
 
 ```text
-fn ordinary(log: &mut List[string]) -> void:
-    # Target. The cleanup protocol and this function are both synchronous.
-    using guard = on_exit(fn once() ->{log} void:
+fn ordinary(log: *mut List[string]) -> void:
+    # Target binding; the closure and counted reference are current hd.
+    using guard = on_exit(fn() -> void:
         log.push("closed")
     )
 ```
@@ -136,6 +163,22 @@ The type alone does not cause action at a distance. Code search for `using`,
 `using!`, or `defer:` finds every registration point. The variable need not
 follow a naming convention; names such as `guard` are documentation, not
 semantics.
+
+### Unbound guard lint
+
+`hd lint` reports `unbound-disposable` when a created `Disposable` or
+`AsyncDisposable` value is stored by an ordinary binding or discarded. It is
+quiet when the value is bound by `using` / `using!`, returned, or passed to
+another call:
+
+```text
+ignored := on_exit(fn(): audit("not registered")) # lint: unbound-disposable
+using registered = on_exit(fn(): audit("runs at scope exit"))
+install(on_exit(fn(): audit("the callee owns this guard"))) # quiet
+```
+
+This is lint advice, not a type error. It preserves deliberate transfer while
+catching the spelling most likely to be mistaken for a registered guard.
 
 ## How Scope Exit Works
 
@@ -162,10 +205,10 @@ the current `using` transfer rules.
 ## Cost
 
 This is one syntax extension (`using!`), one semantic split of the existing
-`using` rule, and one renamed plus one new protocol. It adds no intrinsic:
-guard storage, once-only callbacks, and `on_exit` remain library code. The
-compiler already has lexical cleanup entries and asynchronous disposal; it
-adds an inline synchronous entry.
+`using` rule, one renamed plus one new protocol, and one lint. It adds no
+intrinsic: guard storage, once-only callbacks, and `on_exit` remain library
+code. The compiler already has lexical cleanup entries and asynchronous
+disposal; it adds an inline synchronous entry.
 
 The source migration is mechanical but broad: current `Disposable` becomes
 `AsyncDisposable`, and current `using` becomes `using!`. The benefit is that
@@ -197,6 +240,7 @@ alternative needs an ambiguity rule and conceals suspension at scope exit.
 | Copy a guard | rejected | guard and `fn once` action are noncopyable |
 | Type implements both protocols | caller chooses `using` or `using!` | no protocol inference |
 | Ordinary binding of a disposable | no cleanup | only visible cleanup bindings register |
+| Guard kept by an ordinary binding | `unbound-disposable` lint advice | return or pass onward remains allowed |
 | Mixed `defer`, `using`, `using!` | one reverse-order stack | async entries are awaited in place |
 
 The proposal cannot express a stored closure that mutably captures a local
@@ -228,9 +272,15 @@ rather than treating the callback as non-escaping.
 Rust [`Drop`](https://doc.rust-lang.org/core/ops/trait.Drop.html) runs
 automatically when a value leaves scope, and
 [`scopeguard::ScopeGuard`](https://docs.rs/scopeguard/latest/scopeguard/struct.ScopeGuard.html)
-uses lifetimes to guard borrowed values. Its protected value is accessed
-through the guard, which preserves an exclusive borrow. Hd adopts that
-lifetime condition, not automatic drop: `using` stays visible at the binding.
+uses lifetimes to guard borrowed values. `ScopeGuard` is `#[must_use]`, so an
+immediately dropped guard warns. Its protected value is accessed through the
+guard, which preserves an exclusive borrow. Hd adopts the lifetime and warning
+conditions, not automatic drop: `using` stays visible at the binding.
+
+C#'s
+[`CA2000`](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca2000)
+warns when a disposable object is not disposed before references leave scope.
+Hd's lint is narrower: it checks the visible binding or transfer at creation.
 
 ### Python
 
@@ -295,7 +345,8 @@ comments.
 ## Appendix E: Details Deferred Elsewhere
 
 - Tier-2 lifetime syntax and capture checking remain in #163 and #833.
-- Requirement-row polymorphism for generic guards remains in #961.
+- #961 supplies `ScopeGuard[$R]`, so `on_exit` retains the action's requirement
+  row instead of accepting only an empty-row callback.
 - The exact std module for `ScopeGuard` is an implementation decision after
   the language design is accepted.
 - Panic and cancellation cleanup keep their accepted behavior and are not
