@@ -293,12 +293,12 @@ standalone syntax:
 ```text
 use std.structure.Structure
 
-data User:
+struct User:
     id: UserId
     deleted: bool
 
 @derive(Retention)
-data Post:
+struct Post:
     id: PostId
     userId: UserId
 
