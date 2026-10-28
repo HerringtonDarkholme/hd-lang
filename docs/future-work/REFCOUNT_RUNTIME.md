@@ -684,7 +684,8 @@ The runtime, in ten lines:
 
 1. Counted objects in linear memory with an 8-byte header: a 32-bit,
    non-atomic count and a word for the release-and-trace descriptor and
-   the borrow-flag bits. Cycle-capable types add a 4-byte collector word.
+   the borrow-flag bits. A cycle-capable type's collector state is three
+   bits of that word.
 2. No overflow check on wasm32; literals and constants are immortal
    (a count starting at 2^31, or a static page).
 3. A size-class allocator: classes up to 2 KiB in 64 KiB single-class

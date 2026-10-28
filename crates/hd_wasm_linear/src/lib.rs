@@ -347,9 +347,9 @@ pub const CHECKED_FNS: &[&str] = &[
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
-/// runtimes link: `collect`, `due`, `track` and `opaque`.
+/// runtimes link: `collect`, `due`, `opaque` and `visit`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
-pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "track", "opaque", "visit"];
+pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "opaque", "visit"];
 
 /// The runtime module a build links: the checked one in checked mode.
 #[must_use]
@@ -431,15 +431,13 @@ pub struct Acyclic {
 }
 
 /// The cycle collector's functions (`crates/hd_wasm_linear/DESIGN.md` §23.28):
-/// `collect(trace, release, free)`, `due()`, whether the candidate buffer
-/// is full, `track(block)`, which zeroes a new object's collector word,
+/// `collect(trace, release, free)`, `due()`, whether a collection is due,
 /// `opaque(address)`, which marks a new frame as never entered, and
 /// `visit(address)`, which takes a reference that traced glue releases.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cycle {
     pub collect: Hash128,
     pub due: Hash128,
-    pub track: Hash128,
     pub opaque: Hash128,
     pub visit: Hash128,
 }
@@ -493,7 +491,7 @@ impl Runtime {
             }
             _ => return None,
         };
-        let [collect, due, track, opaque, visit] = *rest else {
+        let [collect, due, opaque, visit] = *rest else {
             return None;
         };
         let [
@@ -522,7 +520,6 @@ impl Runtime {
             cycle: Cycle {
                 collect,
                 due,
-                track,
                 opaque,
                 visit,
             },

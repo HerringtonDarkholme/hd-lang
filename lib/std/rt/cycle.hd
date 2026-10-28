@@ -22,12 +22,12 @@
 #
 # An object takes part when the backend decided at its allocation that its
 # type can be on a cycle (crates/hd_wasm_linear/DESIGN.md §23.28): its
-# descriptor word (the header's second word) has the CYCLIC bit, and its
-# block ends with a collector word, which `track` zeroes. The word's low
-# 2 bits are the color (black, gray or white) and bit 2 marks a
-# suspension frame; neither a release nor a free reads it, as its place
-# needs the block's size. The descriptor's BUFFERED bit says whether the
-# object is in the buffer. A buffered object is purple except while a
+# descriptor word (the header's second word) has the CYCLIC bit. The same
+# word holds the collector's state of the object: bits 22 and 23 are its
+# color (black, gray or white) and bit 24 marks a suspension frame. The
+# backend writes the word whole at the allocation, so a new object is
+# black and no frame. Neither a release nor a free reads these bits. The
+# descriptor's BUFFERED bit says whether the object is in the buffer. A buffered object is purple except while a
 # collection runs, whatever its color bits say. A running frame has stale
 # saved slots and is not entered: what it holds counts as held from outside.
 # Its candidate stays buffered until a later collection while it is idle.
@@ -43,15 +43,17 @@
 # them lost their last count to free them (then it only frees those),
 # and when the entry's poll answers, so at idle and before checked mode's
 # leak report.
-use std.rt.alloc.{alloc, block_bytes, block_of, free_block}
+use std.rt.alloc.{alloc, block_of, free_block}
 use std.rt.memory.{copy, load_u32, store_u32}
 
+# The color bits of the descriptor word, and the mask of both.
 BLACK := 0
-GRAY := 1
-WHITE := 2
+GRAY := 0x400000
+WHITE := 0x800000
 # Purple is the BUFFERED bit, never painted.
-COLORS := 4
-FRAME := 4
+COLORS := 0xc00000
+# The descriptor word's bit that marks a suspension frame.
+FRAME := 0x1000000
 # Counted header (8 bytes) plus task::F_FLAGS (12); ACTIVE | RUNNING.
 FRAME_FLAGS := 20
 FRAME_RUNNING := 129
@@ -98,13 +100,10 @@ let dead: usize = 0
 # candidates below the threshold.
 let sweep_only = false
 
-## Zeroes the collector word of the new object at `block`, which takes part: black, and in no buffer.
-pub fn track(block: usize) -> void:
-    set_word(block, 0)
-
 ## Marks the new object holding `address` as a frame; a collection enters its saved slots only while it is not running.
 pub fn opaque(address: usize) -> void:
-    set_word(block_of(address), FRAME)
+    block := block_of(address)
+    store_u32(block + 4, u32(usize(load_u32(block + 4)) | FRAME))
 
 ## How many candidates the buffer holds.
 pub fn pending() -> usize:
@@ -336,25 +335,17 @@ fn compact() -> void:
 # Whether the object at `block` takes part: its descriptor has the CYCLIC
 # bit and, for a frame, its saved slots are stable.
 fn takes_part(block: usize) -> bool:
+    desc := usize(load_u32(block + 4))
     (
-        (usize(load_u32(block + 4)) & CYCLIC) != 0
-        && ((word(block) & FRAME) == 0 || (usize(
-            load_u32(block + FRAME_FLAGS),
-        ) & FRAME_RUNNING) == 0)
+        (desc & CYCLIC) != 0
+        && ((desc & FRAME) == 0 || (usize(load_u32(block + FRAME_FLAGS)) & FRAME_RUNNING) == 0)
     )
 
-fn word(block: usize) -> usize:
-    usize(load_u32(block + block_bytes(block) - 4))
-
-fn set_word(block: usize, w: usize) -> void:
-    store_u32(block + block_bytes(block) - 4, u32(w))
-
 fn color(block: usize) -> usize:
-    word(block) % COLORS
+    usize(load_u32(block + 4)) & COLORS
 
 fn paint(block: usize, c: usize) -> void:
-    w := word(block)
-    set_word(block, w - w % COLORS + c)
+    store_u32(block + 4, u32((usize(load_u32(block + 4)) & ~COLORS) | c))
 
 # An array is a block of the allocator: its length, its capacity, then its
 # items, 4 bytes each; 0 is the empty array before its first push. A push

@@ -17,7 +17,7 @@ use std.rt.alloc.{
     retain,
     retain_known,
 }
-use std.rt.cycle.{collect, pending, track}
+use std.rt.cycle.{collect, pending}
 use std.rt.memory.{grow, load_u32, store_u32, store_u8}
 
 PAGE := 65536
@@ -215,7 +215,6 @@ tests:
         block := alloc(64)
         store_u32(block, 3)
         store_u32(block + 4, 0x80000001)
-        track(block)
         before := pending()
         assert(release_known(block + 8) == 0, "the shared cyclic block stays live")
         assert(pending() == before + 1, "the block becomes a candidate")

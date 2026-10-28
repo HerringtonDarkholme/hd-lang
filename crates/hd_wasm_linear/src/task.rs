@@ -2093,7 +2093,7 @@ fn all_cold(m: &Module, elem: &Elem) -> Func {
     f.set(bytes);
     f.get(bytes);
     f.op(Instruction::I64Const(i64::from(
-        u32::MAX - crate::module::HEADER - crate::module::CYCLE_WORD,
+        u32::MAX - crate::module::HEADER,
     )));
     f.op(Instruction::I64GtU);
     f.op(Instruction::If(BlockType::Empty));

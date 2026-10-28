@@ -234,16 +234,17 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 24 the release glue's function-table slot plus one (0 for none), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 21 the release glue's function-table slot plus one (0 for none), bits 22 and 23 the collector's color and bit 24 its frame flag (REFCOUNT_RUNTIME.md §7.2), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
-| the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color and the frame flag (REFCOUNT_RUNTIME.md §7.2, §23.28) |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
   `address - 8`.
 - **The descriptor word** identifies shared release glue, not a nominal
-  type record. Its low 25 bits are the glue's table slot plus one; five
-  bits carry an allocator class, and the top two are collector flags.
+  type record. Its low 22 bits are the glue's table slot plus one; three
+  bits are the collector's state, five carry an allocator class, and the
+  top two are collector flags. Every block is header plus payload, so a
+  cycle-capable type's object takes the same class as any other.
   The allocator supplies the block size. An interior reference finds its
   block through the page table, then runs that block's glue. Types with
   identical layouts may share the descriptor and have no stored type name.
@@ -830,7 +831,7 @@ changes preserve collection value semantics (§23.7).
   shared or pinned buffer is copied into a new string buffer and loses
   the count. A view into a former list buffer is released as any
   interior view is: the page table finds the block, and a `List[u8]`
-  buffer has no release glue and no collector word, so its last release
+  buffer has no release glue, so its last release
   frees it as it frees a `rt:str` buffer. `StringBuilder` is one such
   `List[u8]`: `push` appends a string's bytes (`bytes_append`, above) and
   `build` moves the list out of the builder into `string_from_bytes`, so
@@ -1653,13 +1654,14 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   `ACTIVE` or `RUNNING` is set, its saved slots may be stale: what it
   holds counts as held from outside, and its candidate stays buffered
   until an idle collection. An idle frame participates like any other object.
-- **The collector word** sits in the last 4 bytes of the block; the
-  allocator supplies its size. `rt:new` asks for 4 more
-  bytes when the descriptor has `CYCLIC` and has std's `track` zero the
-  word, or zeroes it itself at the class's last word when the size class
-  is known (`rt:new/class-N`); any other object has no collector word. Its low 2 bits are the
-  color (black, gray, white) and bit 2 marks a frame. Only a collection
-  reads it: no release or free needs the block's size.
+- **The collector's state** is three bits of the descriptor word
+  (§23.4): bits 22 and 23 are the color (black, gray, white) and bit 24
+  marks a frame. `rt:new` writes the descriptor whole, so a new object is
+  black and no frame with no store of its own, and its block holds only
+  the header and the payload (#938; before it a 4-byte word at the
+  block's end held them, which put binary-trees' 8-byte node in the
+  32-byte class). Only a collection and `opaque` change them, and no
+  release or free reads them; the glue mask leaves them out.
 - **Candidates.** Std's `release` (`std.rt.alloc`'s and
   `std.rt.checked`'s) buffers a `CYCLIC` object when it leaves a count
   above zero (`suspect`). Bit 30 of the descriptor word (`BUFFERED`) says
@@ -1801,7 +1803,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   reach for a descriptor that `rt::push_desc` pushed with `CYCLIC`. When
   there is none, it sets `Module::acyclic`, points the runtime at the
   releases without hooks, and builds every helper again. `rt:new` then
-  asks for no collector word and never collects, `rt:release_ref` has no
+  never collects, `rt:release_ref` has no
   `Tracing` check, and neither the entry's poll nor checked mode's
   shutdown collects. The init of `std.rt.cycle` is skipped too, unless
   code still calls the collector directly, as std's own tests do.

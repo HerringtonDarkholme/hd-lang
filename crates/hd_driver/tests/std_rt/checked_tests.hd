@@ -7,7 +7,7 @@ use std.rt.alloc.{block_of}
 use std.rt.checked.{allocate, free, live, release, retain}
 use std.rt.memory.{load_u32, load_u8, load_u64, store_u32}
 use std.rt.checked_report.{collected, pointer}
-use std.rt.cycle.{collect, suspect, track, visit}
+use std.rt.cycle.{collect, suspect, visit}
 
 POISON := 0xdededede
 FRESH := 0xa5a5a5a5
@@ -69,8 +69,6 @@ tests:
         store_u32(b, 1)
         store_u32(a + 4, 0x80000001)
         store_u32(b + 4, 0x80000002)
-        track(a)
-        track(b)
         store_u32(a + 8, u32(b + 8))
         store_u32(b + 8, u32(a + 8))
         suspect(a)
@@ -83,7 +81,6 @@ tests:
         block := allocate(32)
         store_u32(block, 1)
         store_u32(block + 4, 0x80000001)
-        track(block)
         suspect(block)
         free(block)
         collect(trace_link, unexpected_release, free_collected)

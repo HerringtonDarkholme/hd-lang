@@ -221,10 +221,9 @@ pub enum Helper {
     /// one, or 0 when its payload holds no counted reference. The address
     /// is its payload's.
     New,
-    /// The same ABI as New, with a statically known payload size and cycle bit.
+    /// The same ABI as New, with a statically known payload size.
     NewFixed {
         size: u32,
-        cyclic: bool,
     },
     /// `() -> address`: a block of the known small class `class`, of
     /// `bytes` bytes, with page-list maintenance on the std slow path.
@@ -1679,7 +1678,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::Alloc => alloc(m),
         Helper::StrEq => str_eq(m),
         Helper::New => new_object(m, None),
-        Helper::NewFixed { size, cyclic } => new_object(m, Some((*size, *cyclic))),
+        Helper::NewFixed { size } => new_object(m, Some(*size)),
         Helper::AllocClass { class, bytes } => alloc_class(m, *class, *bytes),
         Helper::FreeClass => free_class(m),
         Helper::Str => {
@@ -2313,8 +2312,8 @@ pub(crate) fn glue_of(f: &mut Func) {
     f.op(Instruction::I32And);
 }
 
-/// The allocator's twenty small classes, including the object's header and
-/// its optional collector word. Zero/large objects keep the ordinary path.
+/// The allocator's twenty small classes, including the object's header.
+/// Zero/large objects keep the ordinary path.
 fn small_class(size: u32) -> Option<(u32, u32)> {
     const BYTES: [u32; 20] = [
         16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600,
@@ -2518,20 +2517,13 @@ fn free_object(f: &mut Func, m: &Module, block: u32) {
 /// `alloc`, or from the bump pointer when the program counts nothing.
 ///
 /// With the runtime, a collection runs first when one is due (at a known
-/// class, only on the class's slow path), and an object whose descriptor has [`CYCLIC`] takes part in
-/// collections: its block has room for the collector word at its end,
-/// which std's `track` zeroes, or this function at a known class (§23.28).
-fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
-    let small = fixed.and_then(|(size, cyclic)| {
+/// class, only on the class's slow path). An object whose descriptor has
+/// [`CYCLIC`] takes part in collections; the descriptor written here has
+/// its collector bits clear, black and no frame (§23.28).
+fn new_object(m: &Module, fixed: Option<u32>) -> Func {
+    let small = fixed.and_then(|size| {
         m.runtime.filter(|r| r.checked.is_none())?;
-        let bytes = size
-            .checked_add(HEADER)?
-            .checked_add(if cyclic && !m.acyclic {
-                crate::module::CYCLE_WORD
-            } else {
-                0
-            })?;
-        small_class(bytes)
+        small_class(size.checked_add(HEADER)?)
     });
     let name = small.map_or_else(
         || "rt:new".into(),
@@ -2539,27 +2531,17 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
     );
     let mut f = m.func(name, vec![Val::I32, Val::I32], vec![Val::I32]);
     let block = f.local(Val::I32);
-    let cycles = m.runtime.filter(|_| !m.acyclic);
     // A known class asks on its slow path only ([`alloc_class`]).
     if small.is_none() {
         collect_if_due(&mut f, m);
     }
     match (m.runtime, small) {
-        // The class's block holds the header, the payload and any
-        // collector word.
+        // The class's block holds the header and the payload.
         (Some(_), Some((class, bytes))) => f.helper(Helper::AllocClass { class, bytes }),
         (Some(r), None) => {
             f.get(0);
             f.u32(HEADER);
             f.op(Instruction::I32Add);
-            if !m.acyclic {
-                f.get(1);
-                f.i32(31);
-                f.op(Instruction::I32ShrU);
-                f.u32(crate::module::CYCLE_WORD);
-                f.op(Instruction::I32Mul);
-                f.op(Instruction::I32Add);
-            }
             f.call(Sym::Inst(r.alloc));
         }
         (None, _) => {
@@ -2580,22 +2562,6 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
         f.op(Instruction::I32Or);
     }
     f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-    if let Some(r) = cycles {
-        f.get(1);
-        f.i32(0);
-        f.op(Instruction::I32LtS);
-        f.op(Instruction::If(BlockType::Empty));
-        f.get(block);
-        if let Some((_, bytes)) = small {
-            // std's `track`, without finding the block's size: the
-            // collector word is the last word of the class's block.
-            f.i32(0);
-            f.op(Instruction::I32Store(mem(HEAP, u64::from(bytes - 4), 2)));
-        } else {
-            f.call(Sym::Inst(r.cycle.track));
-        }
-        f.op(Instruction::End);
-    }
     f.get(block);
     f.u32(HEADER);
     f.op(Instruction::I32Add);
@@ -2842,9 +2808,7 @@ fn list_clone(m: &Module, elem: &Elem) -> Func {
 fn list_buf(m: &Module, elem: &Elem) -> Func {
     let mut f = m.func("rt:list_buf", vec![Val::I32], vec![Val::I32]);
     let b = f.local(Val::I32);
-    if let Some(most) =
-        (u32::MAX - LIST_ELEMS - HEADER - crate::module::CYCLE_WORD).checked_div(elem.size)
-    {
+    if let Some(most) = (u32::MAX - LIST_ELEMS - HEADER).checked_div(elem.size) {
         f.get(0);
         f.u32(most);
         f.op(Instruction::I32GtU);

@@ -46,12 +46,9 @@ pub const EMPTY: u32 = STATIC_BASE;
 
 /// The size of a counted object's header, before its payload (§23.4).
 pub const HEADER: u32 = 8;
-/// The bytes of the collector word at the end of a block that takes part
-/// in cycle collection (`crates/hd_wasm_linear/DESIGN.md` §23.28).
-pub const CYCLE_WORD: u32 = 4;
 /// The descriptor word's bit that marks an object of a cycle-capable type,
 /// set at its allocation: only such objects take part in cycle collection
-/// and carry a collector word (§23.28).
+/// (§23.28).
 pub const CYCLIC: u32 = 1 << 31;
 /// The descriptor word's bit that marks an object in the collector's
 /// candidate buffer, which `std.rt.cycle` sets and clears.
@@ -60,8 +57,12 @@ pub const BUFFERED: u32 = 1 << 30;
 pub const CLASS_SHIFT: u32 = 25;
 /// Five descriptor bits carry a constant allocator class (zero is unknown).
 pub const CLASS_MASK: u32 = 31 << CLASS_SHIFT;
+/// First of the three descriptor bits that `std.rt.cycle` owns: an
+/// object's color (two bits) and its frame mark (§23.28). The backend
+/// writes them 0, black and no frame, with the rest of the word.
+pub const COLLECTOR_SHIFT: u32 = 22;
 /// The descriptor's release glue: its table slot plus one, zero for none.
-pub const GLUE: u32 = (1 << CLASS_SHIFT) - 1;
+pub const GLUE: u32 = (1 << COLLECTOR_SHIFT) - 1;
 
 /// A function: an instance by key, a runtime helper, or a host import.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

@@ -137,13 +137,9 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.is_some_and(|r| r.checked.is_none())
             && m.size
                 .checked_add(crate::module::HEADER)
-                .and_then(|n| n.checked_add(if cyclic { crate::module::CYCLE_WORD } else { 0 }))
                 .is_some_and(|n| n <= 2048)
         {
-            self.f.helper(Helper::NewFixed {
-                size: m.size,
-                cyclic,
-            });
+            self.f.helper(Helper::NewFixed { size: m.size });
         } else {
             self.f.helper(Helper::New);
         }
