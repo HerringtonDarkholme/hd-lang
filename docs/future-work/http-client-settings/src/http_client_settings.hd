@@ -46,33 +46,43 @@ pub enum ClientConfigError:
     @error("invalid PEM client identity")
     InvalidIdentity
 
-## A reusable cookie-aware client builder with one I/O terminal, `send!`.
+## A value builder for one client with fixed settings.
+pub struct ClientBuilder:
+    jar: CookieJar
+
+impl ClientBuilder:
+    ## Replaces the cookie jar that the built client will share.
+    pub fn jar(mut self, jar: CookieJar) -> ClientBuilder:
+        self.jar = jar
+        self
+
+    ## Applies the existing task timeout policy around every later send.
+    pub fn timeout(mut self, limit: Duration) -> ClientBuilder:
+        panic("todo")
+
+    ## Routes every later send through one HTTP CONNECT proxy.
+    pub fn proxy(mut self, proxy: Proxy) -> ClientBuilder:
+        panic("todo")
+
+    ## Adds one root certificate to the host's ordinary trust store.
+    pub fn root_certificate(mut self, certificate: Certificate) -> ClientBuilder:
+        panic("todo")
+
+    ## Supplies one client identity for mutual TLS.
+    pub fn identity(mut self, identity: Identity) -> ClientBuilder:
+        panic("todo")
+
+    ## Validates the complete configuration and returns a shared client with fixed settings.
+    pub fn build(self) -> Result[*mut Client, ClientConfigError]:
+        panic("todo")
+
+## A reusable cookie-aware client with fixed transport settings.
 pub struct Client:
     pub jar: CookieJar
 
 impl Client:
-    ## Starts a client with an empty cookie jar and host-default transport.
-    pub fn new() -> *mut Client:
-        panic("todo")
-
-    ## Starts a client with an existing cookie jar.
-    pub fn with_jar(jar: CookieJar) -> *mut Client:
-        panic("todo")
-
-    ## Applies the existing task timeout policy around every later send.
-    pub fn timeout(*mut self, limit: Duration) -> *mut Client:
-        panic("todo")
-
-    ## Routes every later send through one HTTP CONNECT proxy.
-    pub fn proxy(*mut self, proxy: Proxy) -> *mut Client:
-        panic("todo")
-
-    ## Adds one root certificate to the host's ordinary trust store.
-    pub fn root_certificate(*mut self, certificate: Certificate) -> *mut Client:
-        panic("todo")
-
-    ## Supplies one client identity for mutual TLS.
-    pub fn identity(*mut self, identity: Identity) -> *mut Client:
+    ## Starts a value builder with an empty cookie jar and host-default transport.
+    pub fn builder() -> ClientBuilder:
         panic("todo")
 
     ## Sends one request through the configured client.

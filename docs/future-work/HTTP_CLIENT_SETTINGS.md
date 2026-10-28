@@ -9,7 +9,7 @@ Nothing here changes the specification or implementation.
 
 ## Proposal
 
-Make `Client` a reusable counted builder with one I/O terminal, `send!`.
+Make `ClientBuilder` a value builder whose one terminal, `build`, returns a reusable counted `Client`.
 Its noun setters configure a default timeout, one HTTP CONNECT proxy, extra roots, or one client identity.
 Timeout calls the existing `std.task.timeout`; transport settings travel to the host with each send.
 Unsupported hosts return a typed error before network I/O and never ignore a security setting.
@@ -20,7 +20,7 @@ use std.time.{Clock, s}
 
 fn get!() -> Result[Response, HttpError] $ Http + Clock:
     root := Certificate::from_pem("-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----")?
-    client := Client::new().timeout(5s).root_certificate(root)
+    client := Client::builder().timeout(5s).root_certificate(root).build()?
     client.send!(&Request::get(Url::parse("https://api.internal/")?))
 ```
 
@@ -37,7 +37,7 @@ The checked [signatures and examples](http-client-settings/) cover every propose
 
 | Program | Today | Proposed |
 | --- | --- | --- |
-| Service call with a five-second default | Every call repeats `apply!(timeout(5s))` | `Client::new().timeout(5s)` applies the same policy to every send |
+| Service call with a five-second default | Every call repeats `apply!(timeout(5s))` | `Client::builder().timeout(5s).build()?` applies the same policy to every send |
 | Corporate egress | The host always connects directly | `proxy(Proxy::http(url)?)` uses HTTP CONNECT after both grants pass |
 | Private service | Only the host trust store is available | `root_certificate(root)` merges one validated PEM root |
 | Mutual TLS | No client certificate reaches the transport | `identity(Identity::from_pem(chain, key)?)` supplies one protected identity |
@@ -51,17 +51,20 @@ The TLS methods never disable certificate or hostname verification.
 
 | Item | Purpose |
 | --- | --- |
-| `Client::new`, `Client::with_jar` | Return one retained `*mut Client` builder |
-| `Client.timeout(Duration)` | Store the existing `TimeLimit` policy for every later send |
-| `Client.proxy(Proxy)` | Store one validated HTTP proxy endpoint |
-| `Client.root_certificate(Certificate)` | Append one PEM root to the ordinary trust store |
-| `Client.identity(Identity)` | Replace the client's PEM chain and private key |
+| `Client::builder` | Return a plain `ClientBuilder` value with host-default settings |
+| `ClientBuilder.jar(CookieJar)` | Replace the jar that the built client will share and mutate |
+| `ClientBuilder.timeout(Duration)` | Store the existing `TimeLimit` policy for every later send |
+| `ClientBuilder.proxy(Proxy)` | Store one validated HTTP proxy endpoint |
+| `ClientBuilder.root_certificate(Certificate)` | Append one PEM root to the ordinary trust store |
+| `ClientBuilder.identity(Identity)` | Replace the PEM chain and private key |
+| `ClientBuilder.build` | Validate the complete configuration and return one retained `*mut Client` |
 | `Client.send!` | The only I/O terminal; cookies, redirects, timeout, and transport settings share one operation |
 
-The counted client is justified because its cookie jar and configuration outlive one call.
+The builder is a value, so changing it cannot alter a client that was already built or another copy of that client.
+The counted client is justified because its cookie jar and immutable configuration outlive one call.
 Requests and certificate values remain plain values; ordinary readers keep local `&T` references.
 The public `jar` field remains available.
-`new` and `with_jar` now return a counted client, so copying a client aliases its jar instead of duplicating it.
+Copying a built client aliases its jar, but no public method changes its transport settings.
 Unconfigured sends and direct `Request.send!` otherwise keep today's behavior.
 
 `Proxy::http` accepts only an absolute `http` URL without user information.
@@ -119,7 +122,7 @@ The proposal keeps public roots and adds the private root rather than replacing 
 
 ```text
 root := Certificate::from_pem(cluster_ca)?
-client := Client::new().timeout(10s).root_certificate(root)
+client := Client::builder().timeout(10s).root_certificate(root).build()?
 response := client.send!(&Request::get(api_url))?
 ```
 
@@ -149,9 +152,9 @@ The send fails before network I/O instead of appearing configured while using pl
 
 ### Aliased client
 
-Two bindings copy one `*mut Client` and send sequential requests.
-Both see the same jar and settings, matching reqwest's shared reusable client.
-A local `&mut Client` remains the receiver used within each terminal call.
+Two bindings copy one built `*mut Client` and send sequential requests.
+Both see the same jar and fixed settings, matching reqwest's shared reusable client.
+Changing the value builder after `build` changes neither binding; only `send!` mutates the shared jar.
 
 ## Appendix B: Prior art
 
@@ -221,6 +224,12 @@ and `tls_config` settings, so the Wasmtime libraries can represent the same conc
 This matches reqwest's per-request override, but repeats defaults and copies private-key configuration into message values.
 It also makes server-side request values capable of carrying client transport secrets.
 
+### Mutating a counted Client
+
+Returning `*mut Client` from `new` and putting configuration setters on it saves the `build` call.
+It also lets one alias change the timeout, proxy, or TLS identity observed through every other alias.
+The value builder keeps configuration changes local and publishes only fixed settings.
+
 ### Environment and system proxy discovery
 
 Go and ureq support this default.
@@ -262,7 +271,7 @@ Its options cover the message, redirects, abort signal, and fixed deadline only.
 
 - **API tier:** every proposed item passes the tier test and belongs in `spec/std/http.md`.
 - **Language changes:** none; builders, counted references, requirements, policy layers, and errors already exist.
-- **Ownership:** `Client` is counted because settings and cookies escape calls; request and configuration inputs remain values.
+- **Ownership:** `ClientBuilder` is a value; `Client` is counted because fixed settings and its mutable cookie jar escape calls.
 - **Secrets:** identities have no inspection traits; errors name only the setting, never PEM text or keys.
 - **Cancellation:** timeout cancellation follows the existing `TimeLimit` and `Http.send!` abort rules.
 - **Redirects:** one outer timeout covers every hop; each target repeats origin and proxy grant checks.
@@ -272,7 +281,7 @@ Its options cover the message, redirects, abort signal, and fixed deadline only.
 
 Implementation phases, each about one hour:
 
-1. Add std types, signatures, `UnsupportedSetting`, and focused conformance cases.
+1. Add std types, the value builder, `UnsupportedSetting`, and focused conformance cases.
 2. Add wire DTO fields and scripted-provider observations; keep empty settings byte-identical.
 3. Apply `TimeLimit` once around the complete client send; test `ManualClock` and cleanup.
 4. Implement Node PEM options and CONNECT proxying; test both grants and redirect targets.
