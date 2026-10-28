@@ -142,6 +142,10 @@ miss. Don't build first and measure after.
    because tickets are often wrong. #909 guessed trait values, and the
    cost was one `List[string]` field. #920 guessed the inlined callees, and
    the cause was caller size. Post the breakdown in the report.
+Size every measurement as a benchmark: about 300 ms of work per run
+(matklad's rule of thumb), and report throughput (items per run) or run
+time, never per-call nanoseconds. Fixed costs swamp shorter runs.
+
 2. **Ceiling.** Build the cheapest hack that removes the attributed cost
    entirely. It may be unsafe, behind an environment variable, or only
    valid for the bench. Measure it at all three V8 tiers, interleaved.
