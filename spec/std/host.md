@@ -107,7 +107,7 @@ fn config() -> Result[Config, HostError] $ Env:
 1. r[std-host.env-decode.prefix-decl] `std.host` declares `pub fn env_decode[T < Deserialize](prefix: string = "") -> Result[T, HostError] $ Env`.
 2. r[std-host.env-decode.record-root] The root value must be a struct with named fields.
 3. r[std-host.env-decode.root-error] A non-record root returns `HostError.Other("env_decode needs a struct with named fields")`.
-4. r[std-host.env-decode.prefixed-field-name] Each field's environment name is `prefix` followed by its source name converted to upper snake case.
+4. r[std-host.env-decode.prefixed-field-name] Each field's environment name is `prefix` followed by its source name converted to uppercase, so `total_cents` reads `TOTAL_CENTS`.
 5. r[std-host.env-decode.names-independent] Environment names are independent of serde's document-name facts.
 6. r[std-host.env-decode.declared-reads] Decoding reads only the fields' selected names through `Env.get`, without calling `Env.names`.
 7. r[std-host.env-decode.unset-null] An unset variable is an absent, null value to the deserializer.
