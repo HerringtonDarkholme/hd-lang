@@ -179,15 +179,13 @@ pub trait Serializer:
     fn begin_data(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]:
         self.begin_variant(facts, v)
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
-    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]:
-        self.begin_variant(facts, v)
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
     fn begin_tuple_variant(
         &mut self,
         facts: Facts,
         v: &VariantInfo,
         len: usize,
-    ) -> Result[void, Self::Error]:
-        self.begin_variant(facts, v)
+    ) -> Result[void, Self::Error]
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_data(&mut self) -> Result[void, Self::Error]:
         self.end_variant()
@@ -234,8 +232,7 @@ pub trait Deserializer:
         facts: Facts,
         choices: List[VariantInfo],
     ) -> Result[usize, Self::Error]
-    fn begin_newtype_variant(&mut self) -> Result[void, Self::Error]:
-        .Ok(())
+    fn begin_newtype_variant(&mut self) -> Result[void, Self::Error]
     fn begin_tuple_variant(&mut self, len: usize) -> Result[void, Self::Error]:
         .Err(self.invalid("tuple variant"))
     fn member(&mut self, m: &Member) -> Result[void, Self::Error]
