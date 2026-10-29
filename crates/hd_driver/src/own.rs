@@ -754,7 +754,10 @@ impl FactEnv for Env<'_> {
     fn fact_ref_inner(&self, ty: Ty) -> Option<Ty> {
         match self.run.pool.get(ty) {
             TyData::Ref { inner, .. } => Some(inner),
-            TyData::Adt { def, args } if def == self.run.known.ref_cell => {
+            // Lowered local and counted sources use the `Ref` and `Counted`
+            // carriers. Both are reference layouts; the coercion shape above
+            // already proves this is a reference converted to a trait value.
+            TyData::Adt { args, .. } if self.reference(ty) => {
                 self.run.pool.list_items(args).first().copied()
             }
             _ => None,
