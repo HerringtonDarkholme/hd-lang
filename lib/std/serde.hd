@@ -25,14 +25,14 @@ use std.structure.{
     skips,
 }
 
-## A named member's document name, independent of its hd field name.
-## See [std-serde.rename.fact](../../spec/std/serde.md#r-std-serde.rename.fact).
-@annotate(.Field)
+## A member's or variant's document name, independent of its hd source name.
+## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+@annotate(.Field, .Variant)
 pub struct Rename:
     pub name: string
 
-## Names a member on the document wire.
-## See [std-serde.rename.constructor](../../spec/std/serde.md#r-std-serde.rename.constructor).
+## Names a member or variant on the document wire.
+## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).
 pub fn rename(name: string) -> Rename:
     Rename { name: name }
 
@@ -69,7 +69,7 @@ pub enum RenameCase:
     KebabCase
     ScreamingKebabCase
 
-## The default naming style for a record's or enum's members.
+## The default naming style for a record's members or an enum's variants and members.
 ## See [std-serde.rename-all.fact](../../spec/std/serde.md#r-std-serde.rename-all.fact).
 @annotate(.Data, .Enum)
 pub struct RenameAll:
@@ -79,6 +79,27 @@ pub struct RenameAll:
 ## See [std-serde.rename-all.constructor](../../spec/std/serde.md#r-std-serde.rename-all.constructor).
 pub fn rename_all(style: RenameCase) -> RenameAll:
     RenameAll { style: style }
+
+## How an enum is represented on a document wire.
+## See [std-serde.enum-tagging.fact](../../spec/std/serde.md#r-std-serde.enum-tagging.fact).
+@derive(Debug, Eq)
+@annotate(.Enum)
+pub enum EnumTagging:
+    Internal(tag: string)
+    Adjacent(tag: string, content: string)
+    Untagged
+
+## Places the variant name under `tag`; `content` selects adjacent form when present.
+## See [std-serde.enum-tagging.constructors](../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
+pub fn tag(tag: string, content: string? = .None) -> EnumTagging:
+    match content:
+        .Some(name) => EnumTagging.Adjacent(tag, name)
+        .None => EnumTagging.Internal(tag)
+
+## Writes only the variant payload and tries variants in declaration order when reading.
+## See [std-serde.enum-tagging.constructors](../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
+pub fn untagged() -> EnumTagging:
+    EnumTagging.Untagged
 
 ## Resolves a wire name: member rename, then container rename_all, then source name.
 ## See [std-serde.member-name.precedence](../../spec/std/serde.md#r-std-serde.member-name.precedence).
@@ -94,6 +115,39 @@ pub fn member_name(member: &Member, container: Facts) -> string:
         .Some(fact) => case_name(member.name, fact.style)
         .None => member.name
 
+## Resolves a variant wire name: variant rename, then enum rename_all, then source name.
+## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+fn variant_name(variant: &VariantInfo, container: Facts) -> string:
+    if !variant.facts.items.is_empty():
+        match variant.facts.find::[Rename]():
+            .Some(fact) => return fact.name
+            .None => pass
+    if container.items.is_empty():
+        return variant.name
+    match container.find::[RenameAll]():
+        .Some(fact) => variant_case_name(variant.name, fact.style)
+        .None => variant.name
+
+fn wire_variant(variant: &VariantInfo, container: Facts) -> VariantInfo:
+    VariantInfo {
+        name: variant_name(variant, container),
+        index: variant.index,
+        facts: variant.facts,
+        doc: variant.doc,
+        type_doc: variant.type_doc,
+        of_data: variant.of_data,
+        positional: variant.positional,
+        named: variant.named,
+        included_positional: variant.included_positional,
+        shared: variant.shared,
+        self_ref: variant.self_ref,
+    }
+
+fn variant_has_rename(variant: &VariantInfo) -> bool:
+    if variant.facts.items.is_empty():
+        return false
+    variant.facts.find::[Rename]().is_some()
+
 fn case_name(name: string, style: RenameCase) -> string:
     match style:
         .Lowercase => name
@@ -104,6 +158,17 @@ fn case_name(name: string, style: RenameCase) -> string:
         .ScreamingKebabCase => uppercase_name(name).replace("_", "-")
         .PascalCase => joined_name(name, false)
         .CamelCase => joined_name(name, true)
+
+fn variant_case_name(name: string, style: RenameCase) -> string:
+    match style:
+        .Lowercase => lowercase_name(name)
+        .Uppercase => uppercase_name(name)
+        .PascalCase => name
+        .CamelCase => lowercase_first(name)
+        .SnakeCase => separated_variant_name(name, 95, false)
+        .ScreamingSnakeCase => separated_variant_name(name, 95, true)
+        .KebabCase => separated_variant_name(name, 45, false)
+        .ScreamingKebabCase => separated_variant_name(name, 45, true)
 
 # The case changes are ASCII byte changes (r-std-serde.rename-all.conversion):
 # they keep the bytes valid UTF-8, and they call no Display or builder, so a
@@ -120,6 +185,45 @@ fn uppercase_name(name: string) -> string:
     if !changed:
         return name
     string_from_bytes(bytes)
+
+fn lowercase_name(name: string) -> string:
+    let mut bytes = name.to_utf8()
+    let changed = false
+    for at in 0..bytes.len():
+        byte := bytes[at]
+        if byte >= 65 && byte <= 90:
+            bytes[at] = byte + 32
+            changed = true
+    if !changed:
+        return name
+    string_from_bytes(bytes)
+
+fn lowercase_first(name: string) -> string:
+    let mut bytes = name.to_utf8()
+    if bytes.is_empty() || bytes[0] < 65 || bytes[0] > 90:
+        return name
+    bytes[0] = bytes[0] + 32
+    string_from_bytes(bytes)
+
+fn separated_variant_name(name: string, separator: u8, screaming: bool) -> string:
+    bytes := name.to_utf8()
+    let mut out: List[u8] = []
+    for at in 0..bytes.len():
+        let byte = bytes[at]
+        upper := byte >= 65 && byte <= 90
+        if upper && at > 0:
+            before := bytes[at - 1]
+            before_lower := before >= 97 && before <= 122
+            before_digit := before >= 48 && before <= 57
+            after_lower := at + 1 < bytes.len() && bytes[at + 1] >= 97 && bytes[at + 1] <= 122
+            if before_lower || before_digit || after_lower:
+                out.push(separator)
+        if screaming && byte >= 97 && byte <= 122:
+            byte = byte - 32
+        else if !screaming && upper:
+            byte = byte + 32
+        out.push(byte)
+    string_from_bytes(out)
 
 fn joined_name(name: string, camel: bool) -> string:
     let mut out: List[u8] = []
@@ -299,6 +403,9 @@ enum VariantForm:
     Record
     Newtype
     Tuple
+    Raw
+    List
+    Exhausted
 
 fn variant_form(v: &VariantInfo) -> VariantForm:
     if v.of_data || v.named > 0 || v.positional == 0:
@@ -330,11 +437,25 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
         self.form = variant_form(&v.info)
+        if self.facts.items.is_empty() && !variant_has_rename(&v.info):
+            return match self.form:
+                .Data => self.out.begin_data(self.facts, &v.info)
+                .Record => self.out.begin_variant(self.facts, &v.info)
+                .Newtype => self.out.begin_newtype_variant(self.facts, &v.info)
+                .Tuple =>
+                    self.out.begin_tuple_variant(self.facts, &v.info, v.info.included_positional)
+                .Raw => .Ok(())
+                .List => .Ok(())
+                .Exhausted => .Ok(())
+        wire := wire_variant(&v.info, self.facts)
         match self.form:
             .Data => self.out.begin_data(self.facts, &v.info)
-            .Record => self.out.begin_variant(self.facts, &v.info)
-            .Newtype => self.out.begin_newtype_variant(self.facts, &v.info)
-            .Tuple => self.out.begin_tuple_variant(self.facts, &v.info, v.info.included_positional)
+            .Record => self.out.begin_variant(self.facts, &wire)
+            .Newtype => self.out.begin_newtype_variant(self.facts, &wire)
+            .Tuple => self.out.begin_tuple_variant(self.facts, &wire, v.info.included_positional)
+            .Raw => .Ok(())
+            .List => .Ok(())
+            .Exhausted => .Ok(())
 
     # A rest member is one `List[T]` member (annot.walk.rest.default),
     # which needs `T < Serialize` here, as `member` needs `F < Serialize`.
@@ -378,9 +499,43 @@ fn skipped[S, F < Serialize](h: Field[S, F], value: F) -> bool:
 # its matching end hook (r-std-serde.derive.deserialize.data-and-enum-forms).
 impl[T] Deserialize for T by Structure:
     fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
+        facts := T::facts()
+        if !facts.items.is_empty():
+            match enum_tagging(facts):
+                .Some(.Untagged) =>
+                    let attempt: usize = 0
+                    while true:
+                        saved := *input
+                        let mut source = DeserializeSource::[T, R] {
+                            input: input,
+                            facts: facts,
+                            at: attempt + 1,
+                            form: VariantForm.Raw,
+                        }
+                        match T::build(&mut source):
+                            .Ok(built) =>
+                                let finished = match source.form:
+                                    .Data => input.end_data()
+                                    .List =>
+                                        if input.next_item()?:
+                                            .Err(input.invalid("tuple variant end"))
+                                        else:
+                                            .Ok(())
+                                    .Raw => .Ok(())
+                                    _ => input.end_variant()
+                                match finished:
+                                    .Ok(_) => return .Ok(built)
+                                    .Err(_) => pass
+                            .Err(_) => pass
+                        *input = saved
+                        match source.form:
+                            .Exhausted => return .Err(input.invalid("variant"))
+                            _ => pass
+                        attempt += 1
+                _ => pass
         let mut source = DeserializeSource::[T, R] {
             input: input,
-            facts: T::facts(),
+            facts: facts,
             at: 0,
             form: VariantForm.Record,
         }
@@ -389,6 +544,10 @@ impl[T] Deserialize for T by Structure:
             .Data => input.end_data()?
             _ => input.end_variant()?
         .Ok(built)
+
+@cold
+fn enum_tagging(facts: Facts) -> EnumTagging?:
+    facts.find::[EnumTagging]()
 
 # The fields are public because the prototype checks the instantiated
 # source in the deriving module.
@@ -415,9 +574,44 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         .Ok(choice)
 
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
+        if !self.facts.items.is_empty():
+            match enum_tagging(self.facts):
+                .Some(.Untagged) =>
+                    attempt := self.at - 1
+                    self.at = 0
+                    if attempt >= choices.len():
+                        self.form = VariantForm.Exhausted
+                        return .Err(self.input.invalid("variant"))
+                    choice := choices[attempt]
+                    match variant_form(&choice.info):
+                        .Record =>
+                            if choice.info.named == 0 && choice.info.included_positional == 0:
+                                if !self.input.is_null()?:
+                                    return .Err(self.input.invalid("null"))
+                                self.form = VariantForm.Raw
+                            else:
+                                _ := self.input.begin_data(self.facts, [choice.info])?
+                                self.form = VariantForm.Data
+                        .Newtype => self.form = VariantForm.Raw
+                        .Tuple =>
+                            self.input.begin_list()?
+                            self.form = VariantForm.List
+                        _ => return .Err(self.input.invalid("variant"))
+                    return .Ok(choice)
+                _ => pass
         let mut infos: List[VariantInfo] = []
-        for choice in choices:
-            infos.push(choice.info)
+        let any_variant_rename = false
+        if self.facts.items.is_empty():
+            for choice in choices:
+                if variant_has_rename(&choice.info):
+                    any_variant_rename = true
+                    break
+        if self.facts.items.is_empty() && !any_variant_rename:
+            for choice in choices:
+                infos.push(choice.info)
+        else:
+            for choice in choices:
+                infos.push(wire_variant(&choice.info, self.facts))
         index := self.input.begin_variant(self.facts, infos)?
         self.form = variant_form(&choices[index].info)
         match self.form:
@@ -425,6 +619,9 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
             .Record => pass
             .Newtype => self.input.begin_newtype_variant()?
             .Tuple => self.input.begin_tuple_variant(choices[index].info.included_positional)?
+            .Raw => pass
+            .List => pass
+            .Exhausted => pass
         .Ok(choices[index])
 
     # Every unskipped member, in declaration order.
@@ -459,6 +656,11 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
             .Tuple =>
                 if !self.input.next_item()?:
                     return .Err(self.input.invalid("tuple variant item"))
+            .Raw => pass
+            .List =>
+                if !self.input.next_item()?:
+                    return .Err(self.input.invalid("tuple variant item"))
+            .Exhausted => pass
         if h.has_default() && self.input.is_absent():
             match h.default():
                 .Some(value) => return .Ok(value)

@@ -188,7 +188,7 @@ tests:
         )
 
     it("enum payload members use their enum container facts"):
-        text := "{\"Value\":{\"innerValue\":3}}"
+        text := "{\"value\":{\"innerValue\":3}}"
         value := Envelope.Value(3)
         assert_equal(encode(value), text, reason="text enum frame")
         assert_equal(to_json(value), parse(text).expect("JSON"), reason="tree enum frame")

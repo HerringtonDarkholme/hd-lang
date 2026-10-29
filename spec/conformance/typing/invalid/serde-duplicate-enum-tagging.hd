@@ -1,0 +1,9 @@
+# test: an enum has at most one representation fact
+# Spec std/serde Enum Names And Tagging and Annotations, Facts.
+use std.serde.{Serialize, tag, untagged}
+
+@derive(Serialize)
+@tag("type")
+@untagged # diagnostic: duplicate-fact
+enum Invalid:
+    Empty

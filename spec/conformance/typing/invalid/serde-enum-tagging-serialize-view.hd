@@ -1,0 +1,13 @@
+# test: a Serialize-only derivation cannot select an enum tagging representation
+# Rule: std-serde.enum-tagging.declaration-fact.
+use std.serde.{Serialize, tag}
+use std.structure.Structure
+
+enum Message:
+    Text(value: string)
+
+impl Serialize for Message by Structure:
+    Self += [tag("kind")] # diagnostic: enum-tagging-not-on-declaration
+
+pub fn main() -> void:
+    _ := Message.Text(value="hello")

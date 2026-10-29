@@ -176,6 +176,36 @@ For example, `@rename_all(.CamelCase)` on `OrderPaid` gives the member
 > source name lets other adapters, such as environment readers, name fields
 > independently.
 
+### Enum Names And Tagging
+
+An enum's `EnumTagging` fact selects how a document format represents its
+variants. With no fact, the format keeps its ordinary externally tagged form.
+
+1. r[std-serde.rename.variant-fact] `Rename` is also a variant fact. A variant's wire name uses its `Rename.name` first, its enum's `RenameAll` style second, and its source name otherwise; a style converts a PascalCase variant at its ASCII word boundaries as the table gives.
+2. r[std-serde.rename.variant-helper] `variant_name(variant: &VariantInfo, container: Facts) -> string` returns the variant's wire name without changing `VariantInfo.name`.
+3. r[std-serde.enum-tagging.fact] `EnumTagging` is an enum fact with variants `Internal(tag: string)`, `Adjacent(tag: string, content: string)`, and `Untagged`.
+4. r[std-serde.enum-tagging.constructors] `tag(tag: string, content: string? = .None) -> EnumTagging` gives `Internal(tag)` when `content` is absent and `Adjacent(tag, content)` when it is present; `untagged() -> EnumTagging` gives `Untagged`.
+5. r[std-serde.enum-tagging.static-names] A tagging fact is written with `tag`, `untagged`, or an `EnumTagging` variant directly. A written `tag` or `content` argument and an internal-form member `Rename.name` are string literals. Another computed tagging fact or name is an error at that expression. Error: `enum-tag-name-not-static`.
+6. r[std-serde.enum-tagging.declaration-fact] Serialization and deserialization read tagging only from the enum declaration facts after its no-trait metadata block. A direct `EnumTagging` value in a `Serialize` or `Deserialize` derivation's `Self` facts, or a per-trait `Self = [...]` replacement that removes declaration tagging, is an error at that value or replacement. Error: `enum-tagging-not-on-declaration`.
+7. r[std-serde.enum-tagging.computed-list] A tagging value hidden in a computed fact list, in either a no-trait metadata block or a `Serialize` or `Deserialize` derivation block, is unchecked and its behavior is unspecified.
+8. r[std-serde.enum-tagging.adjacent-distinct] An adjacent form's tag and content names differ. Equal names are an error at `content`. Error: `enum-tag-name-conflict`.
+9. r[std-serde.enum-tagging.internal-shapes] Internal tagging accepts a unit, named-record, or mixed named-and-positional record variant, and a newtype variant whose payload is a struct or `Map[string, V]`. A tuple variant, or a newtype over a scalar, list, tuple, non-string-key map, or unresolved generic, is an error at the variant or payload type. Error: `invalid-internal-tagged-variant`.
+10. r[std-serde.enum-tagging.internal-name-conflict] An internal tag differs from every statically known member wire name. A collision is an error at the member. Error: `enum-tag-name-conflict`.
+11. r[std-serde.enum-tagging.view-name-conflict] A directly written per-trait `RenameAll` that changes an effective payload-member wire name makes that name differ from the declaration tagging's tag and adjacent content names. A collision is an error at that per-trait fact. Error: `enum-tag-name-conflict`.
+12. r[std-serde.enum-tagging.view-rename-all-static] On an enum with declaration tagging, a directly written per-trait `RenameAll.style` names a `RenameCase` variant directly. A computed style is an error at the style expression. Error: `enum-tag-name-not-static`.
+13. r[std-serde.enum-tagging.internal-all-variants] Internal-shape and name checks cover every declared variant, whether or not a program constructs or reads it.
+14. r[std-serde.enum-tagging.untagged-order] Derived untagged deserialization tries variants in declaration order. A failed candidate restores the complete deserializer value before the next candidate, including its position and path state. The first successful candidate wins.
+15. r[std-serde.enum-tagging.untagged-failure] When no untagged candidate succeeds, deserialization returns one `invalid("variant")` error at the enum's original input position. It does not select or aggregate a candidate error.
+
+| Variant source | `Lowercase` | `Uppercase` | `PascalCase` | `CamelCase` | `SnakeCase` | `ScreamingSnakeCase` | `KebabCase` | `ScreamingKebabCase` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `UnitValue` | `unitvalue` | `UNITVALUE` | `UnitValue` | `unitValue` | `unit_value` | `UNIT_VALUE` | `unit-value` | `UNIT-VALUE` |
+
+> **Why.** Static checks remove the internally tagged forms whose JSON
+> representation would otherwise be ambiguous or fail only for a reached
+> variant. Copying an ordinary generic deserializer value gives retry a
+> format-neutral checkpoint without adding a public protocol.
+
 ## Map Keys
 
 `MapKey` converts a map key to and from a format-neutral scalar:

@@ -31,6 +31,7 @@ export const JsonError = variants({
   NestingTooDeep: { position: unsigned },
   WrongType: { path: str, expected: str },
   MissingField: { path: str },
+  DuplicateField: { path: str },
   UnknownVariant: { path: str, name: str },
 });
 export const FormError = variants({

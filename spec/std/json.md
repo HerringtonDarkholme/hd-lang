@@ -356,7 +356,7 @@ fn demo() -> string:
 ## JSON Errors
 
 A failed parse reports one of seven errors, each at a position. A failed
-decode reports a parse error, or one of three errors at a path:
+decode reports a parse error, or one of four errors at a path:
 
 ```text
 pub enum JsonError:
@@ -369,10 +369,11 @@ pub enum JsonError:
     NestingTooDeep(position: usize)
     WrongType(path: string, expected: string)
     MissingField(path: string)
+    DuplicateField(path: string)
     UnknownVariant(path: string, name: string)
 ```
 
-1. r[std-json.error.variants] `std.json` declares the enum `JsonError` with the ten variants above. The first seven are parse errors, and the last three are decode errors.
+1. r[std-json.error.variants.v2] `std.json` declares the enum `JsonError` with the eleven variants above. The first seven are parse errors, and the last four are decode errors.
 2. r[std-json.error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-json.error.traits] `JsonError` implements `Eq`, `Debug`, and `Display`.
 
@@ -399,6 +400,7 @@ A decode error names the value that failed by its path from the root, as
 | --- | --- |
 | r[std-json.error.kind.type] `WrongType` | a value of another kind than the type reads, or a number outside the type's range; `expected` names what the type reads |
 | r[std-json.error.kind.missing] `MissingField` | an object without the key of a member whose type does not read `null`; `path` ends with that key |
+| r[std-json.error.kind.duplicate] `DuplicateField` | a field whose representation requires one occurrence appears more than once; `path` ends with that field |
 | r[std-json.error.kind.variant] `UnknownVariant` | a variant name that the enum does not declare; `path` is the enum value's, and `name` is the name read |
 
 1. r[std-json.error.path] A `path` is `$`, then one segment per step from the root value. A segment is `.key` for an object's member or a variant's payload, and `[index]` for an array item.
@@ -541,7 +543,7 @@ fn load(text: string) -> Result[Session, JsonError]:
 | r[std-json.decode.direct] `decode` | `pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]` | the `T` that `T::deserialize` reads directly from validated JSON text |
 
 1. r[std-json.decode.parse-error] When `parse` fails, `decode` returns its parse error and reads no value.
-2. r[std-json.from-json.errors] `from_json` returns only the decode errors: `WrongType`, `MissingField`, and `UnknownVariant`.
+2. r[std-json.from-json.errors.v2] `from_json` returns only the decode errors: `WrongType`, `MissingField`, `DuplicateField`, and `UnknownVariant`.
 3. r[std-json.from-json.root] Each path that `from_json` reports starts at the value it reads, whose path is `$`.
 4. r[std-json.encode.serialize] `encode` or `to_json` of a type that does not implement `Serialize` is an error. Error: `unsatisfied-trait-bound`.
 5. r[std-json.decode.deserialize] `decode` or `from_json` into a type that does not implement `Deserialize` is an error. Error: `unsatisfied-trait-bound`.
@@ -668,6 +670,31 @@ enum Shape:
 
 > **Why.** The externally tagged form is `serde`'s default. It needs no tag
 > key that could clash with a member's name.
+
+### Tagged Enum Forms
+
+The variant names in every JSON enum form are the
+[wire names](serde.md#enum-names-and-tagging) selected by the serde view.
+For an enum with no `EnumTagging` fact, the externally tagged rules above
+and below are unchanged.
+
+1. r[std-json.derive.variant-wire-name] External, internal, and adjacent JSON forms write and match a variant's wire name.
+2. r[std-json.derive.internal.write] An internally tagged unit variant writes an object whose first member is `tag: variant-wire-name`. A named record merges its included member keys after that tag member. A newtype struct or `Map[string, V]` merges the payload object's entries after the tag member.
+3. r[std-json.derive.internal.dynamic-tag-duplicate-write] The internal tag member is first. A map payload entry with the same run-time key is written unchanged after it, so the JSON object contains that key twice.
+4. r[std-json.derive.internal.read] Internal deserialization requires an object, selects the variant from the tag member, and reads named members from the same object. A newtype struct or `Map[string, V]` reads the same object while its member or entry traversal omits the tag member.
+5. r[std-json.derive.internal.duplicate-tag-read] Internal deserialization rejects an object in which the tag key occurs more than once with `DuplicateField(path-to-tag)`.
+6. r[std-json.derive.internal.payload-object-panic] An internally tagged newtype whose handwritten `Serialize` implementation writes a non-object panics with `explicit-panic`; the message names the variant and says that its payload must write an object.
+7. r[std-json.derive.adjacent.write] An adjacently tagged variant writes an object whose first member is `tag: variant-wire-name`. A unit variant has no content member. Every other variant writes its ordinary payload value under `content` as the second member.
+8. r[std-json.derive.adjacent.read] Adjacent deserialization requires an object, selects the variant from the tag member, and reads a non-unit variant from the content member. A missing or wrong member follows the ordinary JSON decode-error and path rules.
+9. r[std-json.derive.untagged.write] An untagged unit variant writes `null`; a newtype writes its payload value; a tuple writes its payload array; and a named record writes its payload object. No variant name is written.
+10. r[std-json.derive.untagged.read] Untagged deserialization tries the same four payload shapes under [`std-serde.enum-tagging.untagged-order`](serde.md#r-std-serde.enum-tagging.untagged-order). Both the tree reader and direct text reader restore their complete value, offset, frame, and path state after a failed candidate.
+11. r[std-json.derive.untagged.failure] When no candidate accepts the value, JSON returns `WrongType(original-path, "variant")`.
+12. r[std-json.derive.tagged.order] JSON preserves the tag-first and content-second object order in `to_json`, `encode`, and `encode_pretty`; `from_json` and `decode` accept object members in any order.
+
+> **Note.** Direct `decode` observes repeated tag keys before the untyped
+> parser's ordinary duplicate-last normalization. Likewise, `from_json`
+> observes both entries in the duplicate-preserving `Json` produced by
+> `to_json` for this collision.
 
 ### Derived Deserialize
 

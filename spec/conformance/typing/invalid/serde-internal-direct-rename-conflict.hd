@@ -1,0 +1,14 @@
+# test: a direct Rename fact still participates in internal tag collision checks
+# Rule: std-serde.enum-tagging.internal-name-conflict.
+use std.serde.{Rename, Serialize, tag}
+
+@derive(Serialize)
+@tag("kind")
+enum Message:
+    Text(
+        @Rename { name: "kind" }
+        value: string, # diagnostic: enum-tag-name-conflict
+    )
+
+pub fn main() -> void:
+    _ := Message.Text(value="hello")

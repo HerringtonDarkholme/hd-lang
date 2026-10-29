@@ -1,0 +1,11 @@
+# test: enum tag names are static string literals
+# Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.static-names.
+use std.serde.{Serialize, tag}
+
+fn name() -> string:
+    "kind"
+
+@derive(Serialize)
+@tag(name()) # diagnostic: enum-tag-name-not-static
+enum Invalid:
+    Empty

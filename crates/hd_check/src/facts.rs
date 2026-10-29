@@ -18,9 +18,9 @@
 use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
-use hd_resolve::ItemData;
 use hd_resolve::facts::fact_lines as resolved_fact_lines;
 use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
+use hd_resolve::{BindingKind, Head, HeadKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
@@ -29,7 +29,7 @@ use hd_types::{ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
 use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex, unsupported};
 use crate::call::{Args, subst_owner};
-use crate::structure::FactLines;
+use crate::structure::{FactLines, Slot};
 use crate::ty::Named;
 
 /// `Facts` and the type of its `items`.
@@ -63,6 +63,110 @@ fn decorator_def(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<DefId> {
         },
         d,
     )
+}
+
+/// The identifier segments of an expression's callee, excluding its call.
+fn expression_segments(cx: &BodyCx<'_>, e: NodeRef<'_>) -> Vec<String> {
+    fn segments(cx: &BodyCx<'_>, n: NodeRef<'_>) -> Vec<String> {
+        match n.kind() {
+            SyntaxKind::NameExpr => vec![cx.src.text(cx.src.first(n)).to_owned()],
+            SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
+                let mut out = n
+                    .children()
+                    .next()
+                    .map(|base| segments(cx, base))
+                    .unwrap_or_default();
+                out.push(cx.src.text(cx.src.last(n)).to_owned());
+                out
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    let mut callee = e;
+    if callee.kind() == SyntaxKind::CallExpr {
+        let Some(inner) = callee.children().next() else {
+            return Vec::new();
+        };
+        callee = inner;
+    }
+    if callee.kind() == SyntaxKind::TypeArgsExpr {
+        let Some(inner) = callee.children().next() else {
+            return Vec::new();
+        };
+        callee = inner;
+    }
+    segments(cx, callee)
+}
+
+fn expression_def(cx: &BodyCx<'_>, e: NodeRef<'_>) -> Option<DefId> {
+    let segs = expression_segments(cx, e);
+    let first = segs.first()?;
+    let binding = cx
+        .scope_at(cx.src.span(e).lo)
+        .lookup(cx.names.syms.intern(first))?;
+    match (binding.kind, segs.len()) {
+        (BindingKind::Item, 1) => Some(DefId::from_raw(binding.value)),
+        (BindingKind::Module, _) if segs.len() >= 2 => {
+            let base = cx
+                .scope_at(cx.src.span(e).lo)
+                .modules
+                .get(binding.value as usize)?
+                .clone();
+            if segs.len() > 2 && base.contains('.') {
+                return None;
+            }
+            let module = if segs.len() == 2 {
+                base
+            } else {
+                format!("{base}.{}", segs[1..segs.len() - 1].join("."))
+            };
+            let name = cx.names.syms.intern(segs.last()?);
+            Some(
+                cx.lookup
+                    .ifaces
+                    .iter()
+                    .find_map(|f| f.export(&module, name))?
+                    .def,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn expression_variant_def(cx: &BodyCx<'_>, e: NodeRef<'_>, expected_owner: DefId) -> Option<DefId> {
+    let mut segs = expression_segments(cx, e);
+    let variant = segs.pop()?;
+    let first = segs.first()?;
+    let binding = cx
+        .scope_at(cx.src.span(e).lo)
+        .lookup(cx.names.syms.intern(first))?;
+    let owner = match (binding.kind, segs.len()) {
+        (BindingKind::Item, 1) => DefId::from_raw(binding.value),
+        (BindingKind::Module, _) if segs.len() >= 2 => {
+            let base = cx
+                .scope_at(cx.src.span(e).lo)
+                .modules
+                .get(binding.value as usize)?
+                .clone();
+            if segs.len() > 2 && base.contains('.') {
+                return None;
+            }
+            let module = if segs.len() == 2 {
+                base
+            } else {
+                format!("{base}.{}", segs[1..segs.len() - 1].join("."))
+            };
+            let name = cx.names.syms.intern(segs.last()?);
+            cx.lookup
+                .ifaces
+                .iter()
+                .find_map(|f| f.export(&module, name))?
+                .def
+        }
+        _ => return None,
+    };
+    (owner == expected_owner).then(|| cx.names.member(owner, PathKind::Variant, &variant))
 }
 
 /// The literal marker of a decorator, by its resolved declaration.
@@ -300,6 +404,600 @@ fn fact_list_steps(
     body.kind = BodyKind::Fact;
     body.label = label.into();
     Ok(body)
+}
+
+fn expression_arguments<'t>(
+    cx: &BodyCx<'t>,
+    call: NodeRef<'t>,
+) -> Vec<(Option<String>, NodeRef<'t>)> {
+    let Some(list) = hd_resolve::Src::child(call, SyntaxKind::ArgumentList) else {
+        return Vec::new();
+    };
+    list.children()
+        .filter_map(|arg| match arg.kind() {
+            SyntaxKind::Argument | SyntaxKind::NamedArgument => {
+                let name = (arg.kind() == SyntaxKind::NamedArgument)
+                    .then(|| cx.src.first_ident(arg).map(|t| cx.src.text(t).to_owned()))
+                    .flatten();
+                arg.children().next().map(|value| (name, value))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn expression_fact_type(cx: &BodyCx<'_>, owner: DefId, value: NodeRef<'_>) -> Option<Ty> {
+    let def = cx
+        .names
+        .member(owner, PathKind::Hidden, "enum tagging check");
+    let local = hd_types::LocalPool::new();
+    let mut scratch = DiagBuf::default();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        owner,
+        def,
+        BodyKind::Default,
+        (Ty::VOID, RowId::EMPTY),
+        &mut scratch,
+    );
+    ck.move_to(cx.src.span(value).lo);
+    ck.fact_type(value, (FactTarget::Other, owner), true)
+}
+
+fn renamed(source: &str, style: Option<&str>) -> String {
+    match style {
+        Some("Uppercase" | "ScreamingSnakeCase") => source.to_ascii_uppercase(),
+        Some("KebabCase") => source.replace('_', "-"),
+        Some("ScreamingKebabCase") => source.to_ascii_uppercase().replace('_', "-"),
+        Some("PascalCase" | "CamelCase") => {
+            let camel = style == Some("CamelCase");
+            let mut out = String::new();
+            let mut first_word = true;
+            for word in source.split('_') {
+                let mut chars = word.chars();
+                let Some(first) = chars.next() else { continue };
+                if camel && first_word {
+                    out.push(first.to_ascii_lowercase());
+                } else {
+                    out.push(first.to_ascii_uppercase());
+                }
+                out.extend(chars);
+                first_word = false;
+            }
+            out
+        }
+        _ => source.to_owned(),
+    }
+}
+
+fn internal_payload_allowed(cx: &BodyCx<'_>, mut ty: Ty) -> bool {
+    loop {
+        match cx.names.pool.get(ty) {
+            TyData::Mut(inner) | TyData::Ref { inner, .. } => ty = inner,
+            TyData::Adt { def, args } if def == cx.names.known.map => {
+                return cx.names.pool.list_items(args).first().copied() == Some(Ty::STRING);
+            }
+            TyData::Adt { def, .. } if def == cx.names.known.list => return false,
+            TyData::Adt { def, .. } => {
+                return matches!(
+                    cx.lookup.item(def),
+                    Some(item) if item.is_struct && matches!(&item.data, ItemData::Data(_))
+                );
+            }
+            _ => return false,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WrittenFact<'t> {
+    owner: DefId,
+    node: NodeRef<'t>,
+}
+
+fn fact_owner(
+    cx: &BodyCx<'_>,
+    node: NodeRef<'_>,
+    declaration: DefId,
+    traitless: Option<&Head<'_>>,
+    view: Option<&Head<'_>>,
+) -> DefId {
+    let span = cx.src.span(node);
+    view.into_iter()
+        .chain(traitless)
+        .filter(|head| {
+            let block = cx.src.span(head.node);
+            block.lo <= span.lo && span.hi <= block.hi
+        })
+        .map(|head| head.def)
+        .next()
+        .unwrap_or(declaration)
+}
+
+fn written_facts<'t>(
+    cx: &BodyCx<'t>,
+    sources: &[FactSource<'t>],
+    declaration: DefId,
+    traitless: Option<&Head<'t>>,
+    view: Option<&Head<'t>>,
+) -> Vec<WrittenFact<'t>> {
+    let mut out = Vec::new();
+    for source in sources {
+        match *source {
+            FactSource::Value(node) => out.push(WrittenFact {
+                owner: fact_owner(cx, node, declaration, traitless, view),
+                node,
+            }),
+            FactSource::List(list) if list.kind() == SyntaxKind::ListExpr => {
+                let owner = fact_owner(cx, list, declaration, traitless, view);
+                out.extend(
+                    list.children()
+                        .filter(|node| node.kind() != SyntaxKind::SpreadExpr)
+                        .map(|node| WrittenFact { owner, node }),
+                );
+            }
+            FactSource::List(_) | FactSource::Body(..) => {}
+        }
+    }
+    out
+}
+
+fn data_field<'t>(cx: &BodyCx<'t>, value: NodeRef<'t>, name: &str) -> Option<NodeRef<'t>> {
+    (value.kind() == SyntaxKind::DataExpr)
+        .then(|| {
+            value.children().find_map(|field| {
+                (field.kind() == SyntaxKind::DataFieldInit
+                    && cx
+                        .src
+                        .first_ident(field)
+                        .is_some_and(|token| cx.src.text(token) == name))
+                .then(|| field.children().next())
+                .flatten()
+            })
+        })
+        .flatten()
+}
+
+fn concrete_fact(cx: &BodyCx<'_>, value: WrittenFact<'_>, expected: DefId) -> bool {
+    matches!(
+        expression_fact_type(cx, value.owner, value.node).map(|ty| cx.names.pool.get(ty)),
+        Some(TyData::Adt { def, .. }) if def == expected
+    )
+}
+
+fn rename_name(
+    cx: &BodyCx<'_>,
+    value: WrittenFact<'_>,
+    rename: DefId,
+    constructor: DefId,
+    diags: &mut DiagBuf,
+) -> Option<String> {
+    if !concrete_fact(cx, value, rename) {
+        return None;
+    }
+    let argument = if expression_def(cx, value.node) == Some(constructor) {
+        expression_arguments(cx, value.node)
+            .first()
+            .map(|(_, argument)| *argument)
+    } else {
+        data_field(cx, value.node, "name")
+    };
+    let Some(argument) = argument else {
+        diags.error(
+            Code::EnumTagNameNotStatic,
+            cx.src.span(value.node),
+            "a tagged enum member rename must be a string literal",
+        );
+        return None;
+    };
+    let Some(name) = crate::expr::literal_text(&cx.src, argument) else {
+        diags.error(
+            Code::EnumTagNameNotStatic,
+            cx.src.span(argument),
+            "a tagged enum member rename must be a string literal",
+        );
+        return None;
+    };
+    Some(name)
+}
+
+fn rename_style_argument<'t>(
+    cx: &BodyCx<'t>,
+    value: WrittenFact<'t>,
+    constructor: DefId,
+) -> Option<NodeRef<'t>> {
+    if expression_def(cx, value.node) == Some(constructor) {
+        expression_arguments(cx, value.node)
+            .first()
+            .map(|(_, argument)| *argument)
+    } else {
+        data_field(cx, value.node, "style")
+    }
+}
+
+fn rename_style_value(
+    cx: &BodyCx<'_>,
+    value: WrittenFact<'_>,
+    rename_all: DefId,
+    constructor: DefId,
+    rename_case: DefId,
+) -> Option<String> {
+    if !concrete_fact(cx, value, rename_all) {
+        return None;
+    }
+    let style = rename_style_argument(cx, value, constructor)?;
+    (style.kind() == SyntaxKind::VariantExpr
+        || expression_variant_def(cx, style, rename_case).is_some())
+    .then(|| {
+        cx.src
+            .tokens(style)
+            .filter(|token| cx.src.tkind(*token) == Some(hd_syntax::TokenKind::Ident))
+            .last()
+            .map(|token| cx.src.text(token).to_owned())
+    })
+    .flatten()
+}
+
+/// Validates std.serde's internal and adjacent enum shapes against the
+/// declaration facts after its no-trait metadata block has edited them
+/// (`std-serde.enum-tagging.*`).
+fn check_enum_tagging(
+    cx: &BodyCx<'_>,
+    item: &hd_resolve::Item,
+    decl: NodeRef<'_>,
+    traitless: Option<&Head<'_>>,
+    view: Option<&Head<'_>>,
+    tagging_facts: &FactLines<'_>,
+    view_facts: &FactLines<'_>,
+    declaration_checks: bool,
+    diags: &mut DiagBuf,
+) {
+    let ItemData::Enum { variants, .. } = &item.data else {
+        return;
+    };
+    let tagging = cx.names.item("std.serde", "EnumTagging");
+    let tag = cx.names.item("std.serde", "tag");
+    let untagged = cx.names.item("std.serde", "untagged");
+    let internal_variant = cx.names.member(tagging, PathKind::Variant, "Internal");
+    let adjacent_variant = cx.names.member(tagging, PathKind::Variant, "Adjacent");
+    let untagged_variant = cx.names.member(tagging, PathKind::Variant, "Untagged");
+    let type_sources = tagging_facts
+        .slots()
+        .into_iter()
+        .find_map(|(slot, sources)| (slot == Slot::Type).then_some(sources))
+        .unwrap_or_default();
+    let type_values = written_facts(cx, type_sources, item.def, traitless, None);
+    let mut tag_value = None;
+    for value in &type_values {
+        match expression_def(cx, value.node) {
+            Some(def) if def == tag => {
+                tag_value = Some(*value);
+                break;
+            }
+            Some(def) if def == untagged => return,
+            _ => {}
+        }
+        if !concrete_fact(cx, *value, tagging) {
+            continue;
+        }
+        match expression_variant_def(cx, value.node, tagging) {
+            Some(def) if def == internal_variant || def == adjacent_variant => {
+                tag_value = Some(*value);
+                break;
+            }
+            Some(def) if def == untagged_variant => return,
+            _ => {
+                if declaration_checks {
+                    diags.error(
+                        Code::EnumTagNameNotStatic,
+                        cx.src.span(value.node),
+                        "enum tagging must use `tag`, `untagged`, or an `EnumTagging` variant directly",
+                    );
+                }
+                return;
+            }
+        }
+    }
+    let Some(tag_value) = tag_value else {
+        return;
+    };
+    let arguments = expression_arguments(cx, tag_value.node);
+    let mut positional = 0;
+    let mut tag_arg = None;
+    let mut content_arg = None;
+    for (name, value) in &arguments {
+        match name.as_deref() {
+            Some("tag") => tag_arg = Some(*value),
+            Some("content") => content_arg = Some(*value),
+            Some(_) => {}
+            None => {
+                if positional == 0 {
+                    tag_arg = Some(*value);
+                } else if positional == 1 {
+                    content_arg = Some(*value);
+                }
+                positional += 1;
+            }
+        }
+    }
+    let Some(tag_arg) = tag_arg else { return };
+    let Some(tag_name) = crate::expr::literal_text(&cx.src, tag_arg) else {
+        if declaration_checks {
+            diags.error(
+                Code::EnumTagNameNotStatic,
+                cx.src.span(tag_arg),
+                "the enum tag name must be a string literal",
+            );
+        }
+        return;
+    };
+    let content = content_arg.and_then(|arg| crate::expr::literal_text(&cx.src, arg));
+    if let Some(arg) = content_arg
+        && content.is_none()
+    {
+        if declaration_checks {
+            diags.error(
+                Code::EnumTagNameNotStatic,
+                cx.src.span(arg),
+                "the adjacent content name must be a string literal",
+            );
+        }
+        return;
+    }
+    if let Some(content_name) = content.as_deref() {
+        if declaration_checks && content_name == tag_name {
+            diags.error(
+                Code::EnumTagNameConflict,
+                cx.src.span(content_arg.unwrap_or(tag_arg)),
+                "the adjacent tag and content names must be distinct",
+            );
+        }
+        if declaration_checks || view.is_none() {
+            return;
+        }
+    }
+
+    let rename_type = cx.names.item("std.serde", "Rename");
+    let rename = cx.names.item("std.serde", "rename");
+    let rename_all_type = cx.names.item("std.serde", "RenameAll");
+    let rename_all = cx.names.item("std.serde", "rename_all");
+    let rename_case = cx.names.item("std.serde", "RenameCase");
+    let view_type_sources = view_facts
+        .slots()
+        .into_iter()
+        .find_map(|(slot, sources)| (slot == Slot::Type).then_some(sources))
+        .unwrap_or_default();
+    let view_type_values = written_facts(cx, view_type_sources, item.def, traitless, view);
+    let style_value = view_type_values
+        .iter()
+        .copied()
+        .find(|value| concrete_fact(cx, *value, rename_all_type));
+    let style = style_value
+        .and_then(|value| rename_style_value(cx, value, rename_all_type, rename_all, rename_case));
+    if let Some(value) = style_value
+        && view.is_some_and(|head| value.owner == head.def)
+        && style.is_none()
+    {
+        let site = rename_style_argument(cx, value, rename_all).unwrap_or(value.node);
+        diags.error(
+            Code::EnumTagNameNotStatic,
+            cx.src.span(site),
+            "a per-trait rename style on a tagged enum must name a `RenameCase` variant directly",
+        );
+        return;
+    }
+    let dynamic_style = style_value.is_some() && style.is_none();
+    let variant_nodes: Vec<_> = hd_resolve::Src::child(decl, SyntaxKind::Block)
+        .into_iter()
+        .flat_map(NodeRef::children)
+        .filter(|n| n.kind() == SyntaxKind::EnumVariant)
+        .collect();
+    for (variant_index, (variant, variant_node)) in variants.iter().zip(variant_nodes).enumerate() {
+        let parameters: Vec<_> = hd_resolve::Src::child(variant_node, SyntaxKind::ParameterList)
+            .into_iter()
+            .flat_map(NodeRef::children)
+            .filter(|n| n.kind() == SyntaxKind::Parameter)
+            .collect();
+        let positional = variant.fields.iter().all(|field| {
+            cx.names
+                .text(field.name)
+                .starts_with(|c: char| c.is_ascii_digit())
+        });
+        if declaration_checks && positional && variant.fields.len() > 1 {
+            let name = cx.names.text(variant.name);
+            diags.error(
+                Code::InvalidInternalTaggedVariant,
+                cx.src.span(variant_node),
+                &format!(
+                    "`{name}` has multiple positional members; internal tagging cannot represent it"
+                ),
+            );
+            continue;
+        }
+        if declaration_checks && positional && variant.fields.len() == 1 {
+            let field = &variant.fields[0];
+            if !internal_payload_allowed(cx, field.ty) {
+                let site = parameters
+                    .first()
+                    .and_then(|p| p.children().find(|n| n.kind().is_type()))
+                    .unwrap_or(variant_node);
+                diags.error(
+                    Code::InvalidInternalTaggedVariant,
+                    cx.src.span(site),
+                    &format!(
+                        "`{}` wraps {}; an internally tagged newtype must wrap a struct or Map",
+                        cx.names.text(variant.name),
+                        hd_resolve::show_ty(&cx.names, field.ty)
+                    ),
+                );
+            }
+            continue;
+        }
+        for (member_index, (field, parameter)) in variant.fields.iter().zip(parameters).enumerate()
+        {
+            let source = hd_resolve::error_type::label(&cx.names, field);
+            let member_sources = view_facts
+                .slots()
+                .into_iter()
+                .find_map(|(slot, sources)| {
+                    (slot == Slot::Member(variant_index, member_index)).then_some(sources)
+                })
+                .unwrap_or_default();
+            let member_values = written_facts(cx, member_sources, item.def, traitless, view);
+            let rename_value = member_values
+                .iter()
+                .copied()
+                .find(|value| concrete_fact(cx, *value, rename_type));
+            if view.is_some_and(|head| rename_value.is_some_and(|value| value.owner != head.def)) {
+                continue;
+            }
+            let wire = match rename_value {
+                Some(value) => {
+                    let Some(name) = rename_name(cx, value, rename_type, rename, diags) else {
+                        continue;
+                    };
+                    name
+                }
+                None if dynamic_style => continue,
+                None => renamed(&source, style.as_deref()),
+            };
+            let conflicts = wire == tag_name || content.as_deref() == Some(wire.as_str());
+            if conflicts {
+                let view_site = view.and_then(|head| match rename_value {
+                    Some(value) => (value.owner == head.def).then(|| cx.src.span(value.node)),
+                    None => style_value
+                        .filter(|value| value.owner == head.def)
+                        .map(|value| cx.src.span(value.node)),
+                });
+                if view.is_some() && view_site.is_none() {
+                    continue;
+                }
+                let site = view_site.unwrap_or_else(|| {
+                    parameter
+                        .name(&cx.src.parse.tokens)
+                        .map_or_else(|| cx.src.span(parameter), |name| cx.src.token_span(name))
+                });
+                diags.error(
+                    Code::EnumTagNameConflict,
+                    site,
+                    &format!("the member `{wire}` conflicts with the tagged enum field name"),
+                );
+            }
+        }
+    }
+}
+
+/// Checks the effective enum declaration metadata, and rejects direct
+/// per-view tagging facts, once all exact local and module item heads are
+/// available.
+pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut DiagBuf) {
+    let serialize = cx.names.item("std.serde", "Serialize");
+    let deserialize = cx.names.item("std.serde", "Deserialize");
+    let tagging = cx.names.item("std.serde", "EnumTagging");
+    for head in heads.iter().filter(|head| head.kind == HeadKind::Enum) {
+        let Some(item) = cx.lookup.item(head.def) else {
+            continue;
+        };
+        let traitless = heads.iter().find(|candidate| {
+            matches!(
+                cx.lookup.item(candidate.def).map(|item| &item.data),
+                Some(ItemData::Impl { trait_, by: Some(_), self_ty, .. })
+                    if *trait_ == DefId::NONE
+                        && matches!(cx.names.pool.get(*self_ty), TyData::Adt { def, .. } if def == head.def)
+            )
+        });
+        let declaration = crate::structure::declaration_facts(
+            cx,
+            item,
+            head.node,
+            traitless.map(|head| head.node),
+        );
+        check_enum_tagging(
+            cx,
+            item,
+            head.node,
+            traitless,
+            None,
+            &declaration,
+            &declaration,
+            true,
+            diags,
+        );
+        let declaration_sources = declaration
+            .slots()
+            .into_iter()
+            .find_map(|(slot, sources)| (slot == Slot::Type).then_some(sources))
+            .unwrap_or_default();
+        let declaration_has_tagging =
+            written_facts(cx, declaration_sources, head.def, traitless, None)
+                .into_iter()
+                .any(|value| concrete_fact(cx, value, tagging));
+
+        for view_head in heads.iter().filter(|candidate| {
+            matches!(
+                cx.lookup.item(candidate.def).map(|item| &item.data),
+                Some(ItemData::Impl { trait_, by: Some(_), self_ty, .. })
+                    if (*trait_ == serialize || *trait_ == deserialize)
+                        && matches!(cx.names.pool.get(*self_ty), TyData::Adt { def, .. } if def == head.def)
+            )
+        }) {
+            let Some(block) = crate::structure::block_facts(cx, view_head.def, view_head.node) else {
+                continue;
+            };
+            let block_sources = block
+                .slots()
+                .into_iter()
+                .find_map(|(slot, sources)| (slot == Slot::Type).then_some(sources))
+                .unwrap_or_default();
+            let block_values =
+                written_facts(cx, block_sources, head.def, traitless, Some(view_head));
+            let mut direct_tagging = false;
+            for value in block_values.iter().copied() {
+                if !concrete_fact(cx, value, tagging) {
+                    continue;
+                }
+                direct_tagging = true;
+                diags.error(
+                    Code::EnumTaggingNotOnDeclaration,
+                    cx.src.span(value.node),
+                    "enum tagging belongs on the enum declaration or its no-trait metadata block",
+                );
+            }
+            let lines = crate::derive::member_lines(&cx.src, view_head.node);
+            let replacement = lines
+                .iter()
+                .find(|line| line.name == "Self" && !line.extend);
+            if declaration_has_tagging && !direct_tagging
+                && let Some(line) = replacement
+            {
+                diags.error(
+                    Code::EnumTaggingNotOnDeclaration,
+                    line.list.map_or_else(
+                        || cx.src.span(view_head.node),
+                        |list| cx.src.span(list),
+                    ),
+                    "a per-trait replacement cannot remove the enum declaration's tagging fact",
+                );
+            }
+            if !declaration_has_tagging || replacement.is_some() {
+                continue;
+            }
+            let mut view = declaration.clone();
+            crate::structure::edit_facts(cx, item, &mut view, &lines);
+            check_enum_tagging(
+                cx,
+                item,
+                head.node,
+                traitless,
+                Some(view_head),
+                &declaration,
+                &view,
+                false,
+                diags,
+            );
+        }
+    }
 }
 
 /// Checks every fact and metadata expression written on the declaration
