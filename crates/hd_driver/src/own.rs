@@ -488,6 +488,10 @@ impl InlineEnv for Env<'_> {
         ))
     }
 
+    fn result(&self, def: DefId) -> Option<Ty> {
+        self.sig(def).map(|sig| sig.ret)
+    }
+
     fn checked_body(&self, def: DefId) -> Option<&(Body, Hash128)> {
         self.run.decode(self.run.lazy_body(self.p, def)?)
     }

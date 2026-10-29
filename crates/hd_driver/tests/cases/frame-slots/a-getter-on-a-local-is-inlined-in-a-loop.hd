@@ -1,0 +1,22 @@
+# @dump: counts wat
+# @build: v8 release
+# `age` is a reference getter: its result borrows from its one reference
+# parameter, `&self`, so the inliner copies it (#1006). Its `self` binds a
+# reference to `user`, which lives in a slot of the frame (§23.38): the
+# loop reads the field through the slot's address, with no call, no
+# allocation and no count.
+struct User:
+    name: string
+    age: i64
+
+impl User:
+    fn age(&self) -> &i64:
+        &self.age
+
+# subject
+fn total(k: i64) -> i64:
+    user := User { name: "ada", age: 36 }
+    let sum: i64 = 0
+    for _ in 0..k:
+        sum = sum + *user.age()
+    sum

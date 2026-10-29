@@ -56,6 +56,9 @@ pub trait InlineEnv: ProgramEnv {
     /// suspends, and whether it has a requirement row; `None` for a body
     /// without a signature (a module's init).
     fn signature(&self, def: DefId) -> Option<(Vec<Ty>, bool, bool)>;
+    /// The declared result type of `def`, as written; `None` for a body
+    /// without a signature.
+    fn result(&self, def: DefId) -> Option<Ty>;
     /// The checker's body of `def`, decoded once per run, and its hash.
     fn checked_body(&self, def: DefId) -> Option<&(Body, Hash128)>;
     /// A fresh decoding of the checker's body of `def`, as
@@ -301,7 +304,8 @@ impl dyn InlineEnv + '_ {
 
     /// Whether `copy`, the body of `def` at `targs`, may inline:
     /// The rule selected by `def`'s [`InlineHint`]: ordinary calls use
-    /// [`INLINE_LIMIT`] and refuse reference parameters, `.Auto` uses
+    /// [`INLINE_LIMIT`] and refuse reference parameters, but for a
+    /// getter's ([`Self::takes_reference`]), `.Auto` uses
     /// [`AUTO_INLINE_LIMIT`] and accepts them, and `.Always` has neither
     /// limit. The checker has already rejected uncopyable `.Always`
     /// bodies.
@@ -357,17 +361,23 @@ impl dyn InlineEnv + '_ {
     }
 
     /// Whether a parameter of `def` at `targs` is, or may be in an
-    /// instance, a reference. A copy binds a parameter in a local, and a
-    /// reference held in a local is counted, and makes a local it points
-    /// at a counted cell, where a call lends both; so a callee that takes
-    /// one stays a call (#856: copying `StringBuilder.push` into a loop
-    /// made `string_build` 40% slower).
+    /// instance, a reference, unless `def` is a reference getter. A copy
+    /// binds a parameter in a local, and a reference held in a local was
+    /// counted, and made a local it points at a counted cell, where a call
+    /// lends both; so a callee that takes one stays a call (#856: copying
+    /// `StringBuilder.push` into a loop made `string_build` 40% slower).
+    /// A getter's result holds a local reference, which borrows from its
+    /// one reference parameter (`ref.dep.elide`): the call already keeps
+    /// that local alive over the result's uses, so the copy's binding
+    /// points into a frame slot with no count
+    /// (`crates/hd_wasm_linear/DESIGN.md` §23.38).
     fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
         let Some((params, _, _)) = self.signature(def) else {
             return true;
         };
         let pool = self.pool();
-        params.iter().any(|&t| {
+        let mut refs = 0;
+        for &t in &params {
             // As the backend reads a declared type: each reference type
             // lowered to `std.core.Ref[T]` or `std.core.Counted[T]`.
             let mut t = pool.lower_refs(self.ref_cells(), t);
@@ -377,12 +387,20 @@ impl dyn InlineEnv + '_ {
             while let TyData::Mut(inner) = pool.get(t) {
                 t = inner;
             }
-            t == Ty::POISON
-                || self.is_open(t)
-                || matches!(pool.get(t), TyData::Ref { .. })
+            if t == Ty::POISON || self.is_open(t) {
+                return true;
+            }
+            if matches!(pool.get(t), TyData::Ref { .. })
                 || matches!(pool.get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def))
                 || self.reference(t)
-        })
+            {
+                refs += 1;
+            }
+        }
+        let getter = self
+            .result(def)
+            .is_some_and(|r| holds_local(pool, self.ref_cells(), r, 0));
+        refs > 0 && !(refs == 1 && getter)
     }
 
     /// Whether `copy`, a callee's body at the types of call `c` of
@@ -405,7 +423,7 @@ impl dyn InlineEnv + '_ {
         let params: Vec<usize> = (0..copy.local_ty.len())
             .filter(|&l| copy.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0)
             .collect();
-        let mut n = 0;
+        let (mut n, mut rebound) = (0, false);
         for (l, &a) in params.into_iter().zip(args) {
             n += 1;
             // A `()` argument has no value; its `Store` stores none.
@@ -429,12 +447,15 @@ impl dyn InlineEnv + '_ {
             {
                 copy.local_ty[l] = arg;
                 keep_parameter_carrier(pool, self.ref_cells(), copy, l);
+                rebound = true;
             } else if !fits(Some(arg), want) {
                 return false;
             }
         }
         let root = copy.sub_root.first().map(|&r| copy.ty[r as usize]);
-        n == args.len() && root.is_some_and(|root| fits(open(caller.ty[c]), root))
+        n == args.len()
+            && root.is_some_and(|root| fits(open(caller.ty[c]), root))
+            && (!rebound || carriers_agree(copy))
     }
 }
 
@@ -483,6 +504,53 @@ fn keep_parameter_carrier(pool: &InternPool, cells: RefCells, copy: &mut Body, p
                 }
             }
         }
+    }
+}
+
+/// Whether each value a block of `copy` takes, as its tail or by a
+/// `Break`, still has the block's type once parameters took their
+/// arguments' carriers: a getter returning `self` would give the counted
+/// carrier where its result is the local one.
+fn carriers_agree(copy: &Body) -> bool {
+    let has = |v: u32, want: Ty| {
+        Ref(v).as_inst().is_none_or(|v| {
+            let t = copy.ty[v.0 as usize];
+            t == want || t == Ty::NEVER
+        })
+    };
+    (0..copy.len()).all(|i| {
+        let [a, v] = copy.data[i];
+        match copy.tags[i] {
+            Tag::Block => v == hd_tir::ir::NONE || has(v, copy.ty[i]),
+            Tag::Break => copy.label_inst.get(a as usize).is_none_or(|&t| {
+                t as usize >= copy.len() || v == hd_tir::ir::NONE || has(v, copy.ty[t as usize])
+            }),
+            _ => true,
+        }
+    })
+}
+
+/// Whether a value of type `t` holds a local reference, as declared
+/// (`&T`) or lowered (`Ref[T]`), outside function types.
+fn holds_local(pool: &InternPool, cells: RefCells, t: Ty, depth: u32) -> bool {
+    if depth > 32 {
+        return false;
+    }
+    let any = |l| {
+        pool.list_items(l)
+            .iter()
+            .any(|&a| holds_local(pool, cells, a, depth + 1))
+    };
+    match pool.get(t) {
+        TyData::Ref { counted, inner, .. } => {
+            !counted || holds_local(pool, cells, inner, depth + 1)
+        }
+        TyData::Adt { def, args } => def == cells.local || any(args),
+        TyData::Tuple { elems, rest } => {
+            any(elems) || rest.is_some_and(|r| holds_local(pool, cells, r, depth + 1))
+        }
+        TyData::Option(i) | TyData::Mut(i) => holds_local(pool, cells, i, depth + 1),
+        _ => false,
     }
 }
 

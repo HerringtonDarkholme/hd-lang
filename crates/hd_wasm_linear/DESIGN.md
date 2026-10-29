@@ -2280,6 +2280,11 @@ frame on the **local stack** instead.
   block's value that only such references reach, or a local every store
   of which stores one (`Em::frame_loans`). A count of a slot's address
   would do nothing.
+- **Getters.** The inliner copies a reference getter, a callee whose
+  result holds a local reference and whose one reference parameter is
+  its source (`hd_opt/src/inline.rs`, `takes_reference`). Its `self`
+  binds a reference into the caller's slot, so `*user.age()` in a loop
+  is a load through the slot's address.
 - **The local stack** grows down in memory 0, in pages the program grows
   itself. The allocator marks those pages static, as it does every page
   it did not grow (§23.5), so a count update through a slot's address,

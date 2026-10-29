@@ -30,6 +30,14 @@ impl Iterator[i64] for Upto:
         self.at = self.at + 1
         .Some(self.at - 1)
 
+struct Pair:
+    left: i32
+    right: i32
+
+impl Pair:
+    fn left(&self) -> &i32:
+        &self.left
+
 fn add(total: i64, item: i64) -> i64:
     total + item
 
@@ -74,6 +82,17 @@ tests:
             round = round + 1
         assert(allocated() == before, "no round allocated a block")
         assert(total == 5050, "every round wrote through its reference")
+
+    it("a getter's source declared in a loop allocates nothing"):
+        let round = +0
+        let total = +0
+        before := allocated()
+        while round < 100:
+            pair := Pair { left: round, right: 1 }
+            total = total + *pair.left() + pair.right
+            round = round + 1
+        assert(allocated() == before, "no round allocated a block")
+        assert(total == 5050, "every round read through the getter")
 
     it("consuming an iterator allocates nothing per call"):
         # Each consumer's cursor lives in its frame (DESIGN.md §23.38).
