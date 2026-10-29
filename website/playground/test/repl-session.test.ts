@@ -292,8 +292,8 @@ test("browser-provider checkpoints continue past the cap and restore without rep
       await repl.input(`use std.random.fill
 struct Counter:
     value: usize
-let mut counter = Counter { value: 0 }
-let alias: *mut Counter = &mut counter
+counter := box(Counter { value: 0 })
+alias := counter
 `),
       0,
     );
