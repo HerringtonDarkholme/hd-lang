@@ -1,0 +1,33 @@
+# test: a generic call's result borrows what its arguments in the type parameter's positions borrow
+# Spec 13 Generic Calls: ref.generic.call, ref.generic.store.
+# expect-stdout: ann
+# expect-stdout: bob
+# expect-stdout: 3
+# expect-stdout: bob
+@derive(Debug)
+struct User:
+    name: string
+    age: i32
+
+struct Holder[T]:
+    value: T
+
+fn id[T](value: T) -> T:
+    value
+
+fn put[T](h: &mut Holder[T], value: T) -> void:
+    h.value = value
+
+fn name_of(u: &User) -> &string:
+    id(&u.name)
+
+pub fn main() -> void $ Console:
+    a := User { name: "ann", age: 3 }
+    b := User { name: "bob", age: 4 }
+    println(*name_of(&a))
+    let o: (&User)? = .None
+    println(o.unwrap_or(&b).name)
+    println("${Option.Some(&a).map(fn(u: &User) -> i32: u.age).unwrap_or(0)}")
+    let mut h = Holder { value: &a }
+    put(&mut h, &b)
+    println(h.value.name)

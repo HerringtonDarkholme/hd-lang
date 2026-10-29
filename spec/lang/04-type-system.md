@@ -2044,7 +2044,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 6. r[types.sealed.never] `never` implements neither, because it has no values.
 7. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
 8. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
-9. r[types.sealed.local-argument] A local reference `&T` or `&mut T` is never a type argument of a generic function or method, written or inferred, by [`ref.local.escape.generic-argument`](13-values-and-references.md#r-ref.local.escape.generic-argument). So `T < AnyRef` accepts no local reference: `keep(&p)` is an error, and `p := box(Point { x: 0 })` then `keep(p)` is not. Error: `local-reference-escapes`.
+9. r[types.sealed.local-reference] A local reference `&T` or `&mut T` has identity too, so it implements `AnyRef`, and `T < AnyRef` accepts one as a type argument ([Generic Calls](13-values-and-references.md#generic-calls)).
 
 ```text
 struct Handle: pass

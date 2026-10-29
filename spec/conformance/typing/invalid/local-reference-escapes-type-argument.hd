@@ -1,5 +1,5 @@
 # test: a local reference as a type argument is an error, so List[&Point] is no type
-# Spec 13 Local References: ref.local.escape.generic-argument.
+# Spec 13 Local References: ref.local.escape.type-argument.
 struct Point:
     x: i32
 

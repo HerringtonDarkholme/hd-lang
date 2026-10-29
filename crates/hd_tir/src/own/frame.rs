@@ -339,17 +339,45 @@ fn step_val(
     if tag == Tag::Return || is_suspension(tag) {
         return grow(&mut t.out, m);
     }
+    // A generic call may store what its other arguments point into
+    // through a `&mut` of a local whose type holds a reference
+    // (`ref.generic.store`), so that local holds them.
+    let mut changed = false;
+    if matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
+        for op in ops.iter() {
+            let v = op.value as usize;
+            if Ref(op.value).as_inst().is_none()
+                || b.tags[v] != Tag::Ref
+                || b.data[v][1] & crate::ir::ref_word::MUT == 0
+            {
+                continue;
+            }
+            let others = ops
+                .iter()
+                .filter(|o| o.value != op.value)
+                .fold(0, |acc, o| acc | t.of(o.value));
+            if others == 0 {
+                continue;
+            }
+            for k in bits(t.of(op.value)) {
+                let l = t.cands[k] as usize;
+                if cx.holds_ref(b.local_ty[l]) {
+                    changed |= grow(&mut t.held[l], others);
+                }
+            }
+        }
+    }
     if !cx.holds_ref(b.ty[i]) {
         let call = matches!(
             tag,
             Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::Drop
         );
-        return !call && grow(&mut t.out, consumed);
+        return (!call && grow(&mut t.out, consumed)) | changed;
     }
     slots(b, i, |_, x, word| {
         if word == Word::Block {
             m |= t.of(x);
         }
     });
-    grow(&mut t.val[i], m)
+    grow(&mut t.val[i], m) | changed
 }

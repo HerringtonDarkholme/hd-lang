@@ -40,6 +40,20 @@ use crate::local_refs::holds_local_ref;
 /// the slot's index. A written lifetime is its 1-based place in scope.
 const ANON: u32 = 1 << 16;
 
+/// The lifetime of slot `k` of what type parameter `p` stands for at a
+/// call: `TVAR + (p << 8) + k` (`ref.generic.call`), shared by every
+/// position of that parameter.
+const TVAR: u32 = 1 << 20;
+
+/// The end of the [`TVAR`] range.
+const TVAR_END: u32 = TVAR + (1 << 16);
+
+/// A result slot that depends on every argument (`ref.generic.call.unaligned`).
+const ANY: u32 = u32::MAX;
+
+/// A declared result slot with no source, while lining up.
+const NO_SOURCE: u32 = u32::MAX - 1;
+
 /// What a result slot that writes no lifetime depends on (`ref.dep.elide`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Elided {
@@ -216,6 +230,54 @@ impl DepSig {
             })
     }
 
+    /// The map at call `i` of `b`, over the types the call instantiates
+    /// (`ref.generic.call`): each argument's type and the result's. A slot
+    /// that a type parameter adds shares that parameter's lifetime. An
+    /// argument whose type does not line up with its parameter's keeps the
+    /// declared type, and then a result slot a type parameter adds depends
+    /// on every argument (`ref.generic.call.unaligned`).
+    fn instantiate(self, pool: Types<'_>, b: &Body, i: usize) -> DepSig {
+        let mut keys = Vec::new();
+        let mut lossy = false;
+        let mut params = Vec::with_capacity(self.params.len());
+        for (p, (decl, ids)) in self.params.into_iter().enumerate() {
+            let at = source_arg(b, i, p)
+                .filter(|&a| a & hd_tir::ir::Ref::CONST_BIT == 0)
+                .and_then(|a| b.ty.get(a as usize).copied());
+            let mut out = Vec::new();
+            let mut it = ids.iter().copied();
+            match at {
+                Some(t) if line_up(pool, decl, t, &mut it, &mut keys, &mut out, 0) => {
+                    params.push((t, out));
+                }
+                _ => {
+                    lossy |= pool.has_param(decl);
+                    params.push((decl, ids));
+                }
+            }
+        }
+        let ret = b.ty[i];
+        let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
+        let mut out = Vec::new();
+        let outs = if line_up(pool, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
+            out.into_iter()
+                .map(|id| match id {
+                    NO_SOURCE => None,
+                    id if lossy && (TVAR..TVAR_END).contains(&id) => Some(ANY),
+                    id => Some(id),
+                })
+                .collect()
+        } else {
+            vec![Some(ANY); pool.ref_slots(ret)]
+        };
+        DepSig {
+            params,
+            outs,
+            ret,
+            elided: self.elided,
+        }
+    }
+
     /// Whether the result slot of lifetime `id` may depend on `o`: a
     /// parameter slot of that lifetime, or a reference slot behind one,
     /// whose referent outlives it (`ref.dep.return`).
@@ -234,6 +296,86 @@ impl DepSig {
         (0..s.min(all.len())).any(|s0| {
             ids.get(s0) == Some(&id) && s <= s0 + pool.ref_slots(referent(pool, all[s0].0))
         })
+    }
+}
+
+/// Lines the instantiated type `t` up with the declared `d`, pushing each
+/// slot's lifetime to `out` in [`Types::ref_slots`] order: a declared
+/// slot's from `ids`, and a slot a type parameter adds its
+/// [`TVAR`]. False where the shapes differ.
+fn line_up(
+    pool: Types<'_>,
+    d: Ty,
+    t: Ty,
+    ids: &mut dyn Iterator<Item = u32>,
+    keys: &mut Vec<hd_types::ParamRef>,
+    out: &mut Vec<u32>,
+    depth: u32,
+) -> bool {
+    if depth > 32 {
+        return false;
+    }
+    let d1 = depth + 1;
+    let list = |a: hd_types::TyList,
+                b: hd_types::TyList,
+                ids: &mut dyn Iterator<Item = u32>,
+                keys: &mut Vec<hd_types::ParamRef>,
+                out: &mut Vec<u32>| {
+        let (a, b) = (pool.list_items(a), pool.list_items(b));
+        a.len() == b.len()
+            && a.iter()
+                .zip(b)
+                .all(|(&x, &y)| line_up(pool, x, y, ids, keys, out, d1))
+    };
+    match (pool.get(d), pool.get(t)) {
+        (TyData::Param(p), _) => {
+            let k = keys.iter().position(|x| *x == p).unwrap_or_else(|| {
+                keys.push(p);
+                keys.len() - 1
+            });
+            let n = pool.ref_slots(t).min(255);
+            out.extend((0..n).map(|s| TVAR + (w(k.min(255)) << 8) + w(s)));
+            true
+        }
+        (TyData::Mut(a), TyData::Mut(b)) => line_up(pool, a, b, ids, keys, out, d1),
+        (TyData::Mut(a), _) => line_up(pool, a, t, ids, keys, out, d1),
+        (_, TyData::Mut(b)) => line_up(pool, d, b, ids, keys, out, d1),
+        (
+            TyData::Ref {
+                counted: false,
+                inner: a,
+                ..
+            },
+            TyData::Ref {
+                counted: false,
+                inner: b,
+                ..
+            },
+        ) => {
+            let Some(id) = ids.next() else { return false };
+            out.push(id);
+            line_up(pool, a, b, ids, keys, out, d1)
+        }
+        (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
+        (TyData::Option(a), TyData::Option(b)) => line_up(pool, a, b, ids, keys, out, d1),
+        (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
+            list(a, b, ids, keys, out)
+                && match (ra, rb) {
+                    (Some(x), Some(y)) => line_up(pool, x, y, ids, keys, out, d1),
+                    (None, None) => true,
+                    _ => false,
+                }
+        }
+        (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
+        | (
+            TyData::TraitValue {
+                def: x, args: a, ..
+            },
+            TyData::TraitValue {
+                def: y, args: b, ..
+            },
+        ) if x == y => list(a, b, ids, keys, out),
+        _ => pool.ref_slots(d) == 0 && pool.ref_slots(t) == 0,
     }
 }
 
@@ -416,6 +558,9 @@ struct Solve<'a> {
     held: HashMap<Origin, Vec<Set>>,
     /// The dependent calls' callees.
     deps: &'a HashMap<u32, DepSig>,
+    /// The generic calls that may store through a `&mut` argument
+    /// (`ref.generic.store`).
+    stores: &'a HashMap<u32, DepSig>,
     /// Each parameter's type, which `Origin::Param` slots index.
     params: Vec<Ty>,
     /// Stores of a local-holding value into a place the caller owns.
@@ -731,6 +876,22 @@ impl Solve<'_> {
     fn lifetime_args(&self, i: usize, sig: &DepSig, id: u32) -> Set {
         let b = self.b;
         let mut out = Set::new();
+        // `ref.generic.call.unaligned`: everything every argument reaches.
+        if id == ANY {
+            for p in 0..sig.params.len() {
+                let Some(a) = source_arg(b, i, p) else {
+                    continue;
+                };
+                let Some(at) = self.ty(a) else { continue };
+                let set = if b.tags[a as usize] == Tag::Ref || may_hold(self.pool, at) {
+                    self.reach(flat(self.of(a)))
+                } else {
+                    self.lent(a)
+                };
+                union(&mut out, &set);
+            }
+            return out;
+        }
         for (p, s) in sig.inputs(id) {
             let Some(a) = source_arg(b, i, p) else {
                 continue;
@@ -744,6 +905,60 @@ impl Solve<'_> {
             union(&mut out, &set);
         }
         out
+    }
+
+    /// `ref.generic.store`: call `i` may store, through each `&mut`
+    /// argument, what the type parameters under that `&mut` stand for, so
+    /// the argument's places take what those parameters' argument
+    /// positions depend on. A place the caller owns may take only what it
+    /// already holds (`ref.dep.store`).
+    fn generic_store(&mut self, i: usize, sig: &DepSig) {
+        let pool = self.pool;
+        for (p, (pt, ids)) in sig.params.iter().enumerate() {
+            let Some(a) = source_arg(self.b, i, p) else {
+                continue;
+            };
+            let slots = slots_of(pool, *pt);
+            let mut top_k = 0;
+            for (s, &(rt, top)) in slots.iter().enumerate() {
+                if !top {
+                    continue;
+                }
+                let k = top_k;
+                top_k += 1;
+                let mutable = matches!(pool.get(rt), TyData::Ref { mutable: true, .. });
+                let inner = pool.ref_slots(referent(pool, rt));
+                if !mutable || inner == 0 {
+                    continue;
+                }
+                let mut value = Set::new();
+                for &id in &ids[(s + 1).min(ids.len())..(s + 1 + inner).min(ids.len())] {
+                    if (TVAR..TVAR_END).contains(&id) || id == ANY {
+                        union(&mut value, &self.lifetime_args(i, sig, id));
+                    }
+                }
+                if value.is_empty() {
+                    continue;
+                }
+                let roots = self.of(a).get(k).cloned().unwrap_or_default();
+                for o in roots {
+                    match o {
+                        Origin::Local(_) | Origin::Hidden(_) => {
+                            self.hold(o, &[value.clone()], None);
+                        }
+                        Origin::Param(q, _) => {
+                            if value
+                                .iter()
+                                .any(|x| !matches!(x, Origin::Param(r, _) if *r == q))
+                            {
+                                self.out.insert(w(i));
+                            }
+                        }
+                        Origin::Global(_) => {}
+                    }
+                }
+            }
+        }
     }
 
     /// A dependent call's result, `n` slots: each slot the arguments'
@@ -821,6 +1036,9 @@ impl Solve<'_> {
                 }
             }
             return;
+        }
+        if let Some(sig) = self.stores.get(&w(i)) {
+            self.generic_store(i, sig);
         }
         if tag == Tag::Break {
             let [label, v] = b.data[i];
@@ -902,10 +1120,50 @@ impl Ck<'_, '_> {
 
     /// The dependency map of a callee's signature (`ref.dep.call`,
     /// `ref.dep.trait`): a trait method's from the trait's signature.
-    fn callee_dep(&self, def: DefId) -> Option<DepSig> {
+    /// At call `i` of `b`, the map is over the types the call instantiates
+    /// (`ref.generic.call`).
+    fn callee_dep(&self, def: DefId, b: &Body, i: usize) -> Option<DepSig> {
         let sig = self.sig_of(def).ok()?;
         let pool = self.pool();
-        if !holds_local_ref(pool, sig.ret) {
+        let names = &self.cx.names;
+        let dep = DepSig::new(
+            pool,
+            &sig.params,
+            |s| names.text(s) == "self",
+            sig.ret,
+            &sig.lifetimes,
+        )
+        .instantiate(pool, b, i);
+        dep.depends().then_some(dep)
+    }
+
+    /// The map of generic call `i`, when it passes a local-holding value
+    /// and may store one through a `&mut` argument (`ref.generic.store`).
+    fn store_dep(&self, b: &Body, i: usize) -> Option<DepSig> {
+        let pool = self.pool();
+        let mut holding = false;
+        slots(b, i, |_, v, word| {
+            if matches!(word, Word::Value(Role::Arg(_)))
+                && v & hd_tir::ir::Ref::CONST_BIT == 0
+                && b.ty.get(v as usize).is_some_and(|&t| may_hold(pool, t))
+            {
+                holding = true;
+            }
+        });
+        if !holding {
+            return None;
+        }
+        let def = match Callee::from_words(b.record(b.data[i][0]))? {
+            Callee::Item { def, .. } => def,
+            Callee::TraitMethod { method, .. } => method,
+        };
+        let sig = self.sig_of(def).ok()?;
+        let writes = sig.params.iter().any(|&(_, t)| {
+            slots_of(pool, t).iter().any(|&(rt, top)| {
+                top && matches!(pool.get(rt), TyData::Ref { mutable: true, inner, .. } if pool.has_param(inner))
+            })
+        });
+        if !writes {
             return None;
         }
         let names = &self.cx.names;
@@ -915,8 +1173,13 @@ impl Ck<'_, '_> {
             |s| names.text(s) == "self",
             sig.ret,
             &sig.lifetimes,
-        );
-        dep.depends().then_some(dep)
+        )
+        .instantiate(pool, b, i);
+        let tvar = dep
+            .params
+            .iter()
+            .any(|(_, ids)| ids.iter().any(|id| (TVAR..TVAR_END).contains(id)));
+        tvar.then_some(dep)
     }
 
     /// The dependent results of the finished body, its result `ret`
@@ -945,9 +1208,16 @@ impl Ck<'_, '_> {
             _ => None,
         };
         let mut deps: HashMap<u32, DepSig> = HashMap::default();
+        let mut stores: HashMap<u32, DepSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
         let mut through = false;
         for i in 0..body.tags.len() {
+            if matches!(body.tags[i], Tag::Call | Tag::Await)
+                && let Some(sig) = self.store_dep(body, i)
+            {
+                stores.insert(w(i), sig);
+                through = true;
+            }
             match body.tags[i] {
                 // A block's or a loop's value may leave a local's scope.
                 Tag::Block | Tag::Loop if w(i) != root.0 && holds_local_ref(pool, body.ty[i]) => {
@@ -962,7 +1232,9 @@ impl Ck<'_, '_> {
                             None => None,
                         },
                     };
-                    if let Some(dep) = def.and_then(|d| self.callee_dep(DefId::from_raw(d))) {
+                    if let Some(dep) =
+                        def.and_then(|d| self.callee_dep(DefId::from_raw(d), body, i))
+                    {
                         deps.insert(w(i), dep);
                     }
                 }
@@ -1033,6 +1305,7 @@ impl Ck<'_, '_> {
             val,
             held: HashMap::default(),
             deps: &deps,
+            stores: &stores,
             params,
             out: HashSet::default(),
             changed: true,

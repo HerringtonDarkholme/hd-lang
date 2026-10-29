@@ -1,0 +1,13 @@
+# test: a generic call never stores a reference into a place the caller owns
+# Spec 13 Generic Calls: ref.generic.store; Dependent Results: ref.dep.store.
+struct User:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+fn put[T](h: &mut Holder[T], value: T) -> void:
+    h.value = value
+
+fn bad_store(h: &mut Holder[&User], u: &User) -> void:
+    put(h, u) # diagnostic: local-reference-escapes

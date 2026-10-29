@@ -288,8 +288,10 @@ impl OwnCx for Env<'_> {
 
 /// Whether a value of type `t` may hold a reference: a reference type,
 /// its carrier (`Ref[T]`, `Counted[T]`), a trait value, or a type whose
-/// arguments or parts are one. A type parameter holds no local reference
-/// in any instance (`ref.local.escape.generic-argument`), so it holds none here.
+/// arguments or parts are one. A type parameter's value may hold a local
+/// reference (`ref.generic.local`), but never one into a local of the
+/// body that holds it: no expression makes a `T` from that body's storage
+/// (`ref.generic.body`), so for frame locals it holds none.
 fn holds_ref(pool: &hd_types::InternPool, cells: hd_types::RefCells, t: Ty, depth: u32) -> bool {
     if depth > 32 {
         return true;

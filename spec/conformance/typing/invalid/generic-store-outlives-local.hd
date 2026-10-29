@@ -1,0 +1,17 @@
+# test: a generic call that takes a place by &mut stores its other arguments' references there
+# Spec 13 Generic Calls: ref.generic.store.
+struct User:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+fn put[T](h: &mut Holder[T], value: T) -> void:
+    h.value = value
+
+fn bad_put(u: &User) -> usize:
+    let mut h = Holder { value: u }
+    if u.name.len() > 0:
+        local := User { name: "y" }
+        put(&mut h, &local)
+    h.value.name.len() # diagnostic: local-reference-outlives-local

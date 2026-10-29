@@ -21,7 +21,7 @@ use hd_base::{HashSet, LocalId, TokenIdx};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::view::Src;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Callee, Ref, Tag};
+use hd_tir::ir::Ref;
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{Ck, ExpectPosition};
@@ -187,8 +187,13 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                 }
             }
         }
-        // An expression's explicit type arguments, as in `f::[&T]()`.
-        SyntaxKind::TypeArgumentList => walk_ty(src, n, None, diags),
+        // An expression's explicit type arguments, as in `f::[&T]()`, may
+        // hold a local reference (`ref.generic.local`).
+        SyntaxKind::TypeArgumentList => {
+            for c in n.children() {
+                walk_ty(src, c, None, diags);
+            }
+        }
         _ if n.kind().is_type() => walk_ty(src, n, None, diags),
         _ => {
             for c in n.children() {
@@ -221,7 +226,7 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
         // `ref.local.holding`: an optional, and a generic type's instance,
         // hold what their type arguments hold, where a local reference may
         // stand (`ref.dep.result`). A list's or a map's type arguments
-        // never hold one (`ref.local.escape.generic-argument`).
+        // never hold one (`ref.local.escape.type-argument`).
         SyntaxKind::OptionalType => {
             for c in n.children() {
                 walk_ty(src, c, at, diags);
@@ -249,7 +254,7 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
                 }
             }
         }
-        // `ref.local.escape.generic-argument`: an expression's or a
+        // `ref.local.escape.type-argument`: an expression's or a
         // trait's type arguments.
         SyntaxKind::TypeArgumentList => {
             for c in n.children() {
@@ -452,7 +457,7 @@ fn escape_in(pool: Types<'_>, colls: Colls, t: Ty, top_ok: bool, depth: u32) -> 
 }
 
 /// The list and map types, whose type arguments never hold a local
-/// reference (`ref.local.escape.generic-argument`).
+/// reference (`ref.local.escape.type-argument`).
 pub(crate) type Colls = [hd_base::DefId; 2];
 
 /// Whether a value of type `t` holds a local reference anywhere, its top
@@ -750,11 +755,12 @@ impl Ck<'_, '_> {
     }
 
     /// The types the finished body inferred that keep a local reference
-    /// (`ref.local.escape.generic-argument`): a
-    /// value's, a local's, and a call's type arguments. A written type
-    /// reported already ([`declarations`]), so a type the body or its
-    /// signature writes is skipped. Body and local types report once per
-    /// type; inferred call arguments report at every call site.
+    /// (`ref.local.escape.type-argument`): a value's, a local's, and a
+    /// local function call's type arguments
+    /// (`ref.generic.local.local-function`). A written type reported
+    /// already ([`declarations`]), so a type the body or its signature
+    /// writes is skipped. Body and local types report once per type; local
+    /// function call arguments report at every call site.
     pub(crate) fn check_local_ref_types(&mut self) {
         let mut local_calls = std::mem::take(&mut self.local_ref_call_targs);
         for (_, args, _) in &mut local_calls {
@@ -790,51 +796,11 @@ impl Ck<'_, '_> {
             };
         for i in 0..body.tags.len() {
             look(body.ty[i], true, true, true, body.syn[i]);
-            if matches!(body.tags[i], Tag::Call | Tag::Await) {
-                let Some((def, targs)) =
-                    Callee::from_words(body.record(body.data[i][0])).map(|c| match c {
-                        Callee::Item { def, targs } => (def, targs),
-                        Callee::TraitMethod { method, targs, .. } => (method, targs),
-                    })
-                else {
-                    continue;
-                };
-                let sig = self.cx.lookup.item(def).and_then(|item| item.sig());
-                let own = sig.map_or(0, |sig| sig.generics.len());
-                // A `'static` parameter reports through its bound.
-                let bounded: Vec<bool> = sig.map_or_else(Vec::new, |sig| {
-                    sig.generics
-                        .iter()
-                        .map(|g| {
-                            g.bounds.iter().any(|&b| {
-                                pool.trait_value(b)
-                                    .is_some_and(|(d, _)| d == self.cx.names.known.static_bound)
-                            })
-                        })
-                        .collect()
-                });
-                let args = pool.list_items(targs);
-                let explicit = (body.syn[i] != hd_base::NodeIdx::NONE)
-                    .then(|| self.cx.src.parse.tree.node(body.syn[i]))
-                    .and_then(|call| call.children().next())
-                    .filter(|callee| callee.kind() == SyntaxKind::TypeArgsExpr)
-                    .and_then(|callee| callee.child(SyntaxKind::TypeArgumentList))
-                    .map_or(0, |list| {
-                        list.children().filter(|arg| arg.kind().is_type()).count()
-                    });
-                for (j, &a) in args[args.len().saturating_sub(own)..]
-                    .iter()
-                    .enumerate()
-                    .skip(explicit)
-                {
-                    if !bounded.get(j).copied().unwrap_or(false) {
-                        look(a, false, false, false, body.syn[i]);
-                    }
-                }
-            }
         }
-        for (at, args, explicit) in local_calls {
-            for a in args.into_iter().skip(explicit) {
+        // A local function's type arguments, written or inferred
+        // (`ref.generic.local.local-function`).
+        for (at, args, _) in local_calls {
+            for a in args {
                 look(a, false, false, false, at);
             }
         }
@@ -844,12 +810,14 @@ impl Ck<'_, '_> {
             }
             look(t, true, true, true, body.local_syn[l]);
         }
+        // One report per source position: a call and its callee start
+        // at the same place.
         let mut reported = HashSet::default();
         for (at, e) in found {
-            if !reported.insert(at) {
+            let node = self.cx.src.parse.tree.node(at);
+            if !reported.insert(self.cx.src.span(node).lo) {
                 continue;
             }
-            let node = self.cx.src.parse.tree.node(at);
             self.err(Code::LocalReferenceEscapes, node, &message(e));
         }
     }

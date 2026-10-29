@@ -1,0 +1,9 @@
+# test: a local function's type argument never holds a local reference yet
+# Spec 13 Generic Calls: ref.generic.local.local-function.
+struct User:
+    name: string
+
+fn bad_local(u: &User) -> void:
+    fn same[T](value: T) -> T:
+        value
+    _ := same(u) # diagnostic: local-reference-escapes

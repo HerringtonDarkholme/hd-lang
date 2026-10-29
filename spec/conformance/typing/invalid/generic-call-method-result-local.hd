@@ -1,0 +1,9 @@
+# test: an implementation's type argument tunnels its origins through a method's result
+# Spec 13 Generic Calls: ref.generic.call.
+struct User:
+    name: string
+
+fn pick(a: &User) -> &User:
+    local := User { name: "x" }
+    let w: (&User)? = .Some(&local)
+    w.unwrap_or(a) # diagnostic: local-reference-escapes

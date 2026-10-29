@@ -342,7 +342,7 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
 | r[ref.local.escape.fn-value-result] Function value result | is the result of a function value whose type gives it no source among the inputs, as for a method bound to its receiver | `p::x_ref` for `fn x_ref(&self) -> &i32` | `local-reference-escapes` |
 | r[ref.local.escape.capture] Closure capture | is captured by a closure, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
-| r[ref.local.escape.generic-argument] Type argument | is a type argument of a list, a map, a generic function or method, a trait, or a trait value, written or inferred | `List[&Point]`, `keep::[&Point](p)` | `local-reference-escapes` |
+| r[ref.local.escape.type-argument] Type argument | is a type argument of a list, a map, a trait, or a trait value, written or inferred | `List[&Point]`, `dyn Store[&Point]` | `local-reference-escapes` |
 
 6. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
 
@@ -653,6 +653,74 @@ fn view(u: &'static User) -> void:  # error: references-not-yet-checked
 > **Why.** This is Rust's `T: 'static`. A counted reference and a function
 > value carry no lifetime, so a value kept in one must hold no local
 > reference.
+
+### Generic Calls
+
+A type argument may hold a local reference, so a generic function or method works on references as on any other value:
+
+```hd
+struct User:
+    name: string
+
+struct Pair:
+    left: User
+    right: User
+
+fn id[T](value: T) -> T:
+    value
+
+fn left_or_right(pair: &Pair, left: bool) -> &User:
+    let o: (&User)? = if left: .Some(&pair.left) else: .None
+    o.unwrap_or(&pair.right)  # borrows from pair
+
+fn demo(u: &User) -> usize:
+    n := id(&u.name)          # n borrows from u
+    n.len()
+```
+
+1. r[ref.generic.local] A written or inferred type argument of a function, a method, or an implementation may hold a local reference.
+2. r[ref.generic.local.local-function] A type argument of a local function never holds one yet. Error: `local-reference-escapes`.
+3. r[ref.generic.call] A reference position that a type argument adds to a call's result depends on the argument positions that the same type parameter adds to the call's parameters, as a lifetime variable's positions do ([`ref.lifetime.call`](#r-ref.lifetime.call)).
+4. r[ref.generic.call.unaligned] Where an argument's type does not line up with its parameter's declared type, such a result position depends on every argument.
+5. r[ref.generic.store] A parameter `&mut P`, whose `P` names a type parameter, is a place the call may store into. So the argument's place takes what that type parameter's other argument positions depend on, as `*p = v` does ([`ref.dep.store`](#r-ref.dep.store)).
+6. r[ref.generic.body] A generic body treats a value of a type parameter as one that may hold a local reference: it may return it or pass it on, and keeps it past the call only under `'static`.
+
+```text
+struct User:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+fn id[T](value: T) -> T:
+    value
+
+fn put[T](h: &mut Holder[T], value: T) -> void:
+    h.value = value
+
+fn bad_id(u: &User) -> &string:
+    local := User { name: "x" }
+    id(&local.name)  # error: local-reference-escapes
+
+fn bad_put(u: &User) -> usize:
+    let mut h = Holder { value: u }
+    if u.name.len() > 0:
+        local := User { name: "y" }
+        put(&mut h, &local)
+    h.value.name.len()  # error: local-reference-outlives-local
+
+fn bad_store(h: &mut Holder[&User], u: &User) -> void:
+    put(h, u)  # error: local-reference-escapes
+
+fn bad_local(u: &User) -> void:
+    fn same[T](value: T) -> T:
+        value
+    _ := same(u)  # error: local-reference-escapes
+```
+
+> **Why.** This is Rust's model: a type argument's lifetimes travel with
+> it, so a call's result borrows what its arguments in that parameter's
+> positions borrow.
 
 ## Reading Through A Reference
 

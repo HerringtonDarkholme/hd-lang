@@ -149,76 +149,36 @@ fn local_reference_escape_names_the_position_without_a_fix() {
 }
 
 #[test]
-fn local_reference_inferred_as_free_function_type_argument_is_rejected() {
+fn a_local_reference_type_argument_is_accepted_at_function_and_method_calls() {
     let cases = [
-        (
-            "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
-            "consume(point)",
-        ),
-        (
-            "struct Point:\n    x: i32\n\nfn consume[A, B](first: A, second: B) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[i32](+1, point)\n\npub fn main() -> void:\n    pass\n",
-            "consume::[i32](+1, point)",
-        ),
-        (
-            "struct Point:\n    x: i32\n\nfn check(point: &Point) -> void:\n    fn consume[T](value: T) -> void:\n        pass\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
-            "consume(point)",
-        ),
+        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume(point)\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
+        "struct Point:\n    x: i32\n\nfn consume[A, B](first: A, second: B) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[i32](+1, point)\n\npub fn main() -> void:\n    pass\n",
+        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[&Point](point)\n\npub fn main() -> void:\n    pass\n",
+        "struct Point:\n    x: i32\n\nstruct Consumer: pass\n\nimpl Consumer:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &Consumer, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
+        "struct Point:\n    x: i32\n\ntrait Consumer:\n    fn consume[T](&self, value: T) -> void\n\nstruct ConsumerImpl: pass\n\nimpl Consumer for ConsumerImpl:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &ConsumerImpl, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
     ];
-    for (source, call) in cases {
+    for source in cases {
         let out = cold_program(source);
-        assert_eq!(
-            out.diags.code,
-            [Code::LocalReferenceEscapes],
-            "{}",
-            out.render()
-        );
-        assert!(out.diags.fixes.iter().all(|fix| fix.len == 0));
-        let span = out.diags.primary[0];
-        assert_eq!(&source[span.lo as usize..span.hi as usize], call);
+        assert_eq!(out.diags.len(), 0, "{}", out.render());
     }
 }
 
 #[test]
-fn a_written_local_reference_type_argument_reports_once() {
-    let out = cold_program(
-        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[&Point](point)\n\npub fn main() -> void:\n    pass\n",
-    );
-    assert_eq!(
-        out.diags.code,
-        [Code::LocalReferenceEscapes],
-        "{}",
-        out.render()
-    );
-}
-
-#[test]
-fn each_inferred_local_reference_type_argument_site_reports() {
-    let out = cold_program(
-        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume(point)\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
-    );
+fn a_local_function_local_reference_type_argument_reports_at_each_call() {
+    let source = "struct Point:\n    x: i32\n\nfn check(point: &Point) -> void:\n    fn consume[T](value: T) -> void:\n        pass\n    consume(point)\n    consume(point)\n\npub fn main() -> void:\n    pass\n";
+    let out = cold_program(source);
     assert_eq!(
         out.diags.code,
         [Code::LocalReferenceEscapes, Code::LocalReferenceEscapes],
         "{}",
         out.render()
     );
-}
-
-#[test]
-fn local_reference_inferred_as_method_own_type_argument_is_rejected() {
-    let cases = [
-        "struct Point:\n    x: i32\n\nstruct Consumer: pass\n\nimpl Consumer:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &Consumer, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
-        "struct Point:\n    x: i32\n\ntrait Consumer:\n    fn consume[T](&self, value: T) -> void\n\nstruct ConsumerImpl: pass\n\nimpl Consumer for ConsumerImpl:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &ConsumerImpl, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
-    ];
-    for source in cases {
-        let out = cold_program(source);
-        assert_eq!(
-            out.diags.code,
-            [Code::LocalReferenceEscapes],
-            "{}",
-            out.render()
-        );
-    }
+    assert!(out.diags.fixes.iter().all(|fix| fix.len == 0));
+    let span = out.diags.primary[0];
+    assert_eq!(
+        &source[span.lo as usize..span.hi as usize],
+        "consume(point)"
+    );
 }
 
 #[test]

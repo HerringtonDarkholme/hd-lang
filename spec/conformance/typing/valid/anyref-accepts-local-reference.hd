@@ -1,0 +1,13 @@
+# test: `T < AnyRef` accepts a local reference, which has identity
+# Spec 04 AnyVal And AnyRef: types.sealed.local-reference.
+struct Point:
+    x: f64
+
+fn keep[T < AnyRef](value: T) -> T:
+    value
+
+fn valid() -> void:
+    p := Point { x: 1.0 }
+    _ := keep(&p)
+    q := box(Point { x: 2.0 })
+    _ := keep(q)

@@ -1,0 +1,28 @@
+# test: a generic call's type argument may hold a local reference, written or inferred
+# Spec 13 Generic Calls: ref.generic.local, ref.generic.call.
+struct Point:
+    x: i32
+
+fn show[T](value: T) -> void:
+    pass
+
+fn id[T](value: T) -> T:
+    value
+
+fn pass_on(p: &Point) -> &Point:
+    show(p)
+    show::[&Point](p)
+    id(p)
+
+struct Pair:
+    left: Point
+    right: Point
+
+fn first_x(pair: &Pair) -> &i32:
+    let o: (&Point)? = .Some(&pair.left)
+    picked := o.unwrap_or(&pair.right)
+    &picked.x
+
+fn mapped(p: &Point) -> i32?:
+    let o: (&Point)? = .Some(p)
+    o.map(fn(q: &Point) -> i32: q.x)

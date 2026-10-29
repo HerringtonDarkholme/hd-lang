@@ -1,0 +1,11 @@
+# test: a generic call's result depends on its argument, so it never returns a local's reference
+# Spec 13 Generic Calls: ref.generic.call.
+struct User:
+    name: string
+
+fn id[T](value: T) -> T:
+    value
+
+fn bad_id(u: &User) -> &string:
+    local := User { name: "x" }
+    id(&local.name) # diagnostic: local-reference-escapes

@@ -139,7 +139,7 @@ pub trait OwnCx {
     /// Whether a value of `ty` may hold a local reference: a reference of
     /// either kind (a `&self` receiver's address has the counted
     /// carrier), a trait value, or a type built of one. A type parameter
-    /// never does (`ref.local.escape.generic-argument`). Frame locals' origins follow such
+    /// never points into a local of its body (`ref.generic.body`). Frame locals' origins follow such
     /// values (`frame`). The default answers yes.
     fn holds_ref(&self, ty: Ty) -> bool {
         let _ = ty;
