@@ -1,0 +1,65 @@
+use std.host.{Args, args}
+use std.structure.Structure
+use std.time.{Clock, elapsed, monotonic}
+use std.validate.{Validate, byte_length, length, max, max_length, min_length, range}
+
+struct Signup:
+    username: string
+    email: string
+    password: string
+    age: u8
+
+impl Validate for Signup by Structure:
+    username = [length(3, 40), min_length(4)]
+    email = [max_length(120), byte_length(5, 120)]
+    password = [length(12, 256), min_length(14)]
+    age = [range(18u8, 130u8), max(100u8)]
+
+fn validate(value: Signup) -> usize:
+    match value.validated():
+        .Ok(_) => 0
+        .Err(error) => error.issues().len()
+
+fn rounds() -> usize $ Args:
+    match args().get(0):
+        .Some(text) =>
+            match text.parse::[usize]():
+                .Ok(value) => value
+                .Err(_) => panic("round count must be a usize")
+        .None => panic("round count is required")
+
+pub fn main() -> void $ Console + Clock + Args:
+    values := [
+        Signup {
+            username: "user_alice",
+            email: "alice@example.com",
+            password: "correct-horse-battery",
+            age: 42u8,
+        },
+        Signup { username: "x", email: "a", password: "short", age: 12u8 },
+        Signup {
+            username: "user_admin",
+            email: "a@example.com",
+            password: "long-enough-password",
+            age: 200u8,
+        },
+        Signup {
+            username: "guest_user",
+            email: "guest@example.com",
+            password: "another-long-password",
+            age: 18u8,
+        },
+    ]
+    controls := [validate(values[0]), validate(values[1]), validate(values[2]), validate(values[3])]
+    if controls != [0, 6, 2, 0]:
+        panic("validation controls disagree")
+    count := rounds()
+    let checksum = 0
+    start := monotonic()
+    for _ in 0..count:
+        checksum += validate(values[1])
+        checksum += validate(values[2])
+        checksum += validate(values[3])
+        checksum += validate(values[0])
+    elapsed_ms := elapsed(start).as_milliseconds()
+    println("validations=${count * 4} checksum=$checksum elapsed_ms=$elapsed_ms")

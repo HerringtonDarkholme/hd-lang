@@ -28,11 +28,14 @@ pub struct Facts:
 impl Facts:
     ## Returns the fact whose concrete type is `F`, or `.None`.
     ## See [annot.structure.find-exact](../../spec/lang/14-annotations.md#r-annot.structure.find-exact).
-    pub fn find[F < Inspectable](self) -> F?:
-        for item in self.items:
+    pub fn find[F < Inspectable](&self) -> F?:
+        let index: usize = 0
+        while index < self.items.len():
+            item := self.items[index]
             match item.downcast_ref::[F]():
                 .Some(found) => return .Some(*found)
                 .None => pass
+            index = index + 1
         .None
 
 ## What the compiler tells a template about one member: name, position, facts, doc comment, and shape.
@@ -149,7 +152,7 @@ impl[HdS, HdF] FieldRecord[HdS, HdF]:
     ## The member's fact whose concrete type is `HdM`, or `.None`.
     ## See [annot.structure.find-exact](../../spec/lang/14-annotations.md#r-annot.structure.find-exact).
     pub fn fact[HdM < Inspectable](&self) -> HdM?:
-        self.info.facts.find::[HdM]()
+        (&self.info.facts).find::[HdM]()
 
 # A variant's handle, a member key and a member directory are, like a
 # member's handle, shared read-only references to records that the

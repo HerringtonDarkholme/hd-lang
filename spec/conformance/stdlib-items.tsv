@@ -72,6 +72,7 @@ std.regex.Regex	std/regex.md#compiling-a-pattern
 std.regex.Match	std/regex.md#searching
 std.regex.Captures	std/regex.md#captures
 std.regex.RegexError	std/regex.md#pattern-errors
+std.validate	std/validate.md#validation
 std.cmp.Id	std/cmp.md#identity-keys
 std.cmp.deep_equal	std/cmp.md#deep-equality
 std.cmp.DeepEq	std/cmp.md#deep-equality

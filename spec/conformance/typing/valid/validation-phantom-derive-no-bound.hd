@@ -1,0 +1,16 @@
+# test: Debug and Eq for the phantom Length fact do not require its target type to implement either trait
+# Standard Validation: std-validate.rule.declarations
+use std.annotation.annotate
+use std.format.debug
+
+struct Opaque: pass
+
+@annotate::[F](.Field)
+@derive(Debug, Eq)
+struct Phantom[F]:
+    value: usize
+
+fn probe() -> bool:
+    let fact: Phantom[Opaque] = Phantom::[Opaque] { value: 1 }
+    _ := debug(fact)
+    fact == fact

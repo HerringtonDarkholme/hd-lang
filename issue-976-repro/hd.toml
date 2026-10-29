@@ -1,0 +1,7 @@
+[package]
+name = "validation_derived_976"
+
+[capabilities]
+Console = true
+Clock = true
+Args = true

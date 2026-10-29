@@ -73,6 +73,7 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["testing", "Testing"],
   ["text", "Text"],
   ["time", "Time"],
+  ["validate", "Validation"],
 ];
 
 const page = (source: string, output: string, navTitle: string, section: string): PageSource => ({

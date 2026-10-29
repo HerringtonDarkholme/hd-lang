@@ -1,0 +1,7 @@
+# test: a string validation fact is rejected on an unrelated field type
+# Standard Validation: std-validate.rule.email
+use std.validate.email
+
+struct Account:
+    @email() # diagnostic: type-mismatch
+    age: u32

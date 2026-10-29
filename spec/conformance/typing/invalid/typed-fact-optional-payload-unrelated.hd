@@ -1,0 +1,15 @@
+# test: the optional-payload alternative does not accept a fact for an unrelated payload type
+# Spec 14 Member-Typed Facts: annot.typed-fact.check.optional-payload
+use std.annotation.annotate
+
+@annotate::[F](.Field)
+struct Between[F]:
+    low: F
+    high: F
+
+fn between[F < PartialOrd](low: F, high: F) -> Between[F]:
+    Between::[F] { low: low, high: high }
+
+struct Limits:
+    @between::[i32](1, 10) # diagnostic: type-mismatch
+    count: string?
