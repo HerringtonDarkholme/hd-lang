@@ -516,10 +516,7 @@ Stop at 1.5 times that. Run time:
 - `element-reference-outlives-call` (existing), for rule 8.
 
 ## Owner Questions
-1. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
-   `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
-   stage 5 lifts it properly.
-2. **The generic default, stage 5.** Every `T` may hold a local reference,
+1. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
