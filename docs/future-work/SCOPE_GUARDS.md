@@ -1,8 +1,10 @@
 # Scope Guards
 
-**Status:** design accepted 2026-10-28; first build merged (#962). The checked package
-that modeled today's guard is in git history at 628a7f92e,
-`docs/future-work/scope-guards/`.
+**Status:** design accepted 2026-10-28; protocol split merged (#962), and the
+row-polymorphic std guard is specified and built (#991). The checked package
+that modeled the earlier guard is in git history at 628a7f92e,
+`docs/future-work/scope-guards/`. See [Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)
+and [Scope Guards](../../spec/std/ops.md#scope-guards).
 
 ## What The First Build Covers
 
@@ -14,9 +16,8 @@ The first build ships what current hd can express:
   `AsyncDisposable` in a suspending one; today's `using` sites become `using!`;
 - the `unbound-disposable` lint at error level.
 
-Later work: `ScopeGuard` and `on_exit` in std, as `ScopeGuard[$R]` once #961
-lands; the tier-2 captures, `AutoClosing`, `@auto_closing`, `defer(action)`
-and `ensure(action)` in #978.
+Later work: the tier-2 captures, `AutoClosing`, `@auto_closing`,
+`defer(action)` and `ensure(action)` in #978.
 
 ## Accepted Design
 
@@ -24,11 +25,11 @@ Keep `defer:`. Add a synchronous disposal protocol and make the cleanup effect
 visible in the binding:
 
 ```text
-pub trait Disposable:
-    fn dispose(&mut self) -> void
+pub trait Disposable[$R = $()]:
+    fn dispose(&mut self) -> void $ R
 
-pub trait AsyncDisposable:
-    fn dispose!(&mut self) -> void
+pub trait AsyncDisposable[$R = $()]:
+    fn dispose!(&mut self) -> void $ R
 
 let audit: *mut List[string] = &mut []
 using guard = on_exit(fn() -> void:
@@ -54,34 +55,24 @@ synchronous disposal run inline; asynchronous disposal is awaited. All three
 run in reverse registration order and otherwise keep the accepted cleanup
 semantics. This design changes neither panic cleanup nor cancellation.
 
-The standard library can then provide an ordinary guard:
+The standard library provides an ordinary guard in `std.ops`:
 
 ```text
-pub struct ScopeGuard:
-    action: fn() -> void
-
-pub fn on_exit(action: fn() -> void) -> ScopeGuard:
-    panic("todo")
-
-impl Disposable for ScopeGuard:
-    fn dispose(&mut self) -> void
-```
-
-`ScopeGuard` and `on_exit` are library code. The language knows only the two
-protocols and bindings. The current form accepts only a callback with an empty
-requirement row.
-
-#961 adds row parameters to data types, so the guard can retain any callback
-row instead of erasing it:
-
-```text
-# Depends on #961; this row-parameter form is not implemented today.
 pub struct ScopeGuard[$R]:
     action: fn() -> void $ R
 
 pub fn on_exit[$R](action: fn() -> void $ R) -> ScopeGuard[$R]:
-    panic("todo")
+    ScopeGuard { action: action }
+
+impl[$R] Disposable[$R] for ScopeGuard[$R]:
+    fn dispose(&mut self) -> void $ R:
+        (self.action)()
 ```
+
+`ScopeGuard` and `on_exit` are library code. The language knows only the two
+protocols and bindings. #961's data row parameters let the guard retain any
+callback row instead of erasing it. A `using` of the guard checks that row at
+the binding, exactly as a direct `dispose` call does.
 
 ### Auto-closing guard calls
 
@@ -357,20 +348,18 @@ Keep directing users to the statement. It already captures lexical locals and
 works synchronously, but a library cannot package a reusable cleanup policy as
 a guard. That is the under-built state this issue asks to address.
 
-## Appendix D: Today
+## Appendix D: Earlier State
 
-Today's `Disposable.dispose!` may suspend, so `using` is legal only under a
-driver. Current closures cannot capture local references, and current ordinary
-bindings never register cleanup. The package at 628a7f92e modeled a guard
-with today's suspending protocol and marked all target syntax in comments.
+Before #962, `Disposable.dispose!` could suspend, so `using` was legal only
+under a driver. The package at 628a7f92e modeled a guard with that suspending
+protocol and marked the then-unavailable target syntax in comments.
 
 ## Appendix E: Details Deferred Elsewhere
 
 - The accepted tier-2 lifetime and exclusivity direction is recorded in #978;
   it is not built in this slice.
-- #961 supplies `ScopeGuard[$R]`, so `on_exit` retains the action's requirement
-  row instead of accepting only an empty-row callback.
-- The exact std module for `ScopeGuard` is an implementation decision.
+- `ScopeGuard[$R]` and `on_exit[$R]` now live in `std.ops`; tier 2 may build on
+  them without changing their row behavior.
 - Panic and cancellation cleanup keep their accepted behavior and are not
   reopened here.
 

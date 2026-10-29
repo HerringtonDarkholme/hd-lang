@@ -1,5 +1,5 @@
 # test: using bang selects AsyncDisposable, not Disposable
-# Spec lang/06 Using Bindings: flow.using.protocol.required.
+# Spec lang/06 Using Bindings: flow.using.protocol.required-row.
 use std.ops.Disposable
 
 struct Guard:

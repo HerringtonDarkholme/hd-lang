@@ -5,7 +5,8 @@
 //! suspending `std.ops.AsyncDisposable.dispose!(&mut self)` call. The
 //! scope's exit ladder runs either in one last-in, first-out order with
 //! its other suites. The call takes the binding's own place, or passes the
-//! reference the binding holds.
+//! reference the binding holds. The selected implementation supplies the
+//! disposal method's requirement row, checked at the binding.
 
 use hd_base::{LocalId, StageResult};
 use hd_diag::Code;
@@ -13,9 +14,9 @@ use hd_intern::PathKind;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{ChoiceKind, TirSink, local_flags};
 use hd_types::solver::{Answer, TraitRef};
-use hd_types::{Ty, TyData, TyList};
+use hd_types::{Ty, TyData, VarKind};
 
-use crate::body::{Ck, trait_extends, unsupported};
+use crate::body::{Ck, supertrait_args, unsupported};
 use crate::call::{Args, PENDING_CHOICE, TraitTarget};
 use crate::refs::{Place, Root};
 
@@ -81,16 +82,34 @@ impl Ck<'_, '_> {
             TyData::TraitValue { def, .. } => Some(def),
             _ => None,
         };
-        let implements = if let Some(def) = dyn_trait {
-            def == trait_ || trait_extends(self.cx.lookup, pool, def, trait_, 0)
-        } else {
-            let goal = TraitRef {
-                trait_,
-                self_ty,
-                args: TyList::EMPTY,
+        let (implements, trait_args) =
+            if let TyData::TraitValue { def, args, .. } = pool.get(self_ty) {
+                match supertrait_args(self.cx.lookup, pool, def, args, trait_, 0) {
+                    Some(args) => (true, pool.list_items(args).to_vec()),
+                    None => (false, Vec::new()),
+                }
+            } else {
+                // A disposal implementation fixes its cleanup row. A bare goal
+                // variable learns the implementation head's whole row, as other
+                // omitted trait arguments do.
+                let row = self.fresh_disposal_arg();
+                let goal = TraitRef {
+                    trait_,
+                    self_ty,
+                    args: pool.list(&[row]),
+                };
+                let answer = self.solve(goal)?;
+                if let Answer::Holds { learned, .. } = &answer {
+                    for (v, t) in learned {
+                        let var = pool.intern_ty(&TyData::Infer(*v));
+                        let _ = self.infer.unify(pool, var, *t);
+                    }
+                }
+                (
+                    !matches!(answer, Answer::Fails(_)),
+                    vec![self.infer.resolve(pool, row)],
+                )
             };
-            !matches!(self.solve(goal)?, Answer::Fails(_))
-        };
         if !implements {
             let msg = format!(
                 "{} does not implement {}, so `{}` cannot dispose it",
@@ -161,7 +180,7 @@ impl Ck<'_, '_> {
                 trait_,
                 method,
                 self_ty,
-                args: Vec::new(),
+                args: trait_args,
             },
             Some((
                 recv,
@@ -188,15 +207,23 @@ impl Ck<'_, '_> {
             self.cx.names.known.disposable,
             self.cx.names.known.async_disposable,
         ] {
+            let row = self.fresh_disposal_arg();
             let goal = TraitRef {
                 trait_,
                 self_ty,
-                args: TyList::EMPTY,
+                args: self.pool().list(&[row]),
             };
             if !matches!(self.solve(goal)?, Answer::Fails(_)) {
                 return Ok(true);
             }
         }
         Ok(false)
+    }
+
+    /// An omitted disposal trait argument whose implementation fixes the
+    /// whole requirement row.
+    fn fresh_disposal_arg(&mut self) -> Ty {
+        let pool = self.pool();
+        self.infer.fresh(pool, VarKind::General)
     }
 }

@@ -22,6 +22,8 @@ std.testing.TestRunner	std/testing.md#runner-capabilities
 std.testing.PropertyRunner	std/testing.md#runner-capabilities
 std.task.retry	std/task.md#r-std-task.policy.retry.builder
 std.ops.Default	std/ops.md#default-trait
+std.ops.ScopeGuard	std/ops.md#scope-guards
+std.ops.on_exit	std/ops.md#scope-guards
 std.collections.ListView	std/collections.md#views
 std.collections.Deque	std/collections.md#deque
 std.collections.DequeIter	std/collections.md#deque

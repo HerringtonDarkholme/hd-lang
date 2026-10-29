@@ -1,0 +1,10 @@
+# test: using a scope guard checks the callback's requirement row at the binding
+# Spec lang/06 Using Bindings: flow.using.cleanup-row.check.
+# Spec std/ops Scope Guards: std-ops.scope-guard.on-exit, std-ops.scope-guard.dispose.
+use std.ops.on_exit
+
+fn announce() -> void $ Console:
+    println("cleanup")
+
+pub fn missing_console() -> void:
+    using guard = on_exit(announce) # diagnostic: missing-requirement

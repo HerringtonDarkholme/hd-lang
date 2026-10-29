@@ -2718,10 +2718,15 @@ impl Lower<'_, '_, '_> {
             }
             g.bounds = bounds;
             if let Some(d) = Src::child(node, SyntaxKind::TypeDefault) {
-                let c = d
+                if row {
+                    if let Some(c) = Src::child(d, SyntaxKind::RequirementRow) {
+                        let default = self.row(Some(c), gn);
+                        g.default = Some(self.names.pool.intern_ty(&TyData::Row(default)));
+                    }
+                } else if let Some(c) = d
                     .children()
-                    .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow);
-                if let Some(c) = c {
+                    .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow)
+                {
                     g.default = Some(self.ty(Some(c), gn));
                 }
             }

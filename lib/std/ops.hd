@@ -161,18 +161,34 @@ pub trait Update[V]:
 # A `using` binding disposes its value at scope exit through this trait
 # (spec/lang/06-control-flow.md#using-bindings). It is not a prelude name;
 # `using` needs no import.
-## A value that releases what it holds synchronously when a `using` binding of it ends. `dispose` is best-effort and reports nothing.
-## See [flow.using.disposable.sync](../../spec/lang/06-control-flow.md#r-flow.using.disposable.sync).
-pub trait Disposable:
-    fn dispose(&mut self) -> void
+## A value that releases what it holds synchronously when a `using` binding of it ends. `dispose` is best-effort and reports nothing. Its cleanup may require the row `R`, which defaults to the empty row.
+## See [flow.using.disposable.row](../../spec/lang/06-control-flow.md#r-flow.using.disposable.row).
+pub trait Disposable[$ R = $ ()]:
+    fn dispose(&mut self) -> void $ R
 
 # A `using!` binding disposes its value at scope exit through this trait
 # (spec/lang/06-control-flow.md#using-bindings). It is not a prelude name;
 # `using!` needs no import.
-## A value that releases what it holds when a `using!` binding of it ends. `dispose!` may suspend, is best-effort, and reports nothing.
-## See [flow.using.async-disposable](../../spec/lang/06-control-flow.md#r-flow.using.async-disposable).
-pub trait AsyncDisposable:
-    fn dispose!(&mut self) -> void
+## A value that releases what it holds when a `using!` binding of it ends. `dispose!` may suspend, is best-effort, and reports nothing. Its cleanup may require the row `R`, which defaults to the empty row.
+## See [flow.using.async-disposable.row](../../spec/lang/06-control-flow.md#r-flow.using.async-disposable.row).
+pub trait AsyncDisposable[$ R = $ ()]:
+    fn dispose!(&mut self) -> void $ R
+
+# A scope guard turns a synchronous callback into explicit `using` cleanup.
+# It is ordinary standard-library code over `Disposable`.
+## A guard that runs `action` when a `using` binding of it ends. The action may require `R`.
+## See [std-ops.scope-guard.type](../../spec/std/ops.md#r-std-ops.scope-guard.type).
+pub struct ScopeGuard[$ R]:
+    action: fn() -> void $ R
+
+## Builds a scope guard whose cleanup runs `action`.
+## See [std-ops.scope-guard.on-exit](../../spec/std/ops.md#r-std-ops.scope-guard.on-exit).
+pub fn on_exit[$ R](action: fn() -> void $ R) -> ScopeGuard[$ R]:
+    ScopeGuard { action: action }
+
+impl[$ R] Disposable[$ R] for ScopeGuard[$ R]:
+    fn dispose(&mut self) -> void $ R:
+        (self.action)()
 
 # The built-in implementations (spec/lang/05-expressions.md#built-in-implementations).
 # Each body is the built-in indexing of its type, with its checks and
