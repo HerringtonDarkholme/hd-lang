@@ -22,7 +22,7 @@ fn normalize(values: &mut List[string], entries: &mut Map[string, i32]) -> i32:
         .None => 0
 
 fn report(label: &Label) -> void $ Console:
-    println(*label)
+    println(label)
 
 fn fail[T](message: string) -> T:
     panic(message)

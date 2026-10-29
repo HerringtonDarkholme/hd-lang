@@ -33,6 +33,6 @@ fn widened(named: &dyn NamedSupplier[Item = i32]) -> i32:
     read(named)
 
 fn run() -> i32:
-    let source: *dyn Supplier[Item = i32] = box(Constant { value: 41 })
+    let source: &dyn Supplier[Item = i32] = &Constant { value: 41 }
     let item: i32 = first(source)
     item + read(source) + pinned(source) + widened(&Constant { value: 1 })

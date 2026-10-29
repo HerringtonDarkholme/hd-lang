@@ -552,7 +552,7 @@ tests:
         "random items encode as before",
         gen=fn(c: &mut Choices) -> *Item: item_gen(c, 0),
         cases=200,
-        prop=fn!(item: &Item): assert_equal(disagreement(*item), "", reason="item")
+        prop=fn!(item: &Item): assert_equal(disagreement(item), "", reason="item")
         ,
     )
 
@@ -560,6 +560,6 @@ tests:
         "random scripts encode as the tree defines them",
         gen=script_gen,
         cases=300,
-        prop=fn!(script: &Script): assert_equal(disagreement(*script), "", reason="script")
+        prop=fn!(script: &Script): assert_equal(disagreement(script), "", reason="script")
         ,
     )

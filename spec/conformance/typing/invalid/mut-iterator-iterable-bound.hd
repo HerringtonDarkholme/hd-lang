@@ -10,5 +10,5 @@ fn count[I < Iterable[i32]](source: I) -> i32:
 fn from_list(values: List[i32]) -> i32:
     count(values)
 
-fn from_iterator(source: *mut dyn Iterator[i32]) -> i32:
+fn from_iterator(source: &mut dyn Iterator[i32]) -> i32:
     count(source) # diagnostic: unsatisfied-trait-bound

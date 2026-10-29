@@ -22,7 +22,7 @@ fn show[T < Display](value: T) -> string:
 fn tag[T < Named](value: T) -> string:
     value.name()
 
-fn describe(named: *dyn Named, shown: *dyn Display) -> string:
+fn describe(named: &dyn Named, shown: &dyn Display) -> string:
     tag(named) + " " + show(named) + " " + show(shown)
 
 tests:
@@ -31,7 +31,7 @@ tests:
     it("own trait and supertrait bounds"):
         user := User { handle: "ada" }
         assert_equal(
-            describe(box(user), box(42)),
+            describe(&user, &42),
             "ada @ada 42",
             reason="Named satisfies Named and Display; Display satisfies Display",
         )

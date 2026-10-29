@@ -20,5 +20,5 @@ trait Tagged < Named:
 fn same[T](left: T, right: T) -> bool:
     true
 
-fn f(s: *dyn Shown, n: *dyn Named) -> bool:
+fn f(s: &dyn Shown, n: &dyn Named) -> bool:
     same(n, s) # diagnostic: no-common-type

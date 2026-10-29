@@ -24,7 +24,7 @@ fn change[T < Write](value: T) -> void:
 tests:
     use std.testing.assert_equal
     it("shared dispatch and associated binding"):
-        let value: *dyn Read[Item = i32] = box(Counter { value: 17 })
+        let value: &dyn Read[Item = i32] = &Counter { value: 17 }
         assert_equal(read(value), 17, reason="the reference supplies Read and Item")
         assert_equal(
             associated(value),
@@ -32,6 +32,7 @@ tests:
             reason="the associated return type projects through a reference",
         )
     it("mutable dispatch and a supertrait bound"):
-        let value: *mut dyn Write = box(Counter { value: 4 })
+        let mut counter = Counter { value: 4 }
+        let value: &mut dyn Write = &mut counter
         change(value)
-        assert_equal(read(value), 5, reason="the same counted place changed")
+        assert_equal(read(value), 5, reason="the same original place changed")
