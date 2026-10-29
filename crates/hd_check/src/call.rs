@@ -2013,6 +2013,18 @@ impl Ck<'_, '_> {
                                 }
                             }
                         }
+                    } else if vars.iter().any(|&v| {
+                        matches!(
+                            pool.get(self.infer.resolve(pool, v)),
+                            TyData::TraitValue { .. }
+                        )
+                    }) {
+                        // A trait value is no type argument
+                        // (types.trait.value.dyn-required.reference-values),
+                        // so an expected `*mut dyn Tr` leaves `box(e)`'s `T`
+                        // to its argument, and the result converts after the
+                        // call (ref.box.weaken).
+                        self.infer.rollback(snap);
                     }
                 }
                 self.default_owner = Some((def, pool.list(&vars), vec![]));

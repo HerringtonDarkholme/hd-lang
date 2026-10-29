@@ -1,0 +1,40 @@
+# test: `box(e)` where a `*mut dyn` or `*dyn` is expected boxes the value and converts the result, for a struct and for a generic iterator
+# Spec 13 Boxes: ref.box.weaken, ref.box.check.
+# expect-stdout: 1 2
+# expect-stdout: 3
+# expect-stdout: p1 p2
+struct Counter:
+    n: i32
+
+trait Bump:
+    fn bump(&mut self) -> i32
+
+impl Bump for Counter:
+    fn bump(&mut self) -> i32:
+        self.n += 1
+        self.n
+
+trait Show:
+    fn show(&self) -> string
+
+impl Show for Counter:
+    fn show(&self) -> string: "p${self.n}"
+
+struct Rest[U]:
+    items: *mut dyn Iterator[U]
+
+struct Shown:
+    item: *dyn Show
+
+fn rest[U, J < Iterable[U]](other: J) -> Rest[U]:
+    Rest { items: box(other.iter()) }
+
+pub fn main() -> void $ Console:
+    let counter: *mut dyn Bump = box(Counter { n: 0 })
+    first := counter.bump()
+    println("$first ${counter.bump()}")
+    r := rest::[i32, List[i32]]([+3, +4])
+    println("${r.items.next().unwrap_or(+0)}")
+    let read: *dyn Show = box(Counter { n: 1 })
+    shown := Shown { item: box(Counter { n: 2 }) }
+    println("${read.show()} ${shown.item.show()}")

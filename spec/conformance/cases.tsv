@@ -5135,6 +5135,7 @@ typing/invalid/box-prelude-shadow.hd	type	reject:prelude-name-shadow	lang/10-mod
 typing/valid/box-inference-and-weakening.hd	type	accept	lang/13-values-and-references.md#r-ref.box.check
 runtime/valid/box-new-object.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.new
 runtime/valid/box-copies-place.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.copy
+runtime/valid/box-into-trait-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.weaken
 runtime/valid/counted-self-call-on-box.hd	runtime	accept	lang/07-functions.md#r-fn.method.counted-self.reference
 runtime/valid/counted-self-call-on-reference.hd	runtime	accept	lang/07-functions.md#r-fn.method.counted-self.reference
 typing/invalid/counted-self-call-on-temporary.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.method.counted-self.temporary-error
