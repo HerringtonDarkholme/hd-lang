@@ -1,0 +1,7 @@
+# test: a lifetime that no generic list declares is unknown-lifetime
+# Spec 04 Lifetime Parameters: types.lifetime.unknown.
+struct User:
+    name: string
+
+fn name(a: &'b User) -> &string:  # diagnostic: unknown-lifetime
+    &a.name

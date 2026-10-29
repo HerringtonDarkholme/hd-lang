@@ -1,0 +1,5 @@
+# test: a closing quote after a name makes a character literal, not a lifetime
+# Spec 01 Lifetimes: lex.lifetime.char.
+initial := 'a'
+newline := '\n'
+pair := 'ab'  # diagnostic: invalid-token

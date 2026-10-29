@@ -488,7 +488,8 @@ value_parameter = [ "mut" ], identifier, ":", type, [ "=", expression ]
                 | [ "mut" ], identifier, "...", ":", type
                 ;
 
-receiver_parameter = "self" | "mut", "self" | "&", "self" | "&", "mut", "self"
+receiver_parameter = "self" | "mut", "self"
+                   | "&", [ lifetime ], "self" | "&", [ lifetime ], "mut", "self"
                    | "*", "self" | "*", "mut", "self" ;
 ```
 
@@ -699,11 +700,15 @@ function_generic_params = "[", function_generic_parameter,
 
 type_parameter = [ variance ], identifier, [ "<", trait_bounds ],
                  [ type_default ]
-               | row_parameter_decl, [ type_default ] ;
+               | row_parameter_decl, [ type_default ]
+               | lifetime ;
 generic_parameter = identifier, [ "<", trait_bounds ]
-                  | row_parameter_decl ;
+                  | row_parameter_decl
+                  | lifetime ;
 row_parameter_decl = "$", identifier ;
-function_generic_parameter = generic_parameter, [ type_default ] ;
+function_generic_parameter = identifier, [ "<", trait_bounds ], [ type_default ]
+                           | row_parameter_decl, [ type_default ]
+                           | lifetime ;
 type_default = "=", type_argument ;
 variance = "+" | "-" ;
 
@@ -803,12 +808,16 @@ impl[T = i32] Box[T]:  # error: syntax-error
 3. r[grammar.generic.row-marker.no-bound] A row parameter takes no bound, so `$R < Log` is an error. Error: `syntax-error`.
 4. r[grammar.generic.row-marker.default] A row parameter's default is a row type argument, as in `$R = $()`.
 5. r[grammar.generic.bound.no-mut] A bound takes no `mut` prefix, so `T < mut Named` is an error. Error: `syntax-error`.
+6. r[grammar.generic.lifetime] A `lifetime`, as in `fn first['a]`, declares a lifetime parameter, as [Lifetime Parameters](04-type-system.md#lifetime-parameters) specifies.
+7. r[grammar.generic.lifetime.alone] A lifetime parameter takes no variance marker, bound, or default, so `'a < Log` is an error. Error: `syntax-error`.
 
 ```text
 trait Log
 
 fn run[$R < Log](job: fn() -> void $ R) -> void $ R:  # error: syntax-error
     job()
+
+fn first['a < Log](x: &'a i32) -> void: pass  # error: syntax-error
 ```
 
 See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
@@ -824,7 +833,7 @@ reference_access_type = [ "mut" ], reference_type
                       | ref_type
                       ;
 
-ref_type = "&", [ "mut" ], reference_type
+ref_type = "&", [ lifetime ], [ "mut" ], reference_type
          | "*", [ "mut" ], reference_type
          ;
 

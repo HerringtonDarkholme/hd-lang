@@ -1,0 +1,7 @@
+# test: a lifetime variable in a signature is references-not-yet-checked
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.
+struct User:
+    name: string
+
+fn first['a](a: &'a User) -> &'a User:  # diagnostic: references-not-yet-checked
+    a

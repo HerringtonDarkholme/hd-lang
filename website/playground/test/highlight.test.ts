@@ -72,6 +72,7 @@ const TRICKY = [
   "@derive(Eq, Debug)",
   "impl[T] Encode for T by Structure:",
   "by := derive + with + context",
+  "fn choose['a](a: &'a User, b: &'a mut User) -> &'a User: 'b'",
   "",
 ].join("\n");
 
@@ -105,6 +106,9 @@ test("editor token classes match classify for the tricky cases", () => {
   assert.equal(at(24, "by"), "");
   assert.equal(at(24, "derive"), "");
   assert.equal(at(24, "with"), "");
+  assert.equal(at(25, "User"), "hd-type");
+  assert.equal(at(25, "'b'"), "hd-string");
+  assert.equal(at(25, "'a"), "");
 });
 
 test("editor token classes match classify on the examples and runtime fixtures", async () => {

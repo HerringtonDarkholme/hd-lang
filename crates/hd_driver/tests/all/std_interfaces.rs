@@ -360,3 +360,56 @@ fn stage_b_and_coherence_errors() {
         "{r}"
     );
 }
+
+/// A signature's written lifetimes, one per local
+/// reference slot of the parameters and then the result, survive the
+/// interface blob. The program is rejected (`ref.lifetime.not-yet`), but
+/// its interface still builds.
+#[test]
+fn written_lifetimes_map_reference_slots() {
+    let mut s = MemorySources::default();
+    s.insert(
+        "main.hd",
+        "struct User:\n    name: string\n\n\
+         pub fn choose['a](a: &'a User, b: &User, c: (&'a User, &User)) -> &'a User:\n    a\n\n\
+         pub fn plain(a: &User) -> &User:\n    a\n\n\
+         struct Pair[T]:\n    left: T\n\n\
+         impl['s, T] Pair[T]:\n    pub fn left_or['f](&'s self, x: &'f T, y: List[&'s T]) -> &'f T:\n        x\n\n\
+         pub fn main() -> void:\n    pass\n",
+    );
+    let out = run(&s);
+    assert!(
+        out.diags
+            .code
+            .contains(&hd_diag::Code::ReferencesNotYetChecked),
+        "{}",
+        out.render()
+    );
+    let (_, blob) = out
+        .ifaces
+        .iter()
+        .find(|f| !f.0.starts_with("std"))
+        .expect("the program's interface");
+    fresh(|n| {
+        let (items, _) = decode_items(n, blob).expect("decode");
+        let mut got: Vec<(String, Vec<u16>)> = items
+            .iter()
+            .filter_map(|it| match &it.data {
+                ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
+                    Some((n.text(it.name).to_owned(), s.lifetimes.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+        got.sort_stable();
+        assert_eq!(
+            got,
+            [
+                ("choose".to_owned(), vec![1, 0, 1, 0, 1]),
+                ("left_or".to_owned(), vec![1, 2, 1, 2]),
+                ("main".to_owned(), vec![]),
+                ("plain".to_owned(), vec![]),
+            ]
+        );
+    });
+}

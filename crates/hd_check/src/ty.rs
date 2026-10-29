@@ -908,6 +908,16 @@ impl Ck<'_, '_> {
                 }))?
             }
             SyntaxKind::RefType => {
+                // ref.lifetime.not-yet: a lifetime written in a body.
+                if n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
+                    .is_some()
+                {
+                    self.err(
+                        Code::ReferencesNotYetChecked,
+                        n,
+                        "a lifetime inside a function body is not checked yet",
+                    );
+                }
                 // `ref.type.forms`: an outer `mut` on the operand is no part
                 // of a reference type.
                 let mutable = n

@@ -1329,6 +1329,40 @@ impl<'a> Types<'a> {
         self.meta_of(t) & meta::HAS_REF != 0
     }
 
+    /// The local reference slots of `t`: each `&T` and `&mut T` outside
+    /// function types and counted references, in pre-order. A signature's
+    /// written lifetimes follow this order (`FnSig::lifetimes`).
+    #[must_use]
+    pub fn ref_slots(self, t: Ty) -> usize {
+        self.ref_slots_at(t, 0)
+    }
+
+    fn ref_slots_at(self, t: Ty, depth: u32) -> usize {
+        if depth > 32 || !self.has_ref(t) {
+            return 0;
+        }
+        let d = depth + 1;
+        let list = |l| {
+            self.list_items(l)
+                .iter()
+                .map(|&a| self.ref_slots_at(a, d))
+                .sum::<usize>()
+        };
+        match self.get(t) {
+            TyData::Ref {
+                counted: false,
+                inner,
+                ..
+            } => 1 + self.ref_slots_at(inner, d),
+            TyData::Mut(i) | TyData::Option(i) => self.ref_slots_at(i, d),
+            TyData::Tuple { elems, rest } => {
+                list(elems) + rest.map_or(0, |r| self.ref_slots_at(r, d))
+            }
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args),
+            _ => 0,
+        }
+    }
+
     /// `t` with each reference type replaced by the data type `cell[T]` or
     /// `cell[Mut[T]]` (mutable permission metadata): `cell.local` for `&T`
     /// and `&mut T`, `cell.counted` for `*T` and `*mut T`, all with the

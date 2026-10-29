@@ -1,0 +1,5 @@
+# test: a lifetime parameter takes no bound
+# Spec 02 Generic Parameter Modifiers: grammar.generic.lifetime.alone.
+trait Log
+
+fn first['a < Log](x: &'a i32) -> void: pass  # diagnostic: syntax-error

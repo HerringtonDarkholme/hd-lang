@@ -1,0 +1,14 @@
+# @dump: tree
+# Lifetime variables: declared in a generic list, written after `&`.
+struct User:
+    name: string
+
+fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:
+    if first: a else: b
+
+impl['a, T] Pair[T]:
+    fn left_or(&'a self, fallback: &'a mut T) -> &'a T:
+        &self.left
+
+struct Parser['src, T]:
+    src: &'src T

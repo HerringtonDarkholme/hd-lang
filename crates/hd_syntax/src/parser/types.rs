@@ -51,6 +51,10 @@ impl Parser<'_> {
         let mut done = if self.at(TokenKind::Amp) || self.at(TokenKind::Star) {
             let sigil = if self.at(TokenKind::Amp) { '&' } else { '*' };
             self.bump();
+            // ref.lifetime.form: `&'a T`, `&'a mut T`.
+            if sigil == '&' {
+                self.eat(TokenKind::Lifetime);
+            }
             self.eat(TokenKind::KwMut);
             if self.at(TokenKind::KwFn) {
                 // ref.type.no-function, ref.type.counted-no-function

@@ -1,0 +1,7 @@
+# test: a function's lifetime parameter is references-not-yet-checked
+# Spec 04 Lifetime Parameters; spec 13 Lifetime Variables: ref.lifetime.not-yet.
+struct User:
+    name: string
+
+fn pick['a](a: &'a User) -> &'a User:  # diagnostic: references-not-yet-checked
+    a

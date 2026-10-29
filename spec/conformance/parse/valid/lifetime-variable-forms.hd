@@ -1,0 +1,19 @@
+# test: lifetime variables parse in generic lists, after `&`, and on receivers
+struct User:
+    name: string
+
+struct Pair[T]:
+    left: T
+
+struct Parser['src, T]:
+    src: &'src T
+
+fn choose['a](a: &'a User, b: &'a mut User, c: List[&'a User]) -> &'a User:
+    a
+
+impl['a, T] Pair[T]:
+    fn left_or['f](&'a self, fallback: &'f T) -> &'f T:
+        fallback
+
+    fn left_mut(&'a mut self) -> &'a mut T:
+        &mut self.left

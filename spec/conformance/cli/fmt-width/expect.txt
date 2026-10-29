@@ -99,3 +99,11 @@ run: hd fmt inputs/comments.input
 same-text: inputs/comments.input want/comments.hd
 run: hd fmt inputs/already-broken.input
 same-text: inputs/already-broken.input want/already-broken.hd
+run: hd fmt --check inputs/lifetimes.input
+exit: 1
+run: hd fmt inputs/lifetimes.input
+same-text: inputs/lifetimes.input want/lifetimes.hd
+run: hd fmt --check inputs/lifetimes.input
+stdout-json: []
+run: hd fmt inputs/lifetimes.input
+same-text: inputs/lifetimes.input want/lifetimes.hd

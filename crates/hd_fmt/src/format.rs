@@ -1293,6 +1293,7 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
         || space_around(previous)
         || space_around(next)
         || previous == T::Star && next == T::Star
+        || previous == T::Lifetime && !no_space_before(next)
         || previous.is_keyword()
             && (next == T::LBracket && !matches!(previous, T::KwSelfValue | T::KwSelfType)
                 || next == T::LParen && previous != T::KwFn)

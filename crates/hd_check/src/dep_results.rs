@@ -57,7 +57,7 @@ pub(crate) fn source_of(
     }
     let mut found = Source::Missing;
     for (k, &(s, t)) in params.iter().enumerate() {
-        match (positions(pool, t, 0), found) {
+        match (pool.ref_slots(t), found) {
             (0, _) => {}
             _ if is_self(s) => {}
             (1, Source::Missing) => found = Source::Param(k),
@@ -65,32 +65,6 @@ pub(crate) fn source_of(
         }
     }
     found
-}
-
-/// The local reference positions of type `t`: each `&T` and `&mut T`,
-/// outside function types.
-fn positions(pool: Types<'_>, t: Ty, depth: u32) -> usize {
-    if depth > 32 || !pool.has_ref(t) {
-        return 0;
-    }
-    let d = depth + 1;
-    let list = |l| {
-        pool.list_items(l)
-            .iter()
-            .map(|&a| positions(pool, a, d))
-            .sum::<usize>()
-    };
-    match pool.get(t) {
-        TyData::Ref {
-            counted: false,
-            inner,
-            ..
-        } => 1 + positions(pool, inner, d),
-        TyData::Mut(i) | TyData::Option(i) => positions(pool, i, d),
-        TyData::Tuple { elems, rest } => list(elems) + rest.map_or(0, |r| positions(pool, r, d)),
-        TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args),
-        _ => 0,
-    }
 }
 
 /// `Some((counted, to a trait value))` when `t` is a reference type,

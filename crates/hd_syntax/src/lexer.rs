@@ -15,6 +15,8 @@ pub enum TokenKind {
     Number,
     String,
     Char,
+    /// `'name`: a lifetime variable (`lex.lifetime.form`).
+    Lifetime,
     LParen,
     RParen,
     LBracket,
@@ -192,6 +194,7 @@ impl TokenBuf {
                     | TokenKind::RawIdent
                     | TokenKind::KwSelfType
                     | TokenKind::KwSelfValue
+                    | TokenKind::Lifetime
             ) {
                 let text = self.text(TokenIdx::from_raw(to_u32(i)), source);
                 let text = if *kind == TokenKind::RawIdent {
@@ -469,7 +472,7 @@ impl<'s> Lexer<'s> {
             b'#' => self.comment(),
             b'`' => self.raw_identifier(),
             b'"' => self.string(self.pos, false),
-            b'\'' => self.character(),
+            b'\'' => self.lifetime_or_character(),
             b'0'..=b'9' => self.number(),
             byte if is_ident_start_byte(byte, self.source, self.pos) => self.identifier(),
             _ => self.punctuation_or_error(),
@@ -970,6 +973,20 @@ impl<'s> Lexer<'s> {
         false
     }
 
+    /// `lex.lifetime.form`: an apostrophe and an identifier with no closing
+    /// `'` is a lifetime; anything else is a character literal.
+    fn lifetime_or_character(&mut self) {
+        let start = self.pos;
+        self.pos += 1;
+        if self.consume_identifier_chars() && self.peek_byte(0) != Some(b'\'') {
+            self.tokens
+                .push(TokenKind::Lifetime, start, self.pos, self.line);
+            return;
+        }
+        self.pos = start;
+        self.character();
+    }
+
     fn character(&mut self) {
         let start = self.pos;
         self.pos += 1;
@@ -1379,6 +1396,51 @@ mod tests {
                 .iter()
                 .any(|d| d.code == Code::InvalidToken)
         );
+    }
+
+    /// `lex.lifetime.form`: a closing `'` makes a character literal.
+    #[test]
+    fn an_apostrophe_name_without_a_closing_quote_is_a_lifetime() {
+        for (source, kinds, bad) in [
+            ("'a'", &[TokenKind::Char][..], false),
+            ("'\\n'", &[TokenKind::Char], false),
+            ("'_'", &[TokenKind::Char], false),
+            ("'a", &[TokenKind::Lifetime], false),
+            ("'ab", &[TokenKind::Lifetime], false),
+            (
+                "&'a mut T",
+                &[
+                    TokenKind::Amp,
+                    TokenKind::Lifetime,
+                    TokenKind::KwMut,
+                    TokenKind::Ident,
+                ],
+                false,
+            ),
+            (
+                "['a, T]",
+                &[
+                    TokenKind::LBracket,
+                    TokenKind::Lifetime,
+                    TokenKind::Comma,
+                    TokenKind::Ident,
+                    TokenKind::RBracket,
+                ],
+                false,
+            ),
+            ("'ab'", &[TokenKind::Char], true),
+            ("' '", &[TokenKind::Char], false),
+        ] {
+            let lexed = lex(source.as_bytes());
+            assert_eq!(lexed.tokens.kind, kinds, "{source}");
+            assert_eq!(
+                !lexed.diagnostics.is_empty(),
+                bad,
+                "{source}: {:?}",
+                lexed.diagnostics
+            );
+            assert_eq!(lexed.tokens.reconstruct(source), source);
+        }
     }
 
     #[test]

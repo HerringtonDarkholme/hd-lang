@@ -544,6 +544,30 @@ fn kind(token: Token) -> string:
     token.type  # error: syntax-error
 ```
 
+### Lifetimes
+
+A **lifetime** token names a lifetime variable, as in `&'a User`:
+
+```ebnf
+lifetime = "'", identifier_start, { identifier_continue } ;
+```
+
+1. r[lex.lifetime.form] A lifetime is an apostrophe followed by identifier characters, as in `'a` and `'src`, with no closing `'`.
+2. r[lex.lifetime.char] When a `'` follows those characters, the apostrophe begins a character literal instead. So `'a'` is a character, and `'ab'` is an invalid one.
+
+```text
+initial := 'a'   # a character
+newline := '\n'  # a character
+pair := 'ab'     # error: invalid-token
+name := 'a       # error: syntax-error
+```
+
+> **Why.** This is Rust's rule. One character after the name decides, so a
+> lifetime never needs a closing mark.
+
+See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
+[Lifetime Variables](13-values-and-references.md#lifetime-variables).
+
 ## Keywords And Reserved Words
 
 r[lex.keyword.reserved-words] The grammar uses these reserved words:
@@ -734,13 +758,13 @@ mask := 0b101s  # error: syntax-error
 flag := 5else   # error: syntax-error
 name := "abc"u  # error: syntax-error
 fn done() -> string: return"done"  # error: syntax-error
-mask := 0xff'B  # error: unterminated-string
+mask := 0xff'B  # error: syntax-error
 ```
 
 > **Note.** The other near misses need no rule of their own. `5_ms` ends
 > its digits in a separator ([`lex.sep.misplaced`](#r-lex.sep.misplaced)),
 > and `"abc"u` is a string followed by a name. A `'` after digits begins a
-> character literal, so `5'ms` is unterminated.
+> [lifetime](#lifetimes), so `5'ms` is a number followed by the lifetime `'ms`.
 
 > **Why.** Hexadecimal digits include letters such as `B`, so a letter
 > after a radix literal cannot begin a suffix. Only decimal and
@@ -1017,6 +1041,7 @@ processing occurs after token recognition, as described above.
 ```ebnf
 token = identifier
       | raw_identifier
+      | lifetime
       | keyword
       | literal_token
       | operator

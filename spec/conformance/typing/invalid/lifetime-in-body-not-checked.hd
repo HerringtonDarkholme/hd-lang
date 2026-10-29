@@ -1,0 +1,8 @@
+# test: a lifetime written in a function body is references-not-yet-checked
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.body.
+struct User:
+    name: string
+
+fn view(u: User) -> i32:
+    let r: &'a User = &u  # diagnostic: references-not-yet-checked
+    0

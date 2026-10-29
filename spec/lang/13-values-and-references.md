@@ -530,6 +530,36 @@ Storage that must outlive its block is boxed at its declaration, and the binding
 See also: [Element References](#element-references),
 [Reference Receivers](07-functions.md#reference-receivers).
 
+### Lifetime Variables
+
+A **lifetime variable** `'a`, written after `&`, names the lifetime of a local reference:
+
+```text
+struct User:
+    name: string
+
+fn first['a](a: &'a User) -> &'a User:  # error: references-not-yet-checked
+    a
+
+impl['a] User:  # error: references-not-yet-checked
+    fn label(&'a self) -> &'a string:
+        &self.name
+
+fn view(u: User) -> i32:
+    let r: &'a User = &u  # error: references-not-yet-checked
+    0
+```
+
+1. r[ref.lifetime.form] A local reference type may write a lifetime variable after `&`: `&'a T` and `&'a mut T`.
+2. r[ref.lifetime.receiver] A reference receiver may write one too: `&'a self` and `&'a mut self`.
+3. r[ref.lifetime.counted] A counted reference takes no lifetime variable, so `*'a T` is an error. Error: `syntax-error`.
+4. r[ref.lifetime.declared] A lifetime variable names a lifetime parameter in scope, as [Lifetime Parameters](04-type-system.md#lifetime-parameters) states.
+5. r[ref.lifetime.not-yet] Lifetime variables are not checked yet, so a declaration of a lifetime parameter is an error. Error: `references-not-yet-checked`.
+6. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
+
+> **Note.** A later stage checks lifetime variables, with the
+> [Dependent Results](#dependent-results) rules applied per reference.
+
 ## Reading Through A Reference
 
 Field access and method calls read through a reference automatically, and `*r` reads the whole value.

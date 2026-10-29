@@ -316,6 +316,12 @@ pub struct FnSig {
     pub suspends: bool,
     /// The last parameter collects the rest of the arguments (`xs...: T`).
     pub variadic: bool,
+    /// The written lifetimes, for checking them (#1011): one per local
+    /// reference slot of the parameters, then of the result, in
+    /// [`hd_types::Types::ref_slots`] order over the declared types. 0 is
+    /// elided; `k` is the `k`-th lifetime in scope, an enclosing
+    /// implementation's first. Empty when the signature writes none.
+    pub lifetimes: Vec<u16>,
 }
 
 impl FnSig {
@@ -330,6 +336,7 @@ impl FnSig {
             row: RowId::EMPTY,
             suspends: false,
             variadic: false,
+            lifetimes: Vec::new(),
         }
     }
 }
@@ -1079,6 +1086,10 @@ fn put_sig(w: &mut Writer, t: &mut TableWriter<'_>, s: &FnSig) -> StageResult<()
     w.u32(t.ty(s.ret)?);
     w.u32(t.row_id(s.row)?);
     w.u8(u8::from(s.suspends) | (u8::from(s.variadic) << 1));
+    w.len_of(&s.lifetimes);
+    for l in &s.lifetimes {
+        w.u32(u32::from(*l));
+    }
     Ok(())
 }
 
@@ -1094,6 +1105,10 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
     let ret = t.ty(r.u32())?;
     let row = RowId(*t.rows.get(r.u32() as usize)?);
     let flags = r.u8();
+    let mut lifetimes = Vec::new();
+    for _ in 0..r.count() {
+        lifetimes.push(u16::try_from(r.u32()).ok()?);
+    }
     Some(FnSig {
         generics,
         params,
@@ -1102,6 +1117,7 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
         row,
         suspends: flags & 1 != 0,
         variadic: flags & 2 != 0,
+        lifetimes,
     })
 }
 

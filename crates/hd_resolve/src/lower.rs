@@ -1578,6 +1578,9 @@ struct Gen {
     /// its (default-filled) arguments.
     tys: Vec<(Symbol, Ty, Vec<BoundRef>)>,
     rows: Vec<(Symbol, RowParamRef)>,
+    /// Lifetime variables in scope, spelled with their `'`
+    /// (`types.lifetime.scope`).
+    lifetimes: Vec<Symbol>,
     /// Where each type parameter's name is declared.
     decls: Vec<(Symbol, Span)>,
     self_ty: Option<Ty>,
@@ -1602,6 +1605,7 @@ impl Gen {
             self.decls.len(),
             self.bounded.len(),
             self.pending.len(),
+            self.lifetimes.len(),
         );
         let context = (self.self_ty, self.self_trait);
         let value = lower(self);
@@ -1610,6 +1614,7 @@ impl Gen {
         self.decls.truncate(lengths.2);
         self.bounded.truncate(lengths.3);
         self.pending.truncate(lengths.4);
+        self.lifetimes.truncate(lengths.5);
         (self.self_ty, self.self_trait) = context;
         value
     }
@@ -1630,6 +1635,9 @@ struct Lower<'a, 'r, 'x> {
     /// Type parameters already reported as used in a row: one error per
     /// parameter, at its first use.
     kind_reported: HashSet<u32>,
+    /// While a signature's parameter or result type is lowered: the
+    /// lifetime of each local reference slot so far (`FnSig::lifetimes`).
+    slots: Option<Vec<u16>>,
     /// The module's block-local declarations.
     locals: &'a [LocalItem],
     /// The byte where the header being lowered is declared: the local
@@ -2265,6 +2273,7 @@ impl Lower<'_, '_, '_> {
             }
             return Ty::POISON;
         };
+        let before = self.slots.as_ref().map(Vec::len);
         let (args, bindings, row) = self.type_args(n, gn);
         // Only a trait has associated types (trait.binding.non-trait).
         if matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
@@ -2277,7 +2286,103 @@ impl Lower<'_, '_, '_> {
             );
             self.diags.error(Code::UnknownAssociatedType, span, &msg);
         }
-        self.ctor(def, (kind, gn, referent), &args, row, span)
+        let t = self.ctor(def, (kind, gn, referent), &args, row, span);
+        if let Some(before) = before {
+            // An alias may move or repeat its arguments, so a lifetime
+            // written in one has no known slot.
+            if kind == HeadKind::Alias {
+                self.unplaced_slots(n, before);
+            }
+            self.place_slots(n, before, t, true);
+        }
+        t
+    }
+
+    /// `types.lifetime.declare`: each `'name` of a generic list joins the
+    /// scope. A lifetime is not checked yet, so declaring one is an error
+    /// until its checks land (`ref.lifetime.not-yet`).
+    fn declare_lifetimes(&mut self, gl: NodeRef<'_>, gn: &mut Gen) {
+        for p in gl
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::LifetimeParameter)
+        {
+            let Some(t) = p.direct_token(&self.src.parse.tokens, TokenKind::Lifetime) else {
+                continue;
+            };
+            let name = self.sym_token(t);
+            if self.r.frozen.is_none() {
+                let text = self.src.text(t);
+                if gn.lifetimes.contains(&name) {
+                    let msg = format!("`{text}` is already a lifetime in scope");
+                    self.diags
+                        .error(Code::DuplicateBinding, self.src.span(p), &msg);
+                } else {
+                    let msg = format!(
+                        "lifetime `{text}` is not checked yet: remove it and let the reference's source be inferred"
+                    );
+                    self.diags
+                        .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
+                }
+            }
+            gn.lifetimes.push(name);
+        }
+    }
+
+    /// The lifetime written directly in `n` (a reference type or a
+    /// receiver): 0 when elided, else its 1-based place in scope. An
+    /// undeclared one is `unknown-lifetime` (`types.lifetime.unknown`).
+    fn lifetime(&mut self, n: NodeRef<'_>, gn: &Gen) -> u16 {
+        let Some(t) = n.direct_token(&self.src.parse.tokens, TokenKind::Lifetime) else {
+            return 0;
+        };
+        let name = self.sym_token(t);
+        if let Some(i) = gn.lifetimes.iter().position(|l| *l == name) {
+            return u16::try_from(i + 1).unwrap_or(u16::MAX);
+        }
+        if self.r.frozen.is_none() {
+            let text = self.src.text(t);
+            let msg = format!(
+                "no lifetime named `{text}` here: declare it in the generic list, as in `['{}]`",
+                &text[1..]
+            );
+            self.diags
+                .error(Code::UnknownLifetime, self.src.token_span(t), &msg);
+        }
+        0
+    }
+
+    /// Lines the slots recorded since `before` up with the reference slots
+    /// of `t`, lowered from `n`. Where they differ (a type alias, a
+    /// function type, a counted reference), a written lifetime cannot be
+    /// placed and is not checked yet. A data type's defaulted arguments
+    /// (`trailing`) add elided slots after the written ones.
+    fn place_slots(&mut self, n: NodeRef<'_>, before: usize, t: Ty, trailing: bool) {
+        let want = self.names.pool.types().ref_slots(t);
+        let Some(slots) = &mut self.slots else { return };
+        let have = slots.len() - before;
+        if have == want {
+            return;
+        }
+        if !(trailing && have < want) {
+            self.unplaced_slots(n, before);
+        }
+        let slots = self.slots.as_mut().expect("recording");
+        slots.resize(before + want, 0);
+    }
+
+    /// Drops the slots recorded since `before`; a written lifetime among
+    /// them is not checked yet.
+    fn unplaced_slots(&mut self, n: NodeRef<'_>, before: usize) {
+        let Some(slots) = &mut self.slots else { return };
+        let written = slots[before..].iter().any(|l| *l != 0);
+        slots.truncate(before);
+        if written && self.r.frozen.is_none() {
+            self.diags.error(
+                Code::ReferencesNotYetChecked,
+                self.src.span(n),
+                "a lifetime here is not checked yet",
+            );
+        }
     }
 
     /// Whether `t` may be the inputs argument of `Fn` or `SuspendFn`: a
@@ -2304,6 +2409,15 @@ impl Lower<'_, '_, '_> {
     // it is never a sized value type in its own right.
     fn ty_at(&mut self, n: Option<NodeRef<'_>>, gn: &Gen, referent: bool) -> Ty {
         let Some(n) = n else { return Ty::VOID };
+        let Some(before) = self.slots.as_ref().map(Vec::len) else {
+            return self.ty_form(n, gn, referent);
+        };
+        let t = self.ty_form(n, gn, referent);
+        self.place_slots(n, before, t, false);
+        t
+    }
+
+    fn ty_form(&mut self, n: NodeRef<'_>, gn: &Gen, referent: bool) -> Ty {
         let pool = self.names.pool;
         let first_ty = |me: &mut Self, n: NodeRef<'_>| -> Ty {
             let c = n.children().find(|c| c.kind().is_type());
@@ -2565,6 +2679,10 @@ impl Lower<'_, '_, '_> {
                 let counted = n
                     .direct_token(&self.src.parse.tokens, TokenKind::Star)
                     .is_some();
+                let lifetime = self.lifetime(n, gn);
+                if !counted && let Some(slots) = &mut self.slots {
+                    slots.push(lifetime);
+                }
                 let inner = self.ty_at(n.children().find(|c| c.kind().is_type()), gn, true);
                 let suspend = self.names.known.suspend;
                 let inner = match pool.get(inner) {
@@ -2596,6 +2714,7 @@ impl Lower<'_, '_, '_> {
         gn: &mut Gen,
     ) -> Vec<Generic> {
         let Some(gl) = gl else { return Vec::new() };
+        self.declare_lifetimes(gl, gn);
         let params: Vec<NodeRef<'_>> = gl
             .children()
             .filter(|c| c.kind() == SyntaxKind::GenericParameter)
@@ -2881,6 +3000,7 @@ impl Lower<'_, '_, '_> {
         let mut params = Vec::new();
         let mut defaults = Vec::new();
         let mut variadic = false;
+        let saved = self.slots.replace(Vec::new());
         if let Some(pl) = Src::child(f, SyntaxKind::ParameterList) {
             let nodes: Vec<NodeRef<'_>> = pl
                 .children()
@@ -2914,6 +3034,13 @@ impl Lower<'_, '_, '_> {
                     } else {
                         st
                     };
+                    // ref.lifetime.receiver: `&'a self`.
+                    let lifetime = self.lifetime(p, gn);
+                    if let Some(slots) = &mut self.slots {
+                        let at = slots.len();
+                        slots.push(lifetime);
+                        slots.resize(at + pool.types().ref_slots(st), 0);
+                    }
                     params.push((self.sym_token(token), st));
                     defaults.push(false);
                     continue;
@@ -2970,6 +3097,10 @@ impl Lower<'_, '_, '_> {
         let before = self.opaque_result.replace((owner, 0));
         let ret = self.ty(Src::type_child(f), gn);
         self.opaque_result = before;
+        let mut lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+        if lifetimes.iter().all(|l| *l == 0) {
+            lifetimes = Vec::new();
+        }
         let row = self.row(Src::child(f, SyntaxKind::RequirementRow), gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
@@ -2982,6 +3113,7 @@ impl Lower<'_, '_, '_> {
             row,
             suspends,
             variadic,
+            lifetimes,
         }
     }
 
@@ -4711,6 +4843,7 @@ fn lower_aliases(
                 unsupported: None,
                 opaque_result: None,
                 kind_reported: HashSet::default(),
+                slots: None,
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
                 outer: Vec::new(),
@@ -4774,6 +4907,7 @@ fn lower_aliases(
                 unsupported: None,
                 opaque_result: None,
                 kind_reported: HashSet::default(),
+                slots: None,
                 locals: &locals[mi],
                 at: 0,
                 outer: Vec::new(),
@@ -6063,6 +6197,7 @@ pub fn build_folder_with_facts(
                     unsupported: None,
                     opaque_result: None,
                     kind_reported: HashSet::default(),
+                    slots: None,
                     locals: &locals,
                     at: 0,
                     outer: Vec::new(),
@@ -6172,6 +6307,7 @@ pub fn build_folder_with_facts(
                 unsupported: None,
                 opaque_result: None,
                 kind_reported: HashSet::default(),
+                slots: None,
                 locals: &[],
                 at: 0,
                 outer: Vec::new(),
@@ -6308,6 +6444,7 @@ fn own_trait_generics(
                 unsupported: None,
                 opaque_result: None,
                 kind_reported: HashSet::default(),
+                slots: None,
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
@@ -6510,6 +6647,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                     row: pool.subst_row(sig.row, &at),
                     suspends: sig.suspends,
                     variadic: sig.variadic,
+                    lifetimes: sig.lifetimes.clone(),
                 };
                 fwd.push(Item::new(
                     def,
@@ -6575,6 +6713,7 @@ fn own_trait_supers(
                 unsupported: None,
                 opaque_result: None,
                 kind_reported: HashSet::default(),
+                slots: None,
                 locals: &locals,
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),

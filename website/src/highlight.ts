@@ -120,6 +120,15 @@ export function classify(line: string): Span[] {
       continue;
     }
     if (character === "'") {
+      // A name with no closing quote is a lifetime (01-lexical-structure.md#lifetimes).
+      const lifetime = /^'[\p{ID_Start}_][\p{ID_Continue}_]*(?!['\p{ID_Continue}_])/u.exec(
+        line.slice(index),
+      );
+      if (lifetime) {
+        push(lifetime[0], "plain");
+        index += lifetime[0].length;
+        continue;
+      }
       const end = scanChar(line, index);
       push(line.slice(index, end), "string");
       index = end;

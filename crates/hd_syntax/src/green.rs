@@ -26,6 +26,8 @@ pub enum SyntaxKind {
     DefaultValue,
     GenericParameterList,
     GenericParameter,
+    /// `'name` in a generic list (`types.lifetime.declare`).
+    LifetimeParameter,
     BoundList,
     TypeDefault,
     TypeArgumentList,
@@ -387,6 +389,7 @@ ast_nodes! {
     DefaultValue => DefaultValue,
     GenericParameterList => GenericParameterList,
     GenericParameter => GenericParameter,
+    LifetimeParameter => LifetimeParameter,
     BoundList => BoundList,
     TypeDefault => TypeDefault,
     TypeArgumentList => TypeArgumentList,

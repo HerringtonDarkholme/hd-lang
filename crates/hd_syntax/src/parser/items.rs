@@ -356,6 +356,19 @@ impl Parser<'_> {
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
             let before = self.pos();
             let param = self.start();
+            // grammar.generic.lifetime.alone: a lifetime takes no variance, bound
+            // or default.
+            if self.eat(TokenKind::Lifetime) {
+                self.complete(param, SyntaxKind::LifetimeParameter);
+                if !self.eat(TokenKind::Comma) {
+                    if !self.at(TokenKind::RBracket) {
+                        self.expected("',' or ']'");
+                        self.skip_to_list_end(TokenKind::RBracket);
+                    }
+                    break;
+                }
+                continue;
+            }
             let variance = matches!(self.current(), Some(TokenKind::Plus | TokenKind::Minus))
                 && mode == Generics::Type;
             if variance {
@@ -483,14 +496,18 @@ impl Parser<'_> {
                 // grammar.fn.receiver-ref: `&self` and `&mut self` refer to
                 // the caller's value; grammar.fn.receiver-counted: so do
                 // `*self` and `*mut self`.
-                let amp_self = (self.at(TokenKind::Amp) || self.at(TokenKind::Star))
-                    && match self.nth(1) {
+                // ref.lifetime.receiver: `&'a self` and `&'a mut self`.
+                let amp = self.at(TokenKind::Amp);
+                let at = usize::from(amp && self.nth(1) == Some(TokenKind::Lifetime));
+                let amp_self = (amp || self.at(TokenKind::Star))
+                    && match self.nth(1 + at) {
                         Some(TokenKind::KwSelfValue) => true,
-                        Some(TokenKind::KwMut) => self.nth(2) == Some(TokenKind::KwSelfValue),
+                        Some(TokenKind::KwMut) => self.nth(2 + at) == Some(TokenKind::KwSelfValue),
                         _ => false,
                     };
                 if amp_self {
                     self.bump();
+                    self.eat(TokenKind::Lifetime);
                 }
                 self.eat(TokenKind::KwMut);
                 if self.at(TokenKind::KwSelfValue) {

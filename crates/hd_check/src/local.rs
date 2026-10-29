@@ -169,6 +169,15 @@ impl Ck<'_, '_> {
             // `fn work[T]`.
             let mut reused = false;
             for g in gl.children() {
+                // ref.lifetime.not-yet: a local function's lifetime too.
+                if g.kind() == SyntaxKind::LifetimeParameter {
+                    let msg = format!(
+                        "lifetime `{}` is not checked yet",
+                        src.text(g.first_token())
+                    );
+                    self.err(Code::ReferencesNotYetChecked, g, &msg);
+                    continue;
+                }
                 if let Some(gt) = g.name(toks) {
                     let gs = src.symbol(gt, self.cx.names.syms);
                     if self.gens.iter().any(|(x, _)| *x == gs) {

@@ -1,0 +1,8 @@
+# test: an implementation's lifetime parameter is references-not-yet-checked
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.
+struct User:
+    name: string
+
+impl['a] User:  # diagnostic: references-not-yet-checked
+    fn label(&'a self) -> &'a string:
+        &self.name

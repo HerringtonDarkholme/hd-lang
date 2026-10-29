@@ -1,0 +1,4 @@
+# test: an apostrophe and a name with no closing quote is a lifetime
+# Spec 01 Lifetimes: lex.lifetime.form.
+initial := 'a'
+name := 'a  # diagnostic: syntax-error

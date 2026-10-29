@@ -1,0 +1,11 @@
+struct Pair[T]:
+    left: T
+
+fn choose['a](a: &'a i32, b: &'a mut i32, c: List[&'a i32]) -> &'a i32:
+    a
+
+impl['a, T] Pair[T]:
+    fn left(&'a self) -> &'a T:
+        &self.left
+    fn left_mut(&'a mut self) -> &'a mut T?:
+        .None
