@@ -11,7 +11,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use hd_base::{DefId, Hash128, HashMap, HashSet, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
-use hd_tir::ir::{Body, Callee};
+use hd_tir::ir::{Body, Callee, Ref, Tag, place};
 use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
 
 /// The most instructions a callee's body may have for a call of it to
@@ -402,10 +402,11 @@ impl dyn InlineEnv + '_ {
         };
         let r = caller.record(caller.data[c][1]);
         let args = &r[..r.len().saturating_sub(3)];
-        let params = (0..copy.local_ty.len())
-            .filter(|&l| copy.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0);
+        let params: Vec<usize> = (0..copy.local_ty.len())
+            .filter(|&l| copy.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0)
+            .collect();
         let mut n = 0;
-        for (l, &a) in params.zip(args) {
+        for (l, &a) in params.into_iter().zip(args) {
             n += 1;
             // A `()` argument has no value; its `Store` stores none.
             if a == hd_tir::ir::NONE {
@@ -427,12 +428,61 @@ impl dyn InlineEnv + '_ {
                 || lends_by_kind(pool, self.ref_cells(), arg, want)
             {
                 copy.local_ty[l] = arg;
+                keep_parameter_carrier(pool, self.ref_cells(), copy, l);
             } else if !fits(Some(arg), want) {
                 return false;
             }
         }
         let root = copy.sub_root.first().map(|&r| copy.ty[r as usize]);
         n == args.len() && root.is_some_and(|root| fits(open(caller.ty[c]), root))
+    }
+}
+
+/// Carries a rebound parameter's reference kind through copies already
+/// inlined into `copy`. Bottom-up inlining may have bound a nested
+/// `&mut self` to a read of the outer parameter before this caller made
+/// that parameter counted. Its whole reads and the binding locals they
+/// fill must follow the argument's carrier too; otherwise ownership sees
+/// a `Ref` read of a `Counted` local and inserts a page-table count.
+fn keep_parameter_carrier(pool: &InternPool, cells: RefCells, copy: &mut Body, param: usize) {
+    let mut locals = vec![false; copy.local_ty.len()];
+    locals[param] = true;
+    let mut values = vec![false; copy.len()];
+    let mut stores = vec![0u32; copy.local_ty.len()];
+    for (data, &tag) in copy.data.iter().zip(&copy.tags) {
+        let word = data[0];
+        if tag == Tag::Store && word & place::BARE_LOCAL != 0 {
+            stores[(word & !place::BARE_LOCAL) as usize] += 1;
+        }
+    }
+    for i in 0..copy.len() {
+        if let Some(local) = copy.local_read(i)
+            && locals[local.idx()]
+        {
+            let carrier = copy.local_ty[local.idx()];
+            if copy.ty[i] == carrier || lends_by_kind(pool, cells, carrier, copy.ty[i]) {
+                copy.ty[i] = carrier;
+                values[i] = true;
+            }
+        }
+        if copy.tags[i] == Tag::Store {
+            let [word, value] = copy.data[i];
+            let local =
+                (word & place::BARE_LOCAL != 0).then_some((word & !place::BARE_LOCAL) as usize);
+            let source = Ref(value).as_inst().map(|v| v.0 as usize);
+            if let (Some(local), Some(source)) = (local, source)
+                && values.get(source) == Some(&true)
+                && stores[local] == 1
+            {
+                let carrier = copy.ty[source];
+                if copy.local_ty[local] == carrier
+                    || lends_by_kind(pool, cells, carrier, copy.local_ty[local])
+                {
+                    copy.local_ty[local] = carrier;
+                    locals[local] = true;
+                }
+            }
+        }
     }
 }
 
@@ -509,7 +559,70 @@ mod tests {
     use std::cell::RefCell;
     use std::collections::BTreeMap;
 
-    use super::bottom_up;
+    use hd_base::DefId;
+    use hd_tir::ir::{Body, BodyKind, ReadMode, Tag, local_flags, place};
+    use hd_types::{InternPool, RefCells, Ty, TyData};
+
+    use super::{bottom_up, keep_parameter_carrier};
+
+    /// A counted parameter flows through the unique binding local of an
+    /// already-inlined method. A local with another write stays local:
+    /// changing it would make that unrelated write ill typed.
+    #[test]
+    fn parameter_carrier_follows_only_unique_binding_stores() {
+        let pool = InternPool::new();
+        let cells = RefCells {
+            local: DefId::from_raw(70),
+            counted: DefId::from_raw(71),
+        };
+        let local = pool.lower_refs(
+            cells,
+            pool.intern_ty(&TyData::Ref {
+                inner: Ty::I32,
+                mutable: true,
+                counted: false,
+            }),
+        );
+        let counted = pool.lower_refs(
+            cells,
+            pool.intern_ty(&TyData::Ref {
+                inner: Ty::I32,
+                mutable: true,
+                counted: true,
+            }),
+        );
+        let mut body = Body::new(DefId::from_raw(1), BodyKind::Fn);
+        body.local_ty = vec![counted, local, local, local];
+        body.local_flags = vec![local_flags::PARAM, 0, 0, 0];
+        body.tags = vec![
+            Tag::Read,
+            Tag::Store,
+            Tag::Read,
+            Tag::Store,
+            Tag::Read,
+            Tag::Store,
+        ];
+        body.data = vec![
+            [place::BARE_LOCAL, ReadMode::Use as u32],
+            [place::BARE_LOCAL | 1, 0],
+            [place::BARE_LOCAL, ReadMode::Use as u32],
+            [place::BARE_LOCAL | 2, 2],
+            [place::BARE_LOCAL | 3, ReadMode::Use as u32],
+            [place::BARE_LOCAL | 2, 4],
+        ];
+        body.ty = vec![local, Ty::VOID, local, Ty::VOID, local, Ty::VOID];
+
+        keep_parameter_carrier(&pool, cells, &mut body, 0);
+
+        assert_eq!(body.ty[0], counted);
+        assert_eq!(body.local_ty[1], counted);
+        assert_eq!(body.ty[2], counted);
+        assert_eq!(
+            body.local_ty[2], local,
+            "two writes keep the declared carrier"
+        );
+        assert_eq!(body.ty[4], local, "the unrelated read stays local");
+    }
 
     /// Walks `edges` from each of `roots` in turn, as collection demands
     /// bodies, and gives each node a summary that reads its callees'

@@ -95,8 +95,11 @@
 //! such an instance the read holds that fresh value's count, and the drop
 //! releases it; where the read borrows, the drop releases nothing.
 //!
-//! The decisions run in instruction order, so the reads a chain goes
-//! through are decided first. Every write, call and suspension point is
+//! The decisions run forward first, for source forms whose inner binding
+//! precedes the outer one (a match arm), then backward, for bottom-up
+//! inlined copies whose outer binding precedes the inner one. A decided
+//! borrow only removes kept reads and drops, so the second pass is
+//! monotone. Every write, call and suspension point is
 //! indexed once, by the root it writes (resolved the same way), in rows
 //! sorted by instruction; a span's check is a binary search per row.
 //! Nothing is spliced here: the `Drop`s that go are recorded as edits for
@@ -464,7 +467,14 @@ pub(crate) fn run(
     }
     index_writes(b, cx, t);
     lent_params(b, cx, t, edits);
+    // Source bindings such as a match arm precede what binds their value;
+    // bottom-up inlining puts an outer parameter binding before the
+    // nested method's. Each direction therefore exposes binding chains
+    // to the other without undoing any decision.
     for r in 0..n {
+        decide(b, topo, cx, t, edits, r);
+    }
+    for r in (0..n).rev() {
         decide(b, topo, cx, t, edits, r);
     }
     lent_refs(b, t);

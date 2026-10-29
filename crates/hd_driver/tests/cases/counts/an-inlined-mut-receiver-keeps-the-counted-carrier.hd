@@ -1,0 +1,25 @@
+# @dump: own counts
+# @build: v8 release
+# A counted receiver lent to an inlined `&mut self` method keeps its
+# whole-object carrier, so the borrow needs no retain or release.
+use std.annotation.inline
+
+trait Reject:
+    fn reject(&mut self) -> void
+
+struct Context:
+    errors: usize
+
+impl Reject for Context:
+    @inline(.Always)
+    fn reject(&mut self) -> void:
+        self.errors += 1
+
+@inline(.Always)
+fn reject_bound[T < Reject](context: &mut T) -> void:
+    context.reject()
+
+fn reject_once(context: *mut Context) -> usize:
+    # subject
+    reject_bound(context)
+    context.errors
