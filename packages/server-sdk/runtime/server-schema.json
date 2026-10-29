@@ -2,9 +2,9 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "000a9f8526c6f9e63feb676aefef5f2a44d0d23e",
-    "compilerBaseRevision": "000a9f8526c6f9e63feb676aefef5f2a44d0d23e",
-    "compilerSha256": "5fad67308392fde6b3248b1e8e393a44be5a9aa6550a0a8e89c681f9bf3418c9",
+    "sourceBaseRevision": "9592ba4957a10779eb1a2425ea52c8029daafb91",
+    "compilerBaseRevision": "9592ba4957a10779eb1a2425ea52c8029daafb91",
+    "compilerSha256": "359c9baec57f95ca6f893e957a1e4e632fd07b63aec6541b11c31f1e9e9baba4",
     "referenceWasmSha256": "fe00e9f4d5dbc9995beac2461926f9bc1d69a0a5e6e08c1be0994483f2b12ba6",
     "referenceContractSha256": "0ae815899097fd8e963b753c253a7b437c43ba009b87b56027b5e51c0a6eb9e0",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
@@ -1183,5 +1183,5 @@
       }
     ]
   },
-  "fingerprint": "58f26c66a0c7510c8ac2a52462e21e4cd82c2c0eab8c43032051ec19a09830c4"
+  "fingerprint": "324a41c9f22c0e2e813c83849e635d85288af1da7b5bf5d6019c890106e274f0"
 }
