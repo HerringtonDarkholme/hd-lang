@@ -53,6 +53,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834); step 2 is not adopted (#704 shipped as a release-only fact instead), and later steps need approval.
+- [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): study; staged path from dependent results (stage 1, elided sources, no exclusivity) to Swift-6.4-style lifetime dependence (#978, #995); not accepted.
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
 - [Release-Only Interprocedural Optimization](RELEASE_INTERPROC.md): built 2026-10-25 in the optimized pipeline only: per-function summaries over SCCs (slices 2-5: kept parameters, writes, lent parameters). Slices 6-9 measured no gain and were not merged (#681 closed); results on #165.
