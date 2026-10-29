@@ -491,6 +491,7 @@ rejects it.
 | suspension | A suspending body keeps its locals in its frame object, so a result across `!` is counted. A bang function may have a dependent result |
 | recursion | `fn last(n: &Node) -> &Node` over `next: *Node?` is an error: the payload copy `m` is a local root. A `*Node` result is the natural type there, as `Rc` is in Rust |
 | a reference to a temporary | `make().name()` binds a hidden local that lives until the result's last use. hd frees at last use, not at scope end, so Rust's E0716 does not arise |
+| a reference to an inner block's local, stored in an outer binding (`if b: let c = 123; a = &c`, then `*a` after the block) | Valid, and valid in every later stage. `c` is address-taken and not only a call argument, so it lives in a counted cell, and `a`'s count keeps it past the block (prints 123 today, dev and release). As with temporaries, storage lives to its last use, not to scope end, so Rust's E0597 does not arise. Stage 8 may drop that count only where it proves every use of `a` ends inside `c`'s block; otherwise the cell stays |
 
 **Holes.** None found. Stage 1 also closes one that exists today: a
 declared `&T` passed to a generic `T` is accepted (probe below). A generic
