@@ -4,7 +4,7 @@ Status: design accepted 2026-10-28 as a future package, not in std; not schedule
 
 This proposal addresses [#840](https://github.com/HerringtonDarkholme/hd-lang/issues/840).
 It adds one `std.decimal.Decimal` value with a fixed 128-bit representation.
-The [checked package](decimal/) contains every proposed signature and its usage examples.
+The checked package with every proposed signature and its usage examples is in git history at 5d6992009, `docs/future-work/decimal/`.
 
 ## Proposal
 

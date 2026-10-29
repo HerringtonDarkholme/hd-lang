@@ -15,13 +15,13 @@ action at a distance.
 ## What Remains
 
 Parked designs are not kept here; each lives in its GitHub issue, indexed by #833, which
-stays open (#18, #163, #166, #181, #182, #184, #646, #807).
+stays open (#18, #163, #166, #181, #182, #646, #807).
 
 ### Application and host
 
-- [HTTP Multipart Forms](HTTP_MULTIPART.md): buffered `multipart/form-data` parts over the existing HTTP message types; design accepted 2026-10-28, implementation not started (#948).
-- [HTTP Response Decompression](HTTP_DECOMPRESSION.md): host-side gzip and deflate decoding for every send, with a 64 MiB decoded-body cap; design accepted 2026-10-28, not implemented (#949).
-- [Validation](VALIDATION.md): short design and [checked signatures and examples](validation/) for typed JSON/CLI/environment validation; design accepted 2026-10-28, implementation not started (#846).
+- [HTTP Multipart Forms](HTTP_MULTIPART.md): buffered `multipart/form-data` parts over the existing HTTP message types; design accepted 2026-10-28, being built (#948).
+- [HTTP Response Decompression](HTTP_DECOMPRESSION.md): host-side gzip and deflate decoding for every send, with a 64 MiB decoded-body cap; design accepted 2026-10-28, being built (#949).
+- [Validation](VALIDATION.md): short design and [checked signatures and examples](validation/) for typed JSON/CLI/environment validation; design accepted 2026-10-28 and revised 2026-10-29 (no rule wrappers, a `message =` argument, payload-typed facts on optional members); being built (#976).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
@@ -37,7 +37,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #807).
 - [Build-Profile-Dependent Code](BUILD_PROFILE_CODE.md): accepted `@cfg(.Debug)` and
   `@cfg(.Release)` declaration variants, checked in every profile (#965).
 - [Enum Tagging Facts](ENUM_TAGGING.md): internal, adjacent and untagged serde enum forms as one fact; design accepted 2026-10-28, not implemented (#954).
-- [Design By Contract](DESIGN_BY_CONTRACT.md): `require(message, condition)` as ordinary std code, checked in every profile until `@cfg` splits it; `ensure` waits on #961/#962; design accepted 2026-10-28 (#880).
+- [Design By Contract](DESIGN_BY_CONTRACT.md): `require(message, condition)` as ordinary std code, checked in every profile until `@cfg` splits it; `ensure` deferred to tier 2 (#978); design accepted 2026-10-28 (#880).
 - [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
 

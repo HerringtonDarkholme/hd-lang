@@ -1,8 +1,8 @@
 # Scope Guards
 
-**Status:** design accepted 2026-10-28; not implemented. The checked package
-beside this document models only what current hd can express; comments marked
-`Target` are hypothetical.
+**Status:** design accepted 2026-10-28; being built (#962). The checked package
+that modeled today's guard is in git history at 628a7f92e,
+`docs/future-work/scope-guards/`.
 
 ## What The First Build Covers
 
@@ -361,9 +361,8 @@ a guard. That is the under-built state this issue asks to address.
 
 Today's `Disposable.dispose!` may suspend, so `using` is legal only under a
 driver. Current closures cannot capture local references, and current ordinary
-bindings never register cleanup. The checked package beside this document
-models a guard with today's suspending protocol and marks all target syntax in
-comments.
+bindings never register cleanup. The package at 628a7f92e modeled a guard
+with today's suspending protocol and marked all target syntax in comments.
 
 ## Appendix E: Details Deferred Elsewhere
 

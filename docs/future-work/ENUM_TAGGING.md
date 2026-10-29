@@ -311,7 +311,7 @@ It repeats member names, defaults, and nested paths, which defeats the derivatio
 
 `std.serde` has `Rename`, `RenameAll`, `Skip`, and `SkipNone` facts.
 `Facts` already reaches each serializer and deserializer variant call.
-The default enum form is external, with #953 proposing unit, newtype, tuple, and record payload shapes.
+The default enum form is external, with the unit, newtype, tuple, and record payload shapes that #953 shipped.
 
 `Rename` targets fields only.
 An enum's `RenameAll` currently changes its payload member names but leaves `VariantInfo.name` unchanged.
