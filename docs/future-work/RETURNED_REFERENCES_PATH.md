@@ -178,10 +178,34 @@ impl[T] Pair[T]:
 A lifetime variable is a generic parameter, as in Rust. Two references
 with one variable may both be the source. Stage 6 reuses the same variables
 in struct and enum fields (`struct Parser['a]`), and a store into a
-caller's place shares one (`xs: &mut List[&'a T], x: &'a T`). The spelling
-of a variable is chosen at stage 3; `'a` here is Rust's. A function type takes the
-same elision as a declaration, so `fn(&User) -> &string` depends on its
-one parameter.
+caller's place shares one (`xs: &mut List[&'a T], x: &'a T`). A function
+type takes the same elision as a declaration, so `fn(&User) -> &string`
+depends on its one parameter.
+
+**A candidate syntax, not decided.** One source set may hold every kind of
+source, as Mojo 1.0's `ref[...]` holds both expressions and origin
+parameters:
+
+```text
+fn get_name(user: &User) -> &{user.name} string        # a field path   (hypothetical syntax)
+fn first(&self) -> &{self.items[_]} T?                 # an element      (hypothetical syntax)
+fn choose(a: &User, b: &User) -> &{a, b} User          # either source   (hypothetical syntax)
+struct Parser[^src]:                                    # a lifetime variable on a type
+    text: &{^src} string                                # (hypothetical syntax)
+fn push[^a, T](xs: &mut List[&{^a} T], x: &{^a} T)     # a store into a caller's place
+```
+
+A path makes stage 7's freeze precise: while `n := get_name(&u)` lives,
+only `u.name` is locked, so stage 9's views would not be needed. Open
+points:
+- the sigil (`^l`, `'l` or another);
+- paths through private fields in a `pub` signature;
+- traits, which can't name an impl's fields;
+- precision past a `*mut` on the path.
+
+Before stage 3 starts, a study (#1005) prices it: the implementation cost of
+path-aware loans across calls, and a stress test on real code against
+plain lifetime variables.
 
 ### Stage 4: element results
 
