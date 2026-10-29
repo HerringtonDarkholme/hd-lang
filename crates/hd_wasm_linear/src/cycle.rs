@@ -161,11 +161,11 @@ fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     }
 }
 
-/// Whether a walk from `start` over the types they hold meets a
-/// reference or an open value. An exactly repeated instantiated data type
-/// ends that branch. Repeating its declaration at different arguments is
-/// conservatively capable: a deeper instance may expose a reference that
-/// the first instance did not.
+/// Whether a walk from `start` over the types they hold meets a reference
+/// or an open value. An exactly repeated instantiated data type ends that
+/// branch. A declaration repeated at different arguments is unfolded four
+/// times; its fifth appearance is conservatively capable, because
+/// polymorphic recursion can expose a reference only in a deeper instance.
 fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
     let mut work: Vec<(Ty, Vec<Ty>)> = start.iter().map(|t| (*t, Vec::new())).collect();
     while let Some((t, path)) = work.pop() {
@@ -181,11 +181,18 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
                 if path.contains(&t) {
                     continue;
                 }
-                // A declaration at new arguments may expose a reference in
-                // a parameter position only at the deeper instance.
-                if path.iter().any(|ancestor| {
-                    matches!(pool.get(*ancestor), TyData::Adt { def: seen, .. } if seen == def)
-                }) {
+                // A declaration at growing arguments may expose a reference
+                // in a parameter position only at a deeper instance. Four
+                // finite nestings are still walked exactly; polymorphic
+                // recursion necessarily reaches a fifth.
+                if path
+                    .iter()
+                    .filter(|ancestor| {
+                        matches!(pool.get(**ancestor), TyData::Adt { def: seen, .. } if seen == def)
+                    })
+                    .count()
+                    >= 4
+                {
                     return true;
                 }
                 match env.std_kind(def) {

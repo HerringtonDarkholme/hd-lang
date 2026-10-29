@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: release
+# Reusing a generic collection declaration at finitely nested arguments
+# does not make the object that stores those values cycle-capable.
+
+struct Nested:
+    lists: List[List[i32]]
+    maps: Map[string, Map[string, i32]]
+
+fn make() -> *Nested:
+    &Nested { lists: [[+1]], maps: { "outer": { "inner": +1 } } }
