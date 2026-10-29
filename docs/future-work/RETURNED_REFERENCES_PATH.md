@@ -193,7 +193,7 @@ fn bump_first(xs: &mut List[i64]) -> void:
 
 The run time already supports kept element references: each copy holds a
 count of the buffer, which is the pin, until its last use (DESIGN.md
-§23.20). So stage 4 is checker work, plus the owner's answer to question 2.
+§23.20). So stage 4 is checker work.
 
 ## Stage 1 In Full
 
@@ -557,8 +557,8 @@ public ref int GetReferenceToMax() {
 C# is the closest shipped analogue of stage 1. Ref returns have no
 exclusivity, the GC keeps the heap safe, and "ref-safe contexts" keep a
 reference from outliving a stack variable. A call's result is as narrow as
-its narrowest ref argument, and `scoped` narrows a parameter. That is the
-alternative of question 3. Source:
+its narrowest ref argument, and `scoped` narrows a parameter. hd takes
+Rust's elision instead, which ties a result to one source. Source:
 [C# reference variables](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/declarations#reference-variables).
 
 ## Appendix B: Today In hd, Verified
