@@ -167,7 +167,7 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
     while scratch.len() < slot_count:
         scratch.push(.None)
     let mut stack: List[*Frame] = []
-    let current: &mut List[usize] = &mut []
+    let current: *mut List[usize] = box::[List[usize]]([])
     scratch[0] = .Some(from)
     add_thread(
         program,
@@ -186,7 +186,7 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
     let mut found: List[usize?] = []
     let index = from
     while true:
-        let mut next: List[usize] = []
+        next := box::[List[usize]]([])
         let next_index = index
         if index < count:
             next_index = index + 1
@@ -212,7 +212,7 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
                     &mut marks,
                     &mut stack,
                     next_index,
-                    &mut next,
+                    next,
                     &mut table,
                     there,
                     &mut scratch,
@@ -235,7 +235,7 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
                 &mut marks,
                 &mut stack,
                 index,
-                &mut next,
+                next,
                 &mut table,
                 there,
                 &mut scratch,
@@ -247,7 +247,7 @@ fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> L
         else:
             if next.len() == 0:
                 break
-        current = &mut next
+        current = next
     if found.len() == 0:
         return .None
     .Some(found)
