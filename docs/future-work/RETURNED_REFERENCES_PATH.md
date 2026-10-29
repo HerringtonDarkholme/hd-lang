@@ -67,12 +67,16 @@ Three models were weighed as end states. Appendix A has the prior art.
 | Ordinary code | no marks | no marks; inference rules | elision, with explicit `'a` in data types |
 | Fit with hd today | keeps aliasable `&mut` | needs exclusivity, which hd has only for length (E) | needs exclusivity everywhere, plus flags at every `*mut` |
 
-**Recommendation.** Swift 6.4's lifetime dependence is the end state:
+**The end state** is Rust's lifetimes laid over hd's counted references:
 
-- A result, and later a stored value, depends on named sources.
-- Sources default by Rust's elision rules.
-- Source sets are written in types, as Kotlin's `_{this}` and the tier-2
-  study's `&{a} T` are.
+- A result, and later a stored value, depends on a lifetime variable, as
+  Rust's `&'a T` does. One concept covers functions, struct and enum fields,
+  function types, trait methods and stores into a caller's place. Swift's
+  `@_lifetime(a)` and Scala's capture sets name variables, and both fall
+  back to something like a lifetime variable for types and stores; hd
+  starts there.
+- Lifetimes default by Rust's elision rules, so ordinary code writes none.
+- Memory safety comes from counts until exclusivity lands.
 - Exclusivity comes last and narrow. It generalizes decision E: a live
   borrow freezes the shape of its path (length, enum variant, a reference
   along it), not every write to it.
@@ -80,11 +84,15 @@ Three models were weighed as end states. Appendix A has the prior art.
 Against Kotlin: counting alone keeps every heap-crossing reference and
 element reference counted, and enum payloads can never become places. It
 also misses the owner's accepted rule that a guard's mutable capture is
-exclusive (#978 item 2). Against Rust: hd's counted `*mut` aliases defeat a
-purely static checker, so Rust's model would still need run-time flags. It
-would also turn today's aliasing `&mut` code into errors.
+exclusive (#978 item 2). Against Swift's named sources: they read well in
+a getter, but a struct field, a function type and a store into a caller's
+place each need a second form. Against Rust's full borrow checker: hd's
+counted `*mut` aliases defeat a purely static checker, so it would still
+need run-time flags, and it would turn today's aliasing `&mut` code into
+errors. So hd takes Rust's lifetime variables and elision, keeps counting,
+and adds exclusivity last and narrow (stage 7).
 
-Stage 1 does not depend on this choice. It holds under all three models.
+Stage 1 writes no lifetime, so it holds under any of the three.
 
 ## The Stages
 
@@ -95,7 +103,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | --- | --- | --- | --- |
 | 1. Dependent results | a result may hold local references; its source is elided; origins are checked in the body | getters, `&mut Self` builders, `downcast_ref` on `&dyn`, `(&T)?` results | static escape check; memory safety by counts (cells) |
 | 2. Frame-slot results | backend only: source liveness covers the result's uses; inlining of reference getters | the counts and cells stage 1 adds go away | no language change |
-| 3. Named sources | `-> &{a, b} T` (hypothetical); dependent function types; per-position precision | `choose(a, b)`, `get_or(&self, fallback)`, closures that return references | static |
+| 3. Lifetime variables | `fn f['a](x: &'a T) -> &'a T` (hypothetical); dependent function types; per-position precision | `choose(a, b)`, `get_or(&self, fallback)`, closures that return references | static |
 | 4. Element results | reverses E item 4 (owner question): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
 | 5. Generic locality | local-holding type arguments for generic functions; `T < global` at persistent boundaries (hypothetical) | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
 | 6. Stored references | lifetime parameters on structs and enums; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
@@ -109,7 +117,7 @@ checker sees the source, and panics through a counted alias:
   (it panicked `collection-pinned` before);
 - replacing a `*mut` field that a live result's path crosses (it was valid
   before, with a stale result);
-- under a full Swift law (question 4), also any plain write to the source
+- under a full Swift law (question 3), also any plain write to the source
   while a `&mut` result is live.
 
 ### Stage 2: frame-slot results
@@ -125,19 +133,22 @@ Stage 2 has three parts:
   dependent result's source. Today it refuses every callee that takes a
   reference (`hd_opt/src/inline.rs`, `takes_reference`).
 
-### Stage 3: named sources
+### Stage 3: lifetime variables
 
 ```text
-fn choose(a: &User, b: &User, first: bool) -> &{a, b} User:  # hypothetical syntax
+fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:  # hypothetical syntax
     if first: a else: b
 
 impl[T] Pair[T]:
-    fn left_or(&self, fallback: &T) -> &{self, fallback} T:  # hypothetical syntax
+    fn left_or['a](&'a self, fallback: &'a T) -> &'a T:  # hypothetical syntax
         &self.left
 ```
 
-The set names parameters, as `Entry[{self}, K, V]` does in the #494 log.
-Stage 6 reuses the same set in struct fields. A function type takes the
+A lifetime variable is a generic parameter, as in Rust. Two references
+with one variable may both be the source. Stage 6 reuses the same variables
+in struct and enum fields (`struct Parser['a]`), and a store into a
+caller's place shares one (`xs: &mut List[&'a T], x: &'a T`). The spelling
+of a variable is chosen at stage 3; `'a` here is Rust's. A function type takes the
 same elision as a declaration, so `fn(&User) -> &string` depends on its
 one parameter.
 
@@ -390,34 +401,26 @@ Stop at 1.5 times that. Run time:
 - `element-reference-outlives-call` (existing), for rule 8.
 
 ## Owner Questions
-
-1. **The end state.** Swift 6.4-style lifetime dependence, Kotlin-style
-   outlives-only lifetimes, or Rust lifetimes. **Recommendation:** Swift
-   6.4-style dependence, with Rust's elision and narrow exclusivity at
-   stage 7.
-2. **Decision E, item 4.** May element references flow into results and
+1. **Decision E, item 4.** May element references flow into results and
    bindings (stage 4), enforced by today's pins first and by a static check
    at stage 7? The #494 log says E's length rule "will cover the later tier
    2 entry API". **Recommendation:** yes, at stage 4.
-3. **Elision.** Rust's three rules, counting reference positions, or C#'s
+2. **Elision.** Rust's three rules, counting reference positions, or C#'s
    rule that a result may come from any reference argument.
    **Recommendation:** Rust's. C#'s rule never errors, but it ties every
    result to every argument.
-4. **Exclusivity, stage 7.** Freeze a borrowed path's shape only (length,
+3. **Exclusivity, stage 7.** Freeze a borrowed path's shape only (length,
    variant, references along it), or follow Swift's full law, where a live
    `&mut` result bars every other access. **Recommendation:** shape only.
    It generalizes E, and keeps `swap(&mut xs[i], &mut xs[j])` and
    `n := u.name(); u.age += 1` valid.
-5. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
+4. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
    every escape row. **Recommendation:** drop it on all rows with stage 1,
    since it cannot work for a field or an element.
-6. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
+5. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
    `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
    stage 5 lifts it properly.
-7. **Named-source spelling, stage 3.** A set in the result type, `&{a, b}
-   T`, or a Swift-style attribute, `@lifetime(a, b)`. **Recommendation:**
-   the set in the type, since stage 6 needs it in struct fields.
-8. **The generic default, stage 5.** Every `T` may hold a local reference,
+6. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
@@ -437,8 +440,8 @@ struct Vec3 {
 func element(of array: inout [Int], at: Int) -> MutableRef<Int>?
 ```
 
-Swift has the pieces below. hd takes dependence on a named source and
-Swift's inference shape. It collapses `borrow` and `copy`: an hd reference
+Swift has the pieces below. hd takes Swift's inference shape, but a
+lifetime variable instead of a named source. It collapses `borrow` and `copy`: an hd reference
 is a value, and a value parameter's own storage is never a source.
 
 - SE-0446 makes values `~Escapable`.
