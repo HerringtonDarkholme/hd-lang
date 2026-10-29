@@ -15,7 +15,7 @@ impl[T] Update[T] for Cell[T]:
         self.value = value
 
 fn live[T](value: T) -> *mut Cell[T]:
-    &mut Cell { value: value }
+    box(Cell { value: value })
 
 fn badge(count: Cell[i32]) -> i32:
     count() = 2 # diagnostic: not-writable

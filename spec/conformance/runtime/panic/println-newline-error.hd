@@ -10,6 +10,6 @@ impl Console for NewlineFails:
         if self.calls == 1: .Ok(()) else: .Err(ConsoleError.Closed)
 
 pub fn main() -> void:
-    let mut console = NewlineFails { calls: 0 }
-    $.with(Console=&mut console):
+    console := box(NewlineFails { calls: 0 })
+    $.with(Console=console):
         println("hello") # panic: explicit-panic

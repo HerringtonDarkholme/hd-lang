@@ -5,8 +5,8 @@ fn label() -> string $ Tag:
     tag.name()
 
 pub fn main() -> void:
-    let mut tag = NameTag { value: "a" }
-    $.with(Tag=&mut tag):
+    tag := box(NameTag { value: "a" })
+    $.with(Tag=tag):
         _ := label()
 
 trait Tag:

@@ -13,7 +13,7 @@ fn use_it[T < Greet](x: T) -> string:
     x.greet()
 
 pub fn main() -> void $ Console:
-    let x: *dyn Greet = &P { n: 1 }
+    let x: *dyn Greet = box(P { n: 1 })
     let y: List[*dyn Greet] = [x]
     println(use_it(P { n: 2 }))
     _ := y

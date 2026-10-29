@@ -9,5 +9,5 @@ impl Console for Failed:
         .Err(ConsoleError.Other(1))
 
 pub fn main() -> void:
-    $.with(Console=&mut Failed {}):
+    $.with(Console=box(Failed {})):
         print("lost") # panic: explicit-panic

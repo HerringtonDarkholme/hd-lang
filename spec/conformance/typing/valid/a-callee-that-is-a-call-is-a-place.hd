@@ -18,11 +18,11 @@ fn live(value: i32) -> Cell:
     Cell { value: value }
 
 struct Panel:
-    count: Cell
+    count: *mut Cell
     frozen: Cell
 
 fn pick(panel: &mut Panel) -> *mut Cell:
-    &mut panel.count
+    panel.count
 
 fn run(panel: &mut Panel) -> void:
     pick(panel)() = 3

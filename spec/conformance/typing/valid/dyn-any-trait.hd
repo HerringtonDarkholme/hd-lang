@@ -24,4 +24,4 @@ fn total(shapes: List[*dyn Shape]) -> f64:
     sum
 
 fn demo() -> f64:
-    total([&Square { side: 2.0 }, &Square::unit()])
+    total([box(Square { side: 2.0 }), box(Square::unit())])

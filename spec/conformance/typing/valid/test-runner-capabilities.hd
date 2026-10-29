@@ -37,6 +37,6 @@ fn matches(text: string) -> bool $ TestRunner:
     $.use(TestRunner).snapshot_check(text) == ""
 
 fn both() -> void:
-    $.with(TestRunner=&mut FirstRow { rows: 0, snapshots: 0 }):
+    $.with(TestRunner=box(FirstRow { rows: 0, snapshots: 0 })):
         _ := pick(["a", "b"])
         _ := matches("a")

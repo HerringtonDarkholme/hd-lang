@@ -13,10 +13,10 @@ fn head(source: *mut dyn Iterator[i32]) -> List[i32]:
     source.take(2).collect()
 
 fn through_value(source: *mut dyn Iterator[string]) -> *mut dyn Iterator[(usize, string)]:
-    &mut source.filter(fn(name): name.len() > 0).enumerate()
+    box(source.filter(fn(name): name.len() > 0).enumerate())
 
 fn lengths(names: List[string]) -> *mut dyn Iterator[usize]:
-    &mut names.iter().map(fn(name): name.len())
+    box(names.iter().map(fn(name): name.len()))
 
 fn logged_sum(values: List[i32]) -> i32 $ Logger:
     values.iter().fold(0, logged)

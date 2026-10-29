@@ -12,7 +12,7 @@ impl Counter:
         self.value
 
     fn zero() -> *Counter:
-        &mut Counter { value: 0 }
+        box(Counter { value: 0 })
 
     fn pick[V](&self, value: V) -> V:
         value

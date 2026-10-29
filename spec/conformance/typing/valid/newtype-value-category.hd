@@ -15,4 +15,4 @@ type Owner(*User)
 
 fn use_both() -> void:
     _ := by_value(Mile(1))
-    _ := by_reference(Owner(&mut User { name: "Ada" }))
+    _ := by_reference(Owner(box(User { name: "Ada" })))

@@ -29,7 +29,7 @@ pub fn main() -> void $ Console:
     dbg([value], { "p": value }, (value,), Option.Some(value))
     let result: Result[Plain, Plain] = .Err(value)
     dbg(result)
-    ring := &mut Ring { next: .None }
+    ring := box(Ring { next: .None })
     ring.next = .Some(ring)
     dbg(ring)
     println("done")

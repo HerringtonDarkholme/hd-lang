@@ -4,7 +4,7 @@ struct User:
     name: string
 
 fn find() -> *mut User?:
-    .Some(&mut User { name: "Lin" })
+    .Some(box(User { name: "Lin" }))
 
 fn rename() -> string:
     let mut found = find()

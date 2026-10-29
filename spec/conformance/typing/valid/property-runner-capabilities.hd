@@ -23,5 +23,5 @@ fn first_draw() -> i64 $ PropertyRunner:
     value
 
 fn run() -> void:
-    $.with(PropertyRunner=&mut Replay { draws: [], shown: "" }):
+    $.with(PropertyRunner=box(Replay { draws: [], shown: "" })):
         _ := first_draw()

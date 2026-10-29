@@ -12,14 +12,14 @@ impl Profile:
         self.name = name
 
 fn rename(account: &mut Account, name: string) -> void:
-    account.snapshot = &mut Profile { name: name }
-    account.profile = &mut Profile { name: name }
+    account.snapshot = box(Profile { name: name })
+    account.profile = box(Profile { name: name })
     account.profile.name = name
     account.profile.rename(name)
 
 fn readonly_account(profile: *mut Profile) -> *Account:
-    let account: *Account = &mut Account {
+    let account: *Account = box(Account {
         profile: profile,
-        snapshot: &mut Profile { name: "Ada" },
-    }
+        snapshot: box(Profile { name: "Ada" }),
+    })
     account

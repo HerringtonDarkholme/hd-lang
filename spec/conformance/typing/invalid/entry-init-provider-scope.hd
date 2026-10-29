@@ -10,7 +10,7 @@ impl Source for Fixed:
         +1
 
 if true:
-    $.with(Source=&mut Fixed {}): # diagnostic: missing-requirement
+    $.with(Source=box(Fixed {})): # diagnostic: missing-requirement
         _ := $.use(Source).read()
 
 pub fn main() -> void:

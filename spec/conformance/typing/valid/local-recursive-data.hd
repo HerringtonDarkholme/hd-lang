@@ -8,8 +8,8 @@ fn route_length() -> i32:
         from: Stop
         next: *Leg?
 
-    last := Leg { from: Stop { name: "Utrecht" }, next: .None }
-    first := Leg { from: Stop { name: "Amsterdam" }, next: .Some(&last) }
+    last := box(Leg { from: Stop { name: "Utrecht" }, next: .None })
+    first := Leg { from: Stop { name: "Amsterdam" }, next: .Some(last) }
     match first.next:
         .Some(_) => 2
         .None => 1

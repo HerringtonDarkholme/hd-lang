@@ -16,7 +16,7 @@ enum SaveError:
     )
 
 fn free_space(failure: SaveError) -> i64?:
-    let erased: *dyn Error = &failure
+    let erased: *dyn Error = box(failure)
     if erased.find::[DiskError]().is_none():
         return .None
     match failure.find::[DiskError](): # diagnostic: unknown-method

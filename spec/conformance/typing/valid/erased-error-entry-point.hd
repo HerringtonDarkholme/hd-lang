@@ -14,7 +14,7 @@ impl Error for StartError
 fn start(ready: bool) -> Result[void, *dyn Error]:
     if ready:
         return .Ok(())
-    .Err(&StartError.MissingConfig)
+    .Err(box(StartError.MissingConfig))
 
 pub fn main() -> Result[void, *dyn Error]:
     start(true)?

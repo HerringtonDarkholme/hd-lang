@@ -26,9 +26,9 @@ fn load_user!(id: &UserId) -> Result[*User, *DbError] $ Database:
     $.use(Database).load_user!(id)
 
 fn new_user() -> *User:
-    &mut User { name: "Ada" }
+    box(User { name: "Ada" })
 fn new_mutable_user() -> *mut User:
-    &mut User { name: "Ada" }
+    box(User { name: "Ada" })
 
 fn inspect(user: &User) -> string:
     user.name
@@ -63,7 +63,7 @@ fn example(users: List[*User]) -> *User? $ Console:
     println(connect("localhost", port=8080))
     println(total)
     with_user:
-        &mut User { name: "Ada" }
+        box(User { name: "Ada" })
     value
 
 names := ["Ada", "Grace"]

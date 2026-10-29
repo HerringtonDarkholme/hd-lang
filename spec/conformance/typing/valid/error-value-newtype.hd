@@ -20,4 +20,4 @@ impl Display for Code:
 impl Error for Code
 
 fn erase(message: Message, code: Code) -> List[*dyn Error]:
-    [&message, &code]
+    [box(message), box(code)]

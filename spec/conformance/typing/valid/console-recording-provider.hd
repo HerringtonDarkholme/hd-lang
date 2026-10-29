@@ -18,6 +18,6 @@ fn greet() -> void $ Console:
     println("hello")
 
 pub fn main() -> void:
-    let mut console = MemoryConsole { lines: [] }
-    $.with(Console=&mut console):
+    console := box(MemoryConsole { lines: [] })
+    $.with(Console=console):
         greet()

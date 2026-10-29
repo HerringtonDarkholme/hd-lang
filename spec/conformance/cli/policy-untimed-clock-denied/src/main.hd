@@ -60,7 +60,7 @@ fn backup!() -> Result[usize, GuardError]:
     .Ok(7)
 
 pub fn untimed_fallback!() -> usize:
-    state := &mut Breaker { failures: 0, limit: 1, calls: 0 }
+    state := box(Breaker { failures: 0, limit: 1, calls: 0 })
     result := apply!(guarded(state) |> fallback(backup, _)):
         let failed: Result[usize, GuardError] = .Err(.Failed)
         failed
@@ -77,10 +77,10 @@ fn more_configuration_count(values: (Guard, Hedge)) -> usize:
 pub fn main!() -> void $ Console:
     if configuration_count(configurations()) != 4:
         panic("policy configuration construction needs no Clock")
-    state := &mut Breaker { failures: 0, limit: 1, calls: 0 }
+    state := box(Breaker { failures: 0, limit: 1, calls: 0 })
     if more_configuration_count(more_configurations(state)) != 2 || untimed_fallback!() != 7:
         panic("new policy construction and untimed application need no Clock")
-    counts := &mut Counts { runs: 0 }
+    counts := box(Counts { runs: 0 })
     value := answer!(counts)
     if value != 42 || counts.runs != 1:
         panic("untimed policy returned the wrong value or invocation count")

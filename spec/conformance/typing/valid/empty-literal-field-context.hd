@@ -8,14 +8,14 @@ struct Batch[T]:
     items: *mut List[T]
 
 fn start_crawl() -> void:
-    let mut crawl = &mut Crawl { visits: &mut {}, queue: &mut [] }
+    let mut crawl = box(Crawl { visits: box({}), queue: box([]) })
     crawl.visits["https://example.com"] = 1
     crawl.queue.push("https://example.com/about")
 
 fn start_batch() -> void:
-    let mut batch = &mut Batch::[i32] { items: &mut [] }
+    let mut batch = box(Batch::[i32] { items: box([]) })
     batch.items.push(7)
 
 fn resume_crawl(fresh: bool) -> void:
-    let mut crawl = &mut Crawl { visits: if fresh: &mut {} else: &mut {}, queue: &mut [] }
+    let mut crawl = box(Crawl { visits: if fresh: box({}) else: box({}), queue: box([]) })
     crawl.visits["https://example.com"] = 2

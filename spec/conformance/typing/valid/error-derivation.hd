@@ -124,10 +124,10 @@ enum Plain:
     )
 
 fn erase(value: TaskError[FsError]) -> *dyn Error:
-    &value
+    box(value)
 
 fn describe(value: MissingConfig) -> string:
     value.to_string()
 
 fn save_error(path: string) -> *dyn Error:
-    &SaveError.Write(path, .None)
+    box(SaveError.Write(path, .None))

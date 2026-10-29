@@ -3,7 +3,7 @@ struct User:
     name: string
 
 fn fresh() -> *mut User:
-    &mut User { name: "Lin" }
+    box(User { name: "Lin" })
 
 fn edit(user: &User) -> string:
     let mut draft = &mut User { name: "Ada" } # mut User

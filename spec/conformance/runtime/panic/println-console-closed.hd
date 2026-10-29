@@ -18,6 +18,6 @@ fn greet(name: string) -> void $ Console:
 
 tests:
     it("println panics when its first text write fails"):
-        let mut console = ClosedConsole { attempts: [] }
-        $.with(Console=&mut console):
+        console := box(ClosedConsole { attempts: [] })
+        $.with(Console=console):
             greet("Ada")

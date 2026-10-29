@@ -5,7 +5,7 @@ fn fill() -> i32 $ Cache:
     $.use(Cache).peek()
 
 pub fn main() -> void:
-    $.with(Cache=&mut MemoryCache { value: 0 }):
+    $.with(Cache=box(MemoryCache { value: 0 })):
         _ := fill()
 
 trait Store:

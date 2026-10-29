@@ -14,7 +14,7 @@ impl Name for Tag:
         "a"
 
 fn pick() -> *dyn Name:
-    &Tag { n: 1 }
+    box(Tag { n: 1 })
 
 first := pick().name() # diagnostic: top-level-read-before-initialization
 later := +5

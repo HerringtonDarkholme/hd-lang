@@ -7,4 +7,4 @@ fn keep[T < AnyRef](value: T) -> T:
     value
 
 fn check() -> (*User, *List[string]):
-    (keep(&mut User { name: "Ada" }), keep(&["Ada"]))
+    (keep(box(User { name: "Ada" })), keep(box(["Ada"])))

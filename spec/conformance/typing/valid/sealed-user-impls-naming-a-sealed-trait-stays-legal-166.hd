@@ -13,9 +13,9 @@ fn show[T < Inspectable](value: T) -> string:
 fn same[T < AnyRef](a: T, b: T) -> bool:
     a is b
 fn boxed(value: i32) -> *dyn Any:
-    &value
+    box(value)
 fn inspected(value: i32) -> *dyn Inspectable:
-    &value
+    box(value)
 
 trait Named < Inspectable:
     fn type_name(self) -> string

@@ -6,7 +6,7 @@ fn rename(user: &mut User) -> void:
     user.name = "Grace"
 
 fn new_mutable_user() -> *mut User:
-    &mut User { name: "Ada" }
+    box(User { name: "Ada" })
 
 fn valid() -> void:
     rename(&mut User { name: "Ada" })
