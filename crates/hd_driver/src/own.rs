@@ -15,6 +15,7 @@ use std::fmt::Write as _;
 use hd_base::HashMap;
 use hd_base::{DefId, Hash128, NotImplemented, StableHasher, Stage, StageResult};
 use hd_mono::ProgramEnv;
+use hd_opt::fact_specialize::FactEnv;
 use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_opt::structure_specialize::{GeneratedHandle, StructureEnv};
 use hd_tir::ir::{Body, Callee, ChoiceKind};
@@ -568,8 +569,17 @@ impl StructureEnv for Env<'_> {
         hd_structure::is_generated_walk(&self.run.names(), def)
     }
 
+    fn generated_structure_build(&self, def: DefId) -> bool {
+        hd_structure::generated_body(&self.run.names(), def)
+            == Some(hd_structure::GeneratedBody::Build)
+    }
+
     fn walker_trait(&self) -> DefId {
         self.run.known.walker
+    }
+
+    fn source_trait(&self) -> DefId {
+        self.run.known.source
     }
 
     fn walker_data_variant(&self) -> DefId {
@@ -610,7 +620,249 @@ impl StructureEnv for Env<'_> {
     }
 }
 
+impl FactEnv for Env<'_> {
+    fn fact_lookup_key(
+        &self,
+        def: DefId,
+        args: TyList,
+    ) -> Option<hd_opt::fact_specialize::FactLookup> {
+        let find = self.run.known.facts_find;
+        if def == find {
+            let key = *self.run.pool.list_items(args).first()?;
+            if key == Ty::POISON
+                || self.run.pool.has_param(key)
+                || self.run.pool.has_assoc(key)
+                || self.run.pool.has_opaque(key)
+            {
+                return None;
+            }
+            return Some(hd_opt::fact_specialize::FactLookup {
+                key,
+                projection: Vec::new(),
+            });
+        }
+        let body = &self.checked_body(def)?.0;
+        if body.tags.iter().any(|tag| {
+            !matches!(
+                tag,
+                hd_tir::Tag::Block | hd_tir::Tag::Read | hd_tir::Tag::Call
+            )
+        }) {
+            return None;
+        }
+        let mut calls = body
+            .tags
+            .iter()
+            .enumerate()
+            .filter_map(|(i, tag)| (*tag == hd_tir::Tag::Call).then_some(i));
+        let call = calls.next()?;
+        if calls.next().is_some() {
+            return None;
+        }
+        let root = *body.sub_root.first()? as usize;
+        if body.tags.get(root) != Some(&hd_tir::Tag::Block)
+            || body.data[root][1] != u32::try_from(call).ok()?
+        {
+            return None;
+        }
+        let Callee::Item { def: callee, targs } = hd_tir::inline::plain_call(body, call)? else {
+            return None;
+        };
+        if callee != find {
+            return None;
+        }
+        let record = body.record(body.data[call][1]);
+        let call_args = &record[..record.len().saturating_sub(3)];
+        let receiver = *call_args.first()? as usize;
+        if body.tags.get(receiver) != Some(&hd_tir::Tag::Read) {
+            return None;
+        }
+        let receiver = body.decode_place(body.data[receiver][0])?;
+        let hd_tir::ir::PlaceRoot::Local(receiver_local) = receiver.root else {
+            return None;
+        };
+        if hd_tir::own::params(body).as_slice() != [receiver_local.raw()] {
+            return None;
+        }
+        let key = *self.run.pool.list_items(targs).first()?;
+        let key = hd_mono::subst(&self.run.pool, self, def, args, key);
+        if key == Ty::POISON
+            || self.run.pool.has_param(key)
+            || self.run.pool.has_assoc(key)
+            || self.run.pool.has_opaque(key)
+        {
+            return None;
+        }
+        Some(hd_opt::fact_specialize::FactLookup {
+            key,
+            projection: receiver.proj,
+        })
+    }
+
+    fn list_is_empty(&self, def: DefId) -> bool {
+        def == self.run.known.list_is_empty
+    }
+
+    fn known_facts(
+        &self,
+        def: DefId,
+        args: TyList,
+        projected: &[hd_tir::ir::Proj],
+    ) -> Option<hd_opt::fact_specialize::KnownFacts> {
+        if !matches!(projected, [] | [hd_tir::ir::Proj::Field(0)]) {
+            return None;
+        }
+        self.literal_facts(def, args, 0)
+    }
+
+    fn fact_handle_body(&self, def: DefId, args: TyList) -> Option<(Body, Hash128)> {
+        if !matches!(
+            hd_structure::generated_body(&self.run.names(), def),
+            Some(hd_structure::GeneratedBody::Handle(_))
+        ) {
+            return None;
+        }
+        let (raw, hash) = self.checked_body(def)?;
+        let pool = &self.run.pool;
+        let mut body = raw.clone();
+        let subst = |ty| hd_mono::subst(pool, self, def, args, ty);
+        let list = |list| {
+            pool.list(
+                &pool
+                    .list_items(list)
+                    .iter()
+                    .map(|&ty| subst(ty))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        hd_tir::ir::map_body_types(&mut body, &subst, &list);
+        Some((body, *hash))
+    }
+
+    fn fact_type_hash(&self, ty: Ty) -> Hash128 {
+        let names = self.run.names();
+        hd_mono::layout::canon(
+            &self.run.pool,
+            &|def| names.path_hash(def),
+            &mut hd_mono::layout::CanonMemo::default(),
+            ty,
+        )
+    }
+
+    fn fact_ref_inner(&self, ty: Ty) -> Option<Ty> {
+        match self.run.pool.get(ty) {
+            TyData::Ref { inner, .. } => Some(inner),
+            TyData::Adt { def, args } if def == self.run.known.ref_cell => {
+                self.run.pool.list_items(args).first().copied()
+            }
+            _ => None,
+        }
+    }
+}
+
 impl Env<'_> {
+    fn literal_facts(
+        &self,
+        def: DefId,
+        args: TyList,
+        depth: u8,
+    ) -> Option<hd_opt::fact_specialize::KnownFacts> {
+        if depth >= 8 {
+            return None;
+        }
+        let generated = hd_structure::generated_body(&self.run.names(), def)
+            == Some(hd_structure::GeneratedBody::Facts);
+        let (body, body_hash) = self.checked_body(def)?;
+        if !generated && body.kind != hd_tir::BodyKind::Fact {
+            return None;
+        }
+        let root = *body.sub_root.first()? as usize;
+        if body.tags.get(root) != Some(&hd_tir::Tag::Block) {
+            return None;
+        }
+        let value = body.data[root][1] as usize;
+        if body.tags.get(value) == Some(&hd_tir::Tag::DefaultCall) {
+            let record = body.record(body.data[value][0]);
+            let (&target, &target_args) = (record.first()?, record.get(1)?);
+            let target = DefId::from_raw(target);
+            let pool = &self.run.pool;
+            let concrete: Vec<Ty> = pool
+                .list_items(TyList(target_args))
+                .iter()
+                .map(|&ty| hd_mono::subst(pool, self, def, args, ty))
+                .collect();
+            let mut known = self.literal_facts(target, pool.list(&concrete), depth + 1)?;
+            let mut digest = StableHasher::new("literal-generated-facts-v1");
+            digest.hash(*body_hash);
+            digest.hash(known.digest);
+            known.digest = digest.finish();
+            return Some(known);
+        }
+        if body.tags.get(value) != Some(&hd_tir::Tag::NewStruct) {
+            return None;
+        }
+        let items = *body.record(body.data[value][1]).first()? as usize;
+        if body.tags.get(items) != Some(&hd_tir::Tag::NewList)
+            || body.data[items][0] != hd_tir::ir::NONE
+        {
+            return None;
+        }
+        let pool = &self.run.pool;
+        let mut types = Vec::new();
+        for &item in body.record(body.data[items][1]) {
+            let item = item as usize;
+            if body.tags.get(item) != Some(&hd_tir::Tag::RefDyn) {
+                return None;
+            }
+            let address = body.data[item][0] as usize;
+            if body.tags.get(address) != Some(&hd_tir::Tag::Block) {
+                return None;
+            }
+            let coercion = body.data[address][1] as usize;
+            if body.tags.get(coercion) != Some(&hd_tir::Tag::Coerce)
+                || body.record(body.data[coercion][1]).first()
+                    != Some(&(hd_tir::ir::Coercion::RefToTraitValue as u32))
+            {
+                return None;
+            }
+            let source = body.data[coercion][0] as usize;
+            let inner =
+                hd_opt::fact_specialize::FactEnv::fact_ref_inner(self, *body.ty.get(source)?)?;
+            let concrete = hd_mono::subst(pool, self, def, args, inner);
+            if concrete == Ty::POISON
+                || pool.has_param(concrete)
+                || pool.has_assoc(concrete)
+                || pool.has_opaque(concrete)
+            {
+                return None;
+            }
+            types.push(concrete);
+        }
+        let mut digest = StableHasher::new("literal-facts-v1");
+        digest.hash(*body_hash);
+        let names = self.run.names();
+        let mut canons = hd_mono::layout::CanonMemo::default();
+        for &ty in &types {
+            digest.hash(hd_mono::layout::canon(
+                pool,
+                &|def| names.path_hash(def),
+                &mut canons,
+                ty,
+            ));
+        }
+        Some(hd_opt::fact_specialize::KnownFacts {
+            types,
+            digest: digest.finish(),
+        })
+    }
+
+    /// Owns one concrete instance body without publishing an item-wide
+    /// summary. Its ordinary generic body remains the calling-convention
+    /// authority; this copy differs only by post-monomorphization folds.
+    pub(super) fn own_instance(&self, body: Body) -> StageResult<Body> {
+        self.own_passes(body, false).map(|(body, _)| body)
+    }
+
     /// Inlined body `body`, with hash `hash` (`hd_opt::inline::inline_calls`), after
     /// the ownership passes, and its hash, which changes with them; in
     /// release, its summary is recorded.

@@ -11530,6 +11530,59 @@ impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
         self.run.body_of(self.p, def).map(|b| &b.0)
     }
+    fn instance_body(&self, def: DefId, args: TyList) -> StageResult<Option<Body>> {
+        if hd_opt::inline::InlineEnv::memo(self).is_none() {
+            return Ok(None);
+        }
+        let lazy = self.run.lazy_body(self.p, def);
+        let Some((raw, original_hash)) = lazy.and_then(|body| self.run.decode(body)) else {
+            return Ok(None);
+        };
+        // Most instances cannot expose a closed declaration-fact query.
+        // Avoid cloning and substituting them: either a query is already in
+        // this body, or the generated walk/build specialization below is the
+        // only pass which can introduce one.
+        let candidate = (0..raw.len()).any(|call| {
+            let Some(hd_tir::Callee::Item { def, targs }) = hd_tir::inline::plain_call(raw, call)
+            else {
+                return false;
+            };
+            hd_opt::structure_specialize::StructureEnv::generated_structure_walk(self, def)
+                || hd_opt::structure_specialize::StructureEnv::generated_structure_build(self, def)
+                || hd_opt::fact_specialize::FactEnv::list_is_empty(self, def)
+                || hd_opt::fact_specialize::FactEnv::fact_lookup_key(self, def, targs).is_some()
+        });
+        if !candidate {
+            return Ok(None);
+        }
+        let pool = &self.run.pool;
+        let mut body = raw.clone();
+        let ty = |t: Ty| hd_mono::subst(pool, self, def, args, t);
+        let list = |l| {
+            pool.list(
+                &pool
+                    .list_items(l)
+                    .iter()
+                    .map(|&t| ty(t))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        hd_tir::ir::map_body_types(&mut body, &ty, &list);
+        hd_tir::inline::rechoose(&mut body, &|trait_, self_ty, targs| {
+            hd_opt::inline::InlineEnv::select_impl(self, trait_, self_ty, targs)
+        });
+        let structure_hash =
+            hd_opt::structure_specialize::specialize_calls(self, &mut body, *original_hash);
+        let fact_hash = hd_opt::fact_specialize::specialize_calls(self, &mut body, structure_hash);
+        if fact_hash == structure_hash {
+            return Ok(None);
+        }
+        let _ = hd_opt::inline::inline_calls(self, &mut body, fact_hash);
+        if let Some(specialized) = hd_mono::defaults::specialize(&body, &[]) {
+            body = specialized;
+        }
+        self.own_instance(body).map(Some)
+    }
     fn opaque_result(
         &self,
         pool: &hd_types::InternPool,
