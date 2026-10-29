@@ -77,6 +77,15 @@ pub(crate) fn literal_marker(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<u8> {
     }
 }
 
+/// Whether `n` is a path of names, as `a.b.c`, and not a method chain.
+fn is_path(n: NodeRef<'_>) -> bool {
+    match n.kind() {
+        SyntaxKind::NameExpr => true,
+        SyntaxKind::FieldExpr | SyntaxKind::PathExpr => n.children().next().is_some_and(is_path),
+        _ => false,
+    }
+}
+
 /// The decorator expressions that attach values, with literal markers and
 /// std's `inline` and `cold` (`annot.inline.recognized`) filtered by the
 /// same resolved identity as the function's marker.
@@ -247,7 +256,7 @@ fn fact_list_steps(
                 }
                 continue;
             }
-            if let Some(fact) = ck.typed_fact_type(e) {
+            if let Some(fact) = ck.typed_fact_of(e, single)? {
                 let Some(target) = ck.fact_target(target, owner)? else {
                     continue;
                 };
@@ -395,11 +404,11 @@ impl Ck<'_, '_> {
         Ok((self.diags.errors_since(mark) == 0).then_some(r))
     }
 
-    /// The typed fact type of the value that the decorator line or
-    /// member-line element `e` writes: the result type's constructor of the
-    /// function it calls or names (`annot.typed-fact.declare`,
-    /// `annot.decorator.bare-call-defaults`).
-    pub(crate) fn typed_fact_type(&self, e: NodeRef<'_>) -> Option<DefId> {
+    /// The declared result type of the function that the decorator line
+    /// or member-line element `e` calls or names
+    /// (`annot.decorator.bare-call-defaults`), or `None` when `e` names no
+    /// function, as for a method chain.
+    fn called_result(&self, e: NodeRef<'_>) -> Option<Ty> {
         let callee = match e.kind() {
             SyntaxKind::CallExpr => e.children().next(),
             _ => Some(e),
@@ -408,25 +417,52 @@ impl Ck<'_, '_> {
             Some(c) if c.kind() == SyntaxKind::TypeArgsExpr => c.children().next(),
             c => c,
         }?;
-        if !matches!(callee.kind(), SyntaxKind::NameExpr | SyntaxKind::FieldExpr) {
+        if !is_path(callee) {
             return None;
         }
         let def = self.resolve_path(&self.segments_expr(callee))?;
-        let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) else {
-            return None;
-        };
-        match self.cx.names.pool.get(sig.ret) {
-            TyData::Adt { def, .. }
-                if self
-                    .cx
-                    .lookup
-                    .item(def)
-                    .is_some_and(|i| i.fact_pattern.is_some()) =>
-            {
-                Some(def)
-            }
+        match self.cx.lookup.item(def).map(|i| &i.data) {
+            Some(ItemData::Fn(sig)) => Some(sig.ret),
             _ => None,
         }
+    }
+
+    /// Whether `def` is a typed fact type (`annot.typed-fact.declare`).
+    fn is_typed_fact(&self, def: DefId) -> bool {
+        self.cx
+            .lookup
+            .item(def)
+            .is_some_and(|i| i.fact_pattern.is_some())
+    }
+
+    /// The typed fact type of the value `e` writes
+    /// (`annot.typed-fact.declare`): the constructor of the called
+    /// function's declared result type, or else of the type `e` checks at
+    /// with no expected type, in a trial whose effects are undone. So a
+    /// method chain, as in `length(3, 40).message("m")`, then checks at the
+    /// fact type as its expected type, as a `let` binding would
+    /// (`annot.typed-fact.check.inferred`).
+    fn typed_fact_of(&mut self, e: NodeRef<'_>, single: bool) -> StageResult<Option<DefId>> {
+        let pool = self.cx.names.pool;
+        if let Some(TyData::Adt { def, .. }) = self.called_result(e).map(|t| pool.get(t)) {
+            return Ok(self.is_typed_fact(def).then_some(def));
+        }
+        let mut found = None;
+        self.trial(|ck| {
+            let (_, t) = if single {
+                ck.fact_value(e, None)?
+            } else {
+                ck.expr(e, None)?
+            };
+            let pool = ck.pool();
+            if let TyData::Adt { def, .. } = pool.get(ck.infer.resolve(pool, t))
+                && ck.is_typed_fact(def)
+            {
+                found = Some(def);
+            }
+            Ok(())
+        })?;
+        Ok(found)
     }
 
     /// The type `target` stands for in the body of `owner`, or `None`
@@ -621,7 +657,7 @@ impl Ck<'_, '_> {
         single: bool,
     ) -> Option<Ty> {
         let before = self.diags.len();
-        let ty = if let Some(fact) = self.typed_fact_type(e) {
+        let ty = if let Some(fact) = self.typed_fact_of(e, single).ok().flatten() {
             let target = self.fact_target(target, owner).ok().flatten()?;
             self.typed_fact(fact, e, target, single).ok().flatten()?.1
         } else if single {

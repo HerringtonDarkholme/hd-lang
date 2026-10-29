@@ -1,0 +1,21 @@
+# test: a typed fact built by a method chain is still checked against the fact type at the field's declared type
+# Spec 14 Member-Typed Facts: annot.typed-fact.check
+use std.annotation.annotate
+use std.structure.Structure
+
+@annotate::[F](.Field)
+struct Tag[F]:
+    note: string
+
+fn tag[F]() -> Tag[F]:
+    Tag::[F] { note: "" }
+
+impl[F] Tag[F]:
+    fn message(self, note: string) -> Self:
+        Tag::[F] { note: note }
+
+struct Signup:
+    username: string
+
+impl Signup by Structure:
+    username = [tag::[i32]().message("x")] # diagnostic: type-mismatch

@@ -1,0 +1,32 @@
+# test: a member line's typed fact built by a method chain gets the fact type at the field's declared type as its expected type, so the generic builder needs no type argument
+# Spec 14 Member-Typed Facts: annot.typed-fact.check.inferred
+use std.annotation.annotate
+use std.structure.Structure
+
+trait HasLength:
+    fn size(self) -> usize
+
+impl HasLength for string:
+    fn size(self) -> usize:
+        self.len()
+
+@annotate::[F](.Field)
+struct Length[F < HasLength]:
+    low: usize
+    high: usize
+    note: string
+
+fn length[F < HasLength](low: usize, high: usize) -> Length[F]:
+    Length::[F] { low: low, high: high, note: "" }
+
+impl[F < HasLength] Length[F]:
+    fn message(self, note: string) -> Self:
+        Length::[F] { low: self.low, high: self.high, note: note }
+
+struct Signup:
+    username: string
+    nickname: string
+
+impl Signup by Structure:
+    username = [length(3, 40).message("between 3 and 40 characters")]
+    nickname += [length(1, 20).message("too long").message("1 to 20 characters")]

@@ -2810,6 +2810,8 @@ typing/valid/typed-fact.hd	type	accept	lang/14-annotations.md#r-annot.handle.fac
 typing/valid/typed-fact-expected.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.inferred
 typing/valid/typed-fact-expected-line.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.inferred
 typing/invalid/typed-fact-expected-mismatch.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check
+typing/valid/typed-fact-expected-chain.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.inferred
+typing/invalid/typed-fact-chain-mismatch.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check
 typing/valid/tuple-template.hd	type	accept	lang/14-annotations.md#r-annot.template.tuple.form
 typing/invalid/tuple-template-overlap.hd	type	reject:overlapping-impl	lang/14-annotations.md#r-annot.template.tuple.overlap
 typing/invalid/derive-trait-without-template.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.derive.other
