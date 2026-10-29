@@ -1,10 +1,11 @@
 # The Path To Returned Local References
 
-**Status:** study, 2026-10-29; domain: references and lifetimes; nothing
-here is accepted behavior. It reviews
+**Status:** accepted 2026-10-29; domain: references and lifetimes. Stages 1
+and 2 are being built (#1002, #1003, #996, #1006); the stage 3 syntax is
+open until the study #1005. It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
-the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's unreviewed PR #999
+the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
 (`OBJECT_MODEL_TIER2_LIFETIMES.md`), and the tier-2 requirements in #978
 and #995. It changes no spec, compiler or std code.
 

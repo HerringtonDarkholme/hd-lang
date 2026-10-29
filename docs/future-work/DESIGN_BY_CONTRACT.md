@@ -2,8 +2,8 @@
 
 Status: design accepted 2026-10-28. The always-checked first slice of `require`
 is specified in [Contract](../../spec/std/contract.md) and implemented by #880;
-once `@cfg` (#965) is built, it splits into the `.Debug`/`.Release` pair below,
-with no change at call sites.
+with `@cfg` (#965) built, it is the `.Debug`/`.Release` pair below, with no
+change at call sites.
 
 This record resolves [issue #880](https://github.com/HerringtonDarkholme/hd-lang/issues/880).
 It reviews [Functions](../../spec/lang/07-functions.md),
@@ -248,8 +248,8 @@ The failure category remains `explicit-panic`. A stable
 not part of this ordinary std slice.
 
 This option handles preconditions only. An `ensure` guard becomes ordinary
-library code after #962 adds synchronous `using` and #961 lets its stored
-callback retain a requirement row. Such a guard still cannot see the function's
+library code now that synchronous `using` (#962) and row parameters (#961)
+are built. Such a guard still cannot see the function's
 saved result, so it cannot implement a general result postcondition.
 
 Design-cost kinds: one core-library addition, kind 4, over #965's already
@@ -495,8 +495,9 @@ leave automatic postconditions for a later design.**
 3. Keep the optional message first so the condition is the single trailing
    block. Use the existing `explicit-panic`; do not add an intrinsic or a new
    failure category.
-4. Build `ensure` later as a synchronous `using` guard after #961 and #962.
-   Record that a library guard still cannot observe the saved result.
+4. Build `ensure` later as a synchronous `using` guard; its result access
+   waits for tier 2 (#978). A library guard still cannot observe the saved
+   result.
 5. Do not add automatic invariants. Stable construction and mutation boundaries
    are not defined, and explicit checks remain available.
 

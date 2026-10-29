@@ -5,7 +5,7 @@ Status: implemented in [`std.validate`](../../spec/std/validate.md#validation); 
 Add a separate `Validate` derivation with concrete typed rules, automatic nested checks and ordinary custom functions.
 One `.validated()` combinator follows JSON, HTTP, CLI or environment input.
 Errors keep structural field identity, code and message; each reader renders its own names.
-The [signature package](validation/src/validation.hd) and [usage examples](validation/src/examples.hd) are the API under review.
+The API is built in `lib/std/validate.hd` and specified in `spec/std/`; the reviewed signature package is in git history at c6d7ffe6a, `docs/future-work/validation/`.
 
 ```text
 struct Signup:

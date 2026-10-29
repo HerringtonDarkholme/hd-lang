@@ -1,8 +1,0 @@
-[package]
-name = "validation_design"
-
-[capabilities]
-Console = true
-Args = true
-Env = true
-FsRead = true

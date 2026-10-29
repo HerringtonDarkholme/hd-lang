@@ -21,7 +21,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 - [HTTP Multipart Forms](HTTP_MULTIPART.md): buffered `multipart/form-data` parts over the existing HTTP message types; implemented in `std.http` (#948).
 - [HTTP Response Decompression](HTTP_DECOMPRESSION.md): implemented by the [`std.http` decoded-response rules](../../spec/std/http.md#decoded-responses).
-- [Validation](VALIDATION.md): short design and [checked signatures and examples](validation/) for typed JSON/CLI/environment validation; design accepted 2026-10-28 and revised 2026-10-29 (no rule wrappers, a `message =` argument, payload-typed facts on optional members); being built (#976).
+- [Validation](VALIDATION.md): short design for typed JSON/CLI/environment validation; design accepted 2026-10-28 and revised 2026-10-29 (no rule wrappers, a `message =` argument, payload-typed facts on optional members); built (#976).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
@@ -32,7 +32,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Positional Union Types](UNION_TYPES.md): ordered anonymous enums with explicit positional construction; design complete 2026-10-28, not scheduled (#804).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
-- [Scope Guards](SCOPE_GUARDS.md): accepted: sync `using`, `using!` and error-level `unbound-disposable` built (#962); `on_exit` after #961; `@auto_closing` and tier-2 guard lifetimes in #978.
+- [Scope Guards](SCOPE_GUARDS.md): accepted: sync `using`, `using!` and error-level `unbound-disposable` built (#962); `on_exit` built; `@auto_closing` and tier-2 guard lifetimes in #978.
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Build-Profile-Dependent Code](BUILD_PROFILE_CODE.md): accepted `@cfg(.Debug)` and
   `@cfg(.Release)` declaration variants, checked in every profile (#965).
@@ -53,7 +53,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834); step 2 is not adopted (#704 shipped as a release-only fact instead), and later steps need approval.
-- [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): study; staged path from dependent results (stage 1, elided sources, no exclusivity) to Swift-6.4-style lifetime dependence (#978, #995); not accepted.
+- [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29: Rust lifetime variables and elision over counted references, in stages; stage 1 (dependent results, no exclusivity) and stage 2 being built (#1002); stage 3 syntax open (#1005).
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).
 - [Performance Roadmap](PERFORMANCE_ROADMAP.md): where time and memory go from the measurements on record, fixes by mechanism, and ranked hour-sized steps (#426).
 - [Release-Only Interprocedural Optimization](RELEASE_INTERPROC.md): built 2026-10-25 in the optimized pipeline only: per-function summaries over SCCs (slices 2-5: kept parameters, writes, lent parameters). Slices 6-9 measured no gain and were not merged (#681 closed); results on #165.
