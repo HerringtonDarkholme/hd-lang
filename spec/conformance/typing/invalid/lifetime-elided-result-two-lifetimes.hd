@@ -1,0 +1,7 @@
+# test: a result position that writes no lifetime, under two parameter lifetimes, is ambiguous
+# Spec 13 Lifetime Variables: ref.lifetime.elide.ambiguous.
+struct User:
+    name: string
+
+fn pick['a](a: &'a User, b: &User) -> &User:  # diagnostic: ambiguous-reference-source
+    a

@@ -1,0 +1,7 @@
+# test: a result of lifetime 'a may not return a parameter that does not carry 'a
+# Spec 13 Lifetime Variables: ref.lifetime.return.
+struct User:
+    name: string
+
+fn third['a](a: &'a User, b: &'a User, c: &User) -> &'a User:
+    c  # diagnostic: local-reference-escapes

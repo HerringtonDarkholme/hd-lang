@@ -1,0 +1,10 @@
+# test: two parameters with one lifetime may each be the result's source
+# Spec 13 Lifetime Variables: ref.lifetime.shared, ref.lifetime.return.
+struct User:
+    name: string
+
+fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:
+    if first: a else: b
+
+fn longer_name['a](a: &'a User, b: &'a User) -> &'a string:
+    if a.name.len() >= b.name.len(): &a.name else: &b.name

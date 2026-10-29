@@ -1,0 +1,14 @@
+# test: a call's result with a shared lifetime depends on every argument of that lifetime
+# Spec 13 Lifetime Variables: ref.lifetime.call; Local Scope: ref.dep.scope.
+struct User:
+    name: string
+
+fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:
+    if first: a else: b
+
+fn pick(x: &User, first: bool) -> usize:
+    let mut r = x
+    if first:
+        local := User { name: "local" }
+        r = choose(x, &local, first)
+    r.name.len()  # diagnostic: local-reference-outlives-local

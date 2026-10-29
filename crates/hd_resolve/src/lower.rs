@@ -2299,32 +2299,76 @@ impl Lower<'_, '_, '_> {
     }
 
     /// `types.lifetime.declare`: each `'name` of a generic list joins the
-    /// scope. A lifetime is not checked yet, so declaring one is an error
-    /// until its checks land (`ref.lifetime.not-yet`).
+    /// scope, after the list's type parameters (`types.lifetime.order`).
+    /// Only a function's and an inherent implementation's lifetimes are
+    /// checked; declaring one elsewhere is an error until its checks land
+    /// (`ref.lifetime.not-yet.declaration`).
     fn declare_lifetimes(&mut self, gl: NodeRef<'_>, gn: &mut Gen) {
-        for p in gl
-            .children()
-            .filter(|c| c.kind() == SyntaxKind::LifetimeParameter)
-        {
+        let kids: Vec<NodeRef<'_>> = gl.children().collect();
+        let mut checked = None;
+        for (k, p) in kids.iter().enumerate() {
+            if p.kind() != SyntaxKind::LifetimeParameter {
+                continue;
+            }
             let Some(t) = p.direct_token(&self.src.parse.tokens, TokenKind::Lifetime) else {
                 continue;
             };
             let name = self.sym_token(t);
             if self.r.frozen.is_none() {
                 let text = self.src.text(t);
+                let checked = *checked.get_or_insert_with(|| self.lifetimes_checked(gl));
                 if gn.lifetimes.contains(&name) {
                     let msg = format!("`{text}` is already a lifetime in scope");
                     self.diags
-                        .error(Code::DuplicateBinding, self.src.span(p), &msg);
-                } else {
+                        .error(Code::DuplicateBinding, self.src.span(*p), &msg);
+                } else if kids[k..]
+                    .iter()
+                    .any(|c| c.kind() == SyntaxKind::GenericParameter)
+                {
+                    let msg = format!("lifetime `{text}` must follow the type parameters");
+                    self.diags
+                        .error(Code::LifetimeOrder, self.src.span(*p), &msg);
+                } else if !checked {
                     let msg = format!(
-                        "lifetime `{text}` is not checked yet: remove it and let the reference's source be inferred"
+                        "lifetime `{text}` is not checked yet here; so far only top-level functions and inherent implementations take lifetimes"
                     );
                     self.diags
-                        .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
+                        .error(Code::ReferencesNotYetChecked, self.src.span(*p), &msg);
                 }
             }
             gn.lifetimes.push(name);
+        }
+    }
+
+    /// Whether the lifetimes the generic list `gl` declares are checked
+    /// (`ref.lifetime.checked`): a top-level function's, an inherent
+    /// implementation's, or one of its methods'.
+    fn lifetimes_checked(&self, gl: NodeRef<'_>) -> bool {
+        let x = gl.index().raw();
+        let mut path = vec![self.src.root()];
+        while let Some(c) = path.last().and_then(|p| {
+            p.children()
+                .find(|c| c.index().raw() <= x && x < c.end().raw())
+        }) {
+            if c.index() == gl.index() {
+                break;
+            }
+            path.push(c);
+        }
+        let inherent = |n: NodeRef<'_>| {
+            n.kind() == SyntaxKind::ImplDecl
+                && n.children().filter(|c| c.kind().is_type()).count() == 1
+        };
+        match path.as_slice() {
+            [.., owner] if owner.kind() == SyntaxKind::ImplDecl => inherent(*owner),
+            [outer, owner] if owner.kind() == SyntaxKind::FnDecl => {
+                outer.kind() == SyntaxKind::Root
+            }
+            // A method: the implementation's block holds it.
+            [.., imp, block, owner] if owner.kind() == SyntaxKind::FnDecl => {
+                block.kind() == SyntaxKind::Block && inherent(*imp)
+            }
+            _ => false,
         }
     }
 
@@ -3674,7 +3718,18 @@ impl Lower<'_, '_, '_> {
             }
             return;
         }
+        // ref.lifetime.not-yet.position: a lifetime in an implementation's target.
+        let saved = self.slots.replace(Vec::new());
         let self_ty = self.ty_at(Some(target), &gn, true);
+        if std::mem::replace(&mut self.slots, saved).is_some_and(|l| l.iter().any(|l| *l != 0))
+            && self.r.frozen.is_none()
+        {
+            self.diags.error(
+                Code::ReferencesNotYetChecked,
+                self.src.span(target),
+                "a lifetime in an implementation's target is not checked yet",
+            );
+        }
         gn.self_ty = Some(self_ty);
         let toks: Vec<_> = n.direct_tokens().collect();
         let by = toks

@@ -1,0 +1,9 @@
+# test: lifetime parameters follow the type parameters, and explicit type arguments fill only the type parameters
+# Spec 04 Lifetime Parameters: types.lifetime.order, types.lifetime.arguments.
+fn first[T, 'a](x: &'a T, y: &'a T) -> &'a T:
+    x
+
+fn demo() -> i32:
+    a := +1
+    b := +2
+    *first::[i32](&a, &b)

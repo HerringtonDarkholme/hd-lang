@@ -1,0 +1,7 @@
+# test: a result position that writes no lifetime takes the parameters' one lifetime
+# Spec 13 Lifetime Variables: ref.lifetime.elide.
+struct User:
+    name: string
+
+fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:
+    if first: a else: b

@@ -1697,11 +1697,18 @@ A **lifetime parameter** `'name` is a generic parameter that names a lifetime of
 struct User:
     name: string
 
-fn pick['a](a: &'a User) -> &'a User:  # error: references-not-yet-checked
+fn pick[T, 'a](a: &'a T, b: &'a T) -> &'a T:
     a
+
+fn first['a, T](x: &'a T) -> &'a T:  # error: lifetime-order
+    x
 
 fn name(a: &'b User) -> &string:  # error: unknown-lifetime
     &a.name
+
+fn demo(u: &User) -> i32:
+    n := +1
+    *pick::[i32](&n, &n)  # T is i32; 'a takes no argument
 ```
 
 1. r[types.lifetime.declare] The generic parameter list of a function, a method, an implementation, a struct, an enum, a trait, or a `type` declaration may declare lifetime parameters beside its type parameters.
@@ -1709,6 +1716,12 @@ fn name(a: &'b User) -> &string:  # error: unknown-lifetime
 3. r[types.lifetime.namespace] Lifetimes have names of their own: `'a` never collides with a type, a value, or a type parameter named `a`.
 4. r[types.lifetime.unique] A lifetime parameter that reuses the name of a lifetime parameter in scope is an error. Error: `duplicate-binding`.
 5. r[types.lifetime.unknown] A lifetime written in a declaration's header or fields must name a lifetime parameter in scope. Error: `unknown-lifetime`.
+6. r[types.lifetime.order] A lifetime parameter must follow every type parameter of its list. Error: `lifetime-order`.
+7. r[types.lifetime.arguments] Explicit type arguments, as in `pick::[i32](x, y)`, fill only the type parameters, and a lifetime parameter takes no explicit argument.
+
+> **Why.** With the lifetimes last, the type parameters keep the
+> positions that explicit type arguments fill, as Mojo's `[T, origin]`
+> lists do.
 
 See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
 [Lifetimes](01-lexical-structure.md#lifetimes).

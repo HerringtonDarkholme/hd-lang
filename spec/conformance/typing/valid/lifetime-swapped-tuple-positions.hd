@@ -1,0 +1,10 @@
+# test: a tuple result's positions each take the lifetime they write
+# Spec 13 Origins: ref.dep.origin.position; Lifetime Variables: ref.lifetime.return.
+struct User:
+    name: string
+
+fn swap['a, 'b](x: &'a User, y: &'b User) -> (&'b User, &'a User):
+    (y, x)
+
+fn second['a, 'b](pair: (&'a User, &'b User)) -> &'b User:
+    pair._1

@@ -30,11 +30,11 @@ fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:
 >       ElseClause else :
 >         NameExpr b
 
-impl['a, T] Pair[T]:
+impl[T, 'a] Pair[T]:
 >   ImplDecl impl :
 >     GenericParameterList [ , ]
->       LifetimeParameter 'a
 >       GenericParameter T
+>       LifetimeParameter 'a
 >     NamedType Pair
 >       TypeArgumentList [ ]
 >         NamedType T
@@ -52,11 +52,11 @@ impl['a, T] Pair[T]:
 >         FieldExpr . left
 >           NameExpr self
 
-struct Parser['src, T]:
+struct Parser[T, 'src]:
 >   DataDecl struct Parser :
 >     GenericParameterList [ , ]
->       LifetimeParameter 'src
 >       GenericParameter T
+>       LifetimeParameter 'src
     src: &'src T
 >     DataField src :
 >       RefType & 'src

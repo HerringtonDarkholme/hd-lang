@@ -1,0 +1,8 @@
+# test: each reference position of a result has its own origins, so swapped tuple positions are an error
+# Spec 13 Origins: ref.dep.origin.position; Lifetime Variables: ref.lifetime.return.
+struct User:
+    name: string
+
+fn keep_order['a, 'b](x: &'a User, y: &'b User) -> (&'a User, &'b User):
+    pair := (y, x)
+    pair  # diagnostic: local-reference-escapes

@@ -1,70 +1,265 @@
 //! Dependent results (spec/lang/13-values-and-references.md, "Dependent
 //! Results"): a function's result may hold a local reference, which
-//! depends on the source its signature elides ([`source_of`]).
+//! depends on the parameters whose reference slots share its lifetime
+//! ([`DepSig`]): a written lifetime variable, or the one its signature
+//! elides.
 //!
 //! Once a body is checked, [`Ck::check_dependent_results`] solves the
 //! origins of its local-holding values over the body's TIR, once and per
-//! binding, as Rust's NLL does for regions (`ref.dep.origin.*`). An
+//! binding, as Rust's NLL does for regions (`ref.dep.origin.*`), with one
+//! origin set per reference slot of each value (`ref.dep.slot`). An
 //! origin is a storage root a local reference may point into: what a
-//! parameter refers to, a local's or a parameter's own storage, the
-//! hidden local of `&e` on a value, or a top-level binding. A returned
-//! value may depend only on the source (`ref.dep.return`), a call's result
-//! depends on its source argument (`ref.dep.call`), a store through a
+//! parameter's reference slot refers to, a local's or a parameter's own
+//! storage, the hidden local of `&e` on a value, or a top-level binding.
+//! A returned value's slot may depend only on the parameter slots of its
+//! lifetime (`ref.dep.return`), a call's result slot depends on the
+//! argument slots of its lifetime (`ref.dep.call`), a store through a
 //! reference lands in a place of the body (`ref.dep.store`). An element
 //! reference takes the origin of its collection's root place
 //! (`ref.dep.origin.element`).
+//!
+//! A value's slots are its reference slots at the top, outside another
+//! reference ([`tops`]); what a reference's referent holds comes from its
+//! origins' storage. Where a projection or a construction cannot be
+//! lined up with the slots, each slot takes the union of all of them,
+//! which only adds origins.
 
 use hd_base::SliceSort as _;
 use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
 use hd_diag::Code;
-use hd_syntax::{GreenTree, NodeRef, SyntaxKind};
+use hd_resolve::ItemData;
+use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Body, BodyKind, Callee, NONE, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
+use crate::call::subst_owner;
 use crate::local_refs::holds_local_ref;
 
-/// What a function's result depends on (`ref.dep.elide`).
+/// The lifetime of an input slot that writes none: its own, `ANON` plus
+/// the slot's index. A written lifetime is its 1-based place in scope.
+const ANON: u32 = 1 << 16;
+
+/// What a result slot that writes no lifetime depends on (`ref.dep.elide`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Source {
-    /// The result holds no local reference.
-    Owned,
-    /// Parameter `k`, a receiver first.
-    Param(usize),
+enum Elided {
+    /// The receiver's lifetime, or the parameters' one lifetime.
+    Lifetime(u32),
     /// No reference position: `reference-result-without-source`.
     Missing,
-    /// Two or more, and no reference receiver: `ambiguous-reference-source`.
+    /// Two or more lifetimes, and no reference receiver:
+    /// `ambiguous-reference-source`.
     Ambiguous,
 }
 
-/// The source of a result `ret` under the parameters `params`: a `&self`
-/// or `&mut self` receiver, or else the parameter of the one local
-/// reference position (`ref.dep.position`).
-pub(crate) fn source_of(
-    pool: Types<'_>,
-    params: &[(Symbol, Ty)],
-    is_self: impl Fn(Symbol) -> bool,
+/// A signature's dependency map (`ref.dep.slot`): the lifetime of each
+/// reference slot of its parameters and of its result, in
+/// [`Types::ref_slots`] order over the declared types.
+pub(crate) struct DepSig {
+    /// Each parameter's declared type and its slots' lifetimes.
+    params: Vec<(Ty, Vec<u32>)>,
+    /// Each result slot's lifetime; `None` when it has no source.
+    outs: Vec<Option<u32>>,
     ret: Ty,
-) -> Source {
-    if !holds_local_ref(pool, ret) {
-        return Source::Owned;
-    }
-    if params
-        .first()
-        .is_some_and(|&(s, t)| is_self(s) && local_ref(pool, t).is_some_and(|(c, _)| !c))
-    {
-        return Source::Param(0);
-    }
-    let mut found = Source::Missing;
-    for (k, &(s, t)) in params.iter().enumerate() {
-        match (pool.ref_slots(t), found) {
-            (0, _) => {}
-            _ if is_self(s) => {}
-            (1, Source::Missing) => found = Source::Param(k),
-            _ => return Source::Ambiguous,
+    elided: Elided,
+}
+
+impl DepSig {
+    /// The map of a signature: `written` is `FnSig::lifetimes`, one entry
+    /// per slot of `params` and then of `ret`, 0 where none is written.
+    fn new(
+        pool: Types<'_>,
+        params: &[(Symbol, Ty)],
+        is_self: impl Fn(Symbol) -> bool,
+        ret: Ty,
+        written: &[u16],
+    ) -> DepSig {
+        let ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
+        let outs_n = pool.ref_slots(ret);
+        let trust_in = written.len() >= ins;
+        let trust_out = written.len() == ins + outs_n;
+        let mut g = 0;
+        let mut ps = Vec::with_capacity(params.len());
+        for &(_, t) in params {
+            let n = pool.ref_slots(t);
+            let ids: Vec<u32> = (g..g + n)
+                .map(|k| match written.get(k) {
+                    Some(&l) if trust_in && l != 0 => u32::from(l),
+                    _ => ANON + w(k),
+                })
+                .collect();
+            g += n;
+            ps.push((t, ids));
+        }
+        let receiver = params
+            .first()
+            .is_some_and(|&(s, t)| is_self(s) && local_ref(pool, t).is_some_and(|(c, _)| !c));
+        let elided = match ps.first() {
+            Some((_, ids)) if receiver && !ids.is_empty() => Elided::Lifetime(ids[0]),
+            _ => {
+                let mut ids: Vec<u32> = params
+                    .iter()
+                    .zip(&ps)
+                    .filter(|((s, _), _)| !is_self(*s))
+                    .flat_map(|(_, (_, ids))| ids.iter().copied())
+                    .collect();
+                ids.sort_stable();
+                ids.dedup();
+                match ids.as_slice() {
+                    [one] => Elided::Lifetime(*one),
+                    [] => Elided::Missing,
+                    _ => Elided::Ambiguous,
+                }
+            }
+        };
+        let outs = (0..outs_n)
+            .map(|j| match written.get(ins + j) {
+                Some(&l) if trust_out && l != 0 => Some(u32::from(l)),
+                _ => match elided {
+                    Elided::Lifetime(id) => Some(id),
+                    _ => None,
+                },
+            })
+            .collect();
+        DepSig {
+            params: ps,
+            outs,
+            ret,
+            elided,
         }
     }
-    found
+
+    /// Whether the result depends on any input.
+    fn depends(&self) -> bool {
+        self.outs.iter().any(Option::is_some) || matches!(self.elided, Elided::Lifetime(_))
+    }
+
+    /// Every lifetime the result may depend on, for a value whose slots do
+    /// not line up with the result's.
+    fn all_ids(&self) -> Vec<u32> {
+        let mut ids: Vec<u32> = self.outs.iter().flatten().copied().collect();
+        if let Elided::Lifetime(id) = self.elided {
+            ids.push(id);
+        }
+        ids.sort_stable();
+        ids.dedup();
+        ids
+    }
+
+    /// The lifetimes of the result's top slots ([`tops`]), each a set:
+    /// one lifetime per slot, or for another shape every lifetime per
+    /// slot of `t`.
+    fn result_ids(&self, pool: Types<'_>, t: Ty) -> Vec<Vec<u32>> {
+        let have = tops(pool, t);
+        let want = tops(pool, self.ret);
+        if have.len() == want.len() && !have.is_empty() {
+            return want
+                .iter()
+                .map(|&(r, _)| self.outs.get(r).copied().flatten().into_iter().collect())
+                .collect();
+        }
+        vec![self.all_ids(); width(pool, t)]
+    }
+
+    /// The input slots `(parameter, slot)` of lifetime `id`.
+    fn inputs(&self, id: u32) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.params
+            .iter()
+            .enumerate()
+            .flat_map(move |(p, (_, ids))| {
+                ids.iter()
+                    .enumerate()
+                    .filter(move |&(_, l)| *l == id)
+                    .map(move |(s, _)| (p, s))
+            })
+    }
+
+    /// Whether the result slot of lifetime `id` may depend on `o`: a
+    /// parameter slot of that lifetime, or a reference slot behind one,
+    /// whose referent outlives it (`ref.dep.return`).
+    fn allows(&self, pool: Types<'_>, o: Origin, id: u32) -> bool {
+        let Origin::Param(p, s) = o else {
+            return false;
+        };
+        let Some((t, ids)) = self.params.get(p as usize) else {
+            return false;
+        };
+        let s = s as usize;
+        if ids.get(s) == Some(&id) {
+            return true;
+        }
+        let all = slots_of(pool, *t);
+        (0..s.min(all.len())).any(|s0| {
+            ids.get(s0) == Some(&id) && s <= s0 + pool.ref_slots(referent(pool, all[s0].0))
+        })
+    }
+}
+
+/// Each reference slot of `t` in [`Types::ref_slots`] order: the
+/// reference type, and whether it is at the top, outside another
+/// reference.
+fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
+    fn walk(pool: Types<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<(Ty, bool)>) {
+        if depth > 32 || !pool.has_ref(t) {
+            return;
+        }
+        let d = depth + 1;
+        match pool.get(t) {
+            TyData::Ref {
+                counted: false,
+                inner,
+                ..
+            } => {
+                out.push((t, top));
+                walk(pool, inner, false, d, out);
+            }
+            TyData::Mut(i) | TyData::Option(i) => walk(pool, i, top, d, out),
+            TyData::Tuple { elems, rest } => {
+                for &e in pool.list_items(elems) {
+                    walk(pool, e, top, d, out);
+                }
+                if let Some(r) = rest {
+                    walk(pool, r, top, d, out);
+                }
+            }
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                for &a in pool.list_items(args) {
+                    walk(pool, a, top, d, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(pool, t, true, 0, &mut out);
+    out
+}
+
+/// The top slots of `t`: each one's index among the reference slots and
+/// its reference type.
+fn tops(pool: Types<'_>, t: Ty) -> Vec<(usize, Ty)> {
+    slots_of(pool, t)
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, top))| *top)
+        .map(|(k, (t, _))| (k, t))
+        .collect()
+}
+
+/// How many origin sets a value of type `t` has: one per top slot, or one
+/// for a trait value with none.
+fn width(pool: Types<'_>, t: Ty) -> usize {
+    let n = tops(pool, t).len();
+    if n == 0 && may_hold(pool, t) { 1 } else { n }
+}
+
+/// What reference type `t` refers to.
+fn referent(pool: Types<'_>, t: Ty) -> Ty {
+    match pool.get(t) {
+        TyData::Ref { inner, .. } => inner,
+        TyData::Mut(i) => referent(pool, i),
+        _ => Ty::VOID,
+    }
 }
 
 /// `Some((counted, to a trait value))` when `t` is a reference type,
@@ -95,8 +290,9 @@ fn may_hold(pool: Types<'_>, t: Ty) -> bool {
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 enum Origin {
-    /// What parameter `$p` refers to, which the caller owns: `p*`.
-    Param(u32),
+    /// What reference slot `s` of parameter `$p` refers to, which the
+    /// caller owns: `p*`.
+    Param(u32, u32),
     /// The own storage of local `$l`, a parameter's included.
     Local(u32),
     /// The hidden local of `&e` on a value, at the `Ref`.
@@ -123,56 +319,246 @@ fn union(into: &mut Set, from: &[Origin]) -> bool {
     into.len() != n
 }
 
+/// The union of a value's slots.
+fn flat(v: &[Set]) -> Set {
+    let mut s = Set::new();
+    for x in v {
+        union(&mut s, x);
+    }
+    s
+}
+
+/// Adds `from` to `into` slot by slot, or when the two do not line up,
+/// all of `from` to every slot.
+fn union_into(into: &mut [Set], from: &[Set]) -> bool {
+    let mut changed = false;
+    if into.len() == from.len() {
+        for (a, b) in into.iter_mut().zip(from) {
+            changed |= union(a, b);
+        }
+    } else {
+        let all = flat(from);
+        for a in into.iter_mut() {
+            changed |= union(a, &all);
+        }
+    }
+    changed
+}
+
+/// `v` as `n` slots: itself, or each slot the union of all of it.
+fn fit(v: &[Set], n: usize) -> Vec<Set> {
+    if v.len() == n {
+        v.to_vec()
+    } else {
+        vec![flat(v); n]
+    }
+}
+
 /// The origin sets of one body, the least solution of its constraints.
 struct Solve<'a> {
     b: &'a Body,
     pool: Types<'a>,
-    /// Each instruction's value.
-    val: Vec<Set>,
-    /// What each local's or hidden local's storage holds: `O(b)`.
-    held: HashMap<Origin, Set>,
-    /// The dependent calls: the parameter index of each one's source.
-    deps: &'a HashMap<u32, usize>,
+    cx: &'a BodyCx<'a>,
+    /// Each instruction's value, one set per slot.
+    val: Vec<Vec<Set>>,
+    /// What each local's or hidden local's storage holds: `O(b)`, one set
+    /// per slot of a local, one for a hidden local.
+    held: HashMap<Origin, Vec<Set>>,
+    /// The dependent calls' callees.
+    deps: &'a HashMap<u32, DepSig>,
+    /// Each parameter's type, which `Origin::Param` slots index.
+    params: Vec<Ty>,
     /// Stores of a local-holding value into a place the caller owns.
     out: HashSet<u32>,
     changed: bool,
 }
 
 impl Solve<'_> {
-    fn of(&self, r: u32) -> &[Origin] {
+    fn of(&self, r: u32) -> &[Set] {
         if r == NONE || r & hd_tir::ir::Ref::CONST_BIT != 0 {
             return &[];
         }
         self.val.get(r as usize).map_or(&[], Vec::as_slice)
     }
 
-    fn held(&self, o: Origin) -> Set {
+    fn ty(&self, r: u32) -> Option<Ty> {
+        (r & hd_tir::ir::Ref::CONST_BIT == 0)
+            .then(|| self.b.ty.get(r as usize).copied())
+            .flatten()
+    }
+
+    /// What storage `o` holds, one set per slot of its type.
+    fn held(&self, o: Origin) -> Vec<Set> {
         match o {
-            Origin::Param(_) => vec![o],
+            Origin::Param(p, s) => {
+                let Some(&t) = self.params.get(p as usize) else {
+                    return vec![vec![o]];
+                };
+                let Some(&(rt, _)) = slots_of(self.pool, t).get(s as usize) else {
+                    return vec![vec![o]];
+                };
+                let inner = referent(self.pool, rt);
+                let ts = tops(self.pool, inner);
+                if ts.is_empty() {
+                    return if may_hold(self.pool, inner) {
+                        vec![vec![o]]
+                    } else {
+                        vec![]
+                    };
+                }
+                ts.iter()
+                    .map(|&(r, _)| vec![Origin::Param(p, s + 1 + w(r))])
+                    .collect()
+            }
             Origin::Local(_) | Origin::Hidden(_) => self.held.get(&o).cloned().unwrap_or_default(),
             Origin::Global(_) => vec![],
         }
     }
 
-    fn hold(&mut self, o: Origin, from: &[Origin]) {
-        if from.is_empty() || !matches!(o, Origin::Local(_) | Origin::Hidden(_)) {
+    /// Adds `from` to what storage `o` holds, in its slots `range` when
+    /// that is known.
+    fn hold(&mut self, o: Origin, from: &[Set], range: Option<(usize, usize)>) {
+        if from.iter().all(Vec::is_empty) {
             return;
         }
-        if union(self.held.entry(o).or_default(), from) {
-            self.changed = true;
+        let n = match o {
+            Origin::Local(l) => width(self.pool, self.b.local_ty[l as usize]),
+            Origin::Hidden(h) => {
+                width(self.pool, referent(self.pool, self.b.ty[h as usize])).max(1)
+            }
+            _ => return,
+        };
+        let e = self.held.entry(o).or_insert_with(|| vec![Set::new(); n]);
+        let changed = match range {
+            Some((s, k)) if s + k <= e.len() && from.len() == k => {
+                union_into(&mut e[s..s + k], from)
+            }
+            _ => union_into(e, from),
+        };
+        self.changed |= changed;
+    }
+
+    /// Field `j` of type `t`, of variant `variant` for an enum: its type,
+    /// and the run of `t`'s top slots it holds, when that is known.
+    fn field(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<(Ty, Option<(usize, usize)>)> {
+        let pool = self.pool;
+        let n = |t: Ty| tops(pool, t).len();
+        match (pool.get(t), variant) {
+            (TyData::Mut(i), _) => self.field(i, variant, j),
+            (TyData::Tuple { elems, .. }, None) => {
+                let es = pool.list_items(elems);
+                let e = *es.get(j as usize)?;
+                let start = es[..j as usize].iter().map(|&x| n(x)).sum();
+                Some((e, Some((start, n(e)))))
+            }
+            (TyData::Option(i), Some(1)) if j == 0 => Some((i, Some((0, n(i))))),
+            (TyData::Adt { def, args }, _) => {
+                let fields = match (&self.cx.lookup.item(def)?.data, variant) {
+                    (ItemData::Data(fs), None) => fs,
+                    (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
+                        &variants.get(k as usize)?.fields
+                    }
+                    _ => return None,
+                };
+                let f = fields.get(j as usize)?.ty;
+                let argv = pool.list_items(args);
+                let child = subst_owner(pool, def, argv, f);
+                let range = match pool.get(f) {
+                    TyData::Param(p) if p.owner == def && (p.index as usize) < argv.len() => {
+                        let a = p.index as usize;
+                        let start = argv[..a].iter().map(|&x| n(x)).sum();
+                        Some((start, n(argv[a])))
+                    }
+                    _ => None,
+                };
+                Some((child, range))
+            }
+            _ => None,
         }
     }
 
+    /// The slots `proj` reaches from a value `cur` of type `t`, as `want`
+    /// slots. A dereference of a local reference reads what its origins'
+    /// storage holds.
+    fn project(&self, mut cur: Vec<Set>, t: Ty, proj: &[Proj], want: usize) -> Vec<Set> {
+        let pool = self.pool;
+        let mut ty = Some(t);
+        let mut variant = None;
+        for p in proj {
+            let Some(t) = ty else { break };
+            match *p {
+                Proj::Variant(k) => variant = Some(k),
+                Proj::Field(j) => match self.field(t, variant.take(), j) {
+                    Some((child, Some((s, k))))
+                        if cur.len() == tops(pool, t).len() && s + k <= cur.len() =>
+                    {
+                        cur = cur[s..s + k].to_vec();
+                        ty = Some(child);
+                    }
+                    Some((child, _)) => {
+                        cur = fit(&cur, width(pool, child));
+                        ty = Some(child);
+                    }
+                    None => ty = None,
+                },
+                Proj::Deref => match local_ref(pool, t) {
+                    Some((false, false)) => {
+                        let inner = referent(pool, t);
+                        let mut h = vec![Set::new(); width(pool, inner)];
+                        for o in flat(&cur) {
+                            union_into(&mut h, &self.held(o));
+                        }
+                        cur = h;
+                        ty = Some(inner);
+                    }
+                    // A trait value through a reference is a view of the
+                    // reference's data, with its origins.
+                    _ => ty = None,
+                },
+                Proj::Elem(_) => ty = None,
+            }
+        }
+        fit(&cur, want)
+    }
+
+    /// The run of local `l`'s slots that the field projections `proj`
+    /// reach, when that is known.
+    fn local_range(&self, l: u32, proj: &[Proj]) -> Option<(usize, usize)> {
+        let mut t = self.b.local_ty[l as usize];
+        let (mut start, mut len) = (0, tops(self.pool, t).len());
+        let mut variant = None;
+        for p in proj {
+            match *p {
+                Proj::Variant(k) => variant = Some(k),
+                Proj::Field(j) => {
+                    let (child, Some((s, k))) = self.field(t, variant.take(), j)? else {
+                        return None;
+                    };
+                    if s + k > len {
+                        return None;
+                    }
+                    (start, len, t) = (start + s, k, child);
+                }
+                _ => return None,
+            }
+        }
+        (len > 0).then_some((start, len))
+    }
+
     /// The storage the place `word` of instruction `i` lies in, and the
-    /// origins of the value it holds (`ref.dep.origin.place`).
-    fn place(&self, i: u32, word: u32) -> (Set, Set) {
+    /// origins of the value it holds as `want` slots
+    /// (`ref.dep.origin.place`).
+    fn place(&self, i: u32, word: u32, want: usize) -> (Set, Vec<Set>) {
+        let empty = vec![Set::new(); want];
         let Some(p) = self.b.decode_place(word) else {
-            return (vec![], vec![]);
+            return (vec![], empty);
         };
         match p.root {
             PlaceRoot::Local(l) => {
                 let o = Origin::Local(l.raw());
-                (vec![o], self.held(o))
+                let t = self.b.local_ty[l.raw() as usize];
+                let h = fit(&self.held(o), width(self.pool, t));
+                (vec![o], self.project(h, t, &p.proj, want))
             }
             // An element's origin is the collection's root place
             // (`ref.dep.origin.element`). The checker has already read
@@ -185,44 +571,47 @@ impl Solve<'_> {
                     v = self.b.data[v as usize][0];
                 }
                 if v & hd_tir::ir::Ref::CONST_BIT == 0 && self.b.tags[v as usize] == Tag::Read {
-                    (self.place(v, self.b.data[v as usize][0]).0, vec![])
+                    (self.place(v, self.b.data[v as usize][0], 0).0, empty)
                 } else {
-                    (vec![Origin::Hidden(i)], vec![])
+                    (vec![Origin::Hidden(i)], empty)
                 }
             }
             PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
-                let t = self.b.ty.get(v.0 as usize).copied().unwrap_or(Ty::VOID);
-                let kind = (v.0 & hd_tir::ir::Ref::CONST_BIT == 0)
-                    .then(|| local_ref(self.pool, t))
-                    .flatten();
+                let t = self.ty(v.0).unwrap_or(Ty::VOID);
+                let kind = self.ty(v.0).and_then(|t| local_ref(self.pool, t));
                 match kind {
                     // A trait value through a reference is a view of the
                     // reference's data, with its origins.
-                    Some((false, true)) => (self.of(v.0).to_vec(), self.of(v.0).to_vec()),
+                    Some((false, true)) => {
+                        let s = flat(self.of(v.0));
+                        (s.clone(), vec![s; want])
+                    }
                     // A reborrow: what the reference points into.
                     Some((false, false)) => {
-                        let s = self.of(v.0).to_vec();
-                        let mut h = Set::new();
-                        for &o in &s {
-                            union(&mut h, &self.held(o));
-                        }
-                        (s, h)
+                        let s = flat(self.of(v.0));
+                        (s, self.project(self.of(v.0).to_vec(), t, &p.proj, want))
                     }
                     // Crossing a counted reference changes nothing: the
                     // place lies where the reference was read from.
                     _ => {
                         let s = match self.b.tags.get(v.0 as usize) {
-                            Some(Tag::Read) => self.place(v.0, self.b.data[v.0 as usize][0]).0,
+                            Some(Tag::Read) => self.place(v.0, self.b.data[v.0 as usize][0], 0).0,
                             _ => vec![Origin::Hidden(v.0)],
                         };
                         let dyn_ = kind.is_some_and(|(_, d)| d);
-                        (s.clone(), if dyn_ { s } else { vec![] })
+                        (s.clone(), if dyn_ { vec![s; want] } else { empty })
                     }
                 }
             }
-            PlaceRoot::Value(v) => (vec![Origin::Hidden(i)], self.of(v.0).to_vec()),
-            PlaceRoot::Global(d, _) => (vec![Origin::Global(d.raw())], vec![]),
-            _ => (vec![], vec![]),
+            PlaceRoot::Value(v) => {
+                let h = match self.ty(v.0) {
+                    Some(t) => self.project(self.of(v.0).to_vec(), t, &p.proj, want),
+                    None => empty,
+                };
+                (vec![Origin::Hidden(i)], h)
+            }
+            PlaceRoot::Global(d, _) => (vec![Origin::Global(d.raw())], empty),
+            _ => (vec![], empty),
         }
     }
 
@@ -230,21 +619,122 @@ impl Solve<'_> {
     /// or for a counted reference lent as a local one, the storage it was
     /// read from (`ref.dep.origin.lend`).
     fn lent(&self, a: u32) -> Set {
-        if a & hd_tir::ir::Ref::CONST_BIT != 0 {
-            return vec![];
-        }
         let b = self.b;
         let mut v = a as usize;
-        if b.tags[v] == Tag::Ref || may_hold(self.pool, b.ty[v]) {
-            return self.of(a).to_vec();
-        }
         while b.tags[v] == Tag::Coerce && b.data[v][0] & hd_tir::ir::Ref::CONST_BIT == 0 {
             v = b.data[v][0] as usize;
         }
         match b.tags[v] {
-            Tag::Read => self.place(w(v), b.data[v][0]).0,
+            Tag::Read => self.place(w(v), b.data[v][0], 0).0,
             _ => vec![Origin::Hidden(w(v))],
         }
+    }
+
+    /// Every origin `set` reaches through the storage of its origins.
+    fn reach(&self, set: Set) -> Set {
+        let mut out = set.clone();
+        let mut stack = set;
+        while let Some(o) = stack.pop() {
+            for h in self.held(o) {
+                for x in h {
+                    if union(&mut out, &[x]) {
+                        stack.push(x);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Slot `s` of a value `cur` of type `at`, passed for a parameter of
+    /// declared type `pt`: a top slot's set, or a slot behind a reference
+    /// through what its origins' storage holds. A slot whose referent
+    /// holds references adds what that holds, since the callee may return
+    /// it (`ref.dep.call`).
+    fn slot_in(&self, cur: &[Set], at: Ty, pt: Ty, s: usize, depth: u32) -> Set {
+        let pool = self.pool;
+        let (ta, tp) = (tops(pool, at), tops(pool, pt));
+        if depth > 32 || ta.len() != tp.len() || cur.len() != tp.len() {
+            return self.reach(flat(cur));
+        }
+        let Some(k) = tp.iter().rposition(|&(f, _)| f <= s) else {
+            return self.reach(flat(cur));
+        };
+        let (f, rt) = tp[k];
+        let inner = referent(pool, rt);
+        if s == f {
+            return if pool.ref_slots(inner) > 0 {
+                self.reach(cur[k].clone())
+            } else {
+                cur[k].clone()
+            };
+        }
+        let inner_a = referent(pool, ta[k].1);
+        let mut h = vec![Set::new(); width(pool, inner_a)];
+        for &o in &cur[k] {
+            union_into(&mut h, &self.held(o));
+        }
+        self.slot_in(&h, inner_a, inner, s - f - 1, depth + 1)
+    }
+
+    /// The origins call `i` passes in the slots of lifetime `id`.
+    fn lifetime_args(&self, i: usize, sig: &DepSig, id: u32) -> Set {
+        let b = self.b;
+        let mut out = Set::new();
+        for (p, s) in sig.inputs(id) {
+            let Some(a) = source_arg(b, i, p) else {
+                continue;
+            };
+            let Some(at) = self.ty(a) else { continue };
+            let set = if b.tags[a as usize] == Tag::Ref || may_hold(self.pool, at) {
+                self.slot_in(self.of(a), at, sig.params[p].0, s, 0)
+            } else {
+                self.lent(a)
+            };
+            union(&mut out, &set);
+        }
+        out
+    }
+
+    /// A dependent call's result, `n` slots: each slot the arguments'
+    /// origins in the slots of its lifetime (`ref.dep.call`).
+    fn call(&self, i: usize, sig: &DepSig, n: usize) -> Vec<Set> {
+        let v: Vec<Set> = sig
+            .result_ids(self.pool, self.b.ty[i])
+            .iter()
+            .map(|ids| {
+                let mut s = Set::new();
+                for &id in ids {
+                    union(&mut s, &self.lifetime_args(i, sig, id));
+                }
+                s
+            })
+            .collect();
+        fit(&v, n)
+    }
+
+    /// A tuple, struct or variant construction: each part in the slots
+    /// of its field (`ref.dep.origin.parts`).
+    fn construct(&self, i: usize, n: usize) -> Vec<Set> {
+        let b = self.b;
+        let t = b.ty[i];
+        let mut out = vec![Set::new(); n];
+        let variant = (b.tags[i] == Tag::NewVariant).then_some(b.data[i][0]);
+        if b.tags[i] == Tag::NewTuple && b.data[i][0] != NONE {
+            union_into(&mut out, self.of(b.data[i][0]));
+        }
+        let lined = tops(self.pool, t).len() == n;
+        for (j, &v) in b.record(b.data[i][1]).iter().enumerate() {
+            match self.field(t, variant, w(j)) {
+                Some((_, Some((s, k)))) if lined && s + k <= n => {
+                    union_into(&mut out[s..s + k], self.of(v));
+                }
+                _ => {
+                    union_into(&mut out, self.of(v));
+                }
+            }
+        }
+        out
     }
 
     fn step(&mut self, i: usize) {
@@ -253,23 +743,30 @@ impl Solve<'_> {
         if tag == Tag::Store {
             let [word, v] = b.data[i];
             let value = self.of(v).to_vec();
-            if value.is_empty() {
+            if value.iter().all(Vec::is_empty) {
                 return;
             }
             let p = b.decode_place(word);
             let through = p
                 .as_ref()
                 .is_some_and(|p| p.proj.first() == Some(&Proj::Deref));
-            let (storage, _) = self.place(w(i), word);
+            let range = match &p {
+                Some(p) if !through => match p.root {
+                    PlaceRoot::Local(l) => self.local_range(l.raw(), &p.proj),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let (storage, _) = self.place(w(i), word, 0);
             for s in storage {
                 match s {
-                    Origin::Param(_) if through => {
+                    Origin::Param(..) if through => {
                         let t = b.ty.get(v as usize).copied().unwrap_or(Ty::VOID);
                         if holds_local_ref(self.pool, t) {
                             self.out.insert(w(i));
                         }
                     }
-                    Origin::Local(_) | Origin::Hidden(_) => self.hold(s, &value),
+                    Origin::Local(_) | Origin::Hidden(_) => self.hold(s, &value, range),
                     _ => {}
                 }
             }
@@ -279,42 +776,43 @@ impl Solve<'_> {
             let [label, v] = b.data[i];
             let value = self.of(v).to_vec();
             if let Some(&t) = b.label_inst.get(label as usize)
-                && union(&mut self.val[t as usize], &value)
+                && union_into(&mut self.val[t as usize], &value)
             {
                 self.changed = true;
             }
             return;
         }
+        let n = self.val[i].len();
         let new = match tag {
             Tag::Ref => {
-                let (s, v) = self.place(w(i), b.data[i][0]);
+                let inner = width(self.pool, referent(self.pool, b.ty[i]));
+                let (s, v) = self.place(w(i), b.data[i][0], inner);
                 if s == [Origin::Hidden(w(i))] {
-                    self.hold(s[0], &v);
+                    self.hold(s[0], &v, None);
                 }
-                s
+                vec![s]
             }
             // Only a local-holding value has origins.
-            _ if !may_hold(self.pool, b.ty[i]) => return,
-            Tag::Read => self.place(w(i), b.data[i][0]).1,
-            Tag::Call | Tag::Await | Tag::CallDyn => {
-                let k = self.deps.get(&w(i));
-                k.and_then(|&k| source_arg(b, i, k))
-                    .map(|a| self.lent(a))
-                    .unwrap_or_default()
-            }
+            _ if n == 0 => return,
+            Tag::Read => self.place(w(i), b.data[i][0], n).1,
+            Tag::Call | Tag::Await | Tag::CallDyn => match self.deps.get(&w(i)) {
+                Some(sig) => self.call(i, sig, n),
+                None => return,
+            },
             Tag::Coerce => self.of(b.data[i][0]).to_vec(),
-            Tag::Prim | Tag::Intrinsic | Tag::CallValue | Tag::CallHost | Tag::Return => vec![],
+            Tag::Prim | Tag::Intrinsic | Tag::CallValue | Tag::CallHost | Tag::Return => return,
+            Tag::NewTuple | Tag::NewStruct | Tag::NewVariant => self.construct(i, n),
             _ => {
-                let mut s = Set::new();
+                let mut s = vec![Set::new(); n];
                 slots(b, i, |_, w, word| {
                     if matches!(word, Word::Block | Word::Value(Role::Tail | Role::Consume)) {
-                        union(&mut s, self.of(w));
+                        union_into(&mut s, self.of(w));
                     }
                 });
                 s
             }
         };
-        if union(&mut self.val[i], &new) {
+        if union_into(&mut self.val[i], &new) {
             self.changed = true;
         }
     }
@@ -339,19 +837,23 @@ fn source_arg(b: &Body, i: usize, k: usize) -> Option<u32> {
 }
 
 impl Ck<'_, '_> {
-    /// The source of a callee's result (`ref.dep.call`, `ref.dep.trait`):
-    /// a trait method's from the trait's signature.
-    fn callee_source(&self, def: DefId) -> Source {
-        let Ok(sig) = self.sig_of(def) else {
-            return Source::Owned;
-        };
+    /// The dependency map of a callee's signature (`ref.dep.call`,
+    /// `ref.dep.trait`): a trait method's from the trait's signature.
+    fn callee_dep(&self, def: DefId) -> Option<DepSig> {
+        let sig = self.sig_of(def).ok()?;
+        let pool = self.pool();
+        if !holds_local_ref(pool, sig.ret) {
+            return None;
+        }
         let names = &self.cx.names;
-        source_of(
-            self.pool(),
+        let dep = DepSig::new(
+            pool,
             &sig.params,
             |s| names.text(s) == "self",
             sig.ret,
-        )
+            &sig.lifetimes,
+        );
+        dep.depends().then_some(dep)
     }
 
     /// The dependent results of the finished body, its result `ret`
@@ -364,21 +866,22 @@ impl Ck<'_, '_> {
     ) {
         let pool = self.pool();
         let body = self.b.body();
-        // The body's own source: parameter k is local k.
+        // The body's own map: parameter k is local k.
         let fn_body = body.kind == BodyKind::Fn && fun.is_some() && holds_local_ref(pool, ret);
         let own = match fn_body.then(|| self.sig_of(body.item)) {
             Some(Ok(sig)) => {
                 let names = &self.cx.names;
-                Some(source_of(
+                Some(DepSig::new(
                     pool,
                     &sig.params,
                     |s| names.text(s) == "self",
                     ret,
+                    &sig.lifetimes,
                 ))
             }
             _ => None,
         };
-        let mut deps: HashMap<u32, usize> = HashMap::default();
+        let mut deps: HashMap<u32, DepSig> = HashMap::default();
         let mut through = false;
         for i in 0..body.tags.len() {
             match body.tags[i] {
@@ -395,10 +898,8 @@ impl Ck<'_, '_> {
                             None => None,
                         },
                     };
-                    if let Some(d) = def
-                        && let Source::Param(k) = self.callee_source(DefId::from_raw(d))
-                    {
-                        deps.insert(w(i), k);
+                    if let Some(dep) = def.and_then(|d| self.callee_dep(DefId::from_raw(d))) {
+                        deps.insert(w(i), dep);
                     }
                 }
                 Tag::Store => {
@@ -412,34 +913,62 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
-        if let (Some(Source::Missing | Source::Ambiguous), Some(f)) = (own, fun)
+        let elided = own.as_ref().map(|o| o.elided);
+        if let (Some(Elided::Missing | Elided::Ambiguous), Some(f)) = (elided, fun)
             && self.result_omitted
         {
-            self.source_error(own == Some(Source::Missing), f);
+            self.source_error(elided == Some(Elided::Missing), f);
         }
-        let src = match own {
-            Some(Source::Param(k)) => Some(w(k)),
-            _ => None,
-        };
-        if src.is_none() && !through {
+        let own = own.filter(DepSig::depends);
+        if own.is_none() && !through {
             return;
         }
         let body = self.b.body();
+        let params: Vec<Ty> = (0..body.local_ty.len())
+            .map(|l| match &own {
+                Some(o) if l < o.params.len() => o.params[l].0,
+                _ => body.local_ty[l],
+            })
+            .collect();
+        let val = (0..body.tags.len())
+            .map(|i| {
+                let n = if body.tags[i] == Tag::Ref {
+                    1
+                } else {
+                    width(pool, body.ty[i])
+                };
+                vec![Set::new(); n]
+            })
+            .collect();
         let mut s = Solve {
             b: body,
             pool,
-            val: vec![Set::new(); body.tags.len()],
+            cx: self.cx,
+            val,
             held: HashMap::default(),
             deps: &deps,
+            params,
             out: HashSet::default(),
             changed: true,
         };
         for l in 0..body.local_ty.len() {
+            let lt = body.local_ty[l];
             if body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0
-                && holds_local_ref(pool, body.local_ty[l])
+                && holds_local_ref(pool, lt)
             {
+                let pt = s.params[l];
+                let tp = tops(pool, pt);
+                let mine: Vec<Set> = tp
+                    .iter()
+                    .map(|&(f, _)| vec![Origin::Param(w(l), w(f))])
+                    .collect();
+                let mine = if mine.is_empty() {
+                    vec![vec![Origin::Param(w(l), 0)]]
+                } else {
+                    mine
+                };
                 s.held
-                    .insert(Origin::Local(w(l)), vec![Origin::Param(w(l))]);
+                    .insert(Origin::Local(w(l)), fit(&mine, width(pool, lt)));
             }
         }
         while s.changed {
@@ -451,16 +980,25 @@ impl Ck<'_, '_> {
         let mut stores: Vec<NodeIdx> = s.out.iter().map(|&i| body.syn[i as usize]).collect();
         stores.sort_stable_by_key(|n| n.raw());
         let mut bad: Vec<(NodeIdx, Origin, u32)> = Vec::new();
-        if let Some(k) = src {
+        if let Some(own) = &own {
+            let ids = own.result_ids(pool, ret);
             for r in returned(body, root.0) {
-                if let Some(&o) = s.of(r).iter().find(|&&o| o != Origin::Param(k)) {
-                    bad.push((site(&s, r, o, 0), o, k));
+                let v = fit(s.of(r), ids.len());
+                for (set, ids) in v.iter().zip(&ids) {
+                    let Some(&id) = ids.first() else { continue };
+                    if let Some(&o) = set
+                        .iter()
+                        .find(|&&o| !ids.iter().any(|&id| own.allows(pool, o, id)))
+                    {
+                        bad.push((site(&s, r, o, 0), o, id));
+                        break;
+                    }
                 }
             }
         }
         // A returned value's origins are `ref.dep.return`'s.
         let mut skip: HashSet<u32> = HashSet::default();
-        if src.is_some() {
+        if own.is_some() {
             skip.extend(returned(body, root.0));
         }
         skip.insert(root.0);
@@ -477,13 +1015,15 @@ impl Ck<'_, '_> {
             );
         }
         let mut seen = HashSet::default();
-        for (at, o, k) in bad {
-            if at == NodeIdx::NONE || !seen.insert(at) {
-                continue;
+        if let Some(own) = &own {
+            for (at, o, id) in bad {
+                if at == NodeIdx::NONE || !seen.insert(at) {
+                    continue;
+                }
+                let msg = self.origin_message(own, o, id, fun);
+                let node = self.cx.src.parse.tree.node(at);
+                self.err(Code::LocalReferenceEscapes, node, &msg);
             }
-            let msg = self.origin_message(o, k, fun);
-            let node = self.cx.src.parse.tree.node(at);
-            self.err(Code::LocalReferenceEscapes, node, &msg);
         }
         for (at, msg) in outlives {
             let node = self.cx.src.parse.tree.node(at);
@@ -504,21 +1044,59 @@ impl Ck<'_, '_> {
             self.err(
                 Code::AmbiguousReferenceSource,
                 f,
-                "the result may borrow from more than one reference parameter; naming the source comes in a later stage",
+                "the result may borrow from more than one reference parameter; write the result type with a lifetime",
             );
         }
     }
 
-    /// `ref.dep.return.message`: the root the result must not depend on.
-    fn origin_message(&self, o: Origin, src: u32, fun: Option<NodeRef<'_>>) -> String {
+    /// The lifetimes in scope at the function `fun`, an enclosing
+    /// implementation's first, with their `'`.
+    fn lifetime_names(&self, fun: NodeRef<'_>) -> Vec<String> {
+        let src = &self.cx.src;
+        let x = fun.index().raw();
+        let mut owners: Vec<NodeRef<'_>> = src
+            .parse
+            .tree
+            .root()
+            .children()
+            .filter(|c| {
+                let (lo, hi) = range(*c);
+                c.kind() == SyntaxKind::ImplDecl && lo < x && x < hi
+            })
+            .collect();
+        owners.push(fun);
+        owners
+            .iter()
+            .filter_map(|o| o.child(SyntaxKind::GenericParameterList))
+            .flat_map(NodeRef::children)
+            .filter(|c| c.kind() == SyntaxKind::LifetimeParameter)
+            .filter_map(|p| p.direct_token(&src.parse.tokens, TokenKind::Lifetime))
+            .map(|t| src.text(t).to_owned())
+            .collect()
+    }
+
+    /// `ref.dep.return.message`: the root the result slot of lifetime `id`
+    /// must not depend on.
+    fn origin_message(&self, own: &DepSig, o: Origin, id: u32, fun: Option<NodeRef<'_>>) -> String {
         let body = self.b.body();
         let name = |l: u32| self.cx.names.text(body.local_name[l as usize]).to_owned();
+        let lifetimes = fun.map(|f| self.lifetime_names(f)).unwrap_or_default();
+        let lifetime = |l: u32| {
+            (l < ANON)
+                .then(|| lifetimes.get(l as usize - 1).cloned())
+                .flatten()
+        };
         let f = fun
             .and_then(|f| f.name(&self.cx.src.parse.tokens))
             .map_or_else(
                 || "this function".to_owned(),
                 |t| format!("`{}`", self.cx.src.text(t)),
             );
+        let carries = |p: u32| {
+            own.params
+                .get(p as usize)
+                .is_some_and(|(_, ids)| ids.contains(&id))
+        };
         let what = match o {
             Origin::Local(l)
                 if body.local_flags[l as usize] & hd_tir::ir::local_flags::PARAM != 0 =>
@@ -532,11 +1110,37 @@ impl Ck<'_, '_> {
                 format!("the value refers to a temporary of {f}")
             }
             Origin::Local(l) => format!("`{}` is a local of {f}", name(l)),
-            Origin::Param(p) => format!("`{}` is another parameter", name(p)),
+            Origin::Param(p, s) => {
+                let other = own
+                    .params
+                    .get(p as usize)
+                    .and_then(|(_, ids)| ids.get(s as usize))
+                    .and_then(|&l| lifetime(l));
+                match other {
+                    Some(l) => format!("the value borrows from `{}` with lifetime `{l}`", name(p)),
+                    None if carries(p) => {
+                        format!("the value borrows from another reference in `{}`", name(p))
+                    }
+                    None => format!("`{}` is another parameter", name(p)),
+                }
+            }
             Origin::Hidden(_) => format!("the value refers to a temporary of {f}"),
             Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
         };
-        format!("{what}; the result depends only on `{}`", name(src))
+        let mut sources: Vec<String> = (0..own.params.len())
+            .filter(|&p| carries(w(p)))
+            .map(|p| format!("`{}`", name(w(p))))
+            .collect();
+        sources.dedup();
+        let from = match sources.as_slice() {
+            [] => "nothing".to_owned(),
+            [one] => one.clone(),
+            [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+        };
+        match lifetime(id) {
+            Some(l) => format!("{what}; a `{l}` reference of the result depends only on {from}"),
+            None => format!("{what}; the result depends only on {from}"),
+        }
     }
 }
 
@@ -586,7 +1190,7 @@ fn site(s: &Solve<'_>, v: u32, o: Origin, depth: u32) -> NodeIdx {
         slots(b, v as usize, |_, w, word| {
             if inner.is_none()
                 && matches!(word, Word::Block | Word::Value(Role::Tail | Role::Consume))
-                && s.of(w).contains(&o)
+                && s.of(w).iter().any(|x| x.contains(&o))
             {
                 inner = Some(w);
             }
@@ -718,16 +1322,17 @@ fn scoped_uses(s: &Solve<'_>, skip: &HashSet<u32>, cx: &BodyCx<'_>) -> Vec<(Node
             continue;
         }
         // The value's origins, and those of each binding a place reads.
-        let mut uses: Vec<(Option<Origin>, Origin)> = s.val[i].iter().map(|&o| (None, o)).collect();
+        let mut uses: Vec<(Option<Origin>, Origin)> =
+            flat(&s.val[i]).into_iter().map(|o| (None, o)).collect();
         let deref = |word| {
             b.decode_place(word)
                 .is_some_and(|p| p.proj.contains(&Proj::Deref))
         };
         let tag = b.tags[i];
         if matches!(tag, Tag::Read | Tag::Ref) || tag == Tag::Store && deref(b.data[i][0]) {
-            for st in s.place(w(i), b.data[i][0]).0 {
+            for st in s.place(w(i), b.data[i][0], 0).0 {
                 if matches!(st, Origin::Local(_) | Origin::Hidden(_)) {
-                    uses.extend(s.held(st).into_iter().map(|o| (Some(st), o)));
+                    uses.extend(flat(&s.held(st)).into_iter().map(|o| (Some(st), o)));
                 }
             }
         }

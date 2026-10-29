@@ -6,9 +6,9 @@ struct User:
 fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:
     if first: a else: b
 
-impl['a, T] Pair[T]:
+impl[T, 'a] Pair[T]:
     fn left_or(&'a self, fallback: &'a mut T) -> &'a T:
         &self.left
 
-struct Parser['src, T]:
+struct Parser[T, 'src]:
     src: &'src T

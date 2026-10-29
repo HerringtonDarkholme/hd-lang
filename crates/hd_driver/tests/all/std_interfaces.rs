@@ -363,8 +363,8 @@ fn stage_b_and_coherence_errors() {
 
 /// A signature's written lifetimes, one per local
 /// reference slot of the parameters and then the result, survive the
-/// interface blob. The program is rejected (`ref.lifetime.not-yet`), but
-/// its interface still builds.
+/// interface blob. The program is rejected (a list of local references
+/// is `local-reference-escapes`), but its interface still builds.
 #[test]
 fn written_lifetimes_map_reference_slots() {
     let mut s = MemorySources::default();
@@ -374,14 +374,14 @@ fn written_lifetimes_map_reference_slots() {
          pub fn choose['a](a: &'a User, b: &User, c: (&'a User, &User)) -> &'a User:\n    a\n\n\
          pub fn plain(a: &User) -> &User:\n    a\n\n\
          struct Pair[T]:\n    left: T\n\n\
-         impl['s, T] Pair[T]:\n    pub fn left_or['f](&'s self, x: &'f T, y: List[&'s T]) -> &'f T:\n        x\n\n\
+         impl[T, 's] Pair[T]:\n    pub fn left_or['f](&'s self, x: &'f T, y: List[&'s T]) -> &'f T:\n        x\n\n\
          pub fn main() -> void:\n    pass\n",
     );
     let out = run(&s);
     assert!(
         out.diags
             .code
-            .contains(&hd_diag::Code::ReferencesNotYetChecked),
+            .contains(&hd_diag::Code::LocalReferenceEscapes),
         "{}",
         out.render()
     );

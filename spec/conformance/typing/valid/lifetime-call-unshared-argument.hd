@@ -1,0 +1,19 @@
+# test: a call's result does not depend on an argument whose lifetime it does not carry
+# Spec 13 Lifetime Variables: ref.lifetime.call.
+struct User:
+    name: string
+
+fn keep['a](kept: &'a User, other: &User) -> &'a User:
+    kept
+
+fn swap['a, 'b](x: &'a User, y: &'b User) -> (&'b User, &'a User):
+    (y, x)
+
+fn pick(x: &User) -> usize:
+    let mut r = x
+    if r.name.len() > 0:
+        local := User { name: "local" }
+        r = keep(x, &local)
+        pair := swap(x, &local)
+        r = pair._1
+    r.name.len()

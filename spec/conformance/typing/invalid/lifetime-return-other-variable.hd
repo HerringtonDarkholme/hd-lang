@@ -1,0 +1,7 @@
+# test: with two lifetime variables, a result of 'a may not return the parameter of 'b
+# Spec 13 Lifetime Variables: ref.lifetime.return.
+struct User:
+    name: string
+
+fn left['a, 'b](x: &'a User, y: &'b User) -> &'a User:
+    y  # diagnostic: local-reference-escapes

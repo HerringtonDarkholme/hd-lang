@@ -156,7 +156,9 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
             for c in n.children() {
                 if c.kind().is_type() {
                     walk_ty(src, c, None, diags);
-                    if c.kind() != SyntaxKind::RequirementRow && ref_positions(src, c) > 0 {
+                    let mut at = Vec::new();
+                    ref_positions(src, c, &mut at);
+                    if c.kind() != SyntaxKind::RequirementRow && !at.is_empty() {
                         check_source(src, n, c, diags);
                     }
                 } else {
@@ -277,21 +279,29 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
 }
 
 /// The local reference positions of the written type `n`
-/// (`ref.dep.position`): each `&` outside a function type.
-fn ref_positions(src: &Src<'_>, n: NodeRef<'_>) -> usize {
-    match n.kind() {
-        SyntaxKind::FunctionType => 0,
-        k => {
-            let own = k == SyntaxKind::RefType
-                && n.direct_token(&src.parse.tokens, TokenKind::Amp).is_some();
-            usize::from(own) + n.children().map(|c| ref_positions(src, c)).sum::<usize>()
-        }
+/// (`ref.dep.position`): each `&` outside a function type, with the
+/// lifetime it writes.
+fn ref_positions<'s>(src: &Src<'s>, n: NodeRef<'_>, out: &mut Vec<Option<&'s str>>) {
+    if n.kind() == SyntaxKind::FunctionType {
+        return;
+    }
+    let toks = &src.parse.tokens;
+    if n.kind() == SyntaxKind::RefType && n.direct_token(toks, TokenKind::Amp).is_some() {
+        out.push(
+            n.direct_token(toks, TokenKind::Lifetime)
+                .map(|t| src.text(t)),
+        );
+    }
+    for c in n.children() {
+        ref_positions(src, c, out);
     }
 }
 
-/// The source the written result `ret` of the function `f` depends on
-/// (`ref.dep.elide`): a `&self` or `&mut self` receiver, or else the one
-/// reference position among the parameters' types. None is
+/// The source each position of the written result `ret` of the function
+/// `f` depends on (`ref.dep.elide`). A position that writes a lifetime
+/// names its own; any other takes a `&self` or `&mut self` receiver's, or
+/// else the one lifetime among the parameters' reference positions, each
+/// position without a written lifetime having its own. None is
 /// `reference-result-without-source`, and two or more are
 /// `ambiguous-reference-source`.
 fn check_source(src: &Src<'_>, f: NodeRef<'_>, ret: NodeRef<'_>, diags: &mut DiagBuf) {
@@ -299,7 +309,13 @@ fn check_source(src: &Src<'_>, f: NodeRef<'_>, ret: NodeRef<'_>, diags: &mut Dia
     let Some(params) = f.child(SyntaxKind::ParameterList) else {
         return;
     };
-    let mut names: Vec<&str> = Vec::new();
+    let mut result = Vec::new();
+    ref_positions(src, ret, &mut result);
+    if result.iter().all(Option::is_some) {
+        return;
+    }
+    // Each position's parameter, and its lifetime or its own place.
+    let mut found: Vec<(&str, Result<&str, usize>)> = Vec::new();
     for p in params.children() {
         if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
             if p.direct_token(toks, TokenKind::Amp).is_some() {
@@ -308,31 +324,36 @@ fn check_source(src: &Src<'_>, f: NodeRef<'_>, ret: NodeRef<'_>, diags: &mut Dia
             continue;
         }
         let name = p.name(toks).map_or("_", |t| src.text(t));
-        for _ in 0..p.children().map(|c| ref_positions(src, c)).sum::<usize>() {
-            names.push(name);
+        let mut at = Vec::new();
+        for c in p.children() {
+            ref_positions(src, c, &mut at);
+        }
+        for l in at {
+            let own = found.len();
+            found.push((name, l.ok_or(own)));
         }
     }
-    match names.as_slice() {
-        [_] => {}
-        [] => diags.error(
+    let Some(&(one, first)) = found.first() else {
+        diags.error(
             Code::ReferenceResultWithoutSource,
             src.span(ret),
             "a reference result needs a reference parameter to borrow from",
-        ),
-        [one, more @ ..] => {
-            let from = match more.iter().find(|other| *other != one) {
-                Some(other) => format!("`{one}` or `{other}`"),
-                None => format!("either reference in `{one}`"),
-            };
-            diags.error(
-                Code::AmbiguousReferenceSource,
-                src.span(ret),
-                &format!(
-                    "the result may borrow from {from}; naming the source comes in a later stage"
-                ),
-            );
-        }
-    }
+        );
+        return;
+    };
+    let Some(&(other, _)) = found.iter().find(|(_, l)| *l != first) else {
+        return;
+    };
+    let from = if other == one {
+        format!("either reference in `{one}`")
+    } else {
+        format!("`{one}` or `{other}`")
+    };
+    diags.error(
+        Code::AmbiguousReferenceSource,
+        src.span(ret),
+        &format!("the result may borrow from {from}; write a lifetime to name its source"),
+    );
 }
 
 /// Where a value of type `t` keeps a local reference: in a type argument

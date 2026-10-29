@@ -1,8 +1,11 @@
-# test: an implementation's lifetime parameter is references-not-yet-checked
-# Spec 13 Lifetime Variables: ref.lifetime.not-yet.
+# test: a trait implementation's lifetime parameter is references-not-yet-checked
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.declaration.
+trait Labeled:
+    fn label(&self) -> &string
+
 struct User:
     name: string
 
-impl['a] User:  # diagnostic: references-not-yet-checked
-    fn label(&'a self) -> &'a string:
+impl['a] Labeled for User:  # diagnostic: references-not-yet-checked
+    fn label(&self) -> &string:
         &self.name

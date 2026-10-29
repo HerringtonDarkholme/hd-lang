@@ -1,0 +1,16 @@
+# test: an inherent implementation's lifetime is in scope in its methods, after the type parameters
+# Spec 04 Lifetime Parameters: types.lifetime.scope, types.lifetime.order; Spec 13 Lifetime Variables: ref.lifetime.checked.
+struct Pair[T]:
+    left: T
+    right: T
+
+impl[T, 'a] Pair[T]:
+    fn left_or(&'a self, fallback: &'a T, use_left: bool) -> &'a T:
+        if use_left: &self.left else: fallback
+
+    fn right_of['b](&'a self, other: &'b Pair[T]) -> &'b T:
+        &other.right
+
+fn demo(p: &Pair[i32], q: &Pair[i32]) -> i32:
+    three := +3
+    *p.left_or(&three, false) + *p.right_of(q)

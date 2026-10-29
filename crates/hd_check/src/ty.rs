@@ -908,7 +908,7 @@ impl Ck<'_, '_> {
                 }))?
             }
             SyntaxKind::RefType => {
-                // ref.lifetime.not-yet: a lifetime written in a body.
+                // ref.lifetime.not-yet.body: a lifetime written in a body.
                 if n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
                     .is_some()
                 {

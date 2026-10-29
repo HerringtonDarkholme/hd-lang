@@ -5,13 +5,13 @@ struct User:
 struct Pair[T]:
     left: T
 
-struct Parser['src, T]:
+struct Parser[T, 'src]:
     src: &'src T
 
 fn choose['a](a: &'a User, b: &'a mut User, c: List[&'a User]) -> &'a User:
     a
 
-impl['a, T] Pair[T]:
+impl[T, 'a] Pair[T]:
     fn left_or['f](&'a self, fallback: &'f T) -> &'f T:
         fallback
 

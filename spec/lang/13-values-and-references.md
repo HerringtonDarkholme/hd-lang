@@ -408,9 +408,9 @@ fn demo(u: &mut User) -> void:
 
 1. r[ref.dep.result] A function's or a method's result type may hold a local reference: `&T`, `&mut T`, a tuple of them, or an instance of a generic struct or enum, such as `&T?` or `Result[&T, E]`.
 2. r[ref.dep.position] Each `&` or `&mut` in a parameter's type is one **reference position**: in `&self`, in `p: &T`, in `opt: &T?`, and in each element of `pair: (&A, &B)`. A `&` inside a function type is none.
-3. r[ref.dep.elide] A dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
-4. r[ref.dep.elide.none] A dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
-5. r[ref.dep.elide.ambiguous] A dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
+3. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
+4. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
+5. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
 6. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
 7. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
 8. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
@@ -439,7 +439,8 @@ fn bad_store(out: &mut (&User), u: &User) -> void:
 ```
 
 > **Why.** These are Rust's elision rules for a result's lifetime, with no
-> lifetime written. A write to the source replaces the value in its place,
+> lifetime written. [Lifetime Variables](#lifetime-variables) gives the
+> rules for a signature that writes one. A write to the source replaces the value in its place,
 > and the place stays where it is, so the caller needs no exclusive access.
 
 ### Origins
@@ -448,6 +449,9 @@ An **origin** is a storage root that a local reference may point into. It is wha
 
 1. r[ref.dep.origin.set] Each value that holds a local reference has an origin set. The checker solves the sets once per function, per binding, regardless of the order of statements.
 2. r[ref.dep.origin.least] The sets are the least solution of the constraints in the table below. A reassignment adds origins and never removes them.
+3. r[ref.dep.origin.position] A value has one origin set per reference position outside another reference, so the positions of `(&A, &B)` and of `Result[&A, &B]` have separate sets.
+4. r[ref.dep.origin.position.parts] A construction and a projection keep each part in its own positions: a tuple element, an optional's payload, and a field whose declared type is a type parameter.
+5. r[ref.dep.origin.position.union] Every position takes the union of all of them for any other part, for a value stored through a reference, and for the hidden local of `&e`.
 
 | Rule | Expression | Origins |
 | --- | --- | --- |
@@ -459,8 +463,8 @@ An **origin** is a storage root that a local reference may point into. It is wha
 | r[ref.dep.origin.lend] Lent counted reference | a counted reference read from a place and lent as a source argument | that place's origins |
 | r[ref.dep.origin.temporary] Temporary | `&e` on a value, and a `&self` call on a temporary | a hidden local |
 | r[ref.dep.origin.binding] Binding | a read of a binding `b` | the union of every value stored into `b` anywhere in the function |
-| r[ref.dep.origin.parts] Construction | a tuple, `.Some(a)`, or a struct or enum literal | the union of its parts |
-| r[ref.dep.origin.projection] Projection | `t._0`, or a pattern binding of a scrutinee `s` | the origins of `t`, or of `s` |
+| r[ref.dep.origin.parts] Construction | a tuple, `.Some(a)`, or a struct or enum literal | the union of its parts, each in its positions |
+| r[ref.dep.origin.projection] Projection | `t._0`, or a pattern binding of a scrutinee `s` | the origins of the positions of `t`, or of `s`, that it reaches |
 | r[ref.dep.origin.branch] Branch | `if` or `match` as a value | the union of its arms |
 | r[ref.dep.origin.call] Call | a call with a dependent result, whose source argument is `a` | the origins of `a` |
 | r[ref.dep.origin.try] Wrap | `x?`, and an implicit `.Some` | the origins of `x` |
@@ -532,18 +536,27 @@ See also: [Element References](#element-references),
 
 ### Lifetime Variables
 
-A **lifetime variable** `'a`, written after `&`, names the lifetime of a local reference:
+A **lifetime variable** `'a`, written after `&`, names the lifetime of a local reference. The reference positions that write one variable share its lifetime:
 
 ```text
 struct User:
     name: string
 
-fn first['a](a: &'a User) -> &'a User:  # error: references-not-yet-checked
-    a
+fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:
+    if first: a else: b  # valid: a and b both have 'a
 
-impl['a] User:  # error: references-not-yet-checked
-    fn label(&'a self) -> &'a string:
-        &self.name
+fn third['a](a: &'a User, b: &'a User, c: &User) -> &'a User:
+    c  # error: local-reference-escapes
+
+fn pick(x: &User, first: bool) -> usize:
+    let mut r = x
+    if first:
+        local := User { name: "local" }
+        r = choose(x, &local, first)
+    r.name.len()  # error: local-reference-outlives-local
+
+struct Tagged['a]:  # error: references-not-yet-checked
+    id: i32
 
 fn view(u: User) -> i32:
     let r: &'a User = &u  # error: references-not-yet-checked
@@ -554,11 +567,36 @@ fn view(u: User) -> i32:
 2. r[ref.lifetime.receiver] A reference receiver may write one too: `&'a self` and `&'a mut self`.
 3. r[ref.lifetime.counted] A counted reference takes no lifetime variable, so `*'a T` is an error. Error: `syntax-error`.
 4. r[ref.lifetime.declared] A lifetime variable names a lifetime parameter in scope, as [Lifetime Parameters](04-type-system.md#lifetime-parameters) states.
-5. r[ref.lifetime.not-yet] Lifetime variables are not checked yet, so a declaration of a lifetime parameter is an error. Error: `references-not-yet-checked`.
-6. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
+5. r[ref.lifetime.position] Each reference position of a signature has a lifetime: the variable it writes, or else a lifetime of its own.
+6. r[ref.lifetime.shared] Positions that write one variable share its lifetime, so a result position with that variable may depend on any of them.
+7. r[ref.lifetime.elide] A result position that writes no lifetime takes a `&self` or `&mut self` receiver's lifetime, or else the parameters' one lifetime.
+8. r[ref.lifetime.elide.none] Such a position with no reference receiver and no parameter reference position is an error. Error: `reference-result-without-source`.
+9. r[ref.lifetime.elide.ambiguous] Such a position with no reference receiver, under two or more lifetimes of the parameters' positions, is an error. Error: `ambiguous-reference-source`.
+10. r[ref.lifetime.return] Each reference position of a returned value may depend only on the parameter positions of its lifetime, and on references reached through them. Error: `local-reference-escapes`.
+11. r[ref.lifetime.return.message] The diagnostic's message names the root, the lifetime, and the parameters with that lifetime. It has no fix-it.
+12. r[ref.lifetime.call] A call's result position depends on what every argument in a parameter position of its lifetime depends on.
+13. r[ref.lifetime.checked] A top-level function, an inherent implementation, and that implementation's methods may declare lifetime parameters.
+14. r[ref.lifetime.not-yet.declaration] Any other lifetime parameter is not checked yet, so it is an error: a struct's, an enum's, a trait's or its methods', a trait implementation's or its methods', a `type` declaration's, or a local function's. Error: `references-not-yet-checked`.
+15. r[ref.lifetime.not-yet.position] A lifetime written in a function type, in a type alias's arguments, or in an implementation's target is an error too. Error: `references-not-yet-checked`.
+16. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
 
-> **Note.** A later stage checks lifetime variables, with the
-> [Dependent Results](#dependent-results) rules applied per reference.
+```hd
+struct User:
+    name: string
+
+fn swap['a, 'b](x: &'a User, y: &'b User) -> (&'b User, &'a User):
+    (y, x)  # (x, y) is an error: each position keeps its own origins
+
+fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:  # the result takes 'a
+    if first: a else: b
+```
+
+> **Why.** These are Rust's lifetime rules for functions: elision fills
+> only the positions that write no lifetime, and a reference's referent
+> outlives it. A lifetime is only checked; it adds nothing at run time.
+
+> **Note.** Stored references, with lifetimes on structs and enums, and
+> lifetimes in function types and traits come in later stages.
 
 ## Reading Through A Reference
 

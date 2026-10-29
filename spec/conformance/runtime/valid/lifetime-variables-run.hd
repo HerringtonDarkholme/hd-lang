@@ -1,0 +1,27 @@
+# test: functions and methods with lifetime variables run, and a call's result reads its source
+# Spec 13 Lifetime Variables: ref.lifetime.shared, ref.lifetime.checked.
+# expect-stdout: bob
+# expect-stdout: 7
+# expect-stdout: 2
+struct User:
+    name: string
+
+fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User:
+    if first: a else: b
+
+struct Pair[T]:
+    left: T
+    right: T
+
+impl[T, 'a] Pair[T]:
+    fn left_or(&'a self, fallback: &'a T, use_left: bool) -> &'a T:
+        if use_left: &self.left else: fallback
+
+pub fn main() -> void $ Console:
+    ann := User { name: "ann" }
+    bob := User { name: "bob" }
+    println(choose(&ann, &bob, false).name)
+    p := Pair { left: +2, right: +3 }
+    seven := +7
+    println(*p.left_or(&seven, false))
+    println(*p.left_or(&seven, true))
