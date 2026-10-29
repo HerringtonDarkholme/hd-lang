@@ -1,34 +1,30 @@
-use pkg.http_client_settings.{Certificate, Client, ClientConfigError, Identity, Proxy}
-use std.http.{CookieJar, Http, HttpError, Request, Response, Url}
+use pkg.http_client_settings.{Certificate, Http, HttpConfigError, HttpError, Identity, dns_servers}
+use std.http.{Request, Response}
+use std.task.{apply, timeout}
 use std.time.{Clock, s}
 
-fn url(text: string) -> Url:
-    match Url::parse(text):
-        .Ok(value) => value
-        .Err(_) => panic("the example URL must parse")
-
-## A reusable client whose sends get the existing five-second timeout policy.
-pub fn bounded_client() -> Result[*mut Client, ClientConfigError]:
-    Client::builder().timeout(5s).build()
-
-## A client that sends every origin through one HTTP CONNECT proxy.
-pub fn proxied_client() -> Result[*mut Client, ClientConfigError]:
-    proxy := Proxy::http(url("http://proxy.internal:8080"))?
-    Client::builder().proxy(proxy).build()
-
-## A client that trusts the host roots plus one private root certificate.
-pub fn private_root_client(root_pem: string) -> Result[*mut Client, ClientConfigError]:
-    root := Certificate::from_pem(root_pem)?
-    Client::builder().root_certificate(root).build()
-
-## A cookie-aware mutual-TLS client.
-pub fn mutual_tls_client(
+## Narrows the covering host transport without changing it or `Client`.
+pub fn internal_transport(
+    root_pem: string,
     certificate_chain_pem: string,
     private_key_pem: string,
-) -> Result[*mut Client, ClientConfigError]:
+) -> Result[*mut dyn Http, HttpConfigError] $ Http:
+    resolver := dns_servers(["10.0.0.2"])?
+    root := Certificate::from_pem(root_pem)?
     identity := Identity::from_pem(certificate_chain_pem, private_key_pem)?
-    Client::builder().jar(CookieJar::new()).identity(identity).build()
+    transport := $.use(Http).resolver(resolver)
+        .tls(roots=[root], identity= .Some(identity))
+        .connect_timeout(2s)
+        .tls_handshake_timeout(3s)
+        .response_header_timeout(5s)
+        .body_read_timeout(20s)
+    .Ok(transport)
 
-## The one terminal works the same for every configured client.
-pub fn fetch!(client: *mut Client, target: Url) -> Result[Response, HttpError] $ Http + Clock:
-    client.send!(&Request::get(target))
+## Installs one narrowed transport while the existing timeout policy bounds the whole operation.
+pub fn send_internal!(
+    request: *Request,
+    transport: *mut dyn Http,
+) -> Result[Response, HttpError] $ Http + Clock:
+    $.with(Http=transport):
+        apply!(timeout(10s)):
+            $.use(Http).send!(request, 10)

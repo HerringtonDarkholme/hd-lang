@@ -1,6 +1,6 @@
-# HTTP Client Settings
+# HTTP Transport Settings
 
-Status: proposal, 2026-10-28; domain: `std.http` clients and host transports; not accepted.
+Status: proposal, revised 2026-10-29; domain: `std.http` providers and host transports; not accepted.
 
 This note addresses [#950](https://github.com/HerringtonDarkholme/hd-lang/issues/950).
 It reviews the current [Client](../../spec/std/http.md#client),
@@ -9,41 +9,43 @@ Nothing here changes the specification or implementation.
 
 ## Proposal
 
-Make `ClientBuilder` a value builder whose one terminal, `build`, returns a reusable counted `Client`.
-Its noun setters configure a default timeout, one HTTP CONNECT proxy, extra roots, or one client identity.
-Timeout calls the existing `std.task.timeout`; transport settings travel to the host with each send.
-Unsupported hosts return a typed error before network I/O and never ignore a security setting.
+Put DNS, TLS, and phase settings on the covering `Http` provider. Each method returns a new provider
+and leaves its receiver unchanged. `Client`, `Request`, and the total timeout policy gain no setting.
 
 ```text
-use std.http.{Certificate, Client, Http, HttpError, Request, Response, Url}
-use std.time.{Clock, s}
-
-fn get!() -> Result[Response, HttpError] $ Http + Clock:
-    root := Certificate::from_pem("-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----")?
-    client := Client::builder().timeout(5s).root_certificate(root).build()?
-    client.send!(&Request::get(Url::parse("https://api.internal/")?))
+resolver := dns_servers(["10.0.0.2"])?
+transport := $.use(Http)
+    .resolver(resolver)
+    .tls(roots=[internal_ca], identity=.Some(id))
+    .connect_timeout(2s)
+$.with(Http=transport):
+    apply!(timeout(10s)):
+        client.send!(&request)?
 ```
 
-The checked [signatures and examples](http-client-settings/) cover every proposed public item.
+The provider also offers TLS-handshake, response-header, and body-read timeouts. These bound one
+host-measured phase per redirect hop. `apply!(timeout(...))` remains the only whole-operation deadline.
+
+The checked [signatures and examples](http-client-settings/) cover the public proposal. Their local
+`Http` and `HttpError` stand in for extending the existing standard items.
 
 ## Open questions
 
-1. **Timeout range. Recommendation: shorter-only.** Keep the host's 30-second safety bound, so a client timeout can shorten but not extend it.
-2. **Unsupported transports. Recommendation: typed send error.** Add `HttpError.UnsupportedSetting(name)` instead of silently ignoring proxy or TLS settings.
-3. **Proxy authority. Recommendation: require both grants.** The host must grant the proxy endpoint and every origin, including redirect targets.
-4. **Client identity. Recommendation: one identity.** A later `identity` call replaces the earlier one; multiple candidate certificates wait for evidence.
+1. **Zero phase timeout. Recommendation: expire immediately.** The existing timeout policy already
+   gives zero this deterministic meaning.
+2. **DNS text. Recommendation: literal IP addresses only.** A configured DNS server must not need
+   the resolver it replaces.
+3. **Root behavior. Recommendation: extend platform roots.** Replacing the platform store needs a
+   separate security design.
 
 ## Problems it solves
 
 | Program | Today | Proposed |
 | --- | --- | --- |
-| Service call with a five-second default | Every call repeats `apply!(timeout(5s))` | `Client::builder().timeout(5s).build()?` applies the same policy to every send |
-| Corporate egress | The host always connects directly | `proxy(Proxy::http(url)?)` uses HTTP CONNECT after both grants pass |
-| Private service | Only the host trust store is available | `root_certificate(root)` merges one validated PEM root |
-| Mutual TLS | No client certificate reaches the transport | `identity(Identity::from_pem(chain, key)?)` supplies one protected identity |
-
-The timeout is a convenience over an existing policy, not another timer model.
-The TLS methods never disable certificate or hostname verification.
+| Private discovery | HTTP always uses the host resolver | `resolver(dns_servers(...))` derives one provider |
+| Private PKI or mTLS | No roots or identity reach the host | `tls(roots=..., identity=...)` carries both |
+| Stuck peer | Only one fixed provider deadline exists | Four phase limits stop the exact host phase |
+| Whole call | Callers compose `apply!(timeout(...))` | Unchanged across all phases and redirects |
 
 ## How it works
 
@@ -51,244 +53,231 @@ The TLS methods never disable certificate or hostname verification.
 
 | Item | Purpose |
 | --- | --- |
-| `Client::builder` | Return a plain `ClientBuilder` value with host-default settings |
-| `ClientBuilder.jar(CookieJar)` | Replace the jar that the built client will share and mutate |
-| `ClientBuilder.timeout(Duration)` | Store the existing `TimeLimit` policy for every later send |
-| `ClientBuilder.proxy(Proxy)` | Store one validated HTTP proxy endpoint |
-| `ClientBuilder.root_certificate(Certificate)` | Append one PEM root to the ordinary trust store |
-| `ClientBuilder.identity(Identity)` | Replace the PEM chain and private key |
-| `ClientBuilder.build` | Validate the complete configuration and return one retained `*mut Client` |
-| `Client.send!` | The only I/O terminal; cookies, redirects, timeout, and transport settings share one operation |
+| `dns_servers(List[string])` | Validate literal resolver addresses |
+| `Certificate::from_pem` | Validate one extra PEM root |
+| `Identity::from_pem` | Validate a PEM chain and matching private key |
+| `Http.resolver` | Replace the resolver on a derived provider |
+| `Http.tls` | Replace extra roots and the optional identity |
+| Four timeout methods | Bound connect, TLS handshake, headers, or body read |
+| `Http.send!` | Remain the only I/O terminal |
 
-The builder is a value, so changing it cannot alter a client that was already built or another copy of that client.
-The counted client is justified because its cookie jar and immutable configuration outlive one call.
-Requests and certificate values remain plain values; ordinary readers keep local `&T` references.
-The public `jar` field remains available.
-Copying a built client aliases its jar, but no public method changes its transport settings.
-Unconfigured sends and direct `Request.send!` otherwise keep today's behavior.
+`Client` stays today's copied cookie-and-redirect value. The same provider therefore serves direct
+requests, free helpers, and every `Client`.
 
-`Proxy::http` accepts only an absolute `http` URL without user information.
-The first version has no SOCKS, proxy authentication, bypass list, or environment lookup.
-Those features need separate security and authority designs.
+Each method returns `*mut dyn Http`. The host derives it from the receiver's authority and settings;
+it never retains the local reference from `$.use(Http)`. Different setting kinds compose. A later
+call for one setting replaces its earlier value, and a later `tls` replaces the whole TLS pair.
 
-`Certificate::from_pem` validates one certificate.
-`Identity::from_pem` validates a certificate chain and matching private key.
-Neither `Identity` nor `Client` implements `Debug`, `Eq`, `Serialize`, or `Deserialize`.
+The methods have defaults for existing custom providers. A default returns a provider whose first
+send is `UnsupportedSetting(name)` without calling the receiver. Existing implementations keep
+compiling, while security settings are never ignored. `Identity` has no `Debug`, `Eq`, or serde traits.
 
-### Timeout and sending
+### Timeouts
 
-`Client.send!` wraps the complete cookie and redirect operation with `apply!(timeout(limit))` when configured.
-It therefore covers DNS, connect, redirects, final body buffering, and cancellation cleanup.
-The existing `From[TimedOut] for HttpError` produces `HttpError.Timeout`.
+| Setting | Starts | Ends |
+| --- | --- | --- |
+| `connect_timeout` | Before DNS | At TCP connection |
+| `tls_handshake_timeout` | After TCP | When TLS is ready |
+| `response_header_timeout` | After request write | At complete headers |
+| `body_read_timeout` | After headers | At the complete buffered body |
 
-The provider's 30-second host-time bound remains a safety ceiling.
-A configured policy uses `Clock`, so `ManualClock` controls it in tests.
-This differs from reqwest, whose client timeout may be any total deadline.
+Each redirect resets applicable phase timers. A reused connection skips connect and TLS timers.
+Any expiry is today's `HttpError.Timeout`. A total timeout may win first and cancels the suspension.
 
 ### Host contract
 
-The host request DTO gains proxy, root-certificate, and identity fields.
-Plain `Request.send!` and unconfigured clients send empty settings, preserving today's path.
-The `Http` adapter must reject unsupported nonempty fields as `UnsupportedSetting` before DNS or connection work.
+Settings travel in the internal host request DTO, not in public `Request`. The adapter checks every
+non-default setting before DNS or connection work. An unsupported value returns
+`UnsupportedSetting(name)`. Redirects carry the same settings and keep their ordinary origin checks.
 
-| Host | Extra roots | Client identity | HTTP proxy | Required work |
-| --- | --- | --- | --- | --- |
-| Node default host | Node accepts `ca` | Node accepts `cert` and `key` | Not implemented | Pass TLS options; add CONNECT and proxy grants |
-| Wasmtime host | rustls can load roots | rustls can load a client identity | ureq supports proxy configuration | Build a combined root store and extend the custom connector; it currently disables proxy |
-| Server SDK and browser Fetch | Not exposed | Not exposed | Not exposed | Return `UnsupportedSetting`; timeout still works |
+`dns_servers` grants no authority. A supporting host allow-lists resolver endpoints when creating
+its provider. An unlisted address fails before a DNS packet is sent.
 
-The origin grant remains mandatory because the proxy must not broaden destination authority.
-The proxy grant is also mandatory because it names the actual network peer.
+`Support` below means the first implementation can honor the option. `Reject` means it returns
+`UnsupportedSetting` during preflight, before resolution or connection.
+
+| Host | DNS | Roots | Identity | Connect | TLS handshake | Headers | Body read |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Node | Support | Support | Support | Support | Support | Support | Support |
+| Wasmtime CLI | Support | Support | Support | Support | Support | Support | Support |
+| Browser | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
+| Cloudflare SDK | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
+| Vercel Node SDK | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
+
+Node can combine a custom [`dns.Resolver`](https://nodejs.org/api/dns.html#class-dnsresolver) lookup,
+the `ca`, `cert`, and `key` options of
+[`https.request`](https://nodejs.org/api/https.html#httpsrequestoptions-callback), and socket/request
+events. The native Wasmtime host has a custom ureq resolver and connector; its implementation adds
+the selected resolver and rustls configuration, ureq's connect/response/body deadlines, and one TLS
+handshake deadline in the connector. Browser XHR and the Cloudflare and Vercel Fetch adapters expose
+neither transport identity nor separate phase timers.
+
+Node and Wasmtime support still needs implementation. Proxy settings wait for their own grant,
+credential, bypass, redirect, and CONNECT design.
+
+### Chaining versus `new_http(HttpConfig)`
+
+The config alternative also derives authority from `$ Http`:
+
+```text
+http := new_http(HttpConfig {
+    resolver: .Some(dns_servers(["10.0.0.2"])?),
+    tls: .Some(TlsConfig { roots: [internal_ca], identity: .Some(id) }),
+    connect_timeout: .Some(2s),
+})  # $ Http
+```
+
+| Property | Chained provider | `new_http(HttpConfig)` |
+| --- | --- | --- |
+| Authority | Visible at `$.use(Http)` | Hidden in the function row |
+| Shape | One operation per concern | One optional-field record |
+| Static reading | Chosen settings read left to right | Defaults are implicit |
+| Dynamic config | Needs a small application helper | Natural to decode |
+| Evolution | Adds one orthogonal method | Grows one central schema |
+| Std mechanisms | Provider methods only | Methods plus record and constructor |
+
+**Recommendation: ship chaining only.** It exposes authority, has fewer invalid states, and reuses
+`$.with`. Applications can apply decoded optional values in a local helper. That use does not yet
+justify a second standard mechanism or a serializable secret-bearing record.
 
 ## Cost
 
 | Component | Expected cost and gate |
 | --- | --- |
-| Code removed | None initially; repeated call-site timeout wrappers may disappear later |
-| Code added | Four configuration types, builder methods, DTO fields, Node and Wasmtime transport branches |
-| Compile time | No new compiler mechanism; measure the checked package and one configured caller |
-| Runtime | One policy branch per send; PEM parsing once per constructor; proxy adds its normal handshake |
-| Wasm size | Unconfigured client must stay byte-identical; each setting is measured separately |
+| Code removed | None; `Client` and request APIs stay unchanged |
+| Code added | Three values, six default methods, one error variant, DTO fields, and Node branches |
+| Compatibility | Custom providers inherit deterministic unsupported defaults |
+| Compile time | No compiler mechanism; measure std and one caller |
+| Runtime | No branch for defaults; configured sends validate a small record |
+| Wasm size | Unconfigured requests must remain byte-identical |
 | Web compiler gzip | No compiler change; remain under the 2 MB cap |
 
-The design PR adds only documentation and a checked package, so it has no implementation measurements.
+This is one ordinary core-library surface plus host support. It needs no syntax, semantic exception,
+or compiler intrinsic. This design PR has no implementation measurements.
 
 ## Appendix A: Stress test
 
 ### Private Kubernetes API
 
-An operator uses a cluster root and a short client default.
-The proposal keeps public roots and adds the private root rather than replacing the store.
+One provider carries cluster DNS, a root, and an identity. The public provider remains unchanged,
+and the key never enters `Request` or `Client`.
 
 ```text
-root := Certificate::from_pem(cluster_ca)?
-client := Client::builder().timeout(10s).root_certificate(root).build()?
-response := client.send!(&Request::get(api_url))?
+cluster := $.use(Http)
+    .resolver(dns_servers([cluster_dns])?)
+    .tls(roots=[cluster_ca], identity=.Some(workload_id))
+$.with(Http=cluster):
+    client.send!(&request)?
 ```
 
-The identity variant also covers clusters requiring mutual TLS.
-The private key cannot appear through `Debug`, serialization, or equality.
+### Redirect and connection reuse
 
-### Corporate proxy and redirects
-
-One client calls two origins through one proxy, then follows a cross-origin redirect.
-The host checks the proxy grant once per send and each origin grant before that hop.
-Removing the origin check would let one proxy grant bypass HTTP destination policy.
-
-### Long polling
-
-A client requests a 90-second timeout for a long poll.
-The current provider still ends it at 30 seconds.
-This is the proposal's deliberate difference from reqwest and its largest usability cost.
-
-The anti-case is an untrusted program retaining a host socket indefinitely.
-Allowing longer deadlines needs a separate owner decision about the host safety ceiling.
+A cross-origin redirect repeats the grant check and resets each phase timer. The total deadline does
+not reset. A reused connection skips connect and TLS without extending that deadline.
 
 ### Fetch-only deployment
 
-A Cloudflare-style Fetch host receives a client with an extra root.
-Fetch has no request option for trust roots, identities, or proxies.
-The send fails before network I/O instead of appearing configured while using platform defaults.
+Cloudflare receives a provider with an extra root. The send returns
+`UnsupportedSetting("tls.roots")` before Fetch runs. Silent platform defaults would violate policy.
 
-### Aliased client
+### Existing custom provider
 
-Two bindings copy one built `*mut Client` and send sequential requests.
-Both see the same jar and fixed settings, matching reqwest's shared reusable client.
-Changing the value builder after `build` changes neither binding; only `send!` mutates the shared jar.
+A provider implementing only today's `send!` still compiles through defaults. Unconfigured sends
+work; configured sends fail before its method runs.
+
+### Aliases and dynamic configuration
+
+Two derived providers keep independent timeouts because no setter mutates the base. A decoded config
+needs an application helper; this is the recommendation's deliberate ergonomic cost.
 
 ## Appendix B: Prior art
+
+### Go `net/http`
+
+```go
+transport := http.DefaultTransport.(*http.Transport).Clone()
+transport.DialContext = (&net.Dialer{Timeout: 2 * time.Second}).DialContext
+transport.TLSHandshakeTimeout = 3 * time.Second
+transport.ResponseHeaderTimeout = 5 * time.Second
+client := &http.Client{Transport: transport}
+```
+
+Go separates [`Client`](https://pkg.go.dev/net/http#Client) from
+[`RoundTripper`](https://pkg.go.dev/net/http#RoundTripper) and
+[`Transport`](https://pkg.go.dev/net/http#Transport). Wrapping a `RoundTripper` composes transport
+policy without changing `Client`. Hd takes that ownership and composition split.
+
+### Effect platform layers
+
+```typescript
+program.pipe(
+  Effect.provide(NodeHttpClient.layerNodeHttpOptions({ ca, cert, key })),
+)
+```
+
+Effect's
+[`NodeHttpClient`](https://effect.website/docs/v4/api/platform-node/NodeHttpClient) supplies agents
+and dispatchers as layers. Operation timeout remains separate. `$.with(Http=transport)` gives hd the
+same scoped replacement without a general layer object.
 
 ### Rust reqwest
 
 ```rust
 let client = reqwest::Client::builder()
-    .timeout(Duration::from_secs(5))
-    .proxy(reqwest::Proxy::all("http://proxy.internal:8080")?)
+    .connect_timeout(Duration::from_secs(2))
+    .dns_resolver(resolver)
     .add_root_certificate(root)
     .identity(identity)
     .build()?;
 ```
 
-Reqwest puts total timeout, proxy, roots, and identity on one reusable
-[`ClientBuilder`](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html).
-Hd takes those typed concerns, but uses its existing timeout policy and one `send!` terminal.
+Reqwest's
+[`ClientBuilder`](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html) owns transport
+options because its client owns a transport and pool. Hd's `Client` owns only cookies and redirects,
+so copying this surface would put settings on the wrong owner.
 
-Reqwest also exposes dangerous verifier switches and many transport knobs.
-Hd rejects those initially because they weaken a security invariant or lack a demonstrated common case.
-
-### Go net/http
-
-```go
-transport := http.DefaultTransport.(*http.Transport).Clone()
-transport.Proxy = http.ProxyURL(proxyURL)
-transport.TLSClientConfig = &tls.Config{RootCAs: roots, Certificates: identities}
-client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
-```
-
-Go separates high-level [`Client`](https://pkg.go.dev/net/http#Client) behavior from
-[`Transport`](https://pkg.go.dev/net/http#Transport) proxy and TLS configuration.
-Hd keeps one public client because its host owns the transport, but retains separate typed settings.
-
-Go reads proxy environment variables by default.
-Hd does not: hidden environment policy would create action at a distance and bypass explicit package authority.
-
-### WHATWG Fetch
+### Fetch
 
 ```javascript
-const response = await fetch(url, {
-  method: "GET",
-  headers,
-  signal: controller.signal,
-});
+await fetch(url, { method: "GET", headers, signal: controller.signal })
 ```
 
 [`RequestInit`](https://fetch.spec.whatwg.org/#requestinit) exposes cancellation and message options,
-but no caller-selected proxy, root store, or client identity.
-Hd therefore reports unsupported settings on Fetch-only hosts instead of promising false portability.
-
-### Current host libraries
-
-```javascript
-https.request({ hostname, ca: roots, cert: chain, key: privateKey });
-```
-
-Node's [`https.request`](https://nodejs.org/api/https.html#httpsrequestoptions-callback)
-accepts `ca`, `cert`, and `key` from `tls.connect`.
-Ureq exposes typed [`proxy`](https://docs.rs/ureq/latest/ureq/config/struct.ConfigBuilder.html#method.proxy)
-and `tls_config` settings, so the Wasmtime libraries can represent the same concerns.
+but no DNS, root, identity, or phase-timeout settings. Fetch-only hosts therefore reject this design's
+settings instead of claiming false portability.
 
 ## Appendix C: Alternatives considered
 
-### Settings on every Request
-
-This matches reqwest's per-request override, but repeats defaults and copies private-key configuration into message values.
-It also makes server-side request values capable of carrying client transport secrets.
-
-### Mutating a counted Client
-
-Returning `*mut Client` from `new` and putting configuration setters on it saves the `build` call.
-It also lets one alias change the timeout, proxy, or TLS identity observed through every other alias.
-The value builder keeps configuration changes local and publishes only fixed settings.
-
-### Environment and system proxy discovery
-
-Go and ureq support this default.
-Hd rejects it because the same package would change destinations and credentials through undeclared host environment state.
-
-### A string-keyed transport options map
-
-One map would adapt to host extensions without API growth.
-It loses compile-time spelling, value types, secret handling, and unsupported-setting diagnostics.
-
-### A second host timeout field
-
-Passing milliseconds beside every wire request would let clients exceed the provider ceiling.
-It duplicates `std.task.timeout`, diverges under `ManualClock`, and adds a second cancellation rule.
-
-### No portable TLS settings
-
-Applications could supply a custom `Http` provider for every private PKI deployment.
-That is simpler for std, but forces ordinary certificate configuration to replace the whole transport.
+| Alternative | Rejected because |
+| --- | --- |
+| `new_http(HttpConfig)` | It adds a second mechanism and a central optional-field schema |
+| Settings on `Client` | `Client` does not own hd's host transport |
+| Mutating the provider | Aliases and outer scopes observe later changes |
+| Settings on `Request` | Messages would carry policy and private keys |
+| Provider total timeout | It duplicates `apply!(timeout(...))` and cleanup rules |
+| Silent best effort | It falsely promises security or timing guarantees |
 
 ## Appendix D: Today in hd
 
-[`Client`](../../lib/std/http.hd) is a copied value containing only a public `CookieJar`.
-Its send reads `Clock` once, follows redirects itself, and calls the covering `Http` provider per hop.
-The spec explicitly says it has [no timeout setter](../../spec/std/http.md#r-std-http.client.policy-timeout).
+[`Client`](../../lib/std/http.hd) contains only a public `CookieJar`. Its send reads `Clock`, follows
+redirects, and calls the covering `Http` provider. The spec gives it
+[no timeout setter](../../spec/std/http.md#r-std-http.client.policy-timeout).
 
-The Node worker in [`host/http.mjs`](../../host/http.mjs) uses direct `http.request` or `https.request`.
-It sets `agent: false`, has one fixed 30-second deadline, and passes no TLS credentials.
+[`host/http.mjs`](../../host/http.mjs) uses direct Node requests, no TLS options, and one fixed
+30-second deadline. The native Wasmtime host uses ureq, a custom resolver and connector, and rustls.
+The browser uses XHR. The server SDK uses Fetch.
 
-The Wasmtime request path in
-[`request.rs`](../../crates/hd_run_wasmtime/src/http/request.rs) builds one ureq agent per hop.
-It calls `.proxy(None)` and chains the default `RustlsConnector` after its custom direct connector.
+## Appendix E: Details
 
-The server SDK in
-[`adapters/http.mjs`](../../packages/server-sdk/adapters/http.mjs) uses platform Fetch.
-Its options cover the message, redirects, abort signal, and fixed deadline only.
-
-## Appendix E: Details and phases
-
-- **API tier:** every proposed item passes the tier test and belongs in `spec/std/http.md`.
-- **Language changes:** none; builders, counted references, requirements, policy layers, and errors already exist.
-- **Ownership:** `ClientBuilder` is a value; `Client` is counted because fixed settings and its mutable cookie jar escape calls.
-- **Secrets:** identities have no inspection traits; errors name only the setting, never PEM text or keys.
-- **Cancellation:** timeout cancellation follows the existing `TimeLimit` and `Http.send!` abort rules.
-- **Redirects:** one outer timeout covers every hop; each target repeats origin and proxy grant checks.
-- **Host parity:** Node and Wasmtime implement supported settings; Fetch-only hosts reject them explicitly.
-- **Testing:** scripted transport cases cover settings, grant order, unsupported hosts, cancellation, and secret-free errors.
-- **Rollback:** remove the new builder methods and DTO fields; unconfigured sends retain today's wire shape.
-
-Implementation phases, each about one hour:
-
-1. Add std types, the value builder, `UnsupportedSetting`, and focused conformance cases.
-2. Add wire DTO fields and scripted-provider observations; keep empty settings byte-identical.
-3. Apply `TimeLimit` once around the complete client send; test `ManualClock` and cleanup.
-4. Implement Node PEM options and CONNECT proxying; test both grants and redirect targets.
-5. Implement Wasmtime rustls and ureq settings; test invalid PEM, private roots, mTLS, and proxying.
-6. Reject settings in Fetch adapters; run Node, Wasmtime, server-SDK, size, and web-compiler gates.
-
-## Parse log
-
-Both `text` blocks in this note parsed with `scripts/hd-conformance.sh parse` on 2026-10-28.
-Parsing checks syntax only; the proposal is not implemented and the blocks do not type-check against current std.
+- **Host ABI:** add resolver, TLS, and four timeout fields to each wire request.
+- **Errors:** use stable names `resolver`, `tls.roots`, `tls.identity`, and each timeout method name.
+- **Cancellation:** every phase timer destroys or aborts the active request through today's path.
+- **Counting:** a derived provider is retained; requests, roots, and resolver descriptions are values.
+- **Grants:** origin checks remain per hop; custom DNS is limited by a host allow-list.
+- **Determinism:** a provider's settings are immutable, and later same-kind calls replace earlier ones.
+- **Footprint:** measure no-setting identity, each setting alone, and the web compiler gzip cap.
+- **Tests:** cover each host option, unsupported preflight, redirects, connection reuse, and cancellation.
+- **Phases:** add std/error defaults, wire DTOs, Node support, unsupported hosts, then conformance.
+- **Rollback:** remove the added trait defaults and DTO fields; `Client` and `Request` never change.
+- **Parse log:** all three `text` blocks parsed with `scripts/hd-conformance.sh parse` on 2026-10-29;
+  parsing checks syntax only.

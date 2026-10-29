@@ -1,24 +1,25 @@
-use std.http.{CookieJar, Http, HttpError, Request, Response, Url}
-use std.time.{Clock, Duration}
+use std.convert.From
+use std.http.{BodyError, Request, Response}
+use std.task.TimedOut
+use std.time.Duration
 
-## A validated HTTP CONNECT proxy endpoint.
+## A validated list of DNS servers for an HTTP transport.
 @derive(Debug, Eq)
-pub struct Proxy:
-    url: Url
+pub struct DnsResolver:
+    servers: List[string]
 
-impl Proxy:
-    ## Validates an `http` proxy endpoint without credentials.
-    pub fn http(url: Url) -> Result[Proxy, ClientConfigError]:
-        panic("todo")
+## Validates literal IP addresses for one DNS resolver.
+pub fn dns_servers(servers: List[string]) -> Result[DnsResolver, HttpConfigError]:
+    panic("todo")
 
-## One PEM-encoded certificate that may extend the host's trusted roots.
+## One PEM-encoded certificate that extends the host's trusted roots.
 @derive(Debug, Eq)
 pub struct Certificate:
     pem: string
 
 impl Certificate:
     ## Parses one PEM certificate.
-    pub fn from_pem(pem: string) -> Result[Certificate, ClientConfigError]:
+    pub fn from_pem(pem: string) -> Result[Certificate, HttpConfigError]:
         panic("todo")
 
 ## A PEM client certificate chain and its PEM private key.
@@ -32,63 +33,93 @@ impl Identity:
     pub fn from_pem(
         certificate_chain: string,
         private_key: string,
-    ) -> Result[Identity, ClientConfigError]:
+    ) -> Result[Identity, HttpConfigError]:
         panic("todo")
 
-## Why a client setting could not be constructed.
+## Why a transport setting could not be constructed.
 @error
 @derive(Debug, Eq)
-pub enum ClientConfigError:
-    @error("invalid HTTP proxy URL: $url")
-    InvalidProxy(url: string)
+pub enum HttpConfigError:
+    @error("invalid DNS server: $server")
+    InvalidDnsServer(server: string)
     @error("invalid PEM certificate")
     InvalidCertificate
     @error("invalid PEM client identity")
     InvalidIdentity
 
-## A value builder for one client with fixed settings.
-pub struct ClientBuilder:
-    jar: CookieJar
+## Proposed `std.http.HttpError`, including rejection before unsupported settings reach a host.
+@error
+@derive(Debug, Eq)
+pub enum HttpError:
+    @error("http access to $host is not granted")
+    NotGranted(host: string)
+    @error("invalid URL: $url")
+    InvalidUrl(url: string)
+    @error("cannot resolve host $host")
+    Dns(host: string)
+    @error("$message")
+    Connect(message: string)
+    @error("TLS failed: $message")
+    Tls(message: string)
+    @error("the request timed out")
+    Timeout
+    @error("too many redirects; the last went to $url")
+    TooManyRedirects(url: string)
+    @error("$message")
+    Other(message: string)
+    @error("HTTP status ${response.status.code()}")
+    Status(response: Response)
+    @error("invalid header $name")
+    InvalidHeader(name: string)
+    @error("$error")
+    Body(error: BodyError)
+    @error("HTTP setting is not supported by this host: $name")
+    UnsupportedSetting(name: string)
 
-impl ClientBuilder:
-    ## Replaces the cookie jar that the built client will share.
-    pub fn jar(mut self, jar: CookieJar) -> ClientBuilder:
-        self.jar = jar
-        self
+impl From[TimedOut] for HttpError:
+    fn from(_error: TimedOut) -> HttpError:
+        .Timeout
 
-    ## Applies the existing task timeout policy around every later send.
-    pub fn timeout(mut self, limit: Duration) -> ClientBuilder:
-        panic("todo")
+## Proposed `std.http.Http` surface. Each setting returns a new, narrower provider.
+## This design-package trait and error stand in for extending the existing standard items.
+pub trait Http:
+    ## Sends one request through this provider.
+    fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]
 
-    ## Routes every later send through one HTTP CONNECT proxy.
-    pub fn proxy(mut self, proxy: Proxy) -> ClientBuilder:
-        panic("todo")
+    ## Replaces the DNS resolver for later sends.
+    fn resolver(&self, _resolver: DnsResolver) -> *mut dyn Http:
+        unsupported("resolver")
 
-    ## Adds one root certificate to the host's ordinary trust store.
-    pub fn root_certificate(mut self, certificate: Certificate) -> ClientBuilder:
-        panic("todo")
+    ## Replaces the complete TLS root and identity configuration for later sends.
+    fn tls(&self, roots: List[Certificate] = [], identity: Identity? = .None) -> *mut dyn Http:
+        if !roots.is_empty():
+            return unsupported("tls.roots")
+        if identity.is_some():
+            return unsupported("tls.identity")
+        unsupported("tls.roots")
 
-    ## Supplies one client identity for mutual TLS.
-    pub fn identity(mut self, identity: Identity) -> ClientBuilder:
-        panic("todo")
+    ## Bounds DNS lookup and TCP connection for each redirect hop.
+    fn connect_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("connect_timeout")
 
-    ## Validates the complete configuration and returns a shared client with fixed settings.
-    pub fn build(self) -> Result[*mut Client, ClientConfigError]:
-        panic("todo")
+    ## Bounds the TLS handshake for each HTTPS redirect hop.
+    fn tls_handshake_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("tls_handshake_timeout")
 
-## A reusable cookie-aware client with fixed transport settings.
-pub struct Client:
-    pub jar: CookieJar
+    ## Bounds the wait for complete response headers for each redirect hop.
+    fn response_header_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("response_header_timeout")
 
-impl Client:
-    ## Starts a value builder with an empty cookie jar and host-default transport.
-    pub fn builder() -> ClientBuilder:
-        panic("todo")
+    ## Bounds buffering the response body for each redirect hop.
+    fn body_read_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("body_read_timeout")
 
-    ## Sends one request through the configured client.
-    pub fn send!(
-        &mut self,
-        request: &Request,
-        redirects: usize = 10,
-    ) -> Result[Response, HttpError] $ Http + Clock:
-        panic("todo")
+struct UnsupportedHttp:
+    name: string
+
+impl Http for UnsupportedHttp:
+    fn send!(&mut self, _request: &Request, _redirects: usize) -> Result[Response, HttpError]:
+        .Err(.UnsupportedSetting(self.name))
+
+fn unsupported(name: string) -> *mut dyn Http:
+    &mut UnsupportedHttp { name: name }
