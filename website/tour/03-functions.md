@@ -2,13 +2,40 @@
 title: Functions
 ---
 
-# Functions say what they take and return, `if` chooses a value, and pipes show steps
+# Functions
 
-A function writes each parameter type and its result type. The last expression
-is its result. `if` may choose a value when both branches produce the same
-type. A pipe feeds one result into the next step, and `_` marks the argument
-slot that receives it. The pure functions return values; only the script's
-top-level line prints.
+The program on the right works out a shipping price in three small steps.
+
+## Parameters and results
+
+```hd example
+fn add_fee(cents: i32, fee: i32) -> i32:
+    cents + fee
+```
+
+Every parameter and the result have a **type**. The **last expression** is
+the result, so there is no `return`.
+
+## `if` gives a value
+
+```hd example
+rate := if express: +40 else: +20
+```
+
+`if` picks **one of two values**, and both must have the same type.
+
+## Pipes
+
+```hd example
+weight_grams
+    |> charge(_, rate)
+    |> add_fee(_, 99)
+```
+
+`|>` passes each result to the next step, and `_` marks **where it goes**.
+This pipe means `add_fee(charge(weight_grams, rate), 99)`.
+
+**Run it.** 1200 grams by express costs `12 * 40 + 99`, so it prints `579`.
 
 ```hd
 fn shipping_cents(weight_grams: i32, express: bool) -> i32:
@@ -24,9 +51,6 @@ fn add_fee(cents: i32, fee: i32) -> i32:
     cents + fee
 
 println(shipping_cents(1200, true))
-
-# Change `charge(_, rate)` to `charge(rate)` and Run:
-#     pipe-step-needs-placeholder: write `_` where the piped value goes
 ```
 
 ```edit

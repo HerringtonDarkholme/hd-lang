@@ -28,6 +28,8 @@ export type RenderEnv = {
   readonly slugCounts: Map<string, number>;
   /** The site-wide rule index that ```ebnf rule references link through. */
   readonly grammar?: GrammarIndex;
+  /** No Try in REPL or playground action on code blocks, as in tour prose beside its editor. */
+  readonly noTryActions?: boolean;
 };
 
 /**
@@ -242,7 +244,7 @@ function isWholeProgram(code: string): boolean {
  * playground instead, since a REPL input cannot declare `main`.
  */
 function tryAction(code: string, env: RenderEnv): string {
-  if (!parsesAsHd(code)) return "";
+  if (env.noTryActions || !parsesAsHd(code)) return "";
   if (isWholeProgram(code))
     return `<a class="try-link try-playground" href="${escapeHtml(env.playgroundUrl(code))}">Open in playground</a>`;
   return '<button type="button" class="try-link try-repl" title="Run this code in the REPL panel">Try in REPL</button>';

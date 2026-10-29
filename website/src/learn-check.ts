@@ -143,11 +143,8 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
   const edited = (page: TourPage) => async (): Promise<string[]> => {
     const { edit } = page;
     if (!edit) return [];
+    // The page's "Try it" box shows the edit and its result (website/src/tour.ts).
     const problems: string[] = [];
-    const quoted = edit.error ?? edit.failure;
-    const comments = page.code.split("\n").filter((line) => line.startsWith("#"));
-    if (!comments.some((line) => line.includes(quoted)))
-      problems.push(`${page.source}: no comment in the snippet quotes '${quoted}'`);
     let code: string;
     try {
       code = editedCode(page);

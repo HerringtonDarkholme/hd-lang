@@ -55,9 +55,18 @@ export function tourProse(pages: readonly TourPage[], page: TourPage, input: Tou
   const { md, env, pageUrl } = input;
   return `<p class="tour-step"><a href="${pageUrl(TOUR_INDEX)}">Tour</a> · ${page.number} of ${pages.length}</p>
 <h1>${md.renderInline(page.claim, env)}</h1>
-${md.render(page.prose, env)}
+${md.render(page.prose, { ...env, noTryActions: true })}
+${tryIt(page)}
 <p class="tour-keys">${page.output ? "Run" : "Test"}: <kbd>Ctrl</kbd>+<kbd>Enter</kbd> · Pages: <kbd>Alt</kbd>+<kbd>←</kbd> <kbd>Alt</kbd>+<kbd>→</kbd></p>
 ${pager(pages, page, pageUrl)}`;
+}
+
+/** The page's edit as one plain "Try it" line: the change to make in the editor. */
+function tryIt(page: TourPage): string {
+  const { edit } = page;
+  if (!edit) return "";
+  const action = edit.error === undefined ? "Test" : "Run";
+  return `<p><strong>Try it:</strong> change <code>${escapeHtml(edit.replace.trim())}</code> to <code>${escapeHtml(edit.with.trim())}</code> and press ${action}.</p>`;
 }
 
 /** The output panel's text before the first run. */

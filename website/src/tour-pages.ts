@@ -1,14 +1,15 @@
 // The interactive tour's pages: one per Markdown file in website/tour/, each
-// with a claim as its headline, a few sentences of prose, and one runnable
-// snippet. A page file holds:
+// with a short headline, prose that introduces one feature at a time with a
+// small example, and one runnable snippet. A page file holds:
 //
 //   ---
 //   title: Hello, hd          (the table-of-contents entry)
 //   ---
-//   # The claim               (the headline)
+//   # Short title             (the headline)
 //   Prose...
 //   ```hd                     (the snippet the editor opens with, src/main.hd)
 //   ```hd src/pricing.hd      (optional: more files of the package, as tabs)
+//   ```hd example             (optional, repeatable: a fragment shown in the prose)
 //   ```edit                   (optional: a one-line edit and what it breaks)
 //   replace: <a whole line of the snippet>
 //   with: <its replacement, or nothing to delete the line>
@@ -133,6 +134,8 @@ export function parseTourPage(source: string, text: string, number: number): Tou
   const body = text
     .slice(front[0].length)
     .replaceAll(FENCE, (_, info: string, path: string | undefined, code: string) => {
+      // ```hd example: a fragment shown in the prose, not a file of the package.
+      if (info === "hd" && path === "example") return "```hd\n" + code + "```\n";
       if (path !== undefined) {
         if (info !== "hd" || !FILE_PATH.test(path) || path === TOUR_MAIN)
           throw new Error(`${source}: \`\`\`${info} ${path} is not \`\`\`hd src/<name>.hd`);
