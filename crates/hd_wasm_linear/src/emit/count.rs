@@ -132,6 +132,17 @@ impl Em<'_, '_, '_> {
                 Tag::Coerce if self.b.is_borrowed_coercion(x) => {
                     self.loans.insert(x);
                 }
+                // So does one of a lent reference: the reference's `Drop`s
+                // become the coercion's, so it takes the reference's flag
+                // for a view's fresh value.
+                Tag::Coerce
+                    if self.b.same_value_coercion(i)
+                        && self.loans.contains(&a)
+                        && let Some(&flag) = self.view_loans.get(&a) =>
+                {
+                    self.loans.insert(x);
+                    self.view_loans.insert(x, flag);
+                }
                 Tag::Store if self.b.is_borrow(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)

@@ -1,0 +1,27 @@
+# test: a field reference through a reference, lent to a generic call, keeps the object alive
+# Spec 13 Places And New Objects: ref.place.through.
+# expect-stdout: total=9900
+# A release of the field reference after the call freed the caller's
+# object a second time, which damaged the allocator's free list (#992).
+struct Point:
+    x: i64
+
+fn touch[T](part: &T) -> bool:
+    true
+
+fn check(point: &Point) -> bool:
+    touch(&point.x)
+
+pub fn main() -> void $ Console:
+    let mut kept: List[*Point] = []
+    for i in 0..100:
+        let mut spare = [box(Point { x: -1 }), box(Point { x: -2 })]
+        spare.clear()
+        point := Point { x: i64(i) }
+        if check(&point):
+            kept.push(box(Point { x: i64(i) }))
+            kept.push(box(Point { x: i64(i) }))
+    let total: i64 = 0
+    for p in kept:
+        total += p.x
+    println("total=$total")

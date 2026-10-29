@@ -4546,6 +4546,7 @@ runtime/valid/reference-deref-replace.hd	runtime	accept	lang/13-values-and-refer
 runtime/valid/reference-allocates.hd	runtime	accept	lang/13-values-and-references.md#r-ref.expr.allocate
 runtime/valid/reference-aliases-see-writes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.alias
 runtime/valid/reference-field-places.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.forms
+runtime/valid/reference-field-through-a-reference-lent-to-a-generic-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.through
 runtime/valid/reference-field-stores-preserve-rhs-alias-writes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.alias
 runtime/valid/reference-mut-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.writable
 runtime/valid/reference-enum-replace.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.writable.enum
