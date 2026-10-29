@@ -1827,7 +1827,7 @@ fn linked_checkpoints_restore_aliases_and_replay_only_the_active_tail() {
             let mut sources = Vec::new();
             for number in 1..=12 {
                 let source = if number == 1 {
-                    "use std.random.fill\nstruct Counter:\n    value: usize\nlet mut counter = Counter { value: 0 }\nlet alias: *mut Counter = &mut counter\n".to_owned()
+                    "use std.random.fill\nstruct Counter:\n    value: usize\ncounter := box(Counter { value: 0 })\nalias := counter\n".to_owned()
                 } else {
                     format!(
                         "_ := fill(4096).len()\nalias.value += 1\nif counter.value != {}:\n    panic(\"checkpoint lost a counter update\")\n",
@@ -2023,7 +2023,7 @@ fn a_historical_rebuild_adopts_a_linked_base_on_both_hosts() {
         let sources = [
             (
                 1,
-                "use std.random.fill\nstruct Counter:\n    value: usize\nlet mut count = Counter { value: 0 }\nlet alias: *mut Counter = &mut count\n",
+                "use std.random.fill\nstruct Counter:\n    value: usize\ncount := box(Counter { value: 0 })\nalias := count\n",
             ),
             (2, "_ := fill(128).len()\nalias.value += 1\n"),
             (3, "_ := fill(128).len()\nalias.value += 1\n"),
