@@ -18,7 +18,7 @@ in each crate's `Cargo.toml`.
 | `hd_intern` | Interned strings and stable paths | [Interners](../docs/compiler/data-structures.md#33-interners) |
 | `hd_diag` | Diagnostic codes and records | [Diagnostic records](../docs/compiler/data-structures.md#38-diagnostic-records), [diagnostics](hd_tir/DESIGN.md#414-diagnostics) |
 | `hd_syntax` | Lexer, layout, parser, green tree, and skeletons | [Front-half stages](hd_syntax/DESIGN.md#4-front-half-stages) |
-| `hd_fmt` | Green-tree formatter | [`hd fmt`, `hd fix`](hd_cli/DESIGN.md#76-hd-fmt-hd-fix) |
+| `hd_fmt` | Green-tree formatter | [`hd fmt` and fixing](hd_cli/DESIGN.md) |
 | `hd_project` | Manifests, source discovery, modules, folders, package graph | [Discovery and folders](hd_resolve/DESIGN.md#47-discovery-module-identity-and-folders) |
 | `hd_types` | Type storage, inference primitives, rows, solver data | [Types](../docs/compiler/data-structures.md#34-types), [type checking](hd_check/DESIGN.md) |
 | `hd_host_abi` | Host import and ABI descriptions | [Host interface](hd_run_wasmtime/DESIGN.md#17-host-interface-and-embedding) |

@@ -1,0 +1,4 @@
+pub fn count() -> i32:
+    let mut counter = +0
+    counter += +1
+    counter

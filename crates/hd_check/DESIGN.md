@@ -254,7 +254,7 @@ instead of rechecking. This design adds one mode:
 | Mode | Used by | TIR |
 | --- | --- | --- |
 | emit (default) | `hd check`, `hd build`, `hd run`, `hd test` | built per body; written at `ModuleFinish` |
-| no-emit | the playground's check-as-you-type, `hd fix` rounds, `hd doc` | never built; the checker is generic over the builder, and the discarding sink's methods are no-ops |
+| no-emit | the playground's check-as-you-type, CLI `--fix` rounds, `hd doc` | never built; the checker is generic over the builder, and the discarding sink's methods are no-ops |
 
 The no-emit mode saves about 200 bytes per source line of transient
 memory and the emission time where no build follows. Its `check` entry
@@ -262,7 +262,7 @@ has no TIR, so a later build rechecks that module.
 
 Implementation differs: the checker holds a concrete `TirBuilder`
 (`Ck::b`), so there is no no-emit mode; every check builds and verifies
-TIR, which costs the playground and `hd fix` memory and time for nothing.
+TIR, which costs the playground and CLI `--fix` rounds memory and time for nothing.
 The verifier runs on every body, not only in debug builds; not judged.
 
 ### 1.6 The Trait Solver Interface

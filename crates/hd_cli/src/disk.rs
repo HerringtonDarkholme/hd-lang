@@ -48,7 +48,8 @@ impl DiskSources {
     }
 
     /// Reads the listed file at `path` as `text` instead of from disk, as
-    /// `hd fix` checks an edit before it writes it (`cli.fix.safe`).
+    /// `hd check --fix` checks an edit before it writes it
+    /// (`cli.check.fix.safe`).
     pub fn set_text(&mut self, path: &str, text: &str) {
         if let Some(e) = self.files.iter_mut().find(|e| e.path == path) {
             e.size = text.len() as u64;

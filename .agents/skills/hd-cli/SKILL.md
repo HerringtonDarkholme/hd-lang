@@ -21,8 +21,9 @@ In this repo, build the compiler with `cargo build -p hd_cli` and run
 3. `hd lint --format json FILE` (or `--tests` in a package) reports optional
    advice after the code checks. Ordinary `check`, `build`, and `test` report
    errors only. Fix warning-level findings; a denied finding is an error.
-4. In a package, `hd fix` applies the safe fix-its to the source files
-   for you, then prints what remains. It never edits `hd.toml`.
+4. In a package, `hd check --fix` applies safe checker fix-its, while
+   `hd lint --fix` applies only lint fixes proven behavior-preserving. Each
+   prints what remains.
 5. `hd test` (or `hd test FILE`). A failure prints a `repro:` line; run
    that one case while you fix it.
 6. Run the program: `hd FILE` or `hd run`, with arguments after `--`.
@@ -41,7 +42,8 @@ spec chapter or `hd doc` the std item instead of guessing again.
 | `hd check --tests` / `--all` | also the test code / also the tests and tasks |
 | `hd check --max-errors N`, `--summary` | print fewer lines; the counts stay the same |
 | `hd lint [FILE]` | type-check, then report optional findings; selects tests and tasks like `check` and accepts `--allow`, `--warn`, and `--deny` for exact lint names |
-| `hd fix` | apply safe source fix-its, at most 3 rounds; manifest fix-its are reported but not applied; no FILE, package only |
+| `hd check --fix` | apply safe checker fix-its, at most 3 rounds; no FILE, package only |
+| `hd lint --fix` | apply behavior-preserving lint fixes, at most 3 rounds; no FILE, package only |
 | `hd test [FILE]` | run the package's tests, or those of FILE's module |
 | `hd test --filter WORD` | only the cases whose name contains WORD |
 | `hd test --affected` | only the test programs that changed since they last passed |
@@ -83,7 +85,8 @@ A JSON diagnostic, then the summary that always ends the stream:
 
 - A fix-it edit replaces bytes `start` up to `end` of `file` with `text`;
   offsets are UTF-8 bytes from 0. Text output does not show fix-its, so
-  use JSON or `hd fix` to see them.
+  use JSON to inspect them, or `hd check --fix` / `hd lint --fix` to apply
+  the eligible ones.
 - Few diagnostics carry fix-its; most messages say the fix in words,
   such as "use `let` to reassign it".
 - `hd test --format json` prints one `{"kind":"test",...}` line per case,
@@ -139,8 +142,8 @@ library root: other packages import its items as `dep.money.NAME`) and
 
 ## Pitfalls
 
-- `hd fix` refuses a FILE and refuses to run outside a package; for a
-  single file, apply the JSON `fixes` edits yourself.
+- `hd check --fix` and `hd lint --fix` refuse a FILE and refuse to run
+  outside a package; for a single file, apply the JSON `fixes` edits yourself.
 - `hd run` is for packages. For one file, run `hd FILE`.
 - `hd check`, `hd build`, and `hd test` intentionally omit optional lint
   advice. Run `hd lint` explicitly; use `--deny CODE` when one finding must

@@ -999,7 +999,7 @@ impl TirBuilder {
   lives on a scratch stack until the block closes.
 - **The checker is generic over `TirSink`**, as `Checker<B: TirSink>`, so
   a discarding sink gives a no-emit mode (for the playground and
-  `hd fix`) without a second code path.
+  CLI `--fix` rounds) without a second code path.
   Implementation differs: the checker holds a concrete `TirBuilder`
   (`Ck::b`, `crates/hd_check/src/body.rs:165`), and there is no
   discarding sink. Not judged.
@@ -1342,11 +1342,12 @@ no tie falls back to an ID (tsgo #64589). Exact duplicates are dropped.
 
 - A fix-it is a list of exact edits on byte ranges, marked `Exact` or
   `Suggestion` by the code that makes it.
-- **`hd fix`** applies the first exact fix-it of each diagnostic, checks
+- **`hd check --fix`** applies the first exact checker fix-it of each diagnostic, checks
   the package again, and keeps a round only if no diagnostic occurs more
   often after it; otherwise it tries the fix-its one at a time. At most
   3 rounds. A full check after the edit is a stronger test than
-  re-parsing each fix-it at emission, and only `hd fix` applies them.
+  re-parsing each fix-it at emission. `hd lint --fix` additionally applies
+  only lint fixes proven behavior-preserving.
 - Kinds today include did-you-mean names, missing `use` lines, `let mut`,
   inserting `dyn`, and the fix-its the spec names. Code-generating
   fix-its come later.

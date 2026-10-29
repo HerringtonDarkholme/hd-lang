@@ -4,29 +4,30 @@
 # These fixtures judge byte offsets of fix-it edits, which depend on the
 # line ending; check them out with LF everywhere so Windows sees the same
 # bytes as the expectations.
-spec/conformance/cli/fix-derivation-fact/** text eol=lf
+spec/conformance/cli/lint-fix-derivation-fact/** text eol=lf
 spec/conformance/cli/mutable-and-signed-hints/** text eol=lf
 spec/conformance/cli/fix-existing-mut-receiver/** text eol=lf
-spec/conformance/cli/fix-parser-byte-edits/** text eol=lf
-spec/conformance/cli/fix-parser-migrations/** text eol=lf
-spec/conformance/cli/fix-parser-punctuation/** text eol=lf
-spec/conformance/cli/fix-elif-continuations/** text eol=lf
-spec/conformance/cli/fix-known-name-errors/** text eol=lf
+spec/conformance/cli/check-fix-parser-byte-edits/** text eol=lf
+spec/conformance/cli/check-fix-parser-migrations/** text eol=lf
+spec/conformance/cli/check-fix-parser-punctuation/** text eol=lf
+spec/conformance/cli/check-fix-elif-continuations/** text eol=lf
+spec/conformance/cli/check-fix-known-name-errors/** text eol=lf
 spec/conformance/cli/unknown-name-suggestions/methods.hd text eol=lf
-spec/conformance/cli/fix-legacy-syntax/** text eol=lf
-spec/conformance/cli/fix-reassigned-bindings/** text eol=lf
-spec/conformance/cli/fix-private-main/src/*.hd text eol=lf
-spec/conformance/cli/fix-private-main-bang/src/*.hd text eol=lf
-spec/conformance/cli/fix-private-main-clash/src/*.hd text eol=lf
-spec/conformance/cli/fix-private-main-unsafe/src/*.hd text eol=lf
-spec/conformance/cli/fix-discarded-debug/** text eol=lf
+spec/conformance/cli/check-fix-legacy-syntax/** text eol=lf
+spec/conformance/cli/check-fix-reassigned-bindings/** text eol=lf
+spec/conformance/cli/lint-fix-private-main/src/*.hd text eol=lf
+spec/conformance/cli/lint-fix-private-main-bang/src/*.hd text eol=lf
+spec/conformance/cli/lint-fix-private-main-clash/src/*.hd text eol=lf
+spec/conformance/cli/lint-fix-private-main-unsafe/src/*.hd text eol=lf
+spec/conformance/cli/lint-fix-discarded-debug/** text eol=lf
+spec/conformance/cli/lint-fix-redundant-mut/** text eol=lf
 spec/conformance/cli/trait-reference-messages/** text eol=lf
-spec/conformance/cli/fix-empty-map-constructor/** text eol=lf
+spec/conformance/cli/check-fix-empty-map-constructor/** text eol=lf
 
 # Collection interpolation fix-it offsets are UTF-8 byte positions.
-spec/conformance/cli/fix-collection-interpolation/*.hd text eol=lf
-spec/conformance/cli/fix-collection-interpolation/src/*.hd text eol=lf
-spec/conformance/cli/fix-collection-interpolation/want/*.hd text eol=lf
+spec/conformance/cli/check-fix-collection-interpolation/*.hd text eol=lf
+spec/conformance/cli/check-fix-collection-interpolation/src/*.hd text eol=lf
+spec/conformance/cli/check-fix-collection-interpolation/want/*.hd text eol=lf
 spec/conformance/cli/lint-binding-patterns/** text eol=lf
 spec/conformance/cli/lint-flow-advice/** text eol=lf
 

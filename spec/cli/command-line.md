@@ -14,7 +14,7 @@ command finds a package and what each command runs:
   dependencies;
 - `hd install` and `hd uninstall`, which manage installed executables;
 - `hd clean`, which removes the build directory or the dependency cache;
-- `hd fmt` and `hd fix`, which rewrite source files;
+- `hd fmt`, and the `--fix` modes of `hd check` and `hd lint`, which rewrite source files;
 - the compiled cache and `hd cache gc`;
 - resource limits on a program, and threads;
 - `hd new`, and the REPL.
@@ -36,15 +36,14 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd [--engine NAME] FILE.wasm` | runs a [prebuilt module](#prebuilt-modules) that `hd build` wrote |
 | `hd run [--release] [--engine NAME]`, `hd run [--release] [--engine NAME] NAME` | runs an [executable or a task](#running-a-package) of the package, in the [build profile](#build-profiles) its flag selects |
 | `hd build [--release] [--engine NAME]` | builds the [package](#building-and-checking), or one FILE, in that profile |
-| `hd check`, `hd test [--release] [--engine NAME]` | work on the [package](#building-and-checking), or on one FILE; `hd test` is [always checked](#r-cli.profile.test) |
-| `hd lint [FILE] [--all] [--allow CODE] [--warn CODE] [--deny CODE]` | [reports lint findings](#linting), without running or rewriting a program |
+| `hd check [--fix]`, `hd test [--release] [--engine NAME]` | work on the [package](#building-and-checking), or on one FILE; `hd check --fix` [applies safe checker fixes](#check-fixes); `hd test` is [always checked](#r-cli.profile.test) |
+| `hd lint [FILE] [--all] [--allow CODE] [--warn CODE] [--deny CODE] [--fix]` | [reports lint findings](#linting); `--fix` applies behavior-preserving lint fixes |
 | `hd doc [--private] [--out DIR] [--open]`, `hd doc NAME` | [writes the package's documentation](#documentation), or prints one item's |
 | `hd new [--app \| --lib] [--pages] [--vcs none] [PATH]` | [creates a package](#creating-a-package) |
 | `hd add [--dev] [--name NAME] TARGET[@QUERY]...`, `hd update [NAME[@QUERY]]`, `hd remove NAME`, `hd fetch` | [change or fetch the package's dependencies](#dependency-commands) |
 | `hd install SOURCE`, `hd install --list`, `hd uninstall NAME` | [install, list or remove executable commands](#installing-executables) |
 | `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
 | `hd fmt [--check] [FILE]` | [formats the package's source files](#formatting), or one FILE |
-| `hd fix` | [applies the package's safe fix-its](#fixing) |
 | `hd cache gc` | [evicts compiled entries](#compiled-cache) down to the size cap |
 | `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
@@ -645,6 +644,31 @@ hd check --summary
 > and checks again. The counts per code show at a glance whether one
 > mistake caused them all.
 
+### Check Fixes
+
+`hd check --fix` applies checker fix-its as `cargo fix` does:
+
+```sh
+hd check --fix    # apply safe fixes, recheck, and report what remains
+```
+
+1. r[cli.check.fix.whole-package] `hd check --fix` works in package mode, checks every package entry as `hd check --all` does, and applies eligible source and capability-table fix-its. It takes no FILE, workspace selection, `--tests`, `--summary`, `--max-errors`, or JSON output option.
+2. r[cli.check.fix.safe] A checker fix-it is **safe** when applying it adds no syntax error and no new diagnostic. `hd check --fix` applies no other checker fix-it.
+3. r[cli.check.fix.overlap] When the edits of two safe fix-its overlap, `hd check --fix` applies only the one whose diagnostic comes first in output order.
+4. r[cli.check.fix.rounds] After it applies fix-its, `hd check --fix` checks the package again and applies the safe fix-its of the new check. It repeats until a check offers none, or three rounds have run.
+5. r[cli.check.fix.report] `hd check --fix` prints each change it made, with its file and the code of its diagnostic, then the diagnostics that remain.
+6. r[cli.check.fix.status] `hd check --fix` exits with status 0 when no error remains, and with status 101 otherwise.
+7. r[cli.check.fix.manifest.capabilities] `hd check --fix` applies a `missing-capability` fix-it to the package's `hd.toml`.
+8. r[cli.check.fix.manifest.other] It reports other manifest fix-its without applying them.
+9. r[cli.check.fix.no-command] `fix` is not an hd command. `hd fix` reports an unknown command.
+
+> **Why.** An agent fixes a typo or a missing `use` in one command. A
+> fix-it that breaks the file or brings a new diagnostic is left for a
+> person to judge.
+
+See also: [Machine Output](#machine-output), whose `fixes` field holds the
+same edits.
+
 ### Test Runs
 
 ```sh
@@ -832,8 +856,9 @@ hd test tasks/seed.hd      # only the tests of task seed
 
 ## Linting
 
-`hd lint` is an explicit, read-only request for advice about accepted code.
-It keeps advisory findings separate from errors that reject a program.
+Without `--fix`, `hd lint` is an explicit, read-only request for advice about
+accepted code. It keeps advisory findings separate from errors that reject a
+program.
 
 ```sh
 hd lint
@@ -843,9 +868,9 @@ hd lint --all --allow unused-local-binding
 ```
 
 1. r[cli.lint.select] `hd lint` selects files, packages, workspace members, tests and tasks by the same selection rules as `hd check`.
-2. r[cli.lint.options] `hd lint` accepts `--format`, `--summary`, `--max-errors`, `--jobs`, `--tests`, `--all`, and `-p` as checking does.
+2. r[cli.lint.options.fix] `hd lint` accepts `--format`, `--summary`, `--max-errors`, `--jobs`, `--tests`, `--all`, `-p`, and `--fix`. Its `--fix` mode has the whole-package restrictions of [`cli.check.fix.whole-package`](#r-cli.check.fix.whole-package).
 3. r[cli.lint.prerequisites] `hd lint` reports ordinary compiler errors before running analyses that need successfully checked code.
-4. r[cli.lint.read-only] `hd lint` runs no program and changes no source, manifest, or lockfile.
+4. r[cli.lint.no-fix.read-only] Without `--fix`, `hd lint` runs no program and changes no source, manifest, or lockfile.
 5. r[cli.lint.ordinary-errors] `hd check`, `hd build`, `hd test`, REPL evaluation, and the playground report compiler errors only.
 6. r[cli.lint.report-command] Only `hd lint` reports the optional findings listed in the diagnostic registry.
 7. r[cli.lint.default] Each registered lint runs at its declared default level.
@@ -873,6 +898,10 @@ hd lint --all --allow unused-local-binding
 29. r[cli.lint.stable-messages] Moving an existing warning into lint preserves its stable diagnostic code, message, source span and fix-it information.
 30. r[cli.lint.lost-write] A change to a `mut` parameter or `mut self` copy produces `lost-write` when the changed copy is never read afterwards, returned, stored, passed on, or captured. A change is a whole reassignment, a struct field write, a list or map element store, or a call of an `&mut self` method such as `push`. The message suggests a mutable reference when the caller's value was meant to change. Warning: `lost-write`.
 31. r[cli.lint.lost-write.scope] `lost-write` judges changes in direct statements of a function body. It stays silent when a later statement names the parameter, or when a closure or `defer` in the body captures it.
+32. r[cli.lint.fix.behavior-preserving] `hd lint --fix` applies a lint fix only when the rule proves that the edit preserves program behavior. Passing a check after the edit is necessary but not sufficient.
+33. r[cli.lint.fix.redundant-mut] Removing the `mut` token reported by `redundant-let-mut` is behavior-preserving and is applied by `hd lint --fix`.
+34. r[cli.lint.fix.report-only] A lint rule whose edit can change behavior may still report its diagnostic and suggestion, but `hd lint --fix` does not apply that edit.
+35. r[cli.lint.fix.mechanics] Eligible lint fixes use the overlap, round, report, and final-status rules of [Check Fixes](#check-fixes). The command reruns lint with the same lint policy after every round. Checker errors and their fixes are reported but not applied by lint fixing.
 
 | Level | Effect |
 | --- | --- |
@@ -1416,30 +1445,6 @@ hd fmt --check          # writes nothing; lists each file that would change
 
 > **Why.** Formatting around a syntax error could rewrite code that the
 > parser misread, so the file waits until it parses.
-
-### Fixing
-
-`hd fix` applies the fix-its that `hd check` reports, as `cargo fix` does:
-
-```sh
-hd fix    # applies each safe fix-it, rechecks, and lists the changes and what remains
-```
-
-1. r[cli.fix.command.all-entries] `hd fix` checks the package as `hd check --all` does and applies safe source and capability-table fix-its.
-2. r[cli.fix.safe] A fix-it is **safe** when applying it adds no syntax error and no new diagnostic. `hd fix` applies no other fix-it.
-3. r[cli.fix.overlap] When the edits of two safe fix-its overlap, `hd fix` applies only the one whose diagnostic comes first in output order.
-4. r[cli.fix.rounds] After it applies fix-its, `hd fix` checks the package again and applies the safe fix-its of the new check. It repeats until a check offers none, or a bounded number of rounds has run.
-5. r[cli.fix.report] `hd fix` prints each change it made, with its file and the code of its diagnostic, then the diagnostics that remain.
-6. r[cli.fix.status] `hd fix` exits with status 0 when no error remains, and with status 101 otherwise.
-7. r[cli.fix.manifest.capabilities] `hd fix` applies a `missing-capability` fix-it to the package's `hd.toml`.
-8. r[cli.fix.manifest.other] It reports other manifest fix-its without applying them.
-
-> **Why.** An agent fixes a typo or a missing `use` in one command.
-> A fix-it that breaks the file or brings a new diagnostic is left for a
-> person to judge.
-
-See also: [Machine Output](#machine-output), whose `fixes` field holds
-the same edits.
 
 ## Resource Limits
 

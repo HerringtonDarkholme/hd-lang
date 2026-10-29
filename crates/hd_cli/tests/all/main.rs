@@ -37,7 +37,7 @@ mod doc_name;
 mod doc_tests;
 #[cfg(unix)]
 mod fifo;
-mod fix_cmd;
+mod fixing;
 mod host_traits;
 mod install;
 #[cfg(unix)]

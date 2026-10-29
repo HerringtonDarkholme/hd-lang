@@ -53,7 +53,7 @@ fn lint(source: &str, policy: Policy) -> (Output, DiagBuf) {
 
 #[test]
 fn exact_debug_message_expression_spans_and_utf8_fix_ranges_are_preserved() {
-    let source = include_str!("../../../spec/conformance/cli/fix-discarded-debug/src/lib.hd");
+    let source = include_str!("../../../spec/conformance/cli/lint-fix-discarded-debug/src/lib.hd");
     let (out, findings) = lint(source, policy());
     assert!(out.diags.is_empty(), "{}", out.render());
     assert_eq!(findings.code, [Code::UnusedDebugText; 3]);

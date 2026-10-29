@@ -151,7 +151,7 @@ while source text makes a comment edit rerun the group's tests.
 
 §20.2 to §20.4 continue these flows.
 
-### 7.6 `hd fmt`, `hd fix`
+### 7.6 `hd fmt`, `hd check --fix`, `hd lint --fix`
 
 **`hd fmt`** (`fmt_cmd.rs`). Per file, one after another (`--jobs` is
 accepted and ignored):
@@ -169,18 +169,21 @@ fixture (`fmt(fmt(x)) == fmt(x)`).
 Planned, not built: formatting files in parallel, and skipping a file
 whose source hash a manifest record marks as already formatted.
 
-**`hd fix`** (`fix_cmd.rs`, `cli.fix.*`). Package mode only; it takes
+**Fixing** (`fix.rs`, `cli.check.fix.*`, `cli.lint.fix.*`). `hd check
+--fix` and `hd lint --fix` are package mode only; they take
 no FILE, no `-p` and no `--format`, as the Commands table and
 `cli.json.commands` leave them out.
 
 1. Read every source file and the package manifest once. Checks run in memory: a
    tried state's texts reach the driver through `DiskSources::set_text`,
    and nothing is written until the end.
-2. Check as `hd check` does with no flag (`check_cmd::check_package`).
+2. Check every entry as `hd check --all` does. Lint fixing reruns the same
+   explicit lint policy and admits only rules whose edit is proven
+   behavior-preserving; today that is `redundant-let-mut`.
 3. Of each diagnostic, in output order, take its first `Exact` fix-it
    whose edits fit package source files, or a missing-capability fix
    that inserts grants into `hd.toml`. An overlapping edit waits
-   (`cli.fix.overlap`). Other manifest fixes, dependencies and `std` are
+   (`cli.check.fix.overlap`). Other manifest fixes, dependencies and `std` are
    never edited. Capability fixes insert all missing grants together, so
    the round bound does not limit how many capabilities can be listed.
 4. Apply the round's fix-its together and check again. The round is safe
@@ -190,12 +193,12 @@ no FILE, no `-p` and no `--format`, as the Commands table and
    order, each on top of those kept, so an added diagnostic is charged to
    the fix-it that brought it. A rejected fix-it is skipped in later
    rounds, which lets one it overlapped have its turn.
-5. Repeat with the last check, at most 3 rounds (`cli.fix.rounds`).
+5. Repeat with the last check, at most 3 rounds (`cli.check.fix.rounds`).
 6. Write each changed file through a temporary file and a rename, unless
    it changed on disk meanwhile. Print each change (`fixed: FILE:L:C:
-   CODE: MESSAGE`), the diagnostics of the last check, and `fix result:`
+   CODE: MESSAGE`), the diagnostics of the last check, and the command's result
    with the counts, all on standard error. Status 101 when an error
-   remains (`cli.fix.status`).
+   remains (`cli.check.fix.status`).
 
 Stage-A diagnostics are re-emitted from `iface` entries on a warm run, so
 those entries keep the fix-its too, anchored like their diagnostics:

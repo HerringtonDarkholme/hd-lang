@@ -9,7 +9,7 @@ exit: 101
 run: hd run closure --format json
 exit: 101
 stderr-json: [{"kind":"diagnostic","code":"missing-capability","file":"src/main.hd"},{"kind":"diagnostic","code":"missing-capability","file":"tasks/closure.hd"},{"kind":"summary","errors":2,"status":101}]
-run: hd fix
+run: hd check --fix
 same-text: hd.toml want.toml
 run: hd check --all --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

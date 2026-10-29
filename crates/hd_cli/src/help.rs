@@ -151,7 +151,7 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "check",
         summary: "type-check the package, or FILE, without running it",
-        usage: "hd check [-p NAME] [--tests | --all] [--max-errors N] [--summary] [FILE]",
+        usage: "hd check [-p NAME] [--tests | --all] [--fix] [--max-errors N] [--summary] [FILE]",
         about: &[
             "Check the package's library and executables, or FILE's module and the modules",
             "it uses, without building or running anything.",
@@ -163,6 +163,10 @@ const COMMANDS: &[Command] = &[
                 "also check the test code: tests: blocks, test modules, integration tests",
             ),
             ("--all", "also check the test code and the tasks"),
+            (
+                "--fix",
+                "apply safe checker fix-its to the whole package and report what remains",
+            ),
             (
                 "--max-errors N",
                 "stop printing diagnostics after the Nth error",
@@ -177,8 +181,8 @@ const COMMANDS: &[Command] = &[
     },
     Command {
         name: "lint",
-        summary: "report optional advice without running or rewriting code",
-        usage: "hd lint [-p NAME] [--tests | --all] [--allow CODE] [--warn CODE] [--deny CODE] [FILE]",
+        summary: "report optional advice; --fix applies behavior-preserving edits",
+        usage: "hd lint [-p NAME] [--tests | --all] [--allow CODE] [--warn CODE] [--deny CODE] [--fix] [FILE]",
         about: &[
             "Check prerequisites, then report selected lint findings. unsigned-comparison-always",
             "reports unsigned comparisons with a literal zero; it defaults to warning.",
@@ -190,6 +194,10 @@ const COMMANDS: &[Command] = &[
             ("--allow CODE", "suppress the named lint"),
             ("--warn CODE", "report the named lint as a warning"),
             ("--deny CODE", "report the named lint as an error"),
+            (
+                "--fix",
+                "apply behavior-preserving lint fixes to the whole package and report what remains",
+            ),
             (
                 "--max-errors N",
                 "stop printing diagnostics after the Nth error",
@@ -328,19 +336,6 @@ const COMMANDS: &[Command] = &[
             ),
             JOBS,
         ],
-    },
-    Command {
-        name: "fix",
-        summary: "apply the package's safe fix-its",
-        usage: "hd fix",
-        about: &[
-            "Check the package as hd check does and apply each safe fix-it: one that adds",
-            "no syntax error and no new diagnostic. Check again and repeat, at most 3 rounds.",
-            "Fix-its apply to the package's source files only; hd.toml is never edited, so",
-            "the fix-it of unlisted-entry is reported, not applied.",
-            "Print each change, then the diagnostics that remain.",
-        ],
-        flags: &[JOBS],
     },
     Command {
         name: "cache gc",

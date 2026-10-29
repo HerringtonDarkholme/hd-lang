@@ -5,7 +5,7 @@ run: hd run --format json --cap Process=true
 exit: 101
 stdout-json: []
 stderr-json: [{"kind":"diagnostic","code":"missing-capability","severity":"error","file":"src/main.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
-run: hd fix
+run: hd check --fix
 run: hd check --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd run

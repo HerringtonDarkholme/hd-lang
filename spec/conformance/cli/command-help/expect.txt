@@ -10,7 +10,7 @@ stdout:   build      build the package's executables, or the module of one FILE 
 stdout:   run        run the package's executable, or the executable or task named NAME
 stdout:   test       run the test cases of the package, or of FILE
 stdout:   check      type-check the package, or FILE, without running it
-stdout:   lint       report optional advice without running or rewriting code
+stdout:   lint       report optional advice; --fix applies behavior-preserving edits
 stdout:   doc        write the package's documentation, or print one item's
 stdout:   new        create a package in PATH, or in the current directory
 stdout:   add        require each TARGET, fetch it, and record its hash
@@ -21,7 +21,6 @@ stdout:   install    install a package's executables as commands on PATH
 stdout:   uninstall  remove one installed executable
 stdout:   clean      remove the package's build directory, or with --cache the dependency cache
 stdout:   fmt        format the package's source files, or FILE
-stdout:   fix        apply the package's safe fix-its
 stdout:   cache gc   evict compiled entries down to the size cap
 stdout:   help       print the commands, or one command's flags
 stdout:
@@ -29,6 +28,9 @@ stdout: global flag:
 stdout:   --format FORMAT  print diagnostics as text (the default) or as JSON lines
 stdout:
 stdout: Run 'hd help COMMAND' for a command's flags.
+run: hd fix
+exit: 101
+stderr: error: `fix` is no command of hd; `hd help` lists them
 run: hd help run
 stdout: usage: hd run [--release] [--engine NAME] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]
 stdout:

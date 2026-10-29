@@ -1,0 +1,10 @@
+# Removing redundant `mut` leaves the program's behavior unchanged, so lint
+# may apply it automatically.
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"redundant-let-mut","file":"src/lib.hd","line":2,"fixes":[{"message":"remove `mut`","edits":[{"file":"src/lib.hd","start":31,"end":35,"text":""}]}]},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --fix
+same-text: src/lib.hd want/lib.hd
+run: hd lint --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

@@ -33,6 +33,8 @@ struct Options {
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
     lint: Option<hd_lint::Policy>,
+    /// Apply the safe fix-its of this command before reporting what remains.
+    fix: bool,
 }
 
 fn options(args: &[OsString], command: &str) -> Result<Options, String> {
@@ -61,6 +63,7 @@ fn options(args: &[OsString], command: &str) -> Result<Options, String> {
         i += 1;
         let text = a.to_string_lossy();
         let switch = match text.as_ref() {
+            "--fix" => Some(&mut o.fix),
             "--summary" => Some(&mut o.summary),
             "--tests" => Some(&mut o.tests),
             "--all" => Some(&mut o.all),
@@ -364,9 +367,9 @@ fn relocate_docs(shown: &mut [Diag], docs: &[crate::test_cmd::Doc]) {
 }
 
 /// Whole-package diagnostics including tests and tasks, as `hd check --all`
-/// reports them (`cli.check.all`); `hd fix` runs it
-/// (`cli.fix.command.all-entries`).
-pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
+/// reports them. The fixing pass uses this so every package entry is
+/// considered, as the former standalone command did.
+pub(crate) fn fix_package(program: disk::Program, lint: Option<hd_lint::Policy>) -> Vec<Diag> {
     let t = Target {
         program,
         only: None,
@@ -376,6 +379,7 @@ pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
         t,
         &Options {
             all: true,
+            lint,
             ..Options::default()
         },
         &DeferredStore::new(crate::disk_store()),
@@ -398,6 +402,20 @@ fn command_with(args: &[OsString], lint: Option<hd_lint::Policy>) -> ExitCode {
         Err(e) => return fail(&e),
     };
     o.lint = lint;
+    if o.fix {
+        if o.file.is_some()
+            || !o.packages.is_empty()
+            || o.tests
+            || o.summary
+            || o.max_errors.is_some()
+            || o.json
+        {
+            return fail(&format!(
+                "`hd {command} --fix` works on one whole package and takes no FILE, -p, --tests, --summary, --max-errors, or --format json"
+            ));
+        }
+        return crate::fix::command(command, lint);
+    }
     let (mut diags, mut modules_checked) = (Vec::new(), 0);
     // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4): the entries
     // reach the disk when the store drops, after the report.

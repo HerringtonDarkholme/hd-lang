@@ -1,6 +1,6 @@
 run: hd run report --format json
 exit: 101
 stderr-json: [{"kind":"diagnostic","code":"missing-capability","file":"tasks/report.hd"},{"kind":"summary","errors":1,"status":101}]
-run: hd fix
+run: hd check --fix
 run: hd run report
 stdout: root grant

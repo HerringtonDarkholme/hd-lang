@@ -22,7 +22,8 @@ pub struct Edit {
 }
 
 /// One fix-it. `exact` is [`hd_diag::FixSafety::Exact`]: the compiler
-/// offers it as the whole fix, so `hd fix` tries it (`cli.fix.safe`); a
+/// offers it as the whole fix, so `hd check --fix` tries it
+/// (`cli.check.fix.safe`); a
 /// suggestion is only shown. The JSON line leaves it out.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fix {

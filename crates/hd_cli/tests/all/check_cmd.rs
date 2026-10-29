@@ -1139,7 +1139,7 @@ fn bad_jobs_is_the_same_usage_error_everywhere() {
     let dir = package("hd-jobs-bad", CLEAN);
     for value in ["0", "many"] {
         let message = format!("`--jobs {value}`: N is a whole number of at least 1");
-        for command in ["check", "build", "test", "fmt", "fix"] {
+        for command in ["check", "build", "test", "fmt"] {
             let out = Command::new(env!("CARGO_BIN_EXE_hd"))
                 .env("HD_CACHE", dir.cache())
                 .current_dir(&dir)

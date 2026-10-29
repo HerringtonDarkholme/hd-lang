@@ -12,7 +12,7 @@ mod dep_cmd;
 mod disk;
 mod doc_cmd;
 mod engine;
-mod fix_cmd;
+mod fix;
 mod fmt_cmd;
 mod help;
 mod install_cmd;
@@ -46,8 +46,8 @@ const USAGE: &str = "usage:
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd --repl [--engine NAME] FILE
   hd build [--release] [--format json] [FILE.hd]
-  hd check [FILE.hd] [--tests | --all] [--format json]
-  hd lint [FILE.hd] [--allow CODE | --warn CODE | --deny CODE] [--format json]
+  hd check [FILE.hd] [--tests | --all] [--fix] [--format json]
+  hd lint [FILE.hd] [--allow CODE | --warn CODE | --deny CODE] [--fix] [--format json]
   hd doc [--private] [--out DIR] [--open] [--format json]
   hd new [--app | --lib] [--pages] [--vcs none] [PATH]
   hd clean [--cache]
@@ -60,7 +60,6 @@ const USAGE: &str = "usage:
   hd install [--root DIR] --list
   hd uninstall [--root DIR] NAME
   hd fmt [--check] [FILE.hd]
-  hd fix [--jobs N]
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]
 
   FILE.hd, FILE.wasm, hd run and hd test accept --time-limit DURATION
@@ -139,12 +138,12 @@ fn main() -> ExitCode {
         ("uninstall", rest) => install_cmd::uninstall(rest),
         ("--installed", rest) => install_cmd::run(rest),
         ("fmt", rest) => fmt_cmd::command(rest),
-        ("fix", rest) => fix_cmd::command(rest),
         ("run", rest) => run_command(rest),
         ("build", rest) => build_command(rest),
         ("check", rest) => check_cmd::command(rest),
         ("lint", rest) => lint_cmd::command(rest),
         ("doc", rest) => doc_cmd::command(rest),
+        ("fix", _) => fail("`fix` is no command of hd; `hd help` lists them"),
         _ if arguments
             .iter()
             .take_while(|a| *a != "--")
@@ -221,7 +220,7 @@ fn repl_script_command(args: &[OsString]) -> ExitCode {
 /// Follow command dispatch: a source argument to `fmt` is not a program run.
 fn compiles(command: &str, arguments: &[OsString]) -> bool {
     match command {
-        "run" | "build" | "check" | "lint" | "test" | "doc" | "fix" => true,
+        "run" | "build" | "check" | "lint" | "test" | "doc" => true,
         "install" => !arguments.iter().any(|a| a == "--list"),
         "uninstall" | "--installed" => false,
         "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
@@ -258,7 +257,6 @@ fn format_after_command(mut args: Vec<OsString>) -> Vec<OsString> {
                 | "fetch"
                 | "clean"
                 | "fmt"
-                | "fix"
                 | "cache"
         )
     }) {
@@ -1386,7 +1384,7 @@ mod limit_tests {
 
     #[test]
     fn compiling_follows_dispatch_not_incidental_source_arguments() {
-        for command in ["run", "build", "check", "lint", "test", "fix"] {
+        for command in ["run", "build", "check", "lint", "test"] {
             assert!(compiles(command, &args(&[command])));
         }
         for command in [

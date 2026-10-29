@@ -162,7 +162,8 @@ Correctness is a gate, not a pillar.
    `large-enum-match` grows with exponent 2.42 against 1.3, and
    `deep-blocks`, `deep-parens`, and `method-chain` fail (nesting limit,
    stack overflow). Diagnostics are compact, and `hd check --format json`
-   has a field for exact-edit fix-its that `hd fix` applies, but no corpus
+   has a field for exact-edit fix-its that `hd check --fix` or
+   `hd lint --fix` applies, but no corpus
    mistake offers one yet. Output is deterministic. Tests sit in the same
    file under `tests:`, and providers turn a fake clock or mailer into one
    line.

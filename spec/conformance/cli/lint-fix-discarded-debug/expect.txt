@@ -1,0 +1,31 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+# Ordinary checks are quiet; cold and warm lint preserve UTF-8 fix offsets.
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":3,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":93,"end":98,"text":"dbg"}]}]},{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":7,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":152,"end":157,"text":"dbg"}]}]},{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":11,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":238,"end":243,"text":"dbg"}]}]},{"kind":"summary","errors":0,"warnings":3,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":3,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":93,"end":98,"text":"dbg"}]}]},{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":7,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":152,"end":157,"text":"dbg"}]}]},{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":11,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":238,"end":243,"text":"dbg"}]}]},{"kind":"summary","errors":0,"warnings":3,"status":0}]
+run: hd lint --fix
+same-text: src/lib.hd want/lib.hd
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd check --format json controls.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"prelude-name-shadow","file":"controls.hd","line":3,"fixes":[]},{"kind":"diagnostic","code":"prelude-name-shadow","file":"controls.hd","line":8,"fixes":[]},{"kind":"diagnostic","code":"argument-count","file":"controls.hd","line":22,"fixes":[]},{"kind":"diagnostic","code":"unknown-name","file":"controls.hd","line":31,"fixes":[]},{"kind":"summary","errors":4,"warnings":0,"status":101}]
+run: hd lint --format json controls.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"prelude-name-shadow","file":"controls.hd","line":3,"fixes":[]},{"kind":"diagnostic","code":"prelude-name-shadow","file":"controls.hd","line":8,"fixes":[]},{"kind":"diagnostic","code":"argument-count","file":"controls.hd","line":22,"fixes":[]},{"kind":"diagnostic","code":"unknown-name","file":"controls.hd","line":31,"fixes":[]},{"kind":"summary","errors":4,"warnings":0,"status":101}]
+run: hd check --format json global-shadow.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"prelude-name-shadow","file":"global-shadow.hd","line":1,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd lint --format json global-shadow.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"prelude-name-shadow","file":"global-shadow.hd","line":1,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json custom-debug.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"prelude-name-shadow","file":"custom-debug.hd","line":1,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd lint --format json custom-debug.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"prelude-name-shadow","file":"custom-debug.hd","line":1,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":3,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":93,"end":98,"text":"dbg"}]}]},{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":7,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":152,"end":157,"text":"dbg"}]}]},{"kind":"diagnostic","code":"unused-debug-text","file":"src/lib.hd","line":11,"fixes":[{"message":"replace discarded `debug` with `dbg`","edits":[{"file":"src/lib.hd","start":238,"end":243,"text":"dbg"}]}]},{"kind":"summary","errors":0,"warnings":3,"status":0}]

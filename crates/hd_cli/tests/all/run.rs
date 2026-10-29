@@ -1197,6 +1197,7 @@ fn help_lists_the_commands_and_each_commands_flags() {
             "run",
             "test",
             "check",
+            "lint",
             "doc",
             "new",
             "add",
@@ -1205,7 +1206,6 @@ fn help_lists_the_commands_and_each_commands_flags() {
             "fetch",
             "clean",
             "fmt",
-            "fix",
             "cache gc",
             "help",
         ] {
@@ -1858,7 +1858,7 @@ fn a_package_main_lists_an_unused_capability_and_fixes_its_manifest() {
             assert!(r.out.is_empty(), "the guest must not start");
         }
     }
-    let r = ran(&dir, &["fix"]);
+    let r = ran(&dir, &["check", "--fix"]);
     assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
     assert!(
         std::fs::read_to_string(dir.join("hd.toml"))
@@ -1894,7 +1894,7 @@ fn required_capabilities_are_fixed_together_without_changing_denials() {
             ),
         ],
     );
-    let r = ran(&dir, &["fix"]);
+    let r = ran(&dir, &["check", "--fix"]);
     assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
     assert!(r.err.contains("fixed: 1; errors: 0"), "{}", r.err);
     let manifest =
@@ -1935,7 +1935,7 @@ fn missing_package_capability_fix_uses_its_nominal_path() {
         "{}",
         r.out
     );
-    let r = ran(&dir, &["fix"]);
+    let r = ran(&dir, &["check", "--fix"]);
     assert_eq!(r.code, Some(0), "{}{}", r.out, r.err);
     let manifest =
         hd_project::parse_manifest(&std::fs::read_to_string(dir.join("hd.toml")).unwrap()).unwrap();

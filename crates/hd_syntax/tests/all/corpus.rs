@@ -67,12 +67,12 @@ const SPEC_CONFLICTS: &[&str] = &[
     // A CLI case whose source is deliberately unparsable (`cli.fmt.syntax-error`).
     "cli/fmt-syntax-error/src/lib.hd",
     // CLI fix-it cases check the rejection before applying parser edits.
-    "cli/fix-parser-byte-edits/src/lib.hd",
-    "cli/fix-parser-byte-edits/no-initializer.hd",
-    "cli/fix-parser-migrations/src/lib.hd",
-    "cli/fix-parser-punctuation/src/lib.hd",
-    "cli/fix-elif-continuations/src/lib.hd",
-    "cli/fix-legacy-syntax/src/lib.hd",
+    "cli/check-fix-parser-byte-edits/src/lib.hd",
+    "cli/check-fix-parser-byte-edits/no-initializer.hd",
+    "cli/check-fix-parser-migrations/src/lib.hd",
+    "cli/check-fix-parser-punctuation/src/lib.hd",
+    "cli/check-fix-elif-continuations/src/lib.hd",
+    "cli/check-fix-legacy-syntax/src/lib.hd",
     // A lint case whose identifier is deliberately not NFC, to show that
     // lint reports compiler errors first.
     "cli/lint-mixed-script-prerequisites/src/main.hd",

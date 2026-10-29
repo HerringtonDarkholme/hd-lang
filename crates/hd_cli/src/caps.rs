@@ -149,7 +149,7 @@ pub(crate) fn required(program: &crate::disk::Program, out: &hd_driver::Output) 
         })
     };
     // Keep main fixes stable across the library/test checks. When both tables
-    // insert at EOF, hd fix applies the overlapping development fix next round.
+    // insert at EOF, hd check --fix applies the overlapping development fix next round.
     let production_fix = fix(&production, false);
     let development_fix = fix(&development, true);
     missing

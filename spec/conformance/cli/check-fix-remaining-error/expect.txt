@@ -1,0 +1,12 @@
+# A parameter used in a row without $ is generic-kind-mismatch, whose
+# fix-it adds $ to its declaration (req.row.param.unmarked). hd check --fix applies
+# it. The type-mismatch has no fix-it and remains, so hd check --fix exits 101,
+# and the check after it reports only that error.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"generic-kind-mismatch","file":"src/lib.hd","line":1},{"kind":"diagnostic","code":"type-mismatch","file":"src/lib.hd","line":5},{"kind":"summary","errors":2,"status":101}]
+run: hd check --fix
+exit: 101
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","file":"src/lib.hd","line":5},{"kind":"summary","errors":1,"status":101}]

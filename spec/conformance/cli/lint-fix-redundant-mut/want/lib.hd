@@ -1,0 +1,4 @@
+pub fn count() -> i32:
+    let counter = +0
+    counter += +1
+    counter

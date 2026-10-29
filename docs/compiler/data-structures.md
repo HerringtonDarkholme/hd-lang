@@ -242,7 +242,8 @@ judged.
 
 Every pass reports through a `DiagBuf`. The driver sorts diagnostics
 into content order, keeps one per root cause, and writes them to the
-`check` entry. The renderer reads them at output; `hd fix` reads
+`check` entry. The renderer reads them at output; `hd check --fix` and
+`hd lint --fix` read
 fix-its.
 
 **Layout.** A `DiagBuf` is columns, one row per diagnostic: `code`,
@@ -250,7 +251,7 @@ fix-its.
 `root: Option<RootKey>`, plus pooled label, fix-it and edit columns and
 one `text` buffer. A `RootKey` is `(item DefId, cause, value)`.
 `FixSafety::Exact` marks a fix-it that passed the re-parse check, which
-`hd fix` applies.
+the applicable `--fix` mode applies.
 
 - **Checkpoint.** `DiagMark` holds the column lengths; rollback
   truncates them, as a trial needs (TC-5).
@@ -296,7 +297,7 @@ tokens ─► syntax tree ─► interface (cached) ─► TIR, one per body ─
 | IR | Consumers | Encoding |
 | --- | --- | --- |
 | tokens | the parser, skim, the formatter | columns (§3.11) |
-| syntax tree | the checker, `hd fmt`, `hd fix`, `hd doc` | columns with typed views (§3.13) |
+| syntax tree | the checker, `hd fmt`, the `--fix` modes, `hd doc` | columns with typed views (§3.13) |
 | folder interface | resolution, the checker, `hd doc`, collection | its blob, read in place (§3.16) |
 | TIR | collection and emission | tag + 8-byte data + `extra` (§3.18) |
 | Wasm code entries | the linker | bytes plus relocations (§3.22) |
