@@ -251,8 +251,20 @@ impl Forwarder<'_> {
             base: self.part,
         });
         if let Some(conv) = &conv {
-            for (&(l, t), (_, want)) in params.iter().zip(&tsig.params) {
-                let want = ck.normalize_deep(inst(*want))?;
+            for (index, (&(l, t), &(name, want))) in params.iter().zip(&tsig.params).enumerate() {
+                let want = ck.normalize_deep(inst(want))?;
+                // `&self` and `&mut self` are receiver positions, not an
+                // arbitrary reference that contains `Self`. Newtypes erase
+                // to their bases, so the local receiver reference keeps the
+                // same representation and access when it crosses the call.
+                if index == 0
+                    && ck.cx.names.text(name) == "self"
+                    && conv.local_receiver(&ck, t, want)
+                {
+                    let v = ck.b.get(l, t, at);
+                    refs.push(ck.retype(v, want, at));
+                    continue;
+                }
                 if !conv.can(&ck, t, want) {
                     return Ok(Forwarded::Position(self.position_message(&ck, t)));
                 }

@@ -4,7 +4,7 @@
 # std-json.derive.to-json.included-enum-form, std-json.decode.direct.
 # Spec std/serde: std-serde.std.optional, std-serde.std.list, std-serde.std.map-key-entries,
 # std-serde.std.tuple, std-serde.std.set, std-serde.member-name.precedence,
-# std-serde.skip.named-read-default, std-serde.skip.write, std-serde.skip-none.named-omit.
+# std-serde.skip.named-read-default, std-serde.skip.write, std-serde.skip-none.named-omit.v2.
 use std.collections.Set
 use std.json.{decode, encode}
 use std.serde.{Deserialize, Serialize, rename, rename_all, skip, skip_none}

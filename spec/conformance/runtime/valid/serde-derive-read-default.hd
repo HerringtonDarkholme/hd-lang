@@ -1,6 +1,6 @@
 # test: a derived Deserialize asks is_absent after member for a member with a declared default, and an absent one takes the default without a read; the trait's default is_absent is false
 # Spec std/serde Reading, Derived Implementations: std-serde.read.absent, std-serde.derive.deserialize.unskipped-default, std-serde.derive.deserialize.data-and-enum-forms (issue 371).
-# Spec 14 Serialization: annot.serde.module.
+# Spec 14 Serialization: annot.serde.module.v2.
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Facts, VariantInfo, Member}
 

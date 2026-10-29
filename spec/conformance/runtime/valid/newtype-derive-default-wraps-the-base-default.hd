@@ -5,9 +5,48 @@
 
 use std.ops.{Default, default}
 
+trait Presence:
+    fn value(self) -> i32
+    fn reset(&mut self) -> void
+    fn is_absent(&self) -> bool:
+        false
+
+impl Presence for i32:
+    fn value(self) -> i32:
+        self
+
+    fn reset(&mut self) -> void:
+        *self = 0
+
+impl Presence for i64:
+    fn value(self) -> i32:
+        i32(self)
+
+    fn reset(&mut self) -> void:
+        *self = 0
+
+    fn is_absent(&self) -> bool:
+        true
+
 @derive(Default, Eq, Debug)
 type Count(i32)
 
+@derive(Presence)
+type Present(i32)
+
+@derive(Presence)
+type Absent(i64)
+
 pub fn main() -> void $ Console:
     zero := Count::default()
-    println(zero == Count(0))
+    present := Present(1)
+    absent := Absent(2)
+    println(
+        (
+            zero == Count(0)
+            && present.value() == 1
+            && !present.is_absent()
+            && absent.value() == 2
+            && absent.is_absent()
+        ),
+    )

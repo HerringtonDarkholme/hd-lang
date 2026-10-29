@@ -105,6 +105,28 @@ pub(crate) struct Conversion {
 }
 
 impl Conversion {
+    /// Whether `from` and `to` are the same local-reference receiver at the
+    /// newtype and its erased base. A reference elsewhere in a signature is
+    /// still an unsupported `Self` position.
+    pub(crate) fn local_receiver(&self, ck: &Ck<'_, '_>, from: Ty, to: Ty) -> bool {
+        let pool = ck.pool();
+        match (pool.get(from), pool.get(to)) {
+            (
+                TyData::Ref {
+                    inner: a,
+                    mutable: am,
+                    counted: false,
+                },
+                TyData::Ref {
+                    inner: b,
+                    mutable: bm,
+                    counted: false,
+                },
+            ) => am == bm && self.is_unwrap(ck.strip_mut(a), ck.strip_mut(b)),
+            _ => false,
+        }
+    }
+
     /// Whether a value of `from` converts to `to`.
     pub(crate) fn can(&self, ck: &Ck<'_, '_>, from: Ty, to: Ty) -> bool {
         let pool = ck.pool();

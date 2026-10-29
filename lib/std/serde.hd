@@ -37,15 +37,14 @@ pub fn rename(name: string) -> Rename:
     Rename { name: name }
 
 ## Omits an optional member when it is None.
-## See [std-serde.skip-none.fact](../../spec/std/serde.md#r-std-serde.skip-none.fact).
+## See [std-serde.skip-none.fact.phantom](../../spec/std/serde.md#r-std-serde.skip-none.fact.phantom).
 @annotate::[F](.Field)
-pub struct SkipNone[F]:
-    absent: fn(F) -> bool
+pub struct SkipNone[F]: pass
 
 ## Marks an optional member for omission when absent.
 ## See [std-serde.skip-none.constructor](../../spec/std/serde.md#r-std-serde.skip-none.constructor).
 pub fn skip_none[T]() -> SkipNone[T?]:
-    SkipNone::[T?] { absent: fn(value: T?) -> bool: value.is_none() }
+    SkipNone::[T?] {}
 
 ## Omits a member from serialization and restores its declared default.
 ## See [std-serde.skip.fact](../../spec/std/serde.md#r-std-serde.skip.fact).
@@ -149,14 +148,17 @@ fn string_from_bytes(bytes: List[u8]) -> string:
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).
 ## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
-## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
+## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Serialize:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]
+
+    fn is_absent(&self) -> bool:
+        false
 
 # A value that opts in to be built by every format
 # (r-annot.serde.definition).
 ## A type that can read itself from a `Deserializer`; the compiler knows it for the boundary rule.
-## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
+## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Deserialize:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Self, R::Error]
 
@@ -185,7 +187,7 @@ pub trait MapKey:
 # A format's writer: one call per value of the data model
 # (r-std-serde.model.one-value).
 ## The format side of writing: it receives a value's parts, or fails with an error of its own type.
-## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
+## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Serializer:
     type Error
     fn null(&mut self) -> Result[void, Self::Error]
@@ -218,7 +220,7 @@ pub trait Serializer:
 
 # What a self-describing format holds next (r-std-serde.read.peek).
 ## The kind of a single value a `Deserializer` offers.
-## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
+## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub enum ValueKind:
     Null
     Bool
@@ -232,7 +234,7 @@ pub enum ValueKind:
 # A format's reader: it pulls one value of the data model at a time
 # (r-std-serde.read.one-value).
 ## The format side of reading: it offers a value's parts, or fails with an error of its own type.
-## See [annot.serde.module](../../spec/lang/14-annotations.md#r-annot.serde.module).
+## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Deserializer:
     type Error
     fn peek(&mut self) -> Result[ValueKind, Self::Error]
@@ -363,11 +365,11 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 # whose test holds. Out of line, since most members have no facts: each
 # `member` instance then keeps only the test for an empty list.
 @cold
-fn skipped[S, F](h: Field[S, F], value: F) -> bool:
+fn skipped[S, F < Serialize](h: Field[S, F], value: F) -> bool:
     if h.fact::[Skip]().is_some():
         return true
     match h.fact::[SkipNone[F]]():
-        .Some(fact) => (fact.absent)(value)
+        .Some(_) => value.is_absent()
         .None => false
 
 # Derived `Deserialize`: `begin_variant` picks the variant, then each member
@@ -656,6 +658,9 @@ impl[T < Serialize] Serialize for T?:
         match self:
             .Some(found) => found.serialize(out)
             .None => out.null()
+
+    fn is_absent(&self) -> bool:
+        self.is_none()
 
 # Keep handwritten Deserialize: read the builtin optional wire form instead of a tagged object.
 impl[T < Deserialize] Deserialize for T?:

@@ -1,5 +1,5 @@
 # test: skip_none omits only an absent outer optional and leaves ordinary nulls and present optional payloads intact
-# Spec std/serde Absent Optional Members: std-serde.skip-none.fact, std-serde.skip-none.constructor, std-serde.skip-none.named-omit, std-serde.skip-none.present, std-serde.skip-none.read.
+# Spec std/serde Absent Optional Members: std-serde.skip-none.fact.phantom, std-serde.skip-none.constructor, std-serde.skip-none.absence.default, std-serde.skip-none.absence.optional, std-serde.skip-none.named-omit.v2, std-serde.skip-none.present, std-serde.skip-none.read.
 use std.serde.{Serialize, Deserialize, skip_none}
 use std.json.{decode, encode, from_json, parse, to_json}
 use std.http.{Request, Url}
@@ -33,6 +33,9 @@ enum Choice:
 
 tests:
     use std.testing.assert_equal
+
+    it("the Serialize absence query defaults to false"):
+        assert_equal("present".is_absent(), false, reason="ordinary values are present")
 
     it("an absent field is omitted while an ordinary None stays null"):
         value := Record { optional: .None, ordinary: .None, nested: .None }
