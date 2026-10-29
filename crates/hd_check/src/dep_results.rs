@@ -10,8 +10,9 @@
 //! hidden local of `&e` on a value, or a top-level binding. A returned
 //! value may depend only on the source (`ref.dep.return`), a call's result
 //! depends on its source argument (`ref.dep.call`), a store through a
-//! reference lands in a place of the body (`ref.dep.store`), and an
-//! element reference is no source argument (`ref.dep.element`).
+//! reference lands in a place of the body (`ref.dep.store`). An element
+//! reference takes the origin of its collection's root place
+//! (`ref.dep.origin.element`).
 
 use hd_base::SliceSort as _;
 use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
@@ -128,9 +129,6 @@ enum Origin {
     Hidden(u32),
     /// A top-level binding.
     Global(u32),
-    /// An element reference, which `element-reference-outlives-call`
-    /// reports wherever it is kept.
-    Elem,
 }
 
 /// An instruction's, a local's or a parameter's index as a word.
@@ -176,7 +174,7 @@ impl Solve<'_> {
 
     fn held(&self, o: Origin) -> Set {
         match o {
-            Origin::Param(_) | Origin::Elem => vec![o],
+            Origin::Param(_) => vec![o],
             Origin::Local(_) | Origin::Hidden(_) => self.held.get(&o).cloned().unwrap_or_default(),
             Origin::Global(_) => vec![],
         }
@@ -197,13 +195,26 @@ impl Solve<'_> {
         let Some(p) = self.b.decode_place(word) else {
             return (vec![], vec![]);
         };
-        if p.proj.iter().any(|s| matches!(s, Proj::Elem(_))) {
-            return (vec![Origin::Elem], vec![]);
-        }
         match p.root {
             PlaceRoot::Local(l) => {
                 let o = Origin::Local(l.raw());
                 (vec![o], self.held(o))
+            }
+            // An element's origin is the collection's root place
+            // (`ref.dep.origin.element`). The checker has already read
+            // that collection value, so follow the read back to its
+            // place; a collection made as a value has a hidden local.
+            PlaceRoot::Value(v) if matches!(p.proj.first(), Some(Proj::Elem(_))) => {
+                let mut v = v.0;
+                while v & hd_tir::ir::Ref::CONST_BIT == 0 && self.b.tags[v as usize] == Tag::Coerce
+                {
+                    v = self.b.data[v as usize][0];
+                }
+                if v & hd_tir::ir::Ref::CONST_BIT == 0 && self.b.tags[v as usize] == Tag::Read {
+                    (self.place(v, self.b.data[v as usize][0]).0, vec![])
+                } else {
+                    (vec![Origin::Hidden(i)], vec![])
+                }
             }
             PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
                 let t = self.b.ty.get(v.0 as usize).copied().unwrap_or(Ty::VOID);
@@ -427,7 +438,6 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
-        self.element_sources(&deps);
         if let (Some(Source::Missing | Source::Ambiguous), Some(f)) = (own, fun)
             && self.result_omitted
         {
@@ -469,11 +479,7 @@ impl Ck<'_, '_> {
         let mut bad: Vec<(NodeIdx, Origin, u32)> = Vec::new();
         if let Some(k) = src {
             for r in returned(body, root.0) {
-                if let Some(&o) = s
-                    .of(r)
-                    .iter()
-                    .find(|&&o| o != Origin::Param(k) && o != Origin::Elem)
-                {
+                if let Some(&o) = s.of(r).iter().find(|&&o| o != Origin::Param(k)) {
                     bad.push((site(&s, r, o, 0), o, k));
                 }
             }
@@ -508,43 +514,6 @@ impl Ck<'_, '_> {
         for (at, msg) in outlives {
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::LocalReferenceOutlivesLocal, node, &msg);
-        }
-    }
-
-    /// `ref.dep.element`: an element reference passed as the source of a
-    /// dependent call outlives the call.
-    fn element_sources(&mut self, deps: &HashMap<u32, usize>) {
-        let body = self.b.body();
-        let mut kept = Vec::new();
-        for (&i, &k) in deps {
-            let a = source_arg(body, i as usize, k);
-            let Some(mut a) = a.filter(|a| a & hd_tir::ir::Ref::CONST_BIT == 0) else {
-                continue;
-            };
-            while body.tags[a as usize] == Tag::Coerce {
-                a = body.data[a as usize][0];
-            }
-            let a = a as usize;
-            let elem = match body.tags[a] {
-                Tag::Ref => body
-                    .decode_place(body.data[a][0])
-                    .is_some_and(|p| p.proj.iter().any(|s| matches!(s, Proj::Elem(_)))),
-                Tag::Read => body
-                    .local_read(a)
-                    .is_some_and(|l| self.elem_locals.contains(&l)),
-                _ => false,
-            };
-            if elem && body.syn[a] != NodeIdx::NONE {
-                kept.push(body.syn[a]);
-            }
-        }
-        kept.sort_stable_by_key(|n| n.raw());
-        for at in kept {
-            if self.elem_kept.contains(&at) {
-                continue;
-            }
-            let node = self.cx.src.parse.tree.node(at);
-            self.elem_ref_kept(node);
         }
     }
 
@@ -592,7 +561,6 @@ impl Ck<'_, '_> {
             Origin::Param(p) => format!("`{}` is another parameter", name(p)),
             Origin::Hidden(_) => format!("the value refers to a temporary of {f}"),
             Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
-            Origin::Elem => "the value is an element reference".to_owned(),
         };
         format!("{what}; the result depends only on `{}`", name(src))
     }

@@ -1,5 +1,5 @@
-# test: an element reference loop's binding is still kept only for one call
-# Spec 13 Dependent Results: ref.dep.element; Call-Scoped Access: ref.elem.kept.
+# test: an element result rooted in a by-value list cannot escape the function
+# Spec 13 Dependent Results: ref.dep.origin.element, ref.dep.return.
 struct User:
     name: string
     age: i32
@@ -8,5 +8,5 @@ fn pick(people: List[User], fallback: &User) -> &User:
     let mut best = fallback
     for p in &people:
         if p.name.len() > best.name.len():
-            best = p # diagnostic: element-reference-outlives-call
-    best
+            best = p
+    best # diagnostic: local-reference-escapes

@@ -1,0 +1,12 @@
+# test: a field reference through an element-reference loop binding may be bound locally
+# Spec 06 Element Reference Loops: flow.for.ref.binding.local; Spec 13: ref.elem.local-value.
+struct Point:
+    x: i32
+
+fn demo() -> i32:
+    let mut points = [Point { x: 1 }, Point { x: 2 }]
+    let total = +0
+    for point in &mut points:
+        x := &point.x
+        total += *x
+    total

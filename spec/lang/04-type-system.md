@@ -1279,7 +1279,7 @@ A value of a map is a place, as an element of a list is.
 1. r[types.coll.map-value] `m[k] = v` and `m[k] op= v` replace a map value. A changing method called on one, such as `m[k].push(x)`, changes it in place.
 2. r[types.coll.map-value.place] A value of a map in a writable place is a writable place. So `m[k].x = v` and `m[k].x += 1` change the value in place, as `xs[i].x = v` changes a list element.
 3. r[types.coll.map-value.missing] A field write or a changing method call through `m[k]`, when the map holds no equal key, is a checked runtime panic, as a read of `m[k]` is. Panic: `index-out-of-bounds`.
-4. r[types.coll.map-value.reference] `&m[k]` and `&mut m[k]` are element references, which live for one call, as [Element References](13-values-and-references.md#element-references) states.
+4. r[types.coll.map-value.element-reference] `&m[k]` and `&mut m[k]` are element references, which are local reference values as [Element References](13-values-and-references.md#element-references) states.
 
 ```text
 struct Stock:
@@ -1291,7 +1291,7 @@ fn restock(shelves: Map[string, Stock]) -> Map[string, Stock]:
     copy
 
 fn count(shelves: Map[string, Stock]) -> i32:
-    found := &shelves["apple"]  # error: element-reference-outlives-call
+    found := &shelves["apple"]
     found.count
 ```
 

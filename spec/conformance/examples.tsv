@@ -176,7 +176,7 @@ lang/04-type-system.md	46	accept	typing/valid/let-pattern-mut.hd
 lang/04-type-system.md	47	mixed	typing/invalid/uninhabited-binding.hd
 lang/04-type-system.md	48	accept	typing/valid/collection-value-tagged.hd
 lang/04-type-system.md	49	mixed	typing/invalid/list-push-short-binding.hd|typing/invalid/list-store-plain-let.hd|typing/invalid/collection-identity.hd
-lang/04-type-system.md	50	mixed	runtime/valid/map-value-field-write.hd|typing/invalid/map-value-reference.hd
+lang/04-type-system.md	50	accept	runtime/valid/map-value-field-write.hd|typing/valid/map-value-reference.hd
 lang/04-type-system.md	51	accept	typing/valid/generic-mutual-bounds.hd
 lang/04-type-system.md	52	mixed	typing/invalid/written-type-too-many-arguments.hd
 lang/04-type-system.md	53	mixed	typing/invalid/generic-inference-numeric-widening.hd|typing/invalid/generic-inference-trait-value.hd
@@ -659,7 +659,7 @@ lang/13-values-and-references.md	13	mixed	typing/invalid/reference-deref-write-s
 lang/13-values-and-references.md	14	mixed	typing/invalid/reference-identity-different-types.hd|typing/invalid/reference-identity-value-operand.hd
 lang/13-values-and-references.md	15	mixed	typing/invalid/reference-equality.hd|typing/invalid/reference-inequality.hd
 lang/13-values-and-references.md	16	mixed	typing/invalid/element-reference-mut-short-binding.hd
-lang/13-values-and-references.md	17	mixed	typing/invalid/element-access-conflict-reference.hd|typing/invalid/element-reference-binding.hd
+lang/13-values-and-references.md	17	mixed	typing/invalid/element-access-conflict-reference.hd|typing/valid/element-reference-binding.hd
 lang/13-values-and-references.md	18	mixed	typing/invalid/reference-slice-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd

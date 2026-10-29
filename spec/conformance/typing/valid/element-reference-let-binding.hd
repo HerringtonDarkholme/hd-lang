@@ -1,0 +1,5 @@
+# test: a read-only element reference may be bound to a let name
+# Spec 13 Element References: ref.elem.local-value.
+fn first(scores: List[i32]) -> i32:
+    let view = &scores[0]
+    *view

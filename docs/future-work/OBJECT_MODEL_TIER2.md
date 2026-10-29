@@ -1245,7 +1245,7 @@ fn invalid(p: &P, o: P) -> void:
 17. `ref.local.no-type-argument` A local reference type is never a type
     argument, as Swift's `inout` is no type. There is no `List[&T]`,
     `Option[&T]`, `&T?` or `T = &Foo`. Error: `local-reference-escapes`.
-18. `flow.for.ref.binding` (**proposed**: #834 does not mention loops)
+18. `flow.for.ref.binding.local` (**proposed**: #834 does not mention loops)
     `for p in &mut xs` binds a local reference to each element for one
     step. This keeps today's
     [Element Reference Loops](../../spec/lang/06-control-flow.md#element-reference-loops).
@@ -1575,7 +1575,7 @@ impl Debug for Point:
 
 `local-reference-escapes` is the one new code. Each situation has its own
 message, and fix-its are listed in the order the diagnostic offers them.
-**Proposed:** today's `element-reference-outlives-call` retires into it,
+**Applied by #1008:** `element-reference-outlives-call` retired into it,
 since an element borrow is now an ordinary local reference.
 
 | # | Case | Written | Code | Message | Fix-its |

@@ -474,23 +474,14 @@ impl Ck<'_, '_> {
                 }
             }
         };
-        // A reference built through an element reference loop's binding
-        // refers into the list's element too (`ref.elem.place`,
-        // `flow.for.ref.binding`).
-        let through_binding = matches!(place.root, Root::Deref(r, _)
-            if r.as_inst().and_then(|i| self.b.body_mut().local_read(i.0 as usize))
-                .is_some_and(|l| self.elem_locals.contains(&l)));
         let arg = self.elem_ok.get(&n.index()) == Some(&crate::elem_refs::ElemUse::Arg);
         if mutable {
             self.mut_place_taken(&place, n.index(), arg);
         }
-        if let Root::Elem(coll, ..) = place.root {
-            self.elem_ref_value(n, false);
-            if arg {
-                self.begin_access(coll);
-            }
-        } else if through_binding {
-            self.elem_ref_value(n, false);
+        if let Root::Elem(coll, ..) = place.root
+            && arg
+        {
+            self.begin_access(coll);
         }
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
         // `ref.expr.kind.always-local`: whatever type is expected.

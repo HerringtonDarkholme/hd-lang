@@ -1,0 +1,7 @@
+# test: an element reference may be bound to a name and written through
+# Spec 13 Element References: ref.elem.local-value.
+fn demo() -> i32:
+    let mut scores = [+1, 2]
+    best := &mut scores[1]
+    *best += 1
+    *best

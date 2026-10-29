@@ -262,6 +262,9 @@ plain lifetime variables.
 Stage 4 reverses item 4 of decision E (#494): an element reference may
 flow into a result or a binding. E's length rule stays, as the pin.
 
+Applied by #1008. An element reference's origin is the collection's root
+local, so the stage 1 scope rules govern a kept or returned reference.
+
 ```text
 impl[T] List[T]:
     fn first_mut(&mut self) -> &mut T?:
@@ -385,10 +388,9 @@ strict in real code.
 7. **Trait methods.** An impl's method has the same source as the trait's,
    since both are elided from the same signature shape. A call through
    `&dyn`, a bound or an impl takes the source from the trait signature.
-8. **Element references are unchanged.** An element reference, a `for p in
-   &xs` binding included, may not be the source argument of a call whose
-   result holds a local reference. Error:
-   `element-reference-outlives-call` (decision E).
+8. **Element references (replaced at stage 4).** Stage 1 kept decision E:
+   an element reference could not source a dependent call. Stage 4
+   replaced this with the collection root as the element's origin.
 9. **Generic calls.** A written or inferred type argument of a generic
    function or method never holds a local reference. This includes one
    inferred from a declared `&T` value, which today slips through (#987).
@@ -470,7 +472,7 @@ fn pick(people: &List[User], fallback: &User, i: usize) -> &User:
     let mut best = fallback        # O(best) gets {fallback*}
     for p in &people:              # p is an element reference
         if p.name.len() > best.name.len():
-            best = p               # error: element-reference-outlives-call (E)
+            best = p               # stage 4: O(best) also gets {people's root}
     best
 
 fn first_named(u: &User, v: &User) -> &string:  # error: ambiguous-reference-source
@@ -588,7 +590,8 @@ Stop at 1.5 times that. Run time:
   reference parameter to borrow from".
 - `ambiguous-reference-source` (new): "the result may borrow from `a` or
   `b`; naming the source comes in a later stage".
-- `element-reference-outlives-call` (existing), for rule 8.
+- Stage 4 retires `element-reference-outlives-call`; local-reference escape
+  and scope diagnostics cover element references by their collection root.
 
 ## Owner Questions
 

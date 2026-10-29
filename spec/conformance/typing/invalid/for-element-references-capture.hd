@@ -1,5 +1,5 @@
 # test: capturing the binding of an element reference loop in a closure is an error
-# Spec 06 Element Reference Loops: flow.for.ref.binding.
+# Spec 06 Element Reference Loops: flow.for.ref.binding.local; Spec 13: ref.local.escape.capture.
 struct Point:
     x: i32
 
@@ -7,5 +7,5 @@ fn demo() -> usize:
     let mut points = [Point { x: 1 }, Point { x: 2 }]
     let mut steps: List[fn() -> void] = []
     for point in &mut points:
-        steps.push(fn() -> void: point.x = point.x + 10) # diagnostic: element-reference-outlives-call
+        steps.push(fn() -> void: point.x = point.x + 10) # diagnostic: local-reference-escapes
     steps.len()

@@ -364,13 +364,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// flags, init facts, the possibly-uninitialized set and the row
     /// frames (rule TC-5). Written only while a checkpoint is open.
     pub undo: Vec<crate::trial::BodyUndo>,
-    /// Element references (`ref.elem.call`, `elem_refs.rs`): the
-    /// expressions where one may stand, by what uses it there; the
-    /// arguments that are one; and the loop bindings that are one
-    /// (`flow.for.ref.binding`).
+    /// Element references (`ref.elem.local-value`, `elem_refs.rs`): the
+    /// expressions where a direct element access participates in a call's
+    /// conflict check, by what use it has there.
     pub elem_ok: HashMap<hd_base::NodeIdx, crate::elem_refs::ElemUse>,
-    pub elem_args: HashSet<hd_base::NodeIdx>,
-    pub elem_locals: HashSet<LocalId>,
     /// Local references (`local_refs.rs`): the `&` each binding inferred
     /// from another local takes its type from, the locals whose capture
     /// reported, and the types the body and its signature write.
@@ -379,9 +376,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// The initializer of each unannotated binding, where a `box(...)`
     /// fix-it boxes the value at its declaration (`req.ref.install-value.fix`).
     pub local_inits: HashMap<LocalId, hd_base::NodeIdx>,
-    /// The values that reported `element-reference-outlives-call`, which
-    /// report nothing more (`ref.elem.kept`).
-    pub elem_kept: HashSet<hd_base::NodeIdx>,
     pub declared_tys: HashSet<Ty>,
     /// A generic local function call's node, own type arguments and
     /// written-argument count. Its call is indirect, so no `Callee`
@@ -626,12 +620,9 @@ pub(crate) fn new_ck<'a, 'c>(
         facts: crate::init::InitFacts::default(),
         undo: Vec::new(),
         elem_ok: HashMap::default(),
-        elem_args: HashSet::default(),
-        elem_locals: HashSet::default(),
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
         local_inits: HashMap::default(),
-        elem_kept: HashSet::default(),
         declared_tys: HashSet::default(),
         local_ref_call_targs: Vec::new(),
         excl: Vec::new(),

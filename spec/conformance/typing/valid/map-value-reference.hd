@@ -1,0 +1,8 @@
+# test: a reference to a map value may be bound locally
+# Spec 04 Map Values: types.coll.map-value.element-reference; Spec 13: ref.elem.local-value.
+struct Stock:
+    count: i32
+
+fn count(shelves: Map[string, Stock]) -> i32:
+    found := &shelves["apple"]
+    found.count
