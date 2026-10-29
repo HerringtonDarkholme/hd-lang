@@ -97,6 +97,12 @@ pub const RULES: &[Rule] = &[
         derivation::drift,
     ),
     Rule::new(
+        Code::LifetimeOrder,
+        Level::Warn,
+        Events::MODULE,
+        syntax::lifetime_order,
+    ),
+    Rule::new(
         Code::LostWrite,
         Level::Warn,
         Events::PARAMETER_WRITE,

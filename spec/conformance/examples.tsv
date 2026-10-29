@@ -192,7 +192,7 @@ lang/04-type-system.md	59	mixed	runtime/valid/bound-inference-two-bounds.hd|typi
 lang/04-type-system.md	60	accept	typing/valid/type-default-calls.hd
 lang/04-type-system.md	61	mixed	typing/invalid/type-default-later-parameter.hd|typing/invalid/type-default-order.hd|typing/invalid/partial-generic-arguments.hd
 lang/04-type-system.md	62	mixed	typing/invalid/polymorphic-recursion-tuple.hd
-lang/04-type-system.md	63	mixed	typing/valid/lifetime-after-type-parameters.hd|typing/invalid/lifetime-before-type-parameter.hd|typing/invalid/lifetime-unknown.hd
+lang/04-type-system.md	63	mixed	typing/valid/lifetime-after-type-parameters.hd|typing/valid/lifetime-before-type-parameter.hd|typing/invalid/lifetime-unknown.hd
 lang/04-type-system.md	64	accept	typing/valid/variance-contravariant-target-parameter.hd
 lang/04-type-system.md	65	mixed	typing/invalid/covariant-private-method-parameter.hd
 lang/04-type-system.md	66	mixed	typing/invalid/covariant-mut-self-method-parameter.hd

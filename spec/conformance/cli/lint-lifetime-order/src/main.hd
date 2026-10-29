@@ -1,0 +1,10 @@
+fn first['a, T](x: &'a T, y: &'a T) -> &'a T:
+    x
+
+fn second[T, 'a](x: &'a T, y: &'a T) -> &'a T:
+    y
+
+pub fn main() -> void:
+    a := +1
+    b := +2
+    _ := *first(&a, &b) + *second(&a, &b)

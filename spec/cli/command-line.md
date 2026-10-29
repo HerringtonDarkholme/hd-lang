@@ -903,6 +903,7 @@ hd lint --all --allow unused-local-binding
 34. r[cli.lint.fix.report-only] A lint rule whose edit can change behavior may still report its diagnostic and suggestion, but `hd lint --fix` does not apply that edit.
 35. r[cli.lint.fix.mechanics] Eligible lint fixes use the overlap, round, report, and final-status rules of [Check Fixes](#check-fixes). The command reruns lint with the same lint policy after every round. Checker errors and their fixes are reported but not applied by lint fixing.
 36. r[cli.lint.unbound-disposable] A value whose type implements `Disposable` or `AsyncDisposable` produces `unbound-disposable` when it is discarded as an expression statement or bound by ordinary `:=` or `let`. The lint stays quiet when the value is bound by `using` or `using!`, passed to a call, returned, or stored. Its default level is deny, and package, command, or site policy may allow it. Error by default: `unbound-disposable`.
+37. r[cli.lint.lifetime-order] A lifetime parameter written before a type parameter in a generic parameter list produces `lifetime-order`, as [`types.lifetime.convention`](../lang/04-type-system.md#r-types.lifetime.convention) states. The finding has no fix-it. Warning: `lifetime-order`.
 
 | Level | Effect |
 | --- | --- |

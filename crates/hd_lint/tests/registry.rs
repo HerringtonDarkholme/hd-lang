@@ -4,7 +4,7 @@ use hd_driver::analysis::Events;
 use hd_lint::{Level, Policy, RULES};
 use hd_project::parse_manifest;
 
-const EXPECTED: [(&str, Code, Level, Option<Events>); 15] = [
+const EXPECTED: [(&str, Code, Level, Option<Events>); 16] = [
     ("broken-doc-link", Code::BrokenDocLink, Level::Warn, None),
     (
         "dbg-in-dependency",
@@ -17,6 +17,12 @@ const EXPECTED: [(&str, Code, Level, Option<Events>); 15] = [
         Code::DerivationLineDrift,
         Level::Warn,
         Some(Events::DERIVATIONS),
+    ),
+    (
+        "lifetime-order",
+        Code::LifetimeOrder,
+        Level::Warn,
+        Some(Events::MODULE),
     ),
     (
         "lost-write",

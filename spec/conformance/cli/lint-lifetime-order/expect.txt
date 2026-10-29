@@ -1,0 +1,6 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"lifetime-order","severity":"warning","message":"lifetime `'a` comes before a type parameter; write type parameters first","file":"src/main.hd","line":1,"column":10,"fixes":[]},{"kind":"summary","errors":0,"warnings":1,"status":0}]
+run: hd lint --allow lifetime-order --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

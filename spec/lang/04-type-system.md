@@ -1700,7 +1700,7 @@ struct User:
 fn pick[T, 'a](a: &'a T, b: &'a T) -> &'a T:
     a
 
-fn first['a, T](x: &'a T) -> &'a T:  # error: lifetime-order
+fn first['a, T](x: &'a T) -> &'a T:  # warning: lifetime-order (hd lint)
     x
 
 fn name(a: &'b User) -> &string:  # error: unknown-lifetime
@@ -1716,12 +1716,14 @@ fn demo(u: &User) -> i32:
 3. r[types.lifetime.namespace] Lifetimes have names of their own: `'a` never collides with a type, a value, or a type parameter named `a`.
 4. r[types.lifetime.unique] A lifetime parameter that reuses the name of a lifetime parameter in scope is an error. Error: `duplicate-binding`.
 5. r[types.lifetime.unknown] A lifetime written in a declaration's header or fields must name a lifetime parameter in scope. Error: `unknown-lifetime`.
-6. r[types.lifetime.order] A lifetime parameter must follow every type parameter of its list. Error: `lifetime-order`.
+6. r[types.lifetime.free-order] Lifetime parameters and type parameters may appear in any order in a generic parameter list, and the order has no meaning.
 7. r[types.lifetime.arguments] Explicit type arguments, as in `pick::[i32](x, y)`, fill only the type parameters, and a lifetime parameter takes no explicit argument.
 
-> **Why.** With the lifetimes last, the type parameters keep the
-> positions that explicit type arguments fill, as Mojo's `[T, origin]`
-> lists do.
+8. r[types.lifetime.convention] By convention, type parameters come first, as in `fn f[T, 'a]`. A lifetime parameter written before a type parameter produces a lint finding. Warning: `lifetime-order`.
+
+> **Why.** Explicit type arguments fill only the type parameters, so the
+> order of a list changes no meaning. The convention follows Mojo's
+> `[T, origin]` lists.
 
 See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
 [Lifetimes](01-lexical-structure.md#lifetimes).

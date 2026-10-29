@@ -308,3 +308,4 @@ lint-mixed-script-prerequisites	cli.lint.prerequisites,cli.lint.errors-unsuppres
 lint-unbound-disposable	cli.lint.unbound-disposable,cli.lint.default,cli.lint.levels,cli.lint.site-allow,cli.lint.site-precedence,cli.lint.ordinary-errors
 lint-unselected-main	cli.exe.unselected-main.lint
 lint-unselected-main-prerequisites	cli.lint.prerequisites
+lint-lifetime-order	cli.lint.lifetime-order,cli.lint.default,cli.lint.levels

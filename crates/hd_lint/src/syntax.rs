@@ -4,8 +4,50 @@
 use hd_base::{FileId, Span};
 use hd_diag::{Code, DiagBuf};
 use hd_driver::analysis::Event;
+use hd_syntax::SyntaxKind;
 #[cfg(test)]
 use hd_syntax::{TokenKind, lex};
+
+/// `types.lifetime.convention`: a lifetime parameter written before a type
+/// parameter of the same generic list.
+pub(crate) fn lifetime_order(
+    event: &Event<'_>,
+    view: &hd_check::analysis::CheckedView<'_>,
+    out: &mut DiagBuf,
+) {
+    if !matches!(event, Event::Module(_)) {
+        return;
+    }
+    let source = view.source();
+    for list in source.root().descendants() {
+        if list.kind() != SyntaxKind::GenericParameterList {
+            continue;
+        }
+        let kids: Vec<_> = list.children().collect();
+        let Some(last_type) = kids
+            .iter()
+            .rposition(|c| c.kind() == SyntaxKind::GenericParameter)
+        else {
+            continue;
+        };
+        for p in &kids[..last_type] {
+            if p.kind() != SyntaxKind::LifetimeParameter {
+                continue;
+            }
+            let span = source.span(*p);
+            let text = source.text_at(span).unwrap_or("lifetime");
+            out.push(
+                Code::LifetimeOrder,
+                hd_diag::Severity::Warning,
+                span,
+                &format!(
+                    "lifetime `{text}` comes before a type parameter; write type parameters first"
+                ),
+                None,
+            );
+        }
+    }
+}
 
 pub(crate) fn mixed_script(
     event: &Event<'_>,

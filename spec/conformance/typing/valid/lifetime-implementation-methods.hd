@@ -1,5 +1,5 @@
 # test: an inherent implementation's lifetime is in scope in its methods, after the type parameters
-# Spec 04 Lifetime Parameters: types.lifetime.scope, types.lifetime.order; Spec 13 Lifetime Variables: ref.lifetime.checked.
+# Spec 04 Lifetime Parameters: types.lifetime.scope, types.lifetime.free-order; Spec 13 Lifetime Variables: ref.lifetime.checked.
 struct Pair[T]:
     left: T
     right: T

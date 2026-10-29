@@ -5282,7 +5282,7 @@ typing/invalid/lifetime-call-outlives-argument.hd	type	reject:local-reference-ou
 typing/valid/lifetime-call-unshared-argument.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.call
 typing/valid/lifetime-implementation-methods.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.checked
 typing/valid/lifetime-after-type-parameters.hd	type	accept	lang/04-type-system.md#r-types.lifetime.arguments
-typing/invalid/lifetime-before-type-parameter.hd	type	reject:lifetime-order	lang/04-type-system.md#r-types.lifetime.order
+typing/valid/lifetime-before-type-parameter.hd	type	accept	lang/04-type-system.md#r-types.lifetime.free-order
 typing/valid/lifetime-elided-result-one-lifetime.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.elide
 typing/invalid/lifetime-elided-result-two-lifetimes.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.lifetime.elide.ambiguous
 runtime/valid/lifetime-variables-run.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.shared

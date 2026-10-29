@@ -2299,14 +2299,14 @@ impl Lower<'_, '_, '_> {
     }
 
     /// `types.lifetime.declare`: each `'name` of a generic list joins the
-    /// scope, after the list's type parameters (`types.lifetime.order`).
+    /// scope, in any order beside the list's type parameters
+    /// (`types.lifetime.free-order`).
     /// Only a function's and an inherent implementation's lifetimes are
     /// checked; declaring one elsewhere is an error until its checks land
     /// (`ref.lifetime.not-yet.declaration`).
     fn declare_lifetimes(&mut self, gl: NodeRef<'_>, gn: &mut Gen) {
-        let kids: Vec<NodeRef<'_>> = gl.children().collect();
         let mut checked = None;
-        for (k, p) in kids.iter().enumerate() {
+        for p in gl.children() {
             if p.kind() != SyntaxKind::LifetimeParameter {
                 continue;
             }
@@ -2320,20 +2320,13 @@ impl Lower<'_, '_, '_> {
                 if gn.lifetimes.contains(&name) {
                     let msg = format!("`{text}` is already a lifetime in scope");
                     self.diags
-                        .error(Code::DuplicateBinding, self.src.span(*p), &msg);
-                } else if kids[k..]
-                    .iter()
-                    .any(|c| c.kind() == SyntaxKind::GenericParameter)
-                {
-                    let msg = format!("lifetime `{text}` must follow the type parameters");
-                    self.diags
-                        .error(Code::LifetimeOrder, self.src.span(*p), &msg);
+                        .error(Code::DuplicateBinding, self.src.span(p), &msg);
                 } else if !checked {
                     let msg = format!(
                         "lifetime `{text}` is not checked yet here; so far only top-level functions and inherent implementations take lifetimes"
                     );
                     self.diags
-                        .error(Code::ReferencesNotYetChecked, self.src.span(*p), &msg);
+                        .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
                 }
             }
             gn.lifetimes.push(name);

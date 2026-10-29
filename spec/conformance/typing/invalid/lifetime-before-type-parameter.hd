@@ -1,4 +1,0 @@
-# test: a lifetime parameter before a type parameter is lifetime-order
-# Spec 04 Lifetime Parameters: types.lifetime.order.
-fn first['a, T](x: &'a T) -> &'a T:  # diagnostic: lifetime-order
-    x
