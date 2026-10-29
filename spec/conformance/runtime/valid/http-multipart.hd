@@ -11,17 +11,13 @@ use std.http.{
     Request,
     Url,
 }
-use std.random.{Random, SeededRandom}
+use std.digest.sha256
 
 fn request() -> Request:
     Request::post(Url::parse("https://example.test/upload").expect("fixture URL"))
 
-fn encode(request: Request, form: Multipart, seed: u64 = 7) -> Result[Request, MultipartError]:
-    source := SeededRandom::new(seed)
-    let result: Result[Request, MultipartError] = .Err(.Malformed(0))
-    $.with(Random=source):
-        result = request.set_multipart(form)
-    result
+fn encode(request: Request, form: Multipart) -> Result[Request, MultipartError]:
+    request.set_multipart(form)
 
 fn boundary_of(value: &Request) -> string:
     value.header(.ContentType)
@@ -107,26 +103,28 @@ tests:
         )
         assert_equal(decoded.parts[3].body.bytes(), .Ok([3u8, 4u8]), reason="custom bytes")
 
-    it("draws a new boundary only when the first draw is a delimiter line"):
-        first := encode(request(), Multipart::new().text("value", "plain"))
-            .expect("first encode")
+    it("derives a deterministic SHA-256 boundary from headers and bodies"):
+        first := encode(request(), Multipart::new().text("value", "plain")).expect("first encode")
         first_boundary := boundary_of(&first)
-        same := encode(request(), Multipart::new().text("value", "plain"))
-            .expect("same encode")
-        assert_equal(boundary_of(&same), first_boundary, reason="same seeded first draw")
+        hashed := "Content-Disposition: form-data; name=\"value\"\r\ncontent-type: text/plain; charset=utf-8\r\n\r\nplain\r\n".to_utf8(
+        )
+        assert_equal(
+            first_boundary,
+            sha256(hashed).to_hex().slice(0, 60),
+            reason="60-character content hash",
+        )
+        same := encode(request(), Multipart::new().text("value", "plain")).expect("same encode")
+        assert_equal(boundary_of(&same), first_boundary, reason="same content hash")
         collision := "prefix\r\n--$first_boundary\r\nsuffix"
-        encoded := encode(request(), Multipart::new().text("value", collision))
-            .expect("encode")
-        assert(boundary_of(&encoded) != first_boundary, reason="retry skips a delimiter line")
+        encoded := encode(request(), Multipart::new().text("value", collision)).expect("encode")
+        assert(boundary_of(&encoded) != first_boundary, reason="changed body changes the hash")
         decoded := encoded.multipart().expect("decode")
         assert_equal(decoded.parts[0].body.text(), .Ok(collision), reason="collision payload")
         pseudo := "prefix\r\n--$first_boundary--not-a-line\r\nsuffix"
-        pseudo_encoded := encode(request(), Multipart::new().text("value", pseudo))
-            .expect("encode")
-        assert_equal(
-            boundary_of(&pseudo_encoded),
-            first_boundary,
-            reason="non-delimiter text does not collide",
+        pseudo_encoded := encode(request(), Multipart::new().text("value", pseudo)).expect("encode")
+        assert(
+            boundary_of(&pseudo_encoded) != first_boundary,
+            reason="pseudo delimiter is still part of the hash input",
         )
         assert_equal(
             pseudo_encoded.multipart().expect("decode").parts[0].body.text(),
@@ -135,10 +133,7 @@ tests:
         )
 
     it("quotes disposition parameters and accepts a quoted boundary"):
-        quoted := encode(
-            request(),
-            Multipart::new().file("a\";b", "c\\d", "text/plain", []),
-        )
+        quoted := encode(request(), Multipart::new().file("a\";b", "c\\d", "text/plain", []))
             .expect("encode")
             .multipart()
             .expect("decode")

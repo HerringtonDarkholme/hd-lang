@@ -399,7 +399,7 @@ form := Multipart::new()
 
 ### Encoding
 
-1. r[std-http.multipart.set-random] `Request.set_multipart(self, form: Multipart) -> Result[Request, MultipartError] $ Random` encodes `form` into a changed request.
+1. r[std-http.multipart.set] `Request.set_multipart(self, form: Multipart) -> Result[Request, MultipartError]` encodes `form` into a changed request.
 2. r[std-http.multipart.set.claim] `set_multipart` claims each part body once, in part order.
 3. r[std-http.multipart.set.used] An already claimed part body returns `MultipartError.UsedPart(name)`.
 4. r[std-http.multipart.set.name] An empty name, or one containing carriage return, line feed, or NUL, returns `MultipartError.InvalidName(name)`.
@@ -408,14 +408,14 @@ form := Multipart::new()
 7. r[std-http.multipart.set.headers] Every other part header must be valid and is written unchanged in its original order.
 8. r[std-http.multipart.set.disposition] The encoder writes one `Content-Disposition: form-data` header containing the part's name and optional filename.
 9. r[std-http.multipart.set.quoted] A quotation mark or backslash in a disposition parameter is escaped with one backslash.
-10. r[std-http.multipart.set.random-boundary] The encoder draws a valid ASCII boundary from the covering `Random` provider, from one through seventy bytes, with no trailing space.
+10. r[std-http.multipart.set.boundary] The encoder chooses the first 60 lowercase hex digits of SHA-256 over the parts' encoded headers and bodies. On collision, it appends a decimal counter to the hashed input and retries.
 11. r[std-http.multipart.set.collision] The chosen boundary differs from every delimiter line in every part body.
 12. r[std-http.multipart.set.framing] Encoding follows RFC 7578 framing, using carriage-return-line-feed line endings and one closing delimiter.
 13. r[std-http.multipart.set.replace] Success replaces the request body and `Content-Type`, while retaining every other request header.
 14. r[std-http.multipart.set.content-type] The replacement Content-Type is `multipart/form-data; boundary=BOUNDARY` with the chosen boundary.
 
 ```hd
-fn attach(url: Url, form: Multipart) -> Result[Request, MultipartError] $ Random:
+fn attach(url: Url, form: Multipart) -> Result[Request, MultipartError]:
     request := Request::post(url).set_multipart(form)?
     .Ok(request)
 ```
