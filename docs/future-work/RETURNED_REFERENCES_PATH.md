@@ -231,6 +231,7 @@ fn first(&self) -> &'self.items[_] T?                   # stage 9: an element of
 - **Sets:** `'{a, b}` lists several sources; one source drops the braces.
 - **Paths:** `'p.f.g` and `'p.items[_]` extend a parameter source. A `pub` signature names only fields visible where it is written; a trait names only `'self` or a variable; a path through a `*mut` widens to the whole referent there.
 - **Lexing:** a character literal closes with `'`; anything else after the identifier makes a lifetime.
+- **What a path names** (owner, 2026-10-29). `'path` follows the path; if the value there is a reference, it names what that reference points to (Swift's `copy`, Mojo's `ref` bindings), otherwise it borrows the place (Swift's `borrow`). So `fn f(l: &List[&Other]) -> &'l[_] Other` is Rust's `fn f<'a, 'b>(l: &'a Vec<&'b Other>) -> &'b Other`: the caller may push to `l` while the result lives. `-> &'l Other` borrows the list instead (`&'a Other`), and `'l[_]` over a `List[User]` borrows the element slot (stage 4).
 
 **A candidate syntax, not decided.** One source set may hold every kind of
 source, as Mojo 1.0's `ref[...]` holds both expressions and origin
