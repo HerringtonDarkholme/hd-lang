@@ -3031,6 +3031,10 @@ runtime/valid/console-error-traits.hd	runtime	accept	std/console.md#r-std-consol
 runtime/valid/buffer-console.hd	runtime	accept	std/console.md#r-std-console.buffer.output-text-sync
 runtime/valid/buffer-console-error-lines.hd	runtime	accept	std/console.md#r-std-console.buffer.error-text-sync
 runtime/valid/scripted-input.hd	runtime	accept	std/console.md#r-std-console.scripted.read
+runtime/panic/contract-require-custom-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.fail
+runtime/panic/contract-require-default-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.fail
+runtime/valid/contract-require-pass.hd	runtime	accept	std/contract.md#r-std-contract.require.pass
+runtime/valid/contract-require-trailing-block.hd	runtime	accept	std/contract.md#r-std-contract.require.decl
 runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
 runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
 runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.answer-program

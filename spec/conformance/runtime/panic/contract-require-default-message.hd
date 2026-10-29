@@ -1,0 +1,5 @@
+# test: require uses its default message when a false condition has no message
+use std.contract.require
+
+pub fn main() -> void:
+    require(condition=fn(): false) # panic: explicit-panic

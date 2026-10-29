@@ -1,8 +1,9 @@
 # Design By Contract
 
-Status: design accepted 2026-10-28; not implemented. `require` is built first as one
-ordinary std function that checks in every profile (#880); once `@cfg` (#965) is
-built, it splits into the `.Debug`/`.Release` pair below, with no change at call sites.
+Status: design accepted 2026-10-28. The always-checked first slice of `require`
+is specified in [Contract](../../spec/std/contract.md) and implemented by #880;
+once `@cfg` (#965) is built, it splits into the `.Debug`/`.Release` pair below,
+with no change at call sites.
 
 This record resolves [issue #880](https://github.com/HerringtonDarkholme/hd-lang/issues/880).
 It reviews [Functions](../../spec/lang/07-functions.md),
@@ -481,12 +482,13 @@ or `old` aliasing.
 
 ## 9. Accepted Design
 
-**Add the two `@cfg` declarations of
+**Add an ordinary, always-checked
 `require(message="requirement failed", condition: fn() -> bool)` first, and
 leave automatic postconditions for a later design.**
 
-1. Run `require` in debug and test builds; compile its empty release variant,
-   call and closure away.
+1. Run the ordinary declaration in every profile until `@cfg` is built.
+   Then run its checking body in debug and test builds, and compile its empty
+   release variant, call and closure away.
 2. Let the closure type exclude requirements and suspension. Add no
    read-only-capture rule; captured mutation is allowed but must not be
    essential program behavior.
@@ -498,9 +500,9 @@ leave automatic postconditions for a later design.**
 5. Do not add automatic invariants. Stable construction and mutation boundaries
    are not defined, and explicit checks remain available.
 
-This first slice gives up first-class postcondition documentation and all
-release checks. It also accepts the familiar debug-assert hazard that mutation
-inside a condition disappears in release.
+This first slice gives up first-class postcondition documentation. The later
+`@cfg` split also gives up release checks and accepts the familiar debug-assert
+hazard that mutation inside a condition disappears in release.
 
 The combinator and automatic decorator/clause alternatives remain documented
 above as rejected or deferred paths. They do not add an accepted API.

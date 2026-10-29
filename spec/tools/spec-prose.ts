@@ -57,6 +57,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/hash.md": "std-hash",
   "std/collections.md": "std-collections",
   "std/console.md": "std-console",
+  "std/contract.md": "std-contract",
   "std/host.md": "std-host",
   "std/fs.md": "std-fs",
   "std/path.md": "std-path",

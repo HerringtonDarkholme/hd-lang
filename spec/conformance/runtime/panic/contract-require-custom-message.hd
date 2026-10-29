@@ -1,0 +1,6 @@
+# test: require accepts a custom panic message
+use std.contract.require
+
+pub fn main() -> void:
+    require("amount must be positive"): # panic: explicit-panic
+        false

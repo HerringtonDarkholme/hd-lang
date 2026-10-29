@@ -1,0 +1,13 @@
+# test: require accepts its condition as a trailing block
+# expect: test
+use std.contract.require
+
+fn debit(balance: i64, amount: i64) -> i64:
+    require:
+        amount > 0
+    require("balance must cover the amount"):
+        balance >= amount
+    balance - amount
+
+pub fn main() -> void:
+    _ := debit(10, 2)
