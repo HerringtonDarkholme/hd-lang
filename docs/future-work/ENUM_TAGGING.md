@@ -1,12 +1,15 @@
 # Enum Tagging Facts
 
-Status: design accepted 2026-10-28; domain: `std.serde` enum representation; not implemented.
+Status: implemented 2026-10-29 in the
+[`std.serde` specification](../../spec/std/serde.md#enum-names-and-tagging)
+and [JSON tagged forms](../../spec/std/json.md#tagged-enum-forms).
 
 This note addresses [#954](https://github.com/HerringtonDarkholme/hd-lang/issues/954).
 It reviews the current [serde facts](../../spec/std/serde.md#member-names),
 [fact model](../../spec/lang/14-annotations.md#facts), and the variant forms in
 [#953](https://github.com/HerringtonDarkholme/hd-lang/issues/953).
-Nothing here changes the specification or implementation.
+This record preserves the accepted design and its prior-art review; the
+specification links above are normative.
 
 ## Proposal
 
@@ -29,7 +32,8 @@ enum Shape:
 # {"type":"rect","width":2,"height":3}
 ```
 
-The checked [signatures and examples](enum-tagging/) show every constructor and JSON form.
+The specification and conformance fixtures carry the public signatures and
+examples that the former checked design package demonstrated.
 
 ## Problems it solves
 
@@ -221,9 +225,10 @@ If an object contains both keys and unknown keys are ignored, the first variant 
 | Broad untagged record before a narrow record | The broad record may accept and discard distinguishing unknown members |
 | No untagged variant accepts input | One `WrongType` at the original enum path |
 | Internal tag equals a renamed member key | Ambiguous object; the accepted static-name rule rejects it |
+| Internal map has the tag key at run time | Write both entries, tag first; reading the repeated tag returns `DuplicateField` |
+| Handwritten newtype serializer writes a non-object | `explicit-panic` names the variant and requires an object payload |
 
-The last two rows are the hard cases.
-Variant ordering is observable API, and internal key collision needs a rule before implementation.
+Variant ordering and the dynamic collision behavior are observable API.
 
 ## Appendix B: Prior art
 
@@ -249,7 +254,9 @@ Hd takes those shapes, declaration-order rule, and public spellings:
 One `EnumTagging` fact remains underneath, so spelling parity adds no conflict mechanism.
 
 Serde rejects internal tuple variants while deriving.
-Its newtype payload restriction may still fail during serialization; hd rejects it in the checker.
+Hd rejects a declared non-object newtype payload in the checker. A declared struct
+with a handwritten serializer can still write a non-object, so that path retains
+Serde's run-time failure as an `explicit-panic`.
 That difference removes a reached-variant runtime failure.
 
 ### Serde conflict checks
@@ -344,4 +351,5 @@ Implementation phases:
 ## Parse log
 
 Every `text` block in this note parsed with `scripts/hd-conformance.sh parse` on 2026-10-28.
-Parsing checks syntax only; the proposal is not implemented and the blocks do not type-check against current std.
+That design-time parse covered syntax only; the implemented API and behavior
+are now checked by the specification's conformance fixtures.

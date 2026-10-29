@@ -1,0 +1,14 @@
+# test: no-trait metadata and direct qualified RenameAll facts participate in tag collision checks
+# Rule: std-serde.enum-tagging.internal-name-conflict.
+use std.serde.{RenameAll, RenameCase, Serialize, tag}
+use std.structure.Structure
+
+@derive(Serialize)
+enum Message:
+    Text(user_id: i32) # diagnostic: enum-tag-name-conflict
+
+impl Message by Structure:
+    Self += [RenameAll { style: RenameCase.CamelCase }, tag("userId")]
+
+pub fn main() -> void:
+    _ := Message.Text(user_id=1)

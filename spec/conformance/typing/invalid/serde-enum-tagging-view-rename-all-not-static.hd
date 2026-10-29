@@ -1,0 +1,17 @@
+# test: a per-trait RenameAll on a tagged enum names its style directly
+# Rule: std-serde.enum-tagging.view-rename-all-static.
+use std.serde.{RenameAll, RenameCase, Serialize, tag}
+use std.structure.Structure
+
+fn style() -> RenameCase:
+    .CamelCase
+
+@tag("kind")
+enum Message:
+    Text(user_id: i32)
+
+impl Serialize for Message by Structure:
+    Self += [RenameAll { style: style() }] # diagnostic: enum-tag-name-not-static
+
+pub fn main() -> void:
+    _ := Message.Text(user_id=1)

@@ -4,6 +4,7 @@
 use std.format.DebugWriter
 use std.iter.ListIter
 use std.error.Error
+use std.annotation.cold
 use std.serde.{
     Serialize,
     Deserialize,
@@ -11,6 +12,7 @@ use std.serde.{
     Deserializer,
     MapKeyValue,
     ValueKind,
+    EnumTagging,
     member_name,
 }
 use std.structure.{VariantInfo, Member, Facts}
@@ -21,6 +23,10 @@ fn map_key_text(key: MapKeyValue) -> string:
         .Int(value) => "$value"
         .Uint(value) => "$value"
         .Text(value) => value
+
+@cold
+fn enum_tagging(facts: Facts) -> EnumTagging?:
+    facts.find::[EnumTagging]()
 
 # One JSON value (r-std-json.value.decl). An object keeps its members in
 # insertion order (r-std-json.object.order).
@@ -451,11 +457,22 @@ fn escape_text(byte: u8) -> string:
 fn hex_symbol(value: u8) -> u8:
     if value < 10: 48 + value else: 87 + value
 
+# Keep the duplicate-only display path from adding a string literal to every
+# program that reaches serde through another std module. The existing missing
+# field message supplies the common suffix; only a linked DuplicateField
+# display builds the distinct prefix.
+fn duplicate_field_message(path: string) -> string:
+    source := "missing field at $path".to_utf8()
+    let mut bytes: List[u8] = [100, 117, 112, 108, 105, 99, 97, 116, 101]
+    for index in 7..source.len():
+        bytes.push(source[index])
+    string_from_bytes(bytes)
+
 # Why parsing failed, at a byte offset into the text (r-std-json.error.position-bytes), or why
 # decoding failed, at a path such as `$.users[2].name`
-# (r-std-json.error.variants).
-## The error that `parse` and `decode` return: seven parse errors at a byte position, and three decode errors at a path.
-## See [std-json.error.variants](../../spec/std/json.md#r-std-json.error.variants).
+# (r-std-json.error.variants.v2).
+## The error that `parse` and `decode` return: seven parse errors at a byte position, and four decode errors at a path.
+## See [std-json.error.variants.v2](../../spec/std/json.md#r-std-json.error.variants.v2).
 @error
 @derive(Debug, Eq)
 pub enum JsonError:
@@ -488,6 +505,9 @@ pub enum JsonError:
     # An object without a key that its type needs.
     @error("missing field at $path")
     MissingField(path: string)
+    # A field whose representation requires one occurrence appears more than once.
+    @error("${duplicate_field_message(path)}")
+    DuplicateField(path: string)
     # A variant name that the enum does not declare.
     @error("unknown variant \"$name\" at $path")
     UnknownVariant(path: string, name: string)
@@ -1377,6 +1397,9 @@ impl JsonWriter:
         )
         .Ok(())
 
+    fn open_tagged(&mut self, name: string, facts: Facts, form: i32) -> Result[void, never]:
+        self.open(4 + form, name, false, facts)
+
     # The innermost frame, its items, and its keys, popped.
     fn close(&mut self) -> (OpenFrame, List[string], List[Json]):
         frame := match self.frames.pop():
@@ -1445,12 +1468,20 @@ impl Serializer for JsonWriter:
         self.open(2, v.name, true, facts)
 
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        if !facts.items.is_empty():
+            match enum_tagging(facts):
+                .Some(_) =>
+                    let form: i32 = if v.named == 0 && v.included_positional == 0: 0 else: 1
+                    return self.open_tagged(v.name, facts, form)
+                .None => pass
         # Kind 3 preserves the object payload of a named or mixed variant
         # even when every member is statically skipped.
         let kind: i32 = if !v.of_data && v.named > 0: 3 else: 2
         self.open(kind, v.name, v.of_data, facts)
 
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]:
+        if !facts.items.is_empty() && enum_tagging(facts).is_some():
+            return self.open_tagged(v.name, facts, 2)
         self.begin_map(1)?
         self.key(v.name)?
         self.frames[self.frames.len() - 1].name = v.name
@@ -1462,6 +1493,8 @@ impl Serializer for JsonWriter:
         v: &VariantInfo,
         len: usize,
     ) -> Result[void, never]:
+        if !facts.items.is_empty() && enum_tagging(facts).is_some():
+            return self.open_tagged(v.name, facts, 3)
         self.begin_map(1)?
         self.key(v.name)?
         self.begin_list(len)?
@@ -1485,6 +1518,12 @@ impl Serializer for JsonWriter:
     # (r-std-json.derive.to-json.included-enum-form).
     fn end_variant(&mut self) -> Result[void, never]:
         frame := self.frames[self.frames.len() - 1]
+        if frame.kind >= 4:
+            tagging := match enum_tagging(frame.facts):
+                .Some(found) => found
+                .None => panic("std.json: tagged frame without an enum representation")
+            closed := self.close()
+            return self.put(tagged_json(closed._0, closed._1, closed._2, tagging))
         if frame.name != "" && frame.kind == 0:
             self.end_list()?
             return self.end_map()
@@ -1508,6 +1547,48 @@ fn object_of(keys: List[string], values: List[Json]) -> JsonObject:
         fields.set(keys[index], values[index])
         index = index + 1
     fields
+
+fn tagged_json(
+    frame: OpenFrame,
+    keys: List[string],
+    values: List[Json],
+    tagging: EnumTagging,
+) -> Json:
+    form := frame.kind - 4
+    match tagging:
+        .Internal(tag) =>
+            payload := if form == 2:
+                if values.is_empty(): Json.Null else: values[0]
+            else:
+                Json.Object(object_of(keys, values))
+            fields := match payload:
+                .Object(found) => found
+                _ =>
+                    panic(
+                        "std.json: internally tagged variant `${frame.name}` payload must write an object",
+                    )
+            let mut entries: List[(string, Json)] = [(tag, Json.Text(frame.name))]
+            for (key, value) in fields.entries:
+                entries.push((key, value))
+            Json.Object(JsonObject { entries: entries, index: {} })
+        .Adjacent(tag, content) =>
+            let mut object = JsonObject::new()
+            object.set(tag, Json.Text(frame.name))
+            if form != 0:
+                payload := match form:
+                    1 => Json.Object(object_of(keys, values))
+                    2 =>
+                        if values.is_empty(): Json.Null else: values[0]
+                    _ => Json.Array(values)
+                object.set(content, payload)
+            Json.Object(object)
+        .Untagged =>
+            match form:
+                0 => Json.Null
+                1 => Json.Object(object_of(keys, values))
+                2 =>
+                    if values.is_empty(): Json.Null else: values[0]
+                _ => Json.Array(values)
 
 # What an open container of the text writer is.
 enum FrameKind:
@@ -1565,25 +1646,27 @@ struct TextWriter:
 
 impl TextWriter:
     fn new(spaced: bool) -> *mut TextWriter:
-        box(TextWriter {
-            parts: box([]),
-            depth: 0,
-            kinds: [],
-            names: [],
-            counts: [],
-            key_starts: [],
-            facts: [],
-            no_facts: Facts { items: [] },
-            key_count: 0,
-            keys: [],
-            prints: [],
-            pending: "",
-            keyed: false,
-            written: false,
-            regular: true,
-            spaced: spaced,
-            indent: 0,
-        })
+        box(
+            TextWriter {
+                parts: box([]),
+                depth: 0,
+                kinds: [],
+                names: [],
+                counts: [],
+                key_starts: [],
+                facts: [],
+                no_facts: Facts { items: [] },
+                key_count: 0,
+                keys: [],
+                prints: [],
+                pending: "",
+                keyed: false,
+                written: false,
+                regular: true,
+                spaced: spaced,
+                indent: 0,
+            },
+        )
 
     # The text, or `.None` when the walk was not regular or not complete.
     fn finish(&self) -> string?:
@@ -1833,6 +1916,8 @@ impl Serializer for TextWriter:
         self.open(FrameKind.Record, v.name, facts)
 
     fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
+        if !facts.items.is_empty() && enum_tagging(facts).is_some():
+            return self.give_up()
         kind := if v.of_data:
             FrameKind.Record
         else if v.named > 0:
@@ -1842,6 +1927,8 @@ impl Serializer for TextWriter:
         self.open(kind, v.name, facts)
 
     fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Irregular]:
+        if !facts.items.is_empty() && enum_tagging(facts).is_some():
+            return self.give_up()
         self.begin_map(1)?
         self.key(v.name)?
         self.names[self.depth - 1] = v.name
@@ -1853,6 +1940,8 @@ impl Serializer for TextWriter:
         v: &VariantInfo,
         len: usize,
     ) -> Result[void, Irregular]:
+        if !facts.items.is_empty() && enum_tagging(facts).is_some():
+            return self.give_up()
         self.begin_map(1)?
         self.key(v.name)?
         self.begin_list(len)?
@@ -1940,22 +2029,24 @@ struct JsonReader:
 
 impl JsonReader:
     fn new(value: Json) -> *mut JsonReader:
-        box(JsonReader {
-            value: value,
-            present: true,
-            depth: 0,
-            steps: [],
-            names: [],
-            open: 0,
-            containers: [],
-            kinds: [],
-            next: [],
-            bases: [],
-            homes: [],
-            variants: [],
-            facts: [],
-            no_facts: Facts { items: [] },
-        })
+        box(
+            JsonReader {
+                value: value,
+                present: true,
+                depth: 0,
+                steps: [],
+                names: [],
+                open: 0,
+                containers: [],
+                kinds: [],
+                next: [],
+                bases: [],
+                homes: [],
+                variants: [],
+                facts: [],
+                no_facts: Facts { items: [] },
+            },
+        )
 
     # The path of the first `depth` steps: `$`, then `.key` or `[index]`
     # for each.
@@ -2162,8 +2253,15 @@ impl Deserializer for JsonReader:
             .Entries =>
                 match self.containers[last]:
                     .Object(fields) =>
-                        if index < fields.entries.len():
-                            self.read_item(last, fields.entries[index]._1, index)
+                        let found = index
+                        while (
+                            found < fields.entries.len()
+                            && self.variants[last] != ""
+                            && fields.entries[found]._0 == self.variants[last]
+                        ):
+                            found += 1
+                        if found < fields.entries.len():
+                            self.read_item(last, fields.entries[found]._1, found)
                             return .Ok(true)
                     _ => pass
             _ => pass
@@ -2174,7 +2272,18 @@ impl Deserializer for JsonReader:
         if self.present:
             match self.value:
                 .Object(_) =>
-                    self.enter(self.value, ReadKind.Entries, self.depth, "", self.no_facts)
+                    let name = ""
+                    if self.open > 0:
+                        last := self.top()
+                        let tagged = false
+                        match self.kinds[last]:
+                            .Tagged => tagged = true
+                            _ => pass
+                        if tagged && !self.facts[last].items.is_empty():
+                            match enum_tagging(self.facts[last]):
+                                .Some(.Internal(_)) => name = self.variants[last]
+                                _ => pass
+                    self.enter(self.value, ReadKind.Entries, self.depth, name, self.no_facts)
                     return .Ok(())
                 _ => pass
         .Err(self.fail("object"))
@@ -2188,9 +2297,16 @@ impl Deserializer for JsonReader:
             .Entries =>
                 match self.containers[last]:
                     .Object(fields) =>
-                        if index < fields.entries.len():
-                            entry := fields.entries[index]
-                            self.next[last] = index + 1
+                        let found = index
+                        while (
+                            found < fields.entries.len()
+                            && self.variants[last] != ""
+                            && fields.entries[found]._0 == self.variants[last]
+                        ):
+                            found += 1
+                        if found < fields.entries.len():
+                            entry := fields.entries[found]
+                            self.next[last] = found + 1
                             self.value = entry._1
                             self.present = true
                             base := self.bases[last]
@@ -2238,6 +2354,86 @@ impl Deserializer for JsonReader:
                         return .Ok(0)
                     _ => pass
             return .Err(self.fail("object"))
+        if !facts.items.is_empty():
+            match enum_tagging(facts):
+                .Some(.Internal(tag)) =>
+                    if !self.present:
+                        return .Err(self.fail("variant"))
+                    object := self.value
+                    fields := match object:
+                        .Object(found) => found
+                        _ => return .Err(self.fail("object"))
+                    let tag_value: Json? = .None
+                    let matches: usize = 0
+                    for (key, value) in fields.entries:
+                        if key == tag:
+                            matches += 1
+                            if matches == 1:
+                                tag_value = .Some(value)
+                    if matches > 1:
+                        return .Err(JsonError.DuplicateField(self.path_to(self.depth) + "." + tag))
+                    depth := self.depth
+                    self.step_key(depth, tag)
+                    self.value = tag_value.unwrap_or(Json.Null)
+                    self.present = tag_value.is_some()
+                    self.depth = depth + 1
+                    variant_name := match self.value:
+                        .Text(found) => found
+                        _ => return .Err(self.fail("variant tag"))
+                    self.value = object
+                    self.present = true
+                    self.depth = depth
+                    let index: usize = 0
+                    while index < choices.len():
+                        if choices[index].name == variant_name:
+                            self.enter(object, ReadKind.Tagged, depth, tag, facts)
+                            return .Ok(index)
+                        index += 1
+                    return .Err(JsonError.UnknownVariant(self.path_to(self.depth), variant_name))
+                .Some(.Adjacent(tag, content)) =>
+                    if !self.present:
+                        return .Err(self.fail("variant"))
+                    fields := match self.value:
+                        .Object(found) => found
+                        _ => return .Err(self.fail("object"))
+                    depth := self.depth
+                    tag_value := fields.get(tag)
+                    self.step_key(depth, tag)
+                    self.value = tag_value.unwrap_or(Json.Null)
+                    self.present = tag_value.is_some()
+                    self.depth = depth + 1
+                    name := match self.value:
+                        .Text(found) => found
+                        _ => return .Err(self.fail("variant tag"))
+                    self.depth = depth
+                    let index: usize = 0
+                    while index < choices.len():
+                        if choices[index].name == name:
+                            found := fields.get(content)
+                            payload := found.unwrap_or(Json.Null)
+                            self.step_key(depth, content)
+                            self.present = found.is_some()
+                            if (
+                                !self.present
+                                && (
+                                    choices[index].named > 0
+                                    || choices[index].included_positional > 0
+                                )
+                            ):
+                                self.depth = depth + 1
+                                return .Err(self.fail("variant content"))
+                            self.enter(
+                                payload,
+                                if found.is_some(): ReadKind.Tagged else: ReadKind.Unit,
+                                depth + 1,
+                                content,
+                                facts,
+                            )
+                            return .Ok(index)
+                        index += 1
+                    return .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
+                .Some(.Untagged) => return .Err(self.fail("untagged variant attempt"))
+                .None => pass
         if !self.present:
             return .Err(self.fail("variant"))
         let name = ""
@@ -2274,6 +2470,14 @@ impl Deserializer for JsonReader:
         last := self.top()
         match self.kinds[last]:
             .Tagged =>
+                if !self.facts[last].items.is_empty():
+                    match enum_tagging(self.facts[last]):
+                        .Some(.Internal(_)) =>
+                            self.value = self.containers[last]
+                            self.present = true
+                            self.depth = self.bases[last]
+                            return .Ok(())
+                        _ => pass
                 self.kinds[last] = ReadKind.Unit
                 if self.present:
                     self.next[last] = 1
@@ -2308,10 +2512,18 @@ impl Deserializer for JsonReader:
         match self.kinds[last]:
             .Record => self.find_member(last, name)
             .Tagged =>
-                self.step_key(base - 1, self.variants[last])
-                match self.containers[last]:
-                    .Object(_) => self.find_member(last, name)
-                    _ => return .Err(JsonError.WrongType(self.path_to(base), "object"))
+                let internal = false
+                if !self.facts[last].items.is_empty():
+                    match enum_tagging(self.facts[last]):
+                        .Some(.Internal(_)) => internal = true
+                        _ => pass
+                if internal:
+                    self.find_member(last, name)
+                else:
+                    self.step_key(base - 1, self.variants[last])
+                    match self.containers[last]:
+                        .Object(_) => self.find_member(last, name)
+                        _ => return .Err(JsonError.WrongType(self.path_to(base), "object"))
             _ =>
                 self.value = Json.Null
                 self.present = false
@@ -2396,18 +2608,20 @@ impl TextReader:
         source := box(parser)
         source.at = 0
         source.skip_space()
-        box(TextReader {
-            parser: source,
-            at: source.at,
-            entry: root,
-            present: true,
-            depth: 0,
-            steps: [],
-            names: [],
-            open: 0,
-            frames: [],
-            no_facts: Facts { items: [] },
-        })
+        box(
+            TextReader {
+                parser: source,
+                at: source.at,
+                entry: root,
+                present: true,
+                depth: 0,
+                steps: [],
+                names: [],
+                open: 0,
+                frames: [],
+                no_facts: Facts { items: [] },
+            },
+        )
 
     fn path_to(&self, depth: usize) -> string:
         let mut parts: List[string] = ["\$"]
@@ -2515,25 +2729,27 @@ impl TextReader:
         slot := self.open
         if slot == self.frames.len():
             self.frames.push(
-                box(TextReadFrame {
-                    kind: kind,
-                    at: 0,
-                    entry: 0,
-                    count: 0,
-                    repeats: false,
-                    next: 0,
-                    cursor: 0,
-                    child: 0,
-                    keys: [],
-                    key_count: 0,
-                    offsets: [],
-                    children: [],
-                    positions: {},
-                    base: base,
-                    home: self.depth,
-                    name: name,
-                    facts: facts,
-                }),
+                box(
+                    TextReadFrame {
+                        kind: kind,
+                        at: 0,
+                        entry: 0,
+                        count: 0,
+                        repeats: false,
+                        next: 0,
+                        cursor: 0,
+                        child: 0,
+                        keys: [],
+                        key_count: 0,
+                        offsets: [],
+                        children: [],
+                        positions: {},
+                        base: base,
+                        home: self.depth,
+                        name: name,
+                        facts: facts,
+                    },
+                ),
             )
         frame := self.frames[slot]
         frame.kind = kind
@@ -2663,6 +2879,7 @@ impl Deserializer for TextReader:
         frame := self.top()
         index := frame.next
         let found = false
+        let next_index = index + 1
         match frame.kind:
             .Items =>
                 byte := self.parser.list_item(frame.cursor)
@@ -2677,13 +2894,21 @@ impl Deserializer for TextReader:
                     self.entry = entry
                     found = true
             .Entries =>
-                if index < frame.key_count:
-                    self.at = frame.offsets[index]
-                    self.entry = frame.children[index]
+                let found_index = index
+                while (
+                    found_index < frame.key_count
+                    && frame.name != ""
+                    && frame.keys[found_index] == frame.name
+                ):
+                    found_index += 1
+                if found_index < frame.key_count:
+                    self.at = frame.offsets[found_index]
+                    self.entry = frame.children[found_index]
                     found = true
+                    next_index = found_index + 1
             _ => pass
         if found:
-            frame.next = index + 1
+            frame.next = next_index
             self.present = true
             self.step_index(frame.base, index)
             self.depth = frame.base + 1
@@ -2693,7 +2918,25 @@ impl Deserializer for TextReader:
 
     fn begin_map(&mut self) -> Result[void, JsonError]:
         if self.present && self.byte() == 123:
-            return self.enter(self.at, self.entry, ReadKind.Entries, self.depth, "", self.no_facts)
+            let name = ""
+            if self.open > 0:
+                frame := self.top()
+                let tagged = false
+                match frame.kind:
+                    .Tagged => tagged = true
+                    _ => pass
+                if tagged && !frame.facts.items.is_empty():
+                    match enum_tagging(frame.facts):
+                        .Some(.Internal(_)) => name = frame.name
+                        _ => pass
+            return self.enter(
+                self.at,
+                self.entry,
+                ReadKind.Entries,
+                self.depth,
+                name,
+                self.no_facts,
+            )
         .Err(self.fail("object"))
 
     fn next_key(&mut self) -> Result[string?, JsonError]:
@@ -2701,12 +2944,19 @@ impl Deserializer for TextReader:
         index := frame.next
         match frame.kind:
             .Entries =>
-                if index < frame.key_count:
-                    key := frame.keys[index]
-                    self.at = frame.offsets[index]
-                    self.entry = frame.children[index]
+                let found = index
+                while (
+                    found < frame.key_count
+                    && frame.name != ""
+                    && frame.keys[found] == frame.name
+                ):
+                    found += 1
+                if found < frame.key_count:
+                    key := frame.keys[found]
+                    self.at = frame.offsets[found]
+                    self.entry = frame.children[found]
                     self.present = true
-                    frame.next = index + 1
+                    frame.next = found + 1
                     self.step_key(frame.base, key)
                     self.depth = frame.base + 1
                     return .Ok(.Some(key))
@@ -2738,6 +2988,123 @@ impl Deserializer for TextReader:
                 self.enter(self.at, self.entry, ReadKind.Record, self.depth, "", facts)?
                 return .Ok(0)
             return .Err(self.fail("object"))
+        if !facts.items.is_empty():
+            match enum_tagging(facts):
+                .Some(tagging) =>
+                    match tagging:
+                        .Untagged => return .Err(self.fail("untagged variant attempt"))
+                        _ => pass
+                    if !self.present || self.byte() != 123:
+                        return .Err(self.fail("object"))
+                    object_at := self.at
+                    object := self.entry
+                    count := self.parser.index[object] / 2
+                    let tag = ""
+                    let content: string? = .None
+                    match tagging:
+                        .Internal(found) => tag = found
+                        .Adjacent(found, payload) =>
+                            tag = found
+                            content = .Some(payload)
+                        .Untagged => pass
+                    let tag_slot: usize? = .None
+                    let tag_matches: usize = 0
+                    let content_slot: usize? = .None
+                    let slot: usize = 0
+                    while slot < count:
+                        if self.parser.key_is(self.parser.index[object + 2 + 2 * slot], tag)?:
+                            tag_matches += 1
+                            match content:
+                                .Some(_) => tag_slot = .Some(slot)
+                                .None =>
+                                    if tag_matches == 1:
+                                        tag_slot = .Some(slot)
+                        match content:
+                            .Some(key) =>
+                                if self.parser.key_is(
+                                    self.parser.index[object + 2 + 2 * slot],
+                                    key,
+                                )?:
+                                    content_slot = .Some(slot)
+                            .None => pass
+                        slot += 1
+                    match tagging:
+                        .Internal(_) =>
+                            if tag_matches > 1:
+                                return .Err(
+                                    JsonError.DuplicateField(self.path_to(self.depth) + "." + tag),
+                                )
+                        _ => pass
+                    depth := self.depth
+                    found_tag := match tag_slot:
+                        .Some(found) => found
+                        .None =>
+                            self.present = false
+                            self.step_key(depth, tag)
+                            self.depth = depth + 1
+                            return .Err(self.fail("variant tag"))
+                    self.at_slot(object, count, found_tag)
+                    self.present = true
+                    self.step_key(depth, tag)
+                    self.depth = depth + 1
+                    if self.byte() != 34:
+                        return .Err(self.fail("variant tag"))
+                    name := self.parser.string()?
+                    self.depth = depth
+                    let index: usize = 0
+                    while index < choices.len():
+                        if choices[index].name == name:
+                            match tagging:
+                                .Internal(_) =>
+                                    self.at = object_at
+                                    self.entry = object
+                                    self.enter(
+                                        object_at,
+                                        object,
+                                        ReadKind.Tagged,
+                                        self.depth,
+                                        tag,
+                                        facts,
+                                    )?
+                                .Adjacent(_, payload_name) =>
+                                    let payload_at = object_at
+                                    let payload_entry = object
+                                    let present = false
+                                    match content_slot:
+                                        .Some(found) =>
+                                            payload_at = self.parser.index[object + 3 + 2 * found]
+                                            payload_entry = self.parser.child_of(
+                                                object,
+                                                count,
+                                                found,
+                                                payload_at,
+                                            )
+                                            present = true
+                                        .None => pass
+                                    self.step_key(depth, payload_name)
+                                    self.present = present
+                                    if (
+                                        !present
+                                        && (
+                                            choices[index].named > 0
+                                            || choices[index].included_positional > 0
+                                        )
+                                    ):
+                                        self.depth = depth + 1
+                                        return .Err(self.fail("variant content"))
+                                    self.enter(
+                                        payload_at,
+                                        payload_entry,
+                                        if present: ReadKind.Tagged else: ReadKind.Unit,
+                                        depth + 1,
+                                        payload_name,
+                                        facts,
+                                    )?
+                                .Untagged => pass
+                            return .Ok(index)
+                        index += 1
+                    return .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
+                .None => pass
         if !self.present:
             return .Err(self.fail("variant"))
         byte := self.byte()
@@ -2798,6 +3165,15 @@ impl Deserializer for TextReader:
         frame := self.top()
         match frame.kind:
             .Tagged =>
+                if !frame.facts.items.is_empty():
+                    match enum_tagging(frame.facts):
+                        .Some(.Internal(_)) =>
+                            self.at = frame.at
+                            self.entry = frame.entry
+                            self.present = true
+                            self.depth = frame.base
+                            return .Ok(())
+                        _ => pass
                 frame.kind = ReadKind.Unit
                 self.at = frame.at
                 self.entry = frame.entry
@@ -2845,9 +3221,15 @@ impl Deserializer for TextReader:
         match frame.kind:
             .Record => pass
             .Tagged =>
-                self.step_key(frame.base - 1, frame.name)
-                if bytes_at(self.parser.text, frame.at) != 123:
-                    return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
+                let internal = false
+                if !frame.facts.items.is_empty():
+                    match enum_tagging(frame.facts):
+                        .Some(.Internal(_)) => internal = true
+                        _ => pass
+                if !internal:
+                    self.step_key(frame.base - 1, frame.name)
+                    if bytes_at(self.parser.text, frame.at) != 123:
+                        return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
             _ => record = false
         if record:
             if frame.count <= 16:

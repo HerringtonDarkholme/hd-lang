@@ -1,0 +1,11 @@
+# test: attaching EnumTagging.Internal directly still applies the internal-shape check
+# Rule: std-serde.enum-tagging.internal-shapes.
+use std.serde.{EnumTagging, Serialize}
+
+@derive(Serialize)
+@EnumTagging.Internal("kind")
+enum Point:
+    Pair(i32, i32) # diagnostic: invalid-internal-tagged-variant
+
+pub fn main() -> void:
+    _ := Point.Pair(1, 2)

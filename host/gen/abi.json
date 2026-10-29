@@ -155,6 +155,7 @@
       { "name": "NestingTooDeep", "fields": [{ "name": "position", "type": "usize" }] },
       { "name": "WrongType", "fields": [{ "name": "path", "type": "string" }, { "name": "expected", "type": "string" }] },
       { "name": "MissingField", "fields": [{ "name": "path", "type": "string" }] },
+      { "name": "DuplicateField", "fields": [{ "name": "path", "type": "string" }] },
       { "name": "UnknownVariant", "fields": [{ "name": "path", "type": "string" }, { "name": "name", "type": "string" }] }
     ] },
     "Method": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [

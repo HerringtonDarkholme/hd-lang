@@ -1,0 +1,14 @@
+# test: a function named like an EnumTagging variant is still a computed fact
+# Rule: std-serde.enum-tagging.static-names.
+use std.serde.{EnumTagging, Serialize}
+
+fn Internal(tag: string) -> EnumTagging:
+    EnumTagging.Internal(tag)
+
+@derive(Serialize)
+@Internal("kind") # diagnostic: enum-tag-name-not-static
+enum Point:
+    Pair(i32, i32)
+
+pub fn main() -> void:
+    _ := Point.Pair(1, 2)

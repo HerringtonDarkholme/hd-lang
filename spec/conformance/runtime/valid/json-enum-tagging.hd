@@ -1,0 +1,474 @@
+# test: JSON writes and reads external wire names plus internal, adjacent and untagged enum representations on both readers
+# Spec std/serde Enum Names And Tagging and std/json Tagged Enum Forms.
+use std.json.{decode, encode, encode_pretty, from_json, parse, to_json, JsonError}
+use std.serde.{Deserialize, Rename, Serialize, Serializer, rename, rename_all, skip, tag, untagged}
+use std.structure.Structure
+
+@derive(Serialize, Deserialize)
+@rename_all(.SnakeCase)
+enum External:
+    UnitValue
+    @rename("fixed")
+    PayloadValue(value: i32)
+
+@derive(Serialize, Deserialize)
+enum VariantOnlyRename:
+    @rename("wire")
+    Value(value: i32)
+
+@derive(Serialize)
+@rename_all(.Lowercase)
+enum LowercaseName:
+    UnitValue
+
+@derive(Serialize)
+@rename_all(.Uppercase)
+enum UppercaseName:
+    UnitValue
+
+@derive(Serialize)
+@rename_all(.PascalCase)
+enum PascalCaseName:
+    UnitValue
+
+@derive(Serialize)
+@rename_all(.CamelCase)
+enum CamelCaseName:
+    UnitValue
+
+@derive(Serialize)
+@rename_all(.ScreamingSnakeCase)
+enum ScreamingSnakeName:
+    UnitValue
+
+@derive(Serialize)
+@rename_all(.KebabCase)
+enum KebabCaseName:
+    UnitValue
+
+@derive(Serialize)
+@rename_all(.ScreamingKebabCase)
+enum ScreamingKebabName:
+    UnitValue
+
+@derive(Serialize, Deserialize)
+struct Payload:
+    value: i32
+
+@derive(Serialize, Deserialize)
+@rename_all(.SnakeCase)
+@tag("type")
+enum Shape:
+    Rect(width: i32, height: i32)
+    Empty
+
+@derive(Serialize, Deserialize)
+@tag("t", content="c")
+enum Block:
+    Para(List[string])
+    Rule
+
+@derive(Serialize, Deserialize)
+@untagged
+enum Port:
+    Number(u16)
+    Service(string)
+
+@derive(Deserialize)
+struct HandwrittenPayload:
+    value: i32
+
+impl Serialize for HandwrittenPayload:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        out.begin_map(1)?
+        out.key("value")?
+        self.value.serialize(out)?
+        out.end_map()
+
+@derive(Serialize, Deserialize)
+@tag("type")
+enum Internal:
+    Empty
+    Record(value: i32)
+    Mixed(i32, label: string)
+    Box(Payload)
+    Handwritten(HandwrittenPayload)
+    Entries(Map[string, i32])
+
+@derive(Serialize, Deserialize)
+@tag("t", content="c")
+enum Adjacent:
+    Empty
+    Text(string)
+    Pair(i32, i32)
+    Record(value: i32)
+    Maybe(value: i32?)
+
+@derive(Serialize, Deserialize)
+enum NoTraitTagged:
+    Value(value: i32)
+
+impl NoTraitTagged by Structure:
+    Self += [tag("kind")]
+
+@derive(Serialize, Deserialize)
+@tag("kind")
+enum ReplacedTagging:
+    Pair(i32, i32)
+
+impl ReplacedTagging by Structure:
+    Self = [untagged()]
+
+@derive(Serialize, Deserialize)
+@tag("t", content="c")
+enum AdjacentSkipped:
+    Only(
+        @skip()
+        i32,
+    )
+
+fn explicit_wire_name() -> Rename:
+    Rename { name: "wire" }
+
+@tag("t", content="c")
+enum AdjacentExplicitRename:
+    Value(
+        @explicit_wire_name()
+        user_id: i32,
+    )
+
+impl Serialize for AdjacentExplicitRename by Structure:
+    Self += [rename_all(.CamelCase)]
+
+@derive(Serialize, Deserialize)
+@untagged
+enum Untagged:
+    Empty
+    Text(string)
+    Pair(i32, i32)
+    Record(value: i32)
+
+@derive(Serialize, Deserialize)
+@untagged
+enum Ambiguous:
+    First(value: i32)
+    Second(value: i32)
+
+@derive(Deserialize)
+struct Wrapped:
+    value: Untagged
+
+fn adjacent_direct_error(text: string) -> JsonError:
+    match decode::[Adjacent](text):
+        .Err(error) => error
+        .Ok(_) => panic("adjacent direct decode unexpectedly succeeded")
+
+fn adjacent_tree_error(text: string) -> JsonError:
+    match from_json::[Adjacent](parse(text).expect("adjacent error json")):
+        .Err(error) => error
+        .Ok(_) => panic("adjacent tree decode unexpectedly succeeded")
+
+fn internal_direct_error(text: string) -> JsonError:
+    match decode::[Internal](text):
+        .Err(error) => error
+        .Ok(_) => panic("internal direct decode unexpectedly succeeded")
+
+fn internal_tree_error(text: string) -> JsonError:
+    match from_json::[Internal](parse(text).expect("internal error json")):
+        .Err(error) => error
+        .Ok(_) => panic("internal tree decode unexpectedly succeeded")
+
+tests:
+    use std.testing.assert_equal
+
+    it("runs the accepted internal, adjacent and untagged examples"):
+        assert_equal(
+            encode(Shape.Rect(width=2, height=3)),
+            "{\"type\":\"rect\",\"width\":2,\"height\":3}",
+            reason="internal example",
+        )
+        assert_equal(
+            encode(Block.Para(["one", "two"])),
+            "{\"t\":\"Para\",\"c\":[\"one\",\"two\"]}",
+            reason="adjacent example",
+        )
+        assert_equal(encode(Port.Number(443)), "443", reason="untagged example")
+
+    it("variant rename precedes enum rename_all in the external form"):
+        assert_equal(encode(External.UnitValue), "\"unit_value\"", reason="rename_all")
+        assert_equal(
+            encode(External.PayloadValue(value=7)),
+            "{\"fixed\":{\"value\":7}}",
+            reason="variant rename",
+        )
+        assert_equal(
+            encode(decode::[External]("{\"fixed\":{\"value\":7}}").expect("external")),
+            "{\"fixed\":{\"value\":7}}",
+            reason="external read",
+        )
+        assert_equal(
+            encode(VariantOnlyRename.Value(value=8)),
+            "{\"wire\":{\"value\":8}}",
+            reason="variant rename without enum facts",
+        )
+        assert_equal(
+            encode(
+                decode::[VariantOnlyRename]("{\"wire\":{\"value\":8}}")
+                    .expect("variant-only direct read"),
+            ),
+            "{\"wire\":{\"value\":8}}",
+            reason="variant-only direct round trip",
+        )
+        assert_equal(
+            encode(
+                from_json::[VariantOnlyRename](
+                    parse("{\"wire\":{\"value\":8}}").expect("variant-only json"),
+                )
+                    .expect("variant-only tree read"),
+            ),
+            "{\"wire\":{\"value\":8}}",
+            reason="variant-only tree round trip",
+        )
+        assert_equal(encode(LowercaseName.UnitValue), "\"unitvalue\"")
+        assert_equal(encode(UppercaseName.UnitValue), "\"UNITVALUE\"")
+        assert_equal(encode(PascalCaseName.UnitValue), "\"UnitValue\"")
+        assert_equal(encode(CamelCaseName.UnitValue), "\"unitValue\"")
+        assert_equal(encode(ScreamingSnakeName.UnitValue), "\"UNIT_VALUE\"")
+        assert_equal(encode(KebabCaseName.UnitValue), "\"unit-value\"")
+        assert_equal(encode(ScreamingKebabName.UnitValue), "\"UNIT-VALUE\"")
+
+    it("internal forms merge the tag before record, struct and map members"):
+        assert_equal(encode(Internal.Empty), "{\"type\":\"Empty\"}", reason="unit")
+        assert_equal(
+            encode(Internal.Record(value=3)),
+            "{\"type\":\"Record\",\"value\":3}",
+            reason="record",
+        )
+        assert_equal(
+            encode_pretty(Internal.Record(value=3)),
+            "{\n  \"type\": \"Record\",\n  \"value\": 3\n}",
+            reason="pretty tag first",
+        )
+        assert_equal(
+            encode(Internal.Mixed(1, label="x")),
+            "{\"type\":\"Mixed\",\"_0\":1,\"label\":\"x\"}",
+            reason="mixed record",
+        )
+        assert_equal(
+            encode(Internal.Box(Payload { value: 4 })),
+            "{\"type\":\"Box\",\"value\":4}",
+            reason="newtype struct",
+        )
+        assert_equal(
+            encode(Internal.Handwritten(HandwrittenPayload { value: 5 })),
+            "{\"type\":\"Handwritten\",\"value\":5}",
+            reason="handwritten object serializer",
+        )
+        assert_equal(
+            encode(Internal.Entries({ "count": 5 })),
+            "{\"type\":\"Entries\",\"count\":5}",
+            reason="newtype map",
+        )
+        text := "{\"value\":3,\"type\":\"Record\"}"
+        assert_equal(
+            encode(decode::[Internal](text).expect("direct internal")),
+            "{\"type\":\"Record\",\"value\":3}",
+            reason="direct member order",
+        )
+        assert_equal(
+            encode(from_json::[Internal](parse(text).expect("json")).expect("tree internal")),
+            "{\"type\":\"Record\",\"value\":3}",
+            reason="tree member order",
+        )
+        map_text := "{\"count\":5,\"type\":\"Entries\"}"
+        assert_equal(
+            encode(decode::[Internal](map_text).expect("direct internal map")),
+            "{\"type\":\"Entries\",\"count\":5}",
+            reason="direct map tag order",
+        )
+        assert_equal(
+            encode(
+                from_json::[Internal](parse(map_text).expect("json")).expect("tree internal map"),
+            ),
+            "{\"type\":\"Entries\",\"count\":5}",
+            reason="tree map tag order",
+        )
+        for (text, expected) in [
+            ("{\"value\":3}", JsonError.MissingField("$.type")),
+            ("{\"type\":7,\"value\":3}", JsonError.WrongType("$.type", "variant tag")),
+        ]:
+            assert_equal(internal_direct_error(text), expected, reason="direct internal tag error")
+            assert_equal(internal_tree_error(text), expected, reason="tree internal tag error")
+
+    it("an internal map tag collision is written twice and rejected on read"):
+        text := encode(Internal.Entries({ "type": 5 }))
+        assert_equal(
+            text,
+            "{\"type\":\"Entries\",\"type\":5}",
+            reason="payload entry remains after the tag",
+        )
+        match decode::[Internal](text):
+            .Err(error) =>
+                assert_equal(
+                    error,
+                    JsonError.DuplicateField("$.type"),
+                    reason="duplicate tag field",
+                )
+            .Ok(_) => panic("duplicate tag field decoded")
+        match from_json::[Internal](to_json(Internal.Entries({ "type": 5 }))):
+            .Err(error) =>
+                assert_equal(
+                    error,
+                    JsonError.DuplicateField("$.type"),
+                    reason="tree duplicate tag field",
+                )
+            .Ok(_) => panic("duplicate tree tag field decoded")
+
+    it("adjacent forms keep every payload under content"):
+        for (value, expected) in [
+            (Adjacent.Empty, "{\"t\":\"Empty\"}"),
+            (Adjacent.Text("hi"), "{\"t\":\"Text\",\"c\":\"hi\"}"),
+            (Adjacent.Pair(1, 2), "{\"t\":\"Pair\",\"c\":[1,2]}"),
+            (Adjacent.Record(value=6), "{\"t\":\"Record\",\"c\":{\"value\":6}}"),
+        ]:
+            assert_equal(encode(value), expected, reason="write")
+            assert_equal(
+                encode(decode::[Adjacent](expected).expect("direct adjacent")),
+                expected,
+                reason="direct read",
+            )
+            assert_equal(
+                encode(
+                    from_json::[Adjacent](parse(expected).expect("json")).expect("tree adjacent"),
+                ),
+                expected,
+                reason="tree read",
+            )
+        assert_equal(
+            encode_pretty(Adjacent.Text("hi")),
+            "{\n  \"t\": \"Text\",\n  \"c\": \"hi\"\n}",
+            reason="pretty tag and content order",
+        )
+        reversed := "{\"c\":\"hi\",\"t\":\"Text\"}"
+        assert_equal(
+            encode(decode::[Adjacent](reversed).expect("direct reversed adjacent")),
+            "{\"t\":\"Text\",\"c\":\"hi\"}",
+            reason="direct member order",
+        )
+        assert_equal(
+            encode(
+                from_json::[Adjacent](parse(reversed).expect("json"))
+                    .expect("tree reversed adjacent"),
+            ),
+            "{\"t\":\"Text\",\"c\":\"hi\"}",
+            reason="tree member order",
+        )
+        duplicate_tag := "{\"t\":\"Empty\",\"t\":\"Text\",\"c\":\"hi\"}"
+        assert_equal(
+            encode(decode::[Adjacent](duplicate_tag).expect("direct duplicate adjacent tag")),
+            "{\"t\":\"Text\",\"c\":\"hi\"}",
+            reason="direct duplicate adjacent tag uses the last value",
+        )
+        assert_equal(
+            encode(
+                from_json::[Adjacent](parse(duplicate_tag).expect("duplicate adjacent json"))
+                    .expect("tree duplicate adjacent tag"),
+            ),
+            "{\"t\":\"Text\",\"c\":\"hi\"}",
+            reason="tree duplicate adjacent tag uses the last value",
+        )
+        for (text, expected) in [
+            ("{\"t\":\"Text\"}", JsonError.MissingField("$.c")),
+            ("{\"t\":\"Maybe\"}", JsonError.MissingField("$.c")),
+            ("{\"c\":\"hi\"}", JsonError.MissingField("$.t")),
+            ("{\"t\":7,\"c\":\"hi\"}", JsonError.WrongType("$.t", "variant tag")),
+        ]:
+            assert_equal(adjacent_direct_error(text), expected, reason="direct adjacent error")
+            assert_equal(adjacent_tree_error(text), expected, reason="tree adjacent error")
+
+    it("no-trait tagging is shared and skipped positional payloads stay unit-shaped"):
+        tagged := "{\"kind\":\"Value\",\"value\":3}"
+        assert_equal(encode(NoTraitTagged.Value(value=3)), tagged, reason="no-trait write")
+        assert_equal(
+            encode(decode::[NoTraitTagged](tagged).expect("direct no-trait read")),
+            tagged,
+            reason="direct no-trait read",
+        )
+        assert_equal(
+            encode(
+                from_json::[NoTraitTagged](parse(tagged).expect("no-trait json"))
+                    .expect("tree no-trait read"),
+            ),
+            tagged,
+            reason="tree no-trait read",
+        )
+        assert_equal(encode(ReplacedTagging.Pair(1, 2)), "[1,2]", reason="replacement write")
+        assert_equal(
+            encode(decode::[ReplacedTagging]("[1,2]").expect("replacement direct read")),
+            "[1,2]",
+            reason="replacement direct read",
+        )
+        skipped := "{\"t\":\"Only\"}"
+        assert_equal(encode(AdjacentSkipped.Only(9)), skipped, reason="skipped write")
+        assert_equal(
+            encode(decode::[AdjacentSkipped](skipped).expect("skipped direct read")),
+            skipped,
+            reason="skipped direct read",
+        )
+        assert_equal(
+            encode(
+                from_json::[AdjacentSkipped](parse(skipped).expect("skipped json"))
+                    .expect("skipped tree read"),
+            ),
+            skipped,
+            reason="skipped tree read",
+        )
+        assert_equal(
+            encode(AdjacentExplicitRename.Value(user_id=5)),
+            "{\"t\":\"value\",\"c\":{\"wire\":5}}",
+            reason="explicit member rename remains ahead of per-view rename-all",
+        )
+
+    it("untagged uses null, raw, list and object shapes"):
+        for (value, expected) in [
+            (Untagged.Empty, "null"),
+            (Untagged.Text("hi"), "\"hi\""),
+            (Untagged.Pair(1, 2), "[1,2]"),
+            (Untagged.Record(value=6), "{\"value\":6}"),
+        ]:
+            assert_equal(encode(value), expected, reason="write")
+            assert_equal(
+                encode(decode::[Untagged](expected).expect("direct untagged")),
+                expected,
+                reason="direct read",
+            )
+            assert_equal(
+                encode(
+                    from_json::[Untagged](parse(expected).expect("json")).expect("tree untagged"),
+                ),
+                expected,
+                reason="tree read",
+            )
+
+    it("untagged retries declaration order and reports one original-path failure"):
+        assert_equal(
+            encode(decode::[Untagged]("{\"value\":9}").expect("later record")),
+            "{\"value\":9}",
+            reason="failed candidates restore the reader",
+        )
+        match decode::[Ambiguous]("{\"value\":4}"):
+            .Ok(.First(value)) => assert_equal(value, 4, reason="first declaration wins")
+            .Ok(_) => panic("later untagged candidate won")
+            .Err(error) => panic("ambiguous untagged value failed: $error")
+        match decode::[Untagged]("true"):
+            .Err(.WrongType(path, expected)) =>
+                assert_equal(path, "$", reason="original path")
+                assert_equal(expected, "variant", reason="one final error")
+            .Err(error) => panic("wrong failure: $error")
+            .Ok(_) => panic("unexpected untagged match")
+        match decode::[Wrapped]("{\"value\":true}"):
+            .Err(.WrongType(path, expected)) =>
+                assert_equal(path, "$.value", reason="nested original path")
+                assert_equal(expected, "variant", reason="nested final error")
+            .Err(error) => panic("wrong nested failure: $error")
+            .Ok(_) => panic("unexpected nested untagged match")

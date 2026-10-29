@@ -1,0 +1,14 @@
+# test: a per-trait wire-name change cannot collide with adjacent content
+# Rule: std-serde.enum-tagging.view-name-conflict.
+use std.serde.{RenameAll, RenameCase, Serialize, tag}
+use std.structure.Structure
+
+@tag("kind", content="userId")
+enum Message:
+    Text(user_id: i32)
+
+impl Serialize for Message by Structure:
+    Self += [RenameAll { style: RenameCase.CamelCase }] # diagnostic: enum-tag-name-conflict
+
+pub fn main() -> void:
+    _ := Message.Text(user_id=1)

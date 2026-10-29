@@ -1,0 +1,14 @@
+# test: internal member wire names are static when explicitly renamed
+# Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.static-names.
+use std.serde.{Serialize, rename, tag}
+
+fn name() -> string:
+    "payload"
+
+@derive(Serialize)
+@tag("kind")
+enum Invalid:
+    Value(
+        @rename(name()) # diagnostic: enum-tag-name-not-static
+        payload: i32,
+    )

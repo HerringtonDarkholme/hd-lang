@@ -1,5 +1,5 @@
 # test: each JsonError kind and its position as a byte offset
-# Spec std/json JSON Errors: std-json.error.variants, std-json.error.position-bytes, std-json.error.traits (JSON-SURFACE; task #226).
+# Spec std/json JSON Errors: std-json.error.variants.v2, std-json.error.position-bytes, std-json.error.traits (JSON-SURFACE; task #226).
 use std.json.{parse, Json, JsonError}
 use std.format.debug
 fn failure(text: string) -> JsonError:
@@ -118,3 +118,8 @@ tests:
         )
         assert(debug(JsonError.LoneSurrogate(7)).len() > 0, reason="Debug text")
         assert("${JsonError.NestingTooDeep(4)}".len() > 0, reason="Display text")
+        assert_equal(
+            "${JsonError.DuplicateField("$.kind")}",
+            "duplicate field at $.kind",
+            reason="duplicate-field display and path",
+        )

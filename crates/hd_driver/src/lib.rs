@@ -6421,6 +6421,7 @@ impl Run<'_> {
         // The fact and metadata expressions of the declarations, their
         // members and their derivation blocks, checked though nothing reads
         // them (spec 14 `annot.metadata.eval-as-fact`).
+        hd_check::check_enum_tagging_decls(&cx, &heads, &mut diags);
         for h in &heads {
             hd_check::check_decl_facts(&cx, h.def, h.node, &mut diags);
         }

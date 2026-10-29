@@ -1,0 +1,8 @@
+# test: adjacent tag and content names must differ
+# Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.adjacent-distinct.
+use std.serde.{Serialize, tag}
+
+@derive(Serialize)
+@tag("kind", content="kind") # diagnostic: enum-tag-name-conflict
+enum Invalid:
+    Empty

@@ -1,0 +1,17 @@
+# test: a helper-produced Rename cannot hide an internal member wire name
+# Rule: std-serde.enum-tagging.static-names.
+use std.serde.{Rename, Serialize, tag}
+
+fn wire_name() -> Rename:
+    Rename { name: "kind" }
+
+@derive(Serialize)
+@tag("kind")
+enum Message:
+    Text(
+        @wire_name() # diagnostic: enum-tag-name-not-static
+        value: string,
+    )
+
+pub fn main() -> void:
+    _ := Message.Text(value="hello")

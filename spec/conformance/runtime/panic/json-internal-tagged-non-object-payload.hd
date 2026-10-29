@@ -1,0 +1,23 @@
+# test: an internally tagged newtype panics when its handwritten payload serializer writes a non-object
+# Rule: std-json.derive.internal.payload-object-panic.
+use std.json.encode
+use std.serde.{Serialize, Serializer, tag}
+
+struct ScalarPayload:
+    value: i32
+
+impl Serialize for ScalarPayload:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        self.value.serialize(out)
+
+@derive(Serialize)
+@tag("kind")
+enum Message:
+    Scalar(ScalarPayload)
+
+fn run() -> void:
+    _ := encode(Message.Scalar(ScalarPayload { value: 7 })) # panic: explicit-panic
+
+tests:
+    it("rejects a non-object payload"):
+        run()

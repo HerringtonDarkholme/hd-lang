@@ -1,0 +1,11 @@
+# test: an internal tag cannot equal a mixed variant's positional member wire name
+# Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.internal-name-conflict.
+use std.serde.{Serialize, tag}
+
+@derive(Serialize)
+@tag("_0")
+enum Invalid:
+    Mixed(
+        i32, # diagnostic: enum-tag-name-conflict
+        label: string,
+    )

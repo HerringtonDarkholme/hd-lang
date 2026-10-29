@@ -1,0 +1,11 @@
+# test: an internal tag cannot equal a known member wire name
+# Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.internal-name-conflict.
+use std.serde.{Serialize, rename, tag}
+
+@derive(Serialize)
+@tag("kind")
+enum Invalid:
+    Value(
+        @rename("kind")
+        payload: i32, # diagnostic: enum-tag-name-conflict
+    )

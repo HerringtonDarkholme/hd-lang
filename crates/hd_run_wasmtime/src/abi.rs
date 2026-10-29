@@ -436,6 +436,7 @@ pub enum JsonError {
     NestingTooDeep { position: usize },
     WrongType { path: String, expected: String },
     MissingField { path: String },
+    DuplicateField { path: String },
     UnknownVariant { path: String, name: String },
 }
 
@@ -479,15 +480,19 @@ impl Wire for JsonError {
                 e.leb(8);
                 path.enc(e);
             }
-            Self::UnknownVariant { path, name } => {
+            Self::DuplicateField { path } => {
                 e.leb(9);
+                path.enc(e);
+            }
+            Self::UnknownVariant { path, name } => {
+                e.leb(10);
                 path.enc(e);
                 name.enc(e);
             }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(10)? {
+        Ok(match d.tag(11)? {
             0 => Self::UnexpectedEnd {
                 position: Wire::dec(d)?,
             },
@@ -514,6 +519,9 @@ impl Wire for JsonError {
                 expected: Wire::dec(d)?,
             },
             8 => Self::MissingField {
+                path: Wire::dec(d)?,
+            },
+            9 => Self::DuplicateField {
                 path: Wire::dec(d)?,
             },
             _ => Self::UnknownVariant {

@@ -1,0 +1,14 @@
+# test: a per-trait replacement cannot remove declaration enum tagging
+# Rule: std-serde.enum-tagging.declaration-fact.
+use std.serde.{Serialize, tag}
+use std.structure.Structure
+
+@tag("kind")
+enum Message:
+    Text(value: string)
+
+impl Serialize for Message by Structure:
+    Self = [] # diagnostic: enum-tagging-not-on-declaration
+
+pub fn main() -> void:
+    _ := Message.Text(value="hello")
