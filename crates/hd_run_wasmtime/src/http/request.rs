@@ -2,6 +2,7 @@ use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use flate2::read::{MultiGzDecoder, ZlibDecoder};
 use hd_run::Grants;
 use ureq::http::{HeaderName, HeaderValue};
 use ureq::unversioned::transport::{Connector, RustlsConnector};
@@ -14,6 +15,8 @@ use super::client::granted_url;
 use super::connector::{Cancel, HttpResolver, HttpTcpConnector};
 use super::target::{Target, resolve};
 use super::{Headers, is_token};
+
+const MAX_DECODED_BYTES: usize = 64 * 1024 * 1024;
 
 pub(crate) struct Request {
     method: String,
@@ -196,7 +199,7 @@ fn once(
     let status = response.status().as_u16();
     // `std-http.headers.case` and `.order`: ureq's header map lowercases
     // each name and keeps the values of one name in order.
-    let headers = response
+    let mut headers: Headers = response
         .headers()
         .iter()
         .map(|(name, value)| {
@@ -204,7 +207,19 @@ fn once(
             (name.as_str().to_owned(), text)
         })
         .collect();
-    let body = read_body(response.body_mut(), url)?;
+    let body = if method == "HEAD" || (100..200).contains(&status) || matches!(status, 204 | 304) {
+        Vec::new()
+    } else {
+        let codings = content_codings(&headers)?;
+        let body = read_body(response.body_mut(), url, &codings)?;
+        if !codings.is_empty() {
+            headers.retain(|(name, _)| {
+                !name.eq_ignore_ascii_case("content-encoding")
+                    && !name.eq_ignore_ascii_case("content-length")
+            });
+        }
+        body
+    };
     Ok(Response {
         status,
         headers,
@@ -213,13 +228,80 @@ fn once(
     })
 }
 
-/// Reads the whole body, with no size limit of its own.
-fn read_body(body: &mut ureq::Body, url: &Target) -> Result<Vec<u8>, HttpError> {
+fn content_codings(headers: &Headers) -> Result<Vec<String>, HttpError> {
+    let mut codings = Vec::new();
+    for (_, value) in headers
+        .iter()
+        .filter(|(name, _)| name.eq_ignore_ascii_case("content-encoding"))
+    {
+        for part in value.split(',') {
+            let coding = part.trim().to_ascii_lowercase();
+            if coding.is_empty() || !matches!(coding.as_str(), "gzip" | "deflate" | "identity") {
+                return Err(HttpError::InvalidContentEncoding {
+                    encoding: if coding.is_empty() {
+                        value.clone()
+                    } else {
+                        coding
+                    },
+                });
+            }
+            codings.push(coding);
+        }
+    }
+    Ok(codings)
+}
+
+/// Reads and decodes the whole body, stopping one byte past the public cap.
+fn read_body(
+    body: &mut ureq::Body,
+    url: &Target,
+    codings: &[String],
+) -> Result<Vec<u8>, HttpError> {
     let mut bytes = Vec::new();
-    body.with_config()
-        .reader()
-        .read_to_end(&mut bytes)
-        .map_err(|error| failure(&ureq::Error::from(error), url))?;
+    let mut reader = body.with_config().reader();
+    let transforms = codings.iter().any(|coding| coding != "identity");
+    if transforms {
+        reader
+            .read_to_end(&mut bytes)
+            .map_err(|error| failure(&ureq::Error::from(error), url))?;
+    } else {
+        reader
+            .take((MAX_DECODED_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|error| failure(&ureq::Error::from(error), url))?;
+    }
+    decode_bytes(bytes, codings)
+}
+
+fn decode_bytes(mut bytes: Vec<u8>, codings: &[String]) -> Result<Vec<u8>, HttpError> {
+    if bytes.len() > MAX_DECODED_BYTES && codings.iter().all(|coding| coding == "identity") {
+        return Err(HttpError::OutputTooLarge);
+    }
+    for coding in codings.iter().rev() {
+        if coding == "identity" {
+            continue;
+        }
+        let input = std::io::Cursor::new(bytes);
+        let reader: Box<dyn Read> = match coding.as_str() {
+            "gzip" => Box::new(MultiGzDecoder::new(input)),
+            "deflate" => Box::new(ZlibDecoder::new(input)),
+            _ => unreachable!("content codings are validated above"),
+        };
+        let mut decoded = Vec::new();
+        reader
+            .take((MAX_DECODED_BYTES + 1) as u64)
+            .read_to_end(&mut decoded)
+            .map_err(|_| HttpError::InvalidContentEncoding {
+                encoding: coding.clone(),
+            })?;
+        if decoded.len() > MAX_DECODED_BYTES {
+            return Err(HttpError::OutputTooLarge);
+        }
+        bytes = decoded;
+    }
+    if bytes.len() > MAX_DECODED_BYTES {
+        return Err(HttpError::OutputTooLarge);
+    }
     Ok(bytes)
 }
 
@@ -322,7 +404,7 @@ fn check_credentials(value: &str) -> Result<(), HttpError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HttpError, Request, encode};
+    use super::{HttpError, MAX_DECODED_BYTES, Request, decode_bytes, encode};
     use crate::codec::{Dec, Enc};
     use crate::http::test_support::{bounded_accept, read_request, request, send, write_response};
     use hd_run::{Grants, Limit};
@@ -370,6 +452,12 @@ mod tests {
                 },
                 7,
             ),
+            (
+                HttpError::InvalidContentEncoding {
+                    encoding: "gzip".into(),
+                },
+                11,
+            ),
         ] {
             let encoded = encode(Err(failure));
             let mut d = Dec::new(encoded.done());
@@ -377,6 +465,22 @@ mod tests {
             assert_eq!(d.leb().unwrap(), variant);
             assert!(!d.str().unwrap().is_empty());
         }
+        assert_eq!(encode(Err(HttpError::OutputTooLarge)).done(), [1, 12]);
+    }
+
+    #[test]
+    fn decoded_output_accepts_the_64_mib_boundary_and_rejects_the_next_byte() {
+        let identity = vec!["identity".to_owned()];
+        assert_eq!(
+            decode_bytes(vec![0; MAX_DECODED_BYTES], &identity)
+                .unwrap()
+                .len(),
+            MAX_DECODED_BYTES
+        );
+        assert_eq!(
+            decode_bytes(vec![0; MAX_DECODED_BYTES + 1], &identity),
+            Err(HttpError::OutputTooLarge)
+        );
     }
 
     #[test]

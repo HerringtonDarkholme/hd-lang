@@ -294,12 +294,12 @@ test("Http reaches the page's own origin through the browser, and no other", asy
     const result = await run(single(source), "run");
     assert.equal(result.status, "ok", result.summary);
     assert.deepEqual(result.stdout, [
-      "status 200 | text/plain",
+      "status 200 accept-encoding=gzip, deflate| text/plain",
       "HTTP status 404 for http://127.0.0.1:8123/missing",
       "the browser refused the request",
       "the playground grants no example.com",
       "the playground grants no 127.0.0.1",
-      "x-tag=a|hi",
+      "x-tag=a,accept-encoding=gzip, deflate|hi",
     ]);
     // Another origin never reaches the browser (std-http.playground.other-origin).
     assert.deepEqual(sent, [

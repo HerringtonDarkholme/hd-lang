@@ -117,8 +117,10 @@ mod tests {
         write_response,
     };
     use crate::runtime::reactor::Reactor;
+    use flate2::Compression;
+    use flate2::write::GzEncoder;
     use hd_run::Grants;
-    use std::io::Read;
+    use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
@@ -320,13 +322,26 @@ mod tests {
     /// `std-http.headers.case`, `.order` and `.pairs`: names arrive in
     /// lowercase, and the values of one name keep their order.
     #[test]
-    fn client_keeps_status_headers_bytes_and_does_not_decode_gzip() {
-        let (url, server) = server(b"HTTP/1.1 500 Error\r\nX-A: first\r\nx-B: \xe9\r\nX-A: second\r\nContent-Encoding: gzip\r\nContent-Length: 3\r\n\r\n\xff\0z".to_vec());
+    fn client_decodes_gzip_and_removes_encoded_representation_headers() {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(b"decoded").unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut wire = b"HTTP/1.1 500 Error\r\nX-A: first\r\nx-B: ".to_vec();
+        wire.push(0xe9);
+        wire.extend(
+            format!(
+                "\r\nX-A: second\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\n\r\n",
+                compressed.len()
+            )
+            .bytes(),
+        );
+        wire.extend(compressed);
+        let (url, server) = server(wire);
         let r = request("GET", &url, &vec![], &[], 10);
-        let encoded = send(r.done(), &Grants::default());
-        let (status, headers, body) = response(encoded.done());
+        let reply = send(r.done(), &Grants::default());
+        let (status, headers, body) = response(reply.done());
         assert_eq!(status, 500);
-        assert_eq!(body, b"\xff\0z");
+        assert_eq!(body, b"decoded");
         let values = |name: &str| {
             headers
                 .iter()
@@ -336,9 +351,9 @@ mod tests {
         };
         assert_eq!(values("x-a"), ["first", "second"]);
         assert_eq!(values("x-b"), ["é"]);
-        assert_eq!(values("content-encoding"), ["gzip"]);
-        assert_eq!(values("content-length"), ["3"]);
-        assert_eq!(headers.len(), 5);
+        assert!(values("content-encoding").is_empty());
+        assert!(values("content-length").is_empty());
+        assert_eq!(headers.len(), 3);
         assert!(headers.iter().all(|(n, _)| *n == n.to_ascii_lowercase()));
         let wire = String::from_utf8(server.join().unwrap()).unwrap();
         assert!(wire.starts_with("GET /path?q=1 HTTP/1.1\r\n"), "{wire}");

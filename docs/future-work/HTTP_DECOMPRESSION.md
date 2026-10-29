@@ -1,7 +1,7 @@
 # HTTP Response Decompression
 
-**Status:** design accepted 2026-10-28; domain: `std.http` and its host
-providers; not implemented.
+**Status:** implemented by [the `std.http` specification](../../spec/std/http.md);
+design accepted 2026-10-28.
 
 ## Proposal
 
@@ -11,20 +11,18 @@ the host for a decoded response. Decoding happens in the host before
 
 ```text
 use std.http.{Client, Http, HttpError, Request, Url}
+use std.time.Clock
 
-fn release_notes!(url: string) -> Result[string, HttpError] $ Http:
+fn release_notes!(url: string) -> Result[string, HttpError] $ Http + Clock:
     let mut client = Client::new()
     request := Request::get(Url::parse(url)?)
     response := client.send!(&request)?
     .Ok(response.text()?)
 ```
 
-The checked signatures and examples are in
-[`http-decompression/`](http-decompression/). Run `hd fmt --check`,
-`hd lint --all`, and `hd check --all` there.
-
-`send!` itself requires only `Http`, following the owner direction that an
-ordinary send must not acquire clock authority. Timeout policy is outside this
+`Request.send!` requires only `Http`. `Client.send!` retains its existing
+`Http + Clock` requirements because its cookie jar evaluates expiry and
+`Max-Age`; decompression adds no authority. Timeout policy is outside this
 decompression design.
 
 ## Problems Solved
@@ -55,7 +53,7 @@ Before every request, the send path adds `Accept-Encoding: gzip, deflate` only
 when the request has neither `Accept-Encoding` nor `Range`. An explicit request
 header is preserved without changing the decoded-response contract.
 
-On a final response, the host parses every `Content-Encoding` token. It
+On every response, the host parses every `Content-Encoding` token. It
 decodes supported stacked codings in reverse order. `identity` is a no-op. If
 every coding is supported, it removes `Content-Encoding` and `Content-Length`;
 those fields described the encoded representation.
@@ -65,9 +63,7 @@ raw-transport host returns `InvalidContentEncoding` for an unsupported coding
 or a partially supported stack. Fetch-based
 hosts may already have decoded a coding before the hd adapter can inspect it;
 the adapter treats that platform-decoded representation as the decoded result
-and removes stale representation headers. Cookies and redirects are processed
-before the final response is returned, so redirect bodies are not decoded for
-Wasm.
+and removes stale representation headers.
 
 A `Range` request asks for `identity`; if the server still returns a supported
 coding, the host decodes it. A HEAD response and 1xx, 204, or 304 responses have
@@ -144,7 +140,7 @@ size of the 71 KB JSON program used for comparison. A future non-HTTP
 | Concatenated gzip members | all members concatenate, and each trailer is checked |
 | Bad gzip CRC or truncated deflate | `send!` returns `InvalidContentEncoding` |
 | HEAD, 204, or 304 with an empty body | no decoder runs for an empty body |
-| Redirect with a compressed body | body is skipped; only the final response is wrapped |
+| Redirect with a compressed body | each hop is decoded and bounded before the client continues |
 | Scripted response | its queued value is already decoded |
 | Decoded output reaches 64 MiB | the final byte at the limit succeeds |
 | Decoded output exceeds 64 MiB | the host stops with `OutputTooLarge` and constructs no `Response` |

@@ -6,8 +6,10 @@
 //!
 //! ureq supplies TCP, TLS, deadlines, header and body framing. A response
 //! header name arrives in lowercase and only the values of one name keep
-//! their order (`std-http.headers.case`, `.order`). Compression and
-//! environment proxies are deliberately disabled. Timed DNS returns promptly, but std's
+//! their order (`std-http.headers.case`, `.order`). The provider advertises
+//! and decodes gzip and zlib-wrapped deflate itself; ureq's implicit
+//! compression and environment proxies are disabled. Timed DNS returns
+//! promptly, but std's
 //! underlying getaddrinfo call in the DNS helper thread cannot be aborted.
 //!
 //! `call` is the provider; `client` starts and finishes a send, `request`

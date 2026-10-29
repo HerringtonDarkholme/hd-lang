@@ -1,0 +1,63 @@
+# test: HTTP sends advertise portable codings while ScriptedHttp responses are already decoded
+# expect: test
+# Rules: std-http.decode.advertise-default, std-http.decode.explicit-accept-encoding,
+# std-http.decode.range-identity, std-http.decode.all-body-readers, std-http.decode.scripted.
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url}
+use std.testing.{assert, assert_equal}
+
+fn url() -> Url:
+    Url::parse("https://example.test/data").expect("fixture URL")
+
+fn send!(http: *mut ScriptedHttp, request: &Request) -> Response:
+    http.reply(request.url.to_string(), .Ok(Response::status(.Ok).set_text("decoded")))
+    $.with(Http=http):
+        request.send!().expect("scripted response")
+
+tests:
+    it("adds the portable default only to the outgoing copy"):
+        http := ScriptedHttp::new()
+        request := Request::get(url())
+        response := send!(http, &request)
+        assert_equal(response.text(), .Ok("decoded"), reason="scripted body is already decoded")
+        assert_equal(
+            http.received()[0].header(.AcceptEncoding),
+            .Some("gzip, deflate"),
+            reason="default advertisement",
+        )
+        assert_equal(request.header(.AcceptEncoding), .None, reason="caller value unchanged")
+
+    it("preserves an explicit content-coding request"):
+        http := ScriptedHttp::new()
+        request := Request::get(url()).set_header(.AcceptEncoding, "gzip")
+        _ := send!(http, &request)
+        assert_equal(
+            http.received()[0].header(.AcceptEncoding),
+            .Some("gzip"),
+            reason="explicit value retained",
+        )
+
+    it("a range asks for identity"):
+        http := ScriptedHttp::new()
+        request := Request::get(url()).set_header(.Range, "bytes=0-3")
+        _ := send!(http, &request)
+        assert_equal(
+            http.received()[0].header(.AcceptEncoding),
+            .Some("identity"),
+            reason="range representation",
+        )
+
+    it("decoding failures are typed permanent errors"):
+        malformed := HttpError.InvalidContentEncoding("gzip")
+        assert_equal(
+            malformed.to_string(),
+            "invalid HTTP content encoding gzip",
+            reason="coding retained",
+        )
+        assert(!malformed.is_transient(), reason="retry policy is explicit")
+        too_large := HttpError.OutputTooLarge
+        assert_equal(
+            too_large.to_string(),
+            "the decoded HTTP response exceeds 64 MiB",
+            reason="portable cap",
+        )
+        assert(!too_large.is_transient(), reason="a larger body stays too large")

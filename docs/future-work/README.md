@@ -20,7 +20,7 @@ stays open (#18, #163, #166, #181, #182, #184, #646, #807).
 ### Application and host
 
 - [HTTP Multipart Forms](HTTP_MULTIPART.md): buffered `multipart/form-data` parts over the existing HTTP message types; design accepted 2026-10-28, implementation not started (#948).
-- [HTTP Response Decompression](HTTP_DECOMPRESSION.md): host-side gzip and deflate decoding for every send, with a 64 MiB decoded-body cap; design accepted 2026-10-28, not implemented (#949).
+- [HTTP Response Decompression](HTTP_DECOMPRESSION.md): implemented by the [`std.http` decoded-response rules](../../spec/std/http.md#decoded-responses).
 - [Validation](VALIDATION.md): short design and [checked signatures and examples](validation/) for typed JSON/CLI/environment validation; design accepted 2026-10-28, implementation not started (#846).
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).

@@ -1,8 +1,11 @@
 //! Exact exchange-buffer HTTP parity against deterministic loopback servers.
 
 use crate::support::*;
+use flate2::Compression;
+use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 use hd_run::Limit;
 use std::fmt::Write;
+use std::io::Write as IoWrite;
 use std::net::ToSocketAddrs;
 use std::time::Duration;
 
@@ -43,7 +46,33 @@ fn response(status: u16, headers: &[(&str, &str)], body: &[u8], url: &str) -> Ve
 
 fn error(variant: u64, text: &str) -> Vec<u8> {
     let e = Enc::default().leb(1).leb(variant);
-    if variant == 5 { e.0 } else { e.str(text).0 }
+    if matches!(variant, 5 | 12) {
+        e.0
+    } else {
+        e.str(text).0
+    }
+}
+
+fn gzip(parts: &[&[u8]]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for part in parts {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(part).unwrap();
+        out.extend(encoder.finish().unwrap());
+    }
+    out
+}
+
+fn zlib(bytes: &[u8]) -> Vec<u8> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(bytes).unwrap();
+    encoder.finish().unwrap()
+}
+
+fn raw_deflate(bytes: &[u8]) -> Vec<u8> {
+    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(bytes).unwrap();
+    encoder.finish().unwrap()
 }
 
 fn raw(status: u16, headers: &[(&str, &str)], body: &[u8]) -> Vec<u8> {
@@ -55,6 +84,148 @@ fn raw(status: u16, headers: &[(&str, &str)], body: &[u8]) -> Vec<u8> {
     let mut bytes = text.into_bytes();
     bytes.extend_from_slice(body);
     bytes
+}
+
+fn encoded_raw(status: u16, codings: &[&str], body: &[u8], extra: &[(&str, &str)]) -> Vec<u8> {
+    let mut text = format!("HTTP/1.1 {status} Test\r\n");
+    for coding in codings {
+        write!(text, "Content-Encoding: {coding}\r\n").unwrap();
+    }
+    for (name, value) in extra {
+        write!(text, "{name}: {value}\r\n").unwrap();
+    }
+    write!(text, "Content-Length: {}\r\n\r\n", body.len()).unwrap();
+    let mut bytes = text.into_bytes();
+    bytes.extend_from_slice(body);
+    bytes
+}
+
+/// `std-http.decode.portable-codings`, `.all-content-encoding-fields`,
+/// `.stacked-reverse`, `.gzip-members`, and `.normalize-headers`.
+#[test]
+fn http_decodes_gzip_zlib_stacks_identity_and_concatenated_members() {
+    let scratch = Scratch::new();
+    let server = HttpFixture::new(|request| {
+        let (codings, body) = match request.target.as_str() {
+            "/gzip" => (vec!["gzip"], gzip(&[b"gzip body"])),
+            "/stack" => (vec!["gzip", "deflate"], zlib(&gzip(&[b"stacked body"]))),
+            "/members" => (vec!["gzip"], gzip(&[b"first ", b"second"])),
+            "/identity" => (vec!["identity"], b"identity body".to_vec()),
+            target => panic!("unexpected target {target}"),
+        };
+        (
+            encoded_raw(200, &codings, &body, &[("X-Decoded", "yes")]),
+            Duration::ZERO,
+        )
+    });
+    let mut program = Program::new();
+    for (target, decoded) in [
+        ("/gzip", b"gzip body".as_slice()),
+        ("/stack", b"stacked body".as_slice()),
+        ("/members", b"first second".as_slice()),
+        ("/identity", b"identity body".as_slice()),
+    ] {
+        let url = server.url(target);
+        program.call_waiting(
+            "hd:Http",
+            "send",
+            request(0, &url, &[("Accept-Encoding", "gzip, deflate")], b"", None),
+            response(200, &[("x-decoded", "yes")], decoded, &url),
+        );
+    }
+    assert_program(&scratch, program, vec![], || {});
+    for request in server.seen.lock().unwrap().iter() {
+        assert_eq!(request.values("Accept-Encoding"), ["gzip, deflate"]);
+    }
+}
+
+/// `std-http.decode.no-partial-stack`, `.corrupt`, and `.cap`.
+#[test]
+fn http_rejects_unsupported_corrupt_raw_deflate_and_oversized_output() {
+    let scratch = Scratch::new();
+    let oversized_plain = vec![0; 64 * 1024 * 1024 + 1];
+    let oversized = gzip(&[oversized_plain.as_slice()]);
+    let server = HttpFixture::new(move |request| {
+        let (codings, body) = match request.target.as_str() {
+            "/unsupported" => (vec!["br, gzip"], gzip(&[b"body"])),
+            "/raw-deflate" => (vec!["deflate"], raw_deflate(b"body")),
+            "/corrupt" => {
+                let mut body = gzip(&[b"body"]);
+                body.truncate(body.len() - 3);
+                (vec!["gzip"], body)
+            }
+            "/oversized" => (vec!["gzip"], oversized.clone()),
+            target => panic!("unexpected target {target}"),
+        };
+        (encoded_raw(200, &codings, &body, &[]), Duration::ZERO)
+    });
+    let mut program = Program::new();
+    for (target, expected) in [
+        ("/unsupported", error(11, "br")),
+        ("/raw-deflate", error(11, "deflate")),
+        ("/corrupt", error(11, "gzip")),
+        ("/oversized", error(12, "")),
+    ] {
+        program.call_waiting(
+            "hd:Http",
+            "send",
+            request(0, &server.url(target), &[], b"", None),
+            expected,
+        );
+    }
+    assert_program(&scratch, program, vec![], || {});
+}
+
+/// Every redirect hop has the same decoded-response contract.
+#[test]
+fn http_decodes_and_rejects_a_corrupt_intermediate_redirect_body() {
+    let scratch = Scratch::new();
+    let server = HttpFixture::new(|request| {
+        if request.target == "/start" {
+            (
+                encoded_raw(
+                    302,
+                    &["gzip"],
+                    b"not a gzip stream",
+                    &[("Location", "/final")],
+                ),
+                Duration::ZERO,
+            )
+        } else {
+            panic!("a corrupt redirect body stops before the next request")
+        }
+    });
+    let mut program = Program::new();
+    let start = server.url("/start");
+    program.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &start, &[], b"", Some(1)),
+        error(11, "gzip"),
+    );
+    assert_program(&scratch, program, vec![], || {});
+}
+
+/// `std-http.decode.bodyless`: an invalid coding body attached to HEAD is
+/// neither exposed nor decoded.
+#[test]
+fn http_head_response_has_no_body_to_decode() {
+    let scratch = Scratch::new();
+    let server = HttpFixture::new(|_| (encoded_raw(200, &["gzip"], b"", &[]), Duration::ZERO));
+    let mut program = Program::new();
+    let url = server.url("/");
+    program.call_waiting(
+        "hd:Http",
+        "send",
+        request(1, &url, &[], b"", None),
+        response(
+            200,
+            &[("content-encoding", "gzip"), ("content-length", "0")],
+            b"",
+            &url,
+        ),
+    );
+    assert_program(&scratch, program, vec![], || {});
 }
 
 #[test]

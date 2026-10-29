@@ -283,6 +283,59 @@ test("statuses and raw body bytes survive; repeated cookies use the platform mul
   ]);
 });
 
+test("Fetch-decoded responses drop stale coding headers and enforce the 64 MiB cap", async () => {
+  const decoded = await operation(request("https://allowed.test/"), {
+    fetch: () =>
+      new Response("decoded", {
+        headers: { "Content-Encoding": "gzip", "Content-Length": "99", "X-Test": "kept" },
+      }),
+  }).done;
+  assert.ok(decoded.ok);
+  assert.equal(new TextDecoder().decode(decoded.value.body), "decoded");
+  assert.equal(
+    decoded.value.headers.some(([name]) =>
+      ["content-encoding", "content-length"].includes(name.toLowerCase()),
+    ),
+    false,
+  );
+  assert.deepEqual(
+    decoded.value.headers.find(([name]) => name === "x-test"),
+    ["x-test", "kept"],
+  );
+
+  const atLimit = await operation(request("https://allowed.test/"), {
+    fetch: () => ({
+      status: 200,
+      headers: new Headers(),
+      arrayBuffer: async () => new ArrayBuffer(64 * 1024 * 1024),
+    }),
+  }).done;
+  assert.equal(atLimit.value.body.length, 64 * 1024 * 1024);
+
+  const oversized = await operation(request("https://allowed.test/"), {
+    fetch: () => ({
+      status: 200,
+      headers: new Headers(),
+      arrayBuffer: async () => new ArrayBuffer(64 * 1024 * 1024 + 1),
+    }),
+  }).done;
+  assert.equal(oversized.error.tag, "OutputTooLarge");
+
+  let redirects = 0;
+  const oversizedRedirect = await operation(request("https://allowed.test/start"), {
+    fetch: () => {
+      redirects++;
+      return {
+        status: 302,
+        headers: new Headers({ Location: "/next" }),
+        arrayBuffer: async () => new ArrayBuffer(64 * 1024 * 1024 + 1),
+      };
+    },
+  }).done;
+  assert.equal(oversizedRedirect.error.tag, "OutputTooLarge");
+  assert.equal(redirects, 1);
+});
+
 test("native fetch and abort run only through the lease callbacks", async () => {
   const owner = new AsyncLocalStorage(),
     events = [];

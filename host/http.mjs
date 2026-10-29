@@ -23,6 +23,7 @@ import { postReply } from "./worker-control.mjs";
 import http from "node:http";
 import https from "node:https";
 import { isAsciiUrl, writtenHost } from "./core.mjs";
+import { MAX_DECODED_BYTES, decodedResponse, hasNoBody } from "./http-decode.mjs";
 import { workerData } from "node:worker_threads";
 import { createGrant } from "./node.mjs";
 
@@ -120,18 +121,35 @@ const once = (url, host, method, headers, body, ms, signal) =>
     signal.addEventListener("abort", aborted, { once: true });
     req.on("error", (e) => settle(failure(e, host)));
     req.on("response", (res) => {
+      const groups = new Map();
+      for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
+        const name = res.rawHeaders[i].toLowerCase();
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(res.rawHeaders[i + 1]);
+      }
+      const pairs = [...groups].flatMap(([name, values]) => values.map((v) => [name, v]));
+      const codings = pairs
+        .filter(([name]) => name === "content-encoding")
+        .flatMap(([, value]) => value.split(",").map((part) => part.trim().toLowerCase()));
+      const decodedIsWireBody = codings.every((coding) => coding === "identity");
       const chunks = [];
-      res.on("data", (c) => chunks.push(c));
+      let received = 0;
+      res.on("data", (c) => {
+        received += c.length;
+        if (
+          !hasNoBody(method, res.statusCode) &&
+          decodedIsWireBody &&
+          received > MAX_DECODED_BYTES
+        ) {
+          settle(err("OutputTooLarge"));
+          res.destroy();
+          return;
+        }
+        chunks.push(c);
+      });
       res.on("error", (e) => settle(failure(e, host)));
       res.on("end", () => {
-        const groups = new Map();
-        for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
-          const name = res.rawHeaders[i].toLowerCase();
-          if (!groups.has(name)) groups.set(name, []);
-          groups.get(name).push(res.rawHeaders[i + 1]);
-        }
-        const pairs = [...groups].flatMap(([name, values]) => values.map((v) => [name, v]));
-        settle({ status: res.statusCode, headers: pairs, body: Buffer.concat(chunks) });
+        settle(decodedResponse(method, res.statusCode, pairs, Buffer.concat(chunks)));
       });
     });
     req.end(body.length ? Buffer.from(body) : undefined);
