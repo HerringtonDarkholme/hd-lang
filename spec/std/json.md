@@ -412,7 +412,8 @@ The `expected` of a `WrongType` depends on the type that reads the value:
 | --- | --- | --- |
 | r[std-json.error.expected.scalar] Scalars | `bool`, `char`, `string`, and each integer and float type | the type's name, as `"u8"` |
 | r[std-json.error.expected.array] Lists | `List[T]` | `"array"` |
-| r[std-json.error.expected.object] Objects | `Map[string, V]`, a derived struct, and a derived variant's payload | `"object"` |
+| r[std-json.error.expected.object-map-key] Objects | `Map[K, V]` whose key implements `MapKey`, a derived struct, and a derived variant's payload | `"object"` |
+| r[std-json.error.expected.map-key] Map keys | a key that `K::from_key` refuses | `"map key"` |
 | r[std-json.error.expected.variant] Enums | a derived enum | `"variant"` |
 
 > **Note.** A path is for people to read. A key that holds `.` or `[`
@@ -595,7 +596,7 @@ JSON writes and reads each standard implementation of
 | r[std-json.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload's `Json` for `.Some` | `.None` from `null`, and `.Some` of what `T` reads from any other value |
 | r[std-json.std.result] Result | `Result[T, E]`, where `T` and `E` implement the trait | an `Object` with one key: `Ok` or `Err`, and the direct payload as its value | the same one-key object, with its value read as the corresponding payload type |
 | r[std-json.std.list] List | `List[T]`, where `T` implements the trait | an `Array` of the items' values, in order | an `Array`, item by item |
-| r[std-json.std.map] Map | `Map[string, V]`, where `V` implements the trait | an `Object` of the entries' values, in the map's iteration order | an `Object`, entry by entry, in its key order |
+| r[std-json.std.map-scalar-keys] Map | `Map[K, V]`, where `K` implements `Eq`, `Hash`, and `MapKey`, and `V` implements the trait | an `Object` of the entries' values, in the map's iteration order | an `Object`, entry by entry, in its key order |
 
 1. r[std-json.std.json.impls] `std.json` implements `Serialize` and `Deserialize` for `Json`. A `Json` reads through `peek`, so it takes any value.
 2. r[std-json.std.integer.read] A float is never an integer, so `1.0` is a `WrongType` for every integer type. So is an integer outside the type's range.
@@ -603,6 +604,13 @@ JSON writes and reads each standard implementation of
 4. r[std-json.std.float-read] An `f32` reads the nearest `f32` to the number's `f64`. A number past the finite `f32` range is a `WrongType`.
 5. r[std-json.std.wrong-kind] Any other kind of value is a `WrongType`, with the `expected` that [Decode Errors](#decode-errors) gives.
 6. r[std-json.std.item-path] An error inside a list item gets the segment `[index]`, and one inside a map value gets `.key`.
+7. r[std-json.std.map-key-write] JSON writes every `MapKeyValue` as an object-key string: lowercase booleans, decimal integers, a character, or `Text` unchanged.
+8. r[std-json.std.map-key-read] JSON offers an object key to `MapKey.from_key` as `MapKeyValue.Text`.
+9. r[std-json.std.map-key-bool] A boolean key reads only the exact text `true` or `false`.
+10. r[std-json.std.map-key-char] A character key reads text containing exactly one Unicode scalar value.
+11. r[std-json.std.map-key-integer-grammar] An integer key accepts JSON integer text without whitespace, `+`, or a leading zero before another digit.
+12. r[std-json.std.map-key-integer-range] An integer key must fit its requested integer type.
+13. r[std-json.std.map-key-wrong-type] A refused key is `WrongType` with expected `"map key"` at that key's path.
 
 ```text
 use std.json.{encode, decode, JsonError}
@@ -614,9 +622,8 @@ fn round_trip(names: List[string]) -> Result[List[string], JsonError]:
 > **Note.** `T??` loses a layer: `.Some(.None)` writes `null`, which reads
 > back as `.None`. A NaN writes `null`, which no float reads.
 
-> **Note.** Only a `Map` with `string` keys implements the trait, by
-> [`std-serde.std.map-keys`](serde.md#r-std-serde.std.map-keys), so
-> `encode` of a `Map[i32, i32]` is an `unsatisfied-trait-bound` error.
+> **Note.** A format-neutral integer key stays numeric until JSON writes its
+> object-key string. A future binary format may keep the integer scalar.
 
 ### Derived Serialize
 

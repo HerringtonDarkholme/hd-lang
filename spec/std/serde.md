@@ -39,7 +39,7 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 | r[std-serde.model.float] Float | any `f64`, NaN and infinities included | `float(value)` |
 | r[std-serde.model.text] Text | a `string` | `text(value)` |
 | r[std-serde.model.list] List | items in order | `begin_list(len)`, one value per item, `end_list()` |
-| r[std-serde.model.map] Map | entries in order, each with a `string` key | `begin_map(len)`, then per entry `key(k)` and one value, then `end_map()` |
+| r[std-serde.model.map-scalar-keys] Map | entries in order, each with a `MapKeyValue` key | `begin_map(len)`, then per entry `map_key(k)` and one value, then `end_map()` |
 | r[std-serde.model.data-record] Data record | a struct value | `begin_data(facts, v)`, then per member `member(m)` and one value, then `end_data()` |
 | r[std-serde.model.enum-record] Enum record | a unit, named, or mixed enum variant | `begin_variant(facts, v)`, then per member `member(m)` and one value, then `end_variant()` |
 | r[std-serde.model.required-newtype-variant] Newtype variant | an enum variant with one direct payload | `begin_newtype_variant(facts, v)`, then the payload value, then `end_variant()`; the hook is required, so each format must support the shape or return its own error |
@@ -70,7 +70,7 @@ A `Deserializer` reads the same tree, one call per value:
 | r[std-serde.read.is-null] `is_null` | `is_null()` | `true` when the next value is null or absent, which reads it; `false` otherwise, which leaves it |
 | r[std-serde.read.scalar] Scalars | `bool`, `int`, `uint`, `float`, `text` | the next value, when it is of that kind and fits the result type |
 | r[std-serde.read.list] List | `begin_list()`, then `next_item()` before each item | `next_item` is `true` when an item follows, and `false` after the last |
-| r[std-serde.read.map] Map | `begin_map()`, then `next_key()` before each entry | `next_key` is the entry's key, or `.None` after the last |
+| r[std-serde.read.map-scalar-keys] Map | `begin_map()`, then `next_map_key()` before each entry | `next_map_key` is the entry's `MapKeyValue`, or `.None` after the last |
 | r[std-serde.read.data-record] Data record | `begin_data(facts, choices)`, then the calls for its members, then `end_data()` | `begin_data` is the index of the one struct variant; its default calls `begin_variant`, and `end_data`'s default calls `end_variant` |
 | r[std-serde.read.enum-record] Enum record | `begin_variant(facts, choices)`, then the calls for its payload, then `end_variant()` | `begin_variant` is the index in `choices` of the variant read |
 | r[std-serde.read.required-newtype-variant] Newtype variant | `begin_variant(facts, choices)`, `begin_newtype_variant()`, then the direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_newtype_variant` is required, so each format must position the reader at the direct payload or return its own error |
@@ -156,7 +156,7 @@ For example, `@rename("total")` on `total_cents: i64` uses the key `total`.
 9. r[std-serde.rename-all.constructor] `rename_all(style: RenameCase) -> RenameAll` constructs the fact.
 10. r[std-serde.rename-all.conversion] Style conversion follows the table, applying ASCII case changes to a member's written name.
 11. r[std-serde.rename-all.container] A standard format's container facts are the current record's or enum's per-derivation facts supplied to `begin_variant`.
-12. r[std-serde.rename-all.map-keys] A `RenameAll` style does not change string map keys.
+12. r[std-serde.rename-all.map-key-values] A `RenameAll` style does not change a map key's scalar value or text.
 
 | `RenameCase` variant | Style | Conversion | `order_id` becomes |
 | --- | --- | --- | --- |
@@ -175,6 +175,39 @@ For example, `@rename_all(.CamelCase)` on `OrderPaid` gives the member
 > **Why.** Document names belong to the serialization view; preserving the
 > source name lets other adapters, such as environment readers, name fields
 > independently.
+
+## Map Keys
+
+`MapKey` converts a map key to and from a format-neutral scalar:
+
+```text
+use std.serde.{MapKey, MapKeyValue}
+
+struct Language:
+    code: string
+
+impl MapKey for Language:
+    fn to_key(self) -> MapKeyValue: MapKeyValue.Text(self.code)
+    fn from_key(value: MapKeyValue) -> Language?:
+        match value:
+            .Text(code) => .Some(Language { code: code })
+            _ => .None
+```
+
+1. r[std-serde.map-key.value] `MapKeyValue` is the public enum `Bool(bool)`, `Int(i64)`, `Uint(u64)`, and `Text(string)`.
+2. r[std-serde.map-key.trait] `MapKey` declares `to_key(self) -> MapKeyValue` and `from_key(value: MapKeyValue) -> Self?`.
+3. r[std-serde.map-key.format-neutral] A serializer receives the scalar from `to_key`, and a deserializer gives `from_key` the scalar it read.
+4. r[std-serde.map-key.writer-default] `Serializer.map_key` defaults to `key` with the scalar's canonical text.
+5. r[std-serde.map-key.reader-default] `Deserializer.next_map_key` defaults to wrapping `next_key`'s text in `MapKeyValue.Text`.
+6. r[std-serde.map-key.builtins] `string`, every integer type, `char`, and `bool` implement `MapKey` with their matching scalar kind.
+7. r[std-serde.map-key.user-text] A user implementation uses `Text` for its public text representation and accepts that representation from `Text`.
+8. r[std-serde.map-key.derive-template] `std.serde` declares the template of `MapKey`, which `@derive(MapKey)` instantiates.
+9. r[std-serde.map-key.derive-shapes] Derived `MapKey` accepts a payload-free enum or an empty struct and uses the selected variant or struct name as `Text`.
+10. r[std-serde.map-key.derive-payload-reject] Derived `MapKey` rejects an enum variant or struct that has a member.
+11. r[std-serde.map-key.no-standard-impl] Floats, lists, and other user data types have no standard `MapKey` implementation.
+
+> **Why.** The scalar enum gives a binary format native integer and boolean
+> keys without adding one key-writer protocol per format.
 
 ### Absent Optional Members
 
@@ -234,7 +267,7 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 | r[std-serde.std.optional] Optional | `T?`, where `T` implements the trait | `null` for `.None`, and the payload for `.Some` | `.None` when `is_null` is `true`, and `.Some` of what `T` reads otherwise |
 | r[std-serde.std.result] Result | `Result[T, E]`, where `T` and `E` implement the trait | a newtype variant named `Ok` with the `T` payload, or one named `Err` with the `E` payload | the corresponding newtype variant and direct payload |
 | r[std-serde.std.list] List | `List[T]`, where `T` implements the trait | a list of the items, in order | a list, item by item |
-| r[std-serde.std.map-entries] Map | `Map[string, V]`, where `V` implements the trait | a map of the entries, in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic) | a map, entry by entry, in its order |
+| r[std-serde.std.map-key-entries] Map | `Map[K, V]`, where `K` implements `Eq`, `Hash`, and `MapKey`, and `V` implements the trait | a map of the scalar-keyed entries, in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic) | a map, entry by entry, in its order |
 | r[std-serde.std.set] Set | `Set[T]`, where `T` implements the trait | a list of the elements, in insertion order | a list, element by element; a repeated element keeps one entry |
 | r[std-serde.std.tuple] Tuple | a tuple type whose members implement the trait | a list of the members, in order | a list with one item per member, in order |
 | r[std-serde.std.reference] Reference | `&T` and `&mut T`, where `T` implements the trait | what `T` writes for the value the reference refers to | a new object that holds what `T` reads |
@@ -243,22 +276,28 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 2. r[std-serde.std.float-read] An `f32` reads the nearest `f32` to the `f64` it reads.
 3. r[std-serde.std.tuple-length] A tuple reads exactly one list item per member. A list with fewer items, or with items left after the last member, is the reader's `invalid(expected)` error, so JSON reports it at the path of the list or of the first extra item.
 4. r[std-serde.std.tuple-rest] A rest element is one member of type `List[T]`, by [`annot.walk.rest.default`](../lang/14-annotations.md#r-annot.walk.rest.default). So `(i32, List[i32]...)` writes `[1, [2, 3]]`, a list whose last item is the rest list.
-5. r[std-serde.std.map-keys] Only a `Map` whose key type is `string` implements the traits. Using a map with any other key type where they are required is an error. Error: `unsatisfied-trait-bound`.
+5. r[std-serde.std.map-key-bound] A `Map[K, V]` implements a serde trait only when `K` implements `Eq`, `Hash`, and `MapKey` and `V` implements that serde trait.
+6. r[std-serde.std.map-key-missing] Using a map key without `MapKey` where a serde trait is required is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.serde.Serialize
 
+@derive(Eq, Hash)
+struct Point:
+    x: i32
+    y: i32
+
 fn send[T < Serialize](value: T) -> void:
     pass
 
-fn send_counts(counts: Map[i32, i32]) -> void:
-    send(counts)  # error: unsatisfied-trait-bound
+fn send_points(points: Map[Point, i32]) -> void:
+    send(points)  # error: unsatisfied-trait-bound
 ```
 
 > **Note.** `T??` loses a layer: `.Some(.None)` writes `null`, which reads
 > back as `.None`.
 
-> **Why.** A map key is text in JSON, YAML, and TOML. A map with other
-> keys converts them first, so the program chooses their text.
+> **Why.** A format decides whether a key scalar is native or text. The
+> key type owns the conversion, so every format sees the same value.
 
 See also: [Serialization](../lang/14-annotations.md#serialization), [Typed JSON](json.md#typed-json), [Time](time.md#serialization), [Boundary Encoding](../lang/10-modules.md#boundary-encoding).

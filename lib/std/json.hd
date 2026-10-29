@@ -4,8 +4,23 @@
 use std.format.DebugWriter
 use std.iter.ListIter
 use std.error.Error
-use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind, member_name}
+use std.serde.{
+    Serialize,
+    Deserialize,
+    Serializer,
+    Deserializer,
+    MapKeyValue,
+    ValueKind,
+    member_name,
+}
 use std.structure.{VariantInfo, Member, Facts}
+
+fn map_key_text(key: MapKeyValue) -> string:
+    match key:
+        .Bool(value) => "$value"
+        .Int(value) => "$value"
+        .Uint(value) => "$value"
+        .Text(value) => value
 
 # One JSON value (r-std-json.value.decl). An object keeps its members in
 # insertion order (r-std-json.object.order).
@@ -1419,6 +1434,9 @@ impl Serializer for JsonWriter:
         self.pending = key
         .Ok(())
 
+    fn map_key(&mut self, key: MapKeyValue) -> Result[void, never]:
+        self.key(map_key_text(key))
+
     fn end_map(&mut self) -> Result[void, never]:
         closed := self.close()
         self.put(Json.Object(object_of(closed._1, closed._2)))
@@ -1805,6 +1823,9 @@ impl Serializer for TextWriter:
     fn key(&mut self, key: string) -> Result[void, Irregular]:
         self.name_next(key)
 
+    fn map_key(&mut self, key: MapKeyValue) -> Result[void, Irregular]:
+        self.key(map_key_text(key))
+
     fn end_map(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Entries)
 
@@ -2186,6 +2207,11 @@ impl Deserializer for JsonReader:
             _ => pass
         self.leave()
         .Ok(.None)
+
+    fn next_map_key(&mut self) -> Result[MapKeyValue?, JsonError]:
+        match self.next_key()?:
+            .Some(key) => .Ok(.Some(MapKeyValue.Text(key)))
+            .None => .Ok(.None)
 
     fn begin_data(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
         if self.present:
@@ -2690,6 +2716,11 @@ impl Deserializer for TextReader:
             _ => pass
         self.leave()
         .Ok(.None)
+
+    fn next_map_key(&mut self) -> Result[MapKeyValue?, JsonError]:
+        match self.next_key()?:
+            .Some(key) => .Ok(.Some(MapKeyValue.Text(key)))
+            .None => .Ok(.None)
 
     fn begin_data(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
         if self.present && self.byte() == 123:

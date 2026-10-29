@@ -9,6 +9,7 @@ use std.annotation.{annotate, cold}
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
+use std.text.Parse
 use std.structure.{
     Structure,
     Walker,
@@ -159,6 +160,28 @@ pub trait Serialize:
 pub trait Deserialize:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Self, R::Error]
 
+## The scalar kinds a serialization format may preserve for a map key.
+## See [std-serde.map-key.value](../../spec/std/serde.md#r-std-serde.map-key.value).
+pub enum MapKeyValue:
+    Bool(value: bool)
+    Int(value: i64)
+    Uint(value: u64)
+    Text(value: string)
+
+impl MapKeyValue:
+    fn as_text(self) -> string:
+        match self:
+            .Bool(value) => "$value"
+            .Int(value) => "$value"
+            .Uint(value) => "$value"
+            .Text(value) => value
+
+## A value that a serialization format may use as a map key.
+## See [std-serde.map-key.trait](../../spec/std/serde.md#r-std-serde.map-key.trait).
+pub trait MapKey:
+    fn to_key(self) -> MapKeyValue
+    fn from_key(value: MapKeyValue) -> Self?
+
 # A format's writer: one call per value of the data model
 # (r-std-serde.model.one-value).
 ## The format side of writing: it receives a value's parts, or fails with an error of its own type.
@@ -175,6 +198,8 @@ pub trait Serializer:
     fn end_list(&mut self) -> Result[void, Self::Error]
     fn begin_map(&mut self, len: usize) -> Result[void, Self::Error]
     fn key(&mut self, key: string) -> Result[void, Self::Error]
+    fn map_key(&mut self, key: MapKeyValue) -> Result[void, Self::Error]:
+        self.key(key.as_text())
     fn end_map(&mut self) -> Result[void, Self::Error]
     fn begin_data(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]:
         self.begin_variant(facts, v)
@@ -221,6 +246,10 @@ pub trait Deserializer:
     fn next_item(&mut self) -> Result[bool, Self::Error]
     fn begin_map(&mut self) -> Result[void, Self::Error]
     fn next_key(&mut self) -> Result[string?, Self::Error]
+    fn next_map_key(&mut self) -> Result[MapKeyValue?, Self::Error]:
+        match self.next_key()?:
+            .Some(key) => .Ok(.Some(MapKeyValue.Text(key)))
+            .None => .Ok(.None)
     fn begin_data(
         &mut self,
         facts: Facts,
@@ -699,6 +728,228 @@ impl[T < Deserialize] Deserialize for *mut T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[*mut T, R::Error]:
         .Ok(&mut T::deserialize(input)?)
 
+# Derived `MapKey`: a payload-free enum writes its selected variant name,
+# and an empty struct writes its data name. The private bound has no
+# implementations, so any payload member rejects the derivation.
+impl[T] MapKey for T by Structure:
+    fn to_key(self) -> MapKeyValue:
+        let mut walker = MapKeyWalker::[T] { name: "" }
+        _ := Structure::walk(self, &mut walker)
+        MapKeyValue.Text(walker.name)
+
+    fn from_key(value: MapKeyValue) -> T?:
+        name := match value:
+            .Text(found) => found
+            _ => return .None
+        let mut source = MapKeySource::[T] { name: name, at: 0 }
+        match T::build(&mut source):
+            .Ok(found) => .Some(found)
+            .Err(_) => .None
+
+trait MapKeyPayload
+
+struct MapKeyWalker[S]:
+    pub name: string
+
+impl[S] Walker[S] for MapKeyWalker[S]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.name = v.info.name
+        .Ok(())
+
+    fn rest[T < MapKeyPayload](
+        &mut self,
+        h: Field[S, List[T]],
+        items: List[T],
+    ) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < MapKeyPayload](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        .Ok(())
+
+struct MapKeySource[S]:
+    pub name: string
+    pub at: usize
+
+impl[S] Source[S] for MapKeySource[S]:
+    type Error = bool
+
+    fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], bool]:
+        if choice.info.name == self.name:
+            return .Ok(choice)
+        .Err(false)
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], bool]:
+        for choice in choices:
+            if choice.info.name == self.name:
+                return .Ok(choice)
+        .Err(false)
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, bool]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        position := members.infos[self.at].position
+        self.at += 1
+        .Ok(members.at(position))
+
+    fn data_member[F < MapKeyPayload](&mut self, h: Field[S, F], previous: F?) -> Result[F, bool]:
+        .Err(false)
+
+    fn member[F < MapKeyPayload](&mut self, h: Field[S, F], previous: F?) -> Result[F, bool]:
+        .Err(false)
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, bool]:
+        .Err(false)
+
+fn canonical_integer_key(text: string, signed: bool) -> bool:
+    if text.is_empty():
+        return false
+    let start: usize = 0
+    if text[0] == 45:
+        if !signed:
+            return false
+        start = 1
+    else if text[0] < 48 || text[0] > 57:
+        return false
+    if start >= text.len():
+        return false
+    if text[start] == 48 && start + 1 < text.len():
+        return false
+    let at = start
+    while at < text.len():
+        if text[at] < 48 || text[at] > 57:
+            return false
+        at += 1
+    true
+
+fn signed_key(value: MapKeyValue, low: i64, high: i64) -> i64?:
+    match value:
+        .Int(found) =>
+            if found >= low && found <= high: .Some(found) else: .None
+        .Uint(found) =>
+            if found <= u64(high): .Some(i64(found)) else: .None
+        .Text(text) =>
+            if !canonical_integer_key(text, true):
+                return .None
+            match text.parse::[i64]():
+                .Ok(found) =>
+                    if found >= low && found <= high: .Some(found) else: .None
+                .Err(_) => .None
+        .Bool(_) => .None
+
+fn unsigned_key(value: MapKeyValue, high: u64) -> u64?:
+    match value:
+        .Uint(found) =>
+            if found <= high: .Some(found) else: .None
+        .Int(found) =>
+            if found >= 0 && u64(found) <= high: .Some(u64(found)) else: .None
+        .Text(text) =>
+            if !canonical_integer_key(text, false):
+                return .None
+            match text.parse::[u64]():
+                .Ok(found) =>
+                    if found <= high: .Some(found) else: .None
+                .Err(_) => .None
+        .Bool(_) => .None
+
+impl MapKey for string:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Text(self)
+
+    fn from_key(value: MapKeyValue) -> string?:
+        match value:
+            .Text(found) => .Some(found)
+            _ => .None
+
+impl MapKey for bool:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Bool(self)
+
+    fn from_key(value: MapKeyValue) -> bool?:
+        match value:
+            .Bool(found) => .Some(found)
+            .Text("true") => .Some(true)
+            .Text("false") => .Some(false)
+            _ => .None
+
+impl MapKey for char:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Text("$self")
+
+    fn from_key(value: MapKeyValue) -> char?:
+        match value:
+            .Text(text) =>
+                match text.parse::[char]():
+                    .Ok(found) => .Some(found)
+                    .Err(_) => .None
+            _ => .None
+
+impl MapKey for i8:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Int(i64(self))
+
+    fn from_key(value: MapKeyValue) -> i8?:
+        signed_key(value, -128, 127).map(fn(found): i8(found))
+
+impl MapKey for i16:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Int(i64(self))
+
+    fn from_key(value: MapKeyValue) -> i16?:
+        signed_key(value, -32768, 32767).map(fn(found): i16(found))
+
+impl MapKey for i32:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Int(i64(self))
+
+    fn from_key(value: MapKeyValue) -> i32?:
+        signed_key(value, -2147483648, 2147483647).map(fn(found): i32(found))
+
+impl MapKey for i64:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Int(self)
+
+    fn from_key(value: MapKeyValue) -> i64?:
+        signed_key(value, -9223372036854775807 - 1, 9223372036854775807)
+
+impl MapKey for u8:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(self))
+
+    fn from_key(value: MapKeyValue) -> u8?:
+        unsigned_key(value, 255u64).map(fn(found): u8(found))
+
+impl MapKey for u16:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(self))
+
+    fn from_key(value: MapKeyValue) -> u16?:
+        unsigned_key(value, 65535u64).map(fn(found): u16(found))
+
+impl MapKey for u32:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(self))
+
+    fn from_key(value: MapKeyValue) -> u32?:
+        unsigned_key(value, 4294967295u64).map(fn(found): u32(found))
+
+impl MapKey for u64:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Uint(self)
+
+    fn from_key(value: MapKeyValue) -> u64?:
+        unsigned_key(value, 18446744073709551615u64)
+
+impl MapKey for usize:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(self))
+
+    fn from_key(value: MapKeyValue) -> usize?:
+        unsigned_key(value, 4294967295u64).map(fn(found): usize(found))
+
+# A MapKey's format-neutral scalar selects the wire key
+# (r-std-serde.std.map-key-bound).
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[T < Serialize] Serialize for List[T]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
@@ -716,24 +967,27 @@ impl[T < Deserialize] Deserialize for List[T]:
             found.push(T::deserialize(input)?)
         .Ok(found)
 
-# Only `string` keys (r-std-serde.std.map-keys).
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
-impl[V < Serialize] Serialize for Map[string, V]:
+impl[K < Eq & Hash & MapKey, V < Serialize] Serialize for Map[K, V]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.begin_map(self.len())?
         for entry in self:
-            out.key(entry._0)?
+            out.map_key(entry._0.to_key())?
             entry._1.serialize(out)?
         out.end_map()
 
 # Keep handwritten Deserialize: build logical entries from the collection wire form.
-impl[V < Deserialize] Deserialize for Map[string, V]:
-    fn deserialize[R < Deserializer](input: &mut R) -> Result[Map[string, V], R::Error]:
+impl[K < Eq & Hash & MapKey, V < Deserialize] Deserialize for Map[K, V]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Map[K, V], R::Error]:
         input.begin_map()?
-        let mut found: Map[string, V] = {}
+        let mut found: Map[K, V] = {}
         while true:
-            match input.next_key()?:
-                .Some(key) => found[key] = V::deserialize(input)?
+            match input.next_map_key()?:
+                .Some(raw) =>
+                    key := match K::from_key(raw):
+                        .Some(key) => key
+                        .None => return .Err(input.invalid("map key"))
+                    found[key] = V::deserialize(input)?
                 .None => break
         .Ok(found)
 
