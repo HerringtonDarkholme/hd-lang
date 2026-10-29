@@ -1,0 +1,14 @@
+# test: an omitted trait row argument takes its row default in an implementation header and a method call
+# Spec 04 Type-Argument Defaults: types.generic.default.written, types.generic.default.fill.
+
+trait Cleanup[$ R = $ ()]:
+    fn cleanup(self) -> void $ R
+
+struct Plain: pass
+
+impl Cleanup for Plain:
+    fn cleanup(self) -> void:
+        pass
+
+pub fn accepted() -> void:
+    Plain {}.cleanup()

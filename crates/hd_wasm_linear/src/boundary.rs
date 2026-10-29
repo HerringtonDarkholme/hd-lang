@@ -894,7 +894,7 @@ fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
 /// The vtable of host handle trait `trait_`: each slot a
 /// [`Helper::HandleSlot`] over its host call, then the vtables of its
 /// direct supertraits, whose methods are the handle trait's host methods
-/// too, as `TcpStream.dispose!` (flow.using.async-disposable). A trait in
+/// too, as `TcpStream.dispose!` (flow.using.async-disposable.row). A trait in
 /// `hd_host_abi::HANDLES` names its methods `<Trait>.<method>` in the
 /// capability's module; a runtime profile's own trait imports them from
 /// `hd:<Trait>` by name, with every argument and result in the buffer.

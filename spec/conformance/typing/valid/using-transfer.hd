@@ -1,5 +1,5 @@
 # test: using bindings release their values last in first out when the scope ends
-# Spec lang/06 Using Bindings: flow.using.disposable.sync, flow.using.forms.split, flow.using.register.split.
+# Spec lang/06 Using Bindings: flow.using.disposable.row, flow.using.forms.split, flow.using.register.split.
 use std.ops.Disposable
 
 struct Lock:

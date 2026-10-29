@@ -1,7 +1,7 @@
 # expect-stdout: defer, async start, async end, sync
 # expect-stdout: both async, both sync
 # test: synchronous and asynchronous using bindings share one LIFO cleanup order with defer, and their spelling selects the protocol when a type implements both
-# Spec lang/06 Using Bindings: flow.using.order.v2, flow.using.register.split, flow.using.protocol.required.
+# Spec lang/06 Using Bindings: flow.using.order.v2, flow.using.register.split, flow.using.protocol.required-row.
 use std.ops.{AsyncDisposable, Disposable}
 use std.time.{Clock, ms, sleep}
 

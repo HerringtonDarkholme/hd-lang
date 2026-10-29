@@ -2,7 +2,7 @@
 # expect-stdout: dyn open false
 # expect-stdout: open true, closed value, using shared, closed shared, closed dyn
 # test: a using binding of a value disposes its own place, and one of a reference or a trait value reference disposes what it refers to, which every other reference sees
-# Spec lang/06 Using Bindings: flow.using.place.v2, flow.using.reference.v2, flow.using.protocol.required.
+# Spec lang/06 Using Bindings: flow.using.place.v2, flow.using.reference.v2, flow.using.protocol.required-row.
 use std.ops.Disposable
 
 struct Conn:

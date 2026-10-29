@@ -1129,42 +1129,44 @@ fn network!(socket: Socket) -> void:
 ### Disposal Protocols
 
 ```text
-pub trait Disposable:
-    fn dispose(&mut self) -> void
+pub trait Disposable[$ R = $ ()]:
+    fn dispose(&mut self) -> void $ R
 
-pub trait AsyncDisposable:
-    fn dispose!(&mut self) -> void
+pub trait AsyncDisposable[$ R = $ ()]:
+    fn dispose!(&mut self) -> void $ R
 ```
 
-1. r[flow.using.protocols] `std.ops` declares the two traits above. Code imports a trait to name it; `using` and `using!` need no import.
-2. r[flow.using.disposable.sync] `Disposable.dispose` changes the value in place and cannot suspend.
-3. r[flow.using.async-disposable] `AsyncDisposable.dispose!` changes the value in place and may suspend.
-4. r[flow.using.best-effort.v2] Both disposal methods return `void`, so a release that fails reports nothing. A type whose release can fail offers a separate method that returns a `Result`, which code calls before the scope ends.
+1. r[flow.using.protocols.rows] `std.ops` declares the two traits above, each with one requirement-row parameter. Code imports a trait to name it; `using` and `using!` need no import.
+2. r[flow.using.protocol.default-row] Each protocol's row parameter defaults to `$()`. An implementation or trait use that omits it therefore has requirement-free cleanup, preserving the unparameterized spelling.
+3. r[flow.using.disposable.row] `Disposable[$R].dispose` changes the value in place, cannot suspend, and requires `$R`.
+4. r[flow.using.async-disposable.row] `AsyncDisposable[$R].dispose!` changes the value in place, may suspend, and requires `$R`.
+5. r[flow.using.best-effort.v2] Both disposal methods return `void`, so a release that fails reports nothing. A type whose release can fail offers a separate method that returns a `Result`, which code calls before the scope ends.
 
 ### Binding And Registration
 
 1. r[flow.using.forms.split] `using name = expression`, `using name: T = expression`, `using! name = expression`, and `using! name: T = expression` bind `name` to the value of `expression` for the rest of the suite.
 2. r[flow.using.binding.v2] A `using` or `using!` binding is not reassignable. Error: `non-reassignable-binding`.
-3. r[flow.using.protocol.required] A `using` binding's type must implement `Disposable`; a `using!` binding's type must implement `AsyncDisposable`. A type may implement both protocols: the binding spelling selects one, with no inferred priority. For a binding of `&mut T`, `T` must implement the selected protocol instead, or, for `&mut dyn Tr`, `Tr` must have it as a supertrait. Error: `unsatisfied-trait-bound`.
-4. r[flow.using.access.v2] The binding has its annotation's type, or else its initializer's type.
-5. r[flow.using.place.v2] A binding that holds its value is the place that the selected disposal method changes: the registered call takes the binding's address, as a `&mut self` call on a `let mut` binding does. No other `&mut self` call may change the binding. Error: `not-writable`.
-6. r[flow.using.reference.v2] A binding of `&mut T` disposes the value it refers to: the registered call passes the reference, so every other reference to that value sees it disposed. A trait value reference `&mut dyn Tr` disposes through its trait value, by [`trait.dyn.ref.member`](09-traits.md#r-trait.dyn.ref.member).
-7. r[flow.using.reference.read-only.v2] A binding of `&T` or `&dyn Tr` is an error, since both disposal protocols change the value. Error: `not-writable`.
-8. r[flow.using.register.split] Once the initializer is evaluated and bound, `using` registers a cleanup suite that calls `name.dispose()`; `using!` registers one that calls `name.dispose!()`. Each is registered exactly as a `defer` at that point would be.
-9. r[flow.using.dispose.v2] That suite runs by the rules of [Registration And Order](#registration-and-order). So a value is disposed when its block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
-10. r[flow.using.order.v2] Synchronous disposes, asynchronous disposes, and `defer` suites of one block run in one last-in, first-out order.
-11. r[flow.using.loop.v2] Each loop iteration disposes the values that its body bound with `using` or `using!` before the next iteration begins.
-12. r[flow.using.unbound.v2] A statement whose initializer does not complete, because it propagates with `?` or panics, registers nothing.
-13. r[flow.using.scopes.v2] A `using` or `using!` binding follows the cleanup scope rules of `defer`, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
-14. r[flow.using.async.driver] The registered call of `using!` is a bang call written at that statement, so `using!` outside a driver context is an error. `using` is accepted in ordinary and suspending functions. Error: `bang-call-outside-suspension`.
-15. r[flow.using.async.in-defer] A `using!` binding inside a `defer` suite is a suspension in that suite. A synchronous `using` binding is not. Error: `suspension-forbidden-context`.
-16. r[flow.using.async.suite-suspends] A `using!` dispose suite may suspend, and the scope exit goes on once `dispose!` returns. A `using` dispose suite runs inline.
-17. r[flow.using.async.not-forbidden] An asynchronous dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
-18. r[flow.using.panic.v2] A runtime panic does not run pending synchronous or asynchronous disposes, as [`flow.defer.panic`](#r-flow.defer.panic) says of `defer` suites.
-19. r[flow.using.cancel.v2] Cancellation unwinds a task as any exit does: its registered synchronous and asynchronous disposes run in last-in, first-out order with its `defer` suites.
-20. r[flow.using.async.cancel.shielded] An asynchronous `dispose!` is shielded from the cancellation, and it takes no cancellation of its own. So each dispose runs to its end, unless it is cut short as the next rule says.
-21. r[flow.using.async.cancel.cut-short] Only [`abandon()`](11-requirements-and-suspension.md#abandoning) and an await of a suspension cancelled elsewhere cut an asynchronous dispose short, by [`req.abandon.dispose`](11-requirements-and-suspension.md#r-req.abandon.dispose) and [`req.abandon.dependency`](11-requirements-and-suspension.md#r-req.abandon.dependency).
-22. r[flow.using.async.cancel.wait] The cancellation of a task completes only once its asynchronous disposes have. A suspension whose cancellation reaches a child waits for the child's asynchronous disposes before it runs its own cleanups.
+3. r[flow.using.protocol.required-row] A `using` binding's type must implement `Disposable[$R]` for some row `$R`; a `using!` binding's type must implement `AsyncDisposable[$R]` for some row `$R`. A type may implement both protocols: the binding spelling selects one, with no inferred priority. For a binding of `&mut T`, `T` must implement the selected protocol instead, or, for `&mut dyn Tr`, `Tr` must have it as a supertrait. Error: `unsatisfied-trait-bound`.
+4. r[flow.using.cleanup-row.check] The selected implementation fixes `$R`. Its disposal call is checked at the `using` or `using!` statement as a direct call would be. The active requirement scope must supply every key of `$R`. Error: `missing-requirement`.
+5. r[flow.using.access.v2] The binding has its annotation's type, or else its initializer's type.
+6. r[flow.using.place.v2] A binding that holds its value is the place that the selected disposal method changes: the registered call takes the binding's address, as a `&mut self` call on a `let mut` binding does. No other `&mut self` call may change the binding. Error: `not-writable`.
+7. r[flow.using.reference.v2] A binding of `&mut T` disposes the value it refers to: the registered call passes the reference, so every other reference to that value sees it disposed. A trait value reference `&mut dyn Tr` disposes through its trait value, by [`trait.dyn.ref.member`](09-traits.md#r-trait.dyn.ref.member).
+8. r[flow.using.reference.read-only.v2] A binding of `&T` or `&dyn Tr` is an error, since both disposal protocols change the value. Error: `not-writable`.
+9. r[flow.using.register.split] Once the initializer is evaluated and bound, `using` registers a cleanup suite that calls `name.dispose()`; `using!` registers one that calls `name.dispose!()`. Each is registered exactly as a `defer` at that point would be.
+10. r[flow.using.dispose.v2] That suite runs by the rules of [Registration And Order](#registration-and-order). So a value is disposed when its block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
+11. r[flow.using.order.v2] Synchronous disposes, asynchronous disposes, and `defer` suites of one block run in one last-in, first-out order.
+12. r[flow.using.loop.v2] Each loop iteration disposes the values that its body bound with `using` or `using!` before the next iteration begins.
+13. r[flow.using.unbound.v2] A statement whose initializer does not complete, because it propagates with `?` or panics, registers nothing.
+14. r[flow.using.scopes.v2] A `using` or `using!` binding follows the cleanup scope rules of `defer`, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
+15. r[flow.using.async.driver] The registered call of `using!` is a bang call written at that statement, so `using!` outside a driver context is an error. `using` is accepted in ordinary and suspending functions. Error: `bang-call-outside-suspension`.
+16. r[flow.using.async.in-defer] A `using!` binding inside a `defer` suite is a suspension in that suite. A synchronous `using` binding is not. Error: `suspension-forbidden-context`.
+17. r[flow.using.async.suite-suspends] A `using!` dispose suite may suspend, and the scope exit goes on once `dispose!` returns. A `using` dispose suite runs inline.
+18. r[flow.using.async.not-forbidden] An asynchronous dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
+19. r[flow.using.panic.v2] A runtime panic does not run pending synchronous or asynchronous disposes, as [`flow.defer.panic`](#r-flow.defer.panic) says of `defer` suites.
+20. r[flow.using.cancel.v2] Cancellation unwinds a task as any exit does: its registered synchronous and asynchronous disposes run in last-in, first-out order with its `defer` suites.
+21. r[flow.using.async.cancel.shielded] An asynchronous `dispose!` is shielded from the cancellation, and it takes no cancellation of its own. So each dispose runs to its end, unless it is cut short as the next rule says.
+22. r[flow.using.async.cancel.cut-short] Only [`abandon()`](11-requirements-and-suspension.md#abandoning) and an await of a suspension cancelled elsewhere cut an asynchronous dispose short, by [`req.abandon.dispose`](11-requirements-and-suspension.md#r-req.abandon.dispose) and [`req.abandon.dependency`](11-requirements-and-suspension.md#r-req.abandon.dependency).
+23. r[flow.using.async.cancel.wait] The cancellation of a task completes only once its asynchronous disposes have. A suspension whose cancellation reaches a child waits for the child's asynchronous disposes before it runs its own cleanups.
 
 ```text
 use std.ops.{AsyncDisposable, Disposable}

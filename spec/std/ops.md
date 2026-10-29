@@ -9,6 +9,7 @@ ordinary hd over the language tier:
 - the standard `Default` implementations, including its tuple template;
 - derived `Default`, through the trait's template, and the `@default`
   variant marker;
+- `ScopeGuard[$R]` and `on_exit[$R]`, for explicit synchronous cleanup;
 - `Eq` for the range types.
 
 The language tier keeps the rest of `std.ops`, since the compiler knows
@@ -183,6 +184,33 @@ fn opened() -> i32:
 
 See also: [Derived Implementations](../lang/09-traits.md#derived-implementations),
 [Templates](../lang/14-annotations.md#templates).
+
+## Scope Guards
+
+`on_exit` turns a synchronous callback into a value whose `using` cleanup
+runs the callback:
+
+```text
+use std.ops.on_exit
+
+fn finish() -> void $ Console:
+    println("finished")
+
+fn work() -> void $ Console:
+    using guard = on_exit(finish)
+    println("working")
+```
+
+1. r[std-ops.scope-guard.type] `std.ops` declares `pub struct ScopeGuard[$R]`, which holds one private action of type `fn() -> void $ R`.
+2. r[std-ops.scope-guard.on-exit] `pub fn on_exit[$R](action: fn() -> void $ R) -> ScopeGuard[$R]` returns a guard that holds `action`.
+3. r[std-ops.scope-guard.dispose] `ScopeGuard[$R]` implements `Disposable[$R]`; each `dispose` call invokes its action once. A `using` binding therefore runs the action once at that binding's scope exit, subject to [`flow.using.cleanup-row.check`](../lang/06-control-flow.md#r-flow.using.cleanup-row.check).
+4. r[std-ops.scope-guard.explicit] Constructing or ordinarily binding a scope guard does not register cleanup. Registration remains explicit through `using`, by [`flow.using.register.split`](../lang/06-control-flow.md#r-flow.using.register.split).
+
+> **Why.** A callback captures the cleanup it needs while `using` keeps the
+> end-of-scope action visible. The row parameter makes those captured
+> requirements visible at the registration point.
+
+See also: [Using Bindings](../lang/06-control-flow.md#using-bindings).
 
 ## Range Equality
 

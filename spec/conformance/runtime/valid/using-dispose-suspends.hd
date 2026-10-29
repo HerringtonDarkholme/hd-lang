@@ -2,7 +2,7 @@
 # expect-stdout: open a, open b, closing b, closed b, defer, closing a, closed a
 # expect-stdout: 2 1
 # test: a dispose! that suspends finishes before the scope exit goes on, in order with defer suites
-# Spec lang/06 Using Bindings: flow.using.async-disposable, flow.using.dispose.v2, flow.using.order.v2, flow.using.async.suite-suspends.
+# Spec lang/06 Using Bindings: flow.using.async-disposable.row, flow.using.dispose.v2, flow.using.order.v2, flow.using.async.suite-suspends.
 use std.ops.AsyncDisposable
 use std.time.{Clock, ms, sleep}
 
