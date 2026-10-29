@@ -114,6 +114,8 @@ fn every_known_item_is_declared() {
         ("bit_xor", known.bit_xor),
         ("shl", known.shl),
         ("shr", known.shr),
+        ("disposable", known.disposable),
+        ("async_disposable", known.async_disposable),
         ("eq", known.eq),
         ("partial_ord", known.partial_ord),
         ("ord", known.ord),

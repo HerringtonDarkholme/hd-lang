@@ -840,7 +840,7 @@ impl Ck<'_, '_> {
         els: Option<NodeRef<'_>>,
         at: NodeRef<'_>,
     ) -> StageResult<()> {
-        // A `using` binding keeps its initializer's access (flow.using.access).
+        // A `using` binding keeps its initializer's access (flow.using.access.v2).
         let using = std::mem::take(&mut self.using_bind);
         let annot = match ty_node {
             Some(t) => Some(self.ty_node(t)?),

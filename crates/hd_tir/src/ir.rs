@@ -2202,8 +2202,8 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
             }
         }
         if tag == Tag::Defer {
-            // A suspension point may stand in a suite: a `using` binding's
-            // `dispose!` (flow.using.suite-suspends); the checker rejects one that
+            // A suspension point may stand in a suite: a `using!` binding's
+            // `dispose!` (flow.using.async.suite-suspends); the checker rejects one that
             // source writes in a `defer` suite (flow.defer.suspend).
             let suites = defer_suite_violations(b, b.data[i][0]);
             for v in suites

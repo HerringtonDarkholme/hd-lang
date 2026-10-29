@@ -14,19 +14,19 @@ fn stop!() -> usize:
     0
 
 pub fn main!() -> Result[void, NetError] $ Net + Console:
-    using listener = listen!("127.0.0.1", 0)?
+    using! listener = listen!("127.0.0.1", 0)?
     address := listener.local_address()?
     pair := all!(listener.accept(), connect("127.0.0.1", address._1))
-    using peer = pair._0?
-    using client = pair._1?
+    using! peer = pair._0?
+    using! client = pair._1?
     assert_equal(race!(read_size(peer), stop()), 0, reason="a sibling cancels the pending read")
     client.write!("abc".to_utf8())?
     assert_equal(peer.read!(1)?, "a".to_utf8(), reason="the next read keeps the prefix")
     assert_equal(peer.read!(1)?, "b".to_utf8(), reason="a partial read leaves the next byte")
     assert_equal(peer.read!(1)?, "c".to_utf8(), reason="the suffix remains in order")
 
-    using receiver = bind_udp!("127.0.0.1", 0)?
-    using sender = bind_udp!("127.0.0.1", 0)?
+    using! receiver = bind_udp!("127.0.0.1", 0)?
+    using! sender = bind_udp!("127.0.0.1", 0)?
     target := receiver.local_address()?
     assert_equal(
         race!(receive_size(receiver), stop()),

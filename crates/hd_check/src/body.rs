@@ -239,10 +239,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
-    /// The `using` binding being checked (`flow.using.access`).
+    /// The `using` binding being checked (`flow.using.access.v2`).
     pub using_bind: bool,
     /// The locals bound with `using`, which are not reassignable
-    /// (`flow.using.binding`).
+    /// (`flow.using.binding.v2`).
     pub using_locals: Vec<LocalId>,
     /// The locals bound with `let mut`: a struct value in one changes in
     /// place (`types.value.writable-forms`).
@@ -1296,7 +1296,7 @@ impl Ck<'_, '_> {
 
     /// Unread suspensions are errors even for underscore-prefixed names.
     /// Tooling may request neutral binding/read facts; advice lives outside checking.
-    fn finish_bindings(&mut self) -> Vec<crate::comparison::Binding> {
+    fn finish_bindings(&mut self) -> StageResult<Vec<crate::comparison::Binding>> {
         let mut bindings = Vec::new();
         let mut mutability = std::mem::take(&mut self.mut_bindings);
         mutability.sort_stable_by(|a, b| a.0.raw().cmp(&b.0.raw()));
@@ -1327,12 +1327,15 @@ impl Ck<'_, '_> {
                 );
             }
             if self.cx.source_facts.is_some() {
+                let unbound_disposable =
+                    !self.using_locals.contains(&l) && self.implements_disposal_protocol(lt)?;
                 bindings.push(crate::comparison::Binding {
                     body: item,
                     local: l,
                     name: self.cx.names.text(name).to_owned(),
                     span: self.cx.src.span(self.cx.src.parse.tree.node(at)),
                     read,
+                    unbound_disposable,
                     mutability: mutability
                         .binary_search_by_key(&l.raw(), |(local, ..)| local.raw())
                         .ok()
@@ -1343,7 +1346,7 @@ impl Ck<'_, '_> {
                 });
             }
         }
-        bindings
+        Ok(bindings)
     }
 
     /// `expr.arith.unary-minus`: `-` on an operand whose type turned out
@@ -3495,6 +3498,7 @@ impl Ck<'_, '_> {
         &self,
         expression: NodeRef<'_>,
         selected: Option<DefId>,
+        unbound_disposable: bool,
     ) -> crate::comparison::DiscardedExpression {
         use crate::comparison::{DiscardedCall, DiscardedExpression};
         let call = (expression.kind() == SyntaxKind::CallExpr).then(|| {
@@ -3544,6 +3548,7 @@ impl Ck<'_, '_> {
             span: self.cx.src.span(expression),
             selected,
             prelude_debug: selected == Some(self.cx.names.item("std.format", "debug")),
+            unbound_disposable,
             call,
         }
     }
@@ -3617,7 +3622,8 @@ impl Ck<'_, '_> {
                     self.err(Code::DiscardedMustUseValue, *e, &msg);
                 }
                 if self.cx.source_facts.is_some() {
-                    let fact = self.discarded_expression(*e, selected);
+                    let unbound_disposable = self.implements_disposal_protocol(t)?;
+                    let fact = self.discarded_expression(*e, selected, unbound_disposable);
                     self.discarded.push(fact);
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
@@ -4570,7 +4576,7 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-        let bindings = self.finish_bindings();
+        let bindings = self.finish_bindings()?;
         self.report_conflicts();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;

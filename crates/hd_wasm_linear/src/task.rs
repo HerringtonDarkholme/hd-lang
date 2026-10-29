@@ -1908,7 +1908,7 @@ fn mark_cancelled(f: &mut Func, wait: u32) {
 }
 
 /// [`Helper::CleanupCancel`]: continues the cleanup too, and leaves the
-/// frame unwinding while the task unwinds (`req.cancel.nested`).
+/// frame unwinding while the task unwinds (`req.cancel.nested.using-split`).
 fn cleanup_cancel(m: &Module) -> Func {
     let mut f = m.func("rt:cleanup_cancel", vec![Val::I32], vec![]);
     let wait = f.local(Val::I32);

@@ -2,7 +2,7 @@
 # expect-stdout: closing, closed, stopper finished
 # test: cancel!() of a stored task waits until its dispose! that suspends has finished, then returns .Finished
 # Spec lang/11 Cancellation: req.cancel.bang, req.cancel.wait, req.cancel.result.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
@@ -10,7 +10,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
@@ -18,7 +18,7 @@ impl Disposable for Conn:
         self.log.push("closed")
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
+    using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
 

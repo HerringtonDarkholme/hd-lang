@@ -6,7 +6,7 @@
 use std.task.all
 use std.error.Error
 use std.convert.From
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.time.{Clock, Duration, Instant, sleep}
 
 ## A configuration that wraps work and declares the resulting type.
@@ -35,7 +35,7 @@ pub fn apply![T, U, $ R, $ S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S
     wrapped!()
 
 # The first child to complete wins, and the others are cancelled
-# (r-req.combinator.race-losers-disposed). Its plain signature types every call
+# (r-req.combinator.race-losers-disposed.using-split). Its plain signature types every call
 # (r-req.combinator.race-signature). The prototype writes the call in hd:
 # it drives the frame that `race_frame` builds, whose polling body is the
 # compiler's.
@@ -94,7 +94,7 @@ impl[T] Suspend[T]:
 # completed or cancelled one. It completes with whether the cleanup was
 # cut short (r-req.abandon.result). Cancelling the frame continues the
 # cleanup too, so a cancelled waiter folds it into its own
-# (r-req.cancel.nested).
+# (r-req.cancel.nested.using-split).
 @intrinsic("task_cleanup_frame")
 fn cleanup_frame[T](task: mut Suspend[T]) -> mut Suspend[bool]:
     panic("intrinsic")
@@ -336,7 +336,7 @@ impl Error for TimedOut
 # cleanup result says how the cleanup ended (r-req.cancel.kept).
 #
 # With a `cleanup` bound, a third child comes first: it never completes,
-# and its `using` binding holds the bound. Whatever cancels the race first,
+# and its `using!` binding holds the bound. Whatever cancels the race first,
 # the limit (the race cancels its losers) or a cancel of `timeout!` (the
 # race cancels every child), cancels it before the work, so its dispose
 # fixes the deadline at that moment. The dispose is shielded, so a later
@@ -384,7 +384,7 @@ fn timeout_expire![T](limit: Duration) -> TimeoutEnd[T] $ Clock:
 # The bound's child: it waits until the race cancels it, and its dispose
 # bounds the work's cleanup.
 fn timeout_bound![T](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ Clock:
-    using bound = CleanupBound { job: job, cleanup: cleanup, clock: $.use(Clock) }
+    using! bound = CleanupBound { job: job, cleanup: cleanup, clock: $.use(Clock) }
     let forever: mut Suspend[TimeoutEnd[T]] = pending_frame()
     forever!()
 
@@ -401,7 +401,7 @@ struct CleanupBound[T]:
 # cooperative: a cleanup that is computing is never interrupted
 # (r-std-task.timeout.cleanup-cooperative). A finished work's cleanup has
 # ended, so its `cancel!()` wins at once.
-impl[T] Disposable for CleanupBound[T]:
+impl[T] AsyncDisposable for CleanupBound[T]:
     fn dispose!(&mut self) -> void:
         started := self.clock.monotonic()
         _ := race!(self.job.cancel(), cleanup_deadline(self.job, self.clock, self.cleanup, started))

@@ -1,14 +1,14 @@
 # expect-stdout: 1 2
 # test: a zero sleep that completes while a sibling's dispose! drives a block_on still wakes its all! child
 # Spec lang/11 Cooperative Scheduling: req.schedule.all-unfinished.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, block_on}
 use std.time.{Clock, ms, sleep}
 
 struct Pause:
     clock: *mut dyn Clock
 
-impl Disposable for Pause:
+impl AsyncDisposable for Pause:
     fn dispose!(&mut self) -> void:
         _ := block_on(self.clock.sleep(ms(1)))
 
@@ -17,7 +17,7 @@ fn first!() -> usize $ Clock:
     1
 
 fn second!() -> usize $ Clock:
-    using pause = &mut Pause { clock: $.use(Clock) }
+    using! pause = &mut Pause { clock: $.use(Clock) }
     2
 
 pub fn main!() -> void $ Clock + Console:

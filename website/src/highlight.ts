@@ -190,6 +190,8 @@ function wordClass(word: string, line: string, start: number, end: number): Toke
 // keywords
 // (01-lexical-structure.md#contextual-words).
 function contextualKeyword(word: string, line: string, start: number, end: number): boolean {
+  if (word === "using" || word === "using!")
+    return /^\s*$/.test(line.slice(0, start)) && /^\s+\p{ID_Start}/u.test(line.slice(end));
   if (PROVIDER_WORDS.has(word) && line.slice(0, start).endsWith("$.")) return true;
   if (word === "derive") return line[start - 1] === "@";
   if (word === "by")

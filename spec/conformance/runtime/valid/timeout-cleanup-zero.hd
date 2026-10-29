@@ -3,7 +3,7 @@
 # expect-stdout: clock 5000
 # test: with cleanup=0s, timeout! cancels the work at the limit and abandons its cleanup at the first wait, after the synchronous part ran
 # Spec std/task: std-task.timeout.cleanup-zero, std-task.policy.time-limit.cleanup-abandon.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
@@ -11,7 +11,7 @@ struct Close:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Close:
+impl AsyncDisposable for Close:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("closed")
@@ -30,7 +30,7 @@ fn close!(
     ack: mut Suspend[void],
 ) -> Result[void, TimedOut] $ Clock:
     apply!(timeout(5s, cleanup=0s)):
-        using close = &mut Close { log: log, ack: ack }
+        using! close = &mut Close { log: log, ack: ack }
         let done: Result[void, TimedOut] = .Ok(reply!())
         done
 

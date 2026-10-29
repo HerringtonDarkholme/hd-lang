@@ -430,8 +430,8 @@ close synchronously, which flushes and ignores errors, as Rust's
 them. A network writer keeps no buffer in std, so a disposed one loses
 nothing that `write!` acknowledged.
 
-Every std handle implements `Disposable`, whose one method `dispose!`
-may suspend, so `using` is written only in a `!` function. A std
+Every std handle implements `AsyncDisposable`, whose one method `dispose!`
+may suspend, so `using!` is written only in a `!` function. A std
 handle's dispose is one host call that closes it; a graceful close that
 waits for the peer, such as a stream's `close_write!`, is part of
 `finish!`. Cancellation does not cut a dispose short: a cancelled task

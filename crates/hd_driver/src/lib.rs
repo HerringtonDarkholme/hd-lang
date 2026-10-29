@@ -12694,7 +12694,7 @@ mod package_host_inheritance_tests {
         files.insert(
             "src/main.hd",
             "\
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 
 pub trait Base[T]:
     fn echo(&self, text: T) -> T
@@ -12702,7 +12702,7 @@ pub trait Base[T]:
 pub enum EventError:
     Closed
 
-pub trait Events < Disposable:
+pub trait Events < AsyncDisposable:
     fn next!(&mut self) -> Result[string?, EventError]
 
 @host
@@ -12777,7 +12777,7 @@ pub fn main!() -> void $ Console + Server:
             handle
                 .methods
                 .iter()
-                .any(|m| m.member == "dispose" && m.name.ends_with("/ops.Disposable::dispose"))
+                .any(|m| m.member == "dispose" && m.name.ends_with("/ops.AsyncDisposable::dispose"))
         );
         assert_ne!(provider.module, handle.module);
         assert!(

@@ -1095,7 +1095,7 @@ by what holds the struct:
 
 | Rule | The struct is held by | Error |
 | --- | --- | --- |
-| r[types.value.write.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
+| r[types.value.write.using-split] Short binding | a `:=`, `using`, or `using!` binding | `non-reassignable-binding` |
 | r[types.value.write.plain-param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `not-writable` |
 | r[types.value.write.other-holder] Other value | a call result, an element of a list or a value of a map that is no writable place, an unwrapped value, or a pattern binding | `not-writable` |

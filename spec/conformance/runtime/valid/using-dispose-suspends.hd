@@ -2,8 +2,8 @@
 # expect-stdout: open a, open b, closing b, closed b, defer, closing a, closed a
 # expect-stdout: 2 1
 # test: a dispose! that suspends finishes before the scope exit goes on, in order with defer suites
-# Spec lang/06 Using Bindings: flow.using.disposable-ref, flow.using.dispose, flow.using.order, flow.using.suspend.
-use std.ops.Disposable
+# Spec lang/06 Using Bindings: flow.using.async-disposable, flow.using.dispose.v2, flow.using.order.v2, flow.using.async.suite-suspends.
+use std.ops.AsyncDisposable
 use std.time.{Clock, ms, sleep}
 
 struct Conn:
@@ -11,7 +11,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing ${self.name}")
         let mut wait = self.closing
@@ -23,10 +23,10 @@ fn connect!(name: string, log: *mut List[string]) -> *mut Conn $ Clock:
     &mut Conn { name: name, log: log, closing: sleep(ms(1)) }
 
 fn work!(log: *mut List[string], stop: bool) -> i32 $ Clock:
-    using a = connect!("a", log)
+    using! a = connect!("a", log)
     defer:
         log.push("defer")
-    using b = connect!("b", log)
+    using! b = connect!("b", log)
     if stop:
         return 1
     sleep!(ms(1))

@@ -161,9 +161,17 @@ pub trait Update[V]:
 # A `using` binding disposes its value at scope exit through this trait
 # (spec/lang/06-control-flow.md#using-bindings). It is not a prelude name;
 # `using` needs no import.
-## A value that releases what it holds when a `using` binding of it ends. `dispose!` may suspend, is best-effort, and reports nothing.
-## See [flow.using.disposable-ref](../../spec/lang/06-control-flow.md#r-flow.using.disposable-ref).
+## A value that releases what it holds synchronously when a `using` binding of it ends. `dispose` is best-effort and reports nothing.
+## See [flow.using.disposable.sync](../../spec/lang/06-control-flow.md#r-flow.using.disposable.sync).
 pub trait Disposable:
+    fn dispose(&mut self) -> void
+
+# A `using!` binding disposes its value at scope exit through this trait
+# (spec/lang/06-control-flow.md#using-bindings). It is not a prelude name;
+# `using!` needs no import.
+## A value that releases what it holds when a `using!` binding of it ends. `dispose!` may suspend, is best-effort, and reports nothing.
+## See [flow.using.async-disposable](../../spec/lang/06-control-flow.md#r-flow.using.async-disposable).
+pub trait AsyncDisposable:
     fn dispose!(&mut self) -> void
 
 # The built-in implementations (spec/lang/05-expressions.md#built-in-implementations).

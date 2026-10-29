@@ -6,7 +6,7 @@
 # expect-stdout: completed abandoned
 # test: a dispose! that awaits a job cancelled elsewhere unwinds from that await as an abandon would, the rest of the cleanup goes on, and the cleanup ends .Abandoned; after an ordinary return the job still completes with its value
 # Spec lang/11 Abandoning: req.abandon.dependency, req.abandon.dependency.result, req.abandon.dependency.completed.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.race
 use std.time.{Clock, s, sleep}
 
@@ -14,7 +14,7 @@ struct Channel:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Channel:
+impl AsyncDisposable for Channel:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("channel defer")
@@ -26,18 +26,18 @@ impl Disposable for Channel:
 struct Plain:
     log: *mut List[string]
 
-impl Disposable for Plain:
+impl AsyncDisposable for Plain:
     fn dispose!(&mut self) -> void:
         self.log.push("plain closed")
 
 fn talk!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
-    using plain = &mut Plain { log: log }
-    using channel = &mut Channel { log: log, ack: ack }
+    using! plain = &mut Plain { log: log }
+    using! channel = &mut Channel { log: log, ack: ack }
     sleep!(s(60))
     "late"
 
 fn quick!(log: *mut List[string], ack: mut Suspend[void]) -> string:
-    using channel = &mut Channel { log: log, ack: ack }
+    using! channel = &mut Channel { log: log, ack: ack }
     "value"
 
 fn ready!() -> string:

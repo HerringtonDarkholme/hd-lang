@@ -61,10 +61,12 @@ contexts:
       scope: storage.modifier.hd
     - match: '\b(?:fn|let|is|tests)\b'
       scope: keyword.other.hd
-    # `using` at the start of a statement, before a name (lex.contextual.using).
-    - match: '^\s*(using)(?=\s+[A-Za-z_])'
+    # `using` or `using!` at the start of a statement, before a name
+    # (lex.contextual.using-split).
+    - match: '^\s*(using)(!)?(?=\s+[A-Za-z_])'
       captures:
         1: keyword.other.hd
+        2: keyword.other.hd
 
     # Prefixed strings are raw but still support hd interpolation.
     - match: '({{identifier}})(""")'

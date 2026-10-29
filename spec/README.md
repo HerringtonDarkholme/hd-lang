@@ -90,6 +90,7 @@ maps each exercised code to its fixture.
 | Error | `inline-always-uncopyable` |
 | Error (general) | `argument-count`, `break-outside-loop`, `duplicate-binding`, `duplicate-type`, `duplicate-variant`, `invalid-dedent`, `invalid-token`, `not-callable`, `syntax-error`, `type-mismatch`, `unclosed-delimiter`, `unexpected-indentation`, `unknown-field`, `unknown-method`, `unknown-name`, `unknown-trait`, `unknown-type`, `unknown-variant`, `unmatched-delimiter`, `unterminated-string` |
 | Lint finding (default warning) | `broken-doc-link`, `dbg-in-dependency`, `derivation-line-drift`, `lost-write`, `mixed-script-identifier`, `private-main`, `redundant-let-mut`, `unreachable-code`, `unselected-main`, `unsigned-comparison-always`, `unused-debug-text`, `unused-derivation-fact`, `unused-local-binding`, `variant-binding-name-mismatch` |
+| Lint finding (default error) | `unbound-disposable` |
 | Runtime panic | The complete closed category list is defined in [Control Flow](lang/06-control-flow.md#runtime-panics). |
 | Boundary failure | `boundary-cycle`, `boundary-decoder-panic` |
 
@@ -339,7 +340,7 @@ The stdlib chapters' terms are in the
 | **unbound method reference** | `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter. See [`fn.ref.unbound`](lang/07-functions.md#r-fn.ref.unbound). |
 | **unit test** | A test case in a `tests:` block or a test module, wherever its file lies, whose body gets `TestRunner` alone from the runner. See [`module.testing.unit-row.anywhere`](lang/10-modules.md#r-module.testing.unit-row.anywhere). |
 | **untyped fact type** | A fact type whose `annotate` type argument is the default `*dyn Any`, as in `@annotate(.Field)`, so its values stay unchecked. See [`annot.typed-fact.untyped.reference-values`](lang/14-annotations.md#r-annot.typed-fact.untyped.reference-values). |
-| **`using` binding** | A binding, written `using name = value`, whose value's `dispose!` runs when its scope ends, in order with `defer` suites. See [Using Bindings](lang/06-control-flow.md#using-bindings). |
+| **`using` binding** | A binding whose value is released when its scope ends, in order with `defer` suites. `using name = value` calls synchronous `dispose`; `using! name = value` calls suspending `dispose!`. See [Using Bindings](lang/06-control-flow.md#using-bindings). |
 | **value expression** | An expression that produces a value. See [`expr.category.value`](lang/05-expressions.md#r-expr.category.value). |
 | **value type** | A type whose values have no identity: binding a value copies it, and nothing shares it. Structs, lists and maps are value types. See [Value Types](lang/04-type-system.md#value-types) and [Collection Values](lang/04-type-system.md#collection-values). |
 | **value names** | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. See [`names.category.value`](lang/03-names-and-scopes.md#r-names.category.value). |

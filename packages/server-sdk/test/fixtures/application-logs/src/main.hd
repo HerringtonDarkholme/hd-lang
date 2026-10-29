@@ -1,6 +1,6 @@
 use dep.server_sdk.server.{HttpServer, serve}
 use std.http.{Request, Response}
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.time.{Clock, sleep, ms}
 
 struct State: pass
@@ -8,7 +8,7 @@ struct State: pass
 struct Closing:
     work: mut Suspend[void]
 
-impl Disposable for Closing:
+impl AsyncDisposable for Closing:
     fn dispose!(&mut self) -> void:
         let mut work = self.work
         work!()
@@ -28,7 +28,7 @@ fn handle!(request: Request, _state: &mut State) -> Response $ Console + Clock:
             _ => "incorrect stderr permission"
         return Response::status(.Ok).set_text("$a/$b")
     label := request.url.to_string()
-    using closing = Closing { work: close(label) }
+    using! closing = Closing { work: close(label) }
     _ := $.use(Console).write_sync("start $label\n")
     sleep!(ms(if request.url.path.ends_with("/slow"): 30 else: 1))
     _ := $.use(Console).write_error_sync("end $label\n")

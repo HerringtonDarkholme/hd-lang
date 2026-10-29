@@ -2,7 +2,7 @@
 # expect-stdout: caller cancels, closing, still closing, closed, after deadline
 # test: a cancel of timeout! before the limit sets the cleanup deadline, and the bound goes on as part of the cancelled timeout!'s cleanup
 # Spec std/task Cleanup Bound: std-task.policy.time-limit.cleanup-outlives, .cleanup-deadline, .cleanup-abandon.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{TimedOut, all, race, timeout, apply}
 use std.time.{Clock, Duration, ms, s, sleep}
 
@@ -10,7 +10,7 @@ struct Close:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Close:
+impl AsyncDisposable for Close:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("closed")
@@ -20,7 +20,7 @@ impl Disposable for Close:
         self.log.push("acknowledged")
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    using close = &mut Close { log: log, ack: sleep(s(60)) }
+    using! close = &mut Close { log: log, ack: sleep(s(60)) }
     sleep!(s(60))
     "reply"
 

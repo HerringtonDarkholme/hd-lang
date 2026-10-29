@@ -234,18 +234,25 @@ impl Parser<'_> {
         }
     }
 
-    /// `using` at the start of a statement, before a name on its line
-    /// (grammar.stmt.using).
+    /// `using` or `using!` at the start of a statement, before a name on its line
+    /// (grammar.stmt.using-split).
     fn at_using(&mut self) -> bool {
         self.at_word("using")
             && !self.nth_line_first(1)
-            && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
+            && (matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
+                || (self.nth(1) == Some(TokenKind::Bang)
+                    && self.nth_glued(1)
+                    && !self.nth_line_first(2)
+                    && matches!(self.nth(2), Some(TokenKind::Ident | TokenKind::RawIdent))))
     }
 
-    /// `using name [: T] = e` (grammar.stmt.using).
+    /// `using[!] name [: T] = e` (grammar.stmt.using-split).
     fn using_statement(&mut self, ctx: Ctx) {
         let marker = self.start();
         self.bump(); // using
+        if self.at(TokenKind::Bang) && self.nth_glued(0) {
+            self.bump();
+        }
         self.token_node(SyntaxKind::BindingPattern);
         if self.eat(TokenKind::Colon) {
             self.ty();

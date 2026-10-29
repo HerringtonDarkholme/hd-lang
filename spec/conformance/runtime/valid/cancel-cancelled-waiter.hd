@@ -1,8 +1,8 @@
 # expect-stdout: won won
 # expect-stdout: closing, closed, stopper defer
 # test: cancelling a task that waits in cancel!() stops only its wait: the cleanup goes on inside that task's own cleanup, which ends after it
-# Spec lang/11 Cancellation: req.cancel.nested.
-use std.ops.Disposable
+# Spec lang/11 Cancellation: req.cancel.nested.using-split.
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
@@ -10,7 +10,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
@@ -18,7 +18,7 @@ impl Disposable for Conn:
         self.log.push("closed")
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
+    using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
 

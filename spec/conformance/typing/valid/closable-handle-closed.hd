@@ -1,12 +1,12 @@
 # test: a closable handle reports use after close through its module's Closed variant, and a using binding disposes it
-# Spec 10 Closable Handles: module.resource.closed, module.resource.close.repeated, module.resource.disposable.
-use std.ops.Disposable
+# Spec 10 Closable Handles: module.resource.closed, module.resource.close.repeated, module.resource.async-disposable.
+use std.ops.AsyncDisposable
 
 pub enum StoreError:
     Missing(key: string)
     Closed
 
-pub trait Session < Disposable:
+pub trait Session < AsyncDisposable:
     fn get!(&mut self, key: string) -> Result[string, StoreError]
     fn close(&mut self) -> Result[void, StoreError]
 
@@ -18,5 +18,5 @@ fn read_twice!(session: &mut dyn Session) -> Result[string, StoreError]:
         other => other
 
 fn scoped!(open: fn!() -> *mut dyn Session) -> Result[string, StoreError]:
-    using session = open!()
+    using! session = open!()
     session.get!("a")

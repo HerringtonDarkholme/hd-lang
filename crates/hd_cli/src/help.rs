@@ -184,8 +184,8 @@ const COMMANDS: &[Command] = &[
         summary: "report optional advice; --fix applies behavior-preserving edits",
         usage: "hd lint [-p NAME] [--tests | --all] [--allow CODE] [--warn CODE] [--deny CODE] [--fix] [FILE]",
         about: &[
-            "Check prerequisites, then report selected lint findings. unsigned-comparison-always",
-            "reports unsigned comparisons with a literal zero; it defaults to warning.",
+            "Check prerequisites, then report selected lint findings. unbound-disposable defaults",
+            "to error; unsigned-comparison-always defaults to warning.",
         ],
         flags: &[
             PACKAGE,

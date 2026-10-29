@@ -111,8 +111,9 @@ pub struct KnownItems {
     pub iterable: DefId,
     pub from: DefId,
     pub error: DefId,
-    // std.ops: the trait a `using` binding disposes through
+    // std.ops: the traits `using` and `using!` dispose through
     pub disposable: DefId,
+    pub async_disposable: DefId,
     // std.task
     pub suspend: DefId,
     /// `std.rt.memory.Buffer`, a counted buffer object (`module.rt.buffer.type`).
@@ -264,6 +265,7 @@ impl KnownItems {
             shl: item("std.ops", "Shl"),
             shr: item("std.ops", "Shr"),
             disposable: item("std.ops", "Disposable"),
+            async_disposable: item("std.ops", "AsyncDisposable"),
             eq: item("std.cmp", "Eq"),
             partial_ord: item("std.cmp", "PartialOrd"),
             ord: item("std.cmp", "Ord"),

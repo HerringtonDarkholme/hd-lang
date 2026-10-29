@@ -4,7 +4,7 @@
 # expect-stdout: child abandoned
 # test: a parent whose cleanup folds a child's waiting cleanup ends .Abandoned when that child is abandoned directly, though its own part ran to its end
 # Spec lang/11 Abandoning: req.abandon.carry, req.abandon.result.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, s, sleep}
 
@@ -12,7 +12,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
@@ -20,7 +20,7 @@ impl Disposable for Conn:
         self.log.push("closed")
 
 fn child!(log: *mut List[string]) -> string $ Clock:
-    using conn = &mut Conn { log: log, closing: sleep(s(60)) }
+    using! conn = &mut Conn { log: log, closing: sleep(s(60)) }
     sleep!(s(60))
     "child"
 

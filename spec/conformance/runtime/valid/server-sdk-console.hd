@@ -4,7 +4,7 @@ use dep.server_sdk.{HttpServer, Incoming, RequestId, ServerError, CancelReason, 
 use std.console.MemoryConsole
 use std.http.{Http, Request, Response, ScriptedHttp, Url}
 use std.http_wire.{WireRequest, WireResponse}
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.time.{Clock, s}
 use std.testing.assert_equal
 
@@ -13,7 +13,7 @@ struct State: pass
 struct Closing:
     work: mut Suspend[void]
 
-impl Disposable for Closing:
+impl AsyncDisposable for Closing:
     fn dispose!(&mut self) -> void:
         let mut work = self.work
         work!()
@@ -22,7 +22,7 @@ fn cleanup!(label: string) -> void $ Console:
     _ := $.use(Console).write_error_sync("cleanup $label\n")
 
 fn handler!(request: Request, _state: &mut State) -> Response $ Console:
-    using closing = Closing { work: cleanup(request.url.to_string()) }
+    using! closing = Closing { work: cleanup(request.url.to_string()) }
     println("handler ${request.url}")
     Response::status(.Other(200))
 

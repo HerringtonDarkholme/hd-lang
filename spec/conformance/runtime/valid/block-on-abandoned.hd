@@ -2,7 +2,7 @@
 # expect-stdout: work defer, stop finished, send close, channel defer, both defer
 # test: block_on of a suspension cancelled inside its own drive whose cleanup is cut short gives .Abandoned
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.cancelled; Abandoning: req.abandon.dependency.result; std/task Block On: std-task.block-on.abandoned.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, block_on}
 use std.time.{Clock, s, sleep}
 
@@ -10,7 +10,7 @@ struct Channel:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Channel:
+impl AsyncDisposable for Channel:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("channel defer")
@@ -40,7 +40,7 @@ fn both!(
 ) -> string $ Clock:
     defer:
         log.push("both defer")
-    using channel = &mut Channel { log: log, ack: ack }
+    using! channel = &mut Channel { log: log, ack: ack }
     let (worked, stopped) = all!(job, stop(job, log))
     "${worked} ${stopped}"
 

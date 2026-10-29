@@ -1,6 +1,6 @@
 use pkg.open_listener
 use std.net.{Net, TcpListener}
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.testing.assert
 use std.time.{Clock, s, sleep}
@@ -12,7 +12,7 @@ struct Conn:
     closing: mut Suspend[void]
     fallback: bool
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         defer:
             if self.fallback:
@@ -22,7 +22,7 @@ impl Disposable for Conn:
         self.listener.close().expect("closed")
 
 fn session!(listener: *mut dyn TcpListener, fallback: bool) -> string $ Clock:
-    using conn = Conn { listener: listener, closing: sleep(s(60)), fallback: fallback }
+    using! conn = Conn { listener: listener, closing: sleep(s(60)), fallback: fallback }
     sleep!(s(60))
     "late"
 

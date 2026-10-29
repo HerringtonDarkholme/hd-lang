@@ -46,8 +46,10 @@ syn match hdBang "\w\@1<=![(\[]\@="
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=\)\@<=use\ze\s\+\%(pkg\|std\|dep\|self\|super\)\>"
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=use\s.*\)\@<=\<\%(as\|super\)\>"
 syn match hdKeyword "\%(^\s*impl\>.*\s\)\@<=by\ze\s\+\S"
-" `using` at the start of a statement, before a name (lex.contextual.using).
-syn match hdKeyword "^\s*\zsusing\ze\s\+\h"
+" `using` or `using!` at the start of a statement, before a name
+" (lex.contextual.using-split).
+syn match hdKeyword "^\s*\zsusing\ze!\=\s\+\h"
+syn match hdBang "^\s*using\zs!\ze\s\+\h"
 
 " The requirement row `$` and the provider operations `$.use`, `$.with`,
 " and `$.context`.

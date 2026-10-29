@@ -182,19 +182,19 @@ pub fn main!() -> void $ Clock:
     bang!(ms(1))
 ";
     let shielded = r"
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.block_on
 use std.time.{Clock, Duration, ms}
 struct Pause:
     clock: *mut dyn Clock
-impl Disposable for Pause:
+impl AsyncDisposable for Pause:
     fn dispose!(&mut self) -> void:
         let pause: fn!(Duration) -> void = self.clock::sleep
         pause!(ms(1))
 pub fn main!() -> void $ Clock:
     let clock: &mut dyn Clock = $.use(Clock)
     _ := block_on(clock.sleep(ms(1)))
-    using pause = &mut Pause { clock: $.use(Clock) }
+    using! pause = &mut Pause { clock: $.use(Clock) }
 ";
     for target in [EngineTarget::V8, EngineTarget::Wasmtime] {
         for (profile, level) in [

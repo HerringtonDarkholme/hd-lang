@@ -4,7 +4,7 @@
 # expect-stdout: abandoned
 # test: awaiting a stored std.task race that another task cancelled cancels the awaiter, as an all! child and through a bang call
 # Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.kinds, req.cancel.await.dispose.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
@@ -12,7 +12,7 @@ struct Runner:
     log: *mut List[string]
     job: mut Suspend[string]
 
-impl Disposable for Runner:
+impl AsyncDisposable for Runner:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("runner defer")
@@ -21,7 +21,7 @@ impl Disposable for Runner:
         self.log.push("runner got ${value}")
 
 fn run!(log: *mut List[string], job: mut Suspend[string]) -> void:
-    using runner = &mut Runner { log: log, job: job }
+    using! runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
 fn ended!(job: mut Suspend[void]) -> string:

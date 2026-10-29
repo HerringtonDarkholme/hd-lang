@@ -4,7 +4,7 @@
 # expect-stdout: chain: drive abandoned, cleanup abandoned
 # test: a task cancelled because the job it awaits was cancelled ends .Abandoned when that job's cleanup ended .Abandoned, before the await or while the task unwinds, and .Cancelled otherwise; the result carries up a chain of awaiters
 # Spec lang/11 Abandoning: req.abandon.carry; Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate; Driving A Stored Suspension: req.drive.block-on.cancelled.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, block_on}
 use std.time.{Clock, s, sleep}
 
@@ -12,7 +12,7 @@ struct Conn:
     closing: mut Suspend[void]
     ack: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         let mut wait = self.closing
         wait!()
@@ -20,7 +20,7 @@ impl Disposable for Conn:
         ack!() # abandoned in the dependency case
 
 fn session!(ack: mut Suspend[void]) -> string $ Clock:
-    using conn = Conn { closing: sleep(s(1)), ack: ack }
+    using! conn = Conn { closing: sleep(s(1)), ack: ack }
     sleep!(s(60))
     "late"
 

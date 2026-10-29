@@ -1,6 +1,6 @@
 use dep.server_sdk.server.{HttpServer, serve}
 use std.http.{Http, Request, Response, HttpError, Url}
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.block_on
 use std.time.{Clock, sleep, ms, s}
 
@@ -8,21 +8,21 @@ struct State:
     hits: usize
 
 struct InfiniteCleanup: pass
-impl Disposable for InfiniteCleanup:
+impl AsyncDisposable for InfiniteCleanup:
     fn dispose!(&mut self) -> void:
         while true:
             pass
 
 struct WaitingCleanup:
     wait: mut Suspend[void]
-impl Disposable for WaitingCleanup:
+impl AsyncDisposable for WaitingCleanup:
     fn dispose!(&mut self) -> void:
         let mut wait = self.wait
         wait!()
 
 struct HttpCleanup:
     wait: mut Suspend[Result[Response, HttpError]]
-impl Disposable for HttpCleanup:
+impl AsyncDisposable for HttpCleanup:
     fn dispose!(&mut self) -> void:
         let mut wait = self.wait
         _ := wait!()
@@ -41,13 +41,13 @@ fn handle!(request: Request, state: &mut State) -> Response $ Http + Clock:
     if request.url.path.ends_with("/trap"):
         panic("private HD panic must not reach a client")
     if request.url.path.ends_with("/cleanup-cpu"):
-        using closing = InfiniteCleanup {}
+        using! closing = InfiniteCleanup {}
         url := request.text().expect("entry acknowledgement URL")
         _ := forward!(url)
         sleep!(s(60))
         return Response::status(.Ok)
     if request.url.path.ends_with("/cleanup-wait"):
-        using closing = WaitingCleanup { wait: sleep(s(60)) }
+        using! closing = WaitingCleanup { wait: sleep(s(60)) }
         url := request.text().expect("entry acknowledgement URL")
         _ := forward!(url)
         sleep!(s(60))
@@ -56,7 +56,7 @@ fn handle!(request: Request, state: &mut State) -> Response $ Http + Clock:
         sleep!(ms(80))
     if request.url.path.ends_with("/ack"):
         url := request.text().expect("cleanup URL")
-        using closing = HttpCleanup { wait: forward(url) }
+        using! closing = HttpCleanup { wait: forward(url) }
         return Response::status(.Ok).set_text("after cleanup")
     if request.url.path.ends_with("/block-pending"):
         url := request.text().expect("upstream URL")

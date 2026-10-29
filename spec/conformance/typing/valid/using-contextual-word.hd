@@ -1,5 +1,5 @@
 # test: using is a contextual word, so it stays an ordinary name outside a using statement
-# Spec lang/01 Contextual Words: lex.contextual.using; lang/02 grammar.stmt.using.
+# Spec lang/01 Contextual Words: lex.contextual.using-split; lang/02 grammar.stmt.using-split.
 fn using(count: i32) -> i32:
     count + 1
 

@@ -1,5 +1,5 @@
 # test: a dispose! that cancels its own active ancestor panics as reentrant
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 
 struct Slot:
     task: (mut Suspend[i32])?
@@ -7,14 +7,14 @@ struct Slot:
 struct Guard:
     slot: *mut Slot
 
-impl Disposable for Guard:
+impl AsyncDisposable for Guard:
     fn dispose!(&mut self) -> void:
         match self.slot.task:
             .Some(task) => _ := task.cancel!()
             .None => pass
 
 fn inner!(slot: *mut Slot) -> i32:
-    using guard = Guard { slot: slot }
+    using! guard = Guard { slot: slot }
     1
 
 fn outer!(slot: *mut Slot) -> i32:

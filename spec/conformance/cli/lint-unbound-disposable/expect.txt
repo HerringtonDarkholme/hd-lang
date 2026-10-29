@@ -1,0 +1,9 @@
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unbound-disposable","severity":"error","message":"this disposable value is discarded without registering cleanup; use `using` or `using!`","file":"src/main.hd","line":33,"column":5,"fixes":[]},{"kind":"diagnostic","code":"unbound-disposable","severity":"error","message":"`_plain` binds a disposable value without registering cleanup; use `using` or `using!`","file":"src/main.hd","line":34,"column":5,"fixes":[]},{"kind":"diagnostic","code":"unbound-disposable","severity":"error","message":"`_async` binds a disposable value without registering cleanup; use `using` or `using!`","file":"src/main.hd","line":35,"column":9,"fixes":[]},{"kind":"summary","errors":3,"warnings":0,"status":101}]
+run: hd lint --allow unbound-disposable --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --warn unbound-disposable --format json
+stdout-json: [{"kind":"diagnostic","code":"unbound-disposable","severity":"warning","message":"this disposable value is discarded without registering cleanup; use `using` or `using!`","file":"src/main.hd","line":33,"column":5,"fixes":[]},{"kind":"diagnostic","code":"unbound-disposable","severity":"warning","message":"`_plain` binds a disposable value without registering cleanup; use `using` or `using!`","file":"src/main.hd","line":34,"column":5,"fixes":[]},{"kind":"diagnostic","code":"unbound-disposable","severity":"warning","message":"`_async` binds a disposable value without registering cleanup; use `using` or `using!`","file":"src/main.hd","line":35,"column":9,"fixes":[]},{"kind":"summary","errors":0,"warnings":3,"status":0}]

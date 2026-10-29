@@ -25,7 +25,7 @@ fn ticker!(state: &Progress) -> usize $ Clock + Console:
     ticks
 
 pub fn exercise!(port: u16) -> Result[void, NetError] $ Net + Clock + Console:
-    using stream = connect!("127.0.0.1", port)?
+    using! stream = connect!("127.0.0.1", port)?
     bytes := "abcdefg".repeat(2400000).to_utf8()
     state := &mut Progress {}
     let (sent, ticks) = all!(send(stream, bytes, state), ticker(state))

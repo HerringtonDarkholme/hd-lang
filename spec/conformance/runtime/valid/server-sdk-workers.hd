@@ -6,7 +6,7 @@ use std.http.{Http, Request, Response, ScriptedHttp, Url}
 use std.http_wire.{WireRequest, WireResponse}
 use std.time.{Clock, Duration, Timestamp, Instant, ms, s, sleep}
 use std.task.race
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.testing.{assert, assert_equal}
 
 struct Scripted:
@@ -127,7 +127,7 @@ struct Closing:
     wait: mut Suspend[void]
     events: *mut List[string]
 
-impl Disposable for Closing:
+impl AsyncDisposable for Closing:
     fn dispose!(&mut self) -> void:
         self.events.push("closing")
         let mut wait = self.wait
@@ -140,7 +140,7 @@ struct Work:
 
 fn cancellable!(request: Request, state: &mut Work) -> Response $ Clock:
     if request.url.path == "/slow":
-        using resource = Closing { wait: sleep(ms(state.cleanup_ms)), events: &mut state.events }
+        using! resource = Closing { wait: sleep(ms(state.cleanup_ms)), events: &mut state.events }
         state.events.push("started")
         sleep!(s(60))
     Response::status(.Other(200))

@@ -4,7 +4,7 @@
 //! that its `Defer` sets; every way out of the body stores its exit's
 //! code and branches to the scope's end, which runs the registered
 //! suites, last in, first out, then takes the exit again, through the
-//! next scope out. A suite that suspends (a `using` binding's
+//! next scope out. A suite that suspends (a `using!` binding's
 //! `dispose!`) is a rung a resume can enter, and its points are shielded
 //! from cancellation (`susp.rs`).
 
@@ -42,8 +42,8 @@ impl Em<'_, '_, '_> {
     /// registered suite, then the exits the body took.
     pub(super) fn scope(&mut self, i: u32, body: u32, rec: u32) -> StageResult<()> {
         let suites = self.rec(rec);
-        // A suite that holds a suspension point: a `using` binding's
-        // `dispose!` (flow.using.suite-suspends).
+        // A suite that holds a suspension point: a `using!` binding's
+        // `dispose!` (flow.using.async.suite-suspends).
         let waits: Vec<Option<(u32, u32)>> = suites.iter().map(|&s| self.range(s)).collect();
         let waiting = waits.iter().any(Option::is_some);
         let code = self.f.local(Val::I32);
@@ -102,8 +102,8 @@ impl Em<'_, '_, '_> {
             }
             if w.is_some() {
                 // A `dispose!` that waits runs under the driver
-                // (flow.using.not-forbidden), and its points are shielded
-                // from cancellation (flow.using.cancel).
+                // (flow.using.async.not-forbidden), and its points are shielded
+                // from cancellation (flow.using.async.cancel.shielded).
                 self.shield += 1;
                 let r = self.block_into(s, None);
                 self.shield -= 1;

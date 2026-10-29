@@ -150,7 +150,7 @@ impl Ck<'_, '_> {
     }
 
     /// Reports a field write through the binding `name`, which is not
-    /// `let mut` (`types.value.write.short`, `types.value.write.plain-param`,
+    /// `let mut` (`types.value.write.using-split`, `types.value.write.plain-param`,
     /// `types.value.write.let`).
     fn not_writable(&mut self, name: &str, short: bool, param: bool, at: NodeRef<'_>) {
         if param {

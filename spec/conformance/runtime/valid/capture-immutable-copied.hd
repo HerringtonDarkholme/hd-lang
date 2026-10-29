@@ -1,5 +1,5 @@
 # test: a captured := binding or value parameter is copied into the closure
-# Spec 07 Copied And Shared Captures: fn.capture.copy, fn.capture.copy.value, fn.capture.copy.shadow.
+# Spec 07 Copied And Shared Captures: fn.capture.copy.using-split, fn.capture.copy.value, fn.capture.copy.shadow.
 # expect: test
 struct Point:
     x: i32

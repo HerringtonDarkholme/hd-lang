@@ -248,6 +248,15 @@ fn contextual_keyword(line: &str, lo: usize, hi: usize) -> bool {
     let word = &line[lo..hi];
     let before = &line[..lo];
     match word {
+        "using" if before.trim().is_empty() => {
+            let after = line[hi..].strip_prefix('!').unwrap_or(&line[hi..]);
+            after.starts_with(char::is_whitespace)
+                && after
+                    .trim_start()
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_alphabetic() || c == '_')
+        }
         "use" => {
             before.ends_with("$.") || (use_declaration(line) && matches!(before.trim(), "" | "pub"))
         }
@@ -344,6 +353,9 @@ mod tests {
         assert!(paint("Point(1)").starts_with("\x1b[36mPoint"));
         assert!(paint("go(1)").starts_with("\x1b[34mgo"));
         assert!(paint("use std.io").starts_with("\x1b[35muse"));
+        assert!(paint("    using guard = open()").contains("\x1b[35musing\x1b[0m"));
+        assert!(paint("    using! guard = open!()").contains("\x1b[35musing\x1b[0m!"));
+        assert!(!paint("using := 1").starts_with("\x1b[35musing"));
     }
 
     #[test]

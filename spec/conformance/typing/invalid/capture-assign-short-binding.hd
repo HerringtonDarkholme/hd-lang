@@ -1,5 +1,5 @@
 # test: a closure cannot assign a captured := binding, which is only copied
-# Spec 07 Copied And Shared Captures: fn.capture.copy.
+# Spec 07 Copied And Shared Captures: fn.capture.copy.using-split.
 fn demo() -> void:
     total := +0
     add := fn(amount: i32) -> void: total = total + amount # diagnostic: non-reassignable-binding

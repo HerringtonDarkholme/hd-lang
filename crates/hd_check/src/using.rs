@@ -1,25 +1,30 @@
-//! `using name [: T] = e` (spec/lang/06-control-flow.md, Using Bindings):
+//! `using[!] name [: T] = e` (spec/lang/06-control-flow.md, Using Bindings):
 //! a binding whose value a `defer` suite disposes. The binding is checked
-//! as a `let`, with no reassignment; then a suite that calls
-//! `std.ops.Disposable.dispose!(&mut self)` on it registers at this point,
-//! so the scope's exit ladder runs it in one last-in, first-out order with
-//! the scope's other suites. The call takes the binding's own place, or
-//! passes the reference the binding holds.
+//! as a `let`, with no reassignment. `using` registers a synchronous
+//! `std.ops.Disposable.dispose(&mut self)` call; `using!` registers a
+//! suspending `std.ops.AsyncDisposable.dispose!(&mut self)` call. The
+//! scope's exit ladder runs either in one last-in, first-out order with
+//! its other suites. The call takes the binding's own place, or passes the
+//! reference the binding holds.
 
 use hd_base::{LocalId, StageResult};
 use hd_diag::Code;
-use hd_syntax::{NodeRef, SyntaxKind};
-use hd_tir::ir::{TirSink, local_flags};
+use hd_intern::PathKind;
+use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
+use hd_tir::ir::{ChoiceKind, TirSink, local_flags};
 use hd_types::solver::{Answer, TraitRef};
 use hd_types::{Ty, TyData, TyList};
 
-use crate::body::{Ck, unsupported};
-use crate::call::{Args, Hit};
+use crate::body::{Ck, trait_extends, unsupported};
+use crate::call::{Args, PENDING_CHOICE, TraitTarget};
 use crate::refs::{Place, Root};
 
 impl Ck<'_, '_> {
     /// A `using` statement (`flow.using.*`).
     pub(crate) fn using_stmt(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
+        let asynchronous = s
+            .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
+            .is_some();
         let Some(pat) = kids.first().copied() else {
             return unsupported("a `using` without a name");
         };
@@ -33,28 +38,34 @@ impl Ck<'_, '_> {
         let Some((l, depth)) = self.find_local(name) else {
             return Ok(());
         };
-        // `flow.using.binding`: not reassignable; its dispose reads it.
+        // `flow.using.binding.v2`: not reassignable; its dispose reads it.
         self.add_flags(l, local_flags::SHORT | local_flags::READ);
         self.using_locals.push(l);
         let t = self.b.local_ty(l);
-        self.dispose_suite((l, depth), t, s)
+        self.dispose_suite((l, depth), t, asynchronous, s)
     }
 
     /// Registers the suite that disposes local `l` of type `t`
-    /// (`flow.using.dispose`, `flow.using.bang`). `dispose!` takes
+    /// (`flow.using.dispose.v2`, `flow.using.async.driver`). The selected
+    /// disposal method takes
     /// `&mut self`: a binding that holds the value passes its own place
-    /// (`flow.using.place`), and one that holds a reference passes the
+    /// (`flow.using.place.v2`), and one that holds a reference passes the
     /// reference, a trait value reference its trait value
-    /// (`flow.using.reference`).
+    /// (`flow.using.reference.v2`).
     fn dispose_suite(
         &mut self,
         (l, depth): (LocalId, usize),
         t: Ty,
+        asynchronous: bool,
         s: NodeRef<'_>,
     ) -> StageResult<()> {
         let pool = self.pool();
         let known = self.cx.names.known;
-        let trait_ = known.disposable;
+        let trait_ = if asynchronous {
+            known.async_disposable
+        } else {
+            known.disposable
+        };
         let referred = self.ref_of(t);
         let self_ty = match referred {
             Some((inner, _)) => self.strip_mut(self.infer.resolve(pool, inner)),
@@ -63,15 +74,15 @@ impl Ck<'_, '_> {
         if pool.has_poison(self_ty) {
             return Ok(());
         }
-        let via_dyn = referred.is_some() && matches!(pool.get(self_ty), TyData::TraitValue { .. });
-        // A trait value reference reaches its trait's methods and its
-        // supertraits' (`trait.dyn.ref.member`); any other type proves
-        // the bound.
-        let implements = if via_dyn {
-            matches!(
-                self.resolve_method(self_ty, "dispose")?,
-                Some(Hit::Trait { trait_: d, .. }) if d == trait_
-            )
+        // The selected protocol is explicit even when the type implements
+        // both. Resolve the trait goal rather than the method name, which
+        // would be ambiguous in that case.
+        let dyn_trait = match pool.get(self_ty) {
+            TyData::TraitValue { def, .. } => Some(def),
+            _ => None,
+        };
+        let implements = if let Some(def) = dyn_trait {
+            def == trait_ || trait_extends(self.cx.lookup, pool, def, trait_, 0)
         } else {
             let goal = TraitRef {
                 trait_,
@@ -82,8 +93,14 @@ impl Ck<'_, '_> {
         };
         if !implements {
             let msg = format!(
-                "{} does not implement Disposable, so `using` cannot dispose it",
-                self.show(self_ty)
+                "{} does not implement {}, so `{}` cannot dispose it",
+                self.show(self_ty),
+                if asynchronous {
+                    "AsyncDisposable"
+                } else {
+                    "Disposable"
+                },
+                if asynchronous { "using!" } else { "using" }
             );
             self.err(Code::UnsatisfiedTraitBound, s, &msg);
             return Ok(());
@@ -92,8 +109,28 @@ impl Ck<'_, '_> {
             .children()
             .find(|k| k.kind() == SyntaxKind::BindingPattern)
             .unwrap_or(s);
+        if referred.is_some_and(|(_, mutable)| !mutable) {
+            let msg = format!(
+                "`dispose` takes `&mut self`, but the receiver is a read-only reference {}; take it with `&mut` to change what it refers to",
+                self.show(t)
+            );
+            self.err(Code::NotWritable, at, &msg);
+            return Ok(());
+        }
         let m = self.b.open_block();
-        let (recv, rt) = if referred.is_none() {
+        let recv = if let Some((inner, _)) = referred {
+            let v = self.b.get(l, t, s.index());
+            let vt = self.deref_ty(inner, true);
+            if matches!(pool.get(self.strip_mut(vt)), TyData::TraitValue { .. }) {
+                // A trait value passes its payload to the selected trait's
+                // reference receiver (`trait.dyn.ref.member`).
+                self.emit_deref(v, t, s.index()).0
+            } else {
+                let counted = self.ref_counted(t).unwrap_or(true);
+                let rty = self.ref_ty(self.strip_mut(vt), true, counted);
+                self.retype(v, rty, at.index())
+            }
+        } else {
             // The binding's own place, which the call changes in place.
             let place = Place {
                 root: Root::Local(l, depth),
@@ -106,19 +143,7 @@ impl Ck<'_, '_> {
                 mutable: true,
                 counted: true,
             });
-            (self.make_ref(&place, true, rty, s), t)
-        } else {
-            let v = self.b.get(l, t, s.index());
-            if let Some(passed) = self.pass_reference_receiver(v, t, "dispose", at)? {
-                passed
-            } else {
-                // A trait value reference passes its trait value, whose
-                // payload is the reference receiver (`trait.dyn.ref.member`).
-                let mutable = referred.is_some_and(|(_, m)| m);
-                let (v, vt) = self.emit_deref(v, t, s.index());
-                self.dyn_recv = Some((mutable, at.index()));
-                (v, vt)
-            }
+            self.make_ref(&place, true, rty, s)
         };
         let none = Args {
             positional: Vec::new(),
@@ -127,12 +152,51 @@ impl Ck<'_, '_> {
             named: Vec::new(),
             trailing: None,
         };
-        // `dispose!` is a bang call, so the existing driver-context rules
-        // decide where a `using` may stand (`req.bang.driver-forms`,
-        // `flow.defer.suspend`).
-        self.method_on(recv, rt, "dispose", &none, (s, true), Some(Ty::VOID))?;
+        // Only `using!` writes a bang call. Existing driver-context rules
+        // decide where it may stand (`req.bang.driver-forms`,
+        // `flow.using.async.driver`); `using` stays synchronous.
+        let method = self.cx.names.member(trait_, PathKind::Member, "dispose");
+        self.trait_method_call(
+            TraitTarget {
+                trait_,
+                method,
+                self_ty,
+                args: Vec::new(),
+            },
+            Some((
+                recv,
+                dyn_trait.map_or(PENDING_CHOICE, |def| (ChoiceKind::TraitValue, def.raw())),
+            )),
+            &none,
+            s,
+            (asynchronous, Some(Ty::VOID)),
+        )?;
         let suite = self.b.close_block(m, None, Ty::VOID, s.index());
         self.b.defer(suite, s.index());
         Ok(())
+    }
+
+    /// Whether a value type implements either protocol which requires an
+    /// explicit cleanup binding. Analysis records only this neutral answer;
+    /// `hd_lint` owns the `unbound-disposable` policy.
+    pub(crate) fn implements_disposal_protocol(&mut self, t: Ty) -> StageResult<bool> {
+        let self_ty = self.strip_mut(t);
+        if self.pool().has_poison(self_ty) {
+            return Ok(false);
+        }
+        for trait_ in [
+            self.cx.names.known.disposable,
+            self.cx.names.known.async_disposable,
+        ] {
+            let goal = TraitRef {
+                trait_,
+                self_ty,
+                args: TyList::EMPTY,
+            };
+            if !matches!(self.solve(goal)?, Answer::Fails(_)) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }

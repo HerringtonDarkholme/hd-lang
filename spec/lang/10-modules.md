@@ -794,7 +794,7 @@ fn helper() -> void:
 13. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
 14. r[module.prelude.ops-call-traits] `std.ops` also declares `Apply` and `Update`, the traits of [callable values](05-expressions.md#callable-values). Code imports one to name it; `v()` and `v() = x` need no import.
 15. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
-16. r[module.prelude.ops-disposable] `std.ops` also declares `Disposable`, the trait of [using bindings](06-control-flow.md#using-bindings). Code imports it to name it, as in `use std.ops.Disposable`; a `using` binding needs no import.
+16. r[module.prelude.ops-disposal-protocols] `std.ops` also declares `Disposable` and `AsyncDisposable`, the traits of [using bindings](06-control-flow.md#using-bindings). Code imports one to name it, as in `use std.ops.Disposable`; `using` and `using!` need no import.
 
 ```hd
 use std.cmp.Eq
@@ -2492,16 +2492,16 @@ See also: [Package Host Declarations](../cli/command-line.md#package-host-declar
 ### Closable Handles
 
 A closable runtime handle reports a use after close with its module's
-`Closed` error, and a `using` binding disposes it:
+`Closed` error, and a `using!` binding disposes it:
 
 ```text
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 
 pub enum StoreError:
     Missing(key: string)
     Closed
 
-pub trait Session < Disposable:
+pub trait Session < AsyncDisposable:
     fn get!(&mut self, key: string) -> Result[string, StoreError]
     fn close(&mut self) -> Result[void, StoreError]
 ```
@@ -2510,7 +2510,7 @@ pub trait Session < Disposable:
 2. r[module.resource.closed.after] Once the handle is closed or disposed, every further operation returns `.Err(Closed)` and must not trap or access the host resource.
 3. r[module.resource.close.repeated] Closing is itself an operation, so a repeated close returns `.Err(Closed)`.
 4. r[module.resource.aliases] This checked behavior applies through every alias.
-5. r[module.resource.disposable] A closable runtime handle's trait has `std.ops.Disposable` as a supertrait, so a [`using` binding](06-control-flow.md#using-bindings) disposes the handle.
+5. r[module.resource.async-disposable] A closable runtime handle's trait has `std.ops.AsyncDisposable` as a supertrait, so a [`using!` binding](06-control-flow.md#using-bindings) disposes the handle.
 6. r[module.resource.dispose] Disposing a handle closes it and reports nothing. Disposing a closed handle does nothing.
 
 > **Why.** `Closed` inside the module's own error lets `?` carry a use

@@ -325,7 +325,7 @@ lang/06-control-flow.md	35	mixed	typing/invalid/top-level-return.hd
 lang/06-control-flow.md	36	accept	typing/valid/defer-cleanup.hd
 lang/06-control-flow.md	37	mixed	typing/invalid/top-level-defer.hd
 lang/06-control-flow.md	38	mixed	typing/invalid/top-level-defer.hd|typing/invalid/defer-suspends.hd|typing/invalid/defer-return.hd
-lang/06-control-flow.md	39	accept	typing/valid/using-transfer.hd|runtime/valid/using-dispose-order.hd
+lang/06-control-flow.md	39	accept	runtime/valid/using-sync-and-async-order.hd|typing/valid/using-transfer.hd|runtime/valid/using-dispose-order.hd
 lang/06-control-flow.md	40	accept	typing/valid/using-transfer.hd
 lang/06-control-flow.md	41	mixed	typing/invalid/using-reassigned.hd|typing/invalid/using-not-disposable.hd|typing/invalid/using-read-only-reference.hd|typing/invalid/using-outside-bang-function.hd
 lang/06-control-flow.md	42	mixed	typing/warnings/unreachable-after-infinite-loop.hd

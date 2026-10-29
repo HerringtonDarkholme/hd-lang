@@ -424,7 +424,7 @@ pub static RUNNERS: &[HostTrait] = &[
 /// take the handle first, as an `i32`; they are imported from the module
 /// of the capability that made the handle, named `<Trait>.<method>`. A
 /// supertrait's methods are the handle trait's too, as `TcpStream.dispose`
-/// for `std.ops.Disposable`.
+/// for `std.ops.AsyncDisposable`.
 pub static HANDLES: &[HostTrait] = &[
     HostTrait {
         key: "Net",
@@ -850,7 +850,7 @@ mod tests {
                 module.trim_start_matches("std.").replace('.', "/")
             ));
             let text = std::fs::read_to_string(&file).expect("std file");
-            // A handle trait may list supertraits, as `< Disposable`.
+            // A handle trait may list supertraits, as `< AsyncDisposable`.
             assert!(
                 text.contains(&format!("pub trait {name}:"))
                     || text.contains(&format!("pub trait {name} <")),
