@@ -653,6 +653,7 @@ impl ManualClock:
     ## Returns a `ManualClock` whose current time starts at `start`.
     ## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
     pub fn new(start: Timestamp) -> *mut ManualClock:
+        # Boxed because the returned clock is installed as a provider and advanced later.
         box(ManualClock { current: start })
 
 impl Clock for ManualClock:

@@ -320,9 +320,11 @@ impl Body:
         Body::from_bytes([])
 
     pub fn from_bytes(bytes: List[u8]) -> Body:
+        # Boxed because the returned Body stores shared one-shot state past this constructor.
         Body { state: box(BodyState { payload: .Ok(bytes) }) }
 
     fn prepared(payload: Result[List[u8], FormError]) -> Body:
+        # Boxed because the returned Body stores shared one-shot state past this constructor.
         Body { state: box(BodyState { payload: payload }) }
 
     pub fn bytes(&self) -> Result[List[u8], BodyError]:
@@ -1168,7 +1170,7 @@ fn message_form_encode[T < Serialize](value: T) -> Result[List[(string, string)]
     .Ok(writer.pairs)
 
 struct MessageFormReader:
-    groups: Map[string, *mut List[string]]
+    groups: Map[string, List[string]]
     frames: List[MessageFormFrame] = []
     path: string = ""
     values: List[string] = []
@@ -1268,7 +1270,7 @@ impl Deserializer for MessageFormReader:
         frame := self.frames[self.frames.len() - 1]
         self.path = message_form_member_name(&frame, member)?
         self.values = match self.groups.get(self.path):
-            .Some(values) => *values
+            .Some(values) => values
             .None => []
         self.current = self.values.get(0)
         .Ok(())
@@ -1287,11 +1289,11 @@ impl Deserializer for MessageFormReader:
         !self.present()
 
 fn message_form_decode[T < Deserialize](pairs: &List[(string, string)]) -> Result[T, FormError]:
-    let mut groups: Map[string, *mut List[string]] = {}
+    let mut groups: Map[string, List[string]] = {}
     for (key, value) in pairs:
-        match groups.get(key):
+        match groups.get_mut(key):
             .Some(values) => values.push(value)
-            .None => groups[key] = box([value])
+            .None => groups[key] = [value]
     let mut reader = MessageFormReader { groups: groups }
     T::deserialize(&mut reader)
 
@@ -2514,6 +2516,7 @@ pub trait Http:
 # wire provider or a package host's returned Http handle. W is the raw
 # wire trait value; only its retained reference escapes into the adapter.
 pub fn host_provider[W < WireHttp](wire: W) -> *mut dyn Http:
+    # Both boxes escape: the returned trait provider retains its erased wire provider.
     box(HostHttp { wire: box(wire) })
 
 struct HostHttp:
@@ -2523,10 +2526,7 @@ impl Http for HostHttp:
     fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]:
         validate_request(request)?
         url := Url::parse(request.url.to_string())?
-        headers := [for (name, value) in request.headers.entries() => (
-            name.wire_name(),
-            value,
-        )]
+        headers := [for (name, value) in request.headers.entries() => (name.wire_name(), value)]
         body := request.body.bytes()?
         response := self.wire.send!(
             WireRequest {
@@ -2626,6 +2626,7 @@ impl ScriptedHttp:
     ## Returns a new provider with no replies or received requests.
     ## See [std-http.scripted.new-empty](../../spec/std/http.md#r-std-http.scripted.new-empty).
     pub fn new() -> *mut ScriptedHttp:
+        # Boxed because the returned provider is configured and queried after this constructor returns.
         box(ScriptedHttp { responses: {}, requests: [] })
 
     ## Appends a result to this URL's reply queue.
@@ -2634,7 +2635,9 @@ impl ScriptedHttp:
         captured := scripted_result(result, true)
         match self.responses.get(url):
             .Some(replies) => replies.items.push(captured)
-            .None => self.responses[url] = box(HttpReplies { items: [captured], next: 0 })
+            .None =>
+                # Boxed because the map stores this mutable reply queue after `reply` returns.
+                self.responses[url] = box(HttpReplies { items: [captured], next: 0 })
 
     ## The received requests in order, including requests without a reply.
     ## See [std-http.scripted.received-bodies](../../spec/std/http.md#r-std-http.scripted.received-bodies).

@@ -29,13 +29,16 @@ impl Sha256:
     ## Returns a hasher that has seen no bytes, a new object that `update` changes.
     ## See [std-digest.sha256.new-ref](../../spec/std/digest.md#r-std-digest.sha256.new-ref).
     pub fn new() -> *mut Sha256:
-        box(Sha256 {
-            state: initial_state(),
-            block: [],
-            length: 0,
-            rounds: round_constants(),
-            outer: [],
-        })
+        # Boxed because the returned hasher is updated across later calls.
+        box(
+            Sha256 {
+                state: initial_state(),
+                block: [],
+                length: 0,
+                rounds: round_constants(),
+                outer: [],
+            },
+        )
 
     ## Returns a hasher whose `finish` gives HMAC-SHA256 of the message under `key`.
     ## See [std-digest.hmac-ref](../../spec/std/digest.md#r-std-digest.hmac-ref).

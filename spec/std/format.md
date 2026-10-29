@@ -76,13 +76,14 @@ impl Debug for Point:
 | r[std-format.debug.builder.write] Write | `out.write(text)` | custom text, for a value that no builder fits |
 
 1. r[std-format.debug.writer-ref] `DebugWriter` is a struct with private fields, used behind `*mut`. `write` takes `&mut self` and the builder calls take `*mut self`, so each call writes to the one writer that `debug` reads when the value is done.
-2. r[std-format.debug.builder.types-ref] `std.format` declares the builder types `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap`, structs that each hold the `*mut DebugWriter` they write to. `debug_struct`, `debug_tuple`, `debug_list`, and `debug_map` return a new builder object as a `*mut` reference, `field`, `named_field`, and `entry` take `*mut self`, and `finish` takes `&mut self`. None is a prelude name.
-3. r[std-format.debug.builder.values] Each `field` and `entry` value, and each `entry` key, must implement `Debug`. The builder writes it through its own `debug`.
-4. r[std-format.debug.builder.chain] `field` and `entry` return their builder, so calls chain, and `finish` ends the value.
-5. r[std-format.debug.builder.tuple.unnamed] `debug_tuple("")` describes a tuple, so it writes no name. One field gets a comma after it, as in `(1,)`, as a tuple's `Display` text does.
-6. r[std-format.debug.layout] The writer chooses a compact or a pretty layout. An implementation's builder calls are the same for both.
-7. r[std-format.debug.derive-builders] `@derive(Debug)` generates builder calls, as a hand-written implementation writes them, so derived and hand-written text share one layout.
-8. r[std-format.debug.derive-builders.source] The derived calls write the value as hd source, by the shape of each value, as the table below states. A qualified variant name is the enum's name, a dot, and the variant's name.
+2. r[std-format.debug.builder.types-value] The four `debug_*` methods each return a builder value whose private fields hold the `*mut DebugWriter` it writes to.
+3. r[std-format.debug.builder.types-public] `DebugStruct`, `DebugTuple`, `DebugList`, and `DebugMap` are public `std.format` names, not prelude names.
+4. r[std-format.debug.builder.methods-local] `field`, `named_field`, and `entry` take and return `&mut self`, while `finish` takes `&mut self` and ends the value.
+5. r[std-format.debug.builder.values] Each `field` and `entry` value, and each `entry` key, must implement `Debug`. The builder writes it through its own `debug`.
+6. r[std-format.debug.builder.tuple.unnamed] `debug_tuple("")` describes a tuple, so it writes no name. One field gets a comma after it, as in `(1,)`, as a tuple's `Display` text does.
+7. r[std-format.debug.layout] The writer chooses a compact or a pretty layout. An implementation's builder calls are the same for both.
+8. r[std-format.debug.derive-builders] `@derive(Debug)` generates builder calls, as a hand-written implementation writes them, so derived and hand-written text share one layout.
+9. r[std-format.debug.derive-builders.source] The derived calls write the value as hd source, by the shape of each value, as the table below states. A qualified variant name is the enum's name, a dot, and the variant's name.
 
 | Rule | Value | Derived calls |
 | --- | --- | --- |

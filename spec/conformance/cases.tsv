@@ -3330,7 +3330,7 @@ runtime/valid/utf8-overlong.hd	runtime	accept	std/text.md#r-std-text.utf8.well-f
 runtime/valid/utf8-error-traits.hd	runtime	accept	std/text.md#r-std-text.utf8.error.traits
 runtime/valid/utf8-long-inputs.hd	runtime	accept	std/text.md#r-std-text.utf8.error.first
 runtime/valid/time-unix-milliseconds.hd	runtime	accept	std/time.md#r-std-time.timestamp.unix-milliseconds
-runtime/valid/debug-builders-behind-ref.hd	runtime	accept	std/format.md#r-std-format.debug.builder.types-ref
+runtime/valid/debug-builders-behind-ref.hd	runtime	accept	std/format.md#r-std-format.debug.builder.types-value
 runtime/valid/string-split-once.hd	runtime	accept	std/text.md#r-std-text.split-once
 runtime/valid/string-split-whitespace.hd	runtime	accept	std/text.md#r-std-text.split-whitespace
 runtime/valid/string-pad.hd	runtime	accept	std/text.md#r-std-text.pad.start

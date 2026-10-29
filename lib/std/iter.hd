@@ -32,11 +32,11 @@ pub trait Iterator[T]:
     fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]:
         TakeWhile { source: self, keep: keep, open: true }
 
-    fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]:
-        Zip { source: self, rest: box(other.iter()) }
+    fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U, J]:
+        Zip { source: self, rest: other.iter() }
 
-    fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]:
-        Chain { source: self, rest: box(other.iter()), first: true }
+    fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T, J]:
+        Chain { source: self, rest: other.iter(), first: true }
 
     fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]:
         FlatMap { source: self, transform: transform, part: .None }
@@ -187,10 +187,10 @@ impl[T] dyn Iterator[T]:
     pub fn take_while(*mut self, keep: fn(T) -> bool) -> TakeWhile[DynIterator[T], T]:
         DynIterator { source: self }.take_while(keep)
 
-    pub fn zip[U, J < Iterable[U]](*mut self, other: J) -> Zip[DynIterator[T], T, U]:
+    pub fn zip[U, J < Iterable[U]](*mut self, other: J) -> Zip[DynIterator[T], T, U, J]:
         DynIterator { source: self }.zip::[U, J](other)
 
-    pub fn chain[J < Iterable[T]](*mut self, other: J) -> Chain[DynIterator[T], T]:
+    pub fn chain[J < Iterable[T]](*mut self, other: J) -> Chain[DynIterator[T], T, J]:
         DynIterator { source: self }.chain::[J](other)
 
     pub fn flat_map[U, J < Iterable[U]](
@@ -304,11 +304,11 @@ impl[I < Iterator[T], T] Iterator[T] for TakeWhile[I, T]:
                 .None
             .None => .None
 
-pub struct Zip[I < Iterator[T], T, U]:
+pub struct Zip[I < Iterator[T], T, U, J < Iterable[U]]:
     source: I
-    rest: *mut dyn Iterator[U]
+    rest: J::IntoIter
 
-impl[I < Iterator[T], T, U] Iterator[(T, U)] for Zip[I, T, U]:
+impl[I < Iterator[T], T, U, J < Iterable[U]] Iterator[(T, U)] for Zip[I, T, U, J]:
     fn next(&mut self) -> (T, U)?:
         match self.source.next():
             .Some(left) =>
@@ -317,12 +317,12 @@ impl[I < Iterator[T], T, U] Iterator[(T, U)] for Zip[I, T, U]:
                     .None => .None
             .None => .None
 
-pub struct Chain[I < Iterator[T], T]:
+pub struct Chain[I < Iterator[T], T, J < Iterable[T]]:
     source: I
-    rest: *mut dyn Iterator[T]
+    rest: J::IntoIter
     first: bool
 
-impl[I < Iterator[T], T] Iterator[T] for Chain[I, T]:
+impl[I < Iterator[T], T, J < Iterable[T]] Iterator[T] for Chain[I, T, J]:
     fn next(&mut self) -> T?:
         if self.first:
             match self.source.next():
@@ -396,6 +396,7 @@ impl[I < Iterator[Result[T, E]], T, E] Iterator[T] for ResultItems[I, T, E]:
 
 impl[T, E, C < FromIterator[T]] FromIterator[Result[T, E]] for Result[C, E]:
     fn from_iter[I < Iterator[Result[T, E]]](items: I) -> Result[C, E]:
+        # Boxed because the adapter stores this flag in a pointer field while `from_iter` runs.
         failure := box::[E?](.None)
         payloads := ResultItems { source: items, failure: failure }
         collected := C::from_iter(payloads)
@@ -420,6 +421,7 @@ impl[I < Iterator[T?], T] Iterator[T] for OptionItems[I, T]:
 
 impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
     fn from_iter[I < Iterator[T?]](items: I) -> C?:
+        # Boxed because the adapter stores this flag in a pointer field while `from_iter` runs.
         missing := box(false)
         payloads := OptionItems { source: items, missing: missing }
         collected := C::from_iter(payloads)

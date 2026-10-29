@@ -85,8 +85,8 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 4. r[std-iter.adapter.map.value] The `map` default method has signature `fn map[U](self, transform: fn(T) -> U) -> MapIter[Self, T, U]`.
 5. r[std-iter.adapter.skip.value] The `skip` default method has signature `fn skip(self, count: usize) -> Skip[Self, T]`.
 6. r[std-iter.adapter.take-while.value] The `take_while` default method has signature `fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]`.
-7. r[std-iter.adapter.zip.value] The `zip` default method has signature `fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]`.
-8. r[std-iter.adapter.chain.value] The `chain` default method has signature `fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]`.
+7. r[std-iter.adapter.zip.owned-iterable] `zip[U, J < Iterable[U]]` returns `Zip[Self, T, U, J]`, which stores `J::IntoIter` by value.
+8. r[std-iter.adapter.chain.owned-iterable] `chain[J < Iterable[T]]` returns `Chain[Self, T, J]`, which stores `J::IntoIter` by value.
 9. r[std-iter.adapter.flat-map.owned-iterable] The `flat_map` default method has signature `fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]`.
 
 1. r[std-iter.adapter.trait-defaults] Adapters are default methods of the prelude `Iterator[T]` trait and require no import.
@@ -162,8 +162,8 @@ fn has_blank(lines: List[string]) -> bool:
 | --- | --- | --- |
 | `skip` | `fn skip(self, count: usize) -> Skip[Self, T]` | a new iterator over the items of `self` after the first `count` |
 | `take_while` | `fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
-| `zip` | `fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
-| `chain` | `fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]` | a new iterator over the items of `self`, then those of `other` |
+| `zip` | `fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U, J]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
+| `chain` | `fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T, J]` | a new iterator over the items of `self`, then those of `other` |
 | `flat_map` | `fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]` | a new iterator over the items of each iterable that `transform(item)` returns, in order |
 | r[std-iter.adapter.any.value] `any` | `fn any(self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
 | r[std-iter.adapter.all.value] `all` | `fn all(self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |

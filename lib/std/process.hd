@@ -111,6 +111,7 @@ impl Command:
     ## Returns a command for `program` with no arguments, no environment, the program's own directory, and no standard input.
     ## See [std-process.command.new-ref](../../spec/std/process.md#r-std-process.command.new-ref).
     pub fn new(program: string) -> *mut Command:
+        # Boxed because the returned command is mutated by later builder calls.
         box(Command { program: program })
 
     ## Appends one argument and returns the command, so calls chain.
@@ -170,6 +171,7 @@ impl ScriptedProcess:
     ## Returns a provider with no replies and no recorded commands.
     ## See [std-process.scripted.empty-ref](../../spec/std/process.md#r-std-process.scripted.empty-ref).
     pub fn new() -> *mut ScriptedProcess:
+        # Boxed because the returned provider is configured and inspected after this call.
         box(ScriptedProcess { answers: {}, served: {}, seen: [] })
 
     # Queues one answer for `program` (r-std-process.scripted.reply-ref).

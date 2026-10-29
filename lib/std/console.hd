@@ -79,6 +79,7 @@ impl MemoryConsole:
     ## Returns an empty recording provider.
     ## See [std-console.buffer.install-ref](../../spec/std/console.md#r-std-console.buffer.install-ref).
     pub fn new() -> *mut MemoryConsole:
+        # Boxed because the returned provider is installed and inspected after this constructor returns.
         box(MemoryConsole { lines: [], error_lines: [] })
 
     # The lines `write_sync` received, in order (r-std-console.buffer.output-text-sync).
@@ -146,6 +147,7 @@ impl ScriptedInput:
     ## Returns the provider that answers `lines` in order, then the end of input.
     ## See [std-console.scripted.new-ref](../../spec/std/console.md#r-std-console.scripted.new-ref).
     pub fn new(lines: List[string]) -> *mut ScriptedInput:
+        # Boxed because the returned input provider is installed and read after this constructor returns.
         box(ScriptedInput { lines: lines, next: 0 })
 
 impl ConsoleInput for ScriptedInput:

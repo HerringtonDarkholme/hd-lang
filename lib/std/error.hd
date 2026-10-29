@@ -127,6 +127,7 @@ struct MessageError:
 ## Makes an error whose `Display` text is `text` and that has no source.
 ## See [std-error.message.reference](../../spec/std/error.md#r-std-error.message.reference).
 pub fn message(text: string) -> *dyn Error:
+    # Boxed because the returned trait value escapes this call.
     box(MessageError { text: text })
 
 # Builtin errors have no declaration on which to place @error.
@@ -140,7 +141,9 @@ impl[T, E < Error] Result[T, E]:
     pub fn context(self, message: string) -> Result[T, *dyn Error]:
         match self:
             .Ok(value) => .Ok(value)
-            .Err(error) => .Err(box(ContextError { message: message, error: box(error) }))
+            .Err(error) =>
+                # Both boxes escape in the returned trait value: the context and its retained source.
+                .Err(box(ContextError { message: message, error: box(error) }))
 
 # `Option.context` lives here, beside `Result.context`, so a program that never
 # names `Error` does not join this module (r-std-option.context.reference-result).

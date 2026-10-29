@@ -46,6 +46,7 @@ impl SeededRandom:
         z = low32(z + 0x9E3779B9)
         c := mix32(z)
         z = low32(z + 0x9E3779B9)
+        # Boxed because the returned generator carries mutable state across draws.
         box(SeededRandom { s0: a, s1: b, s2: c, s3: mix32(z) })
 
 # A draw reads the state into a local, steps it there, and stores it once
@@ -96,6 +97,7 @@ impl Rng:
     ## Returns the generator of `seed`.
     ## See [std-random.rng.new-ref](../../spec/std/random.md#r-std-random.rng.new-ref).
     pub fn new(seed: u64) -> *mut Rng:
+        # Boxed because the returned RNG retains its source across later draws.
         box(Rng { source: SeededRandom::new(seed) })
 
     ## The next random `u64`.

@@ -129,6 +129,7 @@ fn copy_step(step: &ValidationPathStep) -> PathStep:
         .Key(name) => .Key(name)
 
 fn copy_member(member: &Member) -> *Member:
+    # Boxed because the copied recursive member escapes in the returned pointer.
     box(copy_member_value(member))
 
 fn copy_member_value(member: &Member) -> Member:

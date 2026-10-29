@@ -26,11 +26,11 @@ impl Debug for Tag:
 
 impl Debug for Bag:
     fn debug(self, out: *mut DebugWriter) -> void:
-        list := out.debug_list()
+        let mut list = out.debug_list()
         for item in self.items:
             _ := list.entry(item)
         list.finish()
-        map := out.debug_map()
+        let mut map = out.debug_map()
         for name in self.names:
             _ := map.entry(name, name.len())
         map.finish()
