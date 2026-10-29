@@ -1,0 +1,10 @@
+# test: a local reference is no type argument for a 'static parameter
+# Spec 13 Generic Locality: ref.generic.static.error.
+struct User:
+    name: string
+
+fn keep[T < 'static](value: T) -> *mut T:
+    box(value)
+
+fn wrap(u: &User) -> void:
+    _ := keep(u) # diagnostic: local-reference-escapes

@@ -1,0 +1,4 @@
+# test: a closure captures a type parameter's value only under 'static
+# Spec 13 Generic Locality: ref.generic.static.capture.
+fn later[T](value: T) -> fn() -> T:
+    fn() -> T: value # diagnostic: local-reference-escapes

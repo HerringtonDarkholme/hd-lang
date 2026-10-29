@@ -207,12 +207,12 @@ fn demo() -> i32:
     holder.point.x + view.x + copy.x      # 11
 ```
 
-1. r[ref.box.signature] `std.core` declares `box` as `@intrinsic pub fn box[T](value: T) -> *mut T`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
+1. r[ref.box.signature] `std.core` declares `box` as `@intrinsic pub fn box[T < 'static](value: T) -> *mut T`, and the prelude supplies it. The declaration is ordinary hd, and the compiler supplies only its body.
 2. r[ref.box.check] A `box` call is checked by the plain call rules, so `T` is inferred from the argument and the expected type as for any generic call.
 3. r[ref.box.new] `box(e)` evaluates `e` once and returns a `*mut T` to a new object that holds the value. Each call makes a new object.
 4. r[ref.box.copy] The new object holds a copy of the value. When `e` is a place, a later write to that place is not seen through the result, and a write through the result does not change the place.
 5. r[ref.box.weaken] The result converts by the rules of [Conversions](#conversions) and [Trait Value References](09-traits.md#trait-value-references), so it may be used where `*T` or `*mut dyn Tr` is expected.
-6. r[ref.box.no-local] `box(e)` is an error when the type of `e` holds a local reference, by [`ref.local.holding`](#r-ref.local.holding). Error: `local-reference-escapes`.
+6. r[ref.box.no-local] `box(e)` is an error when the type of `e` holds a local reference, by [`ref.local.holding`](#r-ref.local.holding), since that type does not meet the bound `'static` ([Generic Locality](#generic-locality)). Error: `local-reference-escapes`.
 7. r[ref.box.object] Every counted reference refers to a whole object: one that `box` made, or one that another rule names as a new object. No expression makes a counted reference to a local, a parameter, a top-level binding, a field, or an element.
 8. r[ref.box.lifetime] A counted reference keeps the object it refers to alive. It may outlive the block that made it, and may be returned.
 
@@ -605,6 +605,54 @@ fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:  # the result tak
 
 See also: [Lifetimes In Function Types](07-functions.md#lifetimes-in-function-types),
 [Method Generic Parameters](09-traits.md#method-generic-parameters).
+
+## Generic Locality
+
+The bound `'static` marks a type parameter whose values may be kept past the call, because the type it stands for holds no local reference:
+
+```hd
+struct User:
+    name: string
+
+fn keep[T < 'static](value: T) -> *mut T:
+    box(value)         # valid: T holds no local reference
+
+fn later[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value   # valid: the capture holds no local reference
+
+fn demo(u: User) -> string:
+    kept := keep(u)    # User meets 'static
+    later(kept)().name
+```
+
+1. r[ref.generic.static] A type parameter bounded by `'static`, as in `T < 'static` or `W < Display & 'static`, stands only for a type that meets `'static`.
+2. r[ref.generic.static.meets] A type meets `'static` when it holds no local reference, by [`ref.local.holding`](#r-ref.local.holding), and each type parameter it names is bounded by `'static`. A counted reference and a function type always meet it: `box` made the object from a value that met it, and a closure captures no local reference.
+3. r[ref.generic.static.error] At a call, a written or inferred type argument that does not meet `'static`, for a parameter bounded by it, is an error. Error: `local-reference-escapes`.
+4. r[ref.generic.static.impl] An implementation whose type parameter is bounded by `'static` applies only where that parameter's argument meets `'static`, as for any other bound.
+5. r[ref.generic.static.capture] A closure's capture whose type names a type parameter must meet `'static`. Error: `local-reference-escapes`.
+6. r[ref.generic.static.no-fix] Neither diagnostic has a fix-it.
+7. r[ref.generic.static.bound-only] `'static` is written only as a type parameter's bound. A reference type that writes it, as `&'static T`, is an error, and so is any other lifetime bound. Error: `references-not-yet-checked`.
+
+```text
+struct User:
+    name: string
+
+fn keep[T](value: T) -> *mut T:
+    box(value)  # error: local-reference-escapes
+
+fn later[T](value: T) -> fn() -> T:
+    fn() -> T: value  # error: local-reference-escapes
+
+fn wrap(u: &User) -> void:
+    b := box(u)  # error: local-reference-escapes
+
+fn view(u: &'static User) -> void:  # error: references-not-yet-checked
+    pass
+```
+
+> **Why.** This is Rust's `T: 'static`. A counted reference and a function
+> value carry no lifetime, so a value kept in one must hold no local
+> reference.
 
 ## Reading Through A Reference
 

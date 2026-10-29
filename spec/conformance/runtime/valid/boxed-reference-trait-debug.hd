@@ -9,7 +9,7 @@ struct Point:
     x: i32
     y: i32
 
-fn erase[T < Debug](value: T) -> *dyn Debug:
+fn erase[T < Debug & 'static](value: T) -> *dyn Debug:
     box(value)
 
 pub fn main() -> void $ Console:

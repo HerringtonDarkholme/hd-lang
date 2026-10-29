@@ -4,7 +4,7 @@
 # expect-stdout: 2
 trait Visitor:
     fn twice[T](self, x: T, f: fn(T) -> T) -> T
-    fn gather[T](self, x: T) -> List[T]
+    fn gather[T < 'static](self, x: T) -> List[T]
 
 struct Doubler:
     n: i32
@@ -14,7 +14,7 @@ impl Visitor for Doubler:
         let g = fn(y: T) -> T: f(f(y))
         g(x)
 
-    fn gather[T](self, x: T) -> List[T]:
+    fn gather[T < 'static](self, x: T) -> List[T]:
         let mut ys: List[T] = []
         let add = fn() -> void: ys.push(x)
         add()

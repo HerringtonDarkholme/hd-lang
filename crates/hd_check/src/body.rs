@@ -2575,8 +2575,32 @@ impl Ck<'_, '_> {
         false
     }
 
+    /// An unmet `'static` bound is a local reference escaping to the
+    /// parameter (`ref.generic.static.error`).
+    fn bound_code(&self, trait_: DefId, code: Code) -> Code {
+        if trait_ == self.cx.names.known.static_bound && code == Code::UnsatisfiedTraitBound {
+            Code::LocalReferenceEscapes
+        } else {
+            code
+        }
+    }
+
     fn bound_message(&mut self, tref: TraitRef, origin: TraitRef, at: NodeRef<'_>) -> String {
         let pool = self.pool();
+        if tref.trait_ == self.cx.names.known.static_bound {
+            let ty = self.strip_mut(self.infer.resolve(pool, tref.self_ty));
+            return if crate::local_refs::holds_local_ref(pool, ty) {
+                format!(
+                    "a local reference never escapes to a type parameter bounded by `'static`, and `{}` holds one",
+                    self.show(ty)
+                )
+            } else {
+                format!(
+                    "`{}` may hold a local reference, so it does not meet `'static`; its type parameter needs the bound `'static`",
+                    self.show(ty)
+                )
+            };
+        }
         let trait_ty = pool.intern_ty(&TyData::TraitValue {
             def: tref.trait_,
             args: tref.args,
@@ -2780,6 +2804,7 @@ impl Ck<'_, '_> {
                     return Ok(Some(Evidence::Poison));
                 }
                 let msg = self.bound_message(tref, origin, at);
+                let code = self.bound_code(tref.trait_, code);
                 self.err(code, at, &msg);
                 if code == Code::UnsatisfiedTraitBound && tref.trait_ == self.cx.names.known.display
                 {
@@ -3429,6 +3454,7 @@ impl Ck<'_, '_> {
                         Waiting::Bound { code } => code,
                         _ => Code::UnsatisfiedTraitBound,
                     };
+                    let code = self.bound_code(tref.trait_, code);
                     self.err(code, node, &msg);
                 }
                 Ok(true)

@@ -712,7 +712,8 @@ function_generic_parameter = identifier, [ "<", trait_bounds ], [ type_default ]
 type_default = "=", type_argument ;
 variance = "+" | "-" ;
 
-trait_bounds = bound_trait_type, { "&", bound_trait_type } ;
+trait_bounds = trait_bound, { "&", trait_bound } ;
+trait_bound = bound_trait_type | lifetime ;
 bound_trait_type = qualified_name, [ bound_type_arguments ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
 bound_type_argument_list = type_argument, { ",", type_argument },
@@ -730,6 +731,7 @@ trait_type = qualified_name, [ type_arguments ] ;
 2. r[grammar.generic.bound.and.positions] `&` joins bounds in every bound position: a generic parameter, a supertrait list, and an implementation's generic parameters.
 3. r[grammar.generic.bound.and.examples] For example, `trait Ord < Eq & PartialOrd` and `impl[T < Eq & Hash] Hash for Bag[T]` join bounds with `&`.
 4. r[grammar.generic.bound.and.types-only] Bounds appear only in type positions, so a bound's `&` never conflicts with the bitwise `&` of an expression.
+5. r[grammar.generic.bound.lifetime] A type parameter's bounds may include a lifetime, as in `T < Display & 'static`. A supertrait list or an associated type's bounds that write one is an error. Error: `syntax-error`.
 
 ```hd
 trait Named:

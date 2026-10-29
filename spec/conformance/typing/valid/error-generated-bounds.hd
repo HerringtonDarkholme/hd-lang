@@ -31,7 +31,7 @@ enum Wrapped[P]:
 fn erase_task(value: TaskError[DiskError, Job]) -> *dyn Error:
     box(value)
 
-fn erase_generic[E < Error, T < Inspectable](value: TaskError[E, T]) -> *dyn Error:
+fn erase_generic[E < Error & 'static, T < Inspectable & 'static](value: TaskError[E, T]) -> *dyn Error:
     box(value)
 
 fn erase_wrapped(value: Wrapped[DiskError]) -> *dyn Error:

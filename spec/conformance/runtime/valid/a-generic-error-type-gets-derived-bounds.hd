@@ -36,7 +36,7 @@ enum Named[T]:
     @error("got $value")
     Got(value: T)
 
-fn depth[E < Error](error: E) -> usize:
+fn depth[E < Error & 'static](error: E) -> usize:
     let failure: *dyn Error = box(error)
     failure.chain().len()
 

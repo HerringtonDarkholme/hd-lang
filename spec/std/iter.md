@@ -302,6 +302,7 @@ The standard library implements `FromIterator` for these prelude types:
 1. r[std-iter.collect.owned-drain] Collecting into a `List` or a `Map` advances `self` until `next` returns `.None`, which exhausts the owned cursor.
 2. r[std-iter.collect.owned-stop] Collecting into a `Result` or an optional stops at the first `.Err` or `.None` and leaves the rest of the owned cursor unread.
 3. r[std-iter.collect.map-key] A `Map` collection needs `K < Eq & Hash`, as every map does.
+4. r[std-iter.collect.result.static] Collecting into a `Result` needs `E < 'static`, since the adapter keeps the first error in a new object ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
 
 ```text
 fn total(values: List[i32]) -> i32:

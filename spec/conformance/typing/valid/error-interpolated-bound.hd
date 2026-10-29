@@ -12,7 +12,7 @@ enum Named[T]:
 fn erase_named(value: Named[i32]) -> *dyn Error:
     box(value)
 
-fn erase_generic[T < Display & Inspectable](value: Named[T]) -> *dyn Error:
+fn erase_generic[T < Display & Inspectable & 'static](value: Named[T]) -> *dyn Error:
     box(value)
 
 fn show_named[T < Display](value: Named[T]) -> string:

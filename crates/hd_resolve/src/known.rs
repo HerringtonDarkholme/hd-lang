@@ -31,6 +31,9 @@ pub struct KnownItems {
     pub tuple: DefId,
     // std.structure
     pub structure: DefId,
+    /// The `'static` bound (`ref.generic.static`), a sealed trait no
+    /// path names.
+    pub static_bound: DefId,
     /// `Facts`, whose `items` list may be inspected only after the value is
     /// proved to be declaration facts.
     pub facts: DefId,
@@ -159,7 +162,7 @@ pub struct KnownItems {
     pub property_runner: DefId,
     /// The sealed traits, in the order of the table in spec/lang/09-traits.md
     /// "Sealed Traits" (`trait.sealed.list`).
-    sealed: [DefId; 10],
+    sealed: [DefId; 11],
 }
 
 impl KnownItems {
@@ -182,6 +185,7 @@ impl KnownItems {
             inspectable: self.inspectable,
             tuple: self.tuple,
             structure: self.structure,
+            static_bound: self.static_bound,
             list: self.list,
             map: self.map,
         }
@@ -216,6 +220,7 @@ impl KnownItems {
         let any_val = item("std.core", "AnyVal");
         let any_ref = item("std.core", "AnyRef");
         let structure = item("std.structure", "Structure");
+        let static_bound = item("std.core", "'static");
         let walker = item("std.structure", "Walker");
         let serializer = item("std.serde", "Serializer");
         let tuple = item("std.function", "Tuple");
@@ -238,6 +243,7 @@ impl KnownItems {
             function_module: module("std.function"),
             tuple,
             structure,
+            static_bound,
             facts: item("std.structure", "Facts"),
             facts_find: inherent_method("std.structure", "impl Facts", "find"),
             field: item("std.structure", "FieldRecord"),
@@ -338,6 +344,7 @@ impl KnownItems {
                 integer,
                 float,
                 tuple,
+                static_bound,
             ],
         }
     }

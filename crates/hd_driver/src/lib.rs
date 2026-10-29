@@ -150,7 +150,7 @@ fn entry_status_dyn_ref[T < Termination](result: Result[T, *dyn Error]) -> u8:
             entry_write(report_of(error).to_string())
             1
 
-fn host_provider[T](provider: T) -> *mut T:
+fn host_provider[T < 'static](provider: T) -> *mut T:
     box(provider)
 
 @intrinsic("entry_write")

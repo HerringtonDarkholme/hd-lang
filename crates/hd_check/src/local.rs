@@ -322,6 +322,16 @@ impl Ck<'_, '_> {
                         bs.push(t);
                     }
                 }
+                // `T < 'static` (ref.generic.static).
+                if bl.direct_tokens().any(|t| self.cx.src.text(t) == "'static") {
+                    let t = pool.intern_ty(&TyData::TraitValue {
+                        def: self.cx.names.known.static_bound,
+                        args: hd_types::TyList::EMPTY,
+                        bindings: vec![],
+                    });
+                    self.add_bound(p, t, 0);
+                    bs.push(t);
+                }
             }
             bounds.push(bs);
             let written = Src::child(g, SyntaxKind::TypeDefault).and_then(|d| {

@@ -2,7 +2,7 @@
 # Spec 13 Reference lifetime: ref.box.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
 # expect-stdout: 7 kept 8 captured
 trait Factory:
-    fn capture[T](self, value: T) -> fn() -> T:
+    fn capture[T < 'static](self, value: T) -> fn() -> T:
         shared := box(value)
         fn() -> T: *shared
 

@@ -89,7 +89,7 @@ fn names[T < Named](xs: List[T]) -> string:
 
 fn first[A < Tuple](a: A) -> A: a
 
-fn erase[T < Inspectable](x: T) -> *dyn Inspectable: box(x)
+fn erase[T < Inspectable & 'static](x: T) -> *dyn Inspectable: box(x)
 
 pub fn main() -> void $ Console:
     let u: *User = box(User { name: \"ann\" })
@@ -120,7 +120,7 @@ type Owner(*User)
 
 fn keep[T < AnyVal](x: T) -> T: x
 
-fn erase[T < Inspectable](x: T) -> *dyn Inspectable: box(x)
+fn erase[T < Inspectable & 'static](x: T) -> *dyn Inspectable: box(x)
 
 pub fn main() -> void:
     let u: *User = box(User { name: \"ann\" })

@@ -12,7 +12,7 @@ trait Maker:
         p.b = x
         p
 
-    fn shared[T](self, x: T, y: T) -> Pair[T]:
+    fn shared[T < 'static](self, x: T, y: T) -> Pair[T]:
         let mut p = Pair { a: x, b: x }
         first := fn() -> T: p.a
         p.a = y

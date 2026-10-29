@@ -223,7 +223,7 @@ impl Retry:
         SelectiveRetry { backoff: self.backoff, when: predicate }
 
 ## See [std-task.policy.selective-retry.layer](../../spec/std/task.md#r-std-task.policy.selective-retry.layer).
-impl[T, E, $ R] Layer[fn!() -> Result[T, E] $ R] for SelectiveRetry[E]:
+impl[T, E < 'static, $ R] Layer[fn!() -> Result[T, E] $ R] for SelectiveRetry[E]:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
         fn!() -> Result[T, E] $ R + Clock: retry_work!(self.backoff, when=self.when, attempt=work)
@@ -437,7 +437,11 @@ fn pending_frame[T]() -> mut Suspend[T]:
 # shared counter needs no lock.
 ## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
 ## See [std-task.map-all.decl](../../spec/std/task.md#r-std-task.map-all.decl).
-pub fn map_all![T, U, $ R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R:
+pub fn map_all![T < 'static, U < 'static, $ R](
+    items: List[T],
+    limit: usize,
+    work: fn!(T) -> U $ R,
+) -> List[U] $ R:
     # Both are boxed because stored worker closures retain them across suspension and later calls.
     slots := box::[List[U?]]([])
     for _ in items:

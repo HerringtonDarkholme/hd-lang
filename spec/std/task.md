@@ -39,15 +39,16 @@ pub fn retry(backoff: Backoff) -> Retry
 3. r[std-task.policy.retry.when] `Retry.when[E](self, predicate: fn(E) -> bool) -> SelectiveRetry[E]` stores that predicate with the retry configuration.
 4. r[std-task.policy.retry.layer] `Retry` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
 5. r[std-task.policy.selective-retry.layer] `SelectiveRetry[E]` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
-6. r[std-task.policy.retry.builder] `retry(backoff: Backoff) -> Retry` constructs a retry configuration.
-7. r[std-task.policy.retry.loop] An applied retry policy calls work sequentially at most `backoff.attempts` times, returning the first `.Ok` without another call.
-8. r[std-task.policy.retry.last-error] When every attempt returns `.Err`, an applied retry policy returns the last error.
-9. r[std-task.policy.retry.zero-once] An `attempts` of zero counts as one, so an applied retry policy always calls work at least once.
-10. r[std-task.policy.retry.predicate] After `.Err(error)`, a `SelectiveRetry` application retries only when its predicate returns `true`.
-11. r[std-task.policy.retry.all-errors] A `Retry` application retries every error until its attempt limit.
-12. r[std-task.policy.retry.when-plain] A selective predicate is an ordinary function, takes the error, and runs at most once for each `.Err`.
-13. r[std-task.policy.retry.cancel] Cancelling an applied retry policy cancels its active attempt or sleep and starts no further attempt.
-14. r[std-task.policy.retry.clock] Executing either retry policy requires `Clock`, including when `backoff.initial` is `0ms`.
+6. r[std-task.policy.selective-retry.layer.static] That implementation bounds `E` by `'static`, since the wrapped closure keeps the configuration ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
+7. r[std-task.policy.retry.builder] `retry(backoff: Backoff) -> Retry` constructs a retry configuration.
+8. r[std-task.policy.retry.loop] An applied retry policy calls work sequentially at most `backoff.attempts` times, returning the first `.Ok` without another call.
+9. r[std-task.policy.retry.last-error] When every attempt returns `.Err`, an applied retry policy returns the last error.
+10. r[std-task.policy.retry.zero-once] An `attempts` of zero counts as one, so an applied retry policy always calls work at least once.
+11. r[std-task.policy.retry.predicate] After `.Err(error)`, a `SelectiveRetry` application retries only when its predicate returns `true`.
+12. r[std-task.policy.retry.all-errors] A `Retry` application retries every error until its attempt limit.
+13. r[std-task.policy.retry.when-plain] A selective predicate is an ordinary function, takes the error, and runs at most once for each `.Err`.
+14. r[std-task.policy.retry.cancel] Cancelling an applied retry policy cancels its active attempt or sleep and starts no further attempt.
+15. r[std-task.policy.retry.clock] Executing either retry policy requires `Clock`, including when `backoff.initial` is `0ms`.
 
 ```text
 use std.task.{Backoff, apply, retry}
@@ -305,17 +306,18 @@ See also: [Cleanup End](#cleanup-end),
 calls are in flight:
 
 ```text
-pub fn map_all![T, U, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R
+pub fn map_all![T < 'static, U < 'static, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R
 ```
 
 1. r[std-task.map-all.decl] `std.task` declares `map_all!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.map_all`.
-2. r[std-task.map-all.order] The result holds `work(item)` for each item at the item's index in `items`, whatever order the calls complete in.
-3. r[std-task.map-all.start-order] `work` is called once for each item. Calls start in item order: no call starts before the call for every earlier item has started.
-4. r[std-task.map-all.limit] At most `limit` calls of `work` are in flight at once. A call is in flight from its start until it completes.
-5. r[std-task.map-all.window] When one call completes and an item has not started, the next item in order starts, so the number in flight stays at `limit` until the items run out.
-6. r[std-task.map-all.zero-limit] A `limit` of zero counts as one, so calls run one after another.
-7. r[std-task.map-all.empty] An empty `items` gives an empty list and calls `work` never.
-8. r[std-task.map-all.like-all] Scheduling, cancellation, failure, and panics follow the rules of `all!`: a panic in one call propagates, and cancelling `map_all!` cancels every call in flight and starts no more ([`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children)).
+2. r[std-task.map-all.static] `T` and `U` are bounded by `'static`: the workers keep the items, and a counted list keeps the values ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
+3. r[std-task.map-all.order] The result holds `work(item)` for each item at the item's index in `items`, whatever order the calls complete in.
+4. r[std-task.map-all.start-order] `work` is called once for each item. Calls start in item order: no call starts before the call for every earlier item has started.
+5. r[std-task.map-all.limit] At most `limit` calls of `work` are in flight at once. A call is in flight from its start until it completes.
+6. r[std-task.map-all.window] When one call completes and an item has not started, the next item in order starts, so the number in flight stays at `limit` until the items run out.
+7. r[std-task.map-all.zero-limit] A `limit` of zero counts as one, so calls run one after another.
+8. r[std-task.map-all.empty] An empty `items` gives an empty list and calls `work` never.
+9. r[std-task.map-all.like-all] Scheduling, cancellation, failure, and panics follow the rules of `all!`: a panic in one call propagates, and cancelling `map_all!` cancels every call in flight and starts no more ([`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children)).
 
 ```text
 use std.task.map_all

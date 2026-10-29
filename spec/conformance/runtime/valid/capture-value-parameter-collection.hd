@@ -10,7 +10,7 @@ fn counter_of(items: List[i32]) -> fn() -> usize:
 fn bag_counter_of(bag: Bag) -> fn() -> usize:
     fn() -> usize: bag.items.len()
 
-fn kept[T](value: T) -> fn() -> T:
+fn kept[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 
 fn binding_counter_of(items: List[i32]) -> fn() -> usize:

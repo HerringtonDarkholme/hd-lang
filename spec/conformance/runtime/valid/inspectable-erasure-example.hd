@@ -6,7 +6,7 @@ use std.inspect.{Inspectable, TypeId}
 struct Box[T]:
     value: T
 
-fn erase[T < Inspectable](value: T) -> *dyn Inspectable:
+fn erase[T < Inspectable & 'static](value: T) -> *dyn Inspectable:
     box(Box { value: value })
 
 fn is_int_box(value: *dyn Inspectable) -> bool:

@@ -1,0 +1,31 @@
+# test: a 'static parameter keeps values of types that hold no local reference
+# Spec 13 Generic Locality: ref.generic.static, ref.generic.static.meets.
+struct User:
+    name: string
+
+trait Named:
+    fn name(self) -> string
+
+impl Named for User:
+    fn name(self) -> string:
+        self.name
+
+fn keep[T < 'static](value: T) -> *mut T:
+    box(value)
+
+fn later[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+fn label[N < Named & 'static](value: N) -> fn() -> string:
+    fn() -> string: value.name()
+
+fn forward[T < 'static](value: T) -> *mut T:
+    keep(value)
+
+pub fn main() -> void:
+    u := User { name: "a" }
+    shared := keep(u)
+    _ := keep(shared)
+    _ := later(fn(x: i32) -> i32: x + 1)
+    _ := label(u)()
+    _ := forward((+1, [u]))

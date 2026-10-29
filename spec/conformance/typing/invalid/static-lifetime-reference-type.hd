@@ -1,0 +1,7 @@
+# test: 'static is written only as a bound so far
+# Spec 13 Generic Locality: ref.generic.static.bound-only.
+struct User:
+    name: string
+
+fn view(u: &'static User) -> void: # diagnostic: references-not-yet-checked
+    pass

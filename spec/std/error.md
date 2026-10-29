@@ -203,15 +203,16 @@ fn summary() -> string:
 ```
 
 1. r[std-error.context.reference-result] `std.error` declares the inherent method `pub fn context(self, message: string) -> Result[T, *dyn Error]` on `Result[T, E]` for every `E < Error`.
-2. r[std-error.context.no-use] Calling `context` needs no `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
-3. r[std-error.context.ok] `.Ok(value).context(message)` returns `.Ok(value)`.
-4. r[std-error.context.erased-wrapper] `.Err(error).context(message)` returns `.Err` of a shared reference to a wrapper containing `&error` and that message.
-5. r[std-error.context.private-wrapper] The wrapper is a private struct with private fields, whose type code outside `std.error` cannot name.
-6. r[std-error.context.wrapper-traits] The wrapper implements `Display` and `Error`.
-7. r[std-error.context.wrapper-display] The wrapper displays as its message.
-8. r[std-error.context.reference-source] Its `source` returns `.Some` of the shared reference to the wrapped error.
-9. r[std-error.context.method-chain] `error.chain()` lists the wrapper first, then the wrapped error and its causes.
-10. r[std-error.context.report-sources] `report_of` gives the context message, then one `source:` line per source.
+2. r[std-error.context.static] That method's `E` is also bounded by `'static`, since the wrapper keeps the error in a new object ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
+3. r[std-error.context.no-use] Calling `context` needs no `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
+4. r[std-error.context.ok] `.Ok(value).context(message)` returns `.Ok(value)`.
+5. r[std-error.context.erased-wrapper] `.Err(error).context(message)` returns `.Err` of a shared reference to a wrapper containing `&error` and that message.
+6. r[std-error.context.private-wrapper] The wrapper is a private struct with private fields, whose type code outside `std.error` cannot name.
+7. r[std-error.context.wrapper-traits] The wrapper implements `Display` and `Error`.
+8. r[std-error.context.wrapper-display] The wrapper displays as its message.
+9. r[std-error.context.reference-source] Its `source` returns `.Some` of the shared reference to the wrapped error.
+10. r[std-error.context.method-chain] `error.chain()` lists the wrapper first, then the wrapped error and its causes.
+11. r[std-error.context.report-sources] `report_of` gives the context message, then one `source:` line per source.
 
 > **Why.** Code that propagates with `?` often knows what it was doing
 > but not why the call failed. `context` records the first, keeps the

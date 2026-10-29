@@ -540,12 +540,12 @@ impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
 
 # A reference refers to a new object holding a drawn value
 # (r-std-testing.arbitrary.reference).
-impl[T < Arbitrary] Arbitrary for *T:
+impl[T < Arbitrary & 'static] Arbitrary for *T:
     fn arbitrary(c: &mut Choices) -> *T:
         # Boxed because the generated reference escapes in the returned arbitrary value.
         box(T::arbitrary(c))
 
-impl[T < Arbitrary] Arbitrary for *mut T:
+impl[T < Arbitrary & 'static] Arbitrary for *mut T:
     fn arbitrary(c: &mut Choices) -> *mut T:
         # Boxed because the generated mutable reference escapes in the returned arbitrary value.
         box(T::arbitrary(c))

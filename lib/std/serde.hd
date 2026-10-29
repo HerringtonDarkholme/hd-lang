@@ -926,13 +926,13 @@ impl[T < Serialize] Serialize for *mut T:
         value.serialize(out)
 
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Deserialize] Deserialize for *T:
+impl[T < Deserialize & 'static] Deserialize for *T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[*T, R::Error]:
         # Boxed because the deserialized reference escapes in the returned value.
         .Ok(box(T::deserialize(input)?))
 
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
-impl[T < Deserialize] Deserialize for *mut T:
+impl[T < Deserialize & 'static] Deserialize for *mut T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[*mut T, R::Error]:
         # Boxed because the deserialized mutable reference escapes in the returned value.
         .Ok(box(T::deserialize(input)?))

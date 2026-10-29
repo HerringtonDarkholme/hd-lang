@@ -1,0 +1,7 @@
+# test: 'static is a reserved lifetime name
+# Spec 04 Lifetime Parameters: types.lifetime.static.
+struct User:
+    name: string
+
+fn view['static](u: &User) -> void: # diagnostic: syntax-error
+    pass

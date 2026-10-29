@@ -310,7 +310,8 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 3. r[std-serde.std.tuple-length] A tuple reads exactly one list item per member. A list with fewer items, or with items left after the last member, is the reader's `invalid(expected)` error, so JSON reports it at the path of the list or of the first extra item.
 4. r[std-serde.std.tuple-rest] A rest element is one member of type `List[T]`, by [`annot.walk.rest.default`](../lang/14-annotations.md#r-annot.walk.rest.default). So `(i32, List[i32]...)` writes `[1, [2, 3]]`, a list whose last item is the rest list.
 5. r[std-serde.std.map-key-bound] A `Map[K, V]` implements a serde trait only when `K` implements `Eq`, `Hash`, and `MapKey` and `V` implements that serde trait.
-6. r[std-serde.std.map-key-missing] Using a map key without `MapKey` where a serde trait is required is an error. Error: `unsatisfied-trait-bound`.
+6. r[std-serde.std.reference.static] The reference implementations bound `T` by `'static`, since reading one keeps the value in a new object ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
+7. r[std-serde.std.map-key-missing] Using a map key without `MapKey` where a serde trait is required is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.serde.Serialize

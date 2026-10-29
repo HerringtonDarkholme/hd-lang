@@ -1,0 +1,7 @@
+# test: an unbounded type parameter is no type argument for a 'static parameter
+# Spec 13 Generic Locality: ref.generic.static.meets.
+fn keep[T < 'static](value: T) -> *mut T:
+    box(value)
+
+fn pass_on[U](value: U) -> void:
+    _ := keep(value) # diagnostic: local-reference-escapes

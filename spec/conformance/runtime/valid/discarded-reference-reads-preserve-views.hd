@@ -8,7 +8,7 @@ struct State:
     writes: usize
 
 trait Factory:
-    fn make[T](self, value: T) -> *mut T:
+    fn make[T < 'static](self, value: T) -> *mut T:
         box(value)
 
 struct Maker: pass

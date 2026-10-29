@@ -721,12 +721,32 @@ impl Ck<'_, '_> {
                 continue;
             }
             let t = self.infer.resolve(pool, self.b.local_ty(l));
-            if !holds_local_ref(pool, t) {
-                continue;
+            if holds_local_ref(pool, t) {
+                self.ref_captured.insert(l);
+                self.err(Code::LocalReferenceEscapes, n, &message(Escape::Capture));
+            } else if pool.has_param(t) && !self.meets_static(t) {
+                // `ref.generic.static.capture`: a capture of a type
+                // parameter's value needs the parameter's `'static`.
+                self.ref_captured.insert(l);
+                let msg = format!(
+                    "{}, and `{}` may hold one; its type parameter needs the bound `'static`",
+                    message(Escape::Capture),
+                    self.show(t)
+                );
+                self.err(Code::LocalReferenceEscapes, n, &msg);
             }
-            self.ref_captured.insert(l);
-            self.err(Code::LocalReferenceEscapes, n, &message(Escape::Capture));
         }
+    }
+
+    /// Whether `t` meets `'static` (`ref.generic.static`); a goal that
+    /// waits on inference meets it here.
+    fn meets_static(&mut self, t: Ty) -> bool {
+        let tref = hd_types::solver::TraitRef {
+            trait_: self.cx.names.known.static_bound,
+            self_ty: t,
+            args: hd_types::TyList::EMPTY,
+        };
+        !matches!(self.solve(tref), Ok(hd_types::solver::Answer::Fails(_)))
     }
 
     /// The types the finished body inferred that keep a local reference
@@ -779,12 +799,20 @@ impl Ck<'_, '_> {
                 else {
                     continue;
                 };
-                let own = self
-                    .cx
-                    .lookup
-                    .item(def)
-                    .and_then(|item| item.sig())
-                    .map_or(0, |sig| sig.generics.len());
+                let sig = self.cx.lookup.item(def).and_then(|item| item.sig());
+                let own = sig.map_or(0, |sig| sig.generics.len());
+                // A `'static` parameter reports through its bound.
+                let bounded: Vec<bool> = sig.map_or_else(Vec::new, |sig| {
+                    sig.generics
+                        .iter()
+                        .map(|g| {
+                            g.bounds.iter().any(|&b| {
+                                pool.trait_value(b)
+                                    .is_some_and(|(d, _)| d == self.cx.names.known.static_bound)
+                            })
+                        })
+                        .collect()
+                });
                 let args = pool.list_items(targs);
                 let explicit = (body.syn[i] != hd_base::NodeIdx::NONE)
                     .then(|| self.cx.src.parse.tree.node(body.syn[i]))
@@ -794,8 +822,14 @@ impl Ck<'_, '_> {
                     .map_or(0, |list| {
                         list.children().filter(|arg| arg.kind().is_type()).count()
                     });
-                for &a in args[args.len().saturating_sub(own)..].iter().skip(explicit) {
-                    look(a, false, false, false, body.syn[i]);
+                for (j, &a) in args[args.len().saturating_sub(own)..]
+                    .iter()
+                    .enumerate()
+                    .skip(explicit)
+                {
+                    if !bounded.get(j).copied().unwrap_or(false) {
+                        look(a, false, false, false, body.syn[i]);
+                    }
                 }
             }
         }

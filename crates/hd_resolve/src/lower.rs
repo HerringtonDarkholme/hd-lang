@@ -2318,6 +2318,10 @@ impl Lower<'_, '_, '_> {
             if self.r.frozen.is_none() {
                 let text = self.src.text(t);
                 let checked = *checked.get_or_insert_with(|| self.lifetimes_checked(gl));
+                // The parser reports `'static` (types.lifetime.static).
+                if text == "'static" {
+                    continue;
+                }
                 if gn.lifetimes.contains(&name) {
                     let msg = format!("`{text}` is already a lifetime in scope");
                     self.diags
@@ -2377,7 +2381,14 @@ impl Lower<'_, '_, '_> {
         if let Some(i) = gn.lifetimes.iter().position(|l| *l == name) {
             return u16::try_from(i + 1).unwrap_or(u16::MAX);
         }
-        if self.r.frozen.is_none() {
+        if self.r.frozen.is_none() && self.src.text(t) == "'static" {
+            // ref.generic.static.bound-only
+            self.diags.error(
+                Code::ReferencesNotYetChecked,
+                self.src.token_span(t),
+                "`'static` is written only as a type parameter's bound so far",
+            );
+        } else if self.r.frozen.is_none() {
             let text = self.src.text(t);
             let msg = format!(
                 "no lifetime named `{text}` here: declare it in the generic list, as in `['{}]`",
@@ -2850,6 +2861,26 @@ impl Lower<'_, '_, '_> {
                     }
                     bounds.push(bound);
                 }
+                // `T < 'static` (ref.generic.static); no other lifetime
+                // bounds a type yet.
+                for t in bl.direct_tokens() {
+                    if self.src.parse.tokens.kind(t) != TokenKind::Lifetime {
+                        continue;
+                    }
+                    if self.src.text(t) == "'static" {
+                        bounds.push(self.names.pool.intern_ty(&TyData::TraitValue {
+                            def: self.names.known.static_bound,
+                            args: TyList::EMPTY,
+                            bindings: vec![],
+                        }));
+                    } else if self.r.frozen.is_none() {
+                        self.diags.error(
+                            Code::ReferencesNotYetChecked,
+                            self.src.token_span(t),
+                            "only `'static` bounds a type parameter so far",
+                        );
+                    }
+                }
                 if let Some(me) = me {
                     let resolved: Vec<Ty> = bounds
                         .iter()
@@ -2869,7 +2900,8 @@ impl Lower<'_, '_, '_> {
             g.bound = bounds
                 .iter()
                 .find(|b| **b != Ty::POISON)
-                .and_then(|b| self.trait_of(*b));
+                .and_then(|b| self.trait_of(*b))
+                .filter(|d| *d != self.names.known.static_bound);
             if !row && let Some(slot) = gn.tys[start..].iter_mut().find(|(s, _, _)| *s == g.name) {
                 slot.2 = bounds
                     .iter()

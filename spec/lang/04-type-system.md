@@ -1706,6 +1706,9 @@ fn first['a, T](x: &'a T) -> &'a T:  # warning: lifetime-order (hd lint)
 fn name(a: &'b User) -> &string:  # error: unknown-lifetime
     &a.name
 
+fn named['static](a: &User) -> void:  # error: syntax-error
+    pass
+
 fn demo(u: &User) -> i32:
     n := +1
     *pick::[i32](&n, &n)  # T is i32; 'a takes no argument
@@ -1718,8 +1721,9 @@ fn demo(u: &User) -> i32:
 5. r[types.lifetime.unknown] A lifetime written in a declaration's header or fields must name a lifetime parameter in scope. Error: `unknown-lifetime`.
 6. r[types.lifetime.free-order] Lifetime parameters and type parameters may appear in any order in a generic parameter list, and the order has no meaning.
 7. r[types.lifetime.arguments] Explicit type arguments, as in `pick::[i32](x, y)`, fill only the type parameters, and a lifetime parameter takes no explicit argument.
+8. r[types.lifetime.static] `'static` is a reserved lifetime name. A generic list that declares it is an error. Error: `syntax-error`. It is written as a type parameter's bound, as [Generic Locality](13-values-and-references.md#generic-locality) states.
 
-8. r[types.lifetime.convention] By convention, type parameters come first, as in `fn f[T, 'a]`. A lifetime parameter written before a type parameter produces a lint finding. Warning: `lifetime-order`.
+9. r[types.lifetime.convention] By convention, type parameters come first, as in `fn f[T, 'a]`. A lifetime parameter written before a type parameter produces a lint finding. Warning: `lifetime-order`.
 
 > **Why.** Explicit type arguments fill only the type parameters, so the
 > order of a list changes no meaning. The convention follows Mojo's

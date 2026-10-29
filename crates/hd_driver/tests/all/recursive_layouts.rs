@@ -73,7 +73,7 @@ enum Tree[T]:
     Leaf
     Node(left: *Tree[T], value: T, right: *Tree[T])
 
-fn insert[T < Ord](tree: Tree[T], x: T) -> Tree[T]:
+fn insert[T < Ord & 'static](tree: Tree[T], x: T) -> Tree[T]:
     match tree:
         .Leaf => Tree.Node(left=box(Tree.Leaf), value=x, right=box(Tree.Leaf))
         .Node(left, value, right) =>

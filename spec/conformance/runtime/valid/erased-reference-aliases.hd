@@ -14,7 +14,7 @@ impl Reader for Pair:
         self.text
 
 trait Factory:
-    fn make[T](self, value: T) -> *mut T:
+    fn make[T < 'static](self, value: T) -> *mut T:
         box(value)
 
     fn identity[T](self, value: *mut T) -> *mut T:

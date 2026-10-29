@@ -1,0 +1,4 @@
+# test: no lifetime but 'static bounds a type parameter
+# Spec 13 Generic Locality: ref.generic.static.bound-only.
+fn view['a, T < 'a](value: T) -> void: # diagnostic: references-not-yet-checked
+    pass

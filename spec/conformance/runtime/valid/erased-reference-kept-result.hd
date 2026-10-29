@@ -4,7 +4,7 @@
 use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
 
 trait Factory:
-    fn make![T](self, value: T) -> *mut T $ Clock:
+    fn make![T < 'static](self, value: T) -> *mut T $ Clock:
         sleep!(ms(1))
         box(value)
 

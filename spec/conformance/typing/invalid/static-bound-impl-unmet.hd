@@ -1,0 +1,17 @@
+# test: an implementation bounded by 'static does not apply to an unbounded parameter
+# Spec 13 Generic Locality: ref.generic.static.impl.
+struct Holder[T]:
+    value: T
+
+trait Keep:
+    fn keep(self) -> *mut Self
+
+impl[T < 'static] Keep for Holder[T]:
+    fn keep(self) -> *mut Holder[T]:
+        box(self)
+
+fn keep_all[K < Keep](value: K) -> void:
+    _ := value.keep()
+
+fn pass_on[T](h: Holder[T]) -> void:
+    keep_all(h) # diagnostic: unsatisfied-trait-bound

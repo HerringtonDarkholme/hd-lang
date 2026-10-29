@@ -2515,7 +2515,7 @@ pub trait Http:
 # The compiler installs this ordinary HD adapter around either a default
 # wire provider or a package host's returned Http handle. W is the raw
 # wire trait value; only its retained reference escapes into the adapter.
-pub fn host_provider[W < WireHttp](wire: W) -> *mut dyn Http:
+pub fn host_provider[W < WireHttp & 'static](wire: W) -> *mut dyn Http:
     # Both boxes escape: the returned trait provider retains its erased wire provider.
     box(HostHttp { wire: box(wire) })
 

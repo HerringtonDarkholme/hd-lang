@@ -56,7 +56,7 @@ struct Holder[T]:
     item: *mut T
 
 trait Factory:
-    fn hold[T](self, item: T) -> Holder[T]:
+    fn hold[T < 'static](self, item: T) -> Holder[T]:
         Holder { item: box(item) }
 
 struct Maker: pass

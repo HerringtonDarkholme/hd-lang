@@ -1,0 +1,4 @@
+# test: a supertrait list writes no lifetime bound
+# Spec 02 Multiple Bounds: grammar.generic.bound.lifetime.
+trait Named < 'static: # diagnostic: syntax-error
+    fn name(self) -> string

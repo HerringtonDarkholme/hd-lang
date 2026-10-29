@@ -132,8 +132,23 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             if let Some(p) = out.last_mut() {
                 p.intrinsic = Some(sym(names, "panic_message"));
             }
-            // `box[T](value: T) -> *mut T` (ref.box.signature): the checker
-            // supplies the body, a new object holding a copy of `value`.
+            // `'static` (ref.generic.static): a sealed trait that no
+            // path names, which a type parameter's bound `'static` writes.
+            let st = names.item(module, "'static");
+            out.push(Item::new(
+                st,
+                sym(names, "'static"),
+                true,
+                ItemData::Trait(TraitData::default()),
+            ));
+            let static_tv = pool.intern_ty(&TyData::TraitValue {
+                def: st,
+                args: TyList::EMPTY,
+                bindings: vec![],
+            });
+            // `box[T < 'static](value: T) -> *mut T` (ref.box.signature):
+            // the checker supplies the body, a new object holding a copy
+            // of `value`.
             let bx = names.item(module, "box");
             let t = param(names, bx, 0);
             let boxed = pool.intern_ty(&TyData::Ref {
@@ -141,7 +156,9 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 mutable: true,
                 counted: true,
             });
-            let sig = FnSig::simple(gens(names, &["T"]), vec![(sym(names, "value"), t)], boxed);
+            let mut box_gens = gens(names, &["T"]);
+            box_gens[0].bounds = vec![static_tv];
+            let sig = FnSig::simple(box_gens, vec![(sym(names, "value"), t)], boxed);
             let mut it = Item::new(bx, sym(names, "box"), true, ItemData::Fn(sig));
             it.intrinsic = Some(sym(names, "box"));
             out.push(it);

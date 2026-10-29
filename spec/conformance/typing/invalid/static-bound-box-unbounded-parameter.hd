@@ -1,0 +1,4 @@
+# test: a generic body boxes a value only of a type parameter bounded by 'static
+# Spec 13 Generic Locality: ref.generic.static.error, ref.box.no-local.
+fn keep[T](value: T) -> *mut T:
+    box(value) # diagnostic: local-reference-escapes

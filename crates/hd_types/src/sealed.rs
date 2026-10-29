@@ -23,6 +23,9 @@ pub struct SealedTraits {
     pub inspectable: DefId,
     pub tuple: DefId,
     pub structure: DefId,
+    /// The `'static` bound (`ref.generic.static`), which a type meets
+    /// when it holds no local reference.
+    pub static_bound: DefId,
     /// `List` and `Map`, values with copy-on-write (`types.coll.value`),
     /// so `AnyVal` types.
     pub list: DefId,
@@ -38,6 +41,7 @@ impl Default for SealedTraits {
             inspectable: DefId::NONE,
             tuple: DefId::NONE,
             structure: DefId::NONE,
+            static_bound: DefId::NONE,
             list: DefId::NONE,
             map: DefId::NONE,
         }
@@ -56,6 +60,7 @@ impl SealedTraits {
                 self.inspectable,
                 self.tuple,
                 self.structure,
+                self.static_bound,
             ]
             .contains(&trait_)
     }
@@ -173,6 +178,12 @@ pub(crate) fn row(
     if trait_ == s.any {
         return holds(BuiltinImpl::Any);
     }
+    if let TyData::Infer(v) = t {
+        return Some(Row::Stalled(v));
+    }
+    if trait_ == s.static_bound {
+        return Some(static_row(pool, self_ty));
+    }
     match t {
         TyData::Infer(v) => return Some(Row::Stalled(v)),
         TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. } => {
@@ -255,4 +266,47 @@ pub(crate) fn row(
     } else {
         Row::Fails(FailReason::NoImpl)
     })
+}
+
+/// `ref.generic.static`: a type meets `'static` when it holds no local
+/// reference, so each part a value holds must meet it too. A counted
+/// reference meets it, since `box` made its object from a value that met
+/// it; a function value holds no local reference, since a closure never
+/// captures one. A parameter meets it
+/// only by its own bound, which the environment answers before this row.
+fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
+    let mut subs = Vec::new();
+    let strip = |t: Ty| match pool.get(t) {
+        TyData::Mut(i) => i,
+        _ => t,
+    };
+    match pool.get(self_ty) {
+        TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
+        // `box` made the object from a value that met `'static`.
+        TyData::Ref { .. } => {}
+        TyData::Option(inner) => subs.push(strip(inner)),
+        TyData::Tuple { elems, rest } => {
+            subs.extend(pool.list_items(elems).iter().map(|&e| strip(e)));
+            subs.extend(rest.map(strip));
+        }
+        TyData::Adt { args, .. } => subs.extend(pool.list_items(args).iter().map(|&a| strip(a))),
+        TyData::TraitValue { args, bindings, .. } => {
+            subs.extend(pool.list_items(args).iter().map(|&a| strip(a)));
+            subs.extend(bindings.iter().map(|&(_, b)| strip(b)));
+        }
+        // A projection meets it when its parts do, as Rust's projection
+        // rule has it (RFC 1214). An opaque type's hidden type is unknown
+        // here, so it meets it only by an environment clause.
+        TyData::Assoc { self_ty, args, .. } => {
+            subs.push(strip(self_ty));
+            subs.extend(pool.list_items(args).iter().map(|&a| strip(a)));
+        }
+        // An environment clause answers a parameter before this row.
+        TyData::Param(_) | TyData::Opaque { .. } => return Row::Fails(FailReason::NoImpl),
+        _ => {}
+    }
+    subs.retain(|&t| {
+        pool.has_ref(t) || pool.has_param(t) || pool.has_infer(t) || pool.has_assoc(t)
+    });
+    Row::Holds(BuiltinImpl::Static, subs)
 }

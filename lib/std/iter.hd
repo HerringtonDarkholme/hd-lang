@@ -394,7 +394,7 @@ impl[I < Iterator[Result[T, E]], T, E] Iterator[T] for ResultItems[I, T, E]:
                         .None
             .None => .None
 
-impl[T, E, C < FromIterator[T]] FromIterator[Result[T, E]] for Result[C, E]:
+impl[T, E < 'static, C < FromIterator[T]] FromIterator[Result[T, E]] for Result[C, E]:
     fn from_iter[I < Iterator[Result[T, E]]](items: I) -> Result[C, E]:
         # Boxed because the adapter stores this flag in a pointer field while `from_iter` runs.
         failure := box::[E?](.None)

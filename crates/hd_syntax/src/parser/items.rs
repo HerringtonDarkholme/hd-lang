@@ -357,7 +357,13 @@ impl Parser<'_> {
             let before = self.pos();
             let param = self.start();
             // grammar.generic.lifetime.alone: a lifetime takes no variance, bound
-            // or default.
+            // or default. `'static` is reserved (types.lifetime.static).
+            if self.at(TokenKind::Lifetime) && self.nth_text(0) == "'static" {
+                self.error(
+                    Code::SyntaxError,
+                    "`'static` is a reserved lifetime name, so no generic list declares it",
+                );
+            }
             if self.eat(TokenKind::Lifetime) {
                 self.complete(param, SyntaxKind::LifetimeParameter);
                 if !self.eat(TokenKind::Comma) {
@@ -381,7 +387,7 @@ impl Parser<'_> {
                     // grammar.generic.row-marker.no-bound
                     self.error(Code::SyntaxError, "a row parameter takes no bound");
                 }
-                self.bound_list();
+                self.bound_list(true);
             } else if self.at(TokenKind::Colon) {
                 // grammar.decl.bound-vs-colon
                 self.error(
@@ -420,15 +426,26 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::GenericParameterList);
     }
 
-    /// `< Bound & Bound ...` as a `BoundList`.
-    pub(crate) fn bound_list(&mut self) {
+    /// `< Bound & Bound ...` as a `BoundList`. A type parameter's list
+    /// (`lifetimes`) may hold a lifetime bound, a direct `Lifetime` token
+    /// (`grammar.generic.bound.lifetime`); a supertrait or an associated
+    /// type's list may not.
+    pub(crate) fn bound_list(&mut self, lifetimes: bool) {
         let marker = self.start();
         self.bump(); // <
-        self.ty_bound_trait(true);
         loop {
-            if self.eat(TokenKind::Amp) {
-                self.ty_bound_trait(true);
+            if self.at(TokenKind::Lifetime) {
+                if !lifetimes {
+                    self.error(
+                        Code::SyntaxError,
+                        "a lifetime bound is written only on a type parameter",
+                    );
+                }
+                self.bump();
             } else {
+                self.ty_bound_trait(true);
+            }
+            if !self.eat(TokenKind::Amp) {
                 break;
             }
         }
@@ -781,7 +798,7 @@ impl Parser<'_> {
             self.generic_params(Generics::Type);
         }
         if self.at(TokenKind::Lt) {
-            self.bound_list();
+            self.bound_list(false);
         }
         if self.eat(TokenKind::Colon) {
             if self.nth_line_first(0) || self.at_layout(Layout::Newline) || self.at_eof() {
@@ -831,7 +848,7 @@ impl Parser<'_> {
                     "an associated type in an implementation states no bound",
                 );
             }
-            self.bound_list();
+            self.bound_list(false);
         }
         if self.at(TokenKind::Eq) {
             if !with_value {

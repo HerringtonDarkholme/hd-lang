@@ -45,7 +45,7 @@ fn assign_items(value: &mut Nested, items: List[string]) -> void:
     value.items = items
 
 trait Factory:
-    fn make[T](self, value: T) -> *mut T:
+    fn make[T < 'static](self, value: T) -> *mut T:
         box(value)
 
 struct Maker: pass

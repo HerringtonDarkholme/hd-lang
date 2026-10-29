@@ -2116,18 +2116,14 @@ impl Ck<'_, '_> {
                 }
                 // `box(e)` (ref.box.new): a new object holding the
                 // argument's value, which the argument already copied
-                // (ref.box.copy). A value holding a local reference is
-                // `local-reference-escapes` (ref.box.no-local).
+                // (ref.box.copy). Its `T < 'static` keeps a local
+                // reference out (ref.box.no-local).
                 if item
                     .intrinsic
                     .is_some_and(|k| self.cx.names.text(k) == "box")
-                    && let ([v], [t], [e]) = (&refs[..], &vars[..], args.positional.as_slice())
+                    && let ([v], [t]) = (&refs[..], &vars[..])
                 {
                     let t = self.infer.resolve(pool, *t);
-                    if crate::local_refs::holds_local_ref(pool, t) {
-                        self.local_ref_escapes(*e, crate::local_refs::Escape::Counted);
-                        return Ok(self.poison_value(n));
-                    }
                     return Ok(self.new_object_ref(*v, t, true, n));
                 }
                 // A checked `assert_equal` call runs std's `check_equal`

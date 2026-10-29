@@ -26,7 +26,7 @@ struct Rest[U]:
 struct Shown:
     item: *dyn Show
 
-fn rest[U, J < Iterable[U]](other: J) -> Rest[U]:
+fn rest[U < 'static, J < Iterable[U] & 'static](other: J) -> Rest[U]:
     Rest { items: box(other.iter()) }
 
 pub fn main() -> void $ Console:

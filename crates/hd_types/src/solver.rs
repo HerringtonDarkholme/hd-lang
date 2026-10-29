@@ -904,6 +904,8 @@ pub enum BuiltinImpl {
     /// A concrete tuple type's `Structure` (`crates/hd_mono/DESIGN.md` §13.6), whose
     /// methods collection generates per tuple type.
     Structure,
+    /// `'static` (`ref.generic.static`), from the type's parts.
+    Static,
 }
 
 /// What a `Holds` answer carries (§8.1).
@@ -4696,6 +4698,7 @@ mod tests {
                 inspectable: id(4),
                 tuple: id(5),
                 structure: id(6),
+                static_bound: DefId::NONE,
                 list: DefId::NONE,
                 map: DefId::NONE,
             },

@@ -135,7 +135,7 @@ impl Error for never
 
 # Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
 # (r-std-error.context.ok, r-std-error.context.erased-wrapper).
-impl[T, E < Error] Result[T, E]:
+impl[T, E < Error & 'static] Result[T, E]:
     ## For an `.Err`, wraps the error with `message` as its context; an `.Ok` is unchanged.
     ## See [std-error.context.reference-result](../../spec/std/error.md#r-std-error.context.reference-result).
     pub fn context(self, message: string) -> Result[T, *dyn Error]:
