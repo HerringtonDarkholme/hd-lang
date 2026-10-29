@@ -22,7 +22,7 @@ impl Plugin for Importer:
 fn as_inspectable(plugin: *dyn Plugin) -> *dyn Inspectable:
     plugin
 
-fn format_of(value: &dyn Inspectable) -> string:
+fn format_of(value: *dyn Inspectable) -> string:
     match value.downcast_ref::[Exporter]().map(fn(found): *found):
         .Some(exporter) => exporter.format
         .None => "none"
@@ -31,7 +31,10 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("the child trait's own members dispatch"):
-        let plugins: List[*dyn Plugin] = [box(Exporter { format: "csv" }), box(Importer { source: "s3" })]
+        let plugins: List[*dyn Plugin] = [
+            box(Exporter { format: "csv" }),
+            box(Importer { source: "s3" }),
+        ]
         assert_equal(plugins[0].name(), "export csv", reason="Exporter's name")
         assert_equal(plugins[1].name(), "import s3", reason="Importer's name")
 

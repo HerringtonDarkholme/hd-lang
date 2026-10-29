@@ -9,10 +9,10 @@ struct Box[T]:
 fn erase[T < Inspectable](value: T) -> *dyn Inspectable:
     box(Box { value: value })
 
-fn is_int_box(value: &dyn Inspectable) -> bool:
+fn is_int_box(value: *dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[Box[i32]]()
 
-fn read_box(value: &dyn Inspectable) -> i32:
+fn read_box(value: *dyn Inspectable) -> i32:
     match value.downcast_ref::[Box[i32]]().map(fn(found): *found):
         .Some(found) => found.value
         .None => 0

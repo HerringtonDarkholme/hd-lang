@@ -23,14 +23,14 @@ impl Display for HttpError:
 
 impl Error for HttpError
 
-fn missing_path(error: &dyn Error) -> string:
+fn missing_path(error: *dyn Error) -> string:
     match error.downcast_ref::[FsError]().map(fn(found): *found):
         .Some(found) =>
             match found:
                 FsError.NotFound(path) => path
         .None => "other: " + error.to_string()
 
-fn is_http_target(error: &dyn Error) -> bool:
+fn is_http_target(error: *dyn Error) -> bool:
     match error.downcast_ref::[HttpError]():
         .Some(_) => true
         .None => false
@@ -39,13 +39,13 @@ tests:
     use std.testing.assert_equal
 
     it("an erased FsError is recovered"):
-        let error: &dyn Error = &FsError.NotFound("a.txt")
+        let error: *dyn Error = box(FsError.NotFound("a.txt"))
         assert_equal(missing_path(error), "a.txt", reason="the concrete error type matches")
 
     it("another domain error is not"):
-        let error: &dyn Error = &HttpError.Status(503)
+        let error: *dyn Error = box(HttpError.Status(503))
         assert_equal(missing_path(error), "other: status 503", reason="HttpError is not FsError")
 
     it("a different concrete error never matches"):
-        let error: &dyn Error = &FsError.NotFound("b.txt")
+        let error: *dyn Error = box(FsError.NotFound("b.txt"))
         assert_equal(is_http_target(error), false, reason="FsError is not HttpError")

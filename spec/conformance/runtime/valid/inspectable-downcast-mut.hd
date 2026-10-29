@@ -2,7 +2,7 @@
 use std.inspect.Inspectable
 struct Counter:
     count: i32
-fn bump(value: &mut dyn Inspectable) -> bool:
+fn bump(value: *mut dyn Inspectable) -> bool:
     match value.downcast_mut::[Counter]():
         .Some(counter) =>
             counter.count += 1
@@ -11,14 +11,14 @@ fn bump(value: &mut dyn Inspectable) -> bool:
 tests:
     use std.testing.{assert, assert_equal}
     it("writes reach the original and identity survives"):
-        let mut counter = Counter { count: 1 }
-        origin := &mut counter
-        let erased: &mut dyn Inspectable = origin
+        counter := box(Counter { count: 1 })
+        origin := counter
+        let erased: *mut dyn Inspectable = origin
         assert_equal(bump(erased), true, reason="Counter matches")
         assert_equal(counter.count, 2, reason="the original place changed")
         match erased.downcast_mut::[Counter]():
             .Some(found) => assert(found is origin, reason="the same reference")
             .None => assert(false, reason="Counter matches")
     it("another concrete type does not match"):
-        let mut other = [+1]
-        assert_equal(bump(&mut other), false, reason="List is not Counter")
+        other := box([+1])
+        assert_equal(bump(other), false, reason="List is not Counter")

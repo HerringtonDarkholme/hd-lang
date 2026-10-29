@@ -7,21 +7,21 @@
 # expect-stdout: not i64
 use std.inspect.{Inspectable}
 
-fn small(value: &dyn Inspectable) -> string:
+fn small(value: *dyn Inspectable) -> string:
     match value.downcast_ref::[u8]().map(fn(found): *found):
         .Some(n) => "u8 ${n}"
         .None => "not u8"
 
-fn wide(value: &dyn Inspectable) -> string:
+fn wide(value: *dyn Inspectable) -> string:
     match value.downcast_ref::[i64]().map(fn(found): *found):
         .Some(n) => "i64 ${n}"
         .None => "not i64"
 
 pub fn main() -> void $ Console:
-    let byte: u8 = 200
-    let big: i64 = 5000000000
-    println(small(&byte))
-    println(small(&big))
-    println(wide(&big))
-    println(wide(&byte))
-    println(wide(&"5"))
+    byte := box::[u8](200)
+    big := box::[i64](5000000000)
+    println(small(byte))
+    println(small(big))
+    println(wide(big))
+    println(wide(byte))
+    println(wide(box("5")))

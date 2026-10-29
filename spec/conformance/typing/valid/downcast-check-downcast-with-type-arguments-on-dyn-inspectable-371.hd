@@ -4,7 +4,7 @@ use std.inspect.Inspectable
 struct User:
     name: string
 
-fn name_of(value: &dyn Inspectable) -> string:
+fn name_of(value: *dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
         .Some(user) => user.name
         .None => "x"

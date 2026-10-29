@@ -13,12 +13,12 @@ impl Display for Label:
     fn to_string(self) -> string:
         self.text
 
-fn run_handler(value: &dyn Inspectable) -> i32:
+fn run_handler(value: *dyn Inspectable) -> i32:
     match value.downcast_ref::[Handler]().map(fn(found): *found):
         .Some(handler) => (handler.run)()
         .None => 0
 
-fn joined(value: &dyn Inspectable) -> string:
+fn joined(value: *dyn Inspectable) -> string:
     match value.downcast_ref::[List[*dyn Display]]().map(fn(found): *found):
         .Some(parts) =>
             let text: string = ""
@@ -32,11 +32,11 @@ tests:
 
     it("a recovered handler is callable"):
         run := fn() -> i32: 7
-        handler := Handler { run: run }
-        assert_equal(run_handler(&handler), 7, reason="the function field is called after recovery")
+        handler := box(Handler { run: run })
+        assert_equal(run_handler(handler), 7, reason="the function field is called after recovery")
 
     it("a trait value type argument matches exactly"):
-        let shown: List[*dyn Display] = [box(Label { text: "a" }), box(Label { text: "b" })]
-        assert_equal(joined(&shown), "ab", reason="List[Display] matches List[Display]")
-        let labels: List[Label] = [Label { text: "c" }]
-        assert_equal(joined(&labels), "no match", reason="List[Label] is not List[Display]")
+        shown := box::[List[*dyn Display]]([box(Label { text: "a" }), box(Label { text: "b" })])
+        assert_equal(joined(shown), "ab", reason="List[Display] matches List[Display]")
+        labels := box::[List[Label]]([Label { text: "c" }])
+        assert_equal(joined(labels), "no match", reason="List[Label] is not List[Display]")

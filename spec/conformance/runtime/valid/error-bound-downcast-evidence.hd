@@ -6,13 +6,13 @@ impl Display for Timeout:
     fn to_string(self) -> string:
         "timeout"
 impl Error for Timeout
-fn recover[T < Error](error: &dyn Error) -> (*T)?:
+fn recover[T < Error](error: *dyn Error) -> (*T)?:
     error.downcast_ref::[T]()
 tests:
     use std.testing.assert
     it("an Error bound carries the concrete target"):
-        timeout := &Timeout { seconds: 30 }
-        let erased: &dyn Error = timeout
+        timeout := box(Timeout { seconds: 30 })
+        let erased: *dyn Error = timeout
         match recover::[Timeout](erased):
             .Some(found) => assert(found is timeout, reason="the original reference")
             .None => assert(false, reason="Timeout matches")

@@ -13,12 +13,12 @@ impl Display for DiskError:
 
 impl Error for DiskError
 
-fn device_of(error: &dyn Error) -> string:
+fn device_of(error: *dyn Error) -> string:
     match error.downcast_ref::[DiskError]():
 > app/main/device_of
->   local $0 error: Ref[Error] [param read]
+>   local $0 error: Counted[Error] [param read]
 >   local $1 found: Counted[DiskError] [read assigned]
->   %0 = Read [$0] : Ref[Error]
+>   %0 = Read [$0] : Counted[Error]
 >   %1 = Call std/error/impl dyn Error.downcast_ref[DiskError] (%0) : Counted[DiskError]?
 >   %16 = Block - : never
 >   %17 = Match %1 [%16 %3 %4] : string

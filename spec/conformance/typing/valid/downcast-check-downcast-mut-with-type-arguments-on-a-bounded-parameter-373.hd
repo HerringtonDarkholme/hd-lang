@@ -4,13 +4,13 @@ use std.inspect.Inspectable
 struct Counter:
     count: i32
 
-fn bump(value: &mut dyn Inspectable) -> void:
+fn bump(value: *mut dyn Inspectable) -> void:
     match value.downcast_mut::[Counter]():
         .Some(counter) => counter.count = counter.count + 1
         .None => pass
 
-fn same[T < Inspectable](value: &T) -> bool:
-    let erased: &dyn Inspectable = value
+fn same[T < Inspectable](value: *T) -> bool:
+    let erased: *dyn Inspectable = value
     match erased.downcast_ref::[Counter]():
         .Some(_) => true
         .None => false

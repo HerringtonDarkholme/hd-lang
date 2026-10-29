@@ -10,7 +10,7 @@ impl Display for DiskError:
 
 impl Error for DiskError
 
-fn device_of(error: &dyn Error) -> string:
+fn device_of(error: *dyn Error) -> string:
     match error.downcast_ref::[DiskError]():
         .Some(found) => found.device
         .None => "none"

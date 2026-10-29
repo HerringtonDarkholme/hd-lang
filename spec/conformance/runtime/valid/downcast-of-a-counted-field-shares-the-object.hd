@@ -1,0 +1,26 @@
+# test: a downcast of a counted trait value recovers the boxed object it shares
+# Spec 09 Recovering A Concrete Type: trait.downcast.counted-receiver, trait.downcast.reference-identity.
+# expect-stdout: 2 true
+# expect-stdout: 3
+use std.inspect.Inspectable
+
+struct User:
+    count: i32
+
+struct Pair:
+    a: User
+    b: *mut User
+
+fn shared(p: &Pair) -> *User:
+    let erased: *dyn Inspectable = p.b
+    match erased.downcast_ref::[User]():
+        .Some(u) => u
+        .None => box(User { count: 0 })
+
+pub fn main() -> void $ Console:
+    pair := Pair { a: User { count: 1 }, b: box(User { count: 2 }) }
+    u := shared(&pair)
+    keep := [u, u, u]
+    println("${keep[0].count} ${keep[2] is pair.b}")
+    pair.b.count += 1
+    println("${keep[1].count}")

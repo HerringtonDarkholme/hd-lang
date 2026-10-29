@@ -19,12 +19,12 @@ pub trait Error < Display & Inspectable:
 impl dyn Error:
     ## Recovers the original shared error reference when its concrete type is `T`.
     @intrinsic("downcast_ref")
-    pub fn downcast_ref[T < Inspectable](&self) -> (*T)?:
+    pub fn downcast_ref[T < Inspectable](*self) -> (*T)?:
         panic("intrinsic")
 
     ## Recovers the original mutable error reference when its concrete type is `T`.
     @intrinsic("downcast_mut")
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (*mut T)?:
+    pub fn downcast_mut[T < Inspectable](*mut self) -> (*mut T)?:
         panic("intrinsic")
 
     ## Returns this error first, then its `source`, then that error's source, and so on.

@@ -4,47 +4,47 @@ struct User:
     name: string
 struct Post:
     title: string
-fn user_name(value: &dyn Inspectable) -> string:
+fn user_name(value: *dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
         .Some(user) => user.name
         .None => "not a user"
-fn number(value: &dyn Inspectable) -> i32:
+fn number(value: *dyn Inspectable) -> i32:
     match value.downcast_ref::[i32]():
         .Some(found) => *found
         .None => -1
 tests:
     use std.testing.{assert, assert_equal}
     it("a struct reference is recovered unchanged"):
-        user := &User { name: "Ada" }
-        let erased: &dyn Inspectable = user
+        user := box(User { name: "Ada" })
+        let erased: *dyn Inspectable = user
         assert_equal(user_name(erased), "Ada", reason="the exact type")
         assert_equal(erased.downcast_ref::[Post]().is_none(), true, reason="another type")
         match erased.downcast_ref::[User]():
             .Some(found) => assert(found is user, reason="same reference")
             .None => assert(false, reason="User matches")
     it("a primitive can be copied through the recovered reference"):
-        answer := &42i32
+        answer := box(42i32)
         assert_equal(number(answer), 42, reason="the copied i32")
-        assert_equal(number(&"42"), -1, reason="no numeric or string conversion")
+        assert_equal(number(box("42")), -1, reason="no numeric or string conversion")
     it("erasing a concrete reference preserves its identity"):
-        user := &User { name: "Grace" }
-        let erased: &dyn Inspectable = user
+        user := box(User { name: "Grace" })
+        let erased: *dyn Inspectable = user
         match erased.downcast_ref::[User]():
             .Some(found) => assert(found is user, reason="concrete identity")
             .None => assert(false, reason="User matches")
     it("the target names the actual referent"):
         user := box(User { name: "Lin" })
-        let erased: &dyn Inspectable = user
+        let erased: *dyn Inspectable = user
         assert(erased.downcast_ref::[*User]().is_none(), reason="the referent is User")
         nested := box::[*User](user)
-        let reference_value: &dyn Inspectable = nested
+        let reference_value: *dyn Inspectable = nested
         match reference_value.downcast_ref::[*User]():
             .Some(found) =>
                 assert(found is nested, reason="the original reference to the reference")
                 assert(*found is user, reason="the reference-valued referent")
-            .None => assert(false, reason="the referent is &User")
-        let dynamic: &dyn Inspectable = user
-        let dynamic_reference: &dyn Inspectable = &dynamic
+            .None => assert(false, reason="the referent is *User")
+        dynamic := box::[*dyn Inspectable](erased)
+        let dynamic_reference: *dyn Inspectable = dynamic
         match dynamic_reference.downcast_ref::[*dyn Inspectable]():
-            .Some(found) => assert(*found is dynamic, reason="a trait-reference-valued referent")
-            .None => assert(false, reason="the referent is &dyn Inspectable")
+            .Some(found) => assert(*found is erased, reason="a trait-reference-valued referent")
+            .None => assert(false, reason="the referent is *dyn Inspectable")

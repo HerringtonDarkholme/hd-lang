@@ -39,24 +39,24 @@ use std.inspect.Inspectable
 struct Counter:
     count: i32
 
-fn bump(value: &mut dyn Inspectable) -> void:
+fn bump(value: *mut dyn Inspectable) -> void:
     match value.downcast_mut::[Counter]():
         .Some(counter) => counter.count = counter.count + 1
         .None => pass
 
-fn disk_of[T < Error](value: &T) -> string:
-    let error: &dyn Error = value
+fn disk_of[T < Error](value: *T) -> string:
+    let error: *dyn Error = value
     match error.downcast_ref::[DiskError]():
         .Some(found) => found.device
         .None => "none"
 
 pub fn main() -> void $ Console:
-    let mut counter = Counter { count: 1 }
-    bump(&mut counter)
+    counter := box(Counter { count: 1 })
+    bump(counter)
     println("${counter.count}")
-    let error: &dyn Error = &DiskError { device: "sda" }
+    let error: *dyn Error = box(DiskError { device: "sda" })
     match error.downcast_ref::[DiskError]():
         .Some(found) => println(found.device)
         .None => println("none")
-    println(disk_of(&DiskError { device: "sdb" }))
-    println(disk_of(&Timeout { seconds: 1 }))
+    println(disk_of(box(DiskError { device: "sdb" })))
+    println(disk_of(box(Timeout { seconds: 1 })))

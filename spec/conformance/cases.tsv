@@ -1940,6 +1940,8 @@ runtime/valid/inspectable-generic-target-helper.hd	runtime	accept	lang/09-traits
 runtime/valid/error-downcast-through-inspectable.hd	runtime	accept	lang/09-traits.md#error-trait
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd	runtime	accept	lang/09-traits.md#inspectable-types
 typing/invalid/downcast-mut-readonly-value.hd	type	reject:not-writable	lang/09-traits.md#recovering-a-concrete-type
+typing/invalid/downcast-on-a-local-trait-reference.hd	type	reject:local-reference-escapes	lang/09-traits.md#r-trait.downcast.counted-receiver
+runtime/valid/downcast-of-a-counted-field-shares-the-object.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.counted-receiver
 typing/invalid/erase-readonly-to-mut-inspectable.hd	type	reject:mutable-upgrade	lang/09-traits.md#erasure-to-inspectable
 typing/invalid/generic-erasure-without-bound.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.erase.bound-required.reference-values
 typing/invalid/closure-not-inspectable.hd	type	reject:type-mismatch	lang/09-traits.md#inspectable-types

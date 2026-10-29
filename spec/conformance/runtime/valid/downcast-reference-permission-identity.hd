@@ -12,9 +12,9 @@ fn forwarded_kind[T < Inspectable](value: T) -> TypeId:
 fn copied[T < Inspectable](value: T) -> T:
     value
 pub fn main() -> void $ Console:
-    let user = &User { count: 1 }
-    let original = &user
-    let erased: &dyn Inspectable = original
+    user := box(User { count: 1 })
+    original := box::[*User](user)
+    let erased: *dyn Inspectable = original
     println(TypeId::of::[*User]() == TypeId::of::[*mut User]())
     println(erased.downcast_ref::[*mut User]().is_some())
 tests:
@@ -22,7 +22,7 @@ tests:
     it("mutable recovery preserves the original mutable reference"):
         user := box(User { count: 1 })
         original := user
-        let erased: &mut dyn Inspectable = original
+        let erased: *mut dyn Inspectable = original
         match erased.downcast_mut::[User]():
             .Some(found) =>
                 assert(found is original, reason="the original place")
@@ -32,7 +32,7 @@ tests:
     it("an outer mutable reference does not upgrade its shared referent"):
         user := box::[*User](box(User { count: 3 }))
         original := user
-        let erased: &mut dyn Inspectable = original
+        let erased: *mut dyn Inspectable = original
         assert(
             erased.downcast_mut::[*mut User]().is_none(),
             reason="the referent is a shared reference",

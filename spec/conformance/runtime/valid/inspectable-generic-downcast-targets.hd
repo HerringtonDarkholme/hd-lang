@@ -2,13 +2,13 @@
 use std.inspect.Inspectable
 struct Box[T]:
     value: T
-fn recover[T < Inspectable](value: &dyn Inspectable) -> (*T)?:
+fn recover[T < Inspectable](value: *dyn Inspectable) -> (*T)?:
     value.downcast_ref::[T]()
 tests:
     use std.testing.{assert, assert_equal}
     it("a concrete generic target preserves identity"):
-        narrow := &Box { value: 1i32 }
-        let erased: &dyn Inspectable = narrow
+        narrow := box(Box { value: 1i32 })
+        let erased: *dyn Inspectable = narrow
         match recover::[Box[i32]](erased):
             .Some(found) => assert(found is narrow, reason="same reference")
             .None => assert(false, reason="matching arguments")
