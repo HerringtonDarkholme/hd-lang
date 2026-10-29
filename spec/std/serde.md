@@ -181,17 +181,20 @@ For example, `@rename_all(.CamelCase)` on `OrderPaid` gives the member
 The typed `SkipNone` fact omits an optional member only when it is absent.
 For example, `@skip_none()` on `note: string?` omits the key for `.None`.
 
-1. r[std-serde.skip-none.fact] `std.serde` exports the member-typed field fact `SkipNone[F]` for the field type `F`.
+1. r[std-serde.skip-none.fact.phantom] `std.serde` exports the member-typed field fact `SkipNone[F]` for the field type `F`. It has no value field; `F` records only which member type the fact may annotate.
 2. r[std-serde.skip-none.constructor] `skip_none[T]() -> SkipNone[T?]` constructs the fact for an optional field, checked by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check).
-3. r[std-serde.skip-none.named-omit] Derived serialization omits a named member marked by `skip_none()` when its value is `.None`, without calling its serializer or the format's `member`.
-4. r[std-serde.skip-none.present] A marked `.Some(value)` is written normally, including `.Some(.None)` as a present member whose value is null.
-5. r[std-serde.skip-none.read] `SkipNone` does not change deserialization, so absent keys follow the ordinary optional and declared-default rules.
-6. r[std-serde.skip-none.ordinary] An unmarked optional member still writes `.None` as null.
-7. r[std-serde.skip-none.positional-error] A positional enum payload member with a known `SkipNone` fact is an error under a derived `Serialize`. Error: `member-not-derivable`.
+3. r[std-serde.skip-none.absence.default] `Serialize` declares `is_absent(&self) -> bool`, whose default body returns `false`.
+4. r[std-serde.skip-none.absence.optional] The standard `Serialize` implementation for `T?` overrides `is_absent` to return `true` exactly for `.None`.
+5. r[std-serde.skip-none.named-omit.v2] Derived serialization omits a named member with a `SkipNone[F]` fact when statically dispatched `Serialize.is_absent()` returns `true`. It calls neither the value's serializer nor the format's `member`.
+6. r[std-serde.skip-none.present] A marked `.Some(value)` is written normally, including `.Some(.None)` as a present member whose value is null.
+7. r[std-serde.skip-none.read] `SkipNone` does not change deserialization, so absent keys follow the ordinary optional and declared-default rules.
+8. r[std-serde.skip-none.ordinary] An unmarked optional member still writes `.None` as null.
+9. r[std-serde.skip-none.positional-error] A positional enum payload member with a known `SkipNone` fact is an error under a derived `Serialize`. Error: `member-not-derivable`.
 
-> **Why.** The fact's optional predicate runs before the format sees the
-> member, so every serializer receives the same view without confusing a
-> present value that serializes as null with an absent optional.
+> **Why.** The fact is data-free, and the member's already-required
+> `Serialize` implementation answers the absence query before the format sees
+> the member. Every serializer receives the same view without an indirect
+> predicate call or confusion between a present null and an absent optional.
 
 > **Why.** A named member's key identifies which optional value is absent.
 > A positional payload has no key, so omitting a value would make every
