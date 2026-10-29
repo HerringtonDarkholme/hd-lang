@@ -286,30 +286,30 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:   # hypothetica
 Guards, scoped closures and `Span` reuse the same variable: `Span[T, 'a]`.
 
 **Closures** (owner, 2026-10-29). A function type carries its capture
-bound on the arrow, in the same `'` position as references:
+bound right after `fn`, as a reference carries its lifetime right after `&`:
 
 ```text
-fn() ->'a void            # captures references that live 'a
+&'a User                  # a reference that lives 'a
+fn'a() -> void            # a closure whose captures live 'a
 fn() -> void              # elided: a fresh lifetime in a parameter, 'static elsewhere
-fn() ->'a &'a User        # captures 'a and returns a reference that lives 'a
+fn'a() -> &'a User        # captures 'a and returns a reference that lives 'a
 fn() -> &'a User          # captures nothing local; returns a 'a reference
-fn() ->'{a, b} void       # later sugar, as for references; also ->'self
+fn'{a, b}(T) -> void      # later sugar, as for references; also fn'self
 
 fn each[T](items: List[T], f: fn(T) -> void)      # f may capture locals; only called
 struct Button[T, 'a]:
-    on_click: fn() ->'a void
-fn on_exit['a](action: fn() ->'a void) -> ScopeGuard['a]
+    on_click: fn'a() -> void
+fn on_exit['a](action: fn'a() -> void) -> ScopeGuard['a]
 ```
 
-- `fn(A) ->'a R` stays a concrete type. A closure value holds its captures'
+- `fn'a(A) -> R` stays a concrete type. A closure value holds its captures'
   origins like any local-holding value, and every Local References rule
   applies to it.
 - Elision follows Rust's default trait-object lifetimes. An unwritten bound
   on a parameter is a fresh lifetime, so the callee may only call, pass on
   or return the closure (Swift's non-escaping default). On a field, a box,
   a provider or a result it means `'static`: no local captures.
-- After `->`, a lifetime token is the capture bound and the result type
-  follows; the formatter keeps `->'a` attached.
+- Nothing after `->` is ever a capture bound.
 - `Fn[I, O, $R]` traits remain only for static dispatch (`F < Fn[(T,), U]`),
   later. Whether a closure may mutate its captures is slice 6e.
 
@@ -327,10 +327,10 @@ easy to iterate). One checkable rule per slice, in order:
 | 6c1 | a trait may declare lifetimes (`trait Source['a]`) | 6a3 |
 | 6c2 | a `type` alias may take and pass lifetimes | 6a3 |
 | 6c3 | an impl target may write lifetimes (`impl[T, 'a] Wrap[&'a T]`) | 6a3 |
-| 6d1 | `fn(A) ->'a R` capture bounds: a closure value carries its captures' origins; an unwritten bound on a parameter is fresh (may capture locals, only called, passed on or returned) | stage 5 |
-| 6d2 | stored capturing closures: a field or result writes `->'a` (`struct Button[T, 'a]`); an unwritten bound there is `'static`, and boxing a capturing closure is an error | 6d1, 6a1 |
+| 6d1 | `fn'a(A) -> R` capture bounds: a closure value carries its captures' origins; an unwritten bound on a parameter is fresh (may capture locals, only called, passed on or returned) | stage 5 |
+| 6d2 | stored capturing closures: a field or result writes `fn'a` (`struct Button[T, 'a]`); an unwritten bound there is `'static`, and boxing a capturing closure is an error | 6d1, 6a1 |
 | 6e | mutation of captures: read-only by default or not, and `require`'s condition read-only (#978) | 6d1; owner: the form |
-| 6f | `on_exit['a](action: fn() ->'a void) -> ScopeGuard['a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d2, 6e |
+| 6f | `on_exit['a](action: fn'a() -> void) -> ScopeGuard['a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d2, 6e |
 | 6g | library `defer` and `ensure` under `@auto_closing` (#978) | 6f; owner: `ensure`'s result access |
 | 6h | read-only live list views, `Span[T, 'a]` (#978); `SpanMut` after | 6a3; owner: the API |
 | 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
