@@ -83,8 +83,8 @@ impl Wire for Command {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConsoleError {
     Closed,
-    NotGranted { subject: String },
-    Other { message: String },
+    NotGranted { stream: ConsoleStream },
+    Other { code: i32 },
 }
 
 impl Wire for ConsoleError {
@@ -93,13 +93,13 @@ impl Wire for ConsoleError {
             Self::Closed => {
                 e.leb(0);
             }
-            Self::NotGranted { subject } => {
+            Self::NotGranted { stream } => {
                 e.leb(1);
-                subject.enc(e);
+                stream.enc(e);
             }
-            Self::Other { message } => {
+            Self::Other { code } => {
                 e.leb(2);
-                message.enc(e);
+                code.enc(e);
             }
         }
     }
@@ -107,11 +107,42 @@ impl Wire for ConsoleError {
         Ok(match d.tag(3)? {
             0 => Self::Closed,
             1 => Self::NotGranted {
-                subject: Wire::dec(d)?,
+                stream: Wire::dec(d)?,
             },
             _ => Self::Other {
-                message: Wire::dec(d)?,
+                code: Wire::dec(d)?,
             },
+        })
+    }
+}
+
+/// `ConsoleStream` of `lib/std/console.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ConsoleStream {
+    Stdout,
+    Stderr,
+    Stdin,
+}
+
+impl Wire for ConsoleStream {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Stdout => {
+                e.leb(0);
+            }
+            Self::Stderr => {
+                e.leb(1);
+            }
+            Self::Stdin => {
+                e.leb(2);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(3)? {
+            0 => Self::Stdout,
+            1 => Self::Stderr,
+            _ => Self::Stdin,
         })
     }
 }

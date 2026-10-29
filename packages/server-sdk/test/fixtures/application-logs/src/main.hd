@@ -21,10 +21,10 @@ fn handle!(request: Request, _state: &mut State) -> Response $ Console + Clock:
         out := $.use(Console).write_sync("private stdout")
         err := $.use(Console).write_error_sync("private stderr")
         a := match out:
-            .Err(.NotGranted(subject)) => subject
+            .Err(.NotGranted(stream)) => "$stream"
             _ => "incorrect stdout permission"
         b := match err:
-            .Err(.NotGranted(subject)) => subject
+            .Err(.NotGranted(stream)) => "$stream"
             _ => "incorrect stderr permission"
         return Response::status(.Ok).set_text("$a/$b")
     label := request.url.to_string()

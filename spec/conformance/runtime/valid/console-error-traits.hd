@@ -1,5 +1,5 @@
 # test: ConsoleError implements Eq, Debug, and Display
-# Spec std/console Console Errors: std-console.error.traits, std-console.error.debug-payloads (spec pass 89, audit item 4).
+# Spec std/console Console Errors: std-console.error.traits, std-console.error.debug-coded-payloads.
 fn closed(error: ConsoleError) -> bool:
     error == ConsoleError.Closed
 
@@ -21,21 +21,17 @@ tests:
         assert_equal("${ConsoleError.Closed}", "console closed", reason="the Display text")
 
     it("compares and renders error payloads"):
-        denied := ConsoleError.NotGranted("stdout")
-        other := ConsoleError.Other("sink failed")
-        assert_equal(denied, ConsoleError.NotGranted("stdout"), reason="equal payload")
-        assert(denied != ConsoleError.NotGranted("stderr"), reason="different subjects")
-        assert(other != ConsoleError.Other("other failure"), reason="different messages")
+        denied := ConsoleError.NotGranted(.Stdout)
+        other := ConsoleError.Other(1)
+        assert_equal(denied, ConsoleError.NotGranted(.Stdout), reason="equal payload")
+        assert(denied != ConsoleError.NotGranted(.Stderr), reason="different streams")
+        assert(other != ConsoleError.Other(2), reason="different codes")
         assert(denied != other, reason="different variants")
         assert_equal("$denied", "console access to stdout is not granted", reason="denial display")
-        assert_equal("$other", "sink failed", reason="other display")
+        assert_equal("$other", "console error 1", reason="other display")
         assert_equal(
             debug(denied),
-            "ConsoleError.NotGranted(subject=\"stdout\")",
-            reason="named subject",
+            "ConsoleError.NotGranted(stream=ConsoleStream.Stdout)",
+            reason="named stream",
         )
-        assert_equal(
-            debug(other),
-            "ConsoleError.Other(message=\"sink failed\")",
-            reason="named message",
-        )
+        assert_equal(debug(other), "ConsoleError.Other(code=1)", reason="named code")

@@ -144,9 +144,9 @@ impl LTy {
         }
     }
 
-    /// An enum whose payloads are at most one payload-free enum each, as
-    /// `Result[void, ConsoleError]`: its encoding is one or two variant
-    /// indices, which a host leaf reads as bytes (`HostRes::Tags`).
+    /// An enum whose payloads are at most one payload-free enum each. Its
+    /// encoding is one or two variant indices, which a host leaf reads as
+    /// bytes (`HostRes::Tags`).
     #[must_use]
     pub fn is_tags(&self) -> bool {
         let LTy::Enum(e) = self else {

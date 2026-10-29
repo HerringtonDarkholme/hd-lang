@@ -16,7 +16,9 @@ export function createRequestConsole(lease, { id = lease.id, policy, write }) {
         ok: false,
         error: {
           tag: "NotGranted",
-          fields: { subject: stream === "out" ? "stdout" : "stderr" },
+          fields: {
+            stream: { tag: stream === "out" ? "Stdout" : "Stderr", fields: {} },
+          },
         },
       };
     const record = Object.freeze({ version: 1, lease: identity, stream, text });

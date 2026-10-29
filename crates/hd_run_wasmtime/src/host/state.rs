@@ -339,11 +339,16 @@ impl Host {
     /// A guest console write: after the held output, it goes straight to
     /// the stream, or blocks until the writer thread has written it, so a
     /// write never suspends (`module.console.write-sync.never-suspends`).
-    pub(crate) fn write_console(&mut self, to: Stream, line: Vec<u8>) {
+    pub(crate) fn write_console(
+        &mut self,
+        to: Stream,
+        line: Vec<u8>,
+    ) -> Result<(), super::output::OutputError> {
         self.flush();
         if !self.muted {
-            self.output.write_blocking(to, line);
+            self.output.write_blocking(to, line)?;
         }
+        Ok(())
     }
 
     pub(crate) fn drain_output(&mut self) {

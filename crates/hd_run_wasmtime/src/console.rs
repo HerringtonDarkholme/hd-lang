@@ -9,8 +9,8 @@
 
 use wasmtime::{Caller, Val};
 
-use crate::abi::{ConsoleError, HostMethod, Id};
-use crate::host::{Host, Ret, Stop, bytes, handle, int_arg};
+use crate::abi::{ConsoleError, ConsoleStream, HostMethod, Id};
+use crate::host::{Host, OutputError, Ret, Stop, bytes, handle, int_arg};
 use crate::runtime::reactor::{Stream, Work};
 
 /// A `Console.write_sync` or `Console.write_error_sync` call, or a
@@ -26,19 +26,29 @@ pub(crate) fn call(
             let line = bytes(caller, int_arg(params, 0)?)?;
             let out = method.id == Id::ConsoleWriteSync;
             if !caller.data().grants.allows("Console") {
-                let subject = if out { "stdout" } else { "stderr" };
+                let stream = if out {
+                    ConsoleStream::Stdout
+                } else {
+                    ConsoleStream::Stderr
+                };
                 return Ok(Ret::value(&Err::<(), _>(ConsoleError::NotGranted {
-                    subject: subject.into(),
+                    stream,
                 })));
             }
             // Normalize invalid UTF-8 through the text boundary.
             let line = String::from_utf8_lossy(&line).into_owned().into_bytes();
             let to = if out { Stream::Out } else { Stream::Err };
-            caller.data_mut().write_console(to, line);
-            Ret::value(&Ok::<(), ConsoleError>(()))
+            let result = caller
+                .data_mut()
+                .write_console(to, line)
+                .map_err(|error| match error {
+                    OutputError::Closed => ConsoleError::Closed,
+                    OutputError::Other(code) => ConsoleError::Other { code },
+                });
+            Ret::value(&result)
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
-        // input, `.Err(.Closed)` when it cannot be read.
+        // input, or `.Err(.Other(code))` when it cannot be read.
         Id::ConsoleInputReadLine | Id::ConsoleInputReadAll if finish => {
             let h = handle(int_arg(params, 0)?);
             let Some(Work::Read(Some(line))) =
@@ -50,14 +60,15 @@ pub(crate) fn call(
                 .into());
             };
             if method.id == Id::ConsoleInputReadAll {
-                // `Result[string, ConsoleError]`: all the rest, or `.Err(.Closed)`.
+                // `Result[string, ConsoleError]`: all the rest, or the host
+                // read error's numeric code.
                 Ret::value(
                     &line
                         .map(Option::unwrap_or_default)
-                        .map_err(|()| ConsoleError::Closed),
+                        .map_err(|code| ConsoleError::Other { code }),
                 )
             } else {
-                Ret::value(&line.map_err(|()| ConsoleError::Closed))
+                Ret::value(&line.map_err(|code| ConsoleError::Other { code }))
             }
         }
         // Make a completed prompt visible before asking the reader thread

@@ -99,6 +99,98 @@ fn profile_imports(wasm: &[u8]) -> Vec<String> {
     out
 }
 
+/// Whether the adapter body that calls `module/name` can reach a function
+/// whose name satisfies `target` through direct calls.
+fn host_adapter_reaches(
+    wasm: &[u8],
+    module: &str,
+    name: &str,
+    target: impl Fn(&str) -> bool,
+) -> bool {
+    let mut imports = Vec::new();
+    let mut names = std::collections::BTreeMap::new();
+    let mut calls = Vec::new();
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        match payload.expect("payload") {
+            wasmparser::Payload::ImportSection(section) => {
+                for import in section.into_imports() {
+                    let import = import.expect("import");
+                    if matches!(import.ty, wasmparser::TypeRef::Func(_)) {
+                        imports.push((import.module, import.name));
+                    }
+                }
+            }
+            wasmparser::Payload::CustomSection(section) if section.name() == "name" => {
+                let section = wasmparser::NameSectionReader::new(wasmparser::BinaryReader::new(
+                    section.data(),
+                    section.data_offset(),
+                ));
+                for subsection in section {
+                    if let wasmparser::Name::Function(map) = subsection.expect("name subsection") {
+                        for entry in map {
+                            let entry = entry.expect("function name");
+                            names.insert(entry.index, entry.name);
+                        }
+                    }
+                }
+            }
+            wasmparser::Payload::CustomSection(section) if section.name() == "hd.names" => {
+                let mut reader =
+                    wasmparser::BinaryReader::new(section.data(), section.data_offset());
+                for _ in 0..reader.read_var_u32().expect("compact name count") {
+                    let index = reader.read_var_u32().expect("compact function index");
+                    let name = reader.read_string().expect("compact function name");
+                    names.insert(index, name);
+                }
+                assert!(reader.eof(), "complete compact names");
+            }
+            wasmparser::Payload::CodeSectionEntry(body) => {
+                calls.push(
+                    body.get_operators_reader()
+                        .expect("operators")
+                        .into_iter()
+                        .filter_map(|op| match op.expect("operator") {
+                            wasmparser::Operator::Call { function_index } => Some(function_index),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>(),
+                );
+            }
+            _ => {}
+        }
+    }
+    let import = u32::try_from(
+        imports
+            .iter()
+            .position(|(candidate_module, candidate_name)| {
+                *candidate_module == module && *candidate_name == name
+            })
+            .expect("method import"),
+    )
+    .expect("function index");
+    let slot = calls
+        .iter()
+        .find(|body| body.contains(&import))
+        .expect("host adapter");
+    let mut pending = slot.clone();
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(index) = pending.pop() {
+        if !seen.insert(index) {
+            continue;
+        }
+        if names.get(&index).is_some_and(|name| target(name)) {
+            return true;
+        }
+        if let Some(body) = index
+            .checked_sub(u32::try_from(imports.len()).expect("function imports"))
+            .and_then(|index| calls.get(index as usize))
+        {
+            pending.extend(body);
+        }
+    }
+    false
+}
+
 #[test]
 fn a_returned_profile_trait_value_is_a_handle_whose_methods_take_its_number() {
     let out = build(&format!("{FILES}{MAIN}"), &["Files", "FileHandle"]);
@@ -186,6 +278,31 @@ fn an_uncalled_host_method_is_not_imported() {
     assert_eq!(profile_imports(wasm), ["hd:Console write_error_sync"]);
 }
 
+/// A coded `ConsoleError` decoder validates its enum and integer payloads
+/// without constructing a heap string. Development modules still contain
+/// release helpers for the owned text passed to `write_sync`; those names do
+/// not by themselves make the host result decoder allocate.
+#[test]
+fn console_error_decoder_has_no_allocator_edge() {
+    for profile in [BuildProfile::Checked, BuildProfile::Release] {
+        let out = build_in_mode(
+            &crate::warm_store(),
+            "pub fn main() -> void $ Console:\n    println(\"hello\")\n",
+            &[],
+            profile,
+            OptLevel::Dev,
+        );
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        let wasm = out.wasm.as_deref().expect("the program links");
+        assert!(
+            !host_adapter_reaches(wasm, "hd:Console", "write_sync", |name| {
+                name.starts_with("rt:str") || name.starts_with("std/rt.alloc/alloc#")
+            }),
+            "{profile:?} ConsoleError decoding reached the allocator"
+        );
+    }
+}
+
 /// Identical result schemas need different codecs when one method discards its
 /// strings and another retains them past a later exchange-buffer overwrite.
 #[test]
@@ -199,9 +316,12 @@ fn discarded_host_error_payloads_do_not_change_an_observing_methods_decoder() {
         let out = build_in_mode(
             &crate::warm_store(),
             r#"
+pub enum VaultError:
+    Other(message: string)
+
 pub trait Vault:
-    fn ignored(self) -> Result[void, ConsoleError]
-    fn observed(self) -> Result[void, ConsoleError]
+    fn ignored(self) -> Result[void, VaultError]
+    fn observed(self) -> Result[void, VaultError]
 
 pub fn main() -> void $ Vault:
     _ := $.use(Vault).ignored()
@@ -332,8 +452,8 @@ import {{ pathToFileURL }} from 'node:url';
 const {{ createCoreHost }} = await import(pathToFileURL({core:?}).href);
 const host = createCoreHost({{out(){{}},err(text){{throw Error(text)}}}}, {{providers: ({{put,Enc}}) => ({{
   'hd:Vault': {{
-    ignored: () => put(new Enc().leb(1).leb(2).str('discarded and overwritten').done()),
-    observed: () => put(new Enc().leb(1).leb(2).str('kept λ 🦀').done()),
+    ignored: () => put(new Enc().leb(1).leb(0).str('discarded and overwritten').done()),
+    observed: () => put(new Enc().leb(1).leb(0).str('kept λ 🦀').done()),
   }}
 }})}});
 const instance = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({wasm:?})),host.imports);

@@ -303,9 +303,9 @@ the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
   method that never waits returns a scalar as its Wasm result, a struct
   value of one `i64` field (`Timestamp`, `Instant`) as that `i64`, and a
   structured value in the buffer, with its length as the result.
-- **An enum of tags** (each payload at most one payload-free enum, as
-  `Result[void, ConsoleError]`) is read as one or two bytes, which are
-  the general encoding's bytes for fewer than 128 variants.
+- **An enum of tags** (each payload at most one payload-free enum) is read
+  as one or two bytes, which are the general encoding's bytes for fewer
+  than 128 variants.
 - **Checks.** The encoder grows the buffer before it writes (a refused
   growth is `heap-exhausted`). The decoder checks every LEB128 byte and
   every length against the buffer's size, a variant index against the
@@ -343,7 +343,8 @@ The structured values of the ABI table, byte by byte:
 | `List[Entry]` | count, then each entry |
 | `Result[T, E]` | `0` and the `T`, or `1` and the `E` |
 | `FsError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `AlreadyExists` 3, `NotADirectory` 4, `IsADirectory` 5, `InvalidUtf8` 6, `Other` 7), then its path, or `Other`'s message |
-| `ConsoleError` | `0` (`Closed`) |
+| `ConsoleStream` | `0` (`Stdout`), `1` (`Stderr`) or `2` (`Stdin`) |
+| `ConsoleError` | `0` (`Closed`), `1` then a `ConsoleStream` (`NotGranted`), or `2` then a signed error code (`Other`) |
 | `ProcessOutput` | stdout, stderr, the status (zigzag), then the program name |
 | `ProcessError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `Other` 3), then the program of `NotFound` and `PermissionDenied`, or `Other`'s message |
 | `HostError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name |
@@ -354,7 +355,8 @@ The structured values of the ABI table, byte by byte:
 | `HttpError` | the variant index (`NotGranted` 0, `InvalidUrl` 1, `Dns` 2, `Connect` 3, `Tls` 4, `Timeout` 5, `TooManyRedirects` 6, `Other` 7), then its text, which `Timeout` lacks |
 
 So `Result[string?, ConsoleError]` is `0 0` at the end of input, `0 1`
-and the line for a line, and `1 0` for `Closed`;
+and the line for a line, `1 0` for `Closed`, or `1 2` and a zigzag code
+for another host read failure;
 `Result[List[Entry], FsError]` is `0`, the count and the entries, or `1`,
 the variant index and the path.
 

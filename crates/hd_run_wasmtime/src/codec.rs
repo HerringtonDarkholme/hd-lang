@@ -288,7 +288,9 @@ fn decode_error() -> wasmtime::Error {
 #[cfg(test)]
 mod tests {
     use super::{Dec, Enc, Handle, Wire, encode};
-    use crate::abi::{Entry, EntryKind, FsError, HostError, NetError, Path};
+    use crate::abi::{
+        ConsoleError, ConsoleStream, Entry, EntryKind, FsError, HostError, NetError, Path,
+    };
 
     fn round_trip<T: Wire + PartialEq + std::fmt::Debug>(value: &T, bytes: &[u8]) {
         assert_eq!(encode(value).done(), bytes, "{value:?}");
@@ -419,7 +421,20 @@ mod tests {
             &[4, 4, b'P', b'O', b'R', b'T'],
         );
         round_trip(&NetError::Closed, &[5]);
+        round_trip(
+            &ConsoleError::NotGranted {
+                stream: ConsoleStream::Stdout,
+            },
+            &[1, 0],
+        );
+        round_trip(&ConsoleError::Other { code: -5 }, &[2, 9]);
         let err = EntryKind::dec(&mut Dec::new(&[3])).expect_err("no fourth kind");
+        assert_eq!(err.to_string(), "an argument does not decode");
+        let err = ConsoleError::dec(&mut Dec::new(&[1, 3]))
+            .expect_err("NotGranted needs a valid stream tag");
+        assert_eq!(err.to_string(), "an argument does not decode");
+        let err =
+            ConsoleError::dec(&mut Dec::new(&[2])).expect_err("Other needs a signed error code");
         assert_eq!(err.to_string(), "an argument does not decode");
     }
 

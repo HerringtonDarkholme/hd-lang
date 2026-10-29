@@ -9,7 +9,7 @@ ordinary hd over the language tier:
 - `eprintln`, which writes a line to standard error;
 - when the host's console output becomes visible;
 - the host capability trait `ConsoleInput`, and the helpers `read_line!` and `read_all!`;
-- the traits of `ConsoleError`;
+- `ConsoleStream`, and the traits and display text of `ConsoleError`;
 - the test providers `MemoryConsole` and `ScriptedInput`.
 
 The language tier keeps what the prelude and the conformance harness name
@@ -82,6 +82,7 @@ fn main!() -> void $ Console + Clock:
 
 1. r[std-console.host.visible-text-sync] Each `write_sync` or `write_error_sync` of the host's `Console` provider reaches its host stream before it returns.
 2. r[std-console.host.chunk-order] The host's `Console` provider keeps standard output and standard error in their relative order: their chunks reach the host in call order.
+3. r[std-console.host.coded-error] A closed or disconnected output stream returns `.Err(ConsoleError.Closed)`. Another host write failure returns `.Err(ConsoleError.Other(code))` with the signed host error code.
 
 > **Note.** So a `println` or `eprintln` line is visible before the next
 > host wait, such as a `sleep!` or a `send!`. A full stream blocks the
@@ -128,7 +129,7 @@ fn whole_input!() -> string $ ConsoleInput:
 
 6. r[std-console.input.read-all-ref] `ConsoleInput` also declares `fn read_all!(&mut self) -> Result[string, ConsoleError]`, a bang call that takes `&mut self` as `read_line!` does. It returns the rest of the input as one string with the line structure of the text, as Go's `io.ReadAll`, Rust's `read_to_string` and Python's `read()` do: `"a\nb\n"` gives `"a\nb\n"`, `"a\nb"` gives `"a\nb"`, and `"\n"` gives `"\n"`. A `\r\n` is read as `\n`, as `read_line!` reads it. The result is `""` when no input is left. After it, `read_line!` returns `.Ok(.None)`.
 7. r[std-console.input.read-all-default] `read_all!` has a default body, so a provider need not define it. The body calls `read_line!` until it returns `.Ok(.None)`, appends each line and a `\n` to one `StringBuilder`, and returns the first `.Err` that `read_line!` returns. Since `read_line!` drops each line ending, the body cannot tell whether the last line had one: it approximates by ending every line with `\n`.
-8. r[std-console.input.read-all-host] The host's `ConsoleInput` provider overrides `read_all!` with one read of the rest of standard input. Its result is the input as read, with each `\r\n` read as `\n` and nothing else changed; bytes that are not UTF-8 become U+FFFD. It returns `.Err(ConsoleError.Closed)` when standard input cannot be read.
+8. r[std-console.input.read-all-host-coded-error] The host's `ConsoleInput` provider overrides `read_all!` with one read of the rest of standard input. Its result is the input as read, with each `\r\n` read as `\n` and nothing else changed; bytes that are not UTF-8 become U+FFFD. A host read failure returns `.Err(ConsoleError.Other(code))` with the signed host error code.
 9. r[std-console.input.read-all-helper] `std.console` declares `pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput`, which calls `read_all!` on the `ConsoleInput` provider that covers the call. A typed read is `decode::[T](read_all!()?)`.
 
 > **Why.** Input is its own trait, apart from `Console`, so a program
@@ -144,8 +145,8 @@ fn closed(error: ConsoleError) -> bool:
 ```
 
 1. r[std-console.error.traits] `ConsoleError` implements `Eq`, `Debug`, and `Display`. Its `Display` text for `Closed` is `console closed`.
-2. r[std-console.error.debug-payloads] Its `Debug` writes the qualified variant name and named payloads, including `ConsoleError.NotGranted(subject="stdout")`.
-3. r[std-console.error.payload-display] `NotGranted(subject)` displays `console access to SUBJECT is not granted`; `Other(message)` displays its message.
+2. r[std-console.error.debug-coded-payloads] Its `Debug` writes the qualified variant name and named payloads, including `ConsoleError.NotGranted(stream=ConsoleStream.Stdout)` and `ConsoleError.Other(code=1)`.
+3. r[std-console.error.coded-display] `NotGranted(stream)` displays `console access to STREAM is not granted`, where the stream text is `stdout`, `stderr`, or `stdin`; `Other(code)` displays `console error CODE`.
 4. r[std-console.error.payload-equality] Equality compares the variant and its payload.
 5. r[std-console.error.error] `ConsoleError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 

@@ -23,11 +23,12 @@ import http from "node:http";
 import { once } from "node:events";
 import { MessageChannel, Worker } from "node:worker_threads";
 import { createCoreHost, httpProvider, pendingOperation, TimeLimit } from "./core.mjs";
-import { Dec, Enc, Err, Ok, str } from "./wire.mjs";
-import { METHODS } from "./gen/abi.mjs";
+import { Dec, Enc, Err, HostContract, Ok, str } from "./wire.mjs";
+import { ConsoleError, METHODS } from "./gen/abi.mjs";
 
 import { cgroupCpuCount, createHost, syncClient } from "./node.mjs";
 import { createOutput } from "./output.mjs";
+import { failed as failedOutput } from "./output-worker.mjs";
 import { postReply, receiveReply } from "./worker-control.mjs";
 
 function fixture(t, files) {
@@ -42,6 +43,20 @@ function fixture(t, files) {
   }
   return root;
 }
+
+test("Console errors carry only stream tags and numeric host codes", () => {
+  assert.deepEqual(failedOutput({ code: "EPIPE", errno: -32 }), Err({ tag: "Closed" }));
+  assert.deepEqual(
+    failedOutput({ code: "EIO", errno: -5, message: "host-specific text" }),
+    Err({ tag: "Other", code: -5 }),
+  );
+  assert.deepEqual(
+    failedOutput({ code: "UNKNOWN", message: "no numeric code" }),
+    Err({ tag: "Other", code: 0 }),
+  );
+  assert.throws(() => ConsoleError.dec(new Dec(Uint8Array.of(1, 3))), HostContract);
+  assert.throws(() => ConsoleError.dec(new Dec(Uint8Array.of(2))), HostContract);
+});
 
 // Deliberately violate notification timing in a worker, while using the
 // production client. Queue publication and the wake hint must be independent.
@@ -1770,10 +1785,11 @@ test("Console read_all abort restores bytes after readiness", async (t) => {
   assert.deepEqual(await input.read(), { ok: null });
 });
 
-test("Console unreadable input reports Closed", async (t) => {
+test("Console unreadable input reports a numeric host code", async (t) => {
   const call = netWorker(t, { url: new URL("./input.mjs", import.meta.url) });
   const operation = call({ op: "wait_start", kind: "line", fd: -1 }).ok;
-  assert.deepEqual(call({ op: "wait_poll", operation }), { closed: true });
+  const result = call({ op: "wait_poll", operation });
+  assert.equal(typeof result.error, "number");
   call({ op: "wait_finish", operation });
 });
 

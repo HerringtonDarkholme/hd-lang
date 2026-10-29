@@ -380,17 +380,17 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
 // takes it at once, and a direct sink (output.mjs) blocks until the
 // stream has taken every byte.
 function consoleProvider({ st, sink, flush, grant }) {
-  const denied = (subject) => Err({ tag: "NotGranted", subject });
+  const denied = (stream) => Err({ tag: "NotGranted", stream: { tag: stream } });
   return {
     write_sync: (text) =>
       !grant.allows("Console")
-        ? denied("stdout")
+        ? denied("Stdout")
         : sink.write
           ? (flush(), sink.write(1, text))
           : (st.out.push(text), Ok(undefined)),
     write_error_sync: (text) =>
       !grant.allows("Console")
-        ? denied("stderr")
+        ? denied("Stderr")
         : sink.write
           ? (flush(), sink.write(2, text))
           : (flush(), sink.err(text), Ok(undefined)),

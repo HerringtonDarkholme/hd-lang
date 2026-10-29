@@ -31,8 +31,8 @@ pub fn now_ns() -> i128 {
 pub const NS_PER_MS: i128 = 1_000_000;
 
 /// One line of standard input without its ending: `Ok(None)` at the end
-/// of input (and every time after), `Err(())` when it cannot be read.
-pub type Line = Result<Option<String>, ()>;
+/// of input (and every time after), `Err(code)` when it cannot be read.
+pub type Line = Result<Option<String>, i32>;
 
 /// What an offloaded operation delivers, for its `.finish` to encode.
 /// Each capability that moves onto the `hd-io` runtime adds its variant.
@@ -140,7 +140,7 @@ impl<F: Future> Future for Tracked<F> {
 struct Deliveries {
     /// Chunks of standard input, in order: empty at the end of input,
     /// `Err(())` when a read failed.
-    chunks: VecDeque<Result<Vec<u8>, ()>>,
+    chunks: VecDeque<Result<Vec<u8>, i32>>,
     /// Offloaded operations' results, by handle.
     done: Vec<(i32, Done)>,
 }
@@ -414,9 +414,9 @@ impl Reactor {
                 Ok(bytes) if bytes.is_empty() => self.at_end = true,
                 Ok(bytes) => self.buffered.extend(bytes),
                 // A failed read fails the oldest waiting read only.
-                Err(()) => {
+                Err(code) => {
                     if let Some((h, _)) = self.reads.pop_front() {
-                        self.deliver(h, Err(()));
+                        self.deliver(h, Err(code));
                     }
                 }
             }
@@ -691,7 +691,7 @@ impl Drop for Reactor {
 
 /// The next chunk of input, as many bytes as the reader has at hand; empty
 /// at the end of input.
-fn read_chunk(input: &mut dyn BufRead) -> Result<Vec<u8>, ()> {
+fn read_chunk(input: &mut dyn BufRead) -> Result<Vec<u8>, i32> {
     loop {
         match input.fill_buf() {
             Ok(bytes) => {
@@ -700,7 +700,7 @@ fn read_chunk(input: &mut dyn BufRead) -> Result<Vec<u8>, ()> {
                 return Ok(chunk);
             }
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(_) => return Err(()),
+            Err(error) => return Err(error.raw_os_error().unwrap_or(0)),
         }
     }
 }
@@ -959,6 +959,32 @@ mod tests {
             };
             assert_eq!(got, want, "{input:?}");
         }
+    }
+
+    #[test]
+    fn a_failed_input_preserves_its_numeric_host_code() {
+        struct Failed;
+        impl std::io::Read for Failed {
+            fn read(&mut self, _bytes: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from_raw_os_error(5))
+            }
+        }
+        impl std::io::BufRead for Failed {
+            fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+                Err(std::io::Error::from_raw_os_error(5))
+            }
+            fn consume(&mut self, _amount: usize) {}
+        }
+
+        let mut r = Reactor::new(Some(Box::new(Failed)));
+        let h = r.read_line();
+        while r.due().is_empty() {
+            assert!(r.wait());
+        }
+        let Some(Work::Read(Some(Err(code)))) = r.remove(h).map(|op| op.work) else {
+            panic!("no failed read result");
+        };
+        assert_eq!(code, 5);
     }
 
     #[test]

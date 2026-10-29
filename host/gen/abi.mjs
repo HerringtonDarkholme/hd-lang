@@ -51,10 +51,15 @@ export const Command = data({
   current_dir: option(Path),
   stdin: str,
 });
+export const ConsoleStream = variants({
+  Stdout: {},
+  Stderr: {},
+  Stdin: {},
+});
 export const ConsoleError = variants({
   Closed: {},
-  NotGranted: { subject: str },
-  Other: { message: str },
+  NotGranted: { stream: ConsoleStream },
+  Other: { code: signed },
 });
 export const Datagram = data({
   bytes: bytes,

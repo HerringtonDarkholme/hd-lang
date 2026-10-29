@@ -127,8 +127,8 @@ test(
           assert.equal(out.ok, allowed);
           assert.equal(err.ok, allowed);
           if (!allowed) {
-            assert.equal(out.error.fields.subject, "stdout");
-            assert.equal(err.error.fields.subject, "stderr");
+            assert.equal(out.error.fields.stream.tag, "Stdout");
+            assert.equal(err.error.fields.stream.tag, "Stderr");
           }
           provider.finish(id, false, f.context);
           assert.equal((await response).status, 503);
