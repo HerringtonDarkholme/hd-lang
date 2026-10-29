@@ -1,6 +1,6 @@
 //! List cursors, which iterate the list as `iter()` found it
-//! (`flow.for.cursor.snapshot`), and list views, which a length change
-//! invalidates (#192, `std-collections.view.invalidate`).
+//! (`flow.for.cursor.snapshot`), and list views, which snapshot the list
+//! (`std-collections.view.snapshot`).
 //! Programs build through the driver and run on V8 (`host/run.mjs`).
 
 use std::path::Path;
@@ -57,17 +57,6 @@ fn program(body: &str) -> String {
     format!("{import}pub fn main() -> void $ Console:\n{body}")
 }
 
-/// A program whose `body` runs in `main`; it must exit with the
-/// `iterator-invalidated` panic after printing `before`.
-fn panics(name: &str, body: &str, before: &str) {
-    let main = program(body);
-    let r = ran(name, &main);
-    assert!(!r.status.success(), "{name} must panic");
-    assert_eq!(String::from_utf8_lossy(&r.stdout), before, "{name}");
-    let err = String::from_utf8_lossy(&r.stderr);
-    assert!(err.contains("panic: iterator-invalidated"), "{name}: {err}");
-}
-
 /// A program whose `body` runs in `main`; it must complete, printing
 /// `out`.
 fn prints(name: &str, body: &str, out: &str) {
@@ -111,38 +100,34 @@ fn a_list_iterator_keeps_its_snapshot_after_a_pop() {
 }
 
 #[test]
-fn a_list_view_is_invalid_after_a_push_or_pop() {
-    panics(
+fn a_list_view_keeps_its_snapshot_after_a_push_or_pop() {
+    prints(
         "view-push",
         "    let mut v: List[i32] = [1, 2, 3]
     let w = v.view(0, 2)
     v.push(4)
-    println(w.len())
-",
-        "",
-    );
-    panics(
-        "view-pop",
-        "    let mut v: List[i32] = [1, 2, 3]
-    let w = v.view(0, 2)
     _ := v.pop()
+    v[0] = 9
+    println(w.len())
     for x in w:
         println(x)
 ",
-        "",
+        "2\n1\n2\n",
     );
 }
 
 #[test]
-fn a_view_iterator_panics_after_a_length_change() {
-    panics(
+fn a_view_iterator_keeps_its_snapshot_after_a_length_change() {
+    prints(
         "view-iter",
         "    let mut v: List[i32] = [1, 2, 3]
     let mut it = v.view(0, 3).iter()
     println(it.next().unwrap_or(-1))
     v.push(4)
-    _ := it.next()
+    println(it.next().unwrap_or(-1))
+    println(it.next().unwrap_or(-1))
+    println(it.next().is_some())
 ",
-        "1\n",
+        "1\n2\n3\nfalse\n",
     );
 }

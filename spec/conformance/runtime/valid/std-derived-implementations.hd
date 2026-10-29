@@ -25,8 +25,8 @@ tests:
         xs := [+1, +2, +3]
         assert_equal(
             debug(xs.view(0, 2)),
-            "ListView { items: [1, 2, 3], start: 0, end: 2, len: 3 }",
-            reason="the view reads through its reference",
+            "ListView { items: [1, 2, 3], start: 0, end: 2 }",
+            reason="the view holds the list value",
         )
         assert_equal(debug(Reverse { value: +4 }), "Reverse { value: 4 }", reason="generic field")
         assert_equal(

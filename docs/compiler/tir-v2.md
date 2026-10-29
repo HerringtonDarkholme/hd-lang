@@ -4211,8 +4211,8 @@ place with two memory steps.
 the cursor shared the header, so a later push or a removal invalidated it;
 with buffer values `ListIter` holds the list itself and `MapEntries`' step
 closure the table, each a count that copy-on-write keeps, and the
-`iterator-invalidated` checks of both go. The category stays for views
-(`std-collections.view.invalid-use`). Chapter 06 retires `flow.for.length`,
+`iterator-invalidated` checks of both go. Views are snapshots too
+(`std-collections.view.snapshot`), so no view check remains. Chapter 06 retires `flow.for.length`,
 `flow.for.invalidate`, `.map-rebuild`, `.panic`, `flow.for.replace` and
 `.observed`, adds `flow.for.cursor.snapshot` and rewrites
 `flow.for.collection-cursor.copy`; eight `runtime/panic` cases become two

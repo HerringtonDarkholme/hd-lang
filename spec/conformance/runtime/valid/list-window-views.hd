@@ -1,4 +1,4 @@
-# test: chunks and windows borrow their source and can be iterated or explicitly copied
+# test: chunks and windows hold the list value and can be iterated or explicitly copied
 # Spec std/collections: std-collections.list.chunks.views, std-collections.helper.windows.views.
 use std.collections.ListView
 
@@ -17,13 +17,13 @@ tests:
         items[1] = +20
         assert_equal(
             windows[0].to_list(),
-            [+1, +20, +3],
-            reason="the view refers to the original place",
+            [+1, +2, +3],
+            reason="the view keeps its snapshot",
         )
         assert_equal(
             windows[1].to_list(),
-            [+20, +3, +4],
-            reason="overlapping view observes the same write",
+            [+2, +3, +4],
+            reason="an overlapping view keeps its snapshot",
         )
 
     it("chunks keep a short final view and explicit copies are independent"):
@@ -38,7 +38,7 @@ tests:
         let mut copy = pieces[0].to_list()
         items[0] = +9
         copy[1] = +8
-        assert_equal(pieces[0].to_list(), [+9, +2], reason="element writes remain visible")
+        assert_equal(pieces[0].to_list(), [+1, +2], reason="element writes do not show through")
         assert_equal(copy, [+1, +8], reason="to_list makes an independent value")
 
     it("empty, short, and very large sizes retain their boundary behavior"):
@@ -58,15 +58,17 @@ tests:
             reason="temporary sources stay alive",
         )
 
-    it("length changes invalidate chunk views", expect_panic="iterator-invalidated"):
+    it("length changes do not reach chunk views"):
         let mut items = [+1, +2]
         pieces := items.chunks(1)
         items.push(+3)
-        _ := pieces[0].len()
+        assert_equal(pieces[0].len(), 1usize, reason="the view keeps its snapshot")
+        assert_equal(pieces[1].to_list(), [+2], reason="the view keeps its snapshot")
 
-    it("length changes invalidate iterators from a window", expect_panic="iterator-invalidated"):
+    it("length changes do not reach iterators from a window"):
         let mut items = [+1, +2]
         windows := items.windows(1)
         let mut iterator = windows[0].iter()
         items.push(+3)
-        _ := iterator.next()
+        assert_equal(iterator.next(), .Some(+1), reason="the iterator keeps its snapshot")
+        assert_equal(iterator.next(), .None, reason="the window has one element")

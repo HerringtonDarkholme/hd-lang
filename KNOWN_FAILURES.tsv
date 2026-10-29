@@ -1,5 +1,4 @@
 path	issue	engine	reason
-runtime/valid/list-view-snapshot.hd	#912		view, chunks and windows still refer to the list's place
 typing/invalid/counted-reference-to-element.hd	#912		&e still makes a counted reference where one is expected
 typing/invalid/counted-reference-to-field.hd	#912		&e still makes a counted reference where one is expected
 typing/invalid/counted-reference-to-parameter.hd	#912		&e still makes a counted reference where one is expected

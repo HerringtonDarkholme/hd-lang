@@ -75,13 +75,13 @@ impl[T] List[T]:
     # copy (spec/std/collections.md#views).
     ## A read-only window on the elements from `start` up to `end`, with no copy.
     ## See [std-collections.view](../../spec/std/collections.md#r-std-collections.view).
-    pub fn view(*self, start: usize, end: usize) -> ListView[T]:
+    pub fn view(self, start: usize, end: usize) -> ListView[T]:
         if end > self.len() || start > end:
             panic_with(
                 "index-out-of-bounds",
                 "list view start ${start} end ${end} out of bounds for length ${self.len()}",
             )
-        ListView::[T] { items: self, start: start, end: end, len: self.len() }
+        ListView::[T] { items: self, start: start, end: end }
 
     ## Returns a new list with `transform` applied to each element, in order.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
@@ -214,7 +214,7 @@ impl[T] List[T]:
     # Consecutive pieces of `size` items; the last may be shorter.
     ## Returns read-only views in consecutive pieces of `size` elements; only the last may be shorter.
     ## See [std-collections.list.chunks.views](../../spec/std/collections.md#r-std-collections.list.chunks.views).
-    pub fn chunks(*self, size: usize) -> List[ListView[T]]:
+    pub fn chunks(self, size: usize) -> List[ListView[T]]:
         if size == 0:
             panic("chunks: size must be positive")
         let mut pieces: List[ListView[T]] = []
@@ -321,7 +321,7 @@ impl[T] List[T]:
     # Every run of `size` consecutive elements, overlapping, in order.
     ## Returns read-only views of every run of `size` consecutive elements, each starting one index later.
     ## See [std-collections.helper.windows.views](../../spec/std/collections.md#r-std-collections.helper.windows.views).
-    pub fn windows(*self, size: usize) -> List[ListView[T]]:
+    pub fn windows(self, size: usize) -> List[ListView[T]]:
         if size == 0:
             panic("windows: size must be positive")
         let mut runs: List[ListView[T]] = []
@@ -525,30 +525,26 @@ impl[K < Eq & Hash] Map[K, usize]:
             .take(n)
 
 # A read-only window on a run of a list's elements
-# (spec/std/collections.md#views). The spec makes it a snapshot of the list
-# value (r-std-collections.view.snapshot); until #982 lands it still refers
-# to the list's place and panics with `iterator-invalidated` after a length
-# change.
-## A read-only window on a run of a list's elements. It holds the list, not a copy, so an element write shows through it.
+# (spec/std/collections.md#views). It holds a copy-on-write snapshot of the
+# list value (r-std-collections.view.snapshot): later writes to the list do
+# not show through, and a kept view keeps the whole storage alive.
+## A read-only window on a run of a list's elements. It holds a snapshot of the list, so later writes to the list do not show through; a kept view keeps the whole storage alive, so copy it with `to_list()`.
 ## See [std-collections.view.type](../../spec/std/collections.md#r-std-collections.view.type).
 @derive(Debug)
 pub struct ListView[T]:
-    items: *List[T]
+    items: List[T]
     start: usize
     end: usize
-    len: usize
 
 impl[T] ListView[T]:
     ## Returns the number of elements in the view.
     ## See [std-collections.view.len](../../spec/std/collections.md#r-std-collections.view.len).
     pub fn len(self) -> usize:
-        self.check()
         self.end - self.start
 
     ## Returns a new list that holds the view's elements in order.
     ## See [std-collections.view.to-list-value](../../spec/std/collections.md#r-std-collections.view.to-list-value).
     pub fn to_list(self) -> List[T]:
-        self.check()
         let mut copy: List[T] = []
         let index = self.start
         while index < self.end:
@@ -556,17 +552,9 @@ impl[T] ListView[T]:
             index = index + 1
         copy
 
-    fn check(self) -> void:
-        if self.items.len() != self.len:
-            panic_with(
-                "iterator-invalidated",
-                "the list changed length while a view of it was in use",
-            )
-
 impl[T] Index[usize] for ListView[T]:
     type Out = T
     fn index(self, key: usize) -> T:
-        self.check()
         len := self.end - self.start
         if key >= len:
             panic_with(
@@ -578,10 +566,9 @@ impl[T] Index[usize] for ListView[T]:
 impl[T] Iterable[T] for ListView[T]:
     type IntoIter = ListViewIter[T]
     fn iter(self) -> ListViewIter[T]:
-        self.check()
         ListViewIter { view: self, at: self.start }
 
-## The cursor of a view's `iter`: the view's elements in order, each read from the list when it is reached.
+## The cursor of a view's `iter`: the view's elements in order, each read from the snapshot.
 ## See [std-collections.view.iter](../../spec/std/collections.md#r-std-collections.view.iter).
 pub struct ListViewIter[T]:
     view: ListView[T]
@@ -589,7 +576,6 @@ pub struct ListViewIter[T]:
 
 impl[T] Iterator[T] for ListViewIter[T]:
     fn next(&mut self) -> T?:
-        self.view.check()
         if self.at >= self.view.end:
             return .None
         self.at = self.at + 1
