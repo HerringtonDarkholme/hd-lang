@@ -493,10 +493,8 @@ impl Ck<'_, '_> {
             self.elem_ref_value(n, false);
         }
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
-        // `ref.expr.kind.local`: `&e` is local where a local reference is
-        // expected, and counted everywhere else (`ref.expr.kind.counted`).
-        let counted = want.and_then(|w| self.ref_counted(w)).unwrap_or(true);
-        let rt = self.ref_ty(inner, mutable, counted);
+        // `ref.expr.kind.always-local`: whatever type is expected.
+        let rt = self.ref_ty(inner, mutable, false);
         let r = self.make_ref(&place, mutable, rt, n);
         Ok((r, rt))
     }

@@ -1,7 +1,6 @@
 # The hd tests of references on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.20): a reference to a local shares the local's cell, an element
-# reference a callee keeps owns its list's pin until its last copy dies, and each is
-# released after its last use, so taking references in a loop runs in
+# reference lasts for its call, and each is released after its last use, so taking references in a loop runs in
 # bounded memory. A reference is an address, so writing through one to a
 # local allocates nothing. Only std may read the heap's size, so the
 # conformance runner adds this file to std as `std.rt.ref_tests`. Only the
@@ -11,20 +10,11 @@
 use std.rt.memory.pages
 use std.rt.checked.{allocated, released}
 
-struct Holder:
-    slot: *mut i32
-
 fn label(n: i32) -> string:
     "r$n"
 
 fn bump(x: &mut i32) -> void:
     *x = *x + 1
-
-fn keep(x: *mut i32) -> *mut i32:
-    x
-
-fn keep_string(x: *mut string) -> *mut string:
-    x
 
 fn grow(xs: &mut List[string], n: i32) -> void:
     xs.push(label(n))
@@ -92,16 +82,11 @@ tests:
             round = round + 1
         assert(total == 100 * (6 + 6 + 4 + 2), "every consumer read every item")
 
-    it("an element reference pins its list until its last use"):
+    it("an element reference lasts for its call"):
         let mut xs = [+1, 2, 3]
-        r := keep(&mut xs[1])
-        *r = 20
+        bump(&mut xs[1])
         xs.push(4)
-        assert(xs.len() == 4 && xs[1] == 20, "the push ran after the reference's last use")
-        saved := Holder { slot: keep(&mut xs[0]) }
-        *saved.slot = 10
-        xs.push(5)
-        assert(xs[0] == 10 && xs.len() == 5, "the field copy died before the push")
+        assert(xs.len() == 4 && xs[1] == 3, "the push ran after the call")
 
     it("references taken in a loop run in bounded memory"):
         let round = +0
@@ -115,8 +100,7 @@ tests:
             let mut xs = [label(round), label(n)]
             for s in &mut xs:
                 *s = *s + "!"
-            r := keep_string(&mut xs[0])
-            if *r == label(round) + "!" && xs[1] == label(round + 1) + "!":
+            if xs[0] == label(round) + "!" && xs[1] == label(round + 1) + "!":
                 right = right + 1
             grow(&mut xs, round)
             xs.push(label(round))

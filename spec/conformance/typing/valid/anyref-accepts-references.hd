@@ -1,5 +1,5 @@
-# test: `T < AnyRef` accepts `&T`, `&mut T` and trait value references; `T < AnyVal` accepts a struct
-# Spec 04 AnyVal And AnyRef: types.sealed.anyref-members.reference-values, types.sealed.anyval-members. Spec 13 Reference Types: ref.type.any-ref, ref.type.dyn.
+# test: `T < AnyRef` accepts `*T`, `*mut T` and trait value references; `T < AnyVal` accepts a struct
+# Spec 04 AnyVal And AnyRef: types.sealed.anyref-members.counted, types.sealed.anyval-members. Spec 13 Reference Types: ref.type.any-ref, ref.type.dyn.
 trait Shape:
     fn area(&self) -> f64
 
@@ -20,10 +20,11 @@ fn same[T < AnyRef](a: T, b: T) -> bool:
     a is b
 
 fn check() -> bool:
-    let mut p = Point { x: 1.0 }
-    _ := keep(&p)
-    _ := keep(&mut p)
-    let shape: &dyn Shape = &p
+    p := box(Point { x: 1.0 })
+    let shared: *Point = p
+    _ := keep(shared)
+    _ := keep(p)
+    let shape: *dyn Shape = p
     _ := keep(shape)
-    _ := copy(p)
+    _ := copy(Point { x: 2.0 })
     same(shape, keep(shape))

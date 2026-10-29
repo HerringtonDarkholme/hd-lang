@@ -1,0 +1,13 @@
+# test: `T < AnyRef` accepts no local reference, since a local reference is never a type argument
+# Spec 04 AnyVal And AnyRef: types.sealed.local-reference; Spec 13 Local References: ref.local.escape.type-argument.
+struct Point:
+    x: f64
+
+fn keep[T < AnyRef](value: T) -> T:
+    value
+
+fn invalid() -> void:
+    p := Point { x: 1.0 }
+    _ := keep(&p) # diagnostic: local-reference-escapes
+    q := box(Point { x: 2.0 })
+    _ := keep(q)

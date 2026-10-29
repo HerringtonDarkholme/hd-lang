@@ -131,25 +131,78 @@ impl Ck<'_, '_> {
             )),
             _ => None,
         };
+        // A counted reference refers to an object, so the value is boxed
+        // where it is declared (`req.ref.install-value.fix`).
+        let advice = if counted {
+            "so box it at its declaration, as `x := box(value)`".to_owned()
+        } else {
+            format!("so write `{mark}` before it")
+        };
         let msg = format!(
             "in {what}: expected {}, found {}; a value never becomes a trait value reference by itself, {}",
             self.show(target),
             self.show(g),
-            hint.as_deref().map_or_else(
-                || format!("so write `{mark}` before it"),
-                |h| format!("and {h}")
-            )
+            hint.as_deref().map_or(advice, |h| format!("and {h}"))
         );
         self.err(Code::TypeMismatch, n, &msg);
-        if hint.is_none() {
-            self.dyn_ref_value_fix(gs, tv, mutable, n);
+        match hint {
+            Some(_) => {}
+            None if counted => self.dyn_box_fix(gs, tv, n),
+            None => self.dyn_ref_value_fix(gs, tv, mutable, n),
         }
         Some(r)
     }
 
-    /// The fix-it of `trait.dyn.ref.written.reference-fix.reference-values`: `&` or `&mut` before a
-    /// place or a struct literal whose type `s`, without a `mut` view,
-    /// implements the trait of `tv`.
+    /// The fix-it of `req.ref.install-value.fix` for a value where a
+    /// counted trait value reference is expected: `box(...)` around the
+    /// initializer of the unannotated local binding the value names, or
+    /// around a struct literal. Boxing any other place would copy it.
+    fn dyn_box_fix(&mut self, s: Ty, tv: Ty, n: NodeRef<'_>) {
+        let value = match n.kind() {
+            SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument | SyntaxKind::Argument => {
+                n.children().last()
+            }
+            _ => Some(n),
+        };
+        let Some(value) = value.map(crate::elem_refs::strip_parens) else {
+            return;
+        };
+        let boxed = match value.kind() {
+            SyntaxKind::DataExpr => value,
+            SyntaxKind::NameExpr => {
+                let init = self
+                    .find_local(self.sym_of(value))
+                    .and_then(|(l, _)| self.local_inits.get(&l).copied());
+                match init {
+                    Some(i) => self.cx.src.parse.tree.node(i),
+                    None => return,
+                }
+            }
+            _ => return,
+        };
+        if !self.dyn_fits(s, tv) {
+            return;
+        }
+        let span = self.cx.src.span(boxed);
+        let lo = hd_base::Span {
+            hi: span.lo,
+            ..span
+        };
+        let hi = hd_base::Span {
+            lo: span.hi,
+            ..span
+        };
+        self.diags.add_fix(
+            "box the value at its declaration",
+            FixSafety::Suggestion,
+            &[(lo, "box("), (hi, ")")],
+        );
+    }
+
+    /// The fix-it of `trait.dyn.ref.written.reference-fix.reference-values`
+    /// for a local trait value reference: `&` or `&mut` before a place or
+    /// a struct literal whose type `s`, without a `mut` view, implements
+    /// the trait of `tv`.
     fn dyn_ref_value_fix(&mut self, s: Ty, tv: Ty, mutable: bool, n: NodeRef<'_>) {
         let value = match n.kind() {
             SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument | SyntaxKind::Argument => {

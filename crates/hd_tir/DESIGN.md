@@ -220,14 +220,14 @@ design:
 **Context values.** `$.Context[$ R]` is `TyData::Context(row)` with a
 concrete row. `$.with(...)` and `$.context(...)` check their entries
 alike, in source order. An entry `K=e` checks `e`, keeps the
-`mutable-upgrade` test of `req.mut.install-writable-ref`, and then coerces
+`mutable-upgrade` test of `req.mut.install-writable-counted`, and then coerces
 `e` to the key's trait value type `K` (`ToTraitValue`, or `Supertrait`
 from a subtrait value, or nothing from a `K` value), so a value whose
-type lacks the impl is `type-mismatch`. A `&S` or `&mut S` value becomes
-`K` by `RefToTraitValue`, sharing the place (`req.ref.share.reference-values`). When `K`'s
+type lacks the impl is `type-mismatch`. A `*S` or `*mut S` value becomes
+`K` by `RefToTraitValue`, sharing the object (`req.ref.share.counted-values`). When `K`'s
 trait has a `&self` or `&mut self` method (`req.ref.key.reference-values`), `e` converts
-to `&dyn K` or `&mut dyn K` as any value does (only a reference does,
-`req.ref.install-ref`), and `RefAsProvider` keeps
+to `*dyn K` or `*mut dyn K` as any value does (only a counted reference does,
+`req.ref.install-counted`, and a local one is `req.mut.install-no-local`), and `RefAsProvider` keeps
 that reference as the provider; `$.use(K)` reads it back with
 `ProviderAsRef`, so every value in a pair or a provider slot still has
 the key's type `K`. An entry `ctx...` needs a value

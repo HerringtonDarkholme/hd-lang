@@ -1,18 +1,1 @@
 path	issue	engine	reason
-typing/invalid/counted-reference-to-element.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/counted-reference-to-field.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/counted-reference-to-parameter.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/counted-reference-to-top-level.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/counted-self-call-on-element.hd	#912		a *self call on a place still takes a counted reference to the place
-typing/invalid/counted-self-call-on-field.hd	#912		a *self call on a place still takes a counted reference to the place
-typing/invalid/counted-self-call-on-local.hd	#912		a *self call on a place still takes a counted reference to the place
-typing/invalid/counted-self-call-on-parameter.hd	#912		a *self call on a place still takes a counted reference to the place
-typing/invalid/counted-self-call-on-temporary.hd	#912		a *self call on a temporary still takes a counted reference to a new object
-typing/invalid/provider-install-local-reference.hd	#912		$.with still takes &e as a counted reference
-typing/invalid/provider-share-local-reference.hd	#912		$.with still takes &e as a counted reference
-typing/invalid/reference-binding-local-to-counted.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/reference-expression-counted-annotation.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/reference-expression-counted-field.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/reference-expression-counted-result.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/reference-expression-to-counted-parameter.hd	#912		&e still makes a counted reference where one is expected
-typing/invalid/reference-expression-type-variable.hd	#912		&e still makes a counted reference where one is expected

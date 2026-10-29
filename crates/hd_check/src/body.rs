@@ -376,6 +376,12 @@ pub(crate) struct Ck<'a, 'c> {
     /// reported, and the types the body and its signature write.
     pub ref_origins: HashMap<LocalId, hd_base::TokenIdx>,
     pub ref_captured: HashSet<LocalId>,
+    /// The initializer of each unannotated binding, where a `box(...)`
+    /// fix-it boxes the value at its declaration (`req.ref.install-value.fix`).
+    pub local_inits: HashMap<LocalId, hd_base::NodeIdx>,
+    /// The values that reported `element-reference-outlives-call`, which
+    /// report nothing more (`ref.elem.kept`).
+    pub elem_kept: HashSet<hd_base::NodeIdx>,
     pub declared_tys: HashSet<Ty>,
     /// The exclusivity stack of the open calls and element reference
     /// loops, with each frame's start, and the conflicting accesses found
@@ -620,6 +626,8 @@ pub(crate) fn new_ck<'a, 'c>(
         elem_locals: HashSet::default(),
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
+        local_inits: HashMap::default(),
+        elem_kept: HashSet::default(),
         declared_tys: HashSet::default(),
         excl: Vec::new(),
         excl_frames: Vec::new(),

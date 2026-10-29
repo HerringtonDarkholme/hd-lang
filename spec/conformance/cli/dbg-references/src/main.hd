@@ -8,10 +8,13 @@ enum Expr:
     Add(left: *Expr, right: *Expr)
 
 pub fn main() -> void $ Console:
-    let mut parcel = Parcel { label: "mug", weight: 3 }
-    dbg(&parcel)
-    dbg(&mut parcel.weight)
-    dbg(&Expr.Num(7))
+    parcel := Parcel { label: "mug", weight: 3 }
+    shared := box(Parcel { label: "mug", weight: 3 })
+    weight := box(+3)
+    dbg(parcel)
+    dbg(shared)
+    dbg(weight)
+    dbg(box(Expr.Num(7)))
     println("done")
 
 # Spec 10 Debug Values: module.dbg.value.reference, module.dbg.value.debug; std/format References: std-format.debug.reference.

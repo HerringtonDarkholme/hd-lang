@@ -67,7 +67,7 @@ tests:
         assert_equal(*into, [3], reason="a temporary method may also change a referenced place")
 
     it("a chain keeps the constructor result alive through returned references"):
-        args := Builder::new("tool").arg("one").arg("two").finish()
+        args := box(Builder::new("tool")).arg("one").arg("two").finish()
         assert_equal(
             args,
             ["tool", "one", "two"],

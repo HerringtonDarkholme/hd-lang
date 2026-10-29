@@ -20,8 +20,8 @@ struct Stop:
     next: *mut Stop?
 
 fn ring(round: i32) -> i32:
-    first := &mut Stop { name: "first $round", next: .None }
-    second := &mut Stop { name: "second $round", next: .Some(first) }
+    first := box(Stop { name: "first $round", next: .None })
+    second := box(Stop { name: "second $round", next: .Some(first) })
     first.next = .Some(second)
     match first.next:
         .Some(stop) =>
@@ -46,12 +46,12 @@ fn frame_value!(ring: &mut FrameRing) -> i32:
     ring.value
 
 fn frame_ring(n: i32) -> i32:
-    ring := &mut FrameRing { value: n, task: .None }
+    ring := box(FrameRing { value: n, task: .None })
     ring.task = .Some(frame_value(ring))
     ring.value
 
 fn captured_frame_ring(n: i32) -> i32:
-    ring := &mut FrameRing { value: n, task: .None }
+    ring := box(FrameRing { value: n, task: .None })
     run := fn!() -> i32: ring.value
     ring.task = .Some(run())
     ring.value
@@ -89,7 +89,7 @@ fn list_count(xs: List[*mut ListRing]) -> usize:
     xs.len()
 
 fn copied_list_ring(n: i32) -> i32:
-    first := &mut ListRing { value: n, next: [] }
+    first := box(ListRing { value: n, next: [] })
     xs := [first]
     first.next = xs
     assert(list_count(xs) == 1, "a copied cyclic list keeps its element")

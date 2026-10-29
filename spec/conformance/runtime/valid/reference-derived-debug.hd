@@ -16,7 +16,8 @@ struct Gauge:
 pub fn main() -> void $ Console:
     a := Expr.Add(box(Expr.Num(1)), box(Expr.Num(2)))
     println(debug(a))
-    println(debug(&a) == debug(a))
+    shared := box(Expr.Add(box(Expr.Num(1)), box(Expr.Num(2))))
+    println(debug(shared) == debug(a))
     x := box(+5)
     tea := box("tea")
     println(debug(Gauge { level: x, name: tea }))

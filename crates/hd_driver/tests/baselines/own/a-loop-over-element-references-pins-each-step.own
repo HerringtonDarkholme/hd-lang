@@ -22,7 +22,7 @@ app/main/bump_all
   %14 = IsUnique [$0 [%0]] : ()
   %15 = Pin [$0 [%0]] : ()
   %16 = Read borrow [$0 [%0]] : List[i64]
-  %17 = Ref mut [%16 [%10]] : Ref[mut i64]
+  %17 = Ref mut local [%16 [%10]] : Ref[mut i64]
   %18 = Read copy [*$4] : i64
   %19 = Prim Add [%18 1:i64] : i64
   %20 = Store [*$4] %19 : ()

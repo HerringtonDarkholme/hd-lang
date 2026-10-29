@@ -459,32 +459,32 @@ tests:
 
     it("a map past 16 keys encodes as before, with and without a repeated key"):
         assert_equal(
-            disagreement(&mut Wide { count: 40, repeat_at: 40, back: 0 }),
+            disagreement(Wide { count: 40, repeat_at: 40, back: 0 }),
             "",
             reason="40 distinct keys",
         )
         assert_equal(
-            disagreement(&mut Wide { count: 40, repeat_at: 30, back: 30 }),
+            disagreement(Wide { count: 40, repeat_at: 30, back: 30 }),
             "",
             reason="a repeat of one of the first 16 keys",
         )
         assert_equal(
-            disagreement(&mut Wide { count: 40, repeat_at: 25, back: 5 }),
+            disagreement(Wide { count: 40, repeat_at: 25, back: 5 }),
             "",
             reason="a repeat of a key added after the 16th",
         )
         assert_equal(
-            disagreement(&mut Wide { count: 12, repeat_at: 8, back: 8 }),
+            disagreement(Wide { count: 12, repeat_at: 8, back: 8 }),
             "",
             reason="a repeat among the first 16",
         )
         assert_equal(
-            disagreement(&mut Wide { count: 17, repeat_at: 16, back: 16 }),
+            disagreement(Wide { count: 17, repeat_at: 16, back: 16 }),
             "",
             reason="the 17th key repeats the first",
         )
         assert_equal(
-            encode(&mut Wide { count: 3, repeat_at: 2, back: 2 }),
+            encode(Wide { count: 3, repeat_at: 2, back: 2 }),
             "{\"k0\":2,\"k1\":1}",
             reason="the last value at the first place",
         )

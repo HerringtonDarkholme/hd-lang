@@ -369,7 +369,7 @@ impl Ck<'_, '_> {
     /// The argument `e`, when it is an element reference, passed for a
     /// parameter whose declared type is no reference: the callee stores
     /// a value, which is keeping it (`ref.elem.kept`). A reference
-    /// parameter may keep a copy (`ref.elem.callee-copy`).
+    /// parameter is lent it (`ref.elem.callee-copy.declared`).
     pub(crate) fn elem_ref_arg(&mut self, e: NodeRef<'_>, ref_param: bool) {
         if !ref_param && self.elem_args.contains(&strip_parens(e).index()) {
             self.elem_ref_kept(e);
@@ -397,6 +397,7 @@ impl Ck<'_, '_> {
     }
 
     fn elem_ref_kept(&mut self, n: NodeRef<'_>) {
+        self.elem_kept.insert(strip_parens(n).index());
         self.err(
             Code::ElementReferenceOutlivesCall,
             n,
@@ -504,9 +505,9 @@ impl Ck<'_, '_> {
         };
         let ok = !mutable || self.place_writable(&place, src);
         let inner = self.strip_mut(self.infer.resolve(self.pool(), vt));
-        // An element reference loop's binding is counted, as `&e` with no
-        // expected type is (`ref.expr.kind.counted`).
-        let rt = self.ref_ty(inner, mutable, true);
+        // An element reference loop's binding is local, as `&e` is
+        // (`ref.expr.kind.always-local`).
+        let rt = self.ref_ty(inner, mutable, false);
         let item = if ok {
             self.make_ref(&place, mutable, rt, src)
         } else {

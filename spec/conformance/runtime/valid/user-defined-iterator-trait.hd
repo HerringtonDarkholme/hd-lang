@@ -34,12 +34,8 @@ tests:
         assert_equal(cursor.next(), .None, reason="the loop advances the original cursor")
 
     it("supports generic iterator bounds and mutable-reference forwarding"):
-        let mut cursor = Countdown { remaining: +3 }
-        assert_equal(
-            drain(&mut cursor),
-            [+2, 1, 0],
-            reason="a mutable cursor reference forwards next",
-        )
+        cursor := box(Countdown { remaining: +3 })
+        assert_equal(drain(cursor), [+2, 1, 0], reason="a mutable cursor reference forwards next")
         assert_equal(cursor.next(), .None, reason="the forwarded cursor shares its progress")
 
     it("erases a concrete cursor to a mutable iterator reference"):

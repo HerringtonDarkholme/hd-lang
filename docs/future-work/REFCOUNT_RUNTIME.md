@@ -368,7 +368,7 @@ Deferring that work is not a free bound on pauses, for three reasons.
 Freeing a fixed number of objects per allocation does not bound memory
 (Boehm, POPL 2004): pacing has to be by bytes, and then allocation pays
 in proportion to size. In hd, counts are observable: a late decrement
-keeps a list pinned past the last use of a kept element reference (`ref.elem.callee-copy`),
+keeps a list pinned past the last use of an element reference (`ref.elem.access.pin`),
 so a later `push` panics `collection-pinned`, and a count left high
 makes `rt:list_unique` copy a buffer that was in fact unique. And a
 deferred free saves no work; it only moves it.

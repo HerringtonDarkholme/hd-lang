@@ -1,4 +1,4 @@
-# test: by_ref requires a writable cursor place
+# test: by_ref requires a writable cursor reference
 # Spec std/iter Borrowed Cursors: std-iter.by-ref.permission.
 struct Counter:
     remaining: i32
@@ -7,5 +7,5 @@ impl Iterator[i32] for Counter:
     fn next(&mut self) -> i32?:
         .None
 
-fn borrow(cursor: Counter) -> void:
+fn borrow(cursor: *Counter) -> void:
     _ := cursor.by_ref() # diagnostic: not-writable

@@ -19,15 +19,9 @@ use crate::call::Hit;
 use crate::refs::{Operand, Place, Root};
 
 impl Ck<'_, '_> {
-    /// Whether the method `method`, reached with the impl choice `choice`,
-    /// takes a reference receiver, and whether it is `&mut`: its declared
-    /// receiver is `&self` or `&mut self`.
-    pub(crate) fn ref_receiver_of(&self, method: DefId) -> StageResult<Option<bool>> {
-        Ok(self.ref_receiver_kind(method)?.map(|(mutable, _)| mutable))
-    }
-
-    /// [`Self::ref_receiver_of`] with the receiver's kind: whether it is
-    /// `&mut`, and whether it is counted, `*self` or `*mut self`.
+    /// Whether the method `method` takes a reference receiver, as
+    /// `(mutable, counted)`: whether it is `&mut`, and whether it is
+    /// counted, `*self` or `*mut self`.
     pub(crate) fn ref_receiver_kind(&self, method: DefId) -> StageResult<Option<(bool, bool)>> {
         let pool = self.pool();
         let sig = self.sig_of(method)?;
@@ -202,6 +196,12 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.poisoned(base)),
             ));
         }
+        if counted {
+            // `fn.method.counted-self.place`: no counted reference to a place.
+            self.counted_self_on_value(base, name, false);
+            self.expr(base, None)?;
+            return Ok(Some(self.poisoned(base)));
+        }
         let (r, t) = self.address_of_place(base, name, mutable, part)?;
         // The address is counted, but a call's `&self` or `&mut self`
         // receiver takes it as a local reference, which the `Ref` records
@@ -277,7 +277,7 @@ impl Ck<'_, '_> {
         }
         let inner = self.strip_mut(place.ty);
         // The address a call takes is counted, and lends itself to a
-        // `&self` receiver (`fn.method.counted-self.address`).
+        // `&self` receiver.
         let rt = self.ref_ty(inner, mutable, true);
         let r = self.make_ref(&place, mutable, rt, base);
         Ok((r, place.ty))
@@ -369,15 +369,17 @@ impl Ck<'_, '_> {
     }
 
     /// The receiver `recv` of type `rt` for a method that takes a
-    /// reference receiver (`mutable` for `&mut self`), when the call did not
-    /// take the receiver's address already: a reference passes on, `&self`
-    /// on another value refers to a new object holding it, and `&mut self`
-    /// on a value that is no place is an error.
+    /// reference receiver, `(mutable, counted)` as
+    /// [`Self::ref_receiver_kind`] gives it, when the call did not take the
+    /// receiver's address already: a reference passes on, `&self` on
+    /// another value refers to a new object holding it, and `&mut self` on
+    /// a value that is no place is an error. So is `*self` on any value
+    /// (`fn.method.counted-self.temporary-error`).
     pub(crate) fn fit_receiver(
         &mut self,
         recv: Ref,
         rt: Ty,
-        mutable: bool,
+        (mutable, counted): (bool, bool),
         name: &str,
         n: NodeRef<'_>,
     ) -> Ref {
@@ -386,6 +388,10 @@ impl Ck<'_, '_> {
         }
         if self.ref_of(self.b.ty_of(recv)).is_some() {
             return recv;
+        }
+        if counted {
+            self.counted_self_on_value(n, name, true);
+            return self.new_object_ref(recv, rt, mutable, n).0;
         }
         // A list or a map that is no place, such as a map value, changes
         // in place as a nested write does (`types.coll.nested`): the call
@@ -412,19 +418,20 @@ impl Ck<'_, '_> {
         &mut self,
         recv: Ref,
         rt: Ty,
-        mutable: bool,
+        (mutable, counted): (bool, bool),
         name: &str,
         n: NodeRef<'_>,
     ) -> Ref {
         if recv.0 != NONE
             && !matches!(self.strip_mut(rt), Ty::POISON | Ty::NEVER)
             && mutable
+            && !counted
             && self.ref_of(self.b.ty_of(recv)).is_none()
             && !self.is_coll_ty(rt)
         {
             return self.new_object_ref(recv, rt, true, n).0;
         }
-        self.fit_receiver(recv, rt, mutable, name, n)
+        self.fit_receiver(recv, rt, (mutable, counted), name, n)
     }
 
     /// Whether `recv`, the receiver value of a method call, is a reference

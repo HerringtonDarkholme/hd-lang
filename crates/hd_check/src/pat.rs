@@ -954,6 +954,9 @@ impl Ck<'_, '_> {
                 self.mut_bindings.push((l, pat.index(), deferred));
             }
             self.note_ref_origin(l, at, rhs);
+            if annot.is_none() {
+                self.local_inits.insert(l, rhs.index());
+            }
             self.set_local(l, r, at.index());
             return Ok(());
         }

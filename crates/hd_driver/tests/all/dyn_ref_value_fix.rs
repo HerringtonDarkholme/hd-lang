@@ -1,9 +1,11 @@
 //! A value where a trait value reference is expected is `type-mismatch`,
 //! with a fix-it that writes `&` or `&mut` before a place or a struct
 //! literal (spec/lang/09-traits.md trait.dyn.ref.written,
-//! trait.dyn.ref.written.reference-fix.reference-values). Each fix-it checks clean, and a value whose
-//! written reference would be an error, or that is no place or struct
-//! literal, gets none.
+//! trait.dyn.ref.written.reference-fix.reference-values), or where a
+//! counted one is expected, `box(...)` around a struct literal or a
+//! local's initializer (spec/lang/11 req.ref.install-value.fix). Each
+//! fix-it checks clean, and a value whose written reference would be an
+//! error, or that is no place or struct literal, gets none.
 
 use hd_base::SliceSort as _;
 use hd_diag::{Code, DiagBuf};
@@ -80,15 +82,15 @@ fn each_fix_writes_the_reference_and_checks_clean() {
         ),
         (
             "fn demo() -> List[*dyn Shape]:\n    [Square { side: 1.0 }]\n",
-            "[&Square { side: 1.0 }]",
+            "[box(Square { side: 1.0 })]",
         ),
         (
             "fn demo(n: i32) -> void:\n    let mut tally = Tally { n: n }\n    $.with(Counter=tally):\n        pass\n",
-            "$.with(Counter=&mut tally)",
+            "let mut tally = box(Tally { n: n })",
         ),
         (
             "fn demo() -> f64:\n    let mut big = Square { side: 2.0 }\n    let shapes: List[*dyn Shape] = [Square { side: 1.0 }, big]\n    big.side = 3.0\n    shapes[1].area()\n",
-            "[&Square { side: 1.0 }, &big]",
+            "let mut big = box(Square { side: 2.0 })",
         ),
     ];
     for (body, want) in cases {
@@ -112,6 +114,9 @@ fn a_written_reference_that_is_an_error_gets_no_fix() {
         // method is itself an error (trait.dyn.bare-value-rejected).
         // A call result is no place and no struct literal.
         "fn make() -> Square:\n    Square { side: 1.0 }\n\nfn demo() -> f64:\n    show(make())\n",
+        // A parameter has no initializer to box, and boxing at the use
+        // would copy it.
+        "fn demo(tally: Tally) -> void:\n    $.with(Counter=tally):\n        pass\n",
     ];
     for body in cases {
         let src = format!("{TRAITS}{body}\npub fn main() -> void:\n    ()\n");

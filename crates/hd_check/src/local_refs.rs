@@ -3,7 +3,7 @@
 //! a local reference that reaches a field, a collection element, a
 //! top-level binding, a result, a closure capture, a type argument or a
 //! counted reference is `local-reference-escapes`, with a fix-it that
-//! writes `*` for its `&`.
+//! writes `*` for its `&`, or for an `&e` the advice to box the value.
 //!
 //! The kind is a checking rule only (`ref.type.kind-runtime`): both kinds
 //! lower to one `Ref[T]` (`hd_types::Types::lower_refs`), so nothing here
@@ -71,6 +71,28 @@ fn message(at: Escape) -> String {
         "a local reference never escapes to {}; write `*` for its `&` to make it a counted reference",
         at.what()
     )
+}
+
+/// The message for a local reference that no written `&` declares, as
+/// `&e` makes (`ref.expr.kind.no-counted.advice`).
+fn box_message(at: Escape) -> String {
+    format!(
+        "a local reference never escapes to {}; box the value at its declaration, as `x := box(value)`",
+        at.what()
+    )
+}
+
+/// The value a field initializer or an argument passes, without its
+/// parentheses.
+fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
+    let e = crate::elem_refs::strip_parens(e);
+    match e.kind() {
+        SyntaxKind::DataFieldInit | SyntaxKind::Argument | SyntaxKind::NamedArgument => e
+            .children()
+            .last()
+            .map_or(e, crate::elem_refs::strip_parens),
+        _ => e,
+    }
 }
 
 /// A written local reference type in a position that keeps it
@@ -409,12 +431,43 @@ impl Ck<'_, '_> {
 
     /// Reports the local reference `value` escaping to `at`, with a fix-it
     /// that writes `*` in the type it was declared with
-    /// (`ref.local.escape.fix`, `ref.local.escape.fix.inferred`).
+    /// (`ref.local.escape.fix`, `ref.local.escape.fix.inferred`). A value
+    /// no written `&` declares, as `&e`, gets the advice to box it and no
+    /// fix-it (`ref.expr.kind.no-counted.advice`). A value that reported
+    /// `element-reference-outlives-call` reports nothing more.
     pub(crate) fn local_ref_escapes(&mut self, value: NodeRef<'_>, at: Escape) {
-        self.err(Code::LocalReferenceEscapes, value, &message(at));
-        if let Some(l) = self.named_local(value) {
-            self.local_ref_fix(l);
+        let e = value_of(value);
+        if self.elem_kept.contains(&e.index()) {
+            return;
         }
+        let local = self.named_local(value);
+        match local.and_then(|l| self.local_ref_token(l)) {
+            Some(_) => {
+                self.err(Code::LocalReferenceEscapes, value, &message(at));
+                self.local_ref_fix(local.expect("a named local"));
+            }
+            None if local.is_some() || e.kind() == SyntaxKind::RefExpr => {
+                self.err(Code::LocalReferenceEscapes, value, &box_message(at));
+            }
+            None => self.err(Code::LocalReferenceEscapes, value, &message(at)),
+        }
+    }
+
+    /// A `*self` or `*mut self` call of `name` on a place, or on a value
+    /// that is no place (`temporary`), which has no object for a counted
+    /// reference to refer to (`fn.method.counted-self.place`,
+    /// `fn.method.counted-self.temporary-error`).
+    pub(crate) fn counted_self_on_value(&mut self, n: NodeRef<'_>, name: &str, temporary: bool) {
+        let msg = if temporary {
+            format!(
+                "`{name}` takes a counted reference to its receiver, but a counted reference never refers to a temporary; box the value first, as `box(value).{name}()`"
+            )
+        } else {
+            format!(
+                "`{name}` takes a counted reference to its receiver, but a counted reference never refers to a variable, a field or an element; box the value at its declaration, as `x := box(value)`"
+            )
+        };
+        self.err(Code::LocalReferenceEscapes, n, &msg);
     }
 
     /// The local the expression `e` names: a name, or the value of a
@@ -507,7 +560,9 @@ impl Ck<'_, '_> {
     pub(crate) fn local_ref_captures(&mut self, mark: hd_tir::ir::SubMark, n: NodeRef<'_>) {
         let pool = self.pool();
         for l in self.b.open_captures(mark) {
-            if self.ref_captured.contains(&l) {
+            // An element reference loop's binding reports
+            // `element-reference-outlives-call` instead.
+            if self.ref_captured.contains(&l) || self.elem_locals.contains(&l) {
                 continue;
             }
             let t = self.infer.resolve(pool, self.b.local_ty(l));
@@ -536,14 +591,16 @@ impl Ck<'_, '_> {
     /// signature writes is skipped, and each other type reports once.
     pub(crate) fn check_local_ref_types(&mut self) {
         let pool = self.pool();
-        let mut seen: HashSet<Ty> = self.declared_tys.clone();
+        let declared = &self.declared_tys;
+        let mut seen: HashSet<(Ty, bool)> = HashSet::default();
         let mut found: Vec<(hd_base::NodeIdx, Escape)> = Vec::new();
         let body = self.b.body();
+        // A type seen at the top may still report as a type argument.
         let mut look = |t: Ty, top_ok: bool, at: hd_base::NodeIdx| {
             if at == hd_base::NodeIdx::NONE || pool.has_poison(t) || !pool.has_ref(t) {
                 return;
             }
-            if !seen.insert(t) {
+            if declared.contains(&t) || !seen.insert((t, top_ok)) {
                 return;
             }
             let e = if top_ok || !is_local_ref(pool, t) {
@@ -584,8 +641,14 @@ impl Ck<'_, '_> {
             if !reported.insert(at) {
                 continue;
             }
+            // An inferred type has no `&` of its own: the reference came
+            // from an `&e` or from a declared `&T`.
             let node = self.cx.src.parse.tree.node(at);
-            self.err(Code::LocalReferenceEscapes, node, &message(e));
+            let msg = format!(
+                "a local reference never escapes to {}; box the value at its declaration, as `x := box(value)`, or write `*` for the `&` of the type it was declared with",
+                e.what()
+            );
+            self.err(Code::LocalReferenceEscapes, node, &msg);
         }
     }
 }

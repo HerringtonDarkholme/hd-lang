@@ -1135,9 +1135,9 @@ impl Ck<'_, '_> {
         // `fn.ref.bound.address.writable`.
         let self_param = inst(pool, &m, m.sig.params[0].1);
         let addressed = self.addressed(recv, rt);
-        let by_ref = self.ref_receiver_of(m.def)?;
+        let by_ref = self.ref_receiver_kind(m.def)?;
         let recv = match by_ref {
-            Some(mutable) if !addressed => self.fit_receiver(recv, rt, mutable, name, n),
+            Some(kind) if !addressed => self.fit_receiver(recv, rt, kind, name, n),
             Some(_) => recv,
             None => {
                 self.check_receiver(self_param, recv, rt, n);

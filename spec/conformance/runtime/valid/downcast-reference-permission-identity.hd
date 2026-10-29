@@ -44,13 +44,11 @@ tests:
             .None => assert(false, reason="&User matches")
         assert_equal((*user).count, 7, reason="the shared reference value was replaced")
     it("generic identity stays permission sensitive through forwarding"):
-        let mut user = User { count: 4 }
+        user := box(User { count: 4 })
+        let shared: *User = user
+        assert(kind(shared) != kind(user), reason="TypeId observes the actual reference permission")
         assert(
-            kind(&user) != kind(&mut user),
-            reason="TypeId observes the actual reference permission",
-        )
-        assert(
-            forwarded_kind(&user) != forwarded_kind(&mut user),
+            forwarded_kind(shared) != forwarded_kind(user),
             reason="the generic caller must retain the distinction too",
         )
     it("sharing generic code preserves the actual mutable reference"):

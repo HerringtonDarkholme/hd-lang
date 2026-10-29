@@ -20,12 +20,12 @@ impl Keeper for K:
     fn size[T](self, xs: List[T]) -> usize:
         xs.len() + 100
 
-fn via[C < Keeper](c: C, u: &User) -> bool:
+fn via[C < Keeper](c: C, u: *User) -> bool:
     c.keep(u) is u
 
 pub fn main() -> void $ Console:
-    let k: &dyn Keeper = &K { n: 100 }
-    u := &User { name: "ada" }
+    let k: *dyn Keeper = box(K { n: 100 })
+    let u: *User = box(User { name: "ada" })
     println(k.keep(u) is u)
     println(via(k, u))
     println(k.size(["a", "b"]))

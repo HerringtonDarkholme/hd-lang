@@ -220,8 +220,8 @@ pub(crate) struct Formals<'a> {
     pub inferred: &'a [Vec<usize>],
     /// Per parameter: whether its declared type is a reference, which an
     /// element reference argument may be passed for
-    /// (`ref.elem.callee-copy`); a `T` instantiated with one is a value
-    /// the callee stores.
+    /// (`ref.elem.callee-copy.declared`); a `T` instantiated with one is a
+    /// value the callee stores.
     pub ref_params: &'a [bool],
 }
 
@@ -3955,8 +3955,8 @@ impl Ck<'_, '_> {
                 {
                     self.check_receiver(st, recv, rt, n);
                 }
-                let recv = match self.ref_receiver_of(method)? {
-                    Some(m) if !addressed => self.fit_call_receiver(recv, rt, m, name, n),
+                let recv = match self.ref_receiver_kind(method)? {
+                    Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     _ => recv,
                 };
                 self.choose_method(
@@ -3976,8 +3976,8 @@ impl Ck<'_, '_> {
                 {
                     self.check_receiver(st, recv, rt, n);
                 }
-                let recv = match self.ref_receiver_of(method)? {
-                    Some(m) if !addressed => self.fit_call_receiver(recv, rt, m, name, n),
+                let recv = match self.ref_receiver_kind(method)? {
+                    Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     _ => recv,
                 };
                 self.trait_method_call(
@@ -4020,8 +4020,8 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownMethod, n, &msg);
                     return Ok((Ref(NONE), Ty::POISON));
                 }
-                let recv = match self.ref_receiver_of(method)? {
-                    Some(m) if !addressed => self.fit_call_receiver(recv, rt, m, name, n),
+                let recv = match self.ref_receiver_kind(method)? {
+                    Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     Some(_) => recv,
                     None => {
                         self.check_receiver(params[0].1, recv, rt, n);
@@ -4204,9 +4204,9 @@ impl Ck<'_, '_> {
                 }
                 // A trait value passes its payload to a reference receiver
                 // itself (`hd_mono::SlotRecv`).
-                let recv = match self.ref_receiver_of(method)? {
-                    Some(m) if !addressed && choice.0 != ChoiceKind::TraitValue => {
-                        self.fit_call_receiver(recv, rt, m, name, n)
+                let recv = match self.ref_receiver_kind(method)? {
+                    Some(k) if !addressed && choice.0 != ChoiceKind::TraitValue => {
+                        self.fit_call_receiver(recv, rt, k, name, n)
                     }
                     _ => recv,
                 };

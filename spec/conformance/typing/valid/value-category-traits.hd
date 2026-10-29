@@ -25,7 +25,7 @@ fn categories() -> void:
     _ := by_value(true)
     _ := by_value((+1, "a"))
     _ := by_value(Meters(2.5))
-    _ := by_ref(&mut Parcel { weight: 3 })
+    _ := by_ref(box(Parcel { weight: 3 }))
     _ := by_value(Status.Shipped("Z1"))
     _ := by_value(Status.Queued)
     let tracking: string? = "Z1"
@@ -37,4 +37,4 @@ fn categories() -> void:
     _ := by_value({ "a": 1 })
     _ := by_value(Tags(["fragile"]))
     _ := as_any(Meters(1.0))
-    _ := as_any(&mut Parcel { weight: 1 })
+    _ := as_any(box(Parcel { weight: 1 }))

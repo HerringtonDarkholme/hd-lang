@@ -1995,12 +1995,13 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 | Trait | Types | Identity |
 | --- | --- | --- |
 | r[types.sealed.anyval-members] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, and function types | These values have no identity. |
-| r[types.sealed.anyref-members.reference-values] `AnyRef` | reference types, trait value references included; suspensions and runtime handles with identity | These values have identity. |
+| r[types.sealed.anyref-members.counted] `AnyRef` | counted reference types `*T` and `*mut T`, trait value references `*dyn Tr` included; suspensions and runtime handles with identity | These values have identity. |
 
 5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(*User)` implements `AnyRef`.
 6. r[types.sealed.never] `never` implements neither, because it has no values.
 7. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
 8. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
+9. r[types.sealed.local-reference] A local reference `&T` or `&mut T` is never a type argument, written or inferred, by [`ref.local.escape.type-argument`](13-values-and-references.md#r-ref.local.escape.type-argument). So `T < AnyRef` accepts no local reference: `keep(&p)` is an error, and `p := box(Point { x: 0 })` then `keep(p)` is not. Error: `local-reference-escapes`.
 
 ```text
 struct Handle: pass
