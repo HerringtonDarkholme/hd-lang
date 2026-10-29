@@ -1,8 +1,8 @@
 # The Path To Returned Local References
 
-**Status:** accepted 2026-10-29; domain: references and lifetimes. Stages 1
-and 2 are being built (#1002, #1003, #996, #1007, #1006); the stage 3 syntax is
-open until the study #1005. It reviews
+**Status:** accepted 2026-10-29; domain: references and lifetimes. Stages 1,
+2a and 4 are built (#1002, #1003, #1007, #1008); #1006 and #996 are in progress;
+stage 3 is decided as single lifetime variables (#1005). It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
@@ -216,6 +216,8 @@ in struct and enum fields (`struct Parser['a]`), and a store into a
 caller's place shares one (`xs: &mut List[&'a T], x: &'a T`). A function
 type takes the same elision as a declaration, so `fn(&User) -> &string`
 depends on its one parameter.
+
+**Decided (owner, 2026-10-29, study #1005):** stage 3 builds single declared lifetime variables only, spelled `'name` (`fn choose['a](a: &'a User, b: &'a User) -> &'a User`). The checker keeps root-only provenance inside bodies until stage 9; parameter sources, sets and paths come later in the same position.
 
 **How the `'` position evolves** (owner, 2026-10-29: "lookup/sets/paths sound good"). Stage 3 builds declared variables only; later stages may put a parameter name, a set or a path in the same position without changing anything stage 3 wrote:
 
