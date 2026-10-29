@@ -104,7 +104,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 1. Dependent results | a result may hold local references; its source is elided; origins are checked in the body | getters, `&mut Self` builders, `downcast_ref` on `&dyn`, `(&T)?` results | static escape check; memory safety by counts (cells) |
 | 2. Frame-slot results | backend only: source liveness covers the result's uses; inlining of reference getters | the counts and cells stage 1 adds go away | no language change |
 | 3. Lifetime variables | `fn f['a](x: &'a T) -> &'a T` (hypothetical); dependent function types; per-position precision | `choose(a, b)`, `get_or(&self, fallback)`, closures that return references | static |
-| 4. Element results | reverses E item 4 (owner question): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
+| 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
 | 5. Generic locality | local-holding type arguments for generic functions; `T < global` at persistent boundaries (hypothetical) | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
 | 6. Stored references | lifetime parameters on structs and enums; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
 | 7. Exclusivity | a live borrow freezes its path's shape; static for unaliased roots, borrow flags through `*mut` (panic `borrow-conflict`) | enum payload places (`as_mut`), exclusive guard captures, uncounted element and heap references | static plus flags |
@@ -117,7 +117,7 @@ checker sees the source, and panics through a counted alias:
   (it panicked `collection-pinned` before);
 - replacing a `*mut` field that a live result's path crosses (it was valid
   before, with a stale result);
-- under a full Swift law (question 3), also any plain write to the source
+- under a full Swift law (question 2), also any plain write to the source
   while a `&mut` result is live.
 
 ### Stage 2: frame-slot results
@@ -153,6 +153,9 @@ same elision as a declaration, so `fn(&User) -> &string` depends on its
 one parameter.
 
 ### Stage 4: element results
+
+Stage 4 reverses item 4 of decision E (#494): an element reference may
+flow into a result or a binding. E's length rule stays, as the pin.
 
 ```text
 impl[T] List[T]:
@@ -401,26 +404,22 @@ Stop at 1.5 times that. Run time:
 - `element-reference-outlives-call` (existing), for rule 8.
 
 ## Owner Questions
-1. **Decision E, item 4.** May element references flow into results and
-   bindings (stage 4), enforced by today's pins first and by a static check
-   at stage 7? The #494 log says E's length rule "will cover the later tier
-   2 entry API". **Recommendation:** yes, at stage 4.
-2. **Elision.** Rust's three rules, counting reference positions, or C#'s
+1. **Elision.** Rust's three rules, counting reference positions, or C#'s
    rule that a result may come from any reference argument.
    **Recommendation:** Rust's. C#'s rule never errors, but it ties every
    result to every argument.
-3. **Exclusivity, stage 7.** Freeze a borrowed path's shape only (length,
+2. **Exclusivity, stage 7.** Freeze a borrowed path's shape only (length,
    variant, references along it), or follow Swift's full law, where a live
    `&mut` result bars every other access. **Recommendation:** shape only.
    It generalizes E, and keeps `swap(&mut xs[i], &mut xs[j])` and
    `n := u.name(); u.age += 1` valid.
-4. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
+3. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
    every escape row. **Recommendation:** drop it on all rows with stage 1,
    since it cannot work for a field or an element.
-5. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
+4. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
    `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
    stage 5 lifts it properly.
-6. **The generic default, stage 5.** Every `T` may hold a local reference,
+5. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
