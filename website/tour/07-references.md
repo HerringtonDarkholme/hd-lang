@@ -40,11 +40,11 @@ also writes. A plain `Stock` value does not fit such a field.
 ## Shared objects
 
 ```hd example
-let shared: *mut Stock = &mut Stock { units: local.units }
+shared := box(Stock { units: local.units })
 ```
 
-`&mut` on a new value creates a **shared object**. It stays alive while a
-stored reference points to it. Both fields of `holder` point to it, so a
+`box` puts a value in a new **shared object** and gives a `*mut Stock`. The
+object stays alive while a stored reference points to it. Both fields of `holder` point to it, so a
 write through `editable` shows through `view`.
 
 **Run it.** It prints `local: 2` before the restock. The shared stock starts
@@ -67,14 +67,14 @@ fn restock(stock: &mut Stock, added: i32) -> void:
 let mut local = Stock { units: 2 }
 println("local: ${units(&local)}")
 restock(&mut local, 3)
-let shared: *mut Stock = &mut Stock { units: local.units }
+shared := box(Stock { units: local.units })
 holder := SharedStock { view: shared, editable: shared }
 holder.editable.units -= 1
 println("shared: ${holder.view.units}")
 ```
 
 ```edit
-replace: let shared: *mut Stock = &mut Stock { units: local.units }
+replace: shared := box(Stock { units: local.units })
 with: shared := Stock { units: local.units }
 error: type-mismatch: in field: expected *Stock, found Stock
 ```

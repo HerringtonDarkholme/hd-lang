@@ -66,7 +66,12 @@ function tryIt(page: TourPage): string {
   const { edit } = page;
   if (!edit) return "";
   const action = edit.error === undefined ? "Test" : "Run";
-  return `<p><strong>Try it:</strong> change <code>${escapeHtml(edit.replace.trim())}</code> to <code>${escapeHtml(edit.with.trim())}</code> and press ${action}.</p>`;
+  const from = `<code>${escapeHtml(edit.replace.trim())}</code>`;
+  const change =
+    edit.with.trim() === ""
+      ? `delete the line ${from}`
+      : `change ${from} to <code>${escapeHtml(edit.with.trim())}</code>`;
+  return `<p><strong>Try it:</strong> ${change} and press ${action}.</p>`;
 }
 
 /** The output panel's text before the first run. */
@@ -157,16 +162,21 @@ export function tourEditor(page: TourPage, input: TourRender): string {
 }
 
 /** The tour's contents page. */
+/** A page's `##` section titles, as inline Markdown, for the contents list. */
+function sections(page: TourPage): string[] {
+  return [...page.prose.matchAll(/^## (.+)$/gm)].map((match) => match[1]!.trim());
+}
+
 export function tourIndexBody(pages: readonly TourPage[], input: TourRender): string {
   const { md, env, pageUrl } = input;
   const items = pages
     .map(
       (page) =>
-        `<li><a href="${pageUrl(tourOutput(page))}">${escapeHtml(page.title)}</a><span class="tour-claim">${md.renderInline(page.claim, env)}</span></li>`,
+        `<li><a href="${pageUrl(tourOutput(page))}">${escapeHtml(page.title)}</a><span class="tour-claim">${md.renderInline(sections(page).join(" · "), env)}</span></li>`,
     )
     .join("\n");
   return `<h1>A Tour of hd</h1>
-<p>Each page makes one claim about hd, explains in a few sentences why it matters, and gives you a program to run and change right in the page. Most pages also name a one-line edit that turns the program into a compile error, so you see the error the claim is about.</p>
+<p>Each page introduces a few features, each with a small example, and gives you a program to run and change beside it. Most pages end with one change to try, which shows the error hd gives.</p>
 <p><a class="button button-primary" href="${pageUrl(tourOutput(pages[0]!))}">Start the tour</a></p>
 <h2 id="contents">Contents</h2>
 <ol class="tour-index">
