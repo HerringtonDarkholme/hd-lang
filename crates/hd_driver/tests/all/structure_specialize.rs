@@ -8,7 +8,8 @@ use hd_sched::SerialOrder;
 
 const SOURCE: &str = r"
 use std.annotation.inline
-use std.structure.{Field, Structure, Variant, Walker}
+use std.serde.Serializer
+use std.structure.{Facts, Field, Member, Structure, Variant, VariantInfo, Walker}
 
 trait Add:
     fn add(self, total: *mut i32) -> void
@@ -38,7 +39,55 @@ impl[T] Total for T by Structure:
         _ := Structure::walk(self, &mut walker)
         *out
 
-@derive(Total, Eq)
+struct NullWriter: pass
+
+impl Serializer for NullWriter:
+    type Error = never
+    fn null(&mut self) -> Result[void, never]: .Ok(())
+    fn bool(&mut self, value: bool) -> Result[void, never]: .Ok(())
+    fn int(&mut self, value: i64) -> Result[void, never]: .Ok(())
+    fn uint(&mut self, value: u64) -> Result[void, never]: .Ok(())
+    fn float(&mut self, value: f64) -> Result[void, never]: .Ok(())
+    fn text(&mut self, value: string) -> Result[void, never]: .Ok(())
+    fn begin_list(&mut self, len: usize) -> Result[void, never]: .Ok(())
+    fn end_list(&mut self) -> Result[void, never]: .Ok(())
+    fn begin_map(&mut self, len: usize) -> Result[void, never]: .Ok(())
+    fn key(&mut self, key: string) -> Result[void, never]: .Ok(())
+    fn end_map(&mut self) -> Result[void, never]: .Ok(())
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]: .Ok(())
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, never]: .Ok(())
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, never]:
+        .Ok(())
+    fn member(&mut self, member: &Member) -> Result[void, never]: .Ok(())
+    fn end_variant(&mut self) -> Result[void, never]: .Ok(())
+
+struct FormatWalker:
+    out: *mut NullWriter
+
+impl[S] Walker[S] for FormatWalker:
+    type Error = never
+    fn data_variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        _ := self.out.begin_data(Facts { items: [] }, &variant.info)?
+        self.out.end_data()
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]: .Ok(())
+    fn data_member[F](&mut self, handle: Field[S, F], value: F) -> Result[void, never]: .Ok(())
+    fn member[F](&mut self, handle: Field[S, F], value: F) -> Result[void, never]: .Ok(())
+
+trait FormatWalk:
+    fn format_walk(self) -> void
+
+impl[T] FormatWalk for T by Structure:
+    fn format_walk(self) -> void:
+        let mut writer = NullWriter {}
+        let mut walker = FormatWalker { out: &mut writer }
+        _ := Structure::walk(self, &mut walker)
+
+@derive(Total, Eq, FormatWalk)
 struct Pair:
     left: i32
     right: i32
@@ -84,6 +133,7 @@ enum Shape:
 
 pub fn main() -> void $ Console:
     println(Pair { left: 20, right: 22 }.total() + Manual { value: 1 }.total())
+    Pair { left: 20, right: 22 }.format_walk()
     println(Pair { left: 1, right: 2 } == Pair { left: 1, right: 2 })
     println(Shape.Circle(+1).same(Shape.Square(+2)))
 ";
@@ -131,7 +181,24 @@ fn a_closed_generated_walk_specializes_but_an_enum_get_keeps_its_check() {
     assert!(release.diags.is_empty(), "{}", release.render());
     let release_total = own(&release, "derive Total for Pair.total");
     assert!(!release_total.contains("structure walk"), "{release_total}");
+    assert!(
+        !release_total.contains("Walker.data_variant"),
+        "{release_total}"
+    );
+    assert!(
+        !release_total.contains("Walker.data_member"),
+        "{release_total}"
+    );
     assert!(!release_total.contains("Walker.member"), "{release_total}");
+    let release_format = own(&release, "derive FormatWalk for Pair.format_walk");
+    assert!(
+        !release_format.contains("Serializer.begin_data"),
+        "{release_format}"
+    );
+    assert!(
+        !release_format.contains("Serializer.end_data"),
+        "{release_format}"
+    );
     let release_eq = own(&release, "derive Eq for Pair.eq");
     assert!(
         !release_eq.contains("VariantRecord [ HdS ].holds"),

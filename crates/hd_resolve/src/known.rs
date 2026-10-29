@@ -36,6 +36,10 @@ pub struct KnownItems {
     /// may replace with the known result.
     pub variant_holds: DefId,
     pub walker: DefId,
+    /// The data-only `Walker` hooks, whose defaults bridge to the ordinary
+    /// variant/member protocol.
+    pub walker_data_variant: DefId,
+    pub walker_data_member: DefId,
     pub describer: DefId,
     pub source: DefId,
     /// `fills_defaults`, whose fact on a source implementation fills
@@ -99,6 +103,9 @@ pub struct KnownItems {
     pub json_decode: DefId,
     pub serialize: DefId,
     pub deserialize: DefId,
+    /// The data-only format boundaries on `Serializer`.
+    pub serializer_begin_data: DefId,
+    pub serializer_end_data: DefId,
     // std.iter, std.convert, std.error
     pub iterator: DefId,
     pub iterable: DefId,
@@ -179,10 +186,19 @@ impl KnownItems {
             let owner = paths.intern(module(m), PathKind::Impl, imp);
             DefId::from_raw(paths.intern(owner, PathKind::Member, n).raw())
         };
+        let trait_method = |owner: DefId, n: &str| {
+            DefId::from_raw(
+                paths
+                    .intern(PathId::from_raw(owner.raw()), PathKind::Member, n)
+                    .raw(),
+            )
+        };
         let any = item("std.core", "Any");
         let any_val = item("std.core", "AnyVal");
         let any_ref = item("std.core", "AnyRef");
         let structure = item("std.structure", "Structure");
+        let walker = item("std.structure", "Walker");
+        let serializer = item("std.serde", "Serializer");
         let tuple = item("std.function", "Tuple");
         let suspend = item("std.task", "Suspend");
         let inspectable = item("std.inspect", "Inspectable");
@@ -212,7 +228,9 @@ impl KnownItems {
                 "impl [ HdS ] VariantRecord [ HdS ]",
                 "holds",
             ),
-            walker: item("std.structure", "Walker"),
+            walker,
+            walker_data_variant: trait_method(walker, "data_variant"),
+            walker_data_member: trait_method(walker, "data_member"),
             describer: item("std.structure", "Describer"),
             source: item("std.structure", "Source"),
             fills_defaults: item("std.structure", "fills_defaults"),
@@ -261,6 +279,8 @@ impl KnownItems {
             json_decode: item("std.json", "decode"),
             serialize: item("std.serde", "Serialize"),
             deserialize: item("std.serde", "Deserialize"),
+            serializer_begin_data: trait_method(serializer, "begin_data"),
+            serializer_end_data: trait_method(serializer, "end_data"),
             iterator: item("std.iter", "Iterator"),
             iterable: item("std.iter", "Iterable"),
             from: item("std.convert", "From"),

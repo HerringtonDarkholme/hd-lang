@@ -19,6 +19,14 @@ pub trait StructureEnv: InlineEnv {
     /// The compiler-known `std.structure.Walker` trait.
     fn walker_trait(&self) -> DefId;
 
+    /// The data-only `Walker` hooks whose defaults bridge to the ordinary
+    /// protocol.
+    fn walker_data_variant(&self) -> DefId;
+    fn walker_data_member(&self) -> DefId;
+
+    /// The data-only format boundaries exposed by a specialized serde walk.
+    fn data_format_boundaries(&self) -> [DefId; 2];
+
     /// A generated immutable handle factory, if `def` is one.
     fn generated_structure_handle(&self, def: DefId) -> Option<GeneratedHandle>;
 
@@ -61,7 +69,13 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         let Some((mut copy, copy_hash)) = instance(env, def, targs) else {
             continue;
         };
-        let nested_hashes = inline_walker_methods(env, &mut copy);
+        // A data walk first reaches Walker's default `data_*` bridge. Inline
+        // those exact hooks before selecting the concrete legacy hooks they
+        // expose. Two bounded passes avoid turning recursive user methods
+        // into an inlining fixpoint.
+        let mut nested_hashes = inline_data_walker_methods(env, &mut copy);
+        nested_hashes.extend(inline_walker_methods(env, &mut copy));
+        nested_hashes.extend(inline_data_format_boundaries(env, &mut copy));
         fold_handle_accessors(env, &mut copy);
         // `DeriveInstance` is a function for ownership but intentionally not
         // a general inline candidate. This pass has already applied the
@@ -207,6 +221,12 @@ fn source_handle(
         };
         return source_handle(env, body, stores, *value, depth + 1);
     }
+    // The default data hook weakens its handle reference before forwarding
+    // it to the ordinary member hook. This coercion preserves the value, so
+    // it preserves the generated-handle provenance too.
+    if body.same_value_coercion(instruction) {
+        return source_handle(env, body, stores, body.data[instruction][0], depth + 1);
+    }
     if body.tags.get(instruction) != Some(&Tag::Call) {
         return None;
     }
@@ -245,15 +265,45 @@ fn push_record(body: &mut Body, words: &[u32]) -> u32 {
 /// general inliner; here the generated traversal and closed receiver prove
 /// the narrower copy safe.
 fn inline_walker_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
+    inline_selected_methods(
+        env,
+        body,
+        &|callee| matches!(callee, Callee::TraitMethod { trait_, .. } if *trait_ == env.walker_trait()),
+    )
+}
+
+fn inline_data_walker_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
+    let variant = env.walker_data_variant();
+    let member = env.walker_data_member();
+    inline_selected_methods(
+        env,
+        body,
+        &|callee| matches!(callee, Callee::TraitMethod { method, .. } if *method == variant || *method == member),
+    )
+}
+
+fn inline_data_format_boundaries(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
+    let boundaries = env.data_format_boundaries();
+    inline_selected_methods(
+        env,
+        body,
+        &|callee| matches!(callee, Callee::TraitMethod { method, .. } if boundaries.contains(method)),
+    )
+}
+
+fn inline_selected_methods(
+    env: &dyn StructureEnv,
+    body: &mut Body,
+    selected: &dyn Fn(&Callee) -> bool,
+) -> Vec<Hash128> {
     let mut sites = Vec::new();
     let mut hashes = Vec::new();
     for call in (0..body.len()).rev() {
-        let Some(callee @ Callee::TraitMethod { trait_, .. }) =
-            hd_tir::inline::known_call(body, call)
+        let Some(callee @ Callee::TraitMethod { .. }) = hd_tir::inline::known_call(body, call)
         else {
             continue;
         };
-        if trait_ != env.walker_trait() {
+        if !selected(&callee) {
             continue;
         }
         let Some((def, args)) = env.impl_target(&callee) else {

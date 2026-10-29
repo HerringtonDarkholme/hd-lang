@@ -572,6 +572,21 @@ impl StructureEnv for Env<'_> {
         self.run.known.walker
     }
 
+    fn walker_data_variant(&self) -> DefId {
+        self.run.known.walker_data_variant
+    }
+
+    fn walker_data_member(&self) -> DefId {
+        self.run.known.walker_data_member
+    }
+
+    fn data_format_boundaries(&self) -> [DefId; 2] {
+        [
+            self.run.known.serializer_begin_data,
+            self.run.known.serializer_end_data,
+        ]
+    }
+
     fn generated_structure_handle(&self, def: DefId) -> Option<GeneratedHandle> {
         match hd_structure::generated_body(&self.run.names(), def)? {
             hd_structure::GeneratedBody::Handle(hd_structure::GeneratedHandle::Variant {
