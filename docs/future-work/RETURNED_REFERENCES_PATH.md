@@ -503,8 +503,12 @@ Stop at 1.5 times that. Run time:
 ### Diagnostics
 
 - `local-reference-escapes` (existing): rule 4 names the root, as in
-  "`spare` is a local of `walk`; the result depends only on `u`". It has no
-  fix-it.
+  "`spare` is a local of `walk`; the result depends only on `u`".
+- No reference diagnostic has a fix-it. Stage 1 removes the "write `*`"
+  fix-it (`ref.local.escape.fix`, `ref.local.escape.fix.inferred`) from
+  every `local-reference-escapes` row: it cannot work for a field or an
+  element, and a counted reference is a different design choice, not a
+  repair.
 - `reference-result-without-source` (new): "a reference result needs a
   reference parameter to borrow from".
 - `ambiguous-reference-source` (new): "the result may borrow from `a` or
@@ -512,13 +516,10 @@ Stop at 1.5 times that. Run time:
 - `element-reference-outlives-call` (existing), for rule 8.
 
 ## Owner Questions
-1. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
-   every escape row. **Recommendation:** drop it on all rows with stage 1,
-   since it cannot work for a field or an element.
-2. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
+1. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
    `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
    stage 5 lifts it properly.
-3. **The generic default, stage 5.** Every `T` may hold a local reference,
+2. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
