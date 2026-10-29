@@ -2,11 +2,11 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "20872555bbe56bf44291400643991b288e060835",
-    "compilerBaseRevision": "20872555bbe56bf44291400643991b288e060835",
-    "compilerSha256": "3bb2db7152a79aff4f2df635f44ca48b8afa21fe43fe0d91f8095077f6a2c1f1",
-    "referenceWasmSha256": "f90b9efd1f960e90e9741608dae4313d3244a0e337d44a9f1317b7ca6a39c0ab",
-    "referenceContractSha256": "5bd05811bf777a4a07689e37ff80696d77893a226c8ca151a0167dabbaf281c8",
+    "sourceBaseRevision": "f74465d7fb54208c03e4dcf5cf6a0798bc9baeef",
+    "compilerBaseRevision": "f74465d7fb54208c03e4dcf5cf6a0798bc9baeef",
+    "compilerSha256": "98bbae8c7682da0db178455890ee77645fce94f32a8cb1f3cedb81d72fcda92b",
+    "referenceWasmSha256": "27030652248dad91e5c17d90a92d80ad9e23248c9e371f67d4ccfb25fa476d94",
+    "referenceContractSha256": "f4bd89496477c1db2278a022bb369b73947d35a25962e04e7e7ad88bacd2cf3c",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "ba559def42f9eb2f61e9688dcb1b4c7271bd8ccd5bfaeab7908e8d4182f1eb7f",
@@ -1055,6 +1055,17 @@
                                         ]
                                       ],
                                       [
+                                        "DuplicateField",
+                                        [
+                                          [
+                                            "path",
+                                            [
+                                              6
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
                                         "UnknownVariant",
                                         [
                                           [
@@ -1198,5 +1209,5 @@
       }
     ]
   },
-  "fingerprint": "2f8e75a86d5ad59e1a9fc1b3435f23bd0f5410847af13c3e598d8544bf561a4c"
+  "fingerprint": "d459ee2d5d8de68466b0c19ae7cb5e04190ffc6489746774f5f0e3d67baf28d8"
 }
