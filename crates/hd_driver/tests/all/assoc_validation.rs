@@ -106,7 +106,7 @@ fn a_dyn_type_does_not_satisfy_a_bound_on_a_supertrait_with_an_associated_functi
 
 #[test]
 fn a_dyn_type_satisfies_a_bound_on_a_trait_of_methods() {
-    let src = "trait Sized:\n    type Item\n    fn size(self) -> i32\n\nfn measure[S < Sized[Item = i32]](value: S) -> i32:\n    value.size()\n\nfn with_value(value: &dyn Sized[Item = i32]) -> i32:\n    measure(value)\n";
+    let src = "trait Sized:\n    type Item\n    fn size(self) -> i32\n\nfn measure[S < Sized[Item = i32]](value: S) -> i32:\n    value.size()\n\nfn with_value(value: *dyn Sized[Item = i32]) -> i32:\n    measure(value)\n";
     assert_eq!(errors(src), vec![]);
 }
 

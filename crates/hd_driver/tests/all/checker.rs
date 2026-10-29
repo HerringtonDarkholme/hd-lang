@@ -118,6 +118,91 @@ fn foreign_loop_hint_does_not_change_other_unresolved_calls() {
     }
 }
 
+#[test]
+fn local_reference_inferred_as_free_function_type_argument_is_rejected() {
+    let cases = [
+        (
+            "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
+            "consume(point)",
+        ),
+        (
+            "struct Point:\n    x: i32\n\nfn consume[A, B](first: A, second: B) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[i32](+1, point)\n\npub fn main() -> void:\n    pass\n",
+            "consume::[i32](+1, point)",
+        ),
+        (
+            "struct Point:\n    x: i32\n\nfn check(point: &Point) -> void:\n    fn consume[T](value: T) -> void:\n        pass\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
+            "consume(point)",
+        ),
+    ];
+    for (source, call) in cases {
+        let out = cold_program(source);
+        assert_eq!(
+            out.diags.code,
+            [Code::LocalReferenceEscapes],
+            "{}",
+            out.render()
+        );
+        assert!(out.diags.fixes.iter().all(|fix| fix.len == 0));
+        let span = out.diags.primary[0];
+        assert_eq!(&source[span.lo as usize..span.hi as usize], call);
+    }
+}
+
+#[test]
+fn a_written_local_reference_type_argument_reports_once() {
+    let out = cold_program(
+        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume::[&Point](point)\n\npub fn main() -> void:\n    pass\n",
+    );
+    assert_eq!(
+        out.diags.code,
+        [Code::LocalReferenceEscapes],
+        "{}",
+        out.render()
+    );
+}
+
+#[test]
+fn each_inferred_local_reference_type_argument_site_reports() {
+    let out = cold_program(
+        "struct Point:\n    x: i32\n\nfn consume[T](value: T) -> void:\n    pass\n\nfn check(point: &Point) -> void:\n    consume(point)\n    consume(point)\n\npub fn main() -> void:\n    pass\n",
+    );
+    assert_eq!(
+        out.diags.code,
+        [Code::LocalReferenceEscapes, Code::LocalReferenceEscapes],
+        "{}",
+        out.render()
+    );
+}
+
+#[test]
+fn local_reference_inferred_as_method_own_type_argument_is_rejected() {
+    let cases = [
+        "struct Point:\n    x: i32\n\nstruct Consumer: pass\n\nimpl Consumer:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &Consumer, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
+        "struct Point:\n    x: i32\n\ntrait Consumer:\n    fn consume[T](&self, value: T) -> void\n\nstruct ConsumerImpl: pass\n\nimpl Consumer for ConsumerImpl:\n    fn consume[T](&self, value: T) -> void:\n        pass\n\nfn check(consumer: &ConsumerImpl, point: &Point) -> void:\n    consumer.consume(point)\n\npub fn main() -> void:\n    pass\n",
+    ];
+    for source in cases {
+        let out = cold_program(source);
+        assert_eq!(
+            out.diags.code,
+            [Code::LocalReferenceEscapes],
+            "{}",
+            out.render()
+        );
+    }
+}
+
+#[test]
+fn a_local_reference_receiver_is_not_a_method_type_argument() {
+    let cases = [
+        "struct Consumer: pass\n\nimpl Consumer:\n    fn inspect(&self) -> void:\n        pass\n\nfn check(consumer: &Consumer) -> void:\n    consumer.inspect()\n\npub fn main() -> void:\n    pass\n",
+        "trait Consumer:\n    fn inspect(&self) -> void\n\nstruct ConsumerImpl: pass\n\nimpl Consumer for ConsumerImpl:\n    fn inspect(&self) -> void:\n        pass\n\nfn check(consumer: &dyn Consumer) -> void:\n    consumer.inspect()\n\npub fn main() -> void:\n    pass\n",
+    ];
+    for source in cases {
+        let out = cold_program(source);
+        assert_eq!(out.diags.len(), 0, "{}", out.render());
+    }
+}
+
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt`, and the
 /// trait default bodies among the bodies: 48 modules.
 #[test]

@@ -2,5 +2,5 @@ trait Source:
     fn hidden(&self) -> impl Display
 fn accept[S < Source](source: S) -> void:
     pass
-fn read(source: &dyn Source) -> void:
+fn read(source: *dyn Source) -> void:
     accept(source) # diagnostic: unsatisfied-trait-bound

@@ -9,5 +9,5 @@ impl Write for Counter:
         self.value += 1
 fn needs_write[T < Write](value: T) -> void:
     pass
-fn rejected(value: &dyn Write) -> void:
+fn rejected(value: *dyn Write) -> void:
     needs_write(value) # diagnostic: unsatisfied-trait-bound

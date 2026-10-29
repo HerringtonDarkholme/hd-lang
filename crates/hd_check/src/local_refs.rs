@@ -19,7 +19,7 @@ use hd_base::{HashSet, LocalId, TokenIdx};
 use hd_diag::{Code, DiagBuf, FixSafety};
 use hd_resolve::view::Src;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Ref, Tag};
+use hd_tir::ir::{Callee, Ref, Tag};
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{Ck, ExpectPosition};
@@ -589,53 +589,81 @@ impl Ck<'_, '_> {
     /// (`ref.local.escape.type-argument`, `ref.local.escape.return`): a
     /// value's, a local's, and a call's type arguments. A written type
     /// reported already ([`declarations`]), so a type the body or its
-    /// signature writes is skipped, and each other type reports once.
+    /// signature writes is skipped. Body and local types report once per
+    /// type; inferred call arguments report at every call site.
     pub(crate) fn check_local_ref_types(&mut self) {
+        let mut local_calls = std::mem::take(&mut self.local_ref_call_targs);
+        for (_, args, _) in &mut local_calls {
+            for arg in args {
+                *arg = self.zonk(*arg);
+            }
+        }
         let pool = self.pool();
         let declared = &self.declared_tys;
         let mut seen: HashSet<(Ty, bool)> = HashSet::default();
         let mut found: Vec<(hd_base::NodeIdx, Escape)> = Vec::new();
         let body = self.b.body();
         // A type seen at the top may still report as a type argument.
-        let mut look = |t: Ty, top_ok: bool, at: hd_base::NodeIdx| {
-            if at == hd_base::NodeIdx::NONE || pool.has_poison(t) || !pool.has_ref(t) {
-                return;
-            }
-            if declared.contains(&t) || !seen.insert((t, top_ok)) {
-                return;
-            }
-            let e = if top_ok || !is_local_ref(pool, t) {
-                escape_in(pool, t, top_ok, 0)
-            } else {
-                Some(Escape::TypeArgument)
-            };
-            if let Some(e) = e {
-                found.push((at, e));
-            }
-        };
-        for i in 0..body.tags.len() {
-            look(body.ty[i], true, body.syn[i]);
-            if matches!(body.tags[i], Tag::Call | Tag::Await) {
-                // `[0, def, targs]` or `[1, trait, method, self_ty, targs,
-                // ...]` (`Callee::words`).
-                let at = body.data[i][0] as usize + 1;
-                let targs = match body.extra.get(at).copied() {
-                    Some(0) => body.extra.get(at + 2).copied(),
-                    Some(1) => body.extra.get(at + 4).copied(),
-                    _ => None,
-                };
-                if let Some(l) = targs {
-                    for &a in pool.list_items(hd_types::TyList(l)) {
-                        look(a, false, body.syn[i]);
-                    }
+        let mut look =
+            |t: Ty, top_ok: bool, skip_declared: bool, dedup_ty: bool, at: hd_base::NodeIdx| {
+                if at == hd_base::NodeIdx::NONE || pool.has_poison(t) || !pool.has_ref(t) {
+                    return;
                 }
+                if (skip_declared && declared.contains(&t))
+                    || (dedup_ty && !seen.insert((t, top_ok)))
+                {
+                    return;
+                }
+                let e = if top_ok || !is_local_ref(pool, t) {
+                    escape_in(pool, t, top_ok, 0)
+                } else {
+                    Some(Escape::TypeArgument)
+                };
+                if let Some(e) = e {
+                    found.push((at, e));
+                }
+            };
+        for i in 0..body.tags.len() {
+            look(body.ty[i], true, true, true, body.syn[i]);
+            if matches!(body.tags[i], Tag::Call | Tag::Await) {
+                let Some((def, targs)) =
+                    Callee::from_words(body.record(body.data[i][0])).map(|c| match c {
+                        Callee::Item { def, targs } => (def, targs),
+                        Callee::TraitMethod { method, targs, .. } => (method, targs),
+                    })
+                else {
+                    continue;
+                };
+                let own = self
+                    .cx
+                    .lookup
+                    .item(def)
+                    .and_then(|item| item.sig())
+                    .map_or(0, |sig| sig.generics.len());
+                let args = pool.list_items(targs);
+                let explicit = (body.syn[i] != hd_base::NodeIdx::NONE)
+                    .then(|| self.cx.src.parse.tree.node(body.syn[i]))
+                    .and_then(|call| call.children().next())
+                    .filter(|callee| callee.kind() == SyntaxKind::TypeArgsExpr)
+                    .and_then(|callee| callee.child(SyntaxKind::TypeArgumentList))
+                    .map_or(0, |list| {
+                        list.children().filter(|arg| arg.kind().is_type()).count()
+                    });
+                for &a in args[args.len().saturating_sub(own)..].iter().skip(explicit) {
+                    look(a, false, false, false, body.syn[i]);
+                }
+            }
+        }
+        for (at, args, explicit) in local_calls {
+            for a in args.into_iter().skip(explicit) {
+                look(a, false, false, false, at);
             }
         }
         for (l, &t) in body.local_ty.iter().enumerate() {
             if body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 {
                 continue;
             }
-            look(t, true, body.local_syn[l]);
+            look(t, true, true, true, body.local_syn[l]);
         }
         let mut reported = HashSet::default();
         for (at, e) in found {

@@ -5125,6 +5125,7 @@ typing/invalid/local-reference-escapes-top-level.hd	type	reject:local-reference-
 typing/invalid/local-reference-escapes-return.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.return
 typing/invalid/local-reference-escapes-capture.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture
 typing/invalid/local-reference-escapes-type-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.type-argument
+typing/invalid/local-reference-escapes-inferred-call-type-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.call-type-argument
 runtime/valid/impl-trait-nested-tuples.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/impl-trait-nested-option.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/impl-trait-nested-local.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested

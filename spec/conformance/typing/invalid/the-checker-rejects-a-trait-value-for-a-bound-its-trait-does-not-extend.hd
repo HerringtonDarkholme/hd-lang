@@ -46,5 +46,5 @@ fn targets[C < Channel](channels: List[C]) -> List[string]:
     channels.map(C::to_string)
 
 pub fn main() -> void:
-    let shown: &dyn Display = &Pager { number: 7 }
+    let shown: *dyn Display = box(Pager { number: 7 })
     _ := notify(shown, "disk full") # diagnostic: unsatisfied-trait-bound

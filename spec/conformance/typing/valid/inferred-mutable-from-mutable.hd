@@ -5,9 +5,9 @@ fn keep[T](value: T) -> T:
     value
 
 fn rename(user: &mut User) -> void:
-    let kept: &mut User = keep(user)
+    let mut kept: User = keep(*user)
     kept.name = "Grace"
 
 fn view(user: &User) -> string:
-    let kept: &User = keep(user)
+    let kept: User = keep(*user)
     kept.name

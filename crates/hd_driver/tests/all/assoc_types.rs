@@ -195,7 +195,7 @@ fn first[T, S < NamedSupplier[Item = T]](s: S) -> T:
 fn item[S < NamedSupplier](s: S) -> S::Item:
     s.get()
 
-fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
+fn read(s: *dyn NamedSupplier[Item = i32]) -> i32:
     s.get() + item(s)
 
 fn counted(s: *dyn Count) -> *dyn Count[Item = i32]:
@@ -203,7 +203,7 @@ fn counted(s: *dyn Count) -> *dyn Count[Item = i32]:
 
 pub fn main() -> void:
     _ := first(Counter {{ start: 1 }}) + item(Counter {{ start: 2 }})
-    _ := read(&Counter {{ start: 3 }})
+    _ := read(box(Counter {{ start: 3 }}))
     _ := counted(box(Counter {{ start: 4 }})).get() + 1
 "
     ));
@@ -235,7 +235,7 @@ pub fn main() -> void $ Console:
     println(read(&c))
     println(widen(shared).get())
     println(twice(&c))
-    let s: &dyn NamedSupplier[Item = i32] = &c
+    let s: *dyn NamedSupplier[Item = i32] = box(Counter {{ start: 20 }})
     println(item(s))
 "
         ),

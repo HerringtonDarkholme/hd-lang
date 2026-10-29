@@ -48,6 +48,6 @@ fn targets[C < Channel](channels: List[C]) -> List[string]:
     channels.map(C::to_string)
 
 pub fn main() -> void $ Console:
-    let email: &dyn Channel = &Email { address: "ops@example.com" }
+    let email: *dyn Channel = box(Email { address: "ops@example.com" })
     println(label(email))
     println(route(email, "hi"))

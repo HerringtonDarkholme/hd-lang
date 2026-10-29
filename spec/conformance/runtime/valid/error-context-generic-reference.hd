@@ -11,7 +11,7 @@ fn wrapped[E < Error](error: E) -> *dyn Error:
         .Err(failure) => failure
         .Ok(_) => panic("expected an error")
 pub fn main() -> void $ Console:
-    let original: &dyn Error = &UserError { count: 3 }
+    let original: *dyn Error = box(UserError { count: 3 })
     failure := wrapped(original)
     match failure.find::[UserError]():
         .Some(found) => println(found.count)

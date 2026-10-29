@@ -343,6 +343,7 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.return] Result | is returned, or a function's or a function type's declared result type holds one | `fn pick(p: &Point) -> &Point` | `local-reference-escapes` |
 | r[ref.local.escape.capture] Closure capture | is captured by a closure, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
 | r[ref.local.escape.type-argument] Type argument | is a type argument, written or inferred, an optional's included | `List[&Point]`, `&Point?` | `local-reference-escapes` |
+| r[ref.local.escape.call-type-argument] Generic call type argument | becomes a generic function or method's own written or inferred type argument | `show(p)` with `show[T](value: T)` and `p: &Point` | `local-reference-escapes` |
 
 6. r[ref.local.escape.fix] The diagnostic's fix-it writes `*` in place of `&` in the local reference type it reports: the position's own type, as in `point: *Point`, or the escaping value's declared type, as in `p: *Point`.
 7. r[ref.local.escape.fix.inferred] For a binding whose type is inferred from a local reference, as `q := p` with `p: &Point`, the fix-it writes `*` in the declared type it was inferred from, so `p: *Point`.

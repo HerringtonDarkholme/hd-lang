@@ -38,7 +38,7 @@ fn total[I < Iterable[i32]](source: I) -> i32:
         sum = sum + value
     sum
 
-fn gather[C < FromIterator[i32]](source: &mut dyn Iterator[i32]) -> C:
+fn gather[C < FromIterator[i32]](source: *mut dyn Iterator[i32]) -> C:
     C::from_iter(source)
 
 tests:
@@ -53,9 +53,9 @@ tests:
     it("a FromIterator struct through collect and a bound"):
         let bag: Bag = Countdown { left: 3 }.iter().collect()
         assert_equal(bag.items, [3, 2, 1], reason="collected in order")
-        let mut cursor = [+4, 5, 6].iter()
+        cursor := box([+4, 5, 6].iter())
         _ := cursor.next()
-        let rest: Bag = gather(&mut cursor)
+        let rest: Bag = gather(cursor)
         assert_equal(rest.pulls, 2, reason="the bound's from_iter drained the rest")
 
     it("the &mut self method changes the caller's struct"):
