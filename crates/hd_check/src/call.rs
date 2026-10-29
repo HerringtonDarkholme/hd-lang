@@ -564,17 +564,20 @@ impl Ck<'_, '_> {
         unsupported("a type with arguments used as a value")
     }
 
-    /// Which slots of the function a type-argument callee names by path
-    /// are row parameters, so a bare key written there is a kind error
-    /// (`fn.generic.explicit.row-dollar`); empty for any other callee.
+    /// Which slots of the function or data constructor a type-argument
+    /// callee names by path are row parameters, so a bare key written there
+    /// is a kind error (`fn.generic.explicit.row-dollar`,
+    /// `req.row.slot.data`); empty for any other callee.
     fn explicit_row_slots(&self, callee: NodeRef<'_>) -> Vec<bool> {
         if self.local_generic_named(callee).is_some() {
             return vec![];
         }
         self.resolve_path(&self.segments_expr(callee))
             .and_then(|d| self.cx.lookup.item(d))
-            .and_then(hd_resolve::Item::sig)
-            .map(|s| s.generics.iter().map(|g| g.row).collect())
+            .map(|item| match item.sig() {
+                Some(sig) => sig.generics.iter().map(|g| g.row).collect(),
+                None => item.generics.iter().map(|g| g.row).collect(),
+            })
             .unwrap_or_default()
     }
 
@@ -1901,6 +1904,10 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("a call of an item outside the closure");
         };
+        if !matches!(&item.data, ItemData::Fn(_)) {
+            let generics = item.generics.clone();
+            self.check_data_targ_kinds(def, &generics, explicit, n);
+        }
         self.note_call(def);
         if def == self.cx.names.known.dbg {
             self.note_dbg(n, true);
@@ -4362,7 +4369,13 @@ impl Ck<'_, '_> {
         {
             self.structure_calls.push((method, w));
         }
-        self.check_row(sig.row, n);
+        let row = self.call_row(method, &sig, &vars, 0);
+        let row = pool.subst_row(row, &|p| {
+            (p.owner == trait_ && p.index > 0)
+                .then(|| tv.get(p.index as usize - 1).copied())
+                .flatten()
+        });
+        self.check_row(self.infer.resolve_row(pool, row), n);
         let choice = match recv {
             Some((_, c)) if c != PENDING_CHOICE => c,
             _ => {

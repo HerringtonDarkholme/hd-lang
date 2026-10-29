@@ -706,12 +706,26 @@ pub(crate) fn new_ck<'a, 'c>(
                 // `Self` is bound by the trait over its own parameters, so
                 // `Self::Assoc` of a generic trait is the projection a
                 // call of a sibling method returns.
-                let own: Vec<Ty> = (1..=o.generics.len())
-                    .map(|i| {
-                        pool.intern_ty(&TyData::Param(ParamRef {
-                            owner: *owner,
-                            index: u16::try_from(i).unwrap_or(u16::MAX),
-                        }))
+                let own: Vec<Ty> = o
+                    .generics
+                    .iter()
+                    .enumerate()
+                    .map(|(i, g)| {
+                        let index = u16::try_from(i + 1).unwrap_or(u16::MAX);
+                        if g.row {
+                            pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
+                                keys: Vec::new(),
+                                params: vec![hd_types::RowParamRef {
+                                    owner: *owner,
+                                    index,
+                                }],
+                            })))
+                        } else {
+                            pool.intern_ty(&TyData::Param(ParamRef {
+                                owner: *owner,
+                                index,
+                            }))
+                        }
                     })
                     .collect();
                 let tv = pool.intern_ty(&TyData::TraitValue {

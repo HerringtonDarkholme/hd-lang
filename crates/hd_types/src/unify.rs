@@ -575,11 +575,50 @@ impl InferTable {
             (TyData::Context(r1), TyData::Context(r2)) => {
                 self.unify_context_rows(pool, r1, r2, a, b)
             }
+            // A data constructor represents its inferred row argument as a
+            // row containing one inference variable. Bind that variable to
+            // the other argument's whole row so `OnExit { ... }` can infer
+            // `OnExit[$ Console]` (`req.row.param.data-infer`).
+            (TyData::Row(r1), TyData::Row(r2)) => self.unify_data_rows(pool, r1, r2, a, b),
             _ => Err(UnifyError::Mismatch {
                 expected: a,
                 found: b,
             }),
         }
+    }
+
+    fn unify_data_rows(
+        &mut self,
+        pool: Types<'_>,
+        r1: crate::RowId,
+        r2: crate::RowId,
+        a: Ty,
+        b: Ty,
+    ) -> Result<(), UnifyError> {
+        let r1 = self.resolve_row(pool, r1);
+        let r2 = self.resolve_row(pool, r2);
+        if r1 == r2 {
+            return Ok(());
+        }
+        let d1 = pool.row_data(r1);
+        let d2 = pool.row_data(r2);
+        let variable = |row: &crate::RowData| match (row.keys.as_slice(), row.params.as_slice()) {
+            ([key], []) => match pool.get(*key) {
+                TyData::Infer(v) => Some(v),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(v) = variable(&d1) {
+            return self.bind(pool, self.root(v.raw()), pool.intern_ty(&TyData::Row(r2)));
+        }
+        if let Some(v) = variable(&d2) {
+            return self.bind(pool, self.root(v.raw()), pool.intern_ty(&TyData::Row(r1)));
+        }
+        Err(UnifyError::Mismatch {
+            expected: a,
+            found: b,
+        })
     }
 
     /// Two context types are equal when their rows are one key set
@@ -653,7 +692,27 @@ impl InferTable {
 #[cfg(test)]
 mod tests {
     use super::{InferTable, UnifyError, VarKind};
-    use crate::pool::{Inputs, InternPool, LocalPool, RowId, Ty, TyData, Types};
+    use crate::pool::{Inputs, InternPool, LocalPool, RowData, RowId, Ty, TyData, Types};
+
+    #[test]
+    fn data_row_argument_inference_binds_the_whole_row() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut table = InferTable::default();
+        let variable = table.fresh(p, VarKind::General);
+        let inferred = p.row(&RowData {
+            keys: vec![variable],
+            params: Vec::new(),
+        });
+        let concrete = p.row(&RowData {
+            keys: vec![Ty::I32, Ty::STRING],
+            params: Vec::new(),
+        });
+        let a = p.intern_ty(&TyData::Row(inferred));
+        let b = p.intern_ty(&TyData::Row(concrete));
+        table.unify(p, a, b).expect("infer the data row argument");
+        assert_eq!(table.resolve_row(p, inferred), concrete);
+    }
 
     #[test]
     fn shallow_preserves_global_types_without_a_local_pool() {

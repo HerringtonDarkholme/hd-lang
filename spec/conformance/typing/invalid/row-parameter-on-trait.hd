@@ -1,4 +1,4 @@
-# test: a trait declares no row parameter
+# test: a trait's unmarked parameter is still type-kinded
 
 trait Runner[R]:
     fn run(self, job: fn() -> void $ R) -> void # diagnostic: generic-kind-mismatch

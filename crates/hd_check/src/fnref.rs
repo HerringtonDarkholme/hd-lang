@@ -95,6 +95,9 @@ fn inst_row(pool: hd_types::Types<'_>, m: &Member, r: RowId) -> RowId {
         }
         match &m.owner {
             Owner::Impl { def, args } if p.owner == *def => args.get(p.index as usize).copied(),
+            Owner::Trait { def, args, .. } if p.owner == *def && p.index > 0 => {
+                args.get(p.index as usize - 1).copied()
+            }
             _ => None,
         }
     })
