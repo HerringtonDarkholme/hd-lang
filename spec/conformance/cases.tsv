@@ -1932,6 +1932,7 @@ typing/invalid/reference-trait-name-unknown.hd	type	reject:unknown-trait	lang/10
 runtime/valid/inspectable-erasure-example.hd	runtime	accept	lang/09-traits.md#erasure-to-inspectable
 runtime/valid/downcast-reference-permission-identity.hd	runtime	accept	lang/09-traits.md#r-trait.identity.reference-permission
 runtime/valid/inspectable-downcast-success-and-failure.hd	runtime	accept	lang/09-traits.md#recovering-a-concrete-type
+runtime/valid/downcast-local-reference-recovery.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.local-receiver
 runtime/valid/inspectable-generic-arguments-exact.hd	runtime	accept	lang/09-traits.md#inspectable-and-typeid
 runtime/valid/inspectable-downcast-mut.hd	runtime	accept	lang/09-traits.md#recovering-a-concrete-type
 runtime/valid/inspectable-alias-and-newtype-identity.hd	runtime	accept	lang/09-traits.md#inspectable-and-typeid
@@ -1940,8 +1941,8 @@ runtime/valid/inspectable-generic-target-helper.hd	runtime	accept	lang/09-traits
 runtime/valid/error-downcast-through-inspectable.hd	runtime	accept	lang/09-traits.md#error-trait
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd	runtime	accept	lang/09-traits.md#inspectable-types
 typing/invalid/downcast-mut-readonly-value.hd	type	reject:not-writable	lang/09-traits.md#recovering-a-concrete-type
-typing/invalid/downcast-on-a-local-trait-reference.hd	type	reject:local-reference-escapes	lang/09-traits.md#r-trait.downcast.counted-receiver
-runtime/valid/downcast-of-a-counted-field-shares-the-object.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.counted-receiver
+typing/invalid/downcast-on-a-local-trait-reference.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
+runtime/valid/downcast-of-a-counted-field-shares-the-object.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.local-receiver
 typing/invalid/erase-readonly-to-mut-inspectable.hd	type	reject:mutable-upgrade	lang/09-traits.md#erasure-to-inspectable
 typing/invalid/generic-erasure-without-bound.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.erase.bound-required.reference-values
 typing/invalid/closure-not-inspectable.hd	type	reject:type-mismatch	lang/09-traits.md#inspectable-types
@@ -3616,7 +3617,7 @@ runtime/valid/requirement-row-order-trait-value.hd	runtime	accept	lang/11-requir
 runtime/valid/requirement-row-order-data-field.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.set.order
 runtime/valid/requirement-row-duplicate-after-substitution.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.set.once
 runtime/valid/inspectable-dynamic-vs-static-identity.hd	runtime	accept	lang/09-traits.md#r-trait.inspect.dynamic
-runtime/valid/inspectable-generic-downcast-targets.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.pass-reference-target
+runtime/valid/inspectable-generic-downcast-targets.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.pass-local-target
 runtime/valid/error-bound-downcast-evidence.hd	runtime	accept	lang/09-traits.md#r-trait.inspectable.parameter
 runtime/valid/module-alias-function-value.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.use.introduces
 runtime/valid/module-qualified-generic-function-value.hd	runtime	accept	lang/07-functions.md#r-fn.type.generic.instantiate-from

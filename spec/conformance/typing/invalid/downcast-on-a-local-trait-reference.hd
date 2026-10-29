@@ -1,5 +1,5 @@
-# test: a local trait value reference has no downcast
-# Spec 09 Recovering A Concrete Type: trait.downcast.counted-receiver.
+# test: a downcast result cannot outlive the local concrete value behind its trait reference
+# Spec 09 Recovering A Concrete Type: trait.downcast.local-receiver; Spec 13: ref.dep.scope.
 use std.inspect.Inspectable
 
 struct User:
@@ -9,8 +9,13 @@ struct Pair:
     a: User
     b: User
 
-fn leak(p: &Pair) -> *User:
-    let erased: &dyn Inspectable = &p.b
-    match erased.downcast_ref::[User](): # diagnostic: local-reference-escapes
-        .Some(u) => u
-        .None => box(User { count: 0 })
+fn read_after_scope(use_inner: bool) -> i32:
+    fallback := User { count: 0 }
+    let found: &User = &fallback
+    if use_inner:
+        pair := Pair { a: User { count: 1 }, b: User { count: 2 } }
+        let erased: &dyn Inspectable = &pair.b
+        match erased.downcast_ref::[User]():
+            .Some(user) => found = user
+            .None => pass
+    found.count # diagnostic: local-reference-outlives-local

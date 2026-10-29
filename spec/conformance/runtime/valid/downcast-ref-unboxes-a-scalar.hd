@@ -1,5 +1,5 @@
 # test: downcast ref unboxes a scalar
-# Rules: trait.inspect.runtime-type, trait.downcast.reference, trait.downcast.copy-through-reference.
+# Rules: trait.inspect.runtime-type, trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
 # expect-stdout: u8 200
 # expect-stdout: not u8
 # expect-stdout: i64 5000000000

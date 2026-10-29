@@ -6,7 +6,7 @@ impl Display for Timeout:
     fn to_string(self) -> string:
         "timeout"
 impl Error for Timeout
-fn recover[T < Error](error: *dyn Error) -> (*T)?:
+fn recover[T < Error](error: &dyn Error) -> (&T)?:
     error.downcast_ref::[T]()
 tests:
     use std.testing.assert

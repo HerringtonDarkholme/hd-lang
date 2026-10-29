@@ -1,5 +1,5 @@
 # test: a list of inspectable values downcasts by method
-# Rules: trait.inspect.runtime-type, trait.downcast.reference, trait.downcast.copy-through-reference.
+# Rules: trait.inspect.runtime-type, trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
 # expect-stdout: user Ada
 # expect-stdout: tag hi
 # expect-stdout: other

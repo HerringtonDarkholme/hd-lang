@@ -1,5 +1,5 @@
 # test: downcast mut and bound receivers
-# Rules: trait.inspect.runtime-type, trait.downcast.reference, trait.downcast.copy-through-reference.
+# Rules: trait.inspect.runtime-type, trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
 # expect-stdout: 2
 # expect-stdout: sda
 # expect-stdout: sdb
