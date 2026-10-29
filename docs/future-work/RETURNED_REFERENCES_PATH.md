@@ -143,7 +143,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | Stage | Adds | Unlocks | Static or run time |
 | --- | --- | --- | --- |
 | 1. Dependent results | a result may hold local references; its source is elided; origins are checked in the body | getters, `&mut Self` builders, `downcast_ref` on `&dyn`, `(&T)?` results | static escape check; memory safety by counts (cells) |
-| 2. Frame-slot results | backend only: source liveness covers the result's uses; inlining of reference getters | the counts and cells stage 1 adds go away | no language change |
+| 2. Scoped locals, then frame slots | first a compile error: a local reference is used only inside the scope of each local it may point into (Rust's E0597); then the backend drops the cells and counts that makes unnecessary, and inlines reference getters | `&` is truly local: no hidden counted cell, only `box` makes counted storage; the counts and cells stage 1 adds go away | static |
 | 3. Lifetime variables | `fn f['a](x: &'a T) -> &'a T` (hypothetical); dependent function types; per-position precision | `choose(a, b)`, `get_or(&self, fallback)`, closures that return references | static |
 | 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
 | 5. Generic locality | Rust's model: any `T` may hold a local reference; `T < global` (hypothetical) only at persistent boundaries such as `box`, provider installs, detached tasks and `dyn` erasure | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
@@ -152,10 +152,37 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 8. Uncounted scoped references | the backend drops counts that stage 7 proves unnecessary; borrow flags where it cannot prove them | the perf payoff | flags only through `*mut` |
 | 9. Views, if needed | a parameter names the fields it borrows, `user: &{name} User` (hypothetical, Rust's view-type experiment) | `n := get_name(&u); u.tags.push(x)` | static |
 
-### Stage 2: frame-slot results
+### Stage 2: scoped locals, then frame slots
 
-Stage 1 is correct but pays a counted cell and a count per call; see Cost.
-Stage 2 has three parts:
+Today an address-taken local whose reference outlives its block silently
+moves to a counted cell, so `&` is not truly local and storage `box` never
+made is counted. Stage 2 first makes that a compile error, then removes the
+run-time cost (owner, 2026-10-29).
+
+**The error, as Rust's E0597.** Every use of a value that holds a local
+reference must lie in the scope of each local of its origin set: inside that
+local's block and after its declaration. The origin sets of stage 1 give the
+check; it is per use, not per assignment. Error:
+`local-reference-outlives-local`, with no fix-it.
+
+```text
+let a: &i32 = &x
+if b:
+    let c = +123
+    a = &c
+println("${*a}")       # error: `a` may point into `c`, whose block has ended
+
+for i in 0..3:
+    let c = "iter $i"
+    if i == 0: a = &c  # (a: &string here)
+println(*a)            # error: `c` is a loop-body local
+```
+
+Code that needs the storage to outlive the block boxes it at its
+declaration and holds a `*T`.
+
+**Then the backend.** With no reference outliving its locals, an
+address-taken local needs no cell for that reason:
 
 - The ownership passes count every use of a dependent result as a use of
   its source root.
@@ -491,7 +518,7 @@ rejects it.
 | suspension | A suspending body keeps its locals in its frame object, so a result across `!` is counted. A bang function may have a dependent result |
 | recursion | `fn last(n: &Node) -> &Node` over `next: *Node?` is an error: the payload copy `m` is a local root. A `*Node` result is the natural type there, as `Rc` is in Rust |
 | a reference to a temporary | `make().name()` binds a hidden local that lives until the result's last use. hd frees at last use, not at scope end, so Rust's E0716 does not arise |
-| a reference to an inner block's local, stored in an outer binding (`if b: let c = 123; a = &c`, then `*a` after the block) | Valid, and valid in every later stage. `c` is address-taken and not only a call argument, so it lives in a counted cell, and `a`'s count keeps it past the block (prints 123 today, dev and release). As with temporaries, storage lives to its last use, not to scope end, so Rust's E0597 does not arise. Stage 8 may drop that count only where it proves every use of `a` ends inside `c`'s block; otherwise the cell stays |
+| a reference to an inner block's local, stored in an outer binding (`if b: let c = 123; a = &c`, then `*a` after the block) | Accepted in stage 1, where `c` silently lives in a counted cell. Stage 2 rejects it as `local-reference-outlives-local` (Rust's E0597), so `&` is truly local and only `box` makes counted storage |
 
 **Holes.** None found. Stage 1 also closes one that exists today: a
 declared `&T` passed to a generic `T` is accepted (probe below). A generic
