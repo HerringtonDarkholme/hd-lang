@@ -16,9 +16,9 @@
 //! `[*%r .x]` or `[*%o .k .x]`; `&e` on any other value binds it to a
 //! fresh local, which is the new object. A field write is one `Store` of
 //! its place (`value.rs`). The checker lowers `&T` and
-//! `&mut T` to one type, `Ref[T]`, when it finishes a body
-//! (`Types::lower_refs`), so the layout pass recognizes the reference
-//! carrier and `&mut T` to `&T` costs nothing.
+//! `&mut T` to `Ref[T]`, and `*T` and `*mut T` to `Counted[T]`, when it
+//! finishes a body (`Types::lower_refs`), so the layout pass recognizes
+//! the reference carriers and `&mut T` to `&T` costs nothing.
 //!
 //! Identity (`ref.identity.*`): two references are the same place when
 //! they hold the same address, which `r is s` and `identity_of` compare
@@ -1325,16 +1325,26 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Lowers every reference type the finished body records to `Ref[T]`,
-    /// the data type that represents `&T` and `&mut T` on the backend
-    /// (`Types::lower_refs`).
+    /// Lowers every reference type the finished body records to `Ref[T]`
+    /// or `Counted[T]`, the data types that represent `&T` and `*T` on the
+    /// backend (`Types::lower_refs`).
     ///
-    /// A `Ref` that makes a local reference, `&T` or `&mut T`, keeps its
-    /// kind as `ref_word::LOCAL`, the one fact of the kind the backend
-    /// reads: where the local it refers to may live.
+    /// A `Ref` that makes a local reference, `&T` or `&mut T`, also keeps
+    /// its kind as `ref_word::LOCAL`, which says where the local it refers
+    /// to may live.
+    ///
+    /// An implementation on a reference type covers both kinds
+    /// (`ref.type.kind-runtime`), so its receiver may be a local reference:
+    /// its bodies lower every reference to the local carrier.
     pub(crate) fn lower_body_refs(&mut self) {
         let pool = self.pool();
-        let cell = self.cx.names.known.ref_cell;
+        let mut cell = self.cx.names.known.ref_cells();
+        if self
+            .self_ty
+            .is_some_and(|t| matches!(pool.get(t), hd_types::TyData::Ref { .. }))
+        {
+            cell = cell.local_only();
+        }
         let b = self.b.body_mut();
         for i in 0..b.tags.len() {
             if b.tags[i] == hd_tir::ir::Tag::Ref
@@ -1346,8 +1356,84 @@ impl Ck<'_, '_> {
                 b.data[i][1] |= hd_tir::ir::ref_word::LOCAL;
             }
         }
+        whole_object_refs(pool, b);
+        // A counted value stored in a local reference's local, or a
+        // block's value, lends itself with no conversion
+        // (`ref.convert.lend`): it takes the local reference's type, so
+        // that the two carriers agree there (invariant 4).
+        for i in 0..b.tags.len() {
+            let [a, v] = b.data[i];
+            let want = match b.tags[i] {
+                hd_tir::ir::Tag::Store if a & hd_tir::ir::place::BARE_LOCAL != 0 => b
+                    .local_ty
+                    .get((a & !hd_tir::ir::place::BARE_LOCAL) as usize)
+                    .copied(),
+                hd_tir::ir::Tag::Break if v != hd_tir::ir::NONE => b
+                    .label_inst
+                    .get(a as usize)
+                    .and_then(|&t| b.ty.get(t as usize).copied()),
+                _ => None,
+            };
+            if let Some(want) = want
+                && v & Ref::CONST_BIT == 0
+                && let Some(&got) = b.ty.get(v as usize)
+                && got != want
+                && crate::local_refs::lends(pool, got, want, 1, 0)
+            {
+                b.ty[v as usize] = want;
+            }
+        }
         hd_tir::ir::map_body_types(self.b.body_mut(), &|t| pool.lower_refs(cell, t), &|l| {
             pool.lower_refs_list(cell, l)
         });
+    }
+}
+
+/// Gives each `Ref` the carrier of where its address lies (`ref.box.object`,
+/// `crates/hd_wasm_linear/DESIGN.md` §23.30): counted for a whole object,
+/// a local's or a value's own storage (a cell, or a frame slot with a zero
+/// count word, §23.38) or what a counted reference refers to; local for a
+/// place inside an object, such as a call receiver's field. Only the
+/// `Ref`'s own value changes type: a counted one lends itself where a
+/// local one is expected.
+fn whole_object_refs(pool: hd_types::Types<'_>, b: &mut hd_tir::ir::Body) {
+    use hd_tir::ir::{PlaceRoot, Proj};
+    use hd_types::TyData;
+    let counted = |t: Ty| {
+        let t = match pool.get(t) {
+            TyData::Mut(inner) => inner,
+            _ => t,
+        };
+        matches!(pool.get(t), TyData::Ref { counted: true, .. })
+    };
+    for i in 0..b.tags.len() {
+        let TyData::Ref {
+            inner,
+            mutable,
+            counted: was,
+        } = pool.get(b.ty[i])
+        else {
+            continue;
+        };
+        if b.tags[i] != Tag::Ref {
+            continue;
+        }
+        let whole = b
+            .decode_place(b.data[i][0])
+            .is_some_and(|p| match (p.root, &p.proj[..]) {
+                (PlaceRoot::Local(_) | PlaceRoot::Value(_), []) => true,
+                (PlaceRoot::Local(l), [Proj::Deref]) => counted(b.local_ty[l.idx()]),
+                (PlaceRoot::Value(v), [Proj::Deref]) => {
+                    v.as_inst().is_some_and(|v| counted(b.ty[v.0 as usize]))
+                }
+                _ => false,
+            });
+        if whole != was {
+            b.ty[i] = pool.intern_ty(&TyData::Ref {
+                inner,
+                mutable,
+                counted: whole,
+            });
+        }
     }
 }

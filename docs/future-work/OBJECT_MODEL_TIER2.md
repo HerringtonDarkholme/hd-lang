@@ -1092,7 +1092,7 @@ rule only: counting and codegen are unchanged. The rules are in
 [Local References](../../spec/lang/13-values-and-references.md#local-references)
 (commits d354a1e49 and ea28c85b8).
 
-**Later steps, each needing its own approval.** Step 2, interior places get only local references so a `*T` count skips `block_of` (#704), is not adopted: it needs too much language change. #704 shipped without it, as a release-only whole-program fact (`crates/hd_opt/src/whole.rs`): a `*T` counts at its object's start when the program makes no counted interior reference to `T`. #912 explores a separate creation form for `*T`. The design below goes
+**Later steps, each needing its own approval.** Step 2, interior places get only local references so a `*T` count skips `block_of` (#704), is not adopted: it needs too much language change. #704 shipped without it, as a release-only whole-program fact. #912 then gave `*T` a separate creation form, `box`, so every `*T` counts at its object's start, and #988 replaced the fact with a carrier of its own. The design below goes
 further, as the owner sketched it on 2026-10-24: local references are
 never counted; an interior place (a field, an element, a map value) has
 only a local reference, so a count of a `*T` always lands on an

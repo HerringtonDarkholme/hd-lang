@@ -2,7 +2,7 @@
 app/main/first
   local $0 xs: List[i64] [param read assigned captured captured-assigned]
   %0 = Read copy [$0] : List[i64]
-  %1 = Ref take mut local [$0] : Ref[mut List[i64]]
+  %1 = Ref take mut local [$0] : Counted[mut List[i64]]
   %2 = Call std/collections/impl [ T ] List [ T ].pop[i64] (%1) : i64?
   %3 = Drop [%1] : ()
   %4 = Call app/main/before[] (%0, %2) : usize

@@ -10,7 +10,7 @@ app/main/run
   %12 = Drop [%10] : ()
   %13 = Drop [%9] : ()
   %14 = Store [$5] %11 : ()
-  %15 = Ref local [$5] : Ref[string]
+  %15 = Ref local [$5] : Counted[string]
   %16 = Drop [$5] : ()
   %17 = Await app/main/greet[] (%15) : usize
   %18 = Drop [%15] : ()

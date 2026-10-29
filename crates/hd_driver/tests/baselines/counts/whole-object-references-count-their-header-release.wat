@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (func $both (param $n i32) (result i32 i32) (local $t0 i32)
-    ;; 15 |     (n, n)
+    ;; 14 |     (n, n)
     block
       local.get $n
       call $rt:retain_known

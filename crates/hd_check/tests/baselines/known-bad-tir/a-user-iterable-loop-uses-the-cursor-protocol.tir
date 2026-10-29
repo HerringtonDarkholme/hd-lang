@@ -2,14 +2,14 @@
 app/main/visit
   local $0 items: Bag [param read]
   local $1 $ref: ListIter[i32] [read assigned captured captured-assigned]
-  local $2 $iter: Ref[mut ListIter[i32]] [assigned]
+  local $2 $iter: Counted[mut ListIter[i32]] [assigned]
   local $3 _item: i32 [assigned]
   %0 = Read [$0] : Bag
   %1 = Call std/iter/Iterable.iter for Bag [i32] via Impl (%0) : ListIter[i32]
   %2 = Store [$1] %1 : ()
-  %3 = Ref mut [$1] : Ref[mut ListIter[i32]]
+  %3 = Ref mut [$1] : Counted[mut ListIter[i32]]
   %4 = Store [$2] %3 : ()
-  %5 = Read [$2] : Ref[mut ListIter[i32]]
+  %5 = Read [$2] : Counted[mut ListIter[i32]]
   %6 = Call std/iter/Iterator.next for ListIter[i32] [i32] via Impl (%5) : i32?
   %7 = Block - : ()
   %8 = Break L0 - : never

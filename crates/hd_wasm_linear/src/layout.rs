@@ -138,10 +138,12 @@ pub enum Kind {
     /// A self-recursive enum: the address of a cell holding the enum's
     /// value as a non-recursive enum lays it out.
     Boxed,
-    /// A reference to a place of type `T` (`std.core.Ref[T]`): the
-    /// place's address, or, when `T` is a trait value (`fat`), that trait
-    /// value.
-    Ref { target: Ty, fat: bool },
+    /// A reference to a place of type `T` (`std.core.Ref[T]`, or
+    /// `std.core.Counted[T]` when `whole`): the place's address, or, when
+    /// `T` is a trait value (`fat`), that trait value. A `whole` one is
+    /// counted, so it refers to a whole object (`ref.box.object`): it is
+    /// null or a payload start (§23.30).
+    Ref { target: Ty, fat: bool, whole: bool },
 }
 
 /// Which kind `t` is.
@@ -150,7 +152,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     let TyData::Adt { def, args } = pool.get(t) else {
         return Kind::Value;
     };
-    if def == env.ref_cell() {
+    if env.ref_cells().holds(def) {
         let target = pool
             .list_items(args)
             .first()
@@ -159,7 +161,8 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
         // (`emit/erased.rs`), however the caller lays it out.
         let fat = matches!(pool.get(target), TyData::TraitValue { .. })
             && !hd_mono::is_open(pool, target);
-        return Kind::Ref { target, fat };
+        let whole = def == env.ref_cells().counted;
+        return Kind::Ref { target, fat, whole };
     }
     if env.std_kind(def) != StdKind::Other {
         return Kind::Value;
@@ -185,7 +188,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
 /// is `Mut[T]` (`hd_types::Types::lower_refs`).
 pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     match pool.get(strip(pool, env, t)) {
-        TyData::Adt { def, args } if def == env.ref_cell() => pool
+        TyData::Adt { def, args } if env.ref_cells().holds(def) => pool
             .list_items(args)
             .first()
             .is_some_and(|a| matches!(pool.get(*a), TyData::Mut(_))),
@@ -398,43 +401,6 @@ type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
-    /// The link's whole-object fact (`hd_opt::whole`): the reference targets
-    /// some counted reference may point inside an object of, or `None`
-    /// when the link has no fact and every reference may.
-    static INTERIOR: std::cell::RefCell<Option<hd_base::HashSet<Ty>>> =
-        const { std::cell::RefCell::new(None) };
-}
-
-/// Sets the link's whole-object fact ([`whole_ref`]) until the guard
-/// drops, and forgets every walk computed before it.
-pub(crate) fn whole_refs(interior: Option<hd_base::HashSet<Ty>>) -> impl Drop {
-    struct Reset(Option<hd_base::HashSet<Ty>>);
-    impl Drop for Reset {
-        fn drop(&mut self) {
-            INTERIOR.set(self.0.take());
-            WALKS.with(|w| {
-                if let Some(w) = w.borrow_mut().as_mut() {
-                    w.clear();
-                }
-            });
-        }
-    }
-    let outer = INTERIOR.replace(interior);
-    WALKS.with(|w| {
-        if let Some(w) = w.borrow_mut().as_mut() {
-            w.clear();
-        }
-    });
-    Reset(outer)
-}
-
-/// Whether every counted reference to `target`, once stripped, is null or
-/// a payload start (§23.30): a concrete target the release link's
-/// whole-program scan found no interior reference to.
-fn whole_ref(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
-    let target = strip(pool, env, target);
-    !hd_mono::is_open(pool, target)
-        && INTERIOR.with(|s| s.borrow().as_ref().is_some_and(|s| !s.contains(&target)))
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
@@ -560,13 +526,13 @@ fn mem_one(
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Walk {
     /// Value `k` is an address in a counted object, or in static data: a
-    /// string's bytes, a reference, an open value; counting finds its
+    /// string's bytes, a local reference, an open value; counting finds its
     /// block through the page table (§23.5).
     Ref(u32),
     /// Value `k` is null, a static object's, or the payload start of a
     /// counted object, eight bytes after its header: a data value, a boxed
     /// enum's cell, a collection's buffer, a closure's environment, a
-    /// release link's whole-object reference ([`block_start`]); counting
+    /// thin counted reference ([`block_start`]); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),
     /// Each part in turn.
@@ -665,7 +631,7 @@ fn walk_one(
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed => Some(Walk::Known(0)),
-                Kind::Ref { target, fat } => Some(if !fat && whole_ref(pool, env, target) {
+                Kind::Ref { fat, whole, .. } => Some(if whole && !fat {
                     Walk::Known(0)
                 } else {
                     Walk::Ref(0)
@@ -685,7 +651,7 @@ fn walk_one(
 
 /// Whether this representation's counted pointer is a payload start,
 /// never a string's interior bytes or an interior/erased reference: a
-/// reference is one only where the link's whole-object fact holds.
+/// reference is one when it is counted and thin (§23.30).
 pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
     if hd_mono::is_open(pool, t) {
@@ -696,7 +662,7 @@ pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
         _ => match kind(pool, env, t) {
             Kind::Data(_) | Kind::Boxed => true,
-            Kind::Ref { target, fat } => !fat && whole_ref(pool, env, target),
+            Kind::Ref { fat, whole, .. } => whole && !fat,
             Kind::Value => false,
         },
     }
@@ -1011,45 +977,6 @@ fn enum_mem_by(
         },
         positions,
     ))
-}
-
-/// Field `f` of struct, tuple or newtype `t`: its type and offset, as
-/// `Em::path_step` lays it out (the whole-object scan's
-/// `hd_opt::whole::ObjectLayout::field`).
-pub fn field_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<(Ty, u32)> {
-    let unmut = match pool.get(t) {
-        TyData::Mut(inner) => inner,
-        _ => t,
-    };
-    if let TyData::Adt { def, args } = pool.get(unmut)
-        && env.newtype_base(def).is_some()
-    {
-        let base = *env.data_fields(def)?.first()?;
-        return Some((subst(pool, env, def, args, base), 0));
-    }
-    let (_, parts) = struct_mem(pool, env, t).ok()?;
-    let s = strip(pool, env, t);
-    let fields = match pool.get(s) {
-        TyData::Tuple { .. } => tuple_members(pool, s),
-        TyData::Adt { def, args } => env
-            .data_fields(def)?
-            .into_iter()
-            .map(|f| subst(pool, env, def, args, f))
-            .collect(),
-        _ => return None,
-    };
-    Some((*fields.get(f as usize)?, parts.get(f as usize)?.offset))
-}
-
-/// The offset of field `f` in a data object's payload of `fields`.
-pub fn payload_offset(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    fields: &[Ty],
-    f: usize,
-) -> Option<u32> {
-    let (_, parts) = payload_mem(pool, env, fields).ok()?;
-    parts.get(f).map(|part| part.offset)
 }
 
 /// The variants' payload types of an enum or optional type, `None` for

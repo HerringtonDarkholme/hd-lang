@@ -31,7 +31,7 @@ impl Em<'_, '_, '_> {
         loop {
             match self.pool().get(ty) {
                 TyData::Mut(inner) => ty = inner,
-                TyData::Adt { def, args } if def == self.env().ref_cell() => {
+                TyData::Adt { def, args } if self.env().ref_cells().holds(def) => {
                     ty = self.pool().list_items(args)[0];
                 }
                 _ => return ty,
@@ -223,7 +223,7 @@ impl Em<'_, '_, '_> {
                 && (self.input.path)(*m).rsplit(['.', '/']).next() == Some("runtime_type")
             {
                 let recorded = match self.pool().get(self_ty) {
-                    TyData::Adt { def, args } if def == self.env().ref_cell() => {
+                    TyData::Adt { def, args } if self.env().ref_cells().holds(def) => {
                         self.pool().list_items(args)[0]
                     }
                     _ => self_ty,
@@ -381,7 +381,7 @@ impl Em<'_, '_, '_> {
         let TyData::Adt { def, args } = self.pool().get(target) else {
             return unsupported("a recovered target that is not a reference");
         };
-        if def != self.env().ref_cell() {
+        if !self.env().ref_cells().holds(def) {
             return unsupported("a recovered target that is not a reference");
         }
         let concrete = self.pool().list_items(args)[0];
@@ -389,7 +389,7 @@ impl Em<'_, '_, '_> {
         let recv_t = self.strip_mut(self.ty_of(recv));
         let value_t = match self.pool().get(recv_t) {
             TyData::TraitValue { .. } => recv_t,
-            TyData::Adt { def, args } if def == self.env().ref_cell() => {
+            TyData::Adt { def, args } if self.env().ref_cells().holds(def) => {
                 let Some(&inner) = self.pool().list_items(args).first() else {
                     return unsupported("a reference without its target type");
                 };

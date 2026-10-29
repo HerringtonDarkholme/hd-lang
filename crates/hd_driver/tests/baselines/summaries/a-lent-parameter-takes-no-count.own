@@ -102,13 +102,13 @@ fn collect(f: Field) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %14 = Block %12 : usize
     remember(&mut all, f)
->   %2 = Ref mut local [$1] : Ref[mut List[Field]]
+>   %2 = Ref mut local [$1] : Counted[mut List[Field]]
 >   %3 = Read copy [$0] : Field
 >   %4 = Call app/main/remember[] (%2, %3) : ()
 >   %5 = Drop [%2] : ()
 >   %2 finds [$1] full
     remember(&mut all, f)
->   %6 = Ref mut local [$1] : Ref[mut List[Field]]
+>   %6 = Ref mut local [$1] : Counted[mut List[Field]]
 >   %7 = Read move [$0] : Field
 >   %8 = Call app/main/remember[] (%6, %7) : ()
 >   %9 = Drop [%6] : ()
@@ -188,11 +188,11 @@ pub fn main() -> void $ Console:
 >   %9 = Store [$4] %8 : ()
 >   %10 = NewList - [] : List[Field]
 >   %11 = Store [$5] %10 : ()
->   %12 = Ref mut local [$5] : Ref[mut List[Field]]
+>   %12 = Ref mut local [$5] : Counted[mut List[Field]]
 >   %13 = Read copy [$4] : Field
 >   %14 = Call app/main/remember[] (%12, %13) : ()
 >   %15 = Drop [%12] : ()
->   %16 = Ref mut local [$5] : Ref[mut List[Field]]
+>   %16 = Ref mut local [$5] : Counted[mut List[Field]]
 >   %17 = Read move [$4] : Field
 >   %18 = Call app/main/remember[] (%16, %17) : ()
 >   %19 = Drop [%16] : ()

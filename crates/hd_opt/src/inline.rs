@@ -12,7 +12,7 @@ use hd_base::{DefId, Hash128, HashMap, HashSet, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee};
-use hd_types::{InternPool, Ty, TyData, TyList};
+use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
 
 /// The most instructions a callee's body may have for a call of it to
 /// inline, in std and outside it alike (`docs/compiler/tir-v2.md`, "The
@@ -369,8 +369,8 @@ impl dyn InlineEnv + '_ {
         let pool = self.pool();
         params.iter().any(|&t| {
             // As the backend reads a declared type: each reference type
-            // lowered to `std.core.Ref[T]`.
-            let mut t = pool.lower_refs(self.ref_cell(), t);
+            // lowered to `std.core.Ref[T]` or `std.core.Counted[T]`.
+            let mut t = pool.lower_refs(self.ref_cells(), t);
             if self.is_open(t) {
                 t = hd_mono::subst(pool, self, def, targs, t);
             }
@@ -380,7 +380,7 @@ impl dyn InlineEnv + '_ {
             t == Ty::POISON
                 || self.is_open(t)
                 || matches!(pool.get(t), TyData::Ref { .. })
-                || matches!(pool.get(t), TyData::Adt { def, .. } if def == self.ref_cell())
+                || matches!(pool.get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def))
                 || self.reference(t)
         })
     }
@@ -423,7 +423,9 @@ impl dyn InlineEnv + '_ {
                 return false;
             };
             let want = copy.local_ty[l];
-            if matches!(pool.get(want), TyData::Mut(inner) if inner == arg) {
+            if matches!(pool.get(want), TyData::Mut(inner) if inner == arg)
+                || lends_by_kind(pool, self.ref_cells(), arg, want)
+            {
                 copy.local_ty[l] = arg;
             } else if !fits(Some(arg), want) {
                 return false;
@@ -432,6 +434,15 @@ impl dyn InlineEnv + '_ {
         let root = copy.sub_root.first().map(|&r| copy.ty[r as usize]);
         n == args.len() && root.is_some_and(|root| fits(open(caller.ty[c]), root))
     }
+}
+
+/// Whether argument type `arg` differs from parameter type `want` only by
+/// reference kinds: a counted argument lends itself to a local reference
+/// parameter (`ref.convert.lend`), so a copy's parameter local takes the
+/// argument's carrier.
+pub(crate) fn lends_by_kind(pool: &InternPool, cells: RefCells, arg: Ty, want: Ty) -> bool {
+    let erase = |t| pool.lower_refs(cells.local_only(), pool.types().raise_refs(cells, t));
+    arg != want && erase(arg) == erase(want)
 }
 
 /// Visits the call graph from `root` bottom-up with an iterative Tarjan

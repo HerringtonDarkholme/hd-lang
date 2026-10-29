@@ -22,6 +22,8 @@ pub struct KnownItems {
     /// The data type a reference type lowers to for the backend
     /// (`hd_resolve::seed`, `crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
     pub ref_cell: DefId,
+    /// The data type a counted reference type lowers to (§23.30).
+    pub counted_cell: DefId,
     // std.function
     pub function_module: PathId,
     pub tuple: DefId,
@@ -153,6 +155,14 @@ pub struct KnownItems {
 }
 
 impl KnownItems {
+    /// The two reference carriers (`hd_types::Types::lower_refs`).
+    #[must_use]
+    pub fn ref_cells(&self) -> hd_types::RefCells {
+        hd_types::RefCells {
+            local: self.ref_cell,
+            counted: self.counted_cell,
+        }
+    }
     /// The sealed traits the solver's compiler-supplied rows answer
     /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     #[must_use]
@@ -215,6 +225,7 @@ impl KnownItems {
             map: item("std.core", "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ref_cell: item("std.core", "Ref"),
+            counted_cell: item("std.core", "Counted"),
             function_module: module("std.function"),
             tuple,
             structure,

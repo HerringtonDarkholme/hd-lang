@@ -145,38 +145,41 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             let mut it = Item::new(bx, sym(names, "box"), true, ItemData::Fn(sig));
             it.intrinsic = Some(sym(names, "box"));
             out.push(it);
-            // The data type `&T` and `&mut T` lower to when the checker
-            // finishes a body (`hd_types::Types::lower_refs`), which the
-            // backend recognizes as the reference carrier: a reference is
-            // its place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20),
-            // so no field is read. The fields are the former closure form's
-            // (`docs/compiler/tir-v2.md`, stage 1).
-            // Not visible to programs.
-            let cell = names.item(module, "Ref");
-            let t = param(names, cell, 0);
-            let fn_ty = |params: &[Ty], result: Ty| {
-                pool.intern_ty(&TyData::Fn {
-                    params: pool.list(params),
-                    result,
-                    row: RowId::EMPTY,
-                    suspends: false,
-                    inputs: hd_types::Inputs::Fixed,
-                })
-            };
-            let mut it = Item::new(
-                cell,
-                sym(names, "Ref"),
-                false,
-                ItemData::Data(vec![
-                    field(names, "get", fn_ty(&[], t)),
-                    field(names, "set", fn_ty(&[t], Ty::VOID)),
-                    field(names, "base", any_tv),
-                    field(names, "serial", Ty::prim(Prim::I64)),
-                    field(names, "key", Ty::STRING),
-                ]),
-            );
-            it.generics = gens(names, &["T"]);
-            out.push(it);
+            // The data types `&T` and `&mut T` (`Ref`) and `*T` and `*mut T`
+            // (`Counted`) lower to when the checker finishes a body
+            // (`hd_types::Types::lower_refs`), which the backend recognizes
+            // as the reference carriers: a reference is its place's address
+            // (`crates/hd_wasm_linear/DESIGN.md` §23.20), so no field is
+            // read, and a `Counted` one is a whole object's (§23.30). The
+            // fields are the former closure form's (`docs/compiler/tir-v2.md`,
+            // stage 1). Not visible to programs.
+            for name in ["Ref", "Counted"] {
+                let cell = names.item(module, name);
+                let t = param(names, cell, 0);
+                let fn_ty = |params: &[Ty], result: Ty| {
+                    pool.intern_ty(&TyData::Fn {
+                        params: pool.list(params),
+                        result,
+                        row: RowId::EMPTY,
+                        suspends: false,
+                        inputs: hd_types::Inputs::Fixed,
+                    })
+                };
+                let mut it = Item::new(
+                    cell,
+                    sym(names, name),
+                    false,
+                    ItemData::Data(vec![
+                        field(names, "get", fn_ty(&[], t)),
+                        field(names, "set", fn_ty(&[t], Ty::VOID)),
+                        field(names, "base", any_tv),
+                        field(names, "serial", Ty::prim(Prim::I64)),
+                        field(names, "key", Ty::STRING),
+                    ]),
+                );
+                it.generics = gens(names, &["T"]);
+                out.push(it);
+            }
         }
         "std.task" => {
             item("Suspend", gens(names, &["T"]), ItemData::Data(vec![]));

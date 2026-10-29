@@ -4832,8 +4832,8 @@ impl Ck<'_, '_> {
         // (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
         let errors = self.diags.has_errors();
         let tolerated: &[u8] = if errors { &[4] } else { &[] };
-        // The backend sees `&T` and `&mut T` as the one data type `Ref[T]`
-        // (`refs.rs`).
+        // The backend sees `&T` as the data type `Ref[T]` and `*T` as
+        // `Counted[T]` (`refs.rs`).
         self.lower_body_refs();
         // Every place starts at its local (`docs/compiler/tir-v2.md`,
         // stage 2 commit 12a). The walkers above read the base reads, so

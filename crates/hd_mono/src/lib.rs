@@ -91,10 +91,10 @@ pub trait ProgramEnv: LayoutEnv {
     fn generics_owner(&self, def: DefId) -> DefId;
     /// An impl's head: self type, trait arguments, parameter count.
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
-    /// The data type `std.core.Ref[T]` that `&T` and `&mut T` lower to
-    /// (`hd_types::Types::lower_refs`); selection raises it back to `&T`
-    /// (`hd_types::Types::raise_refs`), the form std's impl heads name.
-    fn ref_cell(&self) -> DefId;
+    /// The data types `std.core.Ref[T]` and `std.core.Counted[T]` that `&T`
+    /// and `*T` lower to (`hd_types::Types::lower_refs`); selection raises
+    /// them back (`hd_types::Types::raise_refs`), the form impl heads name.
+    fn ref_cells(&self) -> hd_types::RefCells;
     /// The suspension type `Suspend[T]`, a suspending call's cold value.
     fn suspend_def(&self) -> DefId;
     /// Whether `impl_` is a `@derive` implementation on a nominal
@@ -387,7 +387,7 @@ pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty,
     let TyData::Adt { def, args } = pool.get(from) else {
         return false;
     };
-    if def != env.ref_cell() {
+    if !env.ref_cells().holds(def) {
         return false;
     }
     let mut inner = pool.list_items(args)[0];
@@ -557,7 +557,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
     let s = reveal(pool, env, s).unwrap_or(Ty::POISON);
     if pool.has_assoc(s) {
         let types = pool.types();
-        let cell = env.ref_cell();
+        let cell = env.ref_cells();
         let source = types.raise_refs(cell, s);
         let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
         types.lower_refs(cell, normalized)
@@ -629,7 +629,7 @@ fn opaque_result(
     let n = env.trait_arity(trait_);
     let trait_args = pool.list(rest.get(..n)?);
     let types = pool.types();
-    let cell = env.ref_cell();
+    let cell = env.ref_cells();
     let (universe, global) = env.solving();
     let penv = ParamEnv::default();
     let mut memo = BodyMemo::default();
@@ -839,7 +839,7 @@ fn name_into(
         }
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
-        TyData::Adt { def, args } if def == env.ref_cell() => {
+        TyData::Adt { def, args } if env.ref_cells().holds(def) => {
             let inner = pool.list_items(args)[0];
             let inner = if let TyData::Mut(inner) = pool.get(inner) {
                 out.push_str("&mut ");
@@ -2032,7 +2032,7 @@ impl Cx<'_> {
             return shared;
         }
         let pool = self.pool;
-        let cell = self.env.ref_cell();
+        let cell = self.env.ref_cells();
         let mut list = |args: TyList| {
             let args: Vec<Ty> = pool
                 .list_items(args)
@@ -2042,7 +2042,7 @@ impl Cx<'_> {
             pool.list(&args)
         };
         let data = match pool.get(ty) {
-            TyData::Adt { def, args } if def == cell => {
+            TyData::Adt { def, args } if cell.holds(def) => {
                 let inner = pool.list_items(args)[0];
                 let inner = match pool.get(inner) {
                     TyData::Mut(inner) => inner,
@@ -2239,7 +2239,7 @@ impl Cx<'_> {
             // Impl heads name `&T`, which bodies and declarations reach
             // here lowered to `Ref[T]`: select on the raised form. The
             // arguments below unify the lowered head with `self_ty`.
-            let cell = env.ref_cell();
+            let cell = env.ref_cells();
             let types = self.pool.types();
             let tref = ConcreteTraitRef(TraitRef {
                 trait_,
@@ -2399,7 +2399,7 @@ impl Cx<'_> {
             match self.pool.get(ty) {
                 // A trait value reference to a host handle crosses as the
                 // handle, which `host_provider` puts behind a new object.
-                TyData::Adt { def, args } if def == self.env.ref_cell() => {
+                TyData::Adt { def, args } if self.env.ref_cells().holds(def) => {
                     if let [inner] = self.pool.list_items(args)[..]
                         && !out
                         && is_trait_value(self.pool, inner)
@@ -2709,8 +2709,8 @@ impl Cx<'_> {
     ) -> StageResult<VTable> {
         let (pool, env) = (self.pool, self.env);
         let targs = pool.list_items(trait_args);
-        let cell = env.ref_cell();
-        let is_ref = |t: Ty| matches!(pool.get(t), TyData::Adt { def, .. } if def == cell);
+        let cell = env.ref_cells();
+        let is_ref = |t: Ty| matches!(pool.get(t), TyData::Adt { def, .. } if cell.holds(def));
         let takes_ref = |d: DefId| {
             env.params(d)
                 .and_then(|ps| ps.first().copied())
@@ -2720,7 +2720,7 @@ impl Cx<'_> {
         // implementation (`RefToTraitValue`), except for a sealed trait,
         // which the compiler answers at the reference type itself.
         let inner = match pool.get(from) {
-            TyData::Adt { def, args } if through && def == cell => {
+            TyData::Adt { def, args } if through && cell.holds(def) => {
                 pool.list_items(args).first().copied()
             }
             _ => None,
@@ -2984,7 +2984,9 @@ impl Cx<'_> {
                 // At a trait-value `Self`, the adapter dispatches through
                 // the receiver's table (trait.dyn.bound.reference-dispatch).
                 let value_ty = match pool.get(self_ty) {
-                    TyData::Adt { def, args } if def == env.ref_cell() => pool.list_items(args)[0],
+                    TyData::Adt { def, args } if env.ref_cells().holds(def) => {
+                        pool.list_items(args)[0]
+                    }
                     _ => self_ty,
                 };
                 if is_trait_value(pool, value_ty) {
@@ -3247,7 +3249,7 @@ impl Cx<'_> {
                             // checker chose: a bound at `T = dyn Tr`
                             // included (trait.dyn.bound.reference-dispatch).
                             let value_ty = match pool.get(self_ty) {
-                                TyData::Adt { def, args } if def == env.ref_cell() => {
+                                TyData::Adt { def, args } if env.ref_cells().holds(def) => {
                                     pool.list_items(args)[0]
                                 }
                                 _ => self_ty,
@@ -3428,7 +3430,7 @@ impl Cx<'_> {
                         loop {
                             match pool.get(value_ty) {
                                 TyData::Mut(inner) => value_ty = inner,
-                                TyData::Adt { def, args } if def == env.ref_cell() => {
+                                TyData::Adt { def, args } if env.ref_cells().holds(def) => {
                                     value_ty = pool.list_items(args)[0];
                                 }
                                 _ => break,

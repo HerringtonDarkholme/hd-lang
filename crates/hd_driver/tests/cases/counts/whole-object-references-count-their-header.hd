@@ -1,14 +1,24 @@
 # @dump: wat
 # @build: v8 dev
-# No reference in the program points inside an object holding a `Node`,
-# but dev builds compute no whole-program fact: each `*Node` count
-# searches the page table, as `rt:retain` does (#704).
+# Every `*Node` refers to a whole object, so its counts read the header:
+# `rt:retain_known`, with no page-table search, in dev as in release,
+# though the program also refers to a field and an element (#988).
 struct Node:
     left: (*Node)?
     right: (*Node)?
 
 fn leaf() -> *Node:
     box(Node { left: .None, right: .None })
+
+struct Pair:
+    a: Node
+    b: Node
+
+fn left(n: &Node) -> bool:
+    n.left.is_some()
+
+fn first(nodes: &List[Node], pair: &Pair) -> bool:
+    left(&nodes[0]) && left(&pair.b)
 
 fn both(n: *Node) -> (*Node, *Node):
     # subject

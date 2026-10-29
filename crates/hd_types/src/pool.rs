@@ -107,6 +107,31 @@ impl Prim {
     }
 }
 
+/// The data types reference types lower to ([`Types::lower_refs`]):
+/// `local` for `&T` and `&mut T`, `counted` for `*T` and `*mut T`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RefCells {
+    pub local: DefId,
+    pub counted: DefId,
+}
+
+impl RefCells {
+    /// Whether `def` is either carrier.
+    #[must_use]
+    pub fn holds(self, def: DefId) -> bool {
+        def == self.local || def == self.counted
+    }
+    /// Both kinds lowered to the local carrier, for an implementation on
+    /// a reference type, which covers both kinds (`ref.type.kind-runtime`).
+    #[must_use]
+    pub fn local_only(self) -> Self {
+        Self {
+            local: self.local,
+            counted: self.local,
+        }
+    }
+}
+
 /// A declared type parameter: (owner item, index).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRef {
@@ -224,8 +249,8 @@ pub enum TyData {
     Mut(Ty),
     /// A reference type (spec/lang/13-values-and-references.md): a
     /// counted `*T` or `*mut T`, or a local `&T` or `&mut T`
-    /// (`ref.type.kind-distinct`). Both kinds lower to one `Ref[T]`
-    /// ([`Types::lower_refs`]), so the kind exists only while checking.
+    /// (`ref.type.kind-distinct`). The kinds lower to two carriers of one
+    /// representation ([`Types::lower_refs`]).
     Ref {
         inner: Ty,
         mutable: bool,
@@ -828,12 +853,12 @@ impl InternPool {
     }
     /// [`Types::lower_refs`].
     #[must_use]
-    pub fn lower_refs(&self, cell: DefId, t: Ty) -> Ty {
+    pub fn lower_refs(&self, cell: RefCells, t: Ty) -> Ty {
         self.types().lower_refs(cell, t)
     }
     /// [`Types::lower_refs_list`].
     #[must_use]
-    pub fn lower_refs_list(&self, cell: DefId, l: TyList) -> TyList {
+    pub fn lower_refs_list(&self, cell: RefCells, l: TyList) -> TyList {
         self.types().lower_refs_list(cell, l)
     }
     #[must_use]
@@ -1304,15 +1329,16 @@ impl<'a> Types<'a> {
         self.meta_of(t) & meta::HAS_REF != 0
     }
 
-    /// `t` with each reference type, `&T` or `&mut T`, replaced by the data
-    /// type `cell[T]` or `cell[Mut[T]]` (mutable permission metadata), both
-    /// with the same physical RC reference layout
-    /// (`crates/hd_wasm_linear/DESIGN.md` §23.20). The checker applies
-    /// it to a finished body and the driver to the declarations the
-    /// backend reads, so the backend never sees a reference type and `&T`
-    /// and `&mut T` share one representation.
+    /// `t` with each reference type replaced by the data type `cell[T]` or
+    /// `cell[Mut[T]]` (mutable permission metadata): `cell.local` for `&T`
+    /// and `&mut T`, `cell.counted` for `*T` and `*mut T`, all with the
+    /// same physical RC reference layout (`crates/hd_wasm_linear/DESIGN.md`
+    /// §23.20). The checker applies it to a finished body and the driver
+    /// to the declarations the backend reads, so the backend never sees a
+    /// reference type, and it knows a counted one starts at an object
+    /// (§23.30).
     #[must_use]
-    pub fn lower_refs(self, cell: DefId, t: Ty) -> Ty {
+    pub fn lower_refs(self, cell: RefCells, t: Ty) -> Ty {
         if !self.has_ref(t) {
             return t;
         }
@@ -1326,9 +1352,13 @@ impl<'a> Types<'a> {
             )
         };
         let d = match self.get(t) {
-            // Both kinds lower to one `Ref[T]`: the kind is a checking rule
-            // only (`ref.type.kind-runtime`).
-            TyData::Ref { inner, mutable, .. } => {
+            // Both kinds have one representation (`ref.type.kind-runtime`);
+            // only a counted one is a whole object's address (`ref.box.object`).
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => {
                 let inner = self.lower_refs(cell, inner);
                 let identity = if mutable {
                     self.intern_ty(&TyData::Mut(inner))
@@ -1336,7 +1366,7 @@ impl<'a> Types<'a> {
                     inner
                 };
                 TyData::Adt {
-                    def: cell,
+                    def: if counted { cell.counted } else { cell.local },
                     args: self.list(&[identity]),
                 }
             }
@@ -1403,7 +1433,7 @@ impl<'a> Types<'a> {
 
     /// [`Self::lower_refs`] over a row's keys.
     #[must_use]
-    pub fn lower_refs_row(self, cell: DefId, r: RowId) -> RowId {
+    pub fn lower_refs_row(self, cell: RefCells, r: RowId) -> RowId {
         if self.row_meta(r) & meta::HAS_REF == 0 {
             return r;
         }
@@ -1416,7 +1446,7 @@ impl<'a> Types<'a> {
 
     /// [`Self::lower_refs`] over a list.
     #[must_use]
-    pub fn lower_refs_list(self, cell: DefId, l: TyList) -> TyList {
+    pub fn lower_refs_list(self, cell: RefCells, l: TyList) -> TyList {
         if self.list_meta(l) & meta::HAS_REF == 0 {
             return l;
         }
@@ -1430,18 +1460,19 @@ impl<'a> Types<'a> {
     }
 
     /// The inverse of [`Self::lower_refs`] on a concrete type, for trait
-    /// selection after lowering: `cell[T]` becomes `&T`, and a permission
-    /// marker in `cell[Mut[T]]` restores `&mut T`. Compound types, including
+    /// selection after lowering: `cell.local[T]` becomes `&T` and
+    /// `cell.counted[T]` `*T`, and a permission marker in `cell[Mut[T]]`
+    /// restores `&mut T`. Compound types, including
     /// projections and function signatures, retain this distinction.
     #[must_use]
-    pub fn raise_refs(self, cell: DefId, t: Ty) -> Ty {
+    pub fn raise_refs(self, cell: RefCells, t: Ty) -> Ty {
         self.raise_refs_in(cell, t, &mut hd_base::HashMap::default())
     }
 
     /// [`Self::raise_refs`], each distinct type once: a type built by
     /// doubling shares its parts, so a walk without the memo would be
     /// exponential.
-    fn raise_refs_in(self, cell: DefId, t: Ty, memo: &mut hd_base::HashMap<Ty, Ty>) -> Ty {
+    fn raise_refs_in(self, cell: RefCells, t: Ty, memo: &mut hd_base::HashMap<Ty, Ty>) -> Ty {
         if let Some(&r) = memo.get(&t) {
             return r;
         }
@@ -1454,18 +1485,16 @@ impl<'a> Types<'a> {
             self.list(&items)
         };
         let d = match self.get(t) {
-            TyData::Adt { def, args } if def == cell => match self.list_items(args) {
+            TyData::Adt { def, args } if cell.holds(def) => match self.list_items(args) {
                 [inner] => {
                     let (inner, mutable) = match self.get(*inner) {
                         TyData::Mut(inner) => (inner, true),
                         _ => (*inner, false),
                     };
-                    // The lowering erased the kind; a raised reference is
-                    // counted, the kind trait selection ignores anyway.
                     TyData::Ref {
                         inner: self.raise_refs_in(cell, inner, memo),
                         mutable,
-                        counted: true,
+                        counted: def == cell.counted,
                     }
                 }
                 _ => TyData::Adt { def, args },
@@ -1549,7 +1578,7 @@ impl<'a> Types<'a> {
     }
     fn raise_refs_row_in(
         self,
-        cell: DefId,
+        cell: RefCells,
         row: RowId,
         memo: &mut hd_base::HashMap<Ty, Ty>,
     ) -> RowId {
@@ -2264,8 +2293,10 @@ mod tests {
     #[test]
     fn reference_lowering_preserves_permission_identity() {
         let pool = InternPool::new();
-        let cell = hd_base::DefId::from_raw(777);
-        // Raising restores a counted reference, the kind lowering erases.
+        let cell = super::RefCells {
+            local: hd_base::DefId::from_raw(776),
+            counted: hd_base::DefId::from_raw(777),
+        };
         let shared = pool.intern_ty(&TyData::Ref {
             inner: Ty::I32,
             mutable: false,
@@ -2285,10 +2316,14 @@ mod tests {
             pool.lower_refs(cell, shared),
             pool.lower_refs(cell, writable)
         );
-        assert_eq!(
+        assert_ne!(
             pool.lower_refs(cell, local),
             pool.lower_refs(cell, shared),
-            "both kinds lower to one type"
+            "the kinds lower to two carriers"
+        );
+        assert_eq!(
+            pool.lower_refs(cell.local_only(), local),
+            pool.lower_refs(cell.local_only(), shared),
         );
         let projection = pool.intern_ty(&TyData::Assoc {
             assoc: hd_base::DefId::from_raw(778),
@@ -2303,7 +2338,7 @@ mod tests {
             suspends: false,
             inputs: Inputs::Fixed,
         });
-        for reference in [shared, writable, projection, function] {
+        for reference in [shared, writable, local, projection, function] {
             assert_eq!(
                 pool.types()
                     .raise_refs(cell, pool.lower_refs(cell, reference)),

@@ -13,7 +13,7 @@ app/main/calls
   %6 = Scope %5 [] : i64
   %7 = Call app/main/long[] (2:i64) : i64
   %8 = Prim Add [%6 %7] : i64
-  %9 = Ref take local [$0] : Ref[List[i64]]
+  %9 = Ref take local [$0] : Counted[List[i64]]
   %10 = Call app/main/first[] (%9) : i64
   %11 = Drop [%9] : ()
   %12 = Prim Add [%8 %10] : i64

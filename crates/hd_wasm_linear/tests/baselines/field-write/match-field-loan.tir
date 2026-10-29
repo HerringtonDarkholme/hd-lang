@@ -11,12 +11,12 @@ fn value(node: &Node) -> i64:
 > app/main/value
 >   local $0 node: Ref[Node] [param read]
 >   local $1 alias: Ref[Node] [:= read assigned]
->   local $2 left: Ref[Node] [read assigned]
+>   local $2 left: Counted[Node] [read assigned]
 >   %0 = Read [$0] : Ref[Node]
 >   %1 = Store [$1] %0 : ()
 >   %19 = Block %18 : i64
     match alias.left:
->   %2 = Read [*$1 .left] : Ref[Node]?
+>   %2 = Read [*$1 .left] : Counted[Node]?
 >   %17 = Block - : never
 >   %18 = Match %2 [%17 %3 %5] : i64
         .None => 0
@@ -27,7 +27,7 @@ fn value(node: &Node) -> i64:
         .Some(left) => left.value
 >   %4 = Read [*$2 .value] : i64
 >   %5 = Block %4 : i64
->   %8 = Read [%2 as #1 .0] : Ref[Node]
+>   %8 = Read [%2 as #1 .0] : Counted[Node]
 >   %9 = Store [$2] %8 : ()
 >   %11 = Block - : never
 >   %13 = Block - : never

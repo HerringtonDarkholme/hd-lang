@@ -8476,7 +8476,7 @@ impl Run<'_> {
             });
             Some((
                 names.text(f.name).to_owned(),
-                pool.lower_refs(self.known.ref_cell, ft),
+                pool.lower_refs(self.known.ref_cells(), ft),
             ))
         };
         let mut text = hd_check::render(&names, body, &fields);
@@ -9351,7 +9351,7 @@ impl Run<'_> {
         let error = known.error;
         let reference = match pool.get(err) {
             TyData::Ref { inner, .. } => Some(inner),
-            TyData::Adt { def, args } if def == names.item("std.core", "Ref") => {
+            TyData::Adt { def, args } if known.ref_cells().holds(def) => {
                 pool.list_items(args).first().copied()
             }
             _ => None,
@@ -9989,14 +9989,6 @@ impl Run<'_> {
         let package_host = |d| self.package_host_identity(d);
         let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
         let package_selectors = |d| self.package_host_selectors(d);
-        let interior_targets = || {
-            let instances = hd_opt::whole::Instances {
-                table: &c.collected.table,
-                order: &c.order,
-                body: &body,
-            };
-            hd_opt::whole::interior_targets(&self.pool, &env, &env, &instances)
-        };
         let mutation_targets = || {
             let instances = hd_opt::whole::Instances {
                 table: &c.collected.table,
@@ -10024,7 +10016,6 @@ impl Run<'_> {
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
             own_cx: &env,
-            interior_targets: &interior_targets,
             mutation_targets: &mutation_targets,
         };
         let linked = self.session.and_then(|s| s.linked.as_ref());
@@ -11079,18 +11070,8 @@ impl LayoutEnv for Env<'_> {
     }
 }
 
-/// The backend's layout as the whole-object scan reads it
-/// (`hd_opt::whole`).
+/// The backend's layout as the mutation scan reads it (`hd_opt::whole`).
 impl hd_opt::whole::ObjectLayout for Env<'_> {
-    fn shape(&self, t: Ty) -> hd_opt::whole::Shape {
-        use hd_opt::whole::Shape;
-        use hd_wasm_linear::object_layout::{Kind, kind};
-        match kind(&self.run.pool, self, t) {
-            Kind::Ref { target, fat } => Shape::Ref { target, fat },
-            Kind::Data(fields) => Shape::Data(fields),
-            Kind::Value | Kind::Boxed => Shape::Other,
-        }
-    }
     fn strip(&self, t: Ty) -> Ty {
         hd_wasm_linear::object_layout::strip(&self.run.pool, self, t)
     }
@@ -11111,7 +11092,7 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
         let TyData::Adt { def, args } = self.run.pool.get(t) else {
             return None;
         };
-        if def != self.run.known.ref_cell {
+        if !self.run.known.ref_cells().holds(def) {
             return None;
         }
         let &target = self.run.pool.list_items(args).first()?;
@@ -11124,15 +11105,6 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
             target,
         ))
     }
-    fn payload_offset(&self, fields: &[Ty], f: usize) -> Option<u32> {
-        hd_wasm_linear::object_layout::payload_offset(&self.run.pool, self, fields, f)
-    }
-    fn field(&self, t: Ty, f: u32) -> Option<(Ty, u32)> {
-        hd_wasm_linear::object_layout::field_at(&self.run.pool, self, t, f)
-    }
-    fn variants(&self, t: Ty) -> Option<Vec<Vec<Ty>>> {
-        hd_wasm_linear::object_layout::variants(&self.run.pool, self, t)
-    }
 }
 
 impl Env<'_> {
@@ -11141,9 +11113,30 @@ impl Env<'_> {
     }
 
     /// A declared type as the backend reads it: each reference type
-    /// lowered to `std.core.Ref[T]` (`hd_types::Types::lower_refs`).
+    /// lowered to `std.core.Ref[T]` or `std.core.Counted[T]`
+    /// (`hd_types::Types::lower_refs`).
     fn low(&self, t: Ty) -> Ty {
-        self.run.pool.lower_refs(self.run.known.ref_cell, t)
+        self.run.pool.lower_refs(self.run.known.ref_cells(), t)
+    }
+
+    /// The carriers that the declarations of `def`, an impl or one of its
+    /// methods, lower to: only the local one for an impl on a reference
+    /// type, which covers both kinds (`ref.type.kind-runtime`), as its
+    /// bodies do (`hd_check`'s `lower_body_refs`).
+    fn cells_in(&self, def: DefId) -> hd_types::RefCells {
+        let cells = self.run.known.ref_cells();
+        let owner = match self.p.items.get(def).map(|it| &it.data) {
+            Some(ItemData::Method { owner, .. }) => *owner,
+            _ => def,
+        };
+        match self.p.items.get(owner).map(|it| &it.data) {
+            Some(ItemData::Impl { self_ty, .. })
+                if matches!(self.run.pool.get(*self_ty), TyData::Ref { .. }) =>
+            {
+                cells.local_only()
+            }
+            _ => cells,
+        }
     }
 
     /// `std.result`'s checked unwrap after a boundary `decode`: `is_ok`
@@ -11573,7 +11566,7 @@ impl ProgramEnv for Env<'_> {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
         if let Some(sig) = self.sig(def) {
-            return Some(self.low(sig.ret));
+            return Some(self.run.pool.lower_refs(self.cells_in(def), sig.ret));
         }
         // A script's init returns `Result[void, dyn Error]` when its top
         // level uses `?` (`module.init.script-try.reference-values`).
@@ -11593,8 +11586,13 @@ impl ProgramEnv for Env<'_> {
                     .collect(),
             );
         }
-        self.sig(def)
-            .map(|s| s.params.iter().map(|p| self.low(p.1)).collect())
+        let cells = self.cells_in(def);
+        self.sig(def).map(|s| {
+            s.params
+                .iter()
+                .map(|p| self.run.pool.lower_refs(cells, p.1))
+                .collect()
+        })
     }
     fn suspends(&self, def: DefId) -> bool {
         match self.sig(def) {
@@ -11667,18 +11665,19 @@ impl ProgramEnv for Env<'_> {
                 self_ty,
                 trait_args,
                 ..
-            } => Some((
-                self.low(*self_ty),
-                self.run
-                    .pool
-                    .lower_refs_list(self.run.known.ref_cell, *trait_args),
-                it.generics.len(),
-            )),
+            } => {
+                let cells = self.cells_in(impl_);
+                Some((
+                    self.run.pool.lower_refs(cells, *self_ty),
+                    self.run.pool.lower_refs_list(cells, *trait_args),
+                    it.generics.len(),
+                ))
+            }
             _ => None,
         }
     }
-    fn ref_cell(&self) -> DefId {
-        self.run.known.ref_cell
+    fn ref_cells(&self) -> hd_types::RefCells {
+        self.run.known.ref_cells()
     }
     fn suspend_def(&self) -> DefId {
         self.run.known.suspend

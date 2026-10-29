@@ -151,7 +151,7 @@ pub fn printer_body(
             TyData::Never => ("dbg_never", vec![ty]),
             TyData::Option(t) => ("dbg_option_printer", vec![t]),
             TyData::Ref { inner, .. } => ("dbg_ref_printer", vec![inner]),
-            TyData::Adt { def, args } if def == names.known.ref_cell => {
+            TyData::Adt { def, args } if names.known.ref_cells().holds(def) => {
                 ("dbg_ref_printer", pool.list_items(args).to_vec())
             }
             TyData::Adt { def, args } if def == names.known.list => {

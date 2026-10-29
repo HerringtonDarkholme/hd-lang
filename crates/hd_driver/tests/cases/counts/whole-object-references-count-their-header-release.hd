@@ -1,8 +1,7 @@
 # @dump: wat
 # @build: v8 release
-# No reference in the program points inside an object holding a `Node`,
-# so in release every `*Node` is a payload start and its counts read the
-# header: `rt:retain_known`, with no page-table search (#704).
+# Every `*Node` refers to a whole object, so its counts read the header:
+# `rt:retain_known`, with no page-table search (#988).
 struct Node:
     left: (*Node)?
     right: (*Node)?

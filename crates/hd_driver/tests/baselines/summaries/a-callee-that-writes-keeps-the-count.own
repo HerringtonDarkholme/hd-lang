@@ -14,18 +14,18 @@ struct Node:
 ROOT := box(Node { left: .None, value: 0 })
 > app/main/init.init
 >   local $0 $ref: Node [read assigned captured captured-assigned]
->   %0 = NewVariant #0 [] : Ref[Node]?
+>   %0 = NewVariant #0 [] : Counted[Node]?
 >   %1 = NewStruct [%0 0:i64] : Node
 >   %2 = Store [$0] %1 : ()
->   %3 = Ref take mut [$0] : Ref[mut Node]
+>   %3 = Ref take mut [$0] : Counted[mut Node]
 >   %4 = Store [@app/main/ROOT] %3 : ()
 >   %3 finds [$0] full
 
 fn prune(parent: *mut Node) -> i64:
     parent.left = .None
 > app/main/prune
->   local $0 parent: Ref[mut Node] [param read]
->   %0 = NewVariant #0 [] : Ref[Node]?
+>   local $0 parent: Counted[mut Node] [param read]
+>   %0 = NewVariant #0 [] : Counted[Node]?
 >   %1 = Store [*$0 .left] %0 : ()
 >   %2 = Block 0:i64 : i64
 >   summary kept [] writes
@@ -35,7 +35,7 @@ fn prune_global(k: i64) -> i64:
     ROOT.left = .None
 > app/main/prune_global
 >   local $0 k: i64 [param read]
->   %0 = NewVariant #0 [] : Ref[Node]?
+>   %0 = NewVariant #0 [] : Counted[Node]?
 >   %1 = Store [*@app/main/ROOT .left] %0 : ()
 >   %10 = Block %9 : i64
     if k > 0: prune_global(k - 1) else: 0
@@ -52,7 +52,7 @@ fn prune_global(k: i64) -> i64:
 fn ping(node: *mut Node, k: i64) -> i64:
     if k == 0:
 > app/main/ping
->   local $0 node: Ref[mut Node] [param read]
+>   local $0 node: Counted[mut Node] [param read]
 >   local $1 k: i64 [param read]
 >   %0 = Read copy [$1] : i64
 >   %1 = Prim Eq [%0 0:i64] : bool
@@ -62,7 +62,7 @@ fn ping(node: *mut Node, k: i64) -> i64:
 >   %2 = Return 0:i64 : never
 >   %3 = Block - : never
     pong(node, k - 1)
->   %5 = Read borrow [$0] : Ref[mut Node]
+>   %5 = Read borrow [$0] : Counted[mut Node]
 >   %6 = Read copy [$1] : i64
 >   %7 = Prim Sub [%6 1:i64] : i64
 >   %8 = Call app/main/pong[] (%5, %7) : i64
@@ -71,13 +71,13 @@ fn ping(node: *mut Node, k: i64) -> i64:
 fn pong(node: *mut Node, k: i64) -> i64:
     node.value = k
 > app/main/pong
->   local $0 node: Ref[mut Node] [param read]
+>   local $0 node: Counted[mut Node] [param read]
 >   local $1 k: i64 [param read]
 >   %0 = Read copy [$1] : i64
 >   %1 = Store [*$0 .value] %0 : ()
 >   %5 = Block %4 : i64
     ping(node, k)
->   %2 = Read borrow [$0] : Ref[mut Node]
+>   %2 = Read borrow [$0] : Counted[mut Node]
 >   %3 = Read copy [$1] : i64
 >   %4 = Call app/main/ping[] (%2, %3) : i64
 >   summary kept [] writes recursive
@@ -85,9 +85,9 @@ fn pong(node: *mut Node, k: i64) -> i64:
 fn through_parent(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_parent
->   local $0 node: Ref[mut Node] [param read]
->   local $1 left: Ref[Node] [read assigned]
->   %0 = Read copy [*$0 .left] : Ref[Node]?
+>   local $0 node: Counted[mut Node] [param read]
+>   local $1 left: Counted[Node] [read assigned]
+>   %0 = Read copy [*$0 .left] : Counted[Node]?
 >   %7 = Drop [%0] : ()
 >   %19 = Block - : never
 >   %20 = Match %0 [%19 %1 %6] : i64
@@ -99,12 +99,12 @@ fn through_parent(node: *mut Node) -> i64:
 >   %17 = Block - : never
 >   %18 = SwitchTag %0 [#0 %9 %17] : never
         .Some(left) => prune(node) + left.value
->   %2 = Read borrow [$0] : Ref[mut Node]
+>   %2 = Read borrow [$0] : Counted[mut Node]
 >   %3 = Call app/main/prune[] (%2) : i64
 >   %4 = Read copy [*$1 .value] : i64
 >   %5 = Prim Add [%3 %4] : i64
 >   %6 = Block %5 : i64
->   %10 = Read move [%0 as #1 .0] : Ref[Node]
+>   %10 = Read move [%0 as #1 .0] : Counted[Node]
 >   %11 = Store [$1] %10 : ()
 >   %13 = Block - : never
 >   %15 = Block - : never
@@ -115,8 +115,8 @@ fn through_alias(node: &Node) -> i64:
     match node.left:
 > app/main/through_alias
 >   local $0 node: Ref[Node] [param read]
->   local $1 left: Ref[Node] [read assigned]
->   %0 = Read copy [*$0 .left] : Ref[Node]?
+>   local $1 left: Counted[Node] [read assigned]
+>   %0 = Read copy [*$0 .left] : Counted[Node]?
 >   %6 = Drop [%0] : ()
 >   %18 = Block - : never
 >   %19 = Match %0 [%18 %1 %5] : i64
@@ -132,7 +132,7 @@ fn through_alias(node: &Node) -> i64:
 >   %3 = Read copy [*$1 .value] : i64
 >   %4 = Prim Add [%2 %3] : i64
 >   %5 = Block %4 : i64
->   %9 = Read move [%0 as #1 .0] : Ref[Node]
+>   %9 = Read move [%0 as #1 .0] : Counted[Node]
 >   %10 = Store [$1] %9 : ()
 >   %12 = Block - : never
 >   %14 = Block - : never
@@ -142,9 +142,9 @@ fn through_alias(node: &Node) -> i64:
 fn through_a_cycle(node: *mut Node) -> i64:
     match node.left:
 > app/main/through_a_cycle
->   local $0 node: Ref[mut Node] [param read]
->   local $1 left: Ref[Node] [read assigned]
->   %0 = Read copy [*$0 .left] : Ref[Node]?
+>   local $0 node: Counted[mut Node] [param read]
+>   local $1 left: Counted[Node] [read assigned]
+>   %0 = Read copy [*$0 .left] : Counted[Node]?
 >   %7 = Drop [%0] : ()
 >   %19 = Block - : never
 >   %20 = Match %0 [%19 %1 %6] : i64
@@ -156,12 +156,12 @@ fn through_a_cycle(node: *mut Node) -> i64:
 >   %17 = Block - : never
 >   %18 = SwitchTag %0 [#0 %9 %17] : never
         .Some(left) => ping(node, 3) + left.value
->   %2 = Read borrow [$0] : Ref[mut Node]
+>   %2 = Read borrow [$0] : Counted[mut Node]
 >   %3 = Call app/main/ping[] (%2, 3:i64) : i64
 >   %4 = Read copy [*$1 .value] : i64
 >   %5 = Prim Add [%3 %4] : i64
 >   %6 = Block %5 : i64
->   %10 = Read move [%0 as #1 .0] : Ref[Node]
+>   %10 = Read move [%0 as #1 .0] : Counted[Node]
 >   %11 = Store [$1] %10 : ()
 >   %13 = Block - : never
 >   %15 = Block - : never

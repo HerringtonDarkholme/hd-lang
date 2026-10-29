@@ -76,8 +76,9 @@ exists (stage 3).
 collector, never Wasm GC. A reference is one thin address. No
 whole-program or cross-function analysis (#702 and #703 stay held). No
 second copies of a callee for result demand (#681). Bounds-check
-elimination is separate (#711). Interior references carry no tag: #704
-shipped as a release-only whole-program fact per reference target (`crates/hd_opt/src/whole.rs`, 2026-10-26); [Stage 2](#stage-2) says what places
+elimination is separate (#711). Interior references carry no tag: a counted
+reference always refers to a whole object (#912), so `*T` lowers to a
+carrier of its own whose counts read the header (§23.30, #988); [Stage 2](#stage-2) says what places
 make cheaper. TIR v2 replaces TIR: the checker emits it, the emitter
 consumes it, and nothing sits between them. Compile time, memory,
 compiler size and cognitive load count as much as run time.

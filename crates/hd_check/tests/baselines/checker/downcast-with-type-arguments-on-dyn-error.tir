@@ -17,16 +17,16 @@ fn device_of(error: &dyn Error) -> string:
     match error.downcast_ref::[DiskError]():
 > app/main/device_of
 >   local $0 error: Ref[Error] [param read]
->   local $1 found: Ref[DiskError] [read assigned]
+>   local $1 found: Counted[DiskError] [read assigned]
 >   %0 = Read [$0] : Ref[Error]
->   %1 = Call std/error/impl dyn Error.downcast_ref[DiskError] (%0) : Ref[DiskError]?
+>   %1 = Call std/error/impl dyn Error.downcast_ref[DiskError] (%0) : Counted[DiskError]?
 >   %16 = Block - : never
 >   %17 = Match %1 [%16 %3 %4] : string
 >   %18 = Block %17 : string
         .Some(found) => found.device
 >   %2 = Read [*$1 .device] : string
 >   %3 = Block %2 : string
->   %5 = Read [%1 as #1 .0] : Ref[DiskError]
+>   %5 = Read [%1 as #1 .0] : Counted[DiskError]
 >   %6 = Store [$1] %5 : ()
 >   %8 = Block - : never
 >   %14 = Block - : never

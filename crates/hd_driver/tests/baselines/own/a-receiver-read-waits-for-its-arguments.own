@@ -82,7 +82,7 @@ fn by_reference(m: Members, i: usize) -> usize:
 >   local $1 i: usize [param read]
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 .infos [%0] .position] : usize
->   %2 = Ref take local [$0] : Ref[Members]
+>   %2 = Ref take local [$0] : Counted[Members]
 >   %3 = Call app/main/impl Members.peek[] (%2, %1) : usize
 >   %4 = Drop [%2] : ()
 >   %5 = Block %3 : usize
@@ -99,7 +99,7 @@ fn changed_by_argument(items: List[Info]) -> usize:
 >   %8 = Block %7 : usize
     m.at(m.pop())
 >   %3 = Read copy [$1] : Members
->   %4 = Ref take mut local [$1] : Ref[mut Members]
+>   %4 = Ref take mut local [$1] : Counted[mut Members]
 >   %5 = Call app/main/impl Members.pop[] (%4) : usize
 >   %6 = Drop [%4] : ()
 >   %7 = Call app/main/impl Members.at[] (%3, %5) : usize

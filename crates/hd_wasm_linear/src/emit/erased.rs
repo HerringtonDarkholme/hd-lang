@@ -424,8 +424,12 @@ impl Em<'_, '_, '_> {
         };
         if let Kind::Ref { .. } = kind(pool, env, et) {
             return match kind(pool, env, ct) {
-                Kind::Ref { target, fat: false } if one(target)? => Ok(Cross::Same),
-                Kind::Ref { target, fat: false } => Ok(Cross::RefBox { target }),
+                Kind::Ref {
+                    target, fat: false, ..
+                } if one(target)? => Ok(Cross::Same),
+                Kind::Ref {
+                    target, fat: false, ..
+                } => Ok(Cross::RefBox { target }),
                 _ => unsupported("a reference to a trait value as an open value"),
             };
         }

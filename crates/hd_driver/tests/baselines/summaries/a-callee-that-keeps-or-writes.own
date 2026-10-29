@@ -39,13 +39,13 @@ impl Tally:
     fn add(*mut self) -> *mut Tally:
         self.count = self.count + 1
 > app/main/impl Tally.add
->   local $0 self: Ref[mut Tally] [param read]
+>   local $0 self: Counted[mut Tally] [param read]
 >   %0 = Read copy [*$0 .count] : usize
 >   %1 = Prim Add [%0 1:usize] : usize
 >   %2 = Store [*$0 .count] %1 : ()
->   %4 = Block %3 : Ref[mut Tally]
+>   %4 = Block %3 : Counted[mut Tally]
         self
->   %3 = Read copy [$0] : Ref[mut Tally]
+>   %3 = Read copy [$0] : Counted[mut Tally]
 >   summary kept [$0] returns $0 writes
 
 fn other(a: string, b: string) -> string:

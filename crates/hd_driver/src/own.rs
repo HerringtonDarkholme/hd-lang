@@ -330,7 +330,7 @@ impl Env<'_> {
         }
         match pool.get(t) {
             TyData::Ref { .. } => Pass::Lent,
-            TyData::Adt { def, .. } if def == self.run.known.ref_cell => Pass::Lent,
+            TyData::Adt { def, .. } if self.run.known.ref_cells().holds(def) => Pass::Lent,
             _ if self.is_open(t) => Pass::Owned,
             _ => match self.layout_facts(t) {
                 (true, false) => Pass::Owned,
@@ -499,7 +499,9 @@ impl InlineEnv for Env<'_> {
         // A trait value receiver dispatches through its table, and a
         // derived newtype impl forwards to its base's, whatever the choice.
         let value = match pool.get(self_ty) {
-            TyData::Adt { def, args } if def == self.run.known.ref_cell => pool.list_items(args)[0],
+            TyData::Adt { def, args } if self.run.known.ref_cells().holds(def) => {
+                pool.list_items(args)[0]
+            }
             _ => self_ty,
         };
         if hd_mono::is_trait_value(pool, value)
@@ -537,7 +539,7 @@ impl InlineEnv for Env<'_> {
         {
             return None;
         }
-        let cell = self.run.known.ref_cell;
+        let cell = self.run.known.ref_cells();
         let raised: Vec<Ty> = args.iter().map(|&a| types.raise_refs(cell, a)).collect();
         let tref = TraitRef {
             trait_,

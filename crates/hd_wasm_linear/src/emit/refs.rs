@@ -91,7 +91,7 @@ impl Em<'_, '_, '_> {
     /// is fat: a trait value.
     pub(super) fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
         match self.kind(t) {
-            Kind::Ref { target, fat } => Some((target, fat)),
+            Kind::Ref { target, fat, .. } => Some((target, fat)),
             _ => None,
         }
     }
@@ -1573,7 +1573,9 @@ impl Em<'_, '_, '_> {
                         ty = ft;
                         k += 2;
                     }
-                    Kind::Ref { target, fat: false } => {
+                    Kind::Ref {
+                        target, fat: false, ..
+                    } => {
                         let r = self.at_i32(&at)?;
                         // The steps to the next dereference, or to the end.
                         let next = steps[k + 1..]

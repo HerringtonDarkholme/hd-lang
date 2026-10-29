@@ -200,7 +200,7 @@ fn of_at(
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as its JSON text, through the codecs collection gathered.
     if let (TyData::Adt { def, .. }, Some(at)) = (pool.get(s), at)
-        && def != env.ref_cell()
+        && !env.ref_cells().holds(def)
         && env.has_private_field(def)
     {
         return json(input, unmut, s, at);
@@ -236,7 +236,7 @@ fn of_at(
             }
         }
         TyData::Option(inner) => enum_of(input, m, &[vec![], vec![inner]], depth, at)?,
-        TyData::Adt { def, args } if def == env.ref_cell() => {
+        TyData::Adt { def, args } if env.ref_cells().holds(def) => {
             // A trait value reference to a host handle: the handle,
             // behind the reference the `host_provider` instance makes.
             let inner = pool.list_items(args).first().copied().unwrap_or(Ty::VOID);
@@ -2099,7 +2099,7 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
     }
     let s = layout::strip(pool, env, t);
     if let TyData::Adt { def, args } = pool.get(s) {
-        if def == env.ref_cell() {
+        if env.ref_cells().holds(def) {
             let Some(&inner) = pool.list_items(args).first() else {
                 return fail();
             };

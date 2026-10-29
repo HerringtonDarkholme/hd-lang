@@ -23,7 +23,7 @@ fn fresh() -> void:
 >   %1 = Store [$0] %0 : ()
 >   %5 = Block - : ()
     bump(&mut c)
->   %2 = Ref take mut local [$0] : Ref[mut Counter]
+>   %2 = Ref take mut local [$0] : Counted[mut Counter]
 >   %3 = Call app/main/bump[] (%2) : ()
 >   %4 = Drop [%2] : ()
 >   %2 finds [$0] full

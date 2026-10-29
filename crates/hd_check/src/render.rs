@@ -114,7 +114,7 @@ fn deref_ty(names: &Names<'_>, t: Ty) -> Ty {
     };
     match names.pool.get(strip(t)) {
         TyData::Ref { inner, .. } => inner,
-        TyData::Adt { def, args } if def == names.known.ref_cell => names
+        TyData::Adt { def, args } if names.known.ref_cells().holds(def) => names
             .pool
             .list_items(args)
             .first()

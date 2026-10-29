@@ -5,9 +5,10 @@
 //! counted reference is `local-reference-escapes`, with a fix-it that
 //! writes `*` for its `&`, or for an `&e` the advice to box the value.
 //!
-//! The kind is a checking rule only (`ref.type.kind-runtime`): both kinds
-//! lower to one `Ref[T]` (`hd_types::Types::lower_refs`), so nothing here
-//! changes the body's code. Three checks cover the positions:
+//! Both kinds have one representation (`ref.type.kind-runtime`): they
+//! lower to `Ref[T]` and `Counted[T]` (`hd_types::Types::lower_refs`),
+//! which differ only in what the backend knows of the address, so
+//! nothing here changes the body's code. Three checks cover the positions:
 //! [`declarations`] reads the written types of a module, `coerce` reports
 //! a local reference where a counted one is expected
 //! ([`Ck::coerce_ref_kind`]), and the body's end reports the inferred
@@ -304,7 +305,7 @@ fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
 /// differ lends a counted reference as a local one, or in a function
 /// type's parameter takes the local one where a counted one is passed.
 /// Other positions keep their kind (`ref.type.kind-distinct`).
-fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32) -> bool {
+pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32) -> bool {
     if from == to {
         return true;
     }

@@ -996,8 +996,8 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   and each read, write and identity through one (a `Read` or `Store` of
   a place through it, `RefIdentity`), with no closure form (stage 1 of
   TIR v2 removed them).
-  Here `std.core.Ref[T]` is one address (`layout::Kind::Ref`,
-  `emit/refs.rs`), the thin form of §23.5:
+  Here `std.core.Ref[T]` and `std.core.Counted[T]` are one address
+  (`layout::Kind::Ref`, `emit/refs.rs`), the thin form of §23.5:
   - a local some reference refers to lives in a cell
     (`closure::cell_locals`), one per execution of its declaration, and
     the reference is the cell's payload address plus the field path's
@@ -1021,9 +1021,10 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment
   reads the old field before its RHS; both kinds store after the RHS,
-  preserving changes it makes to neighboring fields through aliases. A reference
+  preserving changes it makes to neighboring fields through aliases. A local reference
   is counted through the page table at any address in its object, so a
-  reference to a field keeps the whole object alive. `is` compares
+  reference to a field keeps the whole object alive (a counted one is a
+  payload start, §23.30). `is` compares
   addresses, and `identity_of` is no base, the address as the serial and
   no key. A reference to a trait value is that trait value, the data
   address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
@@ -1877,8 +1878,8 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
 
 Issue #643 avoids finding an object's block when its representation
 already supplies the payload start, eight bytes after its header.
-Interior pointers keep the page-table path, including string slices and
-physical or erased references without a block-start proof.
+Interior pointers keep the page-table path: string slices, local
+references, and open or erased values.
 
 - **Known counts.** The runtime's `retain_known` and `release_known`
   entries use `address - 8`. Null and static zero-count objects stay
@@ -1893,32 +1894,31 @@ physical or erased references without a block-start proof.
   as `Walk::Known`, so aggregate glue counts those leaves through the
   known path: the retain and release helpers of struct and enum values,
   a data object's release glue, list element and map entry glue. A
-  string's bytes, a reference and an open value stay `Walk::Ref`, counted
-  through the page table. On json at 6,000 records this moved 846,000 of
+  string's bytes, a local reference and an open value stay `Walk::Ref`,
+  counted through the page table. On json at 6,000 records this moved 846,000 of
   3,450,000 page-table counts to the known path, with the count total
   unchanged.
-- **Whole-object references** (#704), release only. The optimized
-  pipeline's closed-world link scans every instance's TIR before
-  emission (`hd_opt::whole`, through the driver) for the reference targets that some `Ref` may
-  give an interior address: an element (`&xs[i]`, `&map[k]`), a field at
-  a nonzero offset, a top-level binding's static slot, or a coercion or
-  zero-offset dereference of such a target's reference. Every other
-  target's `*T` is null, a payload start, or a slot or static cell with
-  a zero count word, so its walk is `Walk::Known` and `block_start`
-  holds. An interior reference to an open target, which an erased body
-  may make for any type, turns the fact off. Dev builds, sessions and
-  open-world builds keep the page-table path for every reference.
-  binary_trees goes from 3,222,220 `block_of` calls to 30, json from
-  1,176,031 to 468,040, the rest mostly string slices.
-- **Lent references** (#909). The scan skips a body instance's `Ref`
-  that the borrow pass marks lent (`ref_word::LENT`, a field of what a
-  lent parameter refers to, every use lending): it takes no count, and
-  its value's only release is of the new object a view's projection
-  makes. A `&mut self` method's `self.items.pop()` no longer makes
-  `List[T]` interior. On json, `JsonWriter.close` did that for
-  `List[string]`, so `TextWriter.parts`, a `*mut List[string]`, took
-  156,003 page-table counts per run; `block_of` calls drop from 468,015
-  to 312,012, all left on strings.
+- **Counted references** (#988). Every counted reference refers to a
+  whole object (`ref.box.object`), so `*T` and `*mut T` lower to a
+  carrier of their own, `std.core.Counted[T]`, and `&T` and `&mut T` to
+  `std.core.Ref[T]` (`hd_types::Types::lower_refs`). A thin counted
+  reference is null or a payload start in every build: its walk is
+  `Walk::Known` and `block_start` holds. A local reference may point
+  inside an object (a field, an element), so a local `&T` value keeps
+  the page-table path. The checker keeps the counted carrier whole
+  (`hd_check`'s `lower_body_refs`):
+  - each `Ref` lowers by its place: a local's or a value's own storage
+    (a cell, or a frame slot with its zero count word, §23.38) or what a
+    counted reference refers to is a whole object, so even `&mut x` and a
+    call receiver's address count the header; a place inside an object,
+    such as a call receiver's field, lowers as a local reference;
+  - a counted value stored in a local reference's local, or given as a
+    block's value, takes the local type, since a lend changes nothing at
+    run time;
+  - an implementation on a reference type covers both kinds
+    (`ref.type.kind-runtime`), so its receiver may be a local
+    reference: its head, signatures and bodies lower every reference as
+    local (the driver's `Env::cells_in`).
 - **Checked proofs.** Checked mode verifies that every claimed payload
   start agrees with `block_of`, then performs the existing audited count
   update. An incorrect proof fails even when the ordinary count would

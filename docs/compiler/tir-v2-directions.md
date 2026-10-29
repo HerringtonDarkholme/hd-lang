@@ -365,8 +365,9 @@ defects with harder alias reasoning.
    count in the buffer.
 5. **#704's tag for interior references: not adopted** (2026-10-26). An
    experiment measured the masks at 6-8% on dyn_iter. #704 shipped instead
-   as a release-only whole-program fact per reference target
-   (`crates/hd_opt/src/whole.rs`), with no tag and no masks.
+   as a release-only whole-program fact per reference target, with no tag
+   and no masks; #988 replaced it once every `*T` refers to a whole
+   object (#912).
 
 ## Sources
 
