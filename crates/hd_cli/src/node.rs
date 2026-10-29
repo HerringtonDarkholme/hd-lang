@@ -39,6 +39,8 @@ const TEST_RUN: &str = include_str!("../../../host/test-run.mjs");
 const CASES: &str = include_str!("../../../host/cases.mjs");
 /// The `Http` provider's client thread.
 const HTTP: &str = include_str!("../../../host/http.mjs");
+/// The `Http` provider's bounded content-decoding policy.
+const HTTP_DECODE: &str = include_str!("../../../host/http-decode.mjs");
 /// The `Net` provider's client thread, which holds the sockets.
 const NET: &str = include_str!("../../../host/net.mjs");
 /// The `Process` provider's client thread, which owns child I/O.
@@ -261,6 +263,7 @@ impl Scratch {
             ("test-run.mjs", TEST_RUN),
             ("cases.mjs", CASES),
             ("http.mjs", HTTP),
+            ("http-decode.mjs", HTTP_DECODE),
             ("net.mjs", NET),
             ("process.mjs", PROCESS),
             ("fs.mjs", FS),

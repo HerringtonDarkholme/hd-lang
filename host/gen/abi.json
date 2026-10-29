@@ -201,7 +201,9 @@
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
       { "name": "Status", "fields": [{ "name": "response", "type": "WireResponse" }] },
       { "name": "InvalidHeader", "fields": [{ "name": "name", "type": "string" }] },
-      { "name": "Body", "fields": [{ "name": "error", "type": "BodyError" }] }
+      { "name": "Body", "fields": [{ "name": "error", "type": "BodyError" }] },
+      { "name": "InvalidContentEncoding", "fields": [{ "name": "encoding", "type": "string" }] },
+      { "name": "OutputTooLarge", "fields": [] }
     ] },
     "WireRequest": { "kind": "data", "module": "lib/std/http_wire.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "redirects", "type": "usize" }] },
     "WireResponse": { "kind": "data", "module": "lib/std/http_wire.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] }

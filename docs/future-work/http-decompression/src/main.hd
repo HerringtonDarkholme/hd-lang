@@ -1,8 +1,0 @@
-use pkg.examples.{authenticated_gzip_text, direct_gzip_text, gzip_text}
-use std.http.{CookieJar, Http, HttpError}
-
-pub fn main!() -> Result[void, HttpError] $ Http:
-    _ := gzip_text!("https://example.com/releases.txt")
-    _ := authenticated_gzip_text!("https://example.com/private/releases.txt", CookieJar::new())
-    _ := direct_gzip_text!("https://example.com/status.txt")
-    .Ok(())

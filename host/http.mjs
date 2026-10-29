@@ -23,6 +23,7 @@ import { postReply } from "./worker-control.mjs";
 import http from "node:http";
 import https from "node:https";
 import { isAsciiUrl, writtenHost } from "./core.mjs";
+import { MAX_DECODED_BYTES, decodedResponse, hasNoBody } from "./http-decode.mjs";
 import { workerData } from "node:worker_threads";
 import { createGrant } from "./node.mjs";
 
@@ -86,9 +87,21 @@ const once = (url, host, method, headers, body, ms, signal) =>
     };
     // A body is sent with its length, as `fetch` sends a byte body,
     // unless the request gives its own framing.
-    const framed = headers.some(([n]) => /^(content-length|transfer-encoding)$/i.test(n));
+    // Compression negotiation is raw-transport policy. Providers and
+    // caller-visible request values keep exactly the headers the caller
+    // wrote; only the bytes sent on this transport gain the default.
+    const encoded = headers.some(([n]) => /^accept-encoding$/i.test(n))
+      ? headers
+      : [
+          ...headers,
+          [
+            "Accept-Encoding",
+            headers.some(([n]) => /^range$/i.test(n)) ? "identity" : "gzip, deflate",
+          ],
+        ];
+    const framed = encoded.some(([n]) => /^(content-length|transfer-encoding)$/i.test(n));
     const sized =
-      body.length && !framed ? [...headers, ["Content-Length", String(body.length)]] : headers;
+      body.length && !framed ? [...encoded, ["Content-Length", String(body.length)]] : encoded;
     // Headers go to Node as a raw list, which keeps repeated names in
     // order but makes Node skip its own `Host`; an HTTP/1.1 request
     // needs one (RFC 9112 3.2), so the URL's authority supplies it unless
@@ -120,18 +133,35 @@ const once = (url, host, method, headers, body, ms, signal) =>
     signal.addEventListener("abort", aborted, { once: true });
     req.on("error", (e) => settle(failure(e, host)));
     req.on("response", (res) => {
+      const groups = new Map();
+      for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
+        const name = res.rawHeaders[i].toLowerCase();
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(res.rawHeaders[i + 1]);
+      }
+      const pairs = [...groups].flatMap(([name, values]) => values.map((v) => [name, v]));
+      const codings = pairs
+        .filter(([name]) => name === "content-encoding")
+        .flatMap(([, value]) => value.split(",").map((part) => part.trim().toLowerCase()));
+      const decodedIsWireBody = codings.every((coding) => coding === "identity");
       const chunks = [];
-      res.on("data", (c) => chunks.push(c));
+      let received = 0;
+      res.on("data", (c) => {
+        received += c.length;
+        if (
+          !hasNoBody(method, res.statusCode) &&
+          decodedIsWireBody &&
+          received > MAX_DECODED_BYTES
+        ) {
+          settle(err("OutputTooLarge"));
+          res.destroy();
+          return;
+        }
+        chunks.push(c);
+      });
       res.on("error", (e) => settle(failure(e, host)));
       res.on("end", () => {
-        const groups = new Map();
-        for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
-          const name = res.rawHeaders[i].toLowerCase();
-          if (!groups.has(name)) groups.set(name, []);
-          groups.get(name).push(res.rawHeaders[i + 1]);
-        }
-        const pairs = [...groups].flatMap(([name, values]) => values.map((v) => [name, v]));
-        settle({ status: res.statusCode, headers: pairs, body: Buffer.concat(chunks) });
+        settle(decodedResponse(method, res.statusCode, pairs, Buffer.concat(chunks)));
       });
     });
     req.end(body.length ? Buffer.from(body) : undefined);

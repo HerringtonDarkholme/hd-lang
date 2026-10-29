@@ -2436,8 +2436,8 @@ impl Response:
         code := self.status.code()
         if code >= 400 && code <= 599: .Err(.Status(*self)) else: .Ok(*self)
 
-## Why a request failed: invalid URL, DNS, connect, TLS, timeout, too many redirects, not granted, or another reason.
-## See [std-http.error.decl-message-errors](../../spec/std/http.md#r-std-http.error.decl-message-errors).
+## Why a request failed, including transport, content-decoding and response-size failures.
+## See [std-http.error.decl-decoded-response-errors](../../spec/std/http.md#r-std-http.error.decl-decoded-response-errors).
 @error
 @derive(Debug, Eq)
 pub enum HttpError:
@@ -2466,6 +2466,10 @@ pub enum HttpError:
     InvalidHeader(name: string)
     @error("$error")
     Body(error: BodyError)
+    @error("invalid HTTP content encoding ${encoding}")
+    InvalidContentEncoding(encoding: string)
+    @error("the decoded HTTP response exceeds 64 MiB")
+    OutputTooLarge
 
 impl From[BodyError] for HttpError:
     fn from(error: BodyError) -> HttpError:
@@ -2519,7 +2523,10 @@ impl Http for HostHttp:
     fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]:
         validate_request(request)?
         url := Url::parse(request.url.to_string())?
-        headers := [for (name, value) in request.headers.entries() => (name.wire_name(), value)]
+        headers := [for (name, value) in request.headers.entries() => (
+            name.wire_name(),
+            value,
+        )]
         body := request.body.bytes()?
         response := self.wire.send!(
             WireRequest {
@@ -2590,6 +2597,8 @@ fn wire_error(error: WireHttpError) -> HttpError:
                 .Err(error) => error
         .InvalidHeader(name) => .InvalidHeader(name)
         .Body(error) => .Body(error)
+        .InvalidContentEncoding(encoding) => .InvalidContentEncoding(encoding)
+        .OutputTooLarge => .OutputTooLarge
 
 ## Sends a GET and checks its response for a 400–599 failure.
 ## See [std-http.helper.get.parsed-response](../../spec/std/http.md#r-std-http.helper.get.parsed-response).

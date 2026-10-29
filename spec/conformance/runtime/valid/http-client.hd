@@ -59,7 +59,16 @@ tests:
                 reason="client does not check status",
             )
             assert_equal(response.bytes(), .Ok([1, 2]), reason="body retained")
-        assert_equal(http.received()[0].headers, request.headers, reason="only request headers")
+        assert_equal(
+            http.received()[0].header(.AcceptEncoding),
+            .None,
+            reason="the provider sees exactly the caller's headers",
+        )
+        assert_equal(
+            request.header(.AcceptEncoding),
+            .None,
+            reason="advertisement does not mutate the caller's request",
+        )
         assert_equal(
             request.bytes(),
             .Err(BodyError.Used),

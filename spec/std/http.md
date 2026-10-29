@@ -571,9 +571,11 @@ pub enum HttpError:
     Status(response: Response)
     InvalidHeader(name: string)
     Body(error: BodyError)
+    InvalidContentEncoding(encoding: string)
+    OutputTooLarge
 ```
 
-1. r[std-http.error.decl-message-errors] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
+1. r[std-http.error.decl-decoded-response-errors] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
 2. r[std-http.error.traits] `HttpError` implements `Eq`, `Debug`, `Display`, and `std.error.Error`.
 
 | Rule | Variant | Means |
@@ -587,6 +589,8 @@ pub enum HttpError:
 | r[std-http.error.redirect-argument-limit] Redirects | `TooManyRedirects(url)` | the response exceeded a positive `send!` redirect limit; `url` is the last target |
 | r[std-http.error.other] Other | `Other(message)` | any other failure, with the provider's message |
 | r[std-http.error.status-response-value] Status | `Status(response)` | `Response.ok` found a status from 400 to 599, retaining the whole response |
+| r[std-http.error.invalid-content-encoding] Invalid content encoding | `InvalidContentEncoding(encoding)` | a response content coding was unsupported or malformed; `encoding` names the coding |
+| r[std-http.error.output-too-large] Output too large | `OutputTooLarge` | a decoded response would exceed 64 MiB |
 
 3. r[std-http.error.not-granted.plain] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted`, with the host for `HOST`.
 4. r[std-http.error.status.safe-response-text] `Status(response)` displays `HTTP status STATUS for URL`, with the response status and its URL before any query or fragment.
@@ -599,6 +603,8 @@ pub enum HttpError:
 11. r[std-http.error.invalid-header-display] `InvalidHeader(name)` displays `invalid header NAME`, using its header name.
 12. r[std-http.error.body-display] `Body(error)` displays the body error's Display text.
 13. r[std-http.error.from-body] `From[BodyError] for HttpError` wraps its input in `HttpError.Body`.
+14. r[std-http.error.invalid-content-encoding-display] `InvalidContentEncoding(encoding)` displays `invalid HTTP content encoding ENCODING`, using `encoding` for `ENCODING`.
+15. r[std-http.error.output-too-large-display] `OutputTooLarge` displays `the decoded HTTP response exceeds 64 MiB`.
 
 ## Sending
 
@@ -635,6 +641,43 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 > **Why.** A status is data about a request that worked, as with `fetch`
 > and Go, and as a non-zero exit status is for `Process`. Header pairs
 > keep a repeated header, which a map would lose.
+
+## Decoded Responses
+
+A successful host send exposes one bounded decoded representation to every
+body reader. Compression is transport policy; no inflater is linked into the
+program Wasm.
+
+```hd
+use std.http.{Http, HttpError, Request, Url}
+
+fn decoded_text!(url: string) -> Result[string, HttpError] $ Http:
+    response := Request::get(Url::parse(url)?).send!()?
+    .Ok(response.text()?)
+```
+
+1. r[std-http.decode.raw-transport-advertise-default] Before sending a request that has neither `Accept-Encoding` nor `Range`, the Node and native Wasmtime transports add `Accept-Encoding: gzip, deflate` to the wire request.
+2. r[std-http.decode.explicit-accept-encoding] An explicit `Accept-Encoding` value is preserved and does not change the decoded-response contract.
+3. r[std-http.decode.raw-transport-range-identity] Before sending a request with `Range` and without `Accept-Encoding`, the Node and native Wasmtime transports add `Accept-Encoding: identity` to the wire request.
+4. r[std-http.decode.platform-advertise] A Fetch- or XHR-based provider adds no `Accept-Encoding` field because the platform controls compression negotiation.
+5. r[std-http.decode.provider-request-headers] An `Http` provider, including `ScriptedHttp`, receives exactly the request headers the caller wrote.
+6. r[std-http.decode.portable-codings] A raw-transport host recognizes the response content codings `gzip`, zlib-wrapped `deflate`, and `identity`; raw DEFLATE is not `deflate`.
+7. r[std-http.decode.all-content-encoding-fields] A raw-transport host parses every comma-separated token of every `Content-Encoding` field.
+8. r[std-http.decode.stacked-reverse] A raw-transport host validates the complete coding stack, then decodes supported stacked codings in reverse order.
+9. r[std-http.decode.no-partial-stack] If any coding in a stack is unsupported, sending returns `HttpError.InvalidContentEncoding(encoding)` without applying a supported part of the stack or constructing a `Response`.
+10. r[std-http.decode.corrupt] A malformed, truncated, or checksum-invalid supported stream returns `HttpError.InvalidContentEncoding(encoding)` without constructing a `Response`.
+11. r[std-http.decode.gzip-members] A gzip response may contain concatenated members; their decoded bytes are concatenated and every member trailer is checked.
+12. r[std-http.decode.normalize-headers] After decoding a response with `Content-Encoding`, the provider removes every `Content-Encoding` and `Content-Length` field because they described the encoded representation.
+13. r[std-http.decode.cap] A provider eagerly buffers at most 64 MiB of decoded response bytes. Exactly 67,108,864 bytes succeeds; the next byte returns `HttpError.OutputTooLarge` without a `Response`.
+14. r[std-http.decode.all-body-readers] `Response.bytes`, `text`, `json`, and `form` all read the same bounded decoded body.
+15. r[std-http.decode.bodyless] A response to `HEAD`, or with status 1xx, 204, or 304, has no body to decode.
+16. r[std-http.decode.platform-decoded] A Fetch- or XHR-based provider treats the platform's response bytes as decoded, enforces the 64 MiB cap, and removes stale `Content-Encoding` and `Content-Length` fields.
+17. r[std-http.decode.scripted] `ScriptedHttp` treats each queued response as already decoded and performs no compression work.
+
+> **Why.** Validating a whole stack before decoding prevents a partially
+> transformed body whose remaining header no longer describes its bytes. The
+> host owns buffering and decoding so programs that do not send HTTP link no
+> decompressor.
 
 ## Status And JSON
 
