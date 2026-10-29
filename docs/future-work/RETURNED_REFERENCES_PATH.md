@@ -109,6 +109,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 6. Stored references | lifetime parameters on structs and enums; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
 | 7. Exclusivity | a live borrow freezes its path's shape; static for unaliased roots, borrow flags through `*mut` (panic `borrow-conflict`) | enum payload places (`as_mut`), exclusive guard captures, uncounted element and heap references | static plus flags |
 | 8. Uncounted scoped references | the backend drops the counts that stage 7 makes unnecessary | the perf payoff | none |
+| 9. Views, if needed | a parameter names the fields it borrows, `user: &{name} User` (hypothetical, Rust's proposed view types) | `n := get_name(&u); u.tags.push(x)` | static |
 
 **What stage 7 rejects.** These earlier programs become errors where the
 checker sees the source, and panics through a counted alias:
@@ -117,8 +118,28 @@ checker sees the source, and panics through a counted alias:
   (it panicked `collection-pinned` before);
 - replacing a `*mut` field that a live result's path crosses (it was valid
   before, with a stale result);
-- under a full Swift law (question 1), also any plain write to the source
-  while a `&mut` result is live.
+
+Stage 7 freezes shape only, never plain writes: `n := u.name(); u.age += 1`
+stays valid, as does `swap(&mut xs[i], &mut xs[j])`. Swift's full law,
+where a live `&mut` bars every other access, is not taken.
+
+**Precision at a call.** A lifetime says how long a result lives, not which
+part of its source it points into. In `fn get_name(user: &User) -> &string`
+the caller knows only that the result depends on `user`, so stage 7 freezes
+the shape of everything reachable from `user`:
+
+```text
+n := get_name(&u)
+u.age += 1          # valid: a plain write
+u.tags.push("x")    # stage 7 error: `u`'s shape is frozen while `n` is live
+```
+
+That is sound and less strict than Rust, which bars every write to `u`
+there. Naming the part, as `-> &{user.name} string` would, is not something
+a lifetime can express. A later stage may add it on the parameter instead,
+as Rust's proposed view types do (`user: &{name} User`, hypothetical): the
+body may reach only `name`, and the caller freezes only that subtree. It is
+taken only if the whole-source freeze proves too strict in real code.
 
 ### Stage 2: frame-slot results
 
@@ -404,18 +425,13 @@ Stop at 1.5 times that. Run time:
 - `element-reference-outlives-call` (existing), for rule 8.
 
 ## Owner Questions
-1. **Exclusivity, stage 7.** Freeze a borrowed path's shape only (length,
-   variant, references along it), or follow Swift's full law, where a live
-   `&mut` result bars every other access. **Recommendation:** shape only.
-   It generalizes E, and keeps `swap(&mut xs[i], &mut xs[j])` and
-   `n := u.name(); u.age += 1` valid.
-2. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
+1. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
    every escape row. **Recommendation:** drop it on all rows with stage 1,
    since it cannot work for a field or an element.
-3. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
+2. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
    `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
    stage 5 lifts it properly.
-4. **The generic default, stage 5.** Every `T` may hold a local reference,
+3. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
