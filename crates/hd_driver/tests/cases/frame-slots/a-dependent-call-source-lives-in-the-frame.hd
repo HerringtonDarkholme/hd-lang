@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: v8 release
+# `user.name()` returns a reference into `user`
+# (spec/lang/13-values-and-references.md#dependent-results). The ownership
+# passes keep `user` alive until the result's last use, so `user` lives in
+# a slot of the frame (§23.38), not in a counted cell (`rt:new`). The
+# getter takes a second reference parameter, so it stays a call.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self, seen: &mut i32) -> &string:
+        *seen = *seen + 1
+        &self.name
+
+# subject
+fn length() -> usize:
+    let mut seen = +0
+    user := User { name: "ada", age: 36 }
+    n := user.name(&mut seen)
+    n.len()

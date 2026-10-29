@@ -513,9 +513,8 @@ impl Em<'_, '_, '_> {
         // address, owned, and the local left empty. Where the reference
         // is no cell's address at this instance (a trait value's, an open
         // cell's view), it takes a count of its own and the local's count
-        // is released here, as the `Drop` the pass deleted did. A slot's
-        // is a loan whose `Drop` releases the slot's value
-        // ([`Em::slot_takes`]).
+        // is released here, as the `Drop` the pass deleted did. A frame
+        // local's count is never taken (`ref_word::FRAME`).
         if self.owned && self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
             let p = self.place(self.b.data[i as usize][0])?;
             let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
@@ -523,7 +522,7 @@ impl Em<'_, '_, '_> {
             };
             let x = l.idx();
             if self.slots.contains_key(&x) {
-                return self.counted_ref(i);
+                return unsupported("a reference that takes a frame slot's local");
             }
             let fat = self.ref_target(self.ty(i)).is_some_and(|(_, f)| f);
             let cell = self.is_cell(x);

@@ -98,22 +98,6 @@ impl Em<'_, '_, '_> {
                         self.view_loans.insert(x, flag);
                     }
                 }
-                // A reference to all of a local in a slot (§23.38) takes
-                // no count: a count of a slot's address does nothing. One
-                // that takes the local at its last access releases the
-                // slot's value at its `Drop`.
-                Tag::Ref
-                    if super::shape::ref_local(self.b, i)
-                        .is_some_and(|l| self.slots.contains_key(&l))
-                        && self.b.decode_place(a).is_some_and(|p| p.proj.is_empty()) =>
-                {
-                    self.loans.insert(x);
-                    if w & hd_tir::ir::ref_word::TAKES != 0
-                        && let Some(l) = super::shape::ref_local(self.b, i)
-                    {
-                        self.slot_takes.insert(x, l);
-                    }
-                }
                 // A reference into what a lent parameter refers to
                 // (`ref_word::LENT`) takes no count where the referent is
                 // physical; a view's projection makes one, which the flag
@@ -161,6 +145,114 @@ impl Em<'_, '_, '_> {
                     }
                 }
                 _ => {}
+            }
+        }
+        self.frame_loans();
+    }
+
+    /// The addresses in the frame's slots (§23.38), which take no count, as
+    /// a count of a slot's address does nothing: a `Ref` of a slot local's
+    /// storage; a `Ref` through one of them, or through a local that holds
+    /// only them, to a part of its referent; a read of all of one; and a
+    /// coercion that keeps its value. A local every store of which stores
+    /// one holds no count ([`Em::loan_locals`]). A `Ref` to a part may be a
+    /// view's projection where it is no slot's, so its flag marks a fresh
+    /// one for its `Drop`, as a lent reference's does.
+    fn frame_loans(&mut self) {
+        use hd_tir::ir::{Proj, Root};
+        if self.slots.is_empty() {
+            return;
+        }
+        let b = self.b;
+        let n = b.len();
+        let thin = |em: &Self, t: Ty| {
+            !hd_mono::is_open(em.pool(), t) && em.ref_target(t).is_some_and(|(_, fat)| !fat)
+        };
+        // A local that may hold only slot addresses: a reference, stored
+        // whole, that no capture or cell reaches.
+        let mut holder: Vec<bool> = (0..b.local_ty.len())
+            .map(|l| {
+                !self.is_cell(l)
+                    && b.local_flags[l] & hd_tir::ir::local_flags::PARAM == 0
+                    && !b.cap_local.iter().any(|c| c.idx() == l)
+                    && !self.loan_locals.contains_key(&l)
+                    && thin(self, self.sub(b.local_ty[l]))
+            })
+            .collect();
+        for i in 0..n {
+            if let Some((l, false)) = b.stored_local(i) {
+                holder[l.idx()] = false;
+            }
+        }
+        let (mut loan, mut broke) = (vec![false; n], vec![false; n]);
+        let mut changed = true;
+        while changed {
+            broke.fill(false);
+            for i in 0..n {
+                let [a, v] = b.data[i];
+                let is = |loan: &[bool], v: u32| Ref(v).as_inst().is_some() && loan[v as usize];
+                let p = b.view(a);
+                let mut steps = p.steps(b);
+                let first = steps.next();
+                let fields = steps.all(|s| matches!(s, Proj::Field(_)));
+                // A block's value comes from its tail and the breaks to it,
+                // which come before it; a cleanup scope's is its body's.
+                let ok = match (b.tags[i], p.root, first) {
+                    (Tag::Ref, Root::Local(l), None | Some(Proj::Field(_))) => {
+                        fields && self.slots.contains_key(&(l as usize))
+                    }
+                    (Tag::Ref, Root::Local(l), Some(Proj::Deref)) => fields && holder[l as usize],
+                    (Tag::Ref, Root::Value(r), Some(Proj::Deref)) => fields && loan[r as usize],
+                    (Tag::Read, Root::Local(l), None) => holder[l as usize],
+                    (Tag::Read, Root::Value(r), None) => loan[r as usize],
+                    (Tag::Coerce, ..) => b.same_value_coercion(i) && is(&loan, a),
+                    (Tag::Block, ..) => (v == NONE || is(&loan, v)) && !broke[i],
+                    (Tag::Scope, ..) => is(&loan, a) && !broke[i],
+                    (Tag::Break, ..) => {
+                        if let Some(&t) = b.label_inst.get(a as usize)
+                            && (t as usize) < n
+                            && !is(&loan, v)
+                        {
+                            broke[t as usize] = true;
+                        }
+                        false
+                    }
+                    _ => false,
+                };
+                let x = u32::try_from(i).expect("insts");
+                loan[i] = ok
+                    && thin(self, self.ty(x))
+                    && !matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_)));
+            }
+            changed = false;
+            for i in 0..n {
+                let v = b.data[i][1];
+                if let Some((l, true)) = b.stored_local(i)
+                    && holder[l.idx()]
+                    && v != NONE
+                    && !(Ref(v).as_inst().is_some() && loan[v as usize])
+                {
+                    holder[l.idx()] = false;
+                    changed = true;
+                }
+            }
+        }
+        for i in (0..n).filter(|&i| loan[i]) {
+            let x = u32::try_from(i).expect("insts");
+            self.loans.insert(x);
+            let p = b.view(b.data[i][0]);
+            let part = b.tags[i] == Tag::Ref && p.steps(b).any(|s| matches!(s, Proj::Field(_)));
+            if part && !self.view_loans.contains_key(&x) {
+                let flag = self.f.local(crate::module::Val::I32);
+                self.view_loans.insert(x, flag);
+            }
+        }
+        for i in 0..n {
+            if let Some((l, true)) = b.stored_local(i)
+                && holder[l.idx()]
+                && b.data[i][1] != NONE
+            {
+                self.loan_locals.entry(l.idx()).or_insert(b.data[i][1]);
             }
         }
     }
@@ -454,11 +546,6 @@ impl Em<'_, '_, '_> {
     /// Releases value `x`'s count, when it holds a counted value, and
     /// zeroes its locals.
     pub(super) fn release_value(&mut self, x: u32) -> StageResult<()> {
-        // A loan of a slot that took its local (`Em::slot_takes`): the
-        // local's release, after the reference's last use.
-        if let Some(&l) = self.slot_takes.get(&x) {
-            return self.release_local(l);
-        }
         let Some(ls) = self.vals.get(&x).cloned() else {
             return Ok(());
         };

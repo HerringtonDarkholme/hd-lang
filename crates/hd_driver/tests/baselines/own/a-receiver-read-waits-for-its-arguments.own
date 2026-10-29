@@ -96,13 +96,14 @@ fn changed_by_argument(items: List[Info]) -> usize:
 >   %0 = Read move [$0] : List[Info]
 >   %1 = NewStruct [%0] : Members
 >   %2 = Store [$1] %1 : ()
->   %8 = Block %7 : usize
+>   %9 = Block %8 : usize
     m.at(m.pop())
 >   %3 = Read copy [$1] : Members
->   %4 = Ref take mut local [$1] : Counted[mut Members]
+>   %4 = Ref mut local frame [$1] : Counted[mut Members]
 >   %5 = Call app/main/impl Members.pop[] (%4) : usize
 >   %6 = Drop [%4] : ()
->   %7 = Call app/main/impl Members.at[] (%3, %5) : usize
+>   %7 = Drop [$1] : ()
+>   %8 = Call app/main/impl Members.at[] (%3, %5) : usize
 >   %3 finds [$1] full
 >   %4 finds [$1] full
 >   exit sub 0 drops [$0]

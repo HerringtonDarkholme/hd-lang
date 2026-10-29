@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: v8 release
+# `tally` is declared in the loop's body and `r` refers to it only within
+# the iteration (spec/lang/13-values-and-references.md#local-scope). Each
+# iteration stores its value in the same slot of the frame (§23.38), after
+# the last iteration's value is released: no `rt:new` cell.
+struct Tally:
+    n: i64
+    name: string
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+# subject
+fn each(k: i64) -> i64:
+    let sum: i64 = 0
+    for i in 0..k:
+        let mut tally = Tally { n: i, name: "tally" }
+        let r = &mut tally
+        bump(r)
+        sum = sum + r.n
+    sum

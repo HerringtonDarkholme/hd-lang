@@ -50,6 +50,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 mod borrow;
 pub(crate) use borrow::keeps_drops;
 pub(crate) mod flow;
+mod frame;
 pub(crate) mod hoist;
 mod insert;
 mod known;
@@ -135,6 +136,15 @@ pub trait OwnCx {
     /// count of it copies: a list, a map, a struct holding one in a field
     /// at any depth, or a type the instance decides. Hoisting reads it.
     fn holds_coll(&self, ty: Ty) -> bool;
+    /// Whether a value of `ty` may hold a local reference: a reference of
+    /// either kind (a `&self` receiver's address has the counted
+    /// carrier), a trait value, or a type built of one. A type parameter
+    /// never does (`ref.local.escape.generic-argument`). Frame locals' origins follow such
+    /// values (`frame`). The default answers yes.
+    fn holds_ref(&self, ty: Ty) -> bool {
+        let _ = ty;
+        true
+    }
     /// Whether the optimized pipeline's release summaries read the body's
     /// result (`docs/future-work/RELEASE_INTERPROC.md`): an owned parameter
     /// whose only kept reads go to binding locals is then left unowned too,
@@ -407,6 +417,7 @@ pub struct OwnScratch {
     /// insertion's edits, then after them for the passes that follow.
     pub(crate) topo: Topology,
     pub(crate) borrow: borrow::Tables,
+    pub(crate) frame: frame::Tables,
     pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
     pub(crate) known: known::Tables,
@@ -704,6 +715,9 @@ pub(crate) mod tests {
                 }
                 if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::TAKES != 0 {
                     line.push_str(" take");
+                }
+                if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::FRAME != 0 {
+                    line.push_str(" frame");
                 }
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::HOISTED {
                     line.push_str(" hoisted");
@@ -1397,6 +1411,43 @@ pub(crate) mod tests {
             errs.iter().any(|e| e.what.contains("takes a cell's count")),
             "{errs:?}"
         );
+    }
+
+    /// A frame local (`frame`): a local reference to `$0` bound to `$1`
+    /// keeps `$0` alive until the last read through `$1`, past the
+    /// reference's own statement, and never takes its count. A reference
+    /// that is not local (no `ref_word::LOCAL`) leaves `$0` in its cell,
+    /// taken at its last access.
+    #[test]
+    fn a_frame_local_lives_until_the_last_read_through_its_reference() {
+        let n = NodeIdx::from_raw(1);
+        let body = |bits: u32| {
+            passes(
+                move |b| {
+                    let x = local(b, 0);
+                    let r = local(b, 0);
+                    let s = call(b, 7, &[], Ty::STRING);
+                    b.set(x, s, n);
+                    let word = b.place(&format!("[${}]", x.raw()).parse().expect("place"));
+                    let at = b.emit(Tag::Ref, word, bits, Ty::STRING, n);
+                    b.set(r, at, n);
+                    let through = b.place(&format!("[*${}]", r.raw()).parse().expect("place"));
+                    let v = b.emit(Tag::Read, through, ReadMode::Use as u32, Ty::STRING, n);
+                    call(b, 8, &[v], Ty::VOID);
+                    None
+                },
+                Ty::VOID,
+            )
+        };
+        let frame = body(crate::ir::ref_word::LOCAL);
+        let x_drop = frame.find("Drop [$0]").expect("a drop of $0");
+        assert!(frame.contains("Ref frame [$0]"), "{frame}");
+        assert!(
+            frame.find("Read copy [*$1]").expect("the read") < x_drop,
+            "{frame}"
+        );
+        let counted = body(0);
+        assert!(counted.contains("Ref take [$0]"), "{counted}");
     }
 
     /// Known-null's rule 5: a celled local is full once a store ran on

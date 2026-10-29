@@ -50,9 +50,10 @@ fn fresh() -> void:
 >   local $0 c: Counter [read assigned captured captured-assigned]
 >   %0 = NewStruct [0:i32 "a"] : Counter
 >   %1 = Store [$0] %0 : ()
->   %5 = Block - : ()
+>   %6 = Block - : ()
     tick(&mut c)
->   %2 = Ref take mut local [$0] : Counted[mut Counter]
+>   %2 = Ref mut local frame [$0] : Counted[mut Counter]
 >   %3 = Call app/main/tick[] (%2) : ()
 >   %4 = Drop [%2] : ()
+>   %5 = Drop [$0] : ()
 >   %2 finds [$0] full

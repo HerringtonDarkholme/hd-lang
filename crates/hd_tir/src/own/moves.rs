@@ -32,7 +32,8 @@
 //!    count of the cell (`ref_word::TAKES`); the local's `Drop` right after
 //!    it goes. Not in a sub-body that holds a suspension point (an
 //!    `Await`, as known-null's points), whose frame saves the cell's local
-//!    at each point.
+//!    at each point, and not for a frame local (`ref_word::FRAME`), whose
+//!    `Drop` follows the uses of every reference into it.
 //!
 //! "No path reads it again" is a backward liveness walk over the
 //! structured control flow of each sub-body, with one bit per candidate
@@ -226,6 +227,10 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
             Tag::Ref => {
                 if let Some(l) = b.local_in_place(a) {
                     t.addr[l.idx()] = true;
+                    // A frame local's references are its own uses.
+                    if w & crate::ir::ref_word::FRAME != 0 {
+                        t.keep_l[l.idx()] = true;
+                    }
                 }
             }
             // A binding local holds a borrowed value: it owns no count.

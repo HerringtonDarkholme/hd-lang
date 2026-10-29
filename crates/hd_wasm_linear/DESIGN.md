@@ -2252,26 +2252,34 @@ frame on the **local stack** instead.
   `&mut T` expression, and the address a call's `&self` or `&mut self`
   receiver takes. Nothing reads a callee's body: the bit comes from the
   declarations alone.
-- **Which locals** (`closure::slot_locals`). Every `Ref` of the local
-  carries the bit. Each one is an argument of a single `Call`,
-  `CallValue` or `CallDyn`, never a bang call's `Await`. Its `Drop`, if
-  any, follows in the same block, and nothing between opens a block or
-  ends, replaces or moves the whole local. The reference then ends
-  before the local does. A `Ref` that takes the local at its last access
-  (`TAKES`, whose pass deleted the local's `Drop`) needs that `Drop`.
+- **Which locals.** The ownership passes mark the **frame locals**
+  (`hd_tir/src/own/frame.rs`): a local of the function's root sub-body,
+  not a parameter or a capture, every `Ref` of whose storage is a local
+  reference there, in a root with no suspension point. No value that may
+  point into it (its origins, as the checker's
+  `spec/lang/13-values-and-references.md#dependent-results` solve them)
+  may be stored outside the body's locals, returned, awaited, captured or
+  read by a cleanup suite. The passes count each use of such a value as a
+  use of the local, so its `Drop` follows the last one: a bound
+  reference's (`let r = &x`), a dependent call's source's and its
+  result's. No such use lies outside the local's scope
+  (`spec/lang/13-values-and-references.md#local-scope`), so the `Drop`
+  stays in the local's block, and a loop's next iteration sees no
+  reference into the last one's value. A frame local's count is never
+  taken (`ref_word::TAKES`). Its `Ref`s carry `ref_word::FRAME`, and a
+  local all of whose `Ref`s do lives in a slot (`closure::slot_locals`).
   Every other local keeps its cell: a parameter, a closure's capture, a
   local of a closure's body or a suspending one, an erased body's, one a
-  counted `*T` refers to, and a reference bound to a local.
+  counted `*T` refers to, and one an escaping value may point into.
 - **The slot** is the cell's layout with a zero count word before it, as
   a static object has, so `retain_known` and `release_known` do
   nothing there. The value is stored at the declaration, after the last
   value in the slot is released. The local's release releases the value,
-  not the slot. A `Ref` of the whole local is a loan, with no count. A
-  taking one's `Drop` releases the value in the slot, as the local's
-  deleted `Drop` would have (`Em::slot_takes`). Before this, a taking
-  `Ref` kept the local in a cell, so nbody's `bodies`, last read by
-  `energy(&bodies)`, paid a retain and a release around each of 1.15M
-  `advance(&mut bodies)` calls (#165).
+  not the slot. A reference into a slot takes no count, and neither does
+  one made through it to a part of its referent, a read of all of one, a
+  block's value that only such references reach, or a local every store
+  of which stores one (`Em::frame_loans`). A count of a slot's address
+  would do nothing.
 - **The local stack** grows down in memory 0, in pages the program grows
   itself. The allocator marks those pages static, as it does every page
   it did not grow (§23.5), so a count update through a slot's address,

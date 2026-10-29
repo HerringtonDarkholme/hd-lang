@@ -3,7 +3,7 @@ app/main/lent
   local $1 xs: List[string] [read assigned captured captured-assigned]
   local $2 s: string [:= read assigned]
   %2 = Read copy [$1] : List[string]
-  %3 = Ref mut local [$1] : Counted[mut List[string]]
+  %3 = Ref mut local frame [$1] : Counted[mut List[string]]
   %4 = Call app/main/pick[] (%3) : usize
   %5 = Drop [%3] : ()
   %6 = Read copy [%2 [%4]] : string

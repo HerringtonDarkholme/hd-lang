@@ -726,6 +726,12 @@ pub mod ref_word {
     /// which never outlives its use
     /// (spec/lang/13-values-and-references.md#local-references).
     pub const LOCAL: u32 = 8;
+    /// Set by insertion: a `Ref` of the storage of a frame local, one that
+    /// the passes keep alive over every use of a value that may point into
+    /// it, so the backend may keep it in a slot of the function's frame
+    /// (`crates/hd_wasm_linear/DESIGN.md` §23.38). Its count is never
+    /// taken (`TAKES`). The checker never sets it (invariant 22).
+    pub const FRAME: u32 = 16;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -2047,6 +2053,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
                 "a `Ref` that takes its local's count before the passes".to_owned()
             }
             Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
+            Tag::Ref if w & ref_word::FRAME != 0 => "a frame `Ref` before the passes".to_owned(),
             _ => continue,
         };
         errs.push(VerifyError {

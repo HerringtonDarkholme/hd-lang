@@ -1045,11 +1045,6 @@ struct Em<'i, 'a, 'm> {
     /// A handle body's once-cell key: its cells live in static data, as
     /// the body runs once per instance ([`closure::Em::raw_cell`]).
     static_cells: Option<Hash128>,
-    /// The references that take a slot local's value at its last access
-    /// (`ref_word::TAKES`), each with its local: a loan, whose `Drop`
-    /// releases the value in the slot, as the local's `Drop` the move
-    /// pass deleted would have.
-    slot_takes: HashMap<u32, usize>,
     /// With slots: the local holding the frame's address, and the
     /// frame's size.
     frame: Option<(u32, u32)>,
@@ -1169,7 +1164,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             entry_cells: hd_base::HashSet::default(),
             slots: HashMap::default(),
             static_cells: None,
-            slot_takes: HashMap::default(),
             frame: None,
             drive_buffer: None,
             ops: None,

@@ -12,10 +12,7 @@ use hd_base::HashSet;
 use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, NodeIdx, StageResult};
 use hd_mono::Target;
-use hd_tir::ir::{
-    Body, CaptureMode, NONE, PlaceRoot, ReadMode, Role, Tag, Topology, Word, local_flags, ref_word,
-    slots, sub_flags,
-};
+use hd_tir::ir::{Body, CaptureMode, NONE, Tag, Topology, local_flags, ref_word, sub_flags};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -76,27 +73,14 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
 
 /// The locals of `roots` that live in a slot of the function's frame on
 /// the local stack, not in a counted cell (`crates/hd_wasm_linear/DESIGN.md`
-/// §23.38): those whose every `Ref` makes a local reference
-/// (`ref_word::LOCAL`, so no counted `*T` is made of it) that is an
-/// argument of one call, `Call`, `CallValue` or `CallDyn` (never a bang
-/// call's `Await`), and whose `Drop`, if any, follows in the same block,
-/// with nothing between that opens a block or ends, replaces or moves the
-/// whole local. Such a reference ends before the local does, so nothing
-/// needs the slot after the local's own release. A call whose result
-/// holds a local reference (`dependent`) may return the reference, which
-/// outlives the call, so an argument of one keeps its local in a cell
-/// (spec/lang/13-values-and-references.md#dependent-results). A reference that takes
-/// the local at its last access (`ref_word::TAKES`, the move pass's rule
-/// 4, which deletes the local's `Drop`) needs its `Drop` in that block:
-/// it releases the slot's value there ([`Em::slot_takes`]). A parameter,
-/// a local a closure captures and one in a closure's body keep their
-/// cells.
-pub(super) fn slot_locals(
-    b: &Body,
-    roots: &[usize],
-    topo: &Topology,
-    dependent: &dyn Fn(Ty) -> bool,
-) -> HashSet<usize> {
+/// §23.38): those every `Ref` of whose own storage makes a local
+/// reference of a frame local (`ref_word::LOCAL` and `ref_word::FRAME`)
+/// in the body's root. The ownership passes keep a frame local alive over
+/// every use of a value that may point into it, and no such value
+/// outlives its scope (spec/lang/13-values-and-references.md#local-scope),
+/// so nothing needs the slot after the local's own release. A parameter
+/// and a local a closure captures keep their cells.
+pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
     let mut out: HashSet<usize> = roots
         .iter()
         .copied()
@@ -104,96 +88,20 @@ pub(super) fn slot_locals(
             b.local_flags[l] & local_flags::PARAM == 0 && !b.cap_local.iter().any(|c| c.idx() == l)
         })
         .collect();
-    if out.is_empty() {
-        return out;
-    }
-    let mut refs: HashMap<u32, usize> = HashMap::default();
     for i in 0..b.len() {
-        let Some(l) = super::shape::ref_local(b, i).filter(|l| out.contains(l)) else {
+        if out.is_empty() {
+            break;
+        }
+        let Some(l) = (b.tags[i] == Tag::Ref)
+            .then(|| b.local_in_place(b.data[i][0]))
+            .flatten()
+        else {
             continue;
         };
         let w = b.data[i][1];
-        if w & ref_word::LOCAL == 0 || topo.sub[i] != 0 {
-            out.remove(&l);
-        }
-        refs.insert(u32::try_from(i).expect("instructions"), l);
-    }
-    // Each reference's calls and drops, and the references used otherwise.
-    let mut calls: HashMap<u32, Vec<u32>> = HashMap::default();
-    let mut drops: HashMap<u32, Vec<u32>> = HashMap::default();
-    let mut other: HashSet<u32> = HashSet::default();
-    for j in 0..b.len() {
-        let j32 = u32::try_from(j).expect("instructions");
-        slots(b, j, |_, v, w| {
-            let Word::Value(role) = w else {
-                return;
-            };
-            if !refs.contains_key(&v) {
-                return;
-            }
-            match (b.tags[j], role) {
-                (Tag::Call | Tag::CallValue | Tag::CallDyn, Role::Arg(_))
-                    if !dependent(b.ty[j]) =>
-                {
-                    calls.entry(v).or_default().push(j32);
-                }
-                (Tag::Drop, Role::Dropped) => drops.entry(v).or_default().push(j32),
-                _ => {
-                    other.insert(v);
-                }
-            }
-        });
-    }
-    let ends_local = |m: usize, l: usize| {
-        let whole = |word: u32| {
-            b.decode_place(word).is_some_and(|p| {
-                matches!(p.root, PlaceRoot::Local(x) if x.idx() == l) && p.proj.is_empty()
-            })
-        };
-        match b.tags[m] {
-            Tag::Drop | Tag::Store => whole(b.data[m][0]),
-            Tag::Read => whole(b.data[m][0]) && b.data[m][1] == ReadMode::Move as u32,
-            Tag::Ref => whole(b.data[m][0]) && b.data[m][1] & ref_word::TAKES != 0,
-            _ => false,
-        }
-    };
-    for (&r, &l) in &refs {
-        if !out.contains(&l) {
-            continue;
-        }
-        let fits = (|| {
-            if other.contains(&r) {
-                return false;
-            }
-            let ([j], d) = (calls.get(&r).map_or(&[][..], Vec::as_slice), drops.get(&r)) else {
-                return false;
-            };
-            let takes = b.data[r as usize][1] & ref_word::TAKES != 0;
-            let end = match d.map(Vec::as_slice) {
-                None | Some([]) if !takes => *j,
-                Some([d]) => *d,
-                _ => return false,
-            };
-            let blk = topo.blk[r as usize];
-            if blk == NONE || topo.blk[*j as usize] != blk || topo.blk[end as usize] != blk {
-                return false;
-            }
-            let (from, call, to) = (
-                topo.pos[r as usize],
-                topo.pos[*j as usize],
-                topo.pos[end as usize],
-            );
-            if !(from < call && call <= to) {
-                return false;
-            }
-            let members = b.record(b.data[blk as usize][0]);
-            members[from as usize + 1..=to as usize].iter().all(|&m| {
-                let m = m as usize;
-                topo.first[m] as usize == m && !ends_local(m, l)
-            })
-        })();
-        if !fits {
-            out.remove(&l);
+        let frame = ref_word::LOCAL | ref_word::FRAME;
+        if w & frame != frame || topo.sub[i] != 0 {
+            out.remove(&l.idx());
         }
     }
     out
@@ -369,11 +277,7 @@ impl Em<'_, '_, '_> {
     /// object's, then the value in its cell's layout, so a count update
     /// through the slot's address does nothing.
     pub(super) fn plan_slots(&mut self, roots: &[usize]) -> StageResult<()> {
-        let local = self.env().ref_cells().local;
-        let dependent = |t| holds_local_carrier(self.pool(), local, t, 0);
-        let mut ls: Vec<usize> = slot_locals(self.b, roots, &self.topo, &dependent)
-            .into_iter()
-            .collect();
+        let mut ls: Vec<usize> = slot_locals(self.b, roots, &self.topo).into_iter().collect();
         if ls.is_empty() {
             return Ok(());
         }
@@ -733,31 +637,5 @@ impl Em<'_, '_, '_> {
         self.call_results(i, ty)?;
         self.release_ctx(c);
         Ok(())
-    }
-}
-
-/// Whether a value of type `t` holds the local reference carrier `local`
-/// (`Ref[T]`) anywhere.
-fn holds_local_carrier(
-    pool: &hd_types::InternPool,
-    local: hd_base::DefId,
-    t: Ty,
-    depth: u32,
-) -> bool {
-    if depth > 32 {
-        return false;
-    }
-    let any = |l| {
-        pool.list_items(l)
-            .iter()
-            .any(|&a| holds_local_carrier(pool, local, a, depth + 1))
-    };
-    match pool.get(t) {
-        TyData::Adt { def, args } => def == local || any(args),
-        TyData::Tuple { elems, rest } => {
-            any(elems) || rest.is_some_and(|r| holds_local_carrier(pool, local, r, depth + 1))
-        }
-        TyData::Option(i) | TyData::Mut(i) => holds_local_carrier(pool, local, i, depth + 1),
-        _ => false,
     }
 }

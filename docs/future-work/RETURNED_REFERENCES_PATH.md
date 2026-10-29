@@ -13,6 +13,10 @@ and #995. It changes no spec, compiler or std code.
 caller side are in the spec as
 [Dependent Results](../../spec/lang/13-values-and-references.md#dependent-results)
 (#1002). Rule 9 is #1003, the fix-it removal #1004, rule 11 #996.
+Stage 2's error is [Local Scope](../../spec/lang/13-values-and-references.md#local-scope)
+(#1007); its backend part, frame slots for bound references and dependent
+calls and inlined getters, is `crates/hd_wasm_linear/DESIGN.md` §23.38
+(#1006).
 
 ## Context
 

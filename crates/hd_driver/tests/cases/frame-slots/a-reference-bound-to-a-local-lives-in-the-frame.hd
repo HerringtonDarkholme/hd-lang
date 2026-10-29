@@ -1,0 +1,21 @@
+# @dump: counts wat
+# @build: v8 release
+# `r` holds a local reference to `tally` past the statement that made it.
+# The ownership passes keep `tally` alive until `r`'s last use, so `tally`
+# lives in a slot of the function's frame (crates/hd_wasm_linear/DESIGN.md
+# §23.38): no `rt:new` cell, and no count of the reference, in or out of
+# the loop. The one release is of the value in the slot.
+struct Tally:
+    n: i64
+    name: string
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn bound(k: i64) -> i64:
+    # subject
+    let mut tally = Tally { n: 0, name: "tally" }
+    let r: &mut Tally = &mut tally
+    for _ in 0..k:
+        bump(r)
+    r.n

@@ -792,8 +792,10 @@ release, made explicit.
    last use, as `live::plan` places a value's release today.
 3. **Locals.** An owned local gets a `Drop [$l]` after the statement of
    the innermost block holding all its accesses that holds the last one
-   (today's `live::plan` rule). Parameters and captures live in the
-   sub-body's root block. A `Break` or `Continue` that leaves that block
+   (today's `live::plan` rule). A frame local's accesses include each use
+   of a value that may point into it (#1006,
+   `crates/hd_wasm_linear/DESIGN.md` §23.38). Parameters and captures live
+   in the sub-body's root block. A `Break` or `Continue` that leaves that block
    before the drop gets a `Drop` before it; the function's exit drops
    the rest through `exit_drops`.
 4. **Defer suites.** A place a suite reads counts as used at every exit
@@ -868,7 +870,7 @@ deletes the place's `Drop`:
    drops of the base's other counted fields, or nothing (#679).
 4. **References at last access.** A `Ref` of a celled local `$l` at its
    last access takes `$l`'s count of the cell, and `$l`'s drop goes
-   (#701).
+   (#701). A frame local's never does (#1006).
 
 Why it is sound: the place is read nowhere after the move, so nothing
 can see it empty; a jump past the move still drops the place, which

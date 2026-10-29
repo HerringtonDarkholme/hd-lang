@@ -72,7 +72,7 @@ fn pushes(n: usize) -> List[i32]:
 >   %12 finds [$1] full
 >   %13 finds [$1] full
     let p = items.pop()
->   %14 = Ref mut local [$1] : Counted[mut List[i32]]
+>   %14 = Ref mut local frame [$1] : Counted[mut List[i32]]
 >   %15 = Call std/collections/impl [ T ] List [ T ].pop[i32] (%14) : i32?
 >   %16 = Drop [%14] : ()
 >   %17 = Store [$2] %15 : ()

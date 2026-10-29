@@ -31,28 +31,29 @@ fn start() -> fn!(bool) -> void:
 >   local $2 c: Counter [read assigned captured captured-assigned]
 >   %0 = NewStruct [0:i32 "d"] : Counter
 >   %1 = Store [$0] %0 : ()
->   %17 = Block %16 : fn!(bool) -> ()
+>   %18 = Block %17 : fn!(bool) -> ()
     tick(&mut d)
->   %2 = Ref take mut local [$0] : Counted[mut Counter]
+>   %2 = Ref mut local frame [$0] : Counted[mut Counter]
 >   %3 = Call app/main/tick[] (%2) : ()
 >   %4 = Drop [%2] : ()
+>   %5 = Drop [$0] : ()
 >   %2 finds [$0] full
     fn!(go: bool) -> void:
->   %15 = Block - : ()
->   %16 = Closure #1 [%0 %0] : fn!(bool) -> ()
+>   %16 = Block - : ()
+>   %17 = Closure #1 [%0 %0] : fn!(bool) -> ()
         let mut c = Counter { hits: +0, name: "a" }
->   %5 = NewStruct [0:i32 "a"] : Counter
->   %6 = Store [$2] %5 : ()
+>   %6 = NewStruct [0:i32 "a"] : Counter
+>   %7 = Store [$2] %6 : ()
         if go:
->   %7 = Read copy [$1] : bool
->   %10 = If %7 [%9 -] : ()
+>   %8 = Read copy [$1] : bool
+>   %11 = If %8 [%10 -] : ()
             pause!()
->   %8 = Await app/main/pause[] () : ()
->   %9 = Block - : ()
+>   %9 = Await app/main/pause[] () : ()
+>   %10 = Block - : ()
         tick(&mut c)
->   %11 = Ref mut local [$2] : Counted[mut Counter]
->   %12 = Drop [$2] : ()
->   %13 = Call app/main/tick[] (%11) : ()
->   %14 = Drop [%11] : ()
->   %11 finds [$2] full
+>   %12 = Ref mut local [$2] : Counted[mut Counter]
+>   %13 = Drop [$2] : ()
+>   %14 = Call app/main/tick[] (%12) : ()
+>   %15 = Drop [%12] : ()
+>   %12 finds [$2] full
 >   exit sub 1 drops [$2]

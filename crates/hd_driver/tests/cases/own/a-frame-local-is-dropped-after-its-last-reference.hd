@@ -1,0 +1,16 @@
+# @dump: own
+# @build: v8 release
+# A frame local's accesses include every use of a value that may point into
+# it (crates/hd_tir/src/own/frame.rs): `tally`'s `Drop` follows the last
+# read through `r`, not its own last access, the `Ref` that made `r`. The
+# `Ref` is `frame`, so it never takes the local's count.
+struct Tally:
+    n: i64
+    name: string
+
+# subject
+fn last_read() -> i64:
+    let mut tally = Tally { n: 1, name: "tally" }
+    let r = &mut tally
+    r.n = r.n + 1
+    r.n

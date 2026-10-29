@@ -1,4 +1,4 @@
-# test: weak construction accepts a whole allocation and returns None for fields and elements, including a zero-offset field passed through a parameter
+# test: weak construction accepts a whole allocation and returns None for locals, fields and elements, including a zero-offset field passed through a parameter
 # Spec std/weak Weak Types And Construction: std-weak.new.readonly, std-weak.new.refuse, std-weak.new.some.
 use std.weak.weak
 
@@ -17,11 +17,11 @@ tests:
         item := box(Item { value: 1 })
         assert(weak(item).is_some(), reason="box starts a counted Item allocation")
 
-    it("accepts an address-taken local cell"):
+    it("refuses an address-taken local"):
         let mut local = Item { value: 4 }
-        assert(weak(&local).is_some(), reason="an address-taken local lives in a counted cell")
+        assert(weak(&local).is_none(), reason="a local is no counted allocation")
         local.value += 1
-        assert_equal(local.value, 5, reason="the strong local cell stays live")
+        assert_equal(local.value, 5, reason="the local stays live")
 
     it("refuses fields, elements, and a zero-offset first field"):
         holder := box(Holder { first: Item { value: 1 }, second: Item { value: 2 } })

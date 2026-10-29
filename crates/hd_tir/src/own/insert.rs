@@ -17,7 +17,8 @@
 //!    a match decision makes and an arm reads, the block of the `Match`.
 //! 3. **Locals.** An owned local gets a `Drop` after the statement of the
 //!    innermost block holding all its accesses that holds the last one
-//!    (the emitter's old rule, §23.20). Parameters and captures live in their
+//!    (the emitter's old rule, §23.20). A frame local's accesses include
+//!    every use of a value or a local that may point into it (`frame`). Parameters and captures live in their
 //!    sub-body's root block. Every owned local is in its sub-body's exit
 //!    set.
 //! 4. **Jumps.** A `Break`, `Continue` or `ToArm` gets a `Drop` before it
@@ -289,6 +290,11 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     let (topo, t, edits) = (&scratch.topo, &mut scratch.insert, &mut scratch.splice);
     edits.clear();
     t.reset(n, b.local_ty.len());
+    // Rule 3's accesses of a frame local include each use of a value or
+    // a local that may point into it (`frame`).
+    super::frame::run(b, topo, cx, &mut scratch.frame, |i, l| {
+        t.acc.push((topo.sub[i as usize], l, i));
+    });
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
     }
