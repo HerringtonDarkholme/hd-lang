@@ -103,6 +103,16 @@ fn value(body: &Body, word: u32, locals: &[Option<Value>], depth: usize) -> Opti
             };
             Some(Value::Scalar(u64::from(result)))
         }
+        Tag::And | Tag::Or if body.ty[i] == Ty::BOOL => {
+            let Value::Scalar(left) = value(body, a, locals, depth + 1)? else {
+                return None;
+            };
+            match (body.tags[i], left != 0) {
+                (Tag::And, false) => Some(Value::Scalar(0)),
+                (Tag::Or, true) => Some(Value::Scalar(1)),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -198,6 +208,25 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
     let empty = u32::try_from(out.extra.len()).expect("extra");
     out.extra.push(0);
     let mut folded = false;
+    // A decisive short-circuit operand is itself a branch. Replace the
+    // operator, not just an enclosing decision, so reachability does not
+    // retain the unevaluated right-hand block. Keep the left operand as an
+    // identity coercion because proving its value does not prove it has no
+    // effects.
+    for i in 0..body.len() {
+        let instruction = u32::try_from(i).expect("instructions");
+        if matches!(body.tags[i], Tag::And | Tag::Or)
+            && value(body, instruction, &locals, 0).is_some()
+        {
+            let coercion = u32::try_from(out.extra.len()).expect("records");
+            out.extra.push(2);
+            out.extra.push(Coercion::Identity as u32);
+            out.extra.push(NONE);
+            out.tags[i] = Tag::Coerce;
+            out.data[i] = [body.data[i][0], coercion];
+            folded = true;
+        }
+    }
     for i in 0..body.len() {
         let [a, b] = body.data[i];
         let chosen = match body.tags[i] {
@@ -387,6 +416,75 @@ mod tests {
         assert_eq!(out.syn, body.syn);
         assert_eq!(out.tags[dead.0 as usize], Tag::Block);
         assert_eq!(out.tags[kept.0 as usize], Tag::Call);
+        let errors = hd_tir::ir::verify(&out);
+        assert!(errors.is_empty(), "specialized TIR: {errors:?}");
+    }
+
+    #[test]
+    fn decisive_short_circuit_drops_its_rhs_and_unselected_branch() {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = b.open_block();
+        let left = b.open_block();
+        let left_call = b.call(
+            &Callee::Item {
+                def: DefId::from_raw(5),
+                targs: TyList::EMPTY,
+            },
+            &[],
+            Providers::None,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let left_value = b.const_value(Ty::BOOL, 0);
+        let left = b.close_block(left, Some(left_value), Ty::BOOL, NodeIdx::NONE);
+        let rhs = b.open_block();
+        let rhs_call = b.call(
+            &Callee::Item {
+                def: DefId::from_raw(2),
+                targs: TyList::EMPTY,
+            },
+            &[],
+            Providers::None,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let rhs_value = b.const_value(Ty::BOOL, 1);
+        let rhs = b.close_block(rhs, Some(rhs_value), Ty::BOOL, NodeIdx::NONE);
+        let cond = b.emit(Tag::And, left.0, rhs.0, Ty::BOOL, NodeIdx::NONE);
+        let yes = b.open_block();
+        let yes_call = b.call(
+            &Callee::Item {
+                def: DefId::from_raw(3),
+                targs: TyList::EMPTY,
+            },
+            &[],
+            Providers::None,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let yes = b.close_block(yes, None, Ty::VOID, NodeIdx::NONE);
+        let no = b.open_block();
+        let no_call = b.call(
+            &Callee::Item {
+                def: DefId::from_raw(4),
+                targs: TyList::EMPTY,
+            },
+            &[],
+            Providers::None,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let no = b.close_block(no, None, Ty::VOID, NodeIdx::NONE);
+        let blocks = b.refs_record(&[yes, no]);
+        b.emit(Tag::If, cond.0, blocks, Ty::VOID, NodeIdx::NONE);
+        let root = b.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        let body = b.finish(root, &[]).expect("valid function body");
+
+        let out = specialize(&body, &[]).expect("constant false short circuit");
+        assert_eq!(out.tags[left_call.0 as usize], Tag::Call);
+        assert_eq!(out.tags[rhs_call.0 as usize], Tag::Block);
+        assert_eq!(out.tags[yes_call.0 as usize], Tag::Block);
+        assert_eq!(out.tags[no_call.0 as usize], Tag::Call);
         let errors = hd_tir::ir::verify(&out);
         assert!(errors.is_empty(), "specialized TIR: {errors:?}");
     }

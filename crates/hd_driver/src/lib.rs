@@ -11543,6 +11543,16 @@ impl ProgramEnv for Env<'_> {
         // this body, or the generated walk/build specialization below is the
         // only pass which can introduce one.
         let candidate = (0..raw.len()).any(|call| {
+            if matches!(
+                hd_tir::inline::known_call(raw, call),
+                Some(hd_tir::Callee::TraitMethod { trait_, .. })
+                    if trait_ == self.run.known.structure
+            ) {
+                // An open `Structure` call is still `Bound` here.
+                // Substitution and `rechoose` below expose the generated
+                // facts, walk or build body which can contain the lookup.
+                return true;
+            }
             let Some(hd_tir::Callee::Item { def, targs }) = hd_tir::inline::plain_call(raw, call)
             else {
                 return false;
