@@ -2214,8 +2214,8 @@ trait Inspectable:
     fn runtime_type(self) -> TypeId
 
 impl dyn Inspectable:
-    pub fn downcast_ref[T < Inspectable](*self) -> (*T)?
-    pub fn downcast_mut[T < Inspectable](*mut self) -> (*mut T)?
+    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?
 
 impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId
@@ -2420,12 +2420,12 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 
 ### Recovering A Concrete Type
 
-1. r[trait.downcast.reference] `value.downcast_ref::[T]()` on `*dyn Inspectable` returns `.Some` of a `*T` exactly when its recorded concrete type has `T`'s runtime identity, and `.None` otherwise.
-2. r[trait.downcast.mutable-reference] `value.downcast_mut::[T]()` on `*mut dyn Inspectable` performs the same test and returns `Option[*mut T]`.
+1. r[trait.downcast.shared-local-reference] `value.downcast_ref::[T]()` on `&dyn Inspectable` returns `.Some` of a `&T` exactly when its recorded concrete type has `T`'s runtime identity, and `.None` otherwise.
+2. r[trait.downcast.mutable-local-reference] `value.downcast_mut::[T]()` on `&mut dyn Inspectable` performs the same test and returns `Option[&mut T]`.
 3. r[trait.downcast.reference-identity] The recovered reference refers to the original place, so `is` holds between it and the reference erased to the trait value.
 4. r[trait.downcast.exact.reference-values] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[*dyn Error]`.
 5. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
-6. r[trait.downcast.optional-reference] An erased reference to `User?` is recovered with target `User?`, giving `Option[*User?]`, and never with target `User`.
+6. r[trait.downcast.optional-local-reference] An erased reference to `User?` is recovered with target `User?`, giving `Option[&User?]`, and never with target `User`.
 7. r[trait.downcast.copy-through-reference] Dereferencing the recovered reference with `*found` copies its value under the ordinary value-copy rules.
 
 ```hd
@@ -2434,12 +2434,12 @@ use std.inspect.Inspectable
 struct User:
     name: string
 
-fn user_name(value: *dyn Inspectable) -> string:
+fn user_name(value: &dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
         .Some(user) => user.name
         .None => "not a user"
 
-fn number(value: *dyn Inspectable) -> i32:
+fn number(value: &dyn Inspectable) -> i32:
     match value.downcast_ref::[i32]():
         .Some(found) => *found
         .None => -1
@@ -2451,12 +2451,12 @@ fn number(value: *dyn Inspectable) -> i32:
 #### Ordinary Rules For Recovery
 
 1. r[trait.downcast.reference-methods.reference-values] `downcast_ref` and `downcast_mut` are reference-receiver methods in the inherent blocks of `dyn Inspectable` and `dyn Error`.
-2. r[trait.downcast.counted-receiver] Both take a counted receiver, `*self` and `*mut self`, so they exist only on `*dyn Tr` and `*mut dyn Tr`: a recovered `*T` always refers to a whole object ([`ref.box.object`](13-values-and-references.md#r-ref.box.object)). A call on a local trait value reference, `&dyn Tr` or `&mut dyn Tr`, is the error of any `*self` call through a local reference. A local form of recovery waits for tier 2 (#996). Error: `local-reference-escapes`.
+2. r[trait.downcast.local-receiver] The methods take `&self` and `&mut self`, and their dependent results are elided to `self` by [`ref.dep.elide`](13-values-and-references.md#r-ref.dep.elide). A `*dyn Tr` or `*mut dyn Tr` calls the same methods by lending itself as [`ref.convert.lend`](13-values-and-references.md#r-ref.convert.lend) defines.
 3. r[trait.downcast.reference-receivers.reference-values] The ordinary reference-receiver rules govern both recovery methods.
 4. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`.
-5. r[trait.downcast.pass-reference-target] A generic function passes its target through an `Inspectable` bound, as in `fn get[T < Inspectable](value: *dyn Inspectable) -> (*T)?`.
+5. r[trait.downcast.pass-local-target] A generic function passes its target through an `Inspectable` bound, as in `fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?`.
 6. r[trait.downcast.shared-result] `downcast_ref` returns a shared reference, whose immediate referent cannot be written. Error: `not-writable`.
-7. r[trait.downcast.mutable-receiver] `downcast_mut` takes `*mut self`, so calling it through a shared reference is an error. Error: `not-writable`.
+7. r[trait.downcast.mutable-local-receiver] `downcast_mut` takes `&mut self`, so calling it through a shared reference is an error. Error: `not-writable`.
 8. r[trait.downcast.target] The target `T` is written, or inferred from the expected type, at the call.
 9. r[trait.downcast.visibility] The target must be nameable there under ordinary visibility, so a private type of another module cannot be recovered outside it.
 10. r[trait.downcast.bound] A target that fails a bound is an error. Error: `unsatisfied-trait-bound`.
@@ -2465,19 +2465,24 @@ fn number(value: *dyn Inspectable) -> i32:
 ```hd
 use std.inspect.Inspectable
 
-fn get[T < Inspectable](value: *dyn Inspectable) -> (*T)?:
+fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
     value.downcast_ref()
 ```
 
-> **Note.** Code first converts a counted reference to `*dyn Inspectable`
-> or `*dyn Error`, then calls the inherent recovery method.
+> **Note.** A counted trait value calls the same method by lending itself as
+> a local reference; recovery never returns a counted reference.
 
 ```text
-fn leak(p: &Pair) -> *User:
-    let erased: &dyn Inspectable = &p.b
-    match erased.downcast_ref::[User]():  # error: local-reference-escapes
-        .Some(u) => u
-        .None => box(User { count: 0 })
+fn after_scope(use_inner: bool) -> i32:
+    fallback := User { count: 0 }
+    let found: &User = &fallback
+    if use_inner:
+        pair := Pair { a: User { count: 1 }, b: User { count: 2 } }
+        let erased: &dyn Inspectable = &pair.b
+        match erased.downcast_ref::[User]():
+            .Some(user) => found = user
+            .None => pass
+    found.count  # error: local-reference-outlives-local
 ```
 
 ### Limits Of Runtime Identity

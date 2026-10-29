@@ -2,7 +2,7 @@
 use std.inspect.Inspectable
 struct Box[T]:
     value: T
-fn recover[T < Inspectable](value: *dyn Inspectable) -> (*T)?:
+fn recover[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
     value.downcast_ref::[T]()
 tests:
     use std.testing.{assert, assert_equal}

@@ -1,0 +1,60 @@
+# test: local and counted trait references use the same local-reference downcast methods
+# Spec 09 Recovering A Concrete Type: trait.downcast.local-receiver.
+use std.error.Error
+use std.inspect.Inspectable
+
+struct User:
+    count: i32
+
+struct Failure:
+    code: i32
+
+impl Display for Failure:
+    fn to_string(self) -> string:
+        "failure ${self.code}"
+
+impl Error for Failure
+
+struct Holder:
+    user: User
+    failure: Failure
+
+fn read_user(value: &dyn Inspectable) -> i32:
+    match value.downcast_ref::[User]():
+        .Some(user) => user.count
+        .None => -1
+
+fn bump_user(value: &mut dyn Inspectable) -> void:
+    match value.downcast_mut::[User]():
+        .Some(user) => user.count += 1
+        .None => pass
+
+fn read_failure(value: &dyn Error) -> i32:
+    match value.downcast_ref::[Failure]():
+        .Some(failure) => failure.code
+        .None => -1
+
+fn bump_failure(value: &mut dyn Error) -> void:
+    match value.downcast_mut::[Failure]():
+        .Some(failure) => failure.code += 1
+        .None => pass
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads and changes field-backed trait references"):
+        let mut holder = Holder { user: User { count: 4 }, failure: Failure { code: 8 } }
+        let shared_user: &dyn Inspectable = &holder.user
+        assert_equal(read_user(shared_user), 4)
+        let writable_user: &mut dyn Inspectable = &mut holder.user
+        bump_user(writable_user)
+        let shared_error: &dyn Error = &holder.failure
+        assert_equal(read_failure(shared_error), 8)
+        let writable_error: &mut dyn Error = &mut holder.failure
+        bump_failure(writable_error)
+        assert_equal(holder.user.count, 5)
+        assert_equal(holder.failure.code, 9)
+
+    it("lends a counted trait value"):
+        let counted: *dyn Inspectable = box(User { count: 6 })
+        assert_equal(read_user(counted), 6)

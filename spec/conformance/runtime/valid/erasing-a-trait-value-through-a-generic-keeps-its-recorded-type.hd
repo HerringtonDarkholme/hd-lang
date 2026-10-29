@@ -1,5 +1,5 @@
 # test: erasing a trait value through a generic keeps its recorded type
-# Rules: trait.inspect.runtime-type, trait.downcast.reference, trait.downcast.copy-through-reference.
+# Rules: trait.inspect.runtime-type, trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
 # expect-stdout: true
 # expect-stdout: true
 # expect-stdout: false
