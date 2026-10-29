@@ -1,13 +1,13 @@
-# test: a function value whose result depends on other inputs than the expected function type's is a type mismatch
-# Spec 07 Lifetimes In Function Types: fn.type.lifetime.identity, fn.type.lifetime.mismatch.
+# test: a function value that borrows from more inputs than the expected type permits is a type mismatch
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.subtype.error.
 struct User:
     name: string
 
-fn left['a, 'b](a: &'a User, b: &'b User) -> &'a User:
-    a
+fn either['a](a: &'a User, b: &'a User) -> &'a User:
+    if a.name.len() >= b.name.len(): a else: b
 
-fn run['a](f: fn(&'a User, &'a User) -> &'a User, u: &'a User) -> usize:
-    f(u, u).name.len()
+fn use_left['a, 'b](f: fn(&'a User, &'b User) -> &'a User, a: &'a User, b: &'b User) -> usize:
+    f(a, b).name.len()
 
-fn demo(u: &User) -> usize:
-    run(left, u)  # diagnostic: type-mismatch
+fn demo(a: &User, b: &User) -> usize:
+    use_left(either, a, b) # diagnostic: type-mismatch

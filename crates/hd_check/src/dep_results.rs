@@ -1105,9 +1105,32 @@ fn source_arg(b: &Body, i: usize, k: usize) -> Option<u32> {
 }
 
 impl Ck<'_, '_> {
+    /// Whether a function value's dependency map is at least as general
+    /// as the expected map: each result may borrow from a subset of the
+    /// inputs the expected result permits (`fn.type.lifetime.subtype`).
+    pub(crate) fn fn_deps_fit(&self, got: hd_types::FnDeps, want: hd_types::FnDeps) -> bool {
+        if got == want {
+            return true;
+        }
+        let pool = self.pool();
+        let (Some((got_ins, got_outs)), Some((want_ins, want_outs))) =
+            (pool.deps_of(got), pool.deps_of(want))
+        else {
+            return false;
+        };
+        got_ins.len() == want_ins.len()
+            && got_outs.len() == want_outs.len()
+            && got_outs.iter().zip(want_outs).all(|(&got_out, &want_out)| {
+                got_ins
+                    .iter()
+                    .zip(want_ins)
+                    .all(|(&got_in, &want_in)| got_in != got_out || want_in == want_out)
+            })
+    }
+
     /// The map a function value of `sig` carries, its parameters from
     /// `skip` on (`fn.type.lifetime.value`); also what a trait implementation's
-    /// method must share with the trait's (`trait.impl.lifetime`).
+    /// method must fit against the trait's (`trait.impl.lifetime.subtype`).
     pub(crate) fn sig_fn_deps(&self, sig: &hd_resolve::FnSig, skip: usize) -> hd_types::FnDeps {
         let pool = self.pool();
         if pool.ref_slots(sig.ret) == 0 {

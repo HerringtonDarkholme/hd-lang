@@ -543,9 +543,10 @@ fn demo(a: &User, b: &User) -> usize:
 6. r[fn.type.lifetime.elide.none] Such a position with no input reference position is an error. Error: `reference-result-without-source`.
 7. r[fn.type.lifetime.elide.ambiguous] Such a position under two or more lifetimes of the input positions is an error. Error: `ambiguous-reference-source`.
 8. r[fn.type.lifetime.identity] Which input positions each result position depends on is part of the function type, and the names of its lifetime variables are not.
-9. r[fn.type.lifetime.mismatch] A function value whose result depends on other input positions than the expected function type's is an error. Error: `type-mismatch`.
-10. r[fn.type.lifetime.value] A named function's or method's value has the dependencies of its signature, after elision, with an unbound method's receiver as its first input.
-11. r[fn.type.lifetime.call] A call through a function value depends on what its arguments in each result position's lifetime depend on, as [`ref.lifetime.call`](13-values-and-references.md#r-ref.lifetime.call) states for a named call.
+9. r[fn.type.lifetime.subtype] A function value fits when each result depends on a subset of the input positions that the expected result permits.
+10. r[fn.type.lifetime.subtype.error] A result that depends on an input position the expected result does not permit is an error. Error: `type-mismatch`.
+11. r[fn.type.lifetime.value] A named function's or method's value has the dependencies of its signature, after elision, with an unbound method's receiver as its first input.
+12. r[fn.type.lifetime.call] A call through a function value depends on what its arguments in each result position's lifetime depend on, as [`ref.lifetime.call`](13-values-and-references.md#r-ref.lifetime.call) states for a named call.
 
 ```text
 struct User:
@@ -557,8 +558,14 @@ fn left['a, 'b](a: &'a User, b: &'b User) -> &'a User:
 fn run['a](f: fn(&'a User, &'a User) -> &'a User, u: &'a User) -> usize:
     f(u, u).name.len()
 
-fn demo(u: &User) -> usize:
-    run(left, u)  # error: type-mismatch
+fn either['a](a: &'a User, b: &'a User) -> &'a User:
+    if a.name.len() >= b.name.len(): a else: b
+
+fn use_left['a, 'b](f: fn(&'a User, &'b User) -> &'a User, a: &'a User, b: &'b User) -> usize:
+    f(a, b).name.len()
+
+fn demo(a: &User, b: &User) -> usize:
+    run(left, a) + use_left(either, a, b)  # error: type-mismatch
 
 fn apply(f: fn(&User, &User) -> &User) -> void:  # error: ambiguous-reference-source
     pass
@@ -571,7 +578,8 @@ fn make(f: fn() -> &User) -> void:  # error: reference-result-without-source
 > type. Without a binder of its own, a written lifetime is the enclosing
 > declaration's, as in Rust, and a lifetime adds nothing at run time. A
 > function type that needs its own variables, as a struct field's type
-> may, comes with stored references.
+> may, comes with stored references. A value that borrows from fewer inputs
+> satisfies every lifetime promise of one that may borrow from more.
 
 See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
 [Closure Annotations](#closure-annotations).
