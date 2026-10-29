@@ -1,0 +1,13 @@
+# test: a function value may borrow from fewer inputs than the expected function type permits
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.subtype.
+struct User:
+    name: string
+
+fn left['a, 'b](a: &'a User, b: &'b User) -> &'a User:
+    a
+
+fn run['a](f: fn(&'a User, &'a User) -> &'a User, u: &'a User) -> usize:
+    f(u, u).name.len()
+
+fn demo(u: &User) -> usize:
+    run(left, u)

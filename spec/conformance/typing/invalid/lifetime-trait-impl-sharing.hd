@@ -1,14 +1,14 @@
-# test: an implementation method whose references share lifetimes differently from the trait method's is a signature mismatch
-# Spec 09 Method Generic Parameters: trait.impl.lifetime.
+# test: an implementation method may not borrow from more parameters than the trait method permits
+# Spec 09 Method Generic Parameters: trait.impl.lifetime.subtype.error.
 struct User:
     name: string
 
 trait Picker:
-    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User
+    fn pick['a, 'b](&self, a: &'a User, b: &'b User) -> &'a User
 
 struct First:
     on: bool
 
 impl Picker for First:
-    fn pick['a, 'b](&self, a: &'a User, b: &'b User) -> &'a User:  # diagnostic: trait-method-signature
-        a
+    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User: # diagnostic: trait-method-signature
+        if a.name.len() >= b.name.len(): a else: b

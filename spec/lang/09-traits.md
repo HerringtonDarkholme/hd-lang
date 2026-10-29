@@ -699,9 +699,9 @@ A trait method may hide its result behind an `impl Trait` bound.
 5. r[trait.impl.generics.default] Each parameter also repeats the trait method's [default](04-type-system.md#type-argument-defaults), instantiated as the bounds are, or has none when the trait method's has none. A missing, extra, or different default is a mismatch.
 6. r[trait.impl.generics.fixed-member-hook-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member-hook`](14-annotations.md#r-annot.walker.strengthen-member-hook) allows.
 7. r[trait.impl.generics.error] Any mismatch is an error reported at the implementation method. Error: `trait-method-signature`.
-8. r[trait.impl.lifetime] An implementation method's result positions depend on the same parameter positions as the trait method's, whatever its lifetimes are named.
+8. r[trait.impl.lifetime.subtype] An implementation method's result may depend on a subset of the parameter positions that the trait method permits.
 9. r[trait.impl.lifetime.count] Lifetime parameters are not counted among the generic parameters that correspond by position, so they may be the method's or its implementation's.
-10. r[trait.impl.lifetime.error] A result that depends on other parameter positions is an error. Error: `trait-method-signature`.
+10. r[trait.impl.lifetime.subtype.error] An implementation result that depends on a parameter position the trait method does not permit is an error. Error: `trait-method-signature`.
 
 ```text
 trait Show:
@@ -719,10 +719,11 @@ struct User:
     name: string
 
 trait Picker:
-    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User
+    fn pick['a, 'b](&self, a: &'a User, b: &'b User) -> &'a User
 
 impl Picker for Describer:
-    fn pick['a, 'b](&self, a: &'a User, b: &'b User) -> &'a User: a  # error: trait-method-signature
+    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User:  # error: trait-method-signature
+        if a.name.len() >= b.name.len(): a else: b
 ```
 
 ```hd
@@ -737,7 +738,15 @@ struct Longer: pass
 impl Picker for Longer:
     fn pick['b](&self, a: &'b User, b: &'b User) -> &'b User:  # renamed: valid
         if a.name.len() >= b.name.len(): a else: b
+
+struct First: pass
+
+impl Picker for First:
+    fn pick['x, 'y](&self, a: &'x User, b: &'y User) -> &'x User: a  # more general: valid
 ```
+
+> **Why.** A more general implementation keeps a returned reference alive
+> no longer than the trait contract permits.
 
 See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
 [Dependent Results](13-values-and-references.md#dependent-results).

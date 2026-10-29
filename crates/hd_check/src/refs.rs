@@ -210,7 +210,7 @@ impl Ck<'_, '_> {
                     inputs: bi,
                     deps: bd,
                 },
-            ) if ac == bc && ai == bi && ad == bd => {
+            ) if ac == bc && ai == bi && self.fn_deps_fit(ad, bd) => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
                 a.len() == b.len()
                     && (depth == 0 || self.rows_equal(aw, bw))

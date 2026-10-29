@@ -1,0 +1,13 @@
+# test: an implementation method may borrow from fewer parameters than the trait method permits
+# Spec 09 Method Generic Parameters: trait.impl.lifetime.subtype.
+struct User:
+    name: string
+
+trait Picker:
+    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User
+
+struct First: pass
+
+impl Picker for First:
+    fn pick['a, 'b](&self, a: &'a User, b: &'b User) -> &'a User:
+        a
