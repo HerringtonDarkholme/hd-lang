@@ -32,8 +32,8 @@ fn maybe(u: *User?) -> string:
 pub fn main() -> void $ Console:
     v := &Vec2 { x: 3.0, y: 4.0 }
     println(v.len2())
-    let mut ann = User { name: "ann" }
-    let mut team = Team { lead: &mut ann, size: 1 }
+    ann := box(User { name: "ann" })
+    let mut team = Team { lead: ann, size: 1 }
     println(describe(&team))
     rename(&mut team, "bea")
-    println(maybe(&mut ann))
+    println(maybe(ann))

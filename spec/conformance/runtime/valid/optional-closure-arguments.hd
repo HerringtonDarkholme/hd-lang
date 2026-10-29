@@ -16,7 +16,7 @@ tests:
     use std.testing.assert_equal
 
     it("closures keep mutable optional arguments"):
-        let mut item = &mut User { name: 40 }
+        item := box(User { name: 40 })
         let pair: ((*mut User)?, (fn((*mut User)?) -> (*mut User)?)?) = (item, .Some(change))
         match apply(pair._1, pair._0):
             .Some(value) => assert_equal(value.name, 42, reason="payload reached 42")

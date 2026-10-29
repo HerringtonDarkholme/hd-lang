@@ -18,8 +18,8 @@ tests:
     use std.testing.assert_equal
 
     it("println writes under the test driver"):
-        let mut console = MemoryConsole { lines: [] }
-        $.with(Console=&mut console):
+        console := box(MemoryConsole { lines: [] })
+        $.with(Console=console):
             greet("Ada")
         assert_equal(console.lines.len(), 2, reason="text and newline are separate writes")
         assert_equal(

@@ -45,9 +45,9 @@ fn select_protocol!(log: *mut List[string]) -> void:
     using! async = BothGuard { log: log }
 
 pub fn main!() -> void $ Clock + Console:
-    let mut log: List[string] = []
-    work!(&mut log)
+    log := box::[List[string]]([])
+    work!(log)
     println(log.join(", "))
     log.clear()
-    select_protocol!(&mut log)
+    select_protocol!(log)
     println(log.join(", "))

@@ -114,8 +114,8 @@ pub fn distinct_providers!() -> Result[usize, string] $ Primary + Backup:
 
 pub fn main!() -> void $ Clock:
     assert_equal(read!(), .Ok("backup"), reason="the complete public fallback example")
-    primary := &mut PrimarySource { result: .Ok(41), calls: 0 }
-    other_source := &mut BackupSource { calls: 0 }
+    primary := box(PrimarySource { result: .Ok(41), calls: 0 })
+    other_source := box(BackupSource { calls: 0 })
     $.with(Primary=primary, Backup=other_source):
         assert_equal(
             distinct_providers!(),
@@ -142,7 +142,7 @@ pub fn main!() -> void $ Clock:
     let second_wait: mut Suspend[void] = sleep(60s)
     let primary_wait: mut Suspend[void] = sleep(60s)
     let backup_wait: mut Suspend[void] = sleep(60s)
-    http := &mut DelayedHttp {
+    http := box(DelayedHttp {
         first_wait: first_wait,
         second_wait: second_wait,
         urls: [],
@@ -150,7 +150,7 @@ pub fn main!() -> void $ Clock:
         finished: 0,
         closed: 0,
         closed_before_backup: 0,
-    }
+    })
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock, Http=http):
         backup_request := fn!() -> Result[string, RequestFailure] $ Http:
@@ -179,7 +179,7 @@ pub fn main!() -> void $ Clock:
         reason="each attempt has its own 50ms deadline with one 1ms backoff",
     )
 
-    activity := &mut Activity { primary: 0, backup: 0, closed: 0 }
+    activity := box(Activity { primary: 0, backup: 0, closed: 0 })
     other := fn!() -> Result[usize, string]:
         activity.backup += 1
         .Err("backup-error")

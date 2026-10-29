@@ -24,13 +24,13 @@ tests:
     it("zero tries makes one call"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            let mut server = &mut Server { busy_for: 5, calls: 0 }
+            server := box(Server { busy_for: 5, calls: 0 })
             assert_equal(connect!(server, 0), .Err("busy 1"), reason="the one error is returned")
             assert_equal(server.calls, 1, reason="exactly one call")
 
     it("one try makes one call"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            let mut server = &mut Server { busy_for: 0, calls: 0 }
+            server := box(Server { busy_for: 0, calls: 0 })
             assert_equal(connect!(server, 1), .Ok("ready"), reason="the one call succeeds")
             assert_equal(server.calls, 1, reason="exactly one call")

@@ -56,7 +56,7 @@ tests:
         )
 
     it("function wrappers preserve order and run only when applied"):
-        events := &mut []
+        events := box::[List[string]]([])
         policy := (Double { events: events }, Add { events: events, amount: 3 })
         assert_equal(events.len(), 0, reason="constructing a configuration calls no wrapper")
         result := apply!(policy):

@@ -14,9 +14,9 @@ struct Gauge:
     name: *string
 
 pub fn main() -> void $ Console:
-    a := Expr.Add(&Expr.Num(1), &Expr.Num(2))
+    a := Expr.Add(box(Expr.Num(1)), box(Expr.Num(2)))
     println(debug(a))
     println(debug(&a) == debug(a))
-    let mut x = +5
-    tea := "tea"
-    println(debug(Gauge { level: &mut x, name: &tea }))
+    x := box(+5)
+    tea := box("tea")
+    println(debug(Gauge { level: x, name: tea }))

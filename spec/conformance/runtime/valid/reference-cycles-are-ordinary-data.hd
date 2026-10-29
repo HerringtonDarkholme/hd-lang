@@ -8,8 +8,8 @@ fn ring(size: i32) -> i32:
     let visited = +0
     let round = +0
     while round < size:
-        let mut first = &mut Stop { name: "first", next: .None }
-        let mut second = &mut Stop { name: "second", next: .None }
+        first := box(Stop { name: "first", next: .None })
+        second := box(Stop { name: "second", next: .None })
         first.next = second
         second.next = first
         match first.next:

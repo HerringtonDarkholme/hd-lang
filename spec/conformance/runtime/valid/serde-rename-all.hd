@@ -18,7 +18,7 @@ fn member(name: string, facts: Facts) -> Member:
     }
 
 fn naming(style: RenameCase) -> Facts:
-    Facts { items: [&rename_all(style)] }
+    Facts { items: [box(rename_all(style))] }
 
 @derive(Serialize, Deserialize)
 @rename_all(.CamelCase)
@@ -106,7 +106,7 @@ tests:
         )
 
     it("member rename wins over the container including an empty explicit name"):
-        info := member("order_id", Facts { items: [&rename("")] })
+        info := member("order_id", Facts { items: [box(rename(""))] })
         assert_equal(
             member_name(&info, naming(.CamelCase)),
             "",

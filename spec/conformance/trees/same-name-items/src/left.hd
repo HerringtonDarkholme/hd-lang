@@ -4,4 +4,4 @@ pub struct Item:
     pub label: string
 
 pub fn erased(label: string) -> *dyn Inspectable:
-    &Item { label: label }
+    box(Item { label: label })

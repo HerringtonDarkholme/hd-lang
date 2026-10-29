@@ -4,7 +4,7 @@ struct User:
     name: i32
 
 fn find() -> *mut User?:
-    .Some(&mut User { name: 40 })
+    .Some(box(User { name: 40 }))
 
 tests:
     use std.testing.assert_equal

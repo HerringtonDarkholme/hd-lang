@@ -136,11 +136,11 @@ impl AsyncDisposable for Closing:
 
 struct Work:
     cleanup_ms: i64
-    events: List[string]
+    events: *mut List[string]
 
 fn cancellable!(request: Request, state: &mut Work) -> Response $ Clock:
     if request.url.path == "/slow":
-        using! resource = Closing { wait: sleep(ms(state.cleanup_ms)), events: &mut state.events }
+        using! resource = Closing { wait: sleep(ms(state.cleanup_ms)), events: state.events }
         state.events.push("started")
         sleep!(s(60))
     Response::status(.Other(200))
@@ -224,13 +224,13 @@ fn case_4!() -> void $ Clock:
         replies: [],
         finished: [],
     }
-    state := &mut Work { cleanup_ms: 5, events: [] }
+    state := &mut Work { cleanup_ms: 5, events: box::[List[string]]([]) }
     $.with(HttpServer=server):
         assert(serve!(3, state, cancellable).is_ok(), reason="a disconnect is local to its request")
     assert_equal(server.replies.len(), 2, reason="the other two workers deliver their responses")
     assert_equal(server.finished.len(), 3, reason="all three leases acknowledge cleanup")
     assert_equal(
-        state.events,
+        *state.events,
         ["started", "closing", "closed"],
         reason="cooperative cleanup completes before release",
     )
@@ -247,14 +247,14 @@ fn case_5!() -> void $ Clock:
         replies: [],
         finished: [],
     }
-    state := &mut Work { cleanup_ms: 60000, events: [] }
+    state := &mut Work { cleanup_ms: 60000, events: box::[List[string]]([]) }
     $.with(HttpServer=server):
         assert(
             serve!(3, state, cancellable).is_ok(),
             reason="abandonment does not cancel the worker group",
         )
     assert_equal(server.replies.len(), 2, reason="unrelated requests complete")
-    assert_equal(state.events, ["started", "closing"], reason="the suspended cleanup was cut short")
+    assert_equal(*state.events, ["started", "closing"], reason="the suspended cleanup was cut short")
     let abandoned = 0
     for (sequence, cut_short) in server.finished:
         if cut_short:
@@ -264,15 +264,15 @@ fn case_5!() -> void $ Clock:
 
 # it("external cancellation retains the same cleanup bound and releases leases"):
 fn case_6!() -> void $ Clock:
-    server := &mut Leases {
+    server := box(Leases {
         http: ScriptedHttp::new(),
         next: 1,
         clock: $.use(Clock),
         cancel_after: 60000,
         replies: [],
         finished: [],
-    }
-    state := &mut Work { cleanup_ms: 60000, events: [] }
+    })
+    state := box(Work { cleanup_ms: 60000, events: box::[List[string]]([]) })
     assert_equal(
         race!(working(server, state), stop()),
         "stopped",
@@ -280,7 +280,7 @@ fn case_6!() -> void $ Clock:
     )
     assert_equal(server.finished.len(), 3, reason="every accepted lease is released during unwind")
     assert_equal(
-        state.events,
+        *state.events,
         ["started", "closing"],
         reason="outer cancellation cannot bypass the bound",
     )
@@ -295,7 +295,7 @@ fn case_6!() -> void $ Clock:
 
 # it("the handler deadline returns 504 after bounded abandoned cleanup"):
 fn case_7!() -> void $ Clock:
-    clock := &mut DeadlineClock { base: $.use(Clock), tick: 0 }
+    clock := box(DeadlineClock { base: $.use(Clock), tick: 0 })
     server := &mut Leases {
         http: ScriptedHttp::new(),
         next: 1,
@@ -304,7 +304,7 @@ fn case_7!() -> void $ Clock:
         replies: [],
         finished: [],
     }
-    state := &mut Work { cleanup_ms: 60000, events: [] }
+    state := &mut Work { cleanup_ms: 60000, events: box::[List[string]]([]) }
     $.with(HttpServer=server):
         assert(
             serve!(3, state, cancellable).is_ok(),
@@ -354,7 +354,7 @@ fn case_8!() -> void $ Clock:
 
 # it("the handler uses its source clock instead of the caller clock"):
 fn case_9!() -> void $ Clock:
-    clock := &mut DeadlineClock { base: $.use(Clock), tick: 1234 }
+    clock := box(DeadlineClock { base: $.use(Clock), tick: 1234 })
     server := &mut Leases {
         http: ScriptedHttp::new(),
         next: 1,

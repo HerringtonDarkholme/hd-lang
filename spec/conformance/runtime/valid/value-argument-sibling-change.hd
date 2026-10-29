@@ -92,7 +92,7 @@ tests:
         assert_equal(bag.count(bag.items.pop()), 2, reason="self is the first value argument")
 
     it("a legacy field read is copied before its sibling changes it"):
-        let mut holder = &mut Holder { items: &mut [+1, 2] }
+        holder := box(Holder { items: box::[List[i32]]([+1, 2]) })
         assert_equal(
             before(*holder.items, holder.items.pop()),
             2,

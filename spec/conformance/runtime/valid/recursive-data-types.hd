@@ -37,8 +37,8 @@ tests:
 
     it("mutually recursive department and employee"):
         support := Department { name: "support", head: .None }
-        ada := Employee { name: "Ada", department: support }
-        lab := Department { name: "lab", head: .Some(&ada) }
+        ada := box(Employee { name: "Ada", department: support })
+        lab := Department { name: "lab", head: .Some(ada) }
         grace := Employee { name: "Grace", department: lab }
         assert_equal(head_name(grace), "Ada", reason="lab's head")
-        assert_equal(head_name(ada), "vacant", reason="support has no head")
+        assert_equal(head_name(*ada), "vacant", reason="support has no head")

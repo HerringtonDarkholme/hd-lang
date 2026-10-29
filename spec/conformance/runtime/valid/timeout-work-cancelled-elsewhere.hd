@@ -41,14 +41,14 @@ fn run!(
     log.push("run body")
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    let job: mut Suspend[string] = target(&mut log)
+    log := box::[List[string]]([])
+    let job: mut Suspend[string] = target(log)
     let timed: mut Suspend[Result[string, TimedOut]] = apply(
         timeout(s(60)),
         work=fn!() -> Result[string, TimedOut]: .Ok(job!())
         ,
     )
-    let runner: mut Suspend[void] = run(&mut log, timed, stop_later(job, &mut log))
+    let runner: mut Suspend[void] = run(log, timed, stop_later(job, log))
     runner!()
     println(log.join(", "))
     match runner.cancel!():

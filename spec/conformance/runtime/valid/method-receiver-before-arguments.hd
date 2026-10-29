@@ -16,7 +16,7 @@ impl Counter:
 
 fn counter(log: &mut Log) -> *Counter:
     log.text = log.text + "r"
-    &mut Counter { base: 100 }
+    box(Counter { base: 100 })
 
 fn note(log: &mut Log, label: string, value: i32) -> i32:
     log.text = log.text + label

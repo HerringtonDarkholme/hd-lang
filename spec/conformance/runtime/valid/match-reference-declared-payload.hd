@@ -11,7 +11,7 @@ fn reset(h: &Holder) -> void:
         .Empty => pass
 
 pub fn main() -> void $ Console:
-    let mut value: i64 = 7
-    holder := Holder.Cell(&mut value)
+    value := box::[i64](7)
+    holder := Holder.Cell(value)
     reset(&holder)
-    println("$value")
+    println("${*value}")

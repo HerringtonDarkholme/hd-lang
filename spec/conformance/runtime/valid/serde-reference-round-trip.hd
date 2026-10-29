@@ -16,7 +16,7 @@ fn last(cell: &Cell) -> i64:
         .None => cell.value
 
 pub fn main() -> void $ Console:
-    list := Cell { value: 1, next: &Cell { value: 2, next: .None } }
+    list := Cell { value: 1, next: box(Cell { value: 2, next: .None }) }
     text := encode(list)
     println(text)
     match decode::[Cell](text):

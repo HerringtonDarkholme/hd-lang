@@ -27,16 +27,16 @@ fn identity(view: &List[*User], expected: &User) -> bool:
     view[0] is expected
 
 pub fn main() -> void $ Console:
-    let mut user = User { name: "before" }
-    let mut users = [&mut user]
+    user := box(User { name: "before" })
+    let mut users = [user]
     println(first(&users))
     println(first(&mut users))
-    println(identity(&users, &user))
+    println(identity(&users, user))
     user.name = "after"
     println(first(&users))
-    let present: Option[*mut User] = .Some(&mut user)
+    let present: Option[*mut User] = .Some(user)
     println(optional(&present))
     let absent: Option[*mut User] = .None
     println(optional(&absent))
-    let nested_users: List[Option[*mut User]] = [.Some(&mut user)]
+    let nested_users: List[Option[*mut User]] = [.Some(user)]
     println(nested(&nested_users))

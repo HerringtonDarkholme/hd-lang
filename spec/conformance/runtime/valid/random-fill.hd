@@ -22,9 +22,9 @@ tests:
     use std.testing.assert_equal
 
     it("fill is the covering provider's bytes"):
-        let mut source = FixedBytes { bytes: [0, 15, 171, 255] }
+        source := box(FixedBytes { bytes: [0, 15, 171, 255] })
         let made = ""
-        $.with(Random=&mut source):
+        $.with(Random=source):
             made = session()
         assert_equal(made, "000fabff", reason="two lowercase digits per byte")
 

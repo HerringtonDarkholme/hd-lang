@@ -30,9 +30,9 @@ fn whole_is_subject(e: &Expr) -> bool:
         whole => whole is e
 
 pub fn main() -> void $ Console:
-    product := Expr.Mul(&Expr.Num(2), &Expr.Neg(&Expr.Neg(&Expr.Num(3))))
-    e := Expr.Add(&Expr.Num(1), &product)
-    println("${eval(&e)}")
-    nested := Expr.Add(&product, &Expr.Num(0))
-    println("${leading(&e)} ${leading(&nested)}")
-    println("${whole_is_subject(&e)}")
+    product := box(Expr.Mul(box(Expr.Num(2)), box(Expr.Neg(box(Expr.Neg(box(Expr.Num(3))))))))
+    e := box(Expr.Add(box(Expr.Num(1)), product))
+    println("${eval(e)}")
+    nested := box(Expr.Add(product, box(Expr.Num(0))))
+    println("${leading(e)} ${leading(nested)}")
+    println("${whole_is_subject(e)}")

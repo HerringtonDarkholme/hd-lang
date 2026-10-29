@@ -44,8 +44,7 @@ struct Holder[T]:
 
 trait Factory:
     fn hold[T](self, item: T) -> Holder[T]:
-        let mut local = item
-        Holder { item: &mut local }
+        Holder { item: box(item) }
 
 struct Maker: pass
 impl Factory for Maker

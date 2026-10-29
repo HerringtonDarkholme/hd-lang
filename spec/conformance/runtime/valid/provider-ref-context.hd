@@ -1,4 +1,4 @@
-# test: a context value made from `&mut log` installs the reference, and a suspending call and a stored suspension both change `log`
+# test: a context value made from a boxed log installs the reference, and a suspending call and a stored suspension both change `log`
 # Spec 11 Providers Behind References: req.ref.install-counted; Spec 11 Reusable Contexts: req.context.create, req.context.spread.
 # expect-stdout: a b 2
 # expect-stdout: 3
@@ -20,8 +20,8 @@ fn note!(text: string) -> string $ Log:
     text
 
 pub fn main!() -> void $ Console:
-    let mut lines = Lines { items: [] }
-    ctx := $.context(Log=&mut lines)
+    lines := box(Lines { items: [] })
+    ctx := $.context(Log=lines)
     $.with(ctx...):
         a := note!("a")
         b := note!("b")

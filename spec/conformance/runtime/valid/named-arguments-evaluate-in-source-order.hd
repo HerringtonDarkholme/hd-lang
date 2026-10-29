@@ -19,7 +19,7 @@ impl Scaler:
 
 fn scaler(log: &mut Log, factor: i32) -> *Scaler:
     log.text = log.text + "r"
-    &mut Scaler { factor: factor }
+    box(Scaler { factor: factor })
 
 tests:
     use std.testing.assert_equal

@@ -13,10 +13,9 @@ tests:
     use std.testing.assert_equal
 
     it("writable and readonly references join in either order"):
-        let mut a = Point { x: 1 }
-        b := Point { x: 2 }
-        p := &mut a
-        q := &b
+        a := box(Point { x: 1 })
+        let q: *Point = box(Point { x: 2 })
+        p := a
         points := [p, q]
         reversed := [q, p]
         assert_equal(total(points), 3, reason="the join weakens to a readonly reference")
@@ -25,10 +24,9 @@ tests:
         assert_equal(a.x, 5, reason="joining does not weaken the original writable reference")
 
     it("reference weakening also joins with optional injection"):
-        let mut a = Point { x: 1 }
-        b := Point { x: 2 }
-        p := &mut a
-        q := &b
+        a := box(Point { x: 1 })
+        let q: *Point = box(Point { x: 2 })
+        p := a
         let maybe: (*Point)? = .Some(q)
         points := [p, maybe]
         reversed := [maybe, p]

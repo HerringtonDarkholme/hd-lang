@@ -38,7 +38,7 @@ tests:
     it("one timeout and one retry value accept different result and error types"):
         limit := timeout(0ms)
         again := retry(Backoff { attempts: 2, initial: 0ms })
-        calls := &mut Calls { number: 0, word: 0 }
+        calls := box(Calls { number: 0, word: 0 })
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             numeric := apply!(limit):

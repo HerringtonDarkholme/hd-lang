@@ -78,11 +78,11 @@ tests:
         assert_equal(fields, +6, reason="a field source needs a snapshot")
 
     it("reference sources stay snapshots even when a call returns the reference"):
-        let mut source = numbers()
-        assert_equal(referenced(&mut source), +6, reason="named reference source")
-        source = numbers()
+        source := box(numbers())
+        assert_equal(referenced(source), +6, reason="named reference source")
+        *source = numbers()
         let sum = +0
-        for value in shared(&mut source):
+        for value in shared(source):
             source[1] = 99
             sum = sum + value
         assert_equal(sum, +6, reason="a reference-returning call is not an owned list")

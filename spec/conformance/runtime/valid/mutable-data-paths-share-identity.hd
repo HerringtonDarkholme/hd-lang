@@ -10,11 +10,11 @@ struct Parent:
 
 fn rename(parent: &mut Parent) -> void:
     parent.child.name = "Grace"
-    parent.snapshot = &mut Child { name: "updated" }
+    parent.snapshot = box(Child { name: "updated" })
 
 fn main() -> i32:
-    let mut child = &mut Child { name: "Ada" }
-    let mut parent = &mut Parent { child: child, snapshot: &mut Child { name: "old" } }
+    child := box(Child { name: "Ada" })
+    parent := box(Parent { child: child, snapshot: box(Child { name: "old" }) })
     readonly := parent
     rename(parent)
     if readonly.child.name == "Grace" && readonly.snapshot.name == "updated": 42 else: 0

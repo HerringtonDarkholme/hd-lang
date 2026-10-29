@@ -33,7 +33,7 @@ pub fn main!() -> void $ Console + Clock:
     match result:
         .Ok(value) => println(value)
         .Err(error) => println(error.to_string())
-    let trace: *mut Trace = &mut Trace { lines: &mut [] }
+    let trace: *mut Trace = box(Trace { lines: box::[List[string]]([]) })
     late := apply!(timeout(ms(20))):
         let done: Result[string, TimedOut] = .Ok(guarded!(trace))
         done

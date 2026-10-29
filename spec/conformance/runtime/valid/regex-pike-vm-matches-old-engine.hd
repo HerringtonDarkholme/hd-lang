@@ -108,13 +108,13 @@ struct Haystack:
     offsets: *List[usize]
 
 fn haystack(text: string) -> *Haystack:
-    let mut chars: List[char] = []
-    let mut offsets: List[usize] = []
+    chars := box::[List[char]]([])
+    offsets := box::[List[usize]]([])
     for (offset, c) in text.char_indices():
         chars.push(c)
         offsets.push(offset)
     offsets.push(text.len())
-    &mut Haystack { text: text, chars: &chars, offsets: &offsets }
+    box(Haystack { text: text, chars: chars, offsets: offsets })
 
 fn matched(slots: List[usize?], index: usize) -> usize:
     match slots[index]:
@@ -282,7 +282,7 @@ fn add_thread(
     count: usize,
 ) -> void:
     let top: usize = 0
-    top = push_frame(stack, top, &mut Frame { pc: pc, slot: .None, value: .None })
+    top = push_frame(stack, top, box(Frame { pc: pc, slot: .None, value: .None }))
     while top > 0:
         top = top - 1
         frame := stack[top]
@@ -301,32 +301,32 @@ fn add_thread(
         marks[here] = .Some(generation)
         match program[here]:
             .Jump(target) =>
-                top = push_frame(stack, top, &mut Frame { pc: target, slot: .None, value: .None })
+                top = push_frame(stack, top, box(Frame { pc: target, slot: .None, value: .None }))
             .Split(first, second) =>
-                top = push_frame(stack, top, &mut Frame { pc: second, slot: .None, value: .None })
-                top = push_frame(stack, top, &mut Frame { pc: first, slot: .None, value: .None })
+                top = push_frame(stack, top, box(Frame { pc: second, slot: .None, value: .None }))
+                top = push_frame(stack, top, box(Frame { pc: first, slot: .None, value: .None }))
             .Save(slot) =>
                 if slot < slot_count:
                     top = push_frame(
                         stack,
                         top,
-                        &mut Frame { pc: 0, slot: .Some(slot), value: scratch[slot] },
+                        box(Frame { pc: 0, slot: .Some(slot), value: scratch[slot] }),
                     )
                     scratch[slot] = .Some(at)
-                top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
+                top = push_frame(stack, top, box(Frame { pc: here + 1, slot: .None, value: .None }))
             .Begin =>
                 if at == 0:
                     top = push_frame(
                         stack,
                         top,
-                        &mut Frame { pc: here + 1, slot: .None, value: .None },
+                        box(Frame { pc: here + 1, slot: .None, value: .None }),
                     )
             .End =>
                 if at == count:
                     top = push_frame(
                         stack,
                         top,
-                        &mut Frame { pc: here + 1, slot: .None, value: .None },
+                        box(Frame { pc: here + 1, slot: .None, value: .None }),
                     )
             _ =>
                 list.push(here)
@@ -391,8 +391,8 @@ fn gen_alternation(c: &mut Choices, depth: usize, names: &mut List[string]) -> *
         branches.push(branch.node)
         texts.push(branch.text)
     if count == 1:
-        return &mut Built { node: branches[0], text: texts[0] }
-    &mut Built { node: Node.Alternate(branches), text: texts.join("|") }
+        return box(Built { node: branches[0], text: texts[0] })
+    box(Built { node: Node.Alternate(branches), text: texts.join("|") })
 
 fn gen_concat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     count := c.int(0..=(if depth >= 3: 2 else: 4))
@@ -403,10 +403,10 @@ fn gen_concat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built
         items.push(item.node)
         text = text + item.text
     if count == 0:
-        return &mut Built { node: Node.Empty, text: "" }
+        return box(Built { node: Node.Empty, text: "" })
     if count == 1:
-        return &mut Built { node: items[0], text: text }
-    &mut Built { node: Node.Concat(items), text: text }
+        return box(Built { node: items[0], text: text })
+    box(Built { node: Node.Concat(items), text: text })
 
 fn gen_repeat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     atom := gen_atom(c, depth, names)
@@ -416,56 +416,56 @@ fn gen_repeat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built
     greedy := c.bool()
     lazy := if greedy: "" else: "?"
     if kind == 4:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, 0, .None, greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), 0, .None, greedy),
             text: atom.text + "*" + lazy,
-        }
+        })
     if kind == 5:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, 1, .None, greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), 1, .None, greedy),
             text: atom.text + "+" + lazy,
-        }
+        })
     if kind == 6:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, 0, .Some(1), greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), 0, .Some(1), greedy),
             text: atom.text + "?" + lazy,
-        }
+        })
     low := c.int(0..=3)
     if kind == 7:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, low, .Some(low), greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), low, .Some(low), greedy),
             text: atom.text + "{$low}" + lazy,
-        }
+        })
     if kind == 8:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, low, .None, greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), low, .None, greedy),
             text: atom.text + "{$low,}" + lazy,
-        }
+        })
     high := low + c.int(0..=2)
-    &mut Built {
-        node: Node.Repeat(&atom.node, low, .Some(high), greedy),
+    box(Built {
+        node: Node.Repeat(box(atom.node), low, .Some(high), greedy),
         text: atom.text + "{$low,$high}" + lazy,
-    }
+    })
 
 fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     kind := c.int(0..=(if depth >= 3: 7 else: 11))
     if kind <= 3:
         value := c.choose(literal_chars())
-        return &mut Built { node: Node.Literal(value), text: literal_text(value) }
+        return box(Built { node: Node.Literal(value), text: literal_text(value) })
     if kind == 4:
-        return &mut Built { node: Node.AnyChar, text: "." }
+        return box(Built { node: Node.AnyChar, text: "." })
     if kind == 5:
         return gen_class(c)
     if kind == 6:
         item := gen_perl(c)
-        return &mut Built { node: Node.Class([item._0], false), text: item._1 }
+        return box(Built { node: Node.Class([item._0], false), text: item._1 })
     if kind == 7:
         if c.bool():
-            return &mut Built { node: Node.Begin, text: "^" }
-        return &mut Built { node: Node.End, text: "\$" }
+            return box(Built { node: Node.Begin, text: "^" })
+        return box(Built { node: Node.End, text: "\$" })
     if kind == 8:
         inner := gen_alternation(c, depth + 1, names)
-        return &mut Built { node: inner.node, text: "(?:" + inner.text + ")" }
+        return box(Built { node: inner.node, text: "(?:" + inner.text + ")" })
     index := names.len()
     let open = "("
     if kind == 9:
@@ -475,7 +475,7 @@ fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
         names.push(name)
         open = if c.bool(): "(?P<$name>" else: "(?<$name>"
     inner := gen_alternation(c, depth + 1, names)
-    &mut Built { node: Node.Group(&inner.node, index), text: open + inner.text + ")" }
+    box(Built { node: Node.Group(box(inner.node), index), text: open + inner.text + ")" })
 
 fn gen_perl(c: &mut Choices) -> (ClassItem, string):
     match c.int(0..=5):
@@ -514,7 +514,7 @@ fn gen_class(c: &mut Choices) -> *Built:
             text = text + low
             if range._0 != range._1:
                 text = text + "-${range._1}"
-    &mut Built { node: Node.Class(items, negated), text: text + "]" }
+    box(Built { node: Node.Class(items, negated), text: text + "]" })
 
 fn text_pieces() -> List[string]:
     [
@@ -579,12 +579,12 @@ fn case_gen(c: &mut Choices) -> *Case:
     text := c.list(14, fn(inner: &mut Choices) -> string: inner.choose(text_pieces())).join("")
     pieces := c.list(4, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
     template := template_text(pieces, c.bool())
-    &mut Case {
+    box(Case {
         pattern: built.text,
         text: text,
         template: template,
         expected: old_summary(built.node, names, text, pieces),
-    }
+    })
 
 # A long text of `count` pieces from a seeded generator, so its length does
 # not spend the draw limit.
@@ -603,12 +603,12 @@ fn long_case_gen(c: &mut Choices) -> *Case:
     text := long_text(c.int(u64(0)..=u64(1000000000)), c.int(100..=400))
     pieces := c.list(3, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
     template := template_text(pieces, true)
-    &mut Case {
+    box(Case {
         pattern: built.text,
         text: text,
         template: template,
         expected: old_summary(built.node, names, text, pieces),
-    }
+    })
 
 # What the old engine reports for one pattern and text, one line for each
 # method. Each search runs with every slot; the slots do not change which
@@ -762,12 +762,12 @@ fn new_groups(groups: Captures) -> string:
 # A case from a pattern's tree, for the hand-picked shapes below.
 fn fixed(node: Node, pattern: string, names: List[string], text: string) -> *Case:
     pieces := [Piece.Literal("<"), Piece.Index(1), Piece.Literal(">")]
-    &mut Case {
+    box(Case {
         pattern: pattern,
         text: text,
         template: "<\$1>",
         expected: old_summary(node, names, text, pieces),
-    }
+    })
 
 fn lit(text: string) -> Node:
     let mut items: List[Node] = []
@@ -780,14 +780,14 @@ tests:
         words := long_text(7, 300)
         cases := [
             fixed(
-                Node.Repeat(&Node.Group(&Node.Alternate([lit("a"), lit("b")]), 1), 1, .None, true),
+                Node.Repeat(box(Node.Group(box(Node.Alternate([lit("a"), lit("b")])), 1)), 1, .None, true),
                 "(a|b)+",
                 ["", ""],
                 "xxabba",
             ),
             fixed(
                 Node.Repeat(
-                    &Node.Group(&Node.Repeat(&Node.Literal('a'), 0, .None, true), 1),
+                    box(Node.Group(box(Node.Repeat(box(Node.Literal('a')), 0, .None, true)), 1)),
                     0,
                     .None,
                     true,
@@ -798,7 +798,7 @@ tests:
             ),
             fixed(
                 Node.Repeat(
-                    &Node.Group(&Node.Repeat(&Node.Literal('a'), 0, .None, true), 1),
+                    box(Node.Group(box(Node.Repeat(box(Node.Literal('a')), 0, .None, true)), 1)),
                     1,
                     .None,
                     true,
@@ -811,7 +811,7 @@ tests:
                 Node.Concat(
                     [
                         Node.Repeat(
-                            &Node.Group(&Node.Alternate([lit("a"), lit("aa")]), 1),
+                            box(Node.Group(box(Node.Alternate([lit("a"), lit("aa")])), 1)),
                             0,
                             .None,
                             true,
@@ -823,13 +823,13 @@ tests:
                 ["", ""],
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
             ),
-            fixed(Node.Repeat(&Node.Literal('a'), 0, .None, true), "a*", [""], "baaac"),
+            fixed(Node.Repeat(box(Node.Literal('a')), 0, .None, true), "a*", [""], "baaac"),
             fixed(Node.Empty, "", [""], "é!😀"),
             fixed(
                 Node.Concat(
                     [
                         Node.Begin,
-                        Node.Group(&Node.Repeat(&Node.AnyChar, 0, .None, false), 1),
+                        Node.Group(box(Node.Repeat(box(Node.AnyChar), 0, .None, false)), 1),
                         Node.End,
                     ],
                 ),
@@ -838,19 +838,19 @@ tests:
                 "é\n😀",
             ),
             fixed(
-                Node.Repeat(&Node.Class([ClassItem.Space(false)], false), 1, .None, true),
+                Node.Repeat(box(Node.Class([ClassItem.Space(false)], false)), 1, .None, true),
                 "\\s+",
                 [""],
                 "a \u{2003}\u{3000}b\u{85}c",
             ),
             fixed(
                 Node.Group(
-                    &Node.Repeat(
-                        &Node.Class([ClassItem.Range('é', '😀')], true),
+                    box(Node.Repeat(
+                        box(Node.Class([ClassItem.Range('é', '😀')], true)),
                         1,
                         .Some(3),
                         false,
-                    ),
+                    )),
                     1,
                 ),
                 "([^é-😀]{1,3}?)",
@@ -861,12 +861,12 @@ tests:
                 Node.Concat(
                     [
                         Node.Group(
-                            &Node.Repeat(
-                                &Node.Class([ClassItem.Word(false)], false),
+                            box(Node.Repeat(
+                                box(Node.Class([ClassItem.Word(false)], false)),
                                 1,
                                 .None,
                                 true,
-                            ),
+                            )),
                             1,
                         ),
                         Node.Literal('-'),

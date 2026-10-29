@@ -50,8 +50,8 @@ pub fn main!() -> void $ Console + Clock:
         reason="ready work wins without advancing the deadline",
     )
 
-    let mut attempts: List[usize] = []
-    provider := &mut DelayedHttp { wait: slow, attempts: &mut attempts }
+    attempts := box::[List[usize]]([])
+    provider := box(DelayedHttp { wait: slow, attempts: attempts })
     $.with(Clock=clock, Http=provider):
         let timed: Result[Response, HttpError] = apply!(timeout(1s)):
             Request::get(Url::parse("https://slow.test/").expect("fixture URL")).send!()
@@ -59,8 +59,8 @@ pub fn main!() -> void $ Console + Clock:
     assert_equal(attempts.len(), 1, reason="the timed-out attempt started once")
     assert_equal(clock.now().unix_milliseconds(), 1000i64, reason="only manual time elapsed")
 
-    let mut nested_attempts: List[usize] = []
-    nested_provider := &mut DelayedHttp { wait: nested, attempts: &mut nested_attempts }
+    nested_attempts := box::[List[usize]]([])
+    nested_provider := box(DelayedHttp { wait: nested, attempts: nested_attempts })
     $.with(Clock=clock, Http=nested_provider):
         let result: Result[Response, HttpError] = apply!((timeout(1s), timeout(10s))):
             Request::get(Url::parse("https://nested.test/").expect("fixture URL")).send!()
@@ -71,8 +71,8 @@ pub fn main!() -> void $ Console + Clock:
         reason="the outer deadline does not run after its work completes",
     )
 
-    let mut retry_attempts: List[usize] = []
-    retry_provider := &mut DelayedHttp { wait: retried, attempts: &mut retry_attempts }
+    retry_attempts := box::[List[usize]]([])
+    retry_provider := box(DelayedHttp { wait: retried, attempts: retry_attempts })
     $.with(Clock=clock, Http=retry_provider):
         let result: Result[Response, HttpError] = apply!(
             (

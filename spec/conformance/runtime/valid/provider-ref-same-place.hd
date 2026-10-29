@@ -16,10 +16,10 @@ fn same() -> bool $ Counter:
     $.use(Counter) is $.use(Counter)
 
 pub fn main() -> void $ Console:
-    let mut tally = Tally { n: 0 }
-    let mut other = Tally { n: 0 }
-    let mine: &mut dyn Counter = &mut tally
-    let theirs: &mut dyn Counter = &mut other
-    $.with(Counter=&mut tally):
+    tally := box(Tally { n: 0 })
+    other := box(Tally { n: 0 })
+    let mine: &mut dyn Counter = tally
+    let theirs: &mut dyn Counter = other
+    $.with(Counter=tally):
         println("${same()} ${$.use(Counter) is mine}")
         println("${$.use(Counter) is theirs}")

@@ -107,13 +107,13 @@ struct Haystack:
     offsets: *List[usize]
 
 fn haystack(text: string) -> *Haystack:
-    let mut chars: List[char] = []
-    let mut offsets: List[usize] = []
+    chars := box::[List[char]]([])
+    offsets := box::[List[usize]]([])
     for (offset, c) in text.char_indices():
         chars.push(c)
         offsets.push(offset)
     offsets.push(text.len())
-    &mut Haystack { text: text, chars: &chars, offsets: &offsets }
+    box(Haystack { text: text, chars: chars, offsets: offsets })
 
 fn matched(slots: List[usize?], index: usize) -> usize:
     match slots[index]:
@@ -281,7 +281,7 @@ fn add_thread(
     count: usize,
 ) -> void:
     let top: usize = 0
-    top = push_frame(stack, top, &mut Frame { pc: pc, slot: .None, value: .None })
+    top = push_frame(stack, top, box(Frame { pc: pc, slot: .None, value: .None }))
     while top > 0:
         top = top - 1
         frame := stack[top]
@@ -300,32 +300,32 @@ fn add_thread(
         marks[here] = .Some(generation)
         match program[here]:
             .Jump(target) =>
-                top = push_frame(stack, top, &mut Frame { pc: target, slot: .None, value: .None })
+                top = push_frame(stack, top, box(Frame { pc: target, slot: .None, value: .None }))
             .Split(first, second) =>
-                top = push_frame(stack, top, &mut Frame { pc: second, slot: .None, value: .None })
-                top = push_frame(stack, top, &mut Frame { pc: first, slot: .None, value: .None })
+                top = push_frame(stack, top, box(Frame { pc: second, slot: .None, value: .None }))
+                top = push_frame(stack, top, box(Frame { pc: first, slot: .None, value: .None }))
             .Save(slot) =>
                 if slot < slot_count:
                     top = push_frame(
                         stack,
                         top,
-                        &mut Frame { pc: 0, slot: .Some(slot), value: scratch[slot] },
+                        box(Frame { pc: 0, slot: .Some(slot), value: scratch[slot] }),
                     )
                     scratch[slot] = .Some(at)
-                top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
+                top = push_frame(stack, top, box(Frame { pc: here + 1, slot: .None, value: .None }))
             .Begin =>
                 if at == 0:
                     top = push_frame(
                         stack,
                         top,
-                        &mut Frame { pc: here + 1, slot: .None, value: .None },
+                        box(Frame { pc: here + 1, slot: .None, value: .None }),
                     )
             .End =>
                 if at == count:
                     top = push_frame(
                         stack,
                         top,
-                        &mut Frame { pc: here + 1, slot: .None, value: .None },
+                        box(Frame { pc: here + 1, slot: .None, value: .None }),
                     )
             _ =>
                 list.push(here)
@@ -385,8 +385,8 @@ fn gen_alternation(c: &mut Choices, depth: usize, names: &mut List[string]) -> *
         branches.push(branch.node)
         texts.push(branch.text)
     if count == 1:
-        return &mut Built { node: branches[0], text: texts[0] }
-    &mut Built { node: Node.Alternate(branches), text: texts.join("|") }
+        return box(Built { node: branches[0], text: texts[0] })
+    box(Built { node: Node.Alternate(branches), text: texts.join("|") })
 
 fn gen_concat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     count := c.int(0..=(if depth >= 2: 2 else: 4))
@@ -397,10 +397,10 @@ fn gen_concat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built
         items.push(item.node)
         text = text + item.text
     if count == 0:
-        return &mut Built { node: Node.Empty, text: "" }
+        return box(Built { node: Node.Empty, text: "" })
     if count == 1:
-        return &mut Built { node: items[0], text: text }
-    &mut Built { node: Node.Concat(items), text: text }
+        return box(Built { node: items[0], text: text })
+    box(Built { node: Node.Concat(items), text: text })
 
 fn gen_repeat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     atom := gen_atom(c, depth, names)
@@ -412,36 +412,36 @@ fn gen_repeat(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built
     # A literal run is wrapped so the quantifier repeats all of it.
     text := "(?:" + atom.text + ")"
     if kind == 6:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, 0, .None, greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), 0, .None, greedy),
             text: text + "*" + lazy,
-        }
+        })
     if kind == 7:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, 1, .None, greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), 1, .None, greedy),
             text: text + "+" + lazy,
-        }
+        })
     if kind == 8:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, 0, .Some(1), greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), 0, .Some(1), greedy),
             text: text + "?" + lazy,
-        }
+        })
     low := c.int(0..=3)
     if kind == 9:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, low, .Some(low), greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), low, .Some(low), greedy),
             text: text + "{$low}" + lazy,
-        }
+        })
     if kind == 10:
-        return &mut Built {
-            node: Node.Repeat(&atom.node, low, .None, greedy),
+        return box(Built {
+            node: Node.Repeat(box(atom.node), low, .None, greedy),
             text: text + "{$low,}" + lazy,
-        }
+        })
     high := low + c.int(0..=2)
-    &mut Built {
-        node: Node.Repeat(&atom.node, low, .Some(high), greedy),
+    box(Built {
+        node: Node.Repeat(box(atom.node), low, .Some(high), greedy),
         text: text + "{$low,$high}" + lazy,
-    }
+    })
 
 fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
     kind := c.int(0..=(if depth >= 2: 8 else: 11))
@@ -454,22 +454,22 @@ fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
             items.push(Node.Literal(value))
             text = text + literal_text(value)
         if count == 1:
-            return &mut Built { node: items[0], text: text }
-        return &mut Built { node: Node.Concat(items), text: text }
+            return box(Built { node: items[0], text: text })
+        return box(Built { node: Node.Concat(items), text: text })
     if kind == 5:
-        return &mut Built { node: Node.AnyChar, text: "." }
+        return box(Built { node: Node.AnyChar, text: "." })
     if kind == 6:
         return gen_class(c)
     if kind == 7:
         if c.bool():
-            return &mut Built { node: Node.Begin, text: "^" }
-        return &mut Built { node: Node.End, text: "\$" }
+            return box(Built { node: Node.Begin, text: "^" })
+        return box(Built { node: Node.End, text: "\$" })
     if kind == 8:
         item := gen_perl(c)
-        return &mut Built { node: Node.Class([item._0], false), text: item._1 }
+        return box(Built { node: Node.Class([item._0], false), text: item._1 })
     if kind == 9:
         inner := gen_alternation(c, depth + 1, names)
-        return &mut Built { node: inner.node, text: "(?:" + inner.text + ")" }
+        return box(Built { node: inner.node, text: "(?:" + inner.text + ")" })
     index := names.len()
     let open = "("
     if kind == 10:
@@ -479,7 +479,7 @@ fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> *Built:
         names.push(name)
         open = "(?P<$name>"
     inner := gen_alternation(c, depth + 1, names)
-    &mut Built { node: Node.Group(&inner.node, index), text: open + inner.text + ")" }
+    box(Built { node: Node.Group(box(inner.node), index), text: open + inner.text + ")" })
 
 fn gen_perl(c: &mut Choices) -> (ClassItem, string):
     match c.int(0..=3):
@@ -512,7 +512,7 @@ fn gen_class(c: &mut Choices) -> *Built:
         text = text + low
         if range._0 != range._1:
             text = text + "-${range._1}"
-    &mut Built { node: Node.Class(items, negated), text: text + "]" }
+    box(Built { node: Node.Class(items, negated), text: text + "]" })
 
 fn text_pieces() -> List[string]:
     ["a", "b", "ab", "ba", "aab", "é", "€", "😀", "é😀", "-", "\n", "x", " ", "1"]
@@ -555,12 +555,12 @@ fn case_gen(c: &mut Choices) -> *Case:
     built := gen_alternation(c, 0, &mut names)
     text := c.list(16, fn(inner: &mut Choices) -> string: inner.choose(text_pieces())).join("")
     pieces := c.list(3, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
-    &mut Case {
+    box(Case {
         pattern: built.text,
         text: text,
         template: template_text(pieces),
         expected: old_summary(built.node, names, text, pieces),
-    }
+    })
 
 # A long text of `count` pieces from a seeded generator, so its length does
 # not spend the draw limit.
@@ -578,12 +578,12 @@ fn long_case_gen(c: &mut Choices) -> *Case:
     built := gen_alternation(c, 0, &mut names)
     text := long_text(c.int(u64(0)..=u64(1000000000)), c.int(100..=400))
     pieces := c.list(2, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
-    &mut Case {
+    box(Case {
         pattern: built.text,
         text: text,
         template: template_text(pieces),
         expected: old_summary(built.node, names, text, pieces),
-    }
+    })
 
 # What the old engine reports for one pattern and text, one line for each
 # method. Each search runs with every slot; the slots do not change which
@@ -737,12 +737,12 @@ fn new_groups(groups: Captures) -> string:
 # A case from a pattern's tree, for the hand-picked shapes below.
 fn fixed(node: Node, pattern: string, names: List[string], text: string) -> *Case:
     pieces := [Piece.Literal("<"), Piece.Index(1), Piece.Literal(">")]
-    &mut Case {
+    box(Case {
         pattern: pattern,
         text: text,
         template: "<\${1}>",
         expected: old_summary(node, names, text, pieces),
-    }
+    })
 
 fn lit(text: string) -> Node:
     let mut items: List[Node] = []
@@ -759,10 +759,10 @@ fn alt(branches: List[Node]) -> Node:
     Node.Alternate(branches)
 
 fn group(body: Node) -> Node:
-    Node.Group(&body, 1)
+    Node.Group(box(body), 1)
 
 fn rep(body: Node, min: usize, max: usize?) -> Node:
-    Node.Repeat(&body, min, max, true)
+    Node.Repeat(box(body), min, max, true)
 
 fn range(low: char, high: char) -> Node:
     Node.Class([ClassItem.Range(low, high)], false)

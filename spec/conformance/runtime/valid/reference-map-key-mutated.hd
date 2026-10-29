@@ -3,9 +3,9 @@
 # expect-stdout: true
 # expect-stdout: false 1
 pub fn main() -> void $ Console:
-    let mut level = +1
+    level := box(+1)
     let mut seen: Map[*mut i32, string] = {}
-    seen[&mut level] = "one"
-    println(seen.get(&mut level).is_some())
-    level = 2
-    println("${seen.get(&mut level).is_some()} ${seen.len()}")
+    seen[level] = "one"
+    println(seen.get(level).is_some())
+    *level = 2
+    println("${seen.get(level).is_some()} ${seen.len()}")

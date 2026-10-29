@@ -35,12 +35,12 @@ fn by_trait(session: &mut dyn Session) -> void:
     _ := held.name()
 
 pub fn main!() -> void $ Console:
-    let mut log: List[string] = []
-    by_value(&mut log)
-    shared := &mut Conn { name: "shared", log: &mut log, open: true }
+    log := box::[List[string]]([])
+    by_value(log)
+    shared := box(Conn { name: "shared", log: log, open: true })
     by_reference(shared)
     println("shared open ${shared.open}")
-    other := &mut Conn { name: "dyn", log: &mut log, open: true }
+    other := box(Conn { name: "dyn", log: log, open: true })
     by_trait(other)
     println("dyn open ${other.open}")
     println(log.join(", "))

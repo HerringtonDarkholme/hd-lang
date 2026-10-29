@@ -57,8 +57,7 @@ struct Holder[T]:
 
 trait Factory:
     fn hold[T](self, item: T) -> Holder[T]:
-        let mut local = item
-        Holder { item: &mut local }
+        Holder { item: box(item) }
 
 struct Maker: pass
 impl Factory for Maker
@@ -67,7 +66,7 @@ tests:
     use std.testing.assert_equal
 
     it("a call-free match reads the borrowed payload"):
-        node := Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        node := Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) }
         assert_equal(value(&node), 42, reason="the payload stays live for the arm")
         assert_equal(
             value(&Node { value: 1, left: .None }),
@@ -76,25 +75,25 @@ tests:
         )
 
     it("a call replacing the field keeps its former payload alive"):
-        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
-        assert_equal(across_call(&node, &mut node), 42, reason="the arm owns the replaced payload")
-        assert_equal(value(&node), 0, reason="the call reached the aliased field")
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        assert_equal(across_call(node, node), 42, reason="the arm owns the replaced payload")
+        assert_equal(value(node), 0, reason="the call reached the aliased field")
 
     it("a store through another reference keeps the former payload alive"):
-        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
-        assert_equal(across_store(&node, &mut node), 42, reason="the arm owns the replaced payload")
-        assert_equal(value(&node), 0, reason="the other reference aliases the field")
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        assert_equal(across_store(node, node), 42, reason="the arm owns the replaced payload")
+        assert_equal(value(node), 0, reason="the other reference aliases the field")
 
     it("a returned payload receives its own count"):
-        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
-        child := selected(&node)
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        child := selected(node)
         node.left = .None
         assert_equal(child.value, 42, reason="the returned reference outlives the matched field")
 
     it("a guard call is included in the scrutinee span"):
-        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
         assert_equal(
-            across_guard(&node, &mut node),
+            across_guard(node, node),
             42,
             reason="guard evaluation cannot free the payload",
         )
@@ -103,7 +102,7 @@ tests:
         let factory: &dyn Factory = &Maker {}
         for n in 0..20:
             node := factory.hold(
-                Node { value: 1, left: .Some(&Node { value: i64(n), left: .None }) },
+                Node { value: 1, left: .Some(box(Node { value: i64(n), left: .None })) },
             )
                 .item
             assert_equal(
@@ -120,7 +119,7 @@ tests:
             )
 
     it("an erased returned payload keeps its owned coercion"):
-        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
-        child := selected_erased(&node)
+        node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        child := selected_erased(node)
         node.left = .None
         assert_equal(child.number(), 42, reason="erasing a borrowed payload preserves ownership")

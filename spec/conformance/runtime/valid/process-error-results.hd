@@ -19,15 +19,15 @@ tests:
     use std.testing.assert_equal
 
     it("a non-zero exit status is .Ok"):
-        let mut refusing = RefusingProcess {}
-        $.with(Process=&mut refusing):
+        refusing := box(RefusingProcess {})
+        $.with(Process=refusing):
             match start!("tool"):
                 .Ok(output) => assert_equal(output.status, 2, reason="the status is output")
                 .Err(_) => assert_equal(true, false, reason="a program that ran is .Ok")
 
     it("a refused start is .Err"):
-        let mut refusing = RefusingProcess {}
-        $.with(Process=&mut refusing):
+        refusing := box(RefusingProcess {})
+        $.with(Process=refusing):
             match start!("locked"):
                 .Err(error) =>
                     assert_equal(

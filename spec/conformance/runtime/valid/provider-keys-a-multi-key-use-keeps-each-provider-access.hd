@@ -31,5 +31,5 @@ fn tick() -> i32 $ Base + Counter:
     base.value() + $.use(Counter).count()
 
 pub fn main() -> void $ Console:
-    $.with(Counter=&mut Cell { n: 0 }, Base=Fixed {}):
+    $.with(Counter=box(Cell { n: 0 }), Base=Fixed {}):
         println(tick())

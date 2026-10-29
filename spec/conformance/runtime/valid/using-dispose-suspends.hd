@@ -20,7 +20,7 @@ impl AsyncDisposable for Conn:
 
 fn connect!(name: string, log: *mut List[string]) -> *mut Conn $ Clock:
     log.push("open ${name}")
-    &mut Conn { name: name, log: log, closing: sleep(ms(1)) }
+    box(Conn { name: name, log: log, closing: sleep(ms(1)) })
 
 fn work!(log: *mut List[string], stop: bool) -> i32 $ Clock:
     using! a = connect!("a", log)
@@ -34,10 +34,10 @@ fn work!(log: *mut List[string], stop: bool) -> i32 $ Clock:
     2
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    n := work!(&mut log, false)
+    log := box::[List[string]]([])
+    n := work!(log, false)
     println(log.join(", "))
     log.clear()
-    m := work!(&mut log, true)
+    m := work!(log, true)
     println(log.join(", "))
     println("${n} ${m}")

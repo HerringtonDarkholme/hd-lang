@@ -17,7 +17,7 @@ tests:
     use std.testing.assert_equal
 
     it("evaluates every interpolation before the call, in source order"):
-        let mut log = &mut Log { seen: &mut [] }
+        log := box(Log { seen: box::[List[i32]]([]) })
         count := count_seen"${tick(log, 1)}, ${tick(log, 2)}, ${tick(log, 3)}"
         assert_equal(count, 3, reason="all three ran before the prefix function read the log")
-        assert_equal(log.seen, &mut [1, 2, 3], reason="left to right")
+        assert_equal(*log.seen, [1, 2, 3], reason="left to right")

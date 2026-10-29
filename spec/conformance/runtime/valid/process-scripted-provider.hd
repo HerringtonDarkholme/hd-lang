@@ -22,13 +22,13 @@ tests:
     use std.testing.assert_equal
 
     it("answers a scripted program"):
-        let mut scripted = ScriptedProcess {
+        scripted := box(ScriptedProcess {
             outputs: { "git": ProcessOutput { stdout: "git 2.0" } },
-        }
-        $.with(Process=&mut scripted):
+        })
+        $.with(Process=scripted):
             assert_equal(version!(), "git 2.0", reason="git is scripted")
 
     it("returns .Err(.NotFound(program)) for an unknown program"):
-        let mut empty = ScriptedProcess { outputs: {} }
-        $.with(Process=&mut empty):
+        empty := box(ScriptedProcess { outputs: {} })
+        $.with(Process=empty):
             assert_equal(version!(), "no git", reason="nothing is scripted")

@@ -45,8 +45,8 @@ fn flush!(
             done
 
 fn attempt!(name: string, ack: mut Suspend[void], bound: Duration) -> void $ Console + Clock:
-    let mut log: List[string] = []
-    _ := flush!(&mut log, ack, bound)
+    log := box::[List[string]]([])
+    _ := flush!(log, ack, bound)
     println("${name}: ${log.join(", ")}")
 
 pub fn main!() -> void $ Console + Clock:

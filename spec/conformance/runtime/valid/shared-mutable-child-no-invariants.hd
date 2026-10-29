@@ -12,9 +12,9 @@ tests:
     use std.testing.assert_equal
 
     it("a mutation through one owner is seen through the other"):
-        let mut shared = &mut Budget { limit_cents: 10000, spent_cents: 0 }
-        let mut website = &mut Project { name: "website", budget: shared }
-        let mut mobile = &mut Project { name: "mobile", budget: shared }
+        shared := box(Budget { limit_cents: 10000, spent_cents: 0 })
+        website := box(Project { name: "website", budget: shared })
+        mobile := box(Project { name: "mobile", budget: shared })
         website.budget.spent_cents = 7000
         mobile.budget.spent_cents = mobile.budget.spent_cents + 5000
         assert_equal(website.budget.spent_cents, 12000, reason="both projects reach one budget")

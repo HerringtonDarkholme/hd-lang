@@ -12,17 +12,16 @@ tests:
     use std.testing.assert_equal
 
     it("a push through a reference to the argument's list is not seen by the callee"):
-        let mut items = [+1]
-        alias := &mut items
+        items := box::[List[i32]]([+1])
         assert_equal(
-            len_after(items, fn(): alias.push(2)),
+            len_after(*items, fn(): items.push(2)),
             1,
             reason="the parameter is the list as passed",
         )
         assert_equal(items.len(), 2, reason="the reference shares the caller's list")
 
     it("a list read through a reference and passed by value is copied"):
-        view := &mut [+1]
+        view := box::[List[i32]]([+1])
         assert_equal(
             len_after(*view, fn(): view.push(2)),
             1,

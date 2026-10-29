@@ -12,14 +12,14 @@ struct Gauge:
     level: *mut i32
 
 pub fn main() -> void $ Console:
-    a := Expr.Add(&Expr.Num(1), &Expr.Add(&Expr.Num(2), &Expr.Num(3)))
-    b := Expr.Add(&Expr.Num(1), &Expr.Add(&Expr.Num(2), &Expr.Num(3)))
-    c := Expr.Add(&Expr.Num(1), &Expr.Num(5))
+    a := Expr.Add(box(Expr.Num(1)), box(Expr.Add(box(Expr.Num(2)), box(Expr.Num(3)))))
+    b := Expr.Add(box(Expr.Num(1)), box(Expr.Add(box(Expr.Num(2)), box(Expr.Num(3)))))
+    c := Expr.Add(box(Expr.Num(1)), box(Expr.Num(5)))
     println("${a == b} ${a == c}")
-    let mut x = +1
-    let mut y = +1
-    g := Gauge { level: &mut x }
-    h := Gauge { level: &mut y }
+    x := box(+1)
+    y := box(+1)
+    g := Gauge { level: x }
+    h := Gauge { level: y }
     first := g == h
-    y = 2
+    *y = 2
     println("$first ${g == h}")

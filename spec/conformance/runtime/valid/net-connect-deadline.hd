@@ -53,8 +53,8 @@ pub fn main!() -> void $ Console + Clock:
     )
     assert_equal(net.received(), ["ready.local:25"], reason="the connect is recorded once")
 
-    let mut log: List[string] = []
-    pending := &mut PendingNet { wait: waiting, log: &mut log }
+    log := box::[List[string]]([])
+    pending := box(PendingNet { wait: waiting, log: log })
     $.with(Net=pending, Clock=clock):
         let expired: Result[*mut dyn TcpStream, NetError] = apply!(timeout(3s)):
             connect!("pending.local", 25)
@@ -64,5 +64,5 @@ pub fn main!() -> void $ Console + Clock:
                 assert_equal(error, NetError.Timeout, reason="the deadline maps to NetError")
             .Ok(_) => panic("the pending connect completed")
     assert_equal(clock.now().unix_milliseconds(), 3000i64, reason="the manual deadline elapsed")
-    assert_equal(log, ["started", "cancelled"], reason="the cancelled connect unwinds once")
+    assert_equal(*log, ["started", "cancelled"], reason="the cancelled connect unwinds once")
     println("connect deadlines")

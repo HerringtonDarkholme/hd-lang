@@ -20,10 +20,10 @@ tests:
     use std.testing.assert_equal
 
     it("a bound reference keeps its receiver"):
-        let counter = &mut Counter { value: 1 }
+        let counter = box(Counter { value: 1 })
         first := counter
         bump := counter::bump
-        counter = &mut Counter { value: 100 }
+        counter = box(Counter { value: 100 })
         bump(5)
         assert_equal(first.value, 6, reason="the captured receiver changed")
         assert_equal(counter.value, 100, reason="the new value is untouched")

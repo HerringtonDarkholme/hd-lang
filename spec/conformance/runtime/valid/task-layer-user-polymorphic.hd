@@ -59,11 +59,11 @@ tests:
     use std.testing.assert_equal
 
     it("the same policy handles two result types and retains both rows"):
-        counts := &mut Counts { wraps: 0, runs: 0 }
-        events := &mut []
-        audit := &mut Recorder { events: events }
+        counts := box(Counts { wraps: 0, runs: 0 })
+        events := box::[List[string]]([])
+        audit := box(Recorder { events: events })
         policy := UserLayer { counts: counts }
-        $.with(SourceName=&Name { value: "live" }, Audit=audit):
+        $.with(SourceName=box(Name { value: "live" }), Audit=audit):
             number_result := apply!(policy):
                 number!()
             word_result := apply!(policy):

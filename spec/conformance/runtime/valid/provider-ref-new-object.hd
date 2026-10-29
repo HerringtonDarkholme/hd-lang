@@ -1,4 +1,4 @@
-# test: a new object written `&mut Tally { ... }` installed for a trait with `&self` or `&mut self` methods is one object that every `$.use` shares, and `&Name { ... }` serves a trait whose methods read only
+# test: a new object written `box(Tally { ... })` installed for a trait with `&self` or `&mut self` methods is one object that every `$.use` shares, and `box(Name { ... })` serves a trait whose methods read only
 # Spec 11 Providers Behind References: req.ref.install-counted, req.ref.use.reference-values; Spec 11 Mutable Providers: req.mut.install-writable-counted, req.mut.use-readonly.reference-values.
 # expect-stdout: 11 12
 # expect-stdout: <ada> <bo>
@@ -34,11 +34,11 @@ fn show() -> string $ Shown:
     s.shown()
 
 pub fn main() -> void $ Console:
-    $.with(Counter=&mut Tally { n: 10 }):
+    $.with(Counter=box(Tally { n: 10 })):
         first := tick()
         println("$first ${tick()}")
-    name := Name { text: "ada" }
-    $.with(Shown=&name):
+    name := box(Name { text: "ada" })
+    $.with(Shown=name):
         first := show()
-        $.with(Shown=&Name { text: "bo" }):
+        $.with(Shown=box(Name { text: "bo" })):
             println("$first ${show()}")

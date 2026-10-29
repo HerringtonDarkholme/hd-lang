@@ -27,10 +27,8 @@ tests:
         assert_equal(before, [+10, +20], reason="the first actual write separates the copied value")
 
     it("a callback can create a new buffer owner between writes"):
-        let mut values: List[i32] = [+0]
-        let mut log: List[List[i32]] = []
-        source := &mut values
-        saved := &mut log
-        interleaved(source, fn() -> void: copy_into(source, saved))
-        assert_equal(log, [[+0], [+1], [+2]], reason="each callback snapshot keeps its own value")
-        assert_equal(values, [+99], reason="the final write changes only the source")
+        values := box::[List[i32]]([+0])
+        log := box::[List[List[i32]]]([])
+        interleaved(values, fn() -> void: copy_into(values, log))
+        assert_equal(*log, [[+0], [+1], [+2]], reason="each callback snapshot keeps its own value")
+        assert_equal(*values, [+99], reason="the final write changes only the source")

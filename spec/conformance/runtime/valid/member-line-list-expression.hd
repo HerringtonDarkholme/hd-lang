@@ -14,9 +14,9 @@ fn tag(text: string) -> Tag:
 fn note(text: string) -> Note:
     Note { text: text }
 
-let noted_n: List[*dyn Inspectable] = [&note("n")]
-let noted_m: List[*dyn Inspectable] = [&note("m")]
-let tagged_c: List[*dyn Inspectable] = [&tag("c")]
+let noted_n: List[*dyn Inspectable] = [box(note("n"))]
+let noted_m: List[*dyn Inspectable] = [box(note("m"))]
+let tagged_c: List[*dyn Inspectable] = [box(tag("c"))]
 
 trait Probe:
     fn probe(self) -> string

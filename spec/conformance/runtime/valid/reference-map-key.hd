@@ -1,11 +1,11 @@
 # test: a reference key is compared and hashed by the value it refers to
 # Spec 04 Map Key Types: types.map-key.reference.
 # expect-stdout: 1 true
-a := "tea"
-b := "tea"
+a := box("tea")
+b := box("tea")
 
 pub fn main() -> void $ Console:
     let mut prices: Map[*string, i32] = {}
-    prices[&a] = +3
-    prices[&b] = +4
-    println("${prices.len()} ${prices[&a] == 4}")
+    prices[a] = +3
+    prices[b] = +4
+    println("${prices.len()} ${prices[a] == 4}")

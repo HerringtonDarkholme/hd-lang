@@ -36,15 +36,15 @@ tests:
     use std.testing.assert_equal
 
     it("sleeps between calls and returns the first .Ok"):
-        let mut clock = &mut RecordingClock { slept: &mut [] }
-        let mut server = &mut Server { busy_for: 2, calls: 0 }
+        clock := box(RecordingClock { slept: box::[List[i64]]([]) })
+        server := box(Server { busy_for: 2, calls: 0 })
         $.with(Clock=clock):
             assert_equal(connect!(server), .Ok("ready"), reason="the third call succeeds")
         assert_equal(*clock.slept, [100, 200], reason="two delays, the second doubled")
 
     it("caps each delay at max and does not sleep after the last call"):
-        let mut clock = &mut RecordingClock { slept: &mut [] }
-        let mut server = &mut Server { busy_for: 9, calls: 0 }
+        clock := box(RecordingClock { slept: box::[List[i64]]([]) })
+        server := box(Server { busy_for: 9, calls: 0 })
         $.with(Clock=clock):
             assert_equal(connect!(server), .Err("busy 5"), reason="the fifth error is returned")
         assert_equal(*clock.slept, [100, 200, 300, 300], reason="four delays, capped at max")

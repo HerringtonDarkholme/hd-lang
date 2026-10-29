@@ -62,9 +62,9 @@ tests:
             5,
             reason="the method reads its temporary after changing it",
         )
-        let mut into: List[i32] = []
-        Appender { into: &mut into }.add(3)
-        assert_equal(into, [3], reason="a temporary method may also change a referenced place")
+        into := box::[List[i32]]([])
+        Appender { into: into }.add(3)
+        assert_equal(*into, [3], reason="a temporary method may also change a referenced place")
 
     it("a chain keeps the constructor result alive through returned references"):
         args := Builder::new("tool").arg("one").arg("two").finish()

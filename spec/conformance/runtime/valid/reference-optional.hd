@@ -12,8 +12,8 @@ fn first(items: List[*mut Point]) -> *mut Point?:
     .Some(items[0])
 
 pub fn main() -> void $ Console:
-    let mut p = Point { x: +1, y: +2 }
-    r := &mut p
+    p := box(Point { x: +1, y: +2 })
+    r := p
     match first([r]):
         .Some(found) =>
             found.x = 5

@@ -23,7 +23,7 @@ tests:
         assert_equal(().wrap("kept"), "kept", reason="unit preserves the original value")
 
     it("unit apply runs its original function once with an empty row"):
-        calls := &mut Calls { count: 0 }
+        calls := box(Calls { count: 0 })
         result := apply!(()):
             counted!(calls)
         assert_equal(result, 17, reason="unit apply returns the function result")

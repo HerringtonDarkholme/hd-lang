@@ -47,8 +47,8 @@ fn indexed(source: &List[*mut User]) -> void:
     source[0].age = +9
 
 pub fn main() -> void $ Console:
-    let mut user = User { age: +1 }
-    team := Team { lead: &mut user }
+    user := box(User { age: +1 })
+    team := Team { lead: user }
     concrete(&team)
     println(user.age)
     generic(&team)
@@ -63,7 +63,7 @@ pub fn main() -> void $ Console:
     println(user.age)
     field(&team)
     println(user.age)
-    references := [&mut user]
+    references := [user]
     indexed(&references)
     println(user.age)
     number := +7

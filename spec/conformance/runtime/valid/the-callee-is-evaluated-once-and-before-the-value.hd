@@ -29,21 +29,21 @@ struct Panel:
     frozen: Cell
 
 struct Pair:
-    left: Cell
+    left: *mut Cell
     right: Cell
 
 fn pick(pair: &mut Pair, name: string) -> *mut Cell $ Console:
     println("pick ${name}")
-    &mut pair.left
+    pair.left
 
 fn val(n: i32) -> i32 $ Console:
     println("rhs ${n}")
     n
 
 pub fn main() -> void $ Console:
-    let mut pair = Pair { left: live(+1), right: live(+2) }
+    let mut pair = Pair { left: box(live(+1)), right: live(+2) }
     pick(&mut pair, "a")() = val(7)
-    println((pair.left)())
+    println((*pair.left)())
     pick(&mut pair, "b")() += val(5)
-    println((pair.left)())
+    println((*pair.left)())
     println((pair.right)())

@@ -71,7 +71,7 @@ enum Recursive:
     Pair(left: *Recursive, right: *Recursive)
 
 fn recursive(seed: string) -> *Recursive:
-    &Recursive.Pair(&Recursive.Leaf(seed + "left"), &Recursive.Leaf(seed + "right"))
+    box(Recursive.Pair(box(Recursive.Leaf(seed + "left")), box(Recursive.Leaf(seed + "right"))))
 
 fn left_word(value: &Recursive) -> string:
     match value:

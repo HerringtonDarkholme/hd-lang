@@ -19,8 +19,8 @@ tests:
     use std.testing.assert_equal
 
     it("a program outside the grant is NotGranted"):
-        let mut process = GrantedProcess {}
-        $.with(Process=&mut process):
+        process := box(GrantedProcess {})
+        $.with(Process=process):
             match start!("curl"):
                 .Err(error) =>
                     assert_equal(

@@ -11,9 +11,9 @@ fn same_hash(a: &string, b: &string) -> bool:
     hash_of(a) == hash_of(b)
 
 pub fn main() -> void $ Console:
-    a := +1
-    b := +2
-    refs := [&a, &b]
-    println("${has_value(refs, &+2)} ${has_value(refs, &+3)}")
+    a := box(+1)
+    b := box(+2)
+    refs := [a, b]
+    println("${has_value(refs, box(+2))} ${has_value(refs, box(+3))}")
     tea := "tea"
     println("${same_hash(&tea, &"tea")} ${same_hash(&tea, &"cake")}")

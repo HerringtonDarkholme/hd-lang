@@ -44,7 +44,7 @@ pub fn main!() -> void $ Clock:
     let cancel_first: mut Suspend[void] = sleep(60s)
     let cancel_second: mut Suspend[void] = sleep(60s)
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
-    copies := &mut Copies { started: 0, finished: 0, closed: 0 }
+    copies := box(Copies { started: 0, finished: 0, closed: 0 })
     $.with(Clock=clock):
         assert_equal(quick!(), .Ok("ready"), reason="the complete public hedge example")
         result := apply!(configuration()):
@@ -61,7 +61,7 @@ pub fn main!() -> void $ Clock:
         reason="the covering clock supplies the hedge delay",
     )
 
-    ready_copies := &mut Copies { started: 0, finished: 0, closed: 0 }
+    ready_copies := box(Copies { started: 0, finished: 0, closed: 0 })
     ready_clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=ready_clock):
         first_error := apply!(hedged(10ms)):
@@ -93,7 +93,7 @@ pub fn main!() -> void $ Clock:
         reason="unneeded delayed children never advance the clock",
     )
 
-    pending_copies := &mut Copies { started: 0, finished: 0, closed: 0 }
+    pending_copies := box(Copies { started: 0, finished: 0, closed: 0 })
     cancel_clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=cancel_clock):
         let job: mut Suspend[Result[string, string]] = apply(

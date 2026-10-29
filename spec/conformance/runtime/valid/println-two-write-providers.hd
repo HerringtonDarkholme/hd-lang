@@ -24,15 +24,15 @@ tests:
 
     it("Display runs once before the two raw writes"):
         conversions = 0
-        let mut console = RecordingConsole { chunks: [] }
-        $.with(Console=&mut console):
+        console := box(RecordingConsole { chunks: [] })
+        $.with(Console=console):
             println(Label { text: "hello" })
         assert_equal(conversions, 1, reason="the value is converted once")
         assert_equal(console.chunks, ["hello", "\n"], reason="the newline is a second raw write")
 
     it("empty values and existing newlines keep both writes"):
-        let mut console = RecordingConsole { chunks: [] }
-        $.with(Console=&mut console):
+        console := box(RecordingConsole { chunks: [] })
+        $.with(Console=console):
             println("")
             println("line\n")
         assert_equal(console.chunks, ["", "\n", "line\n", "\n"], reason="raw text is unchanged")

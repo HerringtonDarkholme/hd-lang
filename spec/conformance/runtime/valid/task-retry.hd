@@ -23,13 +23,13 @@ tests:
     it("returns the first .Ok without another call"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            let mut server = &mut Server { busy_for: 1, calls: 0 }
+            server := box(Server { busy_for: 1, calls: 0 })
             assert_equal(connect!(server), .Ok("ready"), reason="the second call succeeds")
             assert_equal(server.calls, 2, reason="no call after the first .Ok")
 
     it("returns the last .Err after times calls"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            let mut server = &mut Server { busy_for: 5, calls: 0 }
+            server := box(Server { busy_for: 5, calls: 0 })
             assert_equal(connect!(server), .Err("busy 3"), reason="the third error is returned")
             assert_equal(server.calls, 3, reason="three calls in all")

@@ -46,8 +46,7 @@ fn assign_items(value: &mut Nested, items: List[string]) -> void:
 
 trait Factory:
     fn make[T](self, value: T) -> *mut T:
-        let mut local = value
-        &mut local
+        box(value)
 
 struct Maker: pass
 impl Factory for Maker
@@ -68,7 +67,7 @@ tests:
         assert_equal(pair.b, +9, reason="the RHS changed the neighboring field")
 
     it("the source reference evaluates once"):
-        pair := &mut Pair { a: +1, b: +2 }
+        pair := box(Pair { a: +1, b: +2 })
         selected(pair).a = changed(pair)
         assert_equal(selections, 1, reason="taking the field place does not re-evaluate its source")
         assert_equal(pair.a, +42, reason="the original referenced place receives the result")

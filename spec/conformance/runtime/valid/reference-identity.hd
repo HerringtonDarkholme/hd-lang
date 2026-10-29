@@ -21,7 +21,7 @@ fn pending!() -> i32:
     1
 
 fn main() -> i32:
-    boxed := &Box { value: 1 }
+    boxed := box(Box { value: 1 })
     alias := boxed
     other := &Box { value: 1 }
     first_trait := as_value(boxed)

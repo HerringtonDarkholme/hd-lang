@@ -44,11 +44,11 @@ fn mark!(log: &mut List[string], at: Duration, text: string) -> void $ Clock:
     log.push(text)
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
+    log := box::[List[string]]([])
     let (outcome, _, _) = all!(
-        race(request(&mut log), caller_cancels(&mut log)),
-        mark(&mut log, ms(250), "still closing"),
-        mark(&mut log, ms(400), "after deadline"),
+        race(request(log), caller_cancels(log)),
+        mark(log, ms(250), "still closing"),
+        mark(log, ms(400), "after deadline"),
     )
     println(outcome)
     println(log.join(", "))

@@ -15,6 +15,6 @@ tests:
     use std.testing.assert_equal
 
     it("results come back in input order"):
-        let mut log = &mut Log { started: &mut [] }
+        log := box(Log { started: box::[List[i32]]([]) })
         assert_equal(squares!(log), [9, 1, 4], reason="one result per task, in task order")
-        assert_equal(log.started, &mut [3, 1, 2], reason="the tasks start in input order")
+        assert_equal(*log.started, [3, 1, 2], reason="the tasks start in input order")

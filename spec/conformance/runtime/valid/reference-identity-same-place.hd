@@ -20,20 +20,19 @@ fn same_any[T < AnyRef](a: T, b: T) -> bool:
     a is b
 
 pub fn main() -> void $ Console:
-    let mut p = Point { x: +1, y: +2 }
-    let mut q = Point { x: +1, y: +2 }
-    r := &mut p
-    s := &mut p
+    p := box(Point { x: +1, y: +2 })
+    q := box(Point { x: +1, y: +2 })
+    r := p
+    s := p
     copy := r
-    println("${r is s} ${r is copy} ${same(&p, &mut p)}")
-    println("${&p is &q} ${same(&q, &mut p)}")
-    println("${keep(r) is s} ${&*r is &p}")
+    println("${r is s} ${r is copy} ${same(p, p)}")
+    println("${p is q} ${same(q, p)}")
+    println("${keep(r) is s} ${&*r is &*p}")
     made := &Point { x: +1, y: +2 }
     again := &Point { x: +1, y: +2 }
     println("${made is again} ${made is made}")
     let mut refs: List[*i32] = []
     for i in [+1, +1]:
-        let mut v = i
-        refs.push(&mut v)
+        refs.push(box(i))
     println(refs[0] is refs[1])
-    println("${same_any(&p, &p)} ${same_any(&p, &q)}")
+    println("${same_any(p, p)} ${same_any(p, q)}")

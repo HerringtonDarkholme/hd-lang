@@ -73,7 +73,7 @@ pub fn main() -> void $ Console:
         ,
     )
     println("${halves((+4, "x"))._1} ${halves((+8, "y"))._1}")
-    println(show(.Some(&"four")))
+    println(show(.Some(box("four"))))
     println(show(.None))
     let mut ticker = Ticker { n: 0 }
     println("${tick(&mut ticker)} ${tick(&mut ticker)}")

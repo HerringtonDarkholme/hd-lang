@@ -34,7 +34,7 @@ struct MissingDefault:
     hidden: i32
 
 fn skip_facts() -> List[*dyn Inspectable]:
-    [&skip()]
+    [box(skip())]
 
 impl Deserialize for MissingDefault by Structure:
     hidden = skip_facts()

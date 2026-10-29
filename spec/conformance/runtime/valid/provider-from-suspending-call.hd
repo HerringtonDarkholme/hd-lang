@@ -8,7 +8,7 @@ struct MockClock:
 impl Clock for MockClock
 
 fn make_clock!(value: i32) -> *dyn Clock:
-    &MockClock { value: value }
+    box(MockClock { value: value })
 
 fn read() -> i32 $ Clock:
     _ := $.use(Clock)
