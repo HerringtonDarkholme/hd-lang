@@ -5205,3 +5205,12 @@ runtime/valid/weak-reference-whole-object.hd	runtime	accept	std/weak.md#weak-typ
 typing/invalid/weak-direct-construction-private.hd	type	reject:private-member	std/weak.md#r-std-weak.type.entry
 typing/invalid/weak-mut-entry-construction-private.hd	type	reject:private-member	std/weak.md#r-std-weak.type.entry
 typing/invalid/weak-readonly-no-mutable-upgrade.hd	type	reject:type-mismatch	std/weak.md#weakening-and-identity
+typing/valid/typed-fact-optional-payload.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.optional-payload
+typing/invalid/typed-fact-optional-payload-unrelated.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check.optional-payload
+runtime/valid/validation-rules.hd	runtime	accept	std/validate.md#r-std-validate.rule.declarations
+runtime/valid/validation-rule-order.hd	runtime	accept	std/validate.md#r-std-validate.rule.builtin-order
+runtime/valid/validation-nesting-option-cap.hd	runtime	accept	std/validate.md#r-std-validate.container.option
+runtime/valid/validation-reader-boundaries.hd	runtime	accept	std/validate.md#r-std-validate.reader.boundary
+typing/valid/validation-phantom-derive-no-bound.hd	type	accept	std/validate.md#r-std-validate.rule.declarations
+typing/invalid/validation-email-wrong-target.hd	type	reject:type-mismatch	std/validate.md#r-std-validate.rule.email
+typing/invalid/validation-length-wrong-target.hd	type	reject:unsatisfied-trait-bound	std/validate.md#r-std-validate.rule.length

@@ -1,0 +1,77 @@
+# test: JSON, HTTP, CLI, and prefixed environment reads validate afterward and render their own field names
+# Standard Validation: std-validate.reader.names, std-validate.reader.boundary
+use std.cli.Cli
+use std.host.{Env, ScriptedEnv, env_decode}
+use std.http.{HttpStatus, Response}
+use std.json.decode
+use std.serde.{Deserialize, rename}
+use std.structure.Structure
+use std.validate.{PathStep, Validate, ValidationError, range}
+
+@derive(Deserialize, Cli)
+struct Config:
+    @rename("listenPort")
+    port: u16
+
+impl Validate for Config by Structure:
+    port = [range(1, 65535)]
+
+fn validate_config(value: Config) -> Result[Config, ValidationError]:
+    value.validated()
+
+fn validation_response(error: &ValidationError) -> Response:
+    match error:
+        .Definition(_, _) => Response::status(.InternalServerError)
+        .Invalid(_, _) => Response::status(.UnprocessableContent)
+
+fn issue_of(value: Config) -> ValidationError:
+    validate_config(value).err().expect("invalid configuration")
+
+fn json_name(step: &PathStep) -> string:
+    match step:
+        .Field(member) =>
+            if member.name == "port": ".listenPort" else: ".${member.name}"
+        .Index(index) => "[$index]"
+        .Key(key) => "[$key]"
+
+fn cli_name(step: &PathStep) -> string:
+    match step:
+        .Field(member) => "--${member.name.replace("_", "-")}"
+        .Index(index) => "[$index]"
+        .Key(key) => "[$key]"
+
+fn env_name(step: &PathStep) -> string:
+    match step:
+        .Field(member) => "APP_${member.name.upper()}"
+        .Index(index) => "[$index]"
+        .Key(key) => "[$key]"
+
+tests:
+    it("validates a JSON value and maps the same failure to HTTP 422"):
+        value := decode::[Config]("{\"listenPort\":0}").expect("JSON")
+        error := issue_of(value)
+        assert_equal(
+            validation_response(&error).status,
+            HttpStatus.UnprocessableContent,
+            reason="a successfully decoded value maps validation failure to 422, not 400",
+        )
+        issues := error.issues()
+        assert_equal((&issues[0]).display_with(json_name), "$.listenPort", reason="serde rename")
+
+    it("validates the parsed CLI value and renders the option spelling"):
+        value := Config::parse(["--port", "0"]).expect("CLI value")
+        error := issue_of(value)
+        issues := error.issues()
+        assert_equal((&issues[0]).display_with(cli_name), "$--port", reason="CLI resolver")
+
+    it("validates a prefixed environment value and renders the environment spelling"):
+        vars := ScriptedEnv::new({ "APP_PORT": "0" })
+        $.with(Env=&vars):
+            value := env_decode::[Config](prefix="APP_").expect("environment value")
+            error := issue_of(value)
+            issues := error.issues()
+            assert_equal(
+                (&issues[0]).display_with(env_name),
+                "\$APP_PORT",
+                reason="environment resolver",
+            )

@@ -1,0 +1,22 @@
+# test: built-in validation facts run in their declared order and custom checks run last
+# Standard Validation: std-validate.rule.builtin-order
+use std.structure.Structure
+use std.testing.assert_equal
+use std.validate.{Problem, Validate, check, max, min}
+
+fn custom(value: &i32) -> Result[void, Problem]:
+    .Err(Problem { code: "custom", message: "custom check" })
+
+struct Ordered:
+    value: i32
+
+impl Validate for Ordered by Structure:
+    value = [check(custom), max(0), min(10)]
+
+fn main() -> void:
+    error := Ordered { value: 5 }.validated().err().expect("invalid")
+    assert_equal(
+        [for issue in error.issues() => issue.problem.code],
+        ["min", "max", "custom"],
+        reason="fact source order does not change the declared validation order",
+    )

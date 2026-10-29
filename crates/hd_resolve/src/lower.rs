@@ -3906,8 +3906,19 @@ impl Lower<'_, '_, '_> {
 
     /// `@derive(X, ...)`: the head `impl[T < X, ...] X for D[T, ...]`
     /// (`annot.derive.means`, derived bounds).
-    fn derived(&mut self, h: &Head<'_>, generics: &[Generic], out: &mut Vec<Item>) {
+    fn derived(&mut self, h: &Head<'_>, generics: &[Generic], members: &[Ty], out: &mut Vec<Item>) {
         let pool = self.names.pool;
+        let mut member_params = HashSet::default();
+        for &member in members {
+            ty_any(pool, member, &mut |data| {
+                if let TyData::Param(param) = data
+                    && param.owner == h.def
+                {
+                    member_params.insert(param.index);
+                }
+                false
+            });
+        }
         for (d, args) in self.decorators(h.node) {
             if d != "derive" {
                 continue;
@@ -3961,22 +3972,27 @@ impl Lower<'_, '_, '_> {
                     })
                 };
                 let mut gs = Vec::new();
-                for (g, &param) in generics.iter().zip(&params) {
+                for (i, (g, &param)) in generics.iter().zip(&params).enumerate() {
                     let mut g2 = Generic::plain(g.name);
                     if !g.row {
                         // The bounds the type declares on the parameter
-                        // stay (`annot.bound.declared`), then `T < X`
-                        // unless one of them already is it.
-                        let derived = pool.intern_ty(&TyData::TraitValue {
-                            def: tr,
-                            args: self.r.fill_trait_args(tr, TyList::EMPTY, Some(param)),
-                            bindings: vec![],
-                        });
+                        // stay (`annot.bound.declared`). Only a parameter
+                        // used by a member gets `T < X`
+                        // (`annot.bound.params`).
                         g2.bounds = g.bounds.iter().map(|b| own(*b)).collect();
-                        if !g2.bounds.contains(&derived) {
-                            g2.bounds.push(derived);
+                        g2.bound = g.bound;
+                        let index = u16::try_from(i).unwrap_or(u16::MAX);
+                        if member_params.contains(&index) {
+                            let derived = pool.intern_ty(&TyData::TraitValue {
+                                def: tr,
+                                args: self.r.fill_trait_args(tr, TyList::EMPTY, Some(param)),
+                                bindings: vec![],
+                            });
+                            if !g2.bounds.contains(&derived) {
+                                g2.bounds.push(derived);
+                            }
+                            g2.bound = g2.bound.or(Some(tr));
                         }
-                        g2.bound = g.bound.or(Some(tr));
                     }
                     g2.row = g.row;
                     gs.push(g2);
@@ -4307,7 +4323,8 @@ impl Lower<'_, '_, '_> {
                     self.field_variance(h.def, &generics, block, &fields);
                     self.data_fields(block, &fields);
                 }
-                self.derived(h, &generics, out);
+                let member_types: Vec<_> = fields.iter().map(|field| field.ty).collect();
+                self.derived(h, &generics, &member_types, out);
                 self.error_impls(h, &generics, &[fields.as_slice()], out);
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
                 it.is_struct = n
@@ -4357,7 +4374,12 @@ impl Lower<'_, '_, '_> {
                         fields,
                     });
                 }
-                self.derived(h, &generics, out);
+                let member_types: Vec<_> = shared
+                    .iter()
+                    .chain(variants.iter().flat_map(|variant| &variant.fields))
+                    .map(|field| field.ty)
+                    .collect();
+                self.derived(h, &generics, &member_types, out);
                 let payloads: Vec<&[Field]> =
                     variants.iter().map(|v| v.fields.as_slice()).collect();
                 self.error_impls(h, &generics, &payloads, out);
@@ -4427,7 +4449,7 @@ impl Lower<'_, '_, '_> {
                 let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
                 // `@derive` on a newtype names implementations from the
                 // base type's (`trait.derive.newtype`).
-                self.derived(h, &generics, out);
+                self.derived(h, &generics, &[t], out);
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Newtype(t));
                 it.generics = generics;
                 out.push(it);

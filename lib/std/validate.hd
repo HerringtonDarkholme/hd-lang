@@ -1,0 +1,971 @@
+# std.validate: value validation after decoding or construction.
+use std.annotation.annotate
+use std.hash.Hash
+use std.http.Url as HttpUrl
+use std.inspect.Inspectable
+use std.regex.Regex
+use std.structure.{Facts, Field, Member, Structure, Variant, Walker}
+use std.text.r
+
+## One structural step in the path to an invalid value.
+pub enum PathStep:
+    Field(member: Member)
+    Index(value: usize)
+    Key(name: string)
+
+enum ValidationPathStep:
+    Field(member: *Member)
+    Index(value: usize)
+    Key(name: string)
+
+## A stable validation code and its human-facing explanation.
+pub struct Problem:
+    pub code: string
+    pub message: string
+
+## One validation problem at a structural path.
+pub struct Violation:
+    pub path: List[PathStep]
+    pub problem: Problem
+
+impl Violation:
+    ## Renders this issue with names chosen by the reader that produced the value.
+    pub fn display_with(&self, name: fn(&PathStep) -> string) -> string:
+        let text = "$"
+        let index: usize = 0
+        while index < self.path.len():
+            text = "${text}${name(&self.path[index])}"
+            index = index + 1
+        text
+
+@error
+pub enum ValidationError:
+    @error("${format_issues(&issues, truncated)}")
+    Invalid(issues: List[Violation], truncated: bool)
+    @error("invalid validation rule: $reason")
+    Definition(path: List[PathStep], reason: string)
+
+impl ValidationError:
+    ## The collected value violations; definition errors have none.
+    pub fn issues(self) -> List[Violation]:
+        match self:
+            .Invalid(issues, _) => issues
+            .Definition(_, _) => []
+
+fn source_step(step: &PathStep) -> string:
+    match step:
+        .Field(member) => ".${member.name}"
+        .Index(value) => "[$value]"
+        .Key(name) => "[\"${name.replace("\"", "\\\"")}\"]"
+
+fn format_issues(issues: &List[Violation], truncated: bool) -> string:
+    let mut lines: List[string] = []
+    let index: usize = 0
+    while index < issues.len():
+        lines.push(
+            "${(&issues[index]).display_with(source_step)}: ${issues[index].problem.message}",
+        )
+        index = index + 1
+    if truncated:
+        lines.push("validation stopped after the issue limit")
+    lines.join("\n")
+
+## Mutable state passed to record-level validation callbacks.
+pub struct ValidationContext:
+    path: List[ValidationPathStep]
+    found: List[Violation]
+    limit: usize
+    truncated: bool
+    definition_path: List[PathStep]?
+    definition_reason: string?
+
+impl ValidationContext:
+    ## Records one value problem at the current path.
+    pub fn reject(&mut self, code: string, message: string) -> void:
+        if self.definition_reason.is_some() || self.found.len() >= self.limit:
+            return
+        path := copy_path(&self.path)
+        self.found.push(Violation { path: path, problem: Problem { code: code, message: message } })
+
+    fn definition(&mut self, reason: string) -> void:
+        if self.definition_reason.is_none():
+            path := copy_path(&self.path)
+            self.definition_path = .Some(path)
+            self.definition_reason = .Some(reason)
+
+    fn begin(&mut self) -> bool:
+        if self.definition_reason.is_some():
+            return false
+        if self.found.len() < self.limit:
+            return true
+        self.truncated = true
+        false
+
+    fn push(&mut self, step: ValidationPathStep) -> void:
+        self.path.push(step)
+
+    fn pop(&mut self) -> void:
+        _ := self.path.pop()
+
+    fn finish(self) -> Result[void, ValidationError]:
+        match self.definition_reason:
+            .Some(reason) => .Err(.Definition(self.definition_path.unwrap_or([]), reason))
+            .None =>
+                if self.found.is_empty(): .Ok(()) else: .Err(.Invalid(self.found, self.truncated))
+
+fn copy_path(path: &List[ValidationPathStep]) -> List[PathStep]:
+    let mut copied: List[PathStep] = []
+    let index: usize = 0
+    while index < path.len():
+        step := copy_step(&path[index])
+        copied.push(step)
+        index = index + 1
+    copied
+
+fn copy_step(step: &ValidationPathStep) -> PathStep:
+    match step:
+        .Field(member) => .Field(copy_member_value(member))
+        .Index(value) => .Index(value)
+        .Key(name) => .Key(name)
+
+fn copy_member(member: &Member) -> *Member:
+    &copy_member_value(member)
+
+fn copy_member_value(member: &Member) -> Member:
+    let mut items: List[*dyn Inspectable] = []
+    let index: usize = 0
+    while index < member.facts.items.len():
+        item := member.facts.items[index]
+        items.push(item)
+        index = index + 1
+    Member {
+        name: member.name,
+        position: member.position,
+        facts: Facts { items: items },
+        doc: member.doc,
+        embedded: member.embedded,
+        positional: member.positional,
+        self_ref: member.self_ref,
+    }
+
+## A value that can validate itself and its nested values.
+pub trait Validate:
+    fn collect(&self, context: &mut ValidationContext) -> void
+
+    ## Runs checks that require the completed record. It is skipped after the positive issue cap.
+    fn record(&self, context: &mut ValidationContext) -> void:
+        pass
+
+    ## Returns the same value when valid, without coercion or normalization.
+    fn validated(self, max_errors: usize = 64) -> Result[Self, ValidationError]:
+        if max_errors == 0:
+            return .Err(.Definition([], "max_errors must be positive"))
+        let mut context = ValidationContext {
+            path: [],
+            found: [],
+            limit: max_errors,
+            truncated: false,
+            definition_path: .None,
+            definition_reason: .None,
+        }
+        visit_value(&self, &mut context)
+        context.finish()?
+        .Ok(self)
+
+    # These queries let the generic Structure walker apply a fact whose
+    # semantic bound was checked on its builder.
+    fn length_of(&self) -> usize?:
+        .None
+    fn text_of(&self) -> string?:
+        .None
+    fn partial_cmp_of(&self, other: &Self) -> Result[Ordering?, void]:
+        .Err(())
+    fn equal_to(&self, other: &Self) -> bool?:
+        .None
+    fn unique_items(&self) -> bool?:
+        .None
+    fn path_name(&self) -> string?:
+        .None
+    fn apply_attached[S](&self, field: Field[S, Self], context: &mut ValidationContext) -> void:
+        apply_member_facts(self, field, context)
+
+fn visit_value[F < Validate](value: &F, context: &mut ValidationContext) -> void:
+    if !context.begin():
+        return
+    value.collect(context)
+    if context.begin():
+        value.record(context)
+
+impl[T] Validate for T by Structure:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        let mut walker = ValidationWalker::[T] { context: *context }
+        _ := Structure::walk(*self, &mut walker)
+        *context = walker.context
+
+    fn equal_to(&self, other: &T) -> bool?:
+        let mut walker = ValidationEqualWalker::[T] { other: *other, result: .Some(true) }
+        _ := Structure::walk(*self, &mut walker)
+        walker.result
+
+    fn partial_cmp_of(&self, other: &T) -> Result[Ordering?, void]:
+        index := fn(value: T) -> usize:
+            let mut probe = ValidationVariantIndex::[T] { index: 0 }
+            _ := Structure::walk(value, &mut probe)
+            probe.index
+        let mut walker = ValidationOrderWalker::[T] {
+            other: *other,
+            other_index: index,
+            result: .Ok(.Some(.Equal)),
+        }
+        _ := Structure::walk(*self, &mut walker)
+        walker.result
+
+struct ValidationWalker[S]:
+    pub context: ValidationContext
+
+impl[S] Walker[S] for ValidationWalker[S]:
+    type Error = never
+
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn rest[T < Validate](
+        &mut self,
+        field: Field[S, List[T]],
+        items: List[T],
+    ) -> Result[void, never]:
+        self.member(field, items)
+
+    fn member[F < Validate](&mut self, field: Field[S, F], value: F) -> Result[void, never]:
+        self.context.push(.Field(copy_member(&field.info)))
+        value.apply_attached(field, &mut self.context)
+        visit_value(&value, &mut self.context)
+        self.context.pop()
+        .Ok(())
+
+struct ValidationEqualWalker[S]:
+    pub other: S
+    pub result: bool?
+
+impl[S] Walker[S] for ValidationEqualWalker[S]:
+    type Error = bool
+
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
+        if variant.holds(self.other):
+            .Ok(())
+        else:
+            self.result = .Some(false)
+            .Err(false)
+
+    fn rest[T < Validate](
+        &mut self,
+        field: Field[S, List[T]],
+        items: List[T],
+    ) -> Result[void, bool]:
+        self.member(field, items)
+
+    fn member[F < Validate](&mut self, field: Field[S, F], value: F) -> Result[void, bool]:
+        match value.equal_to(&field.get(self.other)):
+            .Some(true) => .Ok(())
+            result =>
+                self.result = result
+                .Err(false)
+
+struct ValidationVariantIndex[S]:
+    pub index: usize
+
+impl[S] Walker[S] for ValidationVariantIndex[S]:
+    type Error = bool
+
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
+        self.index = variant.info.index
+        .Err(true)
+
+    fn rest[T](&mut self, field: Field[S, List[T]], items: List[T]) -> Result[void, bool]:
+        self.member(field, items)
+
+    fn member[F](&mut self, field: Field[S, F], value: F) -> Result[void, bool]:
+        .Ok(())
+
+struct ValidationOrderWalker[S]:
+    pub other: S
+    pub other_index: fn(S) -> usize
+    pub result: Result[Ordering?, void]
+
+impl[S] Walker[S] for ValidationOrderWalker[S]:
+    type Error = bool
+
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, bool]:
+        if variant.holds(self.other):
+            return .Ok(())
+        self.result = if variant.info.index < (self.other_index)(self.other):
+            .Ok(.Some(.Less))
+        else:
+            .Ok(.Some(.Greater))
+        .Err(false)
+
+    fn rest[T < Validate](
+        &mut self,
+        field: Field[S, List[T]],
+        items: List[T],
+    ) -> Result[void, bool]:
+        self.member(field, items)
+
+    fn member[F < Validate](&mut self, field: Field[S, F], value: F) -> Result[void, bool]:
+        match value.partial_cmp_of(&field.get(self.other)):
+            .Ok(.Some(.Equal)) => .Ok(())
+            result =>
+                self.result = result
+                .Err(false)
+
+impl[T < Validate] Validate for List[T]:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        let index: usize = 0
+        for value in *self:
+            context.push(.Index(index))
+            visit_value(&value, context)
+            context.pop()
+            index = index + 1
+
+    fn length_of(&self) -> usize?:
+        .Some(self.len())
+
+    fn equal_to(&self, other: &List[T]) -> bool?:
+        if self.len() != other.len():
+            return .Some(false)
+        let index: usize = 0
+        while index < self.len():
+            match self[index].equal_to(&other[index]):
+                .Some(true) => pass
+                result => return result
+            index = index + 1
+        .Some(true)
+
+    fn partial_cmp_of(&self, other: &List[T]) -> Result[Ordering?, void]:
+        let index: usize = 0
+        while index < self.len() && index < other.len():
+            match self[index].partial_cmp_of(&other[index]):
+                .Ok(.Some(.Equal)) => pass
+                result => return result
+            index = index + 1
+        if self.len() < other.len():
+            return .Ok(.Some(.Less))
+        if self.len() > other.len():
+            return .Ok(.Some(.Greater))
+        .Ok(.Some(.Equal))
+
+    fn unique_items(&self) -> bool?:
+        let left: usize = 0
+        while left < self.len():
+            let right = left + 1
+            while right < self.len():
+                match self[left].equal_to(&self[right]):
+                    .Some(true) => return .Some(false)
+                    .Some(false) => pass
+                    .None => return .None
+                right = right + 1
+            left = left + 1
+        .Some(true)
+
+impl[T < Validate] Validate for T?:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        match self:
+            .Some(value) => visit_value(&value, context)
+            .None => pass
+
+    fn length_of(&self) -> usize?:
+        match self:
+            .Some(value) => (&value).length_of()
+            .None => .None
+
+    fn text_of(&self) -> string?:
+        match self:
+            .Some(value) => (&value).text_of()
+            .None => .None
+
+    fn partial_cmp_of(&self, other: &(T?)) -> Result[Ordering?, void]:
+        match (self, other):
+            (.Some(left), .Some(right)) => left.partial_cmp_of(&right)
+            (.Some(_), .None) => .Ok(.Some(.Greater))
+            (.None, .Some(_)) => .Ok(.Some(.Less))
+            (.None, .None) => .Ok(.Some(.Equal))
+
+    fn equal_to(&self, other: &(T?)) -> bool?:
+        match (self, other):
+            (.Some(left), .Some(right)) => left.equal_to(&right)
+            (.None, .None) => .Some(true)
+            _ => .Some(false)
+
+    fn path_name(&self) -> string?:
+        match self:
+            .Some(value) => (&value).path_name()
+            .None => .None
+
+    fn apply_attached[S](&self, field: Field[S, T?], context: &mut ValidationContext) -> void:
+        match self:
+            .Some(value) => apply_optional_facts(&value, field, context)
+            .None => pass
+
+impl[K < Eq & Hash & Validate, V < Validate] Validate for Map[K, V]:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        for (key, value) in self.entries():
+            context.push(.Key(key.path_name().unwrap_or("<key>")))
+            visit_value(&key, context)
+            visit_value(&value, context)
+            context.pop()
+
+    fn length_of(&self) -> usize?:
+        .Some(self.len())
+
+    fn equal_to(&self, other: &Map[K, V]) -> bool?:
+        if self.len() != other.len():
+            return .Some(false)
+        for (key, value) in self.entries():
+            found := match other.get(key):
+                .Some(found) => found
+                .None => return .Some(false)
+            match value.equal_to(&found):
+                .Some(true) => pass
+                result => return result
+        .Some(true)
+
+impl Validate for string:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn length_of(&self) -> usize?:
+        .Some(self.chars().count())
+    fn text_of(&self) -> string?:
+        .Some(*self)
+    fn partial_cmp_of(&self, other: &string) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &string) -> bool?:
+        .Some(*self == *other)
+    fn path_name(&self) -> string?:
+        .Some(*self)
+
+impl Validate for i8:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &i8) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &i8) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for i16:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &i16) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &i16) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for i32:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &i32) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &i32) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for i64:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &i64) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &i64) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for u8:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &u8) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &u8) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for u16:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &u16) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &u16) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for u32:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &u32) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &u32) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for u64:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &u64) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &u64) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for usize:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &usize) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &usize) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for f32:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &f32) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &f32) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for f64:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &f64) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &f64) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for bool:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn equal_to(&self, other: &bool) -> bool?:
+        .Some(*self == *other)
+
+impl Validate for char:
+    fn collect(&self, context: &mut ValidationContext) -> void:
+        pass
+    fn partial_cmp_of(&self, other: &char) -> Result[Ordering?, void]:
+        .Ok(self.partial_cmp(*other))
+    fn equal_to(&self, other: &char) -> bool?:
+        .Some(*self == *other)
+
+## Applies one statically dispatched rule. Concrete built-in facts contain only rule data.
+pub trait Rule[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void
+
+## Strings count Unicode scalars; collections count elements or entries.
+pub trait HasLength:
+    fn length(&self) -> usize
+
+impl HasLength for string:
+    fn length(&self) -> usize:
+        self.chars().count()
+
+impl[T] HasLength for List[T]:
+    fn length(&self) -> usize:
+        self.len()
+
+impl[K < Eq & Hash, V] HasLength for Map[K, V]:
+    fn length(&self) -> usize:
+        self.len()
+
+impl[T < HasLength] HasLength for T?:
+    fn length(&self) -> usize:
+        match self:
+            .Some(value) => value.length()
+            .None => 0
+
+@annotate::[F](.Field)
+pub struct Range[F]:
+    low: F
+    high: F
+    message: string?
+
+impl[F < Validate] Rule[F] for Range[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        if !valid_bounds(&self.low, &self.high, context):
+            return
+        low := value.partial_cmp_of(&self.low)
+        high := value.partial_cmp_of(&self.high)
+        match (low, high):
+            (.Ok(.Some(.Less)), _) =>
+                context.reject(
+                    "range",
+                    rule_message(self.message, "must be within the allowed range"),
+                )
+            (_, .Ok(.Some(.Greater))) =>
+                context.reject(
+                    "range",
+                    rule_message(self.message, "must be within the allowed range"),
+                )
+            (.Ok(.Some(_)), .Ok(.Some(_))) => pass
+            _ => context.definition("range requires ordered values")
+
+@annotate::[F](.Field)
+pub struct Min[F]:
+    bound: F
+    message: string?
+
+impl[F < Validate] Rule[F] for Min[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        match value.partial_cmp_of(&self.bound):
+            .Ok(.Some(.Less)) =>
+                context.reject("min", rule_message(self.message, "must not be below the minimum"))
+            .Ok(.Some(_)) => pass
+            _ => context.definition("min requires ordered values")
+
+@annotate::[F](.Field)
+pub struct Max[F]:
+    bound: F
+    message: string?
+
+impl[F < Validate] Rule[F] for Max[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        match value.partial_cmp_of(&self.bound):
+            .Ok(.Some(.Greater)) =>
+                context.reject("max", rule_message(self.message, "must not exceed the maximum"))
+            .Ok(.Some(_)) => pass
+            _ => context.definition("max requires ordered values")
+
+@derive(Debug, Eq)
+@annotate::[F](.Field)
+pub struct Length[F]:
+    minimum: usize
+    maximum: usize
+    message: string?
+
+impl[F < Validate] Rule[F] for Length[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        if self.minimum > self.maximum:
+            context.definition("length minimum exceeds maximum")
+            return
+        match value.length_of():
+            .Some(size) =>
+                if size < self.minimum || size > self.maximum:
+                    context.reject("length", rule_message(self.message, "has the wrong length"))
+            .None => context.definition("length requires a value with length")
+
+@annotate::[F](.Field)
+pub struct MinLength[F]:
+    minimum: usize
+    message: string?
+
+impl[F < Validate] Rule[F] for MinLength[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        match value.length_of():
+            .Some(size) =>
+                if size < self.minimum:
+                    context.reject("min-length", rule_message(self.message, "is too short"))
+            .None => context.definition("min_length requires a value with length")
+
+@annotate::[F](.Field)
+pub struct MaxLength[F]:
+    maximum: usize
+    message: string?
+
+impl[F < Validate] Rule[F] for MaxLength[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        match value.length_of():
+            .Some(size) =>
+                if size > self.maximum:
+                    context.reject("max-length", rule_message(self.message, "is too long"))
+            .None => context.definition("max_length requires a value with length")
+
+@annotate::[F](.Field)
+pub struct ByteLength[F]:
+    minimum: usize
+    maximum: usize
+    message: string?
+
+impl[F < Validate] Rule[F] for ByteLength[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        if self.minimum > self.maximum:
+            context.definition("byte_length minimum exceeds maximum")
+            return
+        match value.text_of():
+            .Some(text) =>
+                size := text.len()
+                if size < self.minimum || size > self.maximum:
+                    context.reject(
+                        "byte-length",
+                        rule_message(self.message, "has the wrong byte length"),
+                    )
+            .None => context.definition("byte_length requires text")
+
+@annotate::[F](.Field)
+pub struct Pattern[F]:
+    source: string
+    message: string?
+
+impl[F < Validate] Rule[F] for Pattern[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        text := match value.text_of():
+            .Some(text) => text
+            .None =>
+                context.definition("pattern requires text")
+                return
+        regex := match Regex::new(self.source):
+            .Ok(regex) => regex
+            .Err(error) =>
+                context.definition("invalid pattern: $error")
+                return
+        if !regex.is_match(text):
+            context.reject(
+                "pattern",
+                rule_message(self.message, "does not match the required pattern"),
+            )
+
+@annotate::[F](.Field)
+pub struct Email[F]:
+    message: string?
+
+impl[F < Validate] Rule[F] for Email[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        text := match value.text_of():
+            .Some(text) => text
+            .None =>
+                context.definition("email requires text")
+                return
+        regex := Regex::new(
+            r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
+        )
+            .expect("the WHATWG email grammar compiles")
+        if !regex.is_match(text):
+            context.reject("email", rule_message(self.message, "must be a valid email address"))
+
+@annotate::[F](.Field)
+pub struct Url[F]:
+    message: string?
+
+impl[F < Validate] Rule[F] for Url[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        text := match value.text_of():
+            .Some(text) => text
+            .None =>
+                context.definition("url requires text")
+                return
+        if HttpUrl::parse(text).is_err():
+            context.reject("url", rule_message(self.message, "must be an absolute HTTP URL"))
+
+@annotate::[F](.Field)
+pub struct Uuid[F]:
+    message: string?
+
+impl[F < Validate] Rule[F] for Uuid[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        text := match value.text_of():
+            .Some(text) => text
+            .None =>
+                context.definition("uuid requires text")
+                return
+        regex := Regex::new(
+            r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+        )
+            .expect("the UUID grammar compiles")
+        if !regex.is_match(text):
+            context.reject("uuid", rule_message(self.message, "must be a UUID"))
+
+@annotate::[F](.Field)
+pub struct OneOf[F]:
+    values: List[F]
+    message: string?
+
+impl[F < Validate] Rule[F] for OneOf[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        for allowed in self.values:
+            match value.equal_to(&allowed):
+                .Some(true) => return
+                .Some(false) => pass
+                .None =>
+                    context.definition("one_of requires comparable values")
+                    return
+        context.reject("one-of", rule_message(self.message, "is not one of the allowed values"))
+
+@annotate::[F](.Field)
+pub struct Unique[F]:
+    message: string?
+
+impl[F < Validate] Rule[F] for Unique[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        match value.unique_items():
+            .Some(true) => pass
+            .Some(false) =>
+                context.reject("unique", rule_message(self.message, "must contain unique values"))
+            .None => context.definition("unique requires comparable values")
+
+@annotate::[F](.Field)
+pub struct Check[F]:
+    test: fn(&F) -> Result[void, Problem]
+    message: string?
+
+impl[F] Rule[F] for Check[F]:
+    fn apply(&self, value: &F, context: &mut ValidationContext) -> void:
+        match (self.test)(value):
+            .Ok(_) => pass
+            .Err(problem) => context.reject(problem.code, self.message.unwrap_or(problem.message))
+
+fn valid_bounds[F < Validate](low: &F, high: &F, context: &mut ValidationContext) -> bool:
+    match low.partial_cmp_of(high):
+        .Ok(.Some(.Less)) => true
+        .Ok(.Some(.Equal)) => true
+        .Ok(.Some(.Greater)) =>
+            context.definition("range minimum exceeds maximum")
+            false
+        _ =>
+            context.definition("range requires ordered bounds")
+            false
+
+fn rule_message(message: string?, fallback: string) -> string:
+    message.unwrap_or(fallback)
+
+fn apply_member_facts[S, F < Validate](
+    value: &F,
+    field: Field[S, F],
+    context: &mut ValidationContext,
+) -> void:
+    match field.fact::[Range[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Min[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Max[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Length[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[MinLength[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[MaxLength[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[ByteLength[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Pattern[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Email[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Url[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Uuid[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[OneOf[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Unique[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Check[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+
+fn apply_optional_facts[S, F < Validate](
+    value: &F,
+    field: Field[S, F?],
+    context: &mut ValidationContext,
+) -> void:
+    match field.fact::[Range[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Min[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Max[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Length[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[MinLength[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[MaxLength[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[ByteLength[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Pattern[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Email[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Url[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Uuid[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[OneOf[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Unique[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+    match field.fact::[Check[F]]():
+        .Some(rule) => run_rule(&rule, value, context)
+        .None => pass
+
+fn run_rule[F, R < Rule[F]](rule: &R, value: &F, context: &mut ValidationContext) -> void:
+    if context.begin():
+        rule.apply(value, context)
+
+## An inclusive lower and upper bound.
+pub fn range[F < PartialOrd](low: F, high: F, message: string? = .None) -> Range[F]:
+    Range::[F] { low: low, high: high, message: message }
+
+## An inclusive lower bound.
+pub fn min[F < PartialOrd](bound: F, message: string? = .None) -> Min[F]:
+    Min::[F] { bound: bound, message: message }
+
+## An inclusive upper bound.
+pub fn max[F < PartialOrd](bound: F, message: string? = .None) -> Max[F]:
+    Max::[F] { bound: bound, message: message }
+
+## An inclusive character or collection length range.
+pub fn length[F < HasLength](minimum: usize, maximum: usize, message: string? = .None) -> Length[F]:
+    Length::[F] { minimum: minimum, maximum: maximum, message: message }
+
+## An inclusive minimum character or collection length.
+pub fn min_length[F < HasLength](minimum: usize, message: string? = .None) -> MinLength[F]:
+    MinLength::[F] { minimum: minimum, message: message }
+
+## An inclusive maximum character or collection length.
+pub fn max_length[F < HasLength](maximum: usize, message: string? = .None) -> MaxLength[F]:
+    MaxLength::[F] { maximum: maximum, message: message }
+
+## An inclusive UTF-8 byte-length range.
+pub fn byte_length(minimum: usize, maximum: usize, message: string? = .None) -> ByteLength[string]:
+    ByteLength::[string] { minimum: minimum, maximum: maximum, message: message }
+
+## A regular expression that must match the text.
+pub fn pattern(source: string, message: string? = .None) -> Pattern[string]:
+    Pattern::[string] { source: source, message: message }
+
+## A WHATWG HTML valid email address.
+pub fn email(message: string? = .None) -> Email[string]:
+    Email::[string] { message: message }
+
+## An absolute HTTP(S) URL accepted by `std.http.Url.parse`.
+pub fn url(message: string? = .None) -> Url[string]:
+    Url::[string] { message: message }
+
+## A hyphenated 8-4-4-4-12 hexadecimal UUID.
+pub fn uuid(message: string? = .None) -> Uuid[string]:
+    Uuid::[string] { message: message }
+
+## Membership in the listed values.
+pub fn one_of[F < Eq](values: List[F], message: string? = .None) -> OneOf[F]:
+    OneOf::[F] { values: values, message: message }
+
+## No two list elements compare equal.
+pub fn unique[F < Eq & Hash & Validate](message: string? = .None) -> Unique[List[F]]:
+    Unique::[List[F]] { message: message }
+
+## A custom field check; it runs after every built-in fact on the field.
+pub fn check[F](test: fn(&F) -> Result[void, Problem], message: string? = .None) -> Check[F]:
+    Check::[F] { test: test, message: message }

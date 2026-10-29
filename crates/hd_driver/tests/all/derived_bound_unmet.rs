@@ -81,3 +81,36 @@ fn ord_on_an_argument_without_ord_is_reported() {
     );
     assert_eq!(errors(&src), vec![Code::MissingDerivedBound]);
 }
+
+#[test]
+fn a_phantom_argument_needs_no_derived_bound() {
+    let src = "use std.format.debug
+
+struct Opaque: pass
+
+@derive(Debug, Eq)
+struct Phantom[T]:
+    value: usize
+
+fn probe(value: Phantom[Opaque]) -> bool:
+    _ := debug(value)
+    value == value
+";
+    assert_eq!(errors(src), Vec::<Code>::new());
+}
+
+#[test]
+fn debug_on_a_used_argument_still_needs_the_derived_bound() {
+    let src = "use std.format.debug
+
+struct Opaque: pass
+
+@derive(Debug)
+struct Box[T]:
+    value: T
+
+fn probe(value: Box[Opaque]) -> void:
+    _ := debug(value)
+";
+    assert_eq!(errors(src), vec![Code::UnsatisfiedTraitBound]);
+}

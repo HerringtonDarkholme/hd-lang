@@ -74,6 +74,7 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["text", "Text"],
   ["time", "Time"],
   ["weak", "Weak References"],
+  ["validate", "Validation"],
 ];
 
 const page = (source: string, output: string, navTitle: string, section: string): PageSource => ({

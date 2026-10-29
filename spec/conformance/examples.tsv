@@ -998,6 +998,7 @@ std/regex.md	12	accept	runtime/valid/regex-replace.hd
 std/regex.md	13	accept	runtime/valid/regex-split.hd
 std/regex.md	14	type-fragment	-
 std/regex.md	15	accept	runtime/valid/regex-errors.hd
+std/validate.md	1	accept	runtime/valid/validation-rules.hd
 lang/01-lexical-structure.md	28	accept	parse/valid/duration-literals.hd
 lang/04-type-system.md	14	accept	typing/valid/duration-literals.hd
 std/task.md	16	type-fragment	-
