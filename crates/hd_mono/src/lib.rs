@@ -2740,7 +2740,11 @@ impl Cx<'_> {
                     } else {
                         self.method_target(trait_, m, s, targs, None, parent)?
                     };
-                    let r = if takes_ref(t.item) {
+                    // The slot ABI follows the trait declaration. An impl
+                    // for a reference can lower a value receiver to that
+                    // reference type without making the slot a reference
+                    // receiver.
+                    let r = if takes_ref(m) {
                         SlotRecv::Payload
                     } else {
                         SlotRecv::ReadThrough

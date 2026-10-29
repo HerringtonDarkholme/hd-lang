@@ -4629,6 +4629,7 @@ runtime/valid/deep-equal-visits-shared.hd	runtime	accept	std/cmp.md#r-std-cmp.de
 runtime/valid/deep-recursive-release.hd	runtime	accept	lang/13-values-and-references.md#r-ref.expr.allocate
 runtime/valid/id-keys-by-identity.hd	runtime	accept	std/cmp.md#r-std-cmp.id.eq
 runtime/valid/reference-derived-debug.hd	runtime	accept	std/format.md#r-std-format.debug.reference-derived
+runtime/valid/boxed-reference-trait-debug.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.counted
 runtime/valid/reference-display.hd	runtime	accept	std/format.md#r-std-format.display.reference
 runtime/panic/reference-derived-debug-cycle.hd	runtime	panic:stack-exhausted	std/format.md#r-std-format.debug.reference-cycle
 typing/invalid/reference-derive-ord.hd	type	reject:derive-field-missing-trait	lang/09-traits.md#r-trait.derive.reference-debug
