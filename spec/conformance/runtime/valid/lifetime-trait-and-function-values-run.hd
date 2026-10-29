@@ -1,0 +1,38 @@
+# test: dependent results through a bound, a trait value, a function value and a closure read their sources
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.call; Spec 13 Dependent Results: ref.dep.trait.
+# expect-stdout: ann
+# expect-stdout: bobby
+# expect-stdout: 3
+# expect-stdout: 5
+struct User:
+    name: string
+
+trait Picker:
+    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User
+
+struct Longer:
+    strict: bool
+
+impl Picker for Longer:
+    fn pick['b](&self, a: &'b User, b: &'b User) -> &'b User:
+        if a.name.len() > b.name.len() || self.strict: a else: b
+
+fn by_bound[P < Picker](p: &P, a: &User, b: &User) -> string:
+    p.pick(a, b).name
+
+fn by_dyn(p: &dyn Picker, a: &User, b: &User) -> string:
+    p.pick(a, b).name
+
+fn name_of(u: &User) -> &string:
+    &u.name
+
+fn apply(f: fn(&User) -> &string, u: &User) -> usize:
+    f(u).len()
+
+pub fn main() -> void $ Console:
+    ann := User { name: "ann" }
+    bobby := User { name: "bobby" }
+    println(by_bound(&Longer { strict: true }, &ann, &bobby))
+    println(by_dyn(&Longer { strict: false }, &ann, &bobby))
+    println(apply(name_of, &ann))
+    println(apply(fn(u): &u.name, &bobby))

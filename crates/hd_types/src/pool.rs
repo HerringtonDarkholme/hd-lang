@@ -154,6 +154,20 @@ pub struct RowData {
     pub params: Vec<RowParamRef>,
 }
 
+/// A function type's dependency map (`fn.type.lifetime.identity`): which
+/// input reference slots each result reference slot depends on, as the
+/// lifetime of each slot of its inputs and then of its result
+/// ([`Types::ref_slots`] order), numbered by first occurrence
+/// ([`Types::fn_deps`]). `NONE` when the result has no reference slot. It
+/// is part of the type's identity and erased by [`Types::lower_refs`], so
+/// it never reaches a monomorphization key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct FnDeps(u32);
+
+impl FnDeps {
+    pub const NONE: FnDeps = FnDeps(u32::MAX);
+}
+
 /// How a function type's `params` spell its inputs tuple
 /// (`fn.type.ctor.inputs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -222,6 +236,7 @@ pub enum TyData {
         suspends: bool,
         /// How `params` spell the inputs tuple.
         inputs: Inputs,
+        deps: FnDeps,
     },
     TraitValue {
         def: DefId,
@@ -293,6 +308,8 @@ enum PoolTag {
     Row,
     RowTy,
     Context,
+    /// A function type's dependency map: `[inputs, results, lifetimes...]`.
+    Deps,
 }
 
 /// Meta flags (§3.9.2).
@@ -321,6 +338,7 @@ impl PoolTag {
                 | PoolTag::Assoc
                 | PoolTag::List
                 | PoolTag::Row
+                | PoolTag::Deps
         )
     }
 }
@@ -373,8 +391,9 @@ impl Cols {
         let x = |k: u32| self.extra[off + k];
         let len = match tag {
             PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
-            PoolTag::Fn | PoolTag::Assoc => 4,
-            PoolTag::Opaque => 4,
+            PoolTag::Assoc | PoolTag::Opaque => 4,
+            PoolTag::Fn => 5,
+            PoolTag::Deps => 2 + x(0) + x(1),
             PoolTag::TraitValue => 3 + 2 * x(2),
             PoolTag::Row => {
                 let n = x(0);
@@ -926,6 +945,102 @@ impl<'a> Types<'a> {
         RowId(self.intern(PoolTag::Row, 0, (&words, &[]), meta))
     }
 
+    /// Interns a dependency map ([`FnDeps`]): `ins` gives each input
+    /// slot's lifetime and `outs` each result slot's, any nonzero word
+    /// naming one, 0 for a result slot with no source. Only what the
+    /// result depends on counts: an input lifetime no result slot has
+    /// becomes the slot's own, and lifetimes are renumbered by first
+    /// occurrence, so maps that differ only in their names are one. A
+    /// result lifetime no input has becomes 0.
+    #[must_use]
+    pub fn fn_deps(self, ins: &[u32], outs: &[u32]) -> FnDeps {
+        if outs.is_empty() {
+            return FnDeps::NONE;
+        }
+        let mut seen: Vec<u32> = Vec::new();
+        let mut words = vec![
+            u32::try_from(ins.len()).expect("slots"),
+            u32::try_from(outs.len()).expect("slots"),
+        ];
+        for (k, &l) in ins.iter().enumerate() {
+            let l = if outs.contains(&l) {
+                l
+            } else {
+                1 << 31 | u32::try_from(k).expect("slots")
+            };
+            let at = seen.iter().position(|&x| x == l).unwrap_or_else(|| {
+                seen.push(l);
+                seen.len() - 1
+            });
+            words.push(u32::try_from(at + 1).expect("slots"));
+        }
+        for &l in outs {
+            let at = seen.iter().position(|&x| x == l && l != 0);
+            words.push(at.map_or(0, |at| u32::try_from(at + 1).expect("slots")));
+        }
+        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0))
+    }
+
+    /// The map of a function type whose slots write `written`, one word
+    /// per slot of `params` and then of `result`, 0 where none is written
+    /// (`fn.type.lifetime.elide`): an input slot that writes none has a
+    /// lifetime of its own, and a result slot that writes none takes the
+    /// inputs' one lifetime, or none.
+    #[must_use]
+    pub fn fn_deps_written(self, params: &[Ty], result: Ty, written: &[u16]) -> FnDeps {
+        let n_in: usize = params.iter().map(|&t| self.ref_slots(t)).sum();
+        let n_out = self.ref_slots(result);
+        let at = |k: usize| written.get(k).copied().filter(|&l| l != 0).map(u32::from);
+        let ins: Vec<u32> = (0..n_in)
+            .map(|k| at(k).unwrap_or(1 << 16 | u32::try_from(k).expect("slots")))
+            .collect();
+        let mut distinct = ins.clone();
+        distinct.sort_stable();
+        distinct.dedup();
+        let elided = match distinct.as_slice() {
+            [one] => *one,
+            _ => 0,
+        };
+        let outs: Vec<u32> = (0..n_out).map(|j| at(n_in + j).unwrap_or(elided)).collect();
+        self.fn_deps(&ins, &outs)
+    }
+
+    /// A dependency map's input and result lifetimes; `None` for `NONE`.
+    #[must_use]
+    pub fn deps_of(self, d: FnDeps) -> Option<(&'a [u32], &'a [u32])> {
+        if d == FnDeps::NONE {
+            return None;
+        }
+        let (c, i) = self.at(d.0);
+        let x = c.record_of(PoolTag::Deps, c.data[i]);
+        let n = x[0] as usize;
+        Some((&x[2..2 + n], &x[2 + n..]))
+    }
+
+    /// The dependency map of the function type `t`, under any `mut`,
+    /// when it lines up with the type's reference slots.
+    #[must_use]
+    pub fn fn_ty_deps(self, t: Ty) -> Option<(&'a [u32], &'a [u32])> {
+        match self.get(t) {
+            TyData::Mut(i) => self.fn_ty_deps(i),
+            TyData::Fn {
+                params,
+                result,
+                deps,
+                ..
+            } => {
+                let (ins, outs) = self.deps_of(deps)?;
+                let n_in: usize = self
+                    .list_items(params)
+                    .iter()
+                    .map(|&p| self.ref_slots(p))
+                    .sum();
+                (ins.len() == n_in && outs.len() == self.ref_slots(result)).then_some((ins, outs))
+            }
+            _ => None,
+        }
+    }
+
     fn row_meta(self, r: RowId) -> u32 {
         self.meta_word(r.0)
     }
@@ -959,6 +1074,7 @@ impl<'a> Types<'a> {
             row,
             suspends,
             inputs: Inputs::Tuple,
+            deps,
         } = t
             && let [one] = self.list_items(*params)
             && let TyData::Tuple { elems, rest } = self.get(*one)
@@ -977,6 +1093,7 @@ impl<'a> Types<'a> {
                 row: *row,
                 suspends: *suspends,
                 inputs,
+                deps: *deps,
             });
         }
         let (tag, data, meta): (PoolTag, u32, u32) = match t {
@@ -1038,7 +1155,7 @@ impl<'a> Types<'a> {
             TyData::Row(r) => (T::RowTy, r.0, self.row_meta(*r)),
             TyData::Context(r) => (T::Context, r.0, self.row_meta(*r)),
         };
-        let mut buf = [0u32; 4];
+        let mut buf = [0u32; 5];
         let rec: &[u32] = match t {
             TyData::Adt { def, args } => {
                 buf[..2].copy_from_slice(&[def.raw(), args.0]);
@@ -1057,8 +1174,9 @@ impl<'a> Types<'a> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => {
-                buf = [params.0, result.0, row.0, inputs.word(*suspends)];
+                buf = [params.0, result.0, row.0, inputs.word(*suspends), deps.0];
                 &buf
             }
             TyData::Opaque {
@@ -1067,8 +1185,8 @@ impl<'a> Types<'a> {
                 args,
                 bound,
             } => {
-                buf = [owner.raw(), *site, args.0, bound.0];
-                &buf
+                buf[..4].copy_from_slice(&[owner.raw(), *site, args.0, bound.0]);
+                &buf[..4]
             }
             TyData::Param(p) => {
                 buf[..2].copy_from_slice(&[p.owner.raw(), u32::from(p.index)]);
@@ -1080,8 +1198,8 @@ impl<'a> Types<'a> {
                 self_ty,
                 args,
             } => {
-                buf = [assoc.raw(), trait_.raw(), self_ty.0, args.0];
-                &buf
+                buf[..4].copy_from_slice(&[assoc.raw(), trait_.raw(), self_ty.0, args.0]);
+                &buf[..4]
             }
             TyData::TraitValue {
                 def,
@@ -1173,6 +1291,7 @@ impl<'a> Types<'a> {
                 row: RowId(x[2]),
                 suspends: x[3] & 1 != 0,
                 inputs: Inputs::from_bits(x[3]),
+                deps: FnDeps(x[4]),
             },
             PoolTag::TraitValue => TyData::TraitValue {
                 def: DefId::from_raw(x[0]),
@@ -1223,7 +1342,7 @@ impl<'a> Types<'a> {
             PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
             PoolTag::RowTy => TyData::Row(RowId(d)),
             PoolTag::Context => TyData::Context(RowId(d)),
-            PoolTag::List | PoolTag::Row => unreachable!("not a type index"),
+            PoolTag::List | PoolTag::Row | PoolTag::Deps => unreachable!("not a type index"),
         }
     }
 
@@ -1428,12 +1547,15 @@ impl<'a> Types<'a> {
                 row,
                 suspends,
                 inputs,
+                deps: _,
             } => TyData::Fn {
                 params: l(params),
                 result: self.lower_refs(cell, result),
                 row: self.lower_refs_row(cell, row),
                 suspends,
                 inputs,
+                // Erased before monomorphization keys form.
+                deps: FnDeps::NONE,
             },
             TyData::Row(r) => TyData::Row(self.lower_refs_row(cell, r)),
             TyData::Context(r) => TyData::Context(self.lower_refs_row(cell, r)),
@@ -1580,12 +1702,14 @@ impl<'a> Types<'a> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => TyData::Fn {
                 params: l(params, memo),
                 result: self.raise_refs_in(cell, result, memo),
                 row: self.raise_refs_row_in(cell, row, memo),
                 suspends,
                 inputs,
+                deps,
             },
             TyData::Row(row) => TyData::Row(self.raise_refs_row_in(cell, row, memo)),
             TyData::Context(row) => TyData::Context(self.raise_refs_row_in(cell, row, memo)),
@@ -1678,12 +1802,14 @@ impl<'a> Types<'a> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => TyData::Fn {
                 params: l(params),
                 result: self.subst(result, f),
                 row: self.subst_row(row, f),
                 suspends,
                 inputs,
+                deps,
             },
             TyData::Row(r) => TyData::Row(self.subst_row(r, f)),
             TyData::Context(r) => TyData::Context(self.subst_row(r, f)),
@@ -1882,12 +2008,14 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
             row,
             suspends,
             inputs,
+            deps,
         } => TyData::Fn {
             params: list(params),
             result: with_assoc_args(pool, result, trait_, args),
             row,
             suspends,
             inputs,
+            deps,
         },
         _ => return t,
     };
@@ -2158,6 +2286,7 @@ mod tests {
                 row,
                 suspends: true,
                 inputs: Inputs::Fixed,
+                deps: crate::pool::FnDeps::NONE,
             },
             TyData::Fn {
                 params: list,
@@ -2165,6 +2294,7 @@ mod tests {
                 row,
                 suspends: false,
                 inputs: Inputs::Rest,
+                deps: crate::pool::FnDeps::NONE,
             },
             TyData::TraitValue {
                 def,
@@ -2246,6 +2376,7 @@ mod tests {
                 row: RowId::EMPTY,
                 suspends: false,
                 inputs: Inputs::Tuple,
+                deps: crate::pool::FnDeps::NONE,
             })
         };
         let generic = of(param);
@@ -2263,6 +2394,7 @@ mod tests {
             row: RowId::EMPTY,
             suspends: false,
             inputs: Inputs::Fixed,
+            deps: crate::pool::FnDeps::NONE,
         });
         let tuple = p.intern_ty(&TyData::Tuple {
             elems: pair,
@@ -2371,6 +2503,7 @@ mod tests {
             row: RowId::EMPTY,
             suspends: false,
             inputs: Inputs::Fixed,
+            deps: crate::pool::FnDeps::NONE,
         });
         for reference in [shared, writable, local, projection, function] {
             assert_eq!(

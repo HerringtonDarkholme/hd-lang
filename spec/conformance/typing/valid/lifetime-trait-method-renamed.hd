@@ -1,0 +1,21 @@
+# test: a trait method may write lifetimes, and an implementation may rename them or move them to its own list
+# Spec 09 Method Generic Parameters: trait.impl.lifetime; Spec 13 Lifetime Variables: ref.lifetime.declarations.
+struct User:
+    name: string
+
+trait Picker:
+    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User
+
+struct Longer:
+    strict: bool
+
+impl Picker for Longer:
+    fn pick['b](&self, a: &'b User, b: &'b User) -> &'b User:
+        if a.name.len() > b.name.len() || self.strict: a else: b
+
+trait Named:
+    fn name(&self) -> &string
+
+impl['n] Named for User:
+    fn name(&'n self) -> &'n string:
+        &self.name

@@ -1,0 +1,13 @@
+# test: a function value whose result depends on other inputs than the expected function type's is a type mismatch
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.identity, fn.type.lifetime.mismatch.
+struct User:
+    name: string
+
+fn left['a, 'b](a: &'a User, b: &'b User) -> &'a User:
+    a
+
+fn run['a](f: fn(&'a User, &'a User) -> &'a User, u: &'a User) -> usize:
+    f(u, u).name.len()
+
+fn demo(u: &User) -> usize:
+    run(left, u)  # diagnostic: type-mismatch

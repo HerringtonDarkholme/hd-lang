@@ -2138,6 +2138,47 @@ fn show_ty_opts(
     rows: bool,
     qualified: bool,
 ) -> String {
+    show_marked(names, pool, t, (rows, qualified), None)
+}
+
+/// The lifetime marks of a function type's reference slots, inputs then
+/// result, for a message (`fn.type.lifetime.identity`): `None` when
+/// elision gives its map, else a name for each slot that shares one.
+fn lifetime_marks(pool: hd_types::Types<'_>, t: Ty) -> Option<Marks> {
+    let (ins, outs) = pool.fn_ty_deps(t)?;
+    let TyData::Fn {
+        params,
+        result,
+        deps,
+        ..
+    } = pool.get(t)
+    else {
+        return None;
+    };
+    if pool.fn_deps_written(pool.list_items(params), result, &[]) == deps {
+        return None;
+    }
+    let all: Vec<u32> = ins.iter().chain(outs).copied().collect();
+    let name = |l: u32| {
+        (l != 0 && all.iter().filter(|&&x| x == l).count() > 1)
+            .then(|| char::from(b'a' + u8::try_from((l - 1) % 26).unwrap_or(0)))
+    };
+    Some(std::cell::RefCell::new(
+        all.iter().map(|&l| name(l)).collect(),
+    ))
+}
+
+/// Each reference slot's mark, in [`hd_types::Types::ref_slots`] order.
+type Marks = std::cell::RefCell<std::collections::VecDeque<Option<char>>>;
+
+/// [`show_ty_opts`], writing the next of `marks` after each local `&`.
+fn show_marked(
+    names: &Names<'_>,
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    (rows, qualified): (bool, bool),
+    marks: Option<&Marks>,
+) -> String {
     let seg = |d: DefId| {
         if qualified {
             names.qualified_name(d)
@@ -2148,7 +2189,7 @@ fn show_ty_opts(
     let list = |l: TyList| {
         pool.list_items(l)
             .iter()
-            .map(|x| show_ty_opts(names, pool, *x, rows, qualified))
+            .map(|x| show_marked(names, pool, *x, (rows, qualified), marks))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -2169,11 +2210,14 @@ fn show_ty_opts(
             list(elems),
             rest.map_or(String::new(), |r| format!(
                 ", {}...",
-                show_ty_opts(names, pool, r, rows, qualified)
+                show_marked(names, pool, r, (rows, qualified), marks)
             ))
         ),
-        TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows, qualified)),
-        TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows, qualified)),
+        TyData::Option(i) => format!("{}?", show_marked(names, pool, i, (rows, qualified), marks)),
+        TyData::Mut(i) => format!(
+            "mut {}",
+            show_marked(names, pool, i, (rows, qualified), marks)
+        ),
         TyData::Ref {
             inner,
             mutable,
@@ -2184,11 +2228,16 @@ fn show_ty_opts(
             } else {
                 ""
             };
+            let mark = marks
+                .filter(|_| !counted)
+                .and_then(|m| m.borrow_mut().pop_front())
+                .flatten()
+                .map_or(String::new(), |c| format!("'{c} "));
             format!(
-                "{}{}{dyn_prefix}{}",
+                "{}{mark}{}{dyn_prefix}{}",
                 if counted { "*" } else { "&" },
                 if mutable { "mut " } else { "" },
-                show_ty_opts(names, pool, inner, rows, qualified)
+                show_marked(names, pool, inner, (rows, qualified), marks)
             )
         }
         // Inputs of an arity not known here have no sugar form.
@@ -2198,10 +2247,15 @@ fn show_ty_opts(
             row,
             suspends,
             inputs: hd_types::Inputs::Tuple,
+            ..
         } => format!(
             "{}[{}, {}, {}]",
             if suspends { "SuspendFn" } else { "Fn" },
-            list(params),
+            pool.list_items(params)
+                .iter()
+                .map(|x| show_ty_opts(names, pool, *x, rows, qualified))
+                .collect::<Vec<_>>()
+                .join(", "),
             show_ty_opts(names, pool, result, rows, qualified),
             show_row_in(names, pool, row, qualified)
         ),
@@ -2217,11 +2271,18 @@ fn show_ty_opts(
             } else {
                 String::new()
             };
+            let own = lifetime_marks(pool, t);
+            let own = own.as_ref();
+            let params: Vec<String> = pool
+                .list_items(params)
+                .iter()
+                .map(|x| show_marked(names, pool, *x, (rows, qualified), own))
+                .collect();
             format!(
                 "fn{}({}) -> {}{shown}",
                 if suspends { "!" } else { "" },
-                list(params),
-                show_ty_opts(names, pool, result, rows, qualified)
+                params.join(", "),
+                show_marked(names, pool, result, (rows, qualified), own)
             )
         }
         TyData::Opaque {

@@ -576,6 +576,7 @@ impl Ck<'_, '_> {
                     suspends,
                     inputs,
                     row: xw,
+                    deps,
                 },
                 TyData::Fn {
                     params: yp,
@@ -583,8 +584,9 @@ impl Ck<'_, '_> {
                     suspends: ys,
                     inputs: yi,
                     row: yw,
+                    deps: yd,
                 },
-            ) if suspends == ys && inputs == yi => {
+            ) if suspends == ys && inputs == yi && deps == yd => {
                 let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
                 if xp.len() != yp.len() {
                     return None;
@@ -615,6 +617,7 @@ impl Ck<'_, '_> {
                     suspends,
                     inputs,
                     row,
+                    deps,
                 }))
             }
             // `types.option.invariant`, and a trait value's arguments are
@@ -695,6 +698,7 @@ impl Ck<'_, '_> {
                     suspends,
                     inputs,
                     row: xw,
+                    deps,
                 },
                 TyData::Fn {
                     params: yp,
@@ -702,8 +706,9 @@ impl Ck<'_, '_> {
                     suspends: ys,
                     inputs: yi,
                     row: yw,
+                    deps: yd,
                 },
-            ) if suspends == ys && inputs == yi => {
+            ) if suspends == ys && inputs == yi && deps == yd => {
                 let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
                 xp.len() == yp.len()
                     && xp

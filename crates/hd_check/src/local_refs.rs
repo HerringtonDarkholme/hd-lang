@@ -51,7 +51,7 @@ impl Escape {
             Escape::Field => "a field",
             Escape::Element => "a collection element",
             Escape::TopLevel => "a top-level binding",
-            Escape::Result => "a function type's result",
+            Escape::Result => "a function value's result, which has no source for it",
             Escape::Capture => "a closure capture",
             Escape::TypeArgument => "a type argument",
             Escape::Counted => "a counted reference",
@@ -97,11 +97,11 @@ fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
 }
 
 /// A written local reference type in a position that keeps it
-/// (`ref.local.escape.field`, `.top-level`, `.fn-type-result`,
-/// `.generic-argument`): one error per `&`. A parameter, a local binding,
-/// an impl's target and a function's result may be local references, and
-/// so may a function type's parameters. A function's result that holds one
-/// needs one source (`ref.dep.elide`).
+/// (`ref.local.escape.field`, `.top-level`, `.generic-argument`): one
+/// error per `&`. A parameter, a local binding, an impl's target, a
+/// function's result and a function type's parameters and result may be
+/// local references. A result that holds one needs one source
+/// (`ref.dep.elide`, `fn.type.lifetime.elide`).
 pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
     for item in src.root().children() {
         match item.kind() {
@@ -166,11 +166,13 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                 }
             }
         }
-        // A closure's written result.
+        // A closure's written result may hold a local reference, whose
+        // source the checker finds from its parameters' types
+        // (`fn.closure.lifetime`).
         SyntaxKind::ClosureExpr => {
             for c in n.children() {
                 if c.kind().is_type() {
-                    walk_ty(src, c, Some(Escape::Result), diags);
+                    walk_ty(src, c, None, diags);
                 } else {
                     walk(src, c, diags);
                 }
@@ -254,16 +256,32 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
                 walk_ty(src, c, Some(Escape::TypeArgument), diags);
             }
         }
-        // A function type's parameters may be local; its result may not
-        // (`ref.local.escape.fn-type-result`).
+        // A function type's parameters may be local, and so may its
+        // result, which needs a source as a function's does
+        // (`fn.type.lifetime.elide`).
         SyntaxKind::FunctionType => {
             let arrow = n
                 .direct_token(&src.parse.tokens, TokenKind::Arrow)
                 .map(|t| src.token_span(t).lo);
+            let mut ins = Vec::new();
+            let mut outs = Vec::new();
+            let mut ret = None;
             for c in n.children() {
                 let result = arrow.is_some_and(|a| src.span(c).lo > a);
-                let at = result.then_some(Escape::Result);
-                walk_ty(src, c, at, diags);
+                if c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow {
+                    if result {
+                        ref_positions(src, c, &mut outs);
+                        ret = Some(c);
+                    } else {
+                        ref_positions(src, c, &mut ins);
+                    }
+                }
+                walk_ty(src, c, None, diags);
+            }
+            if let Some(ret) = ret
+                && outs.iter().any(Option::is_none)
+            {
+                fn_type_source(src, ret, &ins, diags);
             }
         }
         _ => {
@@ -356,6 +374,29 @@ fn check_source(src: &Src<'_>, f: NodeRef<'_>, ret: NodeRef<'_>, diags: &mut Dia
     );
 }
 
+/// `fn.type.lifetime.elide`: a result position of a function type that
+/// writes no lifetime takes the inputs' one lifetime, `ins` holding each
+/// input position's. None is `reference-result-without-source`, and two
+/// or more are `ambiguous-reference-source`.
+fn fn_type_source(src: &Src<'_>, ret: NodeRef<'_>, ins: &[Option<&str>], diags: &mut DiagBuf) {
+    if ins.is_empty() {
+        diags.error(
+            Code::ReferenceResultWithoutSource,
+            src.span(ret),
+            "a reference result needs a reference parameter to borrow from",
+        );
+        return;
+    }
+    let first = ins[0];
+    if first.is_none() && ins.len() > 1 || ins.iter().any(|l| *l != first) {
+        diags.error(
+            Code::AmbiguousReferenceSource,
+            src.span(ret),
+            "the result may borrow from more than one reference parameter; write a lifetime to name its source",
+        );
+    }
+}
+
 /// Where a value of type `t` keeps a local reference: in a type argument
 /// of a list or a map (`colls`), a trait value or an opaque type, or as a
 /// function type's result. A local reference at the top (`top_ok`), in a
@@ -395,12 +436,17 @@ fn escape_in(pool: Types<'_>, colls: Colls, t: Ty, top_ok: bool, depth: u32) -> 
         TyData::Assoc { self_ty, args, .. } => {
             escape_in(self_ty, false).or_else(|| list(args, false))
         }
-        TyData::Fn { params, result, .. } => {
-            list(params, true).or_else(|| match escape_in(result, false) {
-                Some(Escape::TypeArgument) if is_local_ref(pool, result) => Some(Escape::Result),
+        // A result with a source may hold a local reference at the top,
+        // as a function's may (`fn.type.lifetime.result`).
+        TyData::Fn { params, result, .. } => list(params, true).or_else(|| {
+            let sourced = pool.fn_ty_deps(t).is_some();
+            match escape_in(result, sourced) {
+                Some(Escape::TypeArgument) if !sourced && is_local_ref(pool, result) => {
+                    Some(Escape::Result)
+                }
                 other => other,
-            })
-        }
+            }
+        }),
         _ => None,
     }
 }
@@ -480,6 +526,7 @@ pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32)
                 row: wa,
                 suspends: sa,
                 inputs: ia,
+                deps: da,
             },
             TyData::Fn {
                 params: pb,
@@ -487,9 +534,11 @@ pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32)
                 row: wb,
                 suspends: sb,
                 inputs: ib,
+                deps: db,
             },
         ) => {
             wa == wb
+                && da == db
                 && sa == sb
                 && ia == ib
                 && list(pa, pb, -polarity)

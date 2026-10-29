@@ -871,6 +871,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             row: hd_types::RowId::EMPTY,
             suspends: false,
             inputs: hd_types::Inputs::Fixed,
+            deps: hd_types::FnDeps::NONE,
         })
     }
 

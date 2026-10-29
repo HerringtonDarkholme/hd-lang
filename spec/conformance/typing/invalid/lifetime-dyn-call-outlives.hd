@@ -1,0 +1,14 @@
+# test: a call through a trait value takes its result's lifetime from the trait, so the result may not outlive an argument's local
+# Spec 13 Dependent Results: ref.dep.trait; Spec 13 Lifetime Variables: ref.lifetime.call.
+struct User:
+    name: string
+
+trait Picker:
+    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User
+
+fn length(p: &dyn Picker, u: &User, fresh: bool) -> usize:
+    let mut r = u
+    if fresh:
+        local := User { name: "local" }
+        r = p.pick(u, &local)
+    r.name.len()  # diagnostic: local-reference-outlives-local

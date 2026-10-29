@@ -1,0 +1,12 @@
+# test: a method reference bound to its receiver has no source for a result that borrows from the receiver
+# Spec 13 Local References: ref.local.escape.fn-value-result.
+struct Point:
+    x: i32
+
+impl Point:
+    fn x_ref(&self) -> &i32:
+        &self.x
+
+fn demo(p: Point) -> i32:
+    f := p::x_ref  # diagnostic: local-reference-escapes
+    *f()

@@ -1,0 +1,7 @@
+# test: a function type's reference result with no input reference position has no source
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.elide.none.
+struct User:
+    name: string
+
+fn make(f: fn() -> &User) -> void:  # diagnostic: reference-result-without-source
+    pass

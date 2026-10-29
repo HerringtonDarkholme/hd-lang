@@ -163,6 +163,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                         row: RowId::EMPTY,
                         suspends: false,
                         inputs: hd_types::Inputs::Fixed,
+                        deps: hd_types::FnDeps::NONE,
                     })
                 };
                 let mut it = Item::new(
@@ -322,6 +323,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 row: RowId::EMPTY,
                 suspends: false,
                 inputs: hd_types::Inputs::Fixed,
+                deps: hd_types::FnDeps::NONE,
             });
             item(
                 "it",

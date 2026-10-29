@@ -1,0 +1,10 @@
+# test: a closure checked against a lifetime function type may not return a parameter of another lifetime
+# Spec 07 Closure Annotations: fn.closure.lifetime, fn.closure.lifetime.return.
+struct User:
+    name: string
+
+fn pick['a](f: fn(&'a User, &User) -> &'a User, a: &'a User, b: &User) -> usize:
+    f(a, b).name.len()
+
+fn demo(a: &User, b: &User) -> usize:
+    pick(fn(x, y): y, a, b)  # diagnostic: local-reference-escapes

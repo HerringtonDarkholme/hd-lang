@@ -1,0 +1,11 @@
+# test: a function value call's result depends on its argument, so it may not outlive that argument's local
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.call; Spec 13 Local Scope: ref.dep.scope.
+struct User:
+    name: string
+
+fn length(f: fn(&User) -> &string, u: &User, fresh: bool) -> usize:
+    let mut r = &u.name
+    if fresh:
+        local := User { name: "local" }
+        r = f(&local)
+    r.len()  # diagnostic: local-reference-outlives-local

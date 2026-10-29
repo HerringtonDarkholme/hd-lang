@@ -599,6 +599,7 @@ impl Ck<'_, '_> {
             row: inst_row(pool, m, row),
             suspends: m.sig.suspends,
             inputs: if rest { Inputs::Rest } else { Inputs::Fixed },
+            deps: self.sig_fn_deps(&m.sig, skip),
         }))
     }
 
@@ -906,6 +907,7 @@ impl Ck<'_, '_> {
             row: RowId::EMPTY,
             suspends: false,
             inputs: Inputs::Fixed,
+            deps: hd_types::FnDeps::NONE,
         });
         self.fit_expected(ft, want);
         let locals: Vec<_> = ptys
@@ -1019,6 +1021,7 @@ impl Ck<'_, '_> {
             row,
             suspends,
             inputs,
+            ..
         } = pool.get(method_ty)
         else {
             return unsupported("a dynamic member reference without a function type");
@@ -1034,6 +1037,7 @@ impl Ck<'_, '_> {
             row,
             suspends,
             inputs,
+            deps: self.sig_fn_deps(&m.sig, usize::from(bound.is_some())),
         });
         self.fit_expected(ft, want);
         self.member_bounds(&mut m, n)?;

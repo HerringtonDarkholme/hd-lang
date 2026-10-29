@@ -3804,11 +3804,12 @@ impl Ck<'_, '_> {
         // Expected inputs of an arity not known here give no parameter
         // its type (`fn.type.ctor.inputs`).
         let poisoned = want.is_some_and(|w| self.infer.resolve(pool, w) == Ty::POISON);
-        let (wparams, wret) = match wanted {
+        let (wparams, wret, wdeps) = match wanted {
             Some(TyData::Fn {
                 params,
                 result,
                 inputs,
+                deps,
                 ..
             }) => {
                 let ps = if inputs == hd_types::Inputs::Tuple {
@@ -3816,18 +3817,18 @@ impl Ck<'_, '_> {
                 } else {
                     pool.list_items(params).to_vec()
                 };
-                (ps, Some(result))
+                (ps, Some(result), deps)
             }
-            _ => (vec![], None),
+            _ => (vec![], None, hd_types::FnDeps::NONE),
         };
         // `types.lct.sites`: a closure whose result type is inferred joins
         // its final value and `return` operands, and widens in place when
         // an optional one follows plain ones (`join_site`).
         if parts.ret.is_some() {
-            return self.closure_body(n, parts, (&wparams, poisoned), None);
+            return self.closure_body(n, parts, (&wparams, poisoned, wdeps), None);
         }
         self.join_site(wret, |this, ret| {
-            this.closure_body(n, parts, (&wparams, poisoned), Some(ret))
+            this.closure_body(n, parts, (&wparams, poisoned, wdeps), Some(ret))
         })
     }
 
@@ -3837,7 +3838,7 @@ impl Ck<'_, '_> {
         &mut self,
         n: NodeRef<'_>,
         parts: &ClosureParts<'_>,
-        (wparams, poisoned): (&[Ty], bool),
+        (wparams, poisoned, wdeps): (&[Ty], bool, hd_types::FnDeps),
         ret: Option<Ty>,
     ) -> StageResult<(Ref, Ty, Option<hd_base::LocalId>)> {
         let pool = self.pool();
@@ -3948,6 +3949,7 @@ impl Ck<'_, '_> {
         };
         // The name's type before the body: the written row, or none yet.
         let own_row = written.unwrap_or(hd_types::RowId::EMPTY);
+        let deps = self.closure_deps(&ptys, public_ret, wdeps, n);
         let own = parts.name.map(|name| {
             let t = pool.intern_ty(&TyData::Fn {
                 params: pool.list(&ptys),
@@ -3955,6 +3957,7 @@ impl Ck<'_, '_> {
                 row: own_row,
                 suspends,
                 inputs: hd_types::Inputs::Fixed,
+                deps,
             });
             let flags = if parts.reassignable {
                 local_flags::ASSIGNED
@@ -4020,12 +4023,19 @@ impl Ck<'_, '_> {
         self.suspends.pop();
         self.subs.pop();
         self.scopes.pop();
+        // An inferred result is known only now.
+        let deps = if deps == hd_types::FnDeps::NONE {
+            self.closure_deps(&ptys, public_ret, wdeps, n)
+        } else {
+            deps
+        };
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&ptys),
             result: public_ret,
             row,
             suspends,
             inputs: hd_types::Inputs::Fixed,
+            deps,
         });
         // A local function that calls itself captures its own name: the
         // name is declared, a fresh shared cell, before the closure exists,
@@ -4043,6 +4053,58 @@ impl Ck<'_, '_> {
         }
         self.local_ref_captures(mark, n);
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
+    }
+
+    /// A closure's dependency map (`fn.closure.lifetime`): the expected
+    /// function type's when it lines up with the closure's reference
+    /// slots, else the elided one of its parameters' and result's types,
+    /// which needs one source as a function type's does.
+    fn closure_deps(
+        &mut self,
+        params: &[Ty],
+        ret: Ty,
+        want: hd_types::FnDeps,
+        n: NodeRef<'_>,
+    ) -> hd_types::FnDeps {
+        let pool = self.pool();
+        let params: Vec<Ty> = params
+            .iter()
+            .map(|&t| self.infer.resolve(pool, t))
+            .collect();
+        let ret = self.infer.resolve(pool, ret);
+        let n_in: usize = params.iter().map(|&t| pool.ref_slots(t)).sum();
+        let n_out = pool.ref_slots(ret);
+        if let Some((ins, outs)) = pool.deps_of(want)
+            && ins.len() == n_in
+            && outs.len() == n_out
+        {
+            return want;
+        }
+        let deps = pool.fn_deps_written(&params, ret, &[]);
+        let sourceless = pool
+            .deps_of(deps)
+            .is_some_and(|(_, outs)| outs.contains(&0));
+        // A local function's written signature reports at its declaration
+        // (`ref.dep.elide`).
+        if sourceless
+            && n.kind() != SyntaxKind::FnDecl
+            && crate::local_refs::holds_local_ref(pool, ret)
+        {
+            if n_in == 0 {
+                self.err(
+                    Code::ReferenceResultWithoutSource,
+                    n,
+                    "a reference result needs a reference parameter to borrow from",
+                );
+            } else {
+                self.err(
+                    Code::AmbiguousReferenceSource,
+                    n,
+                    "the closure's result may borrow from more than one reference parameter; give it an expected function type that writes a lifetime",
+                );
+            }
+        }
+        deps
     }
 
     /// `e?` on a `Result` or an `Option`: the success payload, or an early

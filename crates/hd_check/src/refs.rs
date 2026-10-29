@@ -200,6 +200,7 @@ impl Ck<'_, '_> {
                     row: aw,
                     suspends: ac,
                     inputs: ai,
+                    deps: ad,
                 },
                 TyData::Fn {
                     params: b,
@@ -207,8 +208,9 @@ impl Ck<'_, '_> {
                     row: bw,
                     suspends: bc,
                     inputs: bi,
+                    deps: bd,
                 },
-            ) if ac == bc && ai == bi => {
+            ) if ac == bc && ai == bi && ad == bd => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
                 a.len() == b.len()
                     && (depth == 0 || self.rows_equal(aw, bw))

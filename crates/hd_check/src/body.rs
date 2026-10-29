@@ -2054,6 +2054,7 @@ impl Ck<'_, '_> {
             row,
             suspends: true,
             inputs,
+            deps,
         } = pool.get(self.infer.shallow(pool, got))
         else {
             return None;
@@ -2074,6 +2075,7 @@ impl Ck<'_, '_> {
             row,
             suspends: false,
             inputs,
+            deps,
         }))
     }
 
@@ -4300,6 +4302,7 @@ impl Ck<'_, '_> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => {
                 let p = self.zonk_list(params);
                 let r = self.zonk(result);
@@ -4310,6 +4313,7 @@ impl Ck<'_, '_> {
                     row,
                     suspends,
                     inputs,
+                    deps,
                 })
             }
             TyData::Row(row) => {

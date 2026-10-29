@@ -91,12 +91,14 @@ impl Ck<'_, '_> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => TyData::Fn {
                 params: self.opaque_return_args(params, mode),
                 result: self.map_opaque_return(result, mode),
                 row: self.opaque_return_row(row, mode),
                 suspends,
                 inputs,
+                deps,
             },
             TyData::TraitValue {
                 def,

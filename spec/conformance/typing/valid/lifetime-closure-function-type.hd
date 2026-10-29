@@ -1,0 +1,14 @@
+# test: a closure takes the expected function type's lifetimes, and returns from its parameters of that lifetime
+# Spec 07 Closure Annotations: fn.closure.lifetime, fn.closure.lifetime.return.
+struct User:
+    name: string
+
+fn pick['a](f: fn(&'a User, &User, &'a User) -> &'a User, a: &'a User, b: &'a User) -> usize:
+    f(a, b, b).name.len()
+
+fn longer['a](x: &'a User, z: &'a User) -> &'a User:
+    if x.name.len() > z.name.len(): x else: z
+
+fn demo(a: &User, b: &User) -> usize:
+    first := fn(u: &User) -> &string: &u.name
+    pick(fn(x, y, z): longer(x, z), a, b) + first(a).len()

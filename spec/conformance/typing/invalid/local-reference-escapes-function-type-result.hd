@@ -1,7 +1,0 @@
-# test: a function type whose result is a local reference is an error, since no source can be named for it
-# Spec 13 Local References: ref.local.escape.fn-type-result.
-struct Point:
-    x: i32
-
-fn apply(f: fn(&Point) -> &Point) -> void: # diagnostic: local-reference-escapes
-    pass

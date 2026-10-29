@@ -11,7 +11,7 @@ use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 
 use crate::pool::{
-    Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
+    FnDeps, Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
 };
 
 const NONE: u32 = u32::MAX;
@@ -253,13 +253,20 @@ impl<'a> TableWriter<'a> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => {
-                let words = [
+                let mut words = vec![
                     self.list(params)?,
                     self.ty(result)?,
                     self.row_id(row)?,
                     inputs.word(suspends),
                 ];
+                // A dependency map follows as its lifetimes, inputs first.
+                if let Some((ins, outs)) = self.pool.types().deps_of(deps) {
+                    words.push(u32::try_from(ins.len()).expect("slots"));
+                    words.extend_from_slice(ins);
+                    words.extend_from_slice(outs);
+                }
                 self.row(tag::FN, &words)
             }
             TyData::TraitValue {
@@ -433,12 +440,21 @@ impl Tables {
                     .0
                 }
                 tag::FN => {
+                    let deps = match words.get(4) {
+                        Some(&n) => {
+                            let rest = words.get(5..)?;
+                            let (ins, outs) = rest.split_at_checked(n as usize)?;
+                            pool.types().fn_deps(ins, outs)
+                        }
+                        None => FnDeps::NONE,
+                    };
                     pool.intern_ty(&TyData::Fn {
                         params: TyList(row(0)?),
                         result: Ty(row(1)?),
                         row: RowId(row(2)?),
                         suspends: *words.get(3)? & 1 != 0,
                         inputs: Inputs::from_bits(*words.get(3)?),
+                        deps,
                     })
                     .0
                 }
@@ -676,6 +692,7 @@ mod tests {
             row,
             suspends: true,
             inputs: Inputs::Fixed,
+            deps: crate::pool::FnDeps::NONE,
         });
         let trait_value = pool.intern_ty(&TyData::TraitValue {
             def: bound,
@@ -808,6 +825,53 @@ mod tests {
                 owner: point2,
                 index: 1
             })
+        );
+    }
+
+    #[test]
+    fn function_type_dependencies_survive_a_fresh_run() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let user = paths.item("app", "users", "User");
+        let r = |p: &InternPool| {
+            let adt = p.intern_ty(&TyData::Adt {
+                def: user,
+                args: crate::TyList::EMPTY,
+            });
+            p.intern_ty(&TyData::Ref {
+                inner: adt,
+                mutable: false,
+                counted: false,
+            })
+        };
+        let pick = |p: &InternPool, r: Ty| {
+            // fn(&'a User, &User, &'a User) -> &'a User, renamed.
+            let deps = p.types().fn_deps(&[7, 9, 7], &[7]);
+            p.intern_ty(&TyData::Fn {
+                params: p.list(&[r, r, r]),
+                result: r,
+                row: crate::RowId::EMPTY,
+                suspends: false,
+                inputs: crate::Inputs::Fixed,
+                deps,
+            })
+        };
+        let f = pick(&pool, r(&pool));
+        assert_eq!(pool.types().fn_ty_deps(f), Some((&[1, 2, 1][..], &[1][..])));
+        let mut w = TableWriter::new(&pool, &paths, &syms);
+        let at = w.ty(f).expect("function");
+        let mut out = Writer::default();
+        w.write(&mut out);
+        let pool2 = InternPool::new();
+        let t = Tables::read(&mut Reader::new(&out.bytes), &pool2, &paths, &syms).expect("tables");
+        assert_eq!(t.ty(at), Some(pick(&pool2, r(&pool2))));
+        // An input lifetime the result does not have is no part of the map.
+        assert_eq!(
+            pool.types().fn_deps(&[3, 3, 4], &[4]),
+            pool.types().fn_deps(&[5, 6, 4], &[4])
         );
     }
 }

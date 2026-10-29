@@ -1,0 +1,7 @@
+# test: a function type's result that writes no lifetime, under two input lifetimes, is ambiguous
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.elide.ambiguous.
+struct User:
+    name: string
+
+fn apply(f: fn(&User, &User) -> &User) -> void:  # diagnostic: ambiguous-reference-source
+    pass

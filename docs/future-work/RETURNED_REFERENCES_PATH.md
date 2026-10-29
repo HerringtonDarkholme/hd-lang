@@ -238,7 +238,7 @@ fn choose(a: &User, b: &User) -> &'{a, b} User          # = fn choose['x](a: &'x
 - **Paths inside bodies, as Rust.** The checker tracks field paths locally: within one body, a borrow of `s.name` and a write to `s.age` touch different places. Stage 7 uses this for conflicts (`r := &s.name; s.age += 1` is valid), while a call's result still locks its whole source (`r := s.name(); s.age += 1` is a stage 7 error). Stages 1 to 6 need no conflict precision, so their provenance stays root-only.
 - **Lexing:** a character literal closes with `'`; anything else after the identifier makes a lifetime.
 
-Applied by #1010 (syntax) and #1011 ([Lifetime Variables](../../spec/lang/13-values-and-references.md#lifetime-variables)): top-level functions and inherent implementations declare lifetimes after their type parameters (`fn f[T, 'a]`), and the checker keeps one origin set per reference position. Struct, enum and trait lifetimes, and lifetimes in function types, stay `references-not-yet-checked`.
+Applied by #1010 (syntax) and #1011 ([Lifetime Variables](../../spec/lang/13-values-and-references.md#lifetime-variables)): top-level functions and inherent implementations declare lifetimes after their type parameters (`fn f[T, 'a]`), and the checker keeps one origin set per reference position. #1012 ([Lifetimes In Function Types](../../spec/lang/07-functions.md#lifetimes-in-function-types)) adds trait methods, trait implementations, function types and closures; a function type writes the enclosing declaration's lifetimes and has no binder of its own. Struct, enum and trait lifetime parameters stay `references-not-yet-checked` until stage 6.
 
 ### Stage 4: element results
 

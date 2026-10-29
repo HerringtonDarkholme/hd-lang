@@ -630,6 +630,7 @@ impl Ck<'_, '_> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => {
                 let old = pool.list_items(params).to_vec();
                 let items: Vec<Ty> = old
@@ -647,6 +648,7 @@ impl Ck<'_, '_> {
                         row,
                         suspends,
                         inputs,
+                        deps,
                     })
                 })
             }

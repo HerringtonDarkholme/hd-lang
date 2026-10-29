@@ -1,0 +1,19 @@
+# test: a function type's result may borrow from its inputs, by elision or a written lifetime, and named functions and closures fit it
+# Spec 07 Lifetimes In Function Types: fn.type.lifetime.result, fn.type.lifetime.elide, fn.type.lifetime.value, fn.type.lifetime.call.
+struct User:
+    name: string
+
+fn name_of(u: &User) -> &string:
+    &u.name
+
+fn longer['a](a: &'a User, b: &'a User) -> &'a User:
+    if a.name.len() >= b.name.len(): a else: b
+
+fn apply(f: fn(&User) -> &string, u: &User) -> usize:
+    f(u).len()
+
+fn pick['a](f: fn(&'a User, &'a User) -> &'a User, a: &'a User, b: &'a User) -> usize:
+    f(a, b).name.len()
+
+fn demo(a: &User, b: &User) -> usize:
+    apply(name_of, a) + pick(longer, a, b) + apply(fn(u): &u.name, b)

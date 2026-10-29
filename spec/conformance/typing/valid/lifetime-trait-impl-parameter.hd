@@ -1,0 +1,11 @@
+# test: a trait implementation may declare a lifetime parameter, in scope in its methods
+# Spec 13 Lifetime Variables: ref.lifetime.declarations; Spec 09 Method Generic Parameters: trait.impl.lifetime.
+trait Labeled:
+    fn label(&self) -> &string
+
+struct User:
+    name: string
+
+impl['a] Labeled for User:
+    fn label(&'a self) -> &'a string:
+        &self.name

@@ -340,7 +340,7 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.field] Field | is stored in a struct field or an enum payload field, or a field's declared type holds one | `point: &Point` | `local-reference-escapes` |
 | r[ref.local.escape.element] Collection element | is stored as an element of a list, a map, or a set, by a literal or a method such as `push` | `points.push(p)` | `local-reference-escapes` |
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
-| r[ref.local.escape.fn-type-result] Function type result | is the result of a function type or a closure, or a function type's or a closure's declared result type holds one | `fn(&Point) -> &Point` | `local-reference-escapes` |
+| r[ref.local.escape.fn-value-result] Function value result | is the result of a function value whose type gives it no source among the inputs, as for a method bound to its receiver | `p::x_ref` for `fn x_ref(&self) -> &i32` | `local-reference-escapes` |
 | r[ref.local.escape.capture] Closure capture | is captured by a closure, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
 | r[ref.local.escape.generic-argument] Type argument | is a type argument of a list, a map, a generic function or method, a trait, or a trait value, written or inferred | `List[&Point]`, `keep::[&Point](p)` | `local-reference-escapes` |
 
@@ -359,8 +359,13 @@ let origin_ref: &Point = &origin  # error: local-reference-escapes
 fn keep(points: &mut List[*Point], p: &Point) -> void:
     points.push(p)  # error: local-reference-escapes
 
-fn apply(f: fn(&Point) -> &Point) -> void:  # error: local-reference-escapes
-    pass
+impl Point:
+    fn x_ref(&self) -> &i32:
+        &self.x
+
+fn bound(p: Point) -> i32:
+    f := p::x_ref  # error: local-reference-escapes
+    *f()
 
 fn reader(p: &Point) -> fn() -> i32:
     fn() -> i32: p.x  # error: local-reference-escapes
@@ -575,9 +580,9 @@ fn view(u: User) -> i32:
 10. r[ref.lifetime.return] Each reference position of a returned value may depend only on the parameter positions of its lifetime, and on references reached through them. Error: `local-reference-escapes`.
 11. r[ref.lifetime.return.message] The diagnostic's message names the root, the lifetime, and the parameters with that lifetime. It has no fix-it.
 12. r[ref.lifetime.call] A call's result position depends on what every argument in a parameter position of its lifetime depends on.
-13. r[ref.lifetime.checked] A top-level function, an inherent implementation, and that implementation's methods may declare lifetime parameters.
-14. r[ref.lifetime.not-yet.declaration] Any other lifetime parameter is not checked yet, so it is an error: a struct's, an enum's, a trait's or its methods', a trait implementation's or its methods', a `type` declaration's, or a local function's. Error: `references-not-yet-checked`.
-15. r[ref.lifetime.not-yet.position] A lifetime written in a function type, in a type alias's arguments, or in an implementation's target is an error too. Error: `references-not-yet-checked`.
+13. r[ref.lifetime.declarations] A top-level function, an implementation, and a method of an implementation or a trait may declare lifetime parameters.
+14. r[ref.lifetime.not-yet.owner] Any other lifetime parameter is not checked yet, so it is an error: a struct's, an enum's, a trait's own, a `type` declaration's, or a local function's. Error: `references-not-yet-checked`.
+15. r[ref.lifetime.not-yet.alias-target] A lifetime written in a type alias's arguments or in an implementation's target is an error too. Error: `references-not-yet-checked`.
 16. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
 
 ```hd
@@ -595,8 +600,11 @@ fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:  # the result tak
 > only the positions that write no lifetime, and a reference's referent
 > outlives it. A lifetime is only checked; it adds nothing at run time.
 
-> **Note.** Stored references, with lifetimes on structs and enums, and
-> lifetimes in function types and traits come in later stages.
+> **Note.** Stored references, with lifetimes on structs, enums and
+> traits, come in a later stage.
+
+See also: [Lifetimes In Function Types](07-functions.md#lifetimes-in-function-types),
+[Method Generic Parameters](09-traits.md#method-generic-parameters).
 
 ## Reading Through A Reference
 

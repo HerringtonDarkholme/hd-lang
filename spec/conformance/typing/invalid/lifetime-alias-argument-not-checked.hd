@@ -1,0 +1,9 @@
+# test: a lifetime variable in a type alias's argument is references-not-yet-checked
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.alias-target.
+struct User:
+    name: string
+
+type Reader[T] = fn(T) -> i32
+
+fn apply['a](u: &'a User, f: Reader[&'a User]) -> i32:  # diagnostic: references-not-yet-checked
+    f(u)

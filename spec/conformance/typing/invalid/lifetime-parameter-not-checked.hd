@@ -1,7 +1,7 @@
-# test: a trait method's lifetime parameter is references-not-yet-checked
-# Spec 04 Lifetime Parameters; spec 13 Lifetime Variables: ref.lifetime.not-yet.declaration.
+# test: a trait's own lifetime parameter is references-not-yet-checked
+# Spec 04 Lifetime Parameters; spec 13 Lifetime Variables: ref.lifetime.not-yet.owner.
 struct User:
     name: string
 
-trait Picker:
-    fn pick['a](&self, a: &'a User, b: &'a User) -> &'a User  # diagnostic: references-not-yet-checked
+trait Picker['a]:  # diagnostic: references-not-yet-checked
+    fn pick(&self, a: &User) -> i32

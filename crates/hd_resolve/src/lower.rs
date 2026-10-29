@@ -2101,6 +2101,7 @@ impl Lower<'_, '_, '_> {
                     row: row.unwrap_or(RowId::EMPTY),
                     suspends: name == "SuspendFn",
                     inputs: Inputs::Tuple,
+                    deps: hd_types::FnDeps::NONE,
                 });
             }
         }
@@ -2301,9 +2302,9 @@ impl Lower<'_, '_, '_> {
     /// `types.lifetime.declare`: each `'name` of a generic list joins the
     /// scope, in any order beside the list's type parameters
     /// (`types.lifetime.free-order`).
-    /// Only a function's and an inherent implementation's lifetimes are
-    /// checked; declaring one elsewhere is an error until its checks land
-    /// (`ref.lifetime.not-yet.declaration`).
+    /// Only a function's, an implementation's and a method's lifetimes
+    /// are checked; declaring one elsewhere is an error until its checks
+    /// land (`ref.lifetime.not-yet.owner`).
     fn declare_lifetimes(&mut self, gl: NodeRef<'_>, gn: &mut Gen) {
         let mut checked = None;
         for p in gl.children() {
@@ -2323,7 +2324,7 @@ impl Lower<'_, '_, '_> {
                         .error(Code::DuplicateBinding, self.src.span(p), &msg);
                 } else if !checked {
                     let msg = format!(
-                        "lifetime `{text}` is not checked yet here; so far only top-level functions and inherent implementations take lifetimes"
+                        "lifetime `{text}` is not checked yet here; so far only functions, implementations and methods take lifetimes"
                     );
                     self.diags
                         .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
@@ -2334,8 +2335,8 @@ impl Lower<'_, '_, '_> {
     }
 
     /// Whether the lifetimes the generic list `gl` declares are checked
-    /// (`ref.lifetime.checked`): a top-level function's, an inherent
-    /// implementation's, or one of its methods'.
+    /// (`ref.lifetime.declarations`): a top-level function's, an
+    /// implementation's, or a method's of an implementation or a trait.
     fn lifetimes_checked(&self, gl: NodeRef<'_>) -> bool {
         let x = gl.index().raw();
         let mut path = vec![self.src.root()];
@@ -2348,18 +2349,18 @@ impl Lower<'_, '_, '_> {
             }
             path.push(c);
         }
-        let inherent = |n: NodeRef<'_>| {
-            n.kind() == SyntaxKind::ImplDecl
-                && n.children().filter(|c| c.kind().is_type()).count() == 1
-        };
         match path.as_slice() {
-            [.., owner] if owner.kind() == SyntaxKind::ImplDecl => inherent(*owner),
+            [.., owner] if owner.kind() == SyntaxKind::ImplDecl => true,
             [outer, owner] if owner.kind() == SyntaxKind::FnDecl => {
                 outer.kind() == SyntaxKind::Root
             }
-            // A method: the implementation's block holds it.
-            [.., imp, block, owner] if owner.kind() == SyntaxKind::FnDecl => {
-                block.kind() == SyntaxKind::Block && inherent(*imp)
+            // A method: the implementation's or the trait's block holds it.
+            [.., owner_decl, block, owner] if owner.kind() == SyntaxKind::FnDecl => {
+                block.kind() == SyntaxKind::Block
+                    && matches!(
+                        owner_decl.kind(),
+                        SyntaxKind::ImplDecl | SyntaxKind::TraitDecl
+                    )
             }
             _ => false,
         }
@@ -2390,9 +2391,10 @@ impl Lower<'_, '_, '_> {
 
     /// Lines the slots recorded since `before` up with the reference slots
     /// of `t`, lowered from `n`. Where they differ (a type alias, a
-    /// function type, a counted reference), a written lifetime cannot be
-    /// placed and is not checked yet. A data type's defaulted arguments
-    /// (`trailing`) add elided slots after the written ones.
+    /// counted reference), a written lifetime cannot be placed and is not
+    /// checked yet; a function type records its own slots. A data type's
+    /// defaulted arguments (`trailing`) add elided slots after the written
+    /// ones.
     fn place_slots(&mut self, n: NodeRef<'_>, before: usize, t: Ty, trailing: bool) {
         let want = self.names.pool.types().ref_slots(t);
         let Some(slots) = &mut self.slots else { return };
@@ -2596,6 +2598,9 @@ impl Lower<'_, '_, '_> {
                 let mut result = Ty::VOID;
                 let mut row = RowId::EMPTY;
                 let mut inputs = Inputs::Fixed;
+                // `fn.type.lifetime`: the type's own reference slots, whose
+                // written lifetimes name the enclosing declaration's.
+                let outer = self.slots.replace(Vec::new());
                 for c in n.children() {
                     if c.kind() == SyntaxKind::RequirementRow {
                         row = self.row(Some(c), gn);
@@ -2626,12 +2631,15 @@ impl Lower<'_, '_, '_> {
                         }
                     }
                 }
+                let written = std::mem::replace(&mut self.slots, outer).unwrap_or_default();
+                let deps = pool.types().fn_deps_written(&params, result, &written);
                 pool.intern_ty(&TyData::Fn {
                     params: pool.list(&params),
                     result,
                     row,
                     suspends,
                     inputs,
+                    deps,
                 })
             }
             SyntaxKind::ProjectionType => {
@@ -3711,7 +3719,7 @@ impl Lower<'_, '_, '_> {
             }
             return;
         }
-        // ref.lifetime.not-yet.position: a lifetime in an implementation's target.
+        // ref.lifetime.not-yet.alias-target: a lifetime in an implementation's target.
         let saved = self.slots.replace(Vec::new());
         let self_ty = self.ty_at(Some(target), &gn, true);
         if std::mem::replace(&mut self.slots, saved).is_some_and(|l| l.iter().any(|l| *l != 0))

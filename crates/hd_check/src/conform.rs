@@ -292,6 +292,14 @@ impl Ck<'_, '_> {
                 );
             }
             self.err(Code::TraitMethodSignature, node, &msg);
+        } else if self.sig_fn_deps(tsig, 0) != self.sig_fn_deps(sig, 0) {
+            // `trait.impl.lifetime`: the result depends on the same
+            // parameter positions, under any lifetime names.
+            let msg = format!(
+                "`{}` differs from the trait's declaration: its result borrows from other parameters",
+                self.cx.names.text(it.name)
+            );
+            self.err(Code::TraitMethodSignature, node, &msg);
         } else if pool.has_opaque(tsig.ret) && !omitted {
             let declared = inst(tsig.ret);
             let before = self.opaque_rets.len();

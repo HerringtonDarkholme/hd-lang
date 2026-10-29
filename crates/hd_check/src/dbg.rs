@@ -103,6 +103,7 @@ impl Ck<'_, '_> {
             row: hd_types::RowId::EMPTY,
             suspends: false,
             inputs: hd_types::Inputs::Fixed,
+            deps: hd_types::FnDeps::NONE,
         });
         self.dbg_support("dbg_printer", &[ty], &[], ft, n)
     }

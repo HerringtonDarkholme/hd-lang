@@ -511,6 +511,71 @@ fn erase() -> fn() -> *dyn Display:
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
 [Representation-Preserving Variance](04-type-system.md#representation-preserving-variance).
 
+### Lifetimes In Function Types
+
+A function type's result may hold a local reference that borrows from its inputs, as a function's result may:
+
+```hd
+struct User:
+    name: string
+
+fn name_of(u: &User) -> &string:
+    &u.name
+
+fn longer['a](a: &'a User, b: &'a User) -> &'a User:
+    if a.name.len() >= b.name.len(): a else: b
+
+fn apply(f: fn(&User) -> &string, u: &User) -> usize:  # depends on its one input
+    f(u).len()
+
+fn pick['a](f: fn(&'a User, &'a User) -> &'a User, a: &'a User, b: &'a User) -> usize:
+    f(a, b).name.len()
+
+fn demo(a: &User, b: &User) -> usize:
+    apply(name_of, a) + pick(longer, a, b) + apply(fn(u): &u.name, b)
+```
+
+1. r[fn.type.lifetime.result] A function type's result may hold a local reference, as a [dependent result](13-values-and-references.md#dependent-results) of a function may.
+2. r[fn.type.lifetime.position] Each `&` or `&mut` in a function type's inputs and in its result is a reference position of that type.
+3. r[fn.type.lifetime.written] A reference position may write a lifetime variable of the enclosing declaration, and positions that write one variable share its lifetime.
+4. r[fn.type.lifetime.no-binder] A function type declares no lifetime parameters of its own.
+5. r[fn.type.lifetime.elide] A result position that writes no lifetime takes the one lifetime of the input positions.
+6. r[fn.type.lifetime.elide.none] Such a position with no input reference position is an error. Error: `reference-result-without-source`.
+7. r[fn.type.lifetime.elide.ambiguous] Such a position under two or more lifetimes of the input positions is an error. Error: `ambiguous-reference-source`.
+8. r[fn.type.lifetime.identity] Which input positions each result position depends on is part of the function type, and the names of its lifetime variables are not.
+9. r[fn.type.lifetime.mismatch] A function value whose result depends on other input positions than the expected function type's is an error. Error: `type-mismatch`.
+10. r[fn.type.lifetime.value] A named function's or method's value has the dependencies of its signature, after elision, with an unbound method's receiver as its first input.
+11. r[fn.type.lifetime.call] A call through a function value depends on what its arguments in each result position's lifetime depend on, as [`ref.lifetime.call`](13-values-and-references.md#r-ref.lifetime.call) states for a named call.
+
+```text
+struct User:
+    name: string
+
+fn left['a, 'b](a: &'a User, b: &'b User) -> &'a User:
+    a
+
+fn run['a](f: fn(&'a User, &'a User) -> &'a User, u: &'a User) -> usize:
+    f(u, u).name.len()
+
+fn demo(u: &User) -> usize:
+    run(left, u)  # error: type-mismatch
+
+fn apply(f: fn(&User, &User) -> &User) -> void:  # error: ambiguous-reference-source
+    pass
+
+fn make(f: fn() -> &User) -> void:  # error: reference-result-without-source
+    pass
+```
+
+> **Why.** These are Rust's elision rules, applied inside the function
+> type. Without a binder of its own, a written lifetime is the enclosing
+> declaration's, as in Rust, and a lifetime adds nothing at run time. A
+> function type that needs its own variables, as a struct field's type
+> may, comes with stored references.
+
+See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
+[Closure Annotations](#closure-annotations).
+
 ### Generic Function Values
 
 A generic function passed as an argument takes its type arguments from the
@@ -732,11 +797,21 @@ doubled := apply_all(counts, fn(count): count * 2)
 4. r[fn.closure.result-inferred.common] The inferred result is the [least common type](04-type-system.md#least-common-type) of the body's final value and every `return` operand. When they have no common type, the closure is an error. Error: `no-common-type`.
 5. r[fn.closure.result-expected] An expected function type may instead supply the result type.
 6. r[fn.closure.recursive-result] A recursive local closure must always write its result type explicitly, even if an expected function type could supply it. Error: `recursive-function-needs-result-type`.
+7. r[fn.closure.lifetime] A closure's result position depends on the expected function type's input positions, or without one, on what its parameters' types elide as a [function type](#lifetimes-in-function-types) would.
+8. r[fn.closure.lifetime.return] Each value a closure returns may depend only on the closure's parameter positions of each result position's lifetime. Error: `local-reference-escapes`.
 
 ```text
+struct User:
+    name: string
+
 fn run() -> i32:
     closure := fn(value) -> i32: value  # error: closure-parameter-needs-annotation
     0
+
+fn other_name(u: &User) -> usize:
+    local := User { name: "x" }
+    f := fn(v: &User) -> &string: &local.name  # error: local-reference-escapes
+    f(u).len()
 ```
 
 ### Captures

@@ -283,12 +283,14 @@ impl InferTable {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => TyData::Fn {
                 params: rl(params),
                 result: r(result),
                 row: self.resolve_row(pool, row),
                 suspends,
                 inputs,
+                deps,
             },
             TyData::Row(row) => TyData::Row(self.resolve_row(pool, row)),
             TyData::Context(row) => TyData::Context(self.resolve_row(pool, row)),
@@ -547,6 +549,7 @@ impl InferTable {
                     result: r1,
                     suspends: s1,
                     inputs: i1,
+                    deps: d1,
                     ..
                 },
                 TyData::Fn {
@@ -554,9 +557,10 @@ impl InferTable {
                     result: r2,
                     suspends: s2,
                     inputs: i2,
+                    deps: d2,
                     ..
                 },
-            ) if s1 == s2 => {
+            ) if s1 == s2 && d1 == d2 => {
                 if i1 == i2 {
                     self.unify_lists(pool, p1, p2, a, b)?;
                 } else if i1 == Inputs::Tuple || i2 == Inputs::Tuple {
@@ -729,6 +733,7 @@ mod tests {
             row: RowId::EMPTY,
             suspends: false,
             inputs: Inputs::Fixed,
+            deps: crate::pool::FnDeps::NONE,
         });
         let param = p.intern_ty(&TyData::Param(crate::ParamRef {
             owner: hd_base::DefId::from_raw(9),
@@ -826,6 +831,7 @@ mod tests {
                 row: RowId::EMPTY,
                 suspends,
                 inputs,
+                deps: crate::pool::FnDeps::NONE,
             })
         };
         let tuple = |elems: &[Ty], rest: Option<Ty>| {

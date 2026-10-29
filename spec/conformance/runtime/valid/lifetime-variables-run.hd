@@ -1,5 +1,5 @@
 # test: functions and methods with lifetime variables run, and a call's result reads its source
-# Spec 13 Lifetime Variables: ref.lifetime.shared, ref.lifetime.checked.
+# Spec 13 Lifetime Variables: ref.lifetime.shared, ref.lifetime.declarations.
 # expect-stdout: bob
 # expect-stdout: 7
 # expect-stdout: 2

@@ -340,6 +340,7 @@ impl Ck<'_, '_> {
                     row: row.unwrap_or(RowId::EMPTY),
                     suspends: name == "SuspendFn",
                     inputs: Inputs::Tuple,
+                    deps: hd_types::FnDeps::NONE,
                 }));
             }
         }
@@ -863,12 +864,15 @@ impl Ck<'_, '_> {
                         }
                     }
                 }
+                // `fn.type.lifetime.elide`: a body writes no lifetime.
+                let deps = pool.fn_deps_written(&params, result, &[]);
                 pool.intern_ty(&TyData::Fn {
                     params: pool.list(&params),
                     result,
                     row,
                     suspends,
                     inputs,
+                    deps,
                 })
             }
             SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),

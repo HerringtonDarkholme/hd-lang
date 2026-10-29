@@ -593,6 +593,8 @@ pub fn canon(
             row,
             suspends,
             inputs,
+            // Erased before monomorphization (`Types::lower_refs`).
+            deps: _,
         } => {
             h.u8(5);
             canon_list(pool, path_hash, memo, params, &mut h);
@@ -1188,6 +1190,7 @@ mod tests {
             row,
             suspends: false,
             inputs: hd_types::Inputs::Fixed,
+            deps: hd_types::FnDeps::NONE,
         });
         let ph = |d: DefId| Hash128(u128::from(d.raw()) * 977);
         super::canon(&p, &ph, &mut CanonMemo::default(), f)

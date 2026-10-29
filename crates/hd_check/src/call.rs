@@ -1039,6 +1039,7 @@ impl Ck<'_, '_> {
             row,
             suspends,
             inputs,
+            deps: _,
         } = pool.get(ft)
         else {
             if matches!(pool.get(ft), TyData::Infer(_)) {
@@ -2562,12 +2563,14 @@ impl Ck<'_, '_> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => TyData::Fn {
                 params: list(self, params),
                 result: self.open_projections(result, n),
                 row,
                 suspends,
                 inputs,
+                deps,
             },
             _ => return t,
         };
@@ -2754,6 +2757,7 @@ impl Ck<'_, '_> {
             row: hd_types::RowId::EMPTY,
             suspends: false,
             inputs: hd_types::Inputs::Fixed,
+            deps: hd_types::FnDeps::NONE,
         });
         self.fit_expected(ft, want);
         // The enum's own type arguments are decided like a reference's.
@@ -4943,12 +4947,14 @@ impl Ck<'_, '_> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => TyData::Fn {
                 params: list(self, params)?,
                 result: self.normalize_deep(result)?,
                 row,
                 suspends,
                 inputs,
+                deps,
             },
             _ => return Ok(t),
         };

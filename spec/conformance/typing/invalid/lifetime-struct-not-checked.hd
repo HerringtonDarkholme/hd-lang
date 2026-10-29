@@ -1,4 +1,4 @@
 # test: a struct's lifetime parameter is references-not-yet-checked
-# Spec 13 Lifetime Variables: ref.lifetime.not-yet.declaration.
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.owner.
 struct Tagged['a]:  # diagnostic: references-not-yet-checked
     id: i32

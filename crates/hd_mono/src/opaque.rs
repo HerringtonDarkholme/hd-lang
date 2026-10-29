@@ -323,12 +323,14 @@ impl Reveal<'_> {
                 row,
                 suspends,
                 inputs,
+                deps,
             } => TyData::Fn {
                 params: self.list(params)?,
                 result: self.ty(result)?,
                 row: self.row(row)?,
                 suspends,
                 inputs,
+                deps,
             },
             TyData::TraitValue {
                 def,

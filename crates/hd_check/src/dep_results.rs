@@ -129,6 +129,48 @@ impl DepSig {
         }
     }
 
+    /// The map a function type carries (`fn.type.lifetime`), for a call
+    /// through a function value.
+    fn of_fn(pool: Types<'_>, t: Ty) -> Option<DepSig> {
+        let (ins, outs) = pool.fn_ty_deps(t)?;
+        let TyData::Fn { params, result, .. } = pool.get(referent_fn(pool, t)) else {
+            return None;
+        };
+        let mut at = 0;
+        let params = pool
+            .list_items(params)
+            .iter()
+            .map(|&p| {
+                let n = pool.ref_slots(p);
+                at += n;
+                (p, ins[at - n..at].to_vec())
+            })
+            .collect();
+        Some(DepSig {
+            params,
+            outs: outs.iter().map(|&l| (l != 0).then_some(l)).collect(),
+            ret: result,
+            elided: Elided::Missing,
+        })
+    }
+
+    /// The map as a function type carries it: the slots of the parameters
+    /// from `skip` on, then the result's (`fn.type.lifetime.value`).
+    /// `NONE` when a result slot depends on none of those, as on a bound
+    /// receiver (`ref.local.escape.fn-value-result`).
+    fn to_fn(&self, pool: Types<'_>, skip: usize) -> hd_types::FnDeps {
+        let ins: Vec<u32> = self.params[skip.min(self.params.len())..]
+            .iter()
+            .flat_map(|(_, ids)| ids.iter().copied())
+            .collect();
+        let outs: Option<Vec<u32>> = self
+            .outs
+            .iter()
+            .map(|l| l.filter(|l| ins.contains(l)))
+            .collect();
+        outs.map_or(hd_types::FnDeps::NONE, |outs| pool.fn_deps(&ins, &outs))
+    }
+
     /// Whether the result depends on any input.
     fn depends(&self) -> bool {
         self.outs.iter().any(Option::is_some) || matches!(self.elided, Elided::Lifetime(_))
@@ -192,6 +234,14 @@ impl DepSig {
         (0..s.min(all.len())).any(|s0| {
             ids.get(s0) == Some(&id) && s <= s0 + pool.ref_slots(referent(pool, all[s0].0))
         })
+    }
+}
+
+/// `t` without its `mut`.
+fn referent_fn(pool: Types<'_>, t: Ty) -> Ty {
+    match pool.get(t) {
+        TyData::Mut(i) => referent_fn(pool, i),
+        _ => t,
     }
 }
 
@@ -795,12 +845,12 @@ impl Solve<'_> {
             // Only a local-holding value has origins.
             _ if n == 0 => return,
             Tag::Read => self.place(w(i), b.data[i][0], n).1,
-            Tag::Call | Tag::Await | Tag::CallDyn => match self.deps.get(&w(i)) {
+            Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => match self.deps.get(&w(i)) {
                 Some(sig) => self.call(i, sig, n),
                 None => return,
             },
             Tag::Coerce => self.of(b.data[i][0]).to_vec(),
-            Tag::Prim | Tag::Intrinsic | Tag::CallValue | Tag::CallHost | Tag::Return => return,
+            Tag::Prim | Tag::Intrinsic | Tag::CallHost | Tag::Return => return,
             Tag::NewTuple | Tag::NewStruct | Tag::NewVariant => self.construct(i, n),
             _ => {
                 let mut s = vec![Set::new(); n];
@@ -837,6 +887,19 @@ fn source_arg(b: &Body, i: usize, k: usize) -> Option<u32> {
 }
 
 impl Ck<'_, '_> {
+    /// The map a function value of `sig` carries, its parameters from
+    /// `skip` on (`fn.type.lifetime.value`); also what a trait implementation's
+    /// method must share with the trait's (`trait.impl.lifetime`).
+    pub(crate) fn sig_fn_deps(&self, sig: &hd_resolve::FnSig, skip: usize) -> hd_types::FnDeps {
+        let pool = self.pool();
+        if pool.ref_slots(sig.ret) == 0 {
+            return hd_types::FnDeps::NONE;
+        }
+        let names = &self.cx.names;
+        let is_self = |s| names.text(s) == "self";
+        DepSig::new(pool, &sig.params, is_self, sig.ret, &sig.lifetimes).to_fn(pool, skip)
+    }
+
     /// The dependency map of a callee's signature (`ref.dep.call`,
     /// `ref.dep.trait`): a trait method's from the trait's signature.
     fn callee_dep(&self, def: DefId) -> Option<DepSig> {
@@ -882,6 +945,7 @@ impl Ck<'_, '_> {
             _ => None,
         };
         let mut deps: HashMap<u32, DepSig> = HashMap::default();
+        let mut closures: Vec<(usize, DepSig)> = Vec::new();
         let mut through = false;
         for i in 0..body.tags.len() {
             match body.tags[i] {
@@ -902,6 +966,28 @@ impl Ck<'_, '_> {
                         deps.insert(w(i), dep);
                     }
                 }
+                // A function value's call takes the map its type carries
+                // (`fn.type.lifetime.call`).
+                Tag::CallValue if holds_local_ref(pool, body.ty[i]) => {
+                    let f = body.data[i][0];
+                    if let Some(dep) = body
+                        .ty
+                        .get(f as usize)
+                        .and_then(|&t| DepSig::of_fn(pool, t))
+                    {
+                        deps.insert(w(i), dep);
+                    }
+                }
+                // A closure's returned values depend only on its own
+                // parameters (`fn.closure.lifetime.return`); a result slot
+                // with no source may depend on nothing.
+                Tag::Closure if !body.is_instantiation(i) => {
+                    if let Some(dep) =
+                        DepSig::of_fn(pool, body.ty[i]).filter(|d| !d.outs.is_empty())
+                    {
+                        closures.push((body.data[i][0] as usize, dep));
+                    }
+                }
                 Tag::Store => {
                     let [_, v] = body.data[i];
                     through |= v & hd_tir::ir::Ref::CONST_BIT == 0
@@ -920,7 +1006,7 @@ impl Ck<'_, '_> {
             self.source_error(elided == Some(Elided::Missing), f);
         }
         let own = own.filter(DepSig::depends);
-        if own.is_none() && !through {
+        if own.is_none() && !through && closures.is_empty() {
             return;
         }
         let body = self.b.body();
@@ -996,10 +1082,38 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        let mut closure_bad: Vec<(NodeIdx, String)> = Vec::new();
+        for (sub, dep) in &closures {
+            let r = body.sub_params[*sub];
+            let locals: Vec<u32> = (0..r.len)
+                .map(|k| body.extra[(r.start + 1 + k) as usize])
+                .collect();
+            let ids = dep.result_ids(pool, dep.ret);
+            for v in returned(body, body.sub_root[*sub]) {
+                let set = fit(s.of(v), ids.len());
+                let ok = |o: Origin, ids: &[u32]| match o {
+                    Origin::Param(p, k) => locals.iter().position(|&l| l == p).is_some_and(|at| {
+                        ids.iter()
+                            .any(|&id| dep.allows(pool, Origin::Param(w(at), k), id))
+                    }),
+                    _ => false,
+                };
+                if let Some(o) = set
+                    .iter()
+                    .zip(&ids)
+                    .find_map(|(set, ids)| set.iter().copied().find(|&o| !ok(o, ids)))
+                {
+                    closure_bad.push((site(&s, v, o, 0), closure_message(body, self.cx, o)));
+                }
+            }
+        }
         // A returned value's origins are `ref.dep.return`'s.
         let mut skip: HashSet<u32> = HashSet::default();
         if own.is_some() {
             skip.extend(returned(body, root.0));
+        }
+        for (sub, _) in &closures {
+            skip.extend(returned(body, body.sub_root[*sub]));
         }
         skip.insert(root.0);
         let outlives = scoped_uses(&s, &skip, self.cx);
@@ -1024,6 +1138,13 @@ impl Ck<'_, '_> {
                 let node = self.cx.src.parse.tree.node(at);
                 self.err(Code::LocalReferenceEscapes, node, &msg);
             }
+        }
+        for (at, msg) in closure_bad {
+            if at == NodeIdx::NONE || !seen.insert(at) {
+                continue;
+            }
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::LocalReferenceEscapes, node, &msg);
         }
         for (at, msg) in outlives {
             let node = self.cx.src.parse.tree.node(at);
@@ -1142,6 +1263,25 @@ impl Ck<'_, '_> {
             None => format!("{what}; the result depends only on {from}"),
         }
     }
+}
+
+/// `fn.closure.lifetime`: the message for a closure's returned value that
+/// depends on `o`.
+fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
+    let name = |l: u32| cx.names.text(b.local_name[l as usize]).to_owned();
+    let what = match o {
+        Origin::Param(p, _) | Origin::Local(p)
+            if b.local_flags[p as usize] & hd_tir::ir::local_flags::PARAM != 0 =>
+        {
+            format!("the value borrows from `{}`", name(p))
+        }
+        Origin::Local(l) if !name(l).starts_with('$') => format!("`{}` is a local", name(l)),
+        Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
+        _ => "the value refers to a temporary".to_owned(),
+    };
+    format!(
+        "{what}; a closure's reference result depends only on the closure's reference parameters of its lifetime"
+    )
 }
 
 /// The values the body returns: its root block's value and each `Return`
