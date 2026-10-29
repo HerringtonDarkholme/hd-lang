@@ -1,0 +1,9 @@
+# test: an unused inactive body is still checked
+# Spec 14 Build-Profile Bodies: annot.cfg.checked.
+@cfg(.Debug)
+fn configured() -> i32:
+    1
+
+@cfg(.Release)
+fn configured() -> i32:
+    "not an integer" # diagnostic: type-mismatch

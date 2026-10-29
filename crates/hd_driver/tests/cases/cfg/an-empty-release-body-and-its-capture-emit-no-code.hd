@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: release
+@cfg(.Debug)
+fn require(message: string = "requirement failed", condition: fn() -> bool) -> void:
+    if !condition():
+        panic(message)
+
+@cfg(.Release)
+fn require(message: string = "requirement failed", condition: fn() -> bool) -> void:
+    pass
+
+pub fn main() -> void:
+    value := +1
+    require:
+        value > 0

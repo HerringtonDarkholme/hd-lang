@@ -1,0 +1,5 @@
+# test: a configured name needs both profiles even when unused
+# Spec 14 Build-Profile Bodies: annot.cfg.pair.
+@cfg(.Debug) # diagnostic: invalid-cfg-declaration
+fn configured() -> i32:
+    1

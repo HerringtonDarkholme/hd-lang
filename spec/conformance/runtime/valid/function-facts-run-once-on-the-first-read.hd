@@ -1,5 +1,5 @@
 # test: function facts run once on the first read
-# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.compiler-decorators.
 # expect-stdout: 0
 # expect-stdout: 2
 # expect-stdout: 11

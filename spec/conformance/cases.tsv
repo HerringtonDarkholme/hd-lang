@@ -2209,6 +2209,12 @@ runtime/panic/snapshot-file-missing.hd	runtime	panic:assertion-failed	std/testin
 typing/valid/derive-debug-shapes.hd	type	accept	std/format.md#r-std-format.debug.derive-builders.source
 typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	lang/14-annotations.md#r-annot.decorator.derive-targets
 typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.decorator.duplicate
+typing/valid/cfg-pair.hd	type	accept	lang/14-annotations.md#r-annot.cfg.pair
+typing/invalid/cfg-missing-profile.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.pair
+typing/invalid/cfg-ordinary-beside-configured.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.pair
+typing/invalid/cfg-duplicate-profile.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.pair
+typing/invalid/cfg-signature-mismatch.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.signature
+typing/invalid/cfg-inactive-body-checked.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.cfg.checked
 runtime/valid/bare-marker-decorator.hd	runtime	accept	lang/14-annotations.md#r-annot.decorator.bare-call-defaults
 typing/valid/inline-and-cold.hd	type	accept	lang/14-annotations.md#r-annot.inline.argument
 typing/valid/inline-auto-reference.hd	type	accept	lang/14-annotations.md#r-annot.inline.auto
@@ -3031,9 +3037,9 @@ runtime/valid/console-error-traits.hd	runtime	accept	std/console.md#r-std-consol
 runtime/valid/buffer-console.hd	runtime	accept	std/console.md#r-std-console.buffer.output-text-sync
 runtime/valid/buffer-console-error-lines.hd	runtime	accept	std/console.md#r-std-console.buffer.error-text-sync
 runtime/valid/scripted-input.hd	runtime	accept	std/console.md#r-std-console.scripted.read
-runtime/panic/contract-require-custom-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.fail
-runtime/panic/contract-require-default-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.fail
-runtime/valid/contract-require-pass.hd	runtime	accept	std/contract.md#r-std-contract.require.pass
+runtime/panic/contract-require-custom-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.debug-fail
+runtime/panic/contract-require-default-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.debug-fail
+runtime/valid/contract-require-pass.hd	runtime	accept	std/contract.md#r-std-contract.require.debug-pass
 runtime/valid/contract-require-trailing-block.hd	runtime	accept	std/contract.md#r-std-contract.require.decl
 runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
 runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
@@ -3630,7 +3636,7 @@ parse/valid/module-documentation.hd	parse	accept	lang/01-lexical-structure.md#r-
 parse/invalid/module-documentation-second-block.hd	parse	reject:doc-comment-without-target	lang/01-lexical-structure.md#r-lex.doc.module.once
 runtime/valid/derived-ordering-run.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.ord.data
 runtime/valid/cmp-min-max-distinguishable-tie.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.tie
-runtime/valid/facts-of-literal-generic-none.hd	runtime	accept	lang/14-annotations.md#r-annot.facts-of.result
+runtime/valid/facts-of-literal-generic-none.hd	runtime	accept	lang/14-annotations.md#r-annot.facts-of.result.compiler-decorators
 runtime/valid/sized-integer-arithmetic.hd	runtime	accept	lang/04-type-system.md#r-types.arith.checked
 runtime/valid/numeric-casts-in-range.hd	runtime	accept	lang/04-type-system.md#r-types.cast.float-int-saturate
 runtime/valid/list-and-optional-map.hd	runtime	accept	std/iter.md#r-std-iter.method.map
@@ -3933,7 +3939,7 @@ runtime/valid/owned-temporary-match-payloads.hd	runtime	accept	lang/06-control-f
 runtime/valid/package-names-apart-from-dependency.hd	runtime	accept	lang/10-modules.md#r-module.kind.package
 runtime/valid/default-source-root.hd	runtime	accept	lang/10-modules.md#r-module.manifest.source-root
 runtime/valid/dependency-key-names-one-package.hd	runtime	accept	lang/10-modules.md#r-module.manifest.dependency
-typing/invalid/no-conditional-compilation-decorator.hd	type	reject:unknown-name	lang/10-modules.md#r-module.manifest.no-features
+typing/invalid/no-conditional-compilation-decorator.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.argument
 typing/invalid/parent-declaration-not-in-child.hd	type	reject:unknown-name	lang/10-modules.md#r-module.path.no-parent-scope
 runtime/valid/integration-test-public-view.hd	runtime	accept	lang/10-modules.md#r-module.test.integration.view
 typing/invalid/integration-test-private-name.hd	type	reject:private-import	lang/10-modules.md#r-module.test.integration.view
@@ -4446,7 +4452,7 @@ typing/invalid/embedded-store-readonly-target.hd	type	reject:not-writable	lang/0
 typing/invalid/embedding-depth-beside-cycle.hd	type	reject:embedding-cycle	lang/08-data-and-enums.md#r-data.embed.depth
 typing/valid/supertrait-same-trait-different-arguments.hd	type	accept	lang/09-traits.md#r-trait.super.unique
 typing/invalid/poll-context-construction.hd	type	reject:private-member	lang/11-requirements-and-suspension.md#r-req.poll-context.construction
-runtime/valid/facts-of-compiler-decorators.hd	runtime	accept	lang/14-annotations.md#r-annot.facts-of.result
+runtime/valid/facts-of-compiler-decorators.hd	runtime	accept	lang/14-annotations.md#r-annot.facts-of.result.compiler-decorators
 runtime/valid/lct-unsolved-parameter-joins-first.hd	runtime	accept	lang/04-type-system.md#r-types.lct.sites
 runtime/valid/long-else-if-chain.hd	runtime	accept	lang/02-grammar.md#r-grammar.limit.nesting
 typing/invalid/else-if-chain-missing-return-value.hd	type	reject:missing-return-value	lang/06-control-flow.md#r-flow.if.else-if

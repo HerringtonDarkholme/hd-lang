@@ -324,6 +324,14 @@ impl Lower<'_, '_, '_> {
             };
             let k = place.kind;
             match deco.name.as_str() {
+                "cfg" if k & (kind::FN | kind::METHOD) == 0 => {
+                    self.diags.error(
+                        Code::InvalidCfgDeclaration,
+                        span,
+                        "`@cfg` precedes only a function or method with a body",
+                    );
+                }
+                "cfg" => {}
                 "host" => {
                     if k != kind::TRAIT || !self.src.is_pub(n) {
                         self.target_error(
@@ -615,6 +623,7 @@ impl Lower<'_, '_, '_> {
     }
 
     fn check_fn(&mut self, f: NodeRef<'_>, k: u16, items: &HashMap<DefId, &Item>) {
+        self.check_cfg(f, k);
         self.check_inline(f);
         self.check_decorators(
             f,
@@ -631,6 +640,38 @@ impl Lower<'_, '_, '_> {
             &[],
             items,
         );
+    }
+
+    /// Checks the compiler-known `@cfg(.Debug)` / `@cfg(.Release)` form.
+    fn check_cfg(&mut self, f: NodeRef<'_>, k: u16) {
+        let lines: Vec<_> = f
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .filter_map(|d| self.deco(d).map(|deco| (d, deco)))
+            .filter(|(_, deco)| deco.name == "cfg")
+            .collect();
+        for (i, (line, deco)) in lines.iter().enumerate() {
+            let args: Vec<_> = deco.args.into_iter().flat_map(NodeRef::children).collect();
+            let valid_arg = matches!(args.as_slice(), [arg] if {
+                let text: String = self.src.tokens(*arg).map(|t| self.src.text(t)).collect();
+                text == ".Debug" || text == ".Release"
+            });
+            let valid_target =
+                k & (kind::FN | kind::METHOD) != 0 && Src::child(f, SyntaxKind::Block).is_some();
+            let message = if i > 0 {
+                Some("a declaration has one `@cfg` line")
+            } else if !valid_target {
+                Some("`@cfg` precedes only a function or method with a body")
+            } else if deco.bare || deco.typed || !valid_arg {
+                Some("`@cfg` takes exactly `.Debug` or `.Release`")
+            } else {
+                None
+            };
+            if let Some(message) = message {
+                self.diags
+                    .error(Code::InvalidCfgDeclaration, self.src.span(*line), message);
+            }
+        }
     }
 
     /// Whether a member line's right side is the omit form `pass`.
@@ -1035,7 +1076,7 @@ impl Lower<'_, '_, '_> {
                         self.collect_drift_block(n, &tys, target, items, &mut drift_blocks);
                     }
                 }
-                _ => {}
+                _ => self.check_cfg(n, 0),
             }
         }
         let derived = if self.derivation_facts.is_some() {

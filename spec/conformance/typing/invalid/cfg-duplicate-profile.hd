@@ -1,0 +1,13 @@
+# test: a configured name has one declaration per profile
+# Spec 14 Build-Profile Bodies: annot.cfg.pair.
+@cfg(.Debug)
+fn configured() -> i32:
+    1
+
+@cfg(.Debug) # diagnostic: invalid-cfg-declaration
+fn configured() -> i32:
+    2
+
+@cfg(.Release)
+fn configured() -> i32:
+    3

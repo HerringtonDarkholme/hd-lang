@@ -1,0 +1,9 @@
+# test: configured declarations share a complete signature
+# Spec 14 Build-Profile Bodies: annot.cfg.signature.
+@cfg(.Debug)
+fn configured(value: i32) -> i32:
+    value
+
+@cfg(.Release) # diagnostic: invalid-cfg-declaration
+fn configured(value: i64) -> i64:
+    value

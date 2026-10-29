@@ -1,0 +1,26 @@
+# test: one Debug and one Release body share one callable signature
+# Spec 14 Build-Profile Bodies: annot.cfg.pair, annot.cfg.signature.
+@cfg(.Debug)
+fn selected(value: i32) -> i32:
+    value + 1
+
+@cfg(.Release)
+fn selected(value: i32) -> i32:
+    value + 2
+
+fn use_selected() -> i32:
+    selected(1)
+
+struct ConfiguredMethod: pass
+
+impl ConfiguredMethod:
+    @cfg(.Debug)
+    fn selected(self) -> i32:
+        1
+
+    @cfg(.Release)
+    fn selected(self) -> i32:
+        2
+
+fn use_selected_method(value: ConfiguredMethod) -> i32:
+    value.selected()

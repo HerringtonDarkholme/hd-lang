@@ -852,6 +852,7 @@ struct IfaceFix {
 /// results and rows inferred for its private callables (§4.13.1).
 type BodyOut = (
     Vec<Body>,
+    Vec<(usize, BuildProfile)>,
     DiagBuf,
     Vec<Item>,
     Vec<hd_check::results::Inferred>,
@@ -5950,12 +5951,21 @@ impl Run<'_> {
             }
         }
         let mut bodies = Vec::new();
+        let mut cfg_bodies = Vec::new();
         let mut failed = None;
         // M1 (`crates/hd_tir/DESIGN.md` §4.13.1 "Omitted result types"): the
         // private callables without a result type are checked before
         // their callers, from the top-level statements on.
         let methods = hd_resolve::body_nodes(&names, &src, &heads);
-        hd_check::results::omitted_results(&cx, &methods);
+        let inference_methods: Vec<_> = methods
+            .iter()
+            .copied()
+            .filter(|(_, node)| {
+                hd_resolve::lower::cfg_profile(&src, *node)
+                    .is_none_or(|profile| profile == BuildProfile::Checked)
+            })
+            .collect();
+        hd_check::results::omitted_results(&cx, &inference_methods);
         // Top-level statements first: their bindings are visible to every
         // function body of the module (`crates/hd_tir/DESIGN.md` §4.13.10).
         let mut stmts = hd_check::init::init_statements(src.root());
@@ -6008,6 +6018,11 @@ impl Run<'_> {
         // The rest of M1, in source order; each body it checks is final.
         hd_check::results::infer_results(&cx);
         diags.append(&hd_check::results::module_diags(&cx));
+        let inferred_cfg: HashMap<DefId, hd_check::results::Inferred> =
+            hd_check::results::inferred(&cx)
+                .into_iter()
+                .map(|inferred| (inferred.def, inferred))
+                .collect();
         // A written implementation writes every required trait method
         // (spec 09 `trait.impl.required`), reported at its header.
         for h in heads
@@ -6105,7 +6120,13 @@ impl Run<'_> {
             if lookup.item(def).is_none() && (prep.use_errors || self.file_has_errors(m)) {
                 continue;
             }
-            slots.push((def, node, hd_check::results::take(&cx, def)));
+            let profile = hd_resolve::lower::cfg_profile(&src, node);
+            let taken = if profile.is_none_or(|p| p == BuildProfile::Checked) {
+                hd_check::results::take(&cx, def)
+            } else {
+                None
+            };
+            slots.push((def, node, taken));
         }
         #[cfg(feature = "threads")]
         let mut early = self.bodies_in_parallel(&cx, &slots, diags.has_errors());
@@ -6117,6 +6138,7 @@ impl Run<'_> {
                 let _ = k;
                 None
             };
+            let profile = hd_resolve::lower::cfg_profile(&src, node);
             let checked = if let Some((checked, own)) = taken {
                 diags.append(&own);
                 checked
@@ -6124,12 +6146,25 @@ impl Run<'_> {
                 diags.append(&own);
                 cx.join(left);
                 checked
+            } else if profile == Some(BuildProfile::Release) {
+                let inferred = inferred_cfg.get(&def);
+                hd_check::check_fn_with_inferred(
+                    &cx,
+                    def,
+                    node,
+                    inferred.and_then(|i| i.ret),
+                    inferred.and_then(|i| i.row),
+                    &mut diags,
+                )
             } else {
                 hd_check::check_fn(&cx, def, node, &mut diags)
             };
             match checked {
                 Ok(b) => {
                     lock(&self.report).body_ok += 1;
+                    if let Some(profile) = profile {
+                        cfg_bodies.push((bodies.len(), profile));
+                    }
                     let path = names.path(def);
                     if self.renders_tir(&path) {
                         lock(&self.tir_text)
@@ -6310,7 +6345,7 @@ impl Run<'_> {
                         && let Some(e) = dv.children().next()
                         && let Some(t) = f.name(&src.parse.tokens)
                     {
-                        defaults.push((h.def, src.text(t).to_owned(), e));
+                        defaults.push((h.def, src.text(t).to_owned(), e, None));
                     }
                 }
             }
@@ -6325,14 +6360,22 @@ impl Run<'_> {
                     && let Some(e) = dv.children().next()
                     && let Some(t) = p.name(&src.parse.tokens)
                 {
-                    defaults.push((def, src.text(t).to_owned(), e));
+                    defaults.push((
+                        def,
+                        src.text(t).to_owned(),
+                        e,
+                        hd_resolve::lower::cfg_profile(&src, node),
+                    ));
                 }
             }
         }
-        for (owner, name, e) in defaults {
+        for (owner, name, e, profile) in defaults {
             match hd_check::check_default(&cx, owner, &name, e, &mut diags) {
                 Ok(b) => {
                     lock(&self.report).body_ok += 1;
+                    if let Some(profile) = profile {
+                        cfg_bodies.push((bodies.len(), profile));
+                    }
                     bodies.push(b);
                 }
                 Err(err) => {
@@ -6351,7 +6394,7 @@ impl Run<'_> {
             }
         }
         // The facts body of each function whose decorators attach values,
-        // which `facts_of` reads (spec 14 `annot.facts-of.result`).
+        // which `facts_of` reads (spec 14 `annot.facts-of.result.compiler-decorators`).
         for h in heads
             .iter()
             .filter(|h| h.kind == hd_resolve::HeadKind::Fn)
@@ -6360,6 +6403,9 @@ impl Run<'_> {
             match hd_check::check_facts(&cx, h.def, h.node, &mut diags) {
                 Ok(b) => {
                     lock(&self.report).body_ok += 1;
+                    if let Some(profile) = hd_resolve::lower::cfg_profile(&src, h.node) {
+                        cfg_bodies.push((bodies.len(), profile));
+                    }
                     bodies.push(b);
                 }
                 Err(err) => {
@@ -6476,6 +6522,7 @@ impl Run<'_> {
         };
         let _ = self.body[m].set(Some((
             bodies,
+            cfg_bodies,
             diags,
             derived.items,
             inferred,
@@ -6515,6 +6562,9 @@ impl Run<'_> {
         // The bodies before the first that M1 checked with an error.
         let mut todo = Vec::new();
         for (k, (def, node, taken)) in slots.iter().enumerate() {
+            if hd_resolve::lower::cfg_profile(&cx.src, *node).is_some() {
+                continue;
+            }
             match taken {
                 None => todo.push((k, *def, *node)),
                 Some((checked, own)) if own.has_errors() || (checked.is_err() && !analyze) => {
@@ -7428,7 +7478,17 @@ impl Run<'_> {
     fn module_finish(&self, m: usize) {
         let (
             Some(Some(prep)),
-            Some(Some((bodies, bdiags, derived, inferred, summary, dbg, bindings, generic_edges))),
+            Some(Some((
+                bodies,
+                cfg_bodies,
+                bdiags,
+                derived,
+                inferred,
+                summary,
+                dbg,
+                bindings,
+                generic_edges,
+            ))),
         ) = (self.prep[m].get(), self.body[m].get())
         else {
             self.blocked(Stage::ModuleFinish);
@@ -7497,7 +7557,8 @@ impl Run<'_> {
         let mut content = hd_base::StableHasher::new("tir-content");
         let keep: &[Body] = if diags.has_errors() { &[] } else { bodies };
         tw.len_of(keep);
-        for b in keep {
+        let cfg_bodies: HashMap<usize, BuildProfile> = cfg_bodies.iter().copied().collect();
+        for (body_index, b) in keep.iter().enumerate() {
             let bytes = match hd_tir::wire::write_body(b, &self.pool, &self.paths, &self.syms) {
                 Ok(x) => x,
                 Err(e) => {
@@ -7508,7 +7569,10 @@ impl Run<'_> {
             };
             // Each body under its item's path hash: `Collect` indexes the
             // bodies by it and decodes only the ones it reaches (#49).
-            let item = names.path_hash(b.item);
+            let canonical = names.path_hash(b.item);
+            let item = cfg_bodies
+                .get(&body_index)
+                .map_or(canonical, |profile| cfg_body_key(canonical, *profile));
             content.hash(item);
             content.hash(hd_tir::wire::tir_hash(&bytes));
             tw.hash(item);
@@ -7896,6 +7960,7 @@ impl Run<'_> {
     fn check_inline_always(&self) {
         let mut items: HashMap<DefId, Item> = HashMap::default();
         let mut bodies: HashMap<DefId, Body> = HashMap::default();
+        let mut configured: HashMap<Hash128, Option<DefId>> = HashMap::default();
         for checked in &self.check {
             let Some(Some(checked)) = checked.get() else {
                 continue;
@@ -7910,6 +7975,17 @@ impl Run<'_> {
                 .get(2)
                 .and_then(|bytes| hd_resolve::decode_items(&self.names(), bytes))
             {
+                for item in decoded.0.iter().filter(|item| item.configured) {
+                    let canonical = self.names().path_hash(item.def);
+                    configured.insert(
+                        cfg_body_key(canonical, BuildProfile::Checked),
+                        (self.build_profile == BuildProfile::Checked).then_some(item.def),
+                    );
+                    configured.insert(
+                        cfg_body_key(canonical, BuildProfile::Release),
+                        (self.build_profile == BuildProfile::Release).then_some(item.def),
+                    );
+                }
                 items.extend(
                     decoded
                         .0
@@ -7921,11 +7997,16 @@ impl Run<'_> {
             let Some(index) = body_index(&checked.entry) else {
                 continue;
             };
-            for (_, at) in index {
+            for (key, at) in index {
+                let selected = match configured.get(&key) {
+                    Some(Some(def)) => Some(*def),
+                    Some(None) => continue,
+                    None => None,
+                };
                 if let Some(body) =
                     hd_tir::wire::read_body(&checked.entry[at], &self.pool, &self.paths, &self.syms)
                 {
-                    bodies.insert(body.item, body);
+                    bodies.insert(selected.unwrap_or(body.item), body);
                 }
             }
         }
@@ -8199,7 +8280,23 @@ impl Run<'_> {
             }
             let sections = split_sections(&c.entry)?;
             let test_role = self.role(m) == "test";
-            for it in hd_resolve::decode_items(&names, sections.get(2)?)?.0 {
+            let decoded = hd_resolve::decode_items(&names, sections.get(2)?)?.0;
+            let mut configured: HashMap<Hash128, Option<Hash128>> = HashMap::default();
+            for it in &decoded {
+                for canonical in configured_body_keys(&names, it) {
+                    let debug = cfg_body_key(canonical, BuildProfile::Checked);
+                    let release = cfg_body_key(canonical, BuildProfile::Release);
+                    configured.insert(
+                        debug,
+                        (self.build_profile == BuildProfile::Checked).then_some(canonical),
+                    );
+                    configured.insert(
+                        release,
+                        (self.build_profile == BuildProfile::Release).then_some(canonical),
+                    );
+                }
+            }
+            for it in decoded {
                 if test_role && matches!(it.data, ItemData::Impl { .. }) {
                     test_role_impls.push(it.def);
                 }
@@ -8207,7 +8304,11 @@ impl Run<'_> {
             }
             // An earlier REPL input's bodies yield to this build's.
             let kept = self.is_kept(m);
-            for (item, at) in body_index(&c.entry)? {
+            for (mut item, at) in body_index(&c.entry)? {
+                if let Some(selected) = configured.get(&item) {
+                    let Some(canonical) = selected else { continue };
+                    item = *canonical;
+                }
                 let lazy = LazyBody {
                     wire: Some((m, c.entry.clone(), at)),
                     body: OnceLock::new(),
@@ -10852,6 +10953,39 @@ fn body_index(entry: &[u8]) -> Option<Vec<(Hash128, std::ops::Range<usize>)>> {
         out.push((item, end - bytes.len()..end));
     }
     r.ok().then_some(out)
+}
+
+/// The profile-specific key of one checked configured body. Check entries
+/// keep both keys; `Collect` aliases only the active one to `canonical`.
+fn cfg_body_key(canonical: Hash128, profile: BuildProfile) -> Hash128 {
+    let mut key = hd_base::StableHasher::new("cfg-body-v1");
+    key.hash(canonical);
+    key.str(profile.name());
+    key.finish()
+}
+
+/// The canonical body keys owned by a configured callable: its function
+/// body, parameter defaults, and function-facts body.
+fn configured_body_keys(names: &Names<'_>, item: &Item) -> Vec<Hash128> {
+    if !item.configured {
+        return Vec::new();
+    }
+    let mut defs = vec![item.def];
+    if let Some(sig) = item.sig() {
+        for ((name, _), has_default) in sig.params.iter().zip(&sig.defaults) {
+            if *has_default {
+                defs.push(hd_check::default_body_def(
+                    names,
+                    item.def,
+                    names.text(*name),
+                ));
+            }
+        }
+    }
+    if item.has_facts {
+        defs.push(names.member(item.def, hd_intern::PathKind::Hidden, "facts"));
+    }
+    defs.into_iter().map(|def| names.path_hash(def)).collect()
 }
 
 fn split_sections(bytes: &[u8]) -> Option<Vec<&[u8]>> {
