@@ -1072,6 +1072,18 @@ impl Ck<'_, '_> {
             self.err(Code::NotCallable, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
+        if let Some((_, Some(vars))) = &form {
+            let explicit = n
+                .children()
+                .next()
+                .filter(|callee| callee.kind() == SyntaxKind::TypeArgsExpr)
+                .and_then(|callee| Src::child(callee, SyntaxKind::TypeArgumentList))
+                .map_or(0, |list| {
+                    list.children().filter(|arg| arg.kind().is_type()).count()
+                });
+            self.local_ref_call_targs
+                .push((n.index(), vars.clone(), explicit));
+        }
         let form = form.filter(|_| inputs == Inputs::Fixed);
         if !args.named.is_empty() && form.is_none() {
             // A function value has no parameter names (`fn.ref.value`), so

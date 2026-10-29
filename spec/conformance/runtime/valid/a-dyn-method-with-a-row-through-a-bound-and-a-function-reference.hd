@@ -42,6 +42,6 @@ fn via_reference![S < Sensor](sensor: S, tick: i32) -> i32 $ Console + Clock:
     sample!(sensor, tick)
 
 pub fn main!() -> void $ Console + Clock:
-    let sensor: &dyn Sensor = &Barometer { scale: 2 }
+    let sensor: *dyn Sensor = box(Barometer { scale: 2 })
     println(via_bound!(sensor, 4))
     println(via_reference!(sensor, 6))

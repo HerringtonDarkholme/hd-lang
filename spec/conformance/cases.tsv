@@ -5124,6 +5124,7 @@ typing/invalid/local-reference-escapes-element.hd	type	reject:local-reference-es
 typing/invalid/local-reference-escapes-top-level.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.top-level
 typing/invalid/local-reference-escapes-capture.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture
 typing/invalid/local-reference-escapes-type-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.generic-argument
+typing/invalid/local-reference-escapes-inferred-call-type-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.generic-argument
 typing/valid/dependent-result-receiver.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide
 typing/valid/dependent-result-one-position.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.elide
 typing/valid/dependent-result-optional-match.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.projection

@@ -4,5 +4,5 @@ trait Repository[T]:
     fn size(&self) -> i32
 fn needs_text[T < Repository[string]](_value: T) -> void:
     pass
-fn rejected(value: &dyn Repository[i32]) -> void:
+fn rejected(value: *dyn Repository[i32]) -> void:
     needs_text(value) # diagnostic: unsatisfied-trait-bound

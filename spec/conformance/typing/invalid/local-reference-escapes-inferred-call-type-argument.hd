@@ -1,0 +1,10 @@
+# test: an inferred generic call type argument never holds a declared local reference
+# Spec 13 Local References: ref.local.escape.generic-argument.
+struct Point:
+    x: i32
+
+fn show[T](value: T) -> void:
+    pass
+
+fn pass_on(p: &Point) -> void:
+    show(p) # diagnostic: local-reference-escapes

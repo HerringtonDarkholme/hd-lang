@@ -383,6 +383,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// report nothing more (`ref.elem.kept`).
     pub elem_kept: HashSet<hd_base::NodeIdx>,
     pub declared_tys: HashSet<Ty>,
+    /// A generic local function call's node, own type arguments and
+    /// written-argument count. Its call is indirect, so no `Callee`
+    /// record keeps these for the local-reference escape check.
+    pub local_ref_call_targs: Vec<(hd_base::NodeIdx, Vec<Ty>, usize)>,
     /// The exclusivity stack of the open calls and element reference
     /// loops, with each frame's start, and the conflicting accesses found
     /// so far by the collection's binding (`ref.elem.conflict`,
@@ -629,6 +633,7 @@ pub(crate) fn new_ck<'a, 'c>(
         local_inits: HashMap::default(),
         elem_kept: HashSet::default(),
         declared_tys: HashSet::default(),
+        local_ref_call_targs: Vec::new(),
         excl: Vec::new(),
         excl_frames: Vec::new(),
         conflicts: Vec::new(),
