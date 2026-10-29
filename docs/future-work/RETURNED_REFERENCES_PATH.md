@@ -145,7 +145,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 2. Frame-slot results | backend only: source liveness covers the result's uses; inlining of reference getters | the counts and cells stage 1 adds go away | no language change |
 | 3. Lifetime variables | `fn f['a](x: &'a T) -> &'a T` (hypothetical); dependent function types; per-position precision | `choose(a, b)`, `get_or(&self, fallback)`, closures that return references | static |
 | 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
-| 5. Generic locality | local-holding type arguments for generic functions; `T < global` at persistent boundaries (hypothetical) | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
+| 5. Generic locality | Rust's model: any `T` may hold a local reference; `T < global` (hypothetical) only at persistent boundaries such as `box`, provider installs, detached tasks and `dyn` erasure | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
 | 6. Stored references | lifetime parameters on structs and enums; stores into a caller's place; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
 | 7. Exclusivity | Swift's `borrow`/`&` and Rust's rule: a live shared result freezes writes to its whole source, a live `&mut` result every other access; static where the checker sees the source, a borrow flag through a `*mut` alias | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |
 | 8. Uncounted scoped references | the backend drops counts that stage 7 proves unnecessary; borrow flags where it cannot prove them | the perf payoff | flags only through `*mut` |
@@ -516,11 +516,8 @@ Stop at 1.5 times that. Run time:
 - `element-reference-outlives-call` (existing), for rule 8.
 
 ## Owner Questions
-1. **The generic default, stage 5.** Every `T` may hold a local reference,
-   with `T < global` at persistent boundaries (Rust's model, as in #999).
-   Or a type parameter opts in, as Swift's `~Escapable` does.
-   **Recommendation:** Rust's. Only a few std headers need `T < global`:
-   `box`, provider installs, detached tasks and `dyn` erasure.
+
+None open. The owner answered every question on 2026-10-29; the answers are folded into the text above.
 
 ## Appendix A: Prior Art
 
