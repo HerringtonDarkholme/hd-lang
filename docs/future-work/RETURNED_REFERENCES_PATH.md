@@ -70,29 +70,69 @@ Three models were weighed as end states. Appendix A has the prior art.
 **The end state** is Rust's lifetimes laid over hd's counted references:
 
 - A result, and later a stored value, depends on a lifetime variable, as
-  Rust's `&'a T` does. One concept covers functions, struct and enum fields,
-  function types, trait methods and stores into a caller's place. Swift's
-  `@_lifetime(a)` and Scala's capture sets name variables, and both fall
-  back to something like a lifetime variable for types and stores; hd
-  starts there.
+  Rust's `&'a T` does. One form covers functions, struct and enum fields,
+  function types, trait methods and stores into a caller's place.
 - Lifetimes default by Rust's elision rules, so ordinary code writes none.
-- Memory safety comes from counts until exclusivity lands.
-- Exclusivity comes last and narrow. It generalizes decision E: a live
-  borrow freezes the shape of its path (length, enum variant, a reference
-  along it), not every write to it.
+- Memory safety comes from counts until exclusivity lands at stage 7.
+- A lifetime says how long, not which part of the source a result points
+  into. hd accepts that imprecision, as Rust does. Stage 7's rule works on
+  whole sources, and only the optional stage 9 adds paths.
 
 Against Kotlin: counting alone keeps every heap-crossing reference and
 element reference counted, and enum payloads can never become places. It
 also misses the owner's accepted rule that a guard's mutable capture is
-exclusive (#978 item 2). Against Swift's named sources: they read well in
-a getter, but a struct field, a function type and a store into a caller's
-place each need a second form. Against Rust's full borrow checker: hd's
-counted `*mut` aliases defeat a purely static checker, so it would still
-need run-time flags, and it would turn today's aliasing `&mut` code into
-errors. So hd takes Rust's lifetime variables and elision, keeps counting,
-and adds exclusivity last and narrow (stage 7).
+exclusive (#978 item 2). Against Rust's full borrow checker: hd's counted
+`*mut` aliases defeat a purely static checker, so hd keeps counts and pins
+as the run-time fallback.
 
-Stage 1 writes no lifetime, so it holds under any of the three.
+### Why not path origins
+
+Mojo can name a path in a result: `-> ref[self.names] String`. A path
+origin says which part of the source a result points into, so a caller
+could tell a harmless write from a dangerous one. But a path only works
+where the result's source is a parameter with fields. Every other position
+needs a variable again:
+
+```text
+fn get_name(user: &User) -> &[user.name] string   # hypothetical syntax: a path
+struct Parser[o]:                                 # hypothetical syntax: a variable
+    src: &[o] string                              # hypothetical syntax
+fn push_ref[o](xs: &mut List[&[o] User], x: &[o] User) -> void   # hypothetical syntax: a variable again
+trait Named:
+    fn name(&self) -> &[self] string              # hypothetical syntax: a trait cannot name an impl's fields
+```
+
+So a path design has two forms, paths in function results and variables
+everywhere else, plus Mojo 1.0's interior origins for collections. A
+`pub` signature would also publish private field paths. Rust needs one
+form:
+
+```text
+fn get_name(user: &User) -> &string: &user.name    # elided: depends on user
+fn choose['a](a: &'a User, b: &'a User, first: bool) -> &'a User   # hypothetical syntax
+struct Parser['a]:                                # hypothetical syntax
+    src: &'a string                               # hypothetical syntax
+fn push_ref['a](xs: &mut List[&'a User], x: &'a User) -> void   # hypothetical syntax
+fn apply(f: fn(&User) -> &string) -> void: pass   # elided inside the function type
+trait Named:
+    fn name(&self) -> &string                     # elided: depends on self
+```
+
+| | Rust lifetime variables | Mojo path origins | Swift named sources |
+| --- | --- | --- | --- |
+| Precision at a call | the whole source | a field path in a result; whole value elsewhere; field-level exclusivity is not documented | the whole source; path dependence (`@lifetime(self.storage)`) exists only in a draft |
+| Forms needed | one: `'a` in functions, types, stores and function types | paths in results, origin parameters in types and stores, interior origins | an attribute on functions, `~Escapable` plus `@_lifetime` on initializers in types, `target:` for stores |
+| Annotation burden | none where elision applies | an origin on every `ref` result | none where inference applies |
+| Checker cost | origin sets and NLL-style liveness, already planned for stage 1 | path-aware loans and invalidation | dependence checking plus exclusivity |
+| Prior-art maturity | shipped since 2015, NLL since 2018 | 1.0 in August 2026; interior origins experimental | `@_lifetime` still experimental; `Ref` and `MutableRef` in Swift 6.4 |
+
+**Recommendation:** Rust's lifetime variables. The trade-off is precision
+at a call. At stage 7, a live result freezes every non-flat write under
+its whole source, so `n := u.name(); u.tags.push(x)` is an error.
+Optional stage 9 (views) would release such writes if real code needs it.
+
+Stage 1 writes no lifetime and elides to the whole parameter, so it is
+unchanged.
 
 ## The Stages
 
@@ -106,40 +146,10 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 3. Lifetime variables | `fn f['a](x: &'a T) -> &'a T` (hypothetical); dependent function types; per-position precision | `choose(a, b)`, `get_or(&self, fallback)`, closures that return references | static |
 | 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
 | 5. Generic locality | local-holding type arguments for generic functions; `T < global` at persistent boundaries (hypothetical) | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
-| 6. Stored references | lifetime parameters on structs and enums; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
-| 7. Exclusivity | a live borrow freezes its path's shape; static for unaliased roots, borrow flags through `*mut` (panic `borrow-conflict`) | enum payload places (`as_mut`), exclusive guard captures, uncounted element and heap references | static plus flags |
-| 8. Uncounted scoped references | the backend drops the counts that stage 7 makes unnecessary | the perf payoff | none |
-| 9. Views, if needed | a parameter names the fields it borrows, `user: &{name} User` (hypothetical, Rust's proposed view types) | `n := get_name(&u); u.tags.push(x)` | static |
-
-**What stage 7 rejects.** These earlier programs become errors where the
-checker sees the source, and panics through a counted alias:
-
-- a length change of a list or map while a stage-4 result into it is live
-  (it panicked `collection-pinned` before);
-- replacing a `*mut` field that a live result's path crosses (it was valid
-  before, with a stale result);
-
-Stage 7 freezes shape only, never plain writes: `n := u.name(); u.age += 1`
-stays valid, as does `swap(&mut xs[i], &mut xs[j])`. Swift's full law,
-where a live `&mut` bars every other access, is not taken.
-
-**Precision at a call.** A lifetime says how long a result lives, not which
-part of its source it points into. In `fn get_name(user: &User) -> &string`
-the caller knows only that the result depends on `user`, so stage 7 freezes
-the shape of everything reachable from `user`:
-
-```text
-n := get_name(&u)
-u.age += 1          # valid: a plain write
-u.tags.push("x")    # stage 7 error: `u`'s shape is frozen while `n` is live
-```
-
-That is sound and less strict than Rust, which bars every write to `u`
-there. Naming the part, as `-> &{user.name} string` would, is not something
-a lifetime can express. A later stage may add it on the parameter instead,
-as Rust's proposed view types do (`user: &{name} User`, hypothetical): the
-body may reach only `name`, and the caller freezes only that subtree. It is
-taken only if the whole-source freeze proves too strict in real code.
+| 6. Stored references | lifetime parameters on structs and enums; stores into a caller's place; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
+| 7. Exclusivity | a live result freezes non-flat writes under its whole source; static where the checker sees the source, pins and counts through a `*mut` alias | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |
+| 8. Uncounted scoped references | the backend drops counts that stage 7 proves unnecessary; borrow flags where it cannot prove them | the perf payoff | flags only through `*mut` |
+| 9. Views, if needed | a parameter names the fields it borrows, `user: &{name} User` (hypothetical, Rust's view-type experiment) | `n := get_name(&u); u.tags.push(x)` | static |
 
 ### Stage 2: frame-slot results
 
@@ -195,6 +205,93 @@ The run time already supports kept element references: each copy holds a
 count of the buffer, which is the pin, until its last use (DESIGN.md
 §23.20). So stage 4 is checker work.
 
+### Stage 6: stored references
+
+Stage 6 lets a lifetime variable appear in a struct or enum, and in a
+store into a caller's place. A value of `Parser['a]` holds a local
+reference, so every Local References rule applies to it.
+
+```text
+struct Parser['a]:                         # hypothetical syntax
+    src: &'a string                        # hypothetical syntax
+    pos: usize
+
+fn parser(src: &string) -> Parser:         # elided: Parser['src]
+    Parser { src: src, pos: 0 }
+
+fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:   # hypothetical syntax
+    seen.push(u)
+```
+
+Guards, scoped closures and `Span` reuse the same variable: `Span['a, T]`
+and a closure type `fn() -> void + 'a` (hypothetical).
+
+### Stage 7: exclusivity
+
+A lifetime names a whole source, so the caller cannot tell which part a
+result points into. Stage 7 therefore freezes by what a write can do, not
+by where it lands.
+
+- A type is **flat** when none of its values holds a buffer, an enum
+  payload or a reference: scalars, payload-free enums, and structs and
+  tuples of flat types. A string, a collection, a reference, an enum with a
+  payload and an open `T` are not flat.
+- While a value that depends on a source is live, a flat write under that
+  source stays valid. A flat write cannot free or move anything a reference
+  points into.
+- Every other write under the source is `conflicting-access`:
+  - an assignment of a non-flat value;
+  - a `&mut self` call;
+  - `&mut` passed to a call;
+  - replacing a `*mut` along the path.
+- Reads stay valid, and so do writes under other roots.
+
+Rust's own rule would freeze every write to the source. The flat-write
+rule keeps the common "read a field, bump a counter" code. It needs only a
+per-type flag that the checker already has in substance (`OwnCx::counted`).
+
+```text
+fn demo(u: &mut User, t: &mut Team, w: &mut Wrapper[i64], d: &mut dyn Inspectable) -> void $ Console:
+    tag := u.first_tag()      # an element of u.tags, through the whole of u
+    u.age += 1                # valid: flat
+    u.name = "x"              # stage 7 error: a string is not flat (stage 9 views release it)
+    u.tags.push("y")          # stage 7 error: a &mut self call under u
+    lead := t.lead_name()     # through t.lead: *mut User
+    t.lead.age += 1           # valid: flat
+    t.lead = box(User { name: "z", age: 0, tags: [] })   # stage 7 error: replaces a *mut on the path
+    v := w.get()              # a generic T at i64
+    w.value = 2               # valid: i64 is flat at this call site
+    found := d.downcast_mut::[User]()
+    audit(d)                  # stage 7 error: &mut of the source passed to a call
+    println(*lead)
+```
+
+A generic body sees an open `T`, which is not flat, so it freezes writes
+of `T` until the result's last use. A write through an alias the checker
+cannot see stays a run-time matter:
+
+- the result holds a count of the object its path crosses;
+- the pin makes a length change panic `collection-pinned`;
+- stage 8 adds a borrow flag only where it drops that count.
+
+**What stage 7 rejects that earlier stages allowed:**
+
+- in stage 1, a non-flat write to the source while a result is live, as
+  `n := u.name(); u.name = "x"`;
+- in stage 4, a length change while an element result is live (it
+  panicked `collection-pinned`);
+- replacing a `*mut` that a live result's path crosses (it left a stale
+  result).
+
+### Stage 9: views, if needed
+
+A parameter may name the fields its body reaches, `fn get_name(user:
+&{name} User) -> &string` (hypothetical). The caller then freezes only
+`u.name`, so `u.tags.push(x)` stays valid while the result lives. It is
+Rust's own unfinished direction: a `view_types` experiment is gated in
+2026. Views are taken only if stage 7's whole-source freeze proves too
+strict in real code.
+
 ## Stage 1 In Full
 
 ### Rules
@@ -247,6 +344,7 @@ count of the buffer, which is the pin, until its last use (DESIGN.md
 ```text
 struct User:
     name: string
+    age: i32
     tags: List[string]
 
 impl User:
@@ -264,7 +362,7 @@ fn longest(users: &(User, User)) -> &User:  # one position: depends on users
     if users._0.name.len() >= users._1.name.len(): &users._0 else: &users._1
 
 fn bad_local() -> &string:  # error: reference-result-without-source
-    u := User { name: "a", tags: [] }
+    u := User { name: "a", age: 0, tags: [] }
     &u.name
 
 fn bad_pick(a: &User, b: &User) -> &User:  # error: ambiguous-reference-source
@@ -317,7 +415,7 @@ fn first_named(u: &User, v: &User) -> &string:  # error: ambiguous-reference-sou
 
 fn walk(u: &User) -> &string:
     let mut r = &u.name            # O(r) gets {u*}
-    let spare = User { name: "x", tags: [] }
+    let spare = User { name: "x", age: 0, tags: [] }
     if r.len() == 0:
         r = &spare.name            # O(r) also gets {spare}
     r                              # error: local-reference-escapes: may depend on `spare`
@@ -377,7 +475,7 @@ rejects it.
 | `&dyn` | `downcast_ref` points where the trait value's data does, and has that reference's origins. A vtable call's result is owned, as every call result is |
 | closures | Capturing a result is today's capture error. A function type whose result holds a local reference stays an error until stage 3 |
 | suspension | A suspending body keeps its locals in its frame object, so a result across `!` is counted. A bang function may have a dependent result |
-| recursion | `fn last(n: &Node) -> &Node` over `next: *Node?` is an error: the payload copy `m` is a local root. A `*Node` result is the natural type there. Stage 7 may make lent counted references origin-free |
+| recursion | `fn last(n: &Node) -> &Node` over `next: *Node?` is an error: the payload copy `m` is a local root. A `*Node` result is the natural type there, as `Rc` is in Rust |
 | a reference to a temporary | `make().name()` binds a hidden local that lives until the result's last use. hd frees at last use, not at scope end, so Rust's E0716 does not arise |
 
 **Holes.** None found. Stage 1 also closes one that exists today: a
@@ -431,7 +529,12 @@ Stop at 1.5 times that. Run time:
 2. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
    `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
    stage 5 lifts it properly.
-3. **The generic default, stage 5.** Every `T` may hold a local reference,
+3. **Stage 7's write rule.** Freeze only non-flat writes under a live
+   result's source, or every write, as Rust does. **Recommendation:** the
+   flat-write rule. It is sound, it keeps `n := u.name(); u.age += 1`
+   valid, and it costs one per-type flag. Without paths, it is the closest
+   thing to the shape-only freeze asked for.
+4. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
@@ -486,8 +589,9 @@ does not escape the call. A result's type names what it depends on,
 `_{this&transform}`. Global is the default, and memory safety stays the
 GC's.
 
-hd's `&T` is already local by default, and `*T` is global. Stage 3's set
-in the result type is Kotlin's `_{...}`. Sources:
+hd's `&T` is already local by default, and `*T` is global. Kotlin's
+`_{this}` names a source, as Swift's attribute does; hd takes Rust's
+variables instead, for the reasons in "Why not path origins". Sources:
 [KEEP note 0007](https://github.com/Kotlin/KEEP/blob/main/notes/0007-local-lifetimes.md),
 [discussion #485](https://github.com/Kotlin/KEEP/discussions/485).
 
@@ -518,15 +622,58 @@ constraints. hd's per-binding origin sets are the same. Sources:
 ### Mojo: origins
 
 ```mojo
-def __getitem__(ref self, index: Int) -> ref[self.names[0]] String: ...
+def __getitem__(ref self, index: Int) raises -> ref[self.names[0]] String: ...
 def pick_one(cond: Bool, ref a: String, ref b: String) -> ref[a, b] String: ...
+struct ParametricRef[is_mutable: Bool, //, origin: Origin[mut=is_mutable]]: ...
+fn to_byte_span[origin: Origin](ref[origin] list: List[Byte]) -> Span[Byte, origin]: ...
 ```
 
-A `ref` result must name its origin. Mojo keeps each source alive while the
-result is live, and enforces exclusivity only between a call's arguments.
-hd takes the origin-set view of provenance. It does not take the mandatory
-annotation: elision covers the common case. Source:
-[Mojo lifetimes and origins](https://mojolang.org/docs/manual/values/lifetimes).
+Verified against Mojo's manual and the 1.0 release notes:
+
+- A `ref` result must name its origin.
+- An origin may be an arbitrary expression, shorthand for
+  `origin_of(expression)`, which is never evaluated. So `origin_of(x.y)`
+  and `ref[self.names[0]]` are allowed. The manual uses one to take a
+  stored string's origin rather than its owner's.
+- Structs take origin parameters (`Span[T, origin]`). A union, `ref[a, b]`,
+  keeps both sources alive.
+- The wildcards `MutUnsafeAnyOrigin` and `ImmUnsafeAnyOrigin` disable
+  exclusivity checking and ASAP destruction. Since 1.0 a struct field can
+  no longer hide one.
+- Exclusivity is documented only between a call's arguments, by value. We
+  found no statement that `origin_of(self.a)` and `origin_of(self.b)` are
+  disjoint for that check.
+- Mojo 1.0 (2026-08-11) adds experimental **interior origins**. `List`
+  element references bind to the list's interior, so `list.append(4)`
+  invalidates them, and a later use is "use of invalidated interior
+  reference".
+- Chris Lattner's May 2026 forum reply sketches "indirect origins", valid
+  until the owner is mutated. There is no design doc yet.
+
+hd takes the origin-set view of provenance in the body (stage 1). It
+rejects path origins in signatures: they need variables beside them, as
+"Why not path origins" shows. Mojo's interior origins are hd's stage-4 pin
+made static, which stage 7's freeze also gives. Sources:
+[Mojo lifetimes and origins](https://mojolang.org/docs/manual/values/lifetimes),
+[ownership and argument exclusivity](https://mojolang.org/docs/manual/values/ownership),
+[Mojo 1.0 release notes](https://mojolang.org/releases/v1.0.0/),
+[group origin proposal and Lattner's reply](https://forum.modular.com/t/proposal-group-origin/3010).
+
+### Paths elsewhere: Rust views, Swift, Scala
+
+- **Rust view types.** Matsakis's proposal lets a method borrow only named
+  fields: `self.{messages}` in the 2026 draft, not final. T-lang discussed
+  a `view_types` experiment gate on 2026-04-29. It is not accepted, and it
+  is stage 9 here. Sources: [view types (2021)](https://smallcultfollowing.com/babysteps/blog/2021/11/05/view-types/),
+  [T-lang notes](https://hackmd.io/pIbUgMQuQcGaibJcinOcEw).
+- **Swift.** Shipped dependence names parameters (`borrow self`, `&self`).
+  A per-property form, `@lifetime(self.storage)`, appears only in Andrew
+  Trick's draft note "Property lifetimes". Source:
+  [property lifetimes draft](https://gist.github.com/atrick/9409356c89a5f67dd9f68f708f57262e).
+- **Scala 3 capture checking.** Capture sets name variables, `this` and
+  parameters, and reach capabilities `x*` name what a value's contents
+  capture. We found no user-level field paths. Source:
+  [What's in the Box (OOPSLA 2025)](https://www.arxiv.org/abs/2509.07609).
 
 ### Hylo: projections
 
@@ -614,8 +761,14 @@ Each fact below was checked at cc63fb077. The two spec errors are first.
 ## Appendix C: Parse Log
 
 Every `text` block was parsed with `scripts/hd-conformance.sh parse` at
-cc63fb077. Parsing checks syntax only, not types. Five of the six blocks
-parse. Block 2, stage 3's, fails at lines 1 and 5 with "expected a type,
-found '{'", the two lines marked as hypothetical syntax.
+f20e7ff17 plus this edit. Parsing checks syntax only, not types. Six of
+the ten blocks parse. The other four fail only on lines marked
+hypothetical syntax:
+
+- the path-origin sketch, on `&[...]`;
+- the Rust-form sketch, on `'a`;
+- stage 3, on `'a`;
+- stage 6, on `'a`.
+
 Error comments in the examples are what the proposal reports, not what
 today's checker reports.
