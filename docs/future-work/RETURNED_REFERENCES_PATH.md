@@ -159,7 +159,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 6. Stored references | lifetime parameters on structs and enums; stores into a caller's place; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
 | 7. Exclusivity | Swift's `borrow`/`&` and Rust's rule: a live shared result freezes writes to its whole source, a live `&mut` result every other access; static where the checker sees the source, a borrow flag through a `*mut` alias | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |
 | 8. Uncounted scoped references | the backend drops counts that stage 7 proves unnecessary; borrow flags where it cannot prove them | the perf payoff | flags only through `*mut` |
-| 9. Views, if needed | a parameter names the fields it borrows, `user: &{name} User` (hypothetical, Rust's view-type experiment) | `n := get_name(&u); u.tags.push(x)` | static |
+| 9. Field paths on results | a result names the field of its source it points into, `-> &'self.name string`; visible fields only; traits name `'self` | `n := u.name(); u.tags.push(x)` | static |
 
 ### Stage 2: scoped locals, then frame slots
 
@@ -330,14 +330,38 @@ no code and may come later if real programs hit the lock often.
 - replacing a `*mut` that a live result's path crosses (it left a stale
   result).
 
-### Stage 9: views, if needed
+### Stage 9: field paths on results
 
-A parameter may name the fields its body reaches, `fn get_name(user:
-&{name} User) -> &string` (hypothetical). The caller then freezes only
-`u.name`, so `u.tags.push(x)` stays valid while the result lives. It is
-Rust's own unfinished direction: a `view_types` experiment is gated in
-2026. Views are taken only if stage 7's whole-source freeze proves too
-strict in real code.
+A result may name the field of its source it points into (owner,
+2026-10-29). The lifetime is still the source's; the path adds the place
+the loan covers, which only stage 7's conflict check reads. So the caller
+locks only that field, across the call:
+
+```text
+fn name(&self) -> &'self.name string                    # hypothetical syntax
+fn tags_mut(&mut self) -> &mut 'self.tags List[string]  # hypothetical syntax
+
+n := u.name()
+u.age += 1          # valid: n locks only u.name
+u.tags.push("x")    # valid
+u.name = "x"        # error: n is live
+```
+
+- **Callee check:** the returned reference must come from inside the named
+  path: `&self.name.first` is valid, `&self.tags` is `local-reference-escapes`.
+- **Visible fields only:** a `pub` signature names only fields visible where
+  it is written, so private layout never enters an API; a private function
+  may name private fields.
+- **Traits:** a trait method names `'self` only, and an impl is no more
+  precise than its trait, since bound and `&dyn` callers see the trait.
+- **Through `*mut`:** a path crossing a counted reference widens to the whole
+  referent there.
+- **Not inferred:** a caller's validity never depends on a callee's body.
+- **Later, separately:** the same for `&mut` parameters (Rust's view types,
+  `fn bump(&mut self.count)`).
+
+Cost: path-aware conflicts across calls, about 900 to 1,500 checker lines
+against 500 to 800 for stage 7's whole-source and local-path checks (#1005).
 
 ## Stage 1 In Full
 
