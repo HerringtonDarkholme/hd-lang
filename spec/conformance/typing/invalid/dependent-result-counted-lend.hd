@@ -1,0 +1,10 @@
+# test: a counted reference lent as a source argument has the origins of the place it was read from
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.projection.
+struct Node:
+    value: i32
+    next: *Node?
+
+fn last(n: &Node) -> &Node:
+    match n.next:
+        .Some(m) => last(m) # diagnostic: local-reference-escapes
+        .None => n

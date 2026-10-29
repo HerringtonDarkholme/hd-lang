@@ -1,0 +1,17 @@
+# test: a `&self` or `&mut self` method may return a reference that depends on `self`
+# Spec 13 Dependent Results: ref.dep.result, ref.dep.elide; Local References: ref.local.self.keep.
+struct User:
+    name: string
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+    fn tags_mut(&mut self) -> &mut List[string]:
+        &mut self.tags
+
+    fn named(&mut self, name: string) -> &mut User:
+        self.name = name
+        self

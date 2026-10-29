@@ -1,0 +1,35 @@
+# test: the caller may write its source and write through a `&mut` result while a result is in use
+# Spec 13 Dependent Results: ref.dep.caller.
+# expect-stdout: changed
+# expect-stdout: 2
+# expect-stdout: d 5
+struct User:
+    name: string
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+    fn tags_mut(&mut self) -> &mut List[string]:
+        &mut self.tags
+
+    fn named(&mut self, name: string) -> &mut User:
+        self.name = name
+        self
+
+fn demo(u: &mut User) -> void $ Console:
+    n := u.name()
+    u.name = "changed"
+    u.tags.push("x")
+    t := u.tags_mut()
+    t.push("y")
+    println(*n)
+    println(u.tags.len())
+
+pub fn main() -> void $ Console:
+    let mut u = User { name: "a", age: 0, tags: [] }
+    demo(&mut u)
+    u.named("d").age = 5
+    println("${u.name} ${u.age}")

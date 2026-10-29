@@ -1,0 +1,15 @@
+# test: with no reference receiver, a dependent result depends on the parameter of the one reference position
+# Spec 13 Dependent Results: ref.dep.position, ref.dep.elide; Origins: ref.dep.origin.branch.
+struct User:
+    name: string
+    age: i32
+
+struct Pair:
+    first: User
+    second: User
+
+fn longer(pair: &Pair, min: usize) -> &User:
+    if pair.first.name.len() >= pair.second.name.len() + min: &pair.first else: &pair.second
+
+fn apply(u: &User, f: fn(&User) -> i32) -> &string:
+    &u.name

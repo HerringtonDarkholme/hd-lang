@@ -1,0 +1,9 @@
+# test: a reference result with no reference parameter has no source
+# Spec 13 Dependent Results: ref.dep.elide.none.
+struct User:
+    name: string
+    age: i32
+
+fn bad_local() -> &string: # diagnostic: reference-result-without-source
+    u := User { name: "a", age: 0 }
+    &u.name

@@ -1,0 +1,12 @@
+# test: an element reference loop's binding is still kept only for one call
+# Spec 13 Dependent Results: ref.dep.element; Call-Scoped Access: ref.elem.kept.
+struct User:
+    name: string
+    age: i32
+
+fn pick(people: List[User], fallback: &User) -> &User:
+    let mut best = fallback
+    for p in &people:
+        if p.name.len() > best.name.len():
+            best = p # diagnostic: element-reference-outlives-call
+    best

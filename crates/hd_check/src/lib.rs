@@ -19,6 +19,7 @@ mod conform;
 mod dbg;
 pub use dbg::DbgRef;
 pub mod delegate;
+mod dep_results;
 pub mod derive;
 mod dupfacts;
 mod dynref;

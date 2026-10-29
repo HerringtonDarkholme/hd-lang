@@ -1,0 +1,15 @@
+# test: a `&self` call on a temporary depends on a hidden local, which a result never depends on
+# Spec 13 Origins: ref.dep.origin.temporary; Dependent Results: ref.dep.return.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn make() -> User:
+    User { name: "t", age: 0 }
+
+fn bad_temp(u: &User) -> &string:
+    make().name() # diagnostic: local-reference-escapes

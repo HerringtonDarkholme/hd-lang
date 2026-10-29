@@ -1,0 +1,8 @@
+# test: a trait method's signature is elided as a function's
+# Spec 13 Dependent Results: ref.dep.elide.ambiguous, ref.dep.trait.
+struct User:
+    name: string
+    age: i32
+
+trait Picker:
+    fn pick(self, a: &User, b: &User) -> &User # diagnostic: ambiguous-reference-source

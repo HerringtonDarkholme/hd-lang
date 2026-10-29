@@ -1,0 +1,8 @@
+# test: a local-holding value stored through a reference into a place the caller owns is an error
+# Spec 13 Dependent Results: ref.dep.store.
+struct User:
+    name: string
+    age: i32
+
+fn bad_store(out: &mut (&User), u: &User) -> void:
+    *out = u # diagnostic: local-reference-escapes

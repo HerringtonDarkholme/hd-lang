@@ -9,6 +9,11 @@ the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
 (`OBJECT_MODEL_TIER2_LIFETIMES.md`), and the tier-2 requirements in #978
 and #995. It changes no spec, compiler or std code.
 
+**Applied:** stage 1's rules 1 to 8 and 10, its provenance and its
+caller side are in the spec as
+[Dependent Results](../../spec/lang/13-values-and-references.md#dependent-results)
+(#1002). Rule 9 is #1003, the fix-it removal #1004, rule 11 #996.
+
 ## Context
 
 hd has two kinds of reference. A counted `*T` refers to a whole object that

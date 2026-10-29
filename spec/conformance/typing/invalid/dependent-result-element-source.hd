@@ -1,0 +1,17 @@
+# test: an element reference is no source argument of a call with a dependent result
+# Spec 13 Dependent Results: ref.dep.element.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn longest(people: &List[User]) -> usize:
+    let mut best = +0usize
+    for p in &people:
+        n := p.name() # diagnostic: element-reference-outlives-call
+        if n.len() > best:
+            best = n.len()
+    best

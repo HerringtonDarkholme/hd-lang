@@ -1,0 +1,19 @@
+# test: a dependent result refers to its source's place, so it sees a later reassignment of the source
+# Spec 13 Dependent Results: ref.dep.caller, ref.dep.call.
+# expect-stdout: b
+# expect-stdout: c
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+pub fn main() -> void $ Console:
+    let mut u = User { name: "a", age: 0 }
+    n := u.name()
+    u = User { name: "b", age: 1 }
+    println(*n)
+    u.name = "c"
+    println(*n)

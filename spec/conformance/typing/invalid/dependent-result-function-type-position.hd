@@ -1,0 +1,8 @@
+# test: a `&` inside a function type is no reference position
+# Spec 13 Dependent Results: ref.dep.position, ref.dep.elide.none.
+struct User:
+    name: string
+    age: i32
+
+fn bad_fn(f: fn(&User) -> i32, u: User) -> &string: # diagnostic: reference-result-without-source
+    &u.name

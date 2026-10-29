@@ -1,0 +1,17 @@
+# test: a dependent result of a call on a temporary keeps the temporary alive while the result is in use
+# Spec 13 Dependent Results: ref.dep.temporary.
+# expect-stdout: 5
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn make(name: string) -> User:
+    User { name: name, age: 0 }
+
+pub fn main() -> void $ Console:
+    n := make("hello").name()
+    println(n.len())

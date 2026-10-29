@@ -1,5 +1,5 @@
 # test: `T < AnyRef` accepts no local reference, since a local reference is never a type argument
-# Spec 04 AnyVal And AnyRef: types.sealed.local-reference; Spec 13 Local References: ref.local.escape.type-argument.
+# Spec 04 AnyVal And AnyRef: types.sealed.local-argument; Spec 13 Local References: ref.local.escape.generic-argument.
 struct Point:
     x: f64
 

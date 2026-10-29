@@ -212,7 +212,7 @@ fn demo() -> i32:
 3. r[ref.box.new] `box(e)` evaluates `e` once and returns a `*mut T` to a new object that holds the value. Each call makes a new object.
 4. r[ref.box.copy] The new object holds a copy of the value. When `e` is a place, a later write to that place is not seen through the result, and a write through the result does not change the place.
 5. r[ref.box.weaken] The result converts by the rules of [Conversions](#conversions) and [Trait Value References](09-traits.md#trait-value-references), so it may be used where `*T` or `*mut dyn Tr` is expected.
-6. r[ref.box.no-local] `box(e)` is an error when the type of `e` holds a local reference, by [`ref.local.holds`](#r-ref.local.holds). Error: `local-reference-escapes`.
+6. r[ref.box.no-local] `box(e)` is an error when the type of `e` holds a local reference, by [`ref.local.holding`](#r-ref.local.holding). Error: `local-reference-escapes`.
 7. r[ref.box.object] Every counted reference refers to a whole object: one that `box` made, or one that another rule names as a new object. No expression makes a counted reference to a local, a parameter, a top-level binding, a field, or an element.
 8. r[ref.box.lifetime] A counted reference keeps the object it refers to alive. It may outlive the block that made it, and may be returned.
 
@@ -329,8 +329,8 @@ fn demo(h: Holder) -> i32:
 
 1. r[ref.local.uses] A local reference may be the value of a parameter, a local binding, a call argument, or a receiver.
 2. r[ref.local.argument] Passing a local reference to a `&T` or `&mut T` parameter is valid, so a function may pass on what it was lent.
-3. r[ref.local.holds] A type **holds** a local reference when it is a local reference type, or a tuple type or a type alias whose type holds one.
-4. r[ref.local.self] A `&self` or `&mut self` receiver is a local reference, so these rules apply to `self` in such a method. A method that keeps or returns `self`, such as a builder, takes `*self` or `*mut self` ([Reference Receivers](07-functions.md#reference-receivers)).
+3. r[ref.local.holding] A type **holds** a local reference when it is a local reference type, or a tuple, an optional, an instance of a generic type, or a type alias whose type or type argument holds one.
+4. r[ref.local.self.keep] A `&self` or `&mut self` receiver is a local reference, so these rules apply to `self` in such a method. A method that keeps `self` takes `*self` or `*mut self` ([Reference Receivers](07-functions.md#reference-receivers)). A `&self` method may still return a value that depends on `self` ([Dependent Results](#dependent-results)).
 5. r[ref.local.escape.counted] A local reference never converts to a counted one. Using one where a counted reference is expected, as for a `*T` parameter or field, is an error. Error: `local-reference-escapes`.
 
 A local reference escapes when it reaches one of these positions, and each is an error:
@@ -340,9 +340,9 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.field] Field | is stored in a struct field or an enum payload field, or a field's declared type holds one | `point: &Point` | `local-reference-escapes` |
 | r[ref.local.escape.element] Collection element | is stored as an element of a list, a map, or a set, by a literal or a method such as `push` | `points.push(p)` | `local-reference-escapes` |
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
-| r[ref.local.escape.return] Result | is returned, or a function's or a function type's declared result type holds one | `fn pick(p: &Point) -> &Point` | `local-reference-escapes` |
+| r[ref.local.escape.fn-type-result] Function type result | is the result of a function type or a closure, or a function type's or a closure's declared result type holds one | `fn(&Point) -> &Point` | `local-reference-escapes` |
 | r[ref.local.escape.capture] Closure capture | is captured by a closure, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
-| r[ref.local.escape.type-argument] Type argument | is a type argument, written or inferred, an optional's included | `List[&Point]`, `&Point?` | `local-reference-escapes` |
+| r[ref.local.escape.generic-argument] Type argument | is a type argument of a list, a map, a generic function or method, a trait, or a trait value, written or inferred | `List[&Point]`, `keep::[&Point](p)` | `local-reference-escapes` |
 
 6. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
 
@@ -359,8 +359,8 @@ let origin_ref: &Point = &origin  # error: local-reference-escapes
 fn keep(points: &mut List[*Point], p: &Point) -> void:
     points.push(p)  # error: local-reference-escapes
 
-fn pick(p: &Point) -> &Point:  # error: local-reference-escapes
-    p
+fn apply(f: fn(&Point) -> &Point) -> void:  # error: local-reference-escapes
+    pass
 
 fn reader(p: &Point) -> fn() -> i32:
     fn() -> i32: p.x  # error: local-reference-escapes
@@ -374,6 +374,120 @@ fn first(points: List[&Point]) -> i32:  # error: local-reference-escapes
 > a mechanical repair for a local reference that escapes.
 
 See also: [Captured References](#captured-references),
+[Reference Receivers](07-functions.md#reference-receivers).
+
+## Dependent Results
+
+A function's result may hold a local reference that it borrows from its receiver or a parameter, its **source**. Such a result is a **dependent result**.
+
+```hd
+struct User:
+    name: string
+    tags: List[string]
+
+impl User:
+    fn name(&self) -> &string:          # depends on self
+        &self.name
+
+    fn tags_mut(&mut self) -> &mut List[string]:
+        &mut self.tags
+
+    fn named(&mut self, name: string) -> &mut User:
+        self.name = name
+        self
+
+fn tagged(u: &User) -> &List[string]?:  # one reference position: depends on u
+    if u.tags.len() > 0: .Some(&u.tags) else: .None
+
+fn demo(u: &mut User) -> void:
+    n := u.name()
+    u.name = "changed"   # n refers to the field, and sees the write
+    t := u.tags_mut()
+    t.push("x")          # writes u.tags in place
+```
+
+1. r[ref.dep.result] A function's or a method's result type may hold a local reference: `&T`, `&mut T`, a tuple of them, or an instance of a generic struct or enum, such as `&T?` or `Result[&T, E]`.
+2. r[ref.dep.position] Each `&` or `&mut` in a parameter's type is one **reference position**: in `&self`, in `p: &T`, in `opt: &T?`, and in each element of `pair: (&A, &B)`. A `&` inside a function type is none.
+3. r[ref.dep.elide] A dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
+4. r[ref.dep.elide.none] A dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
+5. r[ref.dep.elide.ambiguous] A dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
+6. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
+7. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
+8. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
+9. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
+10. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
+11. r[ref.dep.element] An element reference, a `for p in &xs` binding included, must not be the source argument of a call with a dependent result. Error: `element-reference-outlives-call`.
+12. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
+13. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
+14. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
+
+```text
+struct User:
+    name: string
+
+fn bad_local() -> &string:  # error: reference-result-without-source
+    u := User { name: "a" }
+    &u.name
+
+fn bad_pick(a: &User, b: &User) -> &User:  # error: ambiguous-reference-source
+    a
+
+fn bad_value(u: User, other: &User) -> &string:
+    &u.name  # error: local-reference-escapes
+
+fn bad_store(out: &mut (&User), u: &User) -> void:
+    *out = u  # error: local-reference-escapes
+```
+
+> **Why.** These are Rust's elision rules for a result's lifetime, with no
+> lifetime written. A write to the source replaces the value in its place,
+> and the place stays where it is, so the caller needs no exclusive access.
+
+### Origins
+
+An **origin** is a storage root that a local reference may point into. It is what a parameter refers to, which the caller owns, or a local of the function, the hidden local of `&e` on a value included. It may also be a parameter's own storage, which the call owns.
+
+1. r[ref.dep.origin.set] Each value that holds a local reference has an origin set. The checker solves the sets once per function, per binding, regardless of the order of statements.
+2. r[ref.dep.origin.least] The sets are the least solution of the constraints in the table below. A reassignment adds origins and never removes them.
+
+| Rule | Expression | Origins |
+| --- | --- | --- |
+| r[ref.dep.origin.param] Parameter | `p`, for a parameter whose type holds a local reference | what `p` refers to |
+| r[ref.dep.origin.place] Place | `&x` or `&x.f.g`, for a local or a parameter `x` | `x`'s own storage |
+| r[ref.dep.origin.reborrow] Reborrow | `&r.f`, `&*r`, or an automatic address through a reference value `r` | the origins of `r` |
+| r[ref.dep.origin.counted] Counted crossing | a place reached through a counted reference, as `&h.p.x` with `p: *mut P` | the origins of the place the counted reference was read from |
+| r[ref.dep.origin.lend] Lent counted reference | a counted reference read from a place and lent as a source argument | that place's origins |
+| r[ref.dep.origin.temporary] Temporary | `&e` on a value, and a `&self` call on a temporary | a hidden local |
+| r[ref.dep.origin.binding] Binding | a read of a binding `b` | the union of every value stored into `b` anywhere in the function |
+| r[ref.dep.origin.parts] Construction | a tuple, `.Some(a)`, or a struct or enum literal | the union of its parts |
+| r[ref.dep.origin.projection] Projection | `t._0`, or a pattern binding of a scrutinee `s` | the origins of `t`, or of `s` |
+| r[ref.dep.origin.branch] Branch | `if` or `match` as a value | the union of its arms |
+| r[ref.dep.origin.call] Call | a call with a dependent result, whose source argument is `a` | the origins of `a` |
+| r[ref.dep.origin.try] Wrap | `x?`, and an implicit `.Some` | the origins of `x` |
+
+```text
+struct User:
+    name: string
+
+fn walk(u: &User) -> &string:
+    let mut r = &u.name            # r gets what u refers to
+    spare := User { name: "x" }
+    if r.len() == 0:
+        r = &spare.name            # r also gets spare
+    r  # error: local-reference-escapes
+
+fn optional(u: &User) -> &string?:
+    let o: &string? = .Some(&u.name)
+    match o:
+        .Some(n) => .Some(n)       # valid: n has the origins of o
+        .None => .None
+```
+
+> **Why.** Per-binding sets are the regions of Rust's non-lexical
+> lifetimes without their flow sensitivity. A later stage may make them
+> flow-sensitive and accept more programs.
+
+See also: [Element References](#element-references),
 [Reference Receivers](07-functions.md#reference-receivers).
 
 ## Reading Through A Reference

@@ -1,0 +1,17 @@
+# test: a call through a trait value reference depends on what the reference refers to
+# Spec 13 Dependent Results: ref.dep.trait, ref.dep.return; Origins: ref.dep.origin.reborrow.
+trait Named:
+    fn name(&self) -> &string
+
+struct User:
+    name: string
+    age: i32
+
+impl Named for User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn bad_dyn(e: &dyn Named) -> &string:
+    x := User { name: "x", age: 0 }
+    let d: &dyn Named = &x
+    d.name() # diagnostic: local-reference-escapes

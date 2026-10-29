@@ -1,0 +1,12 @@
+# test: `x?` and an implicit `.Some` keep the origins of `x`
+# Spec 13 Origins: ref.dep.origin.try.
+struct User:
+    name: string
+    age: i32
+
+fn maybe(u: &User) -> &string?:
+    &u.name
+
+fn again(u: &User) -> &string?:
+    n := maybe(u)?
+    .Some(n)

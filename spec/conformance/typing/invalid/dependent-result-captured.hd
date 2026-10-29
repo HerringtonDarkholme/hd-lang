@@ -1,0 +1,13 @@
+# test: a call's dependent result is a local reference of the caller, which a closure never captures
+# Spec 13 Dependent Results: ref.dep.call.local; Local References: ref.local.escape.capture.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn later(u: &User) -> fn() -> usize:
+    n := u.name()
+    fn() -> usize: n.len() # diagnostic: local-reference-escapes

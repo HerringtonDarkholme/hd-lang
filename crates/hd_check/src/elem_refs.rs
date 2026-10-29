@@ -396,7 +396,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn elem_ref_kept(&mut self, n: NodeRef<'_>) {
+    pub(crate) fn elem_ref_kept(&mut self, n: NodeRef<'_>) {
         self.elem_kept.insert(strip_parens(n).index());
         self.err(
             Code::ElementReferenceOutlivesCall,

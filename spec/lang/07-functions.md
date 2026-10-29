@@ -1095,7 +1095,7 @@ fn demo() -> f64:
 
 1. r[fn.method.ref-self] In a `&self` method `self` is a reference `&Self`, and in a `&mut self` method `&mut Self`. Reads and writes through it follow [Values And References](13-values-and-references.md).
 2. r[fn.method.ref-self.kinds] A method of any type may take `&self` or `&mut self`: a struct, an enum, or a primitive.
-3. r[fn.method.ref-self.local] `&self` and `&mut self` are local references, so the method must not store, return, or capture `self`. Error: `local-reference-escapes`.
+3. r[fn.method.ref-self.keep] `&self` and `&mut self` are local references, so the method must not store or capture `self`. It may return a value that depends on `self`, as [Dependent Results](13-values-and-references.md#dependent-results) states. Error: `local-reference-escapes`.
 4. r[fn.method.ref-self.local.fix] The diagnostic's fix-it writes `*self` for `&self`, and `*mut self` for `&mut self`.
 5. r[fn.method.counted-self] In a `*self` method `self` is a counted reference `*Self`, and in a `*mut self` method `*mut Self`. The method may store, return, and capture it.
 6. r[fn.method.counted-self.kinds] A method of any type may take `*self` or `*mut self`, as for `&self`.

@@ -1,0 +1,10 @@
+# test: a place reached through a counted reference has the origins of the place the counted reference was read from
+# Spec 13 Origins: ref.dep.origin.counted, ref.dep.origin.reborrow.
+struct P:
+    x: i32
+
+struct H:
+    p: *mut P
+
+fn through(h: &H) -> &i32:
+    &h.p.x

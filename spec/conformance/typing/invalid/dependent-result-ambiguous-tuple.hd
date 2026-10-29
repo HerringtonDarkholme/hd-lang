@@ -1,0 +1,8 @@
+# test: each element of a tuple of references is a reference position of its own
+# Spec 13 Dependent Results: ref.dep.position, ref.dep.elide.ambiguous.
+struct User:
+    name: string
+    age: i32
+
+fn bad_pair(pair: (&User, &User)) -> &User: # diagnostic: ambiguous-reference-source
+    pair._0

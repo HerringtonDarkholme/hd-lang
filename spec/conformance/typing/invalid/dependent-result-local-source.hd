@@ -1,0 +1,13 @@
+# test: a call's result depends on a local source argument, so the caller may not return it
+# Spec 13 Dependent Results: ref.dep.call, ref.dep.call.local, ref.dep.return.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn via_local(u: &User) -> &string:
+    x := User { name: "a", age: 0 }
+    x.name() # diagnostic: local-reference-escapes

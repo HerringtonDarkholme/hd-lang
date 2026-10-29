@@ -1,9 +1,11 @@
 //! Local references (spec/lang/13-values-and-references.md, "Local
 //! References"): `&T` and `&mut T` are lent to a call and never kept, so
 //! a local reference that reaches a field, a collection element, a
-//! top-level binding, a result, a closure capture, a type argument or a
-//! counted reference is `local-reference-escapes`, whose message names
-//! that position and offers no fix-it.
+//! top-level binding, a function type's result, a closure capture, a
+//! type argument or a counted reference is `local-reference-escapes`,
+//! whose message names that position and offers no fix-it. A function's
+//! result may hold one, whose source its signature elides
+//! ([`declarations`], `crate::dep_results`).
 //!
 //! Both kinds have one representation (`ref.type.kind-runtime`): they
 //! lower to `Ref[T]` and `Counted[T]` (`hd_types::Types::lower_refs`),
@@ -49,7 +51,7 @@ impl Escape {
             Escape::Field => "a field",
             Escape::Element => "a collection element",
             Escape::TopLevel => "a top-level binding",
-            Escape::Result => "a result",
+            Escape::Result => "a function type's result",
             Escape::Capture => "a closure capture",
             Escape::TypeArgument => "a type argument",
             Escape::Counted => "a counted reference",
@@ -95,9 +97,11 @@ fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
 }
 
 /// A written local reference type in a position that keeps it
-/// (`ref.local.escape.field`, `.top-level`, `.return`, `.type-argument`):
-/// one error per `&`. A parameter, a local binding and an impl's target may
-/// be local references, and so may a function type's parameters.
+/// (`ref.local.escape.field`, `.top-level`, `.fn-type-result`,
+/// `.generic-argument`): one error per `&`. A parameter, a local binding,
+/// an impl's target and a function's result may be local references, and
+/// so may a function type's parameters. A function's result that holds one
+/// needs one source (`ref.dep.elide`).
 pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
     for item in src.root().children() {
         match item.kind() {
@@ -146,8 +150,22 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                 }
             }
         }
-        // A function's or a closure's written result.
-        SyntaxKind::FnDecl | SyntaxKind::ClosureExpr => {
+        // A function's written result may hold a local reference, which
+        // depends on the elided source (`ref.dep.result`).
+        SyntaxKind::FnDecl => {
+            for c in n.children() {
+                if c.kind().is_type() {
+                    walk_ty(src, c, None, diags);
+                    if c.kind() != SyntaxKind::RequirementRow && ref_positions(src, c) > 0 {
+                        check_source(src, n, c, diags);
+                    }
+                } else {
+                    walk(src, c, diags);
+                }
+            }
+        }
+        // A closure's written result.
+        SyntaxKind::ClosureExpr => {
             for c in n.children() {
                 if c.kind().is_type() {
                     walk_ty(src, c, Some(Escape::Result), diags);
@@ -156,7 +174,7 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                 }
             }
         }
-        // An alias holds what its type holds (`ref.local.holds`), so its
+        // An alias holds what its type holds (`ref.local.holding`), so its
         // uses report. A newtype's value is its one field.
         SyntaxKind::TypeDecl => {
             if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_none() {
@@ -190,20 +208,52 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
                 walk_ty(src, c, None, diags);
             }
         }
-        // `ref.local.holds`: a tuple holds what its elements hold.
+        // `ref.local.holding`: a tuple holds what its elements hold.
         SyntaxKind::TupleType | SyntaxKind::ParenType => {
             for c in n.children() {
                 walk_ty(src, c, at, diags);
             }
         }
-        // `ref.local.escape.type-argument`, an optional's included.
-        SyntaxKind::TypeArgumentList | SyntaxKind::OptionalType => {
+        // `ref.local.holding`: an optional, and a generic type's instance,
+        // hold what their type arguments hold, where a local reference may
+        // stand (`ref.dep.result`). A list's or a map's type arguments
+        // never hold one (`ref.local.escape.generic-argument`).
+        SyntaxKind::OptionalType => {
+            for c in n.children() {
+                walk_ty(src, c, at, diags);
+            }
+        }
+        SyntaxKind::NamedType => {
+            let toks = &src.parse.tokens;
+            let name = n
+                .direct_tokens()
+                .filter(|&t| matches!(toks.kind(t), TokenKind::Ident | TokenKind::RawIdent))
+                .last()
+                .map(|t| src.text(t));
+            let at = if matches!(name, Some("List" | "Map")) {
+                Some(Escape::TypeArgument)
+            } else {
+                at
+            };
+            for c in n.children() {
+                if c.kind() == SyntaxKind::TypeArgumentList {
+                    for a in c.children() {
+                        walk_ty(src, a, at, diags);
+                    }
+                } else {
+                    walk_ty(src, c, None, diags);
+                }
+            }
+        }
+        // `ref.local.escape.generic-argument`: an expression's or a
+        // trait's type arguments.
+        SyntaxKind::TypeArgumentList => {
             for c in n.children() {
                 walk_ty(src, c, Some(Escape::TypeArgument), diags);
             }
         }
-        // A function type's parameters may be local; its result is a
-        // result (`ref.local.escape.return`).
+        // A function type's parameters may be local; its result may not
+        // (`ref.local.escape.fn-type-result`).
         SyntaxKind::FunctionType => {
             let arrow = n
                 .direct_token(&src.parse.tokens, TokenKind::Arrow)
@@ -226,20 +276,78 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
     }
 }
 
-/// Where a value of type `t` keeps a local reference: inside a type
-/// argument or an optional, or as a function type's result. A local
-/// reference at the top (`top_ok`), in a tuple at the top, as a function
-/// type's parameter or behind a reference is no escape.
-fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape> {
+/// The local reference positions of the written type `n`
+/// (`ref.dep.position`): each `&` outside a function type.
+fn ref_positions(src: &Src<'_>, n: NodeRef<'_>) -> usize {
+    match n.kind() {
+        SyntaxKind::FunctionType => 0,
+        k => {
+            let own = k == SyntaxKind::RefType
+                && n.direct_token(&src.parse.tokens, TokenKind::Amp).is_some();
+            usize::from(own) + n.children().map(|c| ref_positions(src, c)).sum::<usize>()
+        }
+    }
+}
+
+/// The source the written result `ret` of the function `f` depends on
+/// (`ref.dep.elide`): a `&self` or `&mut self` receiver, or else the one
+/// reference position among the parameters' types. None is
+/// `reference-result-without-source`, and two or more are
+/// `ambiguous-reference-source`.
+fn check_source(src: &Src<'_>, f: NodeRef<'_>, ret: NodeRef<'_>, diags: &mut DiagBuf) {
+    let toks = &src.parse.tokens;
+    let Some(params) = f.child(SyntaxKind::ParameterList) else {
+        return;
+    };
+    let mut names: Vec<&str> = Vec::new();
+    for p in params.children() {
+        if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
+            if p.direct_token(toks, TokenKind::Amp).is_some() {
+                return;
+            }
+            continue;
+        }
+        let name = p.name(toks).map_or("_", |t| src.text(t));
+        for _ in 0..p.children().map(|c| ref_positions(src, c)).sum::<usize>() {
+            names.push(name);
+        }
+    }
+    match names.as_slice() {
+        [_] => {}
+        [] => diags.error(
+            Code::ReferenceResultWithoutSource,
+            src.span(ret),
+            "a reference result needs a reference parameter to borrow from",
+        ),
+        [one, more @ ..] => {
+            let from = match more.iter().find(|other| *other != one) {
+                Some(other) => format!("`{one}` or `{other}`"),
+                None => format!("either reference in `{one}`"),
+            };
+            diags.error(
+                Code::AmbiguousReferenceSource,
+                src.span(ret),
+                &format!(
+                    "the result may borrow from {from}; naming the source comes in a later stage"
+                ),
+            );
+        }
+    }
+}
+
+/// Where a value of type `t` keeps a local reference: in a type argument
+/// of a list or a map (`colls`), a trait value or an opaque type, or as a
+/// function type's result. A local reference at the top (`top_ok`), in a
+/// tuple, an optional or another generic type's instance at the top
+/// (`ref.local.holding`), as a function type's parameter or behind a
+/// reference is no escape.
+fn escape_in(pool: Types<'_>, colls: Colls, t: Ty, top_ok: bool, depth: u32) -> Option<Escape> {
     if depth > 32 || !pool.has_ref(t) {
         return None;
     }
     let d = depth + 1;
-    let list = |l, top: bool| {
-        pool.list_items(l)
-            .iter()
-            .find_map(|&a| escape_in(pool, a, top, d))
-    };
+    let escape_in = |t, top| escape_in(pool, colls, t, top, d);
+    let list = |l, top: bool| pool.list_items(l).iter().find_map(|&a| escape_in(a, top));
     match pool.get(t) {
         TyData::Ref {
             counted: false,
@@ -247,28 +355,27 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
             ..
         } => {
             if top_ok {
-                escape_in(pool, inner, true, d)
+                escape_in(inner, true)
             } else {
                 Some(Escape::TypeArgument)
             }
         }
-        TyData::Ref { inner, .. } => escape_in(pool, inner, true, d),
-        TyData::Mut(i) => escape_in(pool, i, top_ok, d),
+        TyData::Ref { inner, .. } => escape_in(inner, true),
+        TyData::Mut(i) | TyData::Option(i) => escape_in(i, top_ok),
         TyData::Tuple { elems, rest } => {
-            list(elems, top_ok).or_else(|| rest.and_then(|r| escape_in(pool, r, top_ok, d)))
+            list(elems, top_ok).or_else(|| rest.and_then(|r| escape_in(r, top_ok)))
         }
-        TyData::Option(i) => escape_in(pool, i, false, d),
-        TyData::Adt { args, .. } | TyData::Opaque { args, .. } => list(args, false),
-        TyData::TraitValue { args, bindings, .. } => list(args, false).or_else(|| {
-            bindings
-                .iter()
-                .find_map(|&(_, b)| escape_in(pool, b, false, d))
-        }),
+        TyData::Adt { def, args } if colls.contains(&def) => list(args, false),
+        TyData::Adt { args, .. } => list(args, top_ok),
+        TyData::Opaque { args, .. } => list(args, false),
+        TyData::TraitValue { args, bindings, .. } => {
+            list(args, false).or_else(|| bindings.iter().find_map(|&(_, b)| escape_in(b, false)))
+        }
         TyData::Assoc { self_ty, args, .. } => {
-            escape_in(pool, self_ty, false, d).or_else(|| list(args, false))
+            escape_in(self_ty, false).or_else(|| list(args, false))
         }
         TyData::Fn { params, result, .. } => {
-            list(params, true).or_else(|| match escape_in(pool, result, false, d) {
+            list(params, true).or_else(|| match escape_in(result, false) {
                 Some(Escape::TypeArgument) if is_local_ref(pool, result) => Some(Escape::Result),
                 other => other,
             })
@@ -277,10 +384,14 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
     }
 }
 
+/// The list and map types, whose type arguments never hold a local
+/// reference (`ref.local.escape.generic-argument`).
+pub(crate) type Colls = [hd_base::DefId; 2];
+
 /// Whether a value of type `t` holds a local reference anywhere, its top
-/// included (`ref.local.holds`), as `box` checks (`ref.box.no-local`).
+/// included (`ref.local.holding`), as `box` checks (`ref.box.no-local`).
 pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
-    escape_in(pool, t, false, 0).is_some()
+    escape_in(pool, [hd_base::DefId::NONE; 2], t, false, 0).is_some()
 }
 
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
@@ -368,6 +479,12 @@ pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32)
 }
 
 impl Ck<'_, '_> {
+    /// The list and map types ([`Colls`]).
+    pub(crate) fn colls(&self) -> Colls {
+        let known = &self.cx.names.known;
+        [known.list, known.map]
+    }
+
     /// Whether `got` converts to `want` by reference kinds alone, which
     /// needs no conversion at run time ([`lends`]).
     pub(crate) fn lends_by_kind(&self, got: Ty, want: Ty) -> bool {
@@ -540,7 +657,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let t = self.infer.resolve(pool, self.b.local_ty(l));
-            if !is_local_ref(pool, t) && escape_in(pool, t, true, 0).is_none() {
+            if !holds_local_ref(pool, t) {
                 continue;
             }
             self.ref_captured.insert(l);
@@ -549,12 +666,13 @@ impl Ck<'_, '_> {
     }
 
     /// The types the finished body inferred that keep a local reference
-    /// (`ref.local.escape.type-argument`, `ref.local.escape.return`): a
+    /// (`ref.local.escape.generic-argument`): a
     /// value's, a local's, and a call's type arguments. A written type
     /// reported already ([`declarations`]), so a type the body or its
     /// signature writes is skipped, and each other type reports once.
     pub(crate) fn check_local_ref_types(&mut self) {
         let pool = self.pool();
+        let colls = self.colls();
         let declared = &self.declared_tys;
         let mut seen: HashSet<(Ty, bool)> = HashSet::default();
         let mut found: Vec<(hd_base::NodeIdx, Escape)> = Vec::new();
@@ -568,7 +686,7 @@ impl Ck<'_, '_> {
                 return;
             }
             let e = if top_ok || !is_local_ref(pool, t) {
-                escape_in(pool, t, top_ok, 0)
+                escape_in(pool, colls, t, top_ok, 0)
             } else {
                 Some(Escape::TypeArgument)
             };

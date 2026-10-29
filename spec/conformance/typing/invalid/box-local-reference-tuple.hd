@@ -1,5 +1,5 @@
 # test: `box` rejects a tuple that holds a local reference
-# Spec 13 Boxes: ref.box.no-local; Local References: ref.local.holds.
+# Spec 13 Boxes: ref.box.no-local; Local References: ref.local.holding.
 struct Point:
     x: i32
 

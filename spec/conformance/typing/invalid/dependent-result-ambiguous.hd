@@ -1,0 +1,8 @@
+# test: a reference result with two reference parameters and no reference receiver is ambiguous
+# Spec 13 Dependent Results: ref.dep.elide.ambiguous.
+struct User:
+    name: string
+    age: i32
+
+fn bad_pick(a: &User, b: &User) -> &User: # diagnostic: ambiguous-reference-source
+    a

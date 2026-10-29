@@ -1,0 +1,11 @@
+# test: an optional reference result is built with `.Some`, and a pattern binding has the origins of its scrutinee
+# Spec 13 Dependent Results: ref.dep.result; Origins: ref.dep.origin.parts, ref.dep.origin.projection.
+struct User:
+    name: string
+    age: i32
+
+fn optional(u: &User) -> &string?:
+    let o: &string? = if u.name.len() > 0: .Some(&u.name) else: .None
+    match o:
+        .Some(n) => .Some(n)
+        .None => .None

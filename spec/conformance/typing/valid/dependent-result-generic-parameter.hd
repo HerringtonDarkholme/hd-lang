@@ -1,0 +1,10 @@
+# test: a dependent result may name a type parameter, as `&T`
+# Spec 13 Dependent Results: ref.dep.result, ref.dep.elide.
+struct Wrapper[T]:
+    value: T
+
+fn get[T](w: &Wrapper[T]) -> &T:
+    &w.value
+
+fn total(w: &Wrapper[i32]) -> i32:
+    *get(w) + 1

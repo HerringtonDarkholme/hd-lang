@@ -1,0 +1,8 @@
+# test: a result may be a generic enum instance whose type argument holds a local reference
+# Spec 13 Dependent Results: ref.dep.result; Local References: ref.local.holding.
+struct User:
+    name: string
+    age: i32
+
+fn named(u: &User) -> Result[&string, string]:
+    if u.name.len() > 0: .Ok(&u.name) else: .Err("no name")

@@ -1,0 +1,12 @@
+# test: a binding's origins are the union of every value stored into it, so a reassignment adds a local
+# Spec 13 Dependent Results: ref.dep.return; Origins: ref.dep.origin.binding, ref.dep.origin.least.
+struct User:
+    name: string
+    age: i32
+
+fn walk(u: &User) -> &string:
+    let mut r = &u.name
+    spare := User { name: "x", age: 0 }
+    if r.len() == 0:
+        r = &spare.name
+    r # diagnostic: local-reference-escapes

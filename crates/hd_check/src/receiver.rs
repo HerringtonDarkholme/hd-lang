@@ -205,7 +205,7 @@ impl Ck<'_, '_> {
         let (r, t) = self.address_of_place(base, name, mutable, part)?;
         // The address is counted, but a call's `&self` or `&mut self`
         // receiver takes it as a local reference, which the `Ref` records
-        // (`ref_word::LOCAL`, `ref.local.self`).
+        // (`ref_word::LOCAL`, `ref.local.self.keep`).
         if call
             && !counted
             && let Some(i) = r.as_inst()

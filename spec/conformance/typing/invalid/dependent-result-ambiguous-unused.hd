@@ -1,0 +1,8 @@
+# test: elision counts the reference positions of the signature, so returning from one of two is still ambiguous
+# Spec 13 Dependent Results: ref.dep.elide.ambiguous.
+struct User:
+    name: string
+    age: i32
+
+fn first_named(u: &User, v: &User) -> &string: # diagnostic: ambiguous-reference-source
+    &u.name

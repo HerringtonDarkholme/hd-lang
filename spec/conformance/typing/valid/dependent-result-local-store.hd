@@ -1,0 +1,11 @@
+# test: a local-holding value stored through a reference into a place of the function is valid
+# Spec 13 Dependent Results: ref.dep.store; Origins: ref.dep.origin.binding.
+struct User:
+    name: string
+    age: i32
+
+fn pick(u: &User) -> &string:
+    let mut chosen = &u.name
+    slot := &mut chosen
+    *slot = &u.name
+    chosen

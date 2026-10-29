@@ -1,0 +1,8 @@
+# test: a value parameter's own storage is the call's, so a result never depends on it
+# Spec 13 Dependent Results: ref.dep.return; Origins: ref.dep.origin.place.
+struct User:
+    name: string
+    age: i32
+
+fn bad_value(u: User, other: &User) -> &string:
+    &u.name # diagnostic: local-reference-escapes
