@@ -5165,3 +5165,12 @@ typing/invalid/provider-install-local-binding.hd	type	reject:local-reference-esc
 typing/invalid/provider-share-local-reference.hd	type	reject:local-reference-escapes	lang/11-requirements-and-suspension.md#r-req.mut.install-no-local
 runtime/valid/provider-install-box.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-counted
 typing/invalid/counted-trait-value-from-value.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.counted.new
+typing/valid/typed-fact-optional-payload.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.optional-payload
+typing/invalid/typed-fact-optional-payload-unrelated.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check.optional-payload
+runtime/valid/validation-rules.hd	runtime	accept	std/validate.md#r-std-validate.rule.declarations
+runtime/valid/validation-rule-order.hd	runtime	accept	std/validate.md#r-std-validate.rule.builtin-order
+runtime/valid/validation-nesting-option-cap.hd	runtime	accept	std/validate.md#r-std-validate.container.option
+runtime/valid/validation-reader-boundaries.hd	runtime	accept	std/validate.md#r-std-validate.reader.boundary
+typing/valid/validation-phantom-derive-no-bound.hd	type	accept	std/validate.md#r-std-validate.rule.declarations
+typing/invalid/validation-email-wrong-target.hd	type	reject:type-mismatch	std/validate.md#r-std-validate.rule.email
+typing/invalid/validation-length-wrong-target.hd	type	reject:unsatisfied-trait-bound	std/validate.md#r-std-validate.rule.length

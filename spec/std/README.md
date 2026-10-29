@@ -231,6 +231,7 @@ file of its own.
 | [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
 | [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |
+| [`validate.md`](validate.md) | `std.validate` | `std-validate` | post-reader value validation, typed rule facts, structural paths, issue caps, and reader-selected path names |
 
 ## Test Provider Names
 

@@ -1,0 +1,118 @@
+# test: the standard validation facts reject values with stable codes, named messages, and decided text grammars
+# Standard Validation: std-validate.rule.range, std-validate.rule.length, std-validate.rule.pattern,
+# std-validate.rule.email, std-validate.rule.url, std-validate.rule.uuid,
+# std-validate.rule.one-of, std-validate.rule.unique, std-validate.rule.check
+use std.structure.Structure
+use std.testing.{assert, assert_equal}
+use std.validate.{
+    Problem,
+    Validate,
+    ValidationContext,
+    byte_length,
+    check,
+    email,
+    length,
+    max,
+    max_length,
+    min,
+    min_length,
+    one_of,
+    pattern,
+    range,
+    unique,
+    url,
+    uuid,
+}
+
+fn not_reserved(value: &string) -> Result[void, Problem]:
+    if *value == "root": .Err(Problem { code: "reserved", message: "reserved name" }) else: .Ok(())
+
+struct Rules:
+    count: i32
+    low: i32
+    high: i32
+    name: string
+    bytes: string
+    mail: string
+    site: string
+    id: string
+    choice: i32
+    tags: List[string]
+    custom: string
+
+impl Validate for Rules by Structure:
+    count = [range(1, 10)]
+    low = [min(3)]
+    high = [max(7)]
+    name = [length(2, 5, message="name length"), pattern("^[a-z]+$")]
+    bytes = [min_length(1), max_length(3), byte_length(1, 3)]
+    mail = [email()]
+    site = [url()]
+    id = [uuid()]
+    choice = [one_of([1, 2])]
+    tags = [unique()]
+    custom = [check(not_reserved)]
+
+struct BrokenPattern:
+    value: string
+
+impl Validate for BrokenPattern by Structure:
+    value = [pattern("[")]
+
+fn codes(value: Rules) -> List[string]:
+    match value.validated():
+        .Ok(_) => []
+        .Err(error) => [for issue in error.issues() => issue.problem.code]
+
+fn main() -> void:
+    good := Rules {
+        count: 5,
+        low: 3,
+        high: 7,
+        name: "alice",
+        bytes: "abc",
+        mail: "a+b@localhost",
+        site: "https://example.test/a",
+        id: "12345678-1234-1234-1234-123456789abc",
+        choice: 2,
+        tags: ["a", "b"],
+        custom: "user",
+    }
+    assert(codes(good).is_empty(), reason="every rule accepts its good edge")
+    bad := Rules {
+        count: 0,
+        low: 2,
+        high: 8,
+        name: "A",
+        bytes: "界界",
+        mail: "a b@example.test",
+        site: "/relative",
+        id: "bad",
+        choice: 3,
+        tags: ["a", "a"],
+        custom: "root",
+    }
+    assert_equal(
+        codes(bad),
+        [
+            "range",
+            "min",
+            "max",
+            "length",
+            "pattern",
+            "byte-length",
+            "email",
+            "url",
+            "uuid",
+            "one-of",
+            "unique",
+            "reserved",
+        ],
+        reason="fields and built-in rule kinds run in their declared orders",
+    )
+    broken := BrokenPattern { value: "x" }
+    match broken.validated():
+        .Err(.Definition(path, reason)) =>
+            assert_equal(path.len(), 1, reason="the definition error keeps its field path")
+            assert(reason.contains("invalid pattern"), reason="the regex error is named")
+        _ => panic("an invalid regex must be a definition error")

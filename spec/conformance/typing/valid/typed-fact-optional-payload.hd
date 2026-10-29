@@ -1,0 +1,29 @@
+# test: a member-typed fact may infer its target parameter from an optional field's payload
+# Spec 14 Member-Typed Facts: annot.typed-fact.check.optional-payload
+use std.annotation.annotate
+use std.structure.Structure
+
+@annotate::[F](.Field)
+struct Between[F]:
+    low: F
+    high: F
+
+fn between[F < PartialOrd](low: F, high: F) -> Between[F]:
+    Between::[F] { low: low, high: high }
+
+@annotate::[F?](.Field)
+struct OptionalOnly[F]:
+    fallback: F
+
+fn optional_only[F](fallback: F) -> OptionalOnly[F]:
+    OptionalOnly::[F] { fallback: fallback }
+
+struct Limits:
+    count: i32?
+
+impl Limits by Structure:
+    count = [between(1, 10), optional_only(0)]
+
+struct DecoratedLimits:
+    @between(1, 10)
+    count: i32?

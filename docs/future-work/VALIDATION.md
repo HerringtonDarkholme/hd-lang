@@ -1,6 +1,6 @@
 # Validation And Checked Readers
 
-Status: design accepted 2026-10-28; domain: standard library API; not implemented.
+Status: implemented in [`std.validate`](../../spec/std/validate.md#validation); domain: standard library API.
 
 Add a separate `Validate` derivation with concrete typed rules, automatic nested checks and ordinary custom functions.
 One `.validated()` combinator follows JSON, HTTP, CLI or environment input.
@@ -44,20 +44,22 @@ signup := req.json::[Signup]()?.validated()?
 
 ## How It Works
 
-Each rule kind has a different fact type: `Length`, `Pattern`, `Check[F]`, and so on.
+Each rule kind has a different phantom-typed fact type: `Length[F]`, `Pattern[F]`, `Check[F]`, and so on.
 There is no `Rules` wrapper or erased list of rules.
 Two patterns on one field remain a `duplicate-fact`; combine the regex or use a custom check.
-The derive dispatches known fact kinds in source order.
+The derive dispatches known fact kinds in their declared built-in order, with `Check[F]` last.
 
 Nested Validate records and list/map elements recurse automatically; no `nested()` is needed.
 Optionals skip None, decoded defaults are checked, and enums visit only the active payload.
+An optional member takes the same rule builders as its payload type; a rule checks `.Some` and skips `.None`.
+Element rules come from element types that implement `Validate`, or from a `Check[F]` on the collection.
 The example uses `Email(@email() address: string)` because existing derivation lines name variants, not payload fields.
 
 | Public API | Purpose |
 | --- | --- |
 | `Validate.validated(max_errors=64)` | One boundary; one positive issue limit |
 | Concrete data facts, `Rule[F]` | One static check per kind; only `Check[F]` stores a user callback |
-| `MessageRule`, `RuleExt[F]` | Same-type messages plus static optional, element, map-key and map-value wrappers |
+| Builder `message=` arguments | A same-type user-facing message for one fact |
 | `HasLength` | String scalar length or collection size; byte length is explicit |
 | `ValidationContext`, `Problem` | Borrowed custom checks; `reject(code, message)` |
 | `PathStep`, `Violation` | Field identity, indices, map keys and reader-side `display_with` |
@@ -79,7 +81,7 @@ Existing reader behavior is unchanged until an application calls validation.
 
 ## Cost
 
-The API is not implemented, but its dispatch representations were measured for PR head `395e511e6` in release Wasm on `a121c3ffd` with Node v24.19.0.
+The dispatch representations were measured for PR head `395e511e6` in release Wasm on `a121c3ffd` with Node v24.19.0 before the API was implemented.
 Each fresh process ran a tier-specific fixed batch sized to about 300 ms of hand-written work.
 Fifteen runs were rotated and interleaved per variant at the default, `--no-liftoff` and `--liftoff-only` tiers.
 The in-Wasm timer covered validation only; every path produced the same issue count and checksum.
@@ -119,7 +121,7 @@ The measured Wasm sizes were 12,562/13,526/15,066/17,892B for hand-written/stati
 
 The previous [bounded model](https://github.com/HerringtonDarkholme/hd-lang/issues/846#issuecomment-6406520802) measured control/model at 123,453/143,901B, 326/398 functions, and 100,826/116,174 code-section bytes.
 Five-launch startup-inclusive medians were Node 55.4/60.4ms and Wasmtime 41.0/46.3ms; the control omitted equivalent diagnostic paths.
-Those sources stay in scratch, and the full implementation still needs compile-time, size and runtime measurements.
+Those sources stay in scratch; the implementation issue records its final compile-time, size and runtime measurements.
 
 <a id="appendix-c-stress-test"></a>
 
@@ -156,12 +158,12 @@ Stubs were never executed: “checks” below proves typing, not runtime validat
 | --- | --- | --- |
 | Real Pydantic translation | Checks with defaulted `.validated()` | Shape works; runtime unproved |
 | u8 field bounds without type arguments | Checks | Inference works at direct facts |
-| Concrete Length `.message` with Pattern | Checks | Nongeneric facts remove this inference friction |
+| Phantom `Length[F]` with `message=` and `Pattern[F]` | Checks | Expected field types infer the phantom target |
 | Email fact on a u32 field | `type-mismatch` | Required typed rejection |
 | Two Pattern facts | `duplicate-fact` | Required rejection; combine or use check |
 | Store or capture a borrowed context | Both reject `local-reference-escapes` | Keep contexts local |
 | `.validated()` defaults | Checks after f82d56b49 | Fixed and covered by the compiler fixture |
-| Generic optional/element rule | Checks through an expected helper result | Backward inference is fixed |
+| Optional payload rule | Checks through the field's expected fact type | `.Some` is checked and `.None` is skipped |
 | Mismatched passwords | Input/call shape checks only | Semantic rejection remains unproved |
 | Invalid regex `[` | Fact/call shape checks only | Definition-error behavior remains unproved |
 
@@ -234,11 +236,11 @@ Pydantic's [`errors()`](https://docs.pydantic.dev/latest/errors/errors/) uses `l
 | Common capability | hd mapping |
 | --- | --- |
 | Integer, one-sided and inclusive bounds | Static integer types; `min`, `max`, `range` |
-| Non-empty, length, regex, enum choice | `min_length(1)`, generic `length`/`byte_length`, `pattern`, vararg `one_of` |
+| Non-empty, length, regex, enum choice | `min_length(1)`, generic `length`/`byte_length`, `pattern`, list-valued `one_of` |
 | Email, URL, UUID | Built-in facts; syntactic checks only, no network capability |
 | Nested objects/arrays, optional/nullable, defaults | Recursive Validate/container implementations, `T?`, existing reader defaults |
-| Unique items and map rules | `unique`, `.each_key()`, `.each_value()`; ordinary Eq/Hash |
-| Custom checks/messages | `check(fn(&T))`, `reject(code, message)`, per-fact `.message` |
+| Unique items and element rules | `unique`; element `Validate` implementations or a collection `check` |
+| Custom checks/messages | `check(fn(&T))`, `reject(code, message)`, builder `message=` arguments |
 | Starts-with/contains | Plain string methods inside `check`, shown by the username policy |
 | Coercion/transforms | None; parsing and application transformations remain explicit |
 
@@ -282,7 +284,8 @@ hd takes typed custom checks and explicit length semantics, but proposes automat
 
 **Recommendation:** the value combinator, the smallest ordinary-library addition.
 Distinct facts preserve today's duplicate rule: a second fact of the same rule kind is rejected.
-Optional, element and map wrappers stay static concrete facts, not an untyped registry.
+Optional fields use the payload rule builders directly. Element rules use the element's `Validate`
+implementation or a collection `Check[F]`; there are no optional, element or map wrappers.
 
 <a id="context"></a>
 
@@ -302,6 +305,6 @@ The sole template exception panics before an unreachable `walk`, as approved in 
 All non-escaping references are local borrows; an implementation must keep traversal state as owned data rather than store those borrows.
 First implement concrete facts, traversal and errors; then reader-name resolvers and the HTTP/CLI/env examples.
 Each slice ships stdlib rules, focused conformance on both engines, size measurements and checks for incorrect fact types and recursion.
-Full builtin matching policies, including email and URL syntax, require review before implementation.
+Email follows the WHATWG HTML valid-address grammar. URL accepts the absolute HTTP(S) URLs that `std.http.Url.parse` accepts.
 
 From `docs/future-work/validation`, run `hd check --all --format json` and `hd fmt --check`.

@@ -1,0 +1,7 @@
+# test: the length builder's semantic bound rejects a target with no length
+# Standard Validation: std-validate.rule.length
+use std.validate.length
+
+struct Account:
+    @length(1, 3) # diagnostic: unsatisfied-trait-bound
+    age: u32

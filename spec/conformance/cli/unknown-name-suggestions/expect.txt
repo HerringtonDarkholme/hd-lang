@@ -1,7 +1,7 @@
 # Public export hints, unknown test callees and receiver-specific near names.
 run: hd check --format json ambiguous.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`min` is not defined; `min` has several public std homes: `std.cmp`, `std.time`; add a `use` from the intended module","line":2,"column":5,"fixes":[],"file":"ambiguous.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`min` is not defined; `min` has several public std homes: `std.cmp`, `std.time`, `std.validate`; add a `use` from the intended module","line":2,"column":5,"fixes":[],"file":"ambiguous.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json arbitrary-fixed.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json arbitrary.hd

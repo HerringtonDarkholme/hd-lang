@@ -1,0 +1,106 @@
+# test: validation recurses through records and lists, applies payload facts to Some, skips None, and reports truncation
+# Standard Validation: std-validate.derive.structure, std-validate.container.list,
+# std-validate.container.map, std-validate.container.option, std-validate.validated.truncated
+use std.structure.Structure
+use std.testing.{assert, assert_equal}
+use std.validate.{PathStep, Problem, Validate, ValidationContext, check, length, range}
+
+struct Item:
+    count: i32?
+    name: string
+
+impl Validate for Item by Structure:
+    count = [range(1, 2)]
+    name = [length(2, 4)]
+
+struct Bag:
+    items: List[Item]
+
+impl Validate for Bag by Structure
+
+struct Directory:
+    entries: Map[string, Item]
+
+impl Validate for Directory by Structure
+
+fn allowed(value: &string) -> Result[void, Problem]:
+    if *value == "bad":
+        .Err(Problem { code: "optional-check", message: "bad optional payload" })
+    else:
+        .Ok(())
+
+struct OptionalCheck:
+    value: string?
+
+impl Validate for OptionalCheck by Structure:
+    value = [check(allowed)]
+
+struct RecordOnly: pass
+
+impl Validate for RecordOnly by Structure:
+    fn record(&self, context: &mut ValidationContext) -> void:
+        context.reject("first", "first")
+        context.reject("second", "second")
+
+fn main() -> void:
+    assert(
+        Bag { items: [Item { count: .None, name: "ok" }] }.validated().is_ok(),
+        reason="None skips its payload fact",
+    )
+    assert(OptionalCheck { value: .None }.validated().is_ok(), reason="None skips Check too")
+    optional_issues := OptionalCheck { value: .Some("bad") }.validated()
+        .err()
+        .expect("invalid")
+        .issues()
+    assert_equal(
+        optional_issues[0].problem.code,
+        "optional-check",
+        reason="Check receives the Some payload",
+    )
+    error := Bag {
+        items: [Item { count: .Some(9), name: "x" }, Item { count: .Some(8), name: "y" }],
+    }.validated(max_errors=1)
+        .err()
+        .expect("invalid")
+    issues := error.issues()
+    assert_equal(issues.len(), 1, reason="the cap retains one issue")
+    assert_equal(
+        (&issues[0]).display_with(
+            fn(step: &PathStep) -> string:
+                match step:
+                    .Field(member) => ".${member.name}"
+                    .Index(index) => "[$index]"
+                    .Key(key) => "[$key]"
+            ,
+        ),
+        "$.items[0].count",
+        reason="the structural path includes the list index",
+    )
+    assert(
+        error.to_string().contains("validation stopped"),
+        reason="an unvisited later check marks truncation",
+    )
+    map_issues := Directory { entries: { "bad": Item { count: .Some(9), name: "ok" } } }.validated()
+        .err()
+        .expect("invalid map value")
+        .issues()
+    assert_equal(
+        (&map_issues[0]).display_with(
+            fn(step: &PathStep) -> string:
+                match step:
+                    .Field(member) => ".${member.name}"
+                    .Index(index) => "[$index]"
+                    .Key(key) => "[$key]"
+            ,
+        ),
+        "$.entries[bad].count",
+        reason="map values validate under their key path",
+    )
+    match RecordOnly {}.validated(max_errors=1):
+        .Err(.Invalid(issues, truncated)) =>
+            assert_equal(issues.len(), 1, reason="a running record callback retains the cap")
+            assert(!truncated, reason="another proved rejection is not an unvisited check")
+        _ => panic("record validation must reject")
+    match RecordOnly {}.validated(max_errors=0):
+        .Err(.Definition(_, _)) => pass
+        _ => panic("a zero cap must be a definition error")

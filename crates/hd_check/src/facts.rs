@@ -257,6 +257,7 @@ fn fact_list_steps(
                 continue;
             }
             if let Some(fact) = ck.typed_fact_of(e, single)? {
+                let optional_payload = matches!(target, FactTarget::Field(_));
                 let Some(target) = ck.fact_target(target, owner)? else {
                     continue;
                 };
@@ -264,7 +265,7 @@ fn fact_list_steps(
                 // function type in `A`): it is erased to the item type
                 // without the conversion's bound, as `Facts` holds any
                 // value (`annot.metadata.reference-storage`).
-                if let Some((r, t)) = ck.typed_fact(fact, e, target, single)? {
+                if let Some((r, t)) = ck.typed_fact(fact, e, target, single, optional_payload)? {
                     let (r, t) = ck.new_object_ref(r, t, false, e);
                     refs.push(ck.build_dyn_ref(
                         r,
@@ -556,6 +557,49 @@ impl Ck<'_, '_> {
         Ok((self.diags.len() == before).then_some(vars))
     }
 
+    /// Whether `target` has the typed fact's pattern, without changing
+    /// inference or reporting a diagnostic.
+    fn fact_pattern_fits(&mut self, fact: DefId, target: Ty) -> bool {
+        let pool = self.pool();
+        let Some(item) = self.cx.lookup.item(fact) else {
+            return false;
+        };
+        let Some(pattern) = item.fact_pattern else {
+            return false;
+        };
+        let vars: Vec<Ty> = item
+            .generics
+            .iter()
+            .map(|_| self.infer.fresh(pool, VarKind::General))
+            .collect();
+        let want = subst_owner(pool, fact, &vars, pattern);
+        let target = self.norm_ty(target);
+        self.can_unify(target, want)
+            || matches!(pool.get(target), TyData::Mut(inner) if self.can_unify(inner, want))
+    }
+
+    /// A member of type `T?` first offers the payload `T` to a typed fact's
+    /// pattern. This makes a trivial `F` pattern infer `F = T`; a pattern
+    /// such as `F?`, which does not fit the payload, still matches the
+    /// whole member in the ordinary path.
+    fn match_fact_target(
+        &mut self,
+        fact: DefId,
+        target: Ty,
+        at: NodeRef<'_>,
+        optional_payload: bool,
+    ) -> StageResult<Option<Vec<Ty>>> {
+        if optional_payload {
+            let target = self.norm_ty(target);
+            if let TyData::Option(payload) = self.pool().get(target)
+                && self.fact_pattern_fits(fact, payload)
+            {
+                return self.match_fact_pattern(fact, payload, at);
+            }
+        }
+        self.match_fact_pattern(fact, target, at)
+    }
+
     /// `h.fact::[D]()` on the handle type `handle`, `Field[S, F]`, whose
     /// written type argument is `m`: the pattern of the typed fact type
     /// `D` is matched against `F` as at attach time, and `m` is `D` at the
@@ -587,7 +631,7 @@ impl Ck<'_, '_> {
         {
             return Ok(());
         }
-        let Some(vars) = self.match_fact_pattern(fact, member, n)? else {
+        let Some(vars) = self.match_fact_target(fact, member, n, true)? else {
             return Ok(());
         };
         let inferred = pool.intern_ty(&TyData::Adt {
@@ -625,9 +669,10 @@ impl Ck<'_, '_> {
         e: NodeRef<'_>,
         target: Ty,
         single: bool,
+        optional_payload: bool,
     ) -> StageResult<Option<(Ref, Ty)>> {
         let pool = self.pool();
-        let Some(vars) = self.match_fact_pattern(fact, target, e)? else {
+        let Some(vars) = self.match_fact_target(fact, target, e, optional_payload)? else {
             return Ok(None);
         };
         let want = pool.intern_ty(&TyData::Adt {
@@ -658,8 +703,12 @@ impl Ck<'_, '_> {
     ) -> Option<Ty> {
         let before = self.diags.len();
         let ty = if let Some(fact) = self.typed_fact_of(e, single).ok().flatten() {
+            let optional_payload = matches!(target, FactTarget::Field(_));
             let target = self.fact_target(target, owner).ok().flatten()?;
-            self.typed_fact(fact, e, target, single).ok().flatten()?.1
+            self.typed_fact(fact, e, target, single, optional_payload)
+                .ok()
+                .flatten()?
+                .1
         } else if single {
             self.fact_value(e, None).ok()?.1
         } else {
