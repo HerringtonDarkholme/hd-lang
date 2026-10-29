@@ -82,13 +82,21 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
 /// call's `Await`), and whose `Drop`, if any, follows in the same block,
 /// with nothing between that opens a block or ends, replaces or moves the
 /// whole local. Such a reference ends before the local does, so nothing
-/// needs the slot after the local's own release. A reference that takes
+/// needs the slot after the local's own release. A call whose result
+/// holds a local reference (`dependent`) may return the reference, which
+/// outlives the call, so an argument of one keeps its local in a cell
+/// (spec/lang/13-values-and-references.md#dependent-results). A reference that takes
 /// the local at its last access (`ref_word::TAKES`, the move pass's rule
 /// 4, which deletes the local's `Drop`) needs its `Drop` in that block:
 /// it releases the slot's value there ([`Em::slot_takes`]). A parameter,
 /// a local a closure captures and one in a closure's body keep their
 /// cells.
-pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet<usize> {
+pub(super) fn slot_locals(
+    b: &Body,
+    roots: &[usize],
+    topo: &Topology,
+    dependent: &dyn Fn(Ty) -> bool,
+) -> HashSet<usize> {
     let mut out: HashSet<usize> = roots
         .iter()
         .copied()
@@ -124,7 +132,9 @@ pub(super) fn slot_locals(b: &Body, roots: &[usize], topo: &Topology) -> HashSet
                 return;
             }
             match (b.tags[j], role) {
-                (Tag::Call | Tag::CallValue | Tag::CallDyn, Role::Arg(_)) => {
+                (Tag::Call | Tag::CallValue | Tag::CallDyn, Role::Arg(_))
+                    if !dependent(b.ty[j]) =>
+                {
                     calls.entry(v).or_default().push(j32);
                 }
                 (Tag::Drop, Role::Dropped) => drops.entry(v).or_default().push(j32),
@@ -359,7 +369,11 @@ impl Em<'_, '_, '_> {
     /// object's, then the value in its cell's layout, so a count update
     /// through the slot's address does nothing.
     pub(super) fn plan_slots(&mut self, roots: &[usize]) -> StageResult<()> {
-        let mut ls: Vec<usize> = slot_locals(self.b, roots, &self.topo).into_iter().collect();
+        let local = self.env().ref_cells().local;
+        let dependent = |t| holds_local_carrier(self.pool(), local, t, 0);
+        let mut ls: Vec<usize> = slot_locals(self.b, roots, &self.topo, &dependent)
+            .into_iter()
+            .collect();
         if ls.is_empty() {
             return Ok(());
         }
@@ -719,5 +733,31 @@ impl Em<'_, '_, '_> {
         self.call_results(i, ty)?;
         self.release_ctx(c);
         Ok(())
+    }
+}
+
+/// Whether a value of type `t` holds the local reference carrier `local`
+/// (`Ref[T]`) anywhere.
+fn holds_local_carrier(
+    pool: &hd_types::InternPool,
+    local: hd_base::DefId,
+    t: Ty,
+    depth: u32,
+) -> bool {
+    if depth > 32 {
+        return false;
+    }
+    let any = |l| {
+        pool.list_items(l)
+            .iter()
+            .any(|&a| holds_local_carrier(pool, local, a, depth + 1))
+    };
+    match pool.get(t) {
+        TyData::Adt { def, args } => def == local || any(args),
+        TyData::Tuple { elems, rest } => {
+            any(elems) || rest.is_some_and(|r| holds_local_carrier(pool, local, r, depth + 1))
+        }
+        TyData::Option(i) | TyData::Mut(i) => holds_local_carrier(pool, local, i, depth + 1),
+        _ => false,
     }
 }
