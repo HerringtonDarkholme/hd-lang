@@ -5270,3 +5270,4 @@ typing/invalid/lifetime-function-not-checked.hd	type	reject:references-not-yet-c
 typing/invalid/lifetime-impl-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet
 typing/invalid/lifetime-struct-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet
 typing/invalid/lifetime-in-body-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.body
+parse/invalid/character-unterminated.hd	parse	reject:unterminated-string	lang/01-lexical-structure.md#r-lex.string.single-line
