@@ -469,6 +469,7 @@ is imported:
 | `Set`, `Deque`, `Heap`, `counts` | `std.collections` |
 | clock, durations, sleeping | `std.time.{Clock, now, sleep, ManualClock, ms, s}` |
 | run tasks together | `std.task.{all, race}` |
+| check a precondition | `std.contract.require` |
 | JSON | `std.json.{decode, encode, parse}`, `std.serde.{Serialize, Deserialize}` |
 | operator traits | `std.ops.{Add, Sub, Mul, Index}` |
 | errors | `std.error.{Error, report_of}`, `std.convert.From` |

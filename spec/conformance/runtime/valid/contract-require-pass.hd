@@ -1,0 +1,14 @@
+# test: require returns for a true condition
+# expect: test
+use std.contract.require
+
+pub fn main() -> void:
+    let calls = 0
+    require(
+        condition=fn():
+            calls = calls + 1
+            true
+        ,
+    )
+    if calls != 1:
+        panic("require evaluated its condition more than once")

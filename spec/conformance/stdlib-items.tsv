@@ -91,6 +91,7 @@ std.iter.DynIterator	std/iter.md#iterator-adapters
 std.iter.Sum	std/iter.md#numeric-aggregation
 std.iter.Product	std/iter.md#numeric-aggregation
 std.console.print	std/console.md#printing-without-a-newline
+std.contract.require	std/contract.md#require
 std.task.TimeLimit	std/task.md#r-std-task.policy.time-limit.decl
 std.task.Retry	std/task.md#r-std-task.policy.retry.decl
 std.task.SelectiveRetry	std/task.md#r-std-task.policy.selective-retry.decl

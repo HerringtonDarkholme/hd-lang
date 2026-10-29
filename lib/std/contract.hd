@@ -1,0 +1,7 @@
+# std.contract.
+
+## Panics unless `condition` returns true.
+## See [std-contract.require.decl](../../spec/std/contract.md#r-std-contract.require.decl).
+pub fn require(message: string = "requirement failed", condition: fn() -> bool) -> void:
+    if !condition():
+        panic(message)
