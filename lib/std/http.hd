@@ -4,7 +4,7 @@
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
 use std.convert.From
-use std.random.Random
+use std.digest.Sha256
 use std.task.TimedOut
 use std.time.{Clock, Duration, Timestamp}
 use std.text.{StringBuilder, Parse}
@@ -649,33 +649,20 @@ fn multipart_bytes_at(bytes: &List[u8], at: usize, expected: &List[u8]) -> bool:
 fn multipart_copy_bytes(bytes: &List[u8], start: usize, end: usize) -> List[u8]:
     bytes[start..end]
 
-# Multipart bodies may contain malformed UTF-8, but every delimiter is ASCII.
-# This same-length ASCII projection lets `string.find` use std's `bytes_index`
-# path without changing any byte offset.
-fn multipart_search_text(bytes: &List[u8]) -> string:
-    let mut searchable: List[u8] = []
-    for byte in bytes:
-        searchable.push(if byte < 128: byte else: 0)
-    match string::from_utf8(searchable):
-        .Ok(text) => text
-        .Err(_) => panic("multipart ASCII projection is valid UTF-8")
-
 fn multipart_payload_has_boundary(bytes: &List[u8], boundary: &string) -> bool:
-    marker := "--$boundary"
-    marker_bytes := marker.to_utf8()
-    if marker_bytes.len() > bytes.len():
+    marker := "--$boundary".to_utf8()
+    if marker.len() > bytes.len():
         return false
-    searchable := multipart_search_text(bytes)
     let search: usize = 0
     while true:
-        at := match multipart_find(&searchable, &marker, search):
+        at := match multipart_find(bytes, &marker, search):
             .Some(at) => at
             .None => return false
         line_start := at == 0 || (at >= 2 && bytes[at - 2] == 13 && bytes[at - 1] == 10)
-        if !line_start || !multipart_bytes_at(bytes, at, &marker_bytes):
+        if !line_start:
             search = at + 1
             continue
-        after := at + marker_bytes.len()
+        after := at + marker.len()
         if multipart_bytes_at(bytes, after, &"\r\n".to_utf8()):
             return true
         if multipart_bytes_at(bytes, after, &"--".to_utf8()):
@@ -688,17 +675,17 @@ fn multipart_payload_has_boundary(bytes: &List[u8], boundary: &string) -> bool:
         search = at + 1
     false
 
-fn multipart_boundary(parts: &List[BufferedMultipartPart]) -> string $ Random:
+fn multipart_boundary(parts: &List[BufferedMultipartPart]) -> string:
+    let counter: usize = 0
     while true:
-        random := $.use(Random).fill(30)
-        digits := "0123456789abcdef".to_utf8()
-        let mut encoded: List[u8] = []
-        for byte in random:
-            encoded.push(digits[usize(byte / 16)])
-            encoded.push(digits[usize(byte % 16)])
-        candidate := match string::from_utf8(encoded):
-            .Ok(text) => text
-            .Err(_) => panic("multipart boundary is ASCII")
+        hasher := Sha256::new()
+        for part in parts:
+            hasher.update(multipart_part_header_bytes(&part))
+            hasher.update(part.bytes)
+            hasher.update("\r\n".to_utf8())
+        if counter > 0:
+            hasher.update(counter.to_string().to_utf8())
+        candidate := hasher.finish().to_hex().slice(0, 60)
         let collision = false
         for part in parts:
             if multipart_payload_has_boundary(&part.bytes, &candidate):
@@ -706,6 +693,7 @@ fn multipart_boundary(parts: &List[BufferedMultipartPart]) -> string $ Random:
                 break
         if !collision:
             return candidate
+        counter += 1
     panic("multipart boundary search is unbounded")
 
 fn multipart_validate_part_headers(headers: &Headers) -> Result[void, MultipartError]:
@@ -746,29 +734,50 @@ fn multipart_buffer(form: Multipart) -> Result[List[BufferedMultipartPart], Mult
         )
     .Ok(buffered)
 
+fn multipart_part_header_bytes(part: &BufferedMultipartPart) -> List[u8]:
+    let mut out: List[u8] = []
+    escaped_name := multipart_escape_parameter(&part.name)
+    let disposition = "Content-Disposition: form-data; name=\"$escaped_name\""
+    match part.filename:
+        .Some(filename) => disposition += "; filename=\"${multipart_escape_parameter(&filename)}\""
+        .None => pass
+    multipart_append_text(&mut out, disposition + "\r\n")
+    for (name, value) in part.headers.entries():
+        multipart_append_text(&mut out, "${name.wire_name()}: $value\r\n")
+    multipart_append_text(&mut out, "\r\n")
+    out
+
+fn multipart_append_part(out: &mut List[u8], part: &BufferedMultipartPart) -> void:
+    out.extend(multipart_part_header_bytes(part))
+    out.extend(part.bytes)
+    multipart_append_text(out, "\r\n")
+
 fn multipart_encode(parts: &List[BufferedMultipartPart], boundary: &string) -> List[u8]:
     let mut out: List[u8] = []
     for part in parts:
         multipart_append_text(&mut out, "--$boundary\r\n")
-        escaped_name := multipart_escape_parameter(&part.name)
-        let disposition = "Content-Disposition: form-data; name=\"$escaped_name\""
-        match part.filename:
-            .Some(filename) =>
-                disposition += "; filename=\"${multipart_escape_parameter(&filename)}\""
-            .None => pass
-        multipart_append_text(&mut out, disposition + "\r\n")
-        for (name, value) in part.headers.entries():
-            multipart_append_text(&mut out, "${name.wire_name()}: $value\r\n")
-        multipart_append_text(&mut out, "\r\n")
-        out.extend(part.bytes)
-        multipart_append_text(&mut out, "\r\n")
+        multipart_append_part(&mut out, &part)
     multipart_append_text(&mut out, "--$boundary--\r\n")
     out
 
-fn multipart_find(bytes: &string, expected: &string, start: usize) -> usize?:
+fn multipart_find(bytes: &List[u8], expected: &List[u8], start: usize) -> usize?:
     if start > bytes.len() || expected.len() > bytes.len() - start:
         return .None
-    bytes.slice(start, bytes.len()).find(*expected).map(fn(at): start + at)
+    if expected.is_empty():
+        return .Some(start)
+    let at = start
+    while at + expected.len() <= bytes.len():
+        while at < bytes.len() && bytes[at] != expected[0]:
+            at += 1
+        if at + expected.len() > bytes.len():
+            return .None
+        let offset: usize = 1
+        while offset < expected.len() && bytes[at + offset] == expected[offset]:
+            offset += 1
+        if offset == expected.len():
+            return .Some(at)
+        at += 1
+    .None
 
 fn multipart_split_parameters(value: &string) -> List[string]?:
     let mut parts: List[string] = []
@@ -901,7 +910,6 @@ fn multipart_disposition(value: &string) -> Result[MultipartDisposition, Multipa
 
 fn multipart_decode_headers(
     bytes: &List[u8],
-    searchable: &string,
     start: usize,
     end: usize,
     header_lines: &mut usize,
@@ -913,7 +921,7 @@ fn multipart_decode_headers(
         if *header_lines >= multipart_decode_limit():
             return .Err(.Malformed(at))
         *header_lines += 1
-        line_end := multipart_find(searchable, &"\r\n", at).unwrap_or(end)
+        line_end := multipart_find(bytes, &"\r\n".to_utf8(), at).unwrap_or(end)
         if line_end > end:
             return .Err(.Malformed(at))
         line_bytes := multipart_copy_bytes(bytes, at, line_end)
@@ -942,18 +950,16 @@ fn multipart_decode_headers(
 
 fn multipart_next_delimiter(
     bytes: &List[u8],
-    searchable: &string,
     boundary: &string,
     start: usize,
 ) -> (usize, bool, usize)?:
-    marker := "\r\n--$boundary"
-    marker_bytes := marker.to_utf8()
+    marker := "\r\n--$boundary".to_utf8()
     let search = start
     while true:
-        at := match multipart_find(searchable, &marker, search):
+        at := match multipart_find(bytes, &marker, search):
             .Some(at) => at
             .None => return .None
-        after := at + marker_bytes.len()
+        after := at + marker.len()
         if multipart_bytes_at(bytes, after, &"--".to_utf8()):
             closing_end := after + 2
             if (
@@ -967,7 +973,6 @@ fn multipart_next_delimiter(
     .None
 
 fn multipart_decode(bytes: List[u8], boundary: &string) -> Result[Multipart, MultipartError]:
-    searchable := multipart_search_text(&bytes)
     opening := "--$boundary".to_utf8()
     if !multipart_bytes_at(&bytes, 0, &opening):
         return .Err(.Malformed(0))
@@ -987,12 +992,11 @@ fn multipart_decode(bytes: List[u8], boundary: &string) -> Result[Multipart, Mul
     while at < bytes.len():
         if parts.len() >= multipart_decode_limit():
             return .Err(.Malformed(at))
-        header_end := match multipart_find(&searchable, &"\r\n\r\n", at):
+        header_end := match multipart_find(&bytes, &"\r\n\r\n".to_utf8(), at):
             .Some(found) => found
             .None => return .Err(.Malformed(at))
         let (disposition, headers) = multipart_decode_headers(
             &bytes,
-            &searchable,
             at,
             header_end,
             &mut header_lines,
@@ -1000,7 +1004,6 @@ fn multipart_decode(bytes: List[u8], boundary: &string) -> Result[Multipart, Mul
         payload_start := header_end + 4
         let (payload_end, closing, next) = match multipart_next_delimiter(
             &bytes,
-            &searchable,
             boundary,
             payload_start,
         ):
@@ -1966,10 +1969,7 @@ impl Request:
         self
 
     ## Encodes ordered multipart parts once, replacing this request's body and Content-Type.
-    pub fn set_multipart(
-        mut self,
-        form: Multipart,
-    ) -> Result[Request, MultipartError] $ Random:
+    pub fn set_multipart(mut self, form: Multipart) -> Result[Request, MultipartError]:
         parts := multipart_buffer(form)?
         boundary := multipart_boundary(&parts)
         self.body = Body::from_bytes(multipart_encode(&parts, &boundary))
