@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: v8 release
+# expected: each method hashes and probes `word` once; a get-or-insert miss
+# reuses that probe, and either returned reference updates the stored entry.
+fn increment_or_insert(counts: &mut Map[string, i64], word: string) -> void:
+    *counts.get_or_insert(word, 0) += 1
+
+fn increment_existing(counts: &mut Map[string, i64], word: string) -> void:
+    match counts.get_mut(word):
+        .Some(value) => *value += 1
+        .None => pass

@@ -1281,6 +1281,26 @@ fn demo(table: Map[string, i32], key: string) -> i32?:
     table.get(key)   # expected amortized O(1)
 ```
 
+#### Map Probe Intrinsic
+
+`std.collections` gives its two mutable lookup methods the same compiler
+body key:
+
+```text
+impl[K < Eq & Hash, V] Map[K, V]:
+    @intrinsic("map_probe")
+    pub fn get_mut(&mut self, key: K) -> (&mut V)?: panic("intrinsic")
+
+    @intrinsic("map_probe")
+    pub fn get_or_insert(&mut self, key: K, default: V) -> &mut V: panic("intrinsic")
+```
+
+1. r[module.map.probe.decl] The two methods have the ordinary hd declarations above, and the compiler supplies only the bodies named `map_probe`.
+2. r[module.map.probe.hit] When the map has an equal key, each method returns a mutable reference to its value, wrapped in `.Some` for `get_mut`.
+3. r[module.map.probe.miss] When the map has no equal key, `get_mut` returns `.None` and leaves the map unchanged.
+4. r[module.map.probe.insert] When the map has no equal key, `get_or_insert` inserts `(key, default)` and returns a mutable reference to that value.
+5. r[module.map.probe.once] Each body hashes `key` once, searches the table once, and `get_or_insert` reuses a missing search position for insertion.
+
 See also: [Indexing](05-expressions.md#indexing).
 
 #### String Methods

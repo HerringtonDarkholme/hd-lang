@@ -3070,6 +3070,7 @@ runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
 runtime/valid/collection-in-place-element-accessors.hd	runtime	accept	std/collections.md#r-std-collections.access.get-mut
 runtime/valid/map-get-or-insert-counts.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
+runtime/valid/map-probe-hashes-once.hd	runtime	accept	std/collections.md#r-std-collections.map.probe-once
 runtime/panic/list-first-mut-push-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.access.first-mut
 runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collections.map.is-empty
 runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choices.choose.empty

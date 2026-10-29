@@ -483,34 +483,24 @@ fn before[T < Ord](left: T, right: T) -> bool:
 pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
     let mut tally: Map[T, usize] = {}
     for item in items:
-        # #947 fuses this read and store into one probe. `get_or_insert`
-        # needs two for a hit and three for an insert until `map_probe`.
-        tally[item] = match tally.get(item):
-            .Some(seen) => seen + 1
-            .None => 1
+        *tally.get_or_insert(item, 0) += 1
     tally
 
 # The std `Map` methods beside the language-tier `len`, `get`, and `remove`
 # (spec/std/collections.md#map-methods). `keys` and `values` copy into new
 # lists, so a later change to the map does not show in them.
 impl[K < Eq & Hash, V] Map[K, V]:
-    # A Map exposes values, not its internal probe slot. Existing keys need
-    # membership and element-reference probes; insertion needs one more.
-    # The deferred map_probe intrinsic can make them single-probe.
     ## Returns a mutable reference to the value for `key`, or `.None` when the map has no equal key.
     ## See [std-collections.map.get-mut](../../spec/std/collections.md#r-std-collections.map.get-mut).
+    @intrinsic("map_probe")
     pub fn get_mut(&mut self, key: K) -> (&mut V)?:
-        match self.get(key):
-            .Some(_) => .Some(&mut self[key])
-            .None => .None
+        panic("intrinsic")
 
     ## Returns a mutable reference to the value for `key`; when the map has no equal key, inserts `default` first.
     ## See [std-collections.map.get-or-insert](../../spec/std/collections.md#r-std-collections.map.get-or-insert).
+    @intrinsic("map_probe")
     pub fn get_or_insert(&mut self, key: K, default: V) -> &mut V:
-        match self.get(key):
-            .Some(_) => pass
-            .None => self[key] = default
-        &mut self[key]
+        panic("intrinsic")
 
     ## True when the map has an entry for `key`.
     ## See [std-collections.map.contains-key](../../spec/std/collections.md#r-std-collections.map.contains-key).

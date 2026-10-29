@@ -1,0 +1,88 @@
+# test: get_mut and get_or_insert hash once and reuse the same search for insertion
+# std Collections: std-collections.map.probe-once.
+use std.hash.Hasher
+
+struct Calls:
+    count: usize
+
+struct Key:
+    value: i32
+    calls: *mut Calls
+
+struct Holder:
+    values: Map[string, string]
+
+struct Wide:
+    a: i64
+    b: i64
+    c: i64
+    d: i64
+    e: i64
+
+impl Eq for Key:
+    fn eq(self, other: Key) -> bool:
+        self.value == other.value
+
+impl Hash for Key:
+    fn hash(self, state: &mut dyn Hasher) -> void:
+        self.calls.count += 1
+        state.write_i32(self.value)
+
+tests:
+    use std.testing.assert_equal
+
+    it("hashes once for each mutable lookup"):
+        calls := box(Calls { count: 0 })
+        key := Key { value: +7, calls: calls }
+        let mut found: Map[Key, i32] = {}
+
+        *found.get_or_insert(key, 10) += 1
+        assert_equal(calls.count, 1)
+        assert_equal(found.get(key), .Some(11))
+
+        *found.get_or_insert(key, 99) += 1
+        assert_equal(calls.count, 3)
+        assert_equal(found.get(key), .Some(12))
+
+        match found.get_mut(key):
+            .Some(value) => *value += 1
+            .None => panic("expected the inserted key")
+        assert_equal(calls.count, 5)
+        assert_equal(found.get(key), .Some(13))
+
+        missing := Key { value: +8, calls: calls }
+        assert_equal(found.get_mut(missing).is_none(), true)
+        assert_equal(calls.count, 7)
+
+    it("preserves copy-on-write maps and writes through field references"):
+        let mut left: Map[string, i32] = { "tea": +2 }
+        right := left
+        *left.get_or_insert("tea", +9) += 1
+        assert_equal(left["tea"], +3)
+        assert_equal(right["tea"], +2)
+
+        let mut holder = Holder { values: {} }
+        *holder.values.get_or_insert("name", "first") = "changed"
+        assert_equal(holder.values["name"], "changed")
+        *holder.values.get_or_insert("name", "ignored") = "again"
+        assert_equal(holder.values["name"], "again")
+
+        let mut wide: Map[string, Wide] = {}
+        value := wide.get_or_insert("wide", Wide { a: 1, b: 2, c: 3, d: 4, e: 5 })
+        value.e += 1
+        assert_equal(wide["wide"].e, 6)
+
+    it("returns the inserted entry after compacting tombstones"):
+        let mut values: Map[string, i32] = {}
+        _ := values.get_or_insert("a", +1)
+        _ := values.get_or_insert("b", +2)
+        _ := values.get_or_insert("c", +3)
+        _ := values.get_or_insert("d", +4)
+        _ := values.remove("b")
+        _ := values.remove("c")
+        _ := values.remove("d")
+
+        inserted := values.get_or_insert("e", +5)
+        *inserted += 1
+        assert_equal(*inserted, +6)
+        assert_equal(values["e"], +6)

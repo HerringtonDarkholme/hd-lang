@@ -960,6 +960,10 @@ struct Em<'i, 'a, 'm> {
     /// A map read's hash and entry locals, for a following store that the
     /// TIR proves reaches the same map and key without an intervening change.
     map_probes: HashMap<u32, MapProbe>,
+    /// A direct map-probe result and the table whose count its interior
+    /// reference owns. The direct drop can release the known table without
+    /// resolving the interior address through the page table.
+    map_probe_refs: HashMap<u32, (u32, bool)>,
     /// Each TIR local's locals.
     locals: HashMap<usize, Vec<u32>>,
     /// The providers in scope: each key's data and vtable locals.
@@ -1132,6 +1136,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             f,
             vals: HashMap::default(),
             map_probes: HashMap::default(),
+            map_probe_refs: HashMap::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
             open_ctx: None,
@@ -1713,7 +1718,11 @@ impl Em<'_, '_, '_> {
             }
             // The ownership passes' statements, in an owned body
             // (`count.rs`); the checker's TIR has none (invariant 22).
-            Tag::Drop if self.owned => self.own_drop(i)?,
+            Tag::Drop if self.owned => {
+                if !self.drop_map_probe_ref(i) {
+                    self.own_drop(i)?;
+                }
+            }
             Tag::IsUnique => self.own_unique(i)?,
             Tag::Pin => self.own_pin(i)?,
             Tag::Drop | Tag::FlagSet | Tag::FlagClear => {
@@ -2250,6 +2259,7 @@ impl Em<'_, '_, '_> {
         let mut args = self.rec(bw);
         args.truncate(args.len().saturating_sub(3));
         match self.calls.get(&i).cloned() {
+            Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
                     if self.direct_json && self.input.json_fallbacks.contains(&ct.item) {

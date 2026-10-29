@@ -17,8 +17,8 @@ use super::value::Src;
 use super::{Ctl, Em, MapProbe};
 use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, MAP_PINNED, USED, entry_address, hash_address};
-use crate::module::{Global, HEAP, Import, Sym, Val, mem};
-use crate::rt::{Helper, empty_buffer};
+use crate::module::{Global, HEADER, HEAP, Import, Sym, Val, mem};
+use crate::rt::{Helper, LIST_OWN, empty_buffer};
 use crate::unsupported;
 
 impl Em<'_, '_, '_> {
@@ -27,13 +27,18 @@ impl Em<'_, '_, '_> {
     /// local `m`: the place `[%m [%e]]` (`ref.elem.map`), laid out as the
     /// value type is.
     pub(super) fn map_value_at(&mut self, m: u32, t: Ty, e: u32) -> StageResult<(Ty, u32)> {
+        self.map_value_from(m, t, &Src::Ref(e))
+    }
+
+    /// The value of entry `e`, where `e` is either a TIR value or a local.
+    fn map_value_from(&mut self, m: u32, t: Ty, e: &Src) -> StageResult<(Ty, u32)> {
         let (kt, vt, entry) = self.entry(t)?;
         let (_, parts) = payload_mem(self.pool(), self.env(), &[kt, vt])?;
         let Some(value) = parts.get(1) else {
             return unsupported("a map entry without its value");
         };
         let (ix, at) = (self.f.local(Val::I32), self.f.local(Val::I32));
-        self.comp(e, 0)?;
+        self.src(e, 0)?;
         self.f.set(ix);
         entry_address(&mut self.f, m, ix, entry.size);
         self.f.u32(value.offset);
@@ -208,10 +213,10 @@ impl Em<'_, '_, '_> {
         (kt, vt): (Ty, Ty),
         (e, ops): (&Entry, &KeyOps),
         (kl, h, probe): (&[u32], u32, u32),
-        v: u32,
+        v: &Src,
     ) -> StageResult<()> {
         self.retain_locals(kl, kt)?;
-        let s = self.retain_src(&Src::Ref(v), vt)?;
+        let s = self.retain_src(v, vt)?;
         self.f.get(m);
         self.f.get(h);
         self.f.get(probe);
@@ -252,7 +257,7 @@ impl Em<'_, '_, '_> {
         for pair in items.chunks(2) {
             let (kl, h) = self.map_key(pair[0], &e, &ops)?;
             let probe = self.map_find(m, h, &kl, &e, &ops);
-            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), pair[1])?;
+            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), &Src::Ref(pair[1]))?;
         }
         self.f.get(m);
         self.store_owned(i)
@@ -453,7 +458,7 @@ impl Em<'_, '_, '_> {
                 let probe = self.map_find(m, h, &kl, &e, &ops);
                 (kl, h, probe)
             };
-            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), args[2])?;
+            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
             return self.put_back(args[0], m);
         }
         let (kl, h) = self.map_key(args[1], &e, &ops)?;
@@ -542,6 +547,216 @@ impl Em<'_, '_, '_> {
         }
         self.f.op(I::Else);
         self.new_variant(i, 0, &[])?;
+        self.close();
+        Ok(())
+    }
+
+    /// Makes the table in `m` unique before returning a mutable value
+    /// reference. Entry numbers and a miss probe survive this copy.
+    fn map_probe_unique(&mut self, m: u32, entry: &Entry) {
+        self.f.get(m);
+        self.f.op(I::I32Load(mem(HEAP, LIST_OWN, 2)));
+        self.f.op(I::I32Eqz);
+        self.f.get(m);
+        self.f.u32(HEADER);
+        self.f.op(I::I32Sub);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.i32(1);
+        self.f.op(I::I32Ne);
+        self.f.op(I::I32And);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.get(m);
+        self.f.helper(Helper::MapUnique {
+            entry: entry.clone(),
+        });
+        self.f.set(m);
+        self.f.op(I::End);
+    }
+
+    /// Stores a probe's changed table through its map reference, then pins
+    /// it so the returned element reference keeps naming that table.
+    fn map_probe_store(
+        &mut self,
+        at: u32,
+        owned: u32,
+        m: u32,
+        t: Ty,
+        pin: bool,
+    ) -> StageResult<()> {
+        self.f.get(owned);
+        self.f.op(I::If(BlockType::Empty));
+        let value = self.ref_layout(t)?;
+        crate::rt::ref_store(&mut self.f, at, &[m], &value, true);
+        self.f.op(I::Else);
+        self.f.get(at);
+        self.f.get(m);
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.op(I::End);
+        if pin {
+            self.pin_owner(m, t)?;
+        }
+        Ok(())
+    }
+
+    /// Whether this probe result is used only by an immediate scalar
+    /// read/primitive/store sequence and then dropped. Nothing in that
+    /// sequence can move the table or observe a pin.
+    fn map_probe_ephemeral(&self, i: u32) -> bool {
+        let mut operands = Vec::new();
+        let mut drop = None;
+        for j in usize::try_from(i).expect("instruction") + 1..self.b.len() {
+            hd_tir::own::operands(self.b, j, &mut operands);
+            let uses_probe = operands.iter().any(|operand| operand.value == i);
+            match self.b.tags[j] {
+                Tag::Read | Tag::Store if uses_probe => {
+                    let Some(place) = self.b.decode_place(self.b.data[j][0]) else {
+                        return false;
+                    };
+                    if place.root != PlaceRoot::Value(hd_tir::ir::Ref(i)) || place.proj.is_empty() {
+                        return false;
+                    }
+                }
+                Tag::Drop if uses_probe => {
+                    let Some(place) = self.b.decode_place(self.b.data[j][0]) else {
+                        return false;
+                    };
+                    if place.root != PlaceRoot::Value(hd_tir::ir::Ref(i)) || !place.proj.is_empty()
+                    {
+                        return false;
+                    }
+                    drop = Some(j);
+                    break;
+                }
+                Tag::Read | Tag::Drop | Tag::Prim if !uses_probe => {}
+                _ => return false,
+            }
+        }
+        let Some(drop) = drop else {
+            return false;
+        };
+        for j in drop + 1..self.b.len() {
+            hd_tir::own::operands(self.b, j, &mut operands);
+            if operands.iter().any(|operand| operand.value == i) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Releases a directly consumed probe result through its known table,
+    /// avoiding the generic interior-reference page lookup.
+    pub(super) fn drop_map_probe_ref(&mut self, i: u32) -> bool {
+        let Some(place) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return false;
+        };
+        let PlaceRoot::Value(value) = place.root else {
+            return false;
+        };
+        let Some(at) = value.as_inst() else {
+            return false;
+        };
+        if !place.proj.is_empty() {
+            return false;
+        }
+        let Some((owner, counted)) = self.map_probe_refs.remove(&at.0) else {
+            return false;
+        };
+        if counted {
+            self.f.get(owner);
+            self.f.helper(Helper::ReleaseKnown);
+        }
+        if let Some(locals) = self.vals.get(&at.0).cloned() {
+            for local in locals {
+                self.f.zero(local);
+            }
+        }
+        true
+    }
+
+    /// `map_probe(map, key[, default])`: hash and find the key once. A
+    /// two-argument call returns an optional mutable value reference. A
+    /// three-argument call reuses a miss probe to insert `default`, and
+    /// returns the found or inserted value reference directly.
+    pub(super) fn map_probe(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
+        let (map, key, default) = match args {
+            [map, key] => (*map, *key, None),
+            [map, key, default] => (*map, *key, Some(*default)),
+            _ => return unsupported("a map probe with other than two or three arguments"),
+        };
+        let Some((mt, false)) = self.ref_target(self.ty_of(map)) else {
+            return unsupported("a map probe through a value that is no reference");
+        };
+        let (kt, vt, entry) = self.entry(mt)?;
+        let ops = self.key_ops(i, kt, &entry.key_vals())?;
+        let at = self.f.local(Val::I32);
+        self.comp(map, 0)?;
+        self.f.set(at);
+        let owned = self.f.local(Val::I32);
+        let value = self.ref_layout(mt)?;
+        let [m] = crate::rt::ref_load_borrowed(&mut self.f, at, &value, owned)[..] else {
+            return unsupported("a map that is not one address");
+        };
+        let counted = default.is_some() && !self.map_probe_ephemeral(i);
+        if default.is_some() {
+            self.map_probe_refs.insert(i, (m, counted));
+        }
+        let (kl, hash) = self.map_key(key, &entry, &ops)?;
+        let found = self.map_find(m, hash, &kl, &entry, &ops);
+        if default.is_some() {
+            self.map_probe_unique(m, &entry);
+        }
+
+        self.f.get(found);
+        self.f.i32(0);
+        self.f.op(I::I32GeS);
+        self.f.op(I::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
+        if default.is_none() {
+            self.map_probe_unique(m, &entry);
+        }
+        self.map_probe_store(at, owned, m, mt, default.is_none() || counted)?;
+        let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
+        if default.is_some() {
+            if counted {
+                self.f.get(m);
+                self.f.helper(Helper::RetainKnown);
+            }
+            self.f.get(value_at);
+            self.store_owned(i)?;
+        } else {
+            self.new_variant(i, 1, &[Src::Locals(vec![value_at])])?;
+        }
+
+        self.f.op(I::Else);
+        if let Some(default) = default {
+            let inserted = self.f.local(Val::I32);
+            self.map_put(
+                m,
+                (kt, vt),
+                (&entry, &ops),
+                (&kl, hash, found),
+                &Src::Ref(default),
+            )?;
+            self.f.get(m);
+            self.f.op(I::I32Load(mem(HEAP, USED, 2)));
+            self.f.i32(1);
+            self.f.op(I::I32Sub);
+            self.f.set(inserted);
+            self.map_probe_store(at, owned, m, mt, counted)?;
+            let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![inserted]))?;
+            if counted {
+                self.f.get(m);
+                self.f.helper(Helper::RetainKnown);
+            }
+            self.f.get(value_at);
+            self.store_owned(i)?;
+        } else {
+            self.f.get(owned);
+            self.f.op(I::If(BlockType::Empty));
+            self.release_locals(&[m], mt)?;
+            self.f.op(I::End);
+            self.new_variant(i, 0, &[])?;
+        }
         self.close();
         Ok(())
     }

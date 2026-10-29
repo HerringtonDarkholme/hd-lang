@@ -3037,10 +3037,16 @@ impl Cx<'_> {
     /// key type.
     fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
         let pool = self.pool;
-        let map = match pool.get(map) {
-            TyData::Mut(x) => x,
-            _ => map,
-        };
+        let mut map = map;
+        loop {
+            map = match pool.get(map) {
+                TyData::Mut(x) => x,
+                TyData::Adt { def, args } if self.env.ref_cells().holds(def) => {
+                    pool.list_items(args)[0]
+                }
+                _ => break,
+            };
+        }
         let TyData::Adt { args, .. } = pool.get(map) else {
             return err("a map operation on a non-map type");
         };
@@ -3321,6 +3327,14 @@ impl Cx<'_> {
                             }
                         }
                     };
+                    if matches!(&t.kind, TargetKind::Intrinsic(key) if key == "map_probe") {
+                        let Some(&map) = body.record(b).first() else {
+                            return err("a map probe without its map");
+                        };
+                        let target = self.map_key(s(value_ty(body, map)), id, &mut reps)?;
+                        calls.insert(ix, target);
+                        continue;
+                    }
                     self.hash_target(&t, &mut reps);
                     calls.insert(ix, Target::Call(t));
                 }
