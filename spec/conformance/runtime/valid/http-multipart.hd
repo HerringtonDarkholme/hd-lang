@@ -11,9 +11,17 @@ use std.http.{
     Request,
     Url,
 }
+use std.random.{Random, SeededRandom}
 
 fn request() -> Request:
     Request::post(Url::parse("https://example.test/upload").expect("fixture URL"))
+
+fn encode(request: Request, form: Multipart, seed: u64 = 7) -> Result[Request, MultipartError]:
+    source := SeededRandom::new(seed)
+    let result: Result[Request, MultipartError] = .Err(.Malformed(0))
+    $.with(Random=source):
+        result = request.set_multipart(form)
+    result
 
 fn boundary_of(value: &Request) -> string:
     value.header(.ContentType)
@@ -37,13 +45,32 @@ fn form() -> Multipart:
             },
         )
 
+fn limit_request(parts: usize, extra_header_lines: usize = 0) -> (Request, usize?, usize?):
+    let mut wire: List[u8] = []
+    let part_overflow: usize? = .None
+    let header_overflow: usize? = .None
+    for part in 0..parts:
+        wire.extend("--limit\r\n".to_utf8())
+        if part == 10_000:
+            part_overflow = .Some(wire.len())
+        wire.extend("Content-Disposition: form-data; name=\"x\"\r\n".to_utf8())
+        if part == 0:
+            for line in 0..extra_header_lines:
+                if 1 + line == 10_000:
+                    header_overflow = .Some(wire.len())
+                wire.extend("X-Limit: x\r\n".to_utf8())
+        wire.extend("\r\n\r\n".to_utf8())
+    wire.extend("--limit--\r\n".to_utf8())
+    value := request()
+        .set_bytes(wire)
+        .set_header(.ContentType, "multipart/form-data; boundary=limit")
+    (value, part_overflow, header_overflow)
+
 tests:
     use std.testing.{assert, assert_equal}
 
     it("encodes and reads ordered repeated text and file parts"):
-        encoded := request()
-            .set_header(.Other("x-request"), "kept")
-            .set_multipart(form())
+        encoded := encode(request().set_header(.Other("x-request"), "kept"), form())
             .expect("encode")
         assert_equal(encoded.header(.Other("x-request")), .Some("kept"), reason="other header")
         assert(
@@ -80,25 +107,21 @@ tests:
         )
         assert_equal(decoded.parts[3].body.bytes(), .Ok([3u8, 4u8]), reason="custom bytes")
 
-    it("moves to the next deterministic boundary only for a delimiter line"):
-        first := request()
-            .set_multipart(Multipart::new().text("value", "plain"))
+    it("draws a new boundary only when the first draw is a delimiter line"):
+        first := encode(request(), Multipart::new().text("value", "plain"))
             .expect("first encode")
         first_boundary := boundary_of(&first)
-        same := request()
-            .set_multipart(Multipart::new().text("value", "plain"))
+        same := encode(request(), Multipart::new().text("value", "plain"))
             .expect("same encode")
-        assert_equal(boundary_of(&same), first_boundary, reason="deterministic base")
+        assert_equal(boundary_of(&same), first_boundary, reason="same seeded first draw")
         collision := "prefix\r\n--$first_boundary\r\nsuffix"
-        encoded := request()
-            .set_multipart(Multipart::new().text("value", collision))
+        encoded := encode(request(), Multipart::new().text("value", collision))
             .expect("encode")
-        assert(boundary_of(&encoded) != first_boundary, reason="counter skips a delimiter line")
+        assert(boundary_of(&encoded) != first_boundary, reason="retry skips a delimiter line")
         decoded := encoded.multipart().expect("decode")
         assert_equal(decoded.parts[0].body.text(), .Ok(collision), reason="collision payload")
         pseudo := "prefix\r\n--$first_boundary--not-a-line\r\nsuffix"
-        pseudo_encoded := request()
-            .set_multipart(Multipart::new().text("value", pseudo))
+        pseudo_encoded := encode(request(), Multipart::new().text("value", pseudo))
             .expect("encode")
         assert_equal(
             boundary_of(&pseudo_encoded),
@@ -112,8 +135,10 @@ tests:
         )
 
     it("quotes disposition parameters and accepts a quoted boundary"):
-        quoted := request()
-            .set_multipart(Multipart::new().file("a\";b", "c\\d", "text/plain", []))
+        quoted := encode(
+            request(),
+            Multipart::new().file("a\";b", "c\\d", "text/plain", []),
+        )
             .expect("encode")
             .multipart()
             .expect("decode")
@@ -133,22 +158,22 @@ tests:
 
     it("rejects unsafe metadata and caller supplied content disposition"):
         assert_equal(
-            request().set_multipart(Multipart::new().text("", "x")),
+            encode(request(), Multipart::new().text("", "x")),
             .Err(MultipartError.InvalidName("")),
             reason="empty name",
         )
         assert_equal(
-            request().set_multipart(Multipart::new().text("bad\rname", "x")),
+            encode(request(), Multipart::new().text("bad\rname", "x")),
             .Err(MultipartError.InvalidName("bad\rname")),
             reason="name injection",
         )
         assert_equal(
-            request().set_multipart(Multipart::new().text("bad\0name", "x")),
+            encode(request(), Multipart::new().text("bad\0name", "x")),
             .Err(MultipartError.InvalidName("bad\0name")),
             reason="name NUL",
         )
         assert_equal(
-            request().set_multipart(Multipart::new().file("f", "bad\nname", "x/y", [])),
+            encode(request(), Multipart::new().file("f", "bad\nname", "x/y", [])),
             .Err(MultipartError.InvalidFilename("bad\nname")),
             reason="filename injection",
         )
@@ -157,7 +182,7 @@ tests:
         supplied := Multipart::new()
             .add(MultipartPart { name: "field", headers: disposition, body: Body::from_bytes([]) })
         assert_equal(
-            request().set_multipart(supplied),
+            encode(request(), supplied),
             .Err(MultipartError.Header(HeaderError.InvalidValue("content-disposition"))),
             reason="typed metadata is authoritative",
         )
@@ -166,7 +191,7 @@ tests:
         bad_header := Multipart::new()
             .add(MultipartPart { name: "field", headers: invalid, body: Body::from_bytes([]) })
         assert_equal(
-            request().set_multipart(bad_header),
+            encode(request(), bad_header),
             .Err(MultipartError.Header(HeaderError.InvalidName("bad name"))),
             reason="part header name",
         )
@@ -177,7 +202,7 @@ tests:
                 MultipartPart { name: "field", headers: invalid_value, body: Body::from_bytes([]) },
             )
         assert_equal(
-            request().set_multipart(bad_value),
+            encode(request(), bad_value),
             .Err(MultipartError.Header(HeaderError.InvalidValue("x-check"))),
             reason="part header value",
         )
@@ -187,11 +212,11 @@ tests:
         _ := body.bytes()
         used := Multipart::new().add(MultipartPart { name: "field", body: body })
         assert_equal(
-            request().set_multipart(used),
+            encode(request(), used),
             .Err(MultipartError.UsedPart("field")),
             reason="part body is read once",
         )
-        empty := request().set_multipart(Multipart::new()).expect("empty encode")
+        empty := encode(request(), Multipart::new()).expect("empty encode")
         assert_equal(empty.multipart(), .Ok(Multipart::new()), reason="empty form")
         used_request := request().set_bytes([])
         _ := used_request.bytes()
@@ -203,7 +228,7 @@ tests:
         failed_body := request().set_form(1i64).body
         failed_part := Multipart::new().add(MultipartPart { name: "field", body: failed_body })
         assert_equal(
-            request().set_multipart(failed_part),
+            encode(request(), failed_part),
             .Err(MultipartError.Body(BodyError.Form(.Unsupported("$")))),
             reason="part body failure",
         )
@@ -316,6 +341,22 @@ tests:
             invalid.multipart(),
             .Err(MultipartError.Header(HeaderError.InvalidValue("multipart"))),
             reason="header UTF-8",
+        )
+
+    it("accepts 10000 parts and header lines, then rejects either next item"):
+        at_limit := limit_request(10_000)._0.multipart().expect("limit is inclusive")
+        assert_equal(at_limit.parts.len(), 10_000, reason="part and header-line limit")
+        over_parts := limit_request(10_001)
+        assert_equal(
+            over_parts._0.multipart(),
+            .Err(MultipartError.Malformed(over_parts._1.expect("part overflow position"))),
+            reason="part count above limit",
+        )
+        over_headers := limit_request(1, 10_000)
+        assert_equal(
+            over_headers._0.multipart(),
+            .Err(MultipartError.Malformed(over_headers._2.expect("header overflow position"))),
+            reason="total header lines above limit",
         )
 
     it("displays every multipart error variant"):
