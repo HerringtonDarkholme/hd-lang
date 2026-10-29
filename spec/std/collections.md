@@ -259,7 +259,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
+| `Map[K, V]` | `get_mut(&mut self, key: K) -> (&mut V)?`; `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(self, n: usize) -> List[(K, usize)]` |
 
 ```text
@@ -275,14 +275,15 @@ fn pairs(stock: Map[string, i32]) -> List[(string, i32)]:
     stock.entries()  # [("tea", 3), ("milk", 1)] for {"tea": 3, "milk": 1}
 ```
 
-1. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
-2. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
-3. r[std-collections.map.values] `values` returns the map's values in the same order.
-4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
-5. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
-6. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
-7. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
-8. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
+1. r[std-collections.map.get-mut] `get_mut(key)` returns `.Some` of a mutable reference to the stored value, or `.None` when the map has no equal key.
+2. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
+3. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
+4. r[std-collections.map.values] `values` returns the map's values in the same order.
+5. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
+6. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
+7. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
+8. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
+9. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
 
 > **Why.** `entries` is a list snapshot like `keys` and `values`, since a
 > loop that sorts or indexes the pairs needs a list. `most_common` is
@@ -521,19 +522,35 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
 | Receiver | Methods |
 | --- | --- |
 | `List[T]` | `get(self, index: usize) -> T?`; `is_empty(self) -> bool`; `first(self) -> T?`; `last(self) -> T?`; `take(self, count: usize) -> List[T]`; `filter(self, keep: fn(T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
-| `List[T]`, changing | `extend(&mut self, other: List[T]) -> void` |
+| `List[T]`, changing | `get_mut(&mut self, index: usize) -> (&mut T)?`; `first_mut(&mut self) -> (&mut T)?`; `last_mut(&mut self) -> (&mut T)?`; `extend(&mut self, other: List[T]) -> void` |
 
 1. r[std-collections.access.get] `get(index)` returns `.Some` of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
-2. r[std-collections.access.is-empty] `is_empty` is true exactly when `len()` is 0.
-3. r[std-collections.access.first-last] `first` returns the element at index 0 and `last` the element at index `len() - 1`, each in `.Some`. An empty list gives `.None`.
-4. r[std-collections.access.take] `take(count)` returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
-5. r[std-collections.access.filter] `filter(keep)` returns a new list of the elements for which `keep` is true, in list order.
-6. r[std-collections.access.reversed] `reversed` returns a new list of the elements in reverse order.
-7. r[std-collections.access.sorted-by] `sorted_by(compare)` returns a new list in ascending order by `compare`. The sort is stable.
-8. r[std-collections.access.zip] `zip(other)` returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, so it stops at the shorter one.
-9. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does.
-10. r[std-collections.access.extend.self] `items.extend(items)` appends a copy of the elements `items` held before the call, so it doubles the list.
-11. r[std-collections.access.helper-rules] The callbacks of `filter` and `sorted_by` follow [`std-collections.helper.callback-row`](#r-std-collections.helper.callback-row): each has the empty row.
+2. r[std-collections.access.get-mut] `get_mut(index)` returns `.Some` of a mutable reference to the element at `index`, or `.None` when `index` is out of range.
+3. r[std-collections.access.is-empty] `is_empty` is true exactly when `len()` is 0.
+4. r[std-collections.access.first-last] `first` returns the element at index 0 and `last` the element at index `len() - 1`, each in `.Some`. An empty list gives `.None`.
+5. r[std-collections.access.first-mut] `first_mut` returns `.Some` of a mutable reference to the first element, or `.None` for an empty list.
+6. r[std-collections.access.last-mut] `last_mut` returns `.Some` of a mutable reference to the last element, or `.None` for an empty list.
+7. r[std-collections.access.take] `take(count)` returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
+8. r[std-collections.access.filter] `filter(keep)` returns a new list of the elements for which `keep` is true, in list order.
+9. r[std-collections.access.reversed] `reversed` returns a new list of the elements in reverse order.
+10. r[std-collections.access.sorted-by] `sorted_by(compare)` returns a new list in ascending order by `compare`. The sort is stable.
+11. r[std-collections.access.zip] `zip(other)` returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, so it stops at the shorter one.
+12. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does.
+13. r[std-collections.access.extend.self] `items.extend(items)` appends a copy of the elements `items` held before the call, so it doubles the list.
+14. r[std-collections.access.helper-rules] The callbacks of `filter` and `sorted_by` follow [`std-collections.helper.callback-row`](#r-std-collections.helper.callback-row): each has the empty row.
+
+Each mutable accessor returns an [element reference](../lang/13-values-and-references.md#element-references).
+A length change while its result is live follows the collection-pinning rules.
+
+```text
+fn adjust(items: &mut List[i32], stock: &mut Map[string, i32]) -> void:
+    match items.get_mut(1):
+        .Some(value) => *value += 10
+        .None => pass
+    match stock.get_mut("tea"):
+        .Some(count) => *count += 1
+        .None => pass
+```
 
 | Call | Result |
 | --- | --- |

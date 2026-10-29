@@ -106,6 +106,11 @@ impl[T] List[T]:
     pub fn get(self, index: usize) -> T?:
         if index >= self.len(): .None else: .Some(self[index])
 
+    ## Returns a mutable reference to the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+    ## See [std-collections.access.get-mut](../../spec/std/collections.md#r-std-collections.access.get-mut).
+    pub fn get_mut(&mut self, index: usize) -> (&mut T)?:
+        if index >= self.len(): .None else: .Some(&mut self[index])
+
     ## True exactly when the list has no elements.
     ## See [std-collections.access.is-empty](../../spec/std/collections.md#r-std-collections.access.is-empty).
     pub fn is_empty(self) -> bool:
@@ -134,10 +139,20 @@ impl[T] List[T]:
     pub fn first(self) -> T?:
         if self.len() == 0: .None else: .Some(self[0])
 
+    ## Returns a mutable reference to the first element, or `.None` for an empty list.
+    ## See [std-collections.access.first-mut](../../spec/std/collections.md#r-std-collections.access.first-mut).
+    pub fn first_mut(&mut self) -> (&mut T)?:
+        if self.len() == 0: .None else: .Some(&mut self[0])
+
     ## Returns the last element in `.Some`, or `.None` for an empty list.
     ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
     pub fn last(self) -> T?:
         if self.len() == 0: .None else: .Some(self[self.len() - 1])
+
+    ## Returns a mutable reference to the last element, or `.None` for an empty list.
+    ## See [std-collections.access.last-mut](../../spec/std/collections.md#r-std-collections.access.last-mut).
+    pub fn last_mut(&mut self) -> (&mut T)?:
+        if self.len() == 0: .None else: .Some(&mut self[self.len() - 1])
 
     ## Returns a new list of the elements in reverse order.
     ## See [std-collections.access.reversed](../../spec/std/collections.md#r-std-collections.access.reversed).
@@ -477,6 +492,13 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
 # (spec/std/collections.md#map-methods). `keys` and `values` copy into new
 # lists, so a later change to the map does not show in them.
 impl[K < Eq & Hash, V] Map[K, V]:
+    ## Returns a mutable reference to the value for `key`, or `.None` when the map has no equal key.
+    ## See [std-collections.map.get-mut](../../spec/std/collections.md#r-std-collections.map.get-mut).
+    pub fn get_mut(&mut self, key: K) -> (&mut V)?:
+        match self.get(key):
+            .Some(_) => .Some(&mut self[key])
+            .None => .None
+
     ## True when the map has an entry for `key`.
     ## See [std-collections.map.contains-key](../../spec/std/collections.md#r-std-collections.map.contains-key).
     pub fn contains_key(self, key: K) -> bool:

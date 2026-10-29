@@ -856,6 +856,7 @@ std/collections.md	12	accept	runtime/valid/deque-ends.hd
 std/collections.md	13	accept	runtime/valid/collection-structs-snapshot-iteration.hd
 std/collections.md	14	accept	runtime/valid/heap-order.hd|runtime/valid/heap-reverse.hd
 std/collections.md	15	accept	runtime/valid/list-access-building.hd
+std/collections.md	16	accept	runtime/valid/collection-in-place-element-accessors.hd
 std/console.md	1	accept	runtime/valid/console-raw-writes.hd
 std/console.md	2	accept	runtime/valid/eprintln-error-line.hd
 std/console.md	3	mixed	typing/invalid/eprintln-without-console.hd

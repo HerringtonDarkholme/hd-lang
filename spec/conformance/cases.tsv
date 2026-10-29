@@ -3061,6 +3061,8 @@ runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.sc
 runtime/valid/process-scripted-received.hd	runtime	accept	std/process.md#r-std-process.scripted.received-ref
 runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
+runtime/valid/collection-in-place-element-accessors.hd	runtime	accept	std/collections.md#r-std-collections.access.get-mut
+runtime/panic/list-first-mut-push-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.access.first-mut
 runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collections.map.is-empty
 runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choices.choose.empty
 runtime/valid/string-more-methods.hd	runtime	accept	std/text.md#more-string-methods
