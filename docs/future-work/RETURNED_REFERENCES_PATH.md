@@ -127,8 +127,8 @@ trait Named:
 | Prior-art maturity | shipped since 2015, NLL since 2018 | 1.0 in August 2026; interior origins experimental | `@_lifetime` still experimental; `Ref` and `MutableRef` in Swift 6.4 |
 
 **Recommendation:** Rust's lifetime variables. The trade-off is precision
-at a call. At stage 7, a live result freezes every non-flat write under
-its whole source, so `n := u.name(); u.tags.push(x)` is an error.
+at a call. At stage 7, a live result freezes every write to its whole
+source, so `n := u.name(); u.age += 1` is an error.
 Optional stage 9 (views) would release such writes if real code needs it.
 
 Stage 1 writes no lifetime and elides to the whole parameter, so it is
@@ -147,7 +147,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
 | 5. Generic locality | local-holding type arguments for generic functions; `T < global` at persistent boundaries (hypothetical) | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
 | 6. Stored references | lifetime parameters on structs and enums; stores into a caller's place; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
-| 7. Exclusivity | a live result freezes non-flat writes under its whole source; static where the checker sees the source, pins and counts through a `*mut` alias | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |
+| 7. Exclusivity | Swift's `borrow`/`&` and Rust's rule: a live shared result freezes writes to its whole source, a live `&mut` result every other access; static where the checker sees the source, a borrow flag through a `*mut` alias | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |
 | 8. Uncounted scoped references | the backend drops counts that stage 7 proves unnecessary; borrow flags where it cannot prove them | the perf payoff | flags only through `*mut` |
 | 9. Views, if needed | a parameter names the fields it borrows, `user: &{name} User` (hypothetical, Rust's view-type experiment) | `n := get_name(&u); u.tags.push(x)` | static |
 
@@ -228,56 +228,45 @@ and a closure type `fn() -> void + 'a` (hypothetical).
 
 ### Stage 7: exclusivity
 
-A lifetime names a whole source, so the caller cannot tell which part a
-result points into. Stage 7 therefore freezes by what a write can do, not
-by where it lands.
+Stage 7 follows Swift's lifetime dependence and Rust: a lifetime names a
+whole source, so a live result locks all of it.
 
-- A type is **flat** when none of its values holds a buffer, an enum
-  payload or a reference: scalars, payload-free enums, and structs and
-  tuples of flat types. A string, a collection, a reference, an enum with a
-  payload and an open `T` are not flat.
-- While a value that depends on a source is live, a flat write under that
-  source stays valid. A flat write cannot free or move anything a reference
-  points into.
-- Every other write under the source is `conflicting-access`:
-  - an assignment of a non-flat value;
-  - a `&mut self` call;
-  - `&mut` passed to a call;
-  - replacing a `*mut` along the path.
-- Reads stay valid, and so do writes under other roots.
-
-Rust's own rule would freeze every write to the source. The flat-write
-rule keeps the common "read a field, bump a counter" code. It needs only a
-per-type flag that the checker already has in substance (`OwnCx::counted`).
+- While a shared result (`&T`, Swift's `borrow`) is live, its source may be
+  read but not written: an assignment, a `&mut self` call, or `&mut` of it
+  passed to a call is `conflicting-access`.
+- While a `&mut` result (Swift's `&`) is live, its source may not be used at
+  all except through that result.
+- The lock ends at the result's last use, not at the end of the block, as
+  with Rust's non-lexical lifetimes.
+- Where the checker sees the source (a local, a parameter, a path of
+  fields from one), the check is static. Through a `*mut` alias it cannot
+  see, a borrow sets a flag on the object and a conflicting write panics
+  `borrow-conflict`, as Swift does for class properties and Rust's
+  `RefCell` does.
 
 ```text
-fn demo(u: &mut User, t: &mut Team, w: &mut Wrapper[i64], d: &mut dyn Inspectable) -> void $ Console:
-    tag := u.first_tag()      # an element of u.tags, through the whole of u
-    u.age += 1                # valid: flat
-    u.name = "x"              # stage 7 error: a string is not flat (stage 9 views release it)
-    u.tags.push("y")          # stage 7 error: a &mut self call under u
-    lead := t.lead_name()     # through t.lead: *mut User
-    t.lead.age += 1           # valid: flat
-    t.lead = box(User { name: "z", age: 0, tags: [] })   # stage 7 error: replaces a *mut on the path
-    v := w.get()              # a generic T at i64
-    w.value = 2               # valid: i64 is flat at this call site
-    found := d.downcast_mut::[User]()
-    audit(d)                  # stage 7 error: &mut of the source passed to a call
-    println(*lead)
+fn demo(u: &mut User) -> void $ Console:
+    n := u.name()        # n borrows all of u
+    println(u.age)       # valid: a read
+    u.age += 1           # stage 7 error: u is borrowed by n
+    println(*n)          # n's last use: the lock ends
+    u.age += 1           # valid
+    t := u.tags_mut()    # t borrows u exclusively
+    println(u.age)       # stage 7 error: u is borrowed exclusively by t
+    t.push("y")          # valid: through t
 ```
 
-A generic body sees an open `T`, which is not flat, so it freezes writes
-of `T` until the result's last use. A write through an alias the checker
-cannot see stays a run-time matter:
-
-- the result holds a count of the object its path crosses;
-- the pin makes a length change panic `collection-pinned`;
-- stage 8 adds a borrow flag only where it drops that count.
+The imprecision is accepted: `u.age += 1` is rejected while `n` is live,
+though `n` points only into `u.name`. The fixes are Rust's: end the use of
+`n` first, copy the value out (`name := *u.name()`), or borrow the field
+directly (`&u.name`), which the checker sees is only `name`. A finer rule
+that keeps writes of buffer-free values valid is a relaxation, so it breaks
+no code and may come later if real programs hit the lock often.
 
 **What stage 7 rejects that earlier stages allowed:**
 
-- in stage 1, a non-flat write to the source while a result is live, as
-  `n := u.name(); u.name = "x"`;
+- in stage 1, any write to the source while a result is live, as
+  `n := u.name(); u.age += 1`;
 - in stage 4, a length change while an element result is live (it
   panicked `collection-pinned`);
 - replacing a `*mut` that a live result's path crosses (it left a stale
@@ -529,12 +518,7 @@ Stop at 1.5 times that. Run time:
 2. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
    `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
    stage 5 lifts it properly.
-3. **Stage 7's write rule.** Freeze only non-flat writes under a live
-   result's source, or every write, as Rust does. **Recommendation:** the
-   flat-write rule. It is sound, it keeps `n := u.name(); u.age += 1`
-   valid, and it costs one per-type flag. Without paths, it is the closest
-   thing to the shape-only freeze asked for.
-4. **The generic default, stage 5.** Every `T` may hold a local reference,
+3. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
