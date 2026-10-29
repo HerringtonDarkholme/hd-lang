@@ -1438,6 +1438,26 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 });
             both(both(inputs, match_ty(pool, owner, r1, r2, binds)), rows)
         }
+        // A data type's row argument keeps the row parameter as a
+        // `RowParamRef`. Match that bare parameter to the goal's whole row,
+        // as a function-head row parameter above does
+        // (`req.row.param.data-substitute`). Row extensions in an impl head
+        // are rejected before solver tables are built.
+        (TyData::Row(w1), TyData::Row(w2)) => {
+            let d = pool.row_data(w1);
+            match (d.keys.as_slice(), d.params.as_slice()) {
+                ([], [p]) if p.owner == owner => {
+                    let param = pool.intern_ty(&TyData::Param(ParamRef {
+                        owner,
+                        index: p.index,
+                    }));
+                    let row = pool.intern_ty(&TyData::Row(w2));
+                    match_ty(pool, owner, param, row, binds)
+                }
+                _ if w1 == w2 => M::Yes,
+                _ => M::No,
+            }
+        }
         (
             TyData::TraitValue {
                 def: d1, args: a1, ..
@@ -2933,10 +2953,12 @@ fn project_concrete(
 mod tests {
     use super::{
         BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
-        ImplUniverses, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
-        TraitRef, canonicalize,
+        ImplUniverses, M, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
+        TraitRef, canonicalize, match_ty,
     };
-    use crate::pool::{InternPool, LocalPool, Prim, Ty, TyData, TyList, Types};
+    use crate::pool::{
+        InternPool, LocalPool, Prim, RowData, RowParamRef, Ty, TyData, TyList, Types,
+    };
     use crate::unify::{InferTable, VarKind};
     use hd_base::{DefId, FolderId, Fuel, ModuleId};
 
@@ -2982,6 +3004,24 @@ mod tests {
         assert_eq!(a, u.intern(&[(f(1), &x), (f(2), &x), (f(2), &x)]).0);
         assert_ne!(a, u.intern(&[(f(1), &x)]).0);
         assert_eq!(u.len(), 2);
+    }
+
+    #[test]
+    fn data_row_parameter_matches_a_concrete_row() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let owner = DefId::from_raw(1);
+        let pattern = p.intern_ty(&TyData::Row(p.row(&RowData {
+            keys: Vec::new(),
+            params: vec![RowParamRef { owner, index: 0 }],
+        })));
+        let concrete = p.intern_ty(&TyData::Row(p.row(&RowData {
+            keys: vec![Ty::I32],
+            params: Vec::new(),
+        })));
+        let mut binds = Vec::new();
+        assert_eq!(match_ty(p, owner, pattern, concrete, &mut binds), M::Yes);
+        assert_eq!(binds, vec![Some(concrete)]);
     }
 
     #[test]

@@ -2366,9 +2366,12 @@ impl Ck<'_, '_> {
         };
         self.check_literal_visible(def, n);
         let mut targs = Vec::new();
-        for t in &targ_nodes {
-            targs.push(self.explicit_targ(*t, false)?);
+        for (i, t) in targ_nodes.iter().enumerate() {
+            let row_slot = item.generics.get(i).is_some_and(|g| g.row);
+            targs.push(self.explicit_targ(*t, row_slot)?);
         }
+        let generics = item.generics.clone();
+        self.check_data_targ_kinds(def, &generics, &targs, *name_node);
         let explicit = targs.len();
         while targs.len() < item.generics.len() {
             targs.push(self.infer.fresh(pool, VarKind::General));

@@ -5,7 +5,7 @@
 use hd_base::{DefId, Span, StageResult};
 use hd_diag::Code;
 use hd_intern::PathKind;
-use hd_resolve::{BindingKind, HeadKind, ItemData, Src};
+use hd_resolve::{BindingKind, Generic, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::{Inputs, ParamRef, Prim, RowData, RowId, Ty, TyData, VarKind};
@@ -35,6 +35,43 @@ pub(crate) enum NameRole {
 }
 
 impl Ck<'_, '_> {
+    /// Checks the kinds of explicit arguments to a data, enum, trait or
+    /// newtype declaration (`req.row.param.data-owner`,
+    /// `req.row.slot.data`). Constructor inference supplies omitted slots;
+    /// every written slot still has the declaration's type or row kind.
+    pub(crate) fn check_data_targ_kinds(
+        &mut self,
+        def: DefId,
+        generics: &[Generic],
+        args: &[Ty],
+        n: NodeRef<'_>,
+    ) {
+        let pool = self.pool();
+        for (i, (arg, generic)) in args.iter().zip(generics).enumerate() {
+            let data = pool.get(*arg);
+            if matches!(data, TyData::Poison | TyData::Infer(_)) {
+                continue;
+            }
+            let row = matches!(data, TyData::Row(_));
+            if row == generic.row {
+                continue;
+            }
+            let name = self.cx.names.display_name(def);
+            let msg = if generic.row {
+                format!(
+                    "argument {} of `{name}` is a row parameter: write it after `$`",
+                    i + 1
+                )
+            } else {
+                format!(
+                    "argument {} of `{name}` is a type parameter, not a row",
+                    i + 1
+                )
+            };
+            self.err(Code::GenericKindMismatch, n, &msg);
+        }
+    }
+
     /// The identifier segments of a path node, in order.
     pub(crate) fn segments(&self, n: NodeRef<'_>) -> Vec<String> {
         n.direct_tokens()
@@ -223,7 +260,10 @@ impl Ck<'_, '_> {
         if let Some(al) = Src::child(n, SyntaxKind::TypeArgumentList) {
             for a in al.children() {
                 if a.kind() == SyntaxKind::RequirementRow {
-                    row = Some(self.row_of(a)?);
+                    let r = self.row_of(a)?;
+                    row = Some(r);
+                    args.push(pool.intern_ty(&TyData::Row(r)));
+                    arg_nodes.push(a);
                 } else if a.kind() == SyntaxKind::AssociatedTypeBinding {
                     if let (Some(t), Some(ty)) =
                         (a.name(&self.cx.src.parse.tokens), Src::type_child(a))
@@ -306,7 +346,7 @@ impl Ck<'_, '_> {
         // `types.generic.too-long`: no more arguments than parameters, in a
         // type, an alias or a trait alike.
         if let Some(item) = self.cx.lookup.item(def) {
-            let max = item.generics.iter().filter(|g| !g.row).count();
+            let max = item.generics.len();
             if args.len() > max {
                 let msg = format!(
                     "`{}` takes {max} type arguments, not {}",
@@ -314,6 +354,31 @@ impl Ck<'_, '_> {
                     args.len()
                 );
                 self.err(Code::ArgumentCount, n, &msg);
+                return Ok(Ty::POISON);
+            }
+            if let Some((i, g)) =
+                args.iter()
+                    .zip(&item.generics)
+                    .enumerate()
+                    .find_map(|(i, (a, g))| match pool.get(*a) {
+                        TyData::Poison | TyData::Infer(_) => None,
+                        data => (matches!(data, TyData::Row(_)) != g.row).then_some((i, g)),
+                    })
+            {
+                let msg = if g.row {
+                    format!(
+                        "argument {} of `{}` is a row parameter: write it after `$`",
+                        i + 1,
+                        self.cx.names.display_name(def)
+                    )
+                } else {
+                    format!(
+                        "argument {} of `{}` is a type parameter, not a row",
+                        i + 1,
+                        self.cx.names.display_name(def)
+                    )
+                };
+                self.err(Code::GenericKindMismatch, n, &msg);
                 return Ok(Ty::POISON);
             }
         }
@@ -380,7 +445,7 @@ impl Ck<'_, '_> {
                 .generics
                 .iter()
                 .skip(filled.len())
-                .find(|g| !g.row && g.default.is_none())
+                .find(|g| g.default.is_none())
             {
                 let msg = format!(
                     "`{}` is written without its parameter `{}`, which has no default",

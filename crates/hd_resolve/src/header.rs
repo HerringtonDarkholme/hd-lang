@@ -381,6 +381,36 @@ impl<'a> Universe<'a> {
             (TyData::Option(x), TyData::Option(y)) | (TyData::Mut(x), TyData::Mut(y)) => {
                 self.unify(x, y, oa, ob, sub)
             }
+            // A row-valued data argument may be one bare parameter in an
+            // implementation head (`req.row.param.data-substitute`). Bind it
+            // to the other head's whole row so a generic and a concrete row
+            // instance overlap. Row extensions were rejected while lowering
+            // the head.
+            (TyData::Row(x), TyData::Row(y)) => {
+                let xd = pool.row_data(x);
+                if let ([], [p]) = (xd.keys.as_slice(), xd.params.as_slice())
+                    && (p.owner == oa || p.owner == ob)
+                {
+                    let param = pool.intern_ty(&TyData::Param(ParamRef {
+                        owner: p.owner,
+                        index: p.index,
+                    }));
+                    let row = pool.intern_ty(&TyData::Row(y));
+                    return self.unify(param, row, oa, ob, sub);
+                }
+                let yd = pool.row_data(y);
+                if let ([], [p]) = (yd.keys.as_slice(), yd.params.as_slice())
+                    && (p.owner == oa || p.owner == ob)
+                {
+                    let param = pool.intern_ty(&TyData::Param(ParamRef {
+                        owner: p.owner,
+                        index: p.index,
+                    }));
+                    let row = pool.intern_ty(&TyData::Row(x));
+                    return self.unify(row, param, oa, ob, sub);
+                }
+                x == y
+            }
             (
                 // One impl covers both kinds of reference
                 // (`ref.type.kind-runtime`), so they overlap.

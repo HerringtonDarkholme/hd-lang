@@ -378,9 +378,12 @@ impl Ck<'_, '_> {
         if want.suspends != got.suspends {
             return Some("suspension (`!`)");
         }
-        let wk: Vec<Ty> = pool.row_data(want.row).keys.into_iter().map(inst).collect();
-        let gk = pool.row_data(got.row).keys;
-        if wk.len() != gk.len() || wk.iter().any(|k| !gk.contains(k)) {
+        let want_row = pool.subst_row(want.row, &|p| {
+            let p = pool.intern_ty(&TyData::Param(p));
+            let t = inst(p);
+            (t != p).then_some(t)
+        });
+        if want_row != got.row {
             return Some("the requirement row");
         }
         if want.generics.len() != got.generics.len() {

@@ -1,4 +1,0 @@
-# test: checker generic arguments and parameters have a kind
-type Job[$ R](i32) # diagnostic: generic-kind-mismatch
-pub fn main() -> void:
-    pass

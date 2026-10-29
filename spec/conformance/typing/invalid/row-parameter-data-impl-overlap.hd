@@ -1,0 +1,10 @@
+# test: a generic data row argument overlaps a concrete row instance
+# Spec 09 Traits: trait.overlap.definition, trait.overlap.unify, trait.overlap.error.
+
+trait Marker
+
+struct Holder[$ R]:
+    action: fn() -> void $ R
+
+impl[$ R] Marker for Holder[$ R]
+impl Marker for Holder[$ Console] # diagnostic: overlapping-impl

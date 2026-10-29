@@ -1,0 +1,71 @@
+# test: structs, enums, traits and newtypes declare row parameters, and constructors infer a row that field access substitutes
+# expect: test
+# Spec 11 Row Parameters: req.row.param.data-owner, req.row.param.data-infer, req.row.param.data-substitute.
+use std.console.MemoryConsole
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+enum Deferred[$ R]:
+    Run(fn() -> void $ R)
+    Empty
+
+trait Runnable[$ R]:
+    fn run(self) -> void $ R
+
+    fn run_default(self) -> void $ R:
+        self.run()
+
+trait Stored
+
+type ExitFn[$ R](fn() -> void $ R)
+
+struct Announcer: pass
+
+fn announce() -> void $ Console:
+    println("done")
+
+fn make_exit() -> OnExit[$ Console]:
+    exit := OnExit { run: announce }
+    exit
+
+fn make_deferred() -> Deferred[$ Console]:
+    deferred := Deferred.Run(announce)
+    deferred
+
+fn make_newtype() -> ExitFn[$ Console]:
+    exit := ExitFn(announce)
+    exit
+
+fn execute[$ R](exit: OnExit[$ R]) -> void $ R:
+    (exit.run)()
+
+fn execute_deferred[$ R](deferred: Deferred[$ R]) -> void $ R:
+    match deferred:
+        .Run(action) => action()
+        .Empty => pass
+
+impl Runnable[$ Console] for Announcer:
+    fn run(self) -> void $ Console:
+        announce()
+
+fn execute_runner[T < Runnable[$ Console]](runner: T) -> void $ Console:
+    runner.run_default()
+
+impl[$ R] Stored for OnExit[$ R]
+
+fn accept_stored[T < Stored](value: T) -> void:
+    pass
+
+tests:
+    use std.testing.assert_equal
+
+    it("a stored callback keeps its row"):
+        console := MemoryConsole::new()
+        $.with(Console=console):
+            execute(make_exit())
+            execute_deferred(make_deferred())
+            execute_runner(Announcer {})
+            accept_stored(make_exit())
+        assert_equal(console.output(), ["done", "\n", "done", "\n", "done", "\n"])
+        _ := make_newtype()

@@ -1,0 +1,11 @@
+# test: calling a callback through a data row parameter requires the instantiated row
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+fn announce() -> void $ Console:
+    println("done")
+
+pub fn caller() -> void:
+    exit := OnExit { run: announce }
+    (exit.run)() # diagnostic: missing-requirement

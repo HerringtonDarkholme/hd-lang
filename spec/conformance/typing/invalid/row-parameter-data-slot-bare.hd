@@ -1,0 +1,10 @@
+# test: a data row slot writes even one key after $
+
+trait Log
+type LogRow = $ Log
+
+struct Job[$ R]:
+    run: fn() -> void $ R
+
+fn keep(job: Job[LogRow]) -> void: # diagnostic: generic-kind-mismatch
+    pass

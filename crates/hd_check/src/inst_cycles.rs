@@ -122,6 +122,24 @@ fn strip_mut(pool: Types<'_>, t: Ty) -> Ty {
     }
 }
 
+/// A bare type or row parameter represented as one generic slot.
+fn bare_param(pool: Types<'_>, t: Ty) -> Option<ParamRef> {
+    match pool.get(t) {
+        TyData::Param(p) => Some(p),
+        TyData::Row(row) => {
+            let row = pool.row_data(row);
+            match (row.keys.as_slice(), row.params.as_slice()) {
+                ([], [p]) => Some(ParamRef {
+                    owner: p.owner,
+                    index: p.index,
+                }),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// The edges of each call in `b` whose callee is fixed.
 fn body_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
     for (i, tag) in b.tags.iter().enumerate() {
@@ -186,7 +204,7 @@ fn body_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
             params.sort_stable_by_key(|p| (p.owner.raw(), p.index));
             params.dedup();
             for p in params {
-                let grows = !matches!(pool.get(whole), TyData::Param(q) if q == p);
+                let grows = bare_param(pool, whole) != Some(p);
                 let node = |owner, p: ParamRef| {
                     (
                         cx.names.path_hash(owner),
@@ -312,6 +330,14 @@ fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<O
                 slot.get_or_insert(t);
             }
         }
+        (TyData::Row(_), TyData::Row(_)) => {
+            if let Some(p) = bare_param(pool, pattern)
+                && p.owner == owner
+                && let Some(slot) = out.get_mut(usize::from(p.index))
+            {
+                slot.get_or_insert(t);
+            }
+        }
         (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
         | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
         | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
@@ -377,7 +403,14 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
                 params_in(pool, a, out);
             }
             params_in(pool, result, out);
-            for k in pool.row_data(row).keys {
+            let row = pool.row_data(row);
+            for p in row.params {
+                out.push(ParamRef {
+                    owner: p.owner,
+                    index: p.index,
+                });
+            }
+            for k in row.keys {
                 params_in(pool, k, out);
             }
         }
@@ -390,7 +423,14 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
             }
         }
         TyData::Row(r) | TyData::Context(r) => {
-            for k in pool.row_data(r).keys {
+            let row = pool.row_data(r);
+            for p in row.params {
+                out.push(ParamRef {
+                    owner: p.owner,
+                    index: p.index,
+                });
+            }
+            for k in row.keys {
                 params_in(pool, k, out);
             }
         }

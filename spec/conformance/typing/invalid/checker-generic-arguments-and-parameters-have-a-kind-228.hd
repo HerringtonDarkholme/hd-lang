@@ -1,5 +1,0 @@
-# test: checker generic arguments and parameters have a kind
-enum Mode[$ R]: # diagnostic: generic-kind-mismatch
-    A
-pub fn main() -> void:
-    pass

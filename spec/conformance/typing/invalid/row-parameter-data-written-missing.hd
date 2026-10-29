@@ -1,0 +1,7 @@
+# test: a written data type must supply its row argument
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+fn keep(exit: OnExit) -> void: # diagnostic: partial-generic-arguments
+    pass

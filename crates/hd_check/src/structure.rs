@@ -603,10 +603,21 @@ pub fn structure_bodies(
 
 /// The type parameter `index` of `owner`.
 fn param(cx: &BodyCx<'_>, owner: DefId, index: usize) -> Ty {
-    cx.names.pool.intern_ty(&TyData::Param(ParamRef {
-        owner,
-        index: u16::try_from(index).unwrap_or(u16::MAX),
-    }))
+    let pool = cx.names.pool;
+    let index = u16::try_from(index).unwrap_or(u16::MAX);
+    if cx
+        .lookup
+        .item(owner)
+        .and_then(|item| item.generics.get(usize::from(index)))
+        .is_some_and(|g| g.row)
+    {
+        pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
+            keys: Vec::new(),
+            params: vec![hd_types::RowParamRef { owner, index }],
+        })))
+    } else {
+        pool.intern_ty(&TyData::Param(ParamRef { owner, index }))
+    }
 }
 
 /// `owner`'s own type parameters, as the arguments of a body over them.
