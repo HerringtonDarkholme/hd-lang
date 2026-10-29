@@ -1,52 +1,62 @@
 # Object Model, Tier 2: Opt-In Lifetimes
 
-**Status:** proposal, 2026-10-29; domain: references beyond one call, scoped
-closures, drop checking, cleanup guards, and borrowed views; not accepted.
+**Status:** proposal, 2026-10-29; reviews [tier 2](OBJECT_MODEL_TIER2.md),
+[element model E](https://github.com/HerringtonDarkholme/hd-lang/issues/494),
+and [local references](../../spec/lang/13-values-and-references.md#local-references);
+nothing here is accepted behavior.
 
 ## Proposal
 
-Keep today's call-local `&T` and counted `*T`. Add `&{a} T` only when a
-reference must cross a call boundary. The lifetime stays inside every
-containing type, including generic `T`. The same lifetime set describes closure
-captures, scope guards, phantom facts, and live spans.
+Ship borrowed results as a separate first slice. It adds no syntax. A result
+`&T`, `&mut T`, or optional reference borrows from `self` or the only reference
+argument. The call roots that result at the source place until its last use.
 
 ```text
-# Proposed lifetime and closure syntax is hypothetical.
-fn inspect[{a}, T](items: &{a} List[T]) -> Span[{a}, T]:  # hypothetical syntax
-    items.span(0, items.len())
+impl[T] List[T]:
+    fn first(&self) -> (&T)?: panic("compiler-provided")
 
-fn record(log: &mut List[string]) -> void:
-    using guard = on_exit(fn once() ->{log} void: log.push("closed"))  # hypothetical syntax
+fn read_first(xs: &mut List[i64]) -> i64:
+    match xs.first():
+        .Some(found) =>
+            xs.push(1)  # error: found keeps xs frozen until its last use
+            *found
+        .None => 0
 ```
 
-Code that never opts in writes no lifetime. A scoped shared borrow freezes its
-source while live; a scoped mutable borrow is exclusive. Local sources are
-checked statically. A borrow through counted storage retains and flags that
-storage only when an unseen alias could invalidate it.
+After that slice, keep today's call-local `&T` and counted `*T`. Add `&{a} T`
+only when a reference must be stored. The set stays inside every containing
+type, including generic `T`. It also describes closure captures, scope guards,
+phantom facts, and live spans. Code that never opts in writes no lifetime.
 
 ## Open Questions
 
-1. **Spelling and elision:** recommend the studied `[{a}]`, `&{a} T`, and
-   `->{a}` sets, with explicit sources on results and no Rust-style result
-   elision. Repeating one set is cheaper than silently changing a relationship
-   when another borrowed input is added.
-2. **Closure kinds:** recommend shared captures for scoped `fn`, plus `fn mut`
+1. **Element model E:** may slice 0 reverse #494's ban on returning element
+   references? Yes admits `first`, `get`, and `get_mut` under last-use loans;
+   no limits slice 0 to field and dynamic downcasts. **Recommendation:** yes,
+   conditional on the source freeze and escape checks below.
+2. **Elision:** recommend Rust's deterministic rules for slice 0. A result
+   borrows from `self`, otherwise from the only reference argument. Two
+   reference arguments without `self` are an error until explicit sets exist.
+3. **Spelling:** recommend `[{a}]`, `&{a} T`, and `->{a}` only for stored
+   references, multiple result sources, and scoped closure captures.
+4. **Closure kinds:** recommend shared captures for scoped `fn`, plus `fn mut`
    and `fn once`; no-set tier-1 `fn` keeps mutable captured cells.
-3. **Phantom facts:** recommend one compiler-known `std.marker.Phantom[T]`;
-   include function-shaped variance-only forms in the first slice.
-4. **`ensure`:** recommend a result-aware `AutoClosing` refinement, direct
+5. **Phantom facts:** recommend one compiler-known `std.marker.Phantom[T]`;
+   include function-shaped variance-only forms in its first lifetime-set slice.
+6. **`ensure`:** recommend a result-aware `AutoClosing` refinement, direct
    function-prologue placement, and execution after ordinary cleanup.
-5. **Views:** recommend `Span` and `SpanMut`; keep `ListView` for snapshots and
+7. **Views:** recommend `Span` and `SpanMut`; keep `ListView` for snapshots and
    ship the read-only span first.
-6. **Counted aliases:** recommend dynamic borrow flags only where static
+8. **Counted aliases:** recommend dynamic borrow flags only where static
    checking cannot see through a counted alias.
-7. **`defer` token:** recommend parsing `defer(...)` as a call while retaining
+9. **`defer` token:** recommend parsing `defer(...)` as a call while retaining
    `defer:` as the suite statement; `(` versus `:` makes the forms unambiguous.
 
 ## Problems It Solves
 
 | Requirement | Today | With this proposal |
 | --- | --- | --- |
+| Borrowed results | `downcast_ref` returns `*T`; collection and field references cannot escape the call | slice 0 returns a local reference rooted at `self` or one argument, with no new syntax |
 | Phantom ownership | an unused type parameter has no drop meaning | `Phantom[T]`, `Phantom[&{a} T]`, and function forms state ownership, borrows, and variance |
 | Scope guards | a guard closure cannot capture local `&T` / `&mut T` | the guard carries the closure's set and dies before every source |
 | `require` | its condition may mutate captured cells | `fn() ->{} bool` is call-scoped and read-only |
@@ -56,14 +66,24 @@ storage only when an unseen alias could invalidate it.
 
 ## How It Works
 
+- Slice 0 adopts Rust's elision shape. `&self` chooses `self` even when other
+  reference parameters exist. Without `self`, exactly one reference parameter
+  is required. Two are `ambiguous-borrow-source` until explicit sets ship.
+- At a call, a borrowed result is a local reference rooted at its source place.
+  A shared result freezes that place; a mutable result is exclusive. The loan
+  ends at the result's last use, not at the end of the lexical scope.
+- A local or value source needs no runtime state. A source reached through
+  counted `*T` is retained and needs a shared/exclusive borrow flag while the
+  result lives. Existing collection pins cover length-changing element access;
+  field and dynamic downcasts need the same check generalized to their owner.
 - `&T` / `&mut T` remain unnameable call lifetimes. `*T` / `*mut T` remain
   counted and storable. `&{a} T` / `&{a} mut T` are scoped and storable only
   inside types that carry `{a}`.
 - When a call-local reference is inferred as generic `T`, the checker reifies
   its actual source as an anonymous scoped lifetime in that instantiation. The
   result is no longer an ordinary call-local `&T`, and never becomes `*T`.
-- A lifetime-bearing result always names its source. The checker never guesses
-  between multiple inputs.
+- An explicitly lifetime-bearing result names every possible source. Elision
+  handles only the deterministic slice-0 cases above.
 - Generic parameters accept scoped types by default. A top-level binding,
   provider, detached task, channel, erased value, or other persistent boundary
   requires `T < global`.
@@ -82,22 +102,33 @@ storage only when an unseen alias could invalidate it.
 
 ## Cost
 
-| Component | Cost |
-| --- | --- |
-| Source | no annotation for tier-1 code; explicit sets on stored/returned borrows |
-| Checker | interface set/variance checks plus loans × control-flow points in opt-in bodies; worst case quadratic |
-| Runtime | zero for local/value roots; retain plus borrow flag only through counted storage |
-| Representation | two words for a span; ordinary closure/guard records; zero bytes for `Phantom` |
-| New mechanisms | lifetime/closure syntax; exclusivity and result-cleanup rules; compiler-known phantom and span split |
-| Compatibility | existing `&T`, `*T`, `fn`, `ListView`, `defer:`, `using`, and `using!` keep their meaning |
+These are bottom-up implementation budgets, not measurements. Each slice is
+independently gated and stops if its budget is wrong.
+
+| Slice | Estimated change | Checker and loan work | Runtime and footprint |
+| --- | ---: | --- | --- |
+| 0. Borrowed results | 550–800 Rust lines; 25–40 fixture cases | elision, source-place identity, last-use shared/exclusive loans | zero for local/value roots; counted roots retain and borrow-flag their owner |
+| 1. Sets in interfaces | 500–700 Rust lines | parse, format, resolve, cache, and compare sets | erased before codegen; web-compiler gzip measured before landing |
+| 2. Generic tunnelling and `Phantom` | 650–950 Rust lines | variance, `global`, hidden lifetimes in `T`, drop facts | zero-sized phantom; no runtime path |
+| 3. General loans | 800–1,200 Rust lines | loans × control-flow points in opt-in bodies; worst case quadratic | no local-root runtime cost |
+| 4. Scoped closures | 600–900 Rust lines | capture sets and `fn` / `fn mut` / `fn once` subsumption | existing closure records |
+| 5. Guards and cleanup | 400–650 Rust/hd lines | auto-close registration and result availability | existing cleanup frames; no host ABI change |
+| 6. `Span` and `SpanMut` | 500–800 Rust/hd lines | source loans and disjoint split proof | two words per span; checks only at construction/split |
+| 7. Stored-set counted aliases | 350–600 Rust/runtime lines | generalize slice-0 flags to guards, closures, and spans | retain plus shared/exclusive flag only where used |
+
+Ordinary tier-1 code adds no annotation and skips loan dataflow. Existing
+`&T`, `*T`, `fn`, `ListView`, `defer:`, `using`, and `using!` keep their
+meaning. Every slice measures compile time, optimized Wasm, and web-compiler
+gzip against the 2 MB cap; this design has no defensible byte estimate before
+a compiler prototype.
 
 ## Recommendation
 
-Adopt lifetime sets as tier 2's one opt-in mechanism. Let scopedness tunnel
-through generic types, with `T < global` only at persistent boundaries. Build
-read-only scoped closures on the same sets, then express guards, `defer`,
-`ensure`, and spans as library types. This meets all five requirements without
-body inspection or annotations in ordinary code.
+Approve borrowed results as slice 0 if the owner accepts the narrow reversal of
+element model E. Then adopt lifetime sets as tier 2's one opt-in mechanism.
+Let scopedness tunnel through generic types, with `T < global` only at
+persistent boundaries. Build closures, guards, cleanup, and spans on those
+sets. Ordinary code keeps no lifetime annotations.
 
 ## Appendix A: Stress Test
 
@@ -214,19 +245,71 @@ remains the owned snapshot escape hatch.
 ### Direct borrowed results and elision
 
 ```text
-# Proposed lifetime-bearing result syntax is hypothetical.
-impl[T] List[T]:
-    fn get_ref[{a}](&{a} self, index: usize) -> (&{a} T)?  # hypothetical syntax
+# Slice 0 uses existing syntax; only the return rule is proposed.
+impl dyn Inspectable:
+    fn downcast_ref[T < Inspectable](&self) -> (&T)?: panic("compiler-provided")
 
-fn choose[{a, b}, T](left: &{a} T, right: &{b} T, first: bool) -> &{a, b} T:  # hypothetical syntax
+impl[T] List[T]:
+    fn first(&self) -> (&T)?: panic("compiler-provided")
+    fn get(&self, index: usize) -> (&T)?: panic("compiler-provided")
+    fn get_mut(&mut self, index: usize) -> (&mut T)?: panic("compiler-provided")
+
+impl[K, V] Map[K, V]:
+    fn get(&self, key: &K) -> (&V)?: panic("compiler-provided")
+
+struct User:
+    name: string
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+```
+
+Every optional result is rooted at its receiver. `downcast_ref` can therefore
+return `&T` from `&dyn`, rather than the counted `*T` workaround added by #988.
+List and map results keep their collection frozen; `get_mut` holds exclusive
+access. The field getter keeps `User` frozen through its result's last use.
+
+```text
+fn inspect(value: &dyn Inspectable, xs: &mut List[i64], users: &Map[string, User]) -> void:
+    match value.downcast_ref::[User]():
+        .Some(user) => audit(user.name)
+        .None => pass
+    match xs.first():
+        .Some(first) => audit(*first)
+        .None => pass
+    match xs.get_mut(0):
+        .Some(slot) => *slot = *slot + 1
+        .None => pass
+    key := "owner"
+    match users.get(&key):
+        .Some(user) => audit(user.name())
+        .None => pass
+```
+
+These are real uses, not only signature forms. Their syntax exists today; the
+borrowed-return semantics are proposed. The list and map methods are conditional
+on open question 1 because element model E currently forbids these results.
+
+```text
+# Slice-0 elision rules.
+fn one[T](value: &T) -> &T: value
+
+struct Pair[T]:
+    value: T
+
+impl[T] Pair[T]:
+    fn own_or(&self, fallback: &T) -> &T:
+        &self.value  # result is tied to self, not fallback
+
+fn choose[T](left: &T, right: &T, first: bool) -> &T:  # error: ambiguous-borrow-source
     if first: left else: right
 ```
 
-The optional result carries the receiver's lifetime directly. The two-source
-result carries both possible sources. Unlike Rust, the proposal does not elide
-the output lifetime when there is one input or `self`. Adding a second borrowed
-input must not silently change an interface relationship. The trade-off is one
-repeated set in the common getter signature.
+This matches Rust's deterministic elision: one reference input supplies the
+result, while a receiver supplies it even beside other inputs. Two reference
+inputs without `self` are an error. Explicit lifetime sets later express the
+`choose` relationship; slice 0 does not guess or silently change it.
 
 ### Generic tunnelling
 
@@ -346,7 +429,7 @@ overview](https://verdagon.dev/blog/zero-cost-borrowing-regions-overview) and
 
 ## Appendix C: Alternatives
 
-| Option | Meets all five | Ordinary burden | Costliest change | Why not recommended |
+| Option | Meets all six | Ordinary burden | Costliest change | Why not recommended |
 | --- | --- | --- | --- | --- |
 | **Lifetime sets** | yes | none until a borrow crosses a call | syntax | recommended despite the largest opt-in checker |
 | Swift-style `~Escapable` | with a separate source relation | low, but generic APIs opt in | syntax | broad bounds plus another lifetime mechanism |
@@ -375,6 +458,24 @@ It is the fallback if tier 2 is rejected, not an implementation of tier 2.
   snapshot. It is not a live borrow.
 
 ## Appendix E: Detailed Rules And Implementation
+
+### Borrowed-result rules
+
+Slice 0 changes results, not type syntax. An elided local-reference result
+borrows from `self`, or from the only local-reference parameter when there is
+no receiver. A receiver wins beside other reference parameters. Otherwise the
+signature is `ambiguous-borrow-source`.
+
+The call records the source place in the result. A shared result freezes that
+place; a mutable result exclusively borrows it. Both loans end at last use.
+Returning, storing, capturing, or passing the result beyond its source remains
+an escape error. Nested optional and tuple results carry the same source.
+
+For a provably local/value source, the checker proves the loan and codegen adds
+nothing. Through counted `*T`, the allocation remains retained until last use.
+An unseen alias requires a shared/exclusive runtime borrow flag; mutation checks
+it. Collection element results reuse #494's pin for length changes, while field
+and dynamic downcasts need the owner-level form.
 
 ### Lifetime and generic rules
 
@@ -454,22 +555,27 @@ once, and returns disjoint halves.
 
 ### Implementation slices after approval
 
-1. Grammar, formatting, interface representation, and parse fixtures.
+0. Borrowed results with existing syntax: elision, source-place results,
+   local/value loans, counted-owner retention and flags, diagnostics, and the
+   six worked API shapes. This slice depends only on open question 1.
+1. Grammar, formatting, interface representation, and parse fixtures for sets.
 2. Header checks, generic tunnelling, `global`, and `Phantom` facts.
-3. Loan liveness, shared freezes, exclusive conflicts, and diagnostics.
+3. General loan liveness, shared freezes, exclusive conflicts, and diagnostics.
 4. Scoped closure kinds and read-only `require` captures.
 5. Scoped `ScopeGuard`, `AutoClosing`, library `defer`, and the approved
    result-aware `ensure` protocol.
 6. Read-only `Span`; then `SpanMut` and disjoint splitting if approved.
-7. Counted-storage retention/flags and host parity.
+7. Generalize counted-storage retention/flags from borrowed results to stored
+   sets, guards, closures, and spans; add host parity.
 
 Each slice ships its spec rules and conformance fixtures. This design PR changes
 no spec, compiler, or std implementation.
 
 ## Appendix F: Parse Log
 
-All nine hd `text` blocks were checked with `scripts/hd-conformance.sh parse`
-on 2026-10-29. The generic-tunnelling and result-protocol blocks parse. The
-other seven reject at their first marked, unimplemented lifetime,
+All eleven hd `text` blocks were checked with `scripts/hd-conformance.sh parse`
+on 2026-10-29. The proposal example, borrowed-result signatures and uses,
+elision rules, generic tunnelling, and result protocol parse: six blocks. The
+other five reject at their first marked, unimplemented lifetime,
 closure-kind, phantom, or auto-closing form, as expected. Parsing validates
 syntax only, not the proposal's semantics.
