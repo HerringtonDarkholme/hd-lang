@@ -3213,6 +3213,7 @@ runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float-via-parse
 runtime/valid/json-number-grammar.hd	runtime	accept	std/json.md#r-std-json.parse.number.grammar
+runtime/valid/json-map-key-errors.hd	runtime	accept	std/json.md#r-std-json.std.map-key-wrong-type
 runtime/valid/json-typed-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.data-included-members
 runtime/valid/key-assoc-function-a-dyn-value-of-a-trait-with-an-associated-function-calls-its-other-members.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-of-associated-functions-only-has-an-empty-vtable.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
@@ -3224,14 +3225,17 @@ runtime/valid/json-typed-primitives.hd	runtime	accept	std/json.md#r-std-json.std
 runtime/valid/json-typed-errors.hd	runtime	accept	std/json.md#r-std-json.error.path
 typing/invalid/json-encode-not-derived.hd	type	reject:unsatisfied-trait-bound	std/json.md#r-std-json.encode.serialize
 typing/invalid/json-decode-not-derived.hd	type	reject:unsatisfied-trait-bound	std/json.md#r-std-json.decode.deserialize
-typing/invalid/json-map-key-not-string.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-keys
+typing/invalid/json-map-key-not-implemented.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-key-missing
 typing/invalid/key-assoc-function-an-associated-function-through-a-dyn-value-is-unavailable-once-at-the-call.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.unavailable.error
 typing/invalid/key-assoc-function-an-associated-function-through-a-key-is-unavailable-once-at-the-call.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.unavailable.error
 typing/invalid/serde-derive-member-not-serialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
-typing/invalid/serde-map-key-not-string.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-keys
+typing/invalid/serde-map-key-not-implemented.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-key-missing
+typing/invalid/serde-map-key-payload-derive.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.map-key.derive-payload-reject
+typing/invalid/serde-map-key-struct-member-derive.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.map-key.derive-payload-reject
 runtime/valid/json-serde-private-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.private
 runtime/valid/serde-rename-all.hd	runtime	accept	std/serde.md#member-names
 runtime/valid/serde-rename.hd	runtime	accept	std/serde.md#member-names
+runtime/valid/serde-map-key-round-trip.hd	runtime	accept	std/serde.md#map-keys
 runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.data-and-enum-forms
 runtime/valid/time-serde-forms.hd	runtime	accept	std/time.md#r-std-time.serde.text-form
 runtime/valid/boundary-derived-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.in

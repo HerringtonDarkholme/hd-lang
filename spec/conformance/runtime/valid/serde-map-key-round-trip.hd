@@ -1,0 +1,100 @@
+# test: scalar, derived, and user map keys round trip through JSON
+# Spec std/serde Map Keys: std-serde.map-key.builtins, std-serde.map-key.user-text, std-serde.map-key.derive-shapes, std-serde.std.map-key-bound.
+# Spec std/json Standard Implementations: std-json.std.map-scalar-keys, std-json.std.map-key-write, std-json.std.map-key-read.
+use std.hash.Hash
+use std.json.{decode, encode, from_json, to_json}
+use std.serde.{MapKey, MapKeyValue}
+use std.testing.assert_equal
+
+@derive(Debug, Eq, Hash, MapKey)
+enum State:
+    Ready
+    Done
+
+@derive(Debug, Eq, Hash)
+struct Language:
+    code: string
+
+impl MapKey for Language:
+    fn to_key(self) -> MapKeyValue:
+        MapKeyValue.Text(self.code)
+
+    fn from_key(value: MapKeyValue) -> Language?:
+        match value:
+            .Text(code) => .Some(Language { code: code })
+            _ => .None
+
+@derive(Debug, Eq, Hash, MapKey)
+struct Marker: pass
+
+fn round_trip[K < Debug & Eq & Hash & MapKey](value: Map[K, i32]) -> void:
+    text := encode(value)
+    match decode::[Map[K, i32]](text):
+        .Ok(back) => assert_equal(back, value, reason="map key round trip")
+        .Err(error) => panic("map key decode failed: $error")
+    match from_json::[Map[K, i32]](to_json(value)):
+        .Ok(back) => assert_equal(back, value, reason="map key tree round trip")
+        .Err(error) => panic("map key tree read failed: $error")
+
+tests:
+    it("round trips signed integer keys"):
+        let mut value: Map[i32, i32] = {}
+        value[-7] = 1
+        assert_equal(encode(value), "{\"-7\":1}", reason="signed key text")
+        round_trip(value)
+
+    it("round trips every integer key type"):
+        let mut i8s: Map[i8, i32] = {}
+        i8s[-128i8] = 1
+        round_trip(i8s)
+        let mut i16s: Map[i16, i32] = {}
+        i16s[-32768i16] = 1
+        round_trip(i16s)
+        let mut i64s: Map[i64, i32] = {}
+        i64s[-9223372036854775808i64] = 1
+        round_trip(i64s)
+        let mut u8s: Map[u8, i32] = {}
+        u8s[255u8] = 1
+        round_trip(u8s)
+        let mut u16s: Map[u16, i32] = {}
+        u16s[65535u16] = 1
+        round_trip(u16s)
+        let mut u32s: Map[u32, i32] = {}
+        u32s[4294967295u32] = 1
+        round_trip(u32s)
+        let mut u64s: Map[u64, i32] = {}
+        u64s[18446744073709551615u64] = 1
+        round_trip(u64s)
+        let mut sizes: Map[usize, i32] = {}
+        sizes[4294967295usize] = 1
+        round_trip(sizes)
+
+    it("round trips character keys"):
+        let mut value: Map[char, i32] = {}
+        value['é'] = 2
+        assert_equal(encode(value), "{\"é\":2}", reason="character key text")
+        round_trip(value)
+
+    it("round trips boolean keys"):
+        let mut value: Map[bool, i32] = {}
+        value[true] = 3
+        assert_equal(encode(value), "{\"true\":3}", reason="boolean key text")
+        round_trip(value)
+
+    it("round trips derived unit-enum keys"):
+        let mut value: Map[State, i32] = {}
+        value[State.Ready] = 4
+        assert_equal(encode(value), "{\"Ready\":4}", reason="variant key text")
+        round_trip(value)
+
+    it("round trips a user MapKey type"):
+        let mut value: Map[Language, i32] = {}
+        value[Language { code: "hd" }] = 5
+        assert_equal(encode(value), "{\"hd\":5}", reason="user key text")
+        round_trip(value)
+
+    it("allows a derived empty-struct key"):
+        let mut value: Map[Marker, i32] = {}
+        value[Marker {}] = 6
+        assert_equal(encode(value), "{\"Marker\":6}", reason="empty struct key text")
+        round_trip(value)

@@ -1,0 +1,12 @@
+# test: a map whose key type has no MapKey implementation has no Serialize
+# Spec std/serde Standard Implementations: std-serde.std.map-key-missing.
+use std.hash.Hash
+use std.json.encode
+
+@derive(Eq, Hash)
+struct Point:
+    x: i32
+    y: i32
+
+fn show(points: Map[Point, i32]) -> string:
+    encode(points) # diagnostic: unsatisfied-trait-bound

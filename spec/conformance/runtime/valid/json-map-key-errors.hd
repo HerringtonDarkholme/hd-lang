@@ -1,0 +1,47 @@
+# test: JSON map keys follow serde_json's scalar text grammar and report the key path
+# Spec std/json Standard Implementations: std-json.std.map-key-bool, std-json.std.map-key-char, std-json.std.map-key-integer-grammar, std-json.std.map-key-integer-range, std-json.std.map-key-wrong-type.
+use std.json.{decode, JsonError}
+use std.hash.Hash
+use std.serde.MapKey
+
+fn failure[T < Eq & Hash & MapKey](text: string) -> JsonError:
+    match decode::[Map[T, i32]](text):
+        .Ok(_) => panic("expected a map-key error for $text")
+        .Err(error) => error
+
+tests:
+    it("rejects whitespace, plus, and leading zero integer keys"):
+        assert_equal(
+            failure::[i32]("{\" 1\":1}"),
+            JsonError.WrongType("$. 1", "map key"),
+            reason="leading whitespace",
+        )
+        assert_equal(
+            failure::[i32]("{\"+1\":1}"),
+            JsonError.WrongType("$.+1", "map key"),
+            reason="leading plus",
+        )
+        assert_equal(
+            failure::[i32]("{\"01\":1}"),
+            JsonError.WrongType("$.01", "map key"),
+            reason="leading zero",
+        )
+
+    it("rejects an integer key outside the requested type"):
+        assert_equal(
+            failure::[i32]("{\"2147483648\":1}"),
+            JsonError.WrongType("$.2147483648", "map key"),
+            reason="i32 range",
+        )
+
+    it("rejects noncanonical boolean and multi-character keys"):
+        assert_equal(
+            failure::[bool]("{\"True\":1}"),
+            JsonError.WrongType("$.True", "map key"),
+            reason="boolean spelling",
+        )
+        assert_equal(
+            failure::[char]("{\"ab\":1}"),
+            JsonError.WrongType("$.ab", "map key"),
+            reason="one character",
+        )

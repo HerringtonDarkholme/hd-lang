@@ -1,0 +1,8 @@
+# test: MapKey derivation rejects a payload-bearing enum
+# Spec std/serde Map Keys: std-serde.map-key.derive-payload-reject.
+use std.serde.MapKey
+
+@derive(MapKey) # diagnostic: member-not-derivable
+enum PayloadKey:
+    Empty
+    Value(i32)

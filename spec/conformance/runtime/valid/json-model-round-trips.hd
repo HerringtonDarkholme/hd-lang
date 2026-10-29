@@ -2,7 +2,7 @@
 # Spec std/json: std-json.derive.from-json.inverse, std-json.display.text,
 # std-json.display.escapes, std-json.derive.to-json.data-included-members,
 # std-json.derive.to-json.included-enum-form, std-json.decode.direct.
-# Spec std/serde: std-serde.std.optional, std-serde.std.list, std-serde.std.map-entries,
+# Spec std/serde: std-serde.std.optional, std-serde.std.list, std-serde.std.map-key-entries,
 # std-serde.std.tuple, std-serde.std.set, std-serde.member-name.precedence,
 # std-serde.skip.named-read-default, std-serde.skip.write, std-serde.skip-none.named-omit.
 use std.collections.Set
