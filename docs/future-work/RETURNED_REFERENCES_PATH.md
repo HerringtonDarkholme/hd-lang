@@ -286,20 +286,27 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:   # hypothetica
 Guards, scoped closures and `Span` reuse the same variable: `Span[T, 'a]`
 and a closure type `fn() -> void + 'a` (hypothetical).
 
-**Slices** (owner, 2026-10-29: break stage 6 down). Each is one job; later
-slices build on earlier ones.
+**Slices** (owner, 2026-10-29: break stage 6 down, each slice small and
+easy to iterate). One checkable rule per slice, in order:
 
-| Slice | What | Needs |
+| Slice | One rule | Needs |
 | --- | --- | --- |
-| 6a | struct and enum lifetime parameters (`struct Parser[T, 'src]`): fields `&'src T`, construction, field reads carry the lifetime, elided instances in signatures (`-> Parser` = `Parser['src]`), the scope rule for values that hold one | stage 5 |
-| 6b | stores into a caller's place: `fn remember['a](seen: &mut List[&'a User], u: &'a User)`, and a stored `List[&'a T]` | 6a |
-| 6c | lifetimes on traits, `type` aliases and impl targets (`impl[T, 'a] Wrap[&'a T]`) | 6a |
-| 6d | closures that capture local references: a closure value holds its captures' origins; a stored function type writes `+ 'a`; an only-called parameter needs none | 6a; owner: the `+ 'a` spelling |
-| 6e | read-only captures: plain `fn` captures shared, a mutating closure is `fn mut`; `require`'s condition becomes read-only (#978) | 6d; owner: the closure kinds |
-| 6f | scope guards over local references: `on_exit[T, 'a](action: fn mut() -> void + 'a) -> ScopeGuard['a]` under `using` (#978) | 6d, 6e; the exclusive capture is enforced at stage 7 |
-| 6g | library `defer` and `ensure` under `@auto_closing` (#978); `ensure` sees the result | 6f; owner: `ensure`'s result access |
-| 6h | live borrowed list views (`Span[T, 'a]`, Swift's `Span`, Rust's `&[T]`) beside the copy-on-write snapshots (#978) | 6a; owner: the API |
-| 6i | phantom markers for drop checking (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a; owner: whether hd needs drop checking yet |
+| 6a1 | a struct may declare lifetimes (`struct Parser[T, 'src]`) and a field may write `&'src T`; a construction's `&'src` field takes its origins from the argument | stage 5 |
+| 6a2 | reading a field typed `&'src T` from a `Parser['src]` value gives a reference whose origins are the value's `'src` origins | 6a1 |
+| 6a3 | an elided lifetime argument in a signature (`-> Parser`, `p: &Parser`) follows the elision rules, as for references | 6a2 |
+| 6a4 | the same for enums: variant payloads write `&'a T`; a match binding takes the payload's origins | 6a2 |
+| 6b1 | a store into a caller's place: `seen.push(u)` with `seen: &mut List[&'a User]` and `u: &'a User` is valid; a mismatched lifetime is not | 6a2 |
+| 6b2 | assigning a `&'a` field through `&mut Parser['a]` checks the same way | 6b1 |
+| 6c1 | a trait may declare lifetimes (`trait Source['a]`) | 6a3 |
+| 6c2 | a `type` alias may take and pass lifetimes | 6a3 |
+| 6c3 | an impl target may write lifetimes (`impl[T, 'a] Wrap[&'a T]`) | 6a3 |
+| 6d1 | a closure may capture a local reference when it is only passed to a parameter that calls it, never stored; its value carries the captures' origins | 6a2 |
+| 6d2 | a stored function type writes `+ 'a`; a closure capturing local references fits only a type bounded by their lifetime | 6d1; owner: the `+ 'a` spelling |
+| 6e | read-only captures: plain `fn` captures shared, a mutating closure is `fn mut`; `require`'s condition becomes read-only (#978) | 6d1; owner: the closure kinds |
+| 6f | `on_exit[T, 'a](action: fn mut() -> void + 'a) -> ScopeGuard['a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d2, 6e |
+| 6g | library `defer` and `ensure` under `@auto_closing` (#978) | 6f; owner: `ensure`'s result access |
+| 6h | read-only live list views, `Span[T, 'a]` (#978); `SpanMut` after | 6a3; owner: the API |
+| 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
 
 ### Stage 7: exclusivity
 
