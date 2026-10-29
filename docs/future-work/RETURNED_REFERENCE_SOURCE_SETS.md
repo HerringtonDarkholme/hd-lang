@@ -1,6 +1,6 @@
 # Returned References, Stage 3: Source Sets Or Lifetimes
 
-**Status:** decided 2026-10-29 (#1005): option A, single lifetime variables spelled `'name`, root-only provenance until stage 9. Nothing else in this
+**Status:** decided 2026-10-29 (#1005): option A, single lifetime variables spelled `'name`; bodies track field paths locally from stage 7 (option C's private path proofs), signatures never carry paths. Nothing else in this
 document is decided. It studies the open stage 3 syntax in
 [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md#stage-3-lifetime-variables).
 It reviews [Local References](../../spec/lang/13-values-and-references.md#local-references),

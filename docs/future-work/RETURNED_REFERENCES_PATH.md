@@ -221,48 +221,22 @@ caller's place shares one (`xs: &mut List[&'a T], x: &'a T`). A function
 type takes the same elision as a declaration, so `fn(&User) -> &string`
 depends on its one parameter.
 
-**Decided (owner, 2026-10-29, study #1005):** stage 3 builds single declared lifetime variables only, spelled `'name` (`fn choose['a](a: &'a User, b: &'a User) -> &'a User`). The checker keeps root-only provenance inside bodies until stage 9; parameter sources, sets and paths come later in the same position.
+**Decided (owner, 2026-10-29, study #1005):** stage 3 builds single declared lifetime variables only, spelled `'name` (`fn choose['a](a: &'a User, b: &'a User) -> &'a User`). The checker keeps root-only provenance inside bodies until stage 7, where bodies track field paths as Rust does; parameter-name and set sugar come later in the same position, and signatures never carry paths.
 
-**How the `'` position evolves** (owner, 2026-10-29: "lookup/sets/paths sound good"). Stage 3 builds declared variables only; later stages may put a parameter name, a set or a path in the same position without changing anything stage 3 wrote:
+**How the `'` position evolves** (owner, 2026-10-29). A parameter name or a set in the `'` position is syntax sugar for a lifetime variable the signature did not declare; it adds no meaning of its own. Stage 3 builds declared variables only; the sugar comes later without changing anything stage 3 wrote:
 
 ```text
 fn choose['a](a: &'a User, b: &'a User) -> &'a User     # stage 3: a declared variable
-fn choose(a: &User, b: &User) -> &'{a, b} User          # later: parameter sources, a set
-fn name(&self) -> &'self string                          # later: today's elision, written out
-fn get_name(user: &User) -> &'user.name string          # stage 9: a field path
-fn first(&self) -> &'self.items[_] T?                   # stage 9: an element of a field
+fn name(&self) -> &'self string                          # = fn name['s](&'s self) -> &'s string
+fn choose(a: &User, b: &User) -> &'{a, b} User          # = fn choose['x](a: &'x User, b: &'x User) -> &'x User
+
 ```
 
-- **Lookup:** `'x` names a declared lifetime first, then a parameter. A lifetime with a parameter's name is an error.
-- **Sets:** `'{a, b}` lists several sources; one source drops the braces.
-- **Paths:** `'p.f.g` and `'p.items[_]` extend a parameter source. A `pub` signature names only fields visible where it is written; a trait names only `'self` or a variable; a path through a `*mut` widens to the whole referent there.
+- **Lookup:** `'x` names a declared lifetime first, then a parameter. A lifetime with a parameter's name is an error; a by-value parameter is no source.
+- **Sets:** `'{a, b}` gives several sources one variable; one source drops the braces.
+- **No paths in signatures.** A field or element path (`'p.left`, `'l[_]`, `'l[_].field`) is not part of the design (owner, 2026-10-29): it names a lifetime inside a type, so two paths can name the same lifetime while reading as different parts. A lifetime inside a type is a declared variable: `fn f['b](l: &List[&'b Other]) -> &'b Other`.
+- **Paths inside bodies, as Rust.** The checker tracks field paths locally: within one body, a borrow of `s.name` and a write to `s.age` touch different places. Stage 7 uses this for conflicts (`r := &s.name; s.age += 1` is valid), while a call's result still locks its whole source (`r := s.name(); s.age += 1` is a stage 7 error). Stages 1 to 6 need no conflict precision, so their provenance stays root-only.
 - **Lexing:** a character literal closes with `'`; anything else after the identifier makes a lifetime.
-- **What a path names** (owner, 2026-10-29). `'path` follows the path; if the value there is a reference, it names what that reference points to (Swift's `copy`, Mojo's `ref` bindings), otherwise it borrows the place (Swift's `borrow`). So `fn f(l: &List[&Other]) -> &'l[_] Other` is Rust's `fn f<'a, 'b>(l: &'a Vec<&'b Other>) -> &'b Other`: the caller may push to `l` while the result lives. `-> &'l Other` borrows the list instead (`&'a Other`), and `'l[_]` over a `List[User]` borrows the element slot (stage 4).
-
-**A candidate syntax, not decided.** One source set may hold every kind of
-source, as Mojo 1.0's `ref[...]` holds both expressions and origin
-parameters:
-
-```text
-fn get_name(user: &User) -> &{user.name} string        # a field path   (hypothetical syntax)
-fn first(&self) -> &{self.items[_]} T?                 # an element      (hypothetical syntax)
-fn choose(a: &User, b: &User) -> &{a, b} User          # either source   (hypothetical syntax)
-struct Parser[^src]:                                    # a lifetime variable on a type
-    text: &{^src} string                                # (hypothetical syntax)
-fn push[^a, T](xs: &mut List[&{^a} T], x: &{^a} T)     # a store into a caller's place
-```
-
-A path makes stage 7's freeze precise: while `n := get_name(&u)` lives,
-only `u.name` is locked, so stage 9's views would not be needed. Open
-points:
-- the sigil (`^l`, `'l` or another);
-- paths through private fields in a `pub` signature;
-- traits, which can't name an impl's fields;
-- precision past a `*mut` on the path.
-
-Before stage 3 starts, a study (#1005) prices it: the implementation cost of
-path-aware loans across calls, and a stress test on real code against
-plain lifetime variables.
 
 ### Stage 4: element results
 
