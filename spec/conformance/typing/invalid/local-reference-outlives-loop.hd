@@ -1,0 +1,8 @@
+# test: a reference to a loop-body local, read after the loop, outlives the local
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope, ref.dep.scope.loop.
+fn last(x: i32) -> i32:
+    let a: &i32 = &x
+    for i in 0..3:
+        c := +4
+        a = &c
+    *a # diagnostic: local-reference-outlives-local

@@ -169,6 +169,8 @@ reference must lie in the scope of each local of its origin set: inside that
 local's block and after its declaration. The origin sets of stage 1 give the
 check; it is per use, not per assignment. Error:
 `local-reference-outlives-local`, with no fix-it.
+Specified as [Local Scope](../../spec/lang/13-values-and-references.md#local-scope)
+(#1007).
 
 ```text
 let a: &i32 = &x

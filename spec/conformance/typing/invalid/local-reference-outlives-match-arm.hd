@@ -1,0 +1,8 @@
+# test: a match arm's binding is in scope only in its arm
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope, ref.dep.scope.binding.
+fn first(x: i32, o: i32?) -> i32:
+    let a: &i32 = &x
+    match o:
+        .Some(v) => a = &v
+        .None => pass
+    *a # diagnostic: local-reference-outlives-local

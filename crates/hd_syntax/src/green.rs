@@ -291,6 +291,13 @@ impl<'t> NodeRef<'t> {
         }
     }
 
+    /// One past the preorder index of the node's last descendant, so
+    /// node `m` lies inside this one when `index() <= m < end()`.
+    #[must_use]
+    pub fn end(self) -> NodeIdx {
+        NodeIdx::from_raw(self.index.raw() + self.tree.subtree_len[self.index.idx()])
+    }
+
     pub fn descendants(self) -> impl Iterator<Item = NodeRef<'t>> {
         let start = self.index.idx() + 1;
         let end = self.index.idx() + self.tree.subtree_len[self.index.idx()] as usize;

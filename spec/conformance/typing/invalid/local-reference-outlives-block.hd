@@ -1,0 +1,8 @@
+# test: a reference to an inner block's local, read after the block, outlives the local
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope, ref.dep.scope.binding.
+fn pick(x: i32, b: bool) -> i32:
+    let a: &i32 = &x
+    if b:
+        c := +123
+        a = &c
+    *a # diagnostic: local-reference-outlives-local

@@ -1,0 +1,11 @@
+# test: a binding declared outside a loop that may point into a loop-body local is read in a later iteration
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope.loop.
+fn total(x: i32) -> i32:
+    let a: &i32 = &x
+    let sum = +0
+    for i in 0..3:
+        c := +4
+        if i == 0:
+            a = &c
+        sum += *a # diagnostic: local-reference-outlives-local
+    sum

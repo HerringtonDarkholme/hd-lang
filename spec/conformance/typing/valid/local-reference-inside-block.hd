@@ -1,0 +1,17 @@
+# test: a reference to an inner block's local, used only inside that block, is valid
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope, ref.dep.scope.binding.
+fn pick(x: i32, b: bool) -> i32:
+    let a: &i32 = &x
+    if b:
+        c := +123
+        a = &c
+        return *a
+    0
+
+fn rounds(x: i32) -> i32:
+    let sum = +0
+    for i in 0..3:
+        c := x + 1
+        r := &c
+        sum += *r
+    sum

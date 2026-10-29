@@ -487,6 +487,46 @@ fn optional(u: &User) -> &string?:
 > lifetimes without their flow sensitivity. A later stage may make them
 > flow-sensitive and accept more programs.
 
+### Local Scope
+
+A local reference may point into a local of the function only while that local exists.
+
+1. r[ref.dep.scope] Every use of a value whose origin set holds a local of the function, other than a parameter, must lie in that local's scope. Error: `local-reference-outlives-local`.
+2. r[ref.dep.scope.binding] A binding is in scope from the end of the statement that declares it to the end of the suite that holds that statement. A `match` arm's binding is in scope in its arm, and a `for` loop's binding in the loop's body.
+3. r[ref.dep.scope.temporary] The hidden local of `&e` is in scope from the start of the statement that holds `&e` to the end of the suite that holds that statement.
+4. r[ref.dep.scope.loop] A local declared in a loop's body is out of scope in the loop's later iterations. Since origin sets ignore the order of statements, a read inside the loop of a binding declared outside it, whose origin set holds such a local, is a use in a later iteration.
+5. r[ref.dep.scope.message] The diagnostic's message names the binding and the local, as in "`a` may point into `c`, whose block has ended". It has no fix-it.
+
+```text
+fn pick(x: i32, b: bool) -> i32:
+    let a: &i32 = &x
+    if b:
+        c := +123
+        a = &c
+    *a  # error: local-reference-outlives-local
+
+fn last(x: i32) -> i32:
+    let a: &i32 = &x
+    for i in 0..3:
+        c := +4
+        a = &c
+    *a  # error: local-reference-outlives-local
+
+fn total(x: i32) -> i32:
+    let a: &i32 = &x
+    let sum = +0
+    for i in 0..3:
+        sum += *a  # error: local-reference-outlives-local
+        c := +4
+        a = &c
+    sum
+```
+
+Storage that must outlive its block is boxed at its declaration, and the binding holds a `*T`.
+
+> **Why.** This is Rust's E0597. Without it, such a local would need counted
+> storage that no `box` made, and `&` would not be truly local.
+
 See also: [Element References](#element-references),
 [Reference Receivers](07-functions.md#reference-receivers).
 

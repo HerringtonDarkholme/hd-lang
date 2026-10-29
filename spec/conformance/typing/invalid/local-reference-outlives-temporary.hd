@@ -1,0 +1,13 @@
+# test: the hidden local of &e in an inner block ends with that block
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope, ref.dep.scope.temporary.
+struct User:
+    age: i32
+
+fn make() -> User:
+    User { age: 1 }
+
+fn age(u: &User, b: bool) -> i32:
+    let a = u
+    if b:
+        a = &make()
+    a.age # diagnostic: local-reference-outlives-local

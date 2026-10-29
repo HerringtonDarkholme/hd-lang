@@ -1,0 +1,10 @@
+# test: in a loop body, a read before a local's declaration sees the local of an earlier iteration
+# Spec 13 Dependent Results, Local Scope: ref.dep.scope, ref.dep.scope.loop.
+fn total(x: i32) -> i32:
+    let a: &i32 = &x
+    let sum = +0
+    for i in 0..3:
+        sum += *a # diagnostic: local-reference-outlives-local
+        c := +4
+        a = &c
+    sum

@@ -5154,6 +5154,14 @@ typing/invalid/local-reference-escapes-function-type-result.hd	type	reject:local
 runtime/valid/dependent-result-reassigned-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.caller
 runtime/valid/dependent-result-caller-side.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.caller
 runtime/valid/dependent-result-temporary.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.temporary
+typing/invalid/local-reference-outlives-block.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
+typing/invalid/local-reference-outlives-loop.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope.loop
+typing/invalid/local-reference-outlives-loop-before-declaration.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope.loop
+typing/invalid/local-reference-outlives-loop-iteration.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope.loop
+typing/invalid/local-reference-outlives-temporary.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope.temporary
+typing/invalid/local-reference-outlives-match-arm.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope.binding
+typing/valid/local-reference-inside-block.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.scope
+typing/valid/local-reference-outer-local-in-block.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.scope.binding
 runtime/valid/impl-trait-nested-tuples.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/impl-trait-nested-option.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/impl-trait-nested-local.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested

@@ -16,11 +16,11 @@
 use hd_base::SliceSort as _;
 use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
 use hd_diag::Code;
-use hd_syntax::NodeRef;
+use hd_syntax::{GreenTree, NodeRef, SyntaxKind};
 use hd_tir::ir::{Body, BodyKind, Callee, NONE, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData, Types};
 
-use crate::body::Ck;
+use crate::body::{BodyCx, Ck};
 use crate::local_refs::holds_local_ref;
 
 /// What a function's result depends on (`ref.dep.elide`).
@@ -397,6 +397,10 @@ impl Ck<'_, '_> {
         let mut through = false;
         for i in 0..body.tags.len() {
             match body.tags[i] {
+                // A block's or a loop's value may leave a local's scope.
+                Tag::Block | Tag::Loop if w(i) != root.0 && holds_local_ref(pool, body.ty[i]) => {
+                    through = true;
+                }
                 Tag::Call | Tag::Await | Tag::CallDyn if holds_local_ref(pool, body.ty[i]) => {
                     let def = match body.tags[i] {
                         Tag::CallDyn => body.record(body.data[i][1]).first().copied(),
@@ -474,6 +478,13 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        // A returned value's origins are `ref.dep.return`'s.
+        let mut skip: HashSet<u32> = HashSet::default();
+        if src.is_some() {
+            skip.extend(returned(body, root.0));
+        }
+        skip.insert(root.0);
+        let outlives = scoped_uses(&s, &skip, self.cx);
         for at in stores {
             if at == NodeIdx::NONE {
                 continue;
@@ -493,6 +504,10 @@ impl Ck<'_, '_> {
             let msg = self.origin_message(o, k, fun);
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::LocalReferenceEscapes, node, &msg);
+        }
+        for (at, msg) in outlives {
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::LocalReferenceOutlivesLocal, node, &msg);
         }
     }
 
@@ -641,5 +656,201 @@ fn site(s: &Solve<'_>, v: u32, o: Origin, depth: u32) -> NodeIdx {
             if at == NodeIdx::NONE { here } else { at }
         }
         None => here,
+    }
+}
+
+/// Where a local of the body is in scope (`ref.dep.scope`): the preorder
+/// node range `[lo, hi)` that its uses lie in, and the node range of the
+/// loop each of whose iterations makes it anew.
+#[derive(Clone, Copy)]
+struct Scope {
+    lo: u32,
+    hi: u32,
+    lp: Option<(u32, u32)>,
+}
+
+/// The node that declares origin `o`, a binding's pattern or a compiler
+/// local's or a temporary's expression, and whether it is a temporary or
+/// a compiler local (`$cur`). `None` for what the caller owns and for a
+/// parameter, which is in scope in the whole body.
+fn decl_node(b: &Body, cx: &BodyCx<'_>, o: Origin) -> Option<(NodeIdx, bool)> {
+    let (n, temp) = match o {
+        Origin::Local(l) if b.local_flags[l as usize] & hd_tir::ir::local_flags::PARAM == 0 => (
+            b.local_syn[l as usize],
+            cx.names.text(b.local_name[l as usize]).starts_with('$'),
+        ),
+        Origin::Hidden(h) => (b.syn[h as usize], true),
+        _ => return None,
+    };
+    (n != NodeIdx::NONE).then_some((n, temp))
+}
+
+/// The preorder range of node `n`: its index and one past its last
+/// descendant.
+fn range(n: NodeRef<'_>) -> (u32, u32) {
+    (n.index().raw(), n.end().raw())
+}
+
+/// The first suite of node `p`: a loop's body.
+fn first_block(p: NodeRef<'_>) -> Option<NodeRef<'_>> {
+    p.children().find(|c| c.kind() == SyntaxKind::Block)
+}
+
+/// The scope of origin `o`, declared at node `n`. A `let`, `:=` or
+/// pattern binding is in scope from the end of its statement or binding
+/// to the end of its suite, a `match` arm's in its arm, a `for` pattern's
+/// in the loop body, and a comprehension's in the comprehension. A
+/// temporary or a compiler local is in scope from the start of its
+/// statement to the end of its suite (`ref.dep.scope.temporary`).
+fn scope_of(tree: &GreenTree, n: NodeIdx, temp: bool) -> Option<Scope> {
+    let x = n.raw();
+    let mut path = vec![tree.root()];
+    while let Some(c) = path.last().and_then(|p| {
+        p.children().find(|c| {
+            let (lo, hi) = range(*c);
+            lo <= x && x < hi
+        })
+    }) {
+        path.push(c);
+    }
+    let mut lo = temp.then_some(x);
+    let mut region = None;
+    let mut lp = None;
+    let mut looped = false;
+    for k in (0..path.len()).rev() {
+        let p = path[k];
+        let (pl, ph) = range(p);
+        let up = k.checked_sub(1).map(|j| path[j]);
+        // The loop whose every iteration runs the declaration.
+        if !looped {
+            let per_iteration = |p: NodeRef<'_>| {
+                let head = p.children().next().map(range);
+                let body = first_block(p).map(range);
+                [head, body].iter().flatten().any(|&(l, h)| l <= x && x < h)
+            };
+            match p.kind() {
+                SyntaxKind::ForExpr | SyntaxKind::WhileExpr if per_iteration(p) => {
+                    lp = Some((pl, ph));
+                    looped = true;
+                }
+                SyntaxKind::ComprehensionExpr => {
+                    lp = Some((pl, ph));
+                    looped = true;
+                }
+                SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => looped = true,
+                _ => {}
+            }
+        }
+        if region.is_some() {
+            continue;
+        }
+        match p.kind() {
+            SyntaxKind::LetStmt | SyntaxKind::BindingExpr if lo.is_none() => lo = Some(ph),
+            SyntaxKind::MatchArm if lo.is_none() => region = Some((pl, ph)),
+            SyntaxKind::ForExpr if lo.is_none() => region = first_block(p).map(range),
+            SyntaxKind::ComprehensionFor if lo.is_none() => region = up.map(range),
+            SyntaxKind::Block | SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => {
+                // A temporary's statement uses it from its start.
+                let stmt = path.get(k + 1).map(|c| c.index().raw());
+                let lo = lo?;
+                region = Some((if temp { stmt.unwrap_or(lo) } else { lo }, ph));
+            }
+            _ => {}
+        }
+    }
+    let (lo, hi) = region?;
+    Some(Scope { lo, hi, lp })
+}
+
+/// `ref.dep.scope`: each use of a value with a local's origin lies in
+/// that local's scope and, for a loop-body local, reads no binding
+/// that outlives the iteration.
+fn scoped_uses(s: &Solve<'_>, skip: &HashSet<u32>, cx: &BodyCx<'_>) -> Vec<(NodeIdx, String)> {
+    let b = s.b;
+    let tree = &cx.src.parse.tree;
+    let mut scopes: HashMap<Origin, Option<Scope>> = HashMap::default();
+    let mut bad: Vec<(NodeIdx, Origin, Option<Origin>, bool, u32)> = Vec::new();
+    for i in 0..b.tags.len() {
+        let at = b.syn[i];
+        if at == NodeIdx::NONE || skip.contains(&w(i)) {
+            continue;
+        }
+        // The value's origins, and those of each binding a place reads.
+        let mut uses: Vec<(Option<Origin>, Origin)> = s.val[i].iter().map(|&o| (None, o)).collect();
+        let deref = |word| {
+            b.decode_place(word)
+                .is_some_and(|p| p.proj.contains(&Proj::Deref))
+        };
+        let tag = b.tags[i];
+        if matches!(tag, Tag::Read | Tag::Ref) || tag == Tag::Store && deref(b.data[i][0]) {
+            for st in s.place(w(i), b.data[i][0]).0 {
+                if matches!(st, Origin::Local(_) | Origin::Hidden(_)) {
+                    uses.extend(s.held(st).into_iter().map(|o| (Some(st), o)));
+                }
+            }
+        }
+        for (st, o) in uses {
+            if st == Some(o) {
+                continue;
+            }
+            let Some(sc) = *scopes
+                .entry(o)
+                .or_insert_with(|| decl_node(b, cx, o).and_then(|(n, t)| scope_of(tree, n, t)))
+            else {
+                continue;
+            };
+            let u = at.raw();
+            let in_loop = |n: u32| sc.lp.is_some_and(|(lo, hi)| lo <= n && n < hi);
+            let earlier = if sc.lo <= u && u < sc.hi {
+                // In scope, but a binding declared outside the local's
+                // loop may hold an earlier iteration's reference.
+                let kept = st
+                    .is_some_and(|st| decl_node(b, cx, st).is_none_or(|(n, _)| !in_loop(n.raw())));
+                if !(sc.lp.is_some() && kept) {
+                    continue;
+                }
+                true
+            } else {
+                in_loop(u) && u < sc.lo
+            };
+            bad.push((at, o, st, earlier, w(i)));
+        }
+    }
+    bad.sort_stable_by_key(|x| x.0.raw());
+    let mut seen = HashSet::default();
+    bad.into_iter()
+        .filter(|x| seen.insert(x.1))
+        .map(|(at, o, st, earlier, i)| (at, scope_message(b, cx, o, st, earlier, i)))
+        .collect()
+}
+
+/// `ref.dep.scope.message`: the binding or value that may point into
+/// local `o` out of its scope, read at instruction `i` from `st`.
+fn scope_message(
+    b: &Body,
+    cx: &BodyCx<'_>,
+    o: Origin,
+    st: Option<Origin>,
+    earlier: bool,
+    i: u32,
+) -> String {
+    let named = |l: u32| {
+        let n = cx.names.text(b.local_name[l as usize]);
+        (!n.starts_with('$')).then(|| format!("`{n}`"))
+    };
+    let holder = match st {
+        Some(Origin::Local(l)) => named(l),
+        _ => b.local_read(i as usize).and_then(|l| named(l.raw())),
+    }
+    .unwrap_or_else(|| "this value".to_owned());
+    let target = match o {
+        Origin::Local(l) => named(l),
+        _ => None,
+    }
+    .unwrap_or_else(|| "a temporary".to_owned());
+    if earlier {
+        format!("{holder} may point into {target} from an earlier iteration of its loop")
+    } else {
+        format!("{holder} may point into {target}, whose block has ended")
     }
 }
