@@ -19,10 +19,6 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 ### Application and host
 
-- [HTTP Multipart Forms](HTTP_MULTIPART.md): buffered `multipart/form-data` parts over the existing HTTP message types; implemented in `std.http` (#948).
-- [HTTP Response Decompression](HTTP_DECOMPRESSION.md): implemented by the [`std.http` decoded-response rules](../../spec/std/http.md#decoded-responses).
-- [Validation](VALIDATION.md): short design for typed JSON/CLI/environment validation; design accepted 2026-10-28 and revised 2026-10-29 (no rule wrappers, a `message =` argument, payload-typed facts on optional members); built (#976).
-
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Host Embedding](HOST_EMBEDDING.md): parked proposal for embedding hd in an application; package host capabilities are designed in #51.
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
@@ -34,17 +30,11 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
 - [Scope Guards](SCOPE_GUARDS.md): accepted: sync `using`, `using!` and error-level `unbound-disposable` built (#962); `on_exit` built; `@auto_closing` and tier-2 guard lifetimes in #978.
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
-- [Build-Profile-Dependent Code](BUILD_PROFILE_CODE.md): accepted `@cfg(.Debug)` and
-  `@cfg(.Release)` declaration variants, checked in every profile (#965).
-- [Enum Tagging Facts](ENUM_TAGGING.md): implemented internal, adjacent and untagged serde enum forms as one fact; the std specification is normative (#954).
 - [Design By Contract](DESIGN_BY_CONTRACT.md): `require(message, condition)` as ordinary std code, checked in every profile until `@cfg` splits it; `ensure` deferred to tier 2 (#978); design accepted 2026-10-28 (#880).
-- [Weak References](WEAK_REFERENCES.md): weak references as a std type with a side-table runtime; approved (#720).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
 
 ### Tooling
 
-- [hd fmt](HD_FMT.md): the approved formatter architecture: one fixed style, comment attachment and a bounded document printer (#906); implemented (#899).
-- [hd lint](HD_LINT.md): the approved shared lint architecture: one rule registry, one analysis walk, policy applied once, a per-module findings cache (#908); the #855 migration onto it is complete.
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
 - [Live Execution](live-execution.md): the built REPL, journal, replay and session rebuilds (#17).
 
