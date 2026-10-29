@@ -117,7 +117,7 @@ checker sees the source, and panics through a counted alias:
   (it panicked `collection-pinned` before);
 - replacing a `*mut` field that a live result's path crosses (it was valid
   before, with a stale result);
-- under a full Swift law (question 2), also any plain write to the source
+- under a full Swift law (question 1), also any plain write to the source
   while a `&mut` result is live.
 
 ### Stage 2: frame-slot results
@@ -186,7 +186,7 @@ count of the buffer, which is the pin, until its last use (DESIGN.md
 2. **Source positions.** Each `&` or `&mut` in a parameter's type is one
    reference position: in `&self`, in `p: &T`, in `opt: &T?`, and in each
    element of `pair: (&A, &B)`.
-3. **Elision.** A result that holds a local reference depends on `self`
+3. **Elision, as in Rust.** A result that holds a local reference depends on `self`
    when the receiver is `&self` or `&mut self`. Otherwise it depends on the
    parameter of the one reference position. With no position, it is an
    error: `reference-result-without-source`. With two or more and no
@@ -404,22 +404,18 @@ Stop at 1.5 times that. Run time:
 - `element-reference-outlives-call` (existing), for rule 8.
 
 ## Owner Questions
-1. **Elision.** Rust's three rules, counting reference positions, or C#'s
-   rule that a result may come from any reference argument.
-   **Recommendation:** Rust's. C#'s rule never errors, but it ties every
-   result to every argument.
-2. **Exclusivity, stage 7.** Freeze a borrowed path's shape only (length,
+1. **Exclusivity, stage 7.** Freeze a borrowed path's shape only (length,
    variant, references along it), or follow Swift's full law, where a live
    `&mut` result bars every other access. **Recommendation:** shape only.
    It generalizes E, and keeps `swap(&mut xs[i], &mut xs[j])` and
    `n := u.name(); u.age += 1` valid.
-3. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
+2. **The `*` fix-it.** `ref.local.escape.fix` still offers "write `*`" on
    every escape row. **Recommendation:** drop it on all rows with stage 1,
    since it cannot work for a field or an element.
-4. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
+3. **Rule 9 closes a slip.** `show(p)` with `p: &T` passed to a generic
    `T` becomes an error. **Recommendation:** yes. It is a soundness fix, and
    stage 5 lifts it properly.
-5. **The generic default, stage 5.** Every `T` may hold a local reference,
+4. **The generic default, stage 5.** Every `T` may hold a local reference,
    with `T < global` at persistent boundaries (Rust's model, as in #999).
    Or a type parameter opts in, as Swift's `~Escapable` does.
    **Recommendation:** Rust's. Only a few std headers need `T < global`:
