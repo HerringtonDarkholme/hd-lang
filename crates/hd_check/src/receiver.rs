@@ -264,7 +264,8 @@ impl Ck<'_, '_> {
             }
         };
         // A receiver of a call: its `&mut` is held until the call returns,
-        // and an element reference begins an access (`ref.elem.access`).
+        // and a direct element-reference receiver begins an access
+        // (`ref.elem.access.live`).
         let receiver = self
             .elem_ok
             .get(&crate::elem_refs::strip_parens(base).index())

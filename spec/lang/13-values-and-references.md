@@ -416,10 +416,9 @@ fn demo(u: &mut User) -> void:
 8. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
 9. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
 10. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
-11. r[ref.dep.element] An element reference, a `for p in &xs` binding included, must not be the source argument of a call with a dependent result. Error: `element-reference-outlives-call`.
-12. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
-13. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
-14. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
+11. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
+12. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
+13. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
 
 ```text
 struct User:
@@ -454,6 +453,7 @@ An **origin** is a storage root that a local reference may point into. It is wha
 | --- | --- | --- |
 | r[ref.dep.origin.param] Parameter | `p`, for a parameter whose type holds a local reference | what `p` refers to |
 | r[ref.dep.origin.place] Place | `&x` or `&x.f.g`, for a local or a parameter `x` | `x`'s own storage |
+| r[ref.dep.origin.element] Element place | `&xs[i]`, `&m[k]`, or an element reference loop binding | the origin of the collection's root place |
 | r[ref.dep.origin.reborrow] Reborrow | `&r.f`, `&*r`, or an automatic address through a reference value `r` | the origins of `r` |
 | r[ref.dep.origin.counted] Counted crossing | a place reached through a counted reference, as `&h.p.x` with `p: *mut P` | the origins of the place the counted reference was read from |
 | r[ref.dep.origin.lend] Lent counted reference | a counted reference read from a place and lent as a source argument | that place's origins |
@@ -796,15 +796,15 @@ fn invalid() -> void:
 
 > **Why.** A list grows by moving its elements. Go keeps the old array
 > alive, so a write through an old pointer silently stops reaching the
-> slice. A reference that lives for one call never sees the list move.
-> Code that keeps an element between calls keeps its index. A handle that
+> slice. An element reference instead pins the collection while it lives,
+> so a length change cannot silently detach the reference. A handle that
 > survives a sort is a reference stored in the list, `List[*mut Player]`,
 > or an ID.
 
 ### Call-Scoped Access
 
-An element reference is an argument of one call, and the collection's
-length holds still until that call returns.
+An element reference is a local reference value. Its collection's length
+holds still until the reference's last use.
 
 ```text
 fn bump(score: &mut i32) -> void:
@@ -815,25 +815,23 @@ fn record(scores: &mut List[i32], score: &mut i32) -> void:
 
 fn demo() -> void:
     let mut scores = [+1, 2]
-    bump(&mut scores[0])                 # valid: the access ends with the call
+    bump(&mut scores[0])                 # valid: the access ends after this use
     record(&mut scores, &mut scores[0])  # error: conflicting-access
-    best := &mut scores[1]               # error: element-reference-outlives-call
+    best := &mut scores[1]
+    *best += 1
 ```
 
-1. r[ref.elem.call] An element reference may be written only as an argument of a function or method call, or as the receiver of a method call.
-2. r[ref.elem.access] The reference's **access** to its collection begins when the reference is taken and ends when the call returns.
-3. r[ref.elem.kept] Any other use of an element reference is an error: binding it to a name, assigning it, storing it in a field, an element, or a payload, and returning it. Error: `element-reference-outlives-call`.
-4. r[ref.elem.kept.fix] The diagnostic's fix-it keeps the index instead: each use of the reference names the element again, as `xs[i]`.
-5. r[ref.elem.access.length] While an access lasts, nothing may change the collection's length. Reads of the collection, and writes to its elements, the referenced one included, stay valid.
-6. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
-7. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
-8. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length is an error. Error: `conflicting-access`.
-9. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
-10. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
-11. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics. Panic: `collection-pinned`.
-12. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
-13. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
-14. r[ref.elem.callee-copy.declared] A reference parameter is one whose declared type is a reference, `*T`, `*mut T`, `&T`, or `&mut T`. A parameter declared as a type parameter `T` is not one, even when `T` is a reference type: an element reference passed for it is a value the callee may store, so passing it is keeping it ([`ref.elem.kept`](#r-ref.elem.kept)). Error: `element-reference-outlives-call`.
+1. r[ref.elem.local-value] An element reference is a local reference value. It may be bound, assigned, passed, and used as the source or result of a dependent call, subject to every rule of [Local References](#local-references) and [Dependent Results](#dependent-results).
+2. r[ref.elem.access.live] The reference's **access** to its collection begins when the reference is taken and ends after its last use.
+3. r[ref.elem.access.live-length] While an access lasts, nothing may change the collection's length. Reads of the collection, and writes to its elements, the referenced one included, stay valid.
+4. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
+5. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
+6. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length is an error. Error: `conflicting-access`.
+7. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
+8. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
+9. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics. Panic: `collection-pinned`.
+10. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
+11. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
 
 An argument may change the collection's length when it does one of the
 following to the collection, or to a place that holds it:

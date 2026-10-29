@@ -1,5 +1,5 @@
-# test: an element reference's access ends when its call returns, so the list may grow in the next statement
-# Spec 13 Call-Scoped Access: ref.elem.access, ref.elem.call.
+# test: a direct element reference's last use is its call, so the list may grow in the next statement
+# Spec 13 Call-Scoped Access: ref.elem.access.live, ref.elem.local-value.
 fn set(target: &mut i32, value: i32) -> void:
     *target = value
 

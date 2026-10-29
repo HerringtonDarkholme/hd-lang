@@ -1,5 +1,5 @@
 # test: for p in &xs binds a read-only reference to each element in turn, which the body may pass to a call
-# Spec 06 Element Reference Loops: flow.for.ref, flow.for.ref.binding.
+# Spec 06 Element Reference Loops: flow.for.ref, flow.for.ref.binding.local.
 fn read(value: &i32) -> i32:
     *value
 

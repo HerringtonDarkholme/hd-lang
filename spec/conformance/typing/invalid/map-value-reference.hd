@@ -1,8 +1,0 @@
-# test: binding a reference to a map value to a name is an error, since an element reference lives for one call
-# Spec 04 Map Values: types.coll.map-value.reference; Spec 13 Call-Scoped Access: ref.elem.kept.
-struct Stock:
-    count: i32
-
-fn count(shelves: Map[string, Stock]) -> i32:
-    found := &shelves["apple"] # diagnostic: element-reference-outlives-call
-    found.count

@@ -1,0 +1,9 @@
+# test: an element reference cannot be used outside its list's scope
+# Spec 13 Dependent Results: ref.dep.origin.element, ref.dep.scope.
+fn pick(use_inner: bool) -> i32:
+    zero := +0
+    let r: &i32 = &zero
+    if use_inner:
+        xs := [+1, 2]
+        r = &xs[0]
+    *r # diagnostic: local-reference-outlives-local

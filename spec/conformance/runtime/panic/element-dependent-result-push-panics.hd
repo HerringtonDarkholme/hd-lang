@@ -1,0 +1,16 @@
+# test: a returned element reference pins its list until its last use
+# Spec 13 Element References: ref.elem.access.pin, ref.elem.pinned; Dependent Results: ref.dep.origin.element.
+fn first_mut[T](xs: &mut List[T]) -> &mut T?:
+    if xs.len() == 0:
+        .None
+    else:
+        .Some(&mut xs[0])
+
+tests:
+    it("push panics while an element result is live"):
+        let mut xs = [+1, 2]
+        match first_mut(&mut xs):
+            .Some(r) =>
+                xs.push(3) # panic: collection-pinned
+                *r += 1
+            .None => pass

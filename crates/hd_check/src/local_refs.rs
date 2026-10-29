@@ -538,13 +538,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Reports the local reference `value` escaping to `at`. A value that
-    /// reported `element-reference-outlives-call` reports nothing more.
+    /// Reports the local reference `value` escaping to `at`.
     pub(crate) fn local_ref_escapes(&mut self, value: NodeRef<'_>, at: Escape) {
         let e = value_of(value);
-        if self.elem_kept.contains(&e.index()) {
-            return;
-        }
         let local = self.named_local(value);
         match local.and_then(|l| self.local_ref_token(l)) {
             Some(_) => self.err(Code::LocalReferenceEscapes, value, &message(at)),
@@ -651,9 +647,7 @@ impl Ck<'_, '_> {
     pub(crate) fn local_ref_captures(&mut self, mark: hd_tir::ir::SubMark, n: NodeRef<'_>) {
         let pool = self.pool();
         for l in self.b.open_captures(mark) {
-            // An element reference loop's binding reports
-            // `element-reference-outlives-call` instead.
-            if self.ref_captured.contains(&l) || self.elem_locals.contains(&l) {
+            if self.ref_captured.contains(&l) {
                 continue;
             }
             let t = self.infer.resolve(pool, self.b.local_ty(l));

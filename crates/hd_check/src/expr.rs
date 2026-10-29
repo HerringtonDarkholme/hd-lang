@@ -4041,7 +4041,6 @@ impl Ck<'_, '_> {
             self.set_local(l, Ref(NONE), n.index());
             self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         }
-        self.elem_ref_captures(mark, n);
         self.local_ref_captures(mark, n);
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }

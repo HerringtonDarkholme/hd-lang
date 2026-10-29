@@ -1,0 +1,21 @@
+# test: an element reference may be bound and may be returned as a dependent result
+# Spec 13 Element References: ref.elem.local-value; Dependent Results: ref.dep.origin.element.
+fn first_mut[T](xs: &mut List[T]) -> &mut T?:
+    if xs.len() == 0:
+        .None
+    else:
+        .Some(&mut xs[0])
+
+tests:
+    it("writes through a bound element reference"):
+        let mut xs = [+1, 2]
+        r := &mut xs[0]
+        *r += 4
+        assert_equal(xs[0], 5)
+
+    it("uses an element dependent result through match"):
+        let mut xs = [+1, 2]
+        match first_mut(&mut xs):
+            .Some(r) => *r += 6
+            .None => pass
+        assert_equal(xs[0], 7)
