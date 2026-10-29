@@ -4714,6 +4714,7 @@ runtime/valid/list-value-parameter-copy.hd	runtime	accept	lang/04-type-system.md
 runtime/valid/list-shared-reference-parameter.hd	runtime	accept	lang/04-type-system.md#r-types.coll.shared
 runtime/valid/list-element-places.hd	runtime	accept	lang/04-type-system.md#r-types.coll.element-place
 runtime/valid/list-reads-see-every-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.element-place
+runtime/valid/list-is-empty-after-push.hd	runtime	accept	std/collections.md#r-std-collections.access.is-empty
 runtime/valid/map-of-lists-nested-push.hd	runtime	accept	lang/04-type-system.md#r-types.coll.nested
 typing/valid/collection-let-mut-annotated.hd	type	accept	lang/04-type-system.md#r-types.coll.let-mut
 typing/invalid/map-value-reference.hd	type	reject:element-reference-outlives-call	lang/04-type-system.md#r-types.coll.map-value.reference

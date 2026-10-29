@@ -705,6 +705,17 @@ impl FactEnv for Env<'_> {
         def == self.run.known.list_is_empty
     }
 
+    fn is_facts(&self, ty: Ty) -> bool {
+        let mut ty = ty;
+        loop {
+            match self.run.pool.get(ty) {
+                TyData::Mut(inner) => ty = inner,
+                TyData::Adt { def, .. } => return def == self.run.known.facts,
+                _ => return false,
+            }
+        }
+    }
+
     fn known_facts(
         &self,
         def: DefId,

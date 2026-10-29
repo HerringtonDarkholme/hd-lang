@@ -18,6 +18,10 @@ pub trait FactEnv: StructureEnv {
     /// Whether `def` is the ordinary `List.is_empty` helper.
     fn list_is_empty(&self, def: DefId) -> bool;
 
+    /// Whether `ty` is the nominal `Facts` value. A literal list alone is not
+    /// declaration-fact provenance, even when its elements look like facts.
+    fn is_facts(&self, ty: Ty) -> bool;
+
     /// The concrete types in a fixed, literal, no-spread fact list and the
     /// checked bodies that prove them. `def` is either a generated
     /// `Structure.facts` factory or a fact body's `DefaultCall` target.
@@ -222,7 +226,9 @@ fn source_facts(
             depth + 1,
         ),
         Tag::NewStruct => {
-            if projected.is_empty() {
+            if (projected.is_empty() || matches!(projected, [Proj::Field(0)]))
+                && env.is_facts(*body.ty.get(instruction)?)
+            {
                 return literal_facts(env, body, stores, instruction, depth + 1);
             }
             let [Proj::Field(field), rest @ ..] = projected else {
@@ -233,7 +239,6 @@ fn source_facts(
                 .get(*field as usize)?;
             source_facts(env, body, stores, value, rest, depth + 1)
         }
-        Tag::NewList if projected.is_empty() => literal_fact_list(env, body, instruction),
         Tag::Call => {
             let Callee::Item { def, targs } = hd_tir::inline::plain_call(body, instruction)? else {
                 return None;

@@ -31,6 +31,9 @@ pub struct KnownItems {
     pub tuple: DefId,
     // std.structure
     pub structure: DefId,
+    /// `Facts`, whose `items` list may be inspected only after the value is
+    /// proved to be declaration facts.
+    pub facts: DefId,
     /// `Facts.find`, whose answer can be fixed after a generated declaration's
     /// concrete facts body is known.
     pub facts_find: DefId,
@@ -235,6 +238,7 @@ impl KnownItems {
             function_module: module("std.function"),
             tuple,
             structure,
+            facts: item("std.structure", "Facts"),
             facts_find: inherent_method("std.structure", "impl Facts", "find"),
             field: item("std.structure", "FieldRecord"),
             field_get: inherent_method(

@@ -1,0 +1,9 @@
+# test: List.is_empty observes a preceding push in optimized code
+# Spec std/collections List Access And Building: std-collections.access.is-empty.
+tests:
+    use std.testing.assert
+
+    it("a local list is not declaration-fact provenance"):
+        let mut xs: List[i32] = []
+        xs.push(1)
+        assert(!xs.is_empty(), reason="the pushed element makes the list nonempty")
