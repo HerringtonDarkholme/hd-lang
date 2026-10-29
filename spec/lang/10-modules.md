@@ -1004,10 +1004,15 @@ trait Console:
     fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.write_sync(text)
 
+pub enum ConsoleStream:
+    Stdout
+    Stderr
+    Stdin
+
 pub enum ConsoleError:
     Closed
-    NotGranted(subject: string)
-    Other(message: string)
+    NotGranted(stream: ConsoleStream)
+    Other(code: i32)
 ```
 
 1. r[module.console.host-trait] `Console` is a host capability trait.
@@ -1016,7 +1021,7 @@ pub enum ConsoleError:
 4. r[module.console.write-error-sync.raw] `write_error_sync` writes its text unchanged to error output, which a host keeps apart from the output of `write_sync`.
 5. r[module.console.write-error-sync.forwarding] The default `write_error_sync` body calls `write_sync` once with the same text.
 6. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
-7. r[module.console.error.variants] `ConsoleError` is a public enum with `Closed`, `NotGranted(subject: string)`, and `Other(message: string)`.
+7. r[module.console.error.coded-variants] `ConsoleError` is a public enum with `Closed`, `NotGranted(stream: ConsoleStream)`, and `Other(code: i32)`. It carries no host-made string.
 8. r[module.console.println] Thus `println` is convenient to name but not a global host API. Each call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
 9. r[module.console.println-two-writes-sync] `println(value)` calls the covering provider's `write_sync` once with `value.to_string()`, then once with `"\n"` after the first returns `.Ok(())`.
 10. r[module.console.println-non-suspending] `println` stays non-suspending: a call of it is not a bang call and needs no driver context.
@@ -1030,8 +1035,8 @@ pub enum ConsoleError:
 17. r[module.console.write-sync.signature] `Console` declares `fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]`.
 18. r[module.console.write-error-sync.signature] `Console` declares `fn write_error_sync(&mut self, text: string) -> Result[void, ConsoleError]`.
 19. r[module.console.error.closed-meaning] `Closed` reports a closed console stream.
-20. r[module.console.error.not-granted] `NotGranted(subject)` reports console access that was not granted.
-21. r[module.console.error.other] `Other(message)` reports another console failure with its message.
+20. r[module.console.error.not-granted-stream] `ConsoleStream` is a public unit enum with `Stdout`, `Stderr`, and `Stdin`; `NotGranted(stream)` reports access to that stream was not granted.
+21. r[module.console.error.other-code] `Other(code)` reports another console failure by its signed host error code.
 
 ```text
 pub fn main() -> void:

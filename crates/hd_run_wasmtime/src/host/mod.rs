@@ -44,6 +44,7 @@ mod state;
 pub use kind::supported;
 pub use link::{deadlock, define, unsupported_message};
 pub(crate) use link::{define_session, define_test};
+pub(crate) use output::OutputError;
 pub use reply::complete;
 pub(crate) use reply::{Ret, bytes, deliver_batch, handle, int_arg, text};
 pub use state::{Host, HostIo};

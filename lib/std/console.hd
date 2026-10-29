@@ -36,7 +36,7 @@ pub trait ConsoleInput:
     # (spec/std/console.md#r-std-console.input.read-all-default).
     # The host's provider overrides it with one read of standard input,
     # which keeps the text as it was, with `\r\n` read as `\n`
-    # (spec/std/console.md#r-std-console.input.read-all-host).
+    # (spec/std/console.md#r-std-console.input.read-all-host-coded-error).
     fn read_all!(&mut self) -> Result[string, ConsoleError]:
         out := StringBuilder::new()
         while true:
@@ -166,17 +166,33 @@ impl ConsoleInput for ScriptedInput:
             self.next = self.next + 1
         .Ok(out.build())
 
-# The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.variants).
-## The console's errors: closed, not granted, or another failure.
-## See [module.console.error.variants](../../spec/lang/10-modules.md#r-module.console.error.variants).
+# A console stream named by an access error.
+## The standard output, standard error, and standard input streams.
+## See [module.console.error.not-granted-stream](../../spec/lang/10-modules.md#r-module.console.error.not-granted-stream).
+@derive(Debug, Eq)
+pub enum ConsoleStream:
+    Stdout
+    Stderr
+    Stdin
+
+impl Display for ConsoleStream:
+    fn to_string(self) -> string:
+        match self:
+            .Stdout => "stdout"
+            .Stderr => "stderr"
+            .Stdin => "stdin"
+
+# The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.coded-variants).
+## The console's heap-free errors: closed, not granted, or another failure code.
+## See [module.console.error.coded-variants](../../spec/lang/10-modules.md#r-module.console.error.coded-variants).
 @derive(Debug, Eq)
 @error
 pub enum ConsoleError:
     @error("console closed")
     Closed
-    @error("console access to ${subject} is not granted")
-    NotGranted(subject: string)
-    @error("$message")
-    Other(message: string)
+    @error("console access to ${stream} is not granted")
+    NotGranted(stream: ConsoleStream)
+    @error("console error ${code}")
+    Other(code: i32)
 
 # Equality compares the error variant and its payload (r-std-console.error.traits).

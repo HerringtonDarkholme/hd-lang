@@ -1,11 +1,15 @@
 # test: discarded and observing calls of one host method preserve the observed error
 # fixture-runtime-profile: serde-vault
+
+pub enum VaultError:
+    Other(message: string)
+
 pub trait Vault:
-    fn keep(self, value: Result[void, ConsoleError]) -> Result[void, ConsoleError]
+    fn keep(self, value: Result[void, VaultError]) -> Result[void, VaultError]
 
 pub fn main() -> void $ Vault:
     _ := $.use(Vault).keep(.Err(.Other("discarded error")))
-    let kept: Result[void, ConsoleError] = $.use(Vault).keep(.Err(.Other("kept λ 🦀")))
+    let kept: Result[void, VaultError] = $.use(Vault).keep(.Err(.Other("kept λ 🦀")))
     _ := $.use(Vault).keep(.Err(.Other("a later host reply overwrites the exchange buffer")))
     match kept:
         .Err(.Other(message)) =>

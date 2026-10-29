@@ -11,7 +11,7 @@ let nextOperation = 1;
 let source = null;
 let initialized = false;
 let ended = false;
-let closed = false;
+let failure = null;
 let offset = 0;
 let available = [];
 
@@ -34,7 +34,7 @@ const serve = () => {
         break;
       }
     }
-    if (closed) state.result = { closed: true };
+    if (failure !== null) state.result = { error: failure };
     else if (newline || ended) {
       let bytes = Buffer.concat(state.parts.map((part) => part.bytes));
       if (state.kind === "line") {
@@ -75,13 +75,13 @@ function open(fd) {
       ended = true;
       serve();
     });
-    source.on("error", () => {
-      closed = true;
+    source.on("error", (error) => {
+      failure = Number.isInteger(error?.errno) ? error.errno : 0;
       serve();
     });
     source.pause();
-  } catch {
-    closed = true;
+  } catch (error) {
+    failure = Number.isInteger(error?.errno) ? error.errno : 0;
   }
 }
 

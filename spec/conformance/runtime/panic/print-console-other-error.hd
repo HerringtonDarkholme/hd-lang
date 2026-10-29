@@ -6,7 +6,7 @@ struct Failed: pass
 
 impl Console for Failed:
     fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
-        .Err(ConsoleError.Other("sink failed"))
+        .Err(ConsoleError.Other(1))
 
 pub fn main() -> void:
     $.with(Console=&mut Failed {}):

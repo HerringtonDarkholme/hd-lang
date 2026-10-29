@@ -14,7 +14,7 @@ export const failed = (error) =>
   Err(
     error.code === "EPIPE" || error.code === "ENOTCONN"
       ? { tag: "Closed" }
-      : { tag: "Other", message: String(error.message) },
+      : { tag: "Other", code: Number.isInteger(error?.errno) ? error.errno : 0 },
   );
 // Whether a write error means "try again later": a full pipe.
 export const full = (error) =>

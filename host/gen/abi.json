@@ -107,8 +107,13 @@
     "Command": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "program", "type": "string" }, { "name": "args", "type": "List[string]" }, { "name": "env", "type": "List[(string, string)]" }, { "name": "current_dir", "type": "Path?" }, { "name": "stdin", "type": "string" }] },
     "ConsoleError": { "kind": "enum", "module": "lib/std/console.hd", "generics": [], "variants": [
       { "name": "Closed", "fields": [] },
-      { "name": "NotGranted", "fields": [{ "name": "subject", "type": "string" }] },
-      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
+      { "name": "NotGranted", "fields": [{ "name": "stream", "type": "ConsoleStream" }] },
+      { "name": "Other", "fields": [{ "name": "code", "type": "i32" }] }
+    ] },
+    "ConsoleStream": { "kind": "enum", "module": "lib/std/console.hd", "generics": [], "variants": [
+      { "name": "Stdout", "fields": [] },
+      { "name": "Stderr", "fields": [] },
+      { "name": "Stdin", "fields": [] }
     ] },
     "Datagram": { "kind": "data", "module": "lib/std/net.hd", "generics": [], "fields": [{ "name": "bytes", "type": "List[u8]" }, { "name": "host", "type": "string" }, { "name": "port", "type": "u16" }] },
     "Duration": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },

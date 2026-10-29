@@ -361,7 +361,7 @@ export function lineReader(fd) {
     }
   };
   // The rest of the input as read, with `\r\n` read as `\n`
-  // (std-console.input.read-all-host).
+  // (std-console.input.read-all-host-coded-error).
   line.all = () => {
     while (!ended) if (!fill()) return false;
     const text = pending.toString("utf8");
@@ -371,8 +371,8 @@ export function lineReader(fd) {
   return line;
 }
 
-// `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err` when
-// it cannot be read. `env.readLine`, when a host has one, reads it instead
+// `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err(.Other(code))`
+// when the host descriptor cannot be read. `env.readLine`, when a host has one, reads it instead
 // of the input worker (the REPL keeps its framed control reader).
 function consoleInputProvider({ env, flush, inputClient }) {
   if (env.readLine === undefined && env.stdin !== null) {
@@ -393,7 +393,12 @@ function consoleInputProvider({ env, flush, inputClient }) {
       const finish = () => {
         inputClient.call({ op: "wait_finish", operation });
       };
-      const output = () => (result.closed ? Err({ tag: "Closed" }) : Ok(result.ok));
+      const output = () =>
+        result.error === undefined
+          ? result.closed
+            ? Err({ tag: "Closed" })
+            : Ok(result.ok)
+          : Err({ tag: "Other", code: result.error });
       if (poll()) {
         finish();
         return output();

@@ -50,13 +50,13 @@ test("denied Console captures no record and returns each stream's NotGranted", a
     policy: { allows: () => false },
     write: (record) => records.push(record),
   });
-  for (const [method, subject] of [
-    ["write_sync", "stdout"],
-    ["write_error_sync", "stderr"],
+  for (const [method, stream] of [
+    ["write_sync", "Stdout"],
+    ["write_error_sync", "Stderr"],
   ])
     assert.deepEqual(console[method]("private"), {
       ok: false,
-      error: { tag: "NotGranted", fields: { subject } },
+      error: { tag: "NotGranted", fields: { stream: { tag: stream, fields: {} } } },
     });
   lease.finish(false);
   await lease.run();

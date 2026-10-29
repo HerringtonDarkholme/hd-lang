@@ -420,7 +420,7 @@ pub fn main!() -> void $ Console + ConsoleInput:
 
 /// `read_all!` reads the rest of standard input whole, on both engines,
 /// as read, with `\r\n` read as `\n`
-/// (`std-console.input.read-all-host`).
+/// (`std-console.input.read-all-host-coded-error`).
 #[test]
 fn console_input_reads_all() {
     let dir = program(

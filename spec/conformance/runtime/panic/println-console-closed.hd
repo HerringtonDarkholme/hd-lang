@@ -1,5 +1,5 @@
 # test: println panics with explicit-panic when the covering provider's write_sync returns .Err(ConsoleError.Closed)
-# Spec 10 Console: module.console.println-error.category, module.console.error.variants, module.console.println-std, module.console.println-panics.
+# Spec 10 Console: module.console.println-error.category, module.console.error.coded-variants, module.console.println-std, module.console.println-panics.
 # Spec 10 Console: module.console.println-write-error.either, .println-error.category, and .error.closed.
 
 struct ClosedConsole:
