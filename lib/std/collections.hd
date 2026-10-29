@@ -761,7 +761,7 @@ impl[T < Eq] Eq for Deque[T]:
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Debug] Debug for Deque[T]:
     fn debug(self, out: *mut DebugWriter) -> void:
-        list := out.debug_list()
+        let mut list = out.debug_list()
         for item in self:
             _ := list.entry(item)
         list.finish()
@@ -858,7 +858,7 @@ impl[T < Eq & Hash] Eq for Set[T]:
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Eq & Hash & Debug] Debug for Set[T]:
     fn debug(self, out: *mut DebugWriter) -> void:
-        list := out.debug_list()
+        let mut list = out.debug_list()
         for (item, _) in self.entries:
             _ := list.entry(item)
         list.finish()
@@ -968,7 +968,7 @@ impl[T < Ord] FromIterator[T] for Heap[T]:
 # Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Ord & Debug] Debug for Heap[T]:
     fn debug(self, out: *mut DebugWriter) -> void:
-        list := out.debug_list()
+        let mut list = out.debug_list()
         for item in self.items:
             _ := list.entry(item)
         list.finish()

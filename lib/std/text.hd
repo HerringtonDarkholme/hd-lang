@@ -658,6 +658,7 @@ impl StringBuilder:
     ## Returns an empty builder, a new object that `push` changes.
     ## See [std-text.builder.new-ref](../../spec/std/text.md#r-std-text.builder.new-ref).
     pub fn new() -> *mut StringBuilder:
+        # Boxed because the returned builder is mutated across later calls.
         box(StringBuilder { bytes: [] })
 
     ## Appends `text` to the builder.

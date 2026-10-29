@@ -1,5 +1,5 @@
-# test: Debug writes through *mut DebugWriter; each builder is a new object behind *mut that a binding or a helper keeps writing to
-# Spec std/format Debug Builders: std-format.debug.writer-ref, std-format.debug.builder.types-ref, std-format.debug.builder.chain.
+# test: Debug writes through *mut DebugWriter; each builder is a local value whose mutating methods return a local reference
+# Spec std/format Debug Builders: std-format.debug.writer-ref, std-format.debug.builder.types-value, std-format.debug.builder.methods-local.
 # expect-stdout: Span { start: 1, end: 4 }
 # expect-stdout: [Span { start: 1, end: 2 }, Span { start: 3, end: 4 }]
 # expect-stdout: Labels({"a": 1}, note="two")
@@ -11,13 +11,13 @@ struct Span:
 
 impl Debug for Span:
     fn debug(self, out: *mut DebugWriter) -> void:
-        fields := out.debug_struct("Span")
+        let mut fields = out.debug_struct("Span")
         _ := fields.field("start", self.start)
-        add_end(fields, self.end)
+        add_end(&mut fields, self.end)
         fields.finish()
 
-# The builder is a reference, so the helper's field lands in the caller's value.
-fn add_end(fields: *mut DebugStruct, end: i32) -> void:
+# The builder's local reference lets the helper update the caller's value.
+fn add_end(fields: &mut DebugStruct, end: i32) -> void:
     _ := fields.field("end", end)
 
 struct Spans:
@@ -25,7 +25,7 @@ struct Spans:
 
 impl Debug for Spans:
     fn debug(self, out: *mut DebugWriter) -> void:
-        list := out.debug_list()
+        let mut list = out.debug_list()
         for span in self.items:
             _ := list.entry(span)
         list.finish()

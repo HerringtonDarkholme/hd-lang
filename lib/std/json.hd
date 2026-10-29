@@ -1218,7 +1218,7 @@ impl Debug for Number:
 # Keep handwritten Debug: render entries as a list rather than storage fields.
 impl Debug for JsonObject:
     fn debug(self, out: *mut DebugWriter) -> void:
-        list := out.debug_list()
+        let mut list = out.debug_list()
         for entry in self.entries:
             _ := list.entry(entry)
         list.finish()
@@ -1250,8 +1250,8 @@ pub fn to_json[T < Serialize](value: T) -> Json:
 ## The `T` that `T::deserialize` reads from `value`, or the first error it finds.
 ## See [std-json.from-json](../../spec/std/json.md#r-std-json.from-json).
 pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
-    reader := JsonReader::new(value)
-    T::deserialize(reader)
+    let mut reader = JsonReader::new(value)
+    T::deserialize(&mut reader)
 
 # The compact text of a value's `Json` (r-std-json.encode). `TextWriter`
 # writes that text during the walk, with no `Json` in between; a walk it
@@ -1259,8 +1259,8 @@ pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
 ## The compact JSON text of `value`, with no whitespace outside strings.
 ## See [std-json.encode](../../spec/std/json.md#r-std-json.encode).
 pub fn encode[T < Serialize](value: T) -> string:
-    writer := TextWriter::new(false)
-    _ := value.serialize(writer)
+    let mut writer = TextWriter::new(false)
+    _ := value.serialize(&mut writer)
     match writer.finish():
         .Some(text) => text
         .None => encode_fallback(value)
@@ -1271,8 +1271,8 @@ pub fn encode[T < Serialize](value: T) -> string:
 ## The pretty JSON text of `value`: `to_json(value).pretty()`.
 ## See [std-json.encode-pretty](../../spec/std/json.md#r-std-json.encode-pretty).
 pub fn encode_pretty[T < Serialize](value: T) -> string:
-    writer := TextWriter::new(true)
-    _ := value.serialize(writer)
+    let mut writer = TextWriter::new(true)
+    _ := value.serialize(&mut writer)
     match writer.finish():
         .Some(text) => text
         .None => encode_pretty_fallback(value)
@@ -1293,7 +1293,8 @@ pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
     parser.skip_space()
     if parser.at != parser.size:
         return .Err(parser.unexpected(parser.at))
-    T::deserialize(TextReader::new(parser, root))
+    let mut reader = TextReader::new(parser, root)
+    T::deserialize(&mut reader)
 
 # `Json` writes and reads itself (r-std-json.std.json).
 # Keep handwritten Serialize: write the JSON value itself, not an externally tagged enum.
@@ -1625,7 +1626,7 @@ enum Irregular:
 # text: a list, a map, or a record adds one, and a variant two, for its
 # `{"Variant": {` once a member opens it.
 struct TextWriter:
-    pub parts: *mut List[string]
+    pub parts: List[string]
     pub depth: usize
     pub kinds: List[FrameKind]
     pub names: List[string]
@@ -1645,34 +1646,32 @@ struct TextWriter:
     pub indent: usize
 
 impl TextWriter:
-    fn new(spaced: bool) -> *mut TextWriter:
-        box(
-            TextWriter {
-                parts: box([]),
-                depth: 0,
-                kinds: [],
-                names: [],
-                counts: [],
-                key_starts: [],
-                facts: [],
-                no_facts: Facts { items: [] },
-                key_count: 0,
-                keys: [],
-                prints: [],
-                pending: "",
-                keyed: false,
-                written: false,
-                regular: true,
-                spaced: spaced,
-                indent: 0,
-            },
-        )
+    fn new(spaced: bool) -> TextWriter:
+        TextWriter {
+            parts: [],
+            depth: 0,
+            kinds: [],
+            names: [],
+            counts: [],
+            key_starts: [],
+            facts: [],
+            no_facts: Facts { items: [] },
+            key_count: 0,
+            keys: [],
+            prints: [],
+            pending: "",
+            keyed: false,
+            written: false,
+            regular: true,
+            spaced: spaced,
+            indent: 0,
+        }
 
     # The text, or `.None` when the walk was not regular or not complete.
     fn finish(&self) -> string?:
         if !self.regular || !self.written || self.depth > 0:
             return .None
-        .Some(concat_all(*self.parts))
+        .Some(concat_all(self.parts))
 
     fn give_up(&mut self) -> Result[void, Irregular]:
         self.regular = false
@@ -1697,7 +1696,7 @@ impl TextWriter:
             .Items =>
                 if count > 0:
                     self.parts.push(",")
-                line_break(self.parts, self.spaced, self.indent)
+                line_break(&mut self.parts, self.spaced, self.indent)
                 return .Ok(())
             _ => pass
         if !self.keyed:
@@ -1715,14 +1714,14 @@ impl TextWriter:
             match kind:
                 .Tagged =>
                     self.parts.push("{\"")
-                    push_escaped(self.parts, self.names[last])
+                    push_escaped(&mut self.parts, self.names[last])
                     self.parts.push("\":{\"")
                 .Named =>
                     self.parts.push("{\"")
-                    push_escaped(self.parts, self.names[last])
+                    push_escaped(&mut self.parts, self.names[last])
                     self.parts.push("\":{\"")
                 _ => self.parts.push("\"")
-        push_escaped(self.parts, key)
+        push_escaped(&mut self.parts, key)
         self.parts.push("\":")
         .Ok(())
 
@@ -1736,17 +1735,17 @@ impl TextWriter:
             match kind:
                 .Tagged =>
                     self.parts.push("{")
-                    line_break(self.parts, true, self.indent - 1)
-                    push_quoted(self.parts, name)
+                    line_break(&mut self.parts, true, self.indent - 1)
+                    push_quoted(&mut self.parts, name)
                     self.parts.push(": {")
                 .Named =>
                     self.parts.push("{")
-                    line_break(self.parts, true, self.indent - 1)
-                    push_quoted(self.parts, name)
+                    line_break(&mut self.parts, true, self.indent - 1)
+                    push_quoted(&mut self.parts, name)
                     self.parts.push(": {")
                 _ => pass
-        line_break(self.parts, true, self.indent)
-        push_quoted(self.parts, key)
+        line_break(&mut self.parts, true, self.indent)
+        push_quoted(&mut self.parts, key)
         self.parts.push(": ")
 
     # Reuse the writer's key slots across objects. No object allocates a
@@ -1806,43 +1805,43 @@ impl TextWriter:
         let spaced = self.spaced && count > 0
         match (kind, open_kind):
             (.Items, .Items) =>
-                line_break(self.parts, spaced, self.indent - 1)
+                line_break(&mut self.parts, spaced, self.indent - 1)
                 self.parts.push("]")
             (.Entries, .Entries) =>
-                line_break(self.parts, spaced, self.indent - 1)
+                line_break(&mut self.parts, spaced, self.indent - 1)
                 self.parts.push("}")
             (.Record, .Record) =>
-                line_break(self.parts, spaced, self.indent - 1)
+                line_break(&mut self.parts, spaced, self.indent - 1)
                 self.parts.push("}")
             (.Record, .Tagged) =>
                 if spaced:
-                    line_break(self.parts, true, self.indent - 1)
+                    line_break(&mut self.parts, true, self.indent - 1)
                     self.parts.push("}")
-                    line_break(self.parts, true, self.indent - 2)
+                    line_break(&mut self.parts, true, self.indent - 2)
                     self.parts.push("}")
                 else if count > 0:
                     self.parts.push("}}")
                 else:
-                    push_quoted(self.parts, self.names[last])
+                    push_quoted(&mut self.parts, self.names[last])
             (.Record, .Named) =>
                 if count > 0:
                     if spaced:
-                        line_break(self.parts, true, self.indent - 1)
+                        line_break(&mut self.parts, true, self.indent - 1)
                         self.parts.push("}")
-                        line_break(self.parts, true, self.indent - 2)
+                        line_break(&mut self.parts, true, self.indent - 2)
                         self.parts.push("}")
                     else:
                         self.parts.push("}}")
                 else if self.spaced:
                     self.parts.push("{")
-                    line_break(self.parts, true, self.indent - 1)
-                    push_quoted(self.parts, self.names[last])
+                    line_break(&mut self.parts, true, self.indent - 1)
+                    push_quoted(&mut self.parts, self.names[last])
                     self.parts.push(": {}")
-                    line_break(self.parts, true, self.indent - 2)
+                    line_break(&mut self.parts, true, self.indent - 2)
                     self.parts.push("}")
                 else:
                     self.parts.push("{\"")
-                    push_escaped(self.parts, self.names[last])
+                    push_escaped(&mut self.parts, self.names[last])
                     self.parts.push("\":{}}")
             _ => return self.give_up()
         self.key_count = self.key_starts[last]
@@ -1891,7 +1890,7 @@ impl Serializer for TextWriter:
 
     fn text(&mut self, value: string) -> Result[void, Irregular]:
         self.start()?
-        push_quoted(self.parts, value)
+        push_quoted(&mut self.parts, value)
         .Ok(())
 
     fn begin_list(&mut self, len: usize) -> Result[void, Irregular]:
@@ -2028,25 +2027,23 @@ struct JsonReader:
     pub no_facts: Facts
 
 impl JsonReader:
-    fn new(value: Json) -> *mut JsonReader:
-        box(
-            JsonReader {
-                value: value,
-                present: true,
-                depth: 0,
-                steps: [],
-                names: [],
-                open: 0,
-                containers: [],
-                kinds: [],
-                next: [],
-                bases: [],
-                homes: [],
-                variants: [],
-                facts: [],
-                no_facts: Facts { items: [] },
-            },
-        )
+    fn new(value: Json) -> JsonReader:
+        JsonReader {
+            value: value,
+            present: true,
+            depth: 0,
+            steps: [],
+            names: [],
+            open: 0,
+            containers: [],
+            kinds: [],
+            next: [],
+            bases: [],
+            homes: [],
+            variants: [],
+            facts: [],
+            no_facts: Facts { items: [] },
+        }
 
     # The path of the first `depth` steps: `$`, then `.key` or `[index]`
     # for each.
@@ -2590,7 +2587,7 @@ struct TextReadFrame:
     pub facts: Facts
 
 struct TextReader:
-    pub parser: *mut Parser
+    pub parser: Parser
     pub at: usize
     # The index entry of the value at `at` (0 for a scalar).
     pub entry: usize
@@ -2599,29 +2596,28 @@ struct TextReader:
     pub steps: List[i64]
     pub names: List[string]
     pub open: usize
-    pub frames: List[*mut TextReadFrame]
+    pub frames: List[TextReadFrame]
     # The facts of a list or a map frame, made once per reader.
     pub no_facts: Facts
 
 impl TextReader:
-    fn new(parser: Parser, root: usize) -> *mut TextReader:
-        source := box(parser)
+    fn new(parser: Parser, root: usize) -> TextReader:
+        let mut source = parser
         source.at = 0
         source.skip_space()
-        box(
-            TextReader {
-                parser: source,
-                at: source.at,
-                entry: root,
-                present: true,
-                depth: 0,
-                steps: [],
-                names: [],
-                open: 0,
-                frames: [],
-                no_facts: Facts { items: [] },
-            },
-        )
+        start := source.at
+        TextReader {
+            parser: source,
+            at: start,
+            entry: root,
+            present: true,
+            depth: 0,
+            steps: [],
+            names: [],
+            open: 0,
+            frames: [],
+            no_facts: Facts { items: [] },
+        }
 
     fn path_to(&self, depth: usize) -> string:
         let mut parts: List[string] = ["\$"]
@@ -2729,29 +2725,27 @@ impl TextReader:
         slot := self.open
         if slot == self.frames.len():
             self.frames.push(
-                box(
-                    TextReadFrame {
-                        kind: kind,
-                        at: 0,
-                        entry: 0,
-                        count: 0,
-                        repeats: false,
-                        next: 0,
-                        cursor: 0,
-                        child: 0,
-                        keys: [],
-                        key_count: 0,
-                        offsets: [],
-                        children: [],
-                        positions: {},
-                        base: base,
-                        home: self.depth,
-                        name: name,
-                        facts: facts,
-                    },
-                ),
+                TextReadFrame {
+                    kind: kind,
+                    at: 0,
+                    entry: 0,
+                    count: 0,
+                    repeats: false,
+                    next: 0,
+                    cursor: 0,
+                    child: 0,
+                    keys: [],
+                    key_count: 0,
+                    offsets: [],
+                    children: [],
+                    positions: {},
+                    base: base,
+                    home: self.depth,
+                    name: name,
+                    facts: facts,
+                },
             )
-        frame := self.frames[slot]
+        frame := &mut self.frames[slot]
         frame.kind = kind
         frame.at = at
         frame.entry = entry
@@ -2781,10 +2775,10 @@ impl TextReader:
         self.open = slot + 1
         .Ok(())
 
-    fn top(&self) -> *mut TextReadFrame:
+    fn top(&mut self) -> &mut TextReadFrame:
         if self.open == 0:
             panic("std.json: no open container")
-        self.frames[self.open - 1]
+        &mut self.frames[self.open - 1]
 
     fn leave(&mut self) -> void:
         self.depth = self.top().home

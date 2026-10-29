@@ -928,11 +928,13 @@ impl[T < Serialize] Serialize for *mut T:
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Deserialize] Deserialize for *T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[*T, R::Error]:
+        # Boxed because the deserialized reference escapes in the returned value.
         .Ok(box(T::deserialize(input)?))
 
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Deserialize] Deserialize for *mut T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[*mut T, R::Error]:
+        # Boxed because the deserialized mutable reference escapes in the returned value.
         .Ok(box(T::deserialize(input)?))
 
 # Derived `MapKey`: a payload-free enum writes its selected variant name,

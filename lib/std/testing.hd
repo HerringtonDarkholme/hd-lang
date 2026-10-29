@@ -542,10 +542,12 @@ impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
 # (r-std-testing.arbitrary.reference).
 impl[T < Arbitrary] Arbitrary for *T:
     fn arbitrary(c: &mut Choices) -> *T:
+        # Boxed because the generated reference escapes in the returned arbitrary value.
         box(T::arbitrary(c))
 
 impl[T < Arbitrary] Arbitrary for *mut T:
     fn arbitrary(c: &mut Choices) -> *mut T:
+        # Boxed because the generated mutable reference escapes in the returned arbitrary value.
         box(T::arbitrary(c))
 
 impl[A < Arbitrary, B < Arbitrary] Arbitrary for (A, B):
@@ -643,7 +645,9 @@ fn prop_case![T < Arbitrary & Debug, R, $ Q](
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
         .Some(index) => examples[index]
-        .None => choices(runner, current).draw::[T]()
+        .None =>
+            let mut c = choices(runner, current)
+            c.draw::[T]()
     runner.show(debug(value))
     prop!(value)
 
@@ -663,7 +667,9 @@ fn prop_with_case![T < Debug, R, $ Q](
     current := runner.start(cases, shrink, examples.len())
     value := match current.example:
         .Some(index) => examples[index]
-        .None => gen(choices(runner, current))
+        .None =>
+            let mut c = choices(runner, current)
+            gen(&mut c)
     runner.show(debug(value))
     prop!(value)
 
@@ -671,15 +677,15 @@ fn prop_with_case![T < Debug, R, $ Q](
 # `start` returned. It holds the runner's provider value, so a generator
 # records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
-fn choices(runner: *mut dyn PropertyRunner, current: PropertyCase) -> *mut Choices:
-    box(Choices {
+fn choices(runner: *mut dyn PropertyRunner, current: PropertyCase) -> Choices:
+    Choices {
         runner: runner,
         random: SeededRandom::new(u64(current.seed)),
         size: current.size,
         replay: current.replay,
         draws: 0,
         edge: edge_plan(current.seed, current.size),
-    })
+    }
 
 # The edge of a generated case (r-std-testing.edge.plan): the first four
 # cases, those of `size` 0 to 3, take the edge that their seed picks, so

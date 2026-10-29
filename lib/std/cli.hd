@@ -43,15 +43,18 @@ pub struct ArgParser:
 
 impl ArgParser:
     pub fn new(program: string, about: string = "") -> *mut ArgParser:
-        parser := box(ArgParser {
-            program: program,
-            about: about,
-            declarations: [],
-            options: {},
-            names: {},
-            positional_slots: [],
-            commands: {},
-        })
+        # Boxed because the returned parser survives this constructor and chained calls mutate it.
+        parser := box(
+            ArgParser {
+                program: program,
+                about: about,
+                declarations: [],
+                options: {},
+                names: {},
+                positional_slots: [],
+                commands: {},
+            },
+        )
         parser.arg(Arg { name: "help", kind: .Flag, short: 'h', help: "Print this help." })
 
     pub fn arg(*mut self, arg: Arg) -> *mut ArgParser:
@@ -115,7 +118,7 @@ impl ArgParser:
         let mut flags: Map[string, bool] = {}
         let mut flag_counts: Map[string, usize] = {}
         let mut values: Map[string, string] = {}
-        let mut histories: Map[string, *mut List[string]] = {}
+        let mut histories: Map[string, List[string]] = {}
         let mut positionals: List[string] = []
         let only_positionals = false
         let mut selected: List[(string, Parsed)] = []
@@ -279,7 +282,7 @@ fn store_value(
     arg: Arg,
     value: string,
     values: &mut Map[string, string],
-    histories: &mut Map[string, *mut List[string]],
+    histories: &mut Map[string, List[string]],
 ) -> Result[void, CliError]:
     if !arg.repeated && values.get(arg.name).is_some():
         return .Err(CliError.InvalidValue(arg.name, "argument cannot be repeated"))
@@ -288,9 +291,9 @@ fn store_value(
             CliError.InvalidValue(arg.name, "expected ${arg.choices.join(" or ")}, got $value"),
         )
     if arg.repeated:
-        match histories.get(arg.name):
+        match histories.get_mut(arg.name):
             .Some(buffer) => buffer.push(value)
-            .None => histories[arg.name] = box([value])
+            .None => histories[arg.name] = [value]
     values[arg.name] = value
     .Ok(())
 
@@ -298,7 +301,7 @@ fn store_value(
 pub struct Parsed:
     present_flags: Map[string, bool]
     option_values: Map[string, string]
-    value_histories: Map[string, *mut List[string]]
+    value_histories: Map[string, List[string]]
     position_values: List[string]
     selected_command: List[(string, Parsed)]
     flag_counts: Map[string, usize] = {}
@@ -342,7 +345,7 @@ impl Parsed:
         if self.one_name.is_some():
             return self.value(name).map(fn(value): [value]).unwrap_or([])
         match self.value_histories.get(name):
-            .Some(buffer) => *buffer
+            .Some(buffer) => buffer
             .None =>
                 match self.option_values.get(name):
                     .Some(value) => [value]
