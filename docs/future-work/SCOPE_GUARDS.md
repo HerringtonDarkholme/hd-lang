@@ -1,6 +1,6 @@
 # Scope Guards
 
-**Status:** design accepted 2026-10-28; being built (#962). The checked package
+**Status:** design accepted 2026-10-28; first build merged (#962). The checked package
 that modeled today's guard is in git history at 628a7f92e,
 `docs/future-work/scope-guards/`.
 
@@ -12,11 +12,11 @@ The first build ships what current hd can express:
   current suspending protocol becomes `AsyncDisposable`;
 - `using` takes a `Disposable` in any function, and `using!` takes an
   `AsyncDisposable` in a suspending one; today's `using` sites become `using!`;
-- `ScopeGuard` and `on_exit` in std, taking only an empty-row callback;
 - the `unbound-disposable` lint at error level.
 
-Later work: `ScopeGuard[$R]` after #961, and the tier-2 captures,
-`AutoClosing`, `@auto_closing`, `defer(action)` and `ensure(action)` in #978.
+Later work: `ScopeGuard` and `on_exit` in std, as `ScopeGuard[$R]` once #961
+lands; the tier-2 captures, `AutoClosing`, `@auto_closing`, `defer(action)`
+and `ensure(action)` in #978.
 
 ## Accepted Design
 
