@@ -217,6 +217,21 @@ caller's place shares one (`xs: &mut List[&'a T], x: &'a T`). A function
 type takes the same elision as a declaration, so `fn(&User) -> &string`
 depends on its one parameter.
 
+**How the `'` position evolves** (owner, 2026-10-29: "lookup/sets/paths sound good"). Stage 3 builds declared variables only; later stages may put a parameter name, a set or a path in the same position without changing anything stage 3 wrote:
+
+```text
+fn choose['a](a: &'a User, b: &'a User) -> &'a User     # stage 3: a declared variable
+fn choose(a: &User, b: &User) -> &'{a, b} User          # later: parameter sources, a set
+fn name(&self) -> &'self string                          # later: today's elision, written out
+fn get_name(user: &User) -> &'user.name string          # stage 9: a field path
+fn first(&self) -> &'self.items[_] T?                   # stage 9: an element of a field
+```
+
+- **Lookup:** `'x` names a declared lifetime first, then a parameter. A lifetime with a parameter's name is an error.
+- **Sets:** `'{a, b}` lists several sources; one source drops the braces.
+- **Paths:** `'p.f.g` and `'p.items[_]` extend a parameter source. A `pub` signature names only fields visible where it is written; a trait names only `'self` or a variable; a path through a `*mut` widens to the whole referent there.
+- **Lexing:** a character literal closes with `'`; anything else after the identifier makes a lifetime.
+
 **A candidate syntax, not decided.** One source set may hold every kind of
 source, as Mojo 1.0's `ref[...]` holds both expressions and origin
 parameters:
