@@ -138,9 +138,8 @@ point, or the test).
 Note (normative): the message of `local-reference-escapes` must name the
 position the local reference escapes to: a field, a collection element, a
 top-level binding, a result, a closure capture, a type argument, or a
-counted reference. It must also say that writing `*` for `&` makes the
-reference counted, as
-[`ref.local.escape.message`](lang/13-values-and-references.md#r-ref.local.escape.message)
+counted reference, as
+[`ref.local.escape.position-message`](lang/13-values-and-references.md#r-ref.local.escape.position-message)
 states.
 
 The identifier-security lint uses a moderately-restrictive mixed-script

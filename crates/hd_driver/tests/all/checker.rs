@@ -118,6 +118,36 @@ fn foreign_loop_hint_does_not_change_other_unresolved_calls() {
     }
 }
 
+#[test]
+fn local_reference_escape_names_the_position_without_a_fix() {
+    let cases = [
+        (
+            "struct Point:\n    x: i32\n\nstruct Holder:\n    point: &Point\n\npub fn main() -> void:\n    pass\n",
+            "a local reference never escapes to a field",
+        ),
+        (
+            "struct Point:\n    x: i32\n\nstruct Holder:\n    point: *Point\n\nfn keep(p: &Point) -> Holder:\n    Holder { point: p }\n\npub fn main() -> void:\n    pass\n",
+            "a local reference never escapes to a field",
+        ),
+    ];
+    for (source, message) in cases {
+        let out = cold_program(source);
+        assert_eq!(
+            out.diags.code,
+            [Code::LocalReferenceEscapes],
+            "{}",
+            out.render()
+        );
+        assert_eq!(out.diags.get_text(out.diags.message[0]), message);
+        assert_eq!(
+            out.diags.fixes[0].len,
+            0,
+            "unexpected fix: {}",
+            out.render()
+        );
+    }
+}
+
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt`, and the
 /// trait default bodies among the bodies: 48 modules.
 #[test]

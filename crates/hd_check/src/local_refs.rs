@@ -2,8 +2,8 @@
 //! References"): `&T` and `&mut T` are lent to a call and never kept, so
 //! a local reference that reaches a field, a collection element, a
 //! top-level binding, a result, a closure capture, a type argument or a
-//! counted reference is `local-reference-escapes`, with a fix-it that
-//! writes `*` for its `&`, or for an `&e` the advice to box the value.
+//! counted reference is `local-reference-escapes`, whose message names
+//! that position and offers no fix-it.
 //!
 //! Both kinds have one representation (`ref.type.kind-runtime`): they
 //! lower to `Ref[T]` and `Counted[T]` (`hd_types::Types::lower_refs`),
@@ -16,7 +16,7 @@
 //! when their closure closes ([`Ck::local_ref_captures`]).
 
 use hd_base::{HashSet, LocalId, TokenIdx};
-use hd_diag::{Code, DiagBuf, FixSafety};
+use hd_diag::{Code, DiagBuf};
 use hd_resolve::view::Src;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Ref, Tag};
@@ -42,7 +42,8 @@ pub(crate) enum Escape {
 }
 
 impl Escape {
-    /// The position as the message names it (`ref.local.escape.message`).
+    /// The position as the message names it
+    /// (`ref.local.escape.position-message`).
     fn what(self) -> &'static str {
         match self {
             Escape::Field => "a field",
@@ -68,10 +69,7 @@ impl Escape {
 }
 
 fn message(at: Escape) -> String {
-    format!(
-        "a local reference never escapes to {}; write `*` for its `&` to make it a counted reference",
-        at.what()
-    )
+    format!("a local reference never escapes to {}", at.what())
 }
 
 /// The message for a local reference that no written `&` declares, as
@@ -98,10 +96,8 @@ fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
 
 /// A written local reference type in a position that keeps it
 /// (`ref.local.escape.field`, `.top-level`, `.return`, `.type-argument`):
-/// one error per `&`, with a fix-it that writes `*` for it
-/// (`ref.local.escape.fix`). A parameter, a local binding and an impl's
-/// target may be local references, and so may a function type's
-/// parameters.
+/// one error per `&`. A parameter, a local binding and an impl's target may
+/// be local references, and so may a function type's parameters.
 pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
     for item in src.root().children() {
         match item.kind() {
@@ -186,13 +182,8 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
     match n.kind() {
         SyntaxKind::RefType => {
             let amp = n.direct_token(&src.parse.tokens, TokenKind::Amp);
-            if let (Some(amp), Some(at)) = (amp, at) {
+            if let (Some(_), Some(at)) = (amp, at) {
                 diags.error(Code::LocalReferenceEscapes, src.span(n), &message(at));
-                diags.add_fix(
-                    "make it a counted reference",
-                    FixSafety::Suggestion,
-                    &[(src.token_span(amp), "*")],
-                );
             }
             // A reference may refer to a local reference (`ref.type.group`).
             for c in n.children() {
@@ -430,12 +421,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Reports the local reference `value` escaping to `at`, with a fix-it
-    /// that writes `*` in the type it was declared with
-    /// (`ref.local.escape.fix`, `ref.local.escape.fix.inferred`). A value
-    /// no written `&` declares, as `&e`, gets the advice to box it and no
-    /// fix-it (`ref.expr.kind.no-counted.advice`). A value that reported
-    /// `element-reference-outlives-call` reports nothing more.
+    /// Reports the local reference `value` escaping to `at`. A value that
+    /// reported `element-reference-outlives-call` reports nothing more.
     pub(crate) fn local_ref_escapes(&mut self, value: NodeRef<'_>, at: Escape) {
         let e = value_of(value);
         if self.elem_kept.contains(&e.index()) {
@@ -443,10 +430,7 @@ impl Ck<'_, '_> {
         }
         let local = self.named_local(value);
         match local.and_then(|l| self.local_ref_token(l)) {
-            Some(_) => {
-                self.err(Code::LocalReferenceEscapes, value, &message(at));
-                self.local_ref_fix(local.expect("a named local"));
-            }
+            Some(_) => self.err(Code::LocalReferenceEscapes, value, &message(at)),
             None if local.is_some() || e.kind() == SyntaxKind::RefExpr => {
                 self.err(Code::LocalReferenceEscapes, value, &box_message(at));
             }
@@ -482,17 +466,6 @@ impl Ck<'_, '_> {
                 None => Some(self.find_local(self.sym_of(e))?.0),
             },
             _ => None,
-        }
-    }
-
-    fn local_ref_fix(&mut self, l: LocalId) {
-        if let Some(amp) = self.local_ref_token(l) {
-            let span = self.cx.src.token_span(amp);
-            self.diags.add_fix(
-                "make it a counted reference",
-                FixSafety::Suggestion,
-                &[(span, "*")],
-            );
         }
     }
 
@@ -535,8 +508,8 @@ impl Ck<'_, '_> {
 
     /// Records where the binding `l` of `let`/`:=` statement `at` with
     /// initializer `rhs` takes its local reference type from: its
-    /// annotation's `&`, or the local `rhs` names
-    /// (`ref.local.escape.fix.inferred`).
+    /// annotation's `&`, or the local `rhs` names. This keeps diagnostics
+    /// for `&e` distinct from diagnostics for a declared local reference.
     pub(crate) fn note_ref_origin(&mut self, l: LocalId, at: NodeRef<'_>, rhs: NodeRef<'_>) {
         if self.ref_counted(self.b.local_ty(l)) != Some(false) {
             return;
@@ -571,17 +544,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             self.ref_captured.insert(l);
-            let name = self
-                .cx
-                .names
-                .text(self.b.body().local_name[l.idx()])
-                .to_owned();
-            let msg = format!(
-                "the closure captures `{name}`, a local reference, which never escapes to {}; write `*` for its `&` to make it a counted reference",
-                Escape::Capture.what()
-            );
-            self.err(Code::LocalReferenceEscapes, n, &msg);
-            self.local_ref_fix(l);
+            self.err(Code::LocalReferenceEscapes, n, &message(Escape::Capture));
         }
     }
 
@@ -642,14 +605,8 @@ impl Ck<'_, '_> {
             if !reported.insert(at) {
                 continue;
             }
-            // An inferred type has no `&` of its own: the reference came
-            // from an `&e` or from a declared `&T`.
             let node = self.cx.src.parse.tree.node(at);
-            let msg = format!(
-                "a local reference never escapes to {}; box the value at its declaration, as `x := box(value)`, or write `*` for the `&` of the type it was declared with",
-                e.what()
-            );
-            self.err(Code::LocalReferenceEscapes, node, &msg);
+            self.err(Code::LocalReferenceEscapes, node, &message(e));
         }
     }
 }

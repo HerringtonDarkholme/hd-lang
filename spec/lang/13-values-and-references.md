@@ -344,9 +344,7 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.capture] Closure capture | is captured by a closure, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
 | r[ref.local.escape.type-argument] Type argument | is a type argument, written or inferred, an optional's included | `List[&Point]`, `&Point?` | `local-reference-escapes` |
 
-6. r[ref.local.escape.fix] The diagnostic's fix-it writes `*` in place of `&` in the local reference type it reports: the position's own type, as in `point: *Point`, or the escaping value's declared type, as in `p: *Point`.
-7. r[ref.local.escape.fix.inferred] For a binding whose type is inferred from a local reference, as `q := p` with `p: &Point`, the fix-it writes `*` in the declared type it was inferred from, so `p: *Point`.
-8. r[ref.local.escape.message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference, and says that writing `*` makes the reference counted.
+6. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
 
 ```text
 struct Point:
@@ -372,9 +370,8 @@ fn first(points: List[&Point]) -> i32:  # error: local-reference-escapes
 ```
 
 > **Why.** Most references are lent for one call, as Swift's `inout`
-> parameters are. Writing `*` marks the few that are kept, so a reader
-> sees which references outlive a call. Both kinds are still counted, so
-> the check changes nothing at run time.
+> parameters are. A counted reference is a separate ownership choice, not
+> a mechanical repair for a local reference that escapes.
 
 See also: [Captured References](#captured-references),
 [Reference Receivers](07-functions.md#reference-receivers).
