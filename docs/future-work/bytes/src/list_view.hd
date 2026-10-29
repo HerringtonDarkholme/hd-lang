@@ -1,0 +1,59 @@
+use std.ops.{Index, Range, RangeFrom, RangeTo}
+
+## The existing immutable, cheaply copied snapshot of a run of list elements.
+@derive(Debug)
+pub struct ListView[T]:
+    items: List[T]
+    start: usize
+    end: usize
+
+impl[T] ListView[T]:
+    ## Returns the number of elements in this view.
+    pub fn len(self) -> usize:
+        panic("todo")
+
+    ## Copies this view into a mutable list.
+    pub fn to_list(self) -> List[T]:
+        panic("todo")
+
+    ## Returns a right-sized view, copying only when unused backing elements are retained.
+    pub fn compact(self) -> ListView[T]:
+        panic("todo")
+
+impl[T] Index[usize] for ListView[T]:
+    type Out = T
+    fn index(self, key: usize) -> T:
+        panic("todo")
+
+impl[T] Index[Range[usize]] for ListView[T]:
+    type Out = ListView[T]
+    fn index(self, key: Range[usize]) -> ListView[T]:
+        panic("todo")
+
+impl[T] Index[RangeFrom[usize]] for ListView[T]:
+    type Out = ListView[T]
+    fn index(self, key: RangeFrom[usize]) -> ListView[T]:
+        panic("todo")
+
+impl[T] Index[RangeTo[usize]] for ListView[T]:
+    type Out = ListView[T]
+    fn index(self, key: RangeTo[usize]) -> ListView[T]:
+        panic("todo")
+
+impl[T] Iterable[T] for ListView[T]:
+    type IntoIter = ListViewIter[T]
+    fn iter(self) -> ListViewIter[T]:
+        panic("todo")
+
+## The existing cursor of a list view.
+pub struct ListViewIter[T]:
+    view: ListView[T]
+    at: usize
+
+impl[T] Iterator[T] for ListViewIter[T]:
+    fn next(&mut self) -> T?:
+        panic("todo")
+
+impl[T < Eq] Eq for ListView[T]:
+    fn eq(self, other: ListView[T]) -> bool:
+        panic("todo")
