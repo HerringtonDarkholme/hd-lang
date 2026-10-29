@@ -1,7 +1,7 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Stages 1
-and 2 are being built (#1002, #1003, #996, #1006); the stage 3 syntax is
+and 2 are being built (#1002, #1003, #996, #1007, #1006); the stage 3 syntax is
 open until the study #1005. It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
