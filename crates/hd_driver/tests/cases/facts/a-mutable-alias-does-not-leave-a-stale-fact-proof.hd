@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# A mutable reference can replace the list after its one whole assignment,
+# so the pass must leave the lookup and both branches in the WAT subject.
+use std.inspect.Inspectable
+use std.serde.{EnumTagging, RenameCase, rename_all, tag}
+use std.structure.Facts
+
+fn add_tag(facts: &mut Facts) -> void:
+    facts.items = [box(tag("kind"))]
+
+pub fn mutated(value: i64) -> i64:
+    let items: List[*dyn Inspectable] = [box(rename_all(.CamelCase))]
+    let mut facts = Facts { items: items }
+    add_tag(&mut facts)
+    # subject
+    if facts.find::[EnumTagging]().is_some():
+        value + 1
+    else:
+        value + 2

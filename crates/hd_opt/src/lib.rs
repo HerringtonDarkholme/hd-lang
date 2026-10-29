@@ -8,6 +8,7 @@
 //! analyses whose result a backend consumes (`whole`). It depends on `hd_mono`, never the
 //! reverse, and never on `hd_wasm`.
 
+pub mod fact_specialize;
 pub mod inline;
 pub mod passes;
 pub mod planner;

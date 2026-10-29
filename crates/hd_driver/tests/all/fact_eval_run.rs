@@ -138,6 +138,32 @@ pub fn main() -> void $ Console:
     );
 }
 
+/// Proving that a requested type is absent must not remove evaluation of the
+/// declaration's unrelated fact values.
+#[test]
+fn an_absent_fact_fold_keeps_unrelated_fact_evaluation() {
+    let main = with_prelude(
+        "struct Other: pass
+
+fn other() -> Other:
+    panic(\"unrelated fact ran\")
+
+@derive(Label)
+@other()
+struct Point:
+    x: i64
+
+pub fn main() -> void $ Console:
+    println(Point { x: 1 }.label())
+",
+    );
+    let (_, line) = panic_of("absent-keeps-evaluation", &main);
+    assert_eq!(
+        line,
+        "panic: fact-evaluation-failed: the facts of `Point` panicked with explicit-panic: unrelated fact ran"
+    );
+}
+
 /// A function's facts name the function.
 #[test]
 fn a_function_fact_panic_names_the_function() {

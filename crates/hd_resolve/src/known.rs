@@ -18,6 +18,8 @@ pub struct KnownItems {
     pub any_ref: DefId,
     pub result: DefId,
     pub list: DefId,
+    /// `List.is_empty`, whose result is known for a generated empty facts list.
+    pub list_is_empty: DefId,
     pub map: DefId,
     /// The data type a reference type lowers to for the backend
     /// (`hd_resolve::seed`, `crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
@@ -29,6 +31,9 @@ pub struct KnownItems {
     pub tuple: DefId,
     // std.structure
     pub structure: DefId,
+    /// `Facts.find`, whose answer can be fixed after a generated declaration's
+    /// concrete facts body is known.
+    pub facts_find: DefId,
     /// `FieldRecord`, which a `Field` handle refers to.
     pub field: DefId,
     /// `FieldRecord.get`, whose generated handle call a closed Structure walk
@@ -222,6 +227,7 @@ impl KnownItems {
             any_ref,
             result: item("std.core", "Result"),
             list: item("std.core", "List"),
+            list_is_empty: inherent_method("std.collections", "impl [ T ] List [ T ]", "is_empty"),
             map: item("std.core", "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ref_cell: item("std.core", "Ref"),
@@ -229,6 +235,7 @@ impl KnownItems {
             function_module: module("std.function"),
             tuple,
             structure,
+            facts_find: inherent_method("std.structure", "impl Facts", "find"),
             field: item("std.structure", "FieldRecord"),
             field_get: inherent_method(
                 "std.structure",

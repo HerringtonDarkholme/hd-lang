@@ -175,10 +175,9 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
             locals[l] = Some(value);
         }
     }
-    if locals.iter().all(Option::is_none) {
-        return None;
-    }
     // Single-assignment aliases can carry a constant to a later decision.
+    // With no seeded defaults this also propagates constants introduced by
+    // another post-monomorphization fold.
     for _ in 0..locals.len().min(64) {
         let mut changed = false;
         for l in 0..locals.len() {

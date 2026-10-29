@@ -16,8 +16,14 @@ pub trait StructureEnv: InlineEnv {
     /// Whether `def` is the hidden `walk` body emitted by `hd_structure`.
     fn generated_structure_walk(&self, def: DefId) -> bool;
 
+    /// Whether `def` is the hidden `build` body emitted by `hd_structure`.
+    fn generated_structure_build(&self, def: DefId) -> bool;
+
     /// The compiler-known `std.structure.Walker` trait.
     fn walker_trait(&self) -> DefId;
+
+    /// The compiler-known `std.structure.Source` trait.
+    fn source_trait(&self) -> DefId;
 
     /// The data-only `Walker` hooks whose defaults bridge to the ordinary
     /// protocol.
@@ -63,7 +69,9 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         let Some(Callee::Item { def, targs }) = hd_tir::inline::known_call(body, call) else {
             continue;
         };
-        if !env.generated_structure_walk(def) || !closed(env, targs) {
+        let walk = env.generated_structure_walk(def);
+        let build = env.generated_structure_build(def);
+        if (!walk && !build) || !closed(env, targs) {
             continue;
         }
         let Some((mut copy, copy_hash)) = instance(env, def, targs) else {
@@ -73,10 +81,20 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         // those exact hooks before selecting the concrete legacy hooks they
         // expose. Two bounded passes avoid turning recursive user methods
         // into an inlining fixpoint.
-        let mut nested_hashes = inline_data_walker_methods(env, &mut copy);
-        nested_hashes.extend(inline_walker_methods(env, &mut copy));
-        nested_hashes.extend(inline_data_format_boundaries(env, &mut copy));
-        fold_handle_accessors(env, &mut copy);
+        let nested_hashes = if walk {
+            let mut hashes = inline_data_walker_methods(env, &mut copy);
+            hashes.extend(inline_walker_methods(env, &mut copy));
+            hashes.extend(inline_data_format_boundaries(env, &mut copy));
+            fold_handle_accessors(env, &mut copy);
+            hashes
+        } else {
+            let mut hashes = inline_source_methods(env, &mut copy);
+            // `Source.data_variant` and `data_member` default to the ordinary
+            // hooks. A second bounded pass copies those selected concrete
+            // hooks without opening recursive user code.
+            hashes.extend(inline_source_methods(env, &mut copy));
+            hashes
+        };
         // `DeriveInstance` is a function for ownership but intentionally not
         // a general inline candidate. This pass has already applied the
         // narrower generated-walk and closed-instance guards.
@@ -102,6 +120,15 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         key.hash(copied_hash);
     }
     key.finish()
+}
+
+fn inline_source_methods(env: &dyn StructureEnv, body: &mut Body) -> Vec<Hash128> {
+    let source = env.source_trait();
+    inline_selected_methods(
+        env,
+        body,
+        &|callee| matches!(callee, Callee::TraitMethod { trait_, .. } if *trait_ == source),
+    )
 }
 
 /// Replaces a data type's selected field handle `hd_get` with a direct

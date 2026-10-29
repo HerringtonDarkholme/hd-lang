@@ -44,6 +44,12 @@ pub trait ProgramEnv: LayoutEnv {
         None
     }
     fn body(&self, def: DefId) -> Option<&Body>;
+    /// A concrete replacement for `def`'s ordinary body at `args`, when a
+    /// post-monomorphization transformation changed it. Collection and
+    /// emission both use the returned body.
+    fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Body>> {
+        Ok(None)
+    }
     /// Codegen-only result facts. The driver decodes the raw checked body,
     /// without recursively entering its ownership once-cell.
     fn opaque_result(
@@ -3086,6 +3092,12 @@ impl Cx<'_> {
             .list_items(args)
             .first()
             .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
+        if supplied.is_none()
+            && !self.out.instance_bodies.contains_key(&id)
+            && let Some(body) = env.instance_body(item, args)?
+        {
+            self.out.instance_bodies.insert(id, Arc::new(body));
+        }
         let instance_body = self.out.instance_bodies.get(&id).cloned();
         let Some(body) = instance_body
             .as_deref()

@@ -1,0 +1,38 @@
+# @dump: wat
+# @build: v8 release
+# The lookup is known absent, but reading `T::facts()` must still call the
+# once-evaluated fact body and preserve its panic.
+use std.annotation.annotate
+use std.serde.EnumTagging
+use std.structure.{Field, Structure, Variant, Walker}
+
+@annotate(.Data)
+struct Other: pass
+
+fn fail() -> Other:
+    panic("fact body ran")
+
+trait HasTag:
+    fn has_tag(self) -> bool
+
+struct Ignore: pass
+
+impl[S] Walker[S] for Ignore:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]: .Ok(())
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]: .Ok(())
+
+impl[T] HasTag for T by Structure:
+    fn has_tag(self) -> bool:
+        let mut walker = Ignore {}
+        _ := Structure::walk(self, &mut walker)
+        T::facts().find::[EnumTagging]().is_some()
+
+# subject
+@fail()
+@derive(HasTag)
+struct Row:
+    value: i64
+
+pub fn row_has_tag(value: i64) -> bool:
+    Row { value: value }.has_tag()

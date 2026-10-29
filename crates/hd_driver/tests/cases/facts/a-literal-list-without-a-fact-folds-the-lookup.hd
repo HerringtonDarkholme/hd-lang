@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# A fixed literal list with an unrelated fact has no EnumTagging. The lookup
+# folds to None, and the WAT subject retains only the value + 2 arm.
+use std.inspect.Inspectable
+use std.serde.{EnumTagging, RenameCase, rename_all}
+use std.structure.Facts
+
+pub fn absent(value: i64) -> i64:
+    let items: List[*dyn Inspectable] = [box(rename_all(.CamelCase))]
+    let facts = Facts { items: items }
+    # subject
+    if facts.find::[EnumTagging]().is_some():
+        value + 1
+    else:
+        value + 2

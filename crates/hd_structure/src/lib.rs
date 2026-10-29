@@ -299,6 +299,8 @@ pub fn is_generated_walk(names: &Names<'_>, def: DefId) -> bool {
 /// shapes, which keeps custom `Structure` implementations on the generic path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GeneratedBody {
+    Build,
+    Facts,
     Walk,
     Handle(GeneratedHandle),
 }
@@ -324,6 +326,12 @@ pub enum GeneratedHandle {
 #[must_use]
 pub fn generated_body(names: &Names<'_>, def: DefId) -> Option<GeneratedBody> {
     let segment = names.paths.segment(hd_base::PathId::from_raw(def.raw()));
+    if segment == "structure build" {
+        return Some(GeneratedBody::Build);
+    }
+    if segment == "structure facts" {
+        return Some(GeneratedBody::Facts);
+    }
     if segment == "structure walk" {
         return Some(GeneratedBody::Walk);
     }
