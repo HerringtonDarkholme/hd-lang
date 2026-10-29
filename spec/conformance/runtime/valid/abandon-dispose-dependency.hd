@@ -51,13 +51,13 @@ fn ended!(job: mut Suspend[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     let ack: mut Suspend[void] = sleep(s(60))
     _ := ack.cancel!()
-    let mut log: List[string] = []
-    let job: mut Suspend[string] = talk(&mut log, ack)
+    log := box::[List[string]]([])
+    let job: mut Suspend[string] = talk(log, ack)
     println(race!(job, ready()))
     println(log.join(", "))
     println("cancelled ${ended!(job)}")
-    let mut other: List[string] = []
-    let done: mut Suspend[string] = quick(&mut other, ack)
+    other := box::[List[string]]([])
+    let done: mut Suspend[string] = quick(other, ack)
     println(done!())
     println(other.join(", "))
     println("completed ${ended!(done)}")

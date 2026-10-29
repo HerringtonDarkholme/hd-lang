@@ -33,7 +33,7 @@ impl[T] FromIterator[T] for First[T]:
         First { value: cursor.next() }
 
 fn evens(xs: &List[i32]) -> *mut dyn Iterator[i32]:
-    &mut xs.iter().filter(fn(value: i32) -> bool: value % 2 == 0)
+    box(xs.iter().filter(fn(value: i32) -> bool: value % 2 == 0))
 
 tests:
     use std.testing.assert_equal
@@ -54,7 +54,7 @@ tests:
         )
 
     it("collects a custom target through a generic owned cursor"):
-        let mut source = Countdown { remaining: +3 }
+        source := box(Countdown { remaining: +3 })
         let bag: Bag = source.by_ref().collect()
         assert_equal(
             bag.values,
@@ -75,7 +75,7 @@ tests:
         )
 
     it("keeps early termination and draining methods on custom cursors"):
-        let mut first = Countdown { remaining: +6 }
+        first := box(Countdown { remaining: +6 })
         assert_equal(
             first.by_ref().find(fn(value: i32) -> bool: value == 3),
             .Some(+3),
@@ -89,7 +89,7 @@ tests:
         )
 
     it("borrows a prefix and leaves the rest in the cursor"):
-        let mut source = Countdown { remaining: +5 }
+        source := box(Countdown { remaining: +5 })
         assert_equal(
             source.by_ref().take(2).collect(),
             [+4, 3],
@@ -115,7 +115,7 @@ tests:
 
     it("streams Result payloads only as far as a custom target asks"):
         let values: List[Result[i32, string]] = [.Ok(+1), .Err("unread"), .Ok(+2)]
-        let mut source = values.iter()
+        source := box(values.iter())
         let result: Result[First[i32], string] = source.by_ref().collect()
         match result:
             .Ok(first) =>
@@ -129,7 +129,7 @@ tests:
 
     it("streams optional payloads only as far as a custom target asks"):
         let values: List[i32?] = [.Some(+1), .None, .Some(+2)]
-        let mut source = values.iter()
+        source := box(values.iter())
         let result: First[i32]? = source.by_ref().collect()
         match result:
             .Some(first) =>
@@ -149,7 +149,7 @@ tests:
         assert_equal(values, [+10, 20, 30], reason="for owns a temporary adapter")
 
     it("loops over by_ref without copying the caller's progress"):
-        let mut cursor = Countdown { remaining: +4 }
+        cursor := box(Countdown { remaining: +4 })
         let mut values: List[i32] = []
         for value in cursor.by_ref().take(2):
             values.push(value)

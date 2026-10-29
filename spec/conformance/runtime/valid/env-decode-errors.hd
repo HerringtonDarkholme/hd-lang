@@ -28,7 +28,7 @@ enum Mode:
 
 fn failure[T < Deserialize](values: Map[string, string], prefix: string = "") -> HostError:
     vars := ScriptedEnv::new(values)
-    $.with(Env=&vars):
+    $.with(Env=vars):
         match env_decode::[T](prefix=prefix):
             .Err(error) => error
             .Ok(_) => panic("decoding should fail")
@@ -42,7 +42,7 @@ impl Env for NoReadsEnv:
         panic("env_decode must not enumerate environment names")
 
 fn without_reads[T < Deserialize]() -> HostError:
-    $.with(Env=&NoReadsEnv {}):
+    $.with(Env=box(NoReadsEnv {})):
         match env_decode::[T]():
             .Err(error) => error
             .Ok(_) => panic("decoding should fail before reading variables")

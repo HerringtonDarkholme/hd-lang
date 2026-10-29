@@ -63,9 +63,9 @@ fn ended!(job: mut Suspend[void]) -> string:
         .Abandoned => "abandoned"
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    let job: mut Suspend[void] = work(&mut log)
-    let runner: mut Suspend[void] = run(&mut log, outer(job, &mut log))
+    log := box::[List[string]]([])
+    let job: mut Suspend[void] = work(log)
+    let runner: mut Suspend[void] = run(log, outer(job, log))
     runner!()
     println(log.join(", "))
     println(ended!(runner))

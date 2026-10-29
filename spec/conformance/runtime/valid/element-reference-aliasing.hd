@@ -35,8 +35,8 @@ tests:
         assert_equal(write_then_read(&mut xs[1], &xs[1]), 8, reason="the read sees the write")
 
     it("a copied struct copies its list and keeps its reference's target"):
-        let mut n = +3
-        let mut held = Holder { items: [+1, 2], at: &mut n }
+        n := box(+3)
+        let mut held = Holder { items: [+1, 2], at: n }
         copy := held
         held.items.push(3)
         *held.at = 4

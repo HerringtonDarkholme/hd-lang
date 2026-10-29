@@ -72,7 +72,7 @@ fn double(x: i32) -> i32 $ Tag:
     x * 2
 
 fn runner(prefix: string) -> *dyn Runner:
-    &Plain { prefix: prefix }
+    box(Plain { prefix: prefix })
 
 tests:
     use std.testing.assert_equal

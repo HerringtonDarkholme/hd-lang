@@ -32,7 +32,7 @@ tests:
     use std.testing.assert_equal
 
     it("the method lists the error, then its sources"):
-        let failure: *dyn Error = &SaveError.Write("notes.txt", DiskError { free: 0 })
+        let failure: *dyn Error = box(SaveError.Write("notes.txt", DiskError { free: 0 }))
         assert_equal(
             texts(failure.chain()),
             ["cannot save notes.txt", "disk full"],
@@ -40,7 +40,7 @@ tests:
         )
 
     it("a converted concrete reference retains the original error"):
-        let failure: *dyn Error = &SaveError.Write("notes.txt", DiskError { free: 0 })
+        let failure: *dyn Error = box(SaveError.Write("notes.txt", DiskError { free: 0 }))
         assert_equal(
             texts(failure.chain()),
             ["cannot save notes.txt", "disk full"],
@@ -49,8 +49,8 @@ tests:
         assert_equal(failure.chain()[0] is failure, true, reason="the original shared reference")
 
     it("a handwritten Error implementation overrides source"):
-        root := &DiskError { free: 0 }
-        let failure: *dyn Error = &ManualError { inner: root }
+        root := box(DiskError { free: 0 })
+        let failure: *dyn Error = box(ManualError { inner: root })
         assert_equal(
             failure.source().map(fn(error): error.to_string()),
             .Some("disk full"),

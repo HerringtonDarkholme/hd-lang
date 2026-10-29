@@ -53,8 +53,8 @@ tests:
         )
 
     it("a struct fake counts through a local mutable borrow"):
-        let mut fake = Counting { seen: 0 }
-        $.with(Http=&mut fake):
+        fake := box(Counting { seen: 0 })
+        $.with(Http=fake):
             assert_equal(body!("https://example.com/a"), "1", reason="first")
             assert_equal(body!("https://example.com/b"), "2", reason="second")
         assert_equal(fake.seen, 2, reason="the caller's struct changed")

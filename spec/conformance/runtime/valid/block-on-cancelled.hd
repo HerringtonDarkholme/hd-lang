@@ -57,6 +57,6 @@ pub fn main!() -> void $ Console + Clock:
     let pending: mut Suspend[i32] = ready()
     _ := pending.cancel!()
     println("before: ${ended(pending)}")
-    let mut log: List[string] = []
-    println("inside: ${inside(&mut log)}")
+    log := box::[List[string]]([])
+    println("inside: ${inside(log)}")
     println(log.join(", "))

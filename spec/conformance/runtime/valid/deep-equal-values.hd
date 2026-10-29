@@ -10,9 +10,9 @@ enum Tree:
     Pair(left: *Tree, right: *Tree)
 
 pub fn main() -> void $ Console:
-    a := [Tree.Leaf(+1), Tree.Pair(&Tree.Leaf(+2), &Tree.Leaf(+3))]
-    b := [Tree.Leaf(+1), Tree.Pair(&Tree.Leaf(+2), &Tree.Leaf(+3))]
-    c := [Tree.Leaf(+1), Tree.Pair(&Tree.Leaf(+2), &Tree.Leaf(+4))]
+    a := [Tree.Leaf(+1), Tree.Pair(box(Tree.Leaf(+2)), box(Tree.Leaf(+3)))]
+    b := [Tree.Leaf(+1), Tree.Pair(box(Tree.Leaf(+2)), box(Tree.Leaf(+3)))]
+    c := [Tree.Leaf(+1), Tree.Pair(box(Tree.Leaf(+2)), box(Tree.Leaf(+4)))]
     println("${deep_equal(a, b)} ${deep_equal(a, c)}")
     m := { "x": (+1, "one"), "y": (+2, "two") }
     n := { "y": (+2, "two"), "x": (+1, "one") }

@@ -73,10 +73,10 @@ tests:
             .Ok(Response::status(.Found).set_header(.Location, "/end")),
         )
         http.reply("https://api.example/end", .Ok(Response {}))
-        let mut reads: List[usize] = []
-        let mut clock = ReadClock { reads: &mut reads }
+        reads := box::[List[usize]]([])
+        clock := box(ReadClock { reads: reads })
         let mut client = Client::new()
-        $.with(Http=http, Clock=&mut clock):
+        $.with(Http=http, Clock=clock):
             _ := client.send!(&Request::get(url("https://api.example/start"))).expect("redirect")
         assert_equal(reads.len(), 1, reason="one Clock.now per whole send")
         assert_equal(http.received().len(), 2, reason="both hops")

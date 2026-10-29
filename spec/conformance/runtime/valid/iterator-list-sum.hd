@@ -22,7 +22,7 @@ tests:
         assert_equal([1, 2, 3].iter().sum(), 6, reason="list iterator")
         assert_equal(doubled_total([1, 2, 3]), 12, reason="after map")
         assert_equal((1..=10).iter().sum(), 55, reason="a range")
-        let mut items = [4, 5, 6].iter()
+        items := box([4, 5, 6].iter())
         assert_equal(items.by_ref().sum(), 15, reason="the whole iterator")
         assert_equal(items.next().is_none(), true, reason="sum drains the iterator")
         let mut rest = [1, 2, 3, 4].iter()

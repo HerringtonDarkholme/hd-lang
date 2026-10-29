@@ -15,8 +15,7 @@ impl Reader for Pair:
 
 trait Factory:
     fn make[T](self, value: T) -> *mut T:
-        let mut local = value
-        &mut local
+        box(value)
 
     fn identity[T](self, value: *mut T) -> *mut T:
         value
@@ -32,10 +31,10 @@ tests:
 
     it("keeps a caller's aliases and identity across both crossings"):
         let factory: &dyn Factory = &Maker {}
-        let mut pair = Pair { number: +1, text: "initial" }
-        alias := factory.identity(&mut pair)
-        assert(alias is &mut pair, reason="a view has its original place's identity")
-        pair = Pair { number: +2, text: "outside" }
+        pair := box(Pair { number: +1, text: "initial" })
+        alias := factory.identity(pair)
+        assert(alias is pair, reason="a view has its original place's identity")
+        *pair = Pair { number: +2, text: "outside" }
         assert_equal(
             *alias,
             Pair { number: +2, text: "outside" },
@@ -43,7 +42,7 @@ tests:
         )
         *alias = Pair { number: +3, text: "inside" }
         assert_equal(
-            pair,
+            *pair,
             Pair { number: +3, text: "inside" },
             reason="a view writes the caller's current storage",
         )
@@ -75,11 +74,11 @@ tests:
 
     it("retains a caller reference captured by an escaping closure"):
         let factory: &dyn Factory = &Maker {}
-        let mut value = "first"
-        set := factory.setter(&mut value)
-        value = "outside"
+        value := box("first")
+        set := factory.setter(value)
+        *value = "outside"
         set("later")
-        assert_equal(value, "later", reason="the returned closure keeps a live reference")
+        assert_equal(*value, "later", reason="the returned closure keeps a live reference")
 
     it("reads a live reference view through a value-taking dynamic receiver"):
         let factory: &dyn Factory = &Maker {}
@@ -95,8 +94,8 @@ tests:
 
     it("keeps references to values with an empty layout"):
         let factory: &dyn Factory = &Maker {}
-        let mut value = ()
-        source := factory.identity(&mut value)
+        value := box(())
+        source := factory.identity(value)
         *source = ()
         assert_equal(*source, (), reason="empty values cross without a payload box")
         created := factory.make(())
@@ -109,8 +108,8 @@ tests:
 
     it("preserves the direct representation of a one-address target"):
         let factory: &dyn Factory = &Maker {}
-        let mut items = [+1, 2]
-        alias := factory.identity(&mut items)
-        assert(alias is &mut items, reason="a one-address value needs no representation view")
+        items := box([+1, 2])
+        alias := factory.identity(items)
+        assert(alias is items, reason="a one-address value needs no representation view")
         *alias = [+3, 4]
-        assert_equal(items, [+3, 4], reason="direct reference forwarding still shares its storage")
+        assert_equal(*items, [+3, 4], reason="direct reference forwarding still shares its storage")

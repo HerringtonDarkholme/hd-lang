@@ -20,7 +20,7 @@ fn tick() -> i32 $ Counter:
     $.use(Counter).count()
 
 fn counters() -> $.Context[$ Counter]:
-    $.context(Counter=&mut Memory { value: 0 })
+    $.context(Counter=box(Memory { value: 0 }))
 
 pub fn main() -> void $ Console:
     ctx := counters()

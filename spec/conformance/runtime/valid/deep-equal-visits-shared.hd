@@ -13,8 +13,8 @@ impl DeepEq for Link:
         self.label == other.label && self.next.deep_eq(other.next, visits)
 
 fn ring(a: string, b: string) -> *mut Link:
-    first := &mut Link { label: a, next: .None }
-    second := &mut Link { label: b, next: .Some(first) }
+    first := box(Link { label: a, next: .None })
+    second := box(Link { label: b, next: .Some(first) })
     first.next = .Some(second)
     first
 

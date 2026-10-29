@@ -24,7 +24,7 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("now and sleep! go through the covering provider"):
-        let mut clock = &mut StepClock { millis: &mut [1000] }
+        clock := box(StepClock { millis: box([1000]) })
         $.with(Clock=clock):
             stamp := wait_and_stamp!(2s)
             assert_equal(

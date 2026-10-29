@@ -45,16 +45,16 @@ fn stop!(job: mut Suspend[i32], log: &mut List[string]) -> i32:
     +3
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    let job: mut Suspend[i32] = pair(&mut log)
-    _ := race!(job, stop(job, &mut log))
+    log := box::[List[string]]([])
+    let job: mut Suspend[i32] = pair(log)
+    _ := race!(job, stop(job, log))
     println(log.join(", "))
-    let mut other: List[string] = []
-    let shared: mut Suspend[i32] = worker("c", &mut other)
-    let holder: mut Suspend[i32] = waiter(shared, &mut other)
+    other := box::[List[string]]([])
+    let shared: mut Suspend[i32] = worker("c", other)
+    let holder: mut Suspend[i32] = waiter(shared, other)
     _ := all!(
         race(shared, ready()),
-        waiter(shared, &mut other),
-        race(holder, stop(holder, &mut other)),
+        waiter(shared, other),
+        race(holder, stop(holder, other)),
     )
     println(other.join(", "))

@@ -28,7 +28,7 @@ fn bounded_score() -> i32:
     read_score(points)
 
 fn erase_scores[T < Score](values: List[T]) -> *dyn Score:
-    &values
+    box(values)
 
 fn forwarded_score() -> i32:
     let points: List[Point] = [Point { value: 42 }]

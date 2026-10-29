@@ -13,6 +13,6 @@ tests:
     use std.testing.assert_equal
 
     it("stores through IndexSet alone"):
-        let mut sink = &mut Sink { seen: &mut [] }
+        let mut sink = &mut Sink { seen: box([]) }
         sink[0] = +7
-        assert_equal(sink.seen, &mut [+7], reason="index_set ran")
+        assert_equal(*sink.seen, [+7], reason="index_set ran")

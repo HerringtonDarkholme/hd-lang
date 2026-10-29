@@ -58,13 +58,13 @@ pub fn main!() -> void $ Console + Clock:
     let mut clock = $.use(Clock)
     let ack: mut Suspend[void] = clock.sleep(s(60))
     _ := ack.cancel!()
-    let mut log: List[string] = []
-    let job: mut Suspend[string] = talk(&mut log, ack)
+    log := box::[List[string]]([])
+    let job: mut Suspend[string] = talk(log, ack)
     println(race!(job, ready()))
     println(log.join(", "))
     println(ended!(job))
-    let mut other: List[string] = []
-    let gated: mut Suspend[string] = guard(&mut other, ack)
+    other := box::[List[string]]([])
+    let gated: mut Suspend[string] = guard(other, ack)
     println(race!(gated, ready()))
     println(other.join(", "))
     println(ended!(gated))

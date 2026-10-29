@@ -13,11 +13,11 @@ fn first_of[T < Inspectable](items: List[*dyn Inspectable]) -> (*T)?:
 tests:
     use std.testing.{assert, assert_equal}
     it("the first matching reference is returned"):
-        user := &User { name: "Ada" }
+        user := box(User { name: "Ada" })
         let items: List[*dyn Inspectable] = [
-            &Post { title: "Intro" },
+            box(Post { title: "Intro" }),
             user,
-            &User { name: "Grace" },
+            box(User { name: "Grace" }),
         ]
         match first_of::[User](items):
             .Some(found) => assert(found is user, reason="first matching place")

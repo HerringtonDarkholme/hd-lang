@@ -25,7 +25,7 @@ fn sum(tree: Tree[i32]) -> i32:
 fn main() -> i32:
     some := Maybe.Some(+40)
     let none: Maybe[i32] = Maybe.None
-    tree := Tree.Branch(&Tree.Leaf(+1), &Tree.Leaf(+1))
+    tree := Tree.Branch(box(Tree.Leaf(+1)), box(Tree.Leaf(+1)))
     unwrap(keep(some)) + unwrap(none) + sum(tree)
 
 tests:

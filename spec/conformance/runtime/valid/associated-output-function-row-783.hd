@@ -47,7 +47,7 @@ tests:
     use std.testing.assert_equal
 
     it("an associated output supplies a concrete requirement row"):
-        $.with(Tag=&Named { label: "live" }):
+        $.with(Tag=box(Named { label: "live" })):
             assert_equal(call(Reader {}), "live", reason="the inferred row passes its provider")
             assert_equal(call::[$ Tag, _](Reader {}), "live", reason="explicit row control")
             assert_equal(nested(Nested {}), "live", reason="a nested function row is retained")

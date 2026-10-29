@@ -6,8 +6,7 @@ use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
 trait Factory:
     fn make![T](self, value: T) -> *mut T $ Clock:
         sleep!(ms(1))
-        let mut local = value
-        &mut local
+        box(value)
 
     fn share![T](self, source: *mut T) -> *mut T $ Clock:
         sleep!(ms(1))
@@ -44,12 +43,12 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             let factory: &dyn Factory = &Maker {}
-            let mut source = "first"
-            let mut kept = factory.share(&mut source)
-            source = "before polling"
+            source := box("first")
+            let mut kept = factory.share(source)
+            *source = "before polling"
             shared := kept!()
             assert(
-                shared is &mut source,
+                shared is source,
                 reason="a kept reference result has the caller's identity",
             )
             assert_equal(
@@ -57,7 +56,7 @@ tests:
                 "before polling",
                 reason="a cold argument retains its original storage",
             )
-            source = "after polling"
+            *source = "after polling"
             assert_equal(
                 *shared,
                 "after polling",
@@ -65,7 +64,7 @@ tests:
             )
             *shared = "through result"
             assert_equal(
-                source,
+                *source,
                 "through result",
                 reason="a returned reference still writes the caller",
             )
@@ -74,12 +73,12 @@ tests:
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             let factory: &dyn Factory = &Maker {}
-            let mut source = "unchanged"
-            let mut kept = factory.share(&mut source)
+            source := box("unchanged")
+            let mut kept = factory.share(source)
             _ := kept.cancel!()
-            source = "still writable"
+            *source = "still writable"
             assert_equal(
-                source,
+                *source,
                 "still writable",
                 reason="cancel releases the cold reference argument and wrapper",
             )

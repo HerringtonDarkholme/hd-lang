@@ -25,13 +25,13 @@ fn url() -> Url:
 
 tests:
     it("invalid header names and CR or LF values never reach the provider"):
-        let mut provider = Counting { calls: 0 }
+        provider := box(Counting { calls: 0 })
         requests := [
             Request::get(url()).set_text("one").set_header(.Other("bad name"), "value"),
             Request::get(url()).set_text("two").set_header(.Other("X-Test"), "before\r\nafter"),
             Request::get(url()).set_text("three").set_header(.Other("X-Test"), "before\nafter"),
         ]
-        $.with(Http=&mut provider):
+        $.with(Http=provider):
             for request in requests:
                 match request.send!():
                     .Err(.InvalidHeader(_)) => pass
@@ -40,9 +40,9 @@ tests:
         assert_equal(provider.calls, 0, reason="no provider calls")
 
     it("typed request cookie validation runs before the body is claimed"):
-        let mut provider = Counting { calls: 0 }
+        provider := box(Counting { calls: 0 })
         request := Request::get(url()).set_cookie("bad;name", "value").set_text("unread")
-        $.with(Http=&mut provider):
+        $.with(Http=provider):
             assert_equal(
                 request.send!(),
                 .Err(HttpError.InvalidHeader("cookie")),
@@ -52,14 +52,14 @@ tests:
         assert_equal(provider.calls, 0, reason="no provider calls")
 
     it("mutated URL fields are rechecked before the provider call"):
-        let mut provider = Counting { calls: 0 }
+        provider := box(Counting { calls: 0 })
         let mut scheme = url()
         scheme.scheme = "ftp"
         let mut host = url()
         host.host = "bücher.example"
         let mut path = url()
         path.path = "relative"
-        $.with(Http=&mut provider):
+        $.with(Http=provider):
             for target in [scheme, host, path]:
                 request := Request::get(target).set_text("unread")
                 match request.send!():
@@ -73,11 +73,11 @@ tests:
         assert_equal(provider.calls, 0, reason="no provider calls")
 
     it("pending query preparation errors use the approved Body Form path"):
-        let mut provider = Counting { calls: 0 }
+        provider := box(Counting { calls: 0 })
         request := Request::get(url())
             .set_query_as(BadQuery { entries: { "x": "y" } })
             .set_text("unread")
-        $.with(Http=&mut provider):
+        $.with(Http=provider):
             assert_equal(
                 request.send!(),
                 .Err(HttpError.Body(BodyError.Form(FormError.Unsupported("entries")))),

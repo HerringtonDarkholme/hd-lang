@@ -50,6 +50,6 @@ fn sender[C < Channel]() -> fn(C, string) -> string:
     C::send
 
 pub fn main() -> void $ Console:
-    let pager: *dyn Channel = &Pager { number: 7 }
+    let pager: *dyn Channel = box(Pager { number: 7 })
     let send = sender::[*dyn Channel]()
     println(send(pager, "ping"))

@@ -23,14 +23,14 @@ tests:
     use std.testing.assert_equal
 
     it("a function taking the source as mut"):
-        let mut point = &mut Point { x: 0, y: 2, z: 3 }
+        point := box(Point { x: 0, y: 2, z: 3 })
         copy := &mut Point { ...*point, x: bump(point) }
         assert_equal(copy.x, 1, reason="the explicit field")
         assert_equal(copy.y + copy.z, 5, reason="the old y and z")
         assert_equal(point.y + point.z, 500, reason="the source changed")
 
     it("a closure capturing the source"):
-        let mut point = &mut Point { x: 0, y: 2, z: 3 }
+        point := box(Point { x: 0, y: 2, z: 3 })
         change := fn() -> i32:
             point.y = 20
             point.z = 30
@@ -40,19 +40,19 @@ tests:
         assert_equal(point.y + point.z, 50, reason="the source changed")
 
     it("a later explicit field sees the change, a copied field does not"):
-        let mut point = &mut Point { x: 0, y: 2, z: 3 }
+        point := box(Point { x: 0, y: 2, z: 3 })
         copy := &mut Point { ...*point, x: bump(point), y: point.y }
         assert_equal(copy.y, 200, reason="an explicit field reads the source when it runs")
         assert_equal(copy.z, 3, reason="the copied z is the old one")
 
     it("nested spreads"):
-        let mut point = &mut Point { x: 0, y: 2, z: 3 }
+        point := box(Point { x: 0, y: 2, z: 3 })
         copy := &mut Point { ...*point, x: Point { ...*point, x: bump(point) }.y }
         assert_equal(copy.x, 2, reason="the inner copy reads the old y")
         assert_equal(copy.y + copy.z, 5, reason="the outer copy reads the old y and z")
 
     it("a generic field"):
-        let mut pair = &mut Pair { first: "x", second: "old" }
+        pair := box(Pair { first: "x", second: "old" })
         copy := &mut Pair { ...*pair, first: bump_pair(pair) }
         assert_equal(copy.second, "old", reason="the old second")
         assert_equal(pair.second, "new", reason="the source changed")

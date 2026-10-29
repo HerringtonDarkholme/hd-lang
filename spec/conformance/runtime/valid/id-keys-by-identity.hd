@@ -16,15 +16,15 @@ fn visit(seen: &mut Map[Id[Node], bool], node: *Node) -> bool:
     true
 
 pub fn main() -> void $ Console:
-    let mut a = Node { label: "a" }
-    let mut b = Node { label: "a" }
+    a := box(Node { label: "a" })
+    b := box(Node { label: "a" })
     let mut seen: Map[Id[Node], bool] = {}
-    first := visit(&mut seen, &a)
-    other := visit(&mut seen, &b)
-    again := visit(&mut seen, &mut a)
+    first := visit(&mut seen, a)
+    other := visit(&mut seen, b)
+    again := visit(&mut seen, a)
     println("$first $other $again")
     println(seen.len())
-    made := &Node { label: "a" }
+    made := box(Node { label: "a" })
     println(
-        "${Id { target: &a } == Id { target: &mut a }} ${seen.get(Id { target: made }).is_some()}",
+        "${Id { target: a } == Id { target: a }} ${seen.get(Id { target: made }).is_some()}",
     )

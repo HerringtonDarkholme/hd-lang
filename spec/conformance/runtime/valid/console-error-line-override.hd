@@ -23,8 +23,8 @@ tests:
     use std.testing.assert_equal
 
     it("records error lines separately"):
-        let mut console = SplitConsole { lines: [], errors: [] }
-        $.with(Console=&mut console):
+        console := box(SplitConsole { lines: [], errors: [] })
+        $.with(Console=console):
             report!(1)
         assert_equal(console.lines, ["checked 3 orders"], reason="one ordinary line")
         assert_equal(console.errors, ["1 orders failed"], reason="one error line")

@@ -40,9 +40,9 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("finds an error two levels down"):
-        let failure: *dyn Error = &AppError.Start(
+        let failure: *dyn Error = box(AppError.Start(
             ConfigError.Load("app", FsError.NotFound("app.toml")),
-        )
+        ))
         match failure.find::[FsError]():
             .Some(found) =>
                 assert_equal(
@@ -53,9 +53,9 @@ tests:
             .None => assert(false, reason="FsError is in the chain")
 
     it("returns the first match, starting with the error itself"):
-        let failure: *dyn Error = &AppError.Start(
+        let failure: *dyn Error = box(AppError.Start(
             ConfigError.Load("app", FsError.NotFound("app.toml")),
-        )
+        ))
         assert(
             failure.find::[AppError]().is_some(),
             reason="the error itself is first in the chain",
@@ -67,7 +67,7 @@ tests:
 
     it("returns an equal value for a struct error"):
         disk := DiskError { free: 0 }
-        let failure: *dyn Error = &SaveError.Write("notes.txt", disk)
+        let failure: *dyn Error = box(SaveError.Write("notes.txt", disk))
         match failure.find::[DiskError]():
             .Some(found) =>
                 assert_equal(
@@ -78,7 +78,7 @@ tests:
             .None => assert(false, reason="DiskError is in the chain")
 
     it("returns .None when no error matches"):
-        let failure: *dyn Error = &AppError.Start(
+        let failure: *dyn Error = box(AppError.Start(
             ConfigError.Load("app", FsError.NotFound("app.toml")),
-        )
+        ))
         assert(failure.find::[DiskError]().is_none(), reason="DiskError is not in the chain")

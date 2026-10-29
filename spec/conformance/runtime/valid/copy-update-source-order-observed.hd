@@ -21,7 +21,7 @@ tests:
 
     it("copy-update order"):
         let mut log = &mut Log { text: "" }
-        original := &mut Record { first: 1, second: 2, third: 3 }
+        original := box(Record { first: 1, second: 2, third: 3 })
         copy := &mut Record {
             ...*source(log, original),
             third: note(log, "t", 30),

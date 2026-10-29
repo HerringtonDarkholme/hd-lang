@@ -40,15 +40,15 @@ tests:
 
     it("an absent optional source ends the chain"):
         assert_equal(
-            texts(&RepoError.Write("a.txt", .None)),
+            texts(box(RepoError.Write("a.txt", .None))),
             ["cannot write a.txt"],
             reason="no source",
         )
 
     it("a transparent variant skips its member"):
-        failure := SyncError { repo: RepoError.Disk(DiskError { free: 0 }) }
+        failure := box(SyncError { repo: RepoError.Disk(DiskError { free: 0 }) })
         assert_equal(
-            texts(&failure),
+            texts(failure),
             ["sync failed", "disk full"],
             reason="the member is not listed twice",
         )

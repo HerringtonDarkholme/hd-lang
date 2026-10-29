@@ -14,11 +14,11 @@ tests:
 
     it("primitive, string, data, enum, tuple, and list values convert to Any"):
         let values: List[*dyn Any] = [
-            &1,
-            &"text",
-            &User { name: "Ada" },
-            &Status.Active,
-            &(1, 2),
-            &[true],
+            box(1),
+            box("text"),
+            box(User { name: "Ada" }),
+            box(Status.Active),
+            box((1, 2)),
+            box([true]),
         ]
         assert_equal(values.len(), 6, reason="six erased values")

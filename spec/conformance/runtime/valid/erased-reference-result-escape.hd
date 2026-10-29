@@ -3,8 +3,7 @@
 # expect-stdout: 2 updated 4 changed
 trait Factory:
     fn make[T](self, value: T) -> *mut T:
-        let mut local = value
-        &mut local
+        box(value)
 
 struct Maker: pass
 impl Factory for Maker

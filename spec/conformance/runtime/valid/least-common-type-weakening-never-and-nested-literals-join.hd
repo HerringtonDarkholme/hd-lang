@@ -26,7 +26,7 @@ fn same[T](left: T, right: T) -> bool:
 
 pub fn main() -> void $ Console:
     let u = User { name: "a" }
-    println(weak(&mut User { name: "b" }, &u)[1].name)
+    println(weak(box(User { name: "b" }), box(User { name: "a" }))[1].name)
     println(never_first(false, 9))
     println(nested(7, true)[1][0])
     println(same(User { name: "c" }, u))

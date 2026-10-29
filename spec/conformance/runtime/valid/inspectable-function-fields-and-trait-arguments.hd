@@ -36,7 +36,7 @@ tests:
         assert_equal(run_handler(&handler), 7, reason="the function field is called after recovery")
 
     it("a trait value type argument matches exactly"):
-        let shown: List[*dyn Display] = [&Label { text: "a" }, &Label { text: "b" }]
+        let shown: List[*dyn Display] = [box(Label { text: "a" }), box(Label { text: "b" })]
         assert_equal(joined(&shown), "ab", reason="List[Display] matches List[Display]")
         let labels: List[Label] = [Label { text: "c" }]
         assert_equal(joined(&labels), "no match", reason="List[Label] is not List[Display]")

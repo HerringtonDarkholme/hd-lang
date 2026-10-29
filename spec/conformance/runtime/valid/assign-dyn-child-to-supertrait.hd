@@ -30,7 +30,7 @@ tests:
     use std.testing.assert_equal
 
     it("a dyn Badged is a dyn Titled and a dyn Named"):
-        let badged: *dyn Badged = &Chief {}
+        let badged: *dyn Badged = box(Chief {})
         let titled: &dyn Titled = badged
         assert_equal(titled.title(), "chief", reason="direct supertrait")
         assert_equal(named(badged).name(), "ada", reason="transitive supertrait")

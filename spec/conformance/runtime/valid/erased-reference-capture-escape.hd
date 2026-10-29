@@ -3,8 +3,7 @@
 # expect-stdout: 7 kept 8 captured
 trait Factory:
     fn capture[T](self, value: T) -> fn() -> T:
-        let mut local = value
-        shared := &mut local
+        shared := box(value)
         fn() -> T: *shared
 
 struct Maker: pass

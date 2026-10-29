@@ -15,7 +15,7 @@ enum SaveError:
     )
 
 fn load() -> Result[string, *dyn Error]:
-    .Err(&SaveError.Write("notes.txt", DiskError { free: 7 }))
+    .Err(box(SaveError.Write("notes.txt", DiskError { free: 7 })))
 
 fn free_space(failure: *dyn Error) -> i64?:
     match failure.find::[DiskError]():

@@ -15,8 +15,8 @@ impl Console for Buffer:
         self.write_sync(text)
 
 pub fn main() -> void $ Console:
-    let mut buffer: Buffer = Buffer { lines: [] }
-    $.with(Console=&mut buffer):
+    buffer := box(Buffer { lines: [] })
+    $.with(Console=buffer):
         println("one")
         println(2)
     println("${buffer.lines[0]}${buffer.lines[1]} ${buffer.lines[2]}${buffer.lines[3]}")

@@ -34,8 +34,8 @@ tests:
         assert_equal(empty.iter().flat_map(even).collect(), [], reason="empty source")
 
     it("the erased iterator method also accepts optional results"):
-        let mut cursor = [+1, 2, 3, 4].iter()
-        let source: *mut dyn Iterator[i32] = &mut cursor
+        cursor := box([+1, 2, 3, 4].iter())
+        let source: *mut dyn Iterator[i32] = cursor
         assert_equal(source.flat_map(even).collect(), [+2, 4], reason="erased adapter")
         assert_equal(cursor.next(), .None, reason="borrowed source drained")
 
@@ -72,7 +72,7 @@ tests:
         assert_equal(nested.iter().collect(), [.None], reason="Some(None) is one item")
 
     it("a custom Iterable is opened once and exhausted before the next result"):
-        counter := &mut Counter { opened: 0 }
+        counter := box(Counter { opened: 0 })
         let transformed: usize = 0
         let mut flat = [+0, 2, 1].iter()
             .flat_map(

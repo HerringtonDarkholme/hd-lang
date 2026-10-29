@@ -17,8 +17,8 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("the default body calls write_sync"):
-        let mut console = MemoryConsole { lines: [] }
-        $.with(Console=&mut console):
+        console := box(MemoryConsole { lines: [] })
+        $.with(Console=console):
             match warn!():
                 .Ok(()) => pass
                 .Err(_) => assert(false, reason="both writes succeed")

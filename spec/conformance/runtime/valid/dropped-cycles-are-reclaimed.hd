@@ -6,8 +6,8 @@ struct Stop:
 
 # A ring of two stops, dropped at the return: only the cycle holds it.
 fn ring(round: i32) -> i32:
-    first := &mut Stop { name: "first $round", next: .None }
-    second := &mut Stop { name: "second", next: .Some(first) }
+    first := box(Stop { name: "first $round", next: .None })
+    second := box(Stop { name: "second", next: .Some(first) })
     first.next = .Some(second)
     match first.next:
         .Some(stop) =>

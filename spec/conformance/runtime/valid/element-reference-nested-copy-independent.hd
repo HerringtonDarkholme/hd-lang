@@ -1,4 +1,4 @@
-# test: copies isolate references into nested lists, including shared ancestors and copies a callee keeps
+# test: copies isolate references into nested lists, including shared ancestors
 # Spec 13 Element References: ref.elem.copy.
 struct Bag:
     items: List[i32]
@@ -12,9 +12,6 @@ fn set_after[T](target: &mut i32, copy: T) -> T:
 
 fn set_in_row(row: &mut List[i32], copy: List[List[i32]]) -> List[List[i32]]:
     set_after(&mut row[0], copy)
-
-fn keep(target: *mut i32) -> *mut i32:
-    target
 
 fn next_index(calls: &mut usize) -> usize:
     *calls += 1
@@ -68,28 +65,11 @@ tests:
         b := set_after(&mut a[0][0], [a])
         assert_equal(b[0][0][0], 1, reason="fresh containers do not reintroduce sharing")
 
-    it("a copy a callee keeps outlasts the call"):
-        let mut a = [[+1]]
-        p := keep(&mut a[0][0])
-        b := a
-        *p = 9
-        assert_equal(a[0][0], 9, reason="the kept copy reaches its original")
-        assert_equal(b[0][0], 1, reason="ancestor exposure outlives the call")
-
     it("a reference through an element reference exposes the outer list"):
         let mut a = [[+1]]
         b := set_in_row(&mut a[0], a)
         assert_equal(a[0][0], 9, reason="the inner write reaches the original")
         assert_equal(b[0][0], 1, reason="the parent was exposed when its element was referenced")
-
-    it("ancestor growth preserves exposure"):
-        let mut a = [[+1]]
-        p := keep(&mut a[0][0])
-        a.push([+2])
-        b := a
-        *p = 9
-        assert_equal(a[0][0], 9, reason="growth keeps the original descendant")
-        assert_equal(b[0][0], 1, reason="growth does not clear exposure")
 
     it("each index is evaluated once"):
         let mut a = [[[+1]]]

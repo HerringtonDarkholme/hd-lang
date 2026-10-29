@@ -68,10 +68,10 @@ fn near(seed: i64) -> *Near:
     p2 := p3.left
     p1 := p2.left
     p0 := p1.left
-    &Near { a: p7, b: p6, c: p5, d: p4, e: p3, f: p2, g: p1, h: p0 }
+    box(Near { a: p7, b: p6, c: p5, d: p4, e: p3, f: p2, g: p1, h: p0 })
 
 fn large(seed: i64) -> *P8:
-    &P8 { left: build(seed), right: build(seed + 1) }
+    box(P8 { left: build(seed), right: build(seed + 1) })
 
 tests:
     use std.testing.{assert, assert_equal}
@@ -82,8 +82,8 @@ tests:
             let mut pairs: List[*P1] = []
             for i in 0..5000:
                 value := i64(i + round)
-                tiny.push(&Tiny { value: value })
-                pairs.push(&P1 { left: Tiny { value: value }, right: Tiny { value: -value } })
+                tiny.push(box(Tiny { value: value }))
+                pairs.push(box(P1 { left: Tiny { value: value }, right: Tiny { value: -value } }))
             for i in 0..5000:
                 assert_equal(
                     tiny[i].value,

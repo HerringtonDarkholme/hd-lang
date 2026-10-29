@@ -25,8 +25,8 @@ tests:
     use std.testing.assert_equal
 
     it("eprintln and println reach different methods"):
-        let mut console = SplitConsole { out: [], err: [] }
-        $.with(Console=&mut console):
+        console := box(SplitConsole { out: [], err: [] })
+        $.with(Console=console):
             report(2)
         assert_equal(console.out, ["done", "\n"], reason="println uses write_sync")
         assert_equal(console.err, ["warning: 2 skipped\n"], reason="eprintln uses write_error_sync")

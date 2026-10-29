@@ -20,8 +20,8 @@ pub fn main() -> void $ Console:
 tests:
     use std.testing.{assert, assert_equal}
     it("mutable recovery preserves the original mutable reference"):
-        let mut user = User { count: 1 }
-        original := &mut user
+        user := box(User { count: 1 })
+        original := user
         let erased: &mut dyn Inspectable = original
         match erased.downcast_mut::[User]():
             .Some(found) =>
@@ -30,8 +30,8 @@ tests:
             .None => assert(false, reason="User matches")
         assert_equal(user.count, 2, reason="the original value changed")
     it("an outer mutable reference does not upgrade its shared referent"):
-        let mut user = &User { count: 3 }
-        original := &mut user
+        user := box::[*User](box(User { count: 3 }))
+        original := user
         let erased: &mut dyn Inspectable = original
         assert(
             erased.downcast_mut::[*mut User]().is_none(),
@@ -40,9 +40,9 @@ tests:
         match erased.downcast_mut::[*User]():
             .Some(found) =>
                 assert(found is original, reason="the mutable reference to the shared reference")
-                *found = &User { count: 7 }
+                *found = box(User { count: 7 })
             .None => assert(false, reason="&User matches")
-        assert_equal(user.count, 7, reason="the shared reference value was replaced")
+        assert_equal((*user).count, 7, reason="the shared reference value was replaced")
     it("generic identity stays permission sensitive through forwarding"):
         let mut user = User { count: 4 }
         assert(
@@ -54,8 +54,8 @@ tests:
             reason="the generic caller must retain the distinction too",
         )
     it("sharing generic code preserves the actual mutable reference"):
-        let mut user = User { count: 8 }
-        original := &mut user
+        user := box(User { count: 8 })
+        original := user
         found := copied(original)
         found.count += 1
         assert(found is original, reason="sharing code does not replace the reference")

@@ -24,13 +24,13 @@ fn label(named: &dyn Named) -> string:
     named.name()
 
 pub fn main() -> void $ Console:
-    let mut sq = Square { side: 2.0 }
-    let shape: &mut dyn Shape = &mut sq
+    sq := box(Square { side: 2.0 })
+    let shape: &mut dyn Shape = sq
     println("${label(shape)} ${shape.area()}")
     let named: &dyn Named = shape
-    let again: &dyn Named = &sq
+    let again: &dyn Named = sq
     println("${named.name()} ${named is again}")
-    let maybe: *dyn Shape? = &sq
+    let maybe: *dyn Shape? = sq
     sq.side = 3.0
     match maybe:
         .Some(s) => println("${s.area()}")

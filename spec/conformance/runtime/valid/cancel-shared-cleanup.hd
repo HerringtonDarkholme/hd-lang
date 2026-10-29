@@ -36,9 +36,9 @@ fn stop_twice!(job: mut Suspend[string], log: &mut List[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    let job: mut Suspend[string] = session(&mut log)
-    let (winner, _) = all!(race(job, ready()), stop_twice(job, &mut log))
+    log := box::[List[string]]([])
+    let job: mut Suspend[string] = session(log)
+    let (winner, _) = all!(race(job, ready()), stop_twice(job, log))
     println(winner)
     println(log.join(", "))
     match job.cancel!():

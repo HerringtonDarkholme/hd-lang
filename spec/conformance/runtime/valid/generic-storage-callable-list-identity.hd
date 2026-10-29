@@ -13,8 +13,8 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("the callee's push reaches the argument list"):
-        let mut jobs: List[fn() -> i32] = [load_orders]
-        returned := schedule(&mut jobs, load_refunds)
+        jobs := box::[List[fn() -> i32]]([load_orders])
+        returned := schedule(jobs, load_refunds)
         assert(
             jobs.len() == 2 && returned.len() == 2,
             reason="the &mut parameter shares the caller's list",

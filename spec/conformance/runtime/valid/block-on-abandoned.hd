@@ -54,6 +54,6 @@ fn drive(log: *mut List[string]) -> string $ Clock:
         .Abandoned => "abandoned"
 
 pub fn main() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    println(drive(&mut log))
+    log := box::[List[string]]([])
+    println(drive(log))
     println(log.join(", "))

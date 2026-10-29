@@ -59,8 +59,8 @@ tests:
 
     it("copies through the helpers"):
         reader := MapFs { files: { "notes.txt": "tea" } }
-        let mut writer = MapFs { files: {} }
-        $.with(FsRead=reader, FsWrite=&mut writer):
+        writer := box(MapFs { files: {} })
+        $.with(FsRead=reader, FsWrite=writer):
             assert_equal(copy_notes!(), .Ok(()), reason="both calls succeed")
         assert_equal(writer.files.get("notes.bak"), .Some("tea"), reason="the copy was written")
 

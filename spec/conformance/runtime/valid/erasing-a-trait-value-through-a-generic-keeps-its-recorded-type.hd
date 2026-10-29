@@ -26,8 +26,8 @@ fn describe[E < Error](error: E) -> string:
     error.to_string()
 
 pub fn main() -> void $ Console:
-    let failure: *dyn Error = &Missing { path: "a.txt" }
+    let failure: *dyn Error = box(Missing { path: "a.txt" })
     println(is_missing(erase(failure)))
-    println(is_missing(erase(&Missing { path: "b.txt" })))
-    println(is_missing(erase(&3)))
+    println(is_missing(erase(box(Missing { path: "b.txt" }))))
+    println(is_missing(erase(box(3))))
     println(describe(failure))

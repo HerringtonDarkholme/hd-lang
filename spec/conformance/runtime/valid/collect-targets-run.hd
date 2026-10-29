@@ -20,7 +20,7 @@ tests:
         assert_equal(entries.get("b"), .Some(2), reason="one value")
 
     it("a Result target stops at the first error"):
-        let mut source = ["1", "x", "22", "333"].iter()
+        source := box(["1", "x", "22", "333"].iter())
         let parsed: Result[List[usize], string] = source.by_ref().map(parse_digit).collect()
         assert_equal(parsed, .Err("bad"), reason="first error")
         assert_equal(source.collect().len(), 2, reason="the rest is unread")

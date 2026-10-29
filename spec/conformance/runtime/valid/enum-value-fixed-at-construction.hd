@@ -28,7 +28,7 @@ tests:
         assert_equal(describe(before), "queued after 1", reason="the copy keeps its variant")
 
     it("a mut payload is the exception: the enum keeps its reference, not a frozen object"):
-        let mut ada = &mut Worker { name: "Ada", done: 0 }
+        ada := box(Worker { name: "Ada", done: 0 })
         job := Job.Running(ada)
         copy := job
         ada.done = 3

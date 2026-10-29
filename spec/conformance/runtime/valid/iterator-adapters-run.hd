@@ -21,7 +21,7 @@ tests:
         )
 
     it("does not advance until next"):
-        let mut tally = &mut Tally { pulled: 0 }
+        tally := box(Tally { pulled: 0 })
         let mut source = [1, 2, 3, 4].iter().map(fn(value): seen(tally, value))
         let mut evens = source.filter(fn(value): value % 2 == 0)
         assert_equal(tally.pulled, 0, reason="map and filter are lazy")
@@ -29,7 +29,7 @@ tests:
         assert_equal(tally.pulled, 2, reason="two items pulled")
 
     it("take pulls at most count items"):
-        let mut tally = &mut Tally { pulled: 0 }
+        tally := box(Tally { pulled: 0 })
         let mut source = [1, 2, 3, 4, 5].iter().map(fn(value): seen(tally, value))
         assert_equal(source.take(3).collect(), [1, 2, 3], reason="first three")
         assert_equal(tally.pulled, 3, reason="no fourth pull")

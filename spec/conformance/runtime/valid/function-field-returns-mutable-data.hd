@@ -5,7 +5,7 @@ struct Child:
 struct Holder:
     get: fn() -> *mut Child
 fn make() -> *mut Child:
-    &mut Child { value: 42 }
+    box(Child { value: 42 })
 fn main() -> i32:
     holder := &mut Holder { get: make }
     let child: &mut Child = (holder.get)()

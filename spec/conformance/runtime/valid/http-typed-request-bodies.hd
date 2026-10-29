@@ -50,9 +50,9 @@ fn request() -> Request:
 
 tests:
     it("json replaces the body once and detaches from the previous value"):
-        let mut calls: List[usize] = []
+        calls := box::[List[usize]]([])
         original := request().set_bytes([0, 1])
-        changed := original.set_json(Once { calls: &mut calls })
+        changed := original.set_json(Once { calls: calls })
         assert_equal(calls.len(), 1, reason="one Serialize walk")
         assert_equal(changed.text(), .Ok("\"once\""), reason="JSON replacement")
         assert_equal(original.bytes(), .Ok([0, 1]), reason="original body independent")

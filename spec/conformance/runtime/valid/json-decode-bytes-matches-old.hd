@@ -51,7 +51,7 @@ fn parse_value(bytes: List[u8], start: usize, depth: usize) -> Result[*Parsed, J
         return parse_array(bytes, index, depth)
     if byte == 34:
         found := parse_string(bytes, index)?
-        return .Ok(&mut Parsed { value: Json.Text(found.text), end: found.end })
+        return .Ok(box(Parsed { value: Json.Text(found.text), end: found.end }))
     if byte == 116:
         return parse_word(bytes, index, "true", Json.Bool(true))
     if byte == 102:
@@ -73,7 +73,7 @@ fn parse_word(
         if index >= bytes.len() || bytes[index] != expected:
             return .Err(unexpected(bytes, index))
         index = index + 1
-    .Ok(&mut Parsed { value: value, end: index })
+    .Ok(box(Parsed { value: value, end: index }))
 
 fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[*Parsed, JsonError]:
     if depth >= 128:
@@ -81,7 +81,7 @@ fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[*Parsed, Js
     let mut items: List[Json] = []
     let index = skip_space(bytes, open + 1)
     if index < bytes.len() && bytes[index] == 93:
-        return .Ok(&mut Parsed { value: Json.Array(items), end: index + 1 })
+        return .Ok(box(Parsed { value: Json.Array(items), end: index + 1 }))
     while true:
         found := parse_value(bytes, index, depth + 1)?
         items.push(found.value)
@@ -89,7 +89,7 @@ fn parse_array(bytes: List[u8], open: usize, depth: usize) -> Result[*Parsed, Js
         if index < bytes.len() && bytes[index] == 44:
             index = index + 1
         else if index < bytes.len() && bytes[index] == 93:
-            return .Ok(&mut Parsed { value: Json.Array(items), end: index + 1 })
+            return .Ok(box(Parsed { value: Json.Array(items), end: index + 1 }))
         else:
             return .Err(unexpected(bytes, index))
 
@@ -99,7 +99,7 @@ fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[*Parsed, J
     let mut fields = JsonObject::new()
     let index = skip_space(bytes, open + 1)
     if index < bytes.len() && bytes[index] == 125:
-        return .Ok(&mut Parsed { value: Json.Object(fields), end: index + 1 })
+        return .Ok(box(Parsed { value: Json.Object(fields), end: index + 1 }))
     while true:
         if index >= bytes.len() || bytes[index] != 34:
             return .Err(unexpected(bytes, index))
@@ -113,7 +113,7 @@ fn parse_object(bytes: List[u8], open: usize, depth: usize) -> Result[*Parsed, J
         if index < bytes.len() && bytes[index] == 44:
             index = skip_space(bytes, index + 1)
         else if index < bytes.len() && bytes[index] == 125:
-            return .Ok(&mut Parsed { value: Json.Object(fields), end: index + 1 })
+            return .Ok(box(Parsed { value: Json.Object(fields), end: index + 1 }))
         else:
             return .Err(unexpected(bytes, index))
 
@@ -126,7 +126,7 @@ fn parse_string(bytes: List[u8], open: usize) -> Result[*ParsedText, JsonError]:
             return .Err(unexpected(bytes, index))
         byte := bytes[index]
         if byte == 34:
-            return .Ok(&mut ParsedText { text: old_bytes_text(buffer), end: index + 1 })
+            return .Ok(box(ParsedText { text: old_bytes_text(buffer), end: index + 1 }))
         if byte < 32:
             return .Err(JsonError.ControlCharacter(index))
         if byte != 92:
@@ -267,16 +267,16 @@ fn parse_number(bytes: List[u8], start: usize) -> Result[*Parsed, JsonError]:
     if exotic || overflow || (negative && magnitude > sign_limit()):
         return float_number(bytes, start, index)
     if !negative:
-        return .Ok(&mut Parsed { value: Json.Number(Number::from_u64(magnitude)), end: index })
+        return .Ok(box(Parsed { value: Json.Number(Number::from_u64(magnitude)), end: index }))
     if magnitude == 0:
         match Number::from_f64(-0.0):
-            .Some(zero) => return .Ok(&mut Parsed { value: Json.Number(zero), end: index })
+            .Some(zero) => return .Ok(box(Parsed { value: Json.Number(zero), end: index }))
             .None => return float_number(bytes, start, index)
     if magnitude == sign_limit():
         return .Ok(
-            &mut Parsed { value: Json.Number(Number::from_i64(-9223372036854775808)), end: index },
+            box(Parsed { value: Json.Number(Number::from_i64(-9223372036854775808)), end: index }),
         )
-    .Ok(&mut Parsed { value: Json.Number(Number::from_i64(-i64(magnitude))), end: index })
+    .Ok(box(Parsed { value: Json.Number(Number::from_i64(-i64(magnitude))), end: index }))
 
 # The float of the number text from `start` up to `end`, which the caller
 # has read to the end of its grammar; past the f64 range it is a
@@ -291,7 +291,7 @@ fn float_number(bytes: List[u8], start: usize, end: usize) -> Result[*Parsed, Js
         .Ok(found) => found
         .Err(_) => panic("std.json: a JSON number is valid f64 text")
     match Number::from_f64(value):
-        .Some(number) => .Ok(&mut Parsed { value: Json.Number(number), end: end })
+        .Some(number) => .Ok(box(Parsed { value: Json.Number(number), end: end }))
         .None => .Err(JsonError.NumberOutOfRange(start))
 
 fn old_bytes_text(bytes: List[u8]) -> string:
@@ -420,15 +420,15 @@ impl Deserializer for OldReader:
             match self.value:
                 .Array(items) =>
                     self.push(
-                        &mut OldFrame {
+                        box(OldFrame {
                             base: self.path,
                             home: self.path,
-                            items: &items,
-                            keys: &[],
+                            items: box(items),
+                            keys: box([]),
                             fields: JsonObject::new(),
                             variant_payload: .None,
                             newtype: false,
-                        },
+                        }),
                     )
                     return .Ok(())
                 _ => pass
@@ -452,21 +452,21 @@ impl Deserializer for OldReader:
         if self.present:
             match self.value:
                 .Object(fields) =>
-                    let mut keys: List[string] = []
-                    let mut items: List[Json] = []
+                    keys := box::[List[string]]([])
+                    items := box::[List[Json]]([])
                     for entry in fields:
                         keys.push(entry._0)
                         items.push(entry._1)
                     self.push(
-                        &mut OldFrame {
+                        box(OldFrame {
                             base: self.path,
                             home: self.path,
-                            items: &items,
-                            keys: &keys,
+                            items: items,
+                            keys: keys,
                             fields: JsonObject::new(),
                             variant_payload: .None,
                             newtype: false,
-                        },
+                        }),
                     )
                     return .Ok(())
                 _ => pass
@@ -500,15 +500,15 @@ impl Deserializer for OldReader:
                 match self.value:
                     .Object(fields) =>
                         self.push(
-                            &mut OldFrame {
+                            box(OldFrame {
                                 base: self.path,
                                 home: self.path,
-                                items: &[],
-                                keys: &[],
+                                items: box([]),
+                                keys: box([]),
                                 fields: fields,
                                 variant_payload: .None,
                                 newtype: false,
-                            },
+                            }),
                         )
                         return .Ok(0)
                     _ => pass
@@ -536,15 +536,15 @@ impl Deserializer for OldReader:
                     .Object(found) => found
                     _ => JsonObject::new()
                 self.push(
-                    &mut OldFrame {
+                    box(OldFrame {
                         base: base,
                         home: self.path,
-                        items: &[],
-                        keys: &[],
+                        items: box([]),
+                        keys: box([]),
                         fields: fields,
                         variant_payload: .Some(payload),
                         newtype: false,
-                    },
+                    }),
                 )
                 return .Ok(index)
             index = index + 1
@@ -569,7 +569,7 @@ impl Deserializer for OldReader:
                 match payload:
                     .Array(items) =>
                         if items.len() == len:
-                            frame.items = &items
+                            frame.items = box(items)
                             frame.newtype = true
                             self.present = true
                             return .Ok(())
@@ -1174,7 +1174,7 @@ fn typed_gen(c: &mut Choices) -> *Typed:
                 roles.push((c.choose(TEXTS), role_json(c)))
             object_of(c, roles)
         _ => any_json(c, 0)
-    &mut Typed { target: target, value: value }
+    box(Typed { target: target, value: value })
 
 fn typed_disagreement(typed: &Typed) -> string:
     match typed.target:
@@ -1421,7 +1421,7 @@ impl Deserialize for Probe:
         _ := input.next_item()?
         stop := i32(input.int("stop")?)
         _ := input.next_item()?
-        let state: &mut ProbeState = &mut ProbeState { log: &mut [], errors: 0, stop: stop }
+        let state: &mut ProbeState = &mut ProbeState { log: box([]), errors: 0, stop: stop }
         probe(input, state, 0)?
         .Ok(Probe { errors: state.errors, log: state.log.join(" | ") })
 
@@ -1480,7 +1480,7 @@ struct Sets:
     keys: *List[string]
 
 fn sets_gen(c: &mut Choices) -> *Sets:
-    &mut Sets { keys: &c.list(40, fn(inner: &mut Choices) -> string: inner.choose(OBJECT_KEYS)) }
+    box(Sets { keys: box(c.list(40, fn(inner: &mut Choices) -> string: inner.choose(OBJECT_KEYS))) })
 
 fn object_disagreement(sets: &Sets) -> string:
     let mut object = JsonObject::new()

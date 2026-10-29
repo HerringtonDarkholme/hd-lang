@@ -43,10 +43,10 @@ fn stop!(kid: mut Suspend[string], log: &mut List[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    let kid: mut Suspend[string] = child(&mut log)
-    let top: mut Suspend[string] = parent(kid, &mut log)
-    let (winner, stopped) = all!(race(top, ready()), stop(kid, &mut log))
+    log := box::[List[string]]([])
+    let kid: mut Suspend[string] = child(log)
+    let top: mut Suspend[string] = parent(kid, log)
+    let (winner, stopped) = all!(race(top, ready()), stop(kid, log))
     println("${winner} ${stopped}")
     println(log.join(", "))
     println("parent ${ended!(top)}")

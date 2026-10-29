@@ -208,7 +208,7 @@ fn float_gen(c: &mut Choices) -> f64:
     )
 
 fn numbers_gen(c: &mut Choices) -> *Numbers:
-    &mut Numbers {
+    box(Numbers {
         small: c.int(i8(-128)..=i8(127)),
         short: c.int(i16(-32768)..=i16(32767)),
         medium: c.int(-2147483648..=2147483647),
@@ -235,7 +235,7 @@ fn numbers_gen(c: &mut Choices) -> *Numbers:
         size: c.int(usize(0)..=usize(4294967295)),
         single: f32(float_gen(c)),
         double: float_gen(c),
-    }
+    })
 
 fn shape_gen(c: &mut Choices, depth: i32) -> Shape:
     pick := c.int(0..=(if depth < 2: 4 else: 3))
@@ -245,7 +245,7 @@ fn shape_gen(c: &mut Choices, depth: i32) -> Shape:
         2 => Shape.Point(c.int(-5..=5), c.int(-5..=5))
         3 => Shape.Empty
         _ =>
-            let inner: *Shape? = if c.bool(): .Some(&shape_gen(c, depth + 1)) else: .None
+            let inner: *Shape? = if c.bool(): .Some(box(shape_gen(c, depth + 1))) else: .None
             Shape.Labeled(text_gen(c), inner)
 
 fn json_gen(c: &mut Choices, depth: i32) -> Json:
@@ -276,23 +276,23 @@ fn item_gen(c: &mut Choices, depth: i32) -> *Item:
         0 => .None
         1 => .Some(.None)
         _ => .Some(.Some(c.int(-9..=9)))
-    let mut children: List[*Item] = []
+    children := box::[List[*Item]]([])
     if depth < 2:
         for _ in 0..c.int(0..=3):
             children.push(item_gen(c, depth + 1))
-    &mut Item {
+    box(Item {
         name: text_gen(c),
         letter: c.choose(['a', '"', '\\', '\n', '\u{1}', 'é', '\u{1f600}']),
         flag: c.bool(),
         numbers: numbers_gen(c),
         note: if c.bool(): .Some(text_gen(c)) else: .None,
         nested: nested,
-        tags: &c.list(4, text_gen),
-        attrs: &c.map(20, text_gen, fn(inner: &mut Choices) -> i32: inner.int(-100..=100)),
+        tags: box(c.list(4, text_gen)),
+        attrs: box(c.map(20, text_gen, fn(inner: &mut Choices) -> i32: inner.int(-100..=100))),
         shape: shape_gen(c, 0),
         raw: json_gen(c, 0),
-        children: &children,
-    }
+        children: children,
+    })
 
 # A hand-written Serialize that replays a script of writer calls and
 # ignores every error, so the walks that derived code never makes are
@@ -361,7 +361,7 @@ KEYS := ["a", "b", "ab", "ba", "a\"", "é"]
 # Random steps that never end more frames than they open, since the tree
 # writer panics on an end with no open frame.
 fn script_gen(c: &mut Choices) -> *Script:
-    let mut steps: List[Step] = []
+    steps := box::[List[Step]]([])
     let depth = 0
     count := c.int(0..=24)
     let index = 0
@@ -390,7 +390,7 @@ fn script_gen(c: &mut Choices) -> *Script:
         else if depth > 0:
             steps.push(c.choose([Step.EndList, Step.EndMap, Step.EndVariant]))
             depth = depth - 1
-    &mut Script { steps: &steps }
+    box(Script { steps: steps })
 
 # A map of `count` entries; from entry `repeat_at` on, each key repeats
 # the key `back` entries earlier.
@@ -411,7 +411,7 @@ impl Serialize for Wide:
         out.end_map()
 
 fn steps(list: List[Step]) -> *Script:
-    &mut Script { steps: &list }
+    box(Script { steps: box(list) })
 
 tests:
     it("the shapes of the spec encode as before"):
@@ -420,12 +420,12 @@ tests:
             Shape.Circle(7),
             Shape.Rect(2, 3),
             Shape.Point(4, 5),
-            Shape.Labeled("x", .Some(&Shape.Empty)),
+            Shape.Labeled("x", .Some(box(Shape.Empty))),
             Shape.Labeled("", .None),
         ]:
             assert_equal(disagreement(shape), "", reason=debug(shape))
         assert_equal(
-            encode(Shape.Labeled("q\"", .Some(&Shape.Empty))),
+            encode(Shape.Labeled("q\"", .Some(box(Shape.Empty)))),
             "{\"Labeled\":{\"label\":\"q\\\"\",\"inner\":\"Empty\"}}",
             reason="nested variant",
         )

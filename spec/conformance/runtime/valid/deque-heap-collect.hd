@@ -53,7 +53,7 @@ tests:
         assert_equal(single.pop(), .None, reason="singleton exhausted")
 
     it("heap collection preserves duplicates and pops in descending order"):
-        let mut source = [+3, -4, 9, 3, 0, 8, 9].iter()
+        source := box([+3, -4, 9, 3, 0, 8, 9].iter())
         let mut heap = source.by_ref().collect::[Heap[i32]]()
         assert_equal(source.next(), .None, reason="by_ref drains the original owned cursor")
         assert_equal(heap.len(), 7, reason="every item")
@@ -84,7 +84,7 @@ tests:
 
     it("heapification uses linear comparisons even for ascending inputs"):
         for size in [31, 64, 127, 1024]:
-            counter := &mut Counter { comparisons: 0 }
+            counter := box(Counter { comparisons: 0 })
             values := (0..size).iter()
                 .map(fn(n: usize) -> Counted: Counted { value: i32(n), counter: counter })
             let mut heap = values.collect::[Heap[Counted]]()
