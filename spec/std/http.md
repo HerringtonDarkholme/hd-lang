@@ -374,6 +374,96 @@ Message writers return changed values for chaining; readers borrow locally.
 
 The provider's default timeout still applies; `std.task.apply!` with `std.task.timeout` can impose a shorter bound around a send.
 
+## Multipart Forms
+
+`Multipart` builds and reads buffered `multipart/form-data` messages.
+It reuses the read-once [`Body`](#read-once-bodies) and ordered [`Headers`](#header-collections) values.
+
+### Multipart Values
+
+1. r[std-http.multipart.part.declaration] `std.http` declares `pub struct MultipartPart` with public `name: string`, `filename: string? = .None`, `headers: Headers = Headers::new()`, and `body: Body` fields.
+2. r[std-http.multipart.declaration] `std.http` declares `pub struct Multipart` with the public field `parts: List[MultipartPart]`.
+3. r[std-http.multipart.traits] `MultipartPart`, `Multipart`, and `MultipartError` implement structural `Eq` and `Debug`.
+4. r[std-http.multipart.new] `Multipart::new() -> Multipart` returns a value with no parts.
+5. r[std-http.multipart.add] `add(self, part: MultipartPart) -> Multipart` appends `part` without changing its fields.
+6. r[std-http.multipart.order] Parts retain insertion order, including parts whose names repeat.
+7. r[std-http.multipart.text] `text(self, name: string, value: string) -> Multipart` appends one UTF-8 body with `Content-Type: text/plain; charset=utf-8`.
+8. r[std-http.multipart.file] `file(self, name: string, filename: string, content_type: string, bytes: List[u8]) -> Multipart` appends one file part.
+9. r[std-http.multipart.file-content] A file part keeps `filename`, writes `content_type` as `Content-Type`, and stores `bytes` in a fresh body.
+
+```hd
+form := Multipart::new()
+    .text("caption", "launch day")
+    .file("photo", "launch.png", "image/png", photo)
+```
+
+### Encoding
+
+1. r[std-http.multipart.set] `Request.set_multipart(self, form: Multipart) -> Result[Request, MultipartError]` encodes `form` into a changed request.
+2. r[std-http.multipart.set.claim] `set_multipart` claims each part body once, in part order.
+3. r[std-http.multipart.set.used] An already claimed part body returns `MultipartError.UsedPart(name)`.
+4. r[std-http.multipart.set.name] An empty name, or one containing carriage return, line feed, or NUL, returns `MultipartError.InvalidName(name)`.
+5. r[std-http.multipart.set.filename] A filename containing carriage return, line feed, or NUL returns `MultipartError.InvalidFilename(filename)`.
+6. r[std-http.multipart.set.disposition-owned] A supplied `Content-Disposition` part header returns `MultipartError.Header(HeaderError.InvalidValue("content-disposition"))`.
+7. r[std-http.multipart.set.headers] Every other part header must be valid and is written unchanged in its original order.
+8. r[std-http.multipart.set.disposition] The encoder writes one `Content-Disposition: form-data` header containing the part's name and optional filename.
+9. r[std-http.multipart.set.quoted] A quotation mark or backslash in a disposition parameter is escaped with one backslash.
+10. r[std-http.multipart.set.boundary] The encoder chooses a deterministic valid ASCII boundary from one through seventy bytes, with no trailing space.
+11. r[std-http.multipart.set.collision] The chosen boundary differs from every delimiter line in every part body.
+12. r[std-http.multipart.set.framing] Encoding follows RFC 7578 framing, using carriage-return-line-feed line endings and one closing delimiter.
+13. r[std-http.multipart.set.replace] Success replaces the request body and `Content-Type`, while retaining every other request header.
+14. r[std-http.multipart.set.content-type] The replacement Content-Type is `multipart/form-data; boundary=BOUNDARY` with the chosen boundary.
+
+```hd
+request := Request::post(url).set_multipart(form)?
+```
+
+### Decoding
+
+1. r[std-http.multipart.read] `Request.multipart(&self) -> Result[Multipart, MultipartError]` claims and decodes the request body.
+2. r[std-http.multipart.read.claim] Every result claims the request body, so a later body reader through any copy returns `BodyError.Used`.
+3. r[std-http.multipart.read.content-type] An absent Content-Type returns `MissingContentType`, while another media type returns `WrongContentType(value)`.
+4. r[std-http.multipart.read.boundary-required] A multipart Content-Type without a boundary parameter returns `MissingBoundary`.
+5. r[std-http.multipart.read.boundary-valid] A boundary must be valid RFC 2046 text from one through seventy ASCII bytes, without trailing space.
+6. r[std-http.multipart.read.boundary-quoted] A boundary parameter may be a quoted string with quoted-pair escapes.
+7. r[std-http.multipart.read.order] Decoding returns parts in wire order and preserves repeated names.
+8. r[std-http.multipart.read.disposition] Every part requires exactly one `Content-Disposition: form-data` header and one nonempty `name` parameter.
+9. r[std-http.multipart.read.filename] An optional filename is returned exactly as sent and is untrusted display metadata, not a filesystem path.
+10. r[std-http.multipart.read.headers] Other valid part headers retain their wire order in the returned `Headers` value.
+11. r[std-http.multipart.read.body] Each payload becomes a fresh unread `Body`; copied part bodies share that body's consumption state.
+12. r[std-http.multipart.read.binary] A payload may contain any bytes, including malformed UTF-8.
+13. r[std-http.multipart.read.single-level] A nested multipart Content-Type remains an opaque part body and is not decoded recursively.
+14. r[std-http.multipart.read.framing] Missing delimiters, unfinished headers, invalid header UTF-8, and trailing malformed framing are errors.
+
+```hd
+for part in request.multipart()?.parts:
+    println("${part.name}: ${part.body.bytes()?.len()}")
+```
+
+### Multipart Errors
+
+1. r[std-http.multipart.error.declaration] `std.http` declares the error enum `MultipartError` with the variants below.
+2. r[std-http.multipart.error.body] `Body(error: BodyError)` displays `multipart body: ERROR` and retains the body error.
+3. r[std-http.multipart.error.missing-content-type] `MissingContentType` displays `missing multipart Content-Type`.
+4. r[std-http.multipart.error.wrong-content-type] `WrongContentType(value)` displays `expected multipart/form-data, got VALUE`.
+5. r[std-http.multipart.error.missing-boundary] `MissingBoundary` displays `missing multipart boundary`.
+6. r[std-http.multipart.error.invalid-boundary] `InvalidBoundary(value)` displays `invalid multipart boundary VALUE`.
+7. r[std-http.multipart.error.invalid-name] `InvalidName(name)` displays `invalid multipart part name NAME`.
+8. r[std-http.multipart.error.invalid-filename] `InvalidFilename(filename)` displays `invalid multipart filename FILENAME`.
+9. r[std-http.multipart.error.header] `Header(error: HeaderError)` displays `invalid multipart header: ERROR` and retains the header error.
+10. r[std-http.multipart.error.malformed] `Malformed(position: usize)` displays `malformed multipart body at byte POSITION`.
+11. r[std-http.multipart.error.used-part] `UsedPart(name)` displays `multipart part NAME was already read`.
+
+```hd
+match request.multipart():
+    .Err(.MissingBoundary) => println("multipart boundary required")
+    _ => pass
+```
+
+> **Why.** Buffering matches `Request.body` today and avoids adding a streaming resource lifetime.
+> Typed names own `Content-Disposition`, so a custom header cannot disagree with them.
+> Filenames remain untrusted because sender text is not local path authority.
+
 ## Client
 
 A client owns a serializable cookie jar and follows redirects through its

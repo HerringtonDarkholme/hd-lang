@@ -538,6 +538,450 @@ impl From[Map[string, string]] for Headers:
             pairs.push((name, value))
         Headers::from(pairs)
 
+## One named part of a buffered multipart/form-data message.
+@derive(Debug, Eq)
+pub struct MultipartPart:
+    pub name: string
+    pub filename: string? = .None
+    pub headers: Headers = Headers::new()
+    pub body: Body
+
+## Ordered buffered multipart/form-data parts.
+@derive(Debug, Eq)
+pub struct Multipart:
+    pub parts: List[MultipartPart]
+
+impl Multipart:
+    pub fn new() -> Multipart:
+        Multipart { parts: [] }
+
+    ## Adds an arbitrary part without changing its headers or body.
+    pub fn add(mut self, part: MultipartPart) -> Multipart:
+        self.parts.push(part)
+        self
+
+    ## Adds one UTF-8 text field.
+    pub fn text(mut self, name: string, value: string) -> Multipart:
+        let mut headers = Headers::new()
+        headers.set(.ContentType, "text/plain; charset=utf-8")
+        self.parts.push(
+            MultipartPart { name: name, headers: headers, body: Body::from_bytes(value.to_utf8()) },
+        )
+        self
+
+    ## Adds one in-memory file field. The caller supplies its media type.
+    pub fn file(
+        mut self,
+        name: string,
+        filename: string,
+        content_type: string,
+        bytes: List[u8],
+    ) -> Multipart:
+        let mut headers = Headers::new()
+        headers.set(.ContentType, content_type)
+        self.parts.push(
+            MultipartPart {
+                name: name,
+                filename: .Some(filename),
+                headers: headers,
+                body: Body::from_bytes(bytes),
+            },
+        )
+        self
+
+## Why a buffered multipart message could not be built or read.
+@error
+@derive(Debug, Eq)
+pub enum MultipartError:
+    @error("multipart body: $error")
+    Body(error: BodyError)
+    @error("missing multipart Content-Type")
+    MissingContentType
+    @error("expected multipart/form-data, got $value")
+    WrongContentType(value: string)
+    @error("missing multipart boundary")
+    MissingBoundary
+    @error("invalid multipart boundary $value")
+    InvalidBoundary(value: string)
+    @error("invalid multipart part name $name")
+    InvalidName(name: string)
+    @error("invalid multipart filename $filename")
+    InvalidFilename(filename: string)
+    @error("invalid multipart header: $error")
+    Header(error: HeaderError)
+    @error("malformed multipart body at byte $position")
+    Malformed(position: usize)
+    @error("multipart part $name was already read")
+    UsedPart(name: string)
+
+struct BufferedMultipartPart:
+    name: string
+    filename: string?
+    headers: Headers
+    bytes: List[u8]
+
+fn multipart_parameter_safe(value: &string) -> bool:
+    !value.contains("\r") && !value.contains("\n") && !value.contains("\0")
+
+fn multipart_escape_parameter(value: &string) -> string:
+    out := StringBuilder::new()
+    for character in value.chars():
+        if character == '"' || character == '\\':
+            out.push("\\")
+        out.push(character.to_string())
+    out.build()
+
+fn multipart_append_text(out: &mut List[u8], value: string) -> void:
+    out.extend(value.to_utf8())
+
+fn multipart_bytes_at(bytes: &List[u8], at: usize, expected: &List[u8]) -> bool:
+    if at > bytes.len() || expected.len() > bytes.len() - at:
+        return false
+    for offset in 0..expected.len():
+        if bytes[at + offset] != expected[offset]:
+            return false
+    true
+
+fn multipart_copy_bytes(bytes: &List[u8], start: usize, end: usize) -> List[u8]:
+    let mut copied: List[u8] = []
+    for at in start..end:
+        copied.push(bytes[at])
+    copied
+
+fn multipart_payload_has_boundary(bytes: &List[u8], boundary: &string) -> bool:
+    marker := "--$boundary".to_utf8()
+    if marker.len() > bytes.len():
+        return false
+    for at in 0..(bytes.len() - marker.len() + 1):
+        line_start := at == 0 || (at >= 2 && bytes[at - 2] == 13 && bytes[at - 1] == 10)
+        if !line_start || !multipart_bytes_at(bytes, at, &marker):
+            continue
+        after := at + marker.len()
+        if multipart_bytes_at(bytes, after, &"\r\n".to_utf8()):
+            return true
+        if multipart_bytes_at(bytes, after, &"--".to_utf8()):
+            closing_end := after + 2
+            if (
+                closing_end == bytes.len()
+                || multipart_bytes_at(bytes, closing_end, &"\r\n".to_utf8())
+            ):
+                return true
+    false
+
+fn multipart_boundary(parts: &List[BufferedMultipartPart]) -> string:
+    let counter = 0
+    while true:
+        candidate := "hd-boundary-$counter"
+        let collision = false
+        for part in parts:
+            if multipart_payload_has_boundary(&part.bytes, &candidate):
+                collision = true
+                break
+        if !collision:
+            return candidate
+        counter += 1
+    panic("multipart boundary search is unbounded")
+
+fn multipart_validate_part_headers(headers: &Headers) -> Result[void, MultipartError]:
+    for (name, value) in headers.pairs:
+        wire_name := name.wire_name()
+        if name == HeaderName.ContentDisposition:
+            return .Err(.Header(.InvalidValue(wire_name)))
+        match wire_name.parse::[HeaderName]():
+            .Err(error) => return .Err(.Header(error))
+            .Ok(_) => pass
+        text := value.text()
+        if text.contains("\r") || text.contains("\n") || text.contains("\0"):
+            return .Err(.Header(.InvalidValue(wire_name)))
+    .Ok(())
+
+fn multipart_buffer(form: Multipart) -> Result[List[BufferedMultipartPart], MultipartError]:
+    let mut buffered: List[BufferedMultipartPart] = []
+    for part in form.parts:
+        if part.name.is_empty() || !multipart_parameter_safe(&part.name):
+            return .Err(.InvalidName(part.name))
+        match part.filename:
+            .Some(filename) =>
+                if !multipart_parameter_safe(&filename):
+                    return .Err(.InvalidFilename(filename))
+            .None => pass
+        multipart_validate_part_headers(&part.headers)?
+        bytes := match part.body.bytes():
+            .Ok(bytes) => bytes
+            .Err(.Used) => return .Err(.UsedPart(part.name))
+            .Err(error) => return .Err(.Body(error))
+        buffered.push(
+            BufferedMultipartPart {
+                name: part.name,
+                filename: part.filename,
+                headers: part.headers,
+                bytes: bytes,
+            },
+        )
+    .Ok(buffered)
+
+fn multipart_encode(parts: &List[BufferedMultipartPart], boundary: &string) -> List[u8]:
+    let mut out: List[u8] = []
+    for part in parts:
+        multipart_append_text(&mut out, "--$boundary\r\n")
+        escaped_name := multipart_escape_parameter(&part.name)
+        let disposition = "Content-Disposition: form-data; name=\"$escaped_name\""
+        match part.filename:
+            .Some(filename) =>
+                disposition += "; filename=\"${multipart_escape_parameter(&filename)}\""
+            .None => pass
+        multipart_append_text(&mut out, disposition + "\r\n")
+        for (name, value) in part.headers.entries():
+            multipart_append_text(&mut out, "${name.wire_name()}: $value\r\n")
+        multipart_append_text(&mut out, "\r\n")
+        out.extend(part.bytes)
+        multipart_append_text(&mut out, "\r\n")
+    multipart_append_text(&mut out, "--$boundary--\r\n")
+    out
+
+fn multipart_find(bytes: &List[u8], expected: &List[u8], start: usize) -> usize?:
+    if start > bytes.len() || expected.len() > bytes.len() - start:
+        return .None
+    for at in start..(bytes.len() - expected.len() + 1):
+        if multipart_bytes_at(bytes, at, expected):
+            return .Some(at)
+    .None
+
+fn multipart_split_parameters(value: &string) -> List[string]?:
+    let mut parts: List[string] = []
+    let mut current = StringBuilder::new()
+    let quoted = false
+    let escaped = false
+    for character in value.chars():
+        if escaped:
+            current.push(character.to_string())
+            escaped = false
+        else if quoted && character == '\\':
+            current.push("\\")
+            escaped = true
+        else if character == '"':
+            current.push("\"")
+            quoted = !quoted
+        else if character == ';' && !quoted:
+            parts.push(current.build().trim())
+            current = StringBuilder::new()
+        else:
+            current.push(character.to_string())
+    if quoted || escaped:
+        return .None
+    parts.push(current.build().trim())
+    .Some(parts)
+
+fn multipart_parameter_value(value: &string) -> string?:
+    if !value.starts_with("\""):
+        return .Some(*value)
+    if value.len() < 2 || !value.ends_with("\""):
+        return .None
+    inner := value.slice(1, value.len() - 1)
+    out := StringBuilder::new()
+    let escaped = false
+    for character in inner.chars():
+        if escaped:
+            out.push(character.to_string())
+            escaped = false
+        else if character == '\\':
+            escaped = true
+        else if character == '"':
+            return .None
+        else:
+            out.push(character.to_string())
+    if escaped:
+        return .None
+    .Some(out.build())
+
+fn multipart_boundary_valid(boundary: &string) -> bool:
+    bytes := boundary.to_utf8()
+    if bytes.is_empty() || bytes.len() > 70 || bytes[bytes.len() - 1] == 32:
+        return false
+    for byte in bytes:
+        if (
+            (byte >= 48 && byte <= 57)
+            || (byte >= 65 && byte <= 90)
+            || (byte >= 97 && byte <= 122)
+            || "'()+_,-./:=? ".to_utf8().contains(byte)
+        ):
+            continue
+        return false
+    true
+
+fn multipart_content_boundary(value: string?) -> Result[string, MultipartError]:
+    text := match value:
+        .Some(text) => text
+        .None => return .Err(.MissingContentType)
+    parameters := match multipart_split_parameters(&text):
+        .Some(parameters) => parameters
+        .None => return .Err(.WrongContentType(text))
+    if parameters.is_empty() || header_ascii_lower(&parameters[0]) != "multipart/form-data":
+        return .Err(.WrongContentType(text))
+    let boundary: string? = .None
+    for index in 1..parameters.len():
+        parameter := parameters[index]
+        match parameter.split_once("="):
+            .Some((name, raw)) =>
+                if header_ascii_lower(&name.trim()) != "boundary":
+                    continue
+                if boundary.is_some():
+                    return .Err(.InvalidBoundary(raw.trim()))
+                boundary = multipart_parameter_value(&raw.trim())
+            .None => pass
+    match boundary:
+        .None => .Err(.MissingBoundary)
+        .Some(found) =>
+            if multipart_boundary_valid(&found): .Ok(found) else: .Err(.InvalidBoundary(found))
+
+struct MultipartDisposition:
+    name: string
+    filename: string?
+
+fn multipart_disposition(value: &string) -> Result[MultipartDisposition, MultipartError]:
+    parameters := match multipart_split_parameters(value):
+        .Some(parameters) => parameters
+        .None => return .Err(.Header(.InvalidValue("content-disposition")))
+    if parameters.is_empty() || header_ascii_lower(&parameters[0]) != "form-data":
+        return .Err(.Header(.InvalidValue("content-disposition")))
+    let name: string? = .None
+    let filename: string? = .None
+    for index in 1..parameters.len():
+        parameter := parameters[index]
+        let (key, raw) = match parameter.split_once("="):
+            .Some(pair) => pair
+            .None => continue
+        value := match multipart_parameter_value(&raw.trim()):
+            .Some(value) => value
+            .None => return .Err(.Header(.InvalidValue("content-disposition")))
+        match header_ascii_lower(&key.trim()):
+            "name" =>
+                if name.is_some():
+                    return .Err(.Header(.InvalidValue("content-disposition")))
+                name = .Some(value)
+            "filename" =>
+                if filename.is_some():
+                    return .Err(.Header(.InvalidValue("content-disposition")))
+                filename = .Some(value)
+            _ => pass
+    match name:
+        .Some(found) =>
+            if found.is_empty() || !multipart_parameter_safe(&found):
+                return .Err(.InvalidName(found))
+            match filename:
+                .Some(found_filename) =>
+                    if !multipart_parameter_safe(&found_filename):
+                        return .Err(.InvalidFilename(found_filename))
+                .None => pass
+            .Ok(MultipartDisposition { name: found, filename: filename })
+        .None => .Err(.Header(.InvalidValue("content-disposition")))
+
+fn multipart_decode_headers(
+    bytes: &List[u8],
+    start: usize,
+    end: usize,
+) -> Result[(MultipartDisposition, Headers), MultipartError]:
+    let mut headers = Headers::new()
+    let disposition: MultipartDisposition? = .None
+    let at = start
+    while at < end:
+        line_end := multipart_find(bytes, &"\r\n".to_utf8(), at).unwrap_or(end)
+        if line_end > end:
+            return .Err(.Malformed(at))
+        line_bytes := multipart_copy_bytes(bytes, at, line_end)
+        line := match string::from_utf8(line_bytes):
+            .Ok(line) => line
+            .Err(_) => return .Err(.Header(.InvalidValue("multipart")))
+        let (raw_name, raw_value) = match line.split_once(":"):
+            .Some(pair) => pair
+            .None => return .Err(.Header(.InvalidName(line)))
+        name := match raw_name.parse::[HeaderName]():
+            .Ok(name) => name
+            .Err(error) => return .Err(.Header(error))
+        value := raw_value.trim()
+        if value.contains("\0"):
+            return .Err(.Header(.InvalidValue(name.wire_name())))
+        if name == HeaderName.ContentDisposition:
+            if disposition.is_some():
+                return .Err(.Header(.InvalidValue("content-disposition")))
+            disposition = .Some(multipart_disposition(&value)?)
+        else:
+            headers.pairs.push((name, .Raw(value)))
+        at = line_end + 2
+    match disposition:
+        .Some(value) => .Ok((value, headers))
+        .None => .Err(.Header(.InvalidValue("content-disposition")))
+
+fn multipart_next_delimiter(
+    bytes: &List[u8],
+    boundary: &string,
+    start: usize,
+) -> (usize, bool, usize)?:
+    marker := "\r\n--$boundary".to_utf8()
+    let search = start
+    while true:
+        at := match multipart_find(bytes, &marker, search):
+            .Some(at) => at
+            .None => return .None
+        after := at + marker.len()
+        if multipart_bytes_at(bytes, after, &"--".to_utf8()):
+            closing_end := after + 2
+            if (
+                closing_end == bytes.len()
+                || multipart_bytes_at(bytes, closing_end, &"\r\n".to_utf8())
+            ):
+                return .Some((at, true, closing_end))
+        if multipart_bytes_at(bytes, after, &"\r\n".to_utf8()):
+            return .Some((at, false, after + 2))
+        search = at + 1
+    .None
+
+fn multipart_decode(bytes: List[u8], boundary: &string) -> Result[Multipart, MultipartError]:
+    opening := "--$boundary".to_utf8()
+    if !multipart_bytes_at(&bytes, 0, &opening):
+        return .Err(.Malformed(0))
+    let at = opening.len()
+    if multipart_bytes_at(&bytes, at, &"--".to_utf8()):
+        at += 2
+        if multipart_bytes_at(&bytes, at, &"\r\n".to_utf8()):
+            at += 2
+        if at != bytes.len():
+            return .Err(.Malformed(at))
+        return .Ok(Multipart::new())
+    if !multipart_bytes_at(&bytes, at, &"\r\n".to_utf8()):
+        return .Err(.Malformed(at))
+    at += 2
+    let mut parts: List[MultipartPart] = []
+    while at < bytes.len():
+        header_end := match multipart_find(&bytes, &"\r\n\r\n".to_utf8(), at):
+            .Some(found) => found
+            .None => return .Err(.Malformed(at))
+        let (disposition, headers) = multipart_decode_headers(&bytes, at, header_end)?
+        payload_start := header_end + 4
+        let (payload_end, closing, next) = match multipart_next_delimiter(
+            &bytes,
+            boundary,
+            payload_start,
+        ):
+            .Some(found) => found
+            .None => return .Err(.Malformed(payload_start))
+        parts.push(
+            MultipartPart {
+                name: disposition.name,
+                filename: disposition.filename,
+                headers: headers,
+                body: Body::from_bytes(multipart_copy_bytes(&bytes, payload_start, payload_end)),
+            },
+        )
+        at = next
+        if closing:
+            if multipart_bytes_at(&bytes, at, &"\r\n".to_utf8()):
+                at += 2
+            if at != bytes.len():
+                return .Err(.Malformed(at))
+            return .Ok(Multipart { parts: parts })
+    .Err(.Malformed(at))
+
 fn parse_request_cookies(text: &string) -> List[(string, string)]:
     let mut cookies: List[(string, string)] = []
     if text.contains("\r") || text.contains("\n"):
@@ -1480,6 +1924,14 @@ impl Request:
         self.headers.set(.ContentType, "application/x-www-form-urlencoded")
         self
 
+    ## Encodes ordered multipart parts once, replacing this request's body and Content-Type.
+    pub fn set_multipart(mut self, form: Multipart) -> Result[Request, MultipartError]:
+        parts := multipart_buffer(form)?
+        boundary := multipart_boundary(&parts)
+        self.body = Body::from_bytes(multipart_encode(&parts, &boundary))
+        self.headers.set(.ContentType, "multipart/form-data; boundary=$boundary")
+        .Ok(self)
+
     pub fn set_query_as[T < Serialize](mut self, value: T) -> Request:
         self.url.set_query_as(value)
         self
@@ -1500,6 +1952,11 @@ impl Request:
         self.body.bytes()
     pub fn form[T < Deserialize](&self) -> Result[T, BodyError]:
         self.body.form::[T]()
+    ## Claims this request body and parses its multipart/form-data parts.
+    pub fn multipart(&self) -> Result[Multipart, MultipartError]:
+        bytes := self.body.bytes().map_err(fn(error): MultipartError.Body(error))?
+        boundary := multipart_content_boundary(self.headers.get(.ContentType))?
+        multipart_decode(bytes, &boundary)
     pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]:
         self.url.query_as::[T]()
     pub fn header(&self, name: HeaderName) -> string?:
