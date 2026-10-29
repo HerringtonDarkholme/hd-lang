@@ -129,7 +129,7 @@ fn copy_step(step: &ValidationPathStep) -> PathStep:
         .Key(name) => .Key(name)
 
 fn copy_member(member: &Member) -> *Member:
-    &copy_member_value(member)
+    box(copy_member_value(member))
 
 fn copy_member_value(member: &Member) -> Member:
     let mut items: List[*dyn Inspectable] = []
