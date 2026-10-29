@@ -1,10 +1,10 @@
 # HTTP Multipart Forms
 
-Status: design accepted 2026-10-28; not implemented; domain: standard library HTTP messages.
+Status: implemented in [`std.http`](../../spec/std/http.md#multipart-forms); domain: standard library HTTP messages.
 
 This proposal addresses [#948](https://github.com/HerringtonDarkholme/hd-lang/issues/948).
 It adds buffered `multipart/form-data` building and reading to `std.http`.
-The [checked package](http-multipart/) contains every proposed signature and realistic usage.
+The accepted behavior is specified in [Multipart Forms](../../spec/std/http.md#multipart-forms).
 
 ## Proposal
 
@@ -44,9 +44,7 @@ response := request.send!()?.ok()?
 | `MultipartError` | typed body, header, boundary, disposition, and framing failures |
 
 The API is ordinary stdlib code. It adds no syntax, intrinsic, lang item, capability, or host call.
-The full signatures are in [`http-multipart/src/multipart.hd`](http-multipart/src/multipart.hd).
-That package uses a `MultipartRequest` adapter only because it cannot add inherent methods to `std.http.Request`.
-The proposed std API has inherent `Request` methods and no public adapter trait.
+The standard API has inherent `Request` methods and no public adapter trait.
 
 ### Client encoding
 
@@ -97,12 +95,10 @@ Streaming and incremental limits remain in [Streaming Design](STREAMING_DESIGN.m
 | Data | one list plus one `MultipartPart` per field; part bodies retain existing shared read state |
 | Encode | linear in headers and payload bytes, plus boundary collision scans |
 | Decode | linear in body bytes; one buffered slice copy per returned part |
-| Unused program | 0 Wasm bytes expected; ordinary std functions remain unreachable |
+| Unused program | 0 Wasm bytes; ordinary std functions remain unreachable |
 | Compile time | one ordinary std codec; no compiler or host change |
-| Wasm size | unmeasured until implementation; report total, function count, and code section before merge |
-| Web compiler | source-only std addition; measure gzip against the 2 MB cap before merge |
-
-The checked package contains `panic("todo")` bodies for the wire codec, so it cannot measure implementation size honestly.
+| Wasm size | measured in the implementation report |
+| Web compiler | measured in the implementation report against the 2 MB gzip cap |
 
 ## Appendix A: Stress test
 
@@ -198,18 +194,4 @@ Callers may read bytes explicitly today; streaming file parts wait for the strea
 There is no multipart boundary parser, part metadata type, file upload builder, or server part reader.
 The proposal changes no accepted behavior and drops no existing API.
 
-## Appendix E: Implementation phases
-
-1. Add `MultipartPart`, `Multipart`, and validation helpers; test repeated names and unsafe metadata.
-2. Add deterministic buffered encoding and `Request.set_multipart`; test collision selection and exact CRLF framing.
-3. Add Content-Type and Content-Disposition parsing plus `Request.multipart`; test every typed error.
-4. Add focused client/server conformance on Node and Wasmtime using raw wire bodies.
-5. Measure optimized Wasm and web-compiler gzip; stop for owner review if the ordinary HTTP surface grows materially.
-
-No grammar, inference, pattern, ownership, compiler-cache, host ABI, suspension, or cancellation change is needed.
-If accepted, behavior belongs in `spec/std/http.md` with stdlib-tier fixtures.
-
-## Parse log
-
-`scripts/hd-conformance.sh parse` parses the proposal's `text` block.
-This validates syntax only; `hd check` and `hd fmt --check` validate the package.
+No grammar, inference, pattern, ownership, compiler-cache, host ABI, suspension, or cancellation change was needed.

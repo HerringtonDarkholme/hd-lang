@@ -59,6 +59,7 @@ runtime/valid/http-form-query-writers.hd	runtime	accept	std/http.md#typed-query-
 runtime/valid/http-core-errors.hd	runtime	accept	std/http.md#message-conversion-errors
 runtime/valid/http-header-names.hd	runtime	accept	std/http.md#r-std-http.header-name.parse-known
 runtime/valid/http-headers-collection.hd	runtime	accept	std/http.md#header-collections
+runtime/valid/http-multipart.hd	runtime	accept	std/http.md#multipart-forms
 runtime/valid/http-response-cookies.hd	runtime	accept	std/http.md#response-cookies
 runtime/valid/http-reviewed-examples.hd	runtime	accept	std/http.md#requests-and-responses
 runtime/valid/http-status-codes.hd	runtime	accept	std/http.md#r-std-http.status.numeric-equality

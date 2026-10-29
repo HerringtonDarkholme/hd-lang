@@ -1,0 +1,371 @@
+# test: buffered multipart forms preserve ordered metadata and bytes, choose collision-free boundaries, reject unsafe framing, and keep every body read-once
+use std.http.{
+    Body,
+    BodyError,
+    HeaderError,
+    HeaderName,
+    Headers,
+    Multipart,
+    MultipartError,
+    MultipartPart,
+    Request,
+    Url,
+}
+
+fn request() -> Request:
+    Request::post(Url::parse("https://example.test/upload").expect("fixture URL"))
+
+fn boundary_of(value: &Request) -> string:
+    value.header(.ContentType)
+        .expect("multipart Content-Type")
+        .split_once("boundary=")
+        .expect("boundary parameter")
+        ._1
+
+fn form() -> Multipart:
+    let mut headers = Headers::new()
+    headers.set(.Other("x-checksum"), "sha256:abc")
+    Multipart::new()
+        .text("caption", "launch day")
+        .file("photo", "../../launch.png", "image/png", [0u8, 1u8, 2u8])
+        .text("caption", "second")
+        .add(
+            MultipartPart {
+                name: "checksum",
+                headers: headers,
+                body: Body::from_bytes([3u8, 4u8]),
+            },
+        )
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("encodes and reads ordered repeated text and file parts"):
+        encoded := request()
+            .set_header(.Other("x-request"), "kept")
+            .set_multipart(form())
+            .expect("encode")
+        assert_equal(encoded.header(.Other("x-request")), .Some("kept"), reason="other header")
+        assert(
+            encoded.header(.ContentType)
+                .unwrap_or("")
+                .starts_with("multipart/form-data; boundary="),
+            reason="generated boundary",
+        )
+        decoded := encoded.multipart().expect("decode")
+        assert_equal(decoded.parts.len(), 4, reason="part count")
+        assert_equal(decoded.parts[0].name, "caption", reason="first repeated name")
+        first_body := decoded.parts[0].body
+        first_copy := first_body
+        assert_equal(first_body.text(), .Ok("launch day"), reason="first text")
+        assert_equal(first_copy.bytes(), .Err(BodyError.Used), reason="copies share read state")
+        assert_equal(decoded.parts[1].name, "photo", reason="file name")
+        assert_equal(
+            decoded.parts[1].filename,
+            .Some("../../launch.png"),
+            reason="filename stays untrusted text",
+        )
+        assert_equal(
+            decoded.parts[1].headers.get(.ContentType),
+            .Some("image/png"),
+            reason="file media type",
+        )
+        assert_equal(decoded.parts[1].body.bytes(), .Ok([0u8, 1u8, 2u8]), reason="file bytes")
+        assert_equal(decoded.parts[2].name, "caption", reason="second repeated name")
+        assert_equal(decoded.parts[2].body.text(), .Ok("second"), reason="second text")
+        assert_equal(
+            decoded.parts[3].headers.get(.Other("X-Checksum")),
+            .Some("sha256:abc"),
+            reason="custom header preserved",
+        )
+        assert_equal(decoded.parts[3].body.bytes(), .Ok([3u8, 4u8]), reason="custom bytes")
+
+    it("moves to the next deterministic boundary only for a delimiter line"):
+        first := request()
+            .set_multipart(Multipart::new().text("value", "plain"))
+            .expect("first encode")
+        first_boundary := boundary_of(&first)
+        same := request()
+            .set_multipart(Multipart::new().text("value", "plain"))
+            .expect("same encode")
+        assert_equal(boundary_of(&same), first_boundary, reason="deterministic base")
+        collision := "prefix\r\n--$first_boundary\r\nsuffix"
+        encoded := request()
+            .set_multipart(Multipart::new().text("value", collision))
+            .expect("encode")
+        assert(boundary_of(&encoded) != first_boundary, reason="counter skips a delimiter line")
+        decoded := encoded.multipart().expect("decode")
+        assert_equal(decoded.parts[0].body.text(), .Ok(collision), reason="collision payload")
+        pseudo := "prefix\r\n--$first_boundary--not-a-line\r\nsuffix"
+        pseudo_encoded := request()
+            .set_multipart(Multipart::new().text("value", pseudo))
+            .expect("encode")
+        assert_equal(
+            boundary_of(&pseudo_encoded),
+            first_boundary,
+            reason="non-delimiter text does not collide",
+        )
+        assert_equal(
+            pseudo_encoded.multipart().expect("decode").parts[0].body.text(),
+            .Ok(pseudo),
+            reason="pseudo delimiter remains payload",
+        )
+
+    it("quotes disposition parameters and accepts a quoted boundary"):
+        quoted := request()
+            .set_multipart(Multipart::new().file("a\";b", "c\\d", "text/plain", []))
+            .expect("encode")
+            .multipart()
+            .expect("decode")
+        assert_equal(quoted.parts[0].name, "a\";b", reason="quoted name")
+        assert_equal(quoted.parts[0].filename, .Some("c\\d"), reason="quoted filename")
+        raw := request()
+            .set_bytes(
+                "--quoted\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\ny\r\n--quoted--\r\n".to_utf8(
+                ),
+            )
+            .set_header(.ContentType, "Multipart/Form-Data; charset=utf-8; boundary=\"quoted\"")
+        assert_equal(
+            raw.multipart().expect("quoted boundary").parts[0].body.text(),
+            .Ok("y"),
+            reason="quoted boundary parameter",
+        )
+
+    it("rejects unsafe metadata and caller supplied content disposition"):
+        assert_equal(
+            request().set_multipart(Multipart::new().text("", "x")),
+            .Err(MultipartError.InvalidName("")),
+            reason="empty name",
+        )
+        assert_equal(
+            request().set_multipart(Multipart::new().text("bad\rname", "x")),
+            .Err(MultipartError.InvalidName("bad\rname")),
+            reason="name injection",
+        )
+        assert_equal(
+            request().set_multipart(Multipart::new().text("bad\0name", "x")),
+            .Err(MultipartError.InvalidName("bad\0name")),
+            reason="name NUL",
+        )
+        assert_equal(
+            request().set_multipart(Multipart::new().file("f", "bad\nname", "x/y", [])),
+            .Err(MultipartError.InvalidFilename("bad\nname")),
+            reason="filename injection",
+        )
+        let mut disposition = Headers::new()
+        disposition.set(.ContentDisposition, "form-data; name=other")
+        supplied := Multipart::new()
+            .add(MultipartPart { name: "field", headers: disposition, body: Body::from_bytes([]) })
+        assert_equal(
+            request().set_multipart(supplied),
+            .Err(MultipartError.Header(HeaderError.InvalidValue("content-disposition"))),
+            reason="typed metadata is authoritative",
+        )
+        let mut invalid = Headers::new()
+        invalid.set(.Other("bad name"), "value")
+        bad_header := Multipart::new()
+            .add(MultipartPart { name: "field", headers: invalid, body: Body::from_bytes([]) })
+        assert_equal(
+            request().set_multipart(bad_header),
+            .Err(MultipartError.Header(HeaderError.InvalidName("bad name"))),
+            reason="part header name",
+        )
+        let mut invalid_value = Headers::new()
+        invalid_value.set(.Other("x-check"), "bad\rvalue")
+        bad_value := Multipart::new()
+            .add(
+                MultipartPart { name: "field", headers: invalid_value, body: Body::from_bytes([]) },
+            )
+        assert_equal(
+            request().set_multipart(bad_value),
+            .Err(MultipartError.Header(HeaderError.InvalidValue("x-check"))),
+            reason="part header value",
+        )
+
+    it("rejects a used part and leaves fresh decoded parts read once"):
+        body := Body::from_bytes([1u8])
+        _ := body.bytes()
+        used := Multipart::new().add(MultipartPart { name: "field", body: body })
+        assert_equal(
+            request().set_multipart(used),
+            .Err(MultipartError.UsedPart("field")),
+            reason="part body is read once",
+        )
+        empty := request().set_multipart(Multipart::new()).expect("empty encode")
+        assert_equal(empty.multipart(), .Ok(Multipart::new()), reason="empty form")
+        used_request := request().set_bytes([])
+        _ := used_request.bytes()
+        assert_equal(
+            used_request.multipart(),
+            .Err(MultipartError.Body(BodyError.Used)),
+            reason="used request body",
+        )
+        failed_body := request().set_form(1i64).body
+        failed_part := Multipart::new().add(MultipartPart { name: "field", body: failed_body })
+        assert_equal(
+            request().set_multipart(failed_part),
+            .Err(MultipartError.Body(BodyError.Form(.Unsupported("$")))),
+            reason="part body failure",
+        )
+
+    it("content type and framing failures consume the request body"):
+        missing := request().set_bytes([])
+        assert_equal(
+            missing.multipart(),
+            .Err(MultipartError.MissingContentType),
+            reason="missing content type",
+        )
+        assert_equal(missing.bytes(), .Err(BodyError.Used), reason="failure claims body")
+        wrong := request().set_text("plain")
+        assert_equal(
+            wrong.multipart(),
+            .Err(MultipartError.WrongContentType("text/plain; charset=utf-8")),
+            reason="wrong content type",
+        )
+        no_boundary := request().set_bytes([]).set_header(.ContentType, "multipart/form-data")
+        assert_equal(
+            no_boundary.multipart(),
+            .Err(MultipartError.MissingBoundary),
+            reason="missing boundary",
+        )
+        for (content_type, error) in [
+            (
+                "multipart/form-data; boundary=bad@boundary",
+                MultipartError.InvalidBoundary("bad@boundary"),
+            ),
+            (
+                "multipart/form-data; boundary=\"trailing \"",
+                MultipartError.InvalidBoundary("trailing "),
+            ),
+            (
+                "multipart/form-data; boundary=one; boundary=two",
+                MultipartError.InvalidBoundary("two"),
+            ),
+            (
+                "multipart/form-data; boundary=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                MultipartError.InvalidBoundary(
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                ),
+            ),
+        ]:
+            value := request().set_bytes([]).set_header(.ContentType, content_type)
+            assert_equal(value.multipart(), .Err(error), reason="invalid boundary")
+        malformed := request()
+            .set_bytes("--b\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\nopen".to_utf8())
+            .set_header(.ContentType, "multipart/form-data; boundary=b")
+        assert_equal(
+            malformed.multipart(),
+            .Err(MultipartError.Malformed(49)),
+            reason="unfinished payload",
+        )
+
+    it("decoder requires one valid form-data disposition and no trailing framing"):
+        missing := request()
+            .set_bytes("--b\r\nContent-Type: text/plain\r\n\r\nx\r\n--b--\r\n".to_utf8())
+            .set_header(.ContentType, "multipart/form-data; boundary=b")
+        assert_equal(
+            missing.multipart(),
+            .Err(MultipartError.Header(HeaderError.InvalidValue("content-disposition"))),
+            reason="missing disposition",
+        )
+        duplicate := request()
+            .set_bytes(
+                "--b\r\nContent-Disposition: form-data; name=\"x\"\r\nContent-Disposition: form-data; name=\"y\"\r\n\r\nz\r\n--b--\r\n".to_utf8(
+                ),
+            )
+            .set_header(.ContentType, "multipart/form-data; boundary=b")
+        assert_equal(
+            duplicate.multipart(),
+            .Err(MultipartError.Header(HeaderError.InvalidValue("content-disposition"))),
+            reason="duplicate disposition",
+        )
+        trailing := request()
+            .set_bytes("--b--\r\nepilogue".to_utf8())
+            .set_header(.ContentType, "multipart/form-data; boundary=b")
+        assert_equal(
+            trailing.multipart(),
+            .Err(MultipartError.Malformed(7)),
+            reason="trailing malformed framing",
+        )
+
+    it("keeps binary and nested payloads opaque but rejects invalid header UTF-8"):
+        let mut wire = "--b\r\nContent-Disposition: form-data; name=\"raw\"\r\nContent-Type: multipart/mixed; boundary=inner\r\n\r\n".to_utf8(
+        )
+        wire.extend([255u8, 0u8, 1u8])
+        wire.extend("\r\n--b--\r\n".to_utf8())
+        decoded := request()
+            .set_bytes(wire)
+            .set_header(.ContentType, "multipart/form-data; boundary=b")
+            .multipart()
+            .expect("binary part")
+        assert_equal(decoded.parts[0].body.bytes(), .Ok([255u8, 0u8, 1u8]), reason="binary bytes")
+        assert_equal(
+            decoded.parts[0].headers.get(.ContentType),
+            .Some("multipart/mixed; boundary=inner"),
+            reason="nested media type remains a header",
+        )
+        let mut invalid_header = "--b\r\nX-Test: ".to_utf8()
+        invalid_header.push(255u8)
+        invalid_header.extend(
+            "\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\ny\r\n--b--\r\n".to_utf8(),
+        )
+        invalid := request()
+            .set_bytes(invalid_header)
+            .set_header(.ContentType, "multipart/form-data; boundary=b")
+        assert_equal(
+            invalid.multipart(),
+            .Err(MultipartError.Header(HeaderError.InvalidValue("multipart"))),
+            reason="header UTF-8",
+        )
+
+    it("displays every multipart error variant"):
+        assert_equal(
+            MultipartError.Body(BodyError.Used).to_string(),
+            "multipart body: the body was already read",
+            reason="body error",
+        )
+        assert_equal(
+            MultipartError.MissingContentType.to_string(),
+            "missing multipart Content-Type",
+            reason="missing content type",
+        )
+        assert_equal(
+            MultipartError.WrongContentType("text/plain").to_string(),
+            "expected multipart/form-data, got text/plain",
+            reason="wrong content type",
+        )
+        assert_equal(
+            MultipartError.MissingBoundary.to_string(),
+            "missing multipart boundary",
+            reason="missing boundary",
+        )
+        assert_equal(
+            MultipartError.InvalidBoundary("bad").to_string(),
+            "invalid multipart boundary bad",
+            reason="invalid boundary",
+        )
+        assert_equal(
+            MultipartError.InvalidName("bad").to_string(),
+            "invalid multipart part name bad",
+            reason="invalid name",
+        )
+        assert_equal(
+            MultipartError.InvalidFilename("bad").to_string(),
+            "invalid multipart filename bad",
+            reason="invalid filename",
+        )
+        assert_equal(
+            MultipartError.Header(HeaderError.InvalidValue("x")).to_string(),
+            "invalid multipart header: invalid value for header x",
+            reason="header error",
+        )
+        assert_equal(
+            MultipartError.Malformed(7).to_string(),
+            "malformed multipart body at byte 7",
+            reason="malformed",
+        )
+        assert_equal(
+            MultipartError.UsedPart("file").to_string(),
+            "multipart part file was already read",
+            reason="used part",
+        )
