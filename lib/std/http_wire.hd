@@ -28,6 +28,8 @@ pub enum WireHttpError:
     Status(response: WireResponse)
     InvalidHeader(name: string)
     Body(error: BodyError)
+    InvalidContentEncoding(encoding: string)
+    OutputTooLarge
 
 @host
 pub trait Http:

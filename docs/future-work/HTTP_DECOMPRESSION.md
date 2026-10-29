@@ -1,37 +1,35 @@
 # HTTP Response Decompression
 
-**Status:** design accepted 2026-10-28; domain: `std.http` and its host
-providers; not implemented.
+**Status:** implemented by [the `std.http` specification](../../spec/std/http.md);
+design accepted 2026-10-28.
 
 ## Proposal
 
-Every `Client.send!` and `Request.send!` advertises gzip and deflate and asks
-the host for a decoded response. Decoding happens in the host before
-`Response` reaches Wasm, so HTTP decompression adds no inflater to a program.
+The Node and native Wasmtime transports advertise gzip and deflate. Every host
+returns a decoded response before `Response` reaches Wasm, so HTTP decompression
+adds no inflater to a program.
 
 ```text
 use std.http.{Client, Http, HttpError, Request, Url}
+use std.time.Clock
 
-fn release_notes!(url: string) -> Result[string, HttpError] $ Http:
+fn release_notes!(url: string) -> Result[string, HttpError] $ Http + Clock:
     let mut client = Client::new()
     request := Request::get(Url::parse(url)?)
     response := client.send!(&request)?
     .Ok(response.text()?)
 ```
 
-The checked signatures and examples are in
-[`http-decompression/`](http-decompression/). Run `hd fmt --check`,
-`hd lint --all`, and `hd check --all` there.
-
-`send!` itself requires only `Http`, following the owner direction that an
-ordinary send must not acquire clock authority. Timeout policy is outside this
+`Request.send!` requires only `Http`. `Client.send!` retains its existing
+`Http + Clock` requirements because its cookie jar evaluates expiry and
+`Max-Age`; decompression adds no authority. Timeout policy is outside this
 decompression design.
 
 ## Problems Solved
 
 | Program | Today | Proposal |
 | --- | --- | --- |
-| Read a compressed JSON API | `response.json()` sees gzip bytes and fails | `Client.send!` advertises and decodes before the body reader |
+| Read a compressed JSON API | `response.json()` sees gzip bytes and fails | the raw transport advertises and the host decodes before the body reader |
 | Read through every supported host | native hosts preserve encoded bytes today | every host exposes the same decoded response contract |
 | Avoid charging each HTTP program for inflate | a Wasm decoder would add about 69 KB | the host decodes with its platform library; Wasm adds zero decoder bytes |
 | Receive corrupt compressed data | often appears as lossy text | `send!` returns a typed content-decoding error |
@@ -51,11 +49,14 @@ but that API must justify its own linked size and is not reachable from HTTP.
 
 ## Client Rules
 
-Before every request, the send path adds `Accept-Encoding: gzip, deflate` only
-when the request has neither `Accept-Encoding` nor `Range`. An explicit request
-header is preserved without changing the decoded-response contract.
+Before every raw Node or native Wasmtime request, the transport adds
+`Accept-Encoding: gzip, deflate` only when the request has neither
+`Accept-Encoding` nor `Range`. Fetch and XHR control that header themselves, so
+their adapters add nothing. An `Http` provider sees exactly the caller's
+headers, and an explicit request header is preserved without changing the
+decoded-response contract.
 
-On a final response, the host parses every `Content-Encoding` token. It
+On every response, the host parses every `Content-Encoding` token. It
 decodes supported stacked codings in reverse order. `identity` is a no-op. If
 every coding is supported, it removes `Content-Encoding` and `Content-Length`;
 those fields described the encoded representation.
@@ -65,9 +66,7 @@ raw-transport host returns `InvalidContentEncoding` for an unsupported coding
 or a partially supported stack. Fetch-based
 hosts may already have decoded a coding before the hd adapter can inspect it;
 the adapter treats that platform-decoded representation as the decoded result
-and removes stale representation headers. Cookies and redirects are processed
-before the final response is returned, so redirect bodies are not decoded for
-Wasm.
+and removes stale representation headers.
 
 A `Range` request asks for `identity`; if the server still returns a supported
 coding, the host decodes it. A HEAD response and 1xx, 204, or 304 responses have
@@ -90,8 +89,8 @@ host, not Wasm, own decoding policy.
 
 | Host | Every send |
 | --- | --- |
-| Node CLI (`host/http.mjs`) | Node `zlib` decodes gzip/zlib stacks, enforces the cap, and normalizes headers |
-| Wasmtime | native `flate2` decodes gzip/zlib stacks, enforces the cap, and normalizes headers |
+| Node CLI (`host/http.mjs`) | advertises on the wire; Node `zlib` decodes gzip/zlib stacks, enforces the cap, and normalizes headers |
+| Wasmtime | advertises on the wire; native `flate2` decodes gzip/zlib stacks, enforces the cap, and normalizes headers |
 | Browser playground (`XMLHttpRequest`) | the browser-decoded body is capped; the adapter removes stale encoding/length headers |
 | Cloudflare/Fetch server host | the Fetch-decoded body is capped; the adapter removes stale encoding/length headers |
 | Vercel Fetch adapter | the Fetch-decoded body is capped; the adapter removes stale encoding/length headers |
@@ -136,15 +135,15 @@ size of the 71 KB JSON program used for comparison. A future non-HTTP
 
 | Case | Result under this proposal |
 | --- | --- |
-| GitHub-style gzip JSON | `send!` adds the header and `response.json()` reads decoded bytes |
+| GitHub-style gzip JSON | the raw transport adds the header and `response.json()` reads decoded bytes |
 | Explicit `Accept-Encoding: gzip` | preserved; recognized response gzip is still decoded |
-| `Range` request | no automatic encoding header; any returned supported coding is still decoded |
+| `Range` request | a raw transport requests `identity`; any returned supported coding is still decoded |
 | `Content-Encoding: gzip, deflate` | zlib is decoded first, then gzip |
 | `Content-Encoding: br, gzip` | no partial transform; the host returns `InvalidContentEncoding` |
 | Concatenated gzip members | all members concatenate, and each trailer is checked |
 | Bad gzip CRC or truncated deflate | `send!` returns `InvalidContentEncoding` |
 | HEAD, 204, or 304 with an empty body | no decoder runs for an empty body |
-| Redirect with a compressed body | body is skipped; only the final response is wrapped |
+| Redirect with a compressed body | each hop is decoded and bounded before the client continues |
 | Scripted response | its queued value is already decoded |
 | Decoded output reaches 64 MiB | the final byte at the limit succeeds |
 | Decoded output exceeds 64 MiB | the host stops with `OutputTooLarge` and constructs no `Response` |
@@ -256,14 +255,13 @@ bytes; XHR and Fetch already expose decoded bytes. There is no inflater in
   decoding, the 64 MiB cap, and stacked, corrupt, and oversized fixtures.
 - **Phase 2:** normalize browser/Fetch headers, enforce the cap, and add
   cross-host parity cases.
-- **Phase 3:** add advertisement to both send paths, redirects, and
-  scripted-provider tests.
+- **Phase 3:** add raw-transport advertisement, redirects, and
+  provider-header tests.
 - **Rollback:** remove host decoding and its two error cases; no lower
   compression module remains coupled to HTTP.
 
 ## Parse Log
 
 The one `text` block parsed successfully with `scripts/hd-conformance.sh parse`
-on 2026-10-28. Parsing checks syntax only. The checked package provides the
-stronger signature and usage check; names remain unavailable in std until the
-implementation lands.
+on 2026-10-28. Parsing checks syntax only. The implementation and conformance
+fixtures provide the stronger signature and usage checks.

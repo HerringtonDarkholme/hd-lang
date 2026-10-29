@@ -3,6 +3,7 @@
 const ok = (value) => ({ ok: true, value });
 const error = (tag, fields = {}) => ({ ok: false, error: { tag, fields } });
 const redirected = new Set([301, 302, 303, 307, 308]);
+const maxDecodedBytes = 64 * 1024 * 1024;
 const bodyHeaders = new Set([
   "content-encoding",
   "content-language",
@@ -64,6 +65,24 @@ export function responseHeaders(headers) {
   return pairs;
 }
 
+function decodedFetchResponse(response) {
+  return response.arrayBuffer().then((buffer) => {
+    const body = new Uint8Array(buffer);
+    if (body.length > maxDecodedBytes) return error("OutputTooLarge");
+    const headers = responseHeaders(response.headers);
+    const staleEncoding = headers.some(([name]) => name.toLowerCase() === "content-encoding");
+    return ok({
+      status: response.status,
+      headers: staleEncoding
+        ? headers.filter(
+            ([name]) => !["content-encoding", "content-length"].includes(name.toLowerCase()),
+          )
+        : headers,
+      body,
+    });
+  });
+}
+
 export function createHttpClient(
   lease,
   { grant, isAsciiUrl, writtenHost, fetch: fetcher = globalThis.fetch, timeoutMs = 30000 },
@@ -120,14 +139,12 @@ export function createHttpClient(
                 !redirected.has(response.status) ||
                 location === null
               ) {
-                return ok({
-                  status: response.status,
-                  headers: responseHeaders(response.headers),
-                  body: new Uint8Array(await response.arrayBuffer()),
-                  url,
-                });
+                const decoded = await decodedFetchResponse(response);
+                if (!decoded.ok) return decoded;
+                return ok({ ...decoded.value, url });
               }
-              await response.body?.cancel();
+              const decodedRedirect = await decodedFetchResponse(response);
+              if (!decodedRedirect.ok) return decodedRedirect;
               // WHATWG URL accepts slashless schemes and extra authority
               // slashes; reject those before it can change the written host.
               const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(location);

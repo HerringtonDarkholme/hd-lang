@@ -18,6 +18,7 @@ hd_run = { path = "../hd_run" }
 # `cap-fs-ext` adds the opens that do not follow a final symbolic link.
 cap-fs-ext = { version = "=4.0.3", default-features = false, features = ["std"] }
 cap-std = "=4.0.3"
+flate2 = { version = "=1.1.10", default-features = false, features = ["rust_backend"] }
 getrandom = "0.4"
 socket2 = "0.6"
 ureq = { version = "=3.4.2", default-features = false, features = ["rustls"] }

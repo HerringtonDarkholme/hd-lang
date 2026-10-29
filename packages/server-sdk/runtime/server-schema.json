@@ -2,17 +2,17 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "2dc55b507dc045e98ff1e880f7332cf78f90347b",
-    "compilerBaseRevision": "2dc55b507dc045e98ff1e880f7332cf78f90347b",
-    "compilerSha256": "691e70b9c6048653246c3aaa88724b94d307216617c134a1872bfdac97eb5f57",
-    "referenceWasmSha256": "fe00e9f4d5dbc9995beac2461926f9bc1d69a0a5e6e08c1be0994483f2b12ba6",
-    "referenceContractSha256": "0ae815899097fd8e963b753c253a7b437c43ba009b87b56027b5e51c0a6eb9e0",
+    "sourceBaseRevision": "357d699eaf2f12cb00c1066aae4cd1e2c3d949f1",
+    "compilerBaseRevision": "357d699eaf2f12cb00c1066aae4cd1e2c3d949f1",
+    "compilerSha256": "16f242c832561898cea713c21530a75fd0913b65f3d2e4046bc32cc0a58d1b5f",
+    "referenceWasmSha256": "93c40704567b3b1d9d93fb0f1587e04ce4ec29817a53d2b363d1abc3430bcdac",
+    "referenceContractSha256": "c0e6b4e939261dbbf8bc31e99a2dba6a50c1cdeb717f74333d60b89da89273e4",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "ba559def42f9eb2f61e9688dcb1b4c7271bd8ccd5bfaeab7908e8d4182f1eb7f",
       "lib/std/console.hd": "97135afe58ed69d9aefaef5b388388a30482eaccdc1fafc73e87be4acb30410b",
-      "lib/std/http.hd": "e0323bb70433823d843583f39a14e2706031c6bd4baebcc0db0ffd2c75e1ab82",
-      "lib/std/http_wire.hd": "d58415dc76138985a78a6283a085c1e2f78ea908ca40240bdc31502297d63484",
+      "lib/std/http.hd": "9f7c7ff85c9dd97d4c4de9ede49fe139749073033a9f790664757f5f962fb609",
+      "lib/std/http_wire.hd": "1fcc64d5658b0a235fdc43de84970c84b52fb196e7cbbecf040371254fb212b2",
       "lib/std/time.hd": "337b6b1f76e97ed6193ab7b490319426ff76197fa80e528f68e7bbd8f62c94ea"
     }
   },
@@ -1132,6 +1132,21 @@
                         ]
                       ]
                     ]
+                  ],
+                  [
+                    "InvalidContentEncoding",
+                    [
+                      [
+                        "encoding",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "OutputTooLarge",
+                    []
                   ]
                 ]
               ]
@@ -1183,5 +1198,5 @@
       }
     ]
   },
-  "fingerprint": "38673896a2022636f21017f9e851228958d1e9bcc104f3b35ae798fad78f16c0"
+  "fingerprint": "fd77b15a669edb482503d7cafb3500cd2cfeceb522ee66c089d86e65ddd9963f"
 }

@@ -159,6 +159,8 @@ export const WireHttpError = variants({
   Status: { response: WireResponse },
   InvalidHeader: { name: str },
   Body: { error: BodyError },
+  InvalidContentEncoding: { encoding: str },
+  OutputTooLarge: {},
 });
 export const WireRequest = data({
   method: Method,

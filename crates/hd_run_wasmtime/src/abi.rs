@@ -807,6 +807,8 @@ pub enum WireHttpError {
     Status { response: WireResponse },
     InvalidHeader { name: String },
     Body { error: BodyError },
+    InvalidContentEncoding { encoding: String },
+    OutputTooLarge,
 }
 
 impl Wire for WireHttpError {
@@ -855,10 +857,17 @@ impl Wire for WireHttpError {
                 e.leb(10);
                 error.enc(e);
             }
+            Self::InvalidContentEncoding { encoding } => {
+                e.leb(11);
+                encoding.enc(e);
+            }
+            Self::OutputTooLarge => {
+                e.leb(12);
+            }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(11)? {
+        Ok(match d.tag(13)? {
             0 => Self::NotGranted {
                 host: Wire::dec(d)?,
             },
@@ -883,9 +892,13 @@ impl Wire for WireHttpError {
             9 => Self::InvalidHeader {
                 name: Wire::dec(d)?,
             },
-            _ => Self::Body {
+            10 => Self::Body {
                 error: Wire::dec(d)?,
             },
+            11 => Self::InvalidContentEncoding {
+                encoding: Wire::dec(d)?,
+            },
+            _ => Self::OutputTooLarge,
         })
     }
 }

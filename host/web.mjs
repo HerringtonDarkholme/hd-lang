@@ -16,6 +16,7 @@ import { createSession } from "./session.mjs";
 
 // The text of a request the browser refused (std-http.playground.refused).
 const REFUSED = "the browser refused the request: a network error or CORS";
+const MAX_DECODED_BYTES = 64 * 1024 * 1024;
 
 // Each `name: value` line of `getAllResponseHeaders`, as a pair, in order.
 const headerPairs = (text) =>
@@ -74,10 +75,18 @@ export function browserSend({ method, url, headers, body, redirects, timeout }) 
     return { error: "Connect", text: REFUSED };
   }
   if (xhr.status === 0) return { error: "Connect", text: REFUSED };
+  const decodedBody = new Uint8Array(xhr.response);
+  if (decodedBody.length > MAX_DECODED_BYTES) return { error: "OutputTooLarge", text: null };
+  const responseHeaders = headerPairs(xhr.getAllResponseHeaders());
+  const staleEncoding = responseHeaders.some(([name]) => name.toLowerCase() === "content-encoding");
   return {
     status: xhr.status,
-    headers: headerPairs(xhr.getAllResponseHeaders()),
-    body: new Uint8Array(xhr.response),
+    headers: staleEncoding
+      ? responseHeaders.filter(
+          ([name]) => !["content-encoding", "content-length"].includes(name.toLowerCase()),
+        )
+      : responseHeaders,
+    body: decodedBody,
     url: xhr.responseURL || parsed.href,
   };
 }

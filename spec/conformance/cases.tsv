@@ -57,6 +57,7 @@ runtime/valid/http-cookie-jar.hd	runtime	accept	std/http.md#cookie-jar
 runtime/valid/http-form-query-readers.hd	runtime	accept	std/http.md#typed-query-and-form-values
 runtime/valid/http-form-query-writers.hd	runtime	accept	std/http.md#typed-query-and-form-values
 runtime/valid/http-core-errors.hd	runtime	accept	std/http.md#message-conversion-errors
+runtime/valid/http-decompression-policy.hd	runtime	accept	std/http.md#r-std-http.decode.provider-request-headers
 runtime/valid/http-header-names.hd	runtime	accept	std/http.md#r-std-http.header-name.parse-known
 runtime/valid/http-headers-collection.hd	runtime	accept	std/http.md#header-collections
 runtime/valid/http-multipart.hd	runtime	accept	std/http.md#multipart-forms
