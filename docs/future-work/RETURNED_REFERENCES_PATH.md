@@ -504,11 +504,11 @@ Stop at 1.5 times that. Run time:
 
 - `local-reference-escapes` (existing): rule 4 names the root, as in
   "`spare` is a local of `walk`; the result depends only on `u`".
-- No reference diagnostic has a fix-it. Stage 1 removes the "write `*`"
-  fix-it (`ref.local.escape.fix`, `ref.local.escape.fix.inferred`) from
-  every `local-reference-escapes` row: it cannot work for a field or an
-  element, and a counted reference is a different design choice, not a
-  repair.
+- No reference or type diagnostic has a fix-it until the type system is
+  settled. Stage 1 removes the "write `*`" fix-it (`ref.local.escape.fix`,
+  `ref.local.escape.fix.inferred`) from every `local-reference-escapes`
+  row: it cannot work for a field or an element, and a counted reference is
+  a different design choice, not a repair.
 - `reference-result-without-source` (new): "a reference result needs a
   reference parameter to borrow from".
 - `ambiguous-reference-source` (new): "the result may borrow from `a` or
