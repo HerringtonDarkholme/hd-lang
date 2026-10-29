@@ -61,8 +61,55 @@ pub const CLASS_MASK: u32 = 31 << CLASS_SHIFT;
 /// object's color (two bits) and its frame mark (§23.28). The backend
 /// writes them 0, black and no frame, with the rest of the word.
 pub const COLLECTOR_SHIFT: u32 = 22;
-/// The descriptor's release glue: its table slot plus one, zero for none.
+/// A weak-linked module's descriptor bit: a side entry currently names the
+/// object. Programs that do not use weak references keep the old 22-bit glue
+/// mask and therefore their encoded constants byte-identical.
+pub const WEAK: u32 = 1 << 21;
+/// The descriptor's release glue in a weak-linked module: its table slot plus
+/// one, zero for none. Bit 21 is then [`WEAK`].
+pub const WEAK_GLUE: u32 = WEAK - 1;
+/// The descriptor's release glue in a module without weak references.
 pub const GLUE: u32 = (1 << COLLECTOR_SHIFT) - 1;
+
+/// A duplicate function-table slot used as an object descriptor. The weak
+/// type key distinguishes exact allocation types; checked-report's kind is
+/// orthogonal, so both identities survive in checked builds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DescriptorKey {
+    weak: [u64; 2],
+    has_weak: bool,
+    pub kind: u8,
+}
+impl DescriptorKey {
+    pub fn weak(hash: Hash128) -> Self {
+        let bytes = hash.0.to_le_bytes();
+        Self {
+            weak: [
+                u64::from_le_bytes(bytes[..8].try_into().expect("hash")),
+                u64::from_le_bytes(bytes[8..].try_into().expect("hash")),
+            ],
+            has_weak: true,
+            kind: 0,
+        }
+    }
+
+    pub fn weak_hash(self) -> Option<Hash128> {
+        self.has_weak.then(|| {
+            let mut bytes = [0; 16];
+            bytes[..8].copy_from_slice(&self.weak[0].to_le_bytes());
+            bytes[8..].copy_from_slice(&self.weak[1].to_le_bytes());
+            Hash128(u128::from_le_bytes(bytes))
+        })
+    }
+
+    #[cfg(feature = "checked-report")]
+    pub fn checked(kind: u8) -> Self {
+        Self {
+            kind,
+            ..Self::default()
+        }
+    }
+}
 
 /// A function: an instance by key, a runtime helper, or a host import.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -400,9 +447,14 @@ pub enum Ins {
     /// A descriptor's release glue can recursively reach itself. This is a
     /// code-only marker: [`Module::finish`] emits no Wasm instruction for it.
     DrainGlue(SymId),
-    /// A checked descriptor alias: a distinct slot, the same release glue.
-    #[cfg(feature = "checked-report")]
-    Descriptor(SymId, u8),
+    /// A descriptor alias: a distinct slot with the same release glue, keyed
+    /// by exact weak-target type and/or checked-report allocation kind.
+    Descriptor(SymId, DescriptorKey),
+    /// The compact link-local id of an exact weak-target type.
+    WeakType(Hash128),
+    /// The static descriptor-to-type table's address and row count.
+    WeakTypeTable,
+    WeakTypeCount,
     /// `call_indirect` through the function table, at this signature.
     CallIndirect(SigId),
     /// `i32.const` of a static vtable's address ([`Module::vtable`]).
@@ -496,6 +548,10 @@ impl Func {
         let id = self.intern(s);
         self.push(Ins::TableSlot(id));
     }
+    pub fn descriptor(&mut self, s: Sym, key: DescriptorKey) {
+        let id = self.intern(s);
+        self.push(Ins::Descriptor(id, key));
+    }
     pub fn drain_glue(&mut self, s: Sym) {
         let id = self.intern(s);
         self.push(Ins::DrainGlue(id));
@@ -515,7 +571,6 @@ impl Func {
     fn edge(ins: Ins) -> Option<Edge> {
         match ins {
             Ins::Call(s) | Ins::TableSlot(s) | Ins::DrainGlue(s) => Some(Edge::Function(s)),
-            #[cfg(feature = "checked-report")]
             Ins::Descriptor(s, _) => Some(Edge::Function(s)),
             Ins::VTable(k) => Some(Edge::VTable(k)),
             _ => None,
@@ -811,6 +866,8 @@ pub struct Session {
     functions: BTreeMap<Sym, SessionFunction>,
     globals: BTreeMap<Global, SessionGlobal>,
     table_slots: BTreeMap<Sym, u32>,
+    descriptor_slots: BTreeMap<(Sym, DescriptorKey), u32>,
+    weak_type_ids: BTreeMap<Hash128, u32>,
     modules: u32,
     table_len: u32,
     inputs: BTreeSet<u32>,
@@ -927,6 +984,9 @@ pub struct Module {
     /// The instances of `std.rt.cycle`, whose module init an acyclic
     /// program does not run.
     pub cycle_insts: BTreeSet<Hash128>,
+    /// Every `std.rt.*` init, which weak descriptor registration must follow
+    /// before user/module initializers can construct weak values.
+    pub runtime_insts: BTreeSet<Hash128>,
     /// The instances of `@cold` functions: [`Module::finish`] lowers each
     /// direct call of one as [`Func::cold_helper`] lowers a helper's
     /// (`annot.inline.cold`).
@@ -936,6 +996,10 @@ pub struct Module {
     pub inline_counts: bool,
     /// Some emitted object has a constant small allocation class.
     pub fixed_allocations: bool,
+    /// Reachable weak constructors require exact runtime type descriptors.
+    pub uses_weak: bool,
+    /// Canonical concrete types named by reachable weak constructors.
+    pub weak_types: BTreeSet<Hash128>,
     /// The release glue of the objects that take part in cycle collection,
     /// at most [`DRAIN_GLUES`]: `rt:release_drain` calls these directly
     /// when a block's descriptor names one (§23.28).
@@ -980,7 +1044,6 @@ fn recursive_glues(f: &Func, out: &mut Vec<Sym>) {
 }
 
 fn cyclic_desc(f: &Func) -> bool {
-    #[cfg(feature = "checked-report")]
     if f.body.windows(2).any(|w| matches!(w, [Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c))] if c.cast_unsigned() & CYCLIC != 0)) {
         return true;
     }
@@ -1227,6 +1290,12 @@ impl Module {
     fn import_session(&mut self, previous: &Session) -> StageResult<()> {
         let mut imports = BTreeMap::new();
         for (symbol, export) in &previous.functions {
+            // Every extension's entry init carries that module's static weak
+            // descriptor table. Reusing an earlier identical init key would
+            // register the earlier module's rows again and miss the new ones.
+            if matches!(symbol, Sym::Helper(Helper::EntryInit { .. })) {
+                continue;
+            }
             let id = self.symbols.intern(symbol.clone());
             if let Some(Some(f)) = self.funcs.get(id.idx())
                 && (f.params != export.params || f.results != export.results)
@@ -1253,7 +1322,6 @@ impl Module {
             for ins in &mut f.body {
                 match ins {
                     Ins::Call(id) | Ins::TableSlot(id) | Ins::DrainGlue(id) => rewrite(id),
-                    #[cfg(feature = "checked-report")]
                     Ins::Descriptor(id, _) => rewrite(id),
                     _ => {}
                 }
@@ -1549,7 +1617,10 @@ impl Module {
         for f in self.funcs.iter().flatten() {
             for i in &f.body {
                 match i {
-                    Ins::Call(id) | Ins::TableSlot(id) | Ins::DrainGlue(id) => {
+                    Ins::Call(id)
+                    | Ins::TableSlot(id)
+                    | Ins::DrainGlue(id)
+                    | Ins::Descriptor(id, _) => {
                         if matches!(&*self.symbols.get(*id), Sym::Import(_)) {
                             import_ids.insert(*id);
                         }
@@ -1617,8 +1688,24 @@ impl Module {
         // in the order first named.
         let mut slots: Vec<u32> = Vec::new();
         let table_start = previous.map_or(0, |p| p.table_len);
+        let descriptor_limit = if self.uses_weak || self.open_world {
+            WEAK_GLUE
+        } else {
+            GLUE
+        };
         let mut slot_of = Numbers::new();
+        let mut descriptor_origins = BTreeMap::new();
+        let mut descriptors: BTreeMap<(SymId, DescriptorKey), u32> = BTreeMap::new();
         if let Some(previous) = previous {
+            for (symbol, export) in &previous.functions {
+                let imported = self.symbols.intern(Sym::Import(Import::new(
+                    &format!("hd:session:{}", export.module),
+                    &export.name,
+                    &export.params,
+                    &export.results,
+                )));
+                descriptor_origins.insert(imported, symbol.clone());
+            }
             for (symbol, slot) in &previous.table_slots {
                 let Some(export) = previous.functions.get(symbol) else {
                     continue;
@@ -1630,6 +1717,20 @@ impl Module {
                     &export.results,
                 )));
                 slot_of.insert(imported, *slot);
+                descriptor_origins.insert(imported, symbol.clone());
+            }
+            for ((symbol, key), slot) in &previous.descriptor_slots {
+                let Some(export) = previous.functions.get(symbol) else {
+                    continue;
+                };
+                let imported = self.symbols.intern(Sym::Import(Import::new(
+                    &format!("hd:session:{}", export.module),
+                    &export.name,
+                    &export.params,
+                    &export.results,
+                )));
+                descriptor_origins.insert(imported, symbol.clone());
+                descriptors.insert((imported, *key), *slot);
             }
         }
         let mut slot = |s: &SymId, slots: &mut Vec<u32>| -> StageResult<u32> {
@@ -1642,8 +1743,6 @@ impl Module {
             slot_of.insert(*s, k);
             Ok(k)
         };
-        #[cfg(feature = "checked-report")]
-        let mut descriptors: BTreeMap<(SymId, u8), u32> = BTreeMap::new();
         // Vtables follow the data, one `i32` slot index each.
         while !self.data.len().is_multiple_of(4) {
             self.data.push(0);
@@ -1667,6 +1766,87 @@ impl Module {
                 let k = slot(s, &mut slots)?;
                 self.data.extend_from_slice(&k.to_le_bytes());
             }
+        }
+        // Resolve every body slot in the same order encoding will visit it.
+        // Weak descriptor aliases must be complete before their link-time
+        // descriptor-to-type registry is appended to static data.
+        for s in &defined {
+            let f = self.funcs[s.idx()].as_ref().expect("defined function");
+            for (position, ins) in f.body.iter().enumerate() {
+                #[cfg(not(feature = "checked-report"))]
+                let _ = position;
+                match ins {
+                    Ins::Descriptor(t, key) => {
+                        descriptor_slot(
+                            *t,
+                            *key,
+                            table_start,
+                            descriptor_limit,
+                            &index,
+                            &mut slots,
+                            &mut descriptors,
+                        )?;
+                    }
+                    Ins::TableSlot(t) => {
+                        #[cfg(feature = "checked-report")]
+                        let descriptor = self.runtime.is_some_and(|r| r.checked.is_some())
+                            && matches!(f.body.get(position + 1), Some(Ins::Op(Instruction::I32Const(c))) if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)
+                            && matches!(
+                                f.body.get(position + 2),
+                                Some(Ins::Op(Instruction::I32Add))
+                            );
+                        #[cfg(feature = "checked-report")]
+                        if descriptor {
+                            descriptor_slot(
+                                *t,
+                                DescriptorKey::default(),
+                                table_start,
+                                descriptor_limit,
+                                &index,
+                                &mut slots,
+                                &mut descriptors,
+                            )?;
+                        } else {
+                            slot(t, &mut slots)?;
+                        }
+                        #[cfg(not(feature = "checked-report"))]
+                        slot(t, &mut slots)?;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut weak_type_ids = previous
+            .map(|p| p.weak_type_ids.clone())
+            .unwrap_or_default();
+        let mut weak_hashes: Vec<_> = descriptors
+            .keys()
+            .filter_map(|(_, key)| key.weak_hash())
+            .collect();
+        weak_hashes.extend(self.weak_types.iter().copied());
+        weak_hashes.sort_stable();
+        weak_hashes.dedup();
+        let mut next_weak_type = weak_type_ids.values().copied().max().unwrap_or(0) + 1;
+        for hash in weak_hashes {
+            weak_type_ids.entry(hash).or_insert_with(|| {
+                let id = next_weak_type;
+                next_weak_type += 1;
+                id
+            });
+        }
+        let weak_type_at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
+        let mut weak_rows: Vec<_> = descriptors
+            .iter()
+            .filter_map(|((_, key), slot)| {
+                let hash = key.weak_hash()?;
+                (*slot >= table_start).then_some((*slot + 1, weak_type_ids[&hash]))
+            })
+            .collect();
+        weak_rows.sort_stable();
+        weak_rows.dedup();
+        for (descriptor, type_id) in &weak_rows {
+            self.data.extend_from_slice(&descriptor.to_le_bytes());
+            self.data.extend_from_slice(&type_id.to_le_bytes());
         }
         let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         let heap_base = static_end.next_multiple_of(8);
@@ -1899,6 +2079,36 @@ impl Module {
                             body.instruction(&WasmInstruction::I32Const(at.cast_signed()))
                         }
                     }
+                    Ins::WeakType(hash) => body.instruction(&WasmInstruction::I32Const(
+                        weak_type_ids
+                            .get(hash)
+                            .copied()
+                            .ok_or_else(|| {
+                                NotImplemented::bug(
+                                    Stage::Link,
+                                    "a weak constructor without a type id",
+                                )
+                            })?
+                            .cast_signed(),
+                    )),
+                    Ins::WeakTypeTable => {
+                        if previous.is_some() {
+                            body.instruction(&WasmInstruction::GlobalGet(
+                                gindex[&Global::SessionData],
+                            ));
+                            body.instruction(&WasmInstruction::I32Const(
+                                (weak_type_at - STATIC_BASE).cast_signed(),
+                            ));
+                            body.instruction(&WasmInstruction::I32Add)
+                        } else {
+                            body.instruction(&WasmInstruction::I32Const(weak_type_at.cast_signed()))
+                        }
+                    }
+                    Ins::WeakTypeCount => body.instruction(&WasmInstruction::I32Const(
+                        u32::try_from(weak_rows.len())
+                            .expect("weak descriptor rows")
+                            .cast_signed(),
+                    )),
                     Ins::Call(c) => body.instruction(&WasmInstruction::Call(
                         *index.get(*c).ok_or_else(|| undefined(c))?,
                     )),
@@ -1908,12 +2118,12 @@ impl Module {
                     Ins::GlobalSet(g) => body.instruction(&WasmInstruction::GlobalSet(
                         gindex[&self.symbols.global(*g)],
                     )),
-                    #[cfg(feature = "checked-report")]
-                    Ins::Descriptor(t, kind) => {
+                    Ins::Descriptor(t, key) => {
                         let k = descriptor_slot(
                             *t,
-                            *kind,
+                            *key,
                             table_start,
+                            descriptor_limit,
                             &index,
                             &mut slots,
                             &mut descriptors,
@@ -1932,8 +2142,9 @@ impl Module {
                         let k = if descriptor {
                             descriptor_slot(
                                 *t,
-                                0,
+                                DescriptorKey::default(),
                                 table_start,
+                                descriptor_limit,
                                 &index,
                                 &mut slots,
                                 &mut descriptors,
@@ -1943,7 +2154,12 @@ impl Module {
                         };
                         #[cfg(not(feature = "checked-report"))]
                         let k = slot(t, &mut slots)?;
-                        if k >= GLUE {
+                        let glue_limit = if self.uses_weak || self.open_world {
+                            WEAK_GLUE
+                        } else {
+                            GLUE
+                        };
+                        if k >= glue_limit {
                             return crate::unsupported(
                                 "a function table exceeding the descriptor glue field",
                             );
@@ -2204,6 +2420,16 @@ impl Module {
                         .insert(self.symbols.get(*s).clone(), *index);
                 }
             }
+            for ((s, key), slot) in &descriptors {
+                let symbol = descriptor_origins
+                    .get(s)
+                    .cloned()
+                    .unwrap_or_else(|| self.symbols.get(*s).clone());
+                manifest.descriptor_slots.insert((symbol, *key), *slot);
+            }
+        }
+        if session {
+            manifest.weak_type_ids = weak_type_ids.clone();
         }
         manifest.table_len = table_start + u32::try_from(slots.len()).expect("table");
         let mut data = DataSection::new();
@@ -2292,11 +2518,14 @@ impl Module {
             descriptors.sort_stable_by(|((a, ka), _), ((b, kb), _)| {
                 self.symbols.cmp(*a, *b).then_with(|| ka.cmp(kb))
             });
-            manifest.descriptors.extend(
-                descriptors
-                    .into_iter()
-                    .map(|((_, kind), slot)| (slot + 1, *kind)),
-            );
+            for descriptor in descriptors
+                .into_iter()
+                .map(|((_, key), slot)| (slot + 1, key.kind))
+            {
+                if !manifest.descriptors.contains(&descriptor) {
+                    manifest.descriptors.push(descriptor);
+                }
+            }
             // Counts survive across epochs. Every new module's catalog
             // therefore includes descriptors from the initialized prefix.
             for (id, kind) in &manifest.descriptors {
@@ -2452,28 +2681,28 @@ fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> 
     }
 }
 
-#[cfg(feature = "checked-report")]
 fn descriptor_slot(
     s: SymId,
-    kind: u8,
+    key: DescriptorKey,
     table_start: u32,
+    limit: u32,
     index: &Numbers,
     slots: &mut Vec<u32>,
-    ids: &mut BTreeMap<(SymId, u8), u32>,
+    ids: &mut BTreeMap<(SymId, DescriptorKey), u32>,
 ) -> StageResult<u32> {
-    let key = (s, kind);
-    if let Some(k) = ids.get(&key) {
+    let pair = (s, key);
+    if let Some(k) = ids.get(&pair) {
         return Ok(*k);
     }
     let f = *index
         .get(s)
         .ok_or_else(|| NotImplemented::bug(Stage::Link, "undefined descriptor glue"))?;
     let k = table_start + u32::try_from(slots.len()).expect("descriptor table");
-    if k >= GLUE {
+    if k >= limit {
         return crate::unsupported("a descriptor table exceeding the glue field");
     }
     slots.push(f);
-    ids.insert(key, k);
+    ids.insert(pair, k);
     Ok(k)
 }
 
@@ -2488,15 +2717,42 @@ mod checked_descriptor_tests {
         let mut slots = Vec::new();
         let mut ids = BTreeMap::new();
         assert_eq!(
-            descriptor_slot(glue, 1, 0, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(1),
+                0,
+                WEAK_GLUE,
+                &index,
+                &mut slots,
+                &mut ids
+            )
+            .unwrap(),
             0
         );
         assert_eq!(
-            descriptor_slot(glue, 2, 0, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(2),
+                0,
+                WEAK_GLUE,
+                &index,
+                &mut slots,
+                &mut ids
+            )
+            .unwrap(),
             1
         );
         assert_eq!(
-            descriptor_slot(glue, 1, 0, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(1),
+                0,
+                WEAK_GLUE,
+                &index,
+                &mut slots,
+                &mut ids
+            )
+            .unwrap(),
             0
         );
         assert_eq!(slots, [7, 7]);
@@ -2510,18 +2766,114 @@ mod checked_descriptor_tests {
         let mut slots = Vec::new();
         let mut ids = BTreeMap::new();
         assert_eq!(
-            descriptor_slot(glue, 1, 41, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(1),
+                41,
+                WEAK_GLUE,
+                &index,
+                &mut slots,
+                &mut ids
+            )
+            .unwrap(),
             41
         );
         assert_eq!(
-            descriptor_slot(glue, 2, 41, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(2),
+                41,
+                WEAK_GLUE,
+                &index,
+                &mut slots,
+                &mut ids
+            )
+            .unwrap(),
             42
         );
         assert_eq!(
-            descriptor_slot(glue, 1, 41, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(1),
+                41,
+                WEAK_GLUE,
+                &index,
+                &mut slots,
+                &mut ids
+            )
+            .unwrap(),
             41
         );
         assert_eq!(slots, [7, 7]);
+    }
+
+    #[test]
+    fn weak_type_and_checked_kind_are_both_descriptor_identity() {
+        let glue = SymId(3);
+        let mut index = Numbers::new();
+        index.insert(glue, 7);
+        let mut slots = Vec::new();
+        let mut ids = BTreeMap::new();
+        let mut a1 = DescriptorKey::weak(Hash128(1));
+        a1.kind = 1;
+        let mut b1 = DescriptorKey::weak(Hash128(2));
+        b1.kind = 1;
+        let mut a2 = DescriptorKey::weak(Hash128(1));
+        a2.kind = 2;
+        assert_eq!(
+            descriptor_slot(glue, a1, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            0
+        );
+        assert_eq!(
+            descriptor_slot(glue, b1, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            1
+        );
+        assert_eq!(
+            descriptor_slot(glue, a2, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            2
+        );
+        assert_eq!(
+            descriptor_slot(glue, a1, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            0
+        );
+        assert_eq!(slots, [7, 7, 7]);
+    }
+
+    #[test]
+    fn no_weak_module_keeps_the_old_descriptor_capacity() {
+        let glue = SymId(3);
+        let mut index = Numbers::new();
+        index.insert(glue, 7);
+        let mut slots = Vec::new();
+        let mut ids = BTreeMap::new();
+        assert_eq!(
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(1),
+                WEAK_GLUE,
+                GLUE,
+                &index,
+                &mut slots,
+                &mut ids,
+            )
+            .unwrap(),
+            WEAK_GLUE
+        );
+
+        let mut slots = Vec::new();
+        let mut ids = BTreeMap::new();
+        assert!(
+            descriptor_slot(
+                glue,
+                DescriptorKey::checked(1),
+                WEAK_GLUE,
+                WEAK_GLUE,
+                &index,
+                &mut slots,
+                &mut ids,
+            )
+            .is_err()
+        );
     }
 }
 

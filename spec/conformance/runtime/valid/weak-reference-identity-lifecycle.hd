@@ -1,0 +1,49 @@
+# test: weak entry identity survives target death, tears down after the last weak value, and never aliases an entry for reused target storage
+# Spec std/weak Weakening And Identity: std-weak.identity.copy, std-weak.identity.dead, std-weak.identity.reuse.
+# Spec std/weak Collection And Release: std-weak.release.target, std-weak.release.entry.
+use std.weak.{Weak, weak}
+
+struct Node:
+    value: i32
+
+fn must_weak(target: &Node) -> Weak[Node]:
+    match weak(target):
+        .Some(link) => link
+        .None => panic("a boxed node is a whole allocation")
+
+fn dead_link(value: i32) -> Weak[Node]:
+    target := box(Node { value: value })
+    link := must_weak(target)
+    if target.value != value:
+        panic("the strong target stays live until this function returns")
+    link
+
+fn make_and_drop_link(target: &Node) -> bool:
+    link := must_weak(target)
+    link.upgrade().is_some()
+
+tests:
+    it("keeps dead copies identical but a reused target has a new identity"):
+        dead := dead_link(1)
+        dead_copy := dead
+        assert(dead_copy is dead, reason="copies keep the side entry after target death")
+        assert(dead.upgrade().is_none(), reason="the first target was released")
+
+        replacement := box(Node { value: 2 })
+        assert_equal(replacement.value, 2, reason="the replacement stays strongly live")
+        replacement_link := must_weak(replacement)
+        assert(
+            !(replacement_link is dead),
+            reason="reused target storage receives another side entry",
+        )
+        assert(replacement_link.upgrade().is_some(), reason="the replacement's weak entry is live")
+        assert(dead.upgrade().is_none(), reason="the old entry remains dead after address reuse")
+        assert_equal(replacement.value, 2, reason="the replacement remains strongly live")
+
+    it("recreates an entry after the last weak value is released"):
+        target := box(Node { value: 3 })
+        assert(make_and_drop_link(target), reason="the first side entry upgrades while in scope")
+        assert_equal(target.value, 3, reason="the target outlives the first side entry")
+        recreated := must_weak(target)
+        assert(recreated.upgrade().is_some(), reason="a new side entry upgrades")
+        assert_equal(target.value, 3, reason="the target remains strongly live")

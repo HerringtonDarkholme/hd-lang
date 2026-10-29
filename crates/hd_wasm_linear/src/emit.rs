@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::op::Op as Instruction;
 use crate::op::Op as I;
 use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
+use hd_mono::layout::{CanonMemo, canon};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::{
     Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
@@ -24,7 +25,9 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::layout::{Pass, num, vals};
-use crate::module::{Func, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, mem};
+use crate::module::{
+    Func, GLUE, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, WEAK_GLUE, mem,
+};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
@@ -2283,6 +2286,18 @@ impl Em<'_, '_, '_> {
                 TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
                     self.ptr(i, key, ct.args, &args)
                 }
+                TargetKind::Intrinsic(key)
+                    if matches!(
+                        key.as_str(),
+                        "weak_new"
+                            | "weak_new_mut"
+                            | "weak_upgrade"
+                            | "weak_upgrade_mut"
+                            | "weak_weaken"
+                    ) =>
+                {
+                    self.weak_intrinsic(i, key, ct.args, &args)
+                }
                 TargetKind::Intrinsic(key) => self.intrinsic(i, key, &args),
                 TargetKind::Builtin { self_ty, .. } => {
                     let path = (self.input.path)(ct.item);
@@ -2565,8 +2580,73 @@ impl Em<'_, '_, '_> {
         self.f.global_set(Global::Forbid);
     }
 
+    fn weak_intrinsic(
+        &mut self,
+        i: u32,
+        key: &str,
+        targs: TyList,
+        args: &[u32],
+    ) -> StageResult<()> {
+        if self.vals(self.ty(i))? != [Val::I32] {
+            return unsupported("a weak operation with a non-nullable-address result");
+        }
+        match key {
+            "weak_new" | "weak_new_mut" => {
+                let Some(&target) = self.pool().list_items(targs).first() else {
+                    return unsupported("a weak constructor without its target type");
+                };
+                let type_key = canon(
+                    self.pool(),
+                    &|d| self.env().path_hash(d),
+                    &mut CanonMemo::default(),
+                    target,
+                );
+                self.comp(args[0], 0)?;
+                self.f.helper(Helper::RefAddress);
+                self.f.push(Ins::WeakType(type_key));
+                self.f.push(Ins::WeakTypeTable);
+                self.f.push(Ins::WeakTypeCount);
+                self.f.helper(Helper::WeakNew);
+                self.store_owned(i)
+            }
+            "weak_upgrade" | "weak_upgrade_mut" => {
+                let target = self.f.local(Val::I32);
+                self.comp(args[0], 0)?;
+                self.f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+                self.f.op(Instruction::LocalTee(target));
+                self.f
+                    .op(Instruction::If(BlockType::Result(Val::I32.wasm())));
+                self.f.get(target);
+                self.f.helper(Helper::RetainKnown);
+                self.f.get(target);
+                self.f.op(Instruction::Else);
+                self.f.i32(0);
+                self.f.op(Instruction::End);
+                self.store_owned(i)
+            }
+            "weak_weaken" => {
+                let moved = self.take(args[0]);
+                self.comp(args[0], 0)?;
+                if !moved {
+                    self.comp(args[0], 0)?;
+                    self.f.helper(Helper::RetainKnown);
+                }
+                self.store_owned(i)
+            }
+            _ => unreachable!(),
+        }
+    }
+
     fn intrinsic(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {
         match key {
+            "descriptor_glue_mask" => {
+                self.f.u32(if self.m.uses_weak || self.m.open_world {
+                    WEAK_GLUE
+                } else {
+                    GLUE
+                });
+                self.store(i)
+            }
             // `panic(message)`: the `explicit-panic` report.
             "panic_message" => {
                 self.push(args[0])?;

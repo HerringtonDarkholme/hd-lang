@@ -1,0 +1,43 @@
+# test: a weak parent pointer does not keep an acyclic parent and child alive, and a ring made only from weak links is not a strong cycle
+# Spec std/weak Collection And Release: std-weak.release.target, std-weak.release.cycle, std-weak.release.entry.
+use std.weak.{Weak, WeakMut, weak, weak_mut}
+use std.convert.From
+
+struct Node:
+    name: string
+    parent: Weak[Node]?
+    child: *mut Node?
+
+fn tree_parent() -> Weak[Node]:
+    parent := box(Node { name: "parent", parent: .None, child: .None })
+    parent_link := match weak(parent):
+        .Some(link) => link
+        .None => panic("a boxed node is a whole allocation")
+    child := box(Node { name: "child", parent: .Some(parent_link), child: .None })
+    parent.child = .Some(child)
+    parent_link
+
+struct Peer:
+    next: WeakMut[Peer]?
+
+fn weak_ring() -> Weak[Peer]:
+    first := box(Peer { next: .None })
+    second := box(Peer { next: .None })
+    first_link := match weak_mut(first):
+        .Some(link) => link
+        .None => panic("a boxed peer is a whole allocation")
+    second_link := match weak_mut(second):
+        .Some(link) => link
+        .None => panic("a boxed peer is a whole allocation")
+    first.next = .Some(second_link)
+    second.next = .Some(first_link)
+    Weak::from(first_link)
+
+tests:
+    it("does not turn a parent pointer into a cycle"):
+        parent := tree_parent()
+        assert(parent.upgrade().is_none(), reason="the tree's strong references left scope")
+
+    it("does not count a weak ring as a strong cycle"):
+        peer := weak_ring()
+        assert(peer.upgrade().is_none(), reason="weak links retain neither peer")

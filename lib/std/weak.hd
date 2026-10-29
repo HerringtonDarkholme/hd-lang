@@ -1,0 +1,65 @@
+# std.weak: non-owning references to whole counted allocations.
+
+use std.convert.From
+
+# A side entry is itself counted. Its raw `usize` payload is a target address,
+# so the cycle collector never follows the weak edge. The linear backend
+# supplies its allocation and final-release glue.
+
+## The opaque side entry named by a weak value. Its field is private so user
+## code cannot construct a forged entry.
+pub struct WeakEntry[T]:
+    target: usize
+
+## The opaque writable side-entry view. It is distinct from `WeakEntry[T]`, so
+## unwrapping a read-only weak value cannot forge a writable one.
+pub struct WeakMutEntry[T]:
+    target: usize
+
+## A read-only weak reference to a whole counted `T` allocation.
+pub type Weak[T](*WeakEntry[T])
+
+## A writable weak reference to a whole counted `T` allocation.
+pub type WeakMut[T](*WeakMutEntry[T])
+
+@intrinsic("weak_new")
+fn weak_new[T](target: &T) -> Weak[T]?:
+    panic("intrinsic")
+
+@intrinsic("weak_new_mut")
+fn weak_new_mut[T](target: &mut T) -> WeakMut[T]?:
+    panic("intrinsic")
+
+@intrinsic("weak_upgrade")
+fn weak_upgrade[T](value: Weak[T]) -> (*T)?:
+    panic("intrinsic")
+
+@intrinsic("weak_upgrade_mut")
+fn weak_upgrade_mut[T](value: WeakMut[T]) -> (*mut T)?:
+    panic("intrinsic")
+
+@intrinsic("weak_weaken")
+fn weak_weaken[T](value: WeakMut[T]) -> Weak[T]:
+    panic("intrinsic")
+
+## Makes a read-only weak reference when `target` is the start of a counted allocation whose stored type is `T`; otherwise `.None`.
+pub fn weak[T](target: &T) -> Weak[T]?:
+    weak_new(target)
+
+## Makes a writable weak reference when `target` is the start of a counted allocation whose stored type is `T`; otherwise `.None`.
+pub fn weak_mut[T](target: &mut T) -> WeakMut[T]?:
+    weak_new_mut(target)
+
+impl[T] Weak[T]:
+    ## A counted read-only reference to the live target, or `.None` after it is freed.
+    pub fn upgrade(self) -> (*T)?:
+        weak_upgrade(self)
+
+impl[T] WeakMut[T]:
+    ## A counted writable reference to the live target, or `.None` after it is freed.
+    pub fn upgrade(self) -> (*mut T)?:
+        weak_upgrade_mut(self)
+
+impl[T] From[WeakMut[T]] for Weak[T]:
+    fn from(value: WeakMut[T]) -> Weak[T]:
+        weak_weaken(value)

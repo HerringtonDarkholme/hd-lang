@@ -1,0 +1,41 @@
+# test: weak construction accepts a whole allocation and returns None for fields and elements, including a zero-offset field passed through a parameter
+# Spec std/weak Weak Types And Construction: std-weak.new.readonly, std-weak.new.refuse, std-weak.new.some.
+use std.weak.weak
+
+struct Item:
+    value: i32
+
+struct Holder:
+    first: Item
+    second: Item
+
+fn refused_through_parameter(item: &Item) -> bool:
+    weak(item).is_none()
+
+tests:
+    it("accepts a whole counted allocation"):
+        item := box(Item { value: 1 })
+        assert(weak(item).is_some(), reason="box starts a counted Item allocation")
+
+    it("accepts an address-taken local cell"):
+        let mut local = Item { value: 4 }
+        assert(weak(&local).is_some(), reason="an address-taken local lives in a counted cell")
+        local.value += 1
+        assert_equal(local.value, 5, reason="the strong local cell stays live")
+
+    it("refuses fields, elements, and a zero-offset first field"):
+        holder := box(Holder { first: Item { value: 1 }, second: Item { value: 2 } })
+        items := [Item { value: 3 }]
+        assert(
+            weak(&holder.first).is_none(),
+            reason="the first field has the outer address but type Item",
+        )
+        assert(
+            weak(&holder.second).is_none(),
+            reason="an interior field is not an allocation start",
+        )
+        assert(weak(&items[0]).is_none(), reason="an element is not a whole allocation")
+        assert(
+            refused_through_parameter(&holder.first),
+            reason="passing the first field through a parameter cannot hide its origin",
+        )

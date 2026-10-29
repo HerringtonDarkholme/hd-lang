@@ -8,6 +8,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
+use hd_mono::layout::{CanonMemo, canon};
 use hd_types::{Ty, TyData};
 
 use super::Em;
@@ -130,6 +131,7 @@ impl Em<'_, '_, '_> {
         walk: Option<&Walk>,
         cyclic: bool,
         recursive: bool,
+        target: Option<Ty>,
     ) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.u32(m.size);
@@ -139,7 +141,20 @@ impl Em<'_, '_, '_> {
                 walk: w.clone(),
             })
         });
-        crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
+        let weak_key = target.and_then(|ty| {
+            let key = canon(
+                self.pool(),
+                &|d| self.env().path_hash(d),
+                &mut CanonMemo::default(),
+                ty,
+            );
+            (self.m.open_world || self.m.weak_types.contains(&key)).then_some(key)
+        });
+        if let Some(key) = weak_key {
+            crate::rt::push_typed_desc_recursive(&mut self.f, glue, cyclic, recursive, key);
+        } else {
+            crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
+        }
         if self.input.runtime.is_some_and(|r| r.checked.is_none())
             && m.size
                 .checked_add(crate::module::HEADER)
@@ -235,7 +250,7 @@ impl Em<'_, '_, '_> {
                     let srcs = self.count_refs(&fields, &tys)?;
                     let cyclic = self.cyclic_object(t);
                     let recursive = self.recursive_object(t);
-                    let at = self.object(&m, walk.as_ref(), cyclic, recursive);
+                    let at = self.object(&m, walk.as_ref(), cyclic, recursive, Some(t));
                     for (s, p) in srcs.iter().zip(&parts) {
                         self.store_part(at, &m, *p, s)?;
                     }
@@ -425,7 +440,7 @@ impl Em<'_, '_, '_> {
                         (0..tys.len()).map(|f| replaced(f).map(Src::Ref)).collect();
                     let cyclic = self.cyclic_object(t);
                     let recursive = self.recursive_object(t);
-                    let at = self.object(&m, walk.as_ref(), cyclic, recursive);
+                    let at = self.object(&m, walk.as_ref(), cyclic, recursive, Some(t));
                     for (f, p) in parts.iter().enumerate() {
                         match &srcs[f] {
                             Some(s) => self.store_part(at, &m, *p, s)?,
@@ -632,7 +647,7 @@ impl Em<'_, '_, '_> {
             let walk = self.cell_walk(t);
             let cyclic = self.cyclic_object(t);
             let recursive = self.recursive_object(t);
-            let cell = self.object(&m, walk.as_ref(), cyclic, recursive);
+            let cell = self.object(&m, walk.as_ref(), cyclic, recursive, Some(t));
             for (p, l) in m.leaves.iter().enumerate() {
                 self.store_leaf(
                     &|em: &mut Self| {

@@ -1,7 +1,7 @@
 # Weak References
 
-Status: design approved by the owner (2026-10-21); not yet in the spec or
-the compiler.
+Status: design approved by the owner (2026-10-21), amended 2026-10-28 and
+2026-10-29, and implemented by #720.
 
 hd counts references and collects cycles. A weak reference adds one more
 tool: a way to point at an object without keeping it alive. It is useful
@@ -20,8 +20,8 @@ whether or not the cycle collector ships:
 
 ## The API
 
-A weak reference is a std type, `Weak[T]` in `std.weak`, not a new kind
-of reference.
+Weak references are the std types `Weak[T]` and `WeakMut[T]` in `std.weak`,
+not new kinds of reference.
 
 ```hd
 use std.weak.{Weak, weak}
@@ -39,18 +39,22 @@ fn parent_name(node: &Node) -> string:
         .None => "(root)"
 
 fn attach(child: &mut Node, parent: &Node) -> void:
-    child.parent = .Some(weak(parent))
+    child.parent = weak(parent)
 ```
 
-- `weak(r: &T) -> Weak[T]` and `weak_mut(r: &mut T) -> Weak[T]` make a
-  weak reference from a reference.
-- `upgrade(self) -> (&T)?` gives a reference when the object is still
-  alive, and `.None` once it has been freed.
-  - A weak made from `&mut T` also has `upgrade_mut(self) -> (&mut T)?`.
-  - The reference `upgrade` returns is an ordinary counted reference: it
-    keeps the object alive while it lives.
-- A `Weak[T]` is copyable. Copies refer to the same object. `w1 is w2`
-  compares targets, as `is` does for references.
+- `weak(r: &T) -> Weak[T]?` and `weak_mut(r: &mut T) -> WeakMut[T]?` make a
+  weak reference when `r` points at the start of a counted allocation whose
+  stored type is exactly `T`. Otherwise they return `.None`.
+- `Weak.upgrade(self) -> (*T)?` gives a counted read-only reference when the
+  object is still alive, and `.None` once it has been freed.
+  `WeakMut.upgrade(self) -> (*mut T)?` does the same with writable access.
+  A `WeakMut[T]` converts to `Weak[T]`, as `*mut T` converts to `*T`; the
+  reverse conversion does not exist.
+- The reference an upgrade returns is an ordinary counted reference: it keeps
+  the object alive while it lives.
+- `Weak[T]` and `WeakMut[T]` are copyable identity values. Copies refer to the
+  same side entry. `w1 is w2` compares those entries, and therefore their
+  targets, as `is` does for references.
 - There is no way to read through a weak reference directly. Every use
   goes through `upgrade` and handles `.None`, so a program cannot forget
   that the object may be gone. This is Rust's choice over Swift's
@@ -60,11 +64,12 @@ fn attach(child: &mut Node, parent: &Node) -> void:
 
 Only a whole counted object: a `&Node { ... }` object, a local's cell
 (`&x` of a local that lives in a cell), or anything else that is the
-start of a counted allocation.
+start of a counted allocation whose stored type is the constructor's `T`.
+The constructor checks this at run time, including through a reference
+parameter. An ordinary interior place and a zero-offset first field both
+return `.None`; neither is a compile error or a panic.
 
-A weak reference to an interior place (`&x.field`, `&xs[i]`, a place
-reached through another reference) is a compile error,
-`weak-interior-reference`. Two reasons:
+Interior weak references are rejected for two reasons:
 
 - an interior reference already keeps its whole object alive, so the
   weak would track the containing object, not the place the program
@@ -86,9 +91,15 @@ Swift's side table, not Rust's weak count in every allocation.
   entry: the object's address, a weak count, and a live bit. One bit of
   the object's descriptor word marks that it has an entry; the entry is
   found through a small address-keyed table.
-  - Today bits 0-24 of the descriptor word hold the release glue's slot.
-    That shrinks to bits 0-23 (16M slots, far beyond any program), and
-    bit 24 becomes `WEAK`.
+  - In the current descriptor layout bits 0-21 hold the release glue's slot.
+    That shrinks to bits 0-20 (2M slots, far beyond any program), and bit 21
+    becomes `WEAK`. Bits 22-24 remain the cycle collector's color and frame
+    marks.
+  - A concrete `T` reached by `weak` or `weak_mut` receives a type-keyed
+    descriptor alias. The constructor compares that alias as well as the
+    allocation start, so a zero-offset first field cannot pass as its outer
+    allocation. Types never reached by a weak constructor keep their current
+    descriptors.
 - **A `Weak[T]` value** is the address of its side entry. Copying one
   increments the entry's weak count; dropping one decrements it.
 - **Freeing an object that has `WEAK` set** (by count or by the cycle
@@ -103,10 +114,10 @@ Swift's side table, not Rust's weak count in every allocation.
   clears its entries like any other free.
 
 The cost:
-- objects never weakly referenced: zero bytes and zero instructions,
-  apart from one bit test on the free path for types that can ever be
-  weakly referenced. The compiler knows which types those are, so other
-  types skip the test entirely;
+- a program with no weak constructor has byte-identical output and no weak
+  bit test. In a program that uses weak references, the shared final-free
+  funnels test `WEAK` for each object; objects without an entry take only
+  that branch;
 - an object with weak references: one side entry (about 16 bytes)
   shared by all of its weak references;
 - `weak(r)`: a lookup on first use, then an increment;
@@ -127,8 +138,9 @@ The cost:
 ## Spec and tests
 
 The spec gains:
-- a section on weak references: the type, `weak`/`weak_mut`/`upgrade`/
-  `upgrade_mut`, `is`, copying, the `weak-interior-reference` error;
+- a section on weak references: the two types, optional `weak`/`weak_mut`,
+  upgrading, weakening `WeakMut`, `is`, copying, and the run-time whole-object
+  check;
 - a std page for `std.weak`.
 
 Conformance cases:
@@ -140,7 +152,8 @@ Conformance cases:
 - a cycle with a weak reference into it, freed by the collector: the
   weak then fails to upgrade;
 - copies of a weak reference compare `is`-equal;
-- `weak(&x.field)` and `weak(&xs[i])` are rejected;
+- `weak(&x.field)`, `weak(&xs[i])`, and a zero-offset first field return
+  `.None`, including when passed through a reference parameter;
 - a checked build reports no leak, and the side entries are freed;
 - an `upgrade` held across a suspension point keeps the object alive.
 

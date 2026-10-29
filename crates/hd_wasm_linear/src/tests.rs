@@ -619,6 +619,98 @@ fn session_base_does_not_assume_future_views_and_cancellation_are_absent() {
     assert_eq!(constants, [0, 1]);
 }
 
+/// An open-world base gives every allocation an exact descriptor alias before
+/// a later input first constructs a weak value. Extensions reuse that alias
+/// and type id, while the next concrete type appends both identities.
+#[test]
+fn session_weak_descriptor_aliases_and_type_ids_stay_stable() {
+    use crate::module::{DescriptorKey, Ins};
+
+    fn module(probe: u128, descriptors: &[Hash128], weak: &[Hash128]) -> Module {
+        let mut m = Module::default();
+        m.open_world = true;
+        m.uses_weak = !weak.is_empty();
+        m.weak_types.extend(weak.iter().copied());
+        let glue = Sym::Inst(Hash128(7200));
+        let drop = m.func("drop", vec![Val::I32], vec![]);
+        m.define(glue.clone(), drop);
+        let mut f = m.func(
+            "weak_session_probe",
+            vec![],
+            vec![Val::I32; descriptors.len() + weak.len()],
+        );
+        for ty in descriptors {
+            f.descriptor(glue.clone(), DescriptorKey::weak(*ty));
+        }
+        for ty in weak {
+            f.push(Ins::WeakType(*ty));
+        }
+        let probe = Sym::Inst(Hash128(probe));
+        m.define(probe.clone(), f);
+        m.export("probe", probe);
+        m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: vec![] }));
+        m
+    }
+
+    fn probe_constants(wasm: &[u8]) -> Vec<i32> {
+        let mut imports = 0;
+        let mut probe = None;
+        let mut bodies = Vec::new();
+        for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+            match payload.expect("payload") {
+                wasmparser::Payload::ImportSection(r) => {
+                    for import in r.into_imports() {
+                        if matches!(import.expect("import").ty, wasmparser::TypeRef::Func(_)) {
+                            imports += 1;
+                        }
+                    }
+                }
+                wasmparser::Payload::ExportSection(r) => {
+                    probe = r.into_iter().find_map(|e| {
+                        let e = e.expect("export");
+                        (e.name == "probe").then_some(e.index)
+                    });
+                }
+                wasmparser::Payload::CodeSectionEntry(body) => bodies.push(body),
+                _ => {}
+            }
+        }
+        let body = &bodies[usize::try_from(probe.expect("probe") - imports).expect("body")];
+        body.get_operators_reader()
+            .expect("operators")
+            .into_iter()
+            .filter_map(|op| match op.expect("operator") {
+                wasmparser::Operator::I32Const { value } => Some(value),
+                _ => None,
+            })
+            .collect()
+    }
+
+    let (a, b) = (Hash128(7201), Hash128(7202));
+    let (base, manifest) = module(7210, &[a], &[])
+        .finish_session(true)
+        .expect("open-world base");
+    validate(&base.wasm);
+    let base_a = probe_constants(&base.wasm)[0];
+
+    let (first, manifest) = module(7211, &[a], &[a])
+        .finish_extension(&manifest)
+        .expect("first weak type");
+    validate(&first.wasm);
+    let first = probe_constants(&first.wasm);
+    assert_eq!(first[0], base_a);
+
+    let (second, _) = module(7212, &[a, b], &[a, b])
+        .finish_extension(&manifest)
+        .expect("second weak type");
+    validate(&second.wasm);
+    let second = probe_constants(&second.wasm);
+    assert_eq!(second[0], base_a);
+    assert_eq!(second[1], base_a + 1);
+    assert_eq!(second[2], first[1]);
+    assert_eq!(second[3], first[1] + 1);
+}
+
 /// Runs a real base and extension on Node. The extension calls the old
 /// function through its old table slot, shares its mutable global, relocates
 /// fresh static data through an allocation, and appends a new table entry.

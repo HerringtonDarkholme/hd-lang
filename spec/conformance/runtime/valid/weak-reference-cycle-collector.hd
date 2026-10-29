@@ -1,0 +1,49 @@
+# test: cycle collection invalidates a weak reference into the collected cycle
+# Spec std/weak Collection And Release: std-weak.release.cycle, std-weak.release.collected, std-weak.release.entry.
+use std.weak.{Weak, weak}
+
+struct Ring:
+    name: string
+    next: *mut Ring?
+
+fn collected_link() -> Weak[Ring]:
+    first := box(Ring { name: "first", next: .None })
+    second := box(Ring { name: "second", next: .None })
+    link := match weak(first):
+        .Some(value) => value
+        .None => panic("a boxed ring node is a whole allocation")
+    first.next = .Some(second)
+    second.next = .Some(first)
+    link
+
+fn make_cycle(n: i32) -> void:
+    first := box(Ring { name: "first $n", next: .None })
+    second := box(Ring { name: "second $n", next: .Some(first) })
+    first.next = .Some(second)
+
+tests:
+    it("fails to upgrade after the collector frees the target"):
+        link := collected_link()
+        let n = +0
+        while n < 10050:
+            make_cycle(n)
+            n += 1
+        assert(
+            link.upgrade().is_none(),
+            reason="only the collected strong cycle retained the target",
+        )
+
+    it("preserves collector state when the first weak allocation collects"):
+        target := box(Ring { name: "held", next: .None })
+        holder := box(Ring { name: "holder", next: .Some(target) })
+        holder.next = .None
+        let n = +0
+        while n < 5000:
+            make_cycle(n)
+            n += 1
+        link := match weak(target):
+            .Some(value) => value
+            .None => panic("the held ring node is a whole allocation")
+        assert(link.upgrade().is_some(), reason="collection kept the externally held target")
+        assert_equal(target.name, "held", reason="the strong target survives the collection")
+        assert_equal(holder.name, "holder", reason="the holder stays live through the check")

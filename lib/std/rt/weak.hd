@@ -1,0 +1,90 @@
+# std.rt.weak: the on-demand side table for weak references.
+# A runtime module, so only std may use it.
+use std.rt.alloc.{alloc, free_block}
+use std.rt.memory.{fill, load_u32, store_u32}
+
+# A raw 64-bucket address table. Its links hold no counted references: each
+# next link is stored inside the counted entry it names.
+let buckets: usize = 0
+let rows: usize = 0
+let types: usize = 0
+
+## The compact type id registered for a descriptor glue id, or zero.
+pub fn type_of(descriptor: usize) -> usize:
+    let row = types
+    while row != 0:
+        if usize(load_u32(row)) == descriptor:
+            return usize(load_u32(row + 4))
+        row = usize(load_u32(row + 8))
+    0
+
+## Registers one link module's descriptor alias. Registrations live as long as
+## the shared runtime and are idempotent across checked test epochs.
+pub fn type_bind(descriptor: usize, type_id: usize) -> void:
+    if type_of(descriptor) != 0:
+        return
+    row := alloc(12)
+    store_u32(row, u32(descriptor))
+    store_u32(row + 4, u32(type_id))
+    store_u32(row + 8, u32(types))
+    types = row
+
+fn bucket(target: usize) -> usize:
+    buckets + 4 * ((target / 8) & 63)
+
+fn ensure_buckets() -> void:
+    if buckets == 0:
+        buckets = alloc(256)
+        fill(buckets, 0, 256)
+
+## The counted side-entry payload for `target`, or zero when none exists.
+pub fn lookup(target: usize) -> usize:
+    if buckets == 0:
+        return 0
+    let entry = usize(load_u32(bucket(target)))
+    while entry != 0:
+        stored := usize(load_u32(entry))
+        if stored == target:
+            return entry
+        entry = usize(load_u32(entry + 4))
+    0
+
+## Adds the first side entry for `target`.
+pub fn bind(target: usize, entry: usize) -> void:
+    ensure_buckets()
+    at := bucket(target)
+    store_u32(entry, u32(target))
+    store_u32(entry + 4, load_u32(at))
+    store_u32(at, u32(entry))
+    rows = rows + 1
+
+# Removes the row whose target and entry both match. `clearing` also zeros
+# the entry's target before the target allocation can be reused.
+fn remove(target: usize, entry: usize, clearing: bool) -> void:
+    if target == 0 || buckets == 0:
+        return
+    let link = bucket(target)
+    let found = usize(load_u32(link))
+    while found != 0:
+        next := usize(load_u32(found + 4))
+        if found == entry && usize(load_u32(found)) == target:
+            store_u32(link, u32(next))
+            if clearing:
+                store_u32(entry, 0)
+            rows = rows - 1
+            if rows == 0:
+                free_block(buckets)
+                buckets = 0
+            return
+        link = found + 4
+        found = next
+
+## Removes a row when its last `Weak` or `WeakMut` releases the side entry.
+pub fn forget(target: usize, entry: usize) -> void:
+    remove(target, entry, false)
+
+## Marks the side entry dead and removes its row before `target` is freed.
+pub fn clear(target: usize) -> void:
+    entry := lookup(target)
+    if entry != 0:
+        remove(target, entry, true)

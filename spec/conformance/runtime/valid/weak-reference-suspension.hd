@@ -1,0 +1,30 @@
+# test: a counted reference returned by upgrade keeps its target alive across a suspension point
+# Spec std/weak Upgrading: std-weak.upgrade.retain, std-weak.upgrade.suspension.
+use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
+use std.testing.assert_equal
+use std.weak.{Weak, weak}
+
+struct Node:
+    value: i32
+
+fn upgraded_pair() -> (Weak[Node], *Node):
+    owner := box(Node { value: 42 })
+    link := match weak(owner):
+        .Some(value) => value
+        .None => panic("a boxed node is a whole allocation")
+    held := match link.upgrade():
+        .Some(value) => value
+        .None => panic("the owner is still live")
+    assert_equal(owner.value, 42, reason="the original owner lives through the upgrade")
+    (link, held)
+
+fn held_across_wait!() -> bool $ Clock:
+    let (link, held) = upgraded_pair()
+    sleep!(ms(1))
+    link.upgrade().is_some() && held.value == 42
+
+tests:
+    it("retains the upgraded target while suspended"):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=clock):
+            assert(held_across_wait!(), reason="the upgraded counted reference crossed the wait")

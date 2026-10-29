@@ -15,6 +15,7 @@
 
 use crate::op::Op as I;
 use hd_base::{DefId, StageResult};
+use hd_mono::layout::{CanonMemo, canon};
 use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Tag};
 use hd_types::{Ty, TyData};
 
@@ -59,6 +60,12 @@ impl Em<'_, '_, '_> {
         let walk = self.counted(ty);
         let boxed = self.vals(ty)? != [Val::I32]
             || crate::layout::walk(self.pool(), self.env(), ty).and_then(|w| w.single()) != Some(0);
+        let key = canon(
+            self.pool(),
+            &|d| self.env().path_hash(d),
+            &mut CanonMemo::default(),
+            ty,
+        );
         Ok(RefLayout {
             known: crate::layout::block_start(self.pool(), self.env(), ty),
             size: m.size,
@@ -66,6 +73,7 @@ impl Em<'_, '_, '_> {
             walk,
             colls: self.copied(ty),
             boxed,
+            weak: (self.m.open_world || self.m.weak_types.contains(&key)).then_some(key),
         })
     }
 
@@ -721,7 +729,7 @@ impl Em<'_, '_, '_> {
                 let w = self.counted(ty);
                 let cyclic = self.cyclic_holding(&[ty]);
                 let recursive = self.recursive_object(ty);
-                let obj = self.object(&m, w.as_ref(), cyclic, recursive);
+                let obj = self.object(&m, w.as_ref(), cyclic, recursive, Some(ty));
                 let src = Src::Locals(ls[first..first + m.leaves.len()].to_vec());
                 let all = Part {
                     first: 0,

@@ -1651,6 +1651,28 @@ pub fn main() -> void:
 > **Why.** The runtime can then change how it represents values, or what
 > its functions take, without breaking any program.
 
+### Descriptor Glue Mask Intrinsic
+
+The checked runtime privately asks which low descriptor bits name release
+glue in the linked program:
+
+```text
+fn descriptor_glue_mask() -> usize
+```
+
+1. r[module.rt.descriptor-mask.decl] `std.rt.checked_report` privately declares `descriptor_glue_mask` with `@intrinsic("descriptor_glue_mask")`; the compiler supplies only its body.
+2. r[module.rt.descriptor-mask.value] `descriptor_glue_mask()` returns the mask of the descriptor's release-glue field for this linked program, excluding every collector, allocation-class, and weak-entry flag bit.
+
+### Weak Runtime Interface
+
+The compiler calls ordinary functions in `std.rt.weak` to maintain the
+on-demand weak-entry and descriptor-type tables:
+
+1. r[module.rt.weak.entry-decl] `std.rt.weak` declares `lookup(target: usize) -> usize`, `bind(target: usize, entry: usize) -> void`, `forget(target: usize, entry: usize) -> void`, and `clear(target: usize) -> void` with their definitions in std; the compiler knows these declarations by path.
+2. r[module.rt.weak.entry-ops] `lookup` returns the shared live entry for `target` or 0, and `bind` records a new shared entry. `forget` removes the matching row when that entry dies; `clear` removes it and makes the entry dead before the target is freed.
+3. r[module.rt.weak.type-decl] `std.rt.weak` declares `type_of(descriptor: usize) -> usize` and `type_bind(descriptor: usize, type_id: usize) -> void` with their definitions in std; the compiler knows these declarations by path.
+4. r[module.rt.weak.type-ops] `type_bind` idempotently associates a linked descriptor alias with its nonzero exact-type identity, and `type_of` returns that identity or 0 when none is registered.
+
 ### Memory Intrinsics
 
 `std.rt.memory` declares the intrinsics that read and write the heap:

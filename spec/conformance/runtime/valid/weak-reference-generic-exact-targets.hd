@@ -1,0 +1,47 @@
+# test: weak target identity propagates through generic wrappers, defaults, and impl methods
+# Spec std/weak Weak Types And Construction: std-weak.new.readonly, std-weak.new.some.
+use std.weak.weak
+
+struct Left:
+    value: i32
+
+struct Right:
+    value: i32
+
+struct Wrapped[T]:
+    value: T
+
+fn observes_whole_target[T](target: &T) -> bool:
+    weak(target).is_some()
+
+fn through_two_wrappers[T](target: &T) -> bool:
+    observes_whole_target(target)
+
+fn through_default[T](target: &T, seen: bool = observes_whole_target(target)) -> bool:
+    seen
+
+trait WeakObserver:
+    fn sees(&self) -> bool
+
+impl[T] WeakObserver for Wrapped[T]:
+    fn sees(&self) -> bool:
+        observes_whole_target(self)
+
+tests:
+    it("keeps exact nominal target types through generic wrappers"):
+        left := box(Left { value: 1 })
+        right := box(Right { value: 2 })
+        assert(
+            through_two_wrappers(left),
+            reason="the first same-layout nominal target matches its descriptor",
+        )
+        assert(
+            through_two_wrappers(right),
+            reason="the second same-layout nominal target keeps its own descriptor",
+        )
+        assert(through_default(left), reason="an omitted default keeps the exact target type")
+        assert(through_default(right), reason="each default instantiation keeps its own type")
+        wrapped_left := box(Wrapped { value: Left { value: 3 } })
+        wrapped_right := box(Wrapped { value: Right { value: 4 } })
+        assert(wrapped_left.sees(), reason="an impl method keeps the first exact target type")
+        assert(wrapped_right.sees(), reason="an impl method keeps the second exact target type")

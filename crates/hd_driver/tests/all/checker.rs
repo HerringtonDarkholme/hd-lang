@@ -119,19 +119,19 @@ fn foreign_loop_hint_does_not_change_other_unresolved_calls() {
 }
 
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt`, and the
-/// trait default bodies among the bodies: 45 modules.
+/// trait default bodies among the bodies: 47 modules.
 #[test]
 fn every_std_body_checks_with_no_diagnostic() {
     let out = analyze_std(&[]);
     let body = out.report.tally(Stage::Body);
     assert_eq!(
         (body.ok, body.not_implemented, body.blocked),
-        (45, 0, 0),
+        (47, 0, 0),
         "{}\n{:?}",
         out.report.render(),
         out.report.body_failures
     );
-    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 45);
+    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 47);
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
     assert!(out.report.body_ok > 1000, "{}", out.report.body_ok);
     assert_eq!(out.diags.len(), 0, "{}", out.render());
