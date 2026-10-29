@@ -27,7 +27,7 @@ pub trait Debug:
 # `dbg` (spec/lang/10-modules.md#large-values) also applies its limits, and
 # its pretty layout puts each field or entry on its own line, as Rust's
 # `{:#?}` does.
-# A struct used behind `&mut`: every `debug` of one value writes to the
+# A struct used as a box, `*mut`: every `debug` of one value writes to the
 # one writer (r-std-format.debug.writer-ref).
 ## What a `Debug` implementation writes to: one of the builders, or custom text.
 ## See [std-format.debug.writer-ref](../../spec/std/format.md#r-std-format.debug.writer-ref).
@@ -61,7 +61,7 @@ impl DebugWriter:
         shown := self.open()
         if shown:
             self.write(name)
-        &mut DebugStruct { out: self, count: 0, shown: shown }
+        box(DebugStruct { out: self, count: 0, shown: shown })
 
     # A named value with positional fields: `.field(value)`, then `.finish()`.
     # An empty name describes a tuple, so one field ends with a comma: `(1,)`.
@@ -71,21 +71,21 @@ impl DebugWriter:
         shown := self.open()
         if shown:
             self.write(name)
-        &mut DebugTuple { out: self, count: 0, unnamed: name == "", shown: shown }
+        box(DebugTuple { out: self, count: 0, unnamed: name == "", shown: shown })
 
     # A sequence: `.entry(value)` per item, then `.finish()`.
     ## Starts a sequence.
     ## See [std-format.debug.builder.list](../../spec/std/format.md#r-std-format.debug.builder.list).
     pub fn debug_list(*mut self) -> *mut DebugList:
         shown := self.open()
-        &mut DebugList { out: self, count: 0, shown: shown }
+        box(DebugList { out: self, count: 0, shown: shown })
 
     # Key-value pairs: `.entry(key, value)` per pair, then `.finish()`.
     ## Starts key-value pairs.
     ## See [std-format.debug.builder.map](../../spec/std/format.md#r-std-format.debug.builder.map).
     pub fn debug_map(*mut self) -> *mut DebugMap:
         shown := self.open()
-        &mut DebugMap { out: self, count: 0, shown: shown }
+        box(DebugMap { out: self, count: 0, shown: shown })
 
     # The layout below is the builders', and the printers that the checker
     # generates for `dbg` call it directly (checker/debug-print.ts).
@@ -660,8 +660,8 @@ impl[K < Debug & Eq & Hash, V < Debug] Debug for Map[K, V]:
 ## Returns the text that `Debug` writes for `value`: stable, field by field, multi-line, and consistently indented.
 ## See [std-format.debug.render](../../spec/std/format.md#r-std-format.debug.render).
 pub fn debug[T < Debug](value: T) -> string:
-    let mut out = DebugWriter { parts: [], limited: false, pretty: false, depth: 0, active: [] }
-    value.debug(&mut out)
+    out := box(DebugWriter { parts: [], limited: false, pretty: false, depth: 0, active: [] })
+    value.debug(out)
     out.text()
 
 # `dbg` (spec/lang/10-modules.md#debug-printing) is an ordinary declaration:
@@ -689,13 +689,13 @@ fn dbg_writer(pretty: bool) -> DebugWriter:
 # compact when the line fits in 80 columns, else pretty
 # (spec/lang/10-modules.md#r-module.dbg.layout).
 fn dbg_layout[T](width: usize, value: T, show: fn(T, *mut DebugWriter) -> void) -> string:
-    let mut compact = dbg_writer(false)
-    show(value, &mut compact)
+    compact := box(dbg_writer(false))
+    show(value, compact)
     compact_text := compact.text()
     if width + compact_text.len() <= 80 && !compact_text.contains("\n"):
         return compact_text
-    let mut pretty = dbg_writer(true)
-    show(value, &mut pretty)
+    pretty := box(dbg_writer(true))
+    show(value, pretty)
     pretty.text()
 
 # `dbg(x)` where `head` is the line's location and `x`'s source text, and

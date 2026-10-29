@@ -65,8 +65,8 @@ pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
     input.read_all!()
 
 # The recording `Console` provider (spec/std/console.md#buffer-console).
-# It keeps error lines apart from output lines. It is a struct used behind
-# `&mut`: `new` returns a new object, so the test that installs it reads
+# It keeps error lines apart from output lines. It is a struct used as a
+# box: `new` returns `*mut MemoryConsole`, so the test that installs it reads
 # the lines it recorded (r-std-console.buffer.install-ref).
 ## The recording `Console` provider: it keeps exact text chunks for a test to read.
 ## See [std-console.buffer.decl](../../spec/std/console.md#r-std-console.buffer.decl).
@@ -79,7 +79,7 @@ impl MemoryConsole:
     ## Returns an empty recording provider.
     ## See [std-console.buffer.install-ref](../../spec/std/console.md#r-std-console.buffer.install-ref).
     pub fn new() -> *mut MemoryConsole:
-        &mut MemoryConsole { lines: [], error_lines: [] }
+        box(MemoryConsole { lines: [], error_lines: [] })
 
     # The lines `write_sync` received, in order (r-std-console.buffer.output-text-sync).
     ## The exact text chunks written through `write_sync`, in order.
@@ -146,7 +146,7 @@ impl ScriptedInput:
     ## Returns the provider that answers `lines` in order, then the end of input.
     ## See [std-console.scripted.new-ref](../../spec/std/console.md#r-std-console.scripted.new-ref).
     pub fn new(lines: List[string]) -> *mut ScriptedInput:
-        &mut ScriptedInput { lines: lines, next: 0 }
+        box(ScriptedInput { lines: lines, next: 0 })
 
 impl ConsoleInput for ScriptedInput:
     fn read_line!(&mut self) -> Result[string?, ConsoleError]:

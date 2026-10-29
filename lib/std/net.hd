@@ -101,7 +101,7 @@ pub trait UdpSocket < Disposable:
     fn close(&mut self) -> Result[void, NetError]
 
 # The deterministic providers (spec/std/net.md#scripted-net). Every
-# handle is a new object behind `&mut`, so the handle that ScriptedNet hands
+# handle is a box, `*mut`, so the handle that ScriptedNet hands
 # to the code under test is the one the test holds and checks. A scripted call never
 # waits: past the end of its script it fails at once with a message that
 # names what ran out.
@@ -125,7 +125,7 @@ impl ScriptedStream:
     ## Returns a stream that returns the chunks of `reads` in order, one per `read!`.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new(reads: List[List[u8]]) -> *mut ScriptedStream:
-        &mut ScriptedStream {
+        box(ScriptedStream {
             reads: reads,
             next: 0,
             offset: 0,
@@ -137,12 +137,12 @@ impl ScriptedStream:
             nodelay_on: false,
             keepalive_idle: .None,
             closed: false,
-        }
+        })
 
     ## Returns a stream that returns the chunks of `reads`, then fails every `read!` and `write!` with `error`.
     ## See [std-net.scripted.failing](../../spec/std/net.md#r-std-net.scripted.failing).
     pub fn failing(reads: List[List[u8]], error: NetError) -> *mut ScriptedStream:
-        &mut ScriptedStream {
+        box(ScriptedStream {
             reads: reads,
             next: 0,
             offset: 0,
@@ -154,7 +154,7 @@ impl ScriptedStream:
             nodelay_on: false,
             keepalive_idle: .None,
             closed: false,
-        }
+        })
 
     ## Every byte written to the stream, in order.
     ## See [std-net.scripted.write](../../spec/std/net.md#r-std-net.scripted.write).
@@ -266,14 +266,14 @@ impl ScriptedListener:
     ## Returns a listener that accepts the streams of `connections` in order.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new(connections: List[*mut ScriptedStream]) -> *mut ScriptedListener:
-        &mut ScriptedListener {
+        box(ScriptedListener {
             connections: connections,
             next: 0,
             error: .None,
             bound: .None,
             address: .None,
             closed: false,
-        }
+        })
 
     ## Returns a listener that accepts the streams of `connections`, then fails every `accept!` with `error`.
     ## A test scripts an `accept!` that times out with `NetError.Timeout`.
@@ -281,14 +281,14 @@ impl ScriptedListener:
         connections: List[*mut ScriptedStream],
         error: NetError,
     ) -> *mut ScriptedListener:
-        &mut ScriptedListener {
+        box(ScriptedListener {
             connections: connections,
             next: 0,
             error: .Some(error),
             bound: .None,
             address: .None,
             closed: false,
-        }
+        })
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
     ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
@@ -357,7 +357,7 @@ impl ScriptedUdp:
     ## Returns a socket that receives the datagrams of `incoming` in order.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new(incoming: List[Datagram]) -> *mut ScriptedUdp:
-        &mut ScriptedUdp {
+        box(ScriptedUdp {
             incoming: incoming,
             next: 0,
             error: .None,
@@ -365,12 +365,12 @@ impl ScriptedUdp:
             bound: .None,
             address: .None,
             closed: false,
-        }
+        })
 
     ## Returns a socket that receives the datagrams of `incoming`, then fails every `receive!` with `error`; `send_to!` still works.
     ## A test scripts a `receive!` that times out with `NetError.Timeout`.
     pub fn failing(incoming: List[Datagram], error: NetError) -> *mut ScriptedUdp:
-        &mut ScriptedUdp {
+        box(ScriptedUdp {
             incoming: incoming,
             next: 0,
             error: .Some(error),
@@ -378,7 +378,7 @@ impl ScriptedUdp:
             bound: .None,
             address: .None,
             closed: false,
-        }
+        })
 
     ## The timeout that `set_timeout` stored last, or `.None` before any call.
     ## See [std-net.scripted.timeout](../../spec/std/net.md#r-std-net.scripted.timeout).
@@ -461,7 +461,7 @@ impl ScriptedNet:
     ## Returns a provider with nothing scripted.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new() -> *mut ScriptedNet:
-        &mut ScriptedNet { hosts: {}, connections: {}, listeners: {}, sockets: {}, calls: [] }
+        box(ScriptedNet { hosts: {}, connections: {}, listeners: {}, sockets: {}, calls: [] })
 
     ## Answers each `lookup!(host)` with `addresses`.
     ## See [std-net.scripted.setup-ref](../../spec/std/net.md#r-std-net.scripted.setup-ref).

@@ -14,7 +14,7 @@ pub fn sha256(bytes: List[u8]) -> Digest:
 # (always fewer than 64 between calls), the message length in bytes, and
 # the constants the rounds reuse. `outer` is empty for a plain hasher;
 # `hmac` sets it to the key block XOR 0x5c, which `finish` hashes ahead of
-# the inner digest (RFC 2104). A hasher is used behind `&mut`.
+# the inner digest (RFC 2104). A hasher is used as a box, `*mut`.
 ## A SHA-256 computation fed in pieces: `update` adds bytes and `finish` returns the digest.
 ## See [std-digest.sha256.decl-struct](../../spec/std/digest.md#r-std-digest.sha256.decl-struct).
 pub struct Sha256:
@@ -29,13 +29,13 @@ impl Sha256:
     ## Returns a hasher that has seen no bytes, a new object that `update` changes.
     ## See [std-digest.sha256.new-ref](../../spec/std/digest.md#r-std-digest.sha256.new-ref).
     pub fn new() -> *mut Sha256:
-        &mut Sha256 {
+        box(Sha256 {
             state: initial_state(),
             block: [],
             length: 0,
             rounds: round_constants(),
             outer: [],
-        }
+        })
 
     ## Returns a hasher whose `finish` gives HMAC-SHA256 of the message under `key`.
     ## See [std-digest.hmac-ref](../../spec/std/digest.md#r-std-digest.hmac-ref).

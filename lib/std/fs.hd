@@ -369,10 +369,10 @@ fn memory_key(path: Path) -> string:
 impl MemoryFs:
     # A new object, so the providers installed from it and the test share
     # one file system (r-std-fs.memory.new-ref).
-    ## Returns an empty in-memory file system, as a new object behind `&mut`.
+    ## Returns an empty in-memory file system, as a box the providers and the test share.
     ## See [std-fs.memory.new-ref](../../spec/std/fs.md#r-std-fs.memory.new-ref).
     pub fn new() -> *mut MemoryFs:
-        &mut MemoryFs { files: {}, dirs: [], modified: {} }
+        box(MemoryFs { files: {}, dirs: [], modified: {} })
 
     ## Scripts an existing entry's modification time without a clock.
     ## See [std-fs.memory.set-modified](../../spec/std/fs.md#r-std-fs.memory.set-modified).

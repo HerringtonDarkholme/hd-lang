@@ -319,10 +319,10 @@ impl Body:
         Body::from_bytes([])
 
     pub fn from_bytes(bytes: List[u8]) -> Body:
-        Body { state: &mut BodyState { payload: .Ok(bytes) } }
+        Body { state: box(BodyState { payload: .Ok(bytes) }) }
 
     fn prepared(payload: Result[List[u8], FormError]) -> Body:
-        Body { state: &mut BodyState { payload: payload } }
+        Body { state: box(BodyState { payload: payload }) }
 
     pub fn bytes(&self) -> Result[List[u8], BodyError]:
         if self.state.used:
@@ -803,7 +803,7 @@ fn message_form_decode[T < Deserialize](pairs: &List[(string, string)]) -> Resul
     for (key, value) in pairs:
         match groups.get(key):
             .Some(values) => values.push(value)
-            .None => groups[key] = &mut [value]
+            .None => groups[key] = box([value])
     let mut reader = MessageFormReader { groups: groups }
     T::deserialize(&mut reader)
 
@@ -2009,8 +2009,7 @@ pub trait Http:
 # wire provider or a package host's returned Http handle. W is the raw
 # wire trait value; only its retained reference escapes into the adapter.
 pub fn host_provider[W < WireHttp](wire: W) -> *mut dyn Http:
-    let mut held = wire
-    &mut HostHttp { wire: &mut held }
+    box(HostHttp { wire: box(wire) })
 
 struct HostHttp:
     wire: *mut dyn WireHttp
@@ -2117,7 +2116,7 @@ impl ScriptedHttp:
     ## Returns a new provider with no replies or received requests.
     ## See [std-http.scripted.new-empty](../../spec/std/http.md#r-std-http.scripted.new-empty).
     pub fn new() -> *mut ScriptedHttp:
-        &mut ScriptedHttp { responses: {}, requests: [] }
+        box(ScriptedHttp { responses: {}, requests: [] })
 
     ## Appends a result to this URL's reply queue.
     ## See [std-http.scripted.reply-captured](../../spec/std/http.md#r-std-http.scripted.reply-captured).
@@ -2125,7 +2124,7 @@ impl ScriptedHttp:
         captured := scripted_result(result, true)
         match self.responses.get(url):
             .Some(replies) => replies.items.push(captured)
-            .None => self.responses[url] = &mut HttpReplies { items: [captured], next: 0 }
+            .None => self.responses[url] = box(HttpReplies { items: [captured], next: 0 })
 
     ## The received requests in order, including requests without a reply.
     ## See [std-http.scripted.received-bodies](../../spec/std/http.md#r-std-http.scripted.received-bodies).

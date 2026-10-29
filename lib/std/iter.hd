@@ -33,10 +33,10 @@ pub trait Iterator[T]:
         TakeWhile { source: self, keep: keep, open: true }
 
     fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]:
-        Zip { source: self, rest: &mut other.iter() }
+        Zip { source: self, rest: box(other.iter()) }
 
     fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]:
-        Chain { source: self, rest: &mut other.iter(), first: true }
+        Chain { source: self, rest: box(other.iter()), first: true }
 
     fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]:
         FlatMap { source: self, transform: transform, part: .None }
@@ -396,10 +396,10 @@ impl[I < Iterator[Result[T, E]], T, E] Iterator[T] for ResultItems[I, T, E]:
 
 impl[T, E, C < FromIterator[T]] FromIterator[Result[T, E]] for Result[C, E]:
     fn from_iter[I < Iterator[Result[T, E]]](items: I) -> Result[C, E]:
-        let mut failure: E? = .None
-        payloads := ResultItems { source: items, failure: &mut failure }
+        failure := box::[E?](.None)
+        payloads := ResultItems { source: items, failure: failure }
         collected := C::from_iter(payloads)
-        match failure:
+        match *failure:
             .Some(error) => .Err(error)
             .None => .Ok(collected)
 
@@ -420,10 +420,10 @@ impl[I < Iterator[T?], T] Iterator[T] for OptionItems[I, T]:
 
 impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
     fn from_iter[I < Iterator[T?]](items: I) -> C?:
-        let mut missing = false
-        payloads := OptionItems { source: items, missing: &mut missing }
+        missing := box(false)
+        payloads := OptionItems { source: items, missing: missing }
         collected := C::from_iter(payloads)
-        if missing: .None else: .Some(collected)
+        if *missing: .None else: .Some(collected)
 
 # A value that a `for` loop or a comprehension clause iterates
 # (spec/lang/06-control-flow.md#iteration-protocols). Its cursor is the

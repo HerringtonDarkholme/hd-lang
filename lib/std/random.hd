@@ -46,7 +46,7 @@ impl SeededRandom:
         z = low32(z + 0x9E3779B9)
         c := mix32(z)
         z = low32(z + 0x9E3779B9)
-        &mut SeededRandom { s0: a, s1: b, s2: c, s3: mix32(z) }
+        box(SeededRandom { s0: a, s1: b, s2: c, s3: mix32(z) })
 
 # A draw reads the state into a local, steps it there, and stores it once
 # per call, so a call writes through the reference once, not once per
@@ -96,7 +96,7 @@ impl Rng:
     ## Returns the generator of `seed`.
     ## See [std-random.rng.new-ref](../../spec/std/random.md#r-std-random.rng.new-ref).
     pub fn new(seed: u64) -> *mut Rng:
-        &mut Rng { source: SeededRandom::new(seed) }
+        box(Rng { source: SeededRandom::new(seed) })
 
     ## The next random `u64`.
     ## See [std-random.rng.next-u64](../../spec/std/random.md#r-std-random.rng.next-u64).

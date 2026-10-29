@@ -565,7 +565,7 @@ fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
     if source.has(next, '?'):
         greedy = false
         next = next + 1
-    .Ok(Step { node: Node.Repeat(&atom.node, min, max, greedy), next: next })
+    .Ok(Step { node: Node.Repeat(box(atom.node), min, max, greedy), next: next })
 
 fn parse_atom(source: Pattern, at: usize, names: &mut List[string]) -> Result[Step, RegexError]:
     c := source.chars[at]
@@ -630,7 +630,7 @@ fn parse_group(source: Pattern, open: usize, names: &mut List[string]) -> Result
     if !source.has(inner.next, ')'):
         return .Err(RegexError.MissingParen(source.offset(open)))
     if capturing:
-        return .Ok(Step { node: Node.Group(&inner.node, index), next: inner.next + 1 })
+        return .Ok(Step { node: Node.Group(box(inner.node), index), next: inner.next + 1 })
     .Ok(Step { node: inner.node, next: inner.next + 1 })
 
 # Whether characters `start` to `end` form a group name: an ASCII letter or
@@ -1358,18 +1358,18 @@ fn new_vm(regex: Regex, text: string, slot_count: usize) -> *mut Vm:
     program := regex.program
     filter := regex.filter
     width := program.ops.len()
-    &mut Vm {
+    box(Vm {
         program: program,
         text: text,
         size: bytes_len(text),
         slot_count: slot_count,
-        dense: &mut zeros(2 * width),
-        sparse: &mut zeros(2 * width),
-        slots: &mut filled(2 * width * slot_count),
-        stack: &mut filled(width + 1),
-        values: &mut filled(width + 1),
-        scratch: &mut filled(slot_count),
-        found: &mut filled(slot_count),
+        dense: box(zeros(2 * width)),
+        sparse: box(zeros(2 * width)),
+        slots: box(filled(2 * width * slot_count)),
+        stack: box(filled(width + 1)),
+        values: box(filled(width + 1)),
+        scratch: box(filled(slot_count)),
+        found: box(filled(slot_count)),
         from: 0,
         last_end: -1,
         finished: false,
@@ -1379,7 +1379,7 @@ fn new_vm(regex: Regex, text: string, slot_count: usize) -> *mut Vm:
         hit: -1,
         near_from: 0,
         near_until: -1,
-    }
+    })
 
 impl Vm:
     # Where the match found starts and ends; it always has both.

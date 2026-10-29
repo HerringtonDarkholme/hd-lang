@@ -438,13 +438,11 @@ fn pending_frame[T]() -> mut Suspend[T]:
 ## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
 ## See [std-task.map-all.decl](../../spec/std/task.md#r-std-task.map-all.decl).
 pub fn map_all![T, U, $ R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R:
-    # The workers share the slots and the cursor, so both are new objects
-    # behind `&mut`.
-    let mut empty: List[U?] = []
+    # The workers share the slots and the cursor, so both are boxed.
+    slots := box::[List[U?]]([])
     for _ in items:
-        empty.push(.None)
-    slots := &mut empty
-    cursor := &mut Cursor { next: 0 }
+        slots.push(.None)
+    cursor := box(Cursor { next: 0 })
     let mut workers: List[fn!() -> void $ R] = []
     width := if limit < 1: 1 else: limit
     let count: usize = 0

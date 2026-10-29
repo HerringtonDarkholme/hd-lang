@@ -1565,8 +1565,8 @@ struct TextWriter:
 
 impl TextWriter:
     fn new(spaced: bool) -> *mut TextWriter:
-        &mut TextWriter {
-            parts: &mut [],
+        box(TextWriter {
+            parts: box([]),
             depth: 0,
             kinds: [],
             names: [],
@@ -1583,7 +1583,7 @@ impl TextWriter:
             regular: true,
             spaced: spaced,
             indent: 0,
-        }
+        })
 
     # The text, or `.None` when the walk was not regular or not complete.
     fn finish(&self) -> string?:
@@ -1940,7 +1940,7 @@ struct JsonReader:
 
 impl JsonReader:
     fn new(value: Json) -> *mut JsonReader:
-        &mut JsonReader {
+        box(JsonReader {
             value: value,
             present: true,
             depth: 0,
@@ -1955,7 +1955,7 @@ impl JsonReader:
             variants: [],
             facts: [],
             no_facts: Facts { items: [] },
-        }
+        })
 
     # The path of the first `depth` steps: `$`, then `.key` or `[index]`
     # for each.
@@ -2393,11 +2393,11 @@ struct TextReader:
 
 impl TextReader:
     fn new(parser: Parser, root: usize) -> *mut TextReader:
-        let mut source = parser
+        source := box(parser)
         source.at = 0
         source.skip_space()
-        &mut TextReader {
-            parser: &mut source,
+        box(TextReader {
+            parser: source,
             at: source.at,
             entry: root,
             present: true,
@@ -2407,7 +2407,7 @@ impl TextReader:
             open: 0,
             frames: [],
             no_facts: Facts { items: [] },
-        }
+        })
 
     fn path_to(&self, depth: usize) -> string:
         let mut parts: List[string] = ["\$"]
@@ -2515,7 +2515,7 @@ impl TextReader:
         slot := self.open
         if slot == self.frames.len():
             self.frames.push(
-                &mut TextReadFrame {
+                box(TextReadFrame {
                     kind: kind,
                     at: 0,
                     entry: 0,
@@ -2533,7 +2533,7 @@ impl TextReader:
                     home: self.depth,
                     name: name,
                     facts: facts,
-                },
+                }),
             )
         frame := self.frames[slot]
         frame.kind = kind

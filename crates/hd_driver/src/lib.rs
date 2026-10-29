@@ -123,8 +123,8 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// for the erased `dyn Error`; the last two print the cause chain
 /// (module.entry.err-render-chain) on standard error and give status 1
 /// (module.entry.termination.err-one). A test case's `Result` goes through
-/// the same functions (module.testing.fail-cases). `host_provider` puts a host
-/// provider behind a new object, the reference an entry installs for a key
+/// the same functions (module.testing.fail-cases). `host_provider` boxes a host
+/// provider, the reference an entry installs for a key
 /// whose trait has a `&self` or `&mut self` method
 /// (req.ref.host.reference-values); the driver roots one instance per such
 /// key of an entry row. It is compiler-supplied, like
@@ -151,8 +151,7 @@ fn entry_status_dyn_ref[T < Termination](result: Result[T, *dyn Error]) -> u8:
             1
 
 fn host_provider[T](provider: T) -> *mut T:
-    let mut held = provider
-    &mut held
+    box(provider)
 
 @intrinsic("entry_write")
 fn entry_write(text: string) -> void:

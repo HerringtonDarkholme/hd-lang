@@ -43,7 +43,7 @@ pub struct ArgParser:
 
 impl ArgParser:
     pub fn new(program: string, about: string = "") -> *mut ArgParser:
-        parser := &mut ArgParser {
+        parser := box(ArgParser {
             program: program,
             about: about,
             declarations: [],
@@ -51,7 +51,7 @@ impl ArgParser:
             names: {},
             positional_slots: [],
             commands: {},
-        }
+        })
         parser.arg(Arg { name: "help", kind: .Flag, short: 'h', help: "Print this help." })
 
     pub fn arg(*mut self, arg: Arg) -> *mut ArgParser:
@@ -290,7 +290,7 @@ fn store_value(
     if arg.repeated:
         match histories.get(arg.name):
             .Some(buffer) => buffer.push(value)
-            .None => histories[arg.name] = &mut [value]
+            .None => histories[arg.name] = box([value])
     values[arg.name] = value
     .Ok(())
 

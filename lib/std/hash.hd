@@ -200,7 +200,7 @@ impl DefaultHasher:
     ## Returns a fresh hasher, a new object that `value.hash` and `finish` share.
     ## See [std-hash.default.new-ref](../../spec/std/hash.md#r-std-hash.default.new-ref).
     pub fn new() -> *mut DefaultHasher:
-        &mut DefaultHasher { state: 14695981039346656037 }
+        box(DefaultHasher { state: 14695981039346656037 })
 
     # The state, unchanged (r-std-hash.default.finish).
     ## The hash of the bytes written so far.

@@ -726,12 +726,12 @@ impl[T < Serialize] Serialize for *mut T:
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Deserialize] Deserialize for *T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[*T, R::Error]:
-        .Ok(&T::deserialize(input)?)
+        .Ok(box(T::deserialize(input)?))
 
 # Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Deserialize] Deserialize for *mut T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[*mut T, R::Error]:
-        .Ok(&mut T::deserialize(input)?)
+        .Ok(box(T::deserialize(input)?))
 
 # Derived `MapKey`: a payload-free enum writes its selected variant name,
 # and an empty struct writes its data name. The private bound has no

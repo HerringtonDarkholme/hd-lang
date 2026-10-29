@@ -542,11 +542,11 @@ impl[T < Arbitrary, E < Arbitrary] Arbitrary for Result[T, E]:
 # (r-std-testing.arbitrary.reference).
 impl[T < Arbitrary] Arbitrary for *T:
     fn arbitrary(c: &mut Choices) -> *T:
-        &T::arbitrary(c)
+        box(T::arbitrary(c))
 
 impl[T < Arbitrary] Arbitrary for *mut T:
     fn arbitrary(c: &mut Choices) -> *mut T:
-        &mut T::arbitrary(c)
+        box(T::arbitrary(c))
 
 impl[A < Arbitrary, B < Arbitrary] Arbitrary for (A, B):
     fn arbitrary(c: &mut Choices) -> (A, B):
@@ -672,14 +672,14 @@ fn prop_with_case![T < Debug, R, $ Q](
 # records its draws through it with no requirement row
 # (r-std-testing.runner.choices).
 fn choices(runner: *mut dyn PropertyRunner, current: PropertyCase) -> *mut Choices:
-    &mut Choices {
+    box(Choices {
         runner: runner,
         random: SeededRandom::new(u64(current.seed)),
         size: current.size,
         replay: current.replay,
         draws: 0,
         edge: edge_plan(current.seed, current.size),
-    }
+    })
 
 # The edge of a generated case (r-std-testing.edge.plan): the first four
 # cases, those of `size` 0 to 3, take the edge that their seed picks, so
