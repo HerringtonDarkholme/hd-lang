@@ -1951,7 +1951,7 @@ fn demo!() -> string:
 5. r[req.determinism.replay] A runtime may therefore reproduce an instance by supplying the same inputs in the same order.
 6. r[req.determinism.limits] Failures caused by host stack or memory limits are outside this guarantee.
 7. r[req.determinism.limits-profile] The host's stack and memory limits are part of the runtime profile.
-8. r[req.determinism.weak] Garbage collection timing is not an input: user code cannot observe a weak reference clearing or a finalizer running.
+8. r[req.determinism.reclamation] Memory reclamation and weak-entry clearing follow the compiled program and runtime profile's deterministic schedule, not host timing. The same input sequence therefore observes the same weak upgrades. No finalizer runs.
 
 ```hd
 fn demo(seed: u64) -> u64:

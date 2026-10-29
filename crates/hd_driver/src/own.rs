@@ -134,7 +134,7 @@ const PURE_INTRINSICS: &[&str] = &[
 /// parameters do: `string_from_bytes` takes over the list's buffer when its
 /// argument is the buffer's one holder (`crates/hd_wasm_linear/DESIGN.md`
 /// §23.17), so the call consumes the list, moved in at its last use.
-const OWNING_INTRINSICS: &[&str] = &["string_from_bytes"];
+const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "weak_weaken"];
 
 impl OwnCx for Env<'_> {
     fn counted(&self, ty: Ty) -> Tri {

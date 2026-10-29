@@ -22,6 +22,12 @@ std.testing.TestRunner	std/testing.md#runner-capabilities
 std.testing.PropertyRunner	std/testing.md#runner-capabilities
 std.task.retry	std/task.md#r-std-task.policy.retry.builder
 std.ops.Default	std/ops.md#default-trait
+std.weak.WeakEntry	std/weak.md#r-std-weak.type.entry
+std.weak.WeakMutEntry	std/weak.md#r-std-weak.type.entry
+std.weak.Weak	std/weak.md#weak-types-and-construction
+std.weak.WeakMut	std/weak.md#weak-types-and-construction
+std.weak.weak	std/weak.md#weak-types-and-construction
+std.weak.weak_mut	std/weak.md#weak-types-and-construction
 std.collections.ListView	std/collections.md#views
 std.collections.Deque	std/collections.md#deque
 std.collections.DequeIter	std/collections.md#deque

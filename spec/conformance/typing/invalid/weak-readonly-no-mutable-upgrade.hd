@@ -1,0 +1,9 @@
+# test: a read-only weak reference cannot convert to WeakMut
+# Spec std/weak Weakening And Identity: std-weak.weaken.no-reverse.
+use std.weak.{Weak, WeakMut}
+
+struct Node:
+    value: i32
+
+fn writable(link: Weak[Node]) -> WeakMut[Node]:
+    link # diagnostic: type-mismatch

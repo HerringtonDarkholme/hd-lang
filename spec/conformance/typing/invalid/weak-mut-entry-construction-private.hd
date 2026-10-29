@@ -1,0 +1,6 @@
+# test: user code cannot construct the opaque writable weak-entry representation
+# Spec std/weak Weak Types And Construction: std-weak.type.entry.
+use std.weak.WeakMutEntry
+
+fn forge_writable() -> WeakMutEntry[i32]:
+    WeakMutEntry { target: 0 } # diagnostic: private-member

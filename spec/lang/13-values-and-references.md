@@ -572,6 +572,36 @@ fn same(a: &i32, b: &i32) -> bool:
 See also: [Derived Implementations](09-traits.md#derived-implementations),
 [Identity](05-expressions.md#identity).
 
+## Weak Reference Runtime
+
+Runtime support for a weak value records a counted allocation's identity
+without keeping the allocation alive. The public weak-reference API is in
+the standard library; these rules define the runtime operations beneath it.
+
+1. r[ref.weak.intrinsics.construction] `std.weak` privately declares `weak_new[T](target: &T) -> Weak[T]?` with `@intrinsic("weak_new")` and `weak_new_mut[T](target: &mut T) -> WeakMut[T]?` with `@intrinsic("weak_new_mut")`; the compiler supplies only their bodies.
+2. r[ref.weak.intrinsics.upgrade] `std.weak` privately declares `weak_upgrade[T](value: Weak[T]) -> (*T)?` with `@intrinsic("weak_upgrade")` and `weak_upgrade_mut[T](value: WeakMut[T]) -> (*mut T)?` with `@intrinsic("weak_upgrade_mut")`; the compiler supplies only their bodies.
+3. r[ref.weak.intrinsics.weaken] `std.weak` privately declares `weak_weaken[T](value: WeakMut[T]) -> Weak[T]` with `@intrinsic("weak_weaken")`; the compiler supplies only its body.
+4. r[ref.weak.intrinsics.private] These declarations are implementation hooks; the public functions, methods, and conversion in `std.weak` are ordinary hd wrappers over them.
+
+### Weak Target Semantics
+
+1. r[ref.weak.target.whole] A weak-target check succeeds only for the start of a whole counted allocation whose stored concrete type is the requested type.
+2. r[ref.weak.target.refuse] Otherwise it refuses without making a weak value or panicking, including for interior fields, elements, and zero-offset first fields passed through parameters.
+3. r[ref.weak.entry.shared] Every successful weak-target check for one live allocation names one shared **weak entry**; a later allocation that reuses the target's address has another entry.
+4. r[ref.weak.non-owning] A weak entry does not retain its target, and the cycle collector does not count it as an edge.
+5. r[ref.weak.target.free] Before an allocation is freed by reference counting or cycle collection, every weak entry for it becomes dead and forgets the target address.
+6. r[ref.weak.upgrade.live] Upgrading a live weak entry retains its target and returns an ordinary counted reference with the requested access.
+7. r[ref.weak.upgrade.dead] Upgrading a dead weak entry refuses and creates no counted reference.
+8. r[ref.weak.upgrade.lifetime] A counted reference returned by an upgrade keeps the target alive by [`ref.box.lifetime`](#r-ref.box.lifetime), including while a suspension retains that reference.
+9. r[ref.weak.entry.lifetime] A weak entry remains usable while any weak value names it; it is freed after the last such value, whether its target lives or not.
+
+> **Why.** A run-time whole-object check works through helper functions,
+> while the stored concrete type rejects a first field whose address equals
+> its containing allocation. Clearing before reuse keeps an old weak value
+> from observing a later object at the same address.
+
+See also: [Weak References](../std/weak.md).
+
 ## Element References
 
 `&xs[i]` and `&mut xs[i]` refer to the slot `i` of the list `xs`, and `&m[k]` and `&mut m[k]` to the value of the key `k` in the map `m`. An element reference lives for one call: it is passed to the call, and no name keeps it.

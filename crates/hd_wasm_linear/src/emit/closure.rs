@@ -455,7 +455,7 @@ impl Em<'_, '_, '_> {
         let ty = self.cell_ty(l);
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
-        let at = self.object(&m, walk.as_ref(), cyclic, recursive);
+        let at = self.object(&m, walk.as_ref(), cyclic, recursive, Some(ty));
         #[cfg(feature = "checked-report")]
         if self.input.runtime.is_some_and(|r| r.checked.is_some())
             && cell_locals(self.b, &[]).contains_key(&l)
@@ -631,7 +631,7 @@ impl Em<'_, '_, '_> {
         // The literal knows whether it captures a shared cell. Its
         // value type alone cannot describe that mutable reference edge.
         let cyclic = caps.iter().any(|(_, shared)| *shared) || self.cyclic_holding(&tys);
-        let at = self.object(&m, walk.as_ref(), cyclic, false);
+        let at = self.object(&m, walk.as_ref(), cyclic, false, None);
         #[cfg(feature = "checked-report")]
         crate::rt::checked_kind(&mut self.f, self.m, 1);
         for (s, p) in srcs.iter().zip(&parts) {

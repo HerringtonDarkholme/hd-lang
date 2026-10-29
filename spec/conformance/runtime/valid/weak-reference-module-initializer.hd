@@ -1,0 +1,19 @@
+# test: weak descriptor registration runs before a module initializer constructs and upgrades a weak reference
+# Spec std/weak Weak Types And Construction: std-weak.new.readonly, std-weak.new.some.
+# Spec std/weak Upgrading: std-weak.upgrade.readonly.
+use std.weak.{Weak, weak}
+
+struct Node:
+    value: i32
+
+let initialized_target = box(Node { value: 17 })
+let initialized_link: Weak[Node] = match weak(initialized_target):
+    .Some(link) => link
+    .None => panic("a module initializer's box is a whole allocation")
+
+tests:
+    it("registers weak target types before module initialization"):
+        match initialized_link.upgrade():
+            .Some(target) =>
+                assert_equal(target.value, 17, reason="the module binding keeps its target live")
+            .None => assert(false, reason="the initialized target is still live")

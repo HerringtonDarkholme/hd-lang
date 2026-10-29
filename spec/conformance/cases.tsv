@@ -5161,3 +5161,14 @@ typing/invalid/provider-install-local-binding.hd	type	reject:local-reference-esc
 typing/invalid/provider-share-local-reference.hd	type	reject:local-reference-escapes	lang/11-requirements-and-suspension.md#r-req.mut.install-no-local
 runtime/valid/provider-install-box.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-counted
 typing/invalid/counted-trait-value-from-value.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.dyn.ref.counted.new
+runtime/valid/weak-reference-acyclic-tree.hd	runtime	accept	std/weak.md#collection-and-release
+runtime/valid/weak-reference-cycle-collector.hd	runtime	accept	std/weak.md#collection-and-release
+runtime/valid/weak-reference-generic-exact-targets.hd	runtime	accept	std/weak.md#weak-types-and-construction
+runtime/valid/weak-reference-identity-lifecycle.hd	runtime	accept	std/weak.md#weakening-and-identity
+runtime/valid/weak-reference-lifetime.hd	runtime	accept	std/weak.md#weak-types-and-construction
+runtime/valid/weak-reference-module-initializer.hd	runtime	accept	std/weak.md#weak-types-and-construction
+runtime/valid/weak-reference-suspension.hd	runtime	accept	std/weak.md#upgrading
+runtime/valid/weak-reference-whole-object.hd	runtime	accept	std/weak.md#weak-types-and-construction
+typing/invalid/weak-direct-construction-private.hd	type	reject:private-member	std/weak.md#r-std-weak.type.entry
+typing/invalid/weak-mut-entry-construction-private.hd	type	reject:private-member	std/weak.md#r-std-weak.type.entry
+typing/invalid/weak-readonly-no-mutable-upgrade.hd	type	reject:type-mismatch	std/weak.md#weakening-and-identity

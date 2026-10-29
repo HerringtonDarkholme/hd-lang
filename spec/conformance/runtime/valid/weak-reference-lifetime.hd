@@ -1,0 +1,49 @@
+# test: weak references upgrade while their target lives, stop upgrading after it dies, share identity, and preserve writable access only through WeakMut
+# Spec std/weak Weak Types And Construction: std-weak.type.readonly, std-weak.type.mutable, std-weak.new.readonly, std-weak.new.mutable.
+# Spec std/weak Upgrading: std-weak.upgrade.readonly, std-weak.upgrade.mutable.
+# Spec std/weak Weakening And Identity: std-weak.weaken.from, std-weak.identity.copy, std-weak.identity.target.
+use std.weak.{Weak, WeakMut, weak, weak_mut}
+use std.convert.From
+
+struct Node:
+    value: i32
+
+fn must_weak(node: &Node) -> Weak[Node]:
+    match weak(node):
+        .Some(link) => link
+        .None => panic("a boxed node is a whole allocation")
+
+fn dead_link() -> Weak[Node]:
+    node := box(Node { value: 9 })
+    must_weak(node)
+
+tests:
+    it("upgrades while the target lives and shares one identity"):
+        node := box(Node { value: 7 })
+        link := must_weak(node)
+        copy := link
+        again := must_weak(node)
+        assert(copy is link, reason="a copy names the same weak entry")
+        assert(again is link, reason="one live target has one weak entry")
+        match link.upgrade():
+            .Some(view) => assert_equal(view.value, 7, reason="the live target is readable")
+            .None => assert(false, reason="the boxed target is still live")
+        assert_equal(node.value, 7, reason="the strong target stays live through the upgrade")
+
+    it("stops upgrading after the last strong reference is released"):
+        link := dead_link()
+        assert(link.upgrade().is_none(), reason="the helper released its only strong reference")
+
+    it("keeps writable permission only on WeakMut"):
+        node := box(Node { value: 1 })
+        let writable: WeakMut[Node] = match weak_mut(node):
+            .Some(link) => link
+            .None => panic("a boxed node is a whole allocation")
+        match writable.upgrade():
+            .Some(edit) => edit.value += 1
+            .None => assert(false, reason="the boxed target is still live")
+        let readonly: Weak[Node] = Weak::from(writable)
+        match readonly.upgrade():
+            .Some(view) => assert_equal(view.value, 2, reason="weakening keeps the target")
+            .None => assert(false, reason="the boxed target is still live")
+        assert_equal(node.value, 2, reason="the writable strong target stays live")

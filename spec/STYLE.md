@@ -154,6 +154,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/text.md` | `std-text` |
 | `std/time.md` | `std-time` |
 | `std/task.md` | `std-task` |
+| `std/weak.md` | `std-weak` |
 | [Command Line](cli/command-line.md) | `cli` |
 
 A stdlib chapter's prefix is `std-` and its module name. The CLI tier's

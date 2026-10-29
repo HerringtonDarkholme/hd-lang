@@ -22,11 +22,15 @@ use std.rt.memory.{copy, fill, load_u32, load_u64, store_u64}
 let counts: usize = 0
 let slots: usize = 0
 
+@intrinsic("descriptor_glue_mask")
+fn descriptor_glue_mask() -> usize:
+    panic("intrinsic")
+
 # A raw u64 array indexed by descriptor id. It holds no counted references.
 pub fn collected(block: usize) -> void:
     if !freeing_cycles():
         return
-    id := usize(load_u32(block + 4)) & 0x3fffff
+    id := usize(load_u32(block + 4)) & descriptor_glue_mask()
     if id >= slots:
         let capacity: usize = if slots == 0: 16 else: slots * 2
         while id >= capacity:

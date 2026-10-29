@@ -1,0 +1,6 @@
+# test: user code cannot construct the opaque read-only weak-entry representation
+# Spec std/weak Weak Types And Construction: std-weak.type.entry.
+use std.weak.WeakEntry
+
+fn forge_readonly() -> WeakEntry[i32]:
+    WeakEntry { target: 0 } # diagnostic: private-member

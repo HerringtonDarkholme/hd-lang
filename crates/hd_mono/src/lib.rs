@@ -1307,6 +1307,9 @@ struct Cx<'a> {
     /// Per item: which of its own type parameters need their exact
     /// representation (A1's representation summary, §13.2).
     exact: HashMap<DefId, Vec<bool>>,
+    /// Least fixed-point propagation of parameters whose exact type identity
+    /// a reachable weak constructor observes.
+    weak_exact: HashMap<DefId, Vec<bool>>,
     permission_sensitive: HashMap<DefId, bool>,
     permission_shared: HashMap<Ty, Ty>,
     /// `canon` per type, for the build: instance keys, layout hashes and
@@ -1333,6 +1336,12 @@ struct Cx<'a> {
     /// Each body's plan, once per build: by item, and by self type for a
     /// compiler-supplied body.
     plans: HashMap<(DefId, Option<Ty>), Option<Arc<BodyPlan>>>,
+}
+
+#[derive(Default)]
+struct WeakExactNode {
+    bits: Vec<bool>,
+    calls: Vec<(DefId, TyList)>,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -1780,6 +1789,136 @@ impl Cx<'_> {
         NotImplemented::new(Stage::Collect, "instantiation-too-deep")
     }
 
+    /// The least fixed point of generic parameters whose exact identity a
+    /// reachable `weak`/`weak_mut` observes. Only direct weak calls seed the
+    /// graph; ordinary generic calls propagate those seeds through their type
+    /// arguments, so a recursion SCC with no weak call remains unchanged.
+    fn weak_exact_params(&mut self, root: DefId) -> Vec<bool> {
+        if let Some(bits) = self.weak_exact.get(&root) {
+            return bits.clone();
+        }
+        let (pool, env) = (self.pool, self.env);
+        let mut nodes: HashMap<DefId, WeakExactNode> = HashMap::default();
+        let mut todo = vec![root];
+        while let Some(def) = todo.pop() {
+            if nodes.contains_key(&def) {
+                continue;
+            }
+            let n = env.bounded(def).map_or(0, |b| b.len());
+            let mut node = WeakExactNode {
+                bits: vec![false; n],
+                calls: Vec::new(),
+            };
+            if let Some(body) = env.body(def) {
+                for i in 0..body.len() {
+                    if body.tags[i] == Tag::DefaultCall {
+                        let record = body.record(body.data[i][0]);
+                        let (Some(&callee), Some(&targs)) = (record.first(), record.get(1)) else {
+                            continue;
+                        };
+                        let callee = DefId::from_raw(callee);
+                        if env.body(callee).is_some() {
+                            node.calls.push((callee, TyList(targs)));
+                            todo.push(callee);
+                        }
+                        continue;
+                    }
+                    if !matches!(body.tags[i], Tag::Call | Tag::Await) {
+                        continue;
+                    }
+                    match Callee::from_words(body.record(body.data[i][0])) {
+                        Some(Callee::Item { def: callee, targs }) => {
+                            if env.intrinsic(callee).is_some_and(|key| {
+                                matches!(key.as_str(), "weak_new" | "weak_new_mut")
+                            }) {
+                                for &t in pool.list_items(targs) {
+                                    pinned(pool, env, def, t, true, &mut node.bits);
+                                }
+                            } else if env.body(callee).is_some() {
+                                node.calls.push((callee, targs));
+                                todo.push(callee);
+                            }
+                        }
+                        Some(Callee::TraitMethod {
+                            trait_,
+                            method,
+                            self_ty,
+                            targs,
+                            choice: (ChoiceKind::Impl, selected),
+                        }) => {
+                            let impl_ = DefId::from_raw(selected);
+                            let items = pool.list_items(targs);
+                            let n_trait = env.trait_arity(trait_).min(items.len());
+                            let (callee, args) = if let Some(callee) =
+                                env.impl_method(impl_, method)
+                            {
+                                let Some((head, heads, n)) = env.impl_head(impl_) else {
+                                    continue;
+                                };
+                                let mut values = vec![None; n];
+                                unify(pool, impl_, head, self_ty, &mut values);
+                                for (&formal, &actual) in
+                                    pool.list_items(heads).iter().zip(&items[..n_trait])
+                                {
+                                    unify(pool, impl_, formal, actual, &mut values);
+                                }
+                                let Some(mut args) = values.into_iter().collect::<Option<Vec<_>>>()
+                                else {
+                                    continue;
+                                };
+                                args.extend_from_slice(&items[n_trait..]);
+                                (callee, pool.list(&args))
+                            } else {
+                                let mut args = vec![self_ty];
+                                args.extend_from_slice(items);
+                                (method, pool.list(&args))
+                            };
+                            if env.body(callee).is_some() {
+                                node.calls.push((callee, args));
+                                todo.push(callee);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            nodes.insert(def, node);
+        }
+        loop {
+            let before: HashMap<DefId, Vec<bool>> = nodes
+                .iter()
+                .map(|(def, node)| (*def, node.bits.clone()))
+                .collect();
+            let mut changed = false;
+            for (def, node) in &mut nodes {
+                for (callee, targs) in &node.calls {
+                    let Some(exact) = before.get(callee) else {
+                        continue;
+                    };
+                    let old = node.bits.clone();
+                    let own_from = env.parent(*callee).map_or(0, |(_, n)| n);
+                    for (&t, &inside) in pool
+                        .list_items(*targs)
+                        .get(own_from..)
+                        .unwrap_or_default()
+                        .iter()
+                        .zip(exact)
+                    {
+                        pinned(pool, env, *def, t, inside, &mut node.bits);
+                    }
+                    changed |= old != node.bits;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        for (def, node) in nodes {
+            self.weak_exact.insert(def, node.bits);
+        }
+        self.weak_exact.get(&root).cloned().unwrap_or_default()
+    }
+
     /// A1's representation summary of `def` (`crates/hd_mono/DESIGN.md` §13.2): per own
     /// type parameter, whether a type of its signature or body holds the
     /// parameter where the layout depends on its exact representation.
@@ -1814,7 +1953,15 @@ impl Cx<'_> {
                     continue;
                 }
                 match Callee::from_words(b.record(b.data[i][0])) {
-                    Some(Callee::Item { targs, .. }) => {
+                    Some(Callee::Item { def: callee, targs }) => {
+                        if env
+                            .intrinsic(callee)
+                            .is_some_and(|key| matches!(key.as_str(), "weak_new" | "weak_new_mut"))
+                        {
+                            for &t in pool.list_items(targs) {
+                                pinned(pool, env, def, t, true, &mut out);
+                            }
+                        }
                         types.extend(pool.list_items(targs).iter().copied());
                     }
                     Some(Callee::TraitMethod { self_ty, targs, .. }) => {
@@ -1827,6 +1974,9 @@ impl Cx<'_> {
         }
         for t in types {
             pinned(pool, env, def, t, false, &mut out);
+        }
+        for (dst, weak) in out.iter_mut().zip(self.weak_exact_params(def)) {
+            *dst |= weak;
         }
         self.exact.insert(def, out.clone());
         out
@@ -1858,7 +2008,14 @@ impl Cx<'_> {
                 Some(Callee::TraitMethod { self_ty, targs, .. }) => pool.has_param(self_ty) || pool.list_items(targs).iter().any(|t| pool.has_param(*t)),
                 Some(Callee::Item { def: callee, targs }) if pool.list_items(targs).iter().any(|t| pool.has_param(*t)) => {
                     if let Some(key) = env.intrinsic(callee) {
-                        matches!(key.as_str(), "type_id_of" | "downcast_ref" | "downcast_mut")
+                        matches!(
+                            key.as_str(),
+                            "type_id_of"
+                                | "downcast_ref"
+                                | "downcast_mut"
+                                | "weak_new"
+                                | "weak_new_mut"
+                        )
                     } else { self.observes_permission(callee, visiting) }
                 }
                 _ => false,
@@ -3663,6 +3820,7 @@ fn collect_roots(
         memo: BodyMemo::default(),
         selected: HashMap::default(),
         exact: HashMap::default(),
+        weak_exact: HashMap::default(),
         permission_sensitive: HashMap::default(),
         permission_shared: HashMap::default(),
         canons: CanonMemo::default(),
