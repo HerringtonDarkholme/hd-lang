@@ -139,7 +139,7 @@ trait Named:
 **Recommendation:** Rust's lifetime variables. The trade-off is precision
 at a call. At stage 7, a live result freezes every write to its whole
 source, so `n := u.name(); u.age += 1` is an error.
-Optional stage 9 (views) would release such writes if real code needs it.
+Stage 9 (field paths on results) releases such writes across calls.
 
 Stage 1 writes no lifetime and elides to the whole parameter, so it is
 unchanged.
