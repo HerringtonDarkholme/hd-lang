@@ -157,7 +157,7 @@ rules stop. Each heads toward the end state. Hypothetical syntax is marked.
 | 4. Element results | reverses E item 4 (owner, 2026-10-29): element references flow into results and bindings | `List.first`/`get`/`get_mut`, `Map.get`, `r := &mut xs[i]` | pins panic on a length change (exists today) |
 | 5. Generic locality | Rust's model: any `T` may hold a local reference; `T < global` (hypothetical) only at persistent boundaries such as `box`, provider installs, detached tasks and `dyn` erasure | `Option` methods on `(&T)?`, `debug(&x)`, `id(&x)` (#987) | static |
 | 6. Stored references | lifetime parameters on structs and enums; stores into a caller's place; scoped closures; guards; `Span` | the #978 items: phantom markers, guards, read-only captures, library `defer`/`ensure`, live spans | static, counts at heap crossings |
-| 7. Exclusivity | Swift's `borrow`/`&` and Rust's rule: a live shared result freezes writes to its whole source, a live `&mut` result every other access; static where the checker sees the source, a borrow flag through a `*mut` alias | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |
+| 7. Exclusivity | Swift's `borrow`/`&` and Rust's rule: a live shared result freezes writes to its whole source, a live `&mut` result every other access; static where the checker sees the source, a per-place run-time check through an unseen `*mut` alias (Swift's dynamic exclusivity) | enum payload places (`as_mut`), exclusive guard captures, compile errors in place of pin panics | static plus pins |
 | 8. Uncounted scoped references | the backend drops counts that stage 7 proves unnecessary; borrow flags where it cannot prove them | the perf payoff | flags only through `*mut` |
 | 9. Field paths on results | a result names the field of its source it points into, `-> &'self.name string`; visible fields only; traits name `'self` | `n := u.name(); u.tags.push(x)` | static |
 
@@ -297,10 +297,14 @@ whole source, so a live result locks all of it.
 - The lock ends at the result's last use, not at the end of the block, as
   with Rust's non-lexical lifetimes.
 - Where the checker sees the source (a local, a parameter, a path of
-  fields from one), the check is static. Through a `*mut` alias it cannot
-  see, a borrow sets a flag on the object and a conflicting write panics
-  `borrow-conflict`, as Swift does for class properties and Rust's
-  `RefCell` does.
+  fields from one), the check is static. A place reached through a `*mut`
+  is an ordinary place: `&t.lead.name` is a local reference to that field,
+  and the path stays precise through the counted reference (owner,
+  2026-10-29). Through another `*mut` alias the checker cannot see, a live
+  loan records its place's address, and a conflicting access to that same
+  address panics `borrow-conflict`, as Swift's dynamic exclusivity does for
+  class properties. A write through an alias to `u.age` passes while
+  `u.name` is borrowed; nothing goes in the object header.
 
 ```text
 fn demo(u: &mut User) -> void $ Console:
@@ -354,8 +358,10 @@ u.name = "x"        # error: n is live
   may name private fields.
 - **Traits:** a trait method names `'self` only, and an impl is no more
   precise than its trait, since bound and `&dyn` callers see the trait.
-- **Through `*mut`:** a path crossing a counted reference widens to the whole
-  referent there.
+- **Through `*mut`:** a path through a counted reference stays precise:
+  `fn lead_name(t: &Team) -> &'t.lead.name string` locks only
+  `t.lead.name`, and an unseen alias is caught per place at run time
+  (stage 7).
 - **Not inferred:** a caller's validity never depends on a callee's body.
 - **Later, separately:** the same for `&mut` parameters (Rust's view types,
   `fn bump(&mut self.count)`).
