@@ -417,8 +417,8 @@ impl Em<'_, '_, '_> {
         };
         let pc = self.pc();
         self.slot(i)?;
-        // A point in a `using` binding's dispose suite is shielded: it has
-        // no cancellation branch, and waits on (flow.using.cancel).
+        // A point in a `using!` binding's dispose suite is shielded: it has
+        // no cancellation branch, by (flow.using.async.cancel.shielded).
         if self.shield > 0 {
             return self.await_point(i, k, a, bw);
         }

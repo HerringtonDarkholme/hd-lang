@@ -1,4 +1,4 @@
-# Spec 04 Writable Places: types.value.write.short.
+# Spec 04 Writable Places: types.value.write.using-split.
 struct Point:
     x: i32
     y: i32

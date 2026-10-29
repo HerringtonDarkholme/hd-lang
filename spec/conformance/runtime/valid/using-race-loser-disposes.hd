@@ -1,9 +1,9 @@
 # expect-stdout: won
 # expect-stdout: open b, open a, defer inner, closing a, closed a, defer outer, closing b, closed b
 # expect-stdout: done
-# test: a race! loser holding using bindings whose dispose! suspends still disposes each, innermost frame first, and the race result is the winner's
-# Spec lang/06 Using Bindings: flow.using.cancel, flow.using.cancel.shielded, flow.using.cancel.wait; lang/11 req.combinator.race-losers-disposed.
-use std.ops.Disposable
+# test: a race! loser holding using! bindings whose dispose! suspends still disposes each, innermost frame first, and the race result is the winner's
+# Spec lang/06 Using Bindings: flow.using.cancel.v2, flow.using.async.cancel.shielded, flow.using.async.cancel.wait; lang/11 req.combinator.race-losers-disposed.using-split.
+use std.ops.AsyncDisposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
@@ -12,7 +12,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing ${self.name}")
         let mut wait = self.closing
@@ -26,7 +26,7 @@ fn connect(name: string, log: *mut List[string]) -> *mut Conn $ Clock:
 fn fetch!(log: *mut List[string]) -> string $ Clock:
     defer:
         log.push("defer outer")
-    using a = connect("a", log)
+    using! a = connect("a", log)
     defer:
         log.push("defer inner")
     sleep!(s(60))
@@ -34,7 +34,7 @@ fn fetch!(log: *mut List[string]) -> string $ Clock:
     "late"
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    using b = connect("b", log)
+    using! b = connect("b", log)
     fetch!(log)
 
 fn ready!() -> string:

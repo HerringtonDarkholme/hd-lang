@@ -1,0 +1,53 @@
+# expect-stdout: defer, async start, async end, sync
+# expect-stdout: both async, both sync
+# test: synchronous and asynchronous using bindings share one LIFO cleanup order with defer, and their spelling selects the protocol when a type implements both
+# Spec lang/06 Using Bindings: flow.using.order.v2, flow.using.register.split, flow.using.protocol.required.
+use std.ops.{AsyncDisposable, Disposable}
+use std.time.{Clock, ms, sleep}
+
+struct SyncGuard:
+    log: *mut List[string]
+
+impl Disposable for SyncGuard:
+    fn dispose(&mut self) -> void:
+        self.log.push("sync")
+
+struct AsyncGuard:
+    log: *mut List[string]
+    closing: mut Suspend[void]
+
+impl AsyncDisposable for AsyncGuard:
+    fn dispose!(&mut self) -> void:
+        self.log.push("async start")
+        let mut closing = self.closing
+        closing!()
+        self.log.push("async end")
+
+struct BothGuard:
+    log: *mut List[string]
+
+impl Disposable for BothGuard:
+    fn dispose(&mut self) -> void:
+        self.log.push("both sync")
+
+impl AsyncDisposable for BothGuard:
+    fn dispose!(&mut self) -> void:
+        self.log.push("both async")
+
+fn work!(log: *mut List[string]) -> void $ Clock:
+    using sync = SyncGuard { log: log }
+    using! async = AsyncGuard { log: log, closing: sleep(ms(1)) }
+    defer:
+        log.push("defer")
+
+fn select_protocol!(log: *mut List[string]) -> void:
+    using sync = BothGuard { log: log }
+    using! async = BothGuard { log: log }
+
+pub fn main!() -> void $ Clock + Console:
+    let mut log: List[string] = []
+    work!(&mut log)
+    println(log.join(", "))
+    log.clear()
+    select_protocol!(&mut log)
+    println(log.join(", "))

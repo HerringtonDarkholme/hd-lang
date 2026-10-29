@@ -2,7 +2,7 @@
 # expect-stdout: leaving, closing, closed, stopper finished
 # test: a cancel that reaches a task disposing at the end of a using block takes that dispose over: it runs once, and the code after the block never runs
 # Spec lang/11 Cancellation: req.cancel.takeover.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, sleep}
 
@@ -10,7 +10,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
@@ -19,7 +19,7 @@ impl Disposable for Conn:
 
 fn session!(log: *mut List[string], open: bool) -> string $ Clock:
     if open:
-        using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
+        using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
         log.push("leaving")
     log.push("after the block")
     "done"

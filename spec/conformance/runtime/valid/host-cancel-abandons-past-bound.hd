@@ -4,7 +4,7 @@
 # The dispose waits on a Gate that never opens, so only the host's
 # cleanup bound ends it: abandon() runs the dispose's defer and stops it
 # at its wait.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 
 let deferred: bool = false
 let closed: bool = false
@@ -18,7 +18,7 @@ fn gate_wait!() -> void $ Gate:
 struct Conn:
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         defer:
             deferred = true
@@ -27,7 +27,7 @@ impl Disposable for Conn:
         closed = true
 
 pub fn main!() -> void $ Gate:
-    using conn = Conn { closing: gate_wait() }
+    using! conn = Conn { closing: gate_wait() }
     $.use(Gate).wait!()
 
 pub fn cleanup_ran() -> bool:

@@ -3,7 +3,7 @@
 # expect-stdout: later abandoned
 # test: abandon() of a job whose dispose! waits kills the dispose at its wait after its own defer, runs the outer defer, and every waiting and later cancel!() returns .Abandoned
 # Spec lang/11 Abandoning: req.abandon.dispose, req.abandon.host, req.abandon.result; std/task Cleanup End: std-task.cleanup-end.cut-short.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, s, sleep}
 
@@ -11,7 +11,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("conn defer")
@@ -23,7 +23,7 @@ impl Disposable for Conn:
 fn session!(log: *mut List[string]) -> string $ Clock:
     defer:
         log.push("session defer")
-    using conn = &mut Conn { log: log, closing: sleep(s(60)) }
+    using! conn = &mut Conn { log: log, closing: sleep(s(60)) }
     sleep!(s(60))
     "late"
 

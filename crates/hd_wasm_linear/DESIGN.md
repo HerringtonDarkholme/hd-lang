@@ -1078,7 +1078,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   `continue` or `return` that leaves the body stores its exit's code and
   branches to the scope's end, which runs the registered suites last in,
   first out, as a forbidden context, then takes the exit again through
-  the next scope out. A suite that suspends (`using`'s `dispose!`) uses the
+  the next scope out. A suite that suspends (`using!`'s `dispose!`) uses the
   cleanup state machine (§23.21).
 - **Releases at last use.** A reference is released after its last use,
   not at the end of its block (§6.3 rule 5), so a counted value never
@@ -1188,7 +1188,7 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   `CancelLeave` bracket a cancel for `req.abandon.carry`.
   `task_cleanup_frame`, `task_pending_frame` and `task_abandon` are
   runtime helpers, as in §14.6.
-- **Waiting suites.** A `using` binding's `dispose!` that suspends is a
+- **Waiting suites.** A `using!` binding's `dispose!` that suspends is a
   rung a resume can enter. Its points are shielded: they have no
   cancellation branch. Under `abandon()`, or when the awaited child was
   cancelled elsewhere, they kill the child instead of waiting. A frame

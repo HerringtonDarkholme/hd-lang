@@ -1,5 +1,5 @@
 # test: `&mut` of a := binding is non-reassignable-binding
-# Spec 13 Writable Places Of References: ref.place.not-writable.short.
+# Spec 13 Writable Places Of References: ref.place.not-writable.using-split.
 fn invalid() -> i32:
     fixed := 1
     s := &mut fixed # diagnostic: non-reassignable-binding

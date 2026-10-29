@@ -8,13 +8,13 @@
 use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpStream}
 
 fn greet!(host: string) -> Result[List[u8], NetError] $ Net:
-    using stream = $.use(Net).connect!(host, 7)?
+    using! stream = $.use(Net).connect!(host, 7)?
     stream.write!([104, 105])?
     stream.read!(16)
 
 fn twice!(stream: &mut dyn TcpStream) -> void:
-    using first = stream
-    using second = stream
+    using! first = stream
+    using! second = stream
     pass
 
 pub fn main!() -> void $ Console:

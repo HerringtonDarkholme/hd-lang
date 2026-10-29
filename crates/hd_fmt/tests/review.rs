@@ -9,6 +9,13 @@ fn formatted(source: &str) -> String {
 }
 
 #[test]
+fn async_using_separates_the_effect_marker_from_the_binding() {
+    let source = "fn f!():\n    using!value = open!()\n";
+    let expected = "fn f!():\n    using! value = open!()\n";
+    assert_eq!(formatted(source), expected);
+}
+
+#[test]
 fn comment_only_files_keep_every_comment() {
     let source = "# first  \n# second\n";
     assert_eq!(formatted(source), source);

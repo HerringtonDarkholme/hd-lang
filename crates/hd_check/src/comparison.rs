@@ -30,6 +30,9 @@ pub struct Binding {
     pub name: String,
     pub span: Span,
     pub read: bool,
+    /// The binding used ordinary `:=` or `let` for a value that implements a
+    /// disposal protocol. Policy and diagnostics stay in `hd_lint`.
+    pub unbound_disposable: bool,
     pub mutability: Option<Mutability>,
 }
 
@@ -86,6 +89,9 @@ pub struct DiscardedExpression {
     pub selected: Option<DefId>,
     /// Declaration identity, including qualified calls and type arguments.
     pub prelude_debug: bool,
+    /// The discarded value implements a disposal protocol. Policy and
+    /// diagnostics stay in `hd_lint`.
+    pub unbound_disposable: bool,
     pub call: Option<DiscardedCall>,
 }
 

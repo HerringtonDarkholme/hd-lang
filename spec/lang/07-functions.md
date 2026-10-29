@@ -776,7 +776,7 @@ fn demo() -> i32:
     read_fixed() + moving.x
 ```
 
-1. r[fn.capture.copy] A captured immutable binding is copied into the closure when the closure is created. The immutable bindings are `:=` and `using` bindings and the parameters that are not `mut`.
+1. r[fn.capture.copy.using-split] A captured immutable binding is copied into the closure when the closure is created. The immutable bindings are `:=`, `using`, and `using!` bindings and the parameters that are not `mut`.
 2. r[fn.capture.copy.value] The copy is the one `copy := binding` makes: a struct or a collection becomes the closure's own value, and a reference stays a reference to the same place.
 3. r[fn.capture.copy.shadow] A binding in an inner scope that reuses the captured name is a new binding. The closure keeps the one it captured.
 4. r[fn.capture.cell] A captured variable is shared with its scope through a **cell**. The variables are `let` and `let mut` bindings, `mut` parameters, and the bindings of a `for`, `match`, or `let` pattern.

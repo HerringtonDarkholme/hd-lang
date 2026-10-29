@@ -1,5 +1,5 @@
 # test: using bindings release their values last in first out when the scope ends
-# Spec lang/06 Using Bindings: flow.using.disposable-ref, flow.using.form, flow.using.register.
+# Spec lang/06 Using Bindings: flow.using.disposable.sync, flow.using.forms.split, flow.using.register.split.
 use std.ops.Disposable
 
 struct Lock:
@@ -7,14 +7,14 @@ struct Lock:
     held: *mut List[string]
 
 impl Disposable for Lock:
-    fn dispose!(&mut self) -> void:
+    fn dispose(&mut self) -> void:
         self.held.push("released ${self.name}")
 
 fn acquire(name: string, held: *mut List[string]) -> *mut Lock:
     held.push("acquired ${name}")
     &mut Lock { name: name, held: held }
 
-fn transfer!(held: *mut List[string]) -> void:
+fn transfer(held: *mut List[string]) -> void:
     using first = acquire("a", held)
     using second = acquire("b", held)
     held.push("work")

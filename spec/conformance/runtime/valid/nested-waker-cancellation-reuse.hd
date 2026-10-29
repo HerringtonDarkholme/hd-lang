@@ -1,5 +1,5 @@
 # test: nested all and race cancellation preserves wakeups across node-slot reuse
-# Spec 11 Standard Combinators: req.combinator.all-typing, req.combinator.race-losers-disposed.
+# Spec 11 Standard Combinators: req.combinator.all-typing, req.combinator.race-losers-disposed.using-split.
 # fixture-runtime-profile: pending-gate
 # expect-empty-stdout: true
 use std.task.{all, race}

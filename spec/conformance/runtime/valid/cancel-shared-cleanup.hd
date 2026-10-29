@@ -3,7 +3,7 @@
 # expect-stdout: later finished
 # test: several cancel!() calls share one cleanup: the close runs once, each gets the same result, and a later call returns the kept result
 # Spec lang/11 Cancellation: req.cancel.shared, req.cancel.kept.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
@@ -11,7 +11,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
@@ -19,7 +19,7 @@ impl Disposable for Conn:
         self.log.push("closed")
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
+    using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
 

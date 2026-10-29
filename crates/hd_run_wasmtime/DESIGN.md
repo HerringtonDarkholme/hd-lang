@@ -317,8 +317,8 @@ the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
   number first. The host keeps a closed handle's number, so every later
   call on it is `NetError.Closed`
   ([`std-net.handles.closed`](../../spec/std/net.md#r-std-net.handles.closed)).
-  A supertrait's vtable, as `std.ops.Disposable`'s, is built the same
-  way inside it: `Disposable.dispose!` calls `<Trait>.dispose`, which
+  A supertrait's vtable, as `std.ops.AsyncDisposable`'s, is built the same
+  way inside it: `AsyncDisposable.dispose!` calls `<Trait>.dispose`, which
   closes an open handle and does nothing for a closed one.
   A runtime profile's own trait that a profile method returns crosses
   the same way, its slots imported from `hd:<Trait>` by method name with

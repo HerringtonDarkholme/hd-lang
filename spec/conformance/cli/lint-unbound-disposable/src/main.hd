@@ -1,0 +1,49 @@
+use std.ops.{AsyncDisposable, Disposable}
+
+struct Guard:
+    id: i32
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+struct AsyncGuard:
+    id: i32
+
+impl AsyncDisposable for AsyncGuard:
+    fn dispose!(&mut self) -> void:
+        pass
+
+struct Holder:
+    guard: Guard
+
+fn guard() -> Guard:
+    Guard { id: +1 }
+
+fn async_guard() -> AsyncGuard:
+    AsyncGuard { id: +2 }
+
+fn take(_value: Guard) -> void:
+    pass
+
+fn returned() -> Guard:
+    guard()
+
+fn bad() -> void:
+    guard()
+    _plain := guard()
+    let _async = async_guard()
+    # lint-allow: unbound-disposable
+    guard()
+    pass
+
+fn quiet!() -> void:
+    using managed = guard()
+    using! async_managed = async_guard()
+    take(guard())
+    _ := Holder { guard: guard() }
+    _ := managed.id + async_managed.id
+    _ := returned()
+
+pub fn main() -> void:
+    pass

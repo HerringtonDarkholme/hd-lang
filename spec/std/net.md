@@ -95,13 +95,13 @@ For example, `lookup!("example.test")` starts a lookup without an explicit
 ## Socket Handles
 
 A stream, a listener, and a UDP socket are closable handles, which a
-`using` binding disposes:
+`using!` binding disposes:
 
 ```text
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.time.Duration
 
-pub trait TcpStream < Disposable:
+pub trait TcpStream < AsyncDisposable:
     fn read!(&mut self, max: usize) -> Result[List[u8], NetError]
     fn write!(&mut self, bytes: List[u8]) -> Result[void, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
@@ -109,7 +109,7 @@ pub trait TcpStream < Disposable:
     fn set_keepalive(&mut self, idle: Duration?) -> Result[void, NetError]
     fn close(&mut self) -> Result[void, NetError]
 
-pub trait TcpListener < Disposable:
+pub trait TcpListener < AsyncDisposable:
     fn accept!(&mut self) -> Result[*mut dyn TcpStream, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
     fn local_address(self) -> Result[(string, u16), NetError]
@@ -120,7 +120,7 @@ pub struct Datagram:
     pub host: string
     pub port: u16
 
-pub trait UdpSocket < Disposable:
+pub trait UdpSocket < AsyncDisposable:
     fn send_to!(&mut self, host: string, port: u16, bytes: List[u8]) -> Result[void, NetError]
     fn receive!(&mut self, max: usize) -> Result[Datagram, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]

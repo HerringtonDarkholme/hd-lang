@@ -1,7 +1,7 @@
 use std.http.{Http, Request, Response, request_from_wire, response_to_wire}
 use std.http_wire.{WireRequest, WireResponse}
 use std.task.{apply, map_all, race, timeout, TimedOut, CleanupEnd}
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.time.{Clock, ms, s}
 
 pub struct RequestId:
@@ -51,7 +51,7 @@ struct Lease:
     job: mut Suspend[Result[Response, TimedOut]]
     state: *mut CleanupState
 
-impl Disposable for Lease:
+impl AsyncDisposable for Lease:
     fn dispose!(&mut self) -> void:
         end := self.job.cancel!()
         self.server.finish(self.id, self.state.abandoned || end == CleanupEnd.Abandoned)
@@ -92,7 +92,7 @@ fn request![S, $ R](
             work=fn!() -> Result[Response, TimedOut] $ R: .Ok(handler!(message, state))
             ,
         )
-    using lease = Lease { server: server, id: incoming.id, job: job, state: cleanup }
+    using! lease = Lease { server: server, id: incoming.id, job: job, state: cleanup }
     end := race!(cancellation(server, incoming.id), response(job, cleanup))
     match end:
         .Cancelled => .Ok(())

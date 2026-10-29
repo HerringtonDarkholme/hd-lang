@@ -6,7 +6,7 @@
 # expect-stdout: finished at 5000
 # test: with cleanup=1s, timeout! abandons a cleanup still waiting 1s after the limit, and a cleanup that ends in time is .Finished
 # Spec std/task: std-task.policy.time-limit.cleanup-deadline, std-task.policy.time-limit.cleanup-abandon, std-task.timeout.cleanup-ended, std-task.timeout.cleanup-end, std-task.policy.time-limit.expired.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, s}
 use std.time.{ManualClock, Timestamp, sleep}
@@ -15,7 +15,7 @@ struct Upload:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Upload:
+impl AsyncDisposable for Upload:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("upload closed")
@@ -29,7 +29,7 @@ fn send!(
     ack: mut Suspend[void],
 ) -> Result[string, TimedOut] $ Clock:
     apply!(timeout(5s, cleanup=1s)):
-        using upload = &mut Upload { log: log, ack: ack }
+        using! upload = &mut Upload { log: log, ack: ack }
         let done: Result[string, TimedOut] = .Ok(reply!())
         done
 

@@ -2,7 +2,7 @@
 # expect-stdout: blocking
 # expect-stdout: disposed
 # test: a shielded cleanup await keeps its callable cold host slot beside an immediate blocking drive.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 
 pub trait Tick:
     fn tick!(&mut self, note: string) -> void
@@ -11,7 +11,7 @@ struct Flush:
     console: *mut dyn Console
     ticker: *mut dyn Tick
 
-impl Disposable for Flush:
+impl AsyncDisposable for Flush:
     fn dispose!(&mut self) -> void:
         let tick: fn!(string) -> void = self.ticker::tick
         tick!("disposed\n")
@@ -19,4 +19,4 @@ impl Disposable for Flush:
 
 pub fn main!() -> void $ Console + Tick:
     println("blocking")
-    using flush = &mut Flush { console: $.use(Console), ticker: $.use(Tick) }
+    using! flush = &mut Flush { console: $.use(Console), ticker: $.use(Tick) }

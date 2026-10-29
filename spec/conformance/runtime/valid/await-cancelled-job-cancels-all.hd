@@ -2,21 +2,21 @@
 # expect-stdout: abandoned
 # test: an all! whose child another task cancelled is cancelled instead of panicking, and so is each task that awaits it in turn, up to the dispose! that awaits the chain
 # Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate, req.cancel.await.dispose; Standard Combinators: req.combinator.all-cancelled.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.all
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
     log: *mut List[string]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("conn closed")
 
 struct Report:
     log: *mut List[string]
 
-impl Disposable for Report:
+impl AsyncDisposable for Report:
     fn dispose!(&mut self) -> void:
         self.log.push("supervise cleanup")
 
@@ -24,7 +24,7 @@ struct Runner:
     log: *mut List[string]
     job: mut Suspend[string]
 
-impl Disposable for Runner:
+impl AsyncDisposable for Runner:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("runner defer")
@@ -33,7 +33,7 @@ impl Disposable for Runner:
         self.log.push("runner got ${value}")
 
 fn work!(log: *mut List[string]) -> void $ Clock:
-    using conn = &mut Conn { log: log }
+    using! conn = &mut Conn { log: log }
     sleep!(s(60))
     log.push("work never")
 
@@ -44,7 +44,7 @@ fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
         .Abandoned => log.push("stopper abandoned")
 
 fn supervise!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
-    using report = &mut Report { log: log }
+    using! report = &mut Report { log: log }
     _ := all!(job, stop_later(job, log))
     "supervise never"
 
@@ -54,7 +54,7 @@ fn outer!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
     supervise!(job, log)
 
 fn run!(log: *mut List[string], job: mut Suspend[string]) -> void:
-    using runner = &mut Runner { log: log, job: job }
+    using! runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
 fn ended!(job: mut Suspend[void]) -> string:

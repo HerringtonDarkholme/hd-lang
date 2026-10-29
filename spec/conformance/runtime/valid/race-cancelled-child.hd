@@ -2,7 +2,7 @@
 # expect-stdout: abandoned
 # test: a race! child that another task cancelled cancels the race! at once, even while another child could still win, and the race! cleans up its other children
 # Spec lang/11 Standard Combinators: req.combinator.race-child-cancelled, req.combinator.cancel-order; Cancellation: req.cancel.await.dispose.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
@@ -10,7 +10,7 @@ struct Runner:
     log: *mut List[string]
     job: mut Suspend[string]
 
-impl Disposable for Runner:
+impl AsyncDisposable for Runner:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("runner defer")
@@ -19,7 +19,7 @@ impl Disposable for Runner:
         self.log.push("runner got ${value}")
 
 fn run!(log: *mut List[string], job: mut Suspend[string]) -> void:
-    using runner = &mut Runner { log: log, job: job }
+    using! runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
 fn ended!(job: mut Suspend[void]) -> string:

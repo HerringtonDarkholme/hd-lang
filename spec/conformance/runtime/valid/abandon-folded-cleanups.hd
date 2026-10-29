@@ -2,7 +2,7 @@
 # expect-stdout: c closing, abandon, c defer, waiter abandoned
 # test: abandon() abandons every cleanup folded into the job: the children all! started, and a shared cleanup the job waits on in cancel!(), whose other waiter gets .Abandoned
 # Spec lang/11 Abandoning: req.abandon.folded, req.abandon.dispose.unstarted, req.abandon.result.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, s, sleep}
 
@@ -11,7 +11,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("${self.name} defer")
@@ -21,7 +21,7 @@ impl Disposable for Conn:
         self.log.push("${self.name} closed")
 
 fn worker!(name: string, log: *mut List[string]) -> i32 $ Clock:
-    using conn = &mut Conn { name: name, log: log, closing: sleep(s(60)) }
+    using! conn = &mut Conn { name: name, log: log, closing: sleep(s(60)) }
     sleep!(s(60))
     +1
 

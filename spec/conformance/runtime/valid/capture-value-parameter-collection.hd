@@ -1,5 +1,5 @@
 # test: a closure over a value parameter holds the collection as passed
-# Spec 07 Copied And Shared Captures: fn.capture.copy, fn.capture.copy.value.
+# Spec 07 Copied And Shared Captures: fn.capture.copy.using-split, fn.capture.copy.value.
 # expect: test
 struct Bag:
     items: List[i32]

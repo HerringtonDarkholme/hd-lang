@@ -1,0 +1,13 @@
+# test: synchronous using selects Disposable, not AsyncDisposable
+# Spec lang/06 Using Bindings: flow.using.protocol.required.
+use std.ops.AsyncDisposable
+
+struct Connection:
+    open: bool
+
+impl AsyncDisposable for Connection:
+    fn dispose!(&mut self) -> void:
+        self.open = false
+
+fn close() -> void:
+    using connection = Connection { open: true } # diagnostic: unsatisfied-trait-bound

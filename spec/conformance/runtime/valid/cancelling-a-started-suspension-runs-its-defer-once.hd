@@ -1,5 +1,5 @@
 # test: explicit cancellation and race loser cleanup run a started suspension's defer only once
-# Spec 11 Cancellation: req.check.cancel-idempotent, req.combinator.race-losers-disposed.
+# Spec 11 Cancellation: req.check.cancel-idempotent, req.combinator.race-losers-disposed.using-split.
 # fixture-runtime-profile: pending-gate
 # expect-empty-stdout: true
 use std.task.{CleanupEnd, race}

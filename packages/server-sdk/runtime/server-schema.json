@@ -2,14 +2,14 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "1e24d6bd542f5620fc0bc1ec00601552a15c135b",
-    "compilerBaseRevision": "1e24d6bd542f5620fc0bc1ec00601552a15c135b",
-    "compilerSha256": "45b80abd783f8ff45576c2e54b7742d78b88811a53411209070ab42a84e64f3c",
-    "referenceWasmSha256": "618ba1d2ffeb05e9689b88e27dfd3e74d1fba3a5c17a86424b8aa7d6a491731e",
-    "referenceContractSha256": "9da3388553a87a7536d3baf7d2b9b57529f59b3f8c2e006d9045db7f90ade4e7",
+    "sourceBaseRevision": "278ac359b72f7db3c2cfe156fcbb4aa4d5553c6b",
+    "compilerBaseRevision": "278ac359b72f7db3c2cfe156fcbb4aa4d5553c6b",
+    "compilerSha256": "37891e69d38609071b9be0cf74e4204eb0f0eef2c1f9ff4534b807b040770b2c",
+    "referenceWasmSha256": "9ae44b2a6b1d094ee2746ac58e41ae89fd1f8c59d4cb219632754b93dbc44a57",
+    "referenceContractSha256": "3cffa6b03d4372668c90dc67414c49469cb9c4aded3c62e8286fe67b6139e1ff",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
-      "packages/server-sdk/src/server.hd": "f0421a49787f4bf08313d823f07dad074f14f3ea32aa296db373bf037854318b",
+      "packages/server-sdk/src/server.hd": "543b029b089c4d8704ad09cd0709bb67f8f4198e61a31382494d95b84b82a7f8",
       "lib/std/console.hd": "a385fcd716e2633a3c5100748bd6f179b84fec5630eb7707813437750847b953",
       "lib/std/http.hd": "eb12be83e8a08270e5e0a066030f356bf61893e9ffe7430c1bfeb5a8643201d4",
       "lib/std/http_wire.hd": "d58415dc76138985a78a6283a085c1e2f78ea908ca40240bdc31502297d63484",
@@ -17,10 +17,27 @@
     }
   },
   "coverage": {
-    "server.HttpServer": ["accept", "cancelled", "client", "clock", "console", "finish", "respond"],
-    "console.Console": ["write_error_sync", "write_sync"],
-    "http.Http": ["send"],
-    "time.Clock": ["monotonic", "now", "sleep"]
+    "server.HttpServer": [
+      "accept",
+      "cancelled",
+      "client",
+      "clock",
+      "console",
+      "finish",
+      "respond"
+    ],
+    "console.Console": [
+      "write_error_sync",
+      "write_sync"
+    ],
+    "http.Http": [
+      "send"
+    ],
+    "time.Clock": [
+      "monotonic",
+      "now",
+      "sleep"
+    ]
   },
   "schema": {
     "root": "server.HttpServer",
@@ -51,8 +68,22 @@
                       [
                         11,
                         [
-                          ["generation", [3, 64, false]],
-                          ["sequence", [3, 64, false]]
+                          [
+                            "generation",
+                            [
+                              3,
+                              64,
+                              false
+                            ]
+                          ],
+                          [
+                            "sequence",
+                            [
+                              3,
+                              64,
+                              false
+                            ]
+                          ]
                         ]
                       ]
                     ],
@@ -66,21 +97,85 @@
                             [
                               12,
                               [
-                                ["Get", []],
-                                ["Head", []],
-                                ["Post", []],
-                                ["Put", []],
-                                ["Patch", []],
-                                ["Delete", []],
-                                ["Options", []],
-                                ["Other", [["name", [6]]]]
+                                [
+                                  "Get",
+                                  []
+                                ],
+                                [
+                                  "Head",
+                                  []
+                                ],
+                                [
+                                  "Post",
+                                  []
+                                ],
+                                [
+                                  "Put",
+                                  []
+                                ],
+                                [
+                                  "Patch",
+                                  []
+                                ],
+                                [
+                                  "Delete",
+                                  []
+                                ],
+                                [
+                                  "Options",
+                                  []
+                                ],
+                                [
+                                  "Other",
+                                  [
+                                    [
+                                      "name",
+                                      [
+                                        6
+                                      ]
+                                    ]
+                                  ]
+                                ]
                               ]
                             ]
                           ],
-                          ["url", [6]],
-                          ["headers", [8, [10, [[6], [6]]]]],
-                          ["body", [7]],
-                          ["redirects", [3, 32, false]]
+                          [
+                            "url",
+                            [
+                              6
+                            ]
+                          ],
+                          [
+                            "headers",
+                            [
+                              8,
+                              [
+                                10,
+                                [
+                                  [
+                                    6
+                                  ],
+                                  [
+                                    6
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ],
+                          [
+                            "body",
+                            [
+                              7
+                            ]
+                          ],
+                          [
+                            "redirects",
+                            [
+                              3,
+                              32,
+                              false
+                            ]
+                          ]
                         ]
                       ]
                     ]
@@ -90,9 +185,25 @@
               [
                 12,
                 [
-                  ["Closed", []],
-                  ["Expired", []],
-                  ["Other", [["reason", [6]]]]
+                  [
+                    "Closed",
+                    []
+                  ],
+                  [
+                    "Expired",
+                    []
+                  ],
+                  [
+                    "Other",
+                    [
+                      [
+                        "reason",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ]
                 ]
               ]
             ]
@@ -105,17 +216,40 @@
               [
                 11,
                 [
-                  ["generation", [3, 64, false]],
-                  ["sequence", [3, 64, false]]
+                  [
+                    "generation",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ],
+                  [
+                    "sequence",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ]
                 ]
               ]
             ],
             "result": [
               12,
               [
-                ["Disconnected", []],
-                ["Deadline", []],
-                ["Stopping", []]
+                [
+                  "Disconnected",
+                  []
+                ],
+                [
+                  "Deadline",
+                  []
+                ],
+                [
+                  "Stopping",
+                  []
+                ]
               ]
             ]
           },
@@ -127,12 +261,29 @@
               [
                 11,
                 [
-                  ["generation", [3, 64, false]],
-                  ["sequence", [3, 64, false]]
+                  [
+                    "generation",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ],
+                  [
+                    "sequence",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ]
                 ]
               ]
             ],
-            "result": [15, "[\"std\",\"abi:1\",\"http.Http\"]"]
+            "result": [
+              15,
+              "[\"std\",\"abi:1\",\"http.Http\"]"
+            ]
           },
           {
             "name": "clock",
@@ -142,12 +293,29 @@
               [
                 11,
                 [
-                  ["generation", [3, 64, false]],
-                  ["sequence", [3, 64, false]]
+                  [
+                    "generation",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ],
+                  [
+                    "sequence",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ]
                 ]
               ]
             ],
-            "result": [15, "[\"std\",\"abi:1\",\"time.Clock\"]"]
+            "result": [
+              15,
+              "[\"std\",\"abi:1\",\"time.Clock\"]"
+            ]
           },
           {
             "name": "console",
@@ -157,12 +325,29 @@
               [
                 11,
                 [
-                  ["generation", [3, 64, false]],
-                  ["sequence", [3, 64, false]]
+                  [
+                    "generation",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ],
+                  [
+                    "sequence",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ]
                 ]
               ]
             ],
-            "result": [15, "[\"std\",\"abi:1\",\"console.Console\"]"]
+            "result": [
+              15,
+              "[\"std\",\"abi:1\",\"console.Console\"]"
+            ]
           },
           {
             "name": "finish",
@@ -172,13 +357,31 @@
               [
                 11,
                 [
-                  ["generation", [3, 64, false]],
-                  ["sequence", [3, 64, false]]
+                  [
+                    "generation",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ],
+                  [
+                    "sequence",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ]
                 ]
               ],
-              [1]
+              [
+                1
+              ]
             ],
-            "result": [0]
+            "result": [
+              0
+            ]
           },
           {
             "name": "respond",
@@ -188,29 +391,94 @@
               [
                 11,
                 [
-                  ["generation", [3, 64, false]],
-                  ["sequence", [3, 64, false]]
+                  [
+                    "generation",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ],
+                  [
+                    "sequence",
+                    [
+                      3,
+                      64,
+                      false
+                    ]
+                  ]
                 ]
               ],
               [
                 11,
                 [
-                  ["status", [3, 16, false]],
-                  ["headers", [8, [10, [[6], [6]]]]],
-                  ["body", [7]],
-                  ["url", [6]]
+                  [
+                    "status",
+                    [
+                      3,
+                      16,
+                      false
+                    ]
+                  ],
+                  [
+                    "headers",
+                    [
+                      8,
+                      [
+                        10,
+                        [
+                          [
+                            6
+                          ],
+                          [
+                            6
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "body",
+                    [
+                      7
+                    ]
+                  ],
+                  [
+                    "url",
+                    [
+                      6
+                    ]
+                  ]
                 ]
               ]
             ],
             "result": [
               13,
-              [0],
+              [
+                0
+              ],
               [
                 12,
                 [
-                  ["Closed", []],
-                  ["Expired", []],
-                  ["Other", [["reason", [6]]]]
+                  [
+                    "Closed",
+                    []
+                  ],
+                  [
+                    "Expired",
+                    []
+                  ],
+                  [
+                    "Other",
+                    [
+                      [
+                        "reason",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ]
                 ]
               ]
             ]
@@ -230,16 +498,45 @@
             "name": "write_error_sync",
             "member": "write_error_sync",
             "wait": "never",
-            "params": [[6]],
+            "params": [
+              [
+                6
+              ]
+            ],
             "result": [
               13,
-              [0],
+              [
+                0
+              ],
               [
                 12,
                 [
-                  ["Closed", []],
-                  ["NotGranted", [["subject", [6]]]],
-                  ["Other", [["message", [6]]]]
+                  [
+                    "Closed",
+                    []
+                  ],
+                  [
+                    "NotGranted",
+                    [
+                      [
+                        "subject",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "Other",
+                    [
+                      [
+                        "message",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ]
                 ]
               ]
             ]
@@ -248,16 +545,45 @@
             "name": "write_sync",
             "member": "write_sync",
             "wait": "never",
-            "params": [[6]],
+            "params": [
+              [
+                6
+              ]
+            ],
             "result": [
               13,
-              [0],
+              [
+                0
+              ],
               [
                 12,
                 [
-                  ["Closed", []],
-                  ["NotGranted", [["subject", [6]]]],
-                  ["Other", [["message", [6]]]]
+                  [
+                    "Closed",
+                    []
+                  ],
+                  [
+                    "NotGranted",
+                    [
+                      [
+                        "subject",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "Other",
+                    [
+                      [
+                        "message",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ]
                 ]
               ]
             ]
@@ -286,21 +612,85 @@
                     [
                       12,
                       [
-                        ["Get", []],
-                        ["Head", []],
-                        ["Post", []],
-                        ["Put", []],
-                        ["Patch", []],
-                        ["Delete", []],
-                        ["Options", []],
-                        ["Other", [["name", [6]]]]
+                        [
+                          "Get",
+                          []
+                        ],
+                        [
+                          "Head",
+                          []
+                        ],
+                        [
+                          "Post",
+                          []
+                        ],
+                        [
+                          "Put",
+                          []
+                        ],
+                        [
+                          "Patch",
+                          []
+                        ],
+                        [
+                          "Delete",
+                          []
+                        ],
+                        [
+                          "Options",
+                          []
+                        ],
+                        [
+                          "Other",
+                          [
+                            [
+                              "name",
+                              [
+                                6
+                              ]
+                            ]
+                          ]
+                        ]
                       ]
                     ]
                   ],
-                  ["url", [6]],
-                  ["headers", [8, [10, [[6], [6]]]]],
-                  ["body", [7]],
-                  ["redirects", [3, 32, false]]
+                  [
+                    "url",
+                    [
+                      6
+                    ]
+                  ],
+                  [
+                    "headers",
+                    [
+                      8,
+                      [
+                        10,
+                        [
+                          [
+                            6
+                          ],
+                          [
+                            6
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "body",
+                    [
+                      7
+                    ]
+                  ],
+                  [
+                    "redirects",
+                    [
+                      3,
+                      32,
+                      false
+                    ]
+                  ]
                 ]
               ]
             ],
@@ -309,23 +699,129 @@
               [
                 11,
                 [
-                  ["status", [3, 16, false]],
-                  ["headers", [8, [10, [[6], [6]]]]],
-                  ["body", [7]],
-                  ["url", [6]]
+                  [
+                    "status",
+                    [
+                      3,
+                      16,
+                      false
+                    ]
+                  ],
+                  [
+                    "headers",
+                    [
+                      8,
+                      [
+                        10,
+                        [
+                          [
+                            6
+                          ],
+                          [
+                            6
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "body",
+                    [
+                      7
+                    ]
+                  ],
+                  [
+                    "url",
+                    [
+                      6
+                    ]
+                  ]
                 ]
               ],
               [
                 12,
                 [
-                  ["NotGranted", [["host", [6]]]],
-                  ["InvalidUrl", [["url", [6]]]],
-                  ["Dns", [["host", [6]]]],
-                  ["Connect", [["message", [6]]]],
-                  ["Tls", [["message", [6]]]],
-                  ["Timeout", []],
-                  ["TooManyRedirects", [["url", [6]]]],
-                  ["Other", [["message", [6]]]],
+                  [
+                    "NotGranted",
+                    [
+                      [
+                        "host",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "InvalidUrl",
+                    [
+                      [
+                        "url",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "Dns",
+                    [
+                      [
+                        "host",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "Connect",
+                    [
+                      [
+                        "message",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "Tls",
+                    [
+                      [
+                        "message",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "Timeout",
+                    []
+                  ],
+                  [
+                    "TooManyRedirects",
+                    [
+                      [
+                        "url",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "Other",
+                    [
+                      [
+                        "message",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
                   [
                     "Status",
                     [
@@ -334,16 +830,59 @@
                         [
                           11,
                           [
-                            ["status", [3, 16, false]],
-                            ["headers", [8, [10, [[6], [6]]]]],
-                            ["body", [7]],
-                            ["url", [6]]
+                            [
+                              "status",
+                              [
+                                3,
+                                16,
+                                false
+                              ]
+                            ],
+                            [
+                              "headers",
+                              [
+                                8,
+                                [
+                                  10,
+                                  [
+                                    [
+                                      6
+                                    ],
+                                    [
+                                      6
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ],
+                            [
+                              "body",
+                              [
+                                7
+                              ]
+                            ],
+                            [
+                              "url",
+                              [
+                                6
+                              ]
+                            ]
                           ]
                         ]
                       ]
                     ]
                   ],
-                  ["InvalidHeader", [["name", [6]]]],
+                  [
+                    "InvalidHeader",
+                    [
+                      [
+                        "name",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
                   [
                     "Body",
                     [
@@ -352,7 +891,10 @@
                         [
                           12,
                           [
-                            ["Used", []],
+                            [
+                              "Used",
+                              []
+                            ],
                             [
                               "Json",
                               [
@@ -361,26 +903,140 @@
                                   [
                                     12,
                                     [
-                                      ["UnexpectedEnd", [["position", [3, 32, false]]]],
-                                      ["UnexpectedCharacter", [["position", [3, 32, false]]]],
-                                      ["InvalidEscape", [["position", [3, 32, false]]]],
-                                      ["LoneSurrogate", [["position", [3, 32, false]]]],
-                                      ["ControlCharacter", [["position", [3, 32, false]]]],
-                                      ["NumberOutOfRange", [["position", [3, 32, false]]]],
-                                      ["NestingTooDeep", [["position", [3, 32, false]]]],
+                                      [
+                                        "UnexpectedEnd",
+                                        [
+                                          [
+                                            "position",
+                                            [
+                                              3,
+                                              32,
+                                              false
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
+                                        "UnexpectedCharacter",
+                                        [
+                                          [
+                                            "position",
+                                            [
+                                              3,
+                                              32,
+                                              false
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
+                                        "InvalidEscape",
+                                        [
+                                          [
+                                            "position",
+                                            [
+                                              3,
+                                              32,
+                                              false
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
+                                        "LoneSurrogate",
+                                        [
+                                          [
+                                            "position",
+                                            [
+                                              3,
+                                              32,
+                                              false
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
+                                        "ControlCharacter",
+                                        [
+                                          [
+                                            "position",
+                                            [
+                                              3,
+                                              32,
+                                              false
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
+                                        "NumberOutOfRange",
+                                        [
+                                          [
+                                            "position",
+                                            [
+                                              3,
+                                              32,
+                                              false
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
+                                        "NestingTooDeep",
+                                        [
+                                          [
+                                            "position",
+                                            [
+                                              3,
+                                              32,
+                                              false
+                                            ]
+                                          ]
+                                        ]
+                                      ],
                                       [
                                         "WrongType",
                                         [
-                                          ["path", [6]],
-                                          ["expected", [6]]
+                                          [
+                                            "path",
+                                            [
+                                              6
+                                            ]
+                                          ],
+                                          [
+                                            "expected",
+                                            [
+                                              6
+                                            ]
+                                          ]
                                         ]
                                       ],
-                                      ["MissingField", [["path", [6]]]],
+                                      [
+                                        "MissingField",
+                                        [
+                                          [
+                                            "path",
+                                            [
+                                              6
+                                            ]
+                                          ]
+                                        ]
+                                      ],
                                       [
                                         "UnknownVariant",
                                         [
-                                          ["path", [6]],
-                                          ["name", [6]]
+                                          [
+                                            "path",
+                                            [
+                                              6
+                                            ]
+                                          ],
+                                          [
+                                            "name",
+                                            [
+                                              6
+                                            ]
+                                          ]
                                         ]
                                       ]
                                     ]
@@ -396,13 +1052,43 @@
                                   [
                                     12,
                                     [
-                                      ["Unsupported", [["field", [6]]]],
-                                      ["Missing", [["field", [6]]]],
+                                      [
+                                        "Unsupported",
+                                        [
+                                          [
+                                            "field",
+                                            [
+                                              6
+                                            ]
+                                          ]
+                                        ]
+                                      ],
+                                      [
+                                        "Missing",
+                                        [
+                                          [
+                                            "field",
+                                            [
+                                              6
+                                            ]
+                                          ]
+                                        ]
+                                      ],
                                       [
                                         "Invalid",
                                         [
-                                          ["field", [6]],
-                                          ["text", [6]]
+                                          [
+                                            "field",
+                                            [
+                                              6
+                                            ]
+                                          ],
+                                          [
+                                            "text",
+                                            [
+                                              6
+                                            ]
+                                          ]
                                         ]
                                       ]
                                     ]
@@ -435,25 +1121,35 @@
             "member": "monotonic",
             "wait": "never",
             "params": [],
-            "result": [14]
+            "result": [
+              14
+            ]
           },
           {
             "name": "now",
             "member": "now",
             "wait": "never",
             "params": [],
-            "result": [14]
+            "result": [
+              14
+            ]
           },
           {
             "name": "sleep",
             "member": "sleep",
             "wait": "may",
-            "params": [[14]],
-            "result": [0]
+            "params": [
+              [
+                14
+              ]
+            ],
+            "result": [
+              0
+            ]
           }
         ]
       }
     ]
   },
-  "fingerprint": "e41880af73f39fc695312b22c0a1ee12b55a663a0f061089fde2cf9b507bbbac"
+  "fingerprint": "ba895404f557169aea5ecdf9318c455dc30da1d0964523da8b0ebcf0ce62ddae"
 }

@@ -183,6 +183,11 @@ impl<'v> BindingView<'v> {
     }
 
     #[must_use]
+    pub const fn is_unbound_disposable(self) -> bool {
+        self.binding.unbound_disposable
+    }
+
+    #[must_use]
     pub fn mutability(self) -> Option<MutabilityView<'v>> {
         self.binding
             .mutability
@@ -321,6 +326,11 @@ impl CallView<'_> {
     #[must_use]
     pub const fn span(self) -> Span {
         self.discarded.span
+    }
+
+    #[must_use]
+    pub const fn is_unbound_disposable(self) -> bool {
+        self.discarded.unbound_disposable
     }
 
     #[must_use]

@@ -236,7 +236,7 @@ A `cleanup` argument bounds how long a `TimeLimit` execution waits for the clean
 `work` once `work` is cancelled:
 
 ```text
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{TimedOut, apply, timeout}
 use std.time.{Clock, s}
 
@@ -244,7 +244,7 @@ struct Upload:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Upload:
+impl AsyncDisposable for Upload:
     fn dispose!(&mut self) -> void:
         defer: self.log.push("upload closed")
         let mut ack = self.ack
@@ -253,7 +253,7 @@ impl Disposable for Upload:
 
 fn send!(log: *mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
     apply!(timeout(5s, cleanup=1s)):
-        using upload = &mut Upload { log: log, ack: ack }
+        using! upload = &mut Upload { log: log, ack: ack }
         let result: Result[string, TimedOut] = .Ok(reply!())
         result
 ```
@@ -358,7 +358,7 @@ pub enum CleanupEnd:
 1. r[std-task.cleanup-end.decl] `std.task` declares the enum `CleanupEnd` with the two variants above. `CleanupEnd` implements `Eq` and `Debug`. Code imports it with `use std.task.CleanupEnd`.
 2. r[std-task.cleanup-end.finished] `.Finished` means the whole cleanup ran to its end, with nothing in it cut short.
 3. r[std-task.cleanup-end.cut-short] `.Abandoned` means a part of the cleanup was cut short: by [`abandon()`](../lang/11-requirements-and-suspension.md#r-req.abandon.result), or by a dispose whose awaited suspension was cancelled elsewhere, by [`req.abandon.dependency.result`](../lang/11-requirements-and-suspension.md#r-req.abandon.dependency.result).
-4. r[std-task.cleanup-end.best-effort] `.Finished` does not mean that every close succeeded: a `dispose!` returns `void`, by [`flow.using.best-effort`](../lang/06-control-flow.md#r-flow.using.best-effort).
+4. r[std-task.cleanup-end.best-effort.using-split] `.Finished` does not mean that every close succeeded: a `dispose!` returns `void`, by [`flow.using.best-effort.v2`](../lang/06-control-flow.md#r-flow.using.best-effort.v2).
 5. r[std-task.cleanup-end.debug] The `Debug` text of each variant is `CleanupEnd.` followed by the variant's name, as in `CleanupEnd.Finished`.
 
 ```text
@@ -374,7 +374,7 @@ fn stop!(job: mut Suspend[string]) -> string:
 > **Why.** A `void` dispose cannot report a failed close, but a program
 > can still log a close that was cut short. Code that must know that a
 > close protocol succeeded calls an explicit close that returns a
-> `Result`, as [`flow.using.best-effort`](../lang/06-control-flow.md#r-flow.using.best-effort)
+> `Result`, as [`flow.using.best-effort.v2`](../lang/06-control-flow.md#r-flow.using.best-effort.v2)
 > advises.
 
 See also: [Cancellation](../lang/11-requirements-and-suspension.md#cancellation).

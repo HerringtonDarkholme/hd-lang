@@ -143,7 +143,7 @@ suite_statement = defer_statement
                   suite_right_side
                 | "let", pattern, [ ":", type ], "=",
                   suite_right_side
-                | "using", identifier, [ ":", type ], "=",
+                | "using", [ "!" ], identifier, [ ":", type ], "=",
                   suite_right_side
                 | let_else_statement
                 | postfix_expression, ( "=" | compound_assign_op ),
@@ -172,7 +172,7 @@ let_statement = "let", pattern, [ ":", type ], "=",
 let_else_statement = "let", pattern, [ ":", type ], "=",
                      closed_expression, "else", ":", suite_body ;
 
-using_statement = "using", identifier, [ ":", type ], "=",
+using_statement = "using", [ "!" ], identifier, [ ":", type ], "=",
                   closed_expression ;
 
 discard_statement = "_", ":=", closed_expression ;
@@ -190,7 +190,7 @@ continue_statement = "continue" ;
 expression_statement = closed_expression ;
 
 inline_statement = "let", pattern, [ ":", type ], "=", inline_expression
-                 | "using", identifier, [ ":", type ], "=", inline_expression
+                 | "using", [ "!" ], identifier, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
                  | postfix_expression, ( "=" | compound_assign_op ),
                    inline_expression
@@ -314,8 +314,8 @@ fn sum(p: Point, pair: (i32, i32)) -> i32:
 1. r[grammar.stmt.discard] The dedicated discard forms make `_ := expression` a statement without making the placeholder `_` an identifier or a binding pattern.
 2. r[grammar.stmt.discard.suite] The suite form of a discard exists for the same reason when the discarded expression owns an indented suite.
 3. r[grammar.stmt.defer] `defer` is parsed wherever a suite statement is accepted; the semantic rules in [Control Flow](06-control-flow.md#deferred-cleanup) restrict it to executing cleanup scopes.
-4. r[grammar.stmt.using] A statement that starts with the contextual word `using` and a name on the same line is a `using_statement`. The semantic rules are in [Using Bindings](06-control-flow.md#using-bindings).
-5. r[grammar.stmt.using.one-name] A `using` statement binds exactly one name: no pattern and no `mut`.
+4. r[grammar.stmt.using-split] A statement that starts with the contextual word `using`, an optional glued `!`, and a name on the same line is a `using_statement`. The semantic rules are in [Using Bindings](06-control-flow.md#using-bindings).
+5. r[grammar.stmt.using-split.one-name] A `using` or `using!` statement binds exactly one name: no pattern and no `mut`.
 
 ```hd
 fn twice(n: i32) -> i32: n * 2

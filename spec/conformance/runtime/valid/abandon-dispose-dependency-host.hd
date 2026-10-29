@@ -6,7 +6,7 @@
 # expect-stdout: finished
 # test: a dispose! that awaits a host call cancelled elsewhere unwinds from that await, and its cleanup ends .Abandoned; a race! inside a dispose! that a live child wins before the cancelled one is polled does not cut the dispose short
 # Spec lang/11 Cancellation: req.cancel.await.dispose, req.cancel.await.kinds; Abandoning: req.abandon.dependency.
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.race
 use std.time.{Clock, s, sleep}
 
@@ -14,7 +14,7 @@ struct Channel:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Channel:
+impl AsyncDisposable for Channel:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("channel defer")
@@ -27,7 +27,7 @@ struct Gate:
     log: *mut List[string]
     ack: mut Suspend[void]
 
-impl Disposable for Gate:
+impl AsyncDisposable for Gate:
     fn dispose!(&mut self) -> void:
         self.log.push("gate closing")
         race!(nothing(), self.ack)
@@ -37,12 +37,12 @@ fn nothing!() -> void:
     pass
 
 fn talk!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
-    using channel = &mut Channel { log: log, ack: ack }
+    using! channel = &mut Channel { log: log, ack: ack }
     sleep!(s(60))
     "late"
 
 fn guard!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
-    using gate = &mut Gate { log: log, ack: ack }
+    using! gate = &mut Gate { log: log, ack: ack }
     sleep!(s(60))
     "late"
 

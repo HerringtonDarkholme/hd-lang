@@ -4,63 +4,90 @@ use hd_driver::analysis::Events;
 use hd_lint::{Level, Policy, RULES};
 use hd_project::parse_manifest;
 
-const EXPECTED: [(&str, Code, Option<Events>); 14] = [
-    ("broken-doc-link", Code::BrokenDocLink, None),
+const EXPECTED: [(&str, Code, Level, Option<Events>); 15] = [
+    ("broken-doc-link", Code::BrokenDocLink, Level::Warn, None),
     (
         "dbg-in-dependency",
         Code::DbgInDependency,
+        Level::Warn,
         Some(Events::FETCHED_DEBUG),
     ),
     (
         "derivation-line-drift",
         Code::DerivationLineDrift,
+        Level::Warn,
         Some(Events::DERIVATIONS),
     ),
-    ("lost-write", Code::LostWrite, Some(Events::PARAMETER_WRITE)),
+    (
+        "lost-write",
+        Code::LostWrite,
+        Level::Warn,
+        Some(Events::PARAMETER_WRITE),
+    ),
     (
         "mixed-script-identifier",
         Code::MixedScriptIdentifier,
+        Level::Warn,
         Some(Events::IDENT),
     ),
-    ("private-main", Code::PrivateMain, Some(Events::MAIN_SITE)),
+    (
+        "private-main",
+        Code::PrivateMain,
+        Level::Warn,
+        Some(Events::MAIN_SITE),
+    ),
     (
         "redundant-let-mut",
         Code::RedundantLetMut,
+        Level::Warn,
         Some(Events::BINDING),
     ),
     (
         "unreachable-code",
         Code::UnreachableCode,
+        Level::Warn,
         Some(Events::STATEMENT),
     ),
     (
         "unselected-main",
         Code::UnselectedMain,
+        Level::Warn,
         Some(Events::MAIN_SITE),
     ),
     (
         "unsigned-comparison-always",
         Code::UnsignedComparisonAlways,
+        Level::Warn,
         Some(Events::COMPARISON),
+    ),
+    (
+        "unbound-disposable",
+        Code::UnboundDisposable,
+        Level::Deny,
+        Some(Events::BINDING.union(Events::DISCARD)),
     ),
     (
         "unused-debug-text",
         Code::UnusedDebugText,
+        Level::Warn,
         Some(Events::DISCARD),
     ),
     (
         "unused-derivation-fact",
         Code::UnusedDerivationFact,
+        Level::Warn,
         Some(Events::DERIVATIONS),
     ),
     (
         "unused-local-binding",
         Code::UnusedLocalBinding,
+        Level::Warn,
         Some(Events::BINDING),
     ),
     (
         "variant-binding-name-mismatch",
         Code::VariantBindingNameMismatch,
+        Level::Warn,
         Some(Events::PATTERN),
     ),
 ];
@@ -85,12 +112,12 @@ fn policy_free_findings() -> DiagBuf {
 }
 
 #[test]
-fn registry_is_the_exact_unique_thirteen_rule_surface() {
+fn registry_is_the_exact_unique_fifteen_rule_surface() {
     assert_eq!(RULES.len(), EXPECTED.len());
-    for (rule, (name, code, events)) in RULES.iter().zip(EXPECTED) {
+    for (rule, (name, code, default, events)) in RULES.iter().zip(EXPECTED) {
         assert_eq!(rule.name(), name);
         assert_eq!(rule.code(), code);
-        assert_eq!(rule.default_level(), Level::Warn);
+        assert_eq!(rule.default_level(), default);
         assert_eq!(rule.events(), events);
     }
     for (i, rule) in RULES.iter().enumerate() {
@@ -119,12 +146,16 @@ fn indexed_policy_filters_and_relevels_a_policy_free_buffer() {
 
     let defaults = Policy::default().apply(&raw);
     assert_eq!(defaults.code, raw.code);
-    assert!(
-        defaults
-            .severity
-            .iter()
-            .all(|severity| *severity == Severity::Warning)
-    );
+    for (code, severity) in defaults.code.iter().zip(&defaults.severity) {
+        assert_eq!(
+            *severity,
+            if *code == Code::UnboundDisposable {
+                Severity::Error
+            } else {
+                Severity::Warning
+            }
+        );
+    }
 
     for rule in RULES.iter().copied() {
         let mut allow = Policy::default();
@@ -140,7 +171,7 @@ fn indexed_policy_filters_and_relevels_a_policy_free_buffer() {
         for (code, severity) in denied.code.iter().zip(&denied.severity) {
             assert_eq!(
                 *severity,
-                if *code == rule.code() {
+                if *code == rule.code() || *code == Code::UnboundDisposable {
                     Severity::Error
                 } else {
                     Severity::Warning

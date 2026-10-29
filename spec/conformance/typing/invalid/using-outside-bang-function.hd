@@ -1,14 +1,14 @@
 # test: a using binding outside a bang function is a bang call outside a driver context
-# Spec lang/06 Using Bindings: flow.using.bang; lang/11 req.bang.driver-forms.
-use std.ops.Disposable
+# Spec lang/06 Using Bindings: flow.using.async.driver; lang/11 req.bang.driver-forms.
+use std.ops.AsyncDisposable
 
 struct Session:
     id: i32
 
-impl Disposable for Session:
+impl AsyncDisposable for Session:
     fn dispose!(&mut self) -> void:
         pass
 
 fn plain(id: i32) -> i32:
-    using session = Session { id: id } # diagnostic: bang-call-outside-suspension
+    using! session = Session { id: id } # diagnostic: bang-call-outside-suspension
     session.id

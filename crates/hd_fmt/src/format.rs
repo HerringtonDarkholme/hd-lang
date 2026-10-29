@@ -274,6 +274,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 self.mark_assignment(node);
             }
             S::NamedArgument | S::ContextEntry => self.mark_named_argument(node),
+            S::UsingStmt => self.mark_using(node),
             S::BoundList | S::RequirementRow | S::ImplDecl => self.mark_type_spacing(node),
             S::VariantExpr | S::VariantPattern => self.mark_variant(node),
             S::Decorator => {
@@ -672,6 +673,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
         {
             self.force_gap(operator.idx(), Gap::None);
             self.force_gap(operator.idx() + 1, Gap::None);
+        }
+    }
+
+    fn mark_using(&mut self, node: NodeRef<'_>) {
+        for bang in node
+            .direct_tokens()
+            .filter(|&token| self.parsed.tokens.kind(token) == T::Bang)
+        {
+            self.set_gap(bang.idx() + 1, Gap::Space);
         }
     }
 

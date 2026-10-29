@@ -1300,19 +1300,19 @@ The host may cancel the entry suspension, as a Ctrl-C does. It then waits
 for the entry's cleanup, as `cancel!()` does, under a bound of its own:
 
 ```hd
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         let mut wait = self.closing
         wait!()   # the host waits here, up to its cleanup bound
 
 pub fn main!() -> void $ Clock:
-    using conn = &mut Conn { closing: sleep(ms(50)) }
+    using! conn = &mut Conn { closing: sleep(ms(50)) }
     sleep!(s(60))   # a cancel by the host stops the entry here
 ```
 
@@ -1552,7 +1552,7 @@ its cleanup has ended, `abandon`, which stops it and cuts its cleanup
 short, and how the standard combinators cancel their children.
 
 ```text
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
@@ -1560,7 +1560,7 @@ struct Conn:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Conn:
+impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
@@ -1568,7 +1568,7 @@ impl Disposable for Conn:
         self.log.push("closed")
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
+    using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
 
@@ -1595,7 +1595,7 @@ pub fn main!() -> void $ Console + Clock:
 3. r[req.cancel.cold] Like every suspending call, `job.cancel()` without the bang builds a cold suspension of the cancel. `job` keeps its state until that suspension is driven.
 4. r[req.cancel.cold.discard] A cold cancel that is discarded is an error, as any discarded suspension is. Error: `discarded-must-use-value`.
 5. r[req.cancel.defer] After an unfinished child has completed its own cancellation cleanup, registered `defer` suites in the suspension's unfinished frames run synchronously. They run in last-in, first-out order, from the innermost frame outward.
-6. r[req.cancel.dispose] A `using` binding's dispose may suspend, so cancellation that reaches it follows [Using Bindings](06-control-flow.md#using-bindings) instead of running synchronously.
+6. r[req.cancel.async-dispose] A `using!` binding's dispose may suspend, so cancellation that reaches it follows [Using Bindings](06-control-flow.md#using-bindings) instead of running synchronously. A synchronous `using` dispose runs inline.
 7. r[req.cancel.wait] The cancel completes only once the suspension's whole cleanup has ended, every dispose that suspends included.
 8. r[req.cancel.result] It then returns how the cleanup ended. A cleanup that ran to its end gives `.Finished`.
 9. r[req.cancel.cold-job] Cancelling a cold suspension marks it cancelled without running its body, and returns `.Finished` at once.
@@ -1604,7 +1604,7 @@ pub fn main!() -> void $ Console + Clock:
 12. r[req.cancel.shared.result] Every cancel that waits on one cleanup returns the same result.
 13. r[req.cancel.kept] A cancel made after the cleanup ended returns at once how it ended.
 14. r[req.cancel.takeover] A cancel that reaches a suspension already disposing, after `return`, `?`, or the end of a block, takes over that dispose. The dispose goes on from where it is, and the code after the block never runs.
-15. r[req.cancel.nested] Cancelling the task that waits in a cancel stops only that wait. The cleanup goes on as part of the task's own cleanup, which ends after it, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
+15. r[req.cancel.nested.using-split] Cancelling the task that waits in a cancel stops only that wait. The cleanup goes on as part of the task's own cleanup, which ends after it, by [`flow.using.async.cancel.wait`](06-control-flow.md#r-flow.using.async.cancel.wait).
 16. r[req.cancel.await] A task that awaits the value of a cancelled suspension, by a bang call or as a child of `all!`, is cancelled at that await.
 17. r[req.cancel.await.unwind] The task unwinds as any cancellation does, and its cleanup folds the awaited suspension's cleanup. No value is produced, and nothing panics.
 18. r[req.cancel.await.kinds] The rule holds for every suspension: a compiler-generated frame, a `std.task` combinator or cancel, and a pending host operation.
@@ -1639,7 +1639,7 @@ fn stop!(job: mut Suspend[i32]) -> void:
 `dispose!` that waits:
 
 ```text
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
@@ -1647,7 +1647,7 @@ struct Release:
     log: *mut List[string]
     closing: mut Suspend[void]
 
-impl Disposable for Release:
+impl AsyncDisposable for Release:
     fn dispose!(&mut self) -> void:
         defer: self.log.push("dispose defer")
         self.log.push("dispose start")
@@ -1657,7 +1657,7 @@ impl Disposable for Release:
 
 fn ordered!(res: &mut Release, log: &mut List[string]) -> string $ Clock:
     defer: log.push("outer")
-    using r = res
+    using! r = res
     defer: log.push("tail")
     sleep!(s(60))
     "late"
@@ -1675,7 +1675,7 @@ pub fn main!() -> void $ Console + Clock:
 
 1. r[req.abandon.method] `Suspend[T]` has the method `abandon(mut self) -> void`. It does not suspend, so any function may call it.
 2. r[req.abandon.unwind] It marks the suspension cancelled and unwinds it once, synchronously. The unwinding has ended when the call returns, before any other task runs.
-3. r[req.abandon.order] The unwinding runs the cleanup as one last-in, first-out list, from the innermost frame outward. `defer` suites and disposes keep the order of [`flow.using.order`](06-control-flow.md#r-flow.using.order).
+3. r[req.abandon.order.using-split] The unwinding runs the cleanup as one last-in, first-out list, from the innermost frame outward. `defer` suites and disposes keep the order of [`flow.using.order.v2`](06-control-flow.md#r-flow.using.order.v2).
 4. r[req.abandon.defer] Every registered `defer` suite runs once, including those of a `dispose!` that is running. A `defer` suite never registered does not run.
 5. r[req.abandon.dispose] A `dispose!` that waits is stopped at its suspension point, after its own registered `defer` suites run. The code after that point never runs.
 6. r[req.abandon.dispose.unstarted] A dispose that has not started yet starts. It runs to its first suspension point and is stopped there the same way.
@@ -1702,7 +1702,7 @@ pub fn main!() -> void $ Console + Clock:
 ### Standard Combinators
 
 1. r[req.combinator.cancel-children] The `std.task` combinators `all!` and `race!` cancel their children when the parent is cancelled.
-2. r[req.combinator.race-losers-disposed] `race!` also cancels losing children before returning the first completed value. It returns that value once every loser's disposes have finished, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
+2. r[req.combinator.race-losers-disposed.using-split] `race!` also cancels losing children before returning the first completed value. It returns that value once every loser's disposes have finished, by [`flow.using.async.cancel.wait`](06-control-flow.md#r-flow.using.async.cancel.wait).
 3. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `all!` and `race!`, are compiler intrinsics.
 4. r[req.combinator.bang-called] Each is imported and bang-called like an ordinary `fn!` function, but the compiler supplies its frame and polling behavior.
 5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
@@ -1734,7 +1734,7 @@ A cancelled `all!` or `race!` stops every unfinished child before it waits
 for any, so a server shuts down without a deadlock:
 
 ```text
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
@@ -1746,7 +1746,7 @@ struct Connections:
     server: *mut Server
     clock: *mut dyn Clock
 
-impl Disposable for Connections:
+impl AsyncDisposable for Connections:
     fn dispose!(&mut self) -> void:
         self.server.log.push("connections draining")
         while self.server.accepting:
@@ -1755,7 +1755,7 @@ impl Disposable for Connections:
         self.server.log.push("connections drained")
 
 fn connections!(server: *mut Server) -> void $ Clock:
-    using open = &mut Connections { server: server, clock: $.use(Clock) }
+    using! open = &mut Connections { server: server, clock: $.use(Clock) }
     sleep!(s(60))
 
 fn acceptor!(server: &mut Server) -> void $ Clock:
@@ -1781,7 +1781,7 @@ pub fn main!() -> void $ Console + Clock:
 
 1. r[req.combinator.cancel-fold] A cancelled combinator never abandons a child's cleanup. Each unfinished child's cleanup becomes part of the combinator's own.
 2. r[req.combinator.cancel-order] It starts every unfinished child's cleanup, in argument order, before it waits for any of them.
-3. r[req.combinator.cancel-parent-last] The task that awaits the combinator runs its own cleanup only after every child's cleanup has ended, by [`flow.using.cancel.wait`](06-control-flow.md#r-flow.using.cancel.wait).
+3. r[req.combinator.cancel-parent-last.using-split] The task that awaits the combinator runs its own cleanup only after every child's cleanup has ended, by [`flow.using.async.cancel.wait`](06-control-flow.md#r-flow.using.async.cancel.wait).
 4. r[req.combinator.race-outer-cancel] A cancel that reaches `race!` while a loser's cleanup runs continues that cleanup as part of the race's own cleanup.
 5. r[req.combinator.all-cancelled] An `all!` child that turns out cancelled cancels the task that awaits the `all!`, by [`req.cancel.await`](#r-req.cancel.await).
 6. r[req.combinator.race-child-cancelled] A `race!` child that turns out cancelled cancels the task that awaits the `race!` at once, as an `all!` child does by [`req.cancel.await`](#r-req.cancel.await). A child that completed earlier on the same poll wins instead.

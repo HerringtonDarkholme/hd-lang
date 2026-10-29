@@ -1,0 +1,13 @@
+# test: using bang selects AsyncDisposable, not Disposable
+# Spec lang/06 Using Bindings: flow.using.protocol.required.
+use std.ops.Disposable
+
+struct Guard:
+    open: bool
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        self.open = false
+
+fn close!() -> void:
+    using! guard = Guard { open: true } # diagnostic: unsatisfied-trait-bound

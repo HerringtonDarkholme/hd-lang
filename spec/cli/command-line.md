@@ -873,6 +873,7 @@ hd lint --all --allow unused-local-binding
 29. r[cli.lint.stable-messages] Moving an existing warning into lint preserves its stable diagnostic code, message, source span and fix-it information.
 30. r[cli.lint.lost-write] A change to a `mut` parameter or `mut self` copy produces `lost-write` when the changed copy is never read afterwards, returned, stored, passed on, or captured. A change is a whole reassignment, a struct field write, a list or map element store, or a call of an `&mut self` method such as `push`. The message suggests a mutable reference when the caller's value was meant to change. Warning: `lost-write`.
 31. r[cli.lint.lost-write.scope] `lost-write` judges changes in direct statements of a function body. It stays silent when a later statement names the parameter, or when a closure or `defer` in the body captures it.
+32. r[cli.lint.unbound-disposable] A value whose type implements `Disposable` or `AsyncDisposable` produces `unbound-disposable` when it is discarded as an expression statement or bound by ordinary `:=` or `let`. The lint stays quiet when the value is bound by `using` or `using!`, passed to a call, returned, or stored. Its default level is deny, and package, command, or site policy may allow it. Error by default: `unbound-disposable`.
 
 | Level | Effect |
 | --- | --- |

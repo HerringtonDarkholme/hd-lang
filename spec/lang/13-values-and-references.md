@@ -187,7 +187,7 @@ fn demo() -> Holder:
 
 | Rule | The place is held by | Error |
 | --- | --- | --- |
-| r[ref.place.not-writable.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
+| r[ref.place.not-writable.using-split] Short binding | a `:=`, `using`, or `using!` binding | `non-reassignable-binding` |
 | r[ref.place.not-writable.param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | r[ref.place.not-writable.let] Plain `let` | a `let` binding without `mut` | `not-writable` |
 | r[ref.place.not-writable.shared-referent] Read-only reference | the value directly referred to by a read-only reference, `*T` or `&T` | `not-writable` |

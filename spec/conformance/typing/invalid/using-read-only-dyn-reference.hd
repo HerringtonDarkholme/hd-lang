@@ -1,5 +1,5 @@
 # test: a using binding of a read-only trait value reference cannot dispose what it refers to
-# Spec lang/06 Using Bindings: flow.using.reference.read-only.
+# Spec lang/06 Using Bindings: flow.using.reference.read-only.v2.
 use std.ops.Disposable
 
 trait Session < Disposable:

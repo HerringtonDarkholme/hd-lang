@@ -149,3 +149,16 @@ test("the highlighter's keywords are the Rust lexer's reserved words", async () 
   assert.ok(words.length > 20, `fn keyword lists the reserved words (found ${words.length})`);
   assert.deepEqual([...KEYWORDS].sort(), words.sort());
 });
+
+test("using and using-bang are contextual keywords only in binding position", () => {
+  assert.equal(
+    classify("    using guard = open()").find(({ text }) => text === "using")?.kind,
+    "keyword",
+  );
+  assert.equal(
+    classify("    using! guard = open!()").find(({ text }) => text === "using!")?.kind,
+    "keyword",
+  );
+  assert.equal(classify("using := 1")[0]?.kind, "plain");
+  assert.equal(classify("using! := 1")[0]?.kind, "plain");
+});

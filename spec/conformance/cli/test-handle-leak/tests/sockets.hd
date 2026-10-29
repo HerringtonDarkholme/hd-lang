@@ -2,7 +2,7 @@ use pkg.open_listener
 use std.testing.assert
 
 it("disposes its listener with using"):
-    using listener = open_listener!().expect("a listener")
+    using! listener = open_listener!().expect("a listener")
     assert(listener.local_address().is_ok(), reason="bound")
 
 it("closes its listener explicitly"):

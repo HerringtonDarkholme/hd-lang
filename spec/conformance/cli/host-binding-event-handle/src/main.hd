@@ -1,4 +1,4 @@
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 
 pub enum Event:
     Click(tag: u32)
@@ -6,7 +6,7 @@ pub enum Event:
 pub enum EventError:
     Closed
 
-pub trait Events < Disposable:
+pub trait Events < AsyncDisposable:
     fn next!(&mut self) -> Result[Event?, EventError]
 
 @host

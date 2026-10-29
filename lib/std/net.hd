@@ -6,7 +6,7 @@
 use std.convert.From
 use std.task.TimedOut
 use std.format.DebugWriter
-use std.ops.Disposable
+use std.ops.AsyncDisposable
 use std.time.Duration
 
 ## Every failure of a lookup or a socket, as one error enum.
@@ -65,9 +65,9 @@ pub fn listen!(host: string, port: u16) -> Result[*mut dyn TcpListener, NetError
 pub fn bind_udp!(host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError] $ Net:
     $.use(Net).bind_udp!(host, port)
 
-## A TCP stream: a closable handle that a `using` binding disposes.
+## A TCP stream: a closable handle that a `using!` binding disposes.
 ## See [std-net.handles.decl-ref](../../spec/std/net.md#r-std-net.handles.decl-ref).
-pub trait TcpStream < Disposable:
+pub trait TcpStream < AsyncDisposable:
     fn read!(&mut self, max: usize) -> Result[List[u8], NetError]
     fn write!(&mut self, bytes: List[u8]) -> Result[void, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
@@ -75,9 +75,9 @@ pub trait TcpStream < Disposable:
     fn set_keepalive(&mut self, idle: Duration?) -> Result[void, NetError]
     fn close(&mut self) -> Result[void, NetError]
 
-## A TCP listener: a closable handle that a `using` binding disposes.
+## A TCP listener: a closable handle that a `using!` binding disposes.
 ## See [std-net.handles.decl-ref](../../spec/std/net.md#r-std-net.handles.decl-ref).
-pub trait TcpListener < Disposable:
+pub trait TcpListener < AsyncDisposable:
     fn accept!(&mut self) -> Result[*mut dyn TcpStream, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
     fn local_address(self) -> Result[(string, u16), NetError]
@@ -91,9 +91,9 @@ pub struct Datagram:
     pub host: string
     pub port: u16
 
-## A UDP socket: a closable handle that a `using` binding disposes.
+## A UDP socket: a closable handle that a `using!` binding disposes.
 ## See [std-net.handles.decl-ref](../../spec/std/net.md#r-std-net.handles.decl-ref).
-pub trait UdpSocket < Disposable:
+pub trait UdpSocket < AsyncDisposable:
     fn send_to!(&mut self, host: string, port: u16, bytes: List[u8]) -> Result[void, NetError]
     fn receive!(&mut self, max: usize) -> Result[Datagram, NetError]
     fn set_timeout(&mut self, timeout: Duration?) -> Result[void, NetError]
@@ -248,7 +248,7 @@ impl TcpStream for ScriptedStream:
 
 # Disposing closes the handle; it is best-effort, so a closed one stays
 # closed (r-std-net.scripted.dispose).
-impl Disposable for ScriptedStream:
+impl AsyncDisposable for ScriptedStream:
     fn dispose!(&mut self) -> void:
         self.closed = true
 
@@ -338,7 +338,7 @@ impl TcpListener for ScriptedListener:
 
 # Disposing closes the handle; it is best-effort, so a closed one stays
 # closed (r-std-net.scripted.dispose).
-impl Disposable for ScriptedListener:
+impl AsyncDisposable for ScriptedListener:
     fn dispose!(&mut self) -> void:
         self.closed = true
 
@@ -439,7 +439,7 @@ impl UdpSocket for ScriptedUdp:
 
 # Disposing closes the handle; it is best-effort, so a closed one stays
 # closed (r-std-net.scripted.dispose).
-impl Disposable for ScriptedUdp:
+impl AsyncDisposable for ScriptedUdp:
     fn dispose!(&mut self) -> void:
         self.closed = true
 

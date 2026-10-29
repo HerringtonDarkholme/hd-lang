@@ -28,6 +28,7 @@ pub const REDUNDANT_MUT: &str = Code::RedundantLetMut.as_str();
 pub const VARIANT_BINDING: &str = Code::VariantBindingNameMismatch.as_str();
 pub const UNUSED_BINDING: &str = Code::UnusedLocalBinding.as_str();
 pub const UNSIGNED_COMPARISON: &str = Code::UnsignedComparisonAlways.as_str();
+pub const UNBOUND_DISPOSABLE: &str = Code::UnboundDisposable.as_str();
 
 /// One stable lint entry: identity, default policy, requested events and check.
 #[derive(Clone, Copy, Debug)]
@@ -138,6 +139,12 @@ pub const RULES: &[Rule] = &[
         unsigned_comparison,
     ),
     Rule::new(
+        Code::UnboundDisposable,
+        Level::Deny,
+        Events::BINDING.union(Events::DISCARD),
+        unbound_disposable,
+    ),
+    Rule::new(
         Code::UnusedDebugText,
         Level::Warn,
         Events::DISCARD,
@@ -164,6 +171,47 @@ pub const RULES: &[Rule] = &[
 ];
 
 fn no_event(_: &Event<'_>, _: &CheckedView<'_>, _: &mut DiagBuf) {}
+
+fn unbound_disposable(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+    let (span, message) = match event {
+        Event::Binding(source) => {
+            let Some(binding) = view.binding(*source) else {
+                return;
+            };
+            if !binding.is_unbound_disposable() {
+                return;
+            }
+            (
+                binding.span(),
+                format!(
+                    "`{}` binds a disposable value without registering cleanup; use `using` or `using!`",
+                    binding.name()
+                ),
+            )
+        }
+        Event::Discard(source) => {
+            let Some(call) = view.call(*source) else {
+                return;
+            };
+            if !call.is_unbound_disposable() {
+                return;
+            }
+            (
+                call.span(),
+                "this disposable value is discarded without registering cleanup; use `using` or `using!`"
+                    .to_owned(),
+            )
+        }
+        _ => return,
+    };
+    out.push(
+        Code::UnboundDisposable,
+        Severity::Warning,
+        span,
+        &message,
+        None,
+    );
+}
 
 /// The policy-selected diagnostic for a documentation link which resolved
 /// to no documented item. Link resolution stays in `hd_doc`; this crate owns
@@ -550,7 +598,10 @@ fn statement_kind(kind: SyntaxKind) -> bool {
 }
 
 fn site_reachable(code: Code) -> bool {
-    matches!(code, Code::UnsignedComparisonAlways | Code::UnusedDebugText)
+    matches!(
+        code,
+        Code::UnboundDisposable | Code::UnsignedComparisonAlways | Code::UnusedDebugText
+    )
 }
 
 fn append_row(out: &mut DiagBuf, source: &DiagBuf, row: usize) {
