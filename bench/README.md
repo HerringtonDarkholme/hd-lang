@@ -131,6 +131,73 @@ fresh-process measurement. Harness tests verify reuse of one compiled
 module with distinct instances and reset mutable globals, and refuse
 output or status failures beyond the discarded preflight.
 
+### Runtime vs JavaScript, 2026-10-29
+
+Commit `abb3d0cd4`, Apple M3 Max, Node v24.19.0 / V8
+13.6.233.17-node.51. Times are integer milliseconds, the median of 15
+fresh processes after a discarded preflight. The same release Wasm ran at
+V8's default tier, with `--no-liftoff`, and with `--liftoff-only`; the
+JavaScript reference is the clean default-tier run. Every measured output
+matched exactly. The machine was shared, with one-minute load 7–16 during
+the kept runs.
+
+| Program | JS | hd default | hd/JS | hd `--no-liftoff` | hd/JS | hd `--liftoff-only` | hd/JS | Wasm bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| spectral_norm | 555 | 298 | 0.54 | 282 | 0.51 | 485 | 0.87 | 6,778 |
+| fannkuch_redux | 218 | 481 | 2.20 | 214 | 0.98 | 356 | 1.63 | 6,439 |
+| mandelbrot | 133 | 322 | 2.42 | 141 | 1.06 | 297 | 2.23 | 4,565 |
+| nbody | 400 | 339 | 0.85 | 344 | 0.86 | 834 | 2.09 | 7,652 |
+| sieve | 151 | 360 | 2.38 | 198 | 1.31 | 276 | 1.82 | 5,487 |
+| binary_trees | 261 | 262 | 1.00 | 499 | 1.92 | 863 | 3.31 | 8,744 |
+| points | 1,554 | 330 | 0.21 | 288 | 0.19 | 629 | 0.40 | 6,318 |
+| closures | 752 | 322 | 0.43 | 317 | 0.42 | 989 | 1.31 | 6,994 |
+| map_count | 531 | 284 | 0.54 | 279 | 0.53 | 462 | 0.87 | 12,809 |
+| string_build | 749 | 295 | 0.39 | 305 | 0.41 | 558 | 0.74 | 6,059 |
+| json | 129 | 378 | 2.94 | 448 | 3.48 | 941 | 7.32 | 70,655 |
+| structure_walk | — | 184 | — | 228 | — | 540 | — | 20,446 |
+| progs/closures | 663 | 295 | 0.44 | 245 | 0.37 | 758 | 1.14 | 6,303 |
+| progs/int-loop | 296 | 339 | 1.14 | 314 | 1.06 | 319 | 1.08 | 4,399 |
+| progs/list-sort | 179 | 342 | 1.91 | 138 | 0.77 | 342 | 1.91 | 5,778 |
+| progs/map-count | 267 | 250 | 0.94 | 238 | 0.89 | 322 | 1.20 | 6,127 |
+| progs/nested-display | 616 | 301 | 0.49 | 315 | 0.51 | 483 | 0.78 | 6,808 |
+| progs/string-build | 34 | 333 | 9.90 | 366 | 10.87 | 340 | 10.10 | 4,473 |
+| progs/string-builder | 655 | 294 | 0.45 | 277 | 0.42 | 403 | 0.61 | 6,057 |
+| progs/trait-dispatch | 271 | 313 | 1.16 | 289 | 1.07 | 299 | 1.10 | 4,459 |
+
+Across the 19 cases with JavaScript references, the geometric-mean hd/JS
+ratio is 0.98 at the default tier, 0.85 with `--no-liftoff`, and 1.47
+with `--liftoff-only`. Excluding `progs/string-build`, the deliberately
+naive quadratic `out + s` loop, the ratios are 0.87, 0.74, and 1.32.
+`structure_walk` has no JavaScript reference and is excluded from both
+geometric means.
+
+The quadratic string case remains the largest ratio; its root cause and
+the owner-approved builder direction are already recorded in issue #165
+and #317. JSON is the largest remaining default-tier gap at 2.94x, ahead
+of mandelbrot at 2.42x and sieve at 2.38x. Fannkuch, mandelbrot, and
+list-sort reaching or beating JavaScript with `--no-liftoff` confirms that
+their default gap is V8 tiering of one long first call, not their optimized
+Wasm body.
+
+A default-tier V8 profile of JSON had 350 ticks: 247 (70.6%) in Wasm, 82
+(23.4%) in C++, one (0.3%) in GC, and the rest shared or unaccounted. Of
+the Wasm ticks, 104 were in named `std.json` bodies, 118 in generated or
+unnamed bodies, 17 in `std.rt.alloc`, five in `std.serde`, and three in
+`main`. No one function dominates: the largest generated body is 8.9% of
+the Wasm ticks, `Parser.validate` is 7.7%, `TextWriter.start` is 4.0%, and
+`TextReader.next_item` is 3.6%. The cost is the JSON and generated
+structure work itself, not GC or one allocator helper.
+
+The ceiling retained one compiled module, discarded three activations,
+then timed 15 fresh hosts and instances. Its median activation is 397 ms
+at the default tier, 339 ms with `--no-liftoff`, and 898 ms with
+`--liftoff-only`, against fresh-process medians of 378, 448, and 941 ms in
+the table. Removing process startup and compilation recovers none of the
+default gap; even the eager-TurboFan ceiling remains 2.63x JavaScript.
+There is no local compiler fix to build from this measurement. JSON and
+generated-structure performance remain in issue #929, whose owner-approved
+direction and measured ceilings already cover those mechanisms.
+
 ### Returned Iterator Cost, 2026-10-22
 
 Issue #634, commit base `6278705a6`, Apple M3 Max, Node v24.19.0 / V8
