@@ -2,18 +2,18 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "c4bad5c90526049944df7b47851dde9729d05181",
-    "compilerBaseRevision": "c4bad5c90526049944df7b47851dde9729d05181",
-    "compilerSha256": "5e226be9cd3a4685c4887a6f3be6c655a5ceaf0420d9bd8baf59a4a3480f6faa",
-    "referenceWasmSha256": "c688327a4bbb01e9dac5a77ee69f49679acc413bc610fc8060391de3813dad89",
-    "referenceContractSha256": "c766b49955e3928be31d255755c286aacae428c3b9b0bcb8834acc7aad037b0e",
+    "sourceBaseRevision": "a05eeefd3ec5413c8fbc8d72dfb8170f84320588",
+    "compilerBaseRevision": "a05eeefd3ec5413c8fbc8d72dfb8170f84320588",
+    "compilerSha256": "1c7e2adb5275b1b59d4bc033cf0662ec0bfe8ab628cb5aab37d0af95df779a50",
+    "referenceWasmSha256": "545dfa2f25b22c6fc40863168c52e8d61646fcc30ac6f31c5d477aab51406426",
+    "referenceContractSha256": "0ae815899097fd8e963b753c253a7b437c43ba009b87b56027b5e51c0a6eb9e0",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "f0421a49787f4bf08313d823f07dad074f14f3ea32aa296db373bf037854318b",
-      "lib/std/console.hd": "2f2306f069931c4426e1c5d5d3f0e39a0f5b9aa9b30d4f8002937f28df0b7c6c",
-      "lib/std/http.hd": "eb12be83e8a08270e5e0a066030f356bf61893e9ffe7430c1bfeb5a8643201d4",
+      "lib/std/console.hd": "97135afe58ed69d9aefaef5b388388a30482eaccdc1fafc73e87be4acb30410b",
+      "lib/std/http.hd": "fd91541b2ac110942f8b0eaac392110a7d68d8824ea456a448dbd1704589f150",
       "lib/std/http_wire.hd": "d58415dc76138985a78a6283a085c1e2f78ea908ca40240bdc31502297d63484",
-      "lib/std/time.hd": "d59ae209988e88c14db543c683909e8b87d3589a8ce253a753d365b1640ddcfd"
+      "lib/std/time.hd": "337b6b1f76e97ed6193ab7b490319426ff76197fa80e528f68e7bbd8f62c94ea"
     }
   },
   "coverage": {
@@ -1183,5 +1183,5 @@
       }
     ]
   },
-  "fingerprint": "6c700278b927b5d3809c006cdd41d863c6d8e837656f45cb0a4269bb21e654b4"
+  "fingerprint": "3dced64398bc1f26ea5f3bce8a3cbabff3655548751f0b803753a5970f4866ad"
 }
