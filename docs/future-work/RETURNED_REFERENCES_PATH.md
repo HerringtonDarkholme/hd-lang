@@ -283,8 +283,27 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:   # hypothetica
     seen.push(u)
 ```
 
-Guards, scoped closures and `Span` reuse the same variable: `Span[T, 'a]`
-and a closure type `fn() -> void + 'a` (hypothetical).
+Guards, scoped closures and `Span` reuse the same variable: `Span[T, 'a]`.
+
+**Closures** (owner, 2026-10-29), as Rust's desugared traits:
+- The concrete type `fn(A) -> R $ Row` never captures a local reference;
+  it stays today's closure type, and implements `Fn[(A,), R, $ Row]`.
+- A closure that captures one has only trait types: `trait Fn[I, O, $R]`
+  and `trait FnMut[I, O, $R]`, plain std declarations whose call is the
+  only intrinsic part.
+- `I` is a tuple of the parameters (`()`, `(T,)`, `(A, B)`), `O` the
+  result, `$R` the requirement row, which defaults to empty.
+- A lifetime is one more bound joined with `&`: `F < Fn[(), void] & 'a`.
+  With no `->` inside a bound, each `&` starts a new bound.
+- Suspending closures get a separate trait later, as Rust's `AsyncFn`.
+
+```text
+fn each[T, F < Fn[(T,), void]](items: List[T], f: F)        # only called
+struct Button[F < Fn[(), void] & 'a, 'a]:                    # stored, bounded by 'a
+    on_click: F
+fn log_with[F < Fn[(string,), void, $ Console]](f: F)       # needs Console
+fn run(f: &dyn Fn[(), void])                                 # a borrowed closure
+```
 
 **Slices** (owner, 2026-10-29: break stage 6 down, each slice small and
 easy to iterate). One checkable rule per slice, in order:
@@ -300,10 +319,11 @@ easy to iterate). One checkable rule per slice, in order:
 | 6c1 | a trait may declare lifetimes (`trait Source['a]`) | 6a3 |
 | 6c2 | a `type` alias may take and pass lifetimes | 6a3 |
 | 6c3 | an impl target may write lifetimes (`impl[T, 'a] Wrap[&'a T]`) | 6a3 |
-| 6d1 | a closure may capture a local reference when it is only passed to a parameter that calls it, never stored; its value carries the captures' origins | 6a2 |
-| 6d2 | a stored function type writes `+ 'a`; a closure capturing local references fits only a type bounded by their lifetime | 6d1; owner: the `+ 'a` spelling |
-| 6e | read-only captures: plain `fn` captures shared, a mutating closure is `fn mut`; `require`'s condition becomes read-only (#978) | 6d1; owner: the closure kinds |
-| 6f | `on_exit[T, 'a](action: fn mut() -> void + 'a) -> ScopeGuard['a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d2, 6e |
+| 6d1 | the `Fn[I, O, $R]` trait: every closure and `fn` value implements it; a generic parameter `F < Fn[(T,), U]` is called through it | stage 5 |
+| 6d2 | a closure may capture local references only as an `Fn` bound value, never as the concrete `fn(A) -> R`; its value carries the captures' origins; only-called `F` parameters write nothing | 6d1, 6a2 |
+| 6d3 | a stored capturing closure: a lifetime is one more bound, `struct Button[F < Fn[(), void] & 'a, 'a]`, and `&dyn Fn[(), void]` borrows one; boxing it is an error (stage 5's `'static`) | 6d2, 6a1 |
+| 6e | `FnMut[I, O, $R]` for closures that mutate captures; `Fn` captures shared, so `require`'s condition becomes read-only (#978) | 6d2 |
+| 6f | `on_exit[F < FnMut[(), void] & 'a, 'a](action: F) -> ScopeGuard[F, 'a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d3, 6e |
 | 6g | library `defer` and `ensure` under `@auto_closing` (#978) | 6f; owner: `ensure`'s result access |
 | 6h | read-only live list views, `Span[T, 'a]` (#978); `SpanMut` after | 6a3; owner: the API |
 | 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
