@@ -285,33 +285,33 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:   # hypothetica
 
 Guards, scoped closures and `Span` reuse the same variable: `Span[T, 'a]`.
 
-**Closures** (owner, 2026-10-29). A function type carries its capture
-bound right after `fn`, as a reference carries its lifetime right after `&`:
+**Closures** (owner, 2026-10-29), Rust's traits with hd's elision:
 
 ```text
-&'a User                  # a reference that lives 'a
-fn'a() -> void            # a closure whose captures live 'a
-fn() -> void              # elided: a fresh lifetime in a parameter, 'static elsewhere
-fn'a() -> &'a User        # captures 'a and returns a reference that lives 'a
-fn() -> &'a User          # captures nothing local; returns a 'a reference
-fn'{a, b}(T) -> void      # later sugar, as for references; also fn'self
+fn each[T](items: List[T], f: fn(T) -> void)        # f may capture locals; only called
+let total = 0
+each(xs, fn(x): total += x)                          # fine
 
-fn each[T](items: List[T], f: fn(T) -> void)      # f may capture locals; only called
-struct Button[T, 'a]:
-    on_click: fn'a() -> void
-fn on_exit['a](action: fn'a() -> void) -> ScopeGuard['a]
+struct Button[F < Fn() -> void & 'a, 'a]:            # a stored capturing closure
+    on_click: F
+fn map[T, U, F < Fn(T) -> U](items: List[T], f: F) -> List[U]   # static dispatch, later
 ```
 
-- `fn'a(A) -> R` stays a concrete type. A closure value holds its captures'
-  origins like any local-holding value, and every Local References rule
-  applies to it.
-- Elision follows Rust's default trait-object lifetimes. An unwritten bound
-  on a parameter is a fresh lifetime, so the callee may only call, pass on
-  or return the closure (Swift's non-escaping default). On a field, a box,
-  a provider or a result it means `'static`: no local captures.
-- Nothing after `->` is ever a capture bound.
-- `Fn[I, O, $R]` traits remain only for static dispatch (`F < Fn[(T,), U]`),
-  later. Whether a closure may mutate its captures is slice 6e.
+- `fn(A) -> R $ Row` is the concrete, dynamically called closure type. As
+  a parameter it may capture local references: its lifetime is fresh, like
+  an elided `&T` parameter, so the callee may only call it, pass it on or
+  return it as a dependent result (Swift's non-escaping default). Anywhere
+  else (a field, a box, a provider, a result) it has no local captures.
+- `trait Fn[I, O, $R]` and `trait FnMut[I, O, $R]` are plain std traits
+  (`I` a tuple of the parameters, the row empty by default) that every
+  closure implements. They serve stored capturing closures and static
+  dispatch only; there is no `&dyn Fn`, since `fn(...)` already is the
+  dynamic form.
+- Users write the sugar `Fn(A, B) -> R $ Row`, as Rust's `Fn(A, B) -> R`;
+  the tuple form stays legal for generic code.
+- In a bound list, `&` after the sugar's result type starts the next bound,
+  as Rust's `+` does: `F < Fn() -> void & 'a` is `(Fn() -> void) & 'a`.
+- Boxing a capturing closure is an error (stage 5's `'static`).
 
 **Slices** (owner, 2026-10-29: break stage 6 down, each slice small and
 easy to iterate). One checkable rule per slice, in order:
@@ -327,10 +327,11 @@ easy to iterate). One checkable rule per slice, in order:
 | 6c1 | a trait may declare lifetimes (`trait Source['a]`) | 6a3 |
 | 6c2 | a `type` alias may take and pass lifetimes | 6a3 |
 | 6c3 | an impl target may write lifetimes (`impl[T, 'a] Wrap[&'a T]`) | 6a3 |
-| 6d1 | `fn'a(A) -> R` capture bounds: a closure value carries its captures' origins; an unwritten bound on a parameter is fresh (may capture locals, only called, passed on or returned) | stage 5 |
-| 6d2 | stored capturing closures: a field or result writes `fn'a` (`struct Button[T, 'a]`); an unwritten bound there is `'static`, and boxing a capturing closure is an error | 6d1, 6a1 |
-| 6e | mutation of captures: read-only by default or not, and `require`'s condition read-only (#978) | 6d1; owner: the form |
-| 6f | `on_exit['a](action: fn'a() -> void) -> ScopeGuard['a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d2, 6e |
+| 6d1 | a `fn(A) -> R` parameter may capture local references (a fresh lifetime): a closure value carries its captures' origins; storing such a parameter is `local-reference-escapes`; `fn` elsewhere has no local captures | stage 5 |
+| 6d2 | `trait Fn[I, O, $R]` with the sugar `Fn(A, B) -> R $ Row`; every closure implements it; `F < Fn(T) -> U` calls through it | 6d1 |
+| 6d3 | stored capturing closures, `struct Button[F < Fn() -> void & 'a, 'a]`, with `&` after the sugar's result starting the next bound; boxing a capturing closure is an error | 6d2, 6a1 |
+| 6e | `FnMut[I, O, $R]` for closures that mutate captures; `Fn` captures shared, so `require`'s condition `F < Fn() -> bool` is read-only (#978) | 6d2 |
+| 6f | `on_exit[F < FnMut() -> void & 'a, 'a](action: F) -> ScopeGuard[F, 'a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d3, 6e |
 | 6g | library `defer` and `ensure` under `@auto_closing` (#978) | 6f; owner: `ensure`'s result access |
 | 6h | read-only live list views, `Span[T, 'a]` (#978); `SpanMut` after | 6a3; owner: the API |
 | 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
