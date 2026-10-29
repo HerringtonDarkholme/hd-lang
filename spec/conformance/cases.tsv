@@ -3069,6 +3069,7 @@ runtime/valid/process-scripted-received.hd	runtime	accept	std/process.md#r-std-p
 runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
 runtime/valid/collection-in-place-element-accessors.hd	runtime	accept	std/collections.md#r-std-collections.access.get-mut
+runtime/valid/map-get-or-insert-counts.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
 runtime/panic/list-first-mut-push-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.access.first-mut
 runtime/valid/map-is-empty.hd	runtime	accept	std/collections.md#r-std-collections.map.is-empty
 runtime/valid/choices-choose.hd	runtime	accept	std/testing.md#r-std-testing.choices.choose.empty
@@ -4808,6 +4809,7 @@ typing/valid/for-element-references-field-reference.hd	type	accept	lang/06-contr
 typing/invalid/for-element-references-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/valid/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/panic/map-element-reference-insert-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned.map
+runtime/panic/map-get-or-insert-pinned-panics.hd	runtime	panic:collection-pinned	std/collections.md#r-std-collections.map.get-or-insert.pinned
 runtime/valid/value-argument-sibling-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/provider-ref-mut-changes-caller.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values
 runtime/valid/provider-ref-new-object.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.install-counted

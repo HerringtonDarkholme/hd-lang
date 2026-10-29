@@ -5,6 +5,7 @@
 # expect-stdout: true
 # expect-stdout: false
 # expect-stdout: 1
+# expect-stdout: 4
 # expect-stdout: 7
 # expect-stdout: 1
 pub fn main() -> void $ Console:
@@ -15,6 +16,7 @@ pub fn main() -> void $ Console:
     println(m.remove(key="a").is_some())
     println(m.remove(key="a").is_some())
     println(m.len())
+    println(*m.get_or_insert(key="c", default=4))
     let mut l: List[i32] = []
     l.push(value=7)
     l.insert(value=8, index=0)

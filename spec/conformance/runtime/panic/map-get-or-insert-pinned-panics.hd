@@ -1,0 +1,14 @@
+# test: Map.get_or_insert panics when inserting while a value reference pins the map
+# std Collections: std-collections.map.get-or-insert.pinned.
+fn insert(stock: &mut Map[string, i32], apples: &mut i32) -> void:
+    _ := stock.get_or_insert("pear", 1) # panic: collection-pinned
+    *apples += 1
+
+fn through(stock: &mut Map[string, i32]) -> void:
+    apples := stock.get_or_insert("apple", 0)
+    insert(stock, apples)
+
+tests:
+    it("a missing key changes the length of a pinned map"):
+        let mut stock: Map[string, i32] = { "apple": 3 }
+        through(&mut stock)

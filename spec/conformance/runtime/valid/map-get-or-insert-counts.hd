@@ -1,0 +1,21 @@
+# test: Map.get_or_insert counts repeated keys and returns the existing stored value
+# std Collections: std-collections.map.get-or-insert.
+# std Collections: std-collections.map.get-or-insert.missing.
+# std Collections: std-collections.map.get-or-insert.reference.
+fn count(words: List[string]) -> Map[string, usize]:
+    let mut found: Map[string, usize] = {}
+    for word in words:
+        *found.get_or_insert(word, 0) += 1
+    found
+
+tests:
+    use std.testing.assert_equal
+
+    it("counts with one insert-or-get operation"):
+        let mut found = count(["a", "b", "a"])
+        assert_equal(found["a"], 2)
+        assert_equal(found["b"], 1)
+        existing := found.get_or_insert("a", 99)
+        assert_equal(*existing, 2)
+        *existing += 3
+        assert_equal(found["a"], 5)

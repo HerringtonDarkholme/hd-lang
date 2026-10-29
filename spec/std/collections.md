@@ -10,7 +10,8 @@ in ordinary hd over the language tier:
 - the `ListView[T]` type returned by `view`, `chunks`, and `windows`;
 - the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
   and the function `counts`;
-- the `Map` methods `contains_key`, `keys`, `values`, and `get_or`;
+- the `Map` methods `get_mut`, `get_or_insert`, `contains_key`, `keys`,
+  and `values`;
 - the set `Set[T]`, the double-ended queue `Deque[T]`, and the max-heap
   `Heap[T]`, which are values as a list is.
 
@@ -259,7 +260,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `get_mut(&mut self, key: K) -> (&mut V)?`; `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
+| `Map[K, V]` | `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(self, n: usize) -> List[(K, usize)]` |
 
 ```text
@@ -273,22 +274,34 @@ fn top_words(words: List[string]) -> List[(string, usize)]:
 
 fn pairs(stock: Map[string, i32]) -> List[(string, i32)]:
     stock.entries()  # [("tea", 3), ("milk", 1)] for {"tea": 3, "milk": 1}
+
+fn tally(words: List[string]) -> Map[string, usize]:
+    let mut found: Map[string, usize] = {}
+    for word in words:
+        *found.get_or_insert(word, 0) += 1
+    found
 ```
 
 1. r[std-collections.map.get-mut] `get_mut(key)` returns `.Some` of a mutable reference to the stored value, or `.None` when the map has no equal key.
-2. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
-3. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
-4. r[std-collections.map.values] `values` returns the map's values in the same order.
-5. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
-6. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
-7. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
-8. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
-9. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
+2. r[std-collections.map.get-or-insert] `get_or_insert(key, default)` returns a mutable reference to the stored value when the map has an equal key.
+3. r[std-collections.map.get-or-insert.missing] When the map has no equal key, `get_or_insert` inserts `(key, default)` and returns a mutable reference to the inserted value.
+4. r[std-collections.map.get-or-insert.reference] The reference that `get_or_insert` returns is dependent on its receiver by [`ref.dep.elide`](../lang/13-values-and-references.md#r-ref.dep.elide).
+5. r[std-collections.map.get-or-insert.pinned] An insertion by `get_or_insert` while that map is pinned panics `collection-pinned`, as every map length change does.
+6. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
+7. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
+8. r[std-collections.map.values] `values` returns the map's values in the same order.
+9. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
+10. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
+11. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
+12. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
+13. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
 
 > **Why.** `entries` is a list snapshot like `keys` and `values`, since a
 > loop that sorts or indexes the pairs needs a list. `most_common` is
 > Python's `Counter.most_common`; a stable sort over the map's order gives
-> its tie rule with no extra bookkeeping.
+> its tie rule with no extra bookkeeping. `get_or_insert` is Rust's
+> `HashMap::entry(key).or_insert(default)` operation without exposing an
+> entry object that holds a reference.
 
 See also: [Map Key Types](../lang/04-type-system.md#map-key-types).
 
