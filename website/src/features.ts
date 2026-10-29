@@ -52,14 +52,14 @@ export const FEATURES: readonly Feature[] = [
     contrast: "Python: `mock.patch` or a DI container.",
     example: "effects-in-signature",
     ranges: [{ from: 'it("welcome mails the user at a fixed time, no mocks"):', lines: 5 }],
-    marks: ["$.with(Mailer=&mut outbox, Clock=epoch()): # ← fakes, for this block only"],
+    marks: ["$.with(Mailer=outbox, Clock=epoch()): # ← fakes, for this block only"],
   },
   {
     title: "You can't forget a dependency",
     blurb: "Leave a provider out and the program does not compile.",
     example: "missing-provider",
     ranges: [{ from: "pub fn main!() -> void $ Console:", lines: 5 }],
-    marks: ["$.with(Mailer=&mut outbox): # ← Clock is missing"],
+    marks: ["$.with(Mailer=outbox): # ← Clock is missing"],
     output: {
       caption: "hd check",
       lines: [

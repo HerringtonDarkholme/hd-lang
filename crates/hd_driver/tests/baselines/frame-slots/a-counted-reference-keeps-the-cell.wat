@@ -4,7 +4,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $kept (result i64) (local $h i32)
     block
-    ;; 16 |     let mut tally = Tally { n: 0 }
+    ;; 16 |     tally := box(Tally { n: 0 })
       i32.const 8
       i32.const 0
       call $rt:new/class-1

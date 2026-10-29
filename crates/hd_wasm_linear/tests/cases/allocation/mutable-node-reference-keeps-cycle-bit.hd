@@ -9,4 +9,4 @@ fn keep_mutable(node: *mut Node) -> *mut Node:
     node
 
 fn make() -> *Node:
-    &Node { next: .None }
+    box(Node { next: .None })

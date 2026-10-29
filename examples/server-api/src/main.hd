@@ -26,6 +26,6 @@ fn handle!(request: Request, hits: &mut Hits) -> Response $ Clock:
     Response::status(.Ok).set_json(Reply { count: count, message: input.message })
 
 pub fn main!() -> void $ HttpServer + Clock + Console:
-    hits := &mut Hits { count: 0 }
+    hits := box(Hits { count: 0 })
     serve!(4, hits, handle).expect("server")
     println("total ${hits.count}")

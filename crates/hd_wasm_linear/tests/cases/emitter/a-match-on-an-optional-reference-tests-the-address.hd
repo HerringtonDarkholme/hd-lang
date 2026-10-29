@@ -11,5 +11,5 @@ fn depth(node: &Node) -> i32:
         .Some(next) => 1 + depth(next)
 
 fn link(next: *Node) -> *Node:
-    &Node { next: .Some(next) }
+    box(Node { next: .Some(next) })
     #^^^^^^^^^^^^^^^^^^^^^^^^^^

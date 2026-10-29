@@ -1,6 +1,6 @@
 # @dump: wat
 # @build: v8 release
-# `pass_on(&mut tally)` is the last access of `tally`, so the reference
+# `pass_on(tally)` is the last access of `tally`, so the reference
 # takes the local. `pass_on` takes a counted `*mut Tally` and returns it,
 # so the address outlives the call: `tally` keeps its counted cell, which
 # the returned reference holds until `r` is dropped.
@@ -12,6 +12,6 @@ fn pass_on(t: *mut Tally) -> *mut Tally:
 
 # subject
 fn returned() -> i64:
-    let mut tally = Tally { n: 0 }
-    r := pass_on(&mut tally)
+    tally := box(Tally { n: 0 })
+    r := pass_on(tally)
     r.n

@@ -75,10 +75,10 @@ enum Tree[T]:
 
 fn insert[T < Ord](tree: Tree[T], x: T) -> Tree[T]:
     match tree:
-        .Leaf => Tree.Node(left=&Tree.Leaf, value=x, right=&Tree.Leaf)
+        .Leaf => Tree.Node(left=box(Tree.Leaf), value=x, right=box(Tree.Leaf))
         .Node(left, value, right) =>
-            if x < value: Tree.Node(left=&insert(*left, x), value=value, right=right)
-            else: Tree.Node(left=left, value=value, right=&insert(*right, x))
+            if x < value: Tree.Node(left=box(insert(*left, x)), value=value, right=right)
+            else: Tree.Node(left=left, value=value, right=box(insert(*right, x)))
 
 fn walk[T](tree: Tree[T], out: &mut List[T]) -> void:
     match tree:
@@ -189,7 +189,7 @@ struct Node:
     next: *Node?
 
 fn push(list: *Node?, value: i32) -> *Node:
-    &Node { value: value, next: list }
+    box(Node { value: value, next: list })
 
 fn total(list: *Node?) -> i32:
     match list:
@@ -202,7 +202,7 @@ fn reverse(list: *Node?) -> *Node?:
     while true:
         match at:
             .Some(node) =>
-                out = .Some(&Node { value: node.value, next: out })
+                out = .Some(box(Node { value: node.value, next: out }))
                 at = node.next
             .None => return out
 
@@ -265,14 +265,14 @@ fn run(s: Stmt, env: &mut List[(string, i64)]) -> void:
 
 pub fn main() -> void $ Console:
     program := Expr.Block(
-        body=&Stmt.Seq(first=&Stmt.Let(name=\"x\", value=Expr.Lit(40)), second=&Stmt.Let(name=\"y\", value=Expr.Lit(2))),
-        result=&Expr.Add(left=&Expr.Var(\"x\"), right=&Expr.Var(\"y\")),
+        body=box(Stmt.Seq(first=box(Stmt.Let(name=\"x\", value=Expr.Lit(40))), second=box(Stmt.Let(name=\"y\", value=Expr.Lit(2))))),
+        result=box(Expr.Add(left=box(Expr.Var(\"x\")), right=box(Expr.Var(\"y\")))),
     )
     let mut env: List[(string, i64)] = []
     println(eval(program, &mut env))
-    println(Expr.Add(left=&Expr.Lit(1), right=&Expr.Var(\"z\")) == Expr.Add(left=&Expr.Lit(1), right=&Expr.Var(\"z\")))
+    println(Expr.Add(left=box(Expr.Lit(1)), right=box(Expr.Var(\"z\"))) == Expr.Add(left=box(Expr.Lit(1)), right=box(Expr.Var(\"z\"))))
     println(Stmt.Let(name=\"a\", value=Expr.Lit(1)) == Stmt.Let(name=\"a\", value=Expr.Lit(2)))
-    println(debug(Expr.Block(body=&Stmt.Let(name=\"a\", value=Expr.Lit(1)), result=&Expr.Var(\"a\"))))
+    println(debug(Expr.Block(body=box(Stmt.Let(name=\"a\", value=Expr.Lit(1))), result=box(Expr.Var(\"a\")))))
 ";
     assert_eq!(
         output_of("expr", main),
@@ -330,13 +330,13 @@ fn depth(p: *Pair?) -> i32:
 pub fn main() -> void $ Console:
     s := Step { name: \"s\", weight: 7, then: fn(x: Step) -> i32: x.weight * 6 }
     println(weigh(s))
-    let c: *dyn Link = &Stop { name: \"c\", after: .None }
-    let b: *dyn Link = &Stop { name: \"b\", after: .Some(c) }
+    let c: *dyn Link = box(Stop { name: \"c\", after: .None })
+    let b: *dyn Link = box(Stop { name: \"b\", after: .Some(c) })
     let a: &dyn Link = &Stop { name: \"a\", after: .Some(b) }
     println(walk(a))
-    leaf := &Pair { left: (.None, .None, \"leaf\", 0) }
-    mid := &Pair { left: (.Some(leaf), .None, \"mid\", 1) }
-    println(depth(.Some(&Pair { left: (.Some(mid), .Some(leaf), \"top\", 2) })))
+    leaf := box(Pair { left: (.None, .None, \"leaf\", 0) })
+    mid := box(Pair { left: (.Some(leaf), .None, \"mid\", 1) })
+    println(depth(.Some(box(Pair { left: (.Some(mid), .Some(leaf), \"top\", 2) }))))
 ";
     assert_eq!(output_of("groups", main), "42\na>b>c\n3\n");
 }
@@ -355,7 +355,7 @@ fn depth[T](g: Grow[T]) -> i32:
         .Done(_value) => 0
 
 pub fn main() -> void $ Console:
-    let g: Grow[i32] = Grow.More(&Grow.Done(.Some(+3)))
+    let g: Grow[i32] = Grow.More(box(Grow.Done(.Some(+3))))
     println(depth(g))
     let d: Grow[i32] = Grow.Done(+3)
     println(depth(d))
@@ -403,7 +403,7 @@ fn tag(e: E0) -> i32:
         .Go(_n) => 1
 
 pub fn main() -> void $ Console:
-    println(around(R0 { v: +1, next: .Some(&R1 { v: +2, next: .None }) }))
+    println(around(R0 { v: +1, next: .Some(box(R1 { v: +2, next: .None })) }))
     println(along(C0 { v: +3, next: .Some(C1 { v: +4, next: .None }) }))
     println(tag(E0.Go(E1.Stop)))
 ",

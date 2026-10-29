@@ -13,4 +13,4 @@ fn handle!(request: Request, _state: &mut State) -> Response $ Http:
         .Err(error) => Response::status(.BadGateway).set_text("$error")
 
 pub fn main!() -> void $ HttpServer + Http:
-    serve!(4, &mut State {}, handle).expect("the server")
+    serve!(4, box(State {}), handle).expect("the server")

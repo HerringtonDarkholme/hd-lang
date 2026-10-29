@@ -69,4 +69,4 @@ fn handle!(request: Request, state: &mut State) -> Response $ Http + Clock:
     Response::status(.Ok).set_text("${state.hits}")
 
 pub fn main!() -> void $ HttpServer + Http + Clock:
-    serve!(4, &mut State { hits: 0 }, handle).expect("server")
+    serve!(4, box(State { hits: 0 }), handle).expect("server")

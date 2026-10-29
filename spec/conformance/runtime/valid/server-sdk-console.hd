@@ -71,15 +71,17 @@ pub fn main!() -> void $ Clock:
     ambient := MemoryConsole::new()
     first := MemoryConsole::new()
     second := MemoryConsole::new()
-    source := &mut Source {
-        next: 1,
-        clock: $.use(Clock),
-        http: ScriptedHttp::new(),
-        first: first,
-        second: second,
-    }
+    source := box(
+        Source {
+            next: 1,
+            clock: $.use(Clock),
+            http: ScriptedHttp::new(),
+            first: first,
+            second: second,
+        },
+    )
     $.with(Console=ambient, HttpServer=source):
-        serve!(1, &mut State {}, handler).expect("source")
+        serve!(1, box(State {}), handler).expect("source")
     assert_equal(
         first.output(),
         ["handler https://test/1", "\n"],

@@ -4,8 +4,8 @@ fn welcome!(email: string) -> void $ Mailer + Clock:
     mailer.send!(email, "Welcome at ${$.use(Clock).now()}")
 
 pub fn main!() -> void $ Console:
-    let mut outbox = Outbox { sent: [] }
-    $.with(Mailer=&mut outbox): # ← Clock is missing
+    outbox := box(Outbox { sent: [] })
+    $.with(Mailer=outbox): # ← Clock is missing
         welcome!("ada@example.com")
     println(outbox.sent[0])
 

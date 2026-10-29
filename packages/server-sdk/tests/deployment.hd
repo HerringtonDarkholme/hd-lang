@@ -53,7 +53,7 @@ it("deployment options default to no environment bindings"):
     )
 
 it("deployment facade forwards options to the selected capability"):
-    provider := &mut RecordingDeployment { names: [] }
+    provider := box(RecordingDeployment { names: [] })
     result := $.with(Deployment=provider):
         cloudflare!(
             CloudflareOptions {
@@ -110,7 +110,7 @@ it("Vercel options default to no environment bindings"):
     )
 
 it("Vercel facade forwards options to the selected capability"):
-    provider := &mut RecordingDeployment { names: [] }
+    provider := box(RecordingDeployment { names: [] })
     result := $.with(Deployment=provider):
         vercel!(
             VercelOptions {

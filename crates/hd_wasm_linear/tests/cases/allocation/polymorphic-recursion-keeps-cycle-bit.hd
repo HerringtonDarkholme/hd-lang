@@ -9,5 +9,4 @@ enum Edge[T]:
     Done
 
 fn make() -> *Edge[string]:
-    let edge: Edge[string] = Edge.Done
-    &edge
+    box(Edge.Done)

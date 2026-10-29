@@ -49,9 +49,9 @@ contracts rather than ordinary application errors.
 
 Structs, enums, tuples, `List`, `Map`, and `string` are values: assigning,
 passing, or returning one copies it, and a copy never changes the original.
-Sharing is written where it happens. `&T` reads a value where it lives,
-`&mut T` also writes it, and `&mut T { ... }` makes a new object that every
-holder of the reference sees change. `let mut` marks a variable whose value
+Sharing is written where it happens. `&T` reads a value where it lives for
+one call, `&mut T` also writes it, and `box(T { ... })` makes a new object
+that every holder of the reference sees change. `let mut` marks a variable whose value
 changes in place, and a method that changes its receiver says `&mut self`.
 A `&mut` reference is not exclusive, so it expresses permission to write,
 not ownership or uniqueness.

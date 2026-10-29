@@ -7,8 +7,8 @@ tests:
     use std.testing.assert_equal
 
     it("welcome mails the user at a fixed time, no mocks"):
-        let mut outbox = Outbox { sent: [] }
-        $.with(Mailer=&mut outbox, Clock=epoch()): # ← fakes, for this block only
+        outbox := box(Outbox { sent: [] })
+        $.with(Mailer=outbox, Clock=epoch()): # ← fakes, for this block only
             welcome!("ada@example.com")
         assert_equal(
             outbox.sent[0],

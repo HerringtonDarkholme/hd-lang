@@ -8,7 +8,7 @@ struct Node:
     right: (*Node)?
 
 fn leaf() -> *Node:
-    &Node { left: .None, right: .None }
+    box(Node { left: .None, right: .None })
 
 fn both(n: *Node) -> (*Node, *Node):
     # subject

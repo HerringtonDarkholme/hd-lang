@@ -64,8 +64,8 @@ impl Console for QuietConsole:
         .Ok(())
 
 fn announce() -> i32:
-    let mut console = QuietConsole {}
-    $.with(Console=&mut console):
+    console := box(QuietConsole {})
+    $.with(Console=console):
         println(\"default\")
     1
 

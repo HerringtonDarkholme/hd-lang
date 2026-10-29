@@ -120,10 +120,13 @@ A `struct`, an enum, a tuple, a `List`, a `Map` and a `string` are values:
 assigning, passing or returning one copies it, and a copy never changes
 the original. Sharing is written at the place it happens.
 
-- Prefer `&T` and `&mut T` for a value lent to one call. These **local
-  references** cannot be put in a field or collection, returned, or
-  captured. Use the visibly more expensive `*T` or `*mut T` only when a
-  reference must be kept past the call. Both kinds are counted at run time.
+- `&T` and `&mut T` lend a value to one call. These **local references**
+  cannot be put in a field or collection, returned, captured, or installed
+  as a provider. `&e` is always local.
+- To share or keep an object, make it with `box(e)`, which gives a counted
+  `*mut T` (`*T` where a read-only reference is expected). `box` copies its
+  argument, so box at the declaration: `shared := box(Point { ... })`, never
+  `box(x)` on a variable you still use.
 - `&T` and `*T` read a value where it lives, with no copy. `&mut T` and
   `*mut T` also write it. Writable references are not exclusive: two
   references to one place see each other's writes.
@@ -131,10 +134,8 @@ the original. Sharing is written at the place it happens.
   needs a writable place: a `let mut` variable, a field of one, or
   anything reached through a `&mut`. A `:=` binding, a plain `let` and a
   parameter are not writable.
-- Reference expressions still start with `&` or `&mut`. An expected local
-  type makes a local reference; an expected `*T`/`*mut T`, or no expected
-  type, makes a counted one. Annotate a kept reference so that choice is
-  visible: `let shared: *mut Point = &mut Point { ... }`.
+- A `*self` or `*mut self` method called on a place or a temporary is an
+  error: the receiver must already be a box.
 - A method takes `&self` to read and `&mut self` to change its receiver,
   and `p.shift(1)` needs no mark at the call. `self` alone is a read-only
   copy.
@@ -164,7 +165,7 @@ pub fn main() -> void $ Console:
     b := a                                # a copy: nothing is shared
     a.shift(10)                           # changes `a` only
     bump(&mut a)                          # lends `a`; the callee's write shows here
-    let shared: *mut Point = &mut Point { x: 0, y: 0 }  # kept, counted reference
+    shared := box(Point { x: 0, y: 0 })   # kept, counted reference
     alias := shared
     alias.x = 5
     println("${a.x} ${b.x} ${shared.x} ${norm(&a)}")
@@ -307,8 +308,7 @@ pub fn main() -> void $ Console:
 A bound `[T < Shape]` dispatches statically. A trait used as a value is a
 reference: prefer local `&dyn Shape` or `&mut dyn Shape` parameters, and
 write counted `*dyn Shape` or `*mut dyn Shape` only when the value escapes,
-as a collection element does. A reference expression is still written
-`&Circle { radius: 1.0 }`; the expected `List[*dyn Shape]` makes it counted.
+as a collection element does. Make one with `box(Circle { radius: 1.0 })`.
 A bare `List[Shape]` is `trait-used-as-type`. Operator traits live in
 `std.ops` and must be imported; the result type is `type Out`.
 
@@ -356,7 +356,7 @@ impl Add for Money:
         Money { cents: self.cents + rhs.cents }
 
 pub fn main() -> void $ Console:
-    let shapes: List[*dyn Shape] = [&Circle { radius: 1.0 }, &Rect { width: 2.0, height: 3.0 }]
+    let shapes: List[*dyn Shape] = [box(Circle { radius: 1.0 }), box(Rect { width: 2.0, height: 3.0 })]
     println("total: ${total_area(shapes)}")
     println("largest: ${largest([Rect { width: 1.0, height: 1.0 }])}")
     println(debug(Money { cents: 250 } + Money { cents: 100 }))
@@ -369,9 +369,9 @@ writable place: `let mut parser = Parser { ... }`. Operator traits keep
 ## Requirements, Providers, And Tests
 
 A row lists the traits a function needs. `$.use(T)` fetches the provider,
-and `$.with(T=&value):` supplies one for a block, so a test swaps in a fake.
-A provider is a trait value, so it is written `&mut fake` (or
-`&StdoutMailer {}` for a new object).
+and `$.with(T=value):` supplies one for a block, so a test swaps in a fake.
+A provider is a counted trait value, so it is a box made at its declaration:
+`fake := box(FakeMailer { ... })`, or `box(StdoutMailer {})` inline.
 A public function's row may name only public traits. Tests live in one
 `tests:` block at the end of the file; each `it("name"):` is a case, and
 `assert` and `assert_equal` are in scope there. Their optional `reason=`
@@ -394,7 +394,7 @@ pub fn remind(users: List[string]) -> usize $ Mailer:
     users.len()
 
 pub fn main() -> void $ Console:
-    $.with(Mailer=&mut StdoutMailer {}):
+    $.with(Mailer=box(StdoutMailer {})):
         count := remind(["ada@example.com"])
         println("sent $count")
 
@@ -407,8 +407,8 @@ tests:
             self.sent.push(to)
 
     it("mails every user"):
-        let mut fake = FakeMailer { sent: [] }
-        $.with(Mailer=&mut fake):
+        fake := box(FakeMailer { sent: [] })
+        $.with(Mailer=fake):
             assert_equal(remind(["a", "b"]), 2)
         assert_equal(fake.sent, ["a", "b"])
         assert(fake.sent.len() == 2, reason="two mails")
@@ -511,14 +511,16 @@ the code `hd check` reports today.
 | `p.bump()` on a `:=` binding, `bump` takes `&mut self` | `not-writable` | `let mut p = ...` |
 | `bump(p)` where `bump` takes `&mut P` | `type-mismatch` | `bump(&mut p)` |
 | a write through a `&P` parameter | `not-writable` | take `&mut P` |
-| storing, returning, capturing, or collecting an `&P` | `local-reference-escapes` | keep `&P` local to calls; write `*P` only for the escaping reference |
+| storing, returning, capturing, collecting, or installing an `&P` or `&mut P` | `local-reference-escapes` | keep `&`/`&mut` for a call-scoped lend; for a shared or kept object, declare it with `box(P { ... })` |
+| `box(x)` on a variable you keep using, then editing `x` | (none: `box` copied, so `x` and the box diverge) | box at the declaration: `x := box(P { ... })`, and use `x` |
+| `b.arg("v")` on a `*mut self` method with `b` a plain value or temporary | `local-reference-escapes` | declare `b := box(...)` first |
 | `a == b` on two references | `reference-equality` | `a is b`, or `*a == *b` |
-| `$.with(Mailer=fake)` | `type-mismatch` | `$.with(Mailer=&mut fake)` |
+| `$.with(Mailer=fake)` with `fake` a plain value, or `Mailer=&mut fake` | `type-mismatch` or `local-reference-escapes` | `fake := box(Fake { ... })`, then `$.with(Mailer=fake)` |
 | `data Item:` | `syntax-error` | `struct Item:` |
 | `xs.append(x)` | `unknown-method` | `xs.push(x)` |
 | `pair.0` | `syntax-error` | `pair._0` |
 | `defer save()` | `syntax-error` | `defer: save()` |
-| `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `&Circle { ... }` |
+| `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `box(Circle { ... })` |
 | `impl Add for Money` with no import | `unknown-trait` | `use std.ops.Add` |
 | `type Output = Money` | `extra-trait-member` | `type Out = Money` |
 | `assert_equal` with no import | `unknown-name` | `use std.testing.assert_equal` in `tests:` |

@@ -13,6 +13,6 @@ fn keep(t: *mut Tally) -> Holder:
 
 fn kept() -> i64:
     # subject
-    let mut tally = Tally { n: 0 }
-    h := keep(&mut tally)
+    tally := box(Tally { n: 0 })
+    h := keep(tally)
     h.tally.n

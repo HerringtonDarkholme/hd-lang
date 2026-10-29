@@ -14,7 +14,7 @@ A `&T` to plain values, including structs, lists and maps, is read-only all
 the way down while the path stays within those values. It prevents replacing
 a field or changing a nested collection through that reference.
 
-A contained `&mut` keeps its write access. In this team dashboard, `view`
+A contained `*mut` keeps its write access. In this team dashboard, `view`
 cannot rename the team, but its `owner` reference can update Ada's completed
 work. Copying that reference keeps the same access:
 
@@ -39,8 +39,8 @@ impl Team:
         self.owner
 
 pub fn main() -> void $ Console:
-    let mut ada = User { name: "Ada", completed: 0 }
-    let mut team = Team { name: "Shipping", owner: &mut ada }
+    ada := box(User { name: "Ada", completed: 0 })
+    let mut team = Team { name: "Shipping", owner: ada }
     view := &team
     view.owner.complete_task()
     copied := view.owner
@@ -55,10 +55,10 @@ pub fn main() -> void $ Console:
 Shipping: Ada, 3 jobs
 ```
 
-To hand out read-only access to a user, declare the field `&User`. Another
-option is a private `&mut User` field with the getter pair above:
-`lead(&self) -> &User` gives read access, and
-`lead_mut(&mut self) -> &mut User` gives write access. Outside this module,
+To hand out read-only access to a user, declare the field `*User`. Another
+option is a private `*mut User` field with the getter pair above:
+`lead(&self) -> *User` gives read access, and
+`lead_mut(&mut self) -> *mut User` gives write access. Outside this module,
 a `&Team` holder can only read the user; writing requires a `&mut Team`
 holder to call `lead_mut`. The direct field accesses in this example work
 because they are inside the module that declares the private field.
@@ -74,7 +74,7 @@ shape: `Request` and `Response` setters take and return values, while `Client`
 is a value whose mutable `send!` updates its cookie jar.
 
 Assigning `alias := base` shares the builder. To derive independent
-configurations, copy its value into separate `let mut` variables before
+configurations, copy its value into separate boxes before
 adding settings:
 
 ```hd
@@ -82,9 +82,9 @@ use std.process.Command
 
 pub fn main() -> void $ Console:
     base := Command::new("git").args(["-C", "repo"])
-    let mut status = *base
+    status := box(*base)
     status.arg("status")
-    let mut log = *base
+    log := box(*base)
     log.arg("log")
     println(status.args.join(" "))
     println(log.args.join(" "))
@@ -97,7 +97,7 @@ pub fn main() -> void $ Console:
 -C repo
 ```
 
-Here `status` and `log` each start with a copy of `*base`; appending their
+Here `status` and `log` each box a copy of `*base`; appending their
 arguments leaves `base` unchanged.
 
 ## Reading Configuration As JSON
@@ -259,11 +259,11 @@ impl Store for FakeStore:
 
 tests:
     it("loads all three at once"):
-        $.with(Store=&FakeStore { tag: "t" }):
+        $.with(Store=box(FakeStore { tag: "t" })):
             assert_equal(load_page!(), ("fake-user", "fake-orders", "fake-profile"), reason="all three")
 
     it("a fast lookup beats the timeout"):
-        $.with(Store=&FakeStore { tag: "t" }):
+        $.with(Store=box(FakeStore { tag: "t" })):
             $.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):
                 assert_equal(load_with_timeout!(), "fake-user", reason="the lookup wins")
 ```
@@ -301,7 +301,7 @@ fn backup!() -> Result[string, LoadError]:
     .Ok("cached")
 
 pub fn main!() -> void $ Console:
-    source := &mut Source { calls: 0 }
+    source := box(Source { calls: 0 })
     backoff := Backoff { attempts: 2, initial: 0ms }
     policy := retry(backoff) |> with_timeout(50ms, _) |> fallback(backup, _)
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
@@ -460,20 +460,20 @@ impl Mailer for OutboxMailer:
     fn send(&self, to: string) -> string: "outbox:${self.label}:$to"
 
 pub fn main() -> void $ Console:
-    $.with(Mailer=&SmtpMailer { endpoint: "smtp.example.com" }, Repo=&FileRepo { root: "data/users" }):
+    $.with(Mailer=box(SmtpMailer { endpoint: "smtp.example.com" }), Repo=box(FileRepo { root: "data/users" })):
         println(register("Ada", "ada@example.com"))
 
 tests:
     it("registers with test adapters"):
-        $.with(Mailer=&OutboxMailer { label: "test" }, Repo=&MemoryRepo { namespace: "case" }):
+        $.with(Mailer=box(OutboxMailer { label: "test" }), Repo=box(MemoryRepo { namespace: "case" })):
             assert_equal(register("Ada", "ada@example.com"), "memory:case:Ada; outbox:test:ada@example.com", reason="the installed fakes")
 ```
 
 The production and the test adapters share no concrete type; each only
 implements the trait. A provider is a trait value, so `$.with` takes it
-behind a written `&`: `&FileRepo { ... }` makes one new object that the
-whole block shares, and a provider that changes as it runs, such as a fake
-that records its calls, takes `&mut` and a `&mut self` method. In a package, the traits and `register` go in a
+as a box: `box(FileRepo { ... })` makes one new object that the whole block
+shares, and a provider that changes as it runs, such as a fake that records
+its calls, has a `&mut self` method. In a package, the traits and `register` go in a
 library module, and each way of wiring them is its own executable. Each
 `[[executable]]` table names an entry module, so `src/main.hd` wires
 production and `src/dev.hd` wires the in-memory adapters
@@ -497,7 +497,7 @@ module = "dev"
 use pkg.{Mailer, MemoryRepo, OutboxMailer, Repo, register}
 
 pub fn main() -> void $ Console:
-    $.with(Mailer=&OutboxMailer { label: "local" }, Repo=&MemoryRepo { namespace: "dev" }):
+    $.with(Mailer=box(OutboxMailer { label: "local" }), Repo=box(MemoryRepo { namespace: "dev" })):
         println(register("Ada", "ada@example.com"))
 ```
 

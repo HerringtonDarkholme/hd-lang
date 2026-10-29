@@ -12,4 +12,4 @@ impl Value for DynNode:
     fn value(&self) -> i32: +1
 
 fn make() -> *dyn Value:
-    &DynNode { next: .None }
+    box(DynNode { next: .None })

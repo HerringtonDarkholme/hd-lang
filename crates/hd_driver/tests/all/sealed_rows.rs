@@ -89,11 +89,11 @@ fn names[T < Named](xs: List[T]) -> string:
 
 fn first[A < Tuple](a: A) -> A: a
 
-fn erase[T < Inspectable](x: T) -> *dyn Inspectable: &x
+fn erase[T < Inspectable](x: T) -> *dyn Inspectable: box(x)
 
 pub fn main() -> void $ Console:
-    u := &User { name: \"ann\" }
-    v := &User { name: \"bob\" }
+    let u: *User = box(User { name: \"ann\" })
+    let v: *User = box(User { name: \"bob\" })
     println(pick(u, v, false).name)
     _ := keep(Mile(3))
     println(keep(7))
@@ -120,10 +120,10 @@ type Owner(*User)
 
 fn keep[T < AnyVal](x: T) -> T: x
 
-fn erase[T < Inspectable](x: T) -> *dyn Inspectable: &x
+fn erase[T < Inspectable](x: T) -> *dyn Inspectable: box(x)
 
 pub fn main() -> void:
-    u := &User { name: \"ann\" }
+    let u: *User = box(User { name: \"ann\" })
     _ := keep(u)
     _ := keep(Owner(u))
     _ := erase(fn() -> i32: 1)

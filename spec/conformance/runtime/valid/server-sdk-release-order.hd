@@ -53,10 +53,10 @@ fn handle!(_request: Request, _state: &mut List[string]) -> Response:
     Response::status(.Other(200)).set_bytes("reply".to_utf8())
 
 pub fn main!() -> void $ Clock:
-    source := &mut Source { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), events: [] }
-    let mut state: List[string] = []
+    source := box(Source { http: ScriptedHttp::new(), next: 1, clock: $.use(Clock), events: [] })
+    state := box::[List[string]]([])
     $.with(HttpServer=source):
-        serve!(1, &mut state, handle).expect("source ends normally")
+        serve!(1, state, handle).expect("source ends normally")
     assert_equal(
         source.events,
         ["accept 1", "respond 1", "finish 1", "accept 2", "respond 2", "finish 2"],

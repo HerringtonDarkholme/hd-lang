@@ -16,6 +16,6 @@ fn consume(h: Holder) -> usize:
     h.b.n
 
 fn last(n: usize) -> usize:
-    b := &Box { n: n }
+    b := box(Box { n: n })
     # subject
     keep(b, consume(Holder { b: b }))

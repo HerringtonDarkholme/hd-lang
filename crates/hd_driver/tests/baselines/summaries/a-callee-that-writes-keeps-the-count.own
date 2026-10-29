@@ -11,7 +11,7 @@ struct Node:
     left: (*Node)?
     value: i64
 
-ROOT := &mut Node { left: .None, value: 0 }
+ROOT := box(Node { left: .None, value: 0 })
 > app/main/init.init
 >   local $0 $ref: Node [read assigned captured captured-assigned]
 >   %0 = NewVariant #0 [] : Ref[Node]?

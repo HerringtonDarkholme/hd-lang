@@ -78,7 +78,7 @@ fn request![S, $ R](
         .Err(error) =>
             server.finish(incoming.id, false)
             return .Err(.Other("$error"))
-    cleanup := &mut CleanupState { abandoned: false }
+    cleanup := box(CleanupState { abandoned: false })
     client := server.client(incoming.id)
     clock := server.clock(incoming.id)
     console := server.console(incoming.id)

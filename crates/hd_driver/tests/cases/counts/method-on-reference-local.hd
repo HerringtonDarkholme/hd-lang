@@ -10,7 +10,7 @@ impl Log:
         self.lines.push(line)
 
 fn fill(n: usize) -> *mut Log:
-    log := &mut Log { lines: [] }
+    log := box(Log { lines: [] })
     for _ in 0..n:
         # subject
         log.add("x")

@@ -69,7 +69,7 @@ fn a_program_of_acyclic_values_links_no_collector() {
 #[test]
 fn a_program_with_a_reference_ring_links_the_collector() {
     let names = names_of(
-        "struct Stop:\n    next: *mut Stop?\n\npub fn main() -> void $ Console:\n    first := &mut Stop { next: .None }\n    second := &mut Stop { next: .Some(first) }\n    first.next = .Some(second)\n    println(\"ring\")\n",
+        "struct Stop:\n    next: *mut Stop?\n\npub fn main() -> void $ Console:\n    first := box(Stop { next: .None })\n    second := box(Stop { next: .Some(first) })\n    first.next = .Some(second)\n    println(\"ring\")\n",
     );
     assert!(
         names.iter().any(|n| n.starts_with("std/rt.cycle/collect#")),

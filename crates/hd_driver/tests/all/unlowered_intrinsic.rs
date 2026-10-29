@@ -97,8 +97,8 @@ pub fn main!() -> void $ Console:
     match variants_out[1]:
         .Count(count) => check(count == -7i64)
         .Text(_) => panic("expected count")
-    left := &mut Cell { value: "left" }
-    right := &mut Cell { value: "right" }
+    left := box(Cell { value: "left" })
+    right := box(Cell { value: "right" })
     let references: List[mut Suspend[*mut Cell]] = [ready(left), ready(right)]
     let reference_frame: mut Suspend[List[*mut Cell]] = frame(references)
     shared := reference_frame!()

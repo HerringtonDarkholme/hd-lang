@@ -110,7 +110,7 @@ trait Validate:
 
 impl[T] Validate for T by Structure:
     fn validate(self) -> usize:
-        context := &mut ValidationContext { errors: 0 }
+        context := box(ValidationContext { errors: 0 })
         let mut walker = ValidationWalker::[T] { context: context }
         _ := Structure::walk(self, &mut walker)
         context.errors

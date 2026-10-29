@@ -3,7 +3,7 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make (result i32) (local $t0 i32)
-    ;; 12 |     let edge: Edge[string] = Edge.Done
+    ;; 12 |     box(Edge.Done)
     block
       i32.const 16
       i32.const -2147483646

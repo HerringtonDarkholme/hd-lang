@@ -121,7 +121,7 @@ enum Shape:
     Tagged(tag: bool)
 
 pub fn main() -> void $ Console:
-    list := Node { label: \"a\", next: .Some(&Node { label: \"b\", next: .None }) }
+    list := Node { label: \"a\", next: .Some(box(Node { label: \"b\", next: .None })) }
     dbg(list)
     dbg(Pair { left: [list], right: (1, .None) })
     dbg([Shape.Dot, Shape.Pair(1, \"x\"), Shape.Tagged(tag=true)])
@@ -216,8 +216,8 @@ struct Ring:
     next: *mut Ring?
 
 pub fn main() -> void $ Console:
-    a := &mut Ring { name: \"a\", next: .None }
-    b := &mut Ring { name: \"b\", next: .Some(a) }
+    a := box(Ring { name: \"a\", next: .None })
+    b := box(Ring { name: \"b\", next: .Some(a) })
     a.next = .Some(b)
     dbg(a)
 ",

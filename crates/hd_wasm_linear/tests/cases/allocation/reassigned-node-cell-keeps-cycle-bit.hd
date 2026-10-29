@@ -6,7 +6,7 @@ struct Node:
     next: (*Node)?
 
 fn make_cycle() -> *Node:
-    let node = Node { next: .None }
-    parent := &Node { next: .Some(&node) }
-    node = Node { next: .Some(parent) }
+    let node = box(Node { next: .None })
+    parent := box(Node { next: .Some(node) })
+    node = box(Node { next: .Some(parent) })
     parent

@@ -12,7 +12,7 @@
     local.get $node
   )
   (func $make (result i32) (local $t0 i32)
-    ;; 12 |     &Node { next: .None }
+    ;; 12 |     box(Node { next: .None })
     block
       i32.const 4
       i32.const -2147483646

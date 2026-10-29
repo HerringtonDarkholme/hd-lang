@@ -10,6 +10,6 @@ struct Node:
 
 fn make(depth: i32) -> *Node:
     if depth == 0:
-        &Node { left: .None, right: .None }
+        box(Node { left: .None, right: .None })
     else:
-        &Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) }
+        box(Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) })

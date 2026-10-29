@@ -2166,7 +2166,7 @@ fn linked_cycles_and_captured_references_survive_checkpoint_restore() {
                 (1, "pass\n"),
                 (
                     2,
-                    "struct Node:\n    children: List[*mut Node]\n    value: usize\nlet root: *mut Node = &mut Node { children: [], value: 1 }\nroot.children.push(root)\n",
+                    "struct Node:\n    children: List[*mut Node]\n    value: usize\nlet root: *mut Node = box(Node { children: [], value: 1 })\nroot.children.push(root)\n",
                 ),
                 (
                     3,

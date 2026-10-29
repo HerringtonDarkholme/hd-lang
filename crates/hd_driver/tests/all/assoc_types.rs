@@ -198,13 +198,13 @@ fn item[S < NamedSupplier](s: S) -> S::Item:
 fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
     s.get() + item(s)
 
-fn counted(s: &dyn Count) -> *dyn Count[Item = i32]:
-    &s
+fn counted(s: *dyn Count) -> *dyn Count[Item = i32]:
+    s
 
 pub fn main() -> void:
     _ := first(Counter {{ start: 1 }}) + item(Counter {{ start: 2 }})
     _ := read(&Counter {{ start: 3 }})
-    _ := counted(&Counter {{ start: 4 }}).get() + 1
+    _ := counted(box(Counter {{ start: 4 }})).get() + 1
 "
     ));
     assert_eq!(codes, Vec::<Code>::new());
@@ -222,17 +222,18 @@ fn item[S < NamedSupplier](s: S) -> S::Item:
 fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
     s.get() + 1
 
-fn widen(s: &dyn NamedSupplier[Item = i32]) -> *dyn Supplier[Item = i32]:
-    &s
+fn widen(s: *dyn NamedSupplier[Item = i32]) -> *dyn Supplier[Item = i32]:
+    s
 
 fn twice(c: &dyn Count) -> i32:
     c.get() * 2
 
 pub fn main() -> void $ Console:
     c := Counter {{ start: 20 }}
+    shared := box(Counter {{ start: 20 }})
     println(item(c))
     println(read(&c))
-    println(widen(&c).get())
+    println(widen(shared).get())
     println(twice(&c))
     let s: &dyn NamedSupplier[Item = i32] = &c
     println(item(s))

@@ -4,7 +4,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $make (result i32 i32) (local $t0 i32)
     block
-    ;; 15 |     &DynNode { next: .None }
+    ;; 15 |     box(DynNode { next: .None })
       i32.const 12
       i32.const -2147483645
       call $rt:new/class-2

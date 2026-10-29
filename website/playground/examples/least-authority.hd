@@ -1,7 +1,7 @@
 # `main` limits what the whole program can reach.
 pub fn main!() -> void $ Console: # ← the console, and nothing else
-    let mut outbox = Outbox { sent: [] }
-    $.with(Mailer=&mut outbox, Clock=epoch()):
+    outbox := box(Outbox { sent: [] })
+    $.with(Mailer=outbox, Clock=epoch()):
         welcome!("ada@example.com")
     println(outbox.sent[0])
 

@@ -23,7 +23,7 @@ impl Iterator[i64] for Counter:
 
 # (a) The chain behind a trait value, as a function returning it.
 fn erased(n: i64) -> *mut dyn Iterator[i64]:
-    &mut (Counter { next: 0, end: n }.filter(fn(x): x % 3 != 0).map(fn(x): x * 2))
+    box(Counter { next: 0, end: n }.filter(fn(x): x % 3 != 0).map(fn(x): x * 2))
 
 fn via_dyn(n: i64) -> i64:
     erased(n).sum::[i64]()

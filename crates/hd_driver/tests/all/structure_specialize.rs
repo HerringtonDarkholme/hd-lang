@@ -34,7 +34,7 @@ impl[S] Walker[S] for Totaller:
 
 impl[T] Total for T by Structure:
     fn total(self) -> i32:
-        out := &mut 0i32
+        out := box(0i32)
         let mut walker = Totaller { out: out }
         _ := Structure::walk(self, &mut walker)
         *out
@@ -83,8 +83,8 @@ trait FormatWalk:
 
 impl[T] FormatWalk for T by Structure:
     fn format_walk(self) -> void:
-        let mut writer = NullWriter {}
-        let mut walker = FormatWalker { out: &mut writer }
+        writer := box(NullWriter {})
+        let mut walker = FormatWalker { out: writer }
         _ := Structure::walk(self, &mut walker)
 
 @derive(Total, Eq, FormatWalk)

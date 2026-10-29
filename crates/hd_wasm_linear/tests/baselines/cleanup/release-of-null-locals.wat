@@ -8,9 +8,9 @@
       local.get $depth
       i32.eqz
       if (result i32)
-    ;; 13 |         &Node { left: .None, right: .None }
+    ;; 13 |         box(Node { left: .None, right: .None })
         i32.const 8
-        i32.const 2
+        i32.const -2147483646
         call $rt:new/class-1
         local.tee $depth
         i32.const 0
@@ -21,7 +21,7 @@
         local.get $depth
     ;; 12 |     if depth == 0:
       else
-    ;; 15 |         &Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) }
+    ;; 15 |         box(Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) })
         local.get $depth
         i32.const 1
         i32.sub
@@ -33,7 +33,7 @@
         local.set $t0
         local.set $depth
         i32.const 8
-        i32.const 2
+        i32.const -2147483646
         call $rt:new/class-1
         local.tee $t1
         local.get $depth

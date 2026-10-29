@@ -38,4 +38,4 @@ fn handle!(request: Request, _state: &mut State) -> Response $ Console + Clock:
 
 pub fn main!() -> void $ HttpServer + Console + Clock:
     _ := $.use(Console).write_sync("startup\n")
-    serve!(4, &mut State {}, handle).expect("serve")
+    serve!(4, box(State {}), handle).expect("serve")

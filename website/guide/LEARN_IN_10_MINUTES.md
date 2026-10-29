@@ -177,8 +177,9 @@ changing one never changes the other. A field may have a default, and `...`
 copies a value with changes. `let mut` marks a variable whose fields change
 in place. Sharing is written: `&T` reads a value where it lives with no
 copy, `&mut T` also writes it, and `&mut draft` lends a `let mut` variable
-to a callee, whose writes the caller sees. `&mut User { ... }` makes a new
-object that every holder of the reference shares
+to a callee for the length of the call, whose writes the caller sees.
+`box(User { ... })` makes a new object that every holder of the reference
+shares
 ([tour: structs](../tour/06-structs.md),
 [references](../tour/07-references.md)).
 
@@ -267,8 +268,8 @@ reference, not the member or variant metadata it names.
 ## Requirements and Suspension
 
 A row after `$` lists the traits a function needs. `$.use` retrieves a
-provider and `$.with` supplies one for a block, as a reference to a new
-object (`&FixedClock { at: 42 }`), so a test installs a fake
+provider and `$.with` supplies one for a block, as a box around a new
+object (`box(FixedClock { at: 42 })`), so a test installs a fake
 ([tour: requirements](../tour/15-requirements.md)). A name ending in `!`
 can suspend, and so does every call to it
 ([tour: suspension](../tour/16-suspension.md)).
@@ -280,7 +281,7 @@ trait Clock:
 fn stamp(message: string) -> string $ Clock:
     "${$.use(Clock).now()}: $message"
 
-$.with(Clock=&FixedClock { at: 42 }):
+$.with(Clock=box(FixedClock { at: 42 })):
     println(stamp("ready"))
 ```
 
@@ -301,7 +302,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
 
 tests:
     it("stamps with the fixed clock"):
-        $.with(Clock=&FixedClock { at: 1 }):
+        $.with(Clock=box(FixedClock { at: 1 })):
             assert_equal(stamp("go"), "1: go", reason="uses the provider")
 ```
 

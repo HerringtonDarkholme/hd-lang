@@ -13103,7 +13103,7 @@ mod main_capability_tests {
             "trait Observe:\n    fn read(self) -> Timestamp $ Clock\n",
             "struct Observer: pass\n",
             "impl Observe for Observer:\n    fn read(self) -> Timestamp $ Clock: now()\n",
-            "let observer: *dyn Observe = &Observer {}\n",
+            "let observer: *dyn Observe = box(Observer {})\n",
             "_ := observer.read()\n",
         );
         for (source, wants_clock) in [

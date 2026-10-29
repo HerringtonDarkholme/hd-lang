@@ -12,7 +12,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; 11 |     &Nested { lists: [[+1]], maps: { "outer": { "inner": +1 } } }
+    ;; 11 |     box(Nested { lists: [[+1]], maps: { "outer": { "inner": +1 } } })
     block
       i32.const 1
       call $rt:list_buf'1
