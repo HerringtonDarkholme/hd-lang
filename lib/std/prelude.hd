@@ -37,6 +37,7 @@ pub use std.core.{
     Option,
     Result,
     panic,
+    box,
 }
 pub use std.format.{Display, Debug, debug, dbg}
 pub use std.cmp.{Eq, PartialOrd, Ord, Ordering}

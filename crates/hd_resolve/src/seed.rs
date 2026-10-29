@@ -1,6 +1,6 @@
 //! Compiler-supplied std declarations (`crates/hd_stdpack/DESIGN.md`, "Prelude"):
 //! `std.core`'s primitives, collections, `Option`, `Result`, the `Any`
-//! traits and `panic`; `std.task`'s suspension protocol; `std.function`'s
+//! traits, `panic` and `box`; `std.task`'s suspension protocol; `std.function`'s
 //! function type constructors; `std.testing.it`. Each is an ordinary
 //! interface item of its module, so uses, the prelude and re-exports reach
 //! it like any declaration. A source declaration of the same name wins.
@@ -132,6 +132,19 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             if let Some(p) = out.last_mut() {
                 p.intrinsic = Some(sym(names, "panic_message"));
             }
+            // `box[T](value: T) -> *mut T` (ref.box.signature): the checker
+            // supplies the body, a new object holding a copy of `value`.
+            let bx = names.item(module, "box");
+            let t = param(names, bx, 0);
+            let boxed = pool.intern_ty(&TyData::Ref {
+                inner: t,
+                mutable: true,
+                counted: true,
+            });
+            let sig = FnSig::simple(gens(names, &["T"]), vec![(sym(names, "value"), t)], boxed);
+            let mut it = Item::new(bx, sym(names, "box"), true, ItemData::Fn(sig));
+            it.intrinsic = Some(sym(names, "box"));
+            out.push(it);
             // The data type `&T` and `&mut T` lower to when the checker
             // finishes a body (`hd_types::Types::lower_refs`), which the
             // backend recognizes as the reference carrier: a reference is

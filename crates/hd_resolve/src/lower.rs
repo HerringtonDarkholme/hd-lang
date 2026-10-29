@@ -44,7 +44,7 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
         &[
             "never", "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "f32",
             "f64", "char", "string", "void", "List", "Map", "Any", "AnyVal", "AnyRef", "Option",
-            "Result", "panic",
+            "Result", "panic", "box",
         ],
     ),
     ("std.format", &["Display", "Debug", "debug", "dbg"]),

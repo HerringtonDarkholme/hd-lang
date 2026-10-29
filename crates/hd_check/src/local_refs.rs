@@ -263,6 +263,12 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
     }
 }
 
+/// Whether a value of type `t` holds a local reference anywhere, its top
+/// included (`ref.local.holds`), as `box` checks (`ref.box.no-local`).
+pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
+    escape_in(pool, t, false, 0).is_some()
+}
+
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Ref { counted, .. } => !counted,

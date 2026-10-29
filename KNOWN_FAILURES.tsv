@@ -1,26 +1,5 @@
 path	issue	engine	reason
-runtime/valid/abandon-unwind-order.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/box-copies-place.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/box-new-object.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/cancel-waits-for-dispose.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/combinator-cancel-fan-out.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/counted-self-call-on-box.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/counted-self-call-on-reference.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/error-chain.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/generic-inference-explicit-conversions.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/inspectable-erasure-example.hd	#912		the box intrinsic is not implemented yet
 runtime/valid/list-view-snapshot.hd	#912		view, chunks and windows still refer to the list's place
-runtime/valid/mutable-provider-state.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/net-own-provider.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/println-recording-provider.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/property-draw-budget.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/provider-install-box.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/provider-ref-mut-changes-caller.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/task-breaker.hd	#912		the box intrinsic is not implemented yet
-runtime/valid/using-dispose-order.hd	#912		the box intrinsic is not implemented yet
-typing/invalid/box-local-reference-tuple.hd	#912		the box intrinsic is not implemented yet
-typing/invalid/box-local-reference.hd	#912		the box intrinsic is not implemented yet
-typing/invalid/box-prelude-shadow.hd	#912		box is not a prelude name yet
 typing/invalid/counted-reference-to-element.hd	#912		&e still makes a counted reference where one is expected
 typing/invalid/counted-reference-to-field.hd	#912		&e still makes a counted reference where one is expected
 typing/invalid/counted-reference-to-parameter.hd	#912		&e still makes a counted reference where one is expected
@@ -38,7 +17,3 @@ typing/invalid/reference-expression-counted-field.hd	#912		&e still makes a coun
 typing/invalid/reference-expression-counted-result.hd	#912		&e still makes a counted reference where one is expected
 typing/invalid/reference-expression-to-counted-parameter.hd	#912		&e still makes a counted reference where one is expected
 typing/invalid/reference-expression-type-variable.hd	#912		&e still makes a counted reference where one is expected
-typing/valid/annotations.hd	#912		the box intrinsic is not implemented yet
-typing/valid/box-inference-and-weakening.hd	#912		the box intrinsic is not implemented yet
-typing/valid/counted-reference-storage.hd	#912		the box intrinsic is not implemented yet
-typing/valid/using-transfer.hd	#912		the box intrinsic is not implemented yet
