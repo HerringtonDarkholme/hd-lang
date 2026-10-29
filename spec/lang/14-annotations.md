@@ -359,9 +359,9 @@ Reusable compositions are ordinary values or lists, not new language syntax:
 use std.inspect.Inspectable
 
 let email_metadata: List[*dyn Inspectable] = [
-    &min_len(3),
-    &max_len(320),
-    &contains("@"),
+    box(min_len(3)),
+    box(max_len(320)),
+    box(contains("@")),
 ]
 ```
 

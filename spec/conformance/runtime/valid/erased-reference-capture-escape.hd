@@ -1,5 +1,5 @@
 # test: an erased generic method captures an open reference in a returned closure
-# Spec 13 Reference lifetime: ref.place.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# Spec 13 Reference lifetime: ref.box.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
 # expect-stdout: 7 kept 8 captured
 trait Factory:
     fn capture[T](self, value: T) -> fn() -> T:

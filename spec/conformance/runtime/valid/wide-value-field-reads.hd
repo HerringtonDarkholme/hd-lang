@@ -1,5 +1,5 @@
 # test: every field of a 1650-value aggregate runs by value and through references
-# Spec 08 Struct Values: data.struct.value; Spec 13 References: ref.place.lifetime.
+# Spec 08 Struct Values: data.struct.value; Spec 13 References: ref.box.lifetime.
 use std.testing.assert_equal
 
 struct Chunk:

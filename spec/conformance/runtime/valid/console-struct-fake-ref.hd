@@ -1,5 +1,5 @@
 # test: a program's own struct serves as a Console test fake: its &mut self methods implement Console's &mut self methods and it is installed as `&mut fake`; MemoryConsole::new returns a new object that the installed provider and the test share
-# Spec std/console Buffer Console: std-console.buffer.install-ref, std-console.buffer.output-text-sync, std-console.buffer.error-text-sync; lang/11 req.ref.key.reference-values, req.ref.install-ref.
+# Spec std/console Buffer Console: std-console.buffer.install-ref, std-console.buffer.output-text-sync, std-console.buffer.error-text-sync; lang/11 req.ref.key.reference-values, req.ref.install-counted.
 # expect: test
 use std.console.{MemoryConsole, eprintln}
 

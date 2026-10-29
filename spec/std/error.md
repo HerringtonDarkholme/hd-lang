@@ -41,7 +41,7 @@ enum SaveError:
     Write(path: string, @source error: DiskError)
 
 fn messages(failure: SaveError) -> List[string]:
-    let error: *dyn Error = &failure
+    let error: *dyn Error = box(failure)
     error.chain().map(fn(error: &dyn Error) -> string: error.to_string())
 ```
 

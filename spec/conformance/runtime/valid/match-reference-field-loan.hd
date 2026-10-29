@@ -1,5 +1,5 @@
 # test: matching a borrowed field preserves value lifetimes across calls, alias stores, and returned payloads
-# Spec 13 References: ref.read.auto; Reference Lifetime: ref.place.lifetime.
+# Spec 13 References: ref.read.auto; Reference Lifetime: ref.box.lifetime.
 struct Node:
     value: i64
     left: (*Node)?

@@ -1,0 +1,15 @@
+# test: a `*mut self` call on a field of a local is an error
+# Spec 07 Reference Receivers: fn.method.counted-self.place.
+struct Counter:
+    hits: i32
+
+impl Counter:
+    fn handle(*mut self) -> *mut Counter:
+        self
+
+struct Body:
+    pos: Counter
+
+fn invalid() -> void:
+    let mut b = Body { pos: Counter { hits: 0 } }
+    h := b.pos.handle() # diagnostic: local-reference-escapes

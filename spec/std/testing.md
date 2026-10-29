@@ -163,7 +163,7 @@ enum Tree:
 fn tree(c: &mut Choices) -> Tree:
     match c.int(0..=2):
         0 => .Leaf
-        _ => .Node(&tree(c), &tree(c))
+        _ => .Node(box(tree(c)), box(tree(c)))
 ```
 
 Once the limit is spent, `c.int(0..=2)` returns `0`, so `tree` returns

@@ -47,17 +47,17 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `view(*self, start: usize, end: usize) -> ListView[T]`; `chunks(*self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `view(self, start: usize, end: usize) -> ListView[T]`; `chunks(self, size: usize) -> List[ListView[T]]` |
 
 1. r[std-collections.list.chunks.views] `chunks(size)` returns consecutive read-only `ListView[T]` values in order; only the last view may be shorter than `size`.
 2. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
-3. r[std-collections.list.window-borrow] `chunks` and `windows` take `&self`, so every returned view refers to the receiver's place.
+3. r[std-collections.list.window-snapshot] `chunks` and `windows` take `self`, so every returned view holds the list value they were called on.
 4. r[std-collections.list.window-cost] Both methods create one result list of views and should copy no elements.
 
 ```text
 use std.collections.ListView
 
-fn pairs(items: *List[i32]) -> List[ListView[i32]]:
+fn pairs(items: List[i32]) -> List[ListView[i32]]:
     items.chunks(2)  # views of [1, 2] and [3] for [1, 2, 3]
 ```
 
@@ -68,8 +68,9 @@ fn pairs(items: *List[i32]) -> List[ListView[i32]]:
 
 ### Views
 
-`view` gives a read-only window on a run of a list's elements, with no
-copy. It refers to the list's place, as a `&self` method does:
+`view` gives a read-only window on a run of a list's elements. It takes
+`self`, as Swift's `ArraySlice` does: the view holds the list value it was
+taken from and shares its storage, so taking it copies no element:
 
 ```text
 use std.collections.ListView
@@ -95,8 +96,8 @@ fn total(view: ListView[i32]) -> i32:
 
 1. r[std-collections.view] `view(start, end)` returns a `ListView[T]` of the list's elements at indices `start` up to, not including, `end`.
 2. r[std-collections.view.type] `std.collections` declares `ListView[T]` with private fields and the surface in the table above, and no other method or trait implementation.
-3. r[std-collections.view.place] `view` takes `&self`, so the view refers to the list's place: a binding, a field, or a value reached through a reference. Called on a list that is no place, such as a call result, it refers to a new object that holds the list.
-4. r[std-collections.view.value] A `ListView[T]` is a struct value. A copy of a view is another window on the same place.
+3. r[std-collections.view.snapshot] `view` takes `self`, so the view holds the list value it was called on. A later change to the list, through any place, does not change the view.
+4. r[std-collections.view.value-copy] A `ListView[T]` is a struct value. A copy of a view is an equal view.
 5. r[std-collections.view.import] `ListView` is not a prelude name, so code that names it imports it, as in `use std.collections.ListView`.
 6. r[std-collections.view.no-copy] Creating a view copies no element.
 7. r[std-collections.view.range] A `start` or `end` that is greater than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
@@ -108,10 +109,7 @@ fn total(view: ListView[i32]) -> i32:
 13. r[std-collections.view.cursor] A view's cursor type is `ListViewIter[T]`, which `std.collections` declares with private fields.
 14. r[std-collections.view.to-list-value] `to_list` returns a new list value that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
 15. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
-16. r[std-collections.view.writes] An element write to the list's place, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
-17. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it.
-18. r[std-collections.view.invalidate.anywhere] A length change invalidates a view wherever it happens, so appending past a view's end invalidates it too.
-19. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic. Such a use is a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
+16. r[std-collections.view.snapshot-writes] An element write or a length change to the list after the view was taken, as `items[i] = v` or `items.push(v)`, does not show through the view.
 
 ```text
 use std.collections.ListView
@@ -121,15 +119,20 @@ fn invalid(mut view: ListView[i32]) -> void:
 ```
 
 ```text
-fn stale(items: *mut List[i32]) -> usize:
+fn snapshot() -> i32:
+    let mut items = [+1, +2, +3]
     window := items.view(0, 2)
-    items.push(4)
-    window.len()  # panics with iterator-invalidated
+    items[0] = +9
+    items.push(+4)
+    window[0]  # 1: the view kept the list it was taken from
 ```
 
-> **Why.** A view fails fast, as Java's `subList` does: a window whose
-> list changed length would otherwise read the wrong elements without
-> notice.
+> **Note.** A view keeps the whole list's storage, not only its run.
+> Copy a run you keep for long with `to_list()`.
+
+> **Why.** A view is a value, as Swift's `ArraySlice` is, so it can never
+> go stale and no use of it needs a runtime check. A view that referred to
+> the list's place would need a reference that outlives the call.
 
 See also: [List Indexing](../lang/05-expressions.md#list-indexing),
 [List And Optional Map](iter.md#list-and-optional-map).
@@ -156,7 +159,7 @@ fn by_owner(tasks: List[Task]) -> Map[string, List[Task]]:
 fn has_long(tasks: List[Task]) -> bool:
     tasks.any(fn(task: Task) -> bool: task.hours > 8)
 
-fn steps(readings: *List[i32]) -> List[ListView[i32]]:
+fn steps(readings: List[i32]) -> List[ListView[i32]]:
     readings.windows(2)  # views of [1, 4] and [4, 9] for [1, 4, 9]
 
 fn shortest(tasks: List[Task]) -> Task?:
@@ -168,7 +171,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(*self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
 | `List[T]` | `min_by_key[K < Ord](self, key: fn(T) -> K) -> T?`; `max_by_key[K < Ord](self, key: fn(T) -> K) -> T?` |
 | `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?`; `dedup(self) -> List[T]` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
@@ -308,7 +311,7 @@ fn enqueue(queue: &mut Deque[string], name: string) -> void:
 1. r[std-collections.struct.value] `Set[T]`, `Deque[T]`, and `Heap[T]` are structs, so each is a value. Binding, assigning, passing, returning, and storing one copies it, and a change to one copy leaves every other copy unchanged.
 2. r[std-collections.struct.cost] A copy shares its source's elements until one of the two changes, as a list does ([`types.coll.copy-on-write`](../lang/04-type-system.md#r-types.coll.copy-on-write)).
 3. r[std-collections.struct.receiver-mut] Methods that change a collection, such as `push_back`, `insert`, and `pop`, take `&mut self`.
-4. r[std-collections.struct.shared] A set, deque, or heap that two holders share is written `&mut Set[T]`, `&mut Deque[T]`, or `&mut Heap[T]`. A change through the reference changes the place it refers to.
+4. r[std-collections.struct.lend-or-box] A function that changes the caller's set, deque, or heap takes `&mut Set[T]`, `&mut Deque[T]`, or `&mut Heap[T]`, and a change through it changes the place it refers to. A collection that two holders keep is boxed, as `box(queue)`, which gives a `*mut Deque[T]`.
 
 > **Why.** These types were shared objects. As values they follow the
 > list they wrap: a copy is cheap until it changes, and sharing is
@@ -528,7 +531,7 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
 6. r[std-collections.access.reversed] `reversed` returns a new list of the elements in reverse order.
 7. r[std-collections.access.sorted-by] `sorted_by(compare)` returns a new list in ascending order by `compare`. The sort is stable.
 8. r[std-collections.access.zip] `zip(other)` returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, so it stops at the shorter one.
-9. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does. It changes the length, so it invalidates the list's views by [`std-collections.view.invalidate`](#r-std-collections.view.invalidate).
+9. r[std-collections.access.extend] `extend(other)` appends each element of `other` to the receiver, in order, as `push` does.
 10. r[std-collections.access.extend.self] `items.extend(items)` appends a copy of the elements `items` held before the call, so it doubles the list.
 11. r[std-collections.access.helper-rules] The callbacks of `filter` and `sorted_by` follow [`std-collections.helper.callback-row`](#r-std-collections.helper.callback-row): each has the empty row.
 

@@ -730,7 +730,7 @@ every module has:
 
 | Origin module | Implicit names |
 | --- | --- |
-| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
+| `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic`, `box` |
 | `std.format` | `Display`, `Debug`, `debug`, `dbg` |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` |
 | `std.hash` | `Hash` |
@@ -835,6 +835,7 @@ fn count() -> i32:
 3. r[module.prelude.it-function] The prelude function `it` is the test-case function that [Test Cases](#test-cases) specifies.
 4. r[module.prelude.debug] The prelude function `debug` has the signature `debug[T < Debug](value: T) -> string`, as [Debug Trait](09-traits.md#debug-trait) specifies.
 5. r[module.prelude.dbg] The prelude name `dbg` is the function with the signature that [Debug Printing](#r-module.dbg.signature) specifies, whose body the compiler supplies.
+6. r[module.prelude.box] The prelude name `box` is the function with the signature that [`ref.box.signature`](13-values-and-references.md#r-ref.box.signature) specifies, whose body the compiler supplies.
 
 ```hd
 pub fn main() -> void $ Console:
@@ -1070,8 +1071,8 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 pub fn main() -> void $ Console:
-    let mut console = MemoryConsole { lines: [] }
-    $.with(Console=&mut console):
+    console := box(MemoryConsole { lines: [] })
+    $.with(Console=console):
         greet("Ada")
     println("recorded: ${console.lines[0]}${console.lines[1]}")  # recorded: hello, Ada
 ```

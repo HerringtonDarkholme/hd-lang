@@ -1,0 +1,7 @@
+# test: `box` rejects a tuple that holds a local reference
+# Spec 13 Boxes: ref.box.no-local; Local References: ref.local.holds.
+struct Point:
+    x: i32
+
+fn wrap(p: &Point) -> void:
+    b := box((p, 1)) # diagnostic: local-reference-escapes

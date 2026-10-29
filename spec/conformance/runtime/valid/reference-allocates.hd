@@ -1,5 +1,5 @@
 # test: `&e` on a value that is no place refers to a new object, one per evaluation, and writes through it leave the value's source unchanged
-# Spec 13 Places And New Objects: ref.expr.allocate, ref.expr.allocate.writable, ref.expr.kind.counted.
+# Spec 13 Places And New Objects: ref.expr.allocate, ref.expr.allocate.writable, ref.expr.kind.always-local.
 # expect-stdout: 1 2
 # expect-stdout: 1 7
 # expect-stdout: 3

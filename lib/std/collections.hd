@@ -525,10 +525,10 @@ impl[K < Eq & Hash] Map[K, usize]:
             .take(n)
 
 # A read-only window on a run of a list's elements
-# (spec/std/collections.md#views). It refers to the list's place, not a
-# copy, so an element write shows through it. It records the list's length, and any
-# later change of length invalidates it: its next use is
-# the checked panic `iterator-invalidated` (r-std-collections.view.invalid-use).
+# (spec/std/collections.md#views). The spec makes it a snapshot of the list
+# value (r-std-collections.view.snapshot); until #982 lands it still refers
+# to the list's place and panics with `iterator-invalidated` after a length
+# change.
 ## A read-only window on a run of a list's elements. It holds the list, not a copy, so an element write shows through it.
 ## See [std-collections.view.type](../../spec/std/collections.md#r-std-collections.view.type).
 @derive(Debug)

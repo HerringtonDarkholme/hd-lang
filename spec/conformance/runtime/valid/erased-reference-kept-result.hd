@@ -1,5 +1,5 @@
 # test: kept generic suspensions return live references after polling
-# Spec 13 References: ref.place.lifetime; Spec 11 Suspension Values: req.suspend.cold.
+# Spec 13 References: ref.box.lifetime; Spec 11 Suspension Values: req.suspend.cold.
 # expect: test
 use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
 

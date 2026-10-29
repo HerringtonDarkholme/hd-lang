@@ -1,5 +1,5 @@
 # test: an erased generic method stores an open reference in a returned struct
-# Spec 13 Reference lifetime: ref.place.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# Spec 13 Reference lifetime: ref.box.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
 # expect-stdout: 10 stored 11 field
 struct Holder[T]:
     item: *mut T

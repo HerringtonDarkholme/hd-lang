@@ -1,0 +1,22 @@
+# test: a view keeps the list value it was taken from; later element writes and pushes to the list do not show through it
+# std Collections, Views: std-collections.view.snapshot, std-collections.view.value-copy, std-collections.view.snapshot-writes, std-collections.list.window-snapshot.
+tests:
+    use std.testing.assert_equal
+
+    it("keeps the list it was taken from"):
+        let mut items: List[i32] = [1, 2, 3]
+        view := items.view(0, 2)
+        copy := view
+        items[1] = 9
+        items.push(4)
+        assert_equal(view[1], 2, reason="the element write does not show through")
+        assert_equal(view.len(), 2, reason="the push does not change the view")
+        assert_equal(copy.to_list(), [1, 2], reason="a copy of a view is an equal view")
+
+    it("chunks and windows keep the list too"):
+        let mut items: List[i32] = [1, 2, 3]
+        pairs := items.chunks(2)
+        steps := items.windows(2)
+        items[0] = 7
+        assert_equal(pairs[0].to_list(), [1, 2], reason="chunks hold the old list")
+        assert_equal(steps[1].to_list(), [2, 3], reason="windows hold the old list")

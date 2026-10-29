@@ -29,8 +29,8 @@ fn evaluate!(expr: Expr) -> i32:
         Expr.Scale(value, factor = 2) => tick!() + value * 2
         Expr.Scale(value, factor) => value * factor
 
-fn inspect(box: Box[i32]) -> i32:
-    match box:
+fn inspect(boxed: Box[i32]) -> i32:
+    match boxed:
         Box.Value(42) => 1
         Box.Value(_) => 0
 

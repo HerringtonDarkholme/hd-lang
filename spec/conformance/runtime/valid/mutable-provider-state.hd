@@ -32,7 +32,7 @@ tests:
     use std.testing.assert_equal
 
     it("a mutable provider changes its own state"):
-        let mut counter = &mut MemoryCounter { value: 0 }
+        counter := box(MemoryCounter { value: 0 })
         $.with(Counter=counter):
             _ := tick()
             assert_equal(keep(), 2, reason="both calls bump the installed provider")

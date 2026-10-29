@@ -15,7 +15,7 @@ enum Tree:
 fn tree(c: &mut Choices) -> Tree:
     match c.int(0..=2):
         0 => .Leaf
-        _ => .Node(&tree(c), &tree(c))
+        _ => .Node(box(tree(c)), box(tree(c)))
 
 fn size(t: Tree) -> i32:
     match t:

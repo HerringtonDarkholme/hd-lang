@@ -1,5 +1,5 @@
-# test: a ListView reads a window of the list with no copy, and element writes to the list show through it
-# std Collections, Views: std-collections.view, std-collections.view.len, std-collections.view.index, std-collections.view.iter, std-collections.view.to-list-value, std-collections.view.writes (batches 49, 59).
+# test: a ListView reads a window of the list with no copy
+# std Collections, Views: std-collections.view, std-collections.view.len, std-collections.view.index, std-collections.view.iter, std-collections.view.to-list-value (batches 49, 59).
 use std.collections.ListView
 fn window(items: List[i32]) -> ListView[i32]:
     items.view(1, 3)
@@ -18,9 +18,3 @@ tests:
         assert_equal(total(window(items)), 8, reason="2 + 3, then the last element 3")
         assert_equal(window(items).to_list(), [2, 3], reason="to_list copies the window")
         assert_equal(items.view(2, 2).len(), 0, reason="an empty view")
-
-    it("shows element writes"):
-        let mut items: List[i32] = [1, 2, 3]
-        view := items.view(0, 2)
-        items[1] = 9
-        assert_equal(view[1], 9, reason="the view reads the list's new element")

@@ -1,5 +1,5 @@
 # test: a top-level binding of a local reference is an error, since a local reference is never kept
-# Spec 13 Local References: ref.local.escape.top-level, ref.expr.kind.local.where.
+# Spec 13 Local References: ref.local.escape.top-level.
 struct Point:
     x: i32
 

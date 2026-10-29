@@ -1,0 +1,11 @@
+# test: a `*self` call on a value parameter is an error, as on any place
+# Spec 07 Reference Receivers: fn.method.counted-self.place.
+struct Counter:
+    hits: i32
+
+impl Counter:
+    fn view(*self) -> *Counter:
+        self
+
+fn invalid(c: Counter) -> *Counter:
+    c.view() # diagnostic: local-reference-escapes

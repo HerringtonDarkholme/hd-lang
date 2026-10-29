@@ -170,7 +170,7 @@ tests:
 ```
 
 1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
-2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> *mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-ref`](../lang/11-requirements-and-suspension.md#r-req.ref.install-ref), and the code that installed it reads what was written.
+2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> *mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-counted`](../lang/11-requirements-and-suspension.md#r-req.ref.install-counted), and the code that installed it reads what was written.
 3. r[std-console.buffer.output-text-sync] `c.output() -> List[string]` returns each `write_sync` text unchanged, in call order, including any newline supplied by the caller.
 4. r[std-console.buffer.error-text-sync] `c.error_output() -> List[string]` returns each `write_error_sync` text unchanged, in call order, including any newline supplied by the caller. `MemoryConsole` overrides `write_error_sync`, so error lines are not in `output()`.
 5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.

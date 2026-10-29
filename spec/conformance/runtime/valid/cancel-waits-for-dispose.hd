@@ -33,8 +33,8 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let mut log: List[string] = []
-    let job: mut Suspend[string] = session(&mut log)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, &mut log))
+    let log: *mut List[string] = box([])
+    let job: mut Suspend[string] = session(log)
+    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
     println("${winner} ${stopped}")
     println(log.join(", "))

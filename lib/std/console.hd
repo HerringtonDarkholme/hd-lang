@@ -94,8 +94,8 @@ impl MemoryConsole:
     pub fn error_output(&self) -> List[string]:
         self.error_lines
 
-# The `&mut MemoryConsole` that `new` returns, installed as the provider,
-# records into this object (r-req.ref.share.reference-values).
+# The `*mut MemoryConsole` that `new` returns, installed as the provider,
+# records into this object (r-req.ref.install-counted).
 impl Console for MemoryConsole:
     fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)

@@ -1,0 +1,15 @@
+# test: a `*mut self` call on a non-place temporary is an error; box the value first
+# Spec 07 Reference Receivers: fn.method.counted-self.temporary-error.
+struct Counter:
+    hits: i32
+
+impl Counter:
+    fn handle(*mut self) -> *mut Counter:
+        self
+
+fn fresh() -> Counter:
+    Counter { hits: 2 }
+
+fn invalid() -> void:
+    h := fresh().handle() # diagnostic: local-reference-escapes
+    k := box(fresh()).handle()

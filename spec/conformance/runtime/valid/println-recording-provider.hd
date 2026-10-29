@@ -21,7 +21,7 @@ fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 pub fn main() -> void $ Console:
-    let mut console = MemoryConsole { lines: [] }
-    $.with(Console=&mut console):
+    console := box(MemoryConsole { lines: [] })
+    $.with(Console=console):
         greet("Ada")
     println("recorded: ${console.lines[0]}${console.lines[1]}")
