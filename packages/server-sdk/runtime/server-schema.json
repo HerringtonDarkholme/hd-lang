@@ -2,10 +2,10 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "f74465d7fb54208c03e4dcf5cf6a0798bc9baeef",
-    "compilerBaseRevision": "f74465d7fb54208c03e4dcf5cf6a0798bc9baeef",
-    "compilerSha256": "98bbae8c7682da0db178455890ee77645fce94f32a8cb1f3cedb81d72fcda92b",
-    "referenceWasmSha256": "27030652248dad91e5c17d90a92d80ad9e23248c9e371f67d4ccfb25fa476d94",
+    "sourceBaseRevision": "e0b7616e2e46fdbd93ebe443f1e73d00995e173d",
+    "compilerBaseRevision": "e0b7616e2e46fdbd93ebe443f1e73d00995e173d",
+    "compilerSha256": "41d384c4330e9dda1a12f8bb9ea75f644537e81605486c5cecd56b1a81201aff",
+    "referenceWasmSha256": "8f9c1c41f77ba6f20e6de9cde55fc3c2d73b032c59ea64e2735763853c1635c3",
     "referenceContractSha256": "f4bd89496477c1db2278a022bb369b73947d35a25962e04e7e7ad88bacd2cf3c",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
@@ -1209,5 +1209,5 @@
       }
     ]
   },
-  "fingerprint": "d459ee2d5d8de68466b0c19ae7cb5e04190ffc6489746774f5f0e3d67baf28d8"
+  "fingerprint": "8f00d6429d315039ac6ed3f88280c6d7df5cf5beefd56bf8fc9e750dc5852f33"
 }
