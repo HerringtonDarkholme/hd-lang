@@ -1950,6 +1950,8 @@ protocol they drive:
 ```text
 pub trait Serialize:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]
+    fn is_absent(&self) -> bool:
+        false
 
 pub trait Deserialize:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Self, R::Error]
@@ -2002,7 +2004,7 @@ pub trait Deserializer:
         false
 ```
 
-1. r[annot.serde.module] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.structure`](#the-stdstructure-module).
+1. r[annot.serde.module.v2] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.structure`](#the-stdstructure-module).
 2. r[annot.serde.known] The compiler knows `Serialize` and `Deserialize` by name, for the boundary rule [`module.boundary.out`](10-modules.md#r-module.boundary.out). It knows no other part of `std.serde`.
 3. r[annot.serde.not-sealed] None of the five items is sealed. Any package may implement the four traits.
 

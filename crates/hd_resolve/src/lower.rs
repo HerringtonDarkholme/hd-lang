@@ -6199,10 +6199,13 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
 ///   `Self = C[...]` (trait.by.generated), whose body the checker writes
 ///   as `Tr::m(self.E, arguments...)` (`hd_check::delegate`).
 ///
-/// A `@derive` on a newtype takes every method of its trait, receiver or
-/// not, from the base type the same way, over the newtype's base in place
-/// of a field (`trait.derive.newtype.base`; `hd_check::newtype` writes the
-/// bodies, which wrap and unwrap the `Self` positions).
+/// A `@derive` on a newtype takes every required method of its trait,
+/// receiver or not, from the base type the same way, over the newtype's
+/// base in place of a field (`trait.derive.newtype.base`;
+/// `hd_check::newtype` writes the bodies, which wrap and unwrap the `Self`
+/// positions). A default method stays inherited from the trait; generating
+/// a forwarder would replace that body and needlessly constrain its `Self`
+/// positions.
 ///
 /// An implementation whose part is not an embedded field of a data type
 /// takes nothing: the checker reports it (`invalid-delegation`).
@@ -6249,8 +6252,9 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                 })
             };
             // A delegating implementation takes the methods with a receiver
-            // from an embedded field. A derived newtype takes every method
-            // from its base type (trait.derive.newtype.base).
+            // from an embedded field. A derived newtype takes each required
+            // method from its base type (trait.derive.newtype.base), while a
+            // default method keeps the trait's body.
             let (part, receivers_only) = match (kind, by, item(c).map(|i| i.data)) {
                 (ImplKind::Delegated, Some(by), Some(ItemData::Data(fields))) => {
                     let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
@@ -6286,7 +6290,15 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                 if methods.iter().any(|(w, _)| *w == name) {
                     continue;
                 }
-                let Some(sig) = item(tm).and_then(|i| i.sig().cloned()) else {
+                let Some(method) = item(tm) else {
+                    continue;
+                };
+                if matches!(*kind, ImplKind::Derived)
+                    && matches!(&method.data, ItemData::Method { has_body: true, .. })
+                {
+                    continue;
+                }
+                let Some(sig) = method.sig().cloned() else {
                     continue;
                 };
                 if receivers_only && sig.params.first().is_none_or(|p| names.text(p.0) != "self") {

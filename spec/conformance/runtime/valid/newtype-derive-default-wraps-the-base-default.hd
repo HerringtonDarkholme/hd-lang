@@ -5,9 +5,22 @@
 
 use std.ops.{Default, default}
 
+trait Presence:
+    fn value(self) -> i32
+    fn is_absent(&self) -> bool:
+        false
+
+impl Presence for i32:
+    fn value(self) -> i32:
+        self
+
 @derive(Default, Eq, Debug)
 type Count(i32)
 
+@derive(Presence)
+type Present(i32)
+
 pub fn main() -> void $ Console:
     zero := Count::default()
-    println(zero == Count(0))
+    present := Present(1)
+    println(zero == Count(0) && present.value() == 1 && !present.is_absent())
