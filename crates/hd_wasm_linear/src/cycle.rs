@@ -162,10 +162,12 @@ fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
 }
 
 /// Whether a walk from `start` over the types they hold meets a
-/// reference or an open value. Repeated data declarations end that branch,
-/// including recursion at growing type arguments.
+/// reference or an open value. An exactly repeated instantiated data type
+/// ends that branch. Repeating its declaration at different arguments is
+/// conservatively capable: a deeper instance may expose a reference that
+/// the first instance did not.
 fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
-    let mut work: Vec<(Ty, Vec<DefId>)> = start.iter().map(|t| (*t, Vec::new())).collect();
+    let mut work: Vec<(Ty, Vec<Ty>)> = start.iter().map(|t| (*t, Vec::new())).collect();
     while let Some((t, path)) = work.pop() {
         let t = strip(pool, env, t);
         if hd_mono::is_open(pool, t) {
@@ -176,11 +178,15 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
             TyData::Tuple { .. } => tuple_members(pool, t),
             TyData::Option(inner) => vec![inner],
             TyData::Adt { def, args } => {
-                // Walk declarations, not an infinite sequence of their
-                // growing substitutions. All positions in this declaration
-                // were already exposed on the first visit along this path.
-                if path.contains(&def) {
+                if path.contains(&t) {
                     continue;
+                }
+                // A declaration at new arguments may expose a reference in
+                // a parameter position only at the deeper instance.
+                if path.iter().any(|ancestor| {
+                    matches!(pool.get(*ancestor), TyData::Adt { def: seen, .. } if seen == def)
+                }) {
+                    return true;
                 }
                 match env.std_kind(def) {
                     StdKind::List | StdKind::Map | StdKind::Buffer => {
@@ -203,8 +209,8 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
             _ => return true,
         };
         let mut child_path = path;
-        if let TyData::Adt { def, .. } = pool.get(t) {
-            child_path.push(def);
+        if matches!(pool.get(t), TyData::Adt { .. }) {
+            child_path.push(t);
         }
         for child in children {
             work.push((child, child_path.clone()));

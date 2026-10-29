@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: release
+# Re-entering one declaration at different type arguments may expose a
+# counted reference only in the deeper instance, so its object stays
+# cycle-capable.
+
+enum Edge[T]:
+    More(x: T, next: *Edge[*T])
+    Done
+
+fn make() -> *Edge[string]:
+    let edge: Edge[string] = Edge.Done
+    &edge
