@@ -2,14 +2,44 @@
 title: Concurrency
 ---
 
-# `all!` waits for every task, `race!` keeps one winner, and a timeout limits waiting
+# Concurrency
 
-`all!` starts independent suspensions and returns their values in order.
-`race!` returns the first completed value and cancels the losers. `timeout`
-sets how long `apply!` may wait. These combinators take a call written without
-`!`, such as `first()`: it describes work that has not started yet, and the
-combinator starts it. Writing `first!()` starts it immediately and produces a
-string instead of work the combinator can start.
+The program on the right runs two tasks together, races them, and times out a
+slow one.
+
+## `all!`
+
+```hd example
+let (a, b) = all!(first(), second())
+```
+
+`all!` starts independent tasks and returns **their values in order**. Its
+arguments have no `!`. `first()` describes work that has not started, and
+`all!` starts it. `first!()` would run at once and pass a string instead.
+
+## `race!`
+
+```hd example
+println("race: ${race!(first(), second())}")
+```
+
+`race!` returns the **first value** to complete and cancels the others. It
+takes calls without `!` too.
+
+## Timeouts
+
+```hd example
+apply!(timeout(1ms)):
+    let result: Result[string, TimedOut] = .Ok(too_slow!())
+    result
+```
+
+`timeout(1ms)` limits how long the `apply!` block **may wait**. If time runs
+out, the block gives `.Err` with a `TimedOut`. The limit is a `Duration`, so a
+bare `1` is an error.
+
+**Run it.** It prints `all: first, second` and `race: first`. `too_slow!`
+sleeps 20 ms against a 1 ms limit, so the last line is `timed out after 1ms`.
 
 ```hd
 use std.task.{TimedOut, all, apply, race, timeout}
@@ -37,13 +67,6 @@ pub fn main!() -> void $ Clock + Console:
     match with_timeout!():
         .Ok(value) => println("timeout: $value")
         .Err(error) => println(error.to_string())
-
-# Change `first()` inside `all!` to `first!()` and Run:
-#     type-mismatch: in argument: expected a cold suspension, found string
-# Change `first()` inside `race!` to `first!()` and Run:
-#     type-mismatch: in argument: expected mut Suspend[?], found string
-# Change `timeout(1ms)` to `timeout(1)` and Run:
-#     type-mismatch: in argument: expected Duration, found an integer literal
 ```
 
 ```edit

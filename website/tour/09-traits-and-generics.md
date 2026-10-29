@@ -2,13 +2,47 @@
 title: Traits and generics
 ---
 
-# A trait is a checked contract, and a bound lets one algorithm use it
+# Traits and generics
 
-A `trait` names behavior. An `impl` opts a type into that contract, and the
-compiler checks every required method. A generic function works for any `T`
-whose bound it names. `total` knows nothing about books or services; it knows
-only that every `T < Priced` can return its price. Methods that do not belong
-to a trait live in a plain `impl Type:` block.
+The program on the right adds up prices for books and for services.
+
+## Traits
+
+```hd example
+trait Priced:
+    fn cents(&self) -> i32
+    fn label(&self) -> string
+```
+
+A `trait` names behavior that **many types** can share.
+
+## Implementations
+
+```hd example
+impl Priced for Book:
+    fn cents(&self) -> i32: self.price
+    fn label(&self) -> string: "book"
+```
+
+`impl Priced for Book` opts `Book` into the trait. The compiler checks that
+it writes **every required method**. Methods outside any trait go in a plain
+`impl Book:` block.
+
+## Generic functions
+
+```hd example
+fn total[T < Priced](items: List[T]) -> i32:
+    let sum = +0
+    for item in items:
+        sum += item.cents()
+    sum
+```
+
+`total` works for any `T` with the **bound** `T < Priced`. It knows nothing
+about books or services, only that each item has `cents()`.
+
+**Run it.** The books cost 1200 and 800, so it prints `2000`. Then it prints
+`5000` for the service.
 
 ```hd
 trait Priced:
@@ -37,9 +71,6 @@ fn total[T < Priced](items: List[T]) -> i32:
 
 println(total([Book { price: 1200 }, Book { price: 800 }]))
 println(total([Service { hourly: 5000 }]))
-
-# Delete Book's `cents` method and Run:
-#     missing-trait-method: the implementation does not write `cents`
 ```
 
 ```edit

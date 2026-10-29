@@ -2,13 +2,41 @@
 title: Derivation
 ---
 
-# Derivation follows a type's structure to provide standard behavior
+# Derivation
 
-`@derive` asks standard implementations to follow a type's fields. `Eq` and
-`Debug` compare and describe this `Order`; `Serialize` and `Deserialize` make
-the same structure available to JSON. The compiler describes each field and
-variant to derivation code; ordinary code only names the behavior it wants at
-the declaration.
+The program on the right reads an order from JSON and compares it.
+
+## `@derive`
+
+```hd example
+@derive(Eq, Debug, Serialize, Deserialize)
+struct Order:
+    id: string
+    total_cents: i32
+```
+
+`@derive` asks for standard implementations that **follow the fields**. The
+compiler describes each field to the derivation code. You only name the
+behavior you want.
+
+## The derived behavior
+
+```hd example
+match decode::[Order](text):
+    .Ok(order) =>
+        expected := Order { id: "A-1042", total_cents: 2500 }
+        println("same: ${order == expected}")
+        println(debug(order))
+    .Err(error) => println("decode failed: $error")
+```
+
+- `Eq` gives `==`, as in `order == expected`.
+- `Debug` gives `debug(order)`, which describes the fields.
+- `Serialize` and `Deserialize` connect the type to JSON, so `decode::[Order]`
+  can read it.
+
+**Run it.** The decoded order equals the literal, so it prints `same: true`.
+Then it prints the order's debug text.
 
 ```hd
 use std.json.decode
@@ -26,9 +54,6 @@ match decode::[Order](text):
         println("same: ${order == expected}")
         println(debug(order))
     .Err(error) => println("decode failed: $error")
-
-# Remove `Debug` from the derive list and Run:
-#     unsatisfied-trait-bound: Order does not implement Debug
 ```
 
 ```edit

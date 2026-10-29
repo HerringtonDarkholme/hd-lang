@@ -2,13 +2,39 @@
 title: Tests
 ---
 
-# Tests live beside code as examples, tables, and properties
+# Tests
 
-A file keeps unit tests in one `tests:` block. `it` checks one example,
-`it_each` runs a table, and `it_prop` checks a rule on generated inputs. Test
-code can call private helpers and does not ship in the program. Press **Test**:
-`hd test` does not run a script body, so this lesson deliberately has no
-top-level `println`.
+The program on the right prices parcels and tests the price in three ways.
+
+## The `tests:` block
+
+```hd example
+tests:
+    it("a parcel up to 1 kg pays the base rate"):
+        assert_equal(shipping_cents(800), 499)
+```
+
+A file keeps its unit tests in one **`tests:` block**. Test code can call
+private helpers, and it does not ship in the program.
+
+## Examples, tables, and properties
+
+```hd example
+it_prop("shipping never drops below the base", prop=fn!(grams: u16):
+    assert(shipping_cents(i32(grams)) >= 499)
+)
+```
+
+- `it` checks **one example**.
+- `it_each` runs one body over a **table** of rows.
+- `it_prop` checks a rule on **generated inputs**.
+
+`it_each` and `it_prop` come from `std.testing`, so the block starts with a
+`use`.
+
+**Test it.** Press **Test**. `hd test` does not run a script body, so this
+page has no top-level `println`. One example, two table rows and one property
+give `4 tests passed`.
 
 ```hd
 fn shipping_cents(weight_grams: i32) -> i32:
@@ -29,9 +55,6 @@ tests:
     it_prop("shipping never drops below the base", prop=fn!(grams: u16):
         assert(shipping_cents(i32(grams)) >= 499)
     )
-
-# Change the first 499 in `shipping_cents` to 450 and press Test:
-#     assertion-failed: actual 450, expected 499
 ```
 
 ```edit

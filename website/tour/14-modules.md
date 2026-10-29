@@ -2,20 +2,49 @@
 title: Modules
 ---
 
-# Files expose only `pub` names, and `use` makes dependencies visible
+# Modules
 
-Each file is a module. A declaration is private unless it says `pub`, and
-another file asks for public names with `use`. Open the other tab to see both
-sides of this boundary.
+The program on the right totals a cart with helpers from another file.
+
+## Files are modules
+
+```hd example
+pub fn total(lines: List[Line]) -> i32:
+    subtotal := lines.iter().map(fn(line: Line) -> i32: line.cents).sum()
+    subtotal + fee(subtotal)
+```
+
+Each file is a **module**. Open the other tab to see `src/pricing.hd`, where
+`total` lives.
+
+## `pub`
+
+```hd example
+pub struct Line:
+    pub item: string
+    pub cents: i32
+```
+
+A declaration is **private** unless it says `pub`. Fields need their own
+`pub`. `fee` has none, so only `pricing.hd` can call it.
+
+## `use`
+
+```hd example
+use pkg.pricing.{Line, total}
+```
+
+`use` names the **public items** this file needs. `pkg.pricing` is the module
+in `src/pricing.hd`.
+
+**Run it.** The cart costs 3650, under 5000, so the 499 fee applies. It
+prints `total: 4149 cents`.
 
 ```hd
 use pkg.pricing.{Line, total}
 
 cart := [Line { item: "lamp", cents: 3200 }, Line { item: "bulb", cents: 450 }]
 println("total: ${total(cart)} cents")
-
-# Import the private `fee` helper and Run:
-#     private-import: 'fee' is private to module 'playground.pricing'
 ```
 
 ```hd src/pricing.hd

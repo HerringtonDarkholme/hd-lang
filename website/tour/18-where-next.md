@@ -2,9 +2,11 @@
 title: Where next
 ---
 
-# Keep going in the playground, the guide, packages, or the specification
+# Where next
 
-The tour introduced hd's everyday pieces in dependency order. To go deeper:
+The program on the right prints three places to go after the tour.
+
+## Further reading
 
 - [The playground](../playground) runs whole projects and shows their
   WebAssembly.
@@ -16,8 +18,18 @@ The tour introduced hd's everyday pieces in dependency order. To go deeper:
 - [The specification](../../spec/README.md) states every accepted rule and
   diagnostic.
 
-This last editor uses only forms the tour already introduced. Change a label
-and press **Run**.
+## One last program
+
+```hd example
+for next in [Next.Playground, Next.Guide, Next.Spec]:
+    println(label(next))
+```
+
+This program uses only forms the tour already introduced: an enum, a `match`
+and a `for` loop.
+
+**Run it.** It prints one line for each place. Change a label and press
+**Run** again.
 
 ```hd
 enum Next:

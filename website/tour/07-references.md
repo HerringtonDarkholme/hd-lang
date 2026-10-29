@@ -2,13 +2,53 @@
 title: References
 ---
 
-# `&` reads in place, `&mut` writes in place, and `*` keeps sharing
+# References
 
-A value passed normally is copied. `&T` reads the caller's value without a
-copy, and `&mut T` may change that value. These local references cannot escape
-the call. A stored `*T` or `*mut T` may live in a field. `*T` reads; `*mut T`
-also writes. Writing `&mut` on a new value creates a shared object that stays
-alive while a stored reference points to it.
+The program on the right changes stock through references instead of copies.
+
+## Reading in place
+
+```hd example
+fn units(stock: &Stock) -> i32:
+    stock.units
+```
+
+A plain parameter gets a copy. `&Stock` **reads the caller's value** without
+one. Writing through it, such as `stock.units = 0`, is an error.
+
+## Writing in place
+
+```hd example
+fn restock(stock: &mut Stock, added: i32) -> void:
+    stock.units += added
+```
+
+`&mut Stock` may **change the caller's value**. The call writes `&mut` too, as
+in `restock(&mut local, 3)`. These local references cannot escape the call.
+
+## Stored references
+
+```hd example
+struct SharedStock:
+    view: *Stock
+    editable: *mut Stock
+```
+
+A field can hold a **stored reference**. `*Stock` reads, and `*mut Stock`
+also writes. A plain `Stock` value does not fit such a field.
+
+## Shared objects
+
+```hd example
+let shared: *mut Stock = &mut Stock { units: local.units }
+```
+
+`&mut` on a new value creates a **shared object**. It stays alive while a
+stored reference points to it. Both fields of `holder` point to it, so a
+write through `editable` shows through `view`.
+
+**Run it.** It prints `local: 2` before the restock. The shared stock starts
+at 5 and loses 1, so it then prints `shared: 4`.
 
 ```hd
 struct Stock:
@@ -31,13 +71,6 @@ let shared: *mut Stock = &mut Stock { units: local.units }
 holder := SharedStock { view: shared, editable: shared }
 holder.editable.units -= 1
 println("shared: ${holder.view.units}")
-
-# Add `stock.units = 0` inside `units` and Run:
-#     not-writable: this writes through a read-only reference &Stock
-# Change `restock(&mut local, 3)` to `restock(local, 3)` and Run:
-#     type-mismatch: in argument: expected &mut Stock, found Stock
-# Replace the stored reference with a plain Stock value and Run:
-#     type-mismatch: in field: expected *Stock, found Stock
 ```
 
 ```edit

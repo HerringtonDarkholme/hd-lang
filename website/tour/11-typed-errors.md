@@ -2,13 +2,54 @@
 title: Typed errors
 ---
 
-# `@error` gives failures messages and causes, while context records the operation
+# Typed errors
 
-An `@error` type keeps failures structured and gives each case a display
-message. `@from` generates the conversion used by `?` and records the converted
-error as the cause. `.context` adds what the caller was doing. `*dyn Error` is
-a shared reference to any error type, and `report_of` turns its cause chain into
-text for display or logging.
+The program on the right fails to read a port and prints why.
+
+## `@error` types
+
+```hd example
+@error
+enum ConfigError:
+    @error("port is not a number")
+    InvalidPort(@from error: ParseNumberError)
+```
+
+An `@error` type keeps failures structured. Each case gets a **display
+message**.
+
+## `@from`
+
+```hd example
+port := text.parse::[i32]()?
+```
+
+`@from` generates the conversion this `?` uses, from `ParseNumberError` to
+`ConfigError`. It also records the parse error as the **cause**. Without
+`@from`, `?` has no conversion.
+
+## Context
+
+```hd example
+fn load(text: string) -> Result[i32, *dyn Error]:
+    parse_port(text).context("loading server config")
+```
+
+`.context` adds **what the caller was doing**. `*dyn Error` is a shared
+reference to any error type.
+
+## Reports
+
+```hd example
+match load("eighty"):
+    .Ok(port) => println("port: $port")
+    .Err(error) => println(report_of(error))
+```
+
+`report_of` turns the **cause chain** into text for display or logging.
+
+**Run it.** `"eighty"` is not a number. So it prints the context, then each
+cause on its own `source:` line.
 
 ```hd
 use std.error.{Error, report_of}
@@ -29,9 +70,6 @@ fn load(text: string) -> Result[i32, *dyn Error]:
 match load("eighty"):
     .Ok(port) => println("port: $port")
     .Err(error) => println(report_of(error))
-
-# Delete `@from` and Run. Then `?` has no conversion:
-#     invalid-result-propagation: ConfigError does not implement From[ParseNumberError]
 ```
 
 ```edit
