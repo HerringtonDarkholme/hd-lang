@@ -66,8 +66,17 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
     let mut sites = Vec::new();
     let mut hashes = Vec::new();
     for call in (0..body.len()).rev() {
-        let Some(Callee::Item { def, targs }) = hd_tir::inline::known_call(body, call) else {
+        let Some(callee) = hd_tir::inline::known_call(body, call) else {
             continue;
+        };
+        let (def, targs) = match callee {
+            Callee::Item { def, targs } => (def, targs),
+            callee @ Callee::TraitMethod { .. } => {
+                let Some(target) = env.impl_target(&callee) else {
+                    continue;
+                };
+                target
+            }
         };
         let walk = env.generated_structure_walk(def);
         let build = env.generated_structure_build(def);

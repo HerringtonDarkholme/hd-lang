@@ -196,6 +196,7 @@ fn source_facts(
                 .get(*field as usize)?;
             source_facts(env, body, stores, value, rest, depth + 1)
         }
+        Tag::NewList if projected.is_empty() => literal_fact_list(env, body, instruction),
         Tag::Call => {
             let Callee::Item { def, targs } = hd_tir::inline::plain_call(body, instruction)? else {
                 return None;
@@ -261,6 +262,13 @@ fn literal_facts(
 ) -> Option<KnownFacts> {
     let items = *body.record(body.data[value][1]).first()?;
     let items = literal_list(body, stores, items, depth)?;
+    literal_fact_list(env, body, items)
+}
+
+fn literal_fact_list(env: &dyn FactEnv, body: &Body, items: usize) -> Option<KnownFacts> {
+    if body.tags.get(items) != Some(&Tag::NewList) {
+        return None;
+    }
     if body.data[items][0] != hd_tir::ir::NONE {
         return None;
     }
