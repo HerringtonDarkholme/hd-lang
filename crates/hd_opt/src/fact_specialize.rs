@@ -2,8 +2,8 @@
 //! fixed for one monomorphized declaration, even when the ordinary std
 //! helper that asks it is deliberately cold.
 
-use hd_base::{DefId, Hash128, StableHasher};
-use hd_tir::ir::{Body, Callee, PlaceRoot, Proj, Ref, Tag};
+use hd_base::{DefId, Hash128, LocalId, StableHasher};
+use hd_tir::ir::{Body, Callee, IntrinsicOp, PlaceRoot, Proj, Ref, Tag};
 use hd_types::{Ty, TyList};
 
 use crate::structure_specialize::StructureEnv;
@@ -121,6 +121,24 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
 fn stored_values(body: &Body) -> Vec<StoredValue> {
     let mut values = vec![StoredValue::Missing; body.local_ty.len()];
     for instruction in 0..body.len() {
+        if body.tags[instruction] == Tag::Intrinsic
+            && matches!(
+                IntrinsicOp::from_u32(body.data[instruction][0]),
+                Some(
+                    IntrinsicOp::ListPush
+                        | IntrinsicOp::ListReserve
+                        | IntrinsicOp::MapSet
+                        | IntrinsicOp::MapRemove
+                )
+            )
+            && let Some(&receiver) = body.record(body.data[instruction][1]).first()
+            && let Some(local) = changed_local(body, receiver, 0)
+        {
+            // Collection intrinsics mutate through an ordinary value read,
+            // not a `Ref` to the local. The initializer is stale afterwards.
+            values[local.idx()] = StoredValue::Ambiguous;
+            continue;
+        }
         if body.tags[instruction] == Tag::Ref
             && body.data[instruction][1] & hd_tir::ir::ref_word::MUT != 0
             && let Some(local) = body.local_in_place(body.data[instruction][0])
@@ -141,6 +159,25 @@ fn stored_values(body: &Body) -> Vec<StoredValue> {
         };
     }
     values
+}
+
+fn changed_local(body: &Body, value: u32, depth: u8) -> Option<LocalId> {
+    if depth >= 16 || value & Ref::CONST_BIT != 0 {
+        return None;
+    }
+    let instruction = value as usize;
+    match body.tags.get(instruction)? {
+        Tag::Read => match body.decode_place(body.data[instruction][0])?.root {
+            PlaceRoot::Local(local) => Some(local),
+            PlaceRoot::Value(value) => changed_local(body, value.0, depth + 1),
+            PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => None,
+        },
+        Tag::Block => changed_local(body, body.data[instruction][1], depth + 1),
+        Tag::Coerce if body.same_value_coercion(instruction) => {
+            changed_local(body, body.data[instruction][0], depth + 1)
+        }
+        _ => None,
+    }
 }
 
 fn source_facts(
