@@ -2,18 +2,18 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "e0b7616e2e46fdbd93ebe443f1e73d00995e173d",
-    "compilerBaseRevision": "e0b7616e2e46fdbd93ebe443f1e73d00995e173d",
-    "compilerSha256": "41d384c4330e9dda1a12f8bb9ea75f644537e81605486c5cecd56b1a81201aff",
-    "referenceWasmSha256": "8f9c1c41f77ba6f20e6de9cde55fc3c2d73b032c59ea64e2735763853c1635c3",
-    "referenceContractSha256": "f4bd89496477c1db2278a022bb369b73947d35a25962e04e7e7ad88bacd2cf3c",
+    "sourceBaseRevision": "42d48e5d3975cc2216541f77253a3ec6e41b2119",
+    "compilerBaseRevision": "42d48e5d3975cc2216541f77253a3ec6e41b2119",
+    "compilerSha256": "de5c1af8a2a66ade8d1fb638976a7279a59b147b9522958a12891332da21c86e",
+    "referenceWasmSha256": "8d4cf64e159c2c6ef9c4178669cd9aad1ba89648558fbadace2bf403553ab91f",
+    "referenceContractSha256": "fa201b0074c4782781abe4d9c1c94828792a4f94e444d0e63b8d1ddb8f636334",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "ba559def42f9eb2f61e9688dcb1b4c7271bd8ccd5bfaeab7908e8d4182f1eb7f",
-      "lib/std/console.hd": "97135afe58ed69d9aefaef5b388388a30482eaccdc1fafc73e87be4acb30410b",
-      "lib/std/http.hd": "9f7c7ff85c9dd97d4c4de9ede49fe139749073033a9f790664757f5f962fb609",
+      "lib/std/console.hd": "29b2aa997642d52825cf17b5cca7da688e000b429be54de59f6911ce2b3ba8d7",
+      "lib/std/http.hd": "d03533c7a3ba802c7d186ce6d50e826ef8a7b2c1dc6b08e67f279c5aade388ed",
       "lib/std/http_wire.hd": "1fcc64d5658b0a235fdc43de84970c84b52fb196e7cbbecf040371254fb212b2",
-      "lib/std/time.hd": "337b6b1f76e97ed6193ab7b490319426ff76197fa80e528f68e7bbd8f62c94ea"
+      "lib/std/time.hd": "fa541281b8868e226a3ad4bb5bdf3018689ce30911ea25df7e84ea18c34cf0dd"
     }
   },
   "coverage": {
@@ -1209,5 +1209,5 @@
       }
     ]
   },
-  "fingerprint": "8f00d6429d315039ac6ed3f88280c6d7df5cf5beefd56bf8fc9e750dc5852f33"
+  "fingerprint": "d1ca8261502d0dfa56448294f602e2cd2e59da018f689da4c53a6de18816d0cd"
 }
