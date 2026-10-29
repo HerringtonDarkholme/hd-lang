@@ -2,7 +2,7 @@
 
 Status: standard library specification draft.
 
-This chapter defines the always-checked precondition helper in `std.contract`.
+This chapter defines the development precondition helper in `std.contract`.
 It is an ordinary hd function over the language-tier `panic` function.
 
 ## Require
@@ -21,11 +21,10 @@ fn debit(balance: i64, amount: i64) -> i64:
 ```
 
 1. r[std-contract.require.decl] `std.contract` declares `pub fn require(message: string = "requirement failed", condition: fn() -> bool) -> void`.
-2. r[std-contract.require.once] A `require` call evaluates `condition` exactly once.
-3. r[std-contract.require.pass] If `condition` returns true, `require` returns without panicking.
-4. r[std-contract.require.fail] If `condition` returns false, `require` calls the prelude `panic` with `message`. Panic: `explicit-panic`.
-5. r[std-contract.require.profiles] `require` has the same behavior in every build profile.
+2. r[std-contract.require.debug-once] In a debug or test build, a `require` call evaluates `condition` exactly once.
+3. r[std-contract.require.debug-pass] In a debug or test build, if `condition` returns true, `require` returns without panicking.
+4. r[std-contract.require.debug-fail] In a debug or test build, if `condition` returns false, `require` calls the prelude `panic` with `message`. Panic: `explicit-panic`.
+5. r[std-contract.require.release] In a release build, `require` returns without evaluating `message` or `condition`.
 
-> **Why.** Precondition failures are programming errors. Checking every profile
-> avoids profile-dependent correctness, and ordinary panic keeps the mechanism
-> in std.
+> **Why.** Precondition failures are development checks. The paired declarations
+> remain checked in every profile, while a release build pays no runtime cost.

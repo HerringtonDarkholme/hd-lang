@@ -459,8 +459,10 @@ pub struct Item {
     /// (`annot.inline.recognized`).
     pub inline: u8,
     /// A function whose decorators attach values: `facts_of` of it reads
-    /// its facts body (`annot.facts-of.result`).
+    /// its facts body (`annot.facts-of.result.compiler-decorators`).
     pub has_facts: bool,
+    /// Whether this callable has one checked body for each build profile.
+    pub configured: bool,
     /// A typed fact type's pattern: the type argument of its
     /// `@annotate::[pattern]` line, over the type's own parameters
     /// (`annot.typed-fact.declare`, `annot.typed-fact.pattern`); `None`
@@ -511,6 +513,7 @@ impl Item {
             literal_fn: 0,
             inline: 0,
             has_facts: false,
+            configured: false,
             fact_pattern: None,
             fills_defaults: false,
             skips: Vec::new(),
@@ -1186,6 +1189,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u8(it.literal_fn);
     w.u8(it.inline);
     w.u8(u8::from(it.has_facts));
+    w.u8(u8::from(it.configured));
     w.u32(opt_ty(t, it.fact_pattern)?);
     w.u8(u8::from(it.fills_defaults));
     put_tys(w, t, &it.skips)?;
@@ -1287,6 +1291,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let literal_fn = r.u8();
     let inline = r.u8();
     let has_facts = r.u8() != 0;
+    let configured = r.u8() != 0;
     let fact_pattern = get_opt_ty(r, t).ok()?;
     let fills_defaults = r.u8() != 0;
     let skips = get_tys(r, t)?;
@@ -1373,6 +1378,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         literal_fn,
         inline,
         has_facts,
+        configured,
         fact_pattern,
         fills_defaults,
         skips,

@@ -13,7 +13,7 @@ use hd_base::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use hd_base::{DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol};
+use hd_base::{BuildProfile, DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
 
 use hd_intern::PathKind;
@@ -3426,6 +3426,15 @@ impl Lower<'_, '_, '_> {
             };
             let text = self.src.text(t).to_owned();
             if !seen.insert(text.clone()) {
+                let configured = block
+                    .into_iter()
+                    .flat_map(NodeRef::children)
+                    .filter(|other| other.kind() == SyntaxKind::FnDecl)
+                    .filter_map(|other| member_name(&self.src, other).map(|name| (other, name)))
+                    .any(|(other, name)| self.src.text(name) == text && has_cfg(&self.src, other));
+                if configured {
+                    continue;
+                }
                 bad.push((self.src.span(f), text));
             }
         }
@@ -5180,6 +5189,141 @@ fn decorator_line(src: &Src<'_>, d: NodeRef<'_>) -> Option<(String, Vec<String>)
     Some((src.text(name).to_owned(), list))
 }
 
+/// The build profile named by a valid `@cfg` line on `node`.
+/// A malformed line is left to decorator checking and is not a profile.
+#[must_use]
+pub fn cfg_profile(src: &Src<'_>, node: NodeRef<'_>) -> Option<BuildProfile> {
+    let mut found = None;
+    for d in node
+        .children()
+        .filter(|c| c.kind() == SyntaxKind::Decorator)
+    {
+        let Some((name, args)) = decorator_line(src, d) else {
+            continue;
+        };
+        if name != "cfg" {
+            continue;
+        }
+        let profile = match args.as_slice() {
+            [arg] if arg == ".Debug" => BuildProfile::Checked,
+            [arg] if arg == ".Release" => BuildProfile::Release,
+            _ => return None,
+        };
+        if found.replace(profile).is_some() {
+            return None;
+        }
+    }
+    found
+}
+
+fn has_cfg(src: &Src<'_>, node: NodeRef<'_>) -> bool {
+    node.children()
+        .filter(|c| c.kind() == SyntaxKind::Decorator)
+        .filter_map(|d| decorator_line(src, d))
+        .any(|(name, _)| name == "cfg")
+}
+
+/// Validates configured callable pairs after both signatures have been
+/// lowered, then keeps their one shared interface item.
+fn configured_pairs(
+    names: &Names<'_>,
+    src: &Src<'_>,
+    heads: &[Head<'_>],
+    items: &mut Vec<Item>,
+    diags: &mut DiagBuf,
+    report: bool,
+) {
+    let mut grouped: HashMap<DefId, Vec<NodeRef<'_>>> = HashMap::default();
+    for (def, node) in body_nodes(names, src, heads) {
+        grouped.entry(def).or_default().push(node);
+    }
+    let mut configured = HashSet::default();
+    for (def, nodes) in grouped {
+        if !nodes.iter().any(|n| has_cfg(src, *n)) {
+            continue;
+        }
+        configured.insert(def);
+        if nodes.iter().any(|n| !has_cfg(src, *n)) {
+            if report {
+                let at = nodes
+                    .iter()
+                    .find(|n| !has_cfg(src, **n))
+                    .copied()
+                    .unwrap_or(nodes[0]);
+                diags.error(
+                    Code::InvalidCfgDeclaration,
+                    src.span(at),
+                    "every declaration of a configured name needs `@cfg(.Debug)` or `@cfg(.Release)`",
+                );
+            }
+            continue;
+        }
+        let profiles: Vec<Option<BuildProfile>> =
+            nodes.iter().map(|n| cfg_profile(src, *n)).collect();
+        if profiles.iter().any(Option::is_none) {
+            continue;
+        }
+        let debug = profiles
+            .iter()
+            .filter(|p| **p == Some(BuildProfile::Checked))
+            .count();
+        let release = profiles
+            .iter()
+            .filter(|p| **p == Some(BuildProfile::Release))
+            .count();
+        if debug != 1 || release != 1 || nodes.len() != 2 {
+            if report {
+                let duplicate = |profile| {
+                    nodes
+                        .iter()
+                        .zip(&profiles)
+                        .filter(|(_, found)| **found == Some(profile))
+                        .nth(1)
+                        .map(|(node, _)| *node)
+                };
+                let at = duplicate(BuildProfile::Checked)
+                    .or_else(|| duplicate(BuildProfile::Release))
+                    .unwrap_or(nodes[0]);
+                diags.error(
+                    Code::InvalidCfgDeclaration,
+                    src.span(at),
+                    "a configured name has exactly one `@cfg(.Debug)` and one `@cfg(.Release)` declaration",
+                );
+            }
+            continue;
+        }
+        let own: Vec<&Item> = items.iter().filter(|it| it.def == def).collect();
+        let same = own.len() == 2
+            && own[0].public == own[1].public
+            && own[0].generics == own[1].generics
+            && own[0].data == own[1].data;
+        if !same && report {
+            diags.error(
+                Code::InvalidCfgDeclaration,
+                src.span(nodes[1]),
+                "the `.Debug` and `.Release` declarations must have identical signatures",
+            );
+        }
+    }
+    if configured.is_empty() {
+        return;
+    }
+    let mut seen = HashSet::default();
+    items.retain(|it| !configured.contains(&it.def) || seen.insert(it.def));
+    for it in items.iter_mut().filter(|it| configured.contains(&it.def)) {
+        it.configured = true;
+    }
+    for it in items {
+        let methods = match &mut it.data {
+            ItemData::Trait(data) => &mut data.methods,
+            ItemData::Impl { methods, .. } => methods,
+            _ => continue,
+        };
+        let mut seen = HashSet::default();
+        methods.retain(|(_, def)| seen.insert(*def));
+    }
+}
+
 /// The traits that a derived trait needs in the same `@derive` list
 /// (`trait.derive.related.same-list`): `Hash` and `PartialOrd` need `Eq`, and
 /// `Ord` needs `Eq` and `PartialOrd`.
@@ -5900,6 +6044,7 @@ pub fn build_folder_with_facts(
                 }
             }
         }
+        configured_pairs(names, &m.src, hs, &mut items, diags, r.frozen.is_none());
         let mut have: HashSet<DefId> = items.iter().map(|i| i.def).collect();
         for s in &m.seeds {
             if have.insert(s.def) {

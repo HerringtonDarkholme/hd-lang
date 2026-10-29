@@ -1,5 +1,5 @@
 # test: an undecorated function holds no facts
-# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.compiler-decorators.
 # expect-stdout: 0
 use std.annotation.facts_of
 

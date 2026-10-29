@@ -940,6 +940,7 @@ hd test --release     # still checked, with optimized code
 4. r[cli.profile.test] `hd test` always uses a checked build, the test profile, including for the executables it builds by [`cli.test.builds-executables`](#r-cli.test.builds-executables).
 5. r[cli.profile.test.release] `hd test --release` keeps the test profile, so integer overflow still panics. The flag selects only the pipeline.
 6. r[cli.profile.release.commands] `hd FILE`, `hd run`, `hd build`, and `hd test` take `--release`. No other command takes it.
+7. r[cli.profile.cfg-selection] For a configured declaration, the debug and test profiles select its `.Debug` body, including under `hd test --release`; the release profile selects its `.Release` body.
 
 > **Why.** Cargo has the same two profiles, and checks overflow in one
 > only. Release builds stay fast, since a check costs speed on every

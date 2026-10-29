@@ -34,6 +34,11 @@ billing = "github.com/acme/billing@1.2.0"
 4. r[module.manifest.no-registry] There is no package registry. A dependency is fetched from the version control repository that its host path names.
 5. r[module.manifest.targets] A package may have a library, executables, or both.
 6. r[module.manifest.no-features] A manifest declares no optional features, and source has no conditional compilation.
+7. r[module.manifest.no-user-flags] A manifest declares no user-defined build flags. A configured callable instead checks both bodies by [`annot.cfg.checked`](14-annotations.md#r-annot.cfg.checked).
+
+`@cfg` is not source exclusion or a package feature: both declarations remain
+present and checked, and the closed build profile selects one body only after
+checking.
 
 > **Why.** Source never names where a dependency comes from, so moving to
 > version control hosts changes no `use` line. One build per package

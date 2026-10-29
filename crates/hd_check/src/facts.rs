@@ -3,7 +3,7 @@
 //!
 //! Each such function gets one hidden body, `Facts { items: [...] }`, that
 //! evaluates its decorators in source order as ordinary code of the
-//! function's module (`annot.decorator.facts-of`, `annot.facts-of.result`).
+//! function's module (`annot.decorator.facts-of`, `annot.facts-of.result.compiler-decorators`).
 //! A decorator call is its call; a bare name of a function whose
 //! parameters all have defaults calls it
 //! (`annot.decorator.bare-call-defaults`); a literal is its value. `facts_of(f)` is a `DefaultCall` of that body, so the argument is

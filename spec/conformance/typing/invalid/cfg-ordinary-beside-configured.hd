@@ -1,0 +1,12 @@
+# test: a configured name has no ordinary declaration beside its variants
+# Spec 14 Build-Profile Bodies: annot.cfg.pair.
+@cfg(.Debug)
+fn configured() -> i32:
+    1
+
+@cfg(.Release)
+fn configured() -> i32:
+    2
+
+fn configured() -> i32: # diagnostic: invalid-cfg-declaration
+    3

@@ -258,6 +258,33 @@ An `@inline` or `@cold` line before any other target, such as a struct, is a
 > compiler decorators, not values, because an ordinary value changes
 > nothing by [`annot.decorator.attach`](#r-annot.decorator.attach).
 
+#### Build-Profile Bodies
+
+`@cfg(.Debug)` and `@cfg(.Release)` give one callable two checked bodies:
+
+```text
+@cfg(.Debug)
+fn require(condition: fn() -> bool) -> void:
+    if !condition():
+        panic("requirement failed")
+
+@cfg(.Release)
+fn require(condition: fn() -> bool) -> void:
+    pass
+```
+
+1. r[annot.cfg.compiler-decorator] `cfg` is a compiler-known prefix decorator. It is not a value, needs no import, and attaches no fact.
+2. r[annot.cfg.target] A `@cfg` line precedes only a module-level function or a method with a body. Error: `invalid-cfg-declaration`.
+3. r[annot.cfg.argument] A `@cfg` line takes exactly one argument, `.Debug` or `.Release`, and a declaration has one such line. Error: `invalid-cfg-declaration`.
+4. r[annot.cfg.pair] If one callable declaration of a name has `@cfg`, that callable has exactly two declarations in the same scope: one `.Debug` and one `.Release`. A missing variant, a repeated profile, or an ordinary declaration beside a configured one is an error at a declaration. Error: `invalid-cfg-declaration`.
+5. r[annot.cfg.signature] The two declarations have identical visibility and complete signatures after resolution, including generic parameters, which parameters have defaults, suspension, result types, and requirement rows. Error: `invalid-cfg-declaration`.
+6. r[annot.cfg.checked] Every build resolves and type-checks both declarations and both bodies, including a body that its profile does not select.
+7. r[annot.cfg.selection] After both bodies are checked, the selected [build profile](../cli/command-line.md#build-profiles) chooses the body used by later compilation stages. Debug and test select `.Debug`; release selects `.Release`.
+8. r[annot.cfg.no-expression] No expression observes the selected profile, and a package declares no additional profile flag.
+
+The two bodies share one function type and one package interface. Ordinary
+optimization removes calls and values that the selected body does not use.
+
 ### Function Facts
 
 `facts_of(f)` returns the values that decorators attach to the
@@ -285,7 +312,7 @@ fn users_path() -> string:
 
 1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
 2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration. The name may go through a module qualifier or a `use` import. The argument is not evaluated.
-3. r[annot.facts-of.result] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, and `@cold` lines.
+3. r[annot.facts-of.result.compiler-decorators] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, `@cold`, and `@cfg` lines.
 4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`.
 
 ```text

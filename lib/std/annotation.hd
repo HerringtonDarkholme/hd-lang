@@ -7,7 +7,7 @@
 use std.structure.Facts
 
 # The facts that decorators attach to the module-level function `f`, in
-# source order, as a `std.structure.Facts` (r-annot.facts-of.result). The
+# source order, as a `std.structure.Facts` (r-annot.facts-of.result.compiler-decorators). The
 # compiler checks that the argument names such a function, without
 # evaluating it, and lowers each call to that function's facts, so this body
 # never runs.

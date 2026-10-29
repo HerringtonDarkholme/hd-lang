@@ -1,6 +1,6 @@
 # test: user code reads a function's decorator value through facts_of
 # Spec 14 Function Facts: annot.decorator.facts-of, annot.facts-of.target,
-# annot.facts-of.result. The returned value follows annot.structure.reference-facts
+# annot.facts-of.result.compiler-decorators. The returned value follows annot.structure.reference-facts
 # and annot.structure.find-exact.
 use std.annotation.facts_of
 struct Route:

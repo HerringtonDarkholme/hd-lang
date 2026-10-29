@@ -76,6 +76,13 @@ impl Folder<'_, '_> {
                 .filter(|h| h.kind != HeadKind::Impl && h.local.is_none() && h.test.is_none())
             {
                 if !seen.insert(h.name) {
+                    if heads
+                        .iter()
+                        .filter(|other| other.name == h.name)
+                        .any(|other| super::has_cfg(&m.src, other.node))
+                    {
+                        continue;
+                    }
                     let msg = format!(
                         "`{}` is already declared in this module",
                         self.names.text(h.name)
@@ -268,9 +275,10 @@ impl Folder<'_, '_> {
     /// implementations' targets unify, two members of one implementation
     /// included. The later member is reported.
     fn inherent_members(&self, diags: &mut DiagBuf) {
+        type Decl = (DefId, Vec<hd_types::Ty>, Span, bool);
+
         // By member name: each declaration's implementation, target and place.
-        let mut by_name: HashMap<String, Vec<(DefId, Vec<hd_types::Ty>, Span)>> =
-            HashMap::default();
+        let mut by_name: HashMap<String, Vec<Decl>> = HashMap::default();
         let mut order = Vec::new();
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
@@ -306,6 +314,7 @@ impl Folder<'_, '_> {
                         h.def,
                         self.targets(h.def, *self_ty),
                         m.src.span(f),
+                        super::has_cfg(&m.src, f),
                     ));
                 }
             }
@@ -316,8 +325,11 @@ impl Folder<'_, '_> {
         };
         for name in order {
             let decls = &by_name[&name];
-            for (j, (def, tys, span)) in decls.iter().enumerate() {
-                let clash = decls[..j].iter().any(|(d, ts, _)| {
+            for (j, (def, tys, span, configured)) in decls.iter().enumerate() {
+                let clash = decls[..j].iter().any(|(d, ts, _, earlier_configured)| {
+                    if d == def && (*configured || *earlier_configured) {
+                        return false;
+                    }
                     ts.iter().any(|t| {
                         tys.iter().any(|ty| {
                             let mut sub = HashMap::default();

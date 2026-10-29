@@ -945,6 +945,29 @@ pub fn check_fn(
     check_fn_in(cx, def, node, diags, None)
 }
 
+/// Checks another configured body against the result type and row inferred
+/// for its pair's canonical body. Written parts pass `None` and continue to
+/// come from the shared interface signature.
+pub fn check_fn_with_inferred(
+    cx: &BodyCx<'_>,
+    def: DefId,
+    node: NodeRef<'_>,
+    inferred_ret: Option<Ty>,
+    inferred_row: Option<RowId>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    check_fn_body_as(
+        cx,
+        def,
+        node,
+        diags,
+        (None, None),
+        Infer::default(),
+        Some((inferred_ret, inferred_row)),
+    )
+    .map(|(b, ..)| b)
+}
+
 /// Checks one function body, a template's method at a derivation opt-in
 /// when `opt_in` is given: the opt-in's parameters and their bounds join
 /// the environment, and the members' obligations are checked at the end.
@@ -997,7 +1020,22 @@ pub(crate) fn check_fn_body(
     ),
     infer: Infer,
 ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-    match fn_body_steps(cx, def, node, diags, hooks, infer) {
+    check_fn_body_as(cx, def, node, diags, hooks, infer, None)
+}
+
+fn check_fn_body_as(
+    cx: &BodyCx<'_>,
+    def: DefId,
+    node: NodeRef<'_>,
+    diags: &mut DiagBuf,
+    hooks: (
+        Option<&crate::derive::OptIn>,
+        Option<&std::cell::RefCell<Vec<hd_types::solver::MemberStep>>>,
+    ),
+    infer: Infer,
+    inferred: Option<(Option<Ty>, Option<RowId>)>,
+) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
+    match fn_body_steps(cx, def, node, diags, hooks, infer, inferred) {
         Err(e) if is_out_of_fuel(&e) => {
             let body = too_complex(cx, (def, BodyKind::Fn), node, diags)?;
             Ok((body, Ty::POISON, crate::results::RowFacts::default()))
@@ -1016,13 +1054,22 @@ fn fn_body_steps(
         Option<&std::cell::RefCell<Vec<hd_types::solver::MemberStep>>>,
     ),
     infer: Infer,
+    inferred: Option<(Option<Ty>, Option<RowId>)>,
 ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
     let Some(item) = cx.lookup.item(def) else {
         return unsupported(format!("body of {} has no header", cx.names.path(def)));
     };
-    let Some(sig) = item.sig().cloned() else {
+    let Some(mut sig) = item.sig().cloned() else {
         return unsupported("a body of a non-function item");
     };
+    if let Some((ret, row)) = inferred {
+        if let Some(ret) = ret {
+            sig.ret = ret;
+        }
+        if let Some(row) = row {
+            sig.row = row;
+        }
+    }
     let local = hd_types::LocalPool::new();
     let mut ck = new_ck(
         cx,

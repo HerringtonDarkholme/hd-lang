@@ -1,5 +1,5 @@
 # test: facts_of finds a data value, a literal value, and a bare-marker value by type, on a generic function, and finds none on an undecorated one
-# Spec 14 Function Facts: annot.facts-of.result, annot.decorator.facts-of, annot.decorator.bare-call-defaults, annot.target.limit.
+# Spec 14 Function Facts: annot.facts-of.result.compiler-decorators, annot.decorator.facts-of, annot.decorator.bare-call-defaults, annot.target.limit.
 use std.annotation.{annotate, facts_of}
 @annotate(.Fn)
 struct Route:
