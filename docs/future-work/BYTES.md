@@ -71,7 +71,7 @@ copies no element and makes the snapshot boundary visible, so the first version 
 | Digest | `sha256`, `Sha256.hmac`, and `Sha256.update` take `&ListView[u8]`; `Digest.bytes` is a view |
 | Encoding | `hex_encode` and `Base64.encode` take `&ListView[u8]`; byte decoders return a view |
 | HTTP | `Body` stores a view; byte constructors accept a view; read-only byte access returns a view |
-| Multipart proposal #948 | File input takes a view; decoded part bodies sub-view the message body |
+| Multipart (`std.http`) | File input takes a view; decoded part bodies become sub-views of the message body |
 | Decompression proposal #949 | Decoders take `&ListView[u8]` and return a compact full view |
 
 Host DTOs remain `List[u8]` because the ABI owns an exchange-buffer copy. `string.to_utf8` and its
@@ -193,9 +193,9 @@ shares storage, ignores later source-list writes, supports length, element index
 `to_list`, and keeps the full backing list alive. It has no sub-view, equality, or conditional
 compaction operation today.
 
-`std.http.Body`, `std.digest`, and `std.encoding` expose `List[u8]`. The #948 multipart proposal
-copies parsed payloads, and the #949 decompression proposal uses lists at its public boundary. This
-proposal changes those binary surfaces and drops no list or text API.
+`std.http.Body`, `std.digest`, and `std.encoding` expose `List[u8]`. The shipped `std.http`
+multipart parser copies parsed payloads, and the #949 decompression proposal uses lists at its
+public boundary. This proposal changes those binary surfaces and drops no list or text API.
 
 ## Appendix E: Details and phases
 
