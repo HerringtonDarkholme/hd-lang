@@ -1255,42 +1255,66 @@ impl Ck<'_, '_> {
         Ok((self.diags.len() == before).then_some(vars))
     }
 
-    /// Whether `target` has the typed fact's pattern, without changing
-    /// inference or reporting a diagnostic.
-    fn fact_pattern_fits(&mut self, fact: DefId, target: Ty) -> bool {
-        let pool = self.pool();
-        let Some(item) = self.cx.lookup.item(fact) else {
-            return false;
-        };
-        let Some(pattern) = item.fact_pattern else {
-            return false;
-        };
-        let vars: Vec<Ty> = item
-            .generics
-            .iter()
-            .map(|_| self.infer.fresh(pool, VarKind::General))
-            .collect();
-        let want = subst_owner(pool, fact, &vars, pattern);
-        let target = self.norm_ty(target);
-        self.can_unify(target, want)
-            || matches!(pool.get(target), TyData::Mut(inner) if self.can_unify(inner, want))
+    /// The settled type a fact expression has without a target-provided
+    /// expected type. Context-only builders leave an inference variable and
+    /// return `None`; a value such as `range(1, 10)` settles to `Range[i32]`.
+    fn settled_fact_type(&mut self, e: NodeRef<'_>, single: bool) -> StageResult<Option<Ty>> {
+        let mut found = None;
+        let failed = self.trial(|ck| {
+            let (_, ty) = if single {
+                ck.fact_value(e, None)?
+            } else {
+                ck.expr(e, None)?
+            };
+            let ty = ck.zonk(ty);
+            let pool = ck.pool();
+            if !pool.has_poison(ty) && !pool.has_infer(ty) {
+                found = Some(ty);
+            }
+            Ok(())
+        })?;
+        Ok((!failed).then_some(found).flatten())
     }
 
-    /// A member of type `T?` first offers the payload `T` to a typed fact's
-    /// pattern. This makes a trivial `F` pattern infer `F = T`; a pattern
-    /// such as `F?`, which does not fit the payload, still matches the
-    /// whole member in the ordinary path.
+    /// Whether matching `fact` against `target` produces the concrete fact
+    /// type `written`, without changing inference or reporting a diagnostic.
+    fn fact_type_fits_target(
+        &mut self,
+        fact: DefId,
+        target: Ty,
+        written: Ty,
+        at: NodeRef<'_>,
+    ) -> StageResult<bool> {
+        let mut fits = false;
+        self.trial(|ck| {
+            let Some(vars) = ck.match_fact_pattern(fact, target, at)? else {
+                return Ok(());
+            };
+            let inferred = ck.pool().intern_ty(&TyData::Adt {
+                def: fact,
+                args: ck.pool().list(&vars),
+            });
+            fits = ck.unify_now(written, inferred);
+            Ok(())
+        })?;
+        Ok(fits)
+    }
+
+    /// A member of type `T?` offers the payload `T` when the fact expression
+    /// already has the fact type that matching against `T` produces. A
+    /// context-only builder has no settled type, so it keeps the ordinary
+    /// whole-member match.
     fn match_fact_target(
         &mut self,
         fact: DefId,
         target: Ty,
         at: NodeRef<'_>,
-        optional_payload: bool,
+        optional_written: Option<Ty>,
     ) -> StageResult<Option<Vec<Ty>>> {
-        if optional_payload {
+        if let Some(written) = optional_written {
             let target = self.norm_ty(target);
             if let TyData::Option(payload) = self.pool().get(target)
-                && self.fact_pattern_fits(fact, payload)
+                && self.fact_type_fits_target(fact, payload, written, at)?
             {
                 return self.match_fact_pattern(fact, payload, at);
             }
@@ -1329,7 +1353,7 @@ impl Ck<'_, '_> {
         {
             return Ok(());
         }
-        let Some(vars) = self.match_fact_target(fact, member, n, true)? else {
+        let Some(vars) = self.match_fact_target(fact, member, n, Some(m))? else {
             return Ok(());
         };
         let inferred = pool.intern_ty(&TyData::Adt {
@@ -1370,7 +1394,12 @@ impl Ck<'_, '_> {
         optional_payload: bool,
     ) -> StageResult<Option<(Ref, Ty)>> {
         let pool = self.pool();
-        let Some(vars) = self.match_fact_target(fact, target, e, optional_payload)? else {
+        let optional_written = if optional_payload {
+            self.settled_fact_type(e, single)?
+        } else {
+            None
+        };
+        let Some(vars) = self.match_fact_target(fact, target, e, optional_written)? else {
             return Ok(None);
         };
         let want = pool.intern_ty(&TyData::Adt {
