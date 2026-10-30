@@ -988,6 +988,22 @@ fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
     }
 }
 
+// The messages of `local-reference-escapes` for a store into a place the
+// caller owns and for each destination of a captured function value.
+const BOX_MSG: &str = "a local reference captured by this function value never escapes to a box";
+const STORE_FN_MSG: &str = "a local reference captured by this function value never escapes to a field, a top-level binding, or a place the caller owns";
+const STATIC_MSG: &str = "a local reference captured by this function value never escapes to a type parameter bounded by `'static`";
+const FN_PARAM_MSG: &str =
+    "a local reference captured by this function value may be passed only to a `fn(...)` parameter";
+const FIELD_MSG: &str = "a local reference captured by this function value never escapes to a field or collection element";
+const ELEM_MSG: &str =
+    "a local reference captured by this function value never escapes to a collection element";
+const PROVIDER_MSG: &str =
+    "a local reference captured by this function value never escapes to a provider";
+const HOST_MSG: &str =
+    "a local reference captured by this function value never escapes through a host call";
+const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime";
+
 /// Where a call's parameter keeps a capture slot of its argument.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum FnDest {
@@ -2015,10 +2031,7 @@ impl Solve<'_> {
                             inner,
                         )) =>
                 {
-                    bad.push((
-                        b.syn[i],
-                        "a local reference captured by this function value never escapes to a box",
-                    ));
+                    bad.push((b.syn[i], BOX_MSG));
                 }
                 Tag::Store => {
                     let [place, value] = b.data[i];
@@ -2029,10 +2042,7 @@ impl Solve<'_> {
                         matches!(p.root, PlaceRoot::Local(_)) && p.proj.is_empty()
                     });
                     if !local {
-                        bad.push((
-                            at(value, i),
-                            "a local reference captured by this function value never escapes to a field, a top-level binding, or a place the caller owns",
-                        ));
+                        bad.push((at(value, i), STORE_FN_MSG));
                     }
                 }
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => {
@@ -2055,12 +2065,8 @@ impl Solve<'_> {
                             let msg = match dest {
                                 FnDest::Scoped => continue,
                                 FnDest::Forward if forwards => continue,
-                                FnDest::Static => {
-                                    "a local reference captured by this function value never escapes to a type parameter bounded by `'static`"
-                                }
-                                FnDest::Forward | FnDest::Kept => {
-                                    "a local reference captured by this function value may be passed only to a `fn(...)` parameter"
-                                }
+                                FnDest::Static => STATIC_MSG,
+                                FnDest::Forward | FnDest::Kept => FN_PARAM_MSG,
                             };
                             bad.push((at(value, i), msg));
                             break;
@@ -2079,40 +2085,28 @@ impl Solve<'_> {
                             && self.captured_fn(value)
                             && !kept.contains(&value)
                         {
-                            bad.push((
-                                at(value, i),
-                                "a local reference captured by this function value never escapes to a field or collection element",
-                            ));
+                            bad.push((at(value, i), FIELD_MSG));
                         }
                     });
                 }
                 Tag::Intrinsic => {
                     slots(b, i, |_, value, word| {
                         if matches!(word, Word::Value(Role::Consume)) && self.captured_fn(value) {
-                            bad.push((
-                                at(value, i),
-                                "a local reference captured by this function value never escapes to a collection element",
-                            ));
+                            bad.push((at(value, i), ELEM_MSG));
                         }
                     });
                 }
                 Tag::With | Tag::ContextNew => {
                     slots(b, i, |_, value, word| {
                         if word == Word::Provider && self.captured_fn(value) {
-                            bad.push((
-                                at(value, i),
-                                "a local reference captured by this function value never escapes to a provider",
-                            ));
+                            bad.push((at(value, i), PROVIDER_MSG));
                         }
                     });
                 }
                 Tag::CallHost => {
                     slots(b, i, |_, value, word| {
                         if matches!(word, Word::Value(_)) && self.captured_fn(value) {
-                            bad.push((
-                                at(value, i),
-                                "a local reference captured by this function value never escapes through a host call",
-                            ));
+                            bad.push((at(value, i), HOST_MSG));
                         }
                     });
                 }
@@ -2651,63 +2645,36 @@ impl Ck<'_, '_> {
                 s.step(i);
             }
         }
-        if *constraints::SHADOW {
-            constraints::shadow(&s);
-        }
-        let capture_bad = s.captured_fn_escapes();
-        let mut stores: Vec<NodeIdx> = s.out.iter().map(|&i| body.syn[i as usize]).collect();
-        stores.sort_stable_by_key(|n| n.raw());
-        let mut bad: Vec<(NodeIdx, Origin, u32)> = Vec::new();
-        if let Some(own) = &own {
-            let ids = own.result_ids(ls, ret);
-            // A function value's capture slot with no source, as a
-            // capturing closure read from a field (`ref.generic.outlives.read`).
-            let rl = ls.of(ret);
-            let capture: Vec<bool> = (rl.tops.iter())
-                .map(|&k| own.capture_elided == Elided::Missing && rl.slots[k].fun)
-                .collect();
+        let mut today = Verdicts {
+            stores: s.out.iter().map(|&i| body.syn[i as usize]).collect(),
+            capture: s.captured_fn_escapes(),
+            ..Verdicts::default()
+        };
+        let slots = own.as_ref().map(|o| result_slots(ls, o, ret, opaque));
+        if let (Some(own), Some(slots)) = (&own, &slots) {
             for r in returned(body, root.0) {
-                let v = fit(s.of(r), ids.len());
-                for (k, (set, ids)) in v.iter().zip(&ids).enumerate() {
-                    // A slot of an opaque type that does not borrow may
-                    // depend on nothing.
-                    let id = match ids.first() {
-                        Some(&id) => id,
-                        None if opaque || capture.get(k) == Some(&true) => NO_SOURCE,
-                        None => continue,
-                    };
+                let v = fit(s.of(r), slots.len());
+                for (set, ids) in v.iter().zip(slots) {
+                    let Some(ids) = ids else { continue };
                     if let Some(&o) = set
                         .iter()
                         .find(|&&o| !ids.iter().any(|&id| own.allows(ls, o, id)))
                     {
-                        bad.push((site(&s, r, o, 0), o, id));
+                        let id = ids.first().copied().unwrap_or(NO_SOURCE);
+                        today.results.push((site(&s, r, o, 0), o, id));
                         break;
                     }
                 }
             }
         }
-        let mut closure_bad: Vec<(NodeIdx, String)> = Vec::new();
         for (sub, dep) in &closures {
-            let r = body.sub_params[*sub];
-            let locals: Vec<u32> = (0..r.len)
-                .map(|k| body.extra[(r.start + 1 + k) as usize])
-                .collect();
             let ids = dep.result_ids(ls, dep.ret);
             for v in returned(body, body.sub_root[*sub]) {
                 let set = fit(s.of(v), ids.len());
-                let ok = |o: Origin, ids: &[u32]| match o {
-                    Origin::Param(p, k) => locals.iter().position(|&l| l == p).is_some_and(|at| {
-                        ids.iter()
-                            .any(|&id| dep.allows(ls, Origin::Param(w(at), k), id))
-                    }),
-                    _ => false,
-                };
-                if let Some(o) = set
-                    .iter()
-                    .zip(&ids)
-                    .find_map(|(set, ids)| set.iter().copied().find(|&o| !ok(o, ids)))
-                {
-                    closure_bad.push((site(&s, v, o, 0), closure_message(body, self.cx, o)));
+                if let Some(o) = set.iter().zip(&ids).find_map(|(set, ids)| {
+                    (set.iter().copied()).find(|&o| !closure_allows(ls, body, *sub, dep, o, ids))
+                }) {
+                    today.closures.push((site(&s, v, o, 0), o));
                 }
             }
         }
@@ -2720,47 +2687,61 @@ impl Ck<'_, '_> {
             skip.extend(returned(body, body.sub_root[*sub]));
         }
         skip.insert(root.0);
-        let outlives = scoped_uses(&s, &skip, self.cx);
+        today.scope = scoped_uses(&s, &skip, self.cx);
+        let today = self.verdict_list(today, own.as_ref(), fun);
+        if *constraints::SHADOW {
+            let returns = constraints::Returns {
+                own: own.as_ref().zip(slots.as_deref()),
+                root: root.0,
+                closures: &closures,
+                skip: &skip,
+            };
+            let new = constraints::shadow(&s, &returns);
+            let new = self.verdict_list(new, own.as_ref(), fun);
+            constraints::compare(self.cx, &today, &new);
+        }
+        for (at, code, msg) in today {
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(code, node, &msg);
+        }
+    }
+
+    /// The diagnostics of `v`, one per node, in today's order: stores into
+    /// a place the caller owns, captured function values, returned values,
+    /// closures' returned values, then the scope check.
+    fn verdict_list(
+        &self,
+        v: Verdicts,
+        own: Option<&DepSig>,
+        fun: Option<NodeRef<'_>>,
+    ) -> Vec<(NodeIdx, Code, String)> {
+        let body = self.b.body();
+        let mut stores = v.stores;
+        stores.sort_stable_by_key(|n| n.raw());
         let mut seen = HashSet::default();
+        let mut out = Vec::new();
+        let mut push = |at: NodeIdx, msg: &dyn Fn() -> String| {
+            if at != NodeIdx::NONE && seen.insert(at) {
+                out.push((at, Code::LocalReferenceEscapes, msg()));
+            }
+        };
         for at in stores {
-            if at == NodeIdx::NONE || !seen.insert(at) {
-                continue;
-            }
-            let node = self.cx.src.parse.tree.node(at);
-            self.err(
-                Code::LocalReferenceEscapes,
-                node,
-                "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime",
-            );
+            push(at, &|| CALLER_PLACE_MSG.to_owned());
         }
-        for (at, msg) in capture_bad {
-            if at == NodeIdx::NONE || !seen.insert(at) {
-                continue;
-            }
-            let node = self.cx.src.parse.tree.node(at);
-            self.err(Code::LocalReferenceEscapes, node, msg);
+        for (at, msg) in v.capture {
+            push(at, &|| msg.to_owned());
         }
-        if let Some(own) = &own {
-            for (at, o, id) in bad {
-                if at == NodeIdx::NONE || !seen.insert(at) {
-                    continue;
-                }
-                let msg = self.origin_message(own, o, id, fun);
-                let node = self.cx.src.parse.tree.node(at);
-                self.err(Code::LocalReferenceEscapes, node, &msg);
+        if let Some(own) = own {
+            for (at, o, id) in v.results {
+                push(at, &|| self.origin_message(own, o, id, fun));
             }
         }
-        for (at, msg) in closure_bad {
-            if at == NodeIdx::NONE || !seen.insert(at) {
-                continue;
-            }
-            let node = self.cx.src.parse.tree.node(at);
-            self.err(Code::LocalReferenceEscapes, node, &msg);
+        for (at, o) in v.closures {
+            push(at, &|| closure_message(body, self.cx, o));
         }
-        for (at, msg) in outlives {
-            let node = self.cx.src.parse.tree.node(at);
-            self.err(Code::LocalReferenceOutlivesLocal, node, &msg);
-        }
+        let scope = v.scope.into_iter();
+        out.extend(scope.map(|(at, msg)| (at, Code::LocalReferenceOutlivesLocal, msg)));
+        out
     }
 
     /// `reference-result-without-source` or `ambiguous-reference-source`
@@ -2894,6 +2875,53 @@ fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
     format!(
         "{what}; a closure's reference result depends only on the closure's reference parameters of its lifetime"
     )
+}
+
+/// The diagnostics one solver gives a body, before their messages.
+#[derive(Default)]
+struct Verdicts {
+    /// Stores into a place the caller owns (`ref.dep.store`).
+    stores: Vec<NodeIdx>,
+    /// Captured function values kept where they may not go.
+    capture: Vec<(NodeIdx, &'static str)>,
+    /// Returned values: the origin they may not depend on, the lifetime.
+    results: Vec<(NodeIdx, Origin, u32)>,
+    /// Closures' returned values and the origin.
+    closures: Vec<(NodeIdx, Origin)>,
+    /// `local-reference-outlives-local`.
+    scope: Vec<(NodeIdx, String)>,
+}
+
+/// What each top slot of a returned value of type `ret` may depend on
+/// (`ref.dep.return`): its result slot's lifetimes, none for a slot of an
+/// opaque type that does not borrow or a capture slot with no source
+/// (`ref.generic.outlives.read`), and `None` for a slot that is not checked.
+fn result_slots(ls: &Layouts<'_>, own: &DepSig, ret: Ty, opaque: bool) -> Vec<Option<Vec<u32>>> {
+    let rl = ls.of(ret);
+    let capture = |k: usize| {
+        own.capture_elided == Elided::Missing && rl.tops.get(k).is_some_and(|&t| rl.slots[t].fun)
+    };
+    (own.result_ids(ls, ret).into_iter().enumerate())
+        .map(|(k, ids)| (!ids.is_empty() || opaque || capture(k)).then_some(ids))
+        .collect()
+}
+
+/// Whether a returned slot of lifetimes `ids` of closure `sub` may depend
+/// on `o`: a slot of its own parameter of that lifetime
+/// (`fn.closure.lifetime.return`).
+fn closure_allows(
+    ls: &Layouts<'_>,
+    b: &Body,
+    sub: usize,
+    dep: &DepSig,
+    o: Origin,
+    ids: &[u32],
+) -> bool {
+    let Origin::Param(p, k) = o else { return false };
+    let r = b.sub_params[sub];
+    (0..r.len)
+        .position(|j| b.extra[(r.start + 1 + j) as usize] == p)
+        .is_some_and(|at| (ids.iter()).any(|&id| dep.allows(ls, Origin::Param(w(at), k), id)))
 }
 
 /// The values the body returns: its root block's value and each `Return`

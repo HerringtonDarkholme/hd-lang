@@ -70,7 +70,6 @@ impl RegionTable {
 /// other category is a checked edge, whose source's loans must all be
 /// allowed in its target, and picks the diagnostic's message and code.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[expect(dead_code, reason = "the S4 and S5 checks make the other categories")]
 pub(crate) enum Category {
     /// A plain flow: a read, a store, a projection, a call argument.
     Flow,
@@ -88,6 +87,9 @@ pub(crate) enum Category {
     FieldCapture,
     /// An argument of a `'static` type parameter.
     StaticParam,
+    /// A captured function value passed for a type parameter with no
+    /// position for captures, which may take only the parameters'.
+    Forward,
 }
 
 /// One constraint `from ⊑ to`: everything `from` may point into, `to` may
@@ -154,7 +156,6 @@ pub(crate) struct Constraints {
 
 /// A checked edge whose source holds a loan its target does not allow.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
 pub(crate) struct Violation {
     pub(crate) edge: Edge,
     /// The lowest offending loan.
@@ -294,7 +295,6 @@ impl Solution {
     }
 
     /// Whether `a` and `b` ended in one component, and so share a value.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn same(&self, a: Region, b: Region) -> bool {
         self.comp[a as usize] == self.comp[b as usize]
     }
@@ -302,7 +302,6 @@ impl Solution {
     /// The checked edges whose source holds a loan that `allowed` rejects
     /// for that edge, by instruction, then in edge order: the first is the
     /// one to report.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn violations(
         &self,
         cons: &Constraints,
