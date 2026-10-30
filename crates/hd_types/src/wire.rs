@@ -11,7 +11,8 @@ use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 
 use crate::pool::{
-    FnDeps, Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
+    ConstValue, FnDeps, Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty,
+    TyData, TyList,
 };
 
 const NONE: u32 = u32::MAX;
@@ -58,6 +59,7 @@ mod tag {
     pub const OPAQUE: u8 = 23;
     pub const CREF: u8 = 24;
     pub const CREF_MUT: u8 = 25;
+    pub const CONST: u8 = 26;
 }
 
 impl<'a> TableWriter<'a> {
@@ -315,6 +317,15 @@ impl<'a> TableWriter<'a> {
                 self.row(tag::ASSOC, &words)
             }
             TyData::Canon(i) => self.row(tag::CANON, &[u32::from(i)]),
+            // `[prim, low, high]`; a string's value is its symbol row.
+            TyData::Const(v) => {
+                let bits = match v {
+                    ConstValue::Str(s) => u64::from(self.sym(s)),
+                    v => v.bits(),
+                };
+                let word = |w: u64| u32::try_from(w & 0xFFFF_FFFF).expect("low word");
+                self.row(tag::CONST, &[v.prim() as u32, word(bits), word(bits >> 32)])
+            }
             TyData::Row(r) => {
                 let row = self.row_id(r)?;
                 self.row(tag::ROW_TY, &[row])
@@ -439,6 +450,17 @@ impl Tables {
                     .0
                 }
                 tag::MUT => pool.intern_ty(&TyData::Mut(Ty(row(0)?))).0,
+                tag::CONST => {
+                    let prim = *Prim::ALL.get(*words.first()? as usize)?;
+                    let bits = u64::from(*words.get(1)?) | u64::from(*words.get(2)?) << 32;
+                    let value = match prim {
+                        Prim::String => ConstValue::Str(*t.syms.get(usize::try_from(bits).ok()?)?),
+                        Prim::Char => ConstValue::Char(char::from_u32(u32::try_from(bits).ok()?)?),
+                        Prim::F32 | Prim::F64 => return None,
+                        prim => ConstValue::from_bits(prim, bits),
+                    };
+                    pool.intern_ty(&TyData::Const(value)).0
+                }
                 tag::REF | tag::REF_MUT | tag::CREF | tag::CREF_MUT => {
                     pool.intern_ty(&TyData::Ref {
                         inner: Ty(row(0)?),
@@ -792,6 +814,60 @@ mod tests {
             output.bytes, actual.bytes,
             "fresh IDs retain the exact format"
         );
+    }
+
+    #[test]
+    fn const_values_keep_their_identity_across_a_fresh_run() {
+        use crate::pool::{ConstValue, Prim};
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let int = |prim, bits| ConstValue::Int { prim, bits };
+        let values = [
+            int(Prim::Usize, 4),
+            int(Prim::U32, 4),
+            int(Prim::I8, u64::MAX),
+            int(Prim::U64, u64::MAX),
+            ConstValue::Bool(true),
+            ConstValue::Char('\u{1F600}'),
+            ConstValue::Str(syms.intern("a \"name\"")),
+        ];
+        let tys: Vec<Ty> = values
+            .iter()
+            .map(|v| pool.intern_ty(&TyData::Const(*v)))
+            .collect();
+        // The value and its declared type are the identity
+        // (`types.generic.const.identity`).
+        assert_eq!(tys[0], pool.intern_ty(&TyData::Const(int(Prim::Usize, 4))));
+        assert_ne!(tys[0], tys[1]);
+        assert_eq!(pool.display(tys[2]), "-1");
+        assert_eq!(pool.display(tys[3]), "18446744073709551615");
+        let mut w = TableWriter::new(&pool, &paths, &syms);
+        let rows: Vec<u32> = tys.iter().map(|t| w.ty(*t).expect("const")).collect();
+        let mut out = Writer::default();
+        w.write(&mut out);
+        let (pool2, paths2, syms2) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        syms2.intern("an earlier symbol");
+        let t =
+            Tables::read(&mut Reader::new(&out.bytes), &pool2, &paths2, &syms2).expect("tables");
+        let read: Vec<ConstValue> = rows
+            .iter()
+            .map(|r| match pool2.get(t.ty(*r).expect("row")) {
+                TyData::Const(v) => v,
+                other => panic!("not a const: {other:?}"),
+            })
+            .collect();
+        assert_eq!(read[..6], values[..6]);
+        let ConstValue::Str(s) = read[6] else {
+            panic!("not a string: {:?}", read[6]);
+        };
+        assert_eq!(syms2.resolve(s), "a \"name\"");
     }
 
     #[test]

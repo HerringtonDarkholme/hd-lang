@@ -167,6 +167,7 @@ pub enum TyData {              // the decoded view; owned
     Canon(u8),                 // a solver placeholder
     Row(RowId),                // a row in a row parameter's argument slot
     Context(RowId),            // `$.Context[$ Row]`
+    Const(ConstValue),         // an evaluated argument in a const parameter's slot
 }
 ```
 

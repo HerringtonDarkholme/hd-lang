@@ -357,6 +357,13 @@ fn layout_in(
                 "the layout of a requirement row",
             ));
         }
+        // A const argument has no values (`types.generic.const.runtime`).
+        TyData::Const(_) => {
+            return Err(NotImplemented::new(
+                Stage::Emit,
+                "the layout of a const generic argument",
+            ));
+        }
         // One providers array (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
         TyData::Context(_) => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
         TyData::Opaque { .. }
@@ -679,6 +686,16 @@ pub fn canon(
         TyData::Context(r) => {
             h.u8(14);
             canon_row(pool, path_hash, memo, r, &mut h);
+        }
+        // A string's symbol is run-local; hashing its text waits for const
+        // arguments to reach monomorphization.
+        TyData::Const(hd_types::ConstValue::Str(_)) => {
+            unreachable!("a string const argument reached an instance key")
+        }
+        TyData::Const(v) => {
+            h.u8(19);
+            h.u8(v.prim() as u8);
+            h.u64(v.bits());
         } // 15 was an owned type, `own T`, and 16 a borrowed type, `^T`;
           // they are not reused.
     }

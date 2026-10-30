@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use hd_base::{AppendVec, DefId, InferVar};
+use hd_base::{AppendVec, DefId, InferVar, Symbol};
 
 /// A type: an `InternPool` index. Bit 31 set: a body-local index (§3.4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -139,6 +139,63 @@ pub struct ParamRef {
     pub index: u16,
 }
 
+/// An evaluated const generic argument (`types.generic.const.identity`):
+/// its value together with its declared scalar type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConstValue {
+    /// An integer of `prim`, as its bits sign-extended (signed types) or
+    /// zero-extended (unsigned types) to 64.
+    Int {
+        prim: Prim,
+        bits: u64,
+    },
+    Bool(bool),
+    Char(char),
+    Str(Symbol),
+}
+
+impl ConstValue {
+    /// The declared scalar type.
+    #[must_use]
+    pub fn prim(self) -> Prim {
+        match self {
+            ConstValue::Int { prim, .. } => prim,
+            ConstValue::Bool(_) => Prim::Bool,
+            ConstValue::Char(_) => Prim::Char,
+            ConstValue::Str(_) => Prim::String,
+        }
+    }
+
+    /// The value as one 64-bit word; its meaning follows [`Self::prim`].
+    #[must_use]
+    pub fn bits(self) -> u64 {
+        match self {
+            ConstValue::Int { bits, .. } => bits,
+            ConstValue::Bool(b) => u64::from(b),
+            ConstValue::Char(c) => u64::from(u32::from(c)),
+            ConstValue::Str(s) => u64::from(s.raw()),
+        }
+    }
+
+    /// The inverse of [`Self::prim`] and [`Self::bits`].
+    #[must_use]
+    pub fn from_bits(prim: Prim, bits: u64) -> Self {
+        match prim {
+            Prim::Bool => ConstValue::Bool(bits != 0),
+            Prim::Char => ConstValue::Char(
+                u32::try_from(bits)
+                    .ok()
+                    .and_then(char::from_u32)
+                    .expect("const char"),
+            ),
+            Prim::String => {
+                ConstValue::Str(Symbol::from_raw(u32::try_from(bits).expect("const string")))
+            }
+            prim => ConstValue::Int { prim, bits },
+        }
+    }
+}
+
 /// A declared row parameter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RowParamRef {
@@ -258,7 +315,12 @@ pub enum TyData {
         args: TyList,
         bound: Ty,
     },
+    /// A type or const parameter. A const parameter only occurs alone in a
+    /// const argument slot (`types.generic.const.type-position`).
     Param(ParamRef),
+    /// An evaluated const argument in a const parameter's argument slot.
+    /// It is not a type: it has no values and no layout.
+    Const(ConstValue),
     /// An unnormalized projection: the associated item and its trait reference.
     Assoc {
         assoc: DefId,
@@ -313,6 +375,7 @@ enum PoolTag {
     Row,
     RowTy,
     Context,
+    Const,
     /// A function type's dependency map: `[inputs, results, lifetimes...]`.
     Deps,
 }
@@ -343,6 +406,7 @@ impl PoolTag {
                 | PoolTag::Assoc
                 | PoolTag::List
                 | PoolTag::Row
+                | PoolTag::Const
                 | PoolTag::Deps
         )
     }
@@ -397,6 +461,7 @@ impl Cols {
         let len = match tag {
             PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
             PoolTag::Assoc => 4,
+            PoolTag::Const => 3,
             PoolTag::Opaque => 5,
             PoolTag::Fn => 5,
             PoolTag::Deps => 2 + x(0) + x(1),
@@ -1144,6 +1209,7 @@ impl<'a> Types<'a> {
                     | self.meta_of(*bound),
             ),
             TyData::Param(_) => (T::Param, 0, meta::HAS_PARAM),
+            TyData::Const(_) => (T::Const, 0, 0),
             TyData::Assoc { self_ty, args, .. } => (
                 T::Assoc,
                 0,
@@ -1206,6 +1272,11 @@ impl<'a> Types<'a> {
             TyData::Param(p) => {
                 buf[..2].copy_from_slice(&[p.owner.raw(), u32::from(p.index)]);
                 &buf[..2]
+            }
+            TyData::Const(v) => {
+                let bits = v.bits();
+                buf[..3].copy_from_slice(&[v.prim() as u32, low(bits), low(bits >> 32)]);
+                &buf[..3]
             }
             TyData::Assoc {
                 assoc,
@@ -1327,6 +1398,10 @@ impl<'a> Types<'a> {
                 owner: DefId::from_raw(x[0]),
                 index: u16::try_from(x[1]).expect("param"),
             }),
+            PoolTag::Const => TyData::Const(ConstValue::from_bits(
+                Prim::ALL[x[0] as usize],
+                u64::from(x[1]) | u64::from(x[2]) << 32,
+            )),
             PoolTag::Assoc => TyData::Assoc {
                 assoc: DefId::from_raw(x[0]),
                 trait_: DefId::from_raw(x[1]),
@@ -1944,6 +2019,13 @@ impl<'a> Types<'a> {
             TyData::TraitValue { def, .. } => format!("dyn #{}", def.raw()),
             TyData::Opaque { bound, .. } => format!("impl {}", self.display(bound)),
             TyData::Param(p) => format!("T{}@{}", p.index, p.owner.raw()),
+            TyData::Const(v) => match v {
+                ConstValue::Int { prim, bits } if prim.is_unsigned() => bits.to_string(),
+                ConstValue::Int { bits, .. } => i64::from_ne_bytes(bits.to_ne_bytes()).to_string(),
+                ConstValue::Bool(b) => b.to_string(),
+                ConstValue::Char(c) => format!("{c:?}"),
+                ConstValue::Str(s) => format!("str#{}", s.raw()),
+            },
             TyData::Assoc { assoc, self_ty, .. } => {
                 format!("<{}>::#{}", self.display(self_ty), assoc.raw())
             }
