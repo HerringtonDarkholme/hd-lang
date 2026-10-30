@@ -261,6 +261,36 @@ export function messageLabel(output: string, path: string): string {
   return normalizeLine(message ?? plain ?? lines[0] ?? "", path);
 }
 
+function locatedErrors(output: string, base: string): string[] {
+  const located = new RegExp(
+    `^(?:\\S*?${escapeRegExp(base)}):(\\d+):(\\d+): (warning: )?([a-z0-9]+(?:-[a-z0-9]+)*):`,
+    "m",
+  );
+  const errors: string[] = [];
+  for (const line of output.split("\n")) {
+    const match = located.exec(line);
+    if (match && !match[3]) {
+      errors.push(match[4]!);
+    }
+  }
+  return errors;
+}
+
+function panicOutcome(
+  output: string,
+  inventory: Inventory,
+  errors: readonly string[],
+  ms: number,
+): Outcome | undefined {
+  for (const line of output.split("\n")) {
+    const panic = /^(?:\S+:\d+:\d+: )?([a-z0-9]+(?:-[a-z0-9]+)*): /.exec(line.trim());
+    if (panic && inventory.panics.has(panic[1]!) && !errors.includes(panic[1]!)) {
+      return { code: panic[1]!, detail: "", kind: "panic", ms };
+    }
+  }
+  return undefined;
+}
+
 /**
  * Classifies one command result under the command contract (spec/tools/fuzz/CONTRACT.md).
  * Only exit status, signals, and `PATH:LINE:COL: CODE:` / `CODE:` lines are read.
@@ -290,24 +320,11 @@ export function classify(
     return { code: "bad-exit", detail: `exit ${result.code}: ${label}`, kind: "violation", ms };
   }
   const base = path.split("/").at(-1)!;
-  const located = new RegExp(
-    `^(?:\\S*?${escapeRegExp(base)}):(\\d+):(\\d+): (warning: )?([a-z0-9]+(?:-[a-z0-9]+)*):`,
-    "m",
-  );
-  const lines = output.split("\n");
-  const errors: string[] = [];
-  for (const line of lines) {
-    const match = located.exec(line);
-    if (match && !match[3]) {
-      errors.push(match[4]!);
-    }
-  }
+  const errors = locatedErrors(output, base);
   if (action === "run" || action === "test") {
-    for (const line of lines) {
-      const panic = /^(?:\S+:\d+:\d+: )?([a-z0-9]+(?:-[a-z0-9]+)*): /.exec(line.trim());
-      if (panic && inventory.panics.has(panic[1]!) && !errors.includes(panic[1]!)) {
-        return { code: panic[1]!, detail: "", kind: "panic", ms };
-      }
+    const panic = panicOutcome(output, inventory, errors, ms);
+    if (panic) {
+      return panic;
     }
   }
   if (errors.length === 0) {

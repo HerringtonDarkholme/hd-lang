@@ -238,23 +238,45 @@ export class Generator {
     return this.emitted;
   }
 
+  private expandSymbol(value: string, rng: Rng, depth: number): void {
+    const pool = terminalPools[value];
+    if (pool) {
+      this.emitted.push(rng.pick(pool));
+    } else if (this.grammar.has(value)) {
+      this.expand(this.grammar.get(value)!, rng, depth + 1);
+    } else {
+      this.emitted.push(layout.has(value) ? value : rng.pick(["x", "0"]));
+    }
+  }
+
+  private expandAlternative(
+    items: readonly Node[],
+    rng: Rng,
+    depth: number,
+    starving: boolean,
+  ): void {
+    if (!starving) {
+      this.expand(rng.pick(items), rng, depth);
+      return;
+    }
+    let best = items[0]!;
+    for (const item of items) {
+      if (this.nodeCost(item) < this.nodeCost(best)) {
+        best = item;
+      }
+    }
+    this.expand(best, rng, depth);
+  }
+
   private expand(node: Node, rng: Rng, depth: number): void {
     const starving = this.emitted.length >= this.budget || depth > 40;
     switch (node.kind) {
       case "lit":
         this.emitted.push(node.value);
         return;
-      case "sym": {
-        const pool = terminalPools[node.value];
-        if (pool) {
-          this.emitted.push(rng.pick(pool));
-        } else if (this.grammar.has(node.value)) {
-          this.expand(this.grammar.get(node.value)!, rng, depth + 1);
-        } else {
-          this.emitted.push(layout.has(node.value) ? node.value : rng.pick(["x", "0"]));
-        }
+      case "sym":
+        this.expandSymbol(node.value, rng, depth);
         return;
-      }
       case "seq":
         for (const item of node.items) {
           this.expand(item, rng, depth);
@@ -272,19 +294,8 @@ export class Generator {
         }
         return;
       }
-      case "alt": {
-        if (starving) {
-          let best = node.items[0]!;
-          for (const item of node.items) {
-            if (this.nodeCost(item) < this.nodeCost(best)) {
-              best = item;
-            }
-          }
-          this.expand(best, rng, depth);
-        } else {
-          this.expand(rng.pick(node.items), rng, depth);
-        }
-      }
+      case "alt":
+        this.expandAlternative(node.items, rng, depth, starving);
     }
   }
 }

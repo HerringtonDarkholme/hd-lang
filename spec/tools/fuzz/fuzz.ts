@@ -85,6 +85,43 @@ function parseOptions(args: readonly string[]): Options {
   const failOn = new Set<FuzzerName>();
   let replay: string | undefined;
   let work = join(tmpdir(), `hd-fuzz-${process.pid}`);
+  const handlers: Record<string, (value: string) => void> = {
+    "--compiler": (value) => compilers.push(splitCommand(value)),
+    "--seed": (value) => {
+      seed = value;
+    },
+    "--cases": (value) => {
+      cases = Number(value);
+    },
+    "--jobs": (value) => {
+      jobs = Number(value);
+    },
+    "--timeout": (value) => {
+      timeoutMs = Number(value);
+    },
+    "--out": (value) => {
+      out = resolve(value);
+    },
+    "--work": (value) => {
+      work = resolve(value);
+    },
+    "--max-signatures": (value) => {
+      maxSignatures = Number(value);
+    },
+    "--min-tests": (value) => {
+      minTests = Number(value);
+    },
+    "--replay": (value) => {
+      replay = resolve(value);
+    },
+    "--adapter": (value) => adapters.add(value),
+    "--fail-on": (value) => {
+      for (const name of fuzzerList(value)) {
+        failOn.add(name);
+      }
+    },
+    "--fuzzer": (value) => fuzzers.push(...fuzzerList(value)),
+  };
   for (let index = 0; index < args.length; index += 1) {
     const option = args[index]!;
     const value = args[index + 1];
@@ -95,38 +132,14 @@ function parseOptions(args: readonly string[]): Options {
       index += 1;
       return value;
     };
-    if (option === "--compiler") {
-      compilers.push(splitCommand(need()));
-    } else if (option === "--seed") {
-      seed = need();
-    } else if (option === "--cases") {
-      cases = Number(need());
-    } else if (option === "--jobs") {
-      jobs = Number(need());
-    } else if (option === "--timeout") {
-      timeoutMs = Number(need());
-    } else if (option === "--out") {
-      out = resolve(need());
-    } else if (option === "--work") {
-      work = resolve(need());
-    } else if (option === "--max-signatures") {
-      maxSignatures = Number(need());
-    } else if (option === "--min-tests") {
-      minTests = Number(need());
-    } else if (option === "--replay") {
-      replay = resolve(need());
-    } else if (option === "--adapter") {
-      adapters.add(need());
-    } else if (option === "--minimize") {
+    if (option === "--minimize") {
       doMinimize = true;
-    } else if (option === "--fail-on") {
-      for (const name of fuzzerList(need())) {
-        failOn.add(name);
-      }
-    } else if (option === "--fuzzer") {
-      fuzzers.push(...fuzzerList(need()));
     } else {
-      throw new Error(`unknown option ${option}`);
+      const handler = handlers[option];
+      if (!handler) {
+        throw new Error(`unknown option ${option}`);
+      }
+      handler(need());
     }
   }
   if (compilers.length === 0) {
@@ -369,34 +382,38 @@ interface Evaluation {
   readonly observations: readonly Observation[];
 }
 
-async function evaluate(
-  fuzzer: FuzzerName,
+async function evaluateWasm(
   input: Input,
   executor: Executor,
   options: Options,
 ): Promise<Evaluation> {
-  if (fuzzer === "wasm") {
-    const observations: Observation[] = [];
-    const executions = await executor.execute(input.source, ["check"]);
-    for (const [index, execution] of executions.entries()) {
-      if (execution.check?.kind !== "accept") {
-        continue;
-      }
-      const path = executor.file(input.source);
-      const verdict = await validateBuild(options.compilers[index]!, path, options.timeoutMs);
-      if (verdict.status !== "valid") {
-        const tag = options.compilers.length > 1 ? `c${index}:` : "";
-        observations.push({
-          detail: verdict.detail,
-          signature: `wasm|${tag}${verdict.status}|${normalizeLine(verdict.detail, path)}`,
-        });
-      }
+  const observations: Observation[] = [];
+  const executions = await executor.execute(input.source, ["check"]);
+  for (const [index, execution] of executions.entries()) {
+    if (execution.check?.kind !== "accept") {
+      continue;
     }
-    return { executions, observations };
+    const path = executor.file(input.source);
+    const verdict = await validateBuild(options.compilers[index]!, path, options.timeoutMs);
+    if (verdict.status !== "valid") {
+      const tag = options.compilers.length > 1 ? `c${index}:` : "";
+      observations.push({
+        detail: verdict.detail,
+        signature: `wasm|${tag}${verdict.status}|${normalizeLine(verdict.detail, path)}`,
+      });
+    }
   }
-  const executions = await executor.execute(input.source, input.actions);
-  const formatting: Observation[] = [];
-  for (let compiler = 0; fuzzer === "fmt" && compiler < executions.length; compiler += 1) {
+  return { executions, observations };
+}
+
+async function formatObservations(
+  input: Input,
+  executor: Executor,
+  options: Options,
+  executions: readonly Execution[],
+): Promise<Observation[]> {
+  const observations: Observation[] = [];
+  for (let compiler = 0; compiler < executions.length; compiler += 1) {
     const parsed = executions[compiler]?.parse;
     if (parsed?.kind !== "accept") {
       continue;
@@ -404,7 +421,7 @@ async function evaluate(
     const tag = options.compilers.length > 1 ? `c${compiler}:` : "";
     const once = await executor.format(compiler, input.source);
     if (once.outcome.kind !== "accept" || once.source === undefined) {
-      formatting.push({
+      observations.push({
         detail: once.outcome.detail,
         signature: `fmt|${tag}${outcomeLabel(once.outcome)}`,
       });
@@ -412,19 +429,19 @@ async function evaluate(
     }
     const reparsed = await executor.outcome(compiler, "parse", once.source);
     if (reparsed.kind !== "accept") {
-      formatting.push({
+      observations.push({
         detail: reparsed.detail,
         signature: `fmt|${tag}reparse-${outcomeLabel(reparsed)}`,
       });
     }
     const twice = await executor.format(compiler, once.source);
     if (twice.outcome.kind !== "accept" || twice.source === undefined) {
-      formatting.push({
+      observations.push({
         detail: twice.outcome.detail,
         signature: `fmt|${tag}second-${outcomeLabel(twice.outcome)}`,
       });
     } else if (twice.source !== once.source) {
-      formatting.push({
+      observations.push({
         detail: "the second formatter pass changed the first pass",
         signature: `fmt|${tag}not-idempotent`,
       });
@@ -433,24 +450,37 @@ async function evaluate(
       executions[compiler]?.check ?? (await executor.outcome(compiler, "check", input.source));
     const formattedCheck = await executor.outcome(compiler, "check", once.source);
     if (outcomeLabel(originalCheck) !== outcomeLabel(formattedCheck)) {
-      formatting.push({
+      observations.push({
         detail: `original ${outcomeLabel(originalCheck)}, formatted ${outcomeLabel(formattedCheck)}`,
         signature: `fmt|${tag}check-verdict`,
       });
     }
   }
-  const oracleInput = { executions };
-  // The `parse` fuzzer judges its `parse` results by the command contract.
-  let observations: Observation[];
-  if (fuzzer === "fmt") {
-    observations = formatting;
-  } else if (fuzzer === "parse" || fuzzer === "contract") {
-    observations = contract(oracleInput, fuzzer);
-  } else if (fuzzer === "phase") {
-    observations = phaseConsistency(oracleInput);
-  } else {
-    observations = crossImpl(oracleInput);
+  return observations;
+}
+
+function oracleObservations(fuzzer: FuzzerName, executions: readonly Execution[]): Observation[] {
+  const input = { executions };
+  if (fuzzer === "parse" || fuzzer === "contract") {
+    return contract(input, fuzzer);
   }
+  return fuzzer === "phase" ? phaseConsistency(input) : crossImpl(input);
+}
+
+async function evaluate(
+  fuzzer: FuzzerName,
+  input: Input,
+  executor: Executor,
+  options: Options,
+): Promise<Evaluation> {
+  if (fuzzer === "wasm") {
+    return evaluateWasm(input, executor, options);
+  }
+  const executions = await executor.execute(input.source, input.actions);
+  const observations =
+    fuzzer === "fmt"
+      ? await formatObservations(input, executor, options, executions)
+      : oracleObservations(fuzzer, executions);
   return { executions, observations };
 }
 
