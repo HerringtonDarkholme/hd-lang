@@ -59,14 +59,16 @@ test("changed payloads, added files and changed config refuse replacement", asyn
       const before = await readFile(join(output, "wrangler.json"), "utf8");
       const config = JSON.parse(before),
         base = join(output, "generations", config.main.split("/")[1]);
-      const target =
-        kind === "payload"
-          ? join(base, "entry.mjs")
-          : kind === "extra"
-            ? join(base, "unexpected")
-            : kind === "config"
-              ? join(output, "wrangler.json")
-              : join(output, "unexpected");
+      let target;
+      if (kind === "payload") {
+        target = join(base, "entry.mjs");
+      } else if (kind === "extra") {
+        target = join(base, "unexpected");
+      } else if (kind === "config") {
+        target = join(output, "wrangler.json");
+      } else {
+        target = join(output, "unexpected");
+      }
       await writeFile(target, "user-owned change");
       await assert.rejects(publishCloudflare(input(output, "two")));
       assert.equal(await readFile(target, "utf8"), "user-owned change");
@@ -99,12 +101,12 @@ test("symlinked output, payload, generation store and marker are refused", async
       } else {
         await publishCloudflare(input(output));
         const config = await selected(output);
-        const target =
-          kind === "payload"
-            ? join(output, config.main)
-            : kind === "store"
-              ? join(output, "generations")
-              : join(output, ".hd-server-sdk.json");
+        let target = join(output, ".hd-server-sdk.json");
+        if (kind === "payload") {
+          target = join(output, config.main);
+        } else if (kind === "store") {
+          target = join(output, "generations");
+        }
         await rm(target, { recursive: true });
         await symlink(
           kind === "marker" ? join(outside, "sentinel") : outside,

@@ -45,14 +45,14 @@ function failure(cause, host, timedOut) {
 // Fetch preserves Set-Cookie through its multi-value API. Other header
 // pairs are exactly those exposed by the platform (std-http.headers.combined).
 export function responseHeaders(headers) {
-  const cookies =
-    typeof headers.getSetCookie === "function"
-      ? headers.getSetCookie()
-      : typeof headers.getAll === "function"
-        ? headers.getAll("Set-Cookie")
-        : headers.has("set-cookie")
-          ? null
-          : [];
+  let cookies;
+  if (typeof headers.getSetCookie === "function") {
+    cookies = headers.getSetCookie();
+  } else if (typeof headers.getAll === "function") {
+    cookies = headers.getAll("Set-Cookie");
+  } else {
+    cookies = headers.has("set-cookie") ? null : [];
+  }
   if (cookies === null) {
     throw new Error("the platform does not expose separate Set-Cookie values");
   }
@@ -161,11 +161,12 @@ export function createHttpClient(
                 return error("InvalidUrl", { url });
               }
               host = writtenHost(written);
-              const port = parsed.port
-                ? Number(parsed.port)
-                : parsed.protocol === "https:"
-                  ? 443
-                  : 80;
+              let port = 80;
+              if (parsed.port) {
+                port = Number(parsed.port);
+              } else if (parsed.protocol === "https:") {
+                port = 443;
+              }
               if (!grant.coversHost("Http", host, port)) {
                 return error("NotGranted", { host });
               }

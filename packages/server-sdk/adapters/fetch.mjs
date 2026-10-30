@@ -27,21 +27,27 @@ class Rejected extends Error {
     this.status = status;
   }
 }
+const errorMessage = (status) => {
+  switch (status) {
+    case 413:
+      return "request body too large";
+    case 431:
+      return "request headers too large";
+    case 400:
+      return "bad request";
+    case 503:
+      return "server unavailable";
+    case 504:
+      return "request timed out";
+    default:
+      return "internal server error";
+  }
+};
 const errorResponse = (status) =>
-  new Response(
-    status === 413
-      ? "request body too large"
-      : status === 431
-        ? "request headers too large"
-        : status === 400
-          ? "bad request"
-          : status === 503
-            ? "server unavailable"
-            : status === 504
-              ? "request timed out"
-              : "internal server error",
-    { status, headers: status === 503 ? { "retry-after": "1" } : undefined },
-  );
+  new Response(errorMessage(status), {
+    status,
+    headers: status === 503 ? { "retry-after": "1" } : undefined,
+  });
 const abortError = (reason) =>
   reason instanceof Error ? reason : new DOMException("request aborted", "AbortError");
 

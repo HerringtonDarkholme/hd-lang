@@ -92,17 +92,19 @@ function begin(request) {
     child.on("close", (status, signal) => {
       clearTimeout(state.timer);
       closed();
-      state.result = timeout
-        ? { timeout: true }
-        : error
-          ? failure(error)
-          : {
-              ok: {
-                stdout: Buffer.concat(stdout).toString("utf8"),
-                stderr: Buffer.concat(stderr).toString("utf8"),
-                status: status ?? 128 + (constants.signals[signal] ?? 0),
-              },
-            };
+      if (timeout) {
+        state.result = { timeout: true };
+      } else if (error) {
+        state.result = failure(error);
+      } else {
+        state.result = {
+          ok: {
+            stdout: Buffer.concat(stdout).toString("utf8"),
+            stderr: Buffer.concat(stderr).toString("utf8"),
+            status: status ?? 128 + (constants.signals[signal] ?? 0),
+          },
+        };
+      }
     });
     if (Number.isFinite(request.timeout)) {
       const deadline = Date.now() + request.timeout;

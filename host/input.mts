@@ -90,11 +90,13 @@ function open(fd: number | null): void {
   try {
     const stat = fstatSync(fd);
     // This is Node's stdio split, without a worker's redirected process.stdin.
-    source = isatty(fd)
-      ? new ReadStream(fd)
-      : stat.isFIFO() || stat.isSocket()
-        ? new Socket({ fd, readable: true, writable: false })
-        : createReadStream(null as Dynamic, { fd, autoClose: false });
+    if (isatty(fd)) {
+      source = new ReadStream(fd);
+    } else if (stat.isFIFO() || stat.isSocket()) {
+      source = new Socket({ fd, readable: true, writable: false });
+    } else {
+      source = createReadStream(null as Dynamic, { fd, autoClose: false });
+    }
     source.on("data", (bytes: Buffer) => {
       available.push({ offset, bytes });
       offset += bytes.length;

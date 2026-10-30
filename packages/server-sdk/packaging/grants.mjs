@@ -38,7 +38,7 @@ export function parseProductionGrants(text) {
   ) {
     throw invalid("`capabilities` must be a table");
   }
-  const entries = Object.entries(table).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const entries = Object.entries(table).sort(([a], [b]) => a.localeCompare(b));
   for (const entry of entries) {
     const [key, value] = entry;
     const builtin = unscoped.has(key) || scoped.has(key);

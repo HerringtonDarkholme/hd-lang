@@ -215,14 +215,13 @@ test("physical import mismatches and primitive denials reject before output", ()
         );
       }
       writeFileSync(wasmPath, bytes);
-      writeFileSync(
-        manifest,
-        kind === "Clock"
-          ? originalManifest.replace("Clock = true", "Clock = false")
-          : kind === "Random"
-            ? originalManifest.replace("Clock = true", "Clock = true\nRandom = false")
-            : originalManifest,
-      );
+      let changedManifest = originalManifest;
+      if (kind === "Clock") {
+        changedManifest = originalManifest.replace("Clock = true", "Clock = false");
+      } else if (kind === "Random") {
+        changedManifest = originalManifest.replace("Clock = true", "Clock = true\nRandom = false");
+      }
+      writeFileSync(manifest, changedManifest);
       ordinaryTask(false);
     }
   }));

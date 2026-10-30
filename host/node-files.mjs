@@ -37,7 +37,12 @@ export const pathSeparator = sep;
 // `realpathSync.native`, like Rust's canonicalize, asks the OS, so on Windows
 // both expand 8.3 short names (RUNNER~1) and agree on the drive letter case.
 export function resolvePath(path, cwd = process.cwd(), links = 0) {
-  const full = sep === "\\" ? resolve(cwd, path) : isAbsolute(path) ? path : `${cwd}/${path}`;
+  let full;
+  if (sep === "\\") {
+    full = resolve(cwd, path);
+  } else {
+    full = isAbsolute(path) ? path : `${cwd}/${path}`;
+  }
   const { root } = parse(full);
   const parts = full
     .slice(root.length)
@@ -181,7 +186,12 @@ export const beforeDotDot = (path) => {
 
 // An `Entry`: path, kind, size, and an optional Unix-millisecond timestamp.
 const entry = (path, st) => {
-  const kind = st.isSymbolicLink() ? "Symlink" : st.isDirectory() ? "Directory" : "File";
+  let kind = "File";
+  if (st.isSymbolicLink()) {
+    kind = "Symlink";
+  } else if (st.isDirectory()) {
+    kind = "Directory";
+  }
   const millis = typeof st.mtimeNs === "bigint" ? st.mtimeNs / 1_000_000n : null;
   const modified =
     millis === null || millis < -9_223_372_036_854_775_808n || millis > 9_223_372_036_854_775_807n

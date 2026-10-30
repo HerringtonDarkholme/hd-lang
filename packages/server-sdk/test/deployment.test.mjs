@@ -255,12 +255,12 @@ test("unknown physical package import is rejected despite valid paired contract 
 for (const kind of ["unsupported builtin", "denied Clock", "denied Random"]) {
   test(`deployment preflight refuses ${kind} before publishing`, () =>
     changed(() => {
-      const target =
-        kind === "unsupported builtin"
-          ? "hd:Store"
-          : kind === "denied Random"
-            ? "hd:Random"
-            : "hd:Clock";
+      let target = "hd:Clock";
+      if (kind === "unsupported builtin") {
+        target = "hd:Store";
+      } else if (kind === "denied Random") {
+        target = "hd:Random";
+      }
       writeFileSync(wasmPath, withImportModule(wasm, "hd:Clock", target));
       if (kind === "denied Clock") {
         writeFileSync(manifest, originalManifest.replace("Clock = true", "Clock = false"));

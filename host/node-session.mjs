@@ -6,6 +6,13 @@ import { lineReader, nodeLayer } from "./node.mjs";
 
 const { readFileSync } = process.getBuiltinModule("node:fs");
 
+function endOf(live) {
+  if (live === null) {
+    return "-";
+  }
+  return live.end.kind === "exit" ? `exit${live.end.status}` : live.end.kind;
+}
+
 export const createNodeSession = (sink, env = {}, options = {}) =>
   createSession(sink, env, nodeLayer, options);
 
@@ -62,6 +69,7 @@ export async function driveNodeSession() {
             const notice = session.takeJournalNotice();
             recording &&= !notice;
             const live = ran.live;
+            const end = endOf(live);
             send(
               "ran",
               ran.kept.join(","),
@@ -69,11 +77,7 @@ export async function driveNodeSession() {
               ran.dropped.join(","),
               JSON.stringify(ran.reason),
               live === null ? "-" : String(live.status),
-              live === null
-                ? "-"
-                : live.end.kind === "exit"
-                  ? `exit${live.end.status}`
-                  : live.end.kind,
+              end,
               JSON.stringify(live?.error ?? null),
               Number(recording),
               Number(notice),

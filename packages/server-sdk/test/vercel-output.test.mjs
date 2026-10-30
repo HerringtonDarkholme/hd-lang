@@ -111,14 +111,16 @@ test("changed selectors, function bytes and extra functions are preserved and re
       await publishVercelNode(input(output));
       const before = await readFile(join(output, "config.json"), "utf8"),
         config = JSON.parse(before);
-      const target =
-        kind === "selector"
-          ? join(output, "config.json")
-          : kind === "payload"
-            ? join(active(output, config), "sdk/value.mjs")
-            : ["full-digest", "missing-digest"].includes(kind)
-              ? join(active(output, config), ".hd-generation.json")
-              : join(output, "functions/unrelated.func");
+      let target;
+      if (kind === "selector") {
+        target = join(output, "config.json");
+      } else if (kind === "payload") {
+        target = join(active(output, config), "sdk/value.mjs");
+      } else if (["full-digest", "missing-digest"].includes(kind)) {
+        target = join(active(output, config), ".hd-generation.json");
+      } else {
+        target = join(output, "functions/unrelated.func");
+      }
       let edited = "unrelated edit";
       if (["full-digest", "missing-digest"].includes(kind)) {
         const record = JSON.parse(await readFile(target, "utf8"));
@@ -160,14 +162,16 @@ test("symlinked Vercel roots, stores, functions and selectors are refused withou
       } else {
         await publishVercelNode(input(output));
         const config = await selected(output);
-        const target =
-          kind === "store"
-            ? join(output, "functions")
-            : kind === "function"
-              ? active(output, config)
-              : kind === "selector"
-                ? join(output, "config.json")
-                : join(output, ".hd-server-sdk.json");
+        let target;
+        if (kind === "store") {
+          target = join(output, "functions");
+        } else if (kind === "function") {
+          target = active(output, config);
+        } else if (kind === "selector") {
+          target = join(output, "config.json");
+        } else {
+          target = join(output, ".hd-server-sdk.json");
+        }
         const isFile = ["selector", "marker"].includes(kind);
         await rm(target, { recursive: true });
         await symlink(

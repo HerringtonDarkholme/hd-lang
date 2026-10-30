@@ -193,13 +193,15 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
       // Node builds the TLS context here: a root or identity it cannot
       // load is a TLS failure. Request syntax keeps its exact portable
       // validation error on both HTTP and HTTPS.
-      settle(
-        REQUEST_VALIDATION_CODES.has(e?.code)
-          ? err("Other", String(e?.message ?? e))
-          : secure
-            ? err("Tls", String(e?.message ?? e))
-            : failure(e, host),
-      );
+      let result;
+      if (REQUEST_VALIDATION_CODES.has(e?.code)) {
+        result = err("Other", String(e?.message ?? e));
+      } else if (secure) {
+        result = err("Tls", String(e?.message ?? e));
+      } else {
+        result = failure(e, host);
+      }
+      settle(result);
       return;
     }
     // Connect ends at the TCP connection, the TLS handshake then runs to a
@@ -296,7 +298,12 @@ async function send(r, signal) {
       return err("InvalidUrl", url);
     }
     const host = writtenHost(written);
-    const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
+    let port = 80;
+    if (u.port) {
+      port = Number(u.port);
+    } else if (u.protocol === "https:") {
+      port = 443;
+    }
     if (!grant.coversHost("Http", host, port)) {
       return err("NotGranted", host);
     }

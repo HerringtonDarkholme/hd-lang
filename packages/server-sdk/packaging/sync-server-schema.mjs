@@ -47,7 +47,11 @@ export async function sourceInventory(repository) {
         continue;
       }
       for (const char of line) {
-        depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+        if (char === "(") {
+          depth += 1;
+        } else if (char === ")") {
+          depth -= 1;
+        }
       }
       if (depth === 0) {
         if (!bridged || !line.trimEnd().endsWith(":")) {

@@ -273,12 +273,12 @@ function consoleInputProvider({ env, flush, inputClient }) {
       const finish = () => {
         inputClient.call({ op: "wait_finish", operation });
       };
-      const output = () =>
-        result.error === undefined
-          ? result.closed
-            ? Err({ tag: "Closed" })
-            : Ok(result.ok)
-          : Err({ tag: "Other", code: result.error });
+      const output = () => {
+        if (result.error !== undefined) {
+          return Err({ tag: "Other", code: result.error });
+        }
+        return result.closed ? Err({ tag: "Closed" }) : Ok(result.ok);
+      };
       if (poll()) {
         finish();
         return output();

@@ -50,9 +50,9 @@ export function normalizeServerContract(interfaces, sdk) {
           params: m.params.map(value),
           result: value(m.result),
         }))
-        .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+        .sort((a, b) => a.name.localeCompare(b.name)),
     }))
-    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    .sort((a, b) => a.key.localeCompare(b.key));
 }
 export function validateServerContract(interfaces, expectedSDKIdentity, schema) {
   if (

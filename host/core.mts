@@ -287,7 +287,10 @@ export function createGrant(
     Object.hasOwn(limits, key) ? limits[key]! : null;
   const check = (key: string, covers: (entry: string) => boolean): boolean => {
     const l = limit(key);
-    return l === null || l === true ? true : l === false ? false : l.some(covers);
+    if (l === null || l === true) {
+      return true;
+    }
+    return l === false ? false : l.some(covers);
   };
   return {
     allows: (key: string) => limit(key) !== false,
@@ -322,7 +325,12 @@ export function createGrant(
     coversHostName: (key: string, host: string) =>
       check(key, (e) => {
         const v6 = /^\[([^\]]*)\]/.exec(e);
-        const h = v6 ? v6[1]! : e.split(":").length === 2 ? e.split(":")[0]! : e;
+        let h = e;
+        if (v6) {
+          h = v6[1]!;
+        } else if (e.split(":").length === 2) {
+          h = e.split(":")[0]!;
+        }
         return h.startsWith("*.")
           ? host.endsWith(h.slice(1)) && host.length > h.length - 1
           : h.toLowerCase() === host.toLowerCase();
@@ -606,18 +614,28 @@ function consoleProvider({
 }: DynamicRecord): Record<string, ProviderFunction> {
   const denied = (stream: string): Dynamic => Err({ tag: "NotGranted", stream: { tag: stream } });
   return {
-    write_sync: (text: string) =>
-      !grant.allows("Console")
-        ? denied("Stdout")
-        : sink.write
-          ? (flush(), sink.write(1, text))
-          : (st.out.push(text), Ok(undefined)),
-    write_error_sync: (text: string) =>
-      !grant.allows("Console")
-        ? denied("Stderr")
-        : sink.write
-          ? (flush(), sink.write(2, text))
-          : (flush(), sink.err(text), Ok(undefined)),
+    write_sync: (text: string) => {
+      if (!grant.allows("Console")) {
+        return denied("Stdout");
+      }
+      if (sink.write) {
+        flush();
+        return sink.write(1, text);
+      }
+      st.out.push(text);
+      return Ok(undefined);
+    },
+    write_error_sync: (text: string) => {
+      if (!grant.allows("Console")) {
+        return denied("Stderr");
+      }
+      flush();
+      if (sink.write) {
+        return sink.write(2, text);
+      }
+      sink.err(text);
+      return Ok(undefined);
+    },
   };
 }
 
