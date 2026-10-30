@@ -891,13 +891,29 @@ impl<'a> ItemCheck<'_, 'a> {
     /// out of fuel is one `item-too-complex` on the item, at its header
     /// (`fn.limit.complexity.error`), and no goal is asked after it.
     fn fails(&mut self, t: Ty, bound: Ty, slot: u32) -> StageResult<bool> {
-        if self.too_complex {
-            return Ok(false);
-        }
         let pool = self.pool();
         let TyData::TraitValue { def, args, .. } = pool.get(bound) else {
             return Ok(false);
         };
+        self.fails_ref(
+            TraitRef {
+                trait_: def,
+                self_ty: t,
+                args,
+            },
+            slot,
+        )
+    }
+
+    /// Whether a written bound goal provably fails under the item's
+    /// environment. This is [`Self::fails`] after the bound is substituted.
+    fn fails_ref(&mut self, tref: TraitRef, slot: u32) -> StageResult<bool> {
+        if self.too_complex {
+            return Ok(false);
+        }
+        let pool = self.pool();
+        let t = tref.self_ty;
+        let def = tref.trait_;
         let inner = match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
@@ -905,11 +921,6 @@ impl<'a> ItemCheck<'_, 'a> {
         if inner == Ty::NEVER {
             return Ok(false);
         }
-        let tref = TraitRef {
-            trait_: def,
-            self_ty: t,
-            args,
-        };
         let goal = Goal::Implements {
             tref,
             bindings: vec![],
@@ -997,51 +1008,27 @@ impl<'a> ItemCheck<'_, 'a> {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);
                 if let Some(target) = self.cx.lookup.item(def) {
-                    let mut missed = false;
-                    for (i, g) in target.generics.iter().enumerate() {
-                        let Some(&a) = args_v.get(i) else { continue };
-                        // A default filled from an argument that already
-                        // missed its bound repeats that error.
-                        if missed
-                            && g.default.is_some_and(|d| {
-                                a == pool.subst(d, &|p: ParamRef| {
-                                    (p.owner == def)
-                                        .then(|| args_v.get(usize::from(p.index)).copied())?
-                                })
-                            })
-                        {
+                    let mut missed = None;
+                    for (i, a, tref) in
+                        crate::written_bounds::goals(pool, def, &target.generics, args_v)
+                    {
+                        if missed == Some(i) {
                             continue;
                         }
-                        for b in &g.bounds {
-                            let b = pool.subst(*b, &|p: ParamRef| {
-                                (p.owner == def)
-                                    .then(|| args_v.get(usize::from(p.index)).copied())?
+                        if self.fails_ref(tref, slot)? {
+                            let b = pool.intern_ty(&TyData::TraitValue {
+                                def: tref.trait_,
+                                args: tref.args,
+                                bindings: vec![],
                             });
-                            if self.fails(a, b, slot)? {
-                                // A use filled from a default reports at
-                                // its declaration, once
-                                // (`checked-once`): the declaration check
-                                // above runs for interface and private
-                                // items alike.
-                                let filled = g.default.is_some_and(|d| {
-                                    a == pool.subst(d, &|p: ParamRef| {
-                                        (p.owner == def)
-                                            .then(|| args_v.get(usize::from(p.index)).copied())?
-                                    })
-                                });
-                                if !filled {
-                                    let message = format!(
-                                        "{} does not implement {} in `{}`",
-                                        self.show(a),
-                                        self.show(b),
-                                        self.cx.names.display_name(self.item)
-                                    );
-                                    self.report(slot, Code::UnsatisfiedTraitBound, message);
-                                }
-                                missed = true;
-                                // One error per argument that misses a bound.
-                                break;
-                            }
+                            let message = format!(
+                                "{} does not implement {} in `{}`",
+                                self.show(a),
+                                self.show(b),
+                                self.cx.names.display_name(self.item)
+                            );
+                            self.report(slot, Code::UnsatisfiedTraitBound, message);
+                            missed = Some(i);
                         }
                     }
                 }

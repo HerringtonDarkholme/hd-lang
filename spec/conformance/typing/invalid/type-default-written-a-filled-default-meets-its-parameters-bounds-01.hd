@@ -1,10 +1,8 @@
-# test: a defaulted local written type checks its argument bound
-# The parameter and field fixtures check both copied Hash obligations.
-# This local type isolates T; never avoids a second invalid constructor.
+# test: a defaulted local written type reports one copied bound error
 struct Plain:
     x: i32
 
-struct Tagged[T < Hash, H = T]:
+struct Tagged[T < Hash, H < Hash = T]:
     tag: T
     hash: H
 

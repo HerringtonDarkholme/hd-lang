@@ -60,6 +60,7 @@ mod ty;
 mod update;
 mod using;
 mod value;
+mod written_bounds;
 
 pub use body::{
     BodyCx, TestsView, check_default, check_fn, check_fn_with_inferred, default_body_def,

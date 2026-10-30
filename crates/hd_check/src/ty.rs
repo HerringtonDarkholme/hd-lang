@@ -664,33 +664,16 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         let args = pool.list_items(args);
-        for (i, g) in item.generics.iter().enumerate() {
-            let Some(&a) = args.get(i) else { continue };
+        let mut missed = None;
+        for (i, _, tref) in crate::written_bounds::goals(pool, def, &item.generics, args) {
+            if missed == Some(i) {
+                continue;
+            }
             let at = arg_nodes.get(i).copied().unwrap_or(whole);
-            for b in &g.bounds {
-                let b = pool.subst(*b, &|p: ParamRef| {
-                    (p.owner == def)
-                        .then(|| args.get(usize::from(p.index)).copied())
-                        .flatten()
-                });
-                let TyData::TraitValue {
-                    def: trait_,
-                    args: targs,
-                    ..
-                } = pool.get(b)
-                else {
-                    continue;
-                };
-                let before = self.diags.len();
-                let tref = hd_types::solver::TraitRef {
-                    trait_,
-                    self_ty: a,
-                    args: targs,
-                };
-                self.require_ref(tref, at)?;
-                if self.diags.len() != before {
-                    break;
-                }
+            let before = self.diags.len();
+            self.require_ref(tref, at)?;
+            if self.diags.len() != before {
+                missed = Some(i);
             }
         }
         Ok(())
