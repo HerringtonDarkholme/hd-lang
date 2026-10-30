@@ -70,42 +70,39 @@ export type Unit =
 const fine = (value: number): string =>
   Math.abs(value) < 10 ? value.toFixed(Math.abs(value) < 1 ? 2 : 1) : String(Math.round(value));
 
+const FORMATTERS: Partial<Record<Unit, (value: number) => string>> = {
+  ns: (value) => `${fine(value)} ns`,
+  us: (value) => `${fine(value)} µs`,
+  "MB/s": (value) => `${fine(value)} MB/s`,
+  "B/iter": (value) => `${fine(value)} B/iter`,
+  s: (value) => `${value.toFixed(1)} s`,
+  "%": (value) => `${(value * 100).toFixed(1)}%`,
+  bytes: (value) => `${Math.round(value)} B`,
+  MB: (value) => `${(value / (1024 * 1024)).toFixed(1)} MB`,
+  tokens: (value) => `${Math.round(value)} tokens`,
+  count: (value) => String(Math.round(value)),
+  x: (value) => `${value.toFixed(2)}x`,
+  exponent: (value) => value.toFixed(2),
+};
+
 export function formatValue(value: number, unit: Unit): string {
   if (!Number.isFinite(value)) {
     return String(value);
   }
+  const format = FORMATTERS[unit];
+  if (format) {
+    return format(value);
+  }
   switch (unit) {
-    case "ns":
-      return `${fine(value)} ns`;
-    case "us":
-      return `${fine(value)} µs`;
-    case "MB/s":
-      return `${fine(value)} MB/s`;
     case "per-s":
       if (value >= 1e6) {
         return `${(value / 1e6).toFixed(1)}M/s`;
       }
       return value >= 10_000 ? `${(value / 1000).toFixed(0)}k/s` : `${fine(value)}/s`;
-    case "B/iter":
-      return `${fine(value)} B/iter`;
     case "ms":
       return `${value < 10 ? value.toFixed(1) : Math.round(value)} ms`;
-    case "s":
-      return `${value.toFixed(1)} s`;
-    case "%":
-      return `${(value * 100).toFixed(1)}%`;
-    case "bytes":
-      return `${Math.round(value)} B`;
-    case "MB":
-      return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-    case "tokens":
-      return `${Math.round(value)} tokens`;
-    case "count":
-      return String(Math.round(value));
-    case "x":
-      return `${value.toFixed(2)}x`;
-    case "exponent":
-      return value.toFixed(2);
+    default:
+      throw new Error(`missing formatter for ${unit}`);
   }
 }
 

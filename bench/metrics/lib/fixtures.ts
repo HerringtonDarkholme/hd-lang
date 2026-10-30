@@ -155,6 +155,32 @@ function lookup(scope: TemplateScope, name: string, where: string): TemplateValu
   return scope[name]!;
 }
 
+function renderField(scope: TemplateScope, where: string, name: string, args: string): string {
+  const value = lookup(scope, name, where);
+  if (typeof value === "function") {
+    return String(value(...args.trim().split(/\s+/)));
+  }
+  if (args.trim()) {
+    throw new Error(`${where}: {{${name}}} is not a function`);
+  }
+  if (typeof value === "object") {
+    throw new Error(`${where}: {{${name}}} is a list`);
+  }
+  return String(value);
+}
+
+function blockParts(
+  block: RegExpExecArray,
+  line: string,
+  where: string,
+  lineNumber: number,
+): [string, string] {
+  if (block[1] === "/" || !block[3]) {
+    throw new Error(`${where}:${lineNumber}: unexpected ${line.trim()}`);
+  }
+  return [block[2]!, block[3]];
+}
+
 function renderLines(lines: readonly string[], scope: TemplateScope, where: string): string[] {
   const out: string[] = [];
   for (let index = 0; index < lines.length; index++) {
@@ -164,10 +190,7 @@ function renderLines(lines: readonly string[], scope: TemplateScope, where: stri
     }
     const block = BLOCK.exec(line);
     if (block) {
-      if (block[1] === "/" || !block[3]) {
-        throw new Error(`${where}:${index + 1}: unexpected ${line.trim()}`);
-      }
-      const [, , kind, name] = block as unknown as [string, string, string, string];
+      const [kind, name] = blockParts(block, line, where, index + 1);
       let depth = 1;
       let end = index + 1;
       for (; end < lines.length; end++) {
@@ -199,19 +222,9 @@ function renderLines(lines: readonly string[], scope: TemplateScope, where: stri
       continue;
     }
     out.push(
-      line.replaceAll(FIELD, (_, name: string, args: string) => {
-        const value = lookup(scope, name, where);
-        if (typeof value === "function") {
-          return String(value(...args.trim().split(/\s+/)));
-        }
-        if (args.trim()) {
-          throw new Error(`${where}: {{${name}}} is not a function`);
-        }
-        if (typeof value === "object") {
-          throw new Error(`${where}: {{${name}}} is a list`);
-        }
-        return String(value);
-      }),
+      line.replaceAll(FIELD, (_, name: string, args: string) =>
+        renderField(scope, where, name, args),
+      ),
     );
   }
   return out;

@@ -54,6 +54,75 @@ function measured(label: string, result: RunResult, timeoutMs: number): TargetRe
   };
 }
 
+interface CommandRuns {
+  readonly results: TargetResult[];
+  readonly warm?: RunResult;
+  readonly problem?: string;
+}
+
+async function measureCommand({
+  context,
+  source,
+  size,
+  command,
+  timedOutAt,
+}: {
+  context: Parameters<Metric["run"]>[0];
+  source: string;
+  size: SizeName;
+  command: (typeof COMMANDS)[number];
+  timedOutAt: Map<string, SizeName>;
+}): Promise<CommandRuns> {
+  const timeoutMs = TIMEOUT_MS[size];
+  const coldLabel = `${command}, ${size}, cold`;
+  const warmLabel = `${command}, ${size}, warm`;
+  const target = `completes ≤ ${timeoutMs / 1000} s`;
+  const blocker = timedOutAt.get("check") ?? timedOutAt.get(command);
+  if (blocker) {
+    const cause = timedOutAt.has("check") ? "check" : command;
+    const problem = `skipped: hd ${cause} timed out at ${blocker}`;
+    return {
+      results: [failed(NAME, coldLabel, target, problem), failed(NAME, warmLabel, target, problem)],
+      problem,
+    };
+  }
+
+  const dir = copyPackage(source, `${NAME}-${size}`);
+  const options = { cwd: dir, env: freshCache(), timeoutMs, measure: true };
+  const cold = await runHd(context.hd, [command], options);
+  const coldProblem = runProblem(cold, timeoutMs, `cold hd ${command}`);
+  if (coldProblem) {
+    if (cold.timedOut) {
+      timedOutAt.set(command, size);
+    }
+    removeTempDir(dir);
+    return {
+      results: [
+        failed(NAME, coldLabel, target, coldProblem),
+        failed(NAME, warmLabel, target, "skipped: the cold run failed"),
+      ],
+      problem: `the cold run failed: ${coldProblem}`,
+    };
+  }
+
+  const warm = await runHd(context.hd, [command], options);
+  const warmProblem = runProblem(warm, timeoutMs, `warm hd ${command}`);
+  if (warmProblem && warm.timedOut) {
+    timedOutAt.set(command, size);
+  }
+  removeTempDir(dir);
+  return {
+    results: [
+      measured(coldLabel, cold, timeoutMs),
+      warmProblem
+        ? failed(NAME, warmLabel, target, warmProblem)
+        : measured(warmLabel, warm, timeoutMs),
+    ],
+    warm,
+    problem: warmProblem,
+  };
+}
+
 export const resources: Metric = {
   name: NAME,
   pillar: 2,
@@ -71,62 +140,19 @@ export const resources: Metric = {
     let warmCheckProblem = "the 10k warm check did not run";
     const timedOutAt = new Map<string, SizeName>();
     for (const size of SIZE_ORDER) {
-      const timeoutMs = TIMEOUT_MS[size];
       const { dir: source, pkg } = materialize(size, NAME);
       addExecutable(source);
       context.log(`${NAME}: ${size}, ${pkg.lines} lines`);
       for (const command of COMMANDS) {
-        const coldLabel = `${command}, ${size}, cold`;
-        const warmLabel = `${command}, ${size}, warm`;
-        const target = `completes ≤ ${timeoutMs / 1000} s`;
-        const blocker = timedOutAt.get("check") ?? timedOutAt.get(command);
-        const skip =
-          blocker &&
-          `skipped: hd ${timedOutAt.has("check") ? "check" : command} timed out at ${blocker}`;
-        if (skip) {
-          results.push(
-            failed(NAME, coldLabel, target, skip),
-            failed(NAME, warmLabel, target, skip),
-          );
-          if (command === "check" && size === "10k") {
-            warmCheckProblem = skip;
-          }
-          continue;
-        }
-        const dir = copyPackage(source, `${NAME}-${size}`);
-        const options = { cwd: dir, env: freshCache(), timeoutMs, measure: true };
-        let warm: RunResult | undefined;
-        let warmSkip: string | undefined;
-        const cold = await runHd(context.hd, [command], options);
-        const coldProblem = runProblem(cold, timeoutMs, `cold hd ${command}`);
-        if (coldProblem) {
-          if (cold.timedOut) {
-            timedOutAt.set(command, size);
-          }
-          results.push(failed(NAME, coldLabel, target, coldProblem));
-          results.push(failed(NAME, warmLabel, target, "skipped: the cold run failed"));
-          warmSkip = `the cold run failed: ${coldProblem}`;
-        } else {
-          results.push(measured(coldLabel, cold, timeoutMs));
-          warm = await runHd(context.hd, [command], options);
-          warmSkip = runProblem(warm, timeoutMs, `warm hd ${command}`);
-          if (warmSkip && warm.timedOut) {
-            timedOutAt.set(command, size);
-          }
-          results.push(
-            warmSkip
-              ? failed(NAME, warmLabel, target, warmSkip)
-              : measured(warmLabel, warm, timeoutMs),
-          );
-        }
+        const runs = await measureCommand({ context, source, size, command, timedOutAt });
+        results.push(...runs.results);
         if (command === "check" && size === "10k") {
-          if (warmSkip) {
-            warmCheckProblem = warmSkip;
+          if (runs.problem) {
+            warmCheckProblem = runs.problem;
           } else {
-            warmCheck10k = warm;
+            warmCheck10k = runs.warm;
           }
         }
-        removeTempDir(dir);
       }
     }
     if (!warmCheck10k || warmCheck10k.cpuMs === undefined || warmCheck10k.rssBytes === undefined) {

@@ -316,6 +316,46 @@ export function storeDailyMetrics(run: MetricsRun, directory: string): string {
   return metricsChanges(run, previous);
 }
 
+async function runMetric(
+  metric: Metric,
+  context: Parameters<Metric["run"]>[0],
+): Promise<TargetResult[]> {
+  const started = performance.now();
+  console.error(`running ${metric.name} (pillar ${metric.pillar})`);
+  let found: TargetResult[];
+  try {
+    found = await metric.run(context);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    found = [
+      {
+        metric: metric.name,
+        name: "script",
+        value: "-",
+        target: "completes",
+        status: "fail",
+        note: message,
+      },
+    ];
+  }
+  for (const result of found) {
+    console.log(resultLine(result));
+  }
+  console.error(`  ${metric.name} took ${((performance.now() - started) / 1000).toFixed(1)} s`);
+  return found;
+}
+
+function requireMetrics(metrics: Metric[]): Metric[] {
+  if (metrics.length === 0) {
+    throw new Error("no metric selected");
+  }
+  return metrics;
+}
+
+function metricsCommand(value: string | undefined): string {
+  return value ?? process.env.HD_METRICS_COMMAND ?? DEFAULT_HD;
+}
+
 async function main(): Promise<number> {
   // `pnpm run metrics -- --only X` passes the `--` through; drop it.
   const argv = process.argv.slice(2);
@@ -347,12 +387,9 @@ async function main(): Promise<number> {
     );
     return 0;
   }
-  const selected = selectMetrics(METRICS, values.only ?? [], values.pillar);
-  if (selected.length === 0) {
-    throw new Error("no metric selected");
-  }
+  const selected = requireMetrics(selectMetrics(METRICS, values.only ?? [], values.pillar));
   keepTempDirs(values["keep-temp"] ?? false);
-  const hd = parseHdCommand(values.hd ?? process.env.HD_METRICS_COMMAND ?? DEFAULT_HD, REPO_ROOT);
+  const hd = parseHdCommand(metricsCommand(values.hd), REPO_ROOT);
   console.log(`hd under test: ${hd.display}`);
   const context = {
     hd,
@@ -364,29 +401,7 @@ async function main(): Promise<number> {
   };
   const results: TargetResult[] = [];
   for (const metric of selected) {
-    const started = performance.now();
-    console.error(`running ${metric.name} (pillar ${metric.pillar})`);
-    let found: TargetResult[];
-    try {
-      found = await metric.run(context);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      found = [
-        {
-          metric: metric.name,
-          name: "script",
-          value: "-",
-          target: "completes",
-          status: "fail",
-          note: message,
-        },
-      ];
-    }
-    for (const result of found) {
-      console.log(resultLine(result));
-    }
-    console.error(`  ${metric.name} took ${((performance.now() - started) / 1000).toFixed(1)} s`);
-    results.push(...found);
+    results.push(...(await runMetric(metric, context)));
   }
   const rows = results.map((r) => [
     r.metric,
