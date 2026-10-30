@@ -58,12 +58,11 @@ function scan(code: string): { text: string; kind: EbnfKind | "name" }[] {
       // A terminal never spans lines; an unterminated one ends with its line.
       const lineEnd = code.indexOf("\n", index);
       const close = code.indexOf(character, index + 1);
-      index =
-        close < 0 || (lineEnd >= 0 && close > lineEnd)
-          ? lineEnd < 0
-            ? code.length
-            : lineEnd
-          : close + 1;
+      if (close >= 0 && (lineEnd < 0 || close <= lineEnd)) {
+        index = close + 1;
+      } else {
+        index = lineEnd < 0 ? code.length : lineEnd;
+      }
     } else if (character === "?") {
       kind = "special";
       index = scanTo(code, index + 1, "?");

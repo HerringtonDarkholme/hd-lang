@@ -126,7 +126,10 @@ interface RewriteOptions {
 
 /** Chapter order in a report: spec/lang/, then spec/std/, then spec/cli/. */
 function tierOrder(chapter: string): number {
-  return chapter.startsWith("std/") ? 1 : chapter.startsWith("cli/") ? 2 : 0;
+  if (chapter.startsWith("std/")) {
+    return 1;
+  }
+  return chapter.startsWith("cli/") ? 2 : 0;
 }
 
 export function rewrite(options: RewriteOptions): Rewrite {
@@ -243,12 +246,15 @@ export function rewrite(options: RewriteOptions): Rewrite {
       ? []
       : deadCitations(buildIndex(head, options.repoRoot))
           .filter((citation) => retiredIds.has(citation.id))
-          .map((citation) => ({
-            id: citation.id,
-            file: citation.file,
-            line: citation.line,
-            severity: citation.failing ? "error" : citation.history ? "history" : "warning",
-          }));
+          .map((citation) => {
+            let severity: CitedRetired["severity"] = "warning";
+            if (citation.failing) {
+              severity = "error";
+            } else if (citation.history) {
+              severity = "history";
+            }
+            return { id: citation.id, file: citation.file, line: citation.line, severity };
+          });
 
   return {
     base: options.baseLabel,

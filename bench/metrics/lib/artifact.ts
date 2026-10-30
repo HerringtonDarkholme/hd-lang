@@ -166,14 +166,15 @@ export const buildFixture = (
 ): Promise<Program> => buildProgram(hd, programFiles(name, params), label);
 
 /** A note on how a program ran, for a result line. */
-export const howNote = (program: Program): string =>
-  `${program.release ? "release" : "debug (no --release)"} build, run as ${
-    program.how === "wasm"
-      ? "hd FILE.wasm"
-      : program.how === "native"
-        ? "a native executable"
-        : "hd run"
-  }`;
+export const howNote = (program: Program): string => {
+  let command = "hd run";
+  if (program.how === "wasm") {
+    command = "hd FILE.wasm";
+  } else if (program.how === "native") {
+    command = "a native executable";
+  }
+  return `${program.release ? "release" : "debug (no --release)"} build, run as ${command}`;
+};
 
 export interface RunProgramOptions {
   readonly timeoutMs: number;

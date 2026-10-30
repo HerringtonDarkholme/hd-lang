@@ -57,10 +57,15 @@ export function diagnosticCodePhases(readme: string, cases: string): Map<string,
   const parse = parseCodes(cases);
   const runtime = boundaryCodes(readme);
   return new Map(
-    [...knownCodes(readme, "")].map((code) => [
-      code,
-      parse.has(code) ? "parse" : runtime.has(code) ? "runtime" : "type",
-    ]),
+    [...knownCodes(readme, "")].map((code) => {
+      let phase: DiagnosticPhase = "type";
+      if (parse.has(code)) {
+        phase = "parse";
+      } else if (runtime.has(code)) {
+        phase = "runtime";
+      }
+      return [code, phase];
+    }),
   );
 }
 

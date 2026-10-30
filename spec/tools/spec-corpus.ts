@@ -195,13 +195,15 @@ function loadChapter(
   text = readFileSync(resolve(specRoot, name), "utf8"),
 ): Chapter {
   const parsed = blocks(text);
+  let tier: Chapter["tier"] = "language";
+  if (name.startsWith(`${STD_DIRECTORY}/`)) {
+    tier = "std";
+  } else if (name.startsWith(`${CLI_DIRECTORY}/`)) {
+    tier = "cli";
+  }
   return {
     name,
-    tier: name.startsWith(`${STD_DIRECTORY}/`)
-      ? "std"
-      : name.startsWith(`${CLI_DIRECTORY}/`)
-        ? "cli"
-        : "language",
+    tier,
     prefix: CHAPTER_PREFIXES[name],
     text,
     blocks: parsed,

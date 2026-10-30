@@ -13,7 +13,12 @@ import { tokenizeWat } from "./wat.ts";
 const MAX_WAT_LINES = 10_000;
 
 const escapeHtml = (text: string): string =>
-  text.replace(/[&<>]/g, (char) => (char === "&" ? "&amp;" : char === "<" ? "&lt;" : "&gt;"));
+  text.replace(/[&<>]/g, (char) => {
+    if (char === "&") {
+      return "&amp;";
+    }
+    return char === "<" ? "&lt;" : "&gt;";
+  });
 
 /** Highlighted HTML for the first `maxLines` lines of `wat`, one `.wat-line` each. */
 function watHtml(wat: string, maxLines = MAX_WAT_LINES): string {

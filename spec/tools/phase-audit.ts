@@ -42,8 +42,12 @@ export function phaseAudit(readme: string, controlFlow: string, cases: string): 
     }
     checked += 1;
     const [, kind, code] = match;
-    const expectedPhase =
-      kind === "panic" ? (panics.has(code!) ? "runtime" : null) : (diagnostics.get(code!) ?? null);
+    let expectedPhase: DiagnosticPhase | null;
+    if (kind === "panic") {
+      expectedPhase = panics.has(code!) ? "runtime" : null;
+    } else {
+      expectedPhase = diagnostics.get(code!) ?? null;
+    }
     const rowPhase = fields[phaseAt] ?? "";
     if (expectedPhase !== rowPhase) {
       mismatches.push({

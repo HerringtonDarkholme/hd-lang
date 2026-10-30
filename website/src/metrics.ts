@@ -201,11 +201,12 @@ function groups(series: readonly Series[]): Group[] {
   }
   return [...by.entries()].map(([metric, targets]) => {
     const statuses = targets.map((t) => t.points.at(-1)?.status ?? "n/a");
-    const status: Status = statuses.includes("fail")
-      ? "fail"
-      : statuses.includes("pass")
-        ? "pass"
-        : "n/a";
+    let status: Status = "n/a";
+    if (statuses.includes("fail")) {
+      status = "fail";
+    } else if (statuses.includes("pass")) {
+      status = "pass";
+    }
     let worst = targets[0]!;
     let ratio: number | null = null;
     for (const t of targets) {
@@ -318,19 +319,27 @@ function goalChart(rows: readonly Group[]): string {
     .map((row, i) => {
       const top = 8 + i * rowHeight;
       const value = row.worst.points.at(-1)?.value ?? "-";
-      const note =
-        row.ratio === null
-          ? row.status === "pass"
-            ? "met"
-            : row.status === "fail"
-              ? "missed"
-              : "n/a"
-          : `${value} vs ${row.worst.target}${row.ratio > cap ? ` (${row.ratio.toFixed(1)}× goal)` : ""}`;
+      let note: string;
+      if (row.ratio !== null) {
+        note = `${value} vs ${row.worst.target}${row.ratio > cap ? ` (${row.ratio.toFixed(1)}× goal)` : ""}`;
+      } else if (row.status === "pass") {
+        note = "met";
+      } else if (row.status === "fail") {
+        note = "missed";
+      } else {
+        note = "n/a";
+      }
       const bar =
         row.ratio === null
           ? ""
           : `<rect class="metric-bar is-${row.status === "n/a" ? "na" : row.status}" x="${labelWidth}" y="${top + 4}" width="${Math.max(2, x(row.ratio) - labelWidth).toFixed(1)}" height="${rowHeight - 10}" rx="4"/>`;
-      return `<g class="metric-row"><title>${escapeHtml(`${row.metric}: ${row.targets.length} target(s); worst ${row.worst.name}: ${note}`)}</title><text class="metric-row-label" x="${labelWidth - 10}" y="${top + rowHeight / 2 + 3}" text-anchor="end">${escapeHtml(row.metric)}</text>${bar}<text class="metric-row-note is-${row.status === "n/a" ? "na" : row.status}" x="${labelWidth + plot + 10}" y="${top + rowHeight / 2 + 3}">${row.status === "pass" ? "✓" : row.status === "fail" ? "✗" : "–"} ${escapeHtml(note)}</text></g>`;
+      let icon = "–";
+      if (row.status === "pass") {
+        icon = "✓";
+      } else if (row.status === "fail") {
+        icon = "✗";
+      }
+      return `<g class="metric-row"><title>${escapeHtml(`${row.metric}: ${row.targets.length} target(s); worst ${row.worst.name}: ${note}`)}</title><text class="metric-row-label" x="${labelWidth - 10}" y="${top + rowHeight / 2 + 3}" text-anchor="end">${escapeHtml(row.metric)}</text>${bar}<text class="metric-row-note is-${row.status === "n/a" ? "na" : row.status}" x="${labelWidth + plot + 10}" y="${top + rowHeight / 2 + 3}">${icon} ${escapeHtml(note)}</text></g>`;
     })
     .join("");
   const goal = `<line class="metric-goal" x1="${goalX}" x2="${goalX}" y1="2" y2="${height - 18}"/><text class="metric-tick" x="${goalX}" y="${height - 4}" text-anchor="middle">goal</text><text class="metric-tick" x="${x(cap)}" y="${height - 4}" text-anchor="end">${cap}× or worse</text>`;

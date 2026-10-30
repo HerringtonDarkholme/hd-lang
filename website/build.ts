@@ -215,15 +215,17 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   };
 
   const sources = await Promise.all(
-    PAGES.map(async (entry) => ({
-      entry,
-      markdown:
-        entry.generated === "glossary"
-          ? glossaryMarkdown(glossary(loadCorpus(join(REPO_DIR, "spec"))))
-          : entry.generated === "metrics"
-            ? "Daily goal metrics: trend charts for every target."
-            : await readFile(join(REPO_DIR, entry.source), "utf8"),
-    })),
+    PAGES.map(async (entry) => {
+      let markdown: string;
+      if (entry.generated === "glossary") {
+        markdown = glossaryMarkdown(glossary(loadCorpus(join(REPO_DIR, "spec"))));
+      } else if (entry.generated === "metrics") {
+        markdown = "Daily goal metrics: trend charts for every target.";
+      } else {
+        markdown = await readFile(join(REPO_DIR, entry.source), "utf8");
+      }
+      return { entry, markdown };
+    }),
   );
   const grammar = buildGrammarIndex(
     sources.map(({ entry, markdown }) => ({
@@ -247,17 +249,20 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     if (metrics) {
       env.headings.push(...metrics.headings);
     }
-    const body = metrics
-      ? metrics.body
-      : home
-        ? renderHome({
-            md,
-            env,
-            readme: markdown,
-            examplesDir: join(WEBSITE_DIR, "playground", "examples"),
-            pageUrl: (output) => siteLink(base, output),
-          })
-        : md.render(markdown, env);
+    let body: string;
+    if (metrics) {
+      body = metrics.body;
+    } else if (home) {
+      body = renderHome({
+        md,
+        env,
+        readme: markdown,
+        examplesDir: join(WEBSITE_DIR, "playground", "examples"),
+        pageUrl: (output) => siteLink(base, output),
+      });
+    } else {
+      body = md.render(markdown, env);
+    }
     const title = env.headings.find((heading) => heading.level === 1)?.text ?? entry.navTitle;
     search.push(...searchEntries(base, entry.output, title, env.headings));
     await write(

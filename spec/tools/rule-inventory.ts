@@ -288,8 +288,14 @@ function matchExample(old: Example, next: readonly Example[]): ExampleMatch {
       missing.push(line);
     }
   }
-  const status: ExampleStatus =
-    missing.length > 0 ? "lost" : edited ? "comment-edited" : into.size > 1 ? "split" : "contained";
+  let status: ExampleStatus = "contained";
+  if (missing.length > 0) {
+    status = "lost";
+  } else if (edited) {
+    status = "comment-edited";
+  } else if (into.size > 1) {
+    status = "split";
+  }
   return { old: old.index, status, into: [...into].sort((a, b) => a - b), missing };
 }
 

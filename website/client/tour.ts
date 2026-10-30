@@ -191,7 +191,13 @@ function start(root: HTMLElement): void {
   };
 
   const run = async (mode: RunMode): Promise<void> => {
-    output.begin(mode === "check" ? "Checking…" : mode === "test" ? "Testing…" : "Running…");
+    let message = "Running…";
+    if (mode === "check") {
+      message = "Checking…";
+    } else if (mode === "test") {
+      message = "Testing…";
+    }
+    output.begin(message);
     const result = await client.run(mode, project(), (line) => output.line(line));
     output.finish(result, mode);
     showDiagnostics(typeof result === "string" ? [] : result.diagnostics);
@@ -253,7 +259,12 @@ function start(root: HTMLElement): void {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
       return;
     }
-    const rel = event.key === "ArrowLeft" ? "prev" : event.key === "ArrowRight" ? "next" : "";
+    let rel = "";
+    if (event.key === "ArrowLeft") {
+      rel = "prev";
+    } else if (event.key === "ArrowRight") {
+      rel = "next";
+    }
     const link = rel
       ? document.querySelector<HTMLAnchorElement>(`.tour-pager a[rel="${rel}"]`)
       : null;

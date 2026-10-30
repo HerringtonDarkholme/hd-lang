@@ -214,11 +214,14 @@ export function run(
         stdout: dups.length > 0 ? `${dups.join("\n")}\n` : "",
       };
     }
-    const stdout = options.flags.has("--json")
-      ? json(result)
-      : options.flags.has("--markdown")
-        ? glossaryMarkdown(result)
-        : glossaryReport(result);
+    let stdout: string;
+    if (options.flags.has("--json")) {
+      stdout = json(result);
+    } else if (options.flags.has("--markdown")) {
+      stdout = glossaryMarkdown(result);
+    } else {
+      stdout = glossaryReport(result);
+    }
     return { status: 0, stdout };
   }
   throw new UsageError(command ? `unknown command ${command}` : "missing command");

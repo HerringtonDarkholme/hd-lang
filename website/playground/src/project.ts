@@ -54,7 +54,13 @@ export function asProject(value: unknown): Project | undefined {
 
 /** Sorted file paths with the entry module first. */
 export function orderedPaths(project: Project): string[] {
-  return Object.keys(project.files).sort((left, right) =>
-    left === project.main ? -1 : right === project.main ? 1 : left.localeCompare(right),
-  );
+  return Object.keys(project.files).sort((left, right) => {
+    if (left === project.main) {
+      return -1;
+    }
+    if (right === project.main) {
+      return 1;
+    }
+    return left.localeCompare(right);
+  });
 }

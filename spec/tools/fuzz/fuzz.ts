@@ -441,14 +441,16 @@ async function evaluate(
   }
   const oracleInput = { executions };
   // The `parse` fuzzer judges its `parse` results by the command contract.
-  const observations =
-    fuzzer === "fmt"
-      ? formatting
-      : fuzzer === "parse" || fuzzer === "contract"
-        ? contract(oracleInput, fuzzer)
-        : fuzzer === "phase"
-          ? phaseConsistency(oracleInput)
-          : crossImpl(oracleInput);
+  let observations: Observation[];
+  if (fuzzer === "fmt") {
+    observations = formatting;
+  } else if (fuzzer === "parse" || fuzzer === "contract") {
+    observations = contract(oracleInput, fuzzer);
+  } else if (fuzzer === "phase") {
+    observations = phaseConsistency(oracleInput);
+  } else {
+    observations = crossImpl(oracleInput);
+  }
   return { executions, observations };
 }
 

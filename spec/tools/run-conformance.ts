@@ -373,7 +373,12 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
     if (!marker) {
       continue;
     }
-    const kind = marker[1] === "diagnostic" ? "reject" : marker[1] === "warning" ? "warn" : "panic";
+    let kind = "panic";
+    if (marker[1] === "diagnostic") {
+      kind = "reject";
+    } else if (marker[1] === "warning") {
+      kind = "warn";
+    }
     markers.push({ expectation: `${kind}:${marker[2]}`, line: index + 1 });
   }
   if (row.expectation === "accept" && markers.length > 0) {
@@ -449,13 +454,15 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
       return "'# expect-stdout' requires the console profile and no scenario";
     }
   }
+  let expectedStdout: string | undefined;
+  if (stdoutLines.length > 0) {
+    expectedStdout = stdoutLines.map((text) => `${text}\n`).join("");
+  } else if (emptyStdout !== undefined) {
+    expectedStdout = "";
+  }
   return {
     expectHeader: expect,
-    expectedStdout: stdoutLines.length
-      ? stdoutLines.map((text) => `${text}\n`).join("")
-      : emptyStdout !== undefined
-        ? ""
-        : undefined,
+    expectedStdout,
     markerLine: markers[0]?.line,
     packageRole,
     testLayout,
@@ -753,7 +760,7 @@ async function packageOptions(
   const names = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+    .sort((left, right) => left.localeCompare(right));
   return {
     packageRole: role,
     dependencies: await Promise.all(

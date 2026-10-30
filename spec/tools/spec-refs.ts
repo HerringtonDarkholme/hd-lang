@@ -356,7 +356,12 @@ export function deadReport(
 ): string {
   const out: string[] = [];
   for (const citation of dead) {
-    const severity = citation.failing ? "error" : citation.history ? "allowed history" : "warning";
+    let severity = "warning";
+    if (citation.failing) {
+      severity = "error";
+    } else if (citation.history) {
+      severity = "allowed history";
+    }
     if (citation.history && !options.all) {
       continue;
     }

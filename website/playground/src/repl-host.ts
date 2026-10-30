@@ -126,8 +126,10 @@ export type ReplPost = (message: ReplMessage, transfer?: Transferable[]) => void
 
 /** One diagnostic as `hd` prints it: `error: repl#3:1:5: unknown-name: ...`. */
 export function diagnosticLine(d: WireDiagnostic): string {
-  const where =
-    d.path === null ? "" : d.line === null ? `${d.path}: ` : `${d.path}:${d.line}:${d.column}: `;
+  let where = "";
+  if (d.path !== null) {
+    where = d.line === null ? `${d.path}: ` : `${d.path}:${d.line}:${d.column}: `;
+  }
   return `${d.severity}: ${where}${d.code === null ? "" : `${d.code}: `}${d.message}`;
 }
 

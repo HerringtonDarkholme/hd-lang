@@ -141,7 +141,14 @@ export function generatePackage(options: GenerateOptions): GeneratedPackage {
   const modules: GeneratedModule[] = [];
   let total = 0;
   for (let k = 0; total < options.lines - 20; k++) {
-    const deps = k === 0 ? [] : k >= 3 && r.int(0, 1) === 1 ? [k - 1, k - 3] : [k - 1];
+    let deps: number[];
+    if (k === 0) {
+      deps = [];
+    } else if (k >= 3 && r.int(0, 1) === 1) {
+      deps = [k - 1, k - 3];
+    } else {
+      deps = [k - 1];
+    }
     const text = generateModule(k, r, deps);
     total += text.split("\n").length;
     const file = `src/${moduleName(k)}.hd`;

@@ -443,7 +443,12 @@ async function main() {
     console.error(JSON.stringify(row, (k, v) => (k === "out" || k === "err" ? undefined : v)));
   }
   writeFileSync(join(opts.work, "results.json"), JSON.stringify(rows, null, 1));
-  const cell = (m) => (m ? (m.error ? "fail" : Math.round(m.ms).toString()) : "");
+  const cell = (m) => {
+    if (!m) {
+      return "";
+    }
+    return m.error ? "fail" : Math.round(m.ms).toString();
+  };
   const rss = (m) => (m && !m.error ? Math.round(m.rssMb).toString() : "");
   console.log(
     `Node ${process.version}; V8 ${process.versions.v8}. Process-wall samples each start a fresh process; a discarded preflight is not module warm-up.`,

@@ -110,7 +110,12 @@ class Reader {
     if (found.kind === "lit") {
       return { kind: "lit", value: found.value };
     }
-    const close = found.kind === "(" ? ")" : found.kind === "[" ? "]" : "}";
+    let close = "}";
+    if (found.kind === "(") {
+      close = ")";
+    } else if (found.kind === "[") {
+      close = "]";
+    }
     const inner = this.alternatives();
     this.expect(close);
     if (found.kind === "(") {
