@@ -25,6 +25,8 @@ const SESSION: &str = include_str!("../../../host/session.mjs");
 const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.mjs");
 /// The JS host's Node layer: the providers that touch the machine.
 const NODE: &str = include_str!("../../../host/node.mjs");
+/// Node path, host-name and file-operation helpers shared with workers.
+const NODE_FILES: &str = include_str!("../../../host/node-files.mjs");
 /// The Node-only REPL glue loaded by `node.mjs` on demand.
 const NODE_SESSION: &str = include_str!("../../../host/node-session.mjs");
 /// `hd run`: one instance, `hd.init` then `hd.poll`.
@@ -256,6 +258,7 @@ impl Scratch {
             ("session.mjs", SESSION),
             ("checked-report.mjs", CHECKED_REPORT),
             ("node.mjs", NODE),
+            ("node-files.mjs", NODE_FILES),
             ("node-session.mjs", NODE_SESSION),
             ("run.mjs", RUN),
             ("startup.mjs", STARTUP),

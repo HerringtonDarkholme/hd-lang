@@ -3,8 +3,8 @@
 // `ConsoleInput`, the test runner's temp-directory hook, and the files of
 // a test run), added to the platform-neutral core (core.mjs) through its
 // `layer` parameter. `createHost` is what `run.mjs`, `test.mjs` and the
-// conformance worker call; the grant and the host-name check are what the
-// client threads (`http.mjs`, `net.mjs`) share.
+// conformance worker call. Node-specific helpers shared with its client
+// threads live below it in `node-files.mjs`.
 
 // module.profile.panic-status).
 
@@ -24,7 +24,15 @@ import {
   TimeLimit,
   timeLimitReport,
 } from "./core.mjs";
-import { FsError, METHODS, NetError, Path } from "./gen/abi.mjs";
+import { METHODS, NetError, Path } from "./gen/abi.mjs";
+import {
+  beforeDotDot,
+  fileOperation,
+  fileOperations,
+  fsErr,
+  resolvePath,
+  validHost,
+} from "./node-files.mjs";
 import { Err, Ok, variant } from "./wire.mjs";
 
 // Builtins come from `process.getBuiltinModule`, not `import`: an ESM
@@ -32,24 +40,15 @@ import { Err, Ok, variant } from "./wire.mjs";
 // the streams, about 1 ms of every run's startup. `node:net` loads only
 // when a host name is checked.
 const {
-  appendFileSync,
   closeSync,
-  copyFileSync,
   openSync,
   existsSync,
-  lstatSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
-  readlinkSync,
   readSync,
-  realpathSync,
-  renameSync,
-  rmdirSync,
   rmSync,
   statSync,
-  unlinkSync,
   writeFileSync,
 } = process.getBuiltinModule("node:fs");
 const { MessageChannel, Worker } = process.getBuiltinModule("node:worker_threads");
@@ -60,53 +59,14 @@ const {
   platform,
   tmpdir,
 } = process.getBuiltinModule("node:os");
-const { dirname, isAbsolute, join, parse, resolve, sep } = process.getBuiltinModule("node:path");
+const { dirname, join, resolve, sep } = process.getBuiltinModule("node:path");
 
 export { Deadlock, EndCase, panicOfReport, PROGRAM_TIME_LIMIT, reportIn, timeLimitReport };
+export { fileOperation, resolvePath, validHost };
 
 // Worker clients get this long to acknowledge cancellation before the
 // control thread is replaced.
 const EXIT_GRACE_MS = 500;
-
-// A path resolved as the OS resolves it, so no path escapes a granted
-// directory (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the
-// Rust side. The longest existing prefix goes to the OS, then each further
-// name follows a symbolic link there (even one whose target does not
-// exist) before the `..` after it, as a write or `create_dir_all` would. A
-// name that does not exist is kept as it is, and a `..` after it removes
-// it. Windows resolves every `..` by its text before it follows any link,
-// so there the path is made lexical first. A relative path is from `cwd`.
-// `realpathSync.native`, like Rust's canonicalize, asks the OS, so on Windows
-// both expand 8.3 short names (RUNNER~1) and agree on the drive letter case.
-export function resolvePath(path, cwd = process.cwd(), links = 0) {
-  const full = sep === "\\" ? resolve(cwd, path) : isAbsolute(path) ? path : `${cwd}/${path}`;
-  const { root } = parse(full);
-  const parts = full
-    .slice(root.length)
-    .split(sep)
-    .filter((p) => p !== "" && p !== ".");
-  let start = parts.length;
-  let out = realOf(root + parts.join(sep));
-  while (out === null && start > 0) {
-    start -= 1;
-    out = realOf(root + parts.slice(0, start).join(sep));
-  }
-  out ??= root;
-  // How many names at the end of `out` do not exist.
-  let missing = 0;
-  for (const name of parts.slice(start)) {
-    if (name === "..") {
-      out = dirname(out);
-      missing = Math.max(0, missing - 1);
-      continue;
-    }
-    const next = join(out, name);
-    const resolved = missing === 0 ? linkStep(next, links) : null;
-    if (resolved === null) missing += 1;
-    out = resolved ?? next;
-  }
-  return out;
-}
 
 // The same refusal spelling as hd_run::refused_path. Resolving cwd first
 // avoids mistaking a link in the working directory itself for a change in
@@ -120,122 +80,10 @@ function refusedPath(path, cwd = process.cwd()) {
   return (target.startsWith(prefix) ? target.slice(prefix.length) : target).split(sep).join("/");
 }
 
-// How many symbolic links one resolution follows before it stops, as the
-// OS does with `ELOOP`; the access then fails on its own.
-const MAX_LINKS = 40;
-
-// `path` resolved by the OS, or `null` when it does not exist.
-function realOf(path) {
-  try {
-    return realpathSync.native(path);
-  } catch {
-    return null;
-  }
-}
-
-// `path`, whose parent is resolved, resolved by the OS, or through the
-// symbolic link it names when the link's target does not exist; `null`
-// when no such file or link exists.
-function linkStep(path, links) {
-  const real = realOf(path);
-  if (real !== null || links >= MAX_LINKS) return real;
-  let target;
-  try {
-    target = readlinkSync(path);
-  } catch {
-    return null;
-  }
-  return resolvePath(target, dirname(path), links + 1);
-}
-
-// Whether `host` is a name or an IP address
-// (std-net.error.invalid-address).
-export function validHost(host) {
-  const name =
-    /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.?$/;
-  return process.getBuiltinModule("node:net").isIP(host) !== 0 || name.test(host);
-}
-
-// The `FsError` variant of a failed file operation's error code.
-const FS_CODES = {
-  ENOENT: "NotFound",
-  EACCES: "PermissionDenied",
-  EPERM: "PermissionDenied",
-  EEXIST: "AlreadyExists",
-  ENOTDIR: "NotADirectory",
-  EISDIR: "IsADirectory",
-};
 // The names `std.host` gives Node's platforms and architectures
 // (std-host.sys.os, std-host.sys.arch); any other is Node's own name.
 const OS_NAMES = { darwin: "macos", win32: "windows" };
 const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
-
-// `.Err(FsError)` of the variant `tag` for a file operation on `path`.
-const fsErr = (path, tag) => Err(variant(FsError, tag, path));
-const fsFail = (path, err) => {
-  const tag = FS_CODES[err?.code];
-  return tag === undefined
-    ? Err({ tag: "Other", message: String(err?.message ?? err) })
-    : fsErr(path, tag);
-};
-// Windows reports a path below a file as ENOENT, or as ENOTDIR on some
-// libuv paths, so the code is not stable there. A failed open whose nearest
-// existing ancestor is not a directory is `NotADirectory`
-// (std-fs.memory.error.not-directory); a missing ancestor chain stays
-// `NotFound`. The Rust host's `below_a_file` walks the same way.
-const opening = (path, open) => {
-  try {
-    return open();
-  } catch (err) {
-    if (err?.code === "ENOENT" || err?.code === "ENOTDIR") {
-      for (let up = dirname(path); ; up = dirname(up)) {
-        let st;
-        try {
-          st = statSync(up);
-        } catch {
-          if (dirname(up) === up) break;
-          continue;
-        }
-        if (!st.isDirectory()) throw Object.assign(err, { code: "ENOTDIR" });
-        break;
-      }
-    }
-    throw err;
-  }
-};
-// The `FsError` variant for `path` when a name before one of its `..` is
-// not an existing directory, as in `data/missing/../a.txt`: NotFound, or
-// NotADirectory for a file; `undefined` otherwise. Unix fails such a path
-// itself, but Windows resolves `..` as text and skips the missing name, so
-// the host checks it on every OS (cli.engine.same-behavior, #277). The
-// prefix is joined by hand: `path.join` would resolve the `..` away.
-const beforeDotDot = (path) => {
-  const parts = path.split(/[\\/]/);
-  let prefix = parts[0];
-  for (const part of parts.slice(1)) {
-    if (part === ".." && prefix !== "" && prefix !== ".") {
-      let st;
-      try {
-        st = statSync(prefix);
-      } catch {
-        return "NotFound";
-      }
-      if (!st.isDirectory()) return "NotADirectory";
-    }
-    prefix = `${prefix}/${part}`;
-  }
-  return undefined;
-};
-// An `Entry`: path, kind, size, and an optional Unix-millisecond timestamp.
-const entry = (path, st) => {
-  const kind = st.isSymbolicLink() ? "Symlink" : st.isDirectory() ? "Directory" : "File";
-  const millis = typeof st.mtimeNs === "bigint" ? st.mtimeNs / 1_000_000n : null;
-  const modified =
-    millis === null || millis < -9_223_372_036_854_775_808n || millis > 9_223_372_036_854_775_807n
-      ? null
-      : { millis };
-  return { path, kind: { tag: kind }, size: kind === "Directory" ? 0n : st.size, modified };
-};
 
 // A client thread running `file` (`http.mjs`, `net.mjs`), started on its
 // first call. `call(request, left)` posts the request and waits for the
@@ -678,78 +526,6 @@ function envProvider({ grant, sink, st, flush }) {
   };
 }
 
-const fileOperations = {
-  "hd:FsRead": {
-    read_bytes: (p) => Ok(opening(p, () => readFileSync(p))),
-    read_text: (p) => {
-      const bytes = opening(p, () => readFileSync(p));
-      try {
-        return Ok(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-      } catch {
-        return fsErr(p, "InvalidUtf8");
-      }
-    },
-    // The entries in the byte order of their names; each path is the
-    // directory's, `/`, and the name (as `MemoryFs` lists them).
-    list_dir: (p) => {
-      const names = opening(p, () => readdirSync(p)).sort((a, b) =>
-        Buffer.compare(Buffer.from(a), Buffer.from(b)),
-      );
-      const under = p.endsWith("/") ? p : `${p}/`;
-      const found = [];
-      for (const n of names) {
-        try {
-          found.push(entry(under + n, lstatSync(under + n, { bigint: true })));
-        } catch {
-          // Gone since the listing.
-        }
-      }
-      return Ok(found);
-    },
-    stat: (p) => {
-      let st;
-      try {
-        st = lstatSync(p, { bigint: true });
-      } catch (err) {
-        if (err.code === "ENOENT" || err.code === "ENOTDIR") return Ok(null);
-        throw err;
-      }
-      return Ok(entry(p, st));
-    },
-  },
-  "hd:FsWrite": {
-    write_bytes: (p, bytes) => Ok(opening(p, () => writeFileSync(p, bytes))),
-    write_text: (p, text) => Ok(opening(p, () => writeFileSync(p, text))),
-    append_text: (p, text) => Ok(opening(p, () => appendFileSync(p, text))),
-    create_dir_all: {
-      run: (p) => {
-        if (existsSync(p) && !statSync(p).isDirectory()) return fsErr(p, "NotADirectory");
-        mkdirSync(p, { recursive: true });
-        return Ok(undefined);
-      },
-      create: true,
-    },
-    remove: (p) => {
-      if (lstatSync(p).isDirectory()) rmdirSync(p);
-      else unlinkSync(p);
-      return Ok(undefined);
-    },
-    // cli.cap.scope.rename: the grant covers both paths.
-    rename: (from, to) => Ok(renameSync(from, to)),
-    copy: (from, to) => {
-      // Validate the source as a read before attributing destination errors.
-      try {
-        if (opening(from, () => statSync(from)).isDirectory()) return fsErr(from, "IsADirectory");
-        closeSync(opening(from, () => openSync(from, "r")));
-      } catch (err) {
-        return fsFail(from, err);
-      }
-      if (existsSync(to) && statSync(to).isDirectory()) return fsErr(to, "IsADirectory");
-      return Ok(opening(to, () => copyFileSync(from, to)));
-    },
-  },
-};
-
 // Only methods that open a path can wait for a special-file peer. A
 // missing or uninspectable path stays inline and reports its ordinary error.
 const fileOpening = new Set([
@@ -780,19 +556,6 @@ const specialFile = (path) => {
     return false;
   }
 };
-
-// Shared by the inline provider and its isolated special-file helper;
-// checks stay in the provider, and both paths keep the same result/errors.
-export function fileOperation(module, name, args) {
-  const op = fileOperations[module][name];
-  try {
-    return (typeof op === "function" ? op : op.run)(...args);
-  } catch (err) {
-    const m = METHODS[module][name];
-    const ps = args.filter((_, i) => m.params[i] === Path);
-    return fsFail(ps[ps.length - 1], err);
-  }
-}
 
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
 function fsProviders({ grant, flush, fsClient }) {

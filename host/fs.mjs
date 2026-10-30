@@ -6,7 +6,7 @@
 import { postReply } from "./worker-control.mjs";
 import { fork } from "node:child_process";
 import { parentPort, Worker, workerData } from "node:worker_threads";
-import { fileOperation } from "./node.mjs";
+import { fileOperation } from "./node-files.mjs";
 import { Err } from "./wire.mjs";
 
 if (workerData?.port) {

@@ -1212,6 +1212,7 @@ async function heldLookupHost(t) {
   const root = fixture(t, {});
   for (const name of [
     "node.mjs",
+    "node-files.mjs",
     "core.mjs",
     "session.mjs",
     "output.mjs",

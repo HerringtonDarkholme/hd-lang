@@ -386,7 +386,7 @@ mod tests {
         assert_eq!(g.limit("Console"), None);
     }
 
-    /// Contract shared with `resolvePath` in `host/node.mjs`: the nearest
+    /// Contract shared with `resolvePath` in `host/node-files.mjs`: the nearest
     /// existing ancestor is resolved by the OS and the rest appended, so
     /// a grant entry and an accessed path that do not exist yet agree.
     #[test]

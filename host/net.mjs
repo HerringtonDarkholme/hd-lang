@@ -25,7 +25,7 @@ import { promises as dns } from "node:dns";
 import net from "node:net";
 import { setImmediate as nextCheck } from "node:timers/promises";
 import { workerData } from "node:worker_threads";
-import { validHost } from "./node.mjs";
+import { validHost } from "./node-files.mjs";
 
 // Open handles by number; a closed one stays, marked, so each later
 // operation on it is `Closed`.

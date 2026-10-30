@@ -22,10 +22,10 @@
 import { postReply } from "./worker-control.mjs";
 import http from "node:http";
 import https from "node:https";
-import { isAsciiUrl, writtenHost } from "./core.mjs";
+import { createGrant, isAsciiUrl, writtenHost } from "./core.mjs";
 import { MAX_DECODED_BYTES, decodedResponse, hasNoBody } from "./http-decode.mjs";
+import { pathSeparator, resolvePath } from "./node-files.mjs";
 import { workerData } from "node:worker_threads";
-import { createGrant } from "./node.mjs";
 
 // The provider's default timeout (std-http.request.default-timeout).
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -169,7 +169,7 @@ const once = (url, host, method, headers, body, ms, signal) =>
 
 // A request and its redirects, as the program's grant allows them.
 async function send(r, signal) {
-  const grant = createGrant(r.grants);
+  const grant = createGrant(r.grants, resolvePath, pathSeparator);
   let { method, url, body } = r;
   let written = url;
   const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
