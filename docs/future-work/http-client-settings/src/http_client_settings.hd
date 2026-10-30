@@ -1,0 +1,125 @@
+use std.convert.From
+use std.http.{BodyError, Request, Response}
+use std.task.TimedOut
+use std.time.Duration
+
+## A validated list of DNS servers for an HTTP transport.
+@derive(Debug, Eq)
+pub struct DnsResolver:
+    servers: List[string]
+
+## Validates literal IP addresses for one DNS resolver.
+pub fn dns_servers(servers: List[string]) -> Result[DnsResolver, HttpConfigError]:
+    panic("todo")
+
+## One PEM-encoded certificate that extends the host's trusted roots.
+@derive(Debug, Eq)
+pub struct Certificate:
+    pem: string
+
+impl Certificate:
+    ## Parses one PEM certificate.
+    pub fn from_pem(pem: string) -> Result[Certificate, HttpConfigError]:
+        panic("todo")
+
+## A PEM client certificate chain and its PEM private key.
+## Debug is deliberately absent so diagnostics cannot print key material.
+pub struct Identity:
+    certificate_chain: string
+    private_key: string
+
+impl Identity:
+    ## Parses a PEM certificate chain and matching private key.
+    pub fn from_pem(
+        certificate_chain: string,
+        private_key: string,
+    ) -> Result[Identity, HttpConfigError]:
+        panic("todo")
+
+## Why a transport setting could not be constructed.
+@error
+@derive(Debug, Eq)
+pub enum HttpConfigError:
+    @error("invalid DNS server: $server")
+    InvalidDnsServer(server: string)
+    @error("invalid PEM certificate")
+    InvalidCertificate
+    @error("invalid PEM client identity")
+    InvalidIdentity
+
+## Proposed `std.http.HttpError`, including rejection before unsupported settings reach a host.
+@error
+@derive(Debug, Eq)
+pub enum HttpError:
+    @error("http access to $host is not granted")
+    NotGranted(host: string)
+    @error("invalid URL: $url")
+    InvalidUrl(url: string)
+    @error("cannot resolve host $host")
+    Dns(host: string)
+    @error("$message")
+    Connect(message: string)
+    @error("TLS failed: $message")
+    Tls(message: string)
+    @error("the request timed out")
+    Timeout
+    @error("too many redirects; the last went to $url")
+    TooManyRedirects(url: string)
+    @error("$message")
+    Other(message: string)
+    @error("HTTP status ${response.status.code()}")
+    Status(response: Response)
+    @error("invalid header $name")
+    InvalidHeader(name: string)
+    @error("$error")
+    Body(error: BodyError)
+    @error("HTTP setting is not supported by this host: $name")
+    UnsupportedSetting(name: string)
+
+impl From[TimedOut] for HttpError:
+    fn from(_error: TimedOut) -> HttpError:
+        .Timeout
+
+## Proposed `std.http.Http` surface. Each setting returns a new, narrower provider.
+## This design-package trait and error stand in for extending the existing standard items.
+pub trait Http:
+    ## Sends one request through this provider.
+    fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]
+
+    ## Replaces the DNS resolver for later sends.
+    fn resolver(&self, _resolver: DnsResolver) -> *mut dyn Http:
+        unsupported("resolver")
+
+    ## Replaces the complete TLS root and identity configuration for later sends.
+    fn tls(&self, roots: List[Certificate] = [], identity: Identity? = .None) -> *mut dyn Http:
+        if !roots.is_empty():
+            return unsupported("tls.roots")
+        if identity.is_some():
+            return unsupported("tls.identity")
+        unsupported("tls.roots")
+
+    ## Bounds DNS lookup and TCP connection for each redirect hop.
+    fn connect_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("connect_timeout")
+
+    ## Bounds the TLS handshake for each HTTPS redirect hop.
+    fn tls_handshake_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("tls_handshake_timeout")
+
+    ## Bounds the wait for complete response headers for each redirect hop.
+    fn response_header_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("response_header_timeout")
+
+    ## Bounds buffering the response body for each redirect hop.
+    fn body_read_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("body_read_timeout")
+
+struct UnsupportedHttp:
+    name: string
+
+impl Http for UnsupportedHttp:
+    fn send!(&mut self, _request: &Request, _redirects: usize) -> Result[Response, HttpError]:
+        .Err(.UnsupportedSetting(self.name))
+
+fn unsupported(name: string) -> *mut dyn Http:
+    &mut UnsupportedHttp { name: name }
