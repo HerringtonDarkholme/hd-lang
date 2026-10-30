@@ -218,7 +218,7 @@ fn connect(host: string, port: i32 = 443, tls: bool = true) -> Connection:
 ```
 
 1. r[fn.default.allowed] A parameter may declare a default.
-2. r[fn.default.order-final-function] After the first parameter with a default, every following non-vararg parameter must also have a default. The one exception is a final parameter whose type is a function type. A later parameter without one is an error. Error: `default-order`.
+2. r[fn.default.order-final-function] After the first parameter with a default, every following non-vararg parameter must also have a default. The one exception is a final parameter whose type is a function type, or a type parameter bounded by a zero-argument `Fn` or `FnMut` as in [`fn.trailing.fn-bound`](#r-fn.trailing.fn-bound). A later parameter without one is an error. Error: `default-order`.
 3. r[fn.default.omit] Calls may omit only parameters that have defaults.
 4. r[fn.default.eval] Defaults are evaluated for each call, in parameter declaration order, after all explicit argument expressions have been evaluated.
 5. r[fn.default.scope] A default may refer to earlier parameters but not later parameters.
@@ -1099,6 +1099,7 @@ transaction:
 8. r[fn.trailing.return] `return` inside the block returns from the generated callback, not from the enclosing function.
 9. r[fn.trailing.suspending] When the final parameter has a suspending function type, as in `body: fn!() -> T`, the trailing block is a suspending closure. This holds for every callee.
 10. r[fn.trailing.suspending.body] Such a block is a suspending body, so it may make bang calls.
+11. r[fn.trailing.fn-bound] A final parameter whose type is a bare type parameter `F` with a zero-argument bound `F < Fn() -> T` or `F < FnMut() -> T` takes a trailing block as a function type does. The block is a closure checked against that bound, so under `Fn` it changes no capture by [`fn.trait.read-only`](#r-fn.trait.read-only).
 
 ```text
 transaction:

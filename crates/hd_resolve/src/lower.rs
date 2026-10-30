@@ -3484,8 +3484,10 @@ impl Lower<'_, '_, '_> {
     /// `fn.default.order-final-function`, `data.shared.default.order`:
     /// after the first parameter with a default, every following
     /// parameter has one. A variadic parameter never needs one; a final
-    /// parameter of function type does not either, when `final_fn`.
-    fn parameter_default_order(&mut self, params: &[NodeRef<'_>], final_fn: bool) {
+    /// parameter of function type does not either, when `final_fn`, nor a
+    /// final bare type parameter with a zero-argument `Fn` bound, when
+    /// `bare_fn` (see [`Self::final_bare_fn`]).
+    fn parameter_default_order(&mut self, params: &[NodeRef<'_>], final_fn: bool, bare_fn: bool) {
         let toks = &self.src.parse.tokens;
         let mut defaulted = false;
         for (i, p) in params.iter().enumerate() {
@@ -3496,7 +3498,9 @@ impl Lower<'_, '_, '_> {
             let exempt = p.direct_token(toks, TokenKind::Ellipsis).is_some()
                 || (final_fn
                     && i + 1 == params.len()
-                    && Src::type_child(*p).is_some_and(|t| t.kind() == SyntaxKind::FunctionType));
+                    && (bare_fn
+                        || Src::type_child(*p)
+                            .is_some_and(|t| t.kind() == SyntaxKind::FunctionType)));
             if defaulted && !exempt {
                 let name = p.name(toks).map_or("a parameter", |t| self.src.text(t));
                 let msg =
@@ -3505,6 +3509,41 @@ impl Lower<'_, '_, '_> {
                     .error(Code::DefaultOrder, self.src.span(*p), &msg);
             }
         }
+    }
+
+    /// Whether the final parameter's type is a bare type parameter of
+    /// `generics` bounded by a zero-argument `Fn` or `FnMut`, which a
+    /// trailing block fills as it fills a function type
+    /// (`fn.default.final-function`).
+    fn final_bare_fn(&mut self, params: &[NodeRef<'_>], generics: &[Generic]) -> bool {
+        let Some(t) = params.last().and_then(|p| Src::type_child(*p)) else {
+            return false;
+        };
+        let toks = &self.src.parse.tokens;
+        let mut idents = t
+            .direct_tokens()
+            .filter(|&k| toks.kind(k) == TokenKind::Ident);
+        let (Some(name), None) = (idents.next(), idents.next()) else {
+            return false;
+        };
+        if t.children().next().is_some() {
+            return false;
+        }
+        let name = self.sym_token(name);
+        let pool = self.names.pool;
+        generics.iter().filter(|g| g.name == name).any(|g| {
+            g.bounds.iter().any(|b| match pool.get(*b) {
+                TyData::TraitValue { def, args, .. } => {
+                    self.names.known.fn_trait_name(def).is_some()
+                        && matches!(
+                            pool.list_items(args).first().map(|i| pool.get(*i)),
+                            Some(TyData::Tuple { elems, rest: None })
+                                if pool.list_items(elems).is_empty()
+                        )
+                }
+                _ => false,
+            })
+        })
     }
 
     /// `fn.decl.result-required-pub`: a public function, a public inherent
@@ -3567,7 +3606,8 @@ impl Lower<'_, '_, '_> {
                 .children()
                 .filter(|c| c.kind() == SyntaxKind::Parameter)
                 .collect();
-            self.parameter_default_order(&nodes, true);
+            let bare_fn = self.final_bare_fn(&nodes, &generics);
+            self.parameter_default_order(&nodes, true, bare_fn);
             self.vararg_final(&nodes);
             for (i, p) in nodes.into_iter().enumerate() {
                 let toks = &self.src.parse.tokens;
@@ -5167,7 +5207,7 @@ impl Lower<'_, '_, '_> {
                     .flat_map(|pl| pl.children())
                     .filter(|c| c.kind() == SyntaxKind::Parameter)
                     .collect();
-                self.parameter_default_order(&nodes, false);
+                self.parameter_default_order(&nodes, false, false);
                 let mut shared = self.fields(shared_params, &gn, false);
                 let check = self.r.frozen.is_none();
                 let holder = Src::child(n, SyntaxKind::ParameterList);

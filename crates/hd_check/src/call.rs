@@ -1558,6 +1558,22 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The `Fn` or `FnMut` view of the final parameter, when it is a bare
+    /// type parameter with a zero-argument bound, which a trailing block
+    /// fills (`fn.default.final-function`).
+    fn trailing_want(&self, formals: &Formals<'_>, skip: usize, rest_len: usize) -> Option<FnWant> {
+        let pool = self.pool();
+        let f = formals
+            .closure_wants?
+            .get((skip + rest_len).checked_sub(1)?)
+            .copied()
+            .flatten()?;
+        let TyData::Fn { params, .. } = pool.get(f.ty) else {
+            return None;
+        };
+        pool.list_items(params).is_empty().then_some(f)
+    }
+
     /// The type of the final parameter `last` that a trailing block fills
     /// (see [`Self::trailing_takes`]). Any other callee is
     /// `trailing-block-ineligible`, reported at the call; checking
@@ -1618,9 +1634,10 @@ impl Ck<'_, '_> {
         // A trailing block supplies the final parameter, so positional
         // arguments fill the ones before it (`fn.trailing.arguments`).
         // A block the callee cannot take fills nothing.
+        let last_want = self.trailing_want(formals, skip, rest.len());
         let takes = args.trailing.is_some()
             && !rest.is_empty()
-            && self.trailing_takes(rest.last().map(|p| p.1)).is_some();
+            && (last_want.is_some() || self.trailing_takes(rest.last().map(|p| p.1)).is_some());
         let room = rest.len() - usize::from(takes);
         if !variadic && args.positional.len() > room {
             let msg = format!("`{name}` takes {} arguments", rest.len());
@@ -1863,13 +1880,17 @@ impl Ck<'_, '_> {
             // A block the callee cannot take is still checked, against
             // the poison type, but fills nothing (and cannot collide
             // with a positional argument).
-            let takes = self.trailing_takes(rest.last().map(|p| p.1)).is_some();
+            let takes =
+                last_want.is_some() || self.trailing_takes(rest.last().map(|p| p.1)).is_some();
             if takes {
                 let w = match rest.last() {
                     Some(p) => Some(self.normalize_deep(p.1)?),
                     None => None,
                 };
-                let w = self.trailing_param(w, name, block);
+                let w = match (last_want, w) {
+                    (Some(_), Some(w)) => w,
+                    _ => self.trailing_param(w, name, block),
+                };
                 let last = rest.len() - 1;
                 if slots[last].is_some() {
                     let pname = self.cx.names.text(rest[last].0).to_owned();
@@ -1884,9 +1905,14 @@ impl Ck<'_, '_> {
                             .closure_wants
                             .and_then(|xs| xs.get(skip + last))
                             .is_some_and(Option::is_some);
-                    let (r, t) = self.trailing_closure(block, w, !last_is_generic)?;
-                    slots[last] =
-                        Some(self.coerce(r, t, w, block, "argument", ExpectPosition::General));
+                    let scoped = last_want.map_or(!last_is_generic, |f| f.scoped);
+                    let (r, t) =
+                        self.trailing_closure(block, last_want.map_or(w, |f| f.ty), scoped)?;
+                    let r = self.coerce(r, t, w, block, "argument", ExpectPosition::General);
+                    if last_want.is_some_and(|f| f.read_only) {
+                        self.check_read_only_fn(r, t, block);
+                    }
+                    slots[last] = Some(r);
                 }
             } else {
                 let w = self.trailing_param(None, name, n);

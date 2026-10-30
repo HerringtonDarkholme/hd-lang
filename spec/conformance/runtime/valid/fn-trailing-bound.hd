@@ -1,0 +1,15 @@
+# test: a trailing block fills a final parameter bounded by a zero-argument FnMut
+# expect: test
+# Spec Functions, Trailing Callback Blocks: fn.trailing.fn-bound.
+use std.function.FnMut
+
+fn twice[F < FnMut() -> void](label: string = "run", mut body: F) -> void:
+    body()
+    body()
+
+pub fn main() -> void:
+    let mut count = +0
+    twice:
+        count += 1
+    if count != 2:
+        panic("the block did not run twice")

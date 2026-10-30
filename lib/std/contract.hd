@@ -1,12 +1,13 @@
 # std.contract.
+use std.function.Fn
 
 ## Panics unless `condition` returns true.
 ## See [std-contract.require.decl](../../spec/std/contract.md#r-std-contract.require.decl).
 @cfg(.Debug)
-pub fn require(message: string = "requirement failed", condition: fn() -> bool) -> void:
+pub fn require[F < Fn() -> bool](message: string = "requirement failed", condition: F) -> void:
     if !condition():
         panic(message)
 
 @cfg(.Release)
-pub fn require(message: string = "requirement failed", condition: fn() -> bool) -> void:
+pub fn require[F < Fn() -> bool](message: string = "requirement failed", condition: F) -> void:
     pass

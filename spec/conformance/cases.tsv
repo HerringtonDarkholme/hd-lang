@@ -2050,6 +2050,8 @@ runtime/valid/fn-read-only-closures.hd	runtime	accept	lang/07-functions.md#r-fn.
 typing/invalid/fn-closure-changes-capture.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only
 typing/invalid/fn-closure-changes-collection.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only.changes
 typing/invalid/fn-closure-struct-field.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only.positions
+runtime/valid/fn-trailing-bound.hd	runtime	accept	lang/07-functions.md#r-fn.trailing.fn-bound
+typing/invalid/fn-trailing-bound-changes-capture.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trailing.fn-bound
 typing/invalid/fn-bound-ref-changes-receiver.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only.bound-ref
 typing/invalid/fn-value-only-fn-mut.hd	type	reject:unsatisfied-trait-bound	lang/07-functions.md#r-fn.trait.read-only.values
 typing/invalid/fn-bound-lifetime-read-only.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.generic.outlives.read-only
@@ -3097,6 +3099,8 @@ runtime/panic/contract-require-custom-message.hd	runtime	panic:explicit-panic	st
 runtime/panic/contract-require-default-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.debug-fail
 runtime/valid/contract-require-pass.hd	runtime	accept	std/contract.md#r-std-contract.require.debug-pass
 runtime/valid/contract-require-trailing-block.hd	runtime	accept	std/contract.md#r-std-contract.require.decl
+runtime/valid/contract-require-reads-self.hd	runtime	accept	std/contract.md#r-std-contract.require.read-refs
+typing/invalid/contract-require-changes-capture.hd	type	reject:not-writable	std/contract.md#r-std-contract.require.read-only
 runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
 runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
 runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.answer-program

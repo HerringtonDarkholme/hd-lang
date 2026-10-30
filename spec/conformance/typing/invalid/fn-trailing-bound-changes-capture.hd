@@ -1,0 +1,11 @@
+# test: a trailing block for a zero-argument Fn bound changes no capture
+# Spec Functions, Trailing Callback Blocks: fn.trailing.fn-bound.
+use std.function.Fn
+
+fn once[F < Fn() -> void](label: string = "run", body: F) -> void:
+    body()
+
+fn invalid() -> void:
+    let count = +0
+    once:
+        count += 1 # diagnostic: not-writable

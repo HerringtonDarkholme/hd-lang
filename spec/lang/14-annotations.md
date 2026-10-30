@@ -264,12 +264,12 @@ An `@inline` or `@cold` line before any other target, such as a struct, is a
 
 ```text
 @cfg(.Debug)
-fn require(condition: fn() -> bool) -> void:
+fn require[F < Fn() -> bool](condition: F) -> void:
     if !condition():
         panic("requirement failed")
 
 @cfg(.Release)
-fn require(condition: fn() -> bool) -> void:
+fn require[F < Fn() -> bool](condition: F) -> void:
     pass
 ```
 

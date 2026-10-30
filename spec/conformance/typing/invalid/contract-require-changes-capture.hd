@@ -1,0 +1,12 @@
+# test: a require condition that changes a captured local is not writable
+# Spec Contract: std-contract.require.read-only.
+use std.contract.require
+
+fn invalid() -> void:
+    let calls = +0
+    require(
+        condition=fn(): # diagnostic: not-writable
+            calls += 1
+            true
+        ,
+    )

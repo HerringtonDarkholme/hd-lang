@@ -1,0 +1,19 @@
+# test: a require condition may read self inside a mut self method
+# expect: test
+# Spec Contract: std-contract.require.read-refs.
+use std.contract.require
+
+struct Stack:
+    items: List[i32]
+
+impl Stack:
+    fn push(&mut self, item: i32) -> void:
+        require("stack is full"):
+            self.items.len() < 10
+        self.items.push(item)
+
+pub fn main() -> void:
+    let mut s = Stack { items: [] }
+    s.push(1)
+    if s.items.len() != 1:
+        panic("push did not add the item")
