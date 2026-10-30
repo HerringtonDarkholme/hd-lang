@@ -1,31 +1,33 @@
 // Initialized REPL sessions, checkpoint images and historical replay.
 // Kept outside core.mts so ordinary programs do not load the journal.
 import { clearOperations, createCoreHost } from "./core.mts";
+import type { CoreEnv, InputOutcome, Ran, Session, Sink } from "./core.mts";
 import { METHODS } from "./gen/abi.mts";
 import { HostContract } from "./wire.mts";
 import {
   Recorder,
   Replay,
   SESSION_CAP,
+  Diverged,
   callArgs,
   importTypes,
   joinJournals,
   ran as ranText,
   recorded,
 } from "./journal.mts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
+type DynamicFunction = (...args: Dynamic[]) => Dynamic;
 // --- REPL sessions ------------------------------------------------------
 
 // Which journal row a call of an import writes (`Kind::record` in
 // hd_run_wasmtime): none for `hd:prim`, which answers from its arguments
 // alone, or `hd:rt` `fact`, which only marks where a facts body runs, so a
 // replay makes them again.
-function recordOf(module, name) {
-  if (module === "hd:prim" || (module === "hd:rt" && name === "fact")) {
-    return "skip";
-  }
-  if (module === "hd:rt" && (name === "block" || name === "abort")) {
-    return name;
-  }
+function recordOf(module: string, name: string): "skip" | "block" | "abort" | "finish" | "call" {
+  if (module === "hd:prim" || (module === "hd:rt" && name === "fact")) return "skip";
+  if (module === "hd:rt" && (name === "block" || name === "abort")) return name;
   return name.endsWith(".finish") ? "finish" : "call";
 }
 
@@ -33,40 +35,29 @@ function recordOf(module, name) {
 // reads, with its scalar parameters the call's request; null for none
 // (`Kind::input`). A host method's is after its scalar parameters, when
 // it takes a structured one (gen/abi.mts `METHODS`).
-function readsArgs(module, name) {
-  if (module === "hd:rt") {
-    return name === "stderr" || name === "stdout" ? 0 : null;
-  }
+function readsArgs(module: string, name: string): number | null {
+  if (module === "hd:rt") return name === "stderr" || name === "stdout" ? 0 : null;
   const starts = name.endsWith(".start");
-  const m = METHODS[module]?.[starts ? name.slice(0, -".start".length) : name];
-  if (!m || (m.wait === "may") !== starts) {
-    return null;
-  }
-  const scalars = m.params.filter((p) => typeof p === "string").length;
+  const methods: DynamicRecord = METHODS;
+  const m = methods[module]?.[starts ? name.slice(0, -".start".length) : name];
+  if (!m || (m.wait === "may") !== starts) return null;
+  const scalars = m.params.filter((p: Dynamic) => typeof p === "string").length;
   return scalars < m.params.length ? scalars : null;
 }
 
 // A reply value as a Wasm result of type `type`: a narrower integer keeps
 // its low bits.
-function resultOf(v, type) {
-  if (type === "i64") {
-    return BigInt.asIntN(64, BigInt(v));
-  }
-  if (type === "f64" || type === "f32") {
-    return Number(v);
-  }
+function resultOf(v: Dynamic, type: string): Dynamic {
+  if (type === "i64") return BigInt.asIntN(64, BigInt(v));
+  if (type === "f64" || type === "f32") return Number(v);
   return Number(BigInt.asIntN(32, BigInt(v)));
 }
 
 // A host import's reply as the journal holds it, from the JS value it
 // returned and its result types.
-function replyOf(ret, results) {
-  if (ret === undefined) {
-    return { tag: 0 };
-  }
-  if (Array.isArray(ret)) {
-    return { tag: 3, v: Number(ret[0]) | 0, w: Number(ret[1]) | 0 };
-  }
+function replyOf(ret: Dynamic, results: string[]): Dynamic {
+  if (ret === undefined) return { tag: 0 };
+  if (Array.isArray(ret)) return { tag: 3, v: Number(ret[0]) | 0, w: Number(ret[1]) | 0 };
   if (results[0] === "f64" || results[0] === "f32") {
     const dv = new DataView(new ArrayBuffer(8));
     dv.setFloat64(0, Number(ret), true);
@@ -77,7 +68,7 @@ function replyOf(ret, results) {
 
 // The JS value of a served reply, for an import with result types
 // `results`.
-function servedValue(value, results) {
+function servedValue(value: Dynamic, results: string[]): Dynamic {
   switch (value.tag) {
     case 0:
       return undefined;
@@ -94,7 +85,7 @@ function servedValue(value, results) {
 }
 
 // The handle a `.finish` or `abort` names; no live one is negative.
-const handleParam = (args) => {
+const handleParam = (args: Dynamic[]): number => {
   const h = Number(args[0]);
   return Number.isInteger(h) && h >= 0 && h <= 0xffffffff ? h : 0xffffffff;
 };
@@ -103,13 +94,22 @@ const handleParam = (args) => {
 // storage. Checkpoints save memory/globals while archived host results
 // remain available for a historical rebuild.
 class ReplSession {
-  constructor(sink, env, layer, options, createCoreHost, clearOperations) {
-    this.clearOperations = clearOperations;
+  [key: string]: Dynamic;
+
+  constructor(
+    sink: Sink,
+    env: CoreEnv,
+    layer: Dynamic,
+    options: { journalCap?: number },
+    createHost: typeof createCoreHost,
+    clear: typeof clearOperations,
+  ) {
+    this.clearOperations = clear;
     this.muted = false;
-    this.host = createCoreHost(
+    this.host = createHost(
       {
-        out: (text) => this.muted || sink.out(text),
-        err: (text) => this.muted || sink.err(text),
+        out: (text: string) => this.muted || sink.out(text),
+        err: (text: string) => this.muted || sink.err(text),
       },
       env,
       layer,
@@ -139,18 +139,14 @@ class ReplSession {
       replaying: () => this.replay !== null,
       served: () => {
         // A replayed input waits when its record wakes it next.
-        if (!this.replay.wakeNext()) {
-          this.deadlock();
-        }
+        if (!this.replay.wakeNext()) this.deadlock();
         const handles = this.replay.wake();
-        if (handles.length) {
-          this.put(this.handleBytes(handles));
-        }
+        if (handles.length) this.put(this.handleBytes(handles));
         return handles.length;
       },
-      woke: (n) => this.recorder.wake(this.handlesAt(n)),
-      wait: (ms) =>
-        new Promise((resolve) => {
+      woke: (n: number) => this.recorder.wake(this.handlesAt(n)),
+      wait: (ms: number) =>
+        new Promise<void>((resolve) => {
           if (this.stopped) {
             resolve();
             return;
@@ -163,10 +159,8 @@ class ReplSession {
         }).finally(() => {
           this.wakeWait = null;
         }),
-      stopping: (cancels) => {
-        if (!this.stopped) {
-          return null;
-        }
+      stopping: (cancels: boolean) => {
+        if (!this.stopped) return null;
         this.stopped = false;
         if (!cancels) {
           this.halt = { kind: "stopped" };
@@ -181,22 +175,20 @@ class ReplSession {
     this.linked = null;
   }
 
-  handlesAt = (n) => {
+  handlesAt = (n: number): number[] => {
     const words = new DataView(this.st.memory.buffer);
     return Array.from({ length: n }, (_, i) => words.getUint32(4 * i, true));
   };
 
-  handleBytes = (handles) => {
+  handleBytes = (handles: number[]): Uint8Array => {
     const out = new Uint8Array(4 * handles.length);
-    handles.forEach((h, i) => new DataView(out.buffer).setUint32(4 * i, h, true));
+    handles.forEach((h: number, i: number) => new DataView(out.buffer).setUint32(4 * i, h, true));
     return out;
   };
   // A call's arguments as the journal holds them: its scalar parameters,
   // then the exchange buffer bytes it reads.
-  requestOf = (args, params, reads) => {
-    if (reads === null) {
-      return callArgs(args, params, null);
-    }
+  requestOf = (args: Dynamic[], params: Dynamic[], reads: number | null): Dynamic => {
+    if (reads === null) return callArgs(args, params, null);
     const len = Number(args[reads]);
     if (!(len >= 0 && len <= this.st.memory.buffer.byteLength)) {
       throw new HostContract("an argument length is past the exchange buffer");
@@ -205,7 +197,13 @@ class ReplSession {
   };
   // Answers a call of a replayed input from its record; a call the record
   // does not hold next throws `Diverged`, which ends the input.
-  serve = (record, module, name, args, request) => {
+  serve = (
+    record: string,
+    module: string,
+    name: string,
+    args: Dynamic[],
+    request: Dynamic,
+  ): Dynamic => {
     switch (record) {
       case "call":
         return this.replay.call(module, name, request);
@@ -217,9 +215,7 @@ class ReplSession {
       default: {
         const handles = this.replay.block();
         // The first run's block found nothing pending either.
-        if (handles === null) {
-          this.deadlock();
-        }
+        if (handles === null) this.deadlock();
         const result = handles.length ? this.handleBytes(handles) : null;
         return { value: { tag: 1, v: BigInt(handles.length) }, result };
       }
@@ -227,33 +223,24 @@ class ReplSession {
   };
   // The import `module` `name` of type `type`, as a session calls it: the
   // recorder and the replayer sit here, where every host call is made.
-  site = (module, name, f, type) => {
+  site = (module: string, name: string, f: DynamicFunction, type: Dynamic): DynamicFunction => {
     const record = recordOf(module, name);
-    if (record === "skip") {
-      return f;
-    }
+    if (record === "skip") return f;
     const reads = readsArgs(module, name);
     const params = type?.params ?? [];
     const results = type?.results ?? [];
     // A replayed call is recorded again, so the new journal holds it.
-    const write = (args, request, value, result) => {
-      if (record === "call") {
-        this.recorder.call(module, name, request, value, result);
-      } else if (record === "finish") {
-        this.recorder.finish(handleParam(args), value, result);
-      } else if (record === "abort") {
-        this.recorder.abort(handleParam(args));
-      } else {
-        this.recorder.block(this.handlesAt(Number(value.v)));
-      }
+    const write = (args: Dynamic[], request: Dynamic, value: Dynamic, result: Dynamic): void => {
+      if (record === "call") this.recorder.call(module, name, request, value, result);
+      else if (record === "finish") this.recorder.finish(handleParam(args), value, result);
+      else if (record === "abort") this.recorder.abort(handleParam(args));
+      else this.recorder.block(this.handlesAt(Number(value.v)));
     };
-    return (...args) => {
+    return (...args: Dynamic[]) => {
       const request = record === "call" ? this.requestOf(args, params, reads) : null;
       if (this.replay) {
         const { value, result } = this.serve(record, module, name, args, request);
-        if (result) {
-          this.put(result);
-        }
+        if (result) this.put(result);
         write(args, request, value, result);
         return servedValue(value, results);
       }
@@ -268,22 +255,24 @@ class ReplSession {
 
   // Drops pending host operations and clears the runtime state left by
   // an input that did not end with status 0.
-  reset = (instance) => {
+  reset = (instance: WebAssembly.Instance): void => {
     this.clearOperations(this.st);
-    instance.exports["hd.reset"]?.();
+    (instance.exports as DynamicRecord)["hd.reset"]?.();
   };
 
   // Links the session program: its host imports through their call
   // sites. Throws for a host import this host does not have.
-  link = (module, wasm, sessionImports = null) => {
+  link = (
+    module: WebAssembly.Module,
+    wasm: Uint8Array,
+    sessionImports: Dynamic = null,
+  ): DynamicRecord => {
     const types = importTypes(wasm);
-    const object = {};
+    const object: DynamicRecord = {};
     for (const { module: m, name, kind } of WebAssembly.Module.imports(module)) {
       if (sessionImports && Object.hasOwn(sessionImports, m)) {
         const value = sessionImports[m][name];
-        if (value === undefined) {
-          throw new Error(`the session import ${m} ${name} is missing`);
-        }
+        if (value === undefined) throw new Error(`the session import ${m} ${name} is missing`);
         (object[m] ??= {})[name] = value;
         continue;
       }
@@ -292,9 +281,7 @@ class ReplSession {
         throw new Error(`the import \`${m}\` \`${name}\` is not in this host`);
       }
       const key = `${m}\0${name}`;
-      if (!this.sites.has(key)) {
-        this.sites.set(key, this.site(m, name, f, types.get(key)));
-      }
+      if (!this.sites.has(key)) this.sites.set(key, this.site(m, name, f, types.get(key)));
       object[m] ??= {};
       object[m][name] = this.sites.get(key);
     }
@@ -303,14 +290,19 @@ class ReplSession {
 
   // Runs input `number` of the text `source` from `instance`'s exports
   // `hd.init.N` and `hd.poll.N`, recording it.
-  runInput = async (instance, number, source, wasm) => {
+  runInput = async (
+    instance: WebAssembly.Instance,
+    number: number,
+    source: string,
+    wasm: Uint8Array,
+  ): Promise<InputOutcome> => {
     this.halt = null;
     // A panic or standard error of an earlier input does not hide this
     // one's internal error.
     this.st.reported = false;
     this.st.panic = null;
     this.recorder.input(number, source, wasm);
-    let outcome;
+    let outcome: InputOutcome;
     try {
       const { status, trapped } = await this.host.run(
         instance,
@@ -323,18 +315,16 @@ class ReplSession {
     } catch (e) {
       this.flush();
       outcome = { status: null, end: { kind: "failed" }, joined: false };
-      outcome.error = String(e?.message ?? e);
+      outcome.error = String((e as Dynamic)?.message ?? e);
     }
-    if (!outcome.joined) {
-      this.reset(instance);
-    }
+    if (!outcome.joined) this.reset(instance);
     this.recorder.end(outcome.end);
     return outcome;
   };
 
   // Starts the instance again with a journal that starts as `journal`,
   // over the same host.
-  restart = (journal) => {
+  restart = (journal: Dynamic): void => {
     this.flush();
     this.clearOperations(this.st);
     this.st.reported = false;
@@ -350,7 +340,12 @@ class ReplSession {
   // calls and wakes served from its record and its output dropped. Throws
   // the divergence: it asked for what the record does not hold, or ended
   // otherwise.
-  replayInput = async (instance, input, source, wasm) => {
+  replayInput = async (
+    instance: WebAssembly.Instance,
+    input: Dynamic,
+    source: string,
+    wasm: Uint8Array,
+  ): Promise<void> => {
     this.replay = new Replay(input);
     this.muted = true;
     let outcome;
@@ -366,18 +361,12 @@ class ReplSession {
 
   // A linked compiler module carries a private, versioned storage manifest.
   // Ordinary whole-program/replay modules never enter this path.
-  sessionInfo = (module) => {
+  sessionInfo = (module: WebAssembly.Module): Dynamic => {
     const sections = WebAssembly.Module.customSections(module, "hd.session");
-    if (sections.length === 0) {
-      return null;
-    }
-    if (sections.length !== 1) {
-      throw new Error("duplicate session manifests");
-    }
+    if (sections.length === 0) return null;
+    if (sections.length !== 1) throw new Error("duplicate session manifests");
     const bytes = sections[0];
-    if (bytes.byteLength < 20) {
-      throw new Error("truncated session manifest");
-    }
+    if (bytes.byteLength < 20) throw new Error("truncated session manifest");
     const view = new DataView(bytes);
     const relocations = view.getUint32(16, true);
     if (
@@ -388,7 +377,9 @@ class ReplSession {
       throw new Error("unsupported session manifest");
     }
     const dataBytes = view.getUint32(8, true);
-    const offsets = Array.from({ length: relocations }, (_, i) => view.getUint32(20 + i * 4, true));
+    const offsets = Array.from({ length: relocations }, (_, i: number) =>
+      view.getUint32(20 + i * 4, true),
+    );
     if (offsets.some((offset) => offset > dataBytes || dataBytes - offset < 4)) {
       throw new Error("session relocation is outside its static segment");
     }
@@ -400,19 +391,19 @@ class ReplSession {
     };
   };
 
-  captureLinked = () => {
+  captureLinked = (): Dynamic => {
     const base = this.linked.instances[0].exports;
     const memories = ["hd.x", "hd.session.heap", "hd.session.stack"].map((name) => [
       name,
       new Uint8Array(base[name].buffer).slice(),
     ]);
-    const globals = this.linked.instances.flatMap((instance, epoch) =>
+    const globals = this.linked.instances.flatMap((instance: WebAssembly.Instance, epoch: number) =>
       Object.entries(instance.exports)
         .filter(
           ([name, value]) =>
             name.startsWith("hd.session.g.") && value instanceof WebAssembly.Global,
         )
-        .map(([name, value]) => [epoch, name, value.value]),
+        .map(([name, value]) => [epoch, name, (value as WebAssembly.Global).value]),
     );
     return {
       memories,
@@ -425,12 +416,18 @@ class ReplSession {
   // Reconstruct code and active table segments without invoking an input.
   // A checkpoint restores initialized storage only after all its code epochs
   // exist, since their active data segments otherwise overwrite live values.
-  instantiateLinked = async (part, instances, checkpoint = null) => {
-    const { module, wasm, info } = part;
-    const imports = {};
+  instantiateLinked = async (
+    part: Dynamic,
+    instances: WebAssembly.Instance[],
+    checkpoint: Dynamic = null,
+  ): Promise<number> => {
+    const module: WebAssembly.Module = part.module;
+    const wasm: Uint8Array = part.wasm;
+    const info: Dynamic = part.info;
+    const imports: DynamicRecord = {};
     let data = 0;
     if (info.epoch > 0) {
-      const base = instances[0].exports;
+      const base: DynamicRecord = instances[0]!.exports;
       if (checkpoint) {
         data = part.data;
       } else {
@@ -440,28 +437,24 @@ class ReplSession {
       }
       const table = base["hd.session.table"];
       const length = checkpoint?.tableLength ?? info.tableLength;
-      if (table.length < length) {
-        table.grow(length - table.length);
-      }
+      if (table.length < length) table.grow(length - table.length);
       imports["hd:session"] = {
         data: new WebAssembly.Global({ value: "i32", mutable: false }, data),
       };
-      instances.forEach((instance, epoch) => {
+      instances.forEach((instance: WebAssembly.Instance, epoch: number) => {
         imports[`hd:session:${epoch}`] = instance.exports;
       });
     }
     const instance = await WebAssembly.instantiate(module, this.link(module, wasm, imports));
     if (info.epoch === 0 && checkpoint) {
       for (const [name, bytes] of checkpoint.memories) {
-        const memory = instance.exports[name];
+        const memory: Dynamic = (instance.exports as DynamicRecord)[name];
         const pages = bytes.byteLength / 65536 - memory.buffer.byteLength / 65536;
-        if (pages > 0) {
-          memory.grow(pages);
-        }
+        if (pages > 0) memory.grow(pages);
       }
     }
     if (info.epoch > 0 && !checkpoint) {
-      const heap = new DataView(instance.exports["hd.session.heap"].buffer);
+      const heap = new DataView((instance.exports as DynamicRecord)["hd.session.heap"].buffer);
       for (const offset of info.offsets) {
         const at = data + offset;
         heap.setUint32(at, heap.getUint32(at, true) + data - 16, true);
@@ -471,9 +464,9 @@ class ReplSession {
     return data;
   };
 
-  restoreLinked = async () => {
-    const instances = [];
-    const dataOffsets = [];
+  restoreLinked = async (): Promise<void> => {
+    const instances: WebAssembly.Instance[] = [];
+    const dataOffsets: number[] = [];
     const checkpoint = this.linked.checkpoint;
     const tail = recorded(this.recorder.journal()).inputs.filter(
       (input) => input.number !== this.linked.cancelled,
@@ -486,12 +479,12 @@ class ReplSession {
         await this.instantiateLinked(part, instances, checkpoint);
       }
       if (checkpoint) {
-        const base = instances[0].exports;
+        const base: DynamicRecord = instances[0]!.exports;
         for (const [name, bytes] of checkpoint.memories) {
           new Uint8Array(base[name].buffer, 0, bytes.byteLength).set(bytes);
         }
         for (const [epoch, name, value] of checkpoint.globals) {
-          instances[epoch].exports[name].value = value;
+          (instances[epoch]!.exports as DynamicRecord)[name].value = value;
         }
       }
       for (const [offset, part] of this.linked.modules.slice(count).entries()) {
@@ -500,13 +493,13 @@ class ReplSession {
           throw new Error("the active journal does not match its session epochs");
         }
         dataOffsets.push(await this.instantiateLinked(part, instances));
-        await this.replayInput(instances.at(-1), input, part.source, part.wasm);
+        await this.replayInput(instances.at(-1)!, input, part.source, part.wasm);
       }
       if (tail.length !== this.linked.modules.length - count) {
         throw new Error("the active journal has unexpected session inputs");
       }
       this.linked.instances = instances;
-      this.linked.modules.slice(count).forEach((part, offset) => {
+      this.linked.modules.slice(count).forEach((part: Dynamic, offset: number) => {
         part.data = dataOffsets[offset];
       });
       this.linked.cancelled = null;
@@ -516,15 +509,19 @@ class ReplSession {
     }
   };
 
-  runLinked = async (module, info, wasm, sources, live, restoredJournal) => {
+  runLinked = async (
+    module: WebAssembly.Module,
+    info: Dynamic,
+    wasm: Uint8Array,
+    sources: Iterable<readonly [number, string]>,
+    live: number | null,
+    restoredJournal: Uint8Array | null | undefined,
+  ): Promise<Ran> => {
     const texts = new Map(sources);
     if (this.linked === null) {
-      if (live === null) {
+      if (live === null)
         throw new Error("restoring linked storage needs its original provider session");
-      }
-      if (info.epoch !== 0) {
-        throw new Error("a linked session must start with its base module");
-      }
+      if (info.epoch !== 0) throw new Error("a linked session must start with its base module");
       this.linked = {
         instances: [],
         modules: [],
@@ -547,11 +544,10 @@ class ReplSession {
       }
     }
     for (const [number, previous] of this.linked.texts) {
-      if (texts.get(number) !== previous) {
+      if (texts.get(number) !== previous)
         throw new Error(`input ${number} needs a session rebuild`);
-      }
     }
-    const ran = {
+    const ran: Ran = {
       kept: [...this.linked.texts.keys()],
       skipped: [],
       dropped: [],
@@ -566,7 +562,7 @@ class ReplSession {
       if (
         !previous ||
         previous.length !== wasm.length ||
-        !previous.every((b, i) => b === wasm[i])
+        !previous.every((b: number, i: number) => b === wasm[i])
       ) {
         throw new Error("changed session code needs a historical rebuild");
       }
@@ -574,8 +570,8 @@ class ReplSession {
         const current = this.historyJournal();
         if (
           !restoredJournal ||
-          restoredJournal.length !== current.length ||
-          !restoredJournal.every((b, i) => b === current[i])
+          restoredJournal.length !== current!.length ||
+          !restoredJournal.every((b: number, i: number) => b === current![i])
         ) {
           throw new Error("linked restore needs this provider session's current journal");
         }
@@ -583,16 +579,11 @@ class ReplSession {
       await this.restoreLinked();
       return ran;
     }
-    if (this.linked.cancelled !== null) {
-      await this.restoreLinked();
-    }
+    if (this.linked.cancelled !== null) await this.restoreLinked();
     const source = texts.get(live);
-    if (source === undefined) {
-      throw new Error(`input ${live} has no text`);
-    }
-    if (info.epoch !== this.linked.instances.length) {
+    if (source === undefined) throw new Error(`input ${live} has no text`);
+    if (info.epoch !== this.linked.instances.length)
       throw new Error("the module is not an extension of this initialized session");
-    }
     const part = { module, info, wasm: wasm.slice(), number: live, source };
     const data = await this.instantiateLinked(part, this.linked.instances);
     const instance = this.linked.instances.at(-1);
@@ -618,39 +609,39 @@ class ReplSession {
 
   // Public persistence and historical reload still receive the ordinary
   // journal format, including results outside the bounded active tail.
-  historyJournal = () => {
+  historyJournal = (): Uint8Array | null => {
     const tail = this.recorder.journal();
-    if (!this.linked?.archives.length || tail === null) {
-      return tail?.slice() ?? null;
-    }
+    if (!this.linked?.archives.length || tail === null) return tail?.slice() ?? null;
     return joinJournals([...this.linked.archives, tail]);
   };
 
-  run = async (wasm, sources, live = null, journal = undefined) => {
+  run = async (
+    wasm: Uint8Array,
+    sources: Iterable<readonly [number, string]>,
+    live: number | null = null,
+    journal: Uint8Array | null | undefined = undefined,
+  ): Promise<Ran> => {
     // A stop from an idle session is not a request to stop its next input.
     this.stopped = false;
-    sources = [...sources];
-    const module = await WebAssembly.compile(wasm);
+    const sourceRows = [...sources];
+    const module = await WebAssembly.compile(wasm as BufferSource);
     const info = this.sessionInfo(module);
     const previous = this.linked?.modules.at(-1)?.wasm;
-    const sameCode = previous?.length === wasm.length && previous.every((b, i) => b === wasm[i]);
+    const sameCode =
+      previous?.length === wasm.length && previous.every((b: number, i: number) => b === wasm[i]);
     const exports = new Set(WebAssembly.Module.exports(module).map(({ name }) => name));
     const rebuilding =
       info?.epoch === 0 &&
       live === null &&
       !sameCode &&
-      sources.every(([number]) => exports.has(`hd.init.${number}`));
-    if (info && !rebuilding) {
-      return this.runLinked(module, info, wasm, sources, live, journal);
-    }
-    if (journal === undefined) {
-      journal = this.historyJournal();
-    }
+      sourceRows.every(([number]) => exports.has(`hd.init.${number}`));
+    if (info && !rebuilding) return this.runLinked(module, info, wasm, sourceRows, live, journal);
+    if (journal === undefined) journal = this.historyJournal();
     if (journal === null) {
       throw new Error("the session's record of host calls is full, so it cannot run another input");
     }
     const record = recorded(journal);
-    const texts = new Map(sources);
+    const texts = new Map(sourceRows);
     // A stop that came while no input ran is dropped; one that comes
     // while the inputs replay is for the new input.
     const cap = this.linked?.cap ?? this.recorder.cap;
@@ -664,8 +655,8 @@ class ReplSession {
       return instance;
     };
     let instance = await start();
-    const ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };
-    const kept = [];
+    const ran: Ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };
+    const kept: [Dynamic, string][] = [];
     for (const [at, input] of record.inputs.entries()) {
       if (input.end?.kind === "stopped" || input.end?.kind === "cancelled") {
         ran.skipped.push(input.number);
@@ -673,16 +664,14 @@ class ReplSession {
       }
       const source = texts.get(input.number);
       try {
-        if (source === undefined) {
-          throw new Error(`input ${input.number} is not in the session`);
-        }
+        if (source === undefined) throw new Error(`input ${input.number} is not in the session`);
         if (!ranText(input, source)) {
           throw new Error(`input ${input.number} is not the text the session ran`);
         }
         await this.replayInput(instance, input, source, wasm);
       } catch (e) {
-        ran.dropped = record.inputs.slice(at).map((i) => i.number);
-        ran.reason = String(e?.message ?? e);
+        ran.dropped = record.inputs.slice(at).map((input: Dynamic) => input.number);
+        ran.reason = String((e as Dynamic)?.message ?? e);
         break;
       }
       ran.kept.push(input.number);
@@ -694,31 +683,27 @@ class ReplSession {
         try {
           await this.replayInput(instance, input, source, wasm);
         } catch (e) {
-          throw new Error(`the rebuild did not repeat itself: ${e.message}`);
+          throw new Error(`the rebuild did not repeat itself: ${(e as Dynamic).message}`);
         }
       }
       // An input left out of `sources` is one the caller forgot: the
       // program does not hold it, so the new input still runs. One that
       // diverged may have declared what the new input uses.
-      if (ran.dropped.some((n) => texts.has(n))) {
-        return ran;
-      }
+      if (ran.dropped.some((n: number) => texts.has(n))) return ran;
     }
     if (live !== null) {
       const source = texts.get(live);
-      if (source === undefined) {
-        throw new Error(`input ${live} has no text`);
-      }
+      if (source === undefined) throw new Error(`input ${live} has no text`);
       ran.live = await this.runInput(instance, live, source, wasm);
     }
     if (rebuilding && ran.dropped.length === 0 && ran.kept.length > 0) {
-      const number = ran.kept.at(-1);
+      const number = ran.kept.at(-1)!;
       this.linked = {
         instances: [instance],
         modules: [
           { module, info, wasm: wasm.slice(), number, source: texts.get(number), data: 16 },
         ],
-        texts: new Map(ran.kept.map((n) => [n, texts.get(n)])),
+        texts: new Map(ran.kept.map((n: number) => [n, texts.get(n)])),
         archives: [this.recorder.journal().slice()],
         checkpoint: null,
         execution: record.execution,
@@ -731,7 +716,7 @@ class ReplSession {
     return ran;
   };
 
-  interface() {
+  interface(): Session {
     return {
       run: this.run,
       // A rebuild may drop every input. Keep the provider, but forget its
@@ -747,12 +732,9 @@ class ReplSession {
       },
       // A copy of the journal so far, or null once it passed its cap.
       journal: this.historyJournal,
-      setJournalCap: (cap) => {
-        if (this.linked) {
-          this.linked.cap = cap;
-        } else {
-          this.recorder.setCap(cap);
-        }
+      setJournalCap: (cap: number) => {
+        if (this.linked) this.linked.cap = cap;
+        else this.recorder.setCap(cap);
       },
       // True once, after the input in which the journal passed its cap.
       takeJournalNotice: () => this.recorder.takeNotice(),
@@ -764,10 +746,16 @@ class ReplSession {
       checkpointStats: () => ({
         epochs: this.linked?.instances.length ?? 0,
         archivedJournals: this.linked?.archives.length ?? 0,
-        archivedBytes: this.linked?.archives.reduce((sum, bytes) => sum + bytes.byteLength, 0) ?? 0,
+        archivedBytes:
+          this.linked?.archives.reduce(
+            (sum: number, bytes: Uint8Array) => sum + bytes.byteLength,
+            0,
+          ) ?? 0,
         snapshotBytes:
-          this.linked?.checkpoint?.memories.reduce((sum, [, bytes]) => sum + bytes.byteLength, 0) ??
-          0,
+          this.linked?.checkpoint?.memories.reduce(
+            (sum: number, [, bytes]: [string, Uint8Array]) => sum + bytes.byteLength,
+            0,
+          ) ?? 0,
         activeJournalBytes: this.recorder.journal()?.byteLength ?? 0,
       }),
       close: () => {
@@ -778,10 +766,15 @@ class ReplSession {
   }
 }
 
-export function createSession(sink, env = {}, layer = null, options = {}) {
+export function createSession(
+  sink: Sink,
+  env: CoreEnv = {},
+  layer: Dynamic = null,
+  options: { journalCap?: number } = {},
+): Session {
   return new ReplSession(
     sink,
-    { ...env, isReplayDivergence: (error) => error instanceof Diverged },
+    { ...env, isReplayDivergence: (error: unknown) => error instanceof Diverged },
     layer,
     options,
     createCoreHost,

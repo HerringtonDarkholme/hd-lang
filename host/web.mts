@@ -18,18 +18,52 @@ import {
   unsupportedSetting,
   writtenHost,
 } from "./core.mts";
-import { createSession } from "./session.mjs";
+import type { CoreEnv, Host, Session, Sink } from "./core.mts";
+import type { TestFiles } from "./cases.mjs";
+import { createSession } from "./session.mts";
+
+export type { Host, Session, Sink } from "./core.mts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+
+export interface BrowserRequest {
+  method: string;
+  url: string;
+  headers: readonly (readonly [string, string])[];
+  body: Uint8Array;
+  redirects: number;
+  timeout: number | null;
+  settings?: {
+    dnsServers: string[] | null;
+    tlsRoots: string[];
+    tlsIdentity: { certificateChain: string; privateKey: string } | null;
+    connectTimeout: number | null;
+    tlsHandshakeTimeout: number | null;
+    responseHeaderTimeout: number | null;
+    bodyReadTimeout: number | null;
+  };
+}
+
+export type BrowserAnswer =
+  | {
+      status: number;
+      headers: [string, string][];
+      body: Uint8Array;
+      url: string;
+      error?: undefined;
+    }
+  | { error: string; text: string | null };
 
 // The text of a request the browser refused (std-http.playground.refused).
 const REFUSED = "the browser refused the request: a network error or CORS";
 const MAX_DECODED_BYTES = 64 * 1024 * 1024;
 
 // Each `name: value` line of `getAllResponseHeaders`, as a pair, in order.
-const headerPairs = (text) =>
+const headerPairs = (text: string): [string, string][] =>
   text
     .split(/\r?\n/)
-    .filter((line) => line.includes(":"))
-    .map((line) => {
+    .filter((line: string) => line.includes(":"))
+    .map((line: string) => {
       const colon = line.indexOf(":");
       return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
     });
@@ -41,25 +75,28 @@ const headerPairs = (text) =>
 // URL of another origin is `NotGranted(host)`
 // (std-http.playground.other-origin), and a request the browser refuses is
 // `Connect` (std-http.playground.refused).
-export function browserSend({ method, url, headers, body, redirects, timeout, settings }) {
+export function browserSend({
+  method,
+  url,
+  headers,
+  body,
+  redirects,
+  timeout,
+  settings,
+}: BrowserRequest): BrowserAnswer {
   // XHR exposes no resolver, TLS identity or phase timer, so every
   // transport setting is refused before any work (std-http.settings.host-support).
   const refused = unsupportedSetting(settings);
-  if (refused) {
-    return refused;
-  }
-  let parsed;
+  if (refused) return refused;
+  let parsed: URL;
   try {
-    if (!isAsciiUrl(url)) {
-      return { error: "InvalidUrl", text: url };
-    }
+    if (!isAsciiUrl(url)) return { error: "InvalidUrl", text: url };
     parsed = new URL(url);
   } catch {
     return { error: "InvalidUrl", text: url };
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
     return { error: "InvalidUrl", text: url };
-  }
   // The grant covers the page's own origin alone (std-http.playground.origin).
   // The host is the one as written (std-http.url.grant, .no-normalize),
   // not WHATWG's rewrite of it; the scheme and port are the origin's.
@@ -81,27 +118,17 @@ export function browserSend({ method, url, headers, body, redirects, timeout, se
   try {
     xhr.open(method, parsed.href, false);
     xhr.responseType = "arraybuffer";
-    if (timeout !== null) {
-      xhr.timeout = timeout;
-    }
+    if (timeout !== null) xhr.timeout = timeout;
     // The browser drops a forbidden header, such as Cookie or Host.
-    for (const [name, value] of headers) {
-      xhr.setRequestHeader(name, value);
-    }
-    xhr.send(method === "GET" || method === "HEAD" ? null : body);
+    for (const [name, value] of headers) xhr.setRequestHeader(name, value);
+    xhr.send(method === "GET" || method === "HEAD" ? null : (body as XMLHttpRequestBodyInit));
   } catch (error) {
-    if (error?.name === "TimeoutError") {
-      return { error: "Timeout", text: "" };
-    }
+    if ((error as Dynamic)?.name === "TimeoutError") return { error: "Timeout", text: "" };
     return { error: "Connect", text: REFUSED };
   }
-  if (xhr.status === 0) {
-    return { error: "Connect", text: REFUSED };
-  }
+  if (xhr.status === 0) return { error: "Connect", text: REFUSED };
   const decodedBody = new Uint8Array(xhr.response);
-  if (decodedBody.length > MAX_DECODED_BYTES) {
-    return { error: "OutputTooLarge", text: null };
-  }
+  if (decodedBody.length > MAX_DECODED_BYTES) return { error: "OutputTooLarge", text: null };
   const responseHeaders = headerPairs(xhr.getAllResponseHeaders());
   const staleEncoding = responseHeaders.some(([name]) => name.toLowerCase() === "content-encoding");
   return {
@@ -116,8 +143,8 @@ export function browserSend({ method, url, headers, body, redirects, timeout, se
   };
 }
 
-const webLayer = {
-  providers: ({ env }) => ({
+const webLayer: Dynamic = {
+  providers: ({ env }: { env: CoreEnv }) => ({
     traits: {
       "hd:Http": httpProvider(browserSend),
       // The temp directory of a case, a path in the run's in-memory files
@@ -129,29 +156,33 @@ const webLayer = {
 
 // One host per instance in the browser; `sink` and `env` are
 // `createCoreHost`'s. A test run passes its `memoryFiles()` as `env.files`.
-export const createWebHost = (sink, env = {}) => createCoreHost(sink, env, webLayer);
+export const createWebHost = (
+  sink: Sink,
+  env: CoreEnv & { tempDir?: string | null; files?: TestFiles } = {},
+): Host => createCoreHost(sink, env, webLayer);
 
 // A REPL session in the browser (core.mts `createSession`), over the same
 // providers as a run.
-export const createWebSession = (sink, env = {}, options = {}) =>
-  createSession(sink, env, webLayer, options);
+export const createWebSession = (
+  sink: Sink,
+  env: CoreEnv = {},
+  options: { journalCap?: number } = {},
+): Session => createSession(sink, env, webLayer, options);
 
 // The files of one test run in the browser (cases.mjs): kept in memory and
 // gone with the run, since the playground has no disk
 // (crates/hd_web/DESIGN.md §5).
-export function memoryFiles() {
-  const texts = new Map();
+export function memoryFiles(): TestFiles {
+  const texts = new Map<string, string>();
   return {
-    join: (dir, name) => `${dir}/${name}`,
-    read: (path) => texts.get(path) ?? null,
-    write: (path, text) => {
+    join: (dir: string, name: string) => `${dir}/${name}`,
+    read: (path: string) => texts.get(path) ?? null,
+    write: (path: string, text: string) => {
       texts.set(path, text);
     },
-    remove: (dir) => {
-      for (const path of [...texts.keys()]) {
-        if (path === dir || path.startsWith(`${dir}/`)) {
-          texts.delete(path);
-        }
+    remove: (dir: string) => {
+      for (const path of texts.keys()) {
+        if (path === dir || path.startsWith(`${dir}/`)) texts.delete(path);
       }
     },
   };
@@ -161,7 +192,7 @@ export function memoryFiles() {
 // and in import order: `hd:FsRead` gives `FsRead`. A runner refuses such a
 // module before it instantiates it, as `hd_run::check_grants` refuses a
 // total deny.
-export function unboundTraits(module, host) {
+export function unboundTraits(module: WebAssembly.Module, host: Host): string[] {
   const names = WebAssembly.Module.imports(module)
     .map(({ module }) => module)
     .filter((name) => name.startsWith("hd:") && !Object.hasOwn(host.imports, name))

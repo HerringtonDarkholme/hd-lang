@@ -256,7 +256,7 @@ on wasmtime only.
  editor ─ "check" / "run" ─► Session::compile: one serial driver run
                              ◄── diagnostics JSON, built Wasm
  "run" ──────────────────────────────────────────────────────► instantiate on V8
-                                                                with host/web.mjs
+                                                                with host/web.mts
  console, http ◄────────────────────────────────────────────── host calls
  "stop" / 15 s ──────────────────────────────────────────────► terminate the run
                                                                 worker only
@@ -386,7 +386,7 @@ Continuing §7.9:
 1. "Run" in the compiler worker: check, then `Collect`, `Emit` and `Link`
    in `hd_web` with the serial scheduler. The `MemoryStore` holds code
    entries, so a second run after a small edit re-emits few instances.
-2. Browser providers (`host/web.mjs` over `host/core.mts`): `Console` to
+2. Browser providers (`host/web.mts` over `host/core.mts`): `Console` to
    the page, `Clock` and `Random` from the platform, same-origin `Http`
    as a synchronous `XMLHttpRequest`, `TestRunner.temp_dir`, and test
    snapshot files in memory for one run. Every other platform trait is

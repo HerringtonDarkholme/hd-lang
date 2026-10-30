@@ -124,7 +124,7 @@ the module bytes). The per-function cache is built
 The playground's compiler worker (`website/playground/src/worker.ts`)
 builds the module. The run worker (`run-worker.ts`) runs it:
 `WebAssembly.compile`, `instantiate` with the JS host's imports
-(`host/web.mjs`), and the poll and wake loop on that worker's event loop.
+(`host/web.mts`), and the poll and wake loop on that worker's event loop.
 V8 starts every function in Liftoff, which suits short programs.
 
 **Stop** terminates the run worker alone, so the compiler stays warm, and

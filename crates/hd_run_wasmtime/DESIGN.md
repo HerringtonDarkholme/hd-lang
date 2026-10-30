@@ -432,7 +432,7 @@ the variant index and the path.
   synchronous `XMLHttpRequest`), and any other pending operation panics
   `host-contract` naming JSPI.
 
-Implementation differs: `host/web.mjs` runs the program in a dedicated
+Implementation differs: `host/web.mts` runs the program in a dedicated
 worker and answers every host call synchronously: `Http.send` is a
 synchronous `XMLHttpRequest` that finishes inside `.start`, and only
 `Clock.sleep` completes later. Not judged: it
@@ -565,7 +565,7 @@ argument, and its parameters and result (a scalar as its Wasm type, any
 other value as its codec). `host/core.mts` makes the import object from
 them around providers: each method a JS function that takes and returns
 plain values (`traitImports`). It also holds the platform-neutral
-providers and the entry driver; `host/node.mjs` and `host/web.mjs` add
+providers and the entry driver; `host/node.mjs` and `host/web.mts` add
 platform providers; `host/run.mjs`, `host/test.mjs` and `host/cases.mjs`
 drive runs and tests. Grant checks stay in each provider, since each
 trait refuses in its own way (§17.7).

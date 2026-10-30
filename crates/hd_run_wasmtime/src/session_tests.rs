@@ -2087,7 +2087,7 @@ fn a_historical_rebuild_adopts_a_linked_base_on_both_hosts() {
             r"
 import assert from 'node:assert/strict';
 import {{pathToFileURL}} from 'node:url';
-const {{createSession}} = await import(new URL('session.mjs', pathToFileURL({host:?})));
+const {{createSession}} = await import(new URL('session.mts', pathToFileURL({host:?})));
 const sources = [{pairs}];
 const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
 const base = new Uint8Array({base_wasm:?});
@@ -2216,7 +2216,7 @@ fn linked_cycles_and_captured_references_survive_checkpoint_restore() {
                 r"
 import assert from 'node:assert/strict';
 import {{pathToFileURL}} from 'node:url';
-const {{createSession}} = await import(new URL('session.mjs', pathToFileURL({host:?})));
+const {{createSession}} = await import(new URL('session.mts', pathToFileURL({host:?})));
 const sources = [{pairs}];
 const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
 const errors = [];

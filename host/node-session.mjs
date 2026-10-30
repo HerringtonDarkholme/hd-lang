@@ -1,7 +1,7 @@
 // Node-only REPL session glue. Kept separate from node.mjs so `hd run`
 // does not parse or initialize the journal and session implementation.
 import { createOutput } from "./output.mjs";
-import { createSession } from "./session.mjs";
+import { createSession } from "./session.mts";
 import { lineReader, nodeLayer } from "./node.mjs";
 
 const { readFileSync } = process.getBuiltinModule("node:fs");

@@ -40,7 +40,7 @@ checking.
 - The host ABI is hd's own core-Wasm imports, not the Component Model.
 - A browser `block_on` that waits on the host uses JSPI, else a
   synchronous same-origin XHR for HTTP, else a `host-contract` panic.
-  Implementation differs: the browser host (`host/web.mjs`) always sends
+  Implementation differs: the browser host (`host/web.mts`) always sends
   HTTP with a synchronous XHR from its worker and has no JSPI path; not
   judged.
 - **Two pipelines** ([tiering.md](tiering.md)): a dev pipeline for

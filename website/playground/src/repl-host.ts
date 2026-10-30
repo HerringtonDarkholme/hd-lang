@@ -29,7 +29,7 @@
 
 import { recorded, type End } from "../../../host/journal.mts";
 import type { InputOutcome, Ran } from "../../../host/core.mts";
-import { createWebSession, type Session } from "../../../host/web.mjs";
+import { createWebSession, type Session } from "../../../host/web.mts";
 import {
   OUTCOME,
   STATUS,

@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { before, test } from "node:test";
 
-import { createWebSession, type Session } from "../../../host/web.mjs";
+import { createWebSession, type Session } from "../../../host/web.mts";
 import { recorded } from "../../../host/journal.mts";
 import { COMPILER_WASM } from "../../../scripts/build-web-compiler.js";
 import {

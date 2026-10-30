@@ -20,7 +20,7 @@ use crate::report::quote;
 /// driver.
 const CORE: &str = include_str!("../../../host/core.mts");
 /// The initialized REPL session and checkpoint lifecycle imported by the core.
-const SESSION: &str = include_str!("../../../host/session.mjs");
+const SESSION: &str = include_str!("../../../host/session.mts");
 /// The checked descriptor report imported by the shared core.
 const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.mts");
 /// The JS host's Node layer: the providers that touch the machine.
@@ -255,7 +255,7 @@ impl Scratch {
         std::fs::create_dir_all(s.0.join("gen")).map_err(|e| format!("{}: {e}", s.0.display()))?;
         for (name, text) in [
             ("core.mts", CORE),
-            ("session.mjs", SESSION),
+            ("session.mts", SESSION),
             ("checked-report.mts", CHECKED_REPORT),
             ("node.mjs", NODE),
             ("node-files.mjs", NODE_FILES),

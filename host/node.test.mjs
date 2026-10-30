@@ -35,7 +35,7 @@ import { ConsoleError, METHODS } from "./gen/abi.mts";
 
 import { cgroupCpuCount, createHost, syncClient } from "./node.mjs";
 import { createOutput } from "./output.mjs";
-import { browserSend } from "./web.mjs";
+import { browserSend } from "./web.mts";
 import { failed as failedOutput } from "./output-worker.mjs";
 import { postReply, receiveReply } from "./worker-control.mjs";
 
@@ -1439,7 +1439,7 @@ async function heldLookupHost(t) {
     "node.mjs",
     "node-files.mjs",
     "core.mts",
-    "session.mjs",
+    "session.mts",
     "output.mjs",
     "output-worker.mjs",
     "worker-control.mjs",

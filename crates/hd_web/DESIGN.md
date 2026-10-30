@@ -172,7 +172,7 @@ The JS host is split, not forked:
   `SharedArrayBuffer` needs.
 - `host/node.mjs` adds `Fs*`, `Process`, `Net`, `Http`, `Env`, `Sys` and
   `ConsoleInput`; `hd_cli/src/node.rs` embeds it.
-- `host/web.mjs` adds the playground's `Http`, a synchronous
+- `host/web.mts` adds the playground's `Http`, a synchronous
   `XMLHttpRequest` limited to the page's own origin, and
   `TestRunner.temp_dir`. The program runs in a dedicated worker, which
   still allows a synchronous request.

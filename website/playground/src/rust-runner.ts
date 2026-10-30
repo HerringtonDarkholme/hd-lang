@@ -1,6 +1,6 @@
 // Check, Run and Test on the Rust compiler (crates/hd_web/DESIGN.md §3).
 // The compiler wasm of crates/hd_web compiles the project; Run instantiates
-// the program with the browser host, host/web.mjs, as `hd run` does on
+// the program with the browser host, host/web.mts, as `hd run` does on
 // Node with host/node.mjs. Test runs each case with the case loop that
 // `hd test` runs on Node (host/cases.mjs), over the browser host, and
 // reports what `hd test` would. The worker loads one runner, so the
@@ -12,7 +12,7 @@
 import { instantiateCompiler } from "./compiler-host.ts";
 
 import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.mjs";
-import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mjs";
+import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mts";
 import {
   GOAL,
   STATUS,

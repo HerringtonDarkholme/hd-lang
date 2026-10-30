@@ -5,7 +5,7 @@
 // that need nothing from the platform (`Console`, `Clock`, `Random`,
 // `Args`, `rt`, `prim`, and the test and property runners' hooks); and the
 // entry driver of crates/hd_wasm_linear/DESIGN.md §14.4. It uses web-standard APIs
-// only. A platform layer (node.mjs, web.mjs) adds the providers that touch
+// only. A platform layer (node.mjs, web.mts) adds the providers that touch
 // the machine by passing `layer` to `createCoreHost`.
 //
 // - A provider is a host trait's methods as JS functions by name: each
@@ -729,7 +729,7 @@ export const unsupportedSetting = (
 // variant's name and text: http.mjs's thread on Node, `browserSend` in the
 // browser (std-http.send.*).
 export function httpProvider(
-  send: (request: DynamicRecord) => Dynamic,
+  send: (request: Dynamic) => Dynamic,
 ): Record<string, ProviderFunction> {
   return {
     send: (r: Dynamic) => {
