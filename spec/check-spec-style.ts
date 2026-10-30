@@ -73,6 +73,24 @@ function selfCheck(): string[] {
   return failures;
 }
 
+function checkErrorExamples(
+  parsed: ReturnType<typeof blocks>,
+  codes: ReadonlySet<string>,
+  name: string,
+  failures: string[],
+): void {
+  for (const block of parsed) {
+    if (block.kind !== "code") {
+      continue;
+    }
+    for (const code of errorMarkerCodes(block.text)) {
+      if (!codes.has(code)) {
+        failures.push(`spec/${name}:${block.line}: error example names unknown code ${code}`);
+      }
+    }
+  }
+}
+
 async function main(args: readonly string[]): Promise<number> {
   const positional = args.filter((arg) => !arg.startsWith("--"));
   if (positional.length !== 1) {
@@ -132,15 +150,7 @@ async function main(args: readonly string[]): Promise<number> {
       continue;
     }
 
-    for (const block of parsed) {
-      if (block.kind === "code") {
-        for (const code of errorMarkerCodes(block.text)) {
-          if (!codes.has(code)) {
-            failures.push(`spec/${name}:${block.line}: error example names unknown code ${code}`);
-          }
-        }
-      }
-    }
+    checkErrorExamples(parsed, codes, name, failures);
 
     const warnings: string[] = [];
     for (const block of paragraphs(parsed)) {

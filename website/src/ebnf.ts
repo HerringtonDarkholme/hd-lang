@@ -162,6 +162,30 @@ export interface GrammarIndex {
   readonly abstractTokens: readonly string[];
 }
 
+function indexBlock(
+  source: string,
+  block: EbnfBlock,
+  definitions: Map<string, string[]>,
+  uses: UnresolvedReference[],
+): number {
+  let count = 0;
+  let line = block.line + 1;
+  for (const span of tokenizeEbnf(block.code)) {
+    if (span.kind === "definition") {
+      count += 1;
+      const pagesDefining = definitions.get(span.text) ?? [];
+      if (!pagesDefining.includes(source)) {
+        pagesDefining.push(source);
+      }
+      definitions.set(span.text, pagesDefining);
+    } else if (span.kind === "reference" || span.kind === "token") {
+      uses.push({ name: span.text, source, line });
+    }
+    line += span.text.split("\n").length - 1;
+  }
+  return count;
+}
+
 /**
  * Indexes the rules `pages` define. A rule's canonical definition is the one
  * on `canonicalSource` when that page defines it, and otherwise the first in
@@ -176,20 +200,7 @@ export function buildGrammarIndex(
   let definitionCount = 0;
   for (const { source, blocks } of pages) {
     for (const block of blocks) {
-      let line = block.line + 1;
-      for (const span of tokenizeEbnf(block.code)) {
-        if (span.kind === "definition") {
-          definitionCount += 1;
-          const pagesDefining = definitions.get(span.text) ?? [];
-          if (!pagesDefining.includes(source)) {
-            pagesDefining.push(source);
-          }
-          definitions.set(span.text, pagesDefining);
-        } else if (span.kind === "reference" || span.kind === "token") {
-          uses.push({ name: span.text, source, line });
-        }
-        line += span.text.split("\n").length - 1;
-      }
+      definitionCount += indexBlock(source, block, definitions, uses);
     }
   }
   if (canonicalSource !== undefined) {

@@ -41,6 +41,28 @@ async function ddmin<T>(
 
 const closers: Readonly<Record<string, string>> = { "(": ")", "[": "]", "{": "}" };
 
+function groupsIn(lines: ReturnType<typeof splitLines>): Array<{
+  row: number;
+  start: number;
+  end: number;
+}> {
+  const groups: Array<{ row: number; start: number; end: number }> = [];
+  for (const [row, line] of lines.entries()) {
+    const stack: number[] = [];
+    for (const [index, token] of line.tokens.entries()) {
+      if (closers[token]) {
+        stack.push(index);
+      } else if (Object.values(closers).includes(token) && stack.length) {
+        const start = stack.pop()!;
+        if (index - start > 1) {
+          groups.push({ end: index, row, start });
+        }
+      }
+    }
+  }
+  return groups;
+}
+
 async function emptyGroups(
   source: string,
   keeps: Predicate,
@@ -50,20 +72,7 @@ async function emptyGroups(
   for (let changed = true; changed && budget.remaining > 0;) {
     changed = false;
     const lines = splitLines(best);
-    const groups: Array<{ row: number; start: number; end: number }> = [];
-    for (const [row, line] of lines.entries()) {
-      const stack: number[] = [];
-      for (const [index, token] of line.tokens.entries()) {
-        if (closers[token]) {
-          stack.push(index);
-        } else if (Object.values(closers).includes(token) && stack.length) {
-          const start = stack.pop()!;
-          if (index - start > 1) {
-            groups.push({ end: index, row, start });
-          }
-        }
-      }
-    }
+    const groups = groupsIn(lines);
     groups.sort((left, right) => right.end - right.start - (left.end - left.start));
     for (const group of groups) {
       if (budget.remaining <= 0) {

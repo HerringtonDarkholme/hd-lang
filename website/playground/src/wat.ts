@@ -108,6 +108,26 @@ function wordKind(word: string): WatTokenKind {
   return "plain";
 }
 
+function scanBlockComment(text: string, start: number): number {
+  let depth = 0;
+  let index = start;
+  while (index < text.length) {
+    if (text.startsWith("(;", index)) {
+      depth += 1;
+      index += 2;
+    } else if (text.startsWith(";)", index)) {
+      depth -= 1;
+      index += 2;
+      if (depth === 0) {
+        break;
+      }
+    } else {
+      index += 1;
+    }
+  }
+  return index;
+}
+
 /** Splits WAT text into highlighted runs; joining their text gives back `text`. */
 export function tokenizeWat(text: string): WatToken[] {
   const tokens: WatToken[] = [];
@@ -129,21 +149,7 @@ export function tokenizeWat(text: string): WatToken[] {
       push("comment", text.slice(start, index));
     } else if (text.startsWith("(;", index)) {
       // Block comments nest.
-      let depth = 0;
-      while (index < text.length) {
-        if (text.startsWith("(;", index)) {
-          depth += 1;
-          index += 2;
-        } else if (text.startsWith(";)", index)) {
-          depth -= 1;
-          index += 2;
-          if (depth === 0) {
-            break;
-          }
-        } else {
-          index += 1;
-        }
-      }
+      index = scanBlockComment(text, index);
       push("comment", text.slice(start, index));
     } else if (char === "(" || char === ")") {
       index += 1;

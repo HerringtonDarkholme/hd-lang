@@ -181,6 +181,33 @@ function duplicateWarnings(corpus: Corpus): AuditWarning[] {
 
 const NAMED_CODES = /\b(Error|Warning|Panic):((?:\s*(?:,|and|or)?\s*`[a-z0-9-]+`)+)/g;
 
+function namedCodeWarnings(
+  chapter: Chapter,
+  tableCodes: ReadonlySet<string>,
+  panics: ReadonlySet<string>,
+): AuditWarning[] {
+  const out: AuditWarning[] = [];
+  for (const block of chapter.blocks) {
+    if (block.kind === "code" || block.kind === "heading") {
+      continue;
+    }
+    for (const match of block.text.matchAll(NAMED_CODES)) {
+      for (const code of match[2]!.matchAll(/`([a-z0-9-]+)`/g)) {
+        const known = match[1] === "Panic" ? panics : tableCodes;
+        if (!known.has(code[1]!)) {
+          out.push({
+            kind: "unknown-code",
+            file: chapter.name,
+            line: block.line,
+            message: `${match[1]}: \`${code[1]}\` is not in the ${match[1] === "Panic" ? "panic category list" : "README Diagnostics table"}`,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 function codeWarnings(corpus: Corpus): AuditWarning[] {
   const tableCodes = knownCodes(corpus.readme, "");
   const panics = knownCodes("", corpus.controlFlow);
@@ -192,24 +219,7 @@ function codeWarnings(corpus: Corpus): AuditWarning[] {
     .map((block) => block.text)
     .join("\n");
   for (const chapter of corpus.chapters) {
-    for (const block of chapter.blocks) {
-      if (block.kind === "code" || block.kind === "heading") {
-        continue;
-      }
-      for (const match of block.text.matchAll(NAMED_CODES)) {
-        for (const code of match[2]!.matchAll(/`([a-z0-9-]+)`/g)) {
-          const known = match[1] === "Panic" ? panics : tableCodes;
-          if (!known.has(code[1]!)) {
-            out.push({
-              kind: "unknown-code",
-              file: chapter.name,
-              line: block.line,
-              message: `${match[1]}: \`${code[1]}\` is not in the ${match[1] === "Panic" ? "panic category list" : "README Diagnostics table"}`,
-            });
-          }
-        }
-      }
-    }
+    out.push(...namedCodeWarnings(chapter, tableCodes, panics));
   }
   const prose = corpus.chapters.map((chapter) => chapter.text).join("\n");
   for (const code of [...tableCodes].sort()) {
