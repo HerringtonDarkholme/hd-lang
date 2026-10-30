@@ -19,6 +19,8 @@ use crate::report::quote;
 /// The JS host's platform-neutral core: the import object and the entry
 /// driver.
 const CORE: &str = include_str!("../../../host/core.mts");
+/// Package-host runtime binding imported by the platform-neutral core.
+const CORE_PACKAGE: &str = include_str!("../../../host/core-package.mts");
 /// The initialized REPL session and checkpoint lifecycle imported by the core.
 const SESSION: &str = include_str!("../../../host/session.mts");
 /// The checked descriptor report imported by the shared core.
@@ -255,6 +257,7 @@ impl Scratch {
         std::fs::create_dir_all(s.0.join("gen")).map_err(|e| format!("{}: {e}", s.0.display()))?;
         for (name, text) in [
             ("core.mts", CORE),
+            ("core-package.mts", CORE_PACKAGE),
             ("session.mts", SESSION),
             ("checked-report.mts", CHECKED_REPORT),
             ("node.mjs", NODE),
