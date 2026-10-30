@@ -49,6 +49,7 @@ mod privacy;
 mod promote;
 mod receiver;
 mod refs;
+mod regions;
 mod render;
 pub mod results;
 mod rows;
