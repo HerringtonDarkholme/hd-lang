@@ -336,8 +336,8 @@ easy to iterate). One checkable rule per slice, in order:
 | 6d4 | a closure argument for a bare generic `F < Fn...` or `F < FnMut...` parameter may capture local references for the call; the call's result carries them | 6d3 |
 | 6e | `FnMut[I, O, $R]` for closures that mutate captures; `Fn` captures shared, so `require`'s condition `F < Fn() -> bool` is read-only (#978) | 6d2 |
 | 6f | `on_exit[F < FnMut() -> void & 'a, 'a](action: F) -> ScopeGuard[F, 'a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d3, 6e |
-| 6g | library `defer` and `ensure` under `@auto_closing` (#978) | 6f; owner: `ensure`'s result access |
-| 6h | read-only live list views, `Span[T, 'a]` (#978); `SpanMut` after | 6a3; owner: the API |
+| 6g | library `defer` and `ensure` under `@auto_closing` (#978); `ensure` has no access to the result: a function that checks its result names it first (owner, 2026-10-30), and named return values may come later | 6f |
+| 6h | read-only live list views, `Span[T, 'a]` (#978), with a minimal API like Rust's `&[T]`: `xs.span()`, `len`, `get(i)`, `[i]`, `iter()` and `slice(range)` returning a smaller `Span` (owner, 2026-10-30); `SpanMut` after | 6a3 |
 | 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
 
 Applied by #1017 (6a1, [Lifetime Structs](../../spec/lang/13-values-and-references.md#lifetime-structs)): each struct lifetime is one reference position of the struct's type, after its type arguments, so its values hold a local reference.
