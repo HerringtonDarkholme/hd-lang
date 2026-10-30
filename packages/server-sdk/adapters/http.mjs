@@ -13,6 +13,7 @@ const bodyHeaders = new Set([
   "transfer-encoding",
 ]);
 const credentials = new Set(["authorization", "proxy-authorization", "cookie", "host"]);
+const dnsCodes = new Set(["ENOTFOUND", "EAI_AGAIN", "EAI_NODATA", "EAI_FAIL"]);
 const tlsCodes = new Set([
   "CERT_HAS_EXPIRED",
   "CERT_NOT_YET_VALID",
@@ -27,16 +28,14 @@ function failure(cause, host, timedOut) {
   if (timedOut) {
     return error("Timeout");
   }
-  const code = cause?.cause?.code ?? cause?.code ?? "";
-  if (["ENOTFOUND", "EAI_AGAIN", "EAI_NODATA", "EAI_FAIL"].includes(code)) {
+  const detail = cause?.cause ?? cause;
+  const code = detail?.code ?? "";
+  if (dnsCodes.has(code)) {
     return error("Dns", { host });
   }
-  const message = String(cause?.cause?.message ?? cause?.message ?? cause);
-  if (
-    tlsCodes.has(code) ||
-    /^ERR_(TLS|SSL)/.test(code) ||
-    (code === "EPROTO" && /\b(tls|ssl)/i.test(message))
-  ) {
+  const message = String(detail?.message ?? detail);
+  const isTls = tlsCodes.has(code) || /^ERR_(TLS|SSL)/.test(code);
+  if (isTls || (code === "EPROTO" && /\b(tls|ssl)/i.test(message))) {
     return error("Tls", { message });
   }
   return error(code ? "Connect" : "Other", { message });
@@ -117,6 +116,66 @@ export function changedSetting(request) {
   return settings.find(([, changed]) => changed)?.[0] ?? null;
 }
 
+function parseRequestUrl(url, isAsciiUrl) {
+  try {
+    if (!isAsciiUrl(url) || url.includes("\\") || !/^https?:\/\/[^/?#]+/i.test(url)) {
+      return null;
+    }
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function requestPort(parsed) {
+  if (parsed.port) {
+    return Number(parsed.port);
+  }
+  return parsed.protocol === "https:" ? 443 : 80;
+}
+
+function isFinalResponse(request, response, location) {
+  return request.redirects === 0 || !redirected.has(response.status) || location === null;
+}
+
+function parseRedirect(location, parsed, isAsciiUrl) {
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(location);
+  const networkPath = location.startsWith("//");
+  const rawTarget = networkPath ? parsed.protocol + location : location;
+  if (
+    !isAsciiUrl(rawTarget) ||
+    location.includes("\\") ||
+    (hasScheme && !/^https?:\/\/[^/?#]+/i.test(location)) ||
+    (networkPath && !/^\/\/[^/?#]+/.test(location))
+  ) {
+    return null;
+  }
+  try {
+    return new URL(location, parsed);
+  } catch {
+    return null;
+  }
+}
+
+function redirectsToGet(status, method) {
+  return (
+    (status === 303 && !["GET", "HEAD"].includes(method)) ||
+    ([301, 302].includes(status) && method === "POST")
+  );
+}
+
+async function completedResponse(response, url) {
+  const decoded = await decodedFetchResponse(response);
+  return decoded.ok ? ok({ ...decoded.value, url }) : decoded;
+}
+
+function redirectHeaders(headers, parsed, next) {
+  return next.origin === parsed.origin
+    ? headers
+    : headers.filter(([name]) => !credentials.has(name.toLowerCase()));
+}
+
 export function createHttpClient(
   lease,
   { grant, isAsciiUrl, writtenHost, fetch: fetcher = globalThis.fetch, timeoutMs = 30000 },
@@ -148,25 +207,12 @@ export function createHttpClient(
           let headers = request.headers.map(([name, value]) => [name, value]);
           try {
             for (let count = 0; ; count++) {
-              let parsed;
-              try {
-                if (!isAsciiUrl(url) || url.includes("\\") || !/^https?:\/\/[^/?#]+/i.test(url)) {
-                  return error("InvalidUrl", { url });
-                }
-                parsed = new URL(url);
-                if (!["http:", "https:"].includes(parsed.protocol)) {
-                  return error("InvalidUrl", { url });
-                }
-              } catch {
+              const parsed = parseRequestUrl(url, isAsciiUrl);
+              if (!parsed) {
                 return error("InvalidUrl", { url });
               }
               host = writtenHost(written);
-              let port = 80;
-              if (parsed.port) {
-                port = Number(parsed.port);
-              } else if (parsed.protocol === "https:") {
-                port = 443;
-              }
+              const port = requestPort(parsed);
               if (!grant.coversHost("Http", host, port)) {
                 return error("NotGranted", { host });
               }
@@ -178,16 +224,8 @@ export function createHttpClient(
                 signal: controller.signal,
               });
               const location = response.headers.get("location");
-              if (
-                request.redirects === 0 ||
-                !redirected.has(response.status) ||
-                location === null
-              ) {
-                const decoded = await decodedFetchResponse(response);
-                if (!decoded.ok) {
-                  return decoded;
-                }
-                return ok({ ...decoded.value, url });
+              if (isFinalResponse(request, response, location)) {
+                return completedResponse(response, url);
               }
               const decodedRedirect = await decodedFetchResponse(response);
               if (!decodedRedirect.ok) {
@@ -195,33 +233,15 @@ export function createHttpClient(
               }
               // WHATWG URL accepts slashless schemes and extra authority
               // slashes; reject those before it can change the written host.
-              const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(location);
-              const networkPath = location.startsWith("//");
-              const rawTarget = networkPath ? parsed.protocol + location : location;
-              if (
-                !isAsciiUrl(rawTarget) ||
-                location.includes("\\") ||
-                (hasScheme && !/^https?:\/\/[^/?#]+/i.test(location)) ||
-                (networkPath && !/^\/\/[^/?#]+/.test(location))
-              ) {
-                return error("InvalidUrl", { url: location });
-              }
-              let next;
-              try {
-                next = new URL(location, parsed);
-              } catch {
+              const next = parseRedirect(location, parsed, isAsciiUrl);
+              if (!next) {
                 return error("InvalidUrl", { url: location });
               }
               if (count === request.redirects) {
                 return error("TooManyRedirects", { url: next.href });
               }
-              if (next.origin !== parsed.origin) {
-                headers = headers.filter(([name]) => !credentials.has(name.toLowerCase()));
-              }
-              if (
-                (response.status === 303 && !["GET", "HEAD"].includes(method)) ||
-                ([301, 302].includes(response.status) && method === "POST")
-              ) {
+              headers = redirectHeaders(headers, parsed, next);
+              if (redirectsToGet(response.status, method)) {
                 method = "GET";
                 body = new Uint8Array(0);
                 headers = headers.filter(([name]) => !bodyHeaders.has(name.toLowerCase()));

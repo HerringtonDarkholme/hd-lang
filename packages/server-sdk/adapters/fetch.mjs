@@ -87,6 +87,62 @@ function publicHeaders(pairs) {
   return pairs.filter(([name]) => !removed.has(name.toLowerCase()));
 }
 
+function validateContentLength(request) {
+  const length = request.headers.get("content-length");
+  if (length === null) {
+    return;
+  }
+  if (!/^\d+$/.test(length)) {
+    throw new Rejected(400, "invalid content length");
+  }
+  if (BigInt(length) > BigInt(BODY_LIMIT)) {
+    throw new Rejected(413, "declared request body too large");
+  }
+}
+
+async function readChunks(reader, job) {
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    // Cancellation only wakes this owner. Another request's failure/stop
+    // must never cancel this request's native reader in its own coroutine.
+    const interrupted = new Promise((resolve) => {
+      job.wakeRead = resolve;
+    });
+    let next;
+    try {
+      next = await Promise.race([reader.read(), interrupted]);
+    } finally {
+      job.wakeRead = null;
+    }
+    if (job.controller.signal.aborted) {
+      throw abortError(job.controller.signal.reason);
+    }
+    if (next.done) {
+      job.bodyRead = true;
+      return { chunks, size };
+    }
+    if (!(next.value instanceof Uint8Array)) {
+      throw new Rejected(400, "request body is not bytes");
+    }
+    size += next.value.byteLength;
+    if (size > BODY_LIMIT) {
+      throw new Rejected(413, "streamed request body too large");
+    }
+    chunks.push(new Uint8Array(next.value));
+  }
+}
+
+function combinedBody(chunks, size) {
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return body;
+}
+
 async function readBody(request, job) {
   if (request.bodyUsed) {
     throw new Rejected(400, "request body is already consumed");
@@ -98,51 +154,15 @@ async function readBody(request, job) {
     throw new Rejected(400, "request body is already locked");
   }
   job.reader = reader;
-  const chunks = [];
-  let size = 0;
+  let body;
   try {
-    const length = request.headers.get("content-length");
-    if (length !== null) {
-      if (!/^\d+$/.test(length)) {
-        throw new Rejected(400, "invalid content length");
-      }
-      if (BigInt(length) > BigInt(BODY_LIMIT)) {
-        throw new Rejected(413, "declared request body too large");
-      }
-    }
+    validateContentLength(request);
     if (!reader) {
       job.bodyRead = true;
       return new Uint8Array(0);
     }
-    for (;;) {
-      // Cancellation only wakes this owner. Another request's failure/stop
-      // must never cancel this request's native reader in its own coroutine.
-      const interrupted = new Promise((resolve) => {
-        job.wakeRead = resolve;
-      });
-      let next;
-      try {
-        next = await Promise.race([reader.read(), interrupted]);
-      } finally {
-        job.wakeRead = null;
-      }
-      if (job.controller.signal.aborted) {
-        throw abortError(job.controller.signal.reason);
-      }
-      if (next.done) {
-        job.bodyRead = true;
-        break;
-      }
-      if (!(next.value instanceof Uint8Array)) {
-        throw new Rejected(400, "request body is not bytes");
-      }
-      size += next.value.byteLength;
-      if (size > BODY_LIMIT) {
-        throw new Rejected(413, "streamed request body too large");
-      }
-      // Copy each bounded chunk before another producer turn can reuse it.
-      chunks.push(new Uint8Array(next.value));
-    }
+    const read = await readChunks(reader, job);
+    body = combinedBody(read.chunks, read.size);
   } catch (error) {
     if (!job.controller.signal.aborted) {
       job.rejectBody();
@@ -159,12 +179,6 @@ async function readBody(request, job) {
     } catch {
       /* A cancellation can have released it. */
     }
-  }
-  const body = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.length;
   }
   return body;
 }
@@ -272,6 +286,72 @@ export function createFetchHandler(
     job.wakeRead?.(null);
     armCleanup(job);
   };
+  const dispatchRequest = async (request, job, admittedAt) => {
+    if (job.controller.signal.aborted || failed) {
+      return null;
+    }
+    if (typeof request.method !== "string" || !token.test(request.method)) {
+      throw new Rejected(400, "invalid request method");
+    }
+    const pairs = responseHeaders(request.headers);
+    if (headerBytes(pairs) > HEADER_LIMIT) {
+      throw new Rejected(431, "request headers exceed limit");
+    }
+    const body = await readBody(request, job);
+    if (job.controller.signal.aborted || failed) {
+      return null;
+    }
+    const method = standardMethods.has(request.method)
+      ? { tag: request.method[0] + request.method.slice(1).toLowerCase(), fields: {} }
+      : { tag: "Other", fields: { name: request.method } };
+    return application.dispatch(
+      {
+        method,
+        url: request.url,
+        headers: publicHeaders(pairs),
+        body,
+        redirects: 10,
+      },
+      job.controller.signal,
+      { admittedAt },
+    );
+  };
+  const interruptionResponse = (job, request) => {
+    if (job.reason === "Deadline") {
+      return errorResponse(504);
+    }
+    if (job.reason === "Disconnected") {
+      throw abortError(request.signal?.reason);
+    }
+    return job.reason === "Stopping" ? errorResponse(503) : null;
+  };
+  const finish = async ({ job, request, deadline, disconnected, escalation }) => {
+    timers.clear(deadline);
+    request.signal?.removeEventListener("abort", disconnected);
+    if (!job.bodyRead && !job.readerCancelled && request.body) {
+      try {
+        job.reader = request.body.getReader();
+      } catch {
+        /* Already locked/errored. */
+      }
+      cancelReader(job, "request ended");
+      try {
+        job.reader?.releaseLock();
+      } catch {
+        /* Read may still be settling. */
+      }
+    }
+    if (job.readerCancelled) {
+      await Promise.race([job.readerCancelled, escalation]);
+    }
+    if (job.cleanupTimer !== null) {
+      timers.clear(job.cleanupTimer);
+    }
+    jobs.delete(job);
+    if (stopping && jobs.size === 0 && !failed) {
+      application.stop();
+    }
+  };
   return Object.freeze({
     async fetch(request) {
       if (stopping || failed) {
@@ -309,47 +389,13 @@ export function createFetchHandler(
         disconnected();
       }
       try {
-        const work = (async () => {
-          if (job.controller.signal.aborted || failed) {
-            return null;
-          }
-          if (typeof request.method !== "string" || !token.test(request.method)) {
-            throw new Rejected(400, "invalid request method");
-          }
-          const pairs = responseHeaders(request.headers);
-          if (headerBytes(pairs) > HEADER_LIMIT) {
-            throw new Rejected(431, "request headers exceed limit");
-          }
-          const body = await readBody(request, job);
-          if (job.controller.signal.aborted || failed) {
-            return null;
-          }
-          const method = standardMethods.has(request.method)
-            ? { tag: request.method[0] + request.method.slice(1).toLowerCase(), fields: {} }
-            : { tag: "Other", fields: { name: request.method } };
-          return application.dispatch(
-            {
-              method,
-              url: request.url,
-              headers: publicHeaders(pairs),
-              body,
-              redirects: 10,
-            },
-            job.controller.signal,
-            { admittedAt },
-          );
-        })();
+        const work = dispatchRequest(request, job, admittedAt);
         // The rejection observer is installed immediately, including after
         // escalation. A late guest failure cannot become an unhandled Promise.
         const result = await Promise.race([work, escalation.then(() => null)]);
-        if (job.reason === "Deadline") {
-          return errorResponse(504);
-        }
-        if (job.reason === "Disconnected") {
-          throw abortError(request.signal?.reason);
-        }
-        if (job.reason === "Stopping") {
-          return errorResponse(503);
+        const interrupted = interruptionResponse(job, request);
+        if (interrupted) {
+          return interrupted;
         }
         if (!result || result.cancelled) {
           return errorResponse(500);
@@ -361,14 +407,9 @@ export function createFetchHandler(
           return errorResponse(500);
         }
       } catch (error) {
-        if (job.reason === "Deadline") {
-          return errorResponse(504);
-        }
-        if (job.reason === "Disconnected") {
-          throw abortError(request.signal?.reason);
-        }
-        if (job.reason === "Stopping") {
-          return errorResponse(503);
+        const interrupted = interruptionResponse(job, request);
+        if (interrupted) {
+          return interrupted;
         }
         if (error instanceof Rejected) {
           return errorResponse(error.status);
@@ -377,31 +418,7 @@ export function createFetchHandler(
         fail(error, job);
         return errorResponse(500);
       } finally {
-        timers.clear(deadline);
-        request.signal?.removeEventListener("abort", disconnected);
-        if (!job.bodyRead && !job.readerCancelled && request.body) {
-          try {
-            job.reader = request.body.getReader();
-          } catch {
-            /* Already locked/errored. */
-          }
-          cancelReader(job, "request ended");
-          try {
-            job.reader?.releaseLock();
-          } catch {
-            /* Read may still be settling. */
-          }
-        }
-        if (job.readerCancelled) {
-          await Promise.race([job.readerCancelled, escalation]);
-        }
-        if (job.cleanupTimer !== null) {
-          timers.clear(job.cleanupTimer);
-        }
-        jobs.delete(job);
-        if (stopping && jobs.size === 0 && !failed) {
-          application.stop();
-        }
+        await finish({ job, request, deadline, disconnected, escalation });
       }
     },
     stop() {
