@@ -12,7 +12,7 @@ import {
   joinJournals,
   ran as ranText,
   recorded,
-} from "./journal.mjs";
+} from "./journal.mts";
 // --- REPL sessions ------------------------------------------------------
 
 // Which journal row a call of an import writes (`Kind::record` in

@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { recorded } from "../host/journal.mjs";
+import { recorded } from "../host/journal.mts";
 import { createNodeSession } from "../host/node-session.mjs";
 
 const dir = process.argv[2];

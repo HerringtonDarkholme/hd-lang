@@ -6,7 +6,7 @@ export const runtimeSources = Object.freeze({
   "session.mjs": "host/session.mjs",
   "checked-report.mjs": "host/checked-report.mts",
   "float.mjs": "host/float.mts",
-  "journal.mjs": "host/journal.mjs",
+  "journal.mjs": "host/journal.mts",
   "run-support.mjs": "host/run-support.mts",
   "wire.mjs": "host/wire.mts",
   "package-contract.mjs": "host/package-contract.mts",

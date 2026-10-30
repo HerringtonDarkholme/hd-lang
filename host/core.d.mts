@@ -1,7 +1,7 @@
 // Hand-written declarations for the public exports of core.mjs that the
 // TypeScript side uses. The host itself is plain JavaScript.
 
-import type { End } from "./journal.mjs";
+import type { End } from "./journal.mts";
 
 /** Whether text can be an `Http` request URL: printable ASCII, and no
  * percent-encoded host (std-http.url.valid). */

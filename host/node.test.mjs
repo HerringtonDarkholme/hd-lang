@@ -1445,7 +1445,7 @@ async function heldLookupHost(t) {
     "worker-control.mjs",
     "checked-report.mts",
     "float.mts",
-    "journal.mjs",
+    "journal.mts",
     "run-support.mts",
     "wire.mts",
     "package-contract.mts",

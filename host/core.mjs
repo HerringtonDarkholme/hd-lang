@@ -41,7 +41,7 @@
 // - A REPL session (`createSession`) runs each input's module as an entry
 //   in one growing set of instances, records a journal of its host calls
 //   at the import call sites, and rebuilds itself from a journal
-//   (journal.mjs), as `hd_run_wasmtime`'s session does.
+//   (journal.mts), as `hd_run_wasmtime`'s session does.
 import { shortest, fixed, lower, upper, parse } from "./float.mts";
 import { WireHttpError as HttpError, METHODS } from "./gen/abi.mts";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mts";

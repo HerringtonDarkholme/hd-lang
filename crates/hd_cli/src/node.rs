@@ -60,7 +60,7 @@ const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mjs");
 /// The float text of the host primitives (`core.mjs` imports it).
 const FLOAT: &str = include_str!("../../../host/float.mts");
 /// A REPL session's journal of host calls (`core.mjs` imports it).
-const JOURNAL: &str = include_str!("../../../host/journal.mjs");
+const JOURNAL: &str = include_str!("../../../host/journal.mts");
 /// Dependency-free entry-driver constants and cancellation helpers.
 const RUN_SUPPORT: &str = include_str!("../../../host/run-support.mts");
 /// The exchange-buffer encoding the hosts' codecs are built on.
@@ -275,7 +275,7 @@ impl Scratch {
             ("output-worker.mjs", OUTPUT_WORKER),
             ("worker-control.mjs", WORKER_CONTROL),
             ("float.mts", FLOAT),
-            ("journal.mjs", JOURNAL),
+            ("journal.mts", JOURNAL),
             ("run-support.mts", RUN_SUPPORT),
             ("wire.mts", WIRE),
             ("package-contract.mts", PACKAGE_CONTRACT),

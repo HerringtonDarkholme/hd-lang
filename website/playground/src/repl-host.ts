@@ -27,7 +27,7 @@
 //   dropped.
 // - `repl-quit` ends the session; the next input needs a `repl-start`.
 
-import { recorded, type End } from "../../../host/journal.mjs";
+import { recorded, type End } from "../../../host/journal.mts";
 import type { InputOutcome, Ran } from "../../../host/core.mjs";
 import { createWebSession, type Session } from "../../../host/web.mjs";
 import {
