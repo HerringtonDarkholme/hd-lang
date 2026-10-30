@@ -463,11 +463,11 @@ function netWorker(t, options = {}) {
     await worker.terminate();
   });
   let nextCall = 1;
-  const call = (request) => {
+  const call = (request, transfer = []) => {
     const id = nextCall++;
     const deadline = performance.now() + 5000;
     Atomics.store(flag, 0, 0);
-    port1.postMessage({ id, request });
+    port1.postMessage({ id, request }, transfer);
     const reply = receiveReply(port1, flag, id, () => deadline - performance.now());
     assert.ok(reply, "worker control reply");
     return reply.result;
@@ -1850,13 +1850,19 @@ for (const method of ["write_sync", "write_error_sync"]) {
       url: new URL("./output-worker.mjs", import.meta.url),
       data: { output: true },
     });
+    const { port1, port2 } = new MessageChannel();
+    const flag = new Int32Array(new SharedArrayBuffer(4));
+    call({ op: "attach", port: port2, flag }, [port2]);
+    t.after(() => port1.close());
     const fd = writer._handle.fd;
     const before = "earlier-output\n";
     call({ op: "enqueue", fd, text: before });
     const text = "abcdefg".repeat(2400000);
-    const { ok: operation } = call({ op: "wait_start", fd, text });
+    const id = 1;
+    Atomics.store(flag, 0, 0);
+    port1.postMessage({ id, request: { op: "wait_start", fd, text } });
+    await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: false }));
     for (let i = 0; i < 5; i++) {
-      assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
       assert.deepEqual(call({ op: "idle" }), { ok: false });
     }
     const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
@@ -1873,10 +1879,48 @@ for (const method of ["write_sync", "write_error_sync"]) {
     assert(received.endsWith(suffix));
     const body = received.slice(before.length, -suffix.length);
     assert.equal(body, text);
-    assert.deepEqual(call({ op: "wait_poll", operation }), { result: Ok(undefined) });
-    call({ op: "wait_finish", operation });
+    const deadline = performance.now() + 5000;
+    const reply = receiveReply(port1, flag, id, () => deadline - performance.now());
+    assert.deepEqual(reply?.result, Ok(undefined));
   });
 }
+
+test(
+  "Output pinned writes finish 2000 calls without per-write sleeps",
+  { timeout: 5000 },
+  async (t) => {
+    const reader = spawn(
+      process.execPath,
+      [
+        "-e",
+        'let n = 0; process.stdin.on("data", b => n += b.length); process.stdin.on("end", () => process.stdout.write(String(n)))',
+      ],
+      { stdio: ["pipe", "pipe", "inherit"] },
+    );
+    const closed = once(reader, "close");
+    t.after(() => {
+      if (reader.exitCode === null && reader.signalCode === null) reader.kill("SIGKILL");
+    });
+    reader.stdout.setEncoding("utf8");
+    let received = "";
+    reader.stdout.on("data", (text) => (received += text));
+    const output = createOutput();
+    const pinned = output.connection();
+    t.after(() => pinned.port.close());
+    const started = performance.now();
+    for (let i = 0; i < 2000; i++) {
+      assert.deepEqual(output.write(reader.stdin._handle.fd, "x"), Ok(undefined));
+    }
+    const elapsed = performance.now() - started;
+    assert.ok(elapsed < 2000, `2000 pinned writes took ${elapsed.toFixed(0)} ms`);
+    await output.close();
+    reader.stdin.end();
+    const [code, signal] = await closed;
+    assert.equal(code, 0);
+    assert.equal(signal, null);
+    assert.equal(received, "2000");
+  },
+);
 
 // A write larger than the pipe buffer while the reader is paused: direct
 // writes come first, the full pipe starts the writer thread with the rest,

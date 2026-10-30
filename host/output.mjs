@@ -1,7 +1,7 @@
-// One writer orders stdout, stderr and session frames. Control messages
-// never wait on a full pipe. A console write (`write`) returns once the
-// stream has taken every byte, so it may block the calling thread
-// (module.console.write-sync.never-suspends).
+// One writer orders stdout, stderr and session frames. Queue and status
+// control messages never wait on a full pipe. A console write (`write`)
+// returns once the stream has taken every byte, so it may block the calling
+// thread (module.console.write-sync.never-suspends).
 //
 // While nothing is queued, a write goes straight to its nonblocking
 // descriptor on the calling thread. A short write or `EAGAIN` starts the
@@ -22,9 +22,6 @@ const { MessageChannel, Worker } = process.getBuiltinModule("node:worker_threads
 
 const DIRECT = process.platform !== "win32";
 
-// What a blocking write sleeps on between polls of the writer thread.
-const nap = new Int32Array(new SharedArrayBuffer(4));
-
 export function createOutput(connection = null) {
   let client = connection;
   let worker = null;
@@ -33,9 +30,8 @@ export function createOutput(connection = null) {
   // Writes go through the thread while `remote`; `pinned` keeps them there.
   let pinned = connection !== null || !DIRECT;
   let remote = pinned;
-  // The direct queue, in order: `{ fd, bytes, offset, wait, result,
-  // remote }`. `wait` marks a write whose caller waits for its result;
-  // `remote` is the thread's operation once the entry was handed over.
+  // The direct queue, in order: `{ fd, bytes, offset, wait, result }`.
+  // `wait` marks a write whose caller waits for its result.
   const local = [];
   let prepared = false;
   // Construct the main thread's pipe handles before any write uses their
@@ -72,7 +68,13 @@ export function createOutput(connection = null) {
     const id = nextCall++;
     const deadline = performance.now() + 5000;
     client.port.postMessage({ id, request }, transfer);
-    const reply = receiveReply(client.port, client.flag, id, () => deadline - performance.now());
+    // A synchronous write waits as long as its stream takes the bytes.
+    // Short control requests still diagnose a stopped writer thread.
+    const left =
+      request.op === "wait_start"
+        ? () => Number.POSITIVE_INFINITY
+        : () => deadline - performance.now();
+    const reply = receiveReply(client.port, client.flag, id, left);
     if (reply === null) throw new Error("output control reply timed out");
     return reply.result;
   };
@@ -82,8 +84,8 @@ export function createOutput(connection = null) {
     remote = true;
     for (const e of local.splice(0)) {
       const bytes = new Uint8Array(e.bytes.subarray(e.offset));
-      const op = e.wait ? "wait_start" : "enqueue";
-      e.remote = call({ op, fd: e.fd, bytes }, [bytes.buffer]).ok;
+      if (e.wait) e.result = call({ op: "wait_start", fd: e.fd, bytes }, [bytes.buffer]);
+      else call({ op: "enqueue", fd: e.fd, bytes }, [bytes.buffer]);
     }
   };
   // Writes the queued entries directly, until the queue is empty or a
@@ -116,7 +118,7 @@ export function createOutput(connection = null) {
   const queue = (fd, text, wait) => {
     prepare();
     const e = { fd, bytes: Buffer.from(text), offset: 0, wait };
-    e.result = e.remote = null;
+    e.result = null;
     local.push(e);
     pump();
     return e;
@@ -135,22 +137,11 @@ export function createOutput(connection = null) {
     // A direct write that writes every byte answers at once. Otherwise the
     // writer thread has the rest, and this blocks until it has written it.
     write: (fd, text) => {
-      let operation;
       if (direct()) {
         const e = queue(fd, text, true);
-        if (e.remote === null) return e.result;
-        operation = e.remote;
-      } else {
-        operation = call({ op: "wait_start", fd, text }).ok;
+        return e.result;
       }
-      for (;;) {
-        const r = call({ op: "wait_poll", operation });
-        if (!r.pending) {
-          call({ op: "wait_finish", operation });
-          return r.result;
-        }
-        Atomics.wait(nap, 0, 0, 1);
-      }
+      return call({ op: "wait_start", fd, text });
     },
     connection: () => {
       if (!remote) handOff();

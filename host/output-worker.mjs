@@ -1,6 +1,7 @@
 // The output writer thread of output.mjs: one ordered queue of stdout,
-// stderr and session-frame writes, with short control requests. It imports
-// only what it needs, so it boots fast when a full pipe first needs it.
+// stderr and session-frame writes, with synchronous console writes and short
+// queue/status control requests. It imports only what it needs, so it boots
+// fast when a full pipe first needs it.
 import { postReply } from "./worker-control.mjs";
 import { Err, Ok } from "./wire.mjs";
 
@@ -22,17 +23,16 @@ export const full = (error) =>
 
 if (workerData?.output) {
   const queue = [];
-  const operations = new Map();
-  let nextOperation = 1;
   let active = false;
   const pump = () => {
     if (active || !queue.length) return;
     active = true;
     const state = queue[0];
     const finish = (error = null) => {
-      state.result = error ? failed(error) : Ok(undefined);
+      const result = error ? failed(error) : Ok(undefined);
       queue.shift();
       active = false;
+      if (state.reply !== null && !state.cancelled) state.reply(result);
       pump();
     };
     const step = () => {
@@ -58,11 +58,8 @@ if (workerData?.output) {
     // A supervised guest may be terminated without running its abort hooks.
     // Its closed connection must not leave pending output in this shared queue.
     port.on("close", () => {
-      for (const operation of owned) {
-        const state = operations.get(operation);
-        if (state) state.cancelled = true;
-        operations.delete(operation);
-      }
+      for (const state of owned) state.cancelled = true;
+      owned.clear();
       pump();
     });
     port.on("message", ({ id, request }) => {
@@ -75,34 +72,26 @@ if (workerData?.output) {
         case "enqueue":
         case "wait_start": {
           // `bytes`, when given, is the unwritten rest of a direct write.
-          const operation = nextOperation++;
           const state = {
             fd: request.fd,
             bytes: request.bytes ?? Buffer.from(request.text),
             offset: 0,
-            result: null,
             cancelled: false,
+            reply: null,
           };
           if (request.op === "wait_start") {
-            operations.set(operation, state);
-            owned.add(operation);
+            state.reply = (written) => {
+              owned.delete(state);
+              postReply(port, flag, id, written);
+            };
+            owned.add(state);
           }
           queue.push(state);
           pump();
-          result = { ok: operation };
-          break;
-        }
-        case "wait_poll": {
-          const state = operations.get(request.operation);
-          result = state?.result;
-          result = result === null ? { pending: true } : { result };
-          break;
-        }
-        case "wait_finish":
-          owned.delete(request.operation);
-          operations.delete(request.operation);
+          if (request.op === "wait_start") return;
           result = { ok: null };
           break;
+        }
         case "idle":
           result = { ok: !active && queue.length === 0 };
           break;
