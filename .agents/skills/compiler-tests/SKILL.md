@@ -208,6 +208,7 @@ Every perf change reports the same table, so results compare across jobs.
 - **Goal:** beat hand-written JS on every program except
   `progs/string-build` (the deliberately naive `out + s` loop). Then beat
   MoonBit's linear backend clearly on every program at every tier (#866).
-  Then MoonBit's wasm-gc backend (#913).
+  Then MoonBit's wasm-gc backend: a 0.57 geomean at the default tier
+  (#913, closed); only `binary_trees` loses, pending regions (#932).
 - Report integer milliseconds. Release builds wrap integer overflow, as
   Rust does.
