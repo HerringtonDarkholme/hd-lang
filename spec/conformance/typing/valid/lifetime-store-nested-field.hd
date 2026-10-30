@@ -1,0 +1,18 @@
+# test: a store through a struct of two lifetimes checks a nested field, and a field of two lifetimes, against their own positions
+# Spec 13 Lifetime Stores: ref.lifetime.store.field.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+struct Outer['a, 'b]:
+    inner: Two['b, 'a]
+    pair: Two['a, 'b]
+
+fn set_nested['a, 'b](t: &mut Outer['a, 'b], s: &'b string) -> void:
+    t.inner.x = s
+
+fn set_nested_y['a, 'b](t: &mut Outer['a, 'b], s: &'a string) -> void:
+    t.inner.y = s
+
+fn set_pair['a, 'b](t: &mut Outer['a, 'b], p: Two['a, 'b]) -> void:
+    t.pair = p

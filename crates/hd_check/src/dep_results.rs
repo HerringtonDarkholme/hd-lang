@@ -787,6 +787,24 @@ fn flat(v: &[Set]) -> Set {
     s
 }
 
+/// Adds `from` to the slots `pos` of `into`: slot `j` of `from` into
+/// slot `pos[j]`, or when the two do not line up, all of `from` to each of
+/// those slots.
+fn union_at(into: &mut [Set], pos: &[usize], from: &[Set]) -> bool {
+    let mut changed = false;
+    if pos.len() == from.len() {
+        for (&p, b) in pos.iter().zip(from) {
+            changed |= union(&mut into[p], b);
+        }
+    } else {
+        let all = flat(from);
+        for &p in pos {
+            changed |= union(&mut into[p], &all);
+        }
+    }
+    changed
+}
+
 /// Adds `from` to `into` slot by slot, or when the two do not line up,
 /// all of `from` to every slot.
 fn union_into(into: &mut [Set], from: &[Set]) -> bool {
@@ -893,9 +911,9 @@ impl Solve<'_> {
         }
     }
 
-    /// Adds `from` to what storage `o` holds, in its slots `range` when
+    /// Adds `from` to what storage `o` holds, in its slots `pos` when
     /// that is known.
-    fn hold(&mut self, o: Origin, from: &[Set], range: Option<(usize, usize)>) {
+    fn hold(&mut self, o: Origin, from: &[Set], pos: Option<&[usize]>) {
         if from.iter().all(Vec::is_empty) {
             return;
         }
@@ -907,9 +925,9 @@ impl Solve<'_> {
             _ => return,
         };
         let e = self.held.entry(o).or_insert_with(|| vec![Set::new(); n]);
-        let changed = match range {
-            Some((s, k)) if s + k <= e.len() && from.len() == k => {
-                union_into(&mut e[s..s + k], from)
+        let changed = match pos {
+            Some(pos) if !pos.is_empty() && pos.iter().all(|&p| p < e.len()) => {
+                union_at(e, pos, from)
             }
             _ => union_into(e, from),
         };
@@ -917,8 +935,9 @@ impl Solve<'_> {
     }
 
     /// Field `j` of type `t`, of variant `variant` for an enum: its type,
-    /// and the run of `t`'s top slots it holds, when that is known.
-    fn field(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<(Ty, Option<(usize, usize)>)> {
+    /// and for each of its top slots the top slot of `t` it lies in, when
+    /// that is known.
+    fn field(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<(Ty, Option<Vec<usize>>)> {
         let pool = self.pool;
         // A part's slots inside `t`.
         let n = |t: Ty| tops(pool, t).len();
@@ -927,10 +946,10 @@ impl Solve<'_> {
             (TyData::Tuple { elems, .. }, None) => {
                 let es = pool.list_items(elems);
                 let e = *es.get(j as usize)?;
-                let start = es[..j as usize].iter().map(|&x| n(x)).sum();
-                Some((e, Some((start, n(e)))))
+                let start: usize = es[..j as usize].iter().map(|&x| n(x)).sum();
+                Some((e, Some((start..start + n(e)).collect())))
             }
-            (TyData::Option(i), Some(1)) if j == 0 => Some((i, Some((0, n(i))))),
+            (TyData::Option(i), Some(1)) if j == 0 => Some((i, Some((0..n(i)).collect()))),
             (TyData::Adt { def, args }, _) => {
                 let item = self.cx.lookup.item(def)?;
                 let fields = match (&item.data, variant) {
@@ -944,7 +963,10 @@ impl Solve<'_> {
                 let f = field.ty;
                 let argv = pool.list_items(args);
                 let child = subst_owner(pool, def, argv, f);
-                let at = |a: usize| (argv[..a].iter().map(|&x| n(x)).sum(), n(argv[a]));
+                let at = |a: usize| {
+                    let start: usize = argv[..a].iter().map(|&x| n(x)).sum();
+                    (start..start + n(argv[a])).collect::<Vec<usize>>()
+                };
                 let range = match pool.get(f) {
                     // `ref.generic.outlives.position`: a field of a type
                     // parameter bounded by a lifetime lies in that
@@ -962,24 +984,35 @@ impl Solve<'_> {
                     TyData::Param(p) if p.owner == def && (p.index as usize) < argv.len() => {
                         Some(at(p.index as usize))
                     }
-                    // `ref.lifetime.struct.read`: a field whose top slots
-                    // all name one lifetime holds that lifetime's position.
+                    // `ref.lifetime.struct.read`: each top slot of a field
+                    // lies in the position of the lifetime it names, so a
+                    // field of several lifetimes, such as a nested
+                    // `Two['b, 'a]`, maps each slot on its own
+                    // (`ref.lifetime.store.field`).
                     _ => {
                         let slots = slots_of(pool, f);
-                        let mut ids = slots
+                        let aligned = slots.len() == field.lifetimes.len()
+                            && tops(pool, f).len() == tops(pool, child).len();
+                        let lts: Vec<usize> = item
+                            .generics
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, g)| g.lifetime)
+                            .map(|(g, _)| g)
+                            .collect();
+                        let pos: Option<Vec<usize>> = slots
                             .iter()
                             .zip(&field.lifetimes)
                             .filter(|((_, top), _)| *top)
-                            .map(|(_, &l)| l);
-                        let l = ids.next().filter(|&l| l != 0 && ids.all(|x| x == l));
-                        let g = l.and_then(|l| {
-                            let mut lts =
-                                item.generics.iter().enumerate().filter(|(_, g)| g.lifetime);
-                            lts.nth(usize::from(l) - 1).map(|(g, _)| g)
-                        });
-                        let aligned = slots.len() == field.lifetimes.len()
-                            && tops(pool, f).len() == tops(pool, child).len();
-                        g.filter(|&g| aligned && g < argv.len()).map(at)
+                            .map(|(_, &l)| {
+                                let g = *lts.get(usize::from(l).checked_sub(1)?)?;
+                                match at(g).as_slice() {
+                                    [one] if g < argv.len() => Some(*one),
+                                    _ => None,
+                                }
+                            })
+                            .collect();
+                        pos.filter(|p| aligned && !p.is_empty())
                     }
                 };
                 Some((child, range))
@@ -1000,10 +1033,11 @@ impl Solve<'_> {
             match *p {
                 Proj::Variant(k) => variant = Some(k),
                 Proj::Field(j) => match self.field(t, variant.take(), j) {
-                    Some((child, Some((s, k))))
-                        if cur.len() == tops(pool, t).len() && s + k <= cur.len() =>
+                    Some((child, Some(pos)))
+                        if cur.len() == tops(pool, t).len()
+                            && pos.iter().all(|&p| p < cur.len()) =>
                     {
-                        cur = cur[s..s + k].to_vec();
+                        cur = pos.iter().map(|&p| cur[p].clone()).collect();
                         ty = Some(child);
                     }
                     Some((child, _)) => {
@@ -1032,33 +1066,35 @@ impl Solve<'_> {
         fit(&cur, want)
     }
 
-    /// The run of local `l`'s slots that the field projections `proj`
-    /// reach, when that is known.
-    fn local_range(&self, l: u32, proj: &[Proj]) -> Option<(usize, usize)> {
+    /// The top slots of local `l` that the field projections `proj` reach,
+    /// when they are known.
+    fn local_range(&self, l: u32, proj: &[Proj]) -> Option<Vec<usize>> {
         self.range(self.b.local_ty[l as usize], proj)
     }
 
-    /// The run of the top slots of a value of type `t` that the field
-    /// projections `proj` reach, when that is known.
-    fn range(&self, mut t: Ty, proj: &[Proj]) -> Option<(usize, usize)> {
-        let (mut start, mut len) = (0, tops(self.pool, t).len());
+    /// For each top slot of the place that the field projections `proj`
+    /// reach from a value of type `t`, the top slot of `t` it lies in, when
+    /// that is known.
+    fn range(&self, mut t: Ty, proj: &[Proj]) -> Option<Vec<usize>> {
+        let mut cur: Vec<usize> = (0..tops(self.pool, t).len()).collect();
         let mut variant = None;
         for p in proj {
             match *p {
                 Proj::Variant(k) => variant = Some(k),
                 Proj::Field(j) => {
-                    let (child, Some((s, k))) = self.field(t, variant.take(), j)? else {
+                    let (child, Some(pos)) = self.field(t, variant.take(), j)? else {
                         return None;
                     };
-                    if s + k > len {
-                        return None;
-                    }
-                    (start, len, t) = (start + s, k, child);
+                    cur = pos
+                        .iter()
+                        .map(|&p| cur.get(p).copied())
+                        .collect::<Option<_>>()?;
+                    t = child;
                 }
                 _ => return None,
             }
         }
-        (len > 0).then_some((start, len))
+        (!cur.is_empty()).then_some(cur)
     }
 
     /// The storage the place `word` of instruction `i` lies in, and the
@@ -1155,7 +1191,7 @@ impl Solve<'_> {
     /// The local and the run of its slots that the argument `a` refers
     /// to, when it is a reference to a local's place reached by field
     /// projections.
-    fn arg_range(&self, a: u32) -> Option<(u32, (usize, usize))> {
+    fn arg_range(&self, a: u32) -> Option<(u32, Vec<usize>)> {
         let b = self.b;
         let mut v = a;
         while v & hd_tir::ir::Ref::CONST_BIT == 0 && b.tags[v as usize] == Tag::Coerce {
@@ -1315,10 +1351,12 @@ impl Solve<'_> {
             .filter(|&(t, _)| referent_fn(pool, t) == referent_fn(pool, inner))
             .and_then(|(_, proj)| self.range(inner, proj));
         match range {
-            Some((a, k)) if value.len() == k && a + k <= runs.len() => (0..k).all(|j| {
-                let (lo, hi) = runs[a + j];
-                value[j].is_empty() || takes(lo, hi, &value[j])
-            }),
+            Some(pos) if value.len() == pos.len() && pos.iter().all(|&p| p < runs.len()) => {
+                pos.iter().zip(value).all(|(&p, v)| {
+                    let (lo, hi) = runs[p];
+                    v.is_empty() || takes(lo, hi, v)
+                })
+            }
             _ => takes(0, dep_slots(pool, inner), &flat(value)),
         }
     }
@@ -1372,13 +1410,13 @@ impl Solve<'_> {
                 if value.is_empty() {
                     continue;
                 }
-                let place = self.arg_range(a).filter(|&(_, (_, n))| n == per.len());
+                let place = self.arg_range(a).filter(|(_, pos)| pos.len() == per.len());
                 let roots = self.of(a).get(k).cloned().unwrap_or_default();
                 for o in roots {
                     match o {
                         // Each position of the argument's own place.
-                        Origin::Local(l) if place.is_some_and(|(x, _)| x == l) => {
-                            self.hold(o, &per, place.map(|(_, r)| r));
+                        Origin::Local(l) if place.as_ref().is_some_and(|(x, _)| *x == l) => {
+                            self.hold(o, &per, place.as_ref().map(|(_, pos)| pos.as_slice()));
                         }
                         Origin::Local(_) | Origin::Hidden(_) => {
                             self.hold(o, std::slice::from_ref(&value), None);
@@ -1466,8 +1504,8 @@ impl Solve<'_> {
         let lined = tops(self.pool, t).len() == n;
         for (j, &v) in b.record(b.data[i][1]).iter().enumerate() {
             match self.field(t, variant, w(j)) {
-                Some((_, Some((s, k)))) if lined && s + k <= n => {
-                    union_into(&mut out[s..s + k], self.of(v));
+                Some((_, Some(pos))) if lined && pos.iter().all(|&p| p < n) => {
+                    union_at(&mut out, &pos, self.of(v));
                 }
                 _ => {
                     union_into(&mut out, self.of(v));
@@ -1514,7 +1552,7 @@ impl Solve<'_> {
                         self.out.insert(w(i));
                     }
                 }
-                Origin::Local(_) | Origin::Hidden(_) => self.hold(s, value, range),
+                Origin::Local(_) | Origin::Hidden(_) => self.hold(s, value, range.as_deref()),
                 Origin::Global(_) if captures => {
                     self.out.insert(w(i));
                 }

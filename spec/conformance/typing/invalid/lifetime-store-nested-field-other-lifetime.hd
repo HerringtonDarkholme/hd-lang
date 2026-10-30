@@ -1,0 +1,11 @@
+# test: a nested field takes only the lifetime of its own position
+# Spec 13 Lifetime Stores: ref.lifetime.store.field.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+struct Outer['a, 'b]:
+    inner: Two['b, 'a]
+
+fn bad_nested['a, 'b](t: &mut Outer['a, 'b], s: &'a string) -> void:
+    t.inner.x = s # diagnostic: local-reference-escapes

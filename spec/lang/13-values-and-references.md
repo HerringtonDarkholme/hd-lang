@@ -667,7 +667,7 @@ fn keep(text: string) -> void:
 8. r[ref.lifetime.struct.construct] A struct literal adds the origins of a field typed `&'a T` to the value's `'a` position only.
 9. r[ref.lifetime.struct.read] Reading a field typed `&'a T` gives a reference whose origins are the origins of the value's `'a` position.
 10. r[ref.lifetime.struct.read.one-lifetime] A field of another type whose reference positions all name one lifetime, as `Option[&'a T]` or `Parser[T, 'a]`, is constructed and read the same way.
-11. r[ref.lifetime.struct.read.mixed] A field whose reference positions name two or more lifetimes is one of the other parts of [`ref.dep.origin.position.union`](#r-ref.dep.origin.position.union).
+11. r[ref.lifetime.struct.read.mixed] A field whose reference positions name two or more lifetimes, as `inner: Two['b, 'a]`, is constructed and read position by position: each position has the origins of the lifetime it names. A field nested inside such a field follows the same rule.
 12. r[ref.lifetime.struct.field-elided] A field whose type names a lifetime struct without lifetime arguments holds a local reference, so it is an error. Error: `local-reference-escapes`.
 13. r[ref.lifetime.struct.elide] A signature may name a lifetime struct without lifetime arguments. Each elided argument is a reference position that writes no lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
 14. r[ref.lifetime.struct.elide.parameter] In a parameter's type, each elided argument has a lifetime of its own, so `p: &Parser[string]` has two reference positions.
@@ -849,7 +849,7 @@ fn count(b: bool) -> usize:
 3. r[ref.lifetime.store.call] A `&mut` parameter whose referent has a reference position of a lifetime variable, as `seen: &mut List[&'a T]`, is a place the call may store into. So the argument's place takes what the call's arguments in that lifetime's positions depend on, as for a type parameter ([`ref.generic.store`](#r-ref.generic.store)).
 4. r[ref.lifetime.store.type] A list's or a map's type argument may hold a local reference in a function body. It may hold one in the type of a `&mut` parameter too, when each other `&` of that type writes a lifetime variable, as in `seen: &mut List[&'a User]`.
 5. r[ref.lifetime.store.element] A value read from a list or a map, as `seen[0]` or the result of `get`, has the origins of the collection's elements.
-6. r[ref.lifetime.store.field] A store into a field through such a reference, as `t.x = s` with `t: &mut Two['a, 'b]`, needs one lifetime only in that field's reference positions, as a field read does ([`ref.lifetime.struct.read.one-lifetime`](#r-ref.lifetime.struct.read.one-lifetime)). The stored value must depend only on what a result of that lifetime may depend on.
+6. r[ref.lifetime.store.field] A store into a field through such a reference, as `t.x = s` with `t: &mut Two['a, 'b]`, checks each reference position of the field against the lifetime that position names. This holds at any depth, as `t.inner.x = s`, and for a field of several lifetimes, as a field read does ([`ref.lifetime.struct.read.mixed`](#r-ref.lifetime.struct.read.mixed)). The value in each position must depend only on what a result of that position's lifetime may depend on.
 7. r[ref.lifetime.store.field.call] At a call, each position of a `&mut` argument's place takes only what the arguments in that position's lifetime depend on. So after `set_x(&mut t, &s)`, `t`'s `'a` position holds `s`'s origins and its `'b` position does not.
 
 ```hd
