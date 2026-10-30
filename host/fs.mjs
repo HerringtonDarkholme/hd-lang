@@ -9,6 +9,9 @@ import { parentPort, Worker, workerData } from "node:worker_threads";
 import { fileOperation } from "./node-files.mjs";
 import { Err } from "./wire.mts";
 
+const disconnect = () => process.disconnect();
+const sendAndDisconnect = (result) => process.send(result, disconnect);
+
 if (workerData?.port) {
   const operations = new Map();
   const children = new Set();
@@ -120,12 +123,10 @@ if (workerData?.port) {
     worker.on("message", (result) => {
       // Sending the result is asynchronous; wait for the worker's exit
       // before disconnecting so ordinary completion is never killed.
-      worker.once("exit", () => process.send(result, () => process.disconnect()));
+      worker.once("exit", () => sendAndDisconnect(result));
     });
     worker.on("error", (error) => {
-      process.send(Err({ tag: "Other", message: String(error.message) }), () =>
-        process.disconnect(),
-      );
+      sendAndDisconnect(Err({ tag: "Other", message: String(error.message) }));
     });
   });
 }

@@ -45,13 +45,8 @@ function descriptors(runtime, binding, providers) {
   assert.equal(binding.bind(wrapper, providers), "bound");
   return capture;
 }
-test("the real compiler companion and data-derived bindings have identical signatures and registrations", async () => {
-  const generated = await import("data:text/javascript," + encodeURIComponent(companion));
-  const derived = contractBindings(actual, readPackageContract),
-    providers = new Map([[derived.interfaces[0].module, {}]]);
-  assert.deepEqual(derived.interfaces, generated.interfaces);
-  const r = createPackageRuntime({});
-  const normalize = ([bytes, shapes, registrations]) => ({
+function normalizeDescriptors([bytes, shapes, registrations]) {
+  return {
     bytes,
     shapes: shapes.map((i) => ({
       ...i,
@@ -62,10 +57,17 @@ test("the real compiler companion and data-derived bindings have identical signa
       })),
     })),
     registrations,
-  });
+  };
+}
+test("the real compiler companion and data-derived bindings have identical signatures and registrations", async () => {
+  const generated = await import("data:text/javascript," + encodeURIComponent(companion));
+  const derived = contractBindings(actual, readPackageContract),
+    providers = new Map([[derived.interfaces[0].module, {}]]);
+  assert.deepEqual(derived.interfaces, generated.interfaces);
+  const r = createPackageRuntime({});
   assert.deepEqual(
-    normalize(descriptors(r, derived, providers)),
-    normalize(descriptors(r, generated, providers)),
+    normalizeDescriptors(descriptors(r, derived, providers)),
+    normalizeDescriptors(descriptors(r, generated, providers)),
   );
 });
 test("all 16 codec tags, integer widths and nested value shapes retain canonical descriptors", () => {

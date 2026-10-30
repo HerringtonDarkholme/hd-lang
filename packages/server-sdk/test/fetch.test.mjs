@@ -76,6 +76,20 @@ function clock() {
     active: () => pending.size,
   };
 }
+function acknowledgeAbortAfter(signal, time, delay) {
+  return new Promise((resolve) => {
+    signal.addEventListener(
+      "abort",
+      () => {
+        time.timers.set(
+          () => resolve({ response: null, cancelled: signal.reason, abandoned: true }),
+          delay,
+        );
+      },
+      { once: true },
+    );
+  });
+}
 const request = (body, headers = {}, method = "POST") =>
   new Request("https://in.test/p?q=a%2Cb&q=two", {
     method,
@@ -517,18 +531,7 @@ test("a guest acknowledgement at105ms keeps admission healthy until the200ms bac
     if (calls > 1) {
       return reply();
     }
-    return new Promise((resolve) =>
-      signal.addEventListener(
-        "abort",
-        () => {
-          time.timers.set(
-            () => resolve({ response: null, cancelled: signal.reason, abandoned: true }),
-            105,
-          );
-        },
-        { once: true },
-      ),
-    );
+    return acknowledgeAbortAfter(signal, time, 105);
   });
   const adapter = createFetchHandler(app, { timers: time.timers });
   const first = adapter.fetch(new Request("https://in.test/"));

@@ -364,6 +364,49 @@ async function withSpecs(
   }
 }
 
+function assertRewrite(baseSpec: string, headSpec: string): void {
+  const result = rewrite({
+    base: loadCorpus(baseSpec),
+    head: loadCorpus(headSpec),
+    baseLabel: "base",
+    headLabel: "head",
+    earlierIds: new Set(["lex.widget.four"]),
+  });
+  assert.deepEqual(result.tiers.language, {
+    before: 5,
+    after: 5,
+    delta: 0,
+  });
+  assert.deepEqual(result.retired, [
+    { id: "lex.widget.three", chapter: "lang/01-lexical-structure.md" },
+  ]);
+  assert.deepEqual(
+    result.added.map((entry) => entry.id),
+    ["lex.widget.four"],
+  );
+  assert.deepEqual(result.revived, ["lex.widget.four"]);
+  assert.deepEqual(
+    result.changed.map((entry) => entry.id),
+    ["lex.widget.one", "lex.widget.two"],
+  );
+  assert.deepEqual(result.lostCodes, ["bad-thing"]);
+  assert.equal(result.examples.statuses.unchanged, 3, "widget, gadget, and xs.map(f)");
+  assert.equal(result.examples.statuses.moved, 1);
+  assert.deepEqual(
+    result.examples.lost.map((entry) => [entry.chapter, entry.index, entry.missing]),
+    [["lang/01-lexical-structure.md", 4, ["dropped for good"]]],
+  );
+  assert.deepEqual(failures(result, ["lost-codes", "lost-examples", "reused-ids"]), [
+    "lost-codes",
+    "lost-examples",
+    "reused-ids",
+  ]);
+  assert.match(
+    rewriteSummary(result),
+    /^rules: language 5 -> 5 \(0\), stdlib 1 -> 1 \(0\), cli 0 -> 0 \(0\); IDs: 1 retired, 1 added, 0 moved, 2 changed text, 1 reused; codes: 1 lost/,
+  );
+}
+
 test("rewrite reports counts, IDs, codes, and examples between two versions", async () => {
   const shared = { "README.md": README, "std/README.md": "# Std\n" };
   await withSpecs(
@@ -379,48 +422,7 @@ test("rewrite reports counts, IDs, codes, and examples between two versions", as
           "lang/01-lexical-structure.md": LEXICAL_AFTER,
           "std/iter.md": STD_ITER_AFTER,
         },
-        (headSpec) => {
-          const result = rewrite({
-            base: loadCorpus(baseSpec),
-            head: loadCorpus(headSpec),
-            baseLabel: "base",
-            headLabel: "head",
-            earlierIds: new Set(["lex.widget.four"]),
-          });
-          assert.deepEqual(result.tiers.language, {
-            before: 5,
-            after: 5,
-            delta: 0,
-          });
-          assert.deepEqual(result.retired, [
-            { id: "lex.widget.three", chapter: "lang/01-lexical-structure.md" },
-          ]);
-          assert.deepEqual(
-            result.added.map((entry) => entry.id),
-            ["lex.widget.four"],
-          );
-          assert.deepEqual(result.revived, ["lex.widget.four"]);
-          assert.deepEqual(
-            result.changed.map((entry) => entry.id),
-            ["lex.widget.one", "lex.widget.two"],
-          );
-          assert.deepEqual(result.lostCodes, ["bad-thing"]);
-          assert.equal(result.examples.statuses.unchanged, 3, "widget, gadget, and xs.map(f)");
-          assert.equal(result.examples.statuses.moved, 1);
-          assert.deepEqual(
-            result.examples.lost.map((entry) => [entry.chapter, entry.index, entry.missing]),
-            [["lang/01-lexical-structure.md", 4, ["dropped for good"]]],
-          );
-          assert.deepEqual(failures(result, ["lost-codes", "lost-examples", "reused-ids"]), [
-            "lost-codes",
-            "lost-examples",
-            "reused-ids",
-          ]);
-          assert.match(
-            rewriteSummary(result),
-            /^rules: language 5 -> 5 \(0\), stdlib 1 -> 1 \(0\), cli 0 -> 0 \(0\); IDs: 1 retired, 1 added, 0 moved, 2 changed text, 1 reused; codes: 1 lost/,
-          );
-        },
+        (headSpec) => assertRewrite(baseSpec, headSpec),
       ),
   );
 });
