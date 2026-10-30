@@ -255,9 +255,11 @@ export async function timedSeries(
   hd: HdCommand,
   count: number,
   args: (index: number) => readonly string[],
-  options: RunOptions & { readonly timeoutMs: number },
-  what: string,
-  before?: (index: number) => void,
+  ...[options, what, before]: [
+    RunOptions & { readonly timeoutMs: number },
+    string,
+    ((index: number) => void)?,
+  ]
 ): Promise<Series> {
   const samples: number[] = [];
   for (let index = 0; index < count; index++) {

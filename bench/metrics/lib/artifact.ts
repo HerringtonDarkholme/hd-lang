@@ -243,10 +243,12 @@ export async function scaledCost(
   hd: HdCommand,
   name: ProgramName,
   param: string,
-  sizes: { readonly small: number; readonly large: number },
-  runs: number,
-  timeoutMs: number,
-  params: Params = {},
+  ...[sizes, runs, timeoutMs, params = {}]: [
+    { readonly small: number; readonly large: number },
+    number,
+    number,
+    Params?,
+  ]
 ): Promise<{
   readonly msPerUnit: number;
   readonly program: Program;

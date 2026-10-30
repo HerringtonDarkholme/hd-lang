@@ -294,7 +294,7 @@ export async function measureWarmModule(module, runs, expect, warmups = 3) {
 }
 
 /** Builds `source` as package NAME in WORK/pkgs; returns the release Wasm path. */
-function build(hd, work, name, source, engine, env = process.env, backend = undefined) {
+function build(hd, work, name, ...[source, engine, env = process.env, backend = undefined]) {
   const flat = name.replaceAll("/", "-").replaceAll("_", "-");
   const dir = join(work, "pkgs", `${flat}-${engine}`);
   rmSync(dir, { recursive: true, force: true });

@@ -119,10 +119,7 @@ export function judge(
   metric: string,
   name: string,
   value: number,
-  limit: number,
-  unit: Unit,
-  direction: "at-most" | "at-least" = "at-most",
-  note?: string,
+  ...[limit, unit, direction = "at-most", note]: [number, Unit, ("at-most" | "at-least")?, string?]
 ): TargetResult {
   const ok = Number.isFinite(value) && (direction === "at-most" ? value <= limit : value >= limit);
   return {
@@ -140,9 +137,7 @@ export function judgeBool(
   metric: string,
   name: string,
   ok: boolean,
-  target: string,
-  value: string,
-  note?: string,
+  ...[target, value, note]: [string, string, string?]
 ): TargetResult {
   return {
     metric,
