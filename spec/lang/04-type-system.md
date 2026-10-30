@@ -2432,4 +2432,57 @@ fn recursive() -> impl Display:  # error: recursive-value-type
 > generation still sees the concrete representation and selects its trait
 > implementations.
 
+### Opaque Results That Borrow
+
+An opaque result may hide a local reference that it borrows from its function's parameters, so a caller treats it as a [dependent result](13-values-and-references.md#dependent-results), whatever its hidden type is.
+
+```hd
+struct User:
+    name: string
+
+fn label(u: &User) -> impl Display:  # borrows from u
+    &u.name
+
+fn count() -> impl Display:  # borrows nothing
+    +3
+
+pub fn main() -> void $ Console:
+    u := User { name: "ada" }
+    println("${label(&u)} ${count()}")
+```
+
+1. r[types.opaque.borrows] An opaque type **borrows** when its function has a local reference parameter, a `&self` or `&mut self` receiver included.
+2. r[types.opaque.borrows.position] An opaque type in a type argument of a list, a map, or a trait, its own bound's included, borrows nothing.
+3. r[types.opaque.borrows.holds] An opaque type that borrows holds a local reference, by [`ref.local.holding`](13-values-and-references.md#r-ref.local.holding), in one reference position of its own.
+4. r[types.opaque.borrows.source] That position takes the lifetime that [`ref.lifetime.elide`](13-values-and-references.md#r-ref.lifetime.elide) gives a result position. Under two or more lifetimes with no reference receiver, it depends on every parameter position.
+5. r[types.opaque.borrows.body] Each reference position of a hidden value depends only on what its opaque type's position depends on, by [`ref.lifetime.return`](13-values-and-references.md#r-ref.lifetime.return). Under an opaque type that borrows nothing, it depends on nothing. Error: `local-reference-escapes`.
+6. r[types.opaque.borrows.call] At a call, an opaque value that borrows depends on the arguments in its lifetime's positions, by [`ref.lifetime.call`](13-values-and-references.md#r-ref.lifetime.call). Every rule of [Local References](13-values-and-references.md#local-references) applies to it.
+7. r[types.opaque.static] An opaque type never meets `'static`, since a caller does not see its hidden type ([Generic Locality](13-values-and-references.md#generic-locality)).
+
+```text
+struct User:
+    name: string
+
+fn label(u: &User) -> impl Display:
+    &u.name
+
+fn own(u: User) -> impl Display:
+    &u.name  # error: local-reference-escapes
+
+fn shown(first: bool) -> string:
+    keep := User { name: "a" }
+    let mut l = label(&keep)
+    if first:
+        other := User { name: "b" }
+        l = label(&other)
+    "${l}"  # error: local-reference-outlives-local
+
+fn kept(u: &User) -> void:
+    b := box(label(u))  # error: local-reference-escapes
+```
+
+> **Why.** This is Rust's rule that `impl Trait` captures the lifetimes in
+> scope. A caller checks only the signature, so it must assume the hidden
+> value borrows, even where it does not.
+
 See also: [Opaque Results](07-functions.md#opaque-results).

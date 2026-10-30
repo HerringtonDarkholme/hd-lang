@@ -1,0 +1,15 @@
+# test: an opaque value that borrows from a block's local is read after the block
+# Spec 04 Opaque Results That Borrow: types.opaque.borrows.call; 13 ref.dep.scope.
+struct User:
+    name: string
+
+fn label(u: &User) -> impl Display:
+    &u.name
+
+fn shown(first: bool) -> string:
+    keep := User { name: "a" }
+    let mut l = label(&keep)
+    if first:
+        other := User { name: "b" }
+        l = label(&other)
+    "${l}" # diagnostic: local-reference-outlives-local

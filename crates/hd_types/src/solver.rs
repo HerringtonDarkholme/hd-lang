@@ -1067,11 +1067,13 @@ fn fold_vars(
         TyData::Opaque {
             owner,
             site,
+            borrows,
             args,
             bound,
         } => TyData::Opaque {
             owner,
             site,
+            borrows,
             args: fold_list(pool, args, canon, f)?,
             bound: fold_vars(pool, bound, canon, f)?,
         },

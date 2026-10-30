@@ -3921,7 +3921,8 @@ impl Ck<'_, '_> {
             && parts.name.is_some()
             && parts.upto.is_none()
         {
-            Some(self.local_return_annotation(annotation, n)?)
+            let borrows = ptys.iter().any(|&t| pool.ref_slots(t) > 0);
+            Some(self.local_return_annotation(annotation, n, borrows)?)
         } else {
             None
         };

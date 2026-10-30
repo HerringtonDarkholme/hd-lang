@@ -219,10 +219,17 @@ impl<'a> TableWriter<'a> {
             TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args,
                 bound,
             } => {
-                let words = [self.def(owner), site, self.list(args)?, self.ty(bound)?];
+                let words = [
+                    self.def(owner),
+                    site,
+                    self.list(args)?,
+                    self.ty(bound)?,
+                    u32::from(borrows),
+                ];
                 self.row(tag::OPAQUE, &words)
             }
             TyData::Param(p) => {
@@ -417,6 +424,7 @@ impl Tables {
                     pool.intern_ty(&TyData::Opaque {
                         owner: def(0)?,
                         site: *words.get(1)?,
+                        borrows: *words.get(4)? != 0,
                         args: TyList(row(2)?),
                         bound: Ty(row(3)?),
                     })
@@ -561,6 +569,7 @@ mod tests {
         let opaque = pool.intern_ty(&TyData::Opaque {
             owner,
             site: 17,
+            borrows: true,
             args: pool.list(&[Ty::I32, Ty::STRING]),
             bound,
         });
@@ -585,6 +594,7 @@ mod tests {
         let TyData::Opaque {
             owner: decoded_owner,
             site,
+            borrows,
             args,
             bound: decoded_bound,
         } = other.get(decoded_ty)
@@ -593,6 +603,7 @@ mod tests {
         };
         assert_eq!(decoded_owner, other_paths.item("app", "values", "make"));
         assert_eq!(site, 17);
+        assert!(borrows);
         assert_eq!(other.list_items(args), &[Ty::I32, Ty::STRING]);
         assert!(
             matches!(other.get(decoded_bound), TyData::TraitValue { def, .. } if def == other_paths.item("app", "values", "View"))

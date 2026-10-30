@@ -329,7 +329,7 @@ fn demo(h: Holder) -> i32:
 
 1. r[ref.local.uses] A local reference may be the value of a parameter, a local binding, a call argument, or a receiver.
 2. r[ref.local.argument] Passing a local reference to a `&T` or `&mut T` parameter is valid, so a function may pass on what it was lent.
-3. r[ref.local.holding] A type **holds** a local reference when it is a local reference type, or a tuple, an optional, an instance of a generic type, or a type alias whose type or type argument holds one.
+3. r[ref.local.holding] A type **holds** a local reference when it is a local reference type, or a tuple, an optional, an instance of a generic type, or a type alias whose type or type argument holds one. An opaque type that [borrows](04-type-system.md#r-types.opaque.borrows) holds one too.
 4. r[ref.local.self.keep] A `&self` or `&mut self` receiver is a local reference, so these rules apply to `self` in such a method. A method that keeps `self` takes `*self` or `*mut self` ([Reference Receivers](07-functions.md#reference-receivers)). A `&self` method may still return a value that depends on `self` ([Dependent Results](#dependent-results)).
 5. r[ref.local.escape.counted] A local reference never converts to a counted one. Using one where a counted reference is expected, as for a `*T` parameter or field, is an error. Error: `local-reference-escapes`.
 
@@ -412,18 +412,19 @@ fn demo(u: &mut User) -> void:
 ```
 
 1. r[ref.dep.result] A function's or a method's result type may hold a local reference: `&T`, `&mut T`, a tuple of them, or an instance of a generic struct or enum, such as `&T?` or `Result[&T, E]`.
-2. r[ref.dep.position] Each `&` or `&mut` in a parameter's type is one **reference position**: in `&self`, in `p: &T`, in `opt: &T?`, and in each element of `pair: (&A, &B)`. A `&` inside a function type is none.
-3. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
-4. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
-5. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
-6. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
-7. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
-8. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
-9. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
-10. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
-11. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
-12. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
-13. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
+2. r[ref.dep.result.opaque] An opaque result type that borrows is a dependent result too, and its hidden value follows these rules ([Opaque Results That Borrow](04-type-system.md#opaque-results-that-borrow)).
+3. r[ref.dep.position] Each `&` or `&mut` in a parameter's type is one **reference position**: in `&self`, in `p: &T`, in `opt: &T?`, and in each element of `pair: (&A, &B)`. A `&` inside a function type is none.
+4. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
+5. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
+6. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
+7. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
+8. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
+9. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
+10. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
+11. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
+12. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
+13. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
+14. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
 
 ```text
 struct User:

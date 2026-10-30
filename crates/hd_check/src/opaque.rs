@@ -272,15 +272,18 @@ impl Ck<'_, '_> {
         &mut self,
         annotation: NodeRef<'_>,
         function: NodeRef<'_>,
+        borrows: bool,
     ) -> StageResult<Ty> {
-        let before = self.opaque_annotation.replace(function.index().raw() + 1);
+        let before = self
+            .opaque_annotation
+            .replace((function.index().raw() + 1, borrows));
         let result = self.ty_node(annotation);
         self.opaque_annotation = before;
         result
     }
 
     pub(crate) fn declared_opaque_annotation(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
-        let Some(site) = self.opaque_annotation else {
+        let Some((site, borrows)) = self.opaque_annotation else {
             self.err(
                 hd_diag::Code::TypeMismatch,
                 n,
@@ -288,11 +291,16 @@ impl Ck<'_, '_> {
             );
             return Ok(Ty::POISON);
         };
-        self.opaque_annotation = Some(site + 1);
+        // An opaque type in the bound's arguments borrows nothing.
+        self.opaque_annotation = Some((site + 1, false));
         let bound = match Src::child(n, SyntaxKind::NamedType) {
-            Some(t) => self.ty_node_as(t, crate::ty::NameRole::Trait)?,
-            None => Ty::POISON,
+            Some(t) => self.ty_node_as(t, crate::ty::NameRole::Trait),
+            None => Ok(Ty::POISON),
         };
+        if let Some((s, _)) = self.opaque_annotation {
+            self.opaque_annotation = Some((s, borrows));
+        }
+        let bound = bound?;
         let pool = self.pool();
         let args: Vec<Ty> = self
             .gens
@@ -323,6 +331,7 @@ impl Ck<'_, '_> {
         Ok(pool.intern_ty(&TyData::Opaque {
             owner,
             site,
+            borrows,
             args: pool.list(&args),
             bound,
         }))

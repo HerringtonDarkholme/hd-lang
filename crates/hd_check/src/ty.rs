@@ -257,6 +257,20 @@ impl Ck<'_, '_> {
         let mut row = None;
         // A trait value's associated-type bindings (`dyn Supplier[Item = i32]`).
         let mut bound = Vec::new();
+        // An opaque type in a type argument of a list, a map or a trait
+        // borrows nothing (`types.opaque.borrows.position`).
+        let borrows = self.opaque_annotation.map(|(_, b)| b);
+        if borrows == Some(true)
+            && let Some(def) = self.resolve_path(&segs)
+        {
+            let known = &self.cx.names.known;
+            if def == known.list
+                || def == known.map
+                || self.kind_of_item(def) == Some(HeadKind::Trait)
+            {
+                self.opaque_annotation = self.opaque_annotation.map(|(s, _)| (s, false));
+            }
+        }
         if let Some(al) = Src::child(n, SyntaxKind::TypeArgumentList) {
             for a in al.children() {
                 if a.kind() == SyntaxKind::RequirementRow {
@@ -276,6 +290,9 @@ impl Ck<'_, '_> {
                     arg_nodes.push(a);
                 }
             }
+        }
+        if let (Some((s, _)), Some(b)) = (self.opaque_annotation, borrows) {
+            self.opaque_annotation = Some((s, b));
         }
         if segs.len() == 1 {
             let name = segs[0].as_str();

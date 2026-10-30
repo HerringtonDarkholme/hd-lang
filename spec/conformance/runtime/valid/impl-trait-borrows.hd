@@ -1,0 +1,33 @@
+# expect-stdout: ada 3 bo ada 3 ada 3
+# test: opaque results that borrow from their parameters, used while their sources live
+# Spec 04 Opaque Results That Borrow: types.opaque.borrows, types.opaque.borrows.source.
+struct User:
+    name: string
+
+impl User:
+    fn shown(&self) -> impl Display:
+        &self.name
+
+fn label(u: &User) -> impl Display:
+    &u.name
+
+fn count() -> impl Display:
+    +3
+
+fn pick(a: &User, b: &User) -> impl Display:
+    if a.name.len() > b.name.len(): &a.name else: &b.name
+
+fn relabel(u: &User) -> impl Display:
+    label(u)
+
+fn length(u: &User) -> impl Display:
+    u.name.len()
+
+pub fn main() -> void $ Console:
+    u := User { name: "ada" }
+    v := User { name: "bo" }
+    plain := [count()]
+    later := fn() -> string: "${plain[0]}"
+    println(
+        "${label(&u)} ${count()} ${v.shown()} ${pick(&u, &v)} ${length(&u)} ${relabel(&u)} ${later()}",
+    )

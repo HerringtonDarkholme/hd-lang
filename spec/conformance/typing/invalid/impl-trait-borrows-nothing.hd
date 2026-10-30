@@ -1,0 +1,7 @@
+# test: an opaque result of a function with no reference parameter borrows nothing
+# Spec 04 Opaque Results That Borrow: types.opaque.borrows, types.opaque.borrows.body.
+struct User:
+    name: string
+
+fn own(u: User) -> impl Display:
+    &u.name # diagnostic: local-reference-escapes

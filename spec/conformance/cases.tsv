@@ -74,6 +74,7 @@ runtime/valid/impl-trait-method-concrete-default.hd	runtime	accept	lang/09-trait
 runtime/valid/impl-trait-method-dyn-other.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.opaque-result.no-slot
 runtime/valid/impl-trait-method-nested-generics.hd	runtime	accept	lang/09-traits.md#r-trait.opaque.impl-identity
 runtime/valid/impl-trait-value-copy.hd	runtime	accept	lang/04-type-system.md#opaque-result-types
+runtime/valid/impl-trait-borrows.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.borrows.source
 runtime/valid/net-connect-deadline.hd	runtime	accept	std/net.md#net-trait
 runtime/valid/net-connect-timeout-ready-tie.hd	runtime	accept	std/task.md#result-timeouts
 runtime/valid/collection-values-shared-where-nothing-changes.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
@@ -182,6 +183,11 @@ typing/invalid/impl-targets-a-trait-impl-outside-the-module-of-the-trait-or-targ
 typing/invalid/impl-targets-an-inherent-impl-of-a-dependency-type-is-an-orphan-57.hd	type	reject:orphan-impl	lang/09-traits.md#implementation-ownership
 typing/invalid/impl-targets-an-inherent-impl-on-a-tuple-or-an-alias-is-invalid-not-an-orphan-62.hd	type	reject:invalid-impl-target	lang/09-traits.md#implementation-ownership
 typing/invalid/impl-targets-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal-69.hd	type	reject:nonlocal-impl	lang/09-traits.md#implementation-modules
+typing/invalid/impl-trait-borrows-nothing.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.body
+typing/invalid/impl-trait-borrow-outlives-local.hd	type	reject:local-reference-outlives-local	lang/04-type-system.md#r-types.opaque.borrows.call
+typing/invalid/impl-trait-borrow-box.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.static
+typing/invalid/impl-trait-borrow-element.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.holds
+typing/invalid/impl-trait-borrow-two-sources-local.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.source
 typing/invalid/impl-trait-distinct-functions.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.distinct
 typing/invalid/impl-trait-generic-identities.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.identity-position
 typing/invalid/impl-trait-hidden-member.hd	type	reject:unknown-method	lang/04-type-system.md#r-types.opaque.no-leakage

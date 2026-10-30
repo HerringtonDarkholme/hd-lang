@@ -1,0 +1,8 @@
+# test: an opaque result with two reference parameters may borrow from either, never from a local
+# Spec 04 Opaque Results That Borrow: types.opaque.borrows.source, types.opaque.borrows.body.
+struct User:
+    name: string
+
+fn pick(a: &User, b: &User) -> impl Display:
+    spare := User { name: "x" }
+    &spare.name # diagnostic: local-reference-escapes

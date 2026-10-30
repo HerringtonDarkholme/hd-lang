@@ -209,6 +209,7 @@ lang/04-type-system.md	76	mixed	typing/invalid/least-common-type-supertrait-wide
 lang/04-type-system.md	77	mixed	typing/invalid/ambiguous-requirement-key-solution.hd|typing/valid/ambiguous-requirement-key-annotated.hd
 lang/04-type-system.md	78	mixed	parse/invalid/reserved-word-suffix.hd
 lang/04-type-system.md	79	mixed	typing/invalid/impl-trait-recursive.hd
+lang/04-type-system.md	80	mixed	typing/invalid/impl-trait-borrows-nothing.hd|typing/invalid/impl-trait-borrow-outlives-local.hd|typing/invalid/impl-trait-borrow-box.hd
 lang/05-expressions.md	1	mixed	typing/invalid/tuple-element-assignment.hd
 lang/05-expressions.md	2	accept	typing/valid/compound-assignment.hd|runtime/valid/compound-assignment-alias.hd
 lang/05-expressions.md	3	mixed	typing/invalid/compound-assign-readonly.hd|typing/invalid/compound-assign-data-no-operator.hd|typing/invalid/compound-assign-not-place.hd

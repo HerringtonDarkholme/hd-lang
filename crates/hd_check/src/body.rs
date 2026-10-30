@@ -235,7 +235,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// Opaque result inference is invariant; it never joins or inserts coercions.
     pub strict_rets: Vec<Ty>,
     pub opaque_rets: Vec<(Ty, Ty)>,
-    pub opaque_annotation: Option<u32>,
+    pub opaque_annotation: Option<(u32, bool)>,
     pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
@@ -4349,6 +4349,7 @@ impl Ck<'_, '_> {
             TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args,
                 bound,
             } => {
@@ -4357,6 +4358,7 @@ impl Ck<'_, '_> {
                 pool.intern_ty(&TyData::Opaque {
                     owner,
                     site,
+                    borrows,
                     args,
                     bound,
                 })

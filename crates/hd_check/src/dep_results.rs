@@ -126,11 +126,22 @@ impl DepSig {
                 }
             }
         };
+        let opaque: Vec<bool> = if pool.has_opaque(ret) {
+            slots_of(pool, ret)
+                .iter()
+                .map(|&(t, _)| matches!(pool.get(t), TyData::Opaque { .. }))
+                .collect()
+        } else {
+            vec![]
+        };
         let outs = (0..outs_n)
             .map(|j| match written.get(ins + j) {
                 Some(&l) if trust_out && l != 0 => Some(u32::from(l)),
                 _ => match elided {
                     Elided::Lifetime(id) => Some(id),
+                    // An opaque type with no one lifetime to take borrows
+                    // from every parameter (`types.opaque.borrows.source`).
+                    _ if opaque.get(j) == Some(&true) => Some(ANY),
                     _ => None,
                 },
             })
@@ -146,10 +157,11 @@ impl DepSig {
     /// The map a function type carries (`fn.type.lifetime`), for a call
     /// through a function value.
     fn of_fn(pool: Types<'_>, t: Ty) -> Option<DepSig> {
-        let (ins, outs) = pool.fn_ty_deps(t)?;
         let TyData::Fn { params, result, .. } = pool.get(referent_fn(pool, t)) else {
             return None;
         };
+        let (ins, outs) = pool.fn_ty_deps(t)?;
+        let opaque = slots_of(pool, result);
         let mut at = 0;
         let params = pool
             .list_items(params)
@@ -162,7 +174,16 @@ impl DepSig {
             .collect();
         Some(DepSig {
             params,
-            outs: outs.iter().map(|&l| (l != 0).then_some(l)).collect(),
+            outs: outs
+                .iter()
+                .zip(&opaque)
+                .map(|(&l, &(t, _))| match l {
+                    // `types.opaque.borrows.source`
+                    0 if matches!(pool.get(t), TyData::Opaque { .. }) => Some(ANY),
+                    0 => None,
+                    l => Some(l),
+                })
+                .collect(),
             ret: result,
             elided: Elided::Missing,
         })
@@ -183,6 +204,36 @@ impl DepSig {
             .map(|l| l.filter(|l| ins.contains(l)))
             .collect();
         outs.map_or(hd_types::FnDeps::NONE, |outs| pool.fn_deps(&ins, &outs))
+    }
+
+    /// The map of a body whose declared result has opaque types, over
+    /// its hidden result `hidden`: each slot of a hidden type takes its
+    /// opaque type's lifetime, and none for an opaque type that does not
+    /// borrow (`types.opaque.borrows.body`).
+    fn open(self, pool: Types<'_>, hidden: Ty) -> DepSig {
+        let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
+        let mut out = Vec::new();
+        let outs = if line_up(
+            pool,
+            self.ret,
+            hidden,
+            &mut it,
+            &mut Vec::new(),
+            &mut out,
+            0,
+        ) {
+            out.into_iter()
+                .map(|id| (id != NO_SOURCE).then_some(id))
+                .collect()
+        } else {
+            vec![None; pool.ref_slots(hidden)]
+        };
+        DepSig {
+            params: self.params,
+            outs,
+            ret: hidden,
+            elided: self.elided,
+        }
     }
 
     /// Whether the result depends on any input.
@@ -288,6 +339,9 @@ impl DepSig {
         let Some((t, ids)) = self.params.get(p as usize) else {
             return false;
         };
+        if id == ANY {
+            return true;
+        }
         let s = s as usize;
         if ids.get(s) == Some(&id) {
             return true;
@@ -335,6 +389,18 @@ fn line_up(
             });
             let n = pool.ref_slots(t).min(255);
             out.extend((0..n).map(|s| TVAR + (w(k.min(255)) << 8) + w(s)));
+            true
+        }
+        // Each slot of an opaque type's hidden type, or of its instance,
+        // takes the opaque type's lifetime (`types.opaque.borrows`).
+        (TyData::Opaque { borrows, .. }, _) => {
+            let id = if borrows {
+                let Some(id) = ids.next() else { return false };
+                id
+            } else {
+                NO_SOURCE
+            };
+            out.extend(std::iter::repeat_n(id, pool.ref_slots(t)));
             true
         }
         (TyData::Mut(a), TyData::Mut(b)) => line_up(pool, a, b, ids, keys, out, d1),
@@ -405,6 +471,7 @@ fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
                 out.push((t, top));
                 walk(pool, inner, false, d, out);
             }
+            TyData::Opaque { borrows: true, .. } => out.push((t, top)),
             TyData::Mut(i) | TyData::Option(i) => walk(pool, i, top, d, out),
             TyData::Tuple { elems, rest } => {
                 for &e in pool.list_items(elems) {
@@ -1141,6 +1208,26 @@ impl Ck<'_, '_> {
         DepSig::new(pool, &sig.params, is_self, sig.ret, &sig.lifetimes).to_fn(pool, skip)
     }
 
+    /// The map a trait implementation's method `sig` must share with the
+    /// trait's `tsig` (`trait.impl.lifetime`): the trait's, with its opaque
+    /// types opened over the implementation's result, which may take
+    /// their place (`trait.opaque.impl-result`).
+    pub(crate) fn trait_fn_deps(
+        &self,
+        tsig: &hd_resolve::FnSig,
+        sig: &hd_resolve::FnSig,
+    ) -> hd_types::FnDeps {
+        let pool = self.pool();
+        if !pool.has_opaque(tsig.ret) || pool.ref_slots(tsig.ret) == 0 {
+            return self.sig_fn_deps(tsig, 0);
+        }
+        let names = &self.cx.names;
+        let is_self = |s| names.text(s) == "self";
+        DepSig::new(pool, &tsig.params, is_self, tsig.ret, &tsig.lifetimes)
+            .open(pool, sig.ret)
+            .to_fn(pool, 0)
+    }
+
     /// The dependency map of a callee's signature (`ref.dep.call`,
     /// `ref.dep.trait`): a trait method's from the trait's signature.
     /// At call `i` of `b`, the map is over the types the call instantiates
@@ -1217,16 +1304,21 @@ impl Ck<'_, '_> {
         let body = self.b.body();
         // The body's own map: parameter k is local k.
         let fn_body = body.kind == BodyKind::Fn && fun.is_some() && holds_local_ref(pool, ret);
+        let mut opaque = false;
         let own = match fn_body.then(|| self.sig_of(body.item)) {
             Some(Ok(sig)) => {
                 let names = &self.cx.names;
-                Some(DepSig::new(
+                // A hidden result is checked against its opaque types'
+                // lifetimes (`types.opaque.borrows.body`).
+                opaque = pool.has_opaque(sig.ret);
+                let dep = DepSig::new(
                     pool,
                     &sig.params,
                     |s| names.text(s) == "self",
-                    ret,
+                    if opaque { sig.ret } else { ret },
                     &sig.lifetimes,
-                ))
+                );
+                Some(if opaque { dep.open(pool, ret) } else { dep })
             }
             _ => None,
         };
@@ -1277,10 +1369,33 @@ impl Ck<'_, '_> {
                 // parameters (`fn.closure.lifetime.return`); a result slot
                 // with no source may depend on nothing.
                 Tag::Closure if !body.is_instantiation(i) => {
-                    if let Some(dep) =
-                        DepSig::of_fn(pool, body.ty[i]).filter(|d| !d.outs.is_empty())
-                    {
-                        closures.push((body.data[i][0] as usize, dep));
+                    let sub = body.data[i][0] as usize;
+                    let dep = DepSig::of_fn(pool, body.ty[i]);
+                    match pool.get(referent_fn(pool, body.ty[i])) {
+                        // A local function's hidden result is checked
+                        // against its opaque types' lifetimes
+                        // (`types.opaque.borrows.body`).
+                        TyData::Fn { params, result, .. } if pool.has_opaque(result) => {
+                            let dep = dep.unwrap_or_else(|| DepSig {
+                                params: pool
+                                    .list_items(params)
+                                    .iter()
+                                    .map(|&p| (p, vec![]))
+                                    .collect(),
+                                outs: vec![],
+                                ret: result,
+                                elided: Elided::Missing,
+                            });
+                            let hidden = body.sub_root.get(sub).map_or(result, |&r| {
+                                body.ty.get(r as usize).copied().unwrap_or(result)
+                            });
+                            closures.push((sub, dep.open(pool, hidden)));
+                        }
+                        _ => {
+                            if let Some(dep) = dep.filter(|d| !d.outs.is_empty()) {
+                                closures.push((sub, dep));
+                            }
+                        }
                     }
                 }
                 Tag::Store => {
@@ -1300,7 +1415,7 @@ impl Ck<'_, '_> {
         {
             self.source_error(elided == Some(Elided::Missing), f);
         }
-        let own = own.filter(DepSig::depends);
+        let own = own.filter(|o| opaque || o.depends());
         if own.is_none() && !through && closures.is_empty() {
             return;
         }
@@ -1367,7 +1482,13 @@ impl Ck<'_, '_> {
             for r in returned(body, root.0) {
                 let v = fit(s.of(r), ids.len());
                 for (set, ids) in v.iter().zip(&ids) {
-                    let Some(&id) = ids.first() else { continue };
+                    // A slot of an opaque type that does not borrow may
+                    // depend on nothing.
+                    let id = match ids.first() {
+                        Some(&id) => id,
+                        None if opaque => NO_SOURCE,
+                        None => continue,
+                    };
                     if let Some(&o) = set
                         .iter()
                         .find(|&&o| !ids.iter().any(|&id| own.allows(pool, o, id)))
@@ -1512,7 +1633,7 @@ impl Ck<'_, '_> {
         let carries = |p: u32| {
             own.params
                 .get(p as usize)
-                .is_some_and(|(_, ids)| ids.contains(&id))
+                .is_some_and(|(_, ids)| ids.contains(&id) || id == ANY && !ids.is_empty())
         };
         let what = match o {
             Origin::Local(l)
@@ -1550,11 +1671,12 @@ impl Ck<'_, '_> {
             .collect();
         sources.dedup();
         let from = match sources.as_slice() {
-            [] => "nothing".to_owned(),
+            [] => String::new(),
             [one] => one.clone(),
             [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
         };
         match lifetime(id) {
+            _ if sources.is_empty() => format!("{what}; the result may depend on no parameter"),
             Some(l) => format!("{what}; a `{l}` reference of the result depends only on {from}"),
             None => format!("{what}; the result depends only on {from}"),
         }

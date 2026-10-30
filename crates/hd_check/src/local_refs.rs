@@ -434,6 +434,9 @@ fn escape_in(pool: Types<'_>, colls: Colls, t: Ty, top_ok: bool, depth: u32) -> 
         }
         TyData::Adt { def, args } if colls.contains(&def) => list(args, false),
         TyData::Adt { args, .. } => list(args, top_ok),
+        // An opaque type that borrows holds a local reference of its own,
+        // at the top as a reference is (`types.opaque.borrows`).
+        TyData::Opaque { borrows: true, .. } if !top_ok => Some(Escape::TypeArgument),
         TyData::Opaque { args, .. } => list(args, false),
         TyData::TraitValue { args, bindings, .. } => {
             list(args, false).or_else(|| bindings.iter().find_map(|&(_, b)| escape_in(b, false)))
@@ -469,6 +472,7 @@ pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Ref { counted, .. } => !counted,
+        TyData::Opaque { borrows, .. } => borrows,
         TyData::Mut(i) => is_local_ref(pool, i),
         _ => false,
     }

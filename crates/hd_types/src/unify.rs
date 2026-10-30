@@ -254,11 +254,13 @@ impl InferTable {
             TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args,
                 bound,
             } => TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args: rl(args),
                 bound: r(bound),
             },
@@ -477,12 +479,14 @@ impl InferTable {
                     site: s1,
                     args: a1,
                     bound: b1,
+                    ..
                 },
                 TyData::Opaque {
                     owner: d2,
                     site: s2,
                     args: a2,
                     bound: b2,
+                    ..
                 },
             ) if d1 == d2 && s1 == s2 => {
                 self.unify_lists(pool, a1, a2, a, b)?;

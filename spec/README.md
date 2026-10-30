@@ -193,6 +193,7 @@ The stdlib chapters' terms are in the
 | **active** | A driver context while its executor is evaluating or polling it on the current program-instance call stack. See [`req.bang.active`](lang/11-requirements-and-suspension.md#r-req.bang.active). |
 | **available** | A trait method is available in a module when its trait is available to dot-call lookup there. See [`names.visible.trait`](lang/03-names-and-scopes.md#r-names.visible.trait). |
 | **bare step** | A pipe step that is a name or path without `_`. See [`expr.pipe.step-kinds`](lang/05-expressions.md#r-expr.pipe.step-kinds). |
+| **borrows** | An opaque type borrows when its function has a local reference parameter; it is then a dependent result. See [`types.opaque.borrows`](lang/04-type-system.md#r-types.opaque.borrows). |
 | **bound method reference** | `value::name`, where `value` names a value, as a function value. See [`fn.ref.bound`](lang/07-functions.md#r-fn.ref.bound). |
 | **bound requirement key** | A requirement key that binds associated types, such as `Store[Item = User]`; its provider value has the trait value type `dyn Store[Item = User]`. See [Bound Requirement Keys](lang/11-requirements-and-suspension.md#bound-requirement-keys). |
 | **build directory** | The directory `build` in a package directory, where `hd` writes its build and cache output, such as `build/debug/NAME.wasm`. See [`cli.build.directory`](cli/command-line.md#r-cli.build.directory). |

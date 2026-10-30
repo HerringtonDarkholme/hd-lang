@@ -1630,8 +1630,10 @@ struct Lower<'a, 'r, 'x> {
     diags: &'a mut DiagBuf,
     unsupported: Option<String>,
     /// The named function whose return annotation is being lowered and
-    /// the next opaque occurrence, in source order.
-    opaque_result: Option<(DefId, u32)>,
+    /// the next opaque occurrence, in source order, and whether its
+    /// opaque results borrow from a local reference parameter
+    /// (`types.opaque.borrows`).
+    opaque_result: Option<(DefId, u32, bool)>,
     /// Type parameters already reported as used in a row: one error per
     /// parameter, at its first use.
     kind_reported: HashSet<u32>,
@@ -2275,7 +2277,18 @@ impl Lower<'_, '_, '_> {
             return Ty::POISON;
         };
         let before = self.slots.as_ref().map(Vec::len);
+        // An opaque type in a type argument of a list, a map or a trait,
+        // where no local reference may be, borrows nothing
+        // (`types.opaque.borrows.position`).
+        let known = &self.names.known;
+        let borrows = self.opaque_result.map(|(_, _, b)| b);
+        if kind == HeadKind::Trait || def == known.list || def == known.map {
+            self.opaque_result = self.opaque_result.map(|(o, s, _)| (o, s, false));
+        }
         let (args, bindings, row) = self.type_args(n, gn);
+        if let (Some((o, s, _)), Some(b)) = (self.opaque_result, borrows) {
+            self.opaque_result = Some((o, s, b));
+        }
         // Only a trait has associated types (trait.binding.non-trait).
         if matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
             && let Some((name, _)) = bindings.first()
@@ -2476,7 +2489,7 @@ impl Lower<'_, '_, '_> {
         match n.kind() {
             SyntaxKind::NamedType => self.named(n, gn, referent),
             SyntaxKind::ImplType => {
-                let Some((owner, site)) = self.opaque_result else {
+                let Some((owner, site, borrows)) = self.opaque_result else {
                     self.diags.error(
                         Code::TypeMismatch,
                         self.src.span(n),
@@ -2484,10 +2497,14 @@ impl Lower<'_, '_, '_> {
                     );
                     return Ty::POISON;
                 };
-                self.opaque_result = Some((owner, site + 1));
+                // An opaque type in the bound's arguments borrows nothing.
+                self.opaque_result = Some((owner, site + 1, false));
                 let bound = Src::child(n, SyntaxKind::NamedType)
                     .and_then(|n| self.trait_value(n, gn, None))
                     .unwrap_or(Ty::POISON);
+                if let Some((o, s, _)) = self.opaque_result {
+                    self.opaque_result = Some((o, s, borrows));
+                }
                 let args: Vec<Ty> = gn
                     .decls
                     .iter()
@@ -2516,6 +2533,7 @@ impl Lower<'_, '_, '_> {
                 pool.intern_ty(&TyData::Opaque {
                     owner,
                     site,
+                    borrows,
                     args: pool.list(&args),
                     bound,
                 })
@@ -3171,7 +3189,10 @@ impl Lower<'_, '_, '_> {
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
             }
         }
-        let before = self.opaque_result.replace((owner, 0));
+        let borrows = params
+            .iter()
+            .any(|&(_, t)| self.names.pool.types().ref_slots(t) > 0);
+        let before = self.opaque_result.replace((owner, 0, borrows));
         let ret = self.ty(Src::type_child(f), gn);
         self.opaque_result = before;
         let mut lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();

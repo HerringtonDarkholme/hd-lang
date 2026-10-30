@@ -250,6 +250,11 @@ pub enum TyData {
         /// Return-annotation occurrence in source order; local functions start
         /// at their syntax node + 1.
         site: u32,
+        /// Whether the declaring function has a local reference parameter,
+        /// so that the hidden value may borrow from it
+        /// (`types.opaque.borrows`): the type then holds a local reference
+        /// in one reference slot of its own.
+        borrows: bool,
         args: TyList,
         bound: Ty,
     },
@@ -391,7 +396,8 @@ impl Cols {
         let x = |k: u32| self.extra[off + k];
         let len = match tag {
             PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
-            PoolTag::Assoc | PoolTag::Opaque => 4,
+            PoolTag::Assoc => 4,
+            PoolTag::Opaque => 5,
             PoolTag::Fn => 5,
             PoolTag::Deps => 2 + x(0) + x(1),
             PoolTag::TraitValue => 3 + 2 * x(2),
@@ -1124,10 +1130,18 @@ impl<'a> Types<'a> {
                     .iter()
                     .fold(self.list_meta(*args), |m, (_, t)| m | self.meta_of(*t)),
             ),
-            TyData::Opaque { args, bound, .. } => (
+            TyData::Opaque {
+                args,
+                bound,
+                borrows,
+                ..
+            } => (
                 T::Opaque,
                 0,
-                meta::HAS_OPAQUE | self.list_meta(*args) | self.meta_of(*bound),
+                meta::HAS_OPAQUE
+                    | if *borrows { meta::HAS_REF } else { 0 }
+                    | self.list_meta(*args)
+                    | self.meta_of(*bound),
             ),
             TyData::Param(_) => (T::Param, 0, meta::HAS_PARAM),
             TyData::Assoc { self_ty, args, .. } => (
@@ -1182,11 +1196,12 @@ impl<'a> Types<'a> {
             TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args,
                 bound,
             } => {
-                buf[..4].copy_from_slice(&[owner.raw(), *site, args.0, bound.0]);
-                &buf[..4]
+                buf = [owner.raw(), *site, args.0, bound.0, u32::from(*borrows)];
+                &buf
             }
             TyData::Param(p) => {
                 buf[..2].copy_from_slice(&[p.owner.raw(), u32::from(p.index)]);
@@ -1304,6 +1319,7 @@ impl<'a> Types<'a> {
             PoolTag::Opaque => TyData::Opaque {
                 owner: DefId::from_raw(x[0]),
                 site: x[1],
+                borrows: x[4] != 0,
                 args: TyList(x[2]),
                 bound: Ty(x[3]),
             },
@@ -1449,7 +1465,8 @@ impl<'a> Types<'a> {
     }
 
     /// The local reference slots of `t`: each `&T` and `&mut T` outside
-    /// function types and counted references, in pre-order. A signature's
+    /// function types and counted references, and each opaque type that
+    /// borrows (`types.opaque.borrows`), in pre-order. A signature's
     /// written lifetimes follow this order (`FnSig::lifetimes`).
     #[must_use]
     pub fn ref_slots(self, t: Ty) -> usize {
@@ -1473,6 +1490,7 @@ impl<'a> Types<'a> {
                 inner,
                 ..
             } => 1 + self.ref_slots_at(inner, d),
+            TyData::Opaque { borrows: true, .. } => 1,
             TyData::Mut(i) | TyData::Option(i) => self.ref_slots_at(i, d),
             TyData::Tuple { elems, rest } => {
                 list(elems) + rest.map_or(0, |r| self.ref_slots_at(r, d))
@@ -1527,11 +1545,13 @@ impl<'a> Types<'a> {
             TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args,
                 bound,
             } => TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args: l(args),
                 bound: self.lower_refs(cell, bound),
             },
@@ -1662,11 +1682,13 @@ impl<'a> Types<'a> {
             TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args,
                 bound,
             } => TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args: l(args, memo),
                 bound: self.raise_refs_in(cell, bound, memo),
             },
@@ -1772,11 +1794,13 @@ impl<'a> Types<'a> {
             TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args,
                 bound,
             } => TyData::Opaque {
                 owner,
                 site,
+                borrows,
                 args: l(args),
                 bound: self.subst(bound, f),
             },
@@ -2039,6 +2063,7 @@ mod tests {
             pool.intern_ty(&super::TyData::Opaque {
                 owner,
                 site,
+                borrows: false,
                 args: pool.list(&[arg]),
                 bound,
             })

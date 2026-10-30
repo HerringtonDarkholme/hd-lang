@@ -379,6 +379,7 @@ mod tests {
             pool.intern_ty(&TyData::Opaque {
                 owner,
                 site: 0,
+                borrows: false,
                 args,
                 bound: Ty::BOOL,
             })
@@ -417,6 +418,7 @@ mod tests {
             pool.intern_ty(&TyData::Opaque {
                 owner: DefId::from_raw(owner),
                 site: 0,
+                borrows: false,
                 args: TyList::EMPTY,
                 bound: Ty::BOOL,
             })
@@ -441,6 +443,7 @@ mod tests {
             pool.intern_ty(&TyData::Opaque {
                 owner: DefId::from_raw(owner),
                 site: 0,
+                borrows: false,
                 args: TyList::EMPTY,
                 bound: Ty::BOOL,
             })

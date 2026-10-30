@@ -643,6 +643,8 @@ pub fn canon(
             site,
             args,
             bound,
+            // A function of `owner`.
+            borrows: _,
         } => {
             h.u8(18);
             h.hash(path_hash(owner));

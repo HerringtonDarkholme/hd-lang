@@ -292,9 +292,10 @@ impl Ck<'_, '_> {
                 );
             }
             self.err(Code::TraitMethodSignature, node, &msg);
-        } else if !self.fn_deps_fit(self.sig_fn_deps(sig, 0), self.sig_fn_deps(tsig, 0)) {
+        } else if !self.fn_deps_fit(self.sig_fn_deps(sig, 0), self.trait_fn_deps(tsig, sig)) {
             // `trait.impl.lifetime.subtype`: an implementation may depend
-            // on fewer parameter positions, but never on more.
+            // on fewer parameter positions than the trait (whose opaque
+            // results open over the implementation's result), never more.
             let msg = format!(
                 "`{}` differs from the trait's declaration: its result borrows from other parameters",
                 self.cx.names.text(it.name)
