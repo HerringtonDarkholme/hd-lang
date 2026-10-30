@@ -1,5 +1,5 @@
 # test: a lifetime written in a trait implementation's target is references-not-yet-checked
-# Spec 13 Lifetime Variables: ref.lifetime.not-yet.trait-target.
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.trait-target-unpassed.
 struct Parser[T, 'src]:
     src: &'src T
     pos: usize

@@ -571,8 +571,9 @@ fn pick(x: &User, first: bool) -> usize:
         r = choose(x, &local, first)
     r.name.len()  # error: local-reference-outlives-local
 
-trait Named['a]:  # error: references-not-yet-checked
+trait Named['a]:
     fn name(&self) -> usize
+    fn borrowed_name(&'a self) -> &'a string
 
 fn view(u: User) -> i32:
     let r: &'a User = &u  # error: references-not-yet-checked
@@ -592,10 +593,10 @@ fn view(u: User) -> i32:
 11. r[ref.lifetime.return.message] The diagnostic's message names the root, the lifetime, and the parameters with that lifetime. It has no fix-it.
 12. r[ref.lifetime.call] A call's result position depends on what every argument in a parameter position of its lifetime depends on.
 13. r[ref.lifetime.declarations] A top-level function, an implementation, and a method of an implementation or a trait may declare lifetime parameters.
-14. r[ref.lifetime.not-yet.other-owner] Any other lifetime parameter is not checked yet, so it is an error: a trait's own, a `type` declaration's, a local function's, a local struct's, or a local enum's. A top-level struct's follows [Lifetime Structs](#lifetime-structs), and a top-level enum's [Lifetime Enums](#lifetime-enums). Error: `references-not-yet-checked`.
+14. r[ref.lifetime.not-yet.local-owner] Any other lifetime parameter is not checked yet, so it is an error: a `type` declaration's, a local function's, a local struct's, or a local enum's. A top-level struct's follows [Lifetime Structs](#lifetime-structs), and a top-level enum's [Lifetime Enums](#lifetime-enums). Error: `references-not-yet-checked`.
 15. r[ref.lifetime.alias-in-order] A type alias passes on the lifetimes written in its arguments when its type uses each parameter once, in order, outside function types, and writes no `&` of its own. So `Option[&'a T]` is `&'a T?`.
 16. r[ref.lifetime.not-yet.alias] A lifetime written in the arguments of any other type alias is an error too. Error: `references-not-yet-checked`.
-17. r[ref.lifetime.not-yet.trait-target] A lifetime written in a trait implementation's target is an error too. Error: `references-not-yet-checked`.
+17. r[ref.lifetime.not-yet.trait-target-unpassed] A lifetime written in a trait implementation's target but not passed to the trait is an error too. Error: `references-not-yet-checked`.
 18. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
 
 ```hd
@@ -615,7 +616,30 @@ fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:  # the result tak
 
 See also: [Lifetimes In Function Types](07-functions.md#lifetimes-in-function-types),
 [Method Generic Parameters](09-traits.md#method-generic-parameters),
-[Lifetime Structs](#lifetime-structs).
+[Lifetime Traits](#lifetime-traits), [Lifetime Structs](#lifetime-structs).
+
+### Lifetime Traits
+
+A **lifetime trait** declares lifetimes which its methods may write:
+
+```hd
+struct Parser[T, 'src]:
+    src: &'src T
+
+trait Source[T, 'src]:
+    fn source(&self) -> &'src T
+
+impl[T, 'src] Source[T, 'src] for Parser[T, 'src]:
+    fn source(&self) -> &'src T:
+        self.src
+```
+
+1. r[ref.lifetime.trait] Each lifetime argument of a trait instantiates that lifetime in its methods for implementations, bounds, and trait values.
+2. r[ref.lifetime.trait.impl-target] A trait implementation's target may write lifetimes which the implementation passes as the trait's lifetime arguments.
+3. r[ref.lifetime.trait.position] A trait value holds one reference position for each lifetime argument, after the positions of its type arguments.
+
+See also: [Generic Traits](09-traits.md#generic-traits),
+[Lifetime Parameters](04-type-system.md#lifetime-parameters).
 
 ### Lifetime Structs
 

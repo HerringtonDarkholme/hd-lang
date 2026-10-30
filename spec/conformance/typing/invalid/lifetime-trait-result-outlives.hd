@@ -1,0 +1,16 @@
+# test: a result through a lifetime trait may not outlive the local held by its implementation target
+# Spec 13 Lifetime Traits: ref.lifetime.trait, ref.lifetime.trait.position.
+struct Parser['src]:
+    src: &'src string
+
+trait Source['src]:
+    fn source(&self) -> &'src string
+
+impl['src] Source['src] for Parser['src]:
+    fn source(&self) -> &'src string:
+        self.src
+
+fn escapes['a](fallback: &'a string) -> &'a string:
+    local := "local"
+    parser := Parser { src: &local }
+    parser.source() # diagnostic: local-reference-escapes

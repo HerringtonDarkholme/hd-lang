@@ -447,9 +447,11 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
         // at the top as a reference is (`types.opaque.borrows`).
         TyData::Opaque { borrows: true, .. } if !top_ok => Some(Escape::TypeArgument),
         TyData::Opaque { args, .. } => list(args, false),
-        TyData::TraitValue { args, bindings, .. } => {
-            list(args, false).or_else(|| bindings.iter().find_map(|&(_, b)| escape_in(b, false)))
-        }
+        TyData::TraitValue { args, bindings, .. } => pool
+            .list_items(args)
+            .iter()
+            .find_map(|&a| escape_in(a, top_ok && hd_resolve::iface::is_lifetime_arg(pool, a)))
+            .or_else(|| bindings.iter().find_map(|&(_, b)| escape_in(b, false))),
         TyData::Assoc { self_ty, args, .. } => {
             escape_in(self_ty, false).or_else(|| list(args, false))
         }

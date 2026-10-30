@@ -168,16 +168,22 @@ impl Ck<'_, '_> {
         let ItemData::Method { owner, sig, .. } = &it.data else {
             return Ok(());
         };
-        let Some(ItemData::Impl {
+        let Some(impl_item) = self.cx.lookup.item(*owner) else {
+            return Ok(());
+        };
+        let ItemData::Impl {
             trait_,
             trait_args,
+            trait_lifetimes,
+            self_lifetimes,
             self_ty,
             kind,
             ..
-        }) = self.cx.lookup.item(*owner).map(|o| &o.data)
+        } = &impl_item.data
         else {
             return Ok(());
         };
+        let impl_lifetime_count = impl_item.generics.iter().filter(|g| g.lifetime).count();
         if *trait_ == DefId::NONE || !matches!(kind, ImplKind::Written | ImplKind::Delegated) {
             return Ok(());
         }
@@ -292,7 +298,17 @@ impl Ck<'_, '_> {
                 );
             }
             self.err(Code::TraitMethodSignature, node, &msg);
-        } else if !self.fn_deps_fit(self.sig_fn_deps(sig, 0), self.trait_fn_deps(tsig, sig)) {
+        } else if !self.fn_deps_fit(
+            self.sig_fn_deps(sig, 0),
+            self.trait_fn_deps(
+                tsig,
+                sig,
+                trait_,
+                trait_lifetimes,
+                self_lifetimes,
+                impl_lifetime_count,
+            ),
+        ) {
             // `trait.impl.lifetime.subtype`: an implementation may depend
             // on fewer parameter positions than the trait (whose opaque
             // results open over the implementation's result), never more.

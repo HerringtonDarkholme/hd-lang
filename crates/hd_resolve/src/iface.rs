@@ -268,10 +268,11 @@ pub fn const_literal(names: &Names<'_>, v: ConstValue) -> String {
     }
 }
 
-/// The argument of every struct lifetime parameter (`ref.lifetime.struct`):
-/// one local reference slot, so a value of the struct holds a local
-/// reference and its origins live in that slot. Lifetimes themselves are
-/// not types: a signature's slot table names them (`FnSig::lifetimes`).
+/// The argument of every struct, enum or trait lifetime parameter: one
+/// local reference slot, so a value holds a local reference and its origins
+/// live in that slot (`ref.lifetime.struct`, `ref.lifetime.enum`,
+/// `ref.lifetime.trait.position`). Lifetimes themselves are not types: a
+/// signature's slot table names them ([`FnSig::lifetimes`]).
 #[must_use]
 pub fn lifetime_arg(pool: hd_types::Types<'_>) -> Ty {
     pool.intern_ty(&TyData::Ref {
@@ -282,7 +283,8 @@ pub fn lifetime_arg(pool: hd_types::Types<'_>) -> Ty {
 }
 
 /// Whether `t` is [`lifetime_arg`].
-fn is_lifetime_arg(pool: hd_types::Types<'_>, t: Ty) -> bool {
+#[must_use]
+pub fn is_lifetime_arg(pool: hd_types::Types<'_>, t: Ty) -> bool {
     matches!(
         pool.get(t),
         TyData::Ref {
@@ -491,6 +493,11 @@ pub enum ItemData {
     Impl {
         trait_: DefId,
         trait_args: TyList,
+        /// The implementation lifetime for each lifetime parameter of the
+        /// trait, in declaration order (`ref.lifetime.trait.impl-target`).
+        trait_lifetimes: Vec<u16>,
+        /// The implementation lifetime of each reference slot of `self_ty`.
+        self_lifetimes: Vec<u16>,
         self_ty: Ty,
         methods: Vec<(Symbol, DefId)>,
         assoc: Vec<(DefId, Ty)>,
@@ -1322,6 +1329,8 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
         ItemData::Impl {
             trait_,
             trait_args,
+            trait_lifetimes,
+            self_lifetimes,
             self_ty,
             methods,
             assoc,
@@ -1335,6 +1344,14 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 t.def(*trait_)
             });
             w.u32(t.list(*trait_args)?);
+            w.len_of(trait_lifetimes);
+            for l in trait_lifetimes {
+                w.u32(u32::from(*l));
+            }
+            w.len_of(self_lifetimes);
+            for l in self_lifetimes {
+                w.u32(u32::from(*l));
+            }
             w.u32(t.ty(*self_ty)?);
             put_pairs(w, t, methods);
             w.len_of(assoc);
@@ -1422,6 +1439,14 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 t.def(tr)?
             };
             let trait_args = t.list(r.u32())?;
+            let mut trait_lifetimes = Vec::new();
+            for _ in 0..r.count() {
+                trait_lifetimes.push(u16::try_from(r.u32()).ok()?);
+            }
+            let mut self_lifetimes = Vec::new();
+            for _ in 0..r.count() {
+                self_lifetimes.push(u16::try_from(r.u32()).ok()?);
+            }
             let self_ty = t.ty(r.u32())?;
             let methods = get_pairs(r, t)?;
             let mut assoc = Vec::new();
@@ -1435,6 +1460,8 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
             ItemData::Impl {
                 trait_,
                 trait_args,
+                trait_lifetimes,
+                self_lifetimes,
                 self_ty,
                 methods,
                 assoc,
@@ -2297,8 +2324,9 @@ fn show_marked(
         {
             seg(def)
         }
-        // A struct's lifetime arguments are not shown (`ref.lifetime.struct`).
-        TyData::Adt { def, args }
+        // Lifetime arguments are not shown (`ref.lifetime.struct`,
+        // `ref.lifetime.enum`, `ref.lifetime.trait`).
+        TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
             if pool
                 .list_items(args)
                 .iter()

@@ -1,0 +1,38 @@
+# test: trait lifetimes instantiate method references in an impl, a bound, and a trait value
+# Spec 09 Generic Traits: trait.decl.lifetime; Spec 13 Lifetime Traits: ref.lifetime.trait.
+struct Parser[T, 'src]:
+    src: &'src T
+
+trait Source[T, 'src]:
+    fn source(&self) -> &'src T
+
+impl[T, 'src] Source[T, 'src] for Parser[T, 'src]:
+    fn source(&self) -> &'src T:
+        self.src
+
+fn by_bound[T, S < Source[T, 'src], 'src](source: &'src S) -> &'src T:
+    source.source()
+
+fn by_trait_value[T, 'src](source: &dyn Source[T, 'src]) -> &'src T:
+    source.source()
+
+fn through_local[T, 'src](value: &'src T) -> &'src T:
+    parser := Parser { src: value }
+    by_trait_value(&parser)
+
+struct Pair['left, 'right]:
+    left: &'left string
+    right: &'right string
+
+trait Ends['first, 'second]:
+    fn first(&self) -> &'first string
+    fn second(&self) -> &'second string
+
+impl['left, 'right] Ends['right, 'left] for Pair['left, 'right]:
+    fn first(&self) -> &'right string:
+        self.right
+    fn second(&self) -> &'left string:
+        self.left
+
+fn swapped['left, 'right](pair: &dyn Ends['right, 'left]) -> (&'right string, &'left string):
+    (pair.first(), pair.second())

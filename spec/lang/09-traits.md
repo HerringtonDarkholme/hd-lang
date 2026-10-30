@@ -93,13 +93,15 @@ trait Add[T]:
 2. r[trait.decl.generic.invariant] A trait's generic parameters are invariant, so `Source[*mut User]` and `Source[*User]` are unrelated trait instantiations. Using one where the other is required is an error. Error: `type-mismatch`.
 3. r[trait.decl.generic.no-variance] A variance marker on a trait's generic parameter is an error. Error: `invalid-variance`.
 4. r[trait.decl.generic.default] A trait's generic parameter may declare a [default](04-type-system.md#type-argument-defaults), which may name `Self`, as in `trait Same[Other = Self]`. `Self` there is the implementing type or the bounded type.
+5. r[trait.decl.lifetime] A trait may declare lifetime parameters, which by convention follow its type parameters, and its methods may use them.
 
 ```text
 trait Source[+T]:  # error: invalid-variance
     fn source(self) -> T
 ```
 
-See also: [Variance](04-type-system.md#variance).
+See also: [Variance](04-type-system.md#variance),
+[Lifetime Traits](13-values-and-references.md#lifetime-traits).
 
 ### Marker Traits
 

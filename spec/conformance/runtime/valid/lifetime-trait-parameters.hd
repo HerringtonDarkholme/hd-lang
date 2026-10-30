@@ -1,0 +1,29 @@
+# test: trait lifetimes run through a bound and a trait value, including a local wrapper
+# Spec 13 Lifetime Traits: ref.lifetime.trait, ref.lifetime.trait.position.
+# expect-stdout: outer
+# expect-stdout: outer
+struct Parser['src]:
+    src: &'src string
+
+trait Source['src]:
+    fn source(&self) -> &'src string
+
+impl['src] Source['src] for Parser['src]:
+    fn source(&self) -> &'src string:
+        self.src
+
+fn by_bound[S < Source['src], 'src](source: &'src S) -> &'src string:
+    source.source()
+
+fn by_trait_value['src](source: &dyn Source['src]) -> &'src string:
+    source.source()
+
+fn through_local['src](text: &'src string) -> &'src string:
+    parser := Parser { src: text }
+    by_trait_value(&parser)
+
+pub fn main() -> void $ Console:
+    text := "outer"
+    parser := Parser { src: &text }
+    println(*by_bound(&parser))
+    println(*through_local(&text))

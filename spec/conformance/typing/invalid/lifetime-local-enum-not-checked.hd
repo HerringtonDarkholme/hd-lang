@@ -1,5 +1,5 @@
 # test: a local enum's lifetime parameter is references-not-yet-checked
-# Spec 13 Lifetime Variables: ref.lifetime.not-yet.other-owner.
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.local-owner.
 fn tag() -> i32:
     enum Tagged['a]:  # diagnostic: references-not-yet-checked
         Plain

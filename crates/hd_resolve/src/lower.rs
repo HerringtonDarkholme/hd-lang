@@ -1025,12 +1025,14 @@ impl Resolver<'_, '_> {
         }
     }
 
-    /// The number of generic parameters a trait declares.
+    /// The number of explicit type, row and const arguments a trait takes;
+    /// its lifetime parameters take lifetime arguments instead.
     fn trait_arity(&self, tr: DefId) -> Option<usize> {
         if let Some(g) = self.own_traits.get(&tr) {
-            return Some(g.len());
+            return Some(g.iter().filter(|g| !g.lifetime).count());
         }
-        self.item(tr).map(|item| item.generics.len())
+        self.item(tr)
+            .map(|item| item.generics.iter().filter(|g| !g.lifetime).count())
     }
 
     /// A written type constructor's arguments with the omitted trailing
@@ -1059,8 +1061,7 @@ impl Resolver<'_, '_> {
             .unwrap_or_else(|| (args.to_vec(), None, None))
     }
 
-    /// How many lifetime parameters the struct `def` declares
-    /// (`ref.lifetime.struct`).
+    /// How many lifetime parameters the struct, enum or trait `def` declares.
     fn lifetime_count(&self, def: DefId) -> usize {
         self.with_generics(def, |g| g.iter().filter(|g| g.lifetime).count())
             .unwrap_or(0)
@@ -1068,6 +1069,9 @@ impl Resolver<'_, '_> {
 
     /// `f` of the declared parameters of `def`, when they are known.
     fn with_generics<R>(&self, def: DefId, f: impl FnOnce(&[Generic]) -> R) -> Option<R> {
+        if let Some(g) = self.own_traits.get(&def) {
+            return Some(f(g));
+        }
         if let Some(g) = self.own_types.borrow().get(&def) {
             return Some(f(g));
         }
@@ -2638,8 +2642,8 @@ impl Lower<'_, '_, '_> {
     /// scope, in any order beside the list's type parameters
     /// (`types.lifetime.free-order`).
     /// Only a function's, an implementation's, a method's and a top-level
-    /// struct's or enum's lifetimes are checked; declaring one elsewhere is an error
-    /// until its checks land (`ref.lifetime.not-yet.other-owner`).
+    /// struct's, enum's or trait's lifetimes are checked; declaring one elsewhere
+    /// is an error until its checks land (`ref.lifetime.not-yet.local-owner`).
     fn declare_lifetimes(&mut self, gl: NodeRef<'_>, gn: &mut Gen) {
         let mut checked = None;
         for p in gl.children() {
@@ -2663,7 +2667,7 @@ impl Lower<'_, '_, '_> {
                         .error(Code::DuplicateBinding, self.src.span(p), &msg);
                 } else if !checked {
                     let msg = format!(
-                        "lifetime `{text}` is not checked yet here; so far only functions, implementations, methods, structs and enums take lifetimes"
+                        "lifetime `{text}` is not checked yet here; so far only functions, implementations, methods, structs, enums and traits take lifetimes"
                     );
                     self.diags
                         .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
@@ -2690,21 +2694,22 @@ impl Lower<'_, '_, '_> {
         path
     }
 
-    /// Whether `gl` is a top-level struct's or enum's generic list, whose
-    /// lifetimes are generic parameters of the type (`ref.lifetime.struct`,
-    /// `ref.lifetime.enum`).
-    fn struct_generics(&self, gl: NodeRef<'_>) -> bool {
+    /// Whether `gl` is a top-level struct's, enum's or trait's generic list,
+    /// whose lifetimes are generic parameters of the type
+    /// (`ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.trait`).
+    fn lifetime_generics(&self, gl: NodeRef<'_>) -> bool {
         matches!(self.owner_path(gl).as_slice(),
-            [outer, owner] if matches!(owner.kind(), SyntaxKind::DataDecl | SyntaxKind::EnumDecl)
+            [outer, owner] if matches!(owner.kind(), SyntaxKind::DataDecl | SyntaxKind::EnumDecl | SyntaxKind::TraitDecl)
                 && outer.kind() == SyntaxKind::Root)
     }
 
     /// Whether the lifetimes the generic list `gl` declares are checked
     /// (`ref.lifetime.declarations`): a top-level function's, an
     /// implementation's, a method's of an implementation or a trait, or
-    /// a top-level struct's or enum's (`ref.lifetime.struct`, `ref.lifetime.enum`).
+    /// a top-level struct's, enum's or trait's (`ref.lifetime.struct`,
+    /// `ref.lifetime.enum`, `ref.lifetime.trait`).
     fn lifetimes_checked(&self, gl: NodeRef<'_>) -> bool {
-        if self.struct_generics(gl) {
+        if self.lifetime_generics(gl) {
             return true;
         }
         match self.owner_path(gl).as_slice() {
@@ -2724,11 +2729,11 @@ impl Lower<'_, '_, '_> {
         }
     }
 
-    /// The lifetime arguments written in the named type `n` of `def`
-    /// (`ref.lifetime.struct.argument`): a struct's, one per lifetime
-    /// parameter or none. A signature records each one's slot, after the
-    /// type arguments' slots, 0 for an elided one (`ref.lifetime.struct.elide`);
-    /// in a field an elided one is a local reference escaping to the field.
+    /// The lifetime arguments written in the named type `n` of `def`: one
+    /// per lifetime parameter or none. A signature records each one's slot,
+    /// after the type arguments' slots, 0 for an elided one
+    /// (`ref.lifetime.struct.elide`, `ref.lifetime.trait.position`); in a
+    /// field an elided one is a local reference escaping to the field.
     fn lifetime_args(&mut self, n: NodeRef<'_>, (def, kind): (DefId, HeadKind), gn: &Gen) {
         let toks = &self.src.parse.tokens;
         let written: Vec<hd_base::TokenIdx> = Src::child(n, SyntaxKind::TypeArgumentList)
@@ -2738,14 +2743,14 @@ impl Lower<'_, '_, '_> {
                     .collect()
             })
             .unwrap_or_default();
-        let typed = matches!(kind, HeadKind::Data | HeadKind::Enum);
+        let typed = matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Trait);
         let want = if typed { self.r.lifetime_count(def) } else { 0 };
         let ids: Vec<u16> = written.iter().map(|&t| self.lifetime_of(t, gn)).collect();
         if self.r.frozen.is_none() {
             let name = self.names.display_name(def).to_owned();
             let span = self.src.span(n);
             if want == 0 && !written.is_empty() && !typed {
-                let msg = "a lifetime argument is not checked yet here; so far only a struct or an enum takes one";
+                let msg = "a lifetime argument is not checked yet here; so far only a struct, enum or trait takes one";
                 self.diags.error(Code::ReferencesNotYetChecked, span, msg);
             } else if !written.is_empty() && written.len() != want {
                 let s = if want == 1 { "" } else { "s" };
@@ -3392,10 +3397,10 @@ impl Lower<'_, '_, '_> {
             g.row = row;
             done.push(g);
         }
-        // `ref.lifetime.struct`: a struct's lifetimes follow its type
-        // parameters, in the order written, each taking the one lifetime
-        // argument by default.
-        if self.struct_generics(gl) {
+        // `ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.trait`:
+        // a type's lifetimes follow its type parameters, in the order written,
+        // each taking the one lifetime argument by default.
+        if self.lifetime_generics(gl) {
             let lt = crate::iface::lifetime_arg(self.names.pool.types());
             for &name in &gn.lifetimes[lifetimes_from..] {
                 done.push(Generic {
@@ -4328,6 +4333,8 @@ impl Lower<'_, '_, '_> {
             ItemData::Impl {
                 trait_: DefId::NONE,
                 trait_args: TyList::EMPTY,
+                trait_lifetimes: vec![],
+                self_lifetimes: vec![],
                 self_ty,
                 methods: vec![],
                 assoc: vec![],
@@ -4373,20 +4380,6 @@ impl Lower<'_, '_, '_> {
         let saved = self.slots.replace(Vec::new());
         let self_ty = self.ty_at(Some(target), &gn, true);
         gn.self_slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
-        // `ref.lifetime.not-yet.trait-target`: a trait's methods have no
-        // slots for the target's lifetimes yet. The implementation is left
-        // out, so nothing else is reported about it.
-        if trait_node.is_some() && gn.self_slots.iter().any(|l| *l != 0) {
-            if self.r.frozen.is_none() {
-                self.diags.error(
-                    Code::ReferencesNotYetChecked,
-                    self.src.span(target),
-                    "a lifetime in a trait implementation's target is not checked yet",
-                );
-            }
-            Self::poisoned_impl(h, self_ty, generics, out);
-            return;
-        }
         // `ref.lifetime.struct.impl.elided`: a lifetime struct's
         // lifetimes are its last slots.
         if let TyData::Adt { def, .. } = pool.get(self_ty)
@@ -4442,8 +4435,8 @@ impl Lower<'_, '_, '_> {
             }
             return;
         }
-        let (trait_, trait_args, header_bindings) = match trait_node {
-            None => (DefId::NONE, TyList::EMPTY, Vec::new()),
+        let (trait_, trait_args, trait_lifetimes, header_bindings) = match trait_node {
+            None => (DefId::NONE, TyList::EMPTY, Vec::new(), Vec::new()),
             Some(tn) => {
                 let segs = self.segments(tn);
                 if segs
@@ -4471,7 +4464,10 @@ impl Lower<'_, '_, '_> {
                     }
                     return;
                 }
-                let Some(tv) = self.trait_value_from(tn, &gn, Some(self_ty), found) else {
+                let saved = self.slots.replace(Vec::new());
+                let tv = self.trait_value_from(tn, &gn, Some(self_ty), found);
+                let trait_slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+                let Some(tv) = tv else {
                     Self::poisoned_impl(h, self_ty, generics, out);
                     return;
                 };
@@ -4480,11 +4476,34 @@ impl Lower<'_, '_, '_> {
                         def,
                         args,
                         bindings,
-                    } => (def, args, bindings),
+                    } => {
+                        let k = self.r.lifetime_count(def);
+                        let from = trait_slots.len().saturating_sub(k);
+                        (def, args, trait_slots[from..].to_vec(), bindings)
+                    }
                     _ => return,
                 }
             }
         };
+        // `ref.lifetime.trait.impl-target`: until the general impl-target rule
+        // lands, every written target lifetime is instantiated by one of
+        // this trait's lifetime arguments.
+        if trait_ != DefId::NONE
+            && gn
+                .self_slots
+                .iter()
+                .any(|l| *l != 0 && !trait_lifetimes.contains(l))
+        {
+            if self.r.frozen.is_none() {
+                self.diags.error(
+                    Code::ReferencesNotYetChecked,
+                    self.src.span(target),
+                    "a lifetime in a trait implementation's target is not checked yet unless the trait takes it as a lifetime argument",
+                );
+            }
+            Self::poisoned_impl(h, self_ty, generics, out);
+            return;
+        }
         // Only the compiler and the standard library implement a sealed
         // trait (`trait.sealed.user-impl`). The rejected implementation
         // is left out, so nothing else is reported about it.
@@ -4620,6 +4639,8 @@ impl Lower<'_, '_, '_> {
             ItemData::Impl {
                 trait_,
                 trait_args,
+                trait_lifetimes,
+                self_lifetimes: gn.self_slots.clone(),
                 self_ty,
                 methods,
                 assoc,
@@ -4867,6 +4888,8 @@ impl Lower<'_, '_, '_> {
                     ItemData::Impl {
                         trait_: tr,
                         trait_args: self.r.fill_trait_args(tr, TyList::EMPTY, Some(self_ty)),
+                        trait_lifetimes: vec![],
+                        self_lifetimes: vec![],
                         self_ty,
                         methods: vec![],
                         assoc: vec![],
@@ -5078,6 +5101,8 @@ impl Lower<'_, '_, '_> {
                 ItemData::Impl {
                     trait_: tr,
                     trait_args,
+                    trait_lifetimes: vec![],
+                    self_lifetimes: vec![],
                     self_ty,
                     methods,
                     assoc: vec![],
@@ -7361,6 +7386,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                 assoc,
                 by,
                 kind: kind @ (ImplKind::Delegated | ImplKind::Derived),
+                ..
             } = &it.data
             else {
                 continue;

@@ -33,7 +33,7 @@ use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
-    Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceRoot, Proj, Role, Tag, Word, slots,
+    Body, BodyKind, Callee, ChoiceKind, IntrinsicOp, NONE, PlaceRoot, Proj, Role, Tag, Word, slots,
 };
 use hd_types::{Ty, TyData, Types};
 
@@ -268,6 +268,83 @@ impl DepSig {
         }
     }
 
+    /// This trait method's map over an implementation method's concrete
+    /// `Self` shape (`ref.lifetime.trait.impl-target`). Trait lifetime `k` takes
+    /// the implementation lifetime written as its `k`th argument. Slots
+    /// which the trait's abstract `Self` gains from the implementation
+    /// target take that target slot's lifetime.
+    fn align_trait_impl(
+        self,
+        ls: &Layouts<'_>,
+        params: &[(hd_base::Symbol, Ty)],
+        ret: Ty,
+        trait_: DefId,
+        trait_lifetimes: &[u16],
+        self_lifetimes: &[u16],
+        impl_lifetime_count: usize,
+    ) -> DepSig {
+        let mut keys = Vec::new();
+        let remap = |id: u32, keys: &[hd_types::ParamRef]| {
+            if (TVAR..TVAR_END).contains(&id) {
+                let key = ((id - TVAR) >> 8) as usize;
+                let slot = ((id - TVAR) & 0xff) as usize;
+                if keys
+                    .get(key)
+                    .is_some_and(|p| p.owner == trait_ && p.index == 0)
+                    && let Some(&l) = self_lifetimes.get(slot)
+                    && l != 0
+                {
+                    return u32::from(l);
+                }
+                return id;
+            }
+            if id == 0 || id >= ANON {
+                return id;
+            }
+            let at = id as usize - 1;
+            if let Some(&l) = trait_lifetimes.get(at) {
+                return u32::from(l);
+            }
+            u32::try_from(impl_lifetime_count + at + 1 - trait_lifetimes.len()).unwrap_or(id)
+        };
+        let params = self
+            .params
+            .into_iter()
+            .zip(params)
+            .map(|((decl, ids), &(_, actual))| {
+                let mut it = ids.into_iter();
+                let mut out = Vec::new();
+                if line_up(ls, decl, actual, &mut it, &mut keys, &mut out, 0) {
+                    for id in &mut out {
+                        *id = remap(*id, &keys);
+                    }
+                    (actual, out)
+                } else {
+                    (decl, Vec::new())
+                }
+            })
+            .collect();
+        let mut it = self.outs.into_iter().map(|o| o.unwrap_or(NO_SOURCE));
+        let mut outs = Vec::new();
+        if line_up(ls, self.ret, ret, &mut it, &mut keys, &mut outs, 0) {
+            for id in &mut outs {
+                *id = remap(*id, &keys);
+            }
+        } else {
+            outs.clear();
+        }
+        DepSig {
+            params,
+            outs: outs
+                .into_iter()
+                .map(|id| (id != NO_SOURCE).then_some(id))
+                .collect(),
+            ret,
+            elided: self.elided,
+            capture_elided: self.capture_elided,
+        }
+    }
+
     /// Whether the result depends on any input.
     fn depends(&self) -> bool {
         self.outs.iter().any(Option::is_some) || matches!(self.elided, Elided::Lifetime(_))
@@ -328,6 +405,7 @@ impl DepSig {
         b: &Body,
         i: usize,
         callee: Option<(DefId, &[hd_resolve::Generic])>,
+        self_slots: Option<(hd_types::ParamRef, &[Option<u32>])>,
     ) -> DepSig {
         let mut keys = Vec::new();
         let mut lossy = false;
@@ -339,6 +417,9 @@ impl DepSig {
             let mut it = ids.iter().copied();
             match at {
                 Some(t) if line_up(ls, decl, t, &mut it, &mut keys, &mut out, 0) => {
+                    if let Some((self_param, slots)) = self_slots {
+                        remap_param_slots(&mut out, &keys, self_param, slots);
+                    }
                     let outlives = callee.and_then(|(def, generics)| {
                         crate::local_refs::outlives_field(
                             pool,
@@ -377,6 +458,9 @@ impl DepSig {
         let any = |s: &Slot| if s.fun { ANY_FN } else { ANY };
         let slots = ls.of(ret);
         let outs = if line_up(ls, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
+            if let Some((self_param, slots)) = self_slots {
+                remap_param_slots(&mut out, &keys, self_param, slots);
+            }
             out.into_iter()
                 .zip(&slots.slots)
                 .map(|(id, s)| match id {
@@ -560,6 +644,28 @@ fn line_up(
             },
         ) if x == y => list(a, b, ids, keys, out),
         _ => ls.of(d).slots.is_empty() && ls.of(t).slots.is_empty(),
+    }
+}
+
+/// Replaces type-variable slots of `param` with the declared lifetime of
+/// each corresponding concrete slot.
+fn remap_param_slots(
+    ids: &mut [u32],
+    keys: &[hd_types::ParamRef],
+    param: hd_types::ParamRef,
+    slots: &[Option<u32>],
+) {
+    for id in ids {
+        if !(TVAR..TVAR_END).contains(id) {
+            continue;
+        }
+        let key = ((id.wrapping_sub(TVAR)) >> 8) as usize;
+        let slot = (id.wrapping_sub(TVAR) & 0xff) as usize;
+        if keys.get(key) == Some(&param)
+            && let Some(Some(mapped)) = slots.get(slot)
+        {
+            *id = *mapped;
+        }
     }
 }
 
@@ -1764,7 +1870,7 @@ impl Solve<'_> {
                 sig.ret,
                 &sig.lifetimes,
             )
-            .instantiate(ls, b, i, None)
+            .instantiate(ls, b, i, None, None)
             .params;
             let dest = |p: hd_types::ParamRef| {
                 let generics = if p.owner == def {
@@ -2102,26 +2208,88 @@ impl Ck<'_, '_> {
         &self,
         tsig: &hd_resolve::FnSig,
         sig: &hd_resolve::FnSig,
+        trait_: DefId,
+        trait_lifetimes: &[u16],
+        self_lifetimes: &[u16],
+        impl_lifetime_count: usize,
     ) -> hd_types::FnDeps {
         let pool = self.pool();
-        if !pool.has_opaque(tsig.ret) || pool.ref_slots(tsig.ret) == 0 {
-            return self.sig_fn_deps(tsig, 0);
-        }
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
         let ls = &Layouts::new(pool);
-        DepSig::new(ls, &tsig.params, is_self, tsig.ret, &tsig.lifetimes)
-            .open(ls, sig.ret)
-            .to_fn(ls, 0)
+        let dep = DepSig::new(ls, &tsig.params, is_self, tsig.ret, &tsig.lifetimes);
+        let dep = if pool.has_opaque(tsig.ret) && pool.ref_slots(tsig.ret) != 0 {
+            dep.open(ls, sig.ret)
+        } else {
+            dep
+        };
+        dep.align_trait_impl(
+            ls,
+            &sig.params,
+            sig.ret,
+            trait_,
+            trait_lifetimes,
+            self_lifetimes,
+            impl_lifetime_count,
+        )
+        .to_fn(ls, 0)
     }
 
     /// The dependency map of a callee's signature (`ref.dep.call`,
     /// `ref.dep.trait`): a trait method's from the trait's signature.
     /// At call `i` of `b`, the map is over the types the call instantiates
     /// (`ref.generic.call`).
-    fn callee_dep(&self, ls: &Layouts<'_>, def: DefId, b: &Body, i: usize) -> Option<DepSig> {
+    fn callee_dep(&self, ls: &Layouts<'_>, b: &Body, i: usize) -> Option<DepSig> {
+        let (def, trait_, self_slots) = match b.tags[i] {
+            Tag::Call | Tag::Await => match Callee::from_words(b.record(b.data[i][0]))? {
+                Callee::Item { def, .. } => (def, None, Vec::new()),
+                Callee::TraitMethod {
+                    trait_,
+                    method,
+                    self_ty,
+                    choice,
+                    ..
+                } => {
+                    let slots = match choice {
+                        (ChoiceKind::Impl, imp) => self.impl_trait_self_slots(DefId::from_raw(imp)),
+                        (ChoiceKind::TraitValue, _) => {
+                            self.trait_value_self_slots(ls, trait_, self_ty)
+                        }
+                        _ => Vec::new(),
+                    };
+                    (method, Some(trait_), slots)
+                }
+            },
+            Tag::CallDyn => {
+                let method = b
+                    .record(b.data[i][1])
+                    .first()
+                    .copied()
+                    .map(DefId::from_raw)?;
+                let trait_ = match self.cx.lookup.item(method).map(|m| &m.data) {
+                    Some(hd_resolve::ItemData::Method { owner, .. }) => *owner,
+                    _ => return None,
+                };
+                let t = source_arg(b, i, 0).and_then(|a| arg_ty(ls.pool, b, a))?;
+                (
+                    method,
+                    Some(trait_),
+                    self.trait_value_self_slots(ls, trait_, t),
+                )
+            }
+            _ => return None,
+        };
         let sig = self.sig_of(def).ok()?;
         let names = &self.cx.names;
+        let self_slots = trait_.map(|tr| {
+            (
+                hd_types::ParamRef {
+                    owner: tr,
+                    index: 0,
+                },
+                self_slots.as_slice(),
+            )
+        });
         let dep = DepSig::new(
             ls,
             &sig.params,
@@ -2129,8 +2297,65 @@ impl Ck<'_, '_> {
             sig.ret,
             &sig.lifetimes,
         )
-        .instantiate(ls, b, i, Some((def, &sig.generics)));
+        .instantiate(ls, b, i, Some((def, &sig.generics)), self_slots);
         dep.depends().then_some(dep)
+    }
+
+    /// For each reference slot an implementation gives the trait's
+    /// abstract `Self`, the trait lifetime it instantiates there.
+    fn impl_trait_self_slots(&self, imp: DefId) -> Vec<Option<u32>> {
+        let Some(hd_resolve::ItemData::Impl {
+            trait_lifetimes,
+            self_lifetimes,
+            ..
+        }) = self.cx.lookup.item(imp).map(|i| &i.data)
+        else {
+            return Vec::new();
+        };
+        self_lifetimes
+            .iter()
+            .map(|l| {
+                trait_lifetimes
+                    .iter()
+                    .position(|x| x == l && *l != 0)
+                    .map(|k| w(k + 1))
+            })
+            .collect()
+    }
+
+    /// The hidden lifetime-argument slots of a trait value, numbered as
+    /// the trait declares them (`ref.lifetime.trait`).
+    fn trait_value_self_slots(
+        &self,
+        ls: &Layouts<'_>,
+        trait_: DefId,
+        mut t: Ty,
+    ) -> Vec<Option<u32>> {
+        let pool = ls.pool;
+        while let TyData::Ref { inner, .. } | TyData::Mut(inner) = pool.get(t) {
+            t = inner;
+        }
+        let TyData::TraitValue { def, args, .. } = pool.get(t) else {
+            return Vec::new();
+        };
+        if def != trait_ {
+            return Vec::new();
+        }
+        let Some(item) = self.cx.lookup.item(trait_) else {
+            return Vec::new();
+        };
+        let mut lifetime = 0_u32;
+        let mut out = Vec::new();
+        for (&arg, generic) in pool.list_items(args).iter().zip(&item.generics) {
+            let n = ls.of(arg).slots.len();
+            if generic.lifetime {
+                lifetime += 1;
+                out.extend(std::iter::repeat_n(Some(lifetime), n));
+            } else {
+                out.extend(std::iter::repeat_n(None, n));
+            }
+        }
+        out
     }
 
     /// The map of call `i`, when it passes a local-holding value and may
@@ -2173,7 +2398,7 @@ impl Ck<'_, '_> {
             sig.ret,
             &sig.lifetimes,
         )
-        .instantiate(ls, b, i, Some((def, &sig.generics)));
+        .instantiate(ls, b, i, Some((def, &sig.generics)), None);
         // A slot of a type parameter, or of a written lifetime
         // (`ref.lifetime.store.call`).
         let shared = dep.params.iter().any(|(_, ids)| {
@@ -2255,17 +2480,7 @@ impl Ck<'_, '_> {
                     through = true;
                 }
                 Tag::Call | Tag::Await | Tag::CallDyn if ls.holds(body.ty[i]) => {
-                    let def = match body.tags[i] {
-                        Tag::CallDyn => body.record(body.data[i][1]).first().copied(),
-                        _ => match Callee::from_words(body.record(body.data[i][0])) {
-                            Some(Callee::Item { def, .. }) => Some(def.raw()),
-                            Some(Callee::TraitMethod { method, .. }) => Some(method.raw()),
-                            None => None,
-                        },
-                    };
-                    if let Some(dep) =
-                        def.and_then(|d| self.callee_dep(ls, DefId::from_raw(d), body, i))
-                    {
+                    if let Some(dep) = self.callee_dep(ls, body, i) {
                         deps.insert(w(i), dep);
                     }
                 }
