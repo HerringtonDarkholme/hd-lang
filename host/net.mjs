@@ -25,7 +25,6 @@ import { promises as dns } from "node:dns";
 import net from "node:net";
 import { setImmediate as nextCheck } from "node:timers/promises";
 import { workerData } from "node:worker_threads";
-import { validHost } from "./node-files.mjs";
 
 // Open handles by number; a closed one stays, marked, so each later
 // operation on it is `Closed`.
@@ -43,6 +42,18 @@ const timedOut = () => ({ error: ["Timeout"] });
 // What `Inbox.next` returns when its bound ends first.
 const TIMED_OUT = Symbol("timed out");
 const CANCELLED = Symbol("cancelled");
+
+async function immediateResult(ms, signal, ready) {
+  if (ms === null || ms > 0 || ready()) {
+    return null;
+  }
+  await nextCheck();
+  await nextCheck();
+  if (signal?.aborted) {
+    return CANCELLED;
+  }
+  return ready() ? null : TIMED_OUT;
+}
 
 // The `NetError` of a failed socket operation on `address`, or of a lookup
 // of `host` (std-net.error.*).
@@ -100,19 +111,9 @@ class Inbox {
   // `TIMED_OUT` once `ms` milliseconds pass first (`null`: no bound).
   async next(ms = null, signal = null) {
     const ready = () => this.items.length || this.end !== null;
-    if (ms !== null && ms <= 0 && !ready()) {
-      // The kernel may have input whose libuv callback has not run yet.
-      // A check callback can be in this same loop iteration; the second
-      // check guarantees an intervening non-waiting I/O poll. Neither
-      // pass waits for future input or adds a wall-clock grace period.
-      await nextCheck();
-      await nextCheck();
-      if (signal?.aborted) {
-        return CANCELLED;
-      }
-      if (!ready()) {
-        return TIMED_OUT;
-      }
+    const immediate = await immediateResult(ms, signal, ready);
+    if (immediate !== null) {
+      return immediate;
     }
     let late = false;
     const timer =

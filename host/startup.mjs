@@ -23,6 +23,29 @@ const startupImports = (module) =>
       kind === "function" && module === "hd:rt" && (name === "panic" || name === "stderr"),
   );
 
+function startupFailure(error, sink, reported) {
+  if (error instanceof HostContract) {
+    sink.err(`panic: host-contract: ${error.message}\n`);
+    return { panic: `host-contract: ${error.message}\n`, frames: [] };
+  }
+  if (error instanceof RangeError && /call stack size/i.test(error.message)) {
+    sink.err(
+      "panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n",
+    );
+    return {
+      panic: "stack-exhausted: the call stack ran out; check for recursion that never ends\n",
+      frames: wasmFrames(error),
+    };
+  }
+  if (!(error instanceof WebAssembly.RuntimeError)) {
+    throw error;
+  }
+  if (!reported) {
+    sink.err(`internal error: ${error.message}\n`);
+  }
+  return { panic: null, frames: wasmFrames(error) };
+}
+
 function createStartupOnlyHost(sink, deadline) {
   let memory = null;
   let reported = false;
@@ -70,23 +93,7 @@ function createStartupOnlyHost(sink, deadline) {
         cancelled = true;
       }
     } catch (error) {
-      if (error instanceof HostContract) {
-        sink.err(`panic: host-contract: ${error.message}\n`);
-        panic = `host-contract: ${error.message}\n`;
-      } else if (error instanceof RangeError && /call stack size/i.test(error.message)) {
-        sink.err(
-          "panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n",
-        );
-        panic = "stack-exhausted: the call stack ran out; check for recursion that never ends\n";
-        frames = wasmFrames(error);
-      } else if (error instanceof WebAssembly.RuntimeError) {
-        frames = wasmFrames(error);
-        if (!reported) {
-          sink.err(`internal error: ${error.message}\n`);
-        }
-      } else {
-        throw error;
-      }
+      ({ panic, frames } = startupFailure(error, sink, reported));
       status = 3;
       trapped = true;
     }

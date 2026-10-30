@@ -6,14 +6,7 @@ const err = (variant, text = null) => ({ error: variant, text });
 export const hasNoBody = (method, status) =>
   method === "HEAD" || (status >= 100 && status < 200) || status === 204 || status === 304;
 
-// Produces the one representation that crosses the host ABI. Validate the
-// complete coding stack before transforming any bytes, then undo codings in
-// reverse order. Node's gzip decoder accepts concatenated members and checks
-// every member trailer.
-export function decodedResponse(method, status, headers, encoded) {
-  if (hasNoBody(method, status)) {
-    return { status, headers, body: Buffer.alloc(0) };
-  }
+function contentCodings(headers) {
   const fields = headers.filter(([name]) => name.toLowerCase() === "content-encoding");
   const codings = [];
   for (const [, value] of fields) {
@@ -25,6 +18,22 @@ export function decodedResponse(method, status, headers, encoded) {
       codings.push(coding);
     }
   }
+  return { fields, codings };
+}
+
+// Produces the one representation that crosses the host ABI. Validate the
+// complete coding stack before transforming any bytes, then undo codings in
+// reverse order. Node's gzip decoder accepts concatenated members and checks
+// every member trailer.
+export function decodedResponse(method, status, headers, encoded) {
+  if (hasNoBody(method, status)) {
+    return { status, headers, body: Buffer.alloc(0) };
+  }
+  const parsed = contentCodings(headers);
+  if (parsed.error) {
+    return parsed;
+  }
+  const { fields, codings } = parsed;
   let body = encoded;
   for (const coding of [...codings].reverse()) {
     if (coding === "identity") {

@@ -359,24 +359,7 @@ export function cgroupCpuCount(root, group, offered) {
   return Math.max(1, count);
 }
 
-function cpuCount() {
-  const offered = availableParallelism();
-  if (platform() !== "linux") {
-    return offered;
-  }
-  const membership = quotaText("/proc/self/cgroup");
-  if (membership === null) {
-    return offered;
-  }
-  const groups = membership.split("\n").map((line) => /^(\d+):([^:]*):(\/.*)$/.exec(line));
-  const cpu = groups.find((group) => group?.[2].split(",").includes("cpu"));
-  const unified = groups.find((group) => group?.[1] === "0" && group[2] === "");
-  if (!cpu) {
-    return unified ? cgroupCpuCount("/sys/fs/cgroup", unified[3], offered) : offered;
-  }
-
-  // Rust checks these conventional v1 mounts before scanning mountinfo.
-  const group = cpu[3];
+function v1CpuCount(group, offered) {
   for (const root of ["/sys/fs/cgroup/cpu", "/sys/fs/cgroup/cpu,cpuacct"]) {
     if (existsSync(join(root, group))) {
       return cgroupCpuCount(root, group, offered);
@@ -394,6 +377,25 @@ function cpuCount() {
     }
   }
   return offered;
+}
+
+function cpuCount() {
+  const offered = availableParallelism();
+  if (platform() !== "linux") {
+    return offered;
+  }
+  const membership = quotaText("/proc/self/cgroup");
+  if (membership === null) {
+    return offered;
+  }
+  const groups = membership.split("\n").map((line) => /^(\d+):([^:]*):(\/.*)$/.exec(line));
+  const cpu = groups.find((group) => group?.[2].split(",").includes("cpu"));
+  const unified = groups.find((group) => group?.[1] === "0" && group[2] === "");
+  if (!cpu) {
+    return unified ? cgroupCpuCount("/sys/fs/cgroup", unified[3], offered) : offered;
+  }
+
+  return v1CpuCount(cpu[3], offered);
 }
 
 // The host system's four reads (std-host.sys.*). The grant covers each by
@@ -738,6 +740,44 @@ const isDirectory = (path) => {
 };
 const noDirectory = (dir) => Err({ tag: "Other", message: `working directory not found: ${dir}` });
 
+function childEnvironment(pairs) {
+  const childEnv = { ...process.env };
+  for (const [key, value] of pairs) {
+    const own =
+      platform() === "win32"
+        ? Object.keys(childEnv).find((candidate) => candidate.toUpperCase() === key.toUpperCase())
+        : undefined;
+    childEnv[own ?? key] = value;
+  }
+  return childEnv;
+}
+
+function processCommand({ env, name, argv, pairs, dir }) {
+  const bad = refusal(name, argv, pairs, dir);
+  if (bad) {
+    return bad;
+  }
+  if (!env.programs) {
+    if (name === "") {
+      return Err({ tag: "NotFound", program: name });
+    }
+    return {
+      program: name,
+      args: argv,
+      cwd: dir === null ? process.cwd() : resolve(process.cwd(), dir),
+    };
+  }
+  const executable = env.programs[name];
+  if (!executable) {
+    return Err({ tag: "NotFound", program: name });
+  }
+  return {
+    program: process.execPath,
+    args: [executable.host, executable.wasm, executable.config, ...argv],
+    cwd: dir === null ? executable.cwd : resolve(executable.cwd, dir),
+  };
+}
+
 // `hd:Process`: running host programs (`Process.run!`, cli.host.default-
 // profile, cli.test.process): the test runner's provider starts the
 // package's executables and tasks by name, the default profile's a host
@@ -751,40 +791,11 @@ function processProvider({ grant, env, left, processClient }) {
     if (ms <= 0) {
       throw new TimeLimit();
     }
-    // module.process.command-env: later pairs win, without case on Windows.
-    const childEnv = { ...process.env };
-    for (const [key, value] of pairs) {
-      const own =
-        platform() === "win32"
-          ? Object.keys(childEnv).find((k) => k.toUpperCase() === key.toUpperCase())
-          : undefined;
-      childEnv[own ?? key] = value;
+    const command = processCommand({ env, name, argv, pairs, dir });
+    if (command.ok === false) {
+      return command;
     }
-    let program = name;
-    let args = argv;
-    let cwd;
-    if (env.programs) {
-      const p = env.programs[name];
-      if (!p) {
-        return Err({ tag: "NotFound", program: name });
-      }
-      const bad = refusal(name, argv, pairs, dir);
-      if (bad) {
-        return bad;
-      }
-      cwd = dir === null ? p.cwd : resolve(p.cwd, dir);
-      program = process.execPath;
-      args = [p.host, p.wasm, p.config, ...argv];
-    } else {
-      if (name === "") {
-        return Err({ tag: "NotFound", program: name });
-      }
-      const bad = refusal(name, argv, pairs, dir);
-      if (bad) {
-        return bad;
-      }
-      cwd = dir === null ? process.cwd() : resolve(process.cwd(), dir);
-    }
+    const { program, args, cwd } = command;
     if (!isDirectory(cwd)) {
       return noDirectory(dir);
     }
@@ -794,7 +805,7 @@ function processProvider({ grant, env, left, processClient }) {
       program,
       args,
       cwd,
-      env: childEnv,
+      env: childEnvironment(pairs),
       input: text,
       timeout: ms,
     });

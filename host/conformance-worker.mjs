@@ -172,6 +172,18 @@ async function runScenario(header, host, instance) {
 
 // Runs one entry case with a fresh host and returns its status and its
 // captured standard output and error, as `run.mjs` would write them.
+async function executeEntry(header, host, module) {
+  const instance = await WebAssembly.instantiate(module, host.imports);
+  if (!header.scenario) {
+    return (await host.run(instance, "hd.init", "hd.poll")).status;
+  }
+  const status = await runScenario(header, host, instance);
+  if (header.scenario !== "cancellation-cleanup") {
+    return { status, report: cycleReport(module, instance) };
+  }
+  return { status, report: null };
+}
+
 async function runEntry(header, wasm, stdinText) {
   let stdoutStr = "";
   let stderrStr = "";
@@ -204,21 +216,12 @@ async function runEntry(header, wasm, stdinText) {
         stdin: stdinFd,
       },
     );
-    const instance = await WebAssembly.instantiate(module, host.imports);
-    if (header.scenario) {
-      const status = await runScenario(header, host, instance);
-      // Cancellation uses host.run, which already reports. The other
-      // scenarios drive exports directly and report once here.
-      if (header.scenario !== "cancellation-cleanup") {
-        const report = cycleReport(module, instance);
-        if (report !== null) {
-          stderrStr += report;
-        }
-      }
-      return { status, stdoutStr, stderrStr };
+    const executed = await executeEntry(header, host, module);
+    if (typeof executed === "number") {
+      return { status: executed, stdoutStr, stderrStr };
     }
-    const { status } = await host.run(instance, "hd.init", "hd.poll");
-    return { status, stdoutStr, stderrStr };
+    stderrStr += executed.report ?? "";
+    return { status: executed.status, stdoutStr, stderrStr };
   } catch (e) {
     stderrStr += (e?.stack ?? String(e)) + "\n";
     return { status: 1, stdoutStr, stderrStr };

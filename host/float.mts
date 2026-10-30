@@ -28,6 +28,17 @@ interface FloatParts {
   hidden: bigint;
 }
 
+function interval({ f, e, min, hidden }: FloatParts): [bigint, bigint, bigint, bigint] {
+  const narrow = f === hidden && e !== min;
+  if (e >= 0) {
+    const scale = 1n << BigInt(e);
+    return narrow ? [f * scale * 4n, 4n, scale * 2n, scale] : [f * scale * 2n, 2n, scale, scale];
+  }
+  return narrow
+    ? [f * 4n, (1n << BigInt(-e + 1)) * 2n, 2n, 1n]
+    : [f * 2n, (1n << BigInt(-e)) * 2n, 1n, 1n];
+}
+
 const WIDTH: Record<FloatWidth, { mantissa: number; bias: number }> = {
   32: { mantissa: 23, bias: 127 },
   64: { mantissa: 52, bias: 1023 },
@@ -75,23 +86,7 @@ function split(value: number, width: FloatWidth): FloatParts {
 function digits({ f, e, min, hidden }: FloatParts): { digits: string; k: number } {
   // The value is r / s; `up` and `down` are the distances to the halfway
   // points above and below, in the same unit.
-  let r: bigint;
-  let s: bigint;
-  let up: bigint;
-  let down: bigint;
-  const narrow = f === hidden && e !== min; // the gap below is half the gap above
-  if (e >= 0) {
-    const scale = 1n << BigInt(e);
-    if (!narrow) {
-      [r, s, up, down] = [f * scale * 2n, 2n, scale, scale];
-    } else {
-      [r, s, up, down] = [f * scale * 4n, 4n, scale * 2n, scale];
-    }
-  } else if (!narrow) {
-    [r, s, up, down] = [f * 2n, (1n << BigInt(-e)) * 2n, 1n, 1n];
-  } else {
-    [r, s, up, down] = [f * 4n, (1n << BigInt(-e + 1)) * 2n, 2n, 1n];
-  }
+  let [r, s, up, down] = interval({ f, e, min, hidden });
   const closed = (f & 1n) === 0n;
   // `k` is the least exponent with the high end of the interval below
   // 10**k (at most 10**k when the ends are inside).
