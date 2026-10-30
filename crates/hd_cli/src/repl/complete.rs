@@ -136,7 +136,7 @@ fn inside_text(head: &str, at: usize) -> bool {
             return false;
         }
         match tokens.kind[i] {
-            T::String | T::StrHead | T::StrMid | T::StrTail | T::Char => true,
+            T::String | T::StrHead | T::StrMid | T::StrTail | T::Char | T::Lifetime => true,
             // An unterminated string is an error token to the end of the line.
             T::Error => head[lo as usize..hi as usize]
                 .trim_start_matches(|c: char| c.is_alphabetic())
