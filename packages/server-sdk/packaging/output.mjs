@@ -48,6 +48,75 @@ function publisher(profile) {
   function generationId(configuration, files) {
     return hash(JSON.stringify({ configuration, files }));
   }
+  function allowedDirectories(files) {
+    const directories = new Set();
+    for (const name of Object.keys(files ?? {})) {
+      const parts = name.split("/");
+      for (let n = 1; n < parts.length; n++) {
+        directories.add(parts.slice(0, n).join("/"));
+      }
+    }
+    return directories;
+  }
+  async function inspectGeneration(generations, name, active) {
+    if (!profile.validName(name)) {
+      throw fail("unrecognized generation");
+    }
+    const base = join(generations, name);
+    const entry = await lstat(base);
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      throw fail("invalid generation directory");
+    }
+    const record = await ownershipRecord(join(base, generationMarker));
+    const id = generationId(record.configuration, record.files);
+    if (
+      record.format !== 1 ||
+      record.platform !== profile.platform ||
+      ((profile.platform === "vercel-node" || Object.hasOwn(record, "generation")) &&
+        record.generation !== id) ||
+      typeof record.files?.[profile.entry] !== "string" ||
+      !same(record.files, await inventory(base, allowedDirectories(record.files))) ||
+      profile.directory(record.configuration, id) !== name
+    ) {
+      throw fail("generation contains added or changed files");
+    }
+    return {
+      id,
+      active: active === json(profile.configuration(record.configuration, id)),
+    };
+  }
+  function captureFiles(files) {
+    if (!(files instanceof Map) || !files.has(profile.entry)) {
+      throw fail("platform entry is required");
+    }
+    const captured = new Map();
+    for (const [name, value] of [...files].sort(([a], [b]) => a.localeCompare(b, "en"))) {
+      if (
+        typeof name !== "string" ||
+        name
+          .split("/")
+          .some((part) => !part || part === "." || part === ".." || part.includes("\\")) ||
+        name.startsWith("/") ||
+        name.includes(":") ||
+        name.split("/").includes(generationMarker) ||
+        !(value instanceof Uint8Array)
+      ) {
+        throw fail("invalid captured output file");
+      }
+      captured.set(name, Uint8Array.from(value));
+    }
+    return captured;
+  }
+  async function activeConfiguration(output) {
+    try {
+      return (await regular(join(output, profile.selector))).toString("utf8");
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+      return null;
+    }
+  }
   async function inspect(output) {
     let stat;
     try {
@@ -66,15 +135,7 @@ function publisher(profile) {
     }
     // Platform caches and unrelated root files are outside the SDK's ownership.
     // Only the selector and reserved generation store are inspected or changed.
-    let active;
-    try {
-      active = (await regular(join(output, profile.selector))).toString("utf8");
-    } catch (error) {
-      if (error.code !== "ENOENT") {
-        throw error;
-      }
-      active = null;
-    }
+    const active = await activeConfiguration(output);
     const generations = join(output, profile.store);
     let directory;
     try {
@@ -91,39 +152,9 @@ function publisher(profile) {
     const known = new Set();
     let activeKnown = active === null;
     for (const name of await readdir(generations)) {
-      if (!profile.validName(name)) {
-        throw fail("unrecognized generation");
-      }
-      const base = join(generations, name);
-      const entry = await lstat(base);
-      if (!entry.isDirectory() || entry.isSymbolicLink()) {
-        throw fail("invalid generation directory");
-      }
-      const record = await ownershipRecord(join(base, generationMarker));
-      const id = generationId(record.configuration, record.files);
-      const allowedDirectories = new Set();
-      for (const name of Object.keys(record.files ?? {})) {
-        const parts = name.split("/");
-        for (let n = 1; n < parts.length; n++) {
-          allowedDirectories.add(parts.slice(0, n).join("/"));
-        }
-      }
-      if (
-        record.format !== 1 ||
-        record.platform !== profile.platform ||
-        ((profile.platform === "vercel-node" || Object.hasOwn(record, "generation")) &&
-          record.generation !== id) ||
-        typeof record.files?.[profile.entry] !== "string" ||
-        !same(record.files, await inventory(base, allowedDirectories)) ||
-        profile.directory(record.configuration, id) !== name
-      ) {
-        throw fail("generation contains added or changed files");
-      }
-      const configuration = json(profile.configuration(record.configuration, id));
-      if (active === configuration) {
-        activeKnown = true;
-      }
-      known.add(id);
+      const inspected = await inspectGeneration(generations, name, active);
+      activeKnown ||= inspected.active;
+      known.add(inspected.id);
     }
     if (!activeKnown) {
       throw fail("platform configuration was changed outside the SDK");
@@ -136,26 +167,8 @@ function publisher(profile) {
   // their original generation. Prior generations are deliberately retained.
   async function publish({ outputDirectory, files, configuration, signal }) {
     signal?.throwIfAborted();
-    if (!(files instanceof Map) || !files.has(profile.entry)) {
-      throw fail("platform entry is required");
-    }
     profile.check(configuration);
-    const captured = new Map();
-    for (const [name, value] of [...files].sort(([a], [b]) => a.localeCompare(b, "en"))) {
-      if (
-        typeof name !== "string" ||
-        name
-          .split("/")
-          .some((part) => !part || part === "." || part === ".." || part.includes("\\")) ||
-        name.startsWith("/") ||
-        name.includes(":") ||
-        name.split("/").includes(generationMarker) ||
-        !(value instanceof Uint8Array)
-      ) {
-        throw fail("invalid captured output file");
-      }
-      captured.set(name, Uint8Array.from(value));
-    }
+    const captured = captureFiles(files);
     const config = JSON.parse(JSON.stringify(configuration));
     const hashes = Object.fromEntries([...captured].map(([name, bytes]) => [name, hash(bytes)]));
     const generation = generationId(config, hashes);
