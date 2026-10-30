@@ -129,9 +129,8 @@ impl Ck<'_, '_> {
                 };
                 let mut ex = Vec::new();
                 if let Some(tl) = Src::child(base, SyntaxKind::TypeArgumentList) {
-                    for t in tl.children().filter(|c| c.kind().is_type()) {
-                        ex.push(self.explicit_targ(t, false)?);
-                    }
+                    let gens = self.explicit_generics(inner);
+                    ex = self.explicit_targs(tl, &gens)?;
                 }
                 (inner, ex)
             } else {

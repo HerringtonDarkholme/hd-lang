@@ -21,6 +21,8 @@ pub enum ConstName<'a> {
     Runtime,
     /// No value of that name is in scope.
     Unknown,
+    /// A type, which no const slot takes.
+    Type,
     /// A name already reported, or one this evaluator cannot read yet.
     Poison,
 }
@@ -354,6 +356,10 @@ impl<'a> Eval<'_, 'a> {
             ConstName::Unknown => Err(Fail::Error(ConstError {
                 code: Code::UnknownName,
                 message: format!("no value named `{name}` is in scope"),
+            })),
+            ConstName::Type => Err(Fail::Error(ConstError {
+                code: Code::GenericKindMismatch,
+                message: format!("`{name}` is a type, but a const parameter takes a value"),
             })),
             // The use's type types the initializer (`types.generic.const.evaluate`).
             ConstName::Binding { src: at, init } => {

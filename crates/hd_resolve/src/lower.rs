@@ -2010,6 +2010,9 @@ impl Lower<'_, '_, '_> {
                     declared = Some(*ty);
                     return ConstName::Param(*slot);
                 }
+                if Prim::ALL.iter().any(|p| p.name() == name) {
+                    return ConstName::Type;
+                }
                 top_level_binding(&src, name).unwrap_or_else(|| {
                     other_module = true;
                     ConstName::Poison
