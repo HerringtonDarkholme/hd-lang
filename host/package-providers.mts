@@ -815,23 +815,23 @@ export function createPackageRuntime(
                   throw new HostContract(`${label}: provider callback threw ${String(error)}`);
                 }
               };
-              return io.pending(
-                prepared.at,
-                () => call(prepared.done),
-                key,
-                () => {
+              return io.pending({
+                at: prepared.at,
+                done: () => call(prepared.done),
+                method: key,
+                poll: () => {
                   const ready = call(prepared.poll);
                   if (typeof ready !== "boolean") {
                     fail(`readiness probe for ${label} did not return a boolean`);
                   }
                   return ready;
                 },
-                () => {
+                abort: () => {
                   operation.abort();
                   call(prepared.abort);
                 },
-                prepared.finish ? () => call(prepared.finish) : null,
-              );
+                finish: prepared.finish ? () => call(prepared.finish) : null,
+              });
             }
             if (!value || typeof value.then !== "function") {
               return [0, write(value)];
@@ -856,22 +856,22 @@ export function createPackageRuntime(
                 }
               },
             );
-            return io.pending(
-              performance.now(),
-              () => {
+            return io.pending({
+              at: performance.now(),
+              done: () => {
                 if (rejected) {
                   fail(`provider ${label} rejected: ${String(failure)}`);
                 }
                 return kept;
               },
-              key,
-              () => ready,
-              () => {
+              method: key,
+              poll: () => ready,
+              abort: () => {
                 live = false;
                 kept = undefined;
                 operation.abort();
               },
-            );
+            });
           };
           out[`${m.name}.finish`] = (id: number) => write(io.finished(id, key));
         }

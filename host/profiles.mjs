@@ -56,7 +56,7 @@ export function providers(name, io) {
       };
       return {
         "hd:Files": {
-          "open.start": () => io.pending(performance.now(), null),
+          "open.start": () => io.pending({ at: performance.now(), done: null }),
           "open.finish": (h) => {
             io.finish(h);
             const file = files.size + 1;
@@ -66,7 +66,7 @@ export function providers(name, io) {
         },
         "hd:FileHandle": {
           "read.start": (file) => {
-            const [status, h] = io.pending(performance.now(), null);
+            const [status, h] = io.pending({ at: performance.now(), done: null });
             reads.set(h, file);
             return [status, h];
           },
@@ -94,7 +94,7 @@ export function providers(name, io) {
     case "pending-tick":
       return {
         "hd:Tick": {
-          "tick.start": () => io.pending(performance.now(), null),
+          "tick.start": () => io.pending({ at: performance.now(), done: null }),
           "tick.finish": (h) => {
             io.finish(h);
             return 0;
@@ -106,7 +106,7 @@ export function providers(name, io) {
     case "pending-gate":
       return {
         "hd:Gate": {
-          "wait.start": () => io.pending(Infinity, null),
+          "wait.start": () => io.pending({ at: Infinity, done: null }),
           "wait.finish": (h) => {
             io.finish(h);
             return 0;
