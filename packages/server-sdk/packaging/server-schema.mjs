@@ -7,6 +7,12 @@ const normalizedIdentity = (identity, sdk) =>
   identity.package === sdk.package && identity.version === sdk.version
     ? { package: "$sdk", version: "$sdk", trait_path: identity.trait_path }
     : { package: identity.package, version: identity.version, trait_path: identity.trait_path };
+const validSDKIdentity = (identity) =>
+  Boolean(identity) &&
+  typeof identity.package === "string" &&
+  Boolean(identity.package) &&
+  typeof identity.version === "string" &&
+  identity.trait_path === "server.HttpServer";
 export function normalizeServerContract(interfaces, sdk) {
   const modules = new Map(interfaces.map((i) => [i.module, i]));
   const key = (i) => identityKey(normalizedIdentity(i.identity, sdk));
@@ -55,13 +61,7 @@ export function normalizeServerContract(interfaces, sdk) {
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 export function validateServerContract(interfaces, expectedSDKIdentity, schema) {
-  if (
-    !expectedSDKIdentity ||
-    typeof expectedSDKIdentity.package !== "string" ||
-    !expectedSDKIdentity.package ||
-    typeof expectedSDKIdentity.version !== "string" ||
-    expectedSDKIdentity.trait_path !== "server.HttpServer"
-  ) {
+  if (!validSDKIdentity(expectedSDKIdentity)) {
     throw bad("trusted installed SDK identity required");
   }
   const roots = interfaces.filter((i) => !i.handle);

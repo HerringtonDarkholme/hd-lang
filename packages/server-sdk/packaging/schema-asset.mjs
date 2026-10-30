@@ -16,24 +16,24 @@ function freeze(value) {
   }
   return value;
 }
+const validMetadata = (snapshot) =>
+  snapshot?.format === 1 &&
+  snapshot.packageHostABI === 1 &&
+  hex.test(snapshot.fingerprint ?? "") &&
+  schemaFingerprint(snapshot) === snapshot.fingerprint;
+const validPayload = (snapshot) =>
+  snapshot.schema?.root === "server.HttpServer" &&
+  Array.isArray(snapshot.schema.interfaces) &&
+  snapshot.schema.interfaces.length === Object.keys(snapshot.coverage ?? {}).length &&
+  Boolean(snapshot.provenance) &&
+  hex.test(snapshot.provenance.compilerSha256 ?? "") &&
+  hex.test(snapshot.provenance.referenceWasmSha256 ?? "") &&
+  hex.test(snapshot.provenance.referenceContractSha256 ?? "");
 export function validateSchemaAsset(snapshot) {
-  if (
-    snapshot?.format !== 1 ||
-    snapshot.packageHostABI !== 1 ||
-    !hex.test(snapshot.fingerprint ?? "") ||
-    schemaFingerprint(snapshot) !== snapshot.fingerprint
-  ) {
+  if (!validMetadata(snapshot)) {
     throw bad("expected schema metadata or checksum mismatch");
   }
-  if (
-    snapshot.schema?.root !== "server.HttpServer" ||
-    !Array.isArray(snapshot.schema.interfaces) ||
-    snapshot.schema.interfaces.length !== Object.keys(snapshot.coverage ?? {}).length ||
-    !snapshot.provenance ||
-    !hex.test(snapshot.provenance.compilerSha256 ?? "") ||
-    !hex.test(snapshot.provenance.referenceWasmSha256 ?? "") ||
-    !hex.test(snapshot.provenance.referenceContractSha256 ?? "")
-  ) {
+  if (!validPayload(snapshot)) {
     throw bad("invalid expected schema payload");
   }
   return freeze(snapshot);

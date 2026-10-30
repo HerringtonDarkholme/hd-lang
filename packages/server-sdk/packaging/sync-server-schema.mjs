@@ -16,54 +16,63 @@ const declarations = [
   ["lib/std/http_wire.hd", "Http", "http.Http"],
   ["lib/std/time.hd", "Clock", "time.Clock"],
 ];
+
+function parenthesisDepth(line) {
+  let depth = 0;
+  for (const char of line) {
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    }
+  }
+  return depth;
+}
+
+function traitMethods(source, { trait, key, bridged }) {
+  const lines = source.split("\n");
+  const at = lines.findIndex((line) => line === `pub trait ${trait}:`);
+  if (at < 0) {
+    throw Error(`missing maintenance trait declaration ${key}`);
+  }
+  const names = [];
+  let pending = null;
+  let depth = 0;
+  for (const line of lines.slice(at + 1)) {
+    if (line && !/^[ \t#]/.test(line)) {
+      break;
+    }
+    const method = /^    fn ([_\p{XID_Start}][_\p{XID_Continue}]*)!?(?:\[|\()/u.exec(line);
+    if (line.startsWith("    fn ") && !method) {
+      throw Error(`unsupported maintenance method declaration ${key}`);
+    }
+    if (method) {
+      pending = method[1];
+    }
+    if (pending === null) {
+      continue;
+    }
+    depth += parenthesisDepth(line);
+    if (depth === 0) {
+      if (!bridged || !line.trimEnd().endsWith(":")) {
+        names.push(pending);
+      }
+      pending = null;
+    }
+  }
+  if (!names.length) {
+    throw Error(`empty maintenance trait ${key}`);
+  }
+  return names.sort();
+}
+
 export async function sourceInventory(repository) {
   const sourceHashes = {},
     coverage = {};
   for (const [file, trait, key, bridged] of declarations) {
     const source = (await readFile(join(repository, file), "utf8")).replaceAll("\r\n", "\n");
     sourceHashes[file] = hash(source);
-    const lines = source.split("\n"),
-      at = lines.findIndex((line) => line === `pub trait ${trait}:`);
-    if (at < 0) {
-      throw Error(`missing maintenance trait declaration ${key}`);
-    }
-    const names = [];
-    // A bridged trait's method with a default body is std code over the
-    // bridge: its signature ends in `:` where its parentheses close.
-    let pending = null,
-      depth = 0;
-    for (const line of lines.slice(at + 1)) {
-      if (line && !/^[ \t#]/.test(line)) {
-        break;
-      }
-      const method = /^    fn ([_\p{XID_Start}][_\p{XID_Continue}]*)!?(?:\[|\()/u.exec(line);
-      if (line.startsWith("    fn ") && !method) {
-        throw Error(`unsupported maintenance method declaration ${key}`);
-      }
-      if (method) {
-        pending = method[1];
-      }
-      if (pending === null) {
-        continue;
-      }
-      for (const char of line) {
-        if (char === "(") {
-          depth += 1;
-        } else if (char === ")") {
-          depth -= 1;
-        }
-      }
-      if (depth === 0) {
-        if (!bridged || !line.trimEnd().endsWith(":")) {
-          names.push(pending);
-        }
-        pending = null;
-      }
-    }
-    if (!names.length) {
-      throw Error(`empty maintenance trait ${key}`);
-    }
-    names.sort();
+    const names = traitMethods(source, { trait, key, bridged });
     if (coverage[key] && JSON.stringify(coverage[key]) !== JSON.stringify(names)) {
       throw Error(`public/wire maintenance method coverage differs: ${key}`);
     }

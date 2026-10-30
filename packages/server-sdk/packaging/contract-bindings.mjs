@@ -48,23 +48,21 @@ export function contractBindings(bytes, readPackageContract) {
       });
       const fields = (fs) => fs.map(([name, type]) => [name, codec(type)]);
       const codec = ([tag, a, b]) => {
+        const scalar = [
+          () => runtime.unit,
+          () => runtime.bool,
+          () => runtime.char,
+          () => runtime.int(a, b),
+          () => runtime.f32,
+          () => runtime.f64,
+          () => runtime.str,
+          () => runtime.bytes,
+        ];
+        const scalarCodec = scalar[tag];
+        if (scalarCodec) {
+          return scalarCodec();
+        }
         switch (tag) {
-          case 0:
-            return runtime.unit;
-          case 1:
-            return runtime.bool;
-          case 2:
-            return runtime.char;
-          case 3:
-            return runtime.int(a, b);
-          case 4:
-            return runtime.f32;
-          case 5:
-            return runtime.f64;
-          case 6:
-            return runtime.str;
-          case 7:
-            return runtime.bytes;
           case 8:
             return runtime.list(codec(a));
           case 9:

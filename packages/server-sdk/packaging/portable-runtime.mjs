@@ -6,6 +6,23 @@ import { digest, graphFingerprint, runtimeSources } from "./runtime-model.mjs";
 const archive = new URL("../runtime/runtime-sources.json", import.meta.url);
 const fail = (message) => new Error(`SDK portable runtime: ${message}`);
 const hash = /^[0-9a-f]{64}$/;
+const validMetadata = (snapshot) =>
+  snapshot?.format === 1 &&
+  Number.isInteger(snapshot.packageHostABI) &&
+  snapshot.packageHostABI >= 1 &&
+  snapshot.packageHostABI <= 0xffffffff &&
+  typeof snapshot.baseRevision === "string" &&
+  /^[0-9a-f]{40,64}$/.test(snapshot.baseRevision);
+const validFiles = (files, names) =>
+  Boolean(files) &&
+  typeof files === "object" &&
+  !Array.isArray(files) &&
+  JSON.stringify(Object.keys(files).sort()) === JSON.stringify(names);
+const validFile = (file) =>
+  typeof file?.source === "string" &&
+  typeof file.sha256 === "string" &&
+  hash.test(file.sha256) &&
+  digest(file.source) === file.sha256;
 
 /** Validate the SDK-owned snapshot before any output or guest code runs. */
 export async function readPortableRuntime(source = archive) {
@@ -15,34 +32,17 @@ export async function readPortableRuntime(source = archive) {
   } catch {
     throw fail("cannot read snapshot JSON");
   }
-  if (
-    snapshot?.format !== 1 ||
-    !Number.isInteger(snapshot.packageHostABI) ||
-    snapshot.packageHostABI < 1 ||
-    snapshot.packageHostABI > 0xffffffff ||
-    typeof snapshot.baseRevision !== "string" ||
-    !/^[0-9a-f]{40,64}$/.test(snapshot.baseRevision)
-  ) {
+  if (!validMetadata(snapshot)) {
     throw fail("unsupported snapshot metadata");
   }
   const names = Object.keys(runtimeSources).sort();
-  if (
-    !snapshot.files ||
-    typeof snapshot.files !== "object" ||
-    Array.isArray(snapshot.files) ||
-    JSON.stringify(Object.keys(snapshot.files).sort()) !== JSON.stringify(names)
-  ) {
+  if (!validFiles(snapshot.files, names)) {
     throw fail("unexpected snapshot file list");
   }
   const files = {};
   for (const name of names) {
     const file = snapshot.files[name];
-    if (
-      typeof file?.source !== "string" ||
-      typeof file.sha256 !== "string" ||
-      !hash.test(file.sha256) ||
-      digest(file.source) !== file.sha256
-    ) {
+    if (!validFile(file)) {
       throw fail(`snapshot checksum mismatch: ${name}`);
     }
     files[name] = file.source;

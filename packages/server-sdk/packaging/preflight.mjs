@@ -45,6 +45,52 @@ async function contractReader(snapshot) {
     await rm(directory, { recursive: true, force: true });
   }
 }
+
+function packageContract(module, runtime, schema) {
+  const exports = new Map(WebAssembly.Module.exports(module).map(({ name, kind }) => [name, kind]));
+  if (
+    !["hd.init", "hd.poll", "hd.wake"].every((name) => exports.get(name) === "function") ||
+    exports.get("hd.x") !== "memory"
+  ) {
+    throw bad("module lacks the SDK's synchronous driver exports");
+  }
+  const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
+  if (
+    sections.length !== 1 ||
+    sections[0].byteLength < 4 ||
+    new DataView(sections[0]).getUint32(0, true) !== runtime.packageHostABI ||
+    schema.packageHostABI !== runtime.packageHostABI
+  ) {
+    throw bad("module and SDK package-host ABI do not match");
+  }
+  return new Uint8Array(sections[0]);
+}
+
+function validateModules(module, interfaces, grants) {
+  const modules = new Set(interfaces.map((i) => i.module));
+  for (const item of WebAssembly.Module.imports(module)) {
+    if (!portable.has(item.module) && !modules.has(item.module)) {
+      throw bad("unsupported deployed capability module " + item.module);
+    }
+    if (["hd:Clock", "hd:Random"].includes(item.module) && grants[item.module.slice(3)] === false) {
+      throw bad("required primitive capability is explicitly denied: " + item.module.slice(3));
+    }
+  }
+}
+
+function validateHostImports(module, host) {
+  for (const item of WebAssembly.Module.imports(module)) {
+    const namespace = host.imports[item.module];
+    if (
+      item.kind !== "function" ||
+      !namespace ||
+      !Object.hasOwn(namespace, item.name) ||
+      typeof namespace[item.name] !== "function"
+    ) {
+      throw bad("unsupported deployed import member " + item.module + "." + item.name);
+    }
+  }
+}
 export async function deploymentInputs({
   rootDirectory,
   wasmPath,
@@ -68,23 +114,7 @@ export async function deploymentInputs({
   } catch {
     throw bad("input is not a valid Wasm module");
   }
-  const exports = new Map(WebAssembly.Module.exports(module).map(({ name, kind }) => [name, kind]));
-  if (
-    !["hd.init", "hd.poll", "hd.wake"].every((name) => exports.get(name) === "function") ||
-    exports.get("hd.x") !== "memory"
-  ) {
-    throw bad("module lacks the SDK's synchronous driver exports");
-  }
-  const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
-  if (
-    sections.length !== 1 ||
-    sections[0].byteLength < 4 ||
-    new DataView(sections[0]).getUint32(0, true) !== runtime.packageHostABI ||
-    schema.packageHostABI !== runtime.packageHostABI
-  ) {
-    throw bad("module and SDK package-host ABI do not match");
-  }
-  const contract = new Uint8Array(sections[0]);
+  const contract = packageContract(module, runtime, schema);
   const { readPackageContract, createPackageRuntime, createCoreHost } =
     await contractReader(runtime);
   const interfaces = readPackageContract(contract);
@@ -96,15 +126,7 @@ export async function deploymentInputs({
     throw bad("root production policy refuses the SDK HttpServer");
   }
   checkCompanionPairing(sidecar, contract);
-  const modules = new Set(interfaces.map((i) => i.module));
-  for (const item of WebAssembly.Module.imports(module)) {
-    if (!portable.has(item.module) && !modules.has(item.module)) {
-      throw bad("unsupported deployed capability module " + item.module);
-    }
-    if (["hd:Clock", "hd:Random"].includes(item.module) && grants[item.module.slice(3)] === false) {
-      throw bad("required primitive capability is explicitly denied: " + item.module.slice(3));
-    }
-  }
+  validateModules(module, interfaces, grants);
   const bindings = contractBindings(contract, readPackageContract);
   const implementation = Object.fromEntries(
     source.methods.map((m) => [
@@ -144,17 +166,7 @@ export async function deploymentInputs({
     },
   );
   try {
-    for (const item of WebAssembly.Module.imports(module)) {
-      const namespace = host.imports[item.module];
-      if (
-        item.kind !== "function" ||
-        !namespace ||
-        !Object.hasOwn(namespace, item.name) ||
-        typeof namespace[item.name] !== "function"
-      ) {
-        throw bad("unsupported deployed import member " + item.module + "." + item.name);
-      }
-    }
+    validateHostImports(module, host);
   } finally {
     host.close();
   }

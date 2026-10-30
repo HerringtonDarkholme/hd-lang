@@ -9,12 +9,36 @@ const identifier = /^[_\p{XID_Start}][_\p{XID_Continue}]*$/u;
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 const invalid = (message) => new Error(`hd.toml: ${message}`);
 
+const isTable = (value) =>
+  value !== null &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  [null, Object.prototype].includes(Object.getPrototypeOf(value));
+
 function packageSelector(key) {
   const parts = key.split(".");
   return (
     ((parts[0] === "pkg" && parts.length >= 2) || (parts[0] === "dep" && parts.length >= 3)) &&
     parts.every((part) => part !== "_" && part.normalize("NFC") === part && identifier.test(part))
   );
+}
+
+function checkedGrant(key, value) {
+  const builtin = unscoped.has(key) || scoped.has(key);
+  const selector = !builtin && packageSelector(key);
+  if (!builtin && !selector) {
+    throw invalid(`unknown capability ${JSON.stringify(key)}`);
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (!Array.isArray(value) || !value.every((scope) => typeof scope === "string")) {
+    throw invalid(`capability ${JSON.stringify(key)} needs true, false or a string list`);
+  }
+  if (selector || unscoped.has(key)) {
+    throw invalid(`capability ${JSON.stringify(key)} takes no scope list`);
+  }
+  return Object.freeze([...value]);
 }
 
 /** Read only production entries. Unlisted capabilities stay unlisted. */
@@ -30,32 +54,13 @@ export function parseProductionGrants(text) {
     return Object.freeze({});
   }
   const table = manifest.capabilities;
-  if (
-    table === null ||
-    typeof table !== "object" ||
-    Array.isArray(table) ||
-    ![null, Object.prototype].includes(Object.getPrototypeOf(table))
-  ) {
+  if (!isTable(table)) {
     throw invalid("`capabilities` must be a table");
   }
   const entries = Object.entries(table).sort(([a], [b]) => a.localeCompare(b));
   for (const entry of entries) {
     const [key, value] = entry;
-    const builtin = unscoped.has(key) || scoped.has(key);
-    const selector = !builtin && packageSelector(key);
-    if (!builtin && !selector) {
-      throw invalid(`unknown capability ${JSON.stringify(key)}`);
-    }
-    if (typeof value === "boolean") {
-      continue;
-    }
-    if (!Array.isArray(value) || !value.every((scope) => typeof scope === "string")) {
-      throw invalid(`capability ${JSON.stringify(key)} needs true, false or a string list`);
-    }
-    if (selector || unscoped.has(key)) {
-      throw invalid(`capability ${JSON.stringify(key)} takes no scope list`);
-    }
-    entry[1] = Object.freeze([...value]);
+    entry[1] = checkedGrant(key, value);
   }
   return Object.freeze(Object.fromEntries(entries));
 }
