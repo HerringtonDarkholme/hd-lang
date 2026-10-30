@@ -1125,6 +1125,72 @@ function jsonMismatch(expected: unknown, actual: unknown, where: string): string
     : `${where}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
 }
 
+function cliResultError(step: CliStep, result: CommandResult): string | undefined {
+  if (result.error) {
+    return `could not start the implementation: ${result.error}`;
+  }
+  if (result.timedOut) {
+    return `ran longer than ${timeoutMs / 1000} s`;
+  }
+  if (result.signal) {
+    return `terminated by signal ${result.signal}`;
+  }
+  if (result.status !== step.exit) {
+    return `expected exit ${step.exit}, got exit ${result.status}`;
+  }
+  if (step.stdout !== undefined && result.stdout !== step.stdout) {
+    return `stdout ${JSON.stringify(result.stdout)} differs from expected ${JSON.stringify(step.stdout)}`;
+  }
+  if (step.stderr !== undefined && result.stderr !== step.stderr) {
+    return `stderr ${JSON.stringify(result.stderr)} differs from expected ${JSON.stringify(step.stderr)}`;
+  }
+  return undefined;
+}
+
+function cliJsonError(step: CliStep, result: CommandResult): string | undefined {
+  for (const [stream, expected, actual] of [
+    ["stdout-json", step.stdoutJson, result.stdout],
+    ["stderr-json", step.stderrJson, result.stderr],
+  ] as const) {
+    if (expected === undefined) {
+      continue;
+    }
+    const parsed = parseJsonLines(actual);
+    if (typeof parsed === "string") {
+      return `${stream}: ${parsed}`;
+    }
+    const mismatch = jsonMismatch(expected, parsed, stream);
+    if (mismatch) {
+      return mismatch;
+    }
+  }
+  return undefined;
+}
+
+function cliFileError(step: CliStep, cwd: string): string | undefined {
+  for (const file of step.files) {
+    if (!existsSync(join(cwd, file))) {
+      return `expected file ${file} does not exist`;
+    }
+  }
+  for (const file of step.noFiles) {
+    if (existsSync(join(cwd, file))) {
+      return `file ${file} exists, and should not`;
+    }
+  }
+  for (const [path, want] of step.sameText) {
+    const read = (file: string) =>
+      existsSync(join(cwd, file))
+        ? readFileSync(join(cwd, file), "utf8").replaceAll("\r\n", "\n")
+        : undefined;
+    const [got, expected] = [read(path), read(want)];
+    if (got === undefined || expected === undefined || got !== expected) {
+      return `${path} does not hold the text of ${want}`;
+    }
+  }
+  return undefined;
+}
+
 async function runCliCase(
   options: Options,
   implementation: Implementation,
@@ -1158,63 +1224,13 @@ async function runCliCase(
         path: row.path,
         reason: `${label}: ${reason}`,
       });
-      if (result.error) {
-        return fail(`could not start the implementation: ${result.error}`);
-      }
-      if (result.timedOut) {
-        return fail(`ran longer than ${timeoutMs / 1000} s`);
-      }
-      if (result.signal) {
-        return fail(`terminated by signal ${result.signal}`);
-      }
-      if (result.status !== step.exit) {
-        return fail(`expected exit ${step.exit}, got exit ${result.status}`);
-      }
-      if (step.stdout !== undefined && result.stdout !== step.stdout) {
-        return fail(
-          `stdout ${JSON.stringify(result.stdout)} differs from expected ${JSON.stringify(step.stdout)}`,
-        );
-      }
-      if (step.stderr !== undefined && result.stderr !== step.stderr) {
-        return fail(
-          `stderr ${JSON.stringify(result.stderr)} differs from expected ${JSON.stringify(step.stderr)}`,
-        );
-      }
-      for (const [stream, expected, actual] of [
-        ["stdout-json", step.stdoutJson, result.stdout],
-        ["stderr-json", step.stderrJson, result.stderr],
-      ] as const) {
-        if (expected === undefined) {
-          continue;
-        }
-        const parsed = parseJsonLines(actual);
-        if (typeof parsed === "string") {
-          return fail(`${stream}: ${parsed}`);
-        }
-        const mismatch = jsonMismatch(expected, parsed, stream);
-        if (mismatch) {
-          return fail(mismatch);
-        }
-      }
-      for (const file of step.files) {
-        if (!existsSync(join(cwd, file))) {
-          return fail(`expected file ${file} does not exist`);
-        }
-      }
-      for (const file of step.noFiles) {
-        if (existsSync(join(cwd, file))) {
-          return fail(`file ${file} exists, and should not`);
-        }
-      }
-      for (const [path, want] of step.sameText) {
-        // Line ends are LF on both sides: a Windows checkout has CRLF.
-        const read = (file: string) =>
-          existsSync(join(cwd, file))
-            ? readFileSync(join(cwd, file), "utf8").replaceAll("\r\n", "\n")
-            : undefined;
-        const [got, expected] = [read(path), read(want)];
-        if (got === undefined || expected === undefined || got !== expected) {
-          return fail(`${path} does not hold the text of ${want}`);
+      for (const problem of [
+        cliResultError(step, result),
+        cliJsonError(step, result),
+        cliFileError(step, cwd),
+      ]) {
+        if (problem) {
+          return fail(problem);
         }
       }
     }
@@ -1242,6 +1258,52 @@ async function mapParallel<T, U>(
   return results;
 }
 
+function selectedRows(
+  options: Options,
+  index: ReadonlyMap<string, IndexRow>,
+  cliIndex: ReadonlyMap<string, CliRow>,
+  selected: readonly string[],
+): { rows: Array<IndexRow | CliRow>; verdicts: Verdict[] } {
+  const verdicts: Verdict[] = [];
+  const rows: Array<IndexRow | CliRow> = [];
+  for (const path of selected) {
+    const row = index.get(path) ?? cliIndex.get(path);
+    if (!row) {
+      verdicts.push({ path, reason: "selected case is not in the case index" });
+    } else if (
+      (!options.phase || ("phase" in row && row.phase === options.phase)) &&
+      (!options.tier || row.tier === options.tier)
+    ) {
+      rows.push(row);
+    }
+  }
+  return { rows, verdicts };
+}
+
+function reportVerdicts(verdicts: readonly Verdict[]): number {
+  let failed = 0;
+  for (const verdict of verdicts) {
+    if (!verdict.reason) {
+      console.log(`pass  ${verdict.path}`);
+      continue;
+    }
+    failed += 1;
+    console.log(`FAIL  ${verdict.path}: ${verdict.reason}`);
+    if (verdict.output) {
+      console.log(verdict.output.replace(/^/gm, "      | "));
+    }
+  }
+  const tierCount = (tier: Tier): string => {
+    const ran = verdicts.filter((verdict) => verdict.tier === tier);
+    return `${ran.filter((verdict) => !verdict.reason).length} of ${ran.length}`;
+  };
+  console.log(
+    `conformance: ${verdicts.length - failed} passed, ${failed} failed, ${verdicts.length} selected` +
+      ` (language: ${tierCount("language")}; stdlib: ${tierCount("std")}; cli: ${tierCount("cli")})`,
+  );
+  return failed ? 1 : 0;
+}
+
 async function main(): Promise<number> {
   let options: Options;
   let index: Map<string, IndexRow>;
@@ -1264,20 +1326,7 @@ async function main(): Promise<number> {
     console.error(`run-conformance: ${(error as Error).message}`);
     return 2;
   }
-  const verdicts: Verdict[] = [];
-  const rows: Array<IndexRow | CliRow> = [];
-  for (const path of selected) {
-    const row = index.get(path) ?? cliIndex.get(path);
-    if (!row) {
-      verdicts.push({ path, reason: "selected case is not in the case index" });
-    } else if (
-      // A CLI case has no phase, so `--phase` leaves it out.
-      (!options.phase || ("phase" in row && row.phase === options.phase)) &&
-      (!options.tier || row.tier === options.tier)
-    ) {
-      rows.push(row);
-    }
-  }
+  const { rows, verdicts } = selectedRows(options, index, cliIndex, selected);
   verdicts.push(
     ...(await mapParallel(rows, options.jobs, async (row) => ({
       ...("phase" in row
@@ -1287,29 +1336,7 @@ async function main(): Promise<number> {
     }))),
   );
   await implementation.close();
-  let failed = 0;
-  for (const verdict of verdicts) {
-    if (!verdict.reason) {
-      console.log(`pass  ${verdict.path}`);
-      continue;
-    }
-    failed += 1;
-    console.log(`FAIL  ${verdict.path}: ${verdict.reason}`);
-    if (verdict.output) {
-      console.log(verdict.output.replace(/^/gm, "      | "));
-    }
-  }
-  // Per-tier passes, as spec/conformance/README.md#case-selection states:
-  // "language: X of Y; stdlib: X of Y; cli: X of Y".
-  const tierCount = (tier: Tier): string => {
-    const ran = verdicts.filter((verdict) => verdict.tier === tier);
-    return `${ran.filter((verdict) => !verdict.reason).length} of ${ran.length}`;
-  };
-  console.log(
-    `conformance: ${verdicts.length - failed} passed, ${failed} failed, ${verdicts.length} selected` +
-      ` (language: ${tierCount("language")}; stdlib: ${tierCount("std")}; cli: ${tierCount("cli")})`,
-  );
-  return failed ? 1 : 0;
+  return reportVerdicts(verdicts);
 }
 
 process.exitCode = await main();
