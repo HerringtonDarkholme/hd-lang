@@ -1,6 +1,6 @@
 # test: a scope guard retains its callback row and runs the callback inside a matching requirement scope
 # Spec lang/06 Using Bindings: flow.using.cleanup-row.check.
-# Spec std/ops Scope Guards: std-ops.scope-guard.type, std-ops.scope-guard.on-exit, std-ops.scope-guard.dispose.
+# Spec std/ops Scope Guards: std-ops.scope-guard.type.generic, std-ops.scope-guard.on-exit.generic, std-ops.scope-guard.dispose.generic.
 use std.console.MemoryConsole
 use std.ops.on_exit
 

@@ -55,9 +55,10 @@ Option iterates without building a list for its payload.
 
 ## Iterator Factory
 
-`from_fn` wraps a step closure in the concrete `FromFn[T]` cursor.
+`from_fn` wraps a step closure in a concrete cursor whose callback type is
+kept for static dispatch.
 
-1. r[std-iter.from-fn.value] `std.iter.from_fn[T](step: fn() -> T?) -> FromFn[T]` returns a cursor storing the closure.
+1. r[std-iter.from-fn.generic] `std.iter.from_fn[T, F < Fn() -> T?](step: F) -> FromFn[T, F]` returns a cursor storing `F`; `FromFn[T, F < Fn() -> T? = fn() -> T?]` defaults `F` so `FromFn[T]` remains the concrete dynamic-function spelling.
 2. r[std-iter.from-fn.every-next] Each `next` call on `FromFn[T]` calls its stored closure, including calls after `.None`.
 
 ## Iterator Adapters
@@ -72,22 +73,22 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| `filter` | `fn filter(self, keep: fn(T) -> bool) -> Filter[Self, T]` | a new iterator over the items of `self` for which `keep` returns `true` |
+| `filter` | `fn filter[F < Fn(T) -> bool](self, keep: F) -> Filter[Self, T, F]` | a new iterator over the items of `self` for which `keep` returns `true` |
 | `take` | `fn take(self, count: usize) -> Take[Self, T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
 | `enumerate` | `fn enumerate(self) -> Enumerate[Self, T]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
-| `map` | `fn map[U](self, transform: fn(T) -> U) -> MapIter[Self, T, U]` | a new iterator over `transform(item)` for each item of `self`, in order |
+| `map` | `fn map[U, F < Fn(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]` | a new iterator over `transform(item)` for each item of `self`, in order |
 | r[std-iter.adapter.fold.value] `fold` | `fn fold[A, R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
 | r[std-iter.adapter.collect.value-defaulted] `collect` | `fn collect[C < FromIterator[T] = List[T]](self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
 
-1. r[std-iter.adapter.filter.value] The `filter` default method has signature `fn filter(self, keep: fn(T) -> bool) -> Filter[Self, T]`.
+1. r[std-iter.adapter.filter.generic] The `filter` default method stores its callback type with signature `fn filter[F < Fn(T) -> bool](self, keep: F) -> Filter[Self, T, F]`; `Filter[I, T, F < Fn(T) -> bool = fn(T) -> bool]` defaults `F` for written type annotations.
 2. r[std-iter.adapter.take.value] The `take` default method has signature `fn take(self, count: usize) -> Take[Self, T]`.
 3. r[std-iter.adapter.enumerate.value] The `enumerate` default method has signature `fn enumerate(self) -> Enumerate[Self, T]`.
-4. r[std-iter.adapter.map.value] The `map` default method has signature `fn map[U](self, transform: fn(T) -> U) -> MapIter[Self, T, U]`.
+4. r[std-iter.adapter.map.generic] The `map` default method stores its callback type with signature `fn map[U, F < Fn(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]`; `MapIter[I, T, U, F < Fn(T) -> U = fn(T) -> U]` defaults `F` for written type annotations.
 5. r[std-iter.adapter.skip.value] The `skip` default method has signature `fn skip(self, count: usize) -> Skip[Self, T]`.
-6. r[std-iter.adapter.take-while.value] The `take_while` default method has signature `fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]`.
+6. r[std-iter.adapter.take-while.generic] The `take_while` default method stores its callback type with signature `fn take_while[F < Fn(T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]`; `TakeWhile[I, T, F < Fn(T) -> bool = fn(T) -> bool]` defaults `F` for written type annotations.
 7. r[std-iter.adapter.zip.owned-iterable] `zip[U, J < Iterable[U]]` returns `Zip[Self, T, U, J]`, which stores `J::IntoIter` by value.
 8. r[std-iter.adapter.chain.owned-iterable] `chain[J < Iterable[T]]` returns `Chain[Self, T, J]`, which stores `J::IntoIter` by value.
-9. r[std-iter.adapter.flat-map.owned-iterable] The `flat_map` default method has signature `fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]`.
+9. r[std-iter.adapter.flat-map.generic] The `flat_map` default method stores its callback type with signature `fn flat_map[U, J < Iterable[U], F < Fn(T) -> J](self, transform: F) -> FlatMap[Self, T, U, J, F]`; `FlatMap[I, T, U, J, F < Fn(T) -> J = fn(T) -> J]` defaults `F` for written type annotations.
 
 1. r[std-iter.adapter.trait-defaults] Adapters are default methods of the prelude `Iterator[T]` trait and require no import.
 2. r[std-iter.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
@@ -161,10 +162,10 @@ fn has_blank(lines: List[string]) -> bool:
 | Rule | Method | Result |
 | --- | --- | --- |
 | `skip` | `fn skip(self, count: usize) -> Skip[Self, T]` | a new iterator over the items of `self` after the first `count` |
-| `take_while` | `fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
+| `take_while` | `fn take_while[F < Fn(T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
 | `zip` | `fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U, J]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
 | `chain` | `fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T, J]` | a new iterator over the items of `self`, then those of `other` |
-| `flat_map` | `fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]` | a new iterator over the items of each iterable that `transform(item)` returns, in order |
+| `flat_map` | `fn flat_map[U, J < Iterable[U], F < Fn(T) -> J](self, transform: F) -> FlatMap[Self, T, U, J, F]` | a new iterator over the items of each iterable that `transform(item)` returns, in order |
 | r[std-iter.adapter.any.value] `any` | `fn any(self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
 | r[std-iter.adapter.all.value] `all` | `fn all(self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
 | r[std-iter.adapter.find.value] `find` | `fn find(self, test: fn(T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |

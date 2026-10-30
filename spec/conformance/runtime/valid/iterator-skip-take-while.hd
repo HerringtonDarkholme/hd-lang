@@ -1,5 +1,5 @@
 # test: skip drops leading items, and take_while stops at the first rejected item, which it consumes
-# Spec std/iter More Adapters: std-iter.adapter.skip.value, .skip.first-next, .take-while, .take-while.stop, and .lazy.more.
+# Spec std/iter More Adapters: std-iter.adapter.skip.value, .skip.first-next, .take-while.generic, .take-while.stop, and .lazy.more.
 use std.iter.{from_fn}
 fn body(lines: List[string]) -> List[string]:
     lines.iter().skip(1).take_while(fn(line: string) -> bool: line != "").collect()
