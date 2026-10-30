@@ -658,6 +658,7 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("map_hash_seed", Lowering::Compiler),
     ("ref_identity", Lowering::Compiler),
     ("fn_call", Lowering::Compiler),
+    ("fn_mut_call", Lowering::Compiler),
     ("weak_new", Lowering::Compiler),
     ("weak_new_mut", Lowering::Compiler),
     ("weak_upgrade", Lowering::Compiler),

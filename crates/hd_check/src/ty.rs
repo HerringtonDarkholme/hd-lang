@@ -410,7 +410,8 @@ impl Ck<'_, '_> {
             }
         }
         if role == NameRole::Trait
-            && segs.as_slice() == ["Fn"]
+            && segs.len() == 1
+            && (segs[0] == "Fn" || segs[0] == "FnMut")
             && n.direct_token(&self.cx.src.parse.tokens, TokenKind::Arrow)
                 .is_some()
         {
@@ -1035,13 +1036,13 @@ impl Ck<'_, '_> {
                 match Src::child(n, SyntaxKind::NamedType) {
                     Some(c) => {
                         let t = self.named_ty_as(c, NameRole::Trait)?;
-                        if matches!(pool.get(t), TyData::TraitValue { def, .. } if def == self.cx.names.known.fn_trait)
+                        if let TyData::TraitValue { def, .. } = pool.get(t)
+                            && let Some(name) = self.cx.names.known.fn_trait_name(def)
                         {
-                            self.err(
-                                Code::TraitNotDynamicallySafe,
-                                n,
-                                "`Fn` is the static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls",
+                            let msg = format!(
+                                "`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"
                             );
+                            self.err(Code::TraitNotDynamicallySafe, n, &msg);
                             return Ok(Ty::POISON);
                         }
                         let view = hd_resolve::assoc::LookupView {

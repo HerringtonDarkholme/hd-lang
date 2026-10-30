@@ -1,0 +1,24 @@
+# test: FnMut bounds take the sugar and tuple forms, and Fn meets them
+use std.function.{Fn, FnMut}
+
+fn twice[F < FnMut(i32) -> i32](mut f: F) -> i32:
+    f(1) + f.call_mut((2,))
+
+fn tuple_form[F < FnMut[(i32,), i32, $ ()]](mut f: F) -> i32:
+    f(3)
+
+fn forward[F < Fn(i32) -> i32](f: F) -> i32:
+    twice(f)
+
+struct Stepper[F < FnMut() -> i32]:
+    step: F
+
+fn advance[F < FnMut() -> i32](s: &mut Stepper[F]) -> i32:
+    (s.step)()
+
+fn increment(value: i32) -> i32:
+    value + 1
+
+fn valid() -> i32:
+    let mut s = Stepper { step: fn(): +4 }
+    twice(increment) + tuple_form(increment) + forward(increment) + advance(&mut s)

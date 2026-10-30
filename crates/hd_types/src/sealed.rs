@@ -25,6 +25,8 @@ pub struct SealedTraits {
     /// `Fn[I, O, $R]`, implemented by every plain function type with
     /// matching inputs, output and row.
     pub fn_trait: DefId,
+    /// `FnMut[I, O, $R]`, `Fn`'s supertrait, implemented by the same types.
+    pub fn_mut_trait: DefId,
     pub structure: DefId,
     /// The `'static` bound (`ref.generic.static`), which a type meets
     /// when it holds no local reference.
@@ -44,6 +46,7 @@ impl Default for SealedTraits {
             inspectable: DefId::NONE,
             tuple: DefId::NONE,
             fn_trait: DefId::NONE,
+            fn_mut_trait: DefId::NONE,
             structure: DefId::NONE,
             static_bound: DefId::NONE,
             list: DefId::NONE,
@@ -64,6 +67,7 @@ impl SealedTraits {
                 self.inspectable,
                 self.tuple,
                 self.fn_trait,
+                self.fn_mut_trait,
                 self.structure,
                 self.static_bound,
             ]

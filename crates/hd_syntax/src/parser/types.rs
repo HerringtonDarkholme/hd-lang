@@ -199,19 +199,19 @@ impl Parser<'_> {
             );
             self.bump();
         }
-        if self.at_word("Fn") && self.nth(1) == Some(TokenKind::LParen) {
+        if (self.at_word("Fn") || self.at_word("FnMut")) && self.nth(1) == Some(TokenKind::LParen) {
             return self.ty_fn_trait();
         }
         self.ty_named(bindings)
     }
 
     /// `Fn(A, B) -> O [$ row]`, the bound spelling of
-    /// `Fn[(A, B), O, $ row]`. It stays a `NamedType`, so every bound
+    /// `Fn[(A, B), O, $ row]`, and the same for `FnMut`. It stays a `NamedType`, so every bound
     /// position and resolver path treats it as the `Fn` trait rather than
     /// adding a second trait-reference syntax kind.
     fn ty_fn_trait(&mut self) -> Done {
         let marker = self.start();
-        self.bump(); // Fn
+        self.bump(); // Fn or FnMut
         self.ty_fn_inputs();
         if self.expect(TokenKind::Arrow, "'->'") {
             self.ty_with(false);

@@ -2117,7 +2117,8 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::UnknownTrait, span, &msg);
             return None;
         }
-        let (args, written, _) = if def == self.names.known.fn_trait
+        let (args, written, _) = if (def == self.names.known.fn_trait
+            || def == self.names.known.fn_mut_trait)
             && n.direct_token(&self.src.parse.tokens, TokenKind::Arrow)
                 .is_some()
         {
@@ -3002,12 +3003,13 @@ impl Lower<'_, '_, '_> {
                 let Some(t) = self.trait_value(c, gn, None) else {
                     return Ty::POISON;
                 };
-                if matches!(pool.get(t), TyData::TraitValue { def, .. } if def == self.names.known.fn_trait)
+                if let TyData::TraitValue { def, .. } = pool.get(t)
+                    && let Some(name) = self.names.known.fn_trait_name(def)
                 {
                     self.diags.error(
                         Code::TraitNotDynamicallySafe,
                         self.src.span(n),
-                        "`Fn` is the static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls",
+                        &format!("`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"),
                     );
                     return Ty::POISON;
                 }

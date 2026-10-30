@@ -1,0 +1,41 @@
+# test: closures that change their captures run through FnMut bounds
+# expect: test
+use std.function.{Fn, FnMut}
+
+fn each[F < FnMut(i32) -> void](items: List[i32], mut f: F) -> void:
+    for item in items:
+        f(item)
+
+fn twice[F < FnMut(i32) -> void](mut f: F) -> void:
+    f(1)
+    f.call_mut((2,))
+
+fn read_twice[F < Fn() -> i32](f: F) -> i32:
+    f() + f.call(())
+
+struct Counter[F < FnMut() -> void]:
+    tick: F
+
+fn bump[F < FnMut() -> void](c: &mut Counter[F]) -> void:
+    (c.tick)()
+
+tests:
+    use std.testing.assert_equal
+
+    it("lets an FnMut closure change its captures"):
+        let total = +0
+        each([1, 2, 3], fn(x): total += x)
+        assert_equal(total, 6)
+        twice(fn(x): total += x * 10)
+        assert_equal(total, 36)
+        let mut seen: List[i32] = []
+        twice(fn(x): seen.push(x))
+        assert_equal(seen, [1, 2])
+        assert_equal(read_twice(fn(): total), 72)
+
+    it("calls a stored FnMut closure through a writable place"):
+        let clicks = +0
+        let mut c = Counter { tick: fn(): clicks += 1 }
+        bump(&mut c)
+        bump(&mut c)
+        assert_equal(clicks, 2)

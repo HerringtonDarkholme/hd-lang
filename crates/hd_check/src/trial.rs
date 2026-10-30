@@ -860,7 +860,7 @@ impl Ck<'_, '_> {
     /// when the answer waits for inference.
     fn instantiation_args(&mut self, s: Ty, tr: DefId) -> StageResult<Option<Vec<Vec<Ty>>>> {
         let pool = self.pool();
-        if tr == self.cx.names.known.fn_trait
+        if (tr == self.cx.names.known.fn_trait || tr == self.cx.names.known.fn_mut_trait)
             && let Some(args) = self.fn_trait_args_of(s)
         {
             return Ok(Some(vec![args.to_vec()]));

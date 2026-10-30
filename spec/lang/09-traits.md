@@ -2088,6 +2088,7 @@ compiler and the standard library supply.
 | r[trait.sealed.float] Float | `Float` | `f32` and `f64` ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.tuple] Tuple | `Tuple` | every tuple type ([Function Type Constructors](07-functions.md#function-type-constructors)) |
 | r[trait.sealed.fn] Fn | `Fn` | every plain function type ([Static Fn Bounds](07-functions.md#static-fn-bounds)) |
+| r[trait.sealed.fn-mut] FnMut | `FnMut` | every plain function type ([FnMut Bounds](07-functions.md#fnmut-bounds)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.

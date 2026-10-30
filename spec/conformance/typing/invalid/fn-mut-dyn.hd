@@ -1,0 +1,5 @@
+# test: FnMut is static-only and has no dynamic trait value form
+use std.function.FnMut
+
+fn invalid(f: &mut dyn FnMut(i32) -> i32) -> i32: # diagnostic: trait-not-dynamically-safe
+    f.call_mut((1,))

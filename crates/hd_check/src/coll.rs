@@ -150,7 +150,7 @@ impl Ck<'_, '_> {
 
     /// The local a place `r` starts at, when it starts at one: the binding
     /// a fix-it makes writable.
-    fn place_root_local(&mut self, r: Ref) -> Option<LocalId> {
+    pub(crate) fn place_root_local(&mut self, r: Ref) -> Option<LocalId> {
         let mut cur = r;
         for _ in 0..64 {
             let i = cur.as_inst()?;

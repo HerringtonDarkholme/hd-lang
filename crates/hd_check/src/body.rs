@@ -2855,7 +2855,9 @@ impl Ck<'_, '_> {
         // the plain-function case; the checker also admits the lowered
         // constructor of a suspending function, whose coercion is driven
         // by its generic bound rather than an expected concrete type.
-        if tref.trait_ == self.cx.names.known.fn_trait
+        let known = &self.cx.names.known;
+        let fn_mut = tref.trait_ == known.fn_mut_trait;
+        if (tref.trait_ == known.fn_trait || fn_mut)
             && let Some(got) = self.fn_trait_args_of(tref.self_ty)
         {
             let want = pool.list_items(tref.args);
@@ -2866,7 +2868,11 @@ impl Ck<'_, '_> {
                     .zip(want)
                     .all(|(g, w)| self.infer.unify(pool, *g, *w).is_ok());
             if fits {
-                return Ok(Some(Evidence::Builtin(BuiltinImpl::Fn)));
+                return Ok(Some(Evidence::Builtin(if fn_mut {
+                    BuiltinImpl::FnMut
+                } else {
+                    BuiltinImpl::Fn
+                })));
             }
             self.infer.rollback(mark);
         }
@@ -5018,6 +5024,7 @@ impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
             (B::Tuple, s.tuple),
             (B::Structure, s.structure),
             (B::Fn, s.fn_trait),
+            (B::FnMut, s.fn_mut_trait),
         ]
         .into_iter()
         .find(|(b, _)| *b as u32 == index)

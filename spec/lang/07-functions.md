@@ -462,6 +462,36 @@ may hold and call.
 > **Why.** The concrete `fn(...)` type remains the dynamic function value.
 > `Fn(...)` gives stored callbacks static dispatch without a second dynamic form.
 
+#### FnMut Bounds
+
+The `FnMut` trait describes a generic function value whose calls may change
+its captures, as Rust's `FnMut` does.
+
+```text
+use std.function.{Fn, FnMut}
+
+fn twice[F < FnMut(i32) -> void](mut f: F) -> void:
+    f(1)
+    f.call_mut((2,))
+
+fn forward[F < Fn(i32) -> void](f: F) -> void:
+    twice(f)
+
+fn stuck[F < FnMut(i32) -> void](f: F) -> void:
+    f(1)  # error: not-writable
+```
+
+1. r[fn.trait.mut.decl] `std.function` declares `trait FnMut[I < Tuple, O, $R = $()]` with `fn call_mut(&mut self, args: I) -> O $R`.
+2. r[fn.trait.mut.supertrait] `Fn[I, O, $R]` has the supertrait `FnMut[I, O, $R]`, so a value whose bound is `Fn` meets an `FnMut` bound of the same arguments.
+3. r[fn.trait.mut.function-values] Every plain function value implements `FnMut` for its exact inputs tuple, output type, and requirement row.
+4. r[fn.trait.mut.sugar] `FnMut(A, B) -> O $R` denotes `FnMut[(A, B), O, $R]`, and the bound rules for `Fn` above apply to `FnMut` alike.
+5. r[fn.trait.mut.call] A value of type parameter `F` whose bound is `FnMut` and not `Fn` may be called as `f(a, b)`. The call changes `f`, so `f` must be a writable place or a temporary. Error: `not-writable`.
+6. r[fn.trait.mut.not-fn] A type parameter bounded by `FnMut` only does not meet an `Fn` bound. Error: `unsatisfied-trait-bound`.
+
+> **Why.** A callee that only reads through its function value takes `Fn`.
+> One that lets the value change its state, as an iterator adapter does,
+> takes `FnMut` and calls it through a writable copy.
+
 #### Vararg Inputs
 
 A function with a `List[T]` vararg has inputs that end in the

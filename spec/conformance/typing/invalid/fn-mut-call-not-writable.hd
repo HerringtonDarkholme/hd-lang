@@ -1,0 +1,5 @@
+# test: calling an FnMut value changes it, so a plain parameter cannot be called
+use std.function.FnMut
+
+fn stuck[F < FnMut(i32) -> i32](f: F) -> i32:
+    f(1) # diagnostic: not-writable

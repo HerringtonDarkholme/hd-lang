@@ -219,8 +219,8 @@ pub(crate) struct Formals<'a> {
     /// (`types.generic.infer.join.other-conflict`).
     pub inferred: &'a [Vec<usize>],
     /// A concrete function-type view of a bare generic parameter's one
-    /// `Fn` bound. It supplies closure parameter types without fixing the
-    /// parameter to the dynamic `fn` representation.
+    /// `Fn` or `FnMut` bound. It supplies closure parameter types without
+    /// fixing the parameter to the dynamic `fn` representation.
     pub closure_wants: Option<&'a [Option<Ty>]>,
 }
 
@@ -266,8 +266,9 @@ fn inferred_formals(
 }
 
 /// Per-formal expected function types supplied by a bare generic
-/// parameter's `Fn` bound. The argument still infers the concrete `F`;
-/// this view only gives an unannotated closure its input types.
+/// parameter's `Fn` or `FnMut` bound. The argument still infers the
+/// concrete `F`; this view only gives an unannotated closure its input
+/// types.
 fn fn_bound_formals(
     ck: &Ck,
     owner: DefId,
@@ -284,7 +285,9 @@ fn fn_bound_formals(
             let bound = sig.generics[index].bounds.iter().find_map(|b| {
                 let bound = inst(*b);
                 match pool.get(bound) {
-                    TyData::TraitValue { def, args, .. } if def == ck.cx.names.known.fn_trait => {
+                    TyData::TraitValue { def, args, .. }
+                        if ck.cx.names.known.fn_trait_name(def).is_some() =>
+                    {
                         Some(args)
                     }
                     _ => None,
@@ -1063,21 +1066,52 @@ impl Ck<'_, '_> {
         self.call_value_form(f, ft, args, n, bang, None)
     }
 
-    /// The concrete function type exposed by a value's `Fn[I, O, $R]`
-    /// bound. The solver teaches the three fresh arguments from either a
-    /// parameter's environment clause or a concrete function type's
-    /// compiler-supplied implementation.
-    fn fn_bound_type(&mut self, self_ty: Ty) -> StageResult<Option<Ty>> {
+    /// `fn.trait.mut.call`: a call of a value whose bound is `FnMut` only
+    /// changes the value, so the callee must be a writable place (a `let
+    /// mut` binding, a `mut` parameter, a field reached through `&mut`) or
+    /// a temporary. The place's binding counts as changed.
+    fn fn_mut_callee(&mut self, f: Ref, n: NodeRef<'_>) {
+        if self.is_fresh(f) || self.place_writable_quiet(f) {
+            if let Some(l) = self.place_root_local(f) {
+                self.changed_locals.push(l);
+            }
+            return;
+        }
+        self.err(
+            Code::NotWritable,
+            n,
+            "calling an `FnMut` value may change it, so the callee must be writable: a `let mut` binding, a `mut` parameter, or a field reached through `&mut`",
+        );
+    }
+
+    /// The concrete function type exposed by a value's `Fn[I, O, $R]` or
+    /// `FnMut[I, O, $R]` bound, and whether only `FnMut` holds. The solver
+    /// teaches the three fresh arguments from either a parameter's
+    /// environment clause or a concrete function type's compiler-supplied
+    /// implementation.
+    fn fn_bound_type(&mut self, self_ty: Ty) -> StageResult<Option<(Ty, bool)>> {
         let pool = self.pool();
         let mut args: Vec<Ty> = (0..3)
             .map(|_| self.infer.fresh(pool, VarKind::General))
             .collect();
-        let tref = TraitRef {
-            trait_: self.cx.names.known.fn_trait,
-            self_ty,
-            args: pool.list(&args),
-        };
-        let Answer::Holds { learned, .. } = self.solve(tref)? else {
+        let mut only_mut = false;
+        let mut answer = Answer::OutOfFuel;
+        for trait_ in [
+            self.cx.names.known.fn_trait,
+            self.cx.names.known.fn_mut_trait,
+        ] {
+            let tref = TraitRef {
+                trait_,
+                self_ty,
+                args: pool.list(&args),
+            };
+            answer = self.solve(tref)?;
+            if matches!(answer, Answer::Holds { .. }) {
+                break;
+            }
+            only_mut = true;
+        }
+        let Answer::Holds { learned, .. } = answer else {
             return Ok(None);
         };
         for (v, t) in learned {
@@ -1093,14 +1127,15 @@ impl Ck<'_, '_> {
         let TyData::Row(row) = pool.get(*row) else {
             return Ok(None);
         };
-        Ok(Some(pool.intern_ty(&TyData::Fn {
+        let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&[*input]),
             result: *output,
             row,
             suspends: false,
             inputs: Inputs::Tuple,
             deps: hd_types::FnDeps::NONE,
-        })))
+        });
+        Ok(Some((ft, only_mut)))
     }
 
     /// A call of a function value, or of a local function by its name
@@ -1155,8 +1190,11 @@ impl Ck<'_, '_> {
             return Ok((self.b.emit(Tag::AwaitValue, f.0, NONE, t, n.index()), t));
         }
         if !matches!(pool.get(ft), TyData::Fn { .. })
-            && let Some(bound) = self.fn_bound_type(ft)?
+            && let Some((bound, only_mut)) = self.fn_bound_type(ft)?
         {
+            if only_mut {
+                self.fn_mut_callee(f, n);
+            }
             ft = bound;
         }
         let TyData::Fn {
@@ -4547,8 +4585,9 @@ impl Ck<'_, '_> {
             }
         };
         let ret = self.normalize_deep(inst(sig.ret))?;
-        if trait_ == self.cx.names.known.fn_trait
-            && method == self.cx.names.known.fn_call
+        let known = &self.cx.names.known;
+        if ((trait_ == known.fn_trait && method == known.fn_call)
+            || (trait_ == known.fn_mut_trait && method == known.fn_mut_call))
             && choice != PENDING_CHOICE
         {
             let Some(&receiver) = refs.first() else {

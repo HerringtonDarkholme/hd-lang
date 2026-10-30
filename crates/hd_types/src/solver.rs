@@ -908,6 +908,8 @@ pub enum BuiltinImpl {
     Static,
     /// A plain function type's `Fn[I, O, $R]` implementation.
     Fn,
+    /// A plain function type's `FnMut[I, O, $R]` implementation.
+    FnMut,
 }
 
 /// What a `Holds` answer carries (§8.1).
@@ -2046,7 +2048,8 @@ impl<'s, 'a> Search<'s, 'a> {
         // function type. A parameter's written `Fn` bound was answered by
         // the environment above; this row supplies concrete function
         // values and teaches fresh trait-argument variables their parts.
-        if tref.trait_ == self.cx.decls.sealed().fn_trait {
+        let sealed = self.cx.decls.sealed();
+        if tref.trait_ == sealed.fn_trait || tref.trait_ == sealed.fn_mut_trait {
             return Ok(self.supplied_fn(key, cg, tref, self_ty, root));
         }
         // Compiler-supplied impls (§3.9).
@@ -2215,7 +2218,13 @@ impl<'s, 'a> Search<'s, 'a> {
                 let expected = pool.list(&[input, result, row]);
                 match match_list(pool, DefId::NONE, expected, tref.args, &mut Vec::new()) {
                     M::Yes => Answer::Holds {
-                        evidence: Evidence::Builtin(BuiltinImpl::Fn),
+                        evidence: Evidence::Builtin(
+                            if tref.trait_ == self.cx.decls.sealed().fn_mut_trait {
+                                BuiltinImpl::FnMut
+                            } else {
+                                BuiltinImpl::Fn
+                            },
+                        ),
                         learned: learned_from(pool, expected, tref.args),
                     },
                     M::Maybe => {
@@ -4793,6 +4802,7 @@ mod tests {
                 inspectable: id(4),
                 tuple: id(5),
                 fn_trait: DefId::NONE,
+                fn_mut_trait: DefId::NONE,
                 structure: id(6),
                 static_bound: DefId::NONE,
                 list: DefId::NONE,

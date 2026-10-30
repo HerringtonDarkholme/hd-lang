@@ -33,6 +33,10 @@ pub struct KnownItems {
     pub fn_trait: DefId,
     /// `Fn.call`, which the checker lowers to a function-value call.
     pub fn_call: DefId,
+    /// The `FnMut[I, O, $R]` trait, `Fn`'s supertrait.
+    pub fn_mut_trait: DefId,
+    /// `FnMut.call_mut`, lowered as `Fn.call` is.
+    pub fn_mut_call: DefId,
     pub tuple: DefId,
     // std.structure
     pub structure: DefId,
@@ -167,7 +171,7 @@ pub struct KnownItems {
     pub property_runner: DefId,
     /// The sealed traits, in the order of the table in spec/lang/09-traits.md
     /// "Sealed Traits" (`trait.sealed.list`).
-    sealed: [DefId; 12],
+    sealed: [DefId; 13],
 }
 
 impl KnownItems {
@@ -190,6 +194,7 @@ impl KnownItems {
             inspectable: self.inspectable,
             tuple: self.tuple,
             fn_trait: self.fn_trait,
+            fn_mut_trait: self.fn_mut_trait,
             structure: self.structure,
             static_bound: self.static_bound,
             list: self.list,
@@ -231,6 +236,7 @@ impl KnownItems {
         let serializer = item("std.serde", "Serializer");
         let tuple = item("std.function", "Tuple");
         let fn_trait = item("std.function", "Fn");
+        let fn_mut_trait = item("std.function", "FnMut");
         let suspend = item("std.task", "Suspend");
         let inspectable = item("std.inspect", "Inspectable");
         let num = item("std.num", "Num");
@@ -250,6 +256,8 @@ impl KnownItems {
             function_module: module("std.function"),
             fn_trait,
             fn_call: trait_method(fn_trait, "call"),
+            fn_mut_trait,
+            fn_mut_call: trait_method(fn_mut_trait, "call_mut"),
             tuple,
             structure,
             static_bound,
@@ -354,8 +362,23 @@ impl KnownItems {
                 float,
                 tuple,
                 fn_trait,
+                fn_mut_trait,
                 static_bound,
             ],
+        }
+    }
+
+    /// `Fn` or `FnMut` when `d` is that function trait.
+    #[must_use]
+    pub fn fn_trait_name(&self, d: DefId) -> Option<&'static str> {
+        if d == DefId::NONE {
+            None
+        } else if d == self.fn_trait {
+            Some("Fn")
+        } else if d == self.fn_mut_trait {
+            Some("FnMut")
+        } else {
+            None
         }
     }
 
