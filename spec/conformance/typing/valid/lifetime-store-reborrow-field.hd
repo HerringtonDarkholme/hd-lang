@@ -1,0 +1,21 @@
+# test: a store through a reborrow of a nested field, or a reborrow of that, checks the field's own positions
+# Spec 13 Lifetime Stores: ref.lifetime.store.field.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+struct Outer['a, 'b]:
+    inner: Two['b, 'a]
+
+fn set_reborrow['a, 'b](t: &mut Outer['a, 'b], s: &'b string) -> void:
+    r := &mut t.inner
+    r.x = s
+
+fn set_reborrow_y['a, 'b](t: &mut Outer['a, 'b], s: &'a string) -> void:
+    r := &mut t.inner
+    r.y = s
+
+fn set_chained['a, 'b](t: &mut Outer['a, 'b], s: &'b string) -> void:
+    r := &mut t.inner
+    q := &mut r.x
+    *q = s

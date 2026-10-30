@@ -1,0 +1,13 @@
+# test: a store through a reborrow of a reborrowed field takes only the lifetime of that field's position
+# Spec 13 Lifetime Stores: ref.lifetime.store.field.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+struct Outer['a, 'b]:
+    inner: Two['b, 'a]
+
+fn bad_chained['a, 'b](t: &mut Outer['a, 'b], s: &'a string) -> void:
+    r := &mut t.inner
+    q := &mut r.x
+    *q = s # diagnostic: local-reference-escapes

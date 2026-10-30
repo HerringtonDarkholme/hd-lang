@@ -703,12 +703,22 @@ impl Gen<'_, '_> {
             }
             Tag::Ref if !me.0.is_empty() => {
                 let inv = is_mut(pool, me.1);
-                let (at, place) = self.place(i, a, usize::MAX, (true, false));
+                let (at, place) = self.place(i, a, usize::MAX, (true, inv));
                 self.lies_in(at, me.0[0]);
                 let inner = (me.0[1..].to_vec(), referent(pool, me.1));
-                // The referent holds what its storage holds, each slot the
-                // union of all of them through a hub where the place is a
-                // part of it, even one with as many slots.
+                // A `&mut` of a local's or a reference's part has that
+                // part's own slots, by the field slot maps
+                // (`ref.lifetime.store.field`).
+                let own = place.as_ref().filter(|p| {
+                    inv && matches!(at, Some(Ok(Origin::Local(_)) | Err(_)))
+                        && referent_fn(pool, p.1) == referent_fn(pool, inner.1)
+                });
+                if let Some(p) = own {
+                    return self.relate(p, &inner, true, false);
+                }
+                // Otherwise the referent holds what its storage holds, each
+                // slot the union of all of them through a hub where the
+                // place is a part of it, even one with as many slots.
                 let held = match at {
                     Some(Ok(Origin::Local(l))) => Some(self.local(l)),
                     Some(Err(v)) => self
