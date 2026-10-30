@@ -41,6 +41,8 @@ use crate::body::{BodyCx, Ck};
 use crate::call::subst_owner;
 use crate::local_refs::holds_local_ref;
 
+mod constraints;
+
 /// The lifetime of an input slot that writes none: its own, `ANON` plus
 /// the slot's index. A written lifetime is its 1-based place in scope.
 const ANON: u32 = 1 << 16;
@@ -838,6 +840,24 @@ impl<'a> Layouts<'a> {
         variant: Option<u32>,
         j: u32,
     ) -> Option<(Ty, Option<Vec<usize>>)> {
+        let (ty, at) = self.field_slots(cx, t, variant, j)?;
+        let (of, child) = (self.of(t), self.of(ty));
+        let pos = at.as_ref().and_then(|at| {
+            (child.tops.iter())
+                .map(|&k| of.tops.binary_search(at.get(k)?).ok())
+                .collect()
+        });
+        Some((ty, pos))
+    }
+
+    /// Field `j`'s type and its [`FieldMap`] slots, made once.
+    fn field_slots(
+        &self,
+        cx: &BodyCx<'_>,
+        t: Ty,
+        variant: Option<u32>,
+        j: u32,
+    ) -> Option<(Ty, Option<Vec<usize>>)> {
         let key = (t, variant.unwrap_or(NONE), j);
         if !self.fields.borrow().contains_key(&key) {
             let m = (self.field_map(cx, t, variant, j)).map(|(ty, at)| FieldMap { ty, at });
@@ -845,13 +865,7 @@ impl<'a> Layouts<'a> {
         }
         let fields = self.fields.borrow();
         let m = fields.get(&key)?.as_ref()?;
-        let (of, child) = (self.of(t), self.of(m.ty));
-        let pos = m.at.as_ref().and_then(|at| {
-            (child.tops.iter())
-                .map(|&k| of.tops.binary_search(at.get(k)?).ok())
-                .collect()
-        });
-        Some((m.ty, pos))
+        Some((m.ty, m.at.clone()))
     }
 
     /// The type of field `j` and where its slots lie ([`FieldMap`]).
@@ -2636,6 +2650,9 @@ impl Ck<'_, '_> {
             for i in 0..body.tags.len() {
                 s.step(i);
             }
+        }
+        if *constraints::SHADOW {
+            constraints::shadow(&s);
         }
         let capture_bad = s.captured_fn_escapes();
         let mut stores: Vec<NodeIdx> = s.out.iter().map(|&i| body.syn[i as usize]).collect();

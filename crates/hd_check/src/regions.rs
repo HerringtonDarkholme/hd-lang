@@ -5,8 +5,6 @@
 //! [`Constraints::solve`] computes every region's loan set at once: an
 //! iterative Tarjan pass collapses strongly connected components, then one
 //! pass unions bitsets in topological order (`ref.dep.origin.set`).
-// Nothing calls it until S3 generates constraints.
-#![allow(dead_code)]
 
 use hd_base::SliceSort as _;
 use std::ops::Range;
@@ -55,6 +53,7 @@ impl RegionTable {
     }
 
     /// The variable of slot `slot` of `key`.
+    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn region(&self, key: u32, slot: u32) -> Region {
         let r = self.slots(key);
         assert!(slot < r.end - r.start, "slot {slot} of key {key}");
@@ -71,6 +70,7 @@ impl RegionTable {
 /// other category is a checked edge, whose source's loans must all be
 /// allowed in its target, and picks the diagnostic's message and code.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[expect(dead_code, reason = "the S4 and S5 checks make the other categories")]
 pub(crate) enum Category {
     /// A plain flow: a read, a store, a projection, a call argument.
     Flow,
@@ -119,6 +119,7 @@ impl Loans {
             .is_some_and(|w| w & (1 << (l % 64)) != 0)
     }
 
+    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn is_empty(&self) -> bool {
         self.0.iter().all(|&w| w == 0)
     }
@@ -152,6 +153,7 @@ pub(crate) struct Constraints {
 
 /// A checked edge whose source holds a loan its target does not allow.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
 pub(crate) struct Violation {
     pub(crate) edge: Edge,
     /// The lowest offending loan.
@@ -291,6 +293,7 @@ impl Solution {
     }
 
     /// Whether `a` and `b` ended in one component, and so share a value.
+    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn same(&self, a: Region, b: Region) -> bool {
         self.comp[a as usize] == self.comp[b as usize]
     }
@@ -298,6 +301,7 @@ impl Solution {
     /// The checked edges whose source holds a loan that `allowed` rejects
     /// for that edge, by instruction, then in edge order: the first is the
     /// one to report.
+    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn violations(
         &self,
         cons: &Constraints,
