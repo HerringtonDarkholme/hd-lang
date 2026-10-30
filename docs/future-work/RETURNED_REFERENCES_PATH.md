@@ -343,6 +343,8 @@ Applied by #1017 (6a1, [Lifetime Structs](../../spec/lang/13-values-and-referenc
 Applied by #1018 (6a2): a field typed `&'a T`, or any field whose reference positions all name `'a`, lies in the value's `'a` position, both when a literal constructs it and when it is read; a field of two or more lifetimes still takes every position.
 Applied by #1027: 6d2 is specified by [Static Fn Bounds](../../spec/lang/07-functions.md#static-fn-bounds) and [`ref.type.dyn.no-fn`](../../spec/lang/13-values-and-references.md#r-ref.type.dyn.no-fn).
 
+Applied by #1019 (6a3): an elided lifetime argument in a signature is a reference position that writes no lifetime, so `p: &Parser[string]` has two and `-> Parser[string]` elides as `-> &T` does; the resolver decides elision over a signature's typed positions. A lifetime written inside a generic argument (`Option[&'a T]`, `Wrap[&'a T]`) and in an implementation's target (`impl[T, 'a] Parser[T, 'a]`) is placed; an elided target lifetime stays not-yet (6c3).
+
 ### Stage 7: exclusivity
 
 Stage 7 follows Swift's lifetime dependence and Rust: a lifetime names a

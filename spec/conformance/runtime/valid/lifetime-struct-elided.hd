@@ -1,0 +1,26 @@
+# test: elided lifetime arguments in signatures and a method of a lifetime struct run
+# Spec 13 Lifetime Structs: ref.lifetime.struct.elide.parameter, ref.lifetime.struct.elide.result, ref.lifetime.struct.impl.
+# expect-stdout: hello 1
+# expect-stdout: 4
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn make(s: &string) -> Parser[string]:
+    Parser { src: s, pos: 0 }
+
+fn position(p: &Parser[string]) -> usize:
+    p.pos
+
+impl[T, 'a] Parser[T, 'a]:
+    fn source(&self) -> &'a T:
+        self.src
+
+    fn advance(self) -> Self:
+        Parser { src: self.src, pos: self.pos + 1 }
+
+pub fn main() -> void $ Console:
+    text := "hello"
+    p := make(&text).advance()
+    println("${*p.source()} ${position(&p)}")
+    println("${p.source().len() - position(&p)}")

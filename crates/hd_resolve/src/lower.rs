@@ -20,7 +20,7 @@ use hd_intern::PathKind;
 use hd_project::{UseRootError, UseRoots};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{
-    Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList,
+    Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList, Types,
 };
 
 use crate::iface::{
@@ -1589,6 +1589,34 @@ type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<Ty>);
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
 
+/// Calls `f` on each type in `t` along the paths that hold its reference
+/// slots, in [`Types::ref_slots`] order: through a local reference, `mut`,
+/// an optional, a tuple's elements and a type's arguments.
+fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
+    let d = pool.get(t);
+    f(&d);
+    match d {
+        TyData::Ref {
+            counted: false,
+            inner: i,
+            ..
+        }
+        | TyData::Mut(i)
+        | TyData::Option(i) => slot_paths(pool, i, f),
+        TyData::Tuple { elems, rest } => {
+            for &e in pool.list_items(elems).iter().chain(rest.as_ref()) {
+                slot_paths(pool, e, f);
+            }
+        }
+        TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+            for &a in pool.list_items(args) {
+                slot_paths(pool, a, f);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// The type parameters in scope while lowering one header.
 #[derive(Clone, Default)]
 struct Gen {
@@ -1605,6 +1633,9 @@ struct Gen {
     /// Where each type parameter's name is declared.
     decls: Vec<(Symbol, Span)>,
     self_ty: Option<Ty>,
+    /// The lifetime of each reference slot of an implementation's target,
+    /// which `self` and `Self` take (`ref.lifetime.struct.impl`).
+    self_slots: Vec<u16>,
     self_trait: Option<DefId>,
     /// Type parameters written with a bound list. Nothing reads it now:
     /// `mut T` is an error for every type parameter
@@ -2414,6 +2445,11 @@ impl Lower<'_, '_, '_> {
                     self.diags.error(Code::UnknownType, span, msg);
                     return Ty::POISON;
                 };
+                if let Some(slots) = &mut self.slots
+                    && gn.self_slots.len() == self.names.pool.types().ref_slots(self_ty)
+                {
+                    slots.extend(&gn.self_slots);
+                }
                 return self_ty;
             }
             if let Some((_, t, _)) = gn
@@ -2496,13 +2532,35 @@ impl Lower<'_, '_, '_> {
         self.lifetime_args(n, (def, kind), gn);
         if let Some(before) = before {
             // An alias may move or repeat its arguments, so a lifetime
-            // written in one has no known slot.
-            if kind == HeadKind::Alias {
+            // written in one has no known slot, unless the alias keeps
+            // them in order, as `Option[T]` does (`ref.lifetime.alias-in-order`).
+            if kind == HeadKind::Alias && !self.alias_in_order(def) {
                 self.unplaced_slots(n, before);
             }
             self.place_slots(n, before, t, true);
         }
         t
+    }
+
+    /// Whether the alias `def` uses each of its parameters once, in order,
+    /// where it has reference slots, and adds none of its own, so the
+    /// slots of its arguments are the slots of the type it names.
+    fn alias_in_order(&self, def: DefId) -> bool {
+        let Some((rows, body)) = self.alias_body(def) else {
+            return false;
+        };
+        let pool = self.names.pool.types();
+        let mut seen = Vec::new();
+        slot_paths(pool, body, &mut |d| {
+            if let TyData::Param(p) = d
+                && p.owner == def
+            {
+                seen.push(p.index);
+            }
+        });
+        pool.ref_slots(body) == 0
+            && seen.len() == rows.len()
+            && seen.iter().enumerate().all(|(i, &p)| p as usize == i)
     }
 
     /// `types.lifetime.declare`: each `'name` of a generic list joins the
@@ -2596,8 +2654,8 @@ impl Lower<'_, '_, '_> {
     /// The lifetime arguments written in the named type `n` of `def`
     /// (`ref.lifetime.struct.argument`): a struct's, one per lifetime
     /// parameter or none. A signature records each one's slot, after the
-    /// type arguments' slots; an elided one is not checked yet there, and
-    /// in a field it is a local reference escaping to the field.
+    /// type arguments' slots, 0 for an elided one (`ref.lifetime.struct.elide`);
+    /// in a field an elided one is a local reference escaping to the field.
     fn lifetime_args(&mut self, n: NodeRef<'_>, (def, kind): (DefId, HeadKind), gn: &Gen) {
         let toks = &self.src.parse.tokens;
         let written: Vec<hd_base::TokenIdx> = Src::child(n, SyntaxKind::TypeArgumentList)
@@ -2632,11 +2690,6 @@ impl Lower<'_, '_, '_> {
                     "a local reference never escapes to a field, and `{name}` holds one; a struct's field writes one of the struct's lifetimes as its argument, as in `{name}[T, 'a]`"
                 );
                 self.diags.error(Code::LocalReferenceEscapes, span, &msg);
-            } else if written.is_empty() && want > 0 && self.slots.is_some() {
-                let msg = format!(
-                    "write the lifetime arguments of `{name}`, as in `{name}[T, 'a]`; an elided one is not checked yet in a signature or an implementation's target"
-                );
-                self.diags.error(Code::ReferencesNotYetChecked, span, &msg);
             }
         }
         if let Some(slots) = &mut self.slots {
@@ -3480,12 +3533,21 @@ impl Lower<'_, '_, '_> {
                     } else {
                         st
                     };
-                    // ref.lifetime.receiver: `&'a self`.
+                    // ref.lifetime.receiver: `&'a self`; the referent's
+                    // slots are the target's (`ref.lifetime.struct.impl`).
                     let lifetime = self.lifetime(p, gn);
                     if let Some(slots) = &mut self.slots {
-                        let at = slots.len();
-                        slots.push(lifetime);
-                        slots.resize(at + pool.types().ref_slots(st), 0);
+                        let want = pool.types().ref_slots(st);
+                        let mut own = match pool.get(st) {
+                            TyData::Ref { counted: false, .. } => vec![lifetime],
+                            _ => vec![],
+                        };
+                        own.extend(&gn.self_slots);
+                        if own.len() != want {
+                            own = vec![lifetime];
+                        }
+                        own.resize(want, 0);
+                        slots.extend(own);
                     }
                     params.push((self.sym_token(token), st));
                     defaults.push(false);
@@ -3547,6 +3609,11 @@ impl Lower<'_, '_, '_> {
         let ret = self.ty(Src::type_child(f), gn);
         self.opaque_result = before;
         let mut lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+        if let Some(rn) = Src::type_child(f)
+            && self.r.frozen.is_none()
+        {
+            self.elided_source(rn, &params, ret, &lifetimes);
+        }
         if lifetimes.iter().all(|l| *l == 0) {
             lifetimes = Vec::new();
         }
@@ -3564,6 +3631,64 @@ impl Lower<'_, '_, '_> {
             variadic,
             lifetimes,
         }
+    }
+
+    /// `ref.dep.elide`, `ref.lifetime.elide`: a result slot of `ret`,
+    /// lowered from `rn`, that writes no lifetime takes a `&self` or
+    /// `&mut self` receiver's, or else the one lifetime of the parameters'
+    /// slots, each slot that writes none having its own; a lifetime
+    /// struct's lifetimes are slots too (`ref.lifetime.struct.elide`).
+    /// None is `reference-result-without-source`, two or more are
+    /// `ambiguous-reference-source`. An opaque type borrows from every
+    /// parameter instead (`types.opaque.borrows.source`).
+    fn elided_source(&mut self, rn: NodeRef<'_>, params: &[(Symbol, Ty)], ret: Ty, slots: &[u16]) {
+        let pool = self.names.pool.types();
+        let ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
+        let mut opaque = 0;
+        slot_paths(pool, ret, &mut |d| {
+            opaque += usize::from(matches!(d, TyData::Opaque { borrows: true, .. }));
+        });
+        let out = slots.get(ins..).unwrap_or_default();
+        if out.iter().filter(|l| **l == 0).count() <= opaque {
+            return;
+        }
+        // Each parameter slot's parameter, and its lifetime or its own.
+        let mut found: Vec<(Symbol, u32)> = Vec::new();
+        let mut own = 1u32 << 16;
+        let mut at = 0;
+        for (i, &(name, t)) in params.iter().enumerate() {
+            let n = pool.ref_slots(t);
+            at += n;
+            if self.names.text(name) == "self" {
+                if i == 0 && matches!(pool.get(t), TyData::Ref { counted: false, .. }) {
+                    return;
+                }
+                continue;
+            }
+            for &l in slots.get(at - n..at).unwrap_or_default() {
+                own += 1;
+                found.push((name, if l == 0 { own } else { u32::from(l) }));
+            }
+        }
+        let span = self.src.span(rn);
+        let Some(&(one, first)) = found.first() else {
+            self.diags.error(
+                Code::ReferenceResultWithoutSource,
+                span,
+                "a reference result needs a reference parameter to borrow from",
+            );
+            return;
+        };
+        let Some(&(other, _)) = found.iter().find(|(_, l)| *l != first) else {
+            return;
+        };
+        let from = if other == one {
+            format!("either reference in `{}`", self.names.text(one))
+        } else {
+            format!("`{}` or `{}`", self.names.text(one), self.names.text(other))
+        };
+        let msg = format!("the result may borrow from {from}; write a lifetime to name its source");
+        self.diags.error(Code::AmbiguousReferenceSource, span, &msg);
     }
 
     /// The fields in `holder`. A lifetime struct's (`lifetimes`) record
@@ -4124,17 +4249,39 @@ impl Lower<'_, '_, '_> {
             }
             return;
         }
-        // ref.lifetime.not-yet.alias-target: a lifetime in an implementation's target.
+        // `ref.lifetime.struct.impl`: the target's lifetimes are those of
+        // its methods' `self` and `Self`.
         let saved = self.slots.replace(Vec::new());
         let self_ty = self.ty_at(Some(target), &gn, true);
-        if std::mem::replace(&mut self.slots, saved).is_some_and(|l| l.iter().any(|l| *l != 0))
+        gn.self_slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+        // `ref.lifetime.not-yet.trait-target`: a trait's methods have no
+        // slots for the target's lifetimes yet. The implementation is left
+        // out, so nothing else is reported about it.
+        if trait_node.is_some() && gn.self_slots.iter().any(|l| *l != 0) {
+            if self.r.frozen.is_none() {
+                self.diags.error(
+                    Code::ReferencesNotYetChecked,
+                    self.src.span(target),
+                    "a lifetime in a trait implementation's target is not checked yet",
+                );
+            }
+            Self::poisoned_impl(h, self_ty, generics, out);
+            return;
+        }
+        // `ref.lifetime.struct.impl.elided`: a lifetime struct's
+        // lifetimes are its last slots.
+        if let TyData::Adt { def, .. } = pool.get(self_ty)
+            && let k = self.r.lifetime_count(def)
+            && k > 0
+            && gn.self_slots.iter().rev().take(k).all(|l| *l == 0)
             && self.r.frozen.is_none()
         {
-            self.diags.error(
-                Code::ReferencesNotYetChecked,
-                self.src.span(target),
-                "a lifetime in an implementation's target is not checked yet",
+            let name = self.names.display_name(def).to_owned();
+            let msg = format!(
+                "write the lifetime arguments of `{name}`, as in `{name}[T, 'a]`; an elided one is not checked yet in an implementation's target"
             );
+            self.diags
+                .error(Code::ReferencesNotYetChecked, self.src.span(target), &msg);
         }
         gn.self_ty = Some(self_ty);
         let toks: Vec<_> = n.direct_tokens().collect();

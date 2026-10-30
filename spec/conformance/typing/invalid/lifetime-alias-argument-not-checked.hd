@@ -1,5 +1,5 @@
 # test: a lifetime variable in a type alias's argument is references-not-yet-checked
-# Spec 13 Lifetime Variables: ref.lifetime.not-yet.alias-target.
+# Spec 13 Lifetime Variables: ref.lifetime.not-yet.alias.
 struct User:
     name: string
 

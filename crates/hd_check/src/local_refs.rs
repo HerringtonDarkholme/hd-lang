@@ -100,8 +100,9 @@ fn value_of(e: NodeRef<'_>) -> NodeRef<'_> {
 /// (`ref.local.escape.field`, `.top-level`, `.generic-argument`): one
 /// error per `&`. A parameter, a local binding, an impl's target, a
 /// function's result and a function type's parameters and result may be
-/// local references. A result that holds one needs one source
-/// (`ref.dep.elide`, `fn.type.lifetime.elide`).
+/// local references. A function type's result that holds one needs one
+/// source (`fn.type.lifetime.elide`); a function's is the resolver's
+/// (`ref.dep.elide`).
 pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
     for item in src.root().children() {
         match item.kind() {
@@ -150,20 +151,14 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                 }
             }
         }
-        // A function's written result may hold a local reference, which
-        // depends on the elided source (`ref.dep.result`).
+        // A function's written result's source is the resolver's
+        // (`ref.dep.elide`); a local function's is a closure's.
         SyntaxKind::FnDecl => {
             for c in n.children() {
-                if c.kind().is_type() {
-                    walk_ty(src, c, None, diags);
-                    let mut at = Vec::new();
-                    ref_positions(src, c, &mut at);
-                    if c.kind() != SyntaxKind::RequirementRow && !at.is_empty() {
-                        check_source(src, n, c, diags);
-                    }
-                } else {
-                    walk(src, c, diags);
+                if c.kind() == SyntaxKind::Block {
+                    local_fns(src, c, diags);
                 }
+                walk(src, c, diags);
             }
         }
         // A closure's written result may hold a local reference, whose
@@ -325,63 +320,37 @@ fn ref_positions<'s>(src: &Src<'s>, n: NodeRef<'_>, out: &mut Vec<Option<&'s str
     }
 }
 
-/// The source each position of the written result `ret` of the function
-/// `f` depends on (`ref.dep.elide`). A position that writes a lifetime
-/// names its own; any other takes a `&self` or `&mut self` receiver's, or
-/// else the one lifetime among the parameters' reference positions, each
-/// position without a written lifetime having its own. None is
-/// `reference-result-without-source`, and two or more are
-/// `ambiguous-reference-source`.
-fn check_source(src: &Src<'_>, f: NodeRef<'_>, ret: NodeRef<'_>, diags: &mut DiagBuf) {
-    let toks = &src.parse.tokens;
-    let Some(params) = f.child(SyntaxKind::ParameterList) else {
-        return;
-    };
-    let mut result = Vec::new();
-    ref_positions(src, ret, &mut result);
-    if result.iter().all(Option::is_some) {
-        return;
-    }
-    // Each position's parameter, and its lifetime or its own place.
-    let mut found: Vec<(&str, Result<&str, usize>)> = Vec::new();
-    for p in params.children() {
-        if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
-            if p.direct_token(toks, TokenKind::Amp).is_some() {
-                return;
+/// Each local function in the body `n`, outside a nested function or a
+/// local implementation or trait: a closure, so a written result that
+/// holds a local reference needs one source as a function type's does
+/// (`fn.closure.lifetime`).
+fn local_fns(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
+    for c in n.children() {
+        match c.kind() {
+            SyntaxKind::FnDecl => {
+                let Some(ret) = c
+                    .children()
+                    .find(|t| t.kind().is_type() && t.kind() != SyntaxKind::RequirementRow)
+                else {
+                    continue;
+                };
+                let mut outs = Vec::new();
+                ref_positions(src, ret, &mut outs);
+                if outs.iter().any(Option::is_none) {
+                    let mut ins = Vec::new();
+                    for p in c
+                        .children()
+                        .filter(|p| p.kind() == SyntaxKind::ParameterList)
+                    {
+                        ref_positions(src, p, &mut ins);
+                    }
+                    fn_type_source(src, ret, &ins, diags);
+                }
             }
-            continue;
-        }
-        let name = p.name(toks).map_or("_", |t| src.text(t));
-        let mut at = Vec::new();
-        for c in p.children() {
-            ref_positions(src, c, &mut at);
-        }
-        for l in at {
-            let own = found.len();
-            found.push((name, l.ok_or(own)));
+            SyntaxKind::ImplDecl | SyntaxKind::TraitDecl => {}
+            _ => local_fns(src, c, diags),
         }
     }
-    let Some(&(one, first)) = found.first() else {
-        diags.error(
-            Code::ReferenceResultWithoutSource,
-            src.span(ret),
-            "a reference result needs a reference parameter to borrow from",
-        );
-        return;
-    };
-    let Some(&(other, _)) = found.iter().find(|(_, l)| *l != first) else {
-        return;
-    };
-    let from = if other == one {
-        format!("either reference in `{one}`")
-    } else {
-        format!("`{one}` or `{other}`")
-    };
-    diags.error(
-        Code::AmbiguousReferenceSource,
-        src.span(ret),
-        &format!("the result may borrow from {from}; write a lifetime to name its source"),
-    );
 }
 
 /// `fn.type.lifetime.elide`: a result position of a function type that

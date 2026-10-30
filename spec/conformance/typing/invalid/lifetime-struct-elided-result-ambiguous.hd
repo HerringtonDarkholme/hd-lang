@@ -1,0 +1,8 @@
+# test: a result type with an elided lifetime argument and two reference parameters is ambiguous
+# Spec 13 Lifetime Structs: ref.lifetime.struct.elide.result; Lifetime Variables: ref.lifetime.elide.ambiguous.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn pick(a: &string, b: &string) -> Parser[string]: # diagnostic: ambiguous-reference-source
+    Parser { src: a, pos: b.len() }

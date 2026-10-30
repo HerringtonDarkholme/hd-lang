@@ -1,0 +1,9 @@
+# test: a method's result of the target's lifetime may not borrow from another parameter
+# Spec 13 Lifetime Structs: ref.lifetime.struct.impl; Lifetime Variables: ref.lifetime.return.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+impl[T, 'a] Parser[T, 'a]:
+    fn either(&self, other: &T) -> &'a T:
+        other # diagnostic: local-reference-escapes

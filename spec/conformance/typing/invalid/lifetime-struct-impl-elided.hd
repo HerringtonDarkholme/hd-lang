@@ -1,0 +1,9 @@
+# test: an implementation's target that names a lifetime struct without lifetime arguments is not checked yet
+# Spec 13 Lifetime Structs: ref.lifetime.struct.impl.elided.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+impl[T] Parser[T]: # diagnostic: references-not-yet-checked
+    fn position(&self) -> usize:
+        self.pos

@@ -1,0 +1,17 @@
+# test: a method of an implementation whose target writes a lifetime returns a reference of that lifetime
+# Spec 13 Lifetime Structs: ref.lifetime.struct.impl.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+impl[T, 'a] Parser[T, 'a]:
+    fn source(&self) -> &'a T:
+        self.src
+
+    fn restart(self, src: &'a T) -> Self:
+        Parser { src: src, pos: 0 }
+
+fn demo(text: string, other: string) -> usize:
+    p := Parser { src: &text, pos: 1 }
+    q := p.restart(&text)
+    p.source().len() + q.source().len()

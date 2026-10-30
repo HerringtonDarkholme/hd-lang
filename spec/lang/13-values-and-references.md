@@ -587,8 +587,10 @@ fn view(u: User) -> i32:
 12. r[ref.lifetime.call] A call's result position depends on what every argument in a parameter position of its lifetime depends on.
 13. r[ref.lifetime.declarations] A top-level function, an implementation, and a method of an implementation or a trait may declare lifetime parameters.
 14. r[ref.lifetime.not-yet.other-owner] Any other lifetime parameter is not checked yet, so it is an error: an enum's, a trait's own, a `type` declaration's, a local function's, or a local struct's. A top-level struct's follows [Lifetime Structs](#lifetime-structs). Error: `references-not-yet-checked`.
-15. r[ref.lifetime.not-yet.alias-target] A lifetime written in a type alias's arguments or in an implementation's target is an error too. Error: `references-not-yet-checked`.
-16. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
+15. r[ref.lifetime.alias-in-order] A type alias passes on the lifetimes written in its arguments when its type uses each parameter once, in order, outside function types, and writes no `&` of its own. So `Option[&'a T]` is `&'a T?`.
+16. r[ref.lifetime.not-yet.alias] A lifetime written in the arguments of any other type alias is an error too. Error: `references-not-yet-checked`.
+17. r[ref.lifetime.not-yet.trait-target] A lifetime written in a trait implementation's target is an error too. Error: `references-not-yet-checked`.
+18. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
 
 ```hd
 struct User:
@@ -631,8 +633,11 @@ struct Two['a, 'b]:
 fn left['a, 'b](t: &Two['a, 'b]) -> &'a string:
     t.y  # error: local-reference-escapes
 
-fn position(p: &Parser[string]) -> usize:  # error: references-not-yet-checked
-    p.pos
+fn src(p: &Parser[string]) -> &string:  # error: ambiguous-reference-source
+    p.src
+
+impl[T] Parser[T]:  # error: references-not-yet-checked
+    fn position(&self) -> usize: self.pos
 
 fn scan(fallback: &string) -> usize:
     let mut p = Parser { src: fallback, pos: 0 }
@@ -658,8 +663,13 @@ fn keep(text: string) -> void:
 10. r[ref.lifetime.struct.read.one-lifetime] A field of another type whose reference positions all name one lifetime, as `Option[&'a T]` or `Parser[T, 'a]`, is constructed and read the same way.
 11. r[ref.lifetime.struct.read.mixed] A field whose reference positions name two or more lifetimes is one of the other parts of [`ref.dep.origin.position.union`](#r-ref.dep.origin.position.union).
 12. r[ref.lifetime.struct.field-elided] A field whose type names a lifetime struct without lifetime arguments holds a local reference, so it is an error. Error: `local-reference-escapes`.
-13. r[ref.lifetime.struct.signature-elided] A signature or an implementation's target that names a lifetime struct without lifetime arguments is not checked yet, so it is an error. Error: `references-not-yet-checked`.
-14. r[ref.lifetime.struct.body] A function body names a lifetime struct without lifetime arguments, as in `let p: Parser[string] = q`.
+13. r[ref.lifetime.struct.elide] A signature may name a lifetime struct without lifetime arguments. Each elided argument is a reference position that writes no lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
+14. r[ref.lifetime.struct.elide.parameter] In a parameter's type, each elided argument has a lifetime of its own, so `p: &Parser[string]` has two reference positions.
+15. r[ref.lifetime.struct.elide.result] In the result type, each elided argument takes its lifetime as [`ref.lifetime.elide`](#r-ref.lifetime.elide) states, as in `fn make(s: &string) -> Parser[string]`.
+16. r[ref.lifetime.struct.elide.ambiguous] So a result that writes no lifetime, with no reference receiver and two lifetimes among the parameters' positions, is an error, as in `fn src(p: &Parser[string]) -> &string`. Error: `ambiguous-reference-source`.
+17. r[ref.lifetime.struct.impl] An inherent implementation's target may write the implementation's lifetimes, as in `impl[T, 'a] Parser[T, 'a]`. Its methods' `self` and `Self` have those lifetimes.
+18. r[ref.lifetime.struct.impl.elided] An implementation's target that names a lifetime struct without lifetime arguments is not checked yet, so it is an error. Error: `references-not-yet-checked`.
+19. r[ref.lifetime.struct.body] A function body names a lifetime struct without lifetime arguments, as in `let p: Parser[string] = q`.
 
 ```hd
 struct Parser[T, 'src]:
@@ -669,9 +679,20 @@ struct Parser[T, 'src]:
 fn parser['a](src: &'a string) -> Parser[string, 'a]:
     Parser { src: src, pos: 0 }
 
+fn make(src: &string) -> Parser[string]:  # the result takes src's lifetime
+    Parser { src: src, pos: 0 }
+
+fn position(p: &Parser[string]) -> usize:  # two lifetimes of its own
+    p.pos
+
+impl[T, 'a] Parser[T, 'a]:
+    fn source(&self) -> &'a T:
+        self.src
+
 fn length(text: string) -> usize:
     p := parser(&text)
-    p.src.len() - p.pos  # valid: text is in scope
+    q := make(&text)
+    p.src.len() - position(&q) + q.source().len()  # valid: text is in scope
 
 struct Two['a, 'b]:
     x: &'a string
@@ -691,10 +712,13 @@ fn first(outer: string) -> usize:
 > **Why.** These are Rust's struct lifetimes, as in `struct Parser<'a>`.
 > A lifetime struct has the representation of the same struct without
 > lifetimes; only the checker tells its lifetimes apart.
+> Elision is Rust's too: `&Parser<'_, T>` has two input lifetimes, so a
+> result needs one named.
 
-> **Note.** Lifetime arguments elided in signatures, lifetimes on enums,
-> traits and implementation targets, and stores of local references
-> through `&mut` come in later stages.
+> **Note.** Lifetimes on enums and traits, a trait implementation for a
+> lifetime struct, lifetime arguments elided in an implementation's
+> target, and stores of local references through `&mut` come in later
+> stages.
 
 See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 [Fields](08-data-and-enums.md#fields).

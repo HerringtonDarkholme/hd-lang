@@ -1,0 +1,12 @@
+# test: an elided lifetime argument in a result type takes the one lifetime of the parameters
+# Spec 13 Lifetime Structs: ref.lifetime.struct.elide.result.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn make(s: &string) -> Parser[string]:
+    Parser { src: s, pos: 0 }
+
+fn demo(text: string) -> usize:
+    p := make(&text)
+    p.src.len() - p.pos

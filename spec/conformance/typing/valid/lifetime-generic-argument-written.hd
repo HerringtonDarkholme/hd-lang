@@ -1,0 +1,18 @@
+# test: a lifetime written inside a generic argument of a signature names that position's lifetime
+# Spec 13 Lifetime Variables: ref.lifetime.alias-in-order, ref.lifetime.position.
+struct Boxed[T]:
+    value: T
+
+fn first['a](s: &'a string, t: &string) -> Option[&'a string]:
+    if t.len() > 0: .Some(s) else: .None
+
+fn unwrap['a](b: Boxed[&'a string], t: &string) -> &'a string:
+    b.value
+
+fn demo(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "hello"
+        kept = first(&outer, &inner).unwrap_or(&outer)
+        kept = unwrap(Boxed { value: &outer }, &inner)
+    kept.len()

@@ -1,0 +1,8 @@
+# test: an elided lifetime argument is a reference position, so a reference to a lifetime struct has two
+# Spec 13 Lifetime Structs: ref.lifetime.struct.elide.ambiguous.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn src(p: &Parser[string]) -> &string: # diagnostic: ambiguous-reference-source
+    p.src
