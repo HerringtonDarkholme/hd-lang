@@ -141,37 +141,22 @@ function reportLines(at: string, name: string, verdict: Verdict, input?: string)
   return [];
 }
 
-/**
- * Test: runs every case of every test program as `hd test` does, a fresh
- * instance per case and per row, with the property runner and shrinking
- * of host/cases.mjs. A case running past its `timeout` while it waits is
- * cut at its deadline; one that never yields is cut only by the
- * playground's run limit. Snapshot and regression files live in memory
- * for the run (crates/hd_web/DESIGN.md §5). The output lists each case that did
- * not pass as `hd test` prints it; the summary counts the passes, or names
- * the first failure.
- */
-async function runTests(
-  compiled: Compiled,
-  diagnostics: readonly RunDiagnostic[],
-  emit: (line: string) => void,
-  finish: Finish,
-): Promise<RunResult> {
-  const cases = compiled.json.tests ?? [];
-  if (cases.length === 0) {
-    return finish(
-      "failure",
-      diagnostics,
-      "nothing to test: add a `tests:` block or a `_test.hd` module with `it(...)` test cases",
-    );
-  }
-  const programs = compiled.json.programs ?? [];
-  const bytes = programBytes(compiled);
-  const files = memoryFiles();
-  // Each case's result records, by its index in `cases`.
-  const records: CaseRecord[][] = cases.map(() => []);
-  const runs = (test: WireTest): boolean =>
-    test.run !== null && test.ignore === null && test.unsupported === null;
+const runs = (test: WireTest): boolean =>
+  test.run !== null && test.ignore === null && test.unsupported === null;
+
+async function collectRecords({
+  programs,
+  cases,
+  bytes,
+  files,
+  records,
+}: {
+  programs: NonNullable<Compiled["json"]["programs"]>;
+  cases: readonly WireTest[];
+  bytes: Uint8Array[];
+  files: ReturnType<typeof memoryFiles>;
+  records: CaseRecord[][];
+}): Promise<string | undefined> {
   for (const [index, program] of programs.entries()) {
     const own = cases.flatMap((test, at) => (test.program === index && runs(test) ? [at] : []));
     if (own.length === 0) {
@@ -180,19 +165,12 @@ async function runTests(
     const module = await WebAssembly.compile(bytes[index] as BufferSource);
     const missing = unboundTraits(module, createWebHost({ out() {}, err() {} }));
     if (missing.length > 0) {
-      return finish(
-        "failure",
-        diagnostics,
-        `${program.file ?? "the tests"} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd test`,
-      );
+      return `${program.file ?? "the tests"} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd test`;
     }
-    // The case of each `hd.test.i` export of this program.
     const byExport = new Map(own.map((at) => [cases[at]!.run![0], at]));
     await runCases({
       module,
       config: {
-        // An integration test's `Args.program` is its file
-        // (cli.test.env.args.program).
         program: program.file ?? "",
         args: [],
         programs: null,
@@ -210,11 +188,8 @@ async function runTests(
           };
         }),
       },
-      // The shared runner updates this per-instance environment between bodies.
       createHost: (sink, env) => createWebHost(sink, Object.assign(env, { files })),
       files,
-      // No supervisor: the playground's run limit stops a body that never
-      // yields.
       notify: () => undefined,
       emit: (record) => {
         const at = byExport.get(record.test);
@@ -224,7 +199,16 @@ async function runTests(
       },
     });
   }
+  return undefined;
+}
 
+const cannotRun = (test: WireTest): boolean => test.unsupported !== null || test.run === null;
+
+function summarizeCases(
+  cases: readonly WireTest[],
+  records: CaseRecord[][],
+  emit: (line: string) => void,
+) {
   let passed = 0;
   let failed = 0;
   let ignored = 0;
@@ -232,24 +216,21 @@ async function runTests(
   let first: { status: RunResult["status"]; summary: string } | undefined;
   for (const [at, test] of cases.entries()) {
     const where = `${test.file}:${test.line}`;
-    // What `hd test` knows without running the case.
     if (test.unsupported === null && test.ignore !== null) {
       ignored += 1;
       emit(`IGNORED ${where}: ${test.name} (${test.ignore})`);
       continue;
     }
-    if (test.unsupported !== null || test.run === null) {
+    if (cannotRun(test)) {
       unsupported += 1;
       const what = test.unsupported ?? "a case without a checked body";
       emit(`UNSUPPORTED ${where}: ${test.name} (${what} cannot run yet)`);
       continue;
     }
     for (const record of records[at]!) {
-      // An empty table reports nothing (std-testing.it-each).
       if (record.status === undefined) {
         continue;
       }
-      // An `it_each` row is named `name[i]` (std-testing.it-each.name).
       const name = record.row === undefined ? test.name : `${test.name}[${record.row}]`;
       const verdict = judge(
         {
@@ -280,6 +261,43 @@ async function runTests(
             };
     }
   }
+  return { passed, failed, ignored, unsupported, first };
+}
+
+/**
+ * Test: runs every case of every test program as `hd test` does, a fresh
+ * instance per case and per row, with the property runner and shrinking
+ * of host/cases.mjs. A case running past its `timeout` while it waits is
+ * cut at its deadline; one that never yields is cut only by the
+ * playground's run limit. Snapshot and regression files live in memory
+ * for the run (crates/hd_web/DESIGN.md §5). The output lists each case that did
+ * not pass as `hd test` prints it; the summary counts the passes, or names
+ * the first failure.
+ */
+async function runTests(
+  compiled: Compiled,
+  diagnostics: readonly RunDiagnostic[],
+  emit: (line: string) => void,
+  finish: Finish,
+): Promise<RunResult> {
+  const cases = compiled.json.tests ?? [];
+  if (cases.length === 0) {
+    return finish(
+      "failure",
+      diagnostics,
+      "nothing to test: add a `tests:` block or a `_test.hd` module with `it(...)` test cases",
+    );
+  }
+  const programs = compiled.json.programs ?? [];
+  const bytes = programBytes(compiled);
+  const files = memoryFiles();
+  // Each case's result records, by its index in `cases`.
+  const records: CaseRecord[][] = cases.map(() => []);
+  const unavailable = await collectRecords({ programs, cases, bytes, files, records });
+  if (unavailable) {
+    return finish("failure", diagnostics, unavailable);
+  }
+  const { passed, failed, ignored, unsupported, first } = summarizeCases(cases, records, emit);
   const others = [
     ignored > 0 ? `, ${ignored} ignored` : "",
     unsupported > 0 ? `, ${unsupported} unsupported` : "",

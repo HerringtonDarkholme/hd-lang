@@ -376,43 +376,56 @@ export class ReplPanel {
     );
   }
 
-  private onKey(event: KeyboardEvent): void {
-    const { input } = this;
-    const { value, selectionStart, selectionEnd } = input;
-    if (event.key === "Enter" && !event.isComposing) {
+  private enterKey(event: KeyboardEvent): boolean {
+    if (event.key !== "Enter" || event.isComposing) {
+      return false;
+    }
+    event.preventDefault();
+    const { value, selectionStart } = this.input;
+    const atEnd = selectionStart === value.length;
+    const command = !value.includes("\n") && value.trimStart().startsWith(":");
+    const editing = !atEnd && value.includes("\n");
+    if (event.shiftKey || (!command && (editing || needsMoreInput(value)))) {
+      const line = value.slice(0, selectionStart).split("\n").at(-1) ?? "";
+      this.insert(`\n${continuationIndent(line)}`);
+      return true;
+    }
+    this.setInput("");
+    if (value.trim() !== "") {
+      void this.submit(value.replace(/\s+$/, ""));
+    }
+    return true;
+  }
+
+  private tabKey(event: KeyboardEvent): boolean {
+    if (event.key !== "Tab" || event.shiftKey || event.ctrlKey || event.metaKey) {
+      return false;
+    }
+    event.preventDefault();
+    this.insert(INDENT_UNIT);
+    return true;
+  }
+
+  private backspaceKey(event: KeyboardEvent): boolean {
+    const { selectionStart, selectionEnd, value } = this.input;
+    if (event.key !== "Backspace" || selectionStart !== selectionEnd) {
+      return false;
+    }
+    const before = value.slice(0, selectionStart).split("\n").at(-1) ?? "";
+    const remove = backspaceWidth(before);
+    if (remove > 1) {
       event.preventDefault();
-      const atEnd = selectionStart === value.length;
-      const command = !value.includes("\n") && value.trimStart().startsWith(":");
-      const editing = !atEnd && value.includes("\n");
-      if (event.shiftKey || (!command && (editing || needsMoreInput(value)))) {
-        const line = value.slice(0, selectionStart).split("\n").at(-1) ?? "";
-        this.insert(`\n${continuationIndent(line)}`);
-        return;
-      }
-      this.setInput("");
-      if (value.trim() !== "") {
-        void this.submit(value.replace(/\s+$/, ""));
-      }
-      return;
+      this.input.setSelectionRange(selectionStart - remove, selectionStart);
+      this.insert("");
     }
-    if (event.key === "Tab" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
-      event.preventDefault();
-      this.insert(INDENT_UNIT);
-      return;
-    }
-    if (event.key === "Backspace" && selectionStart === selectionEnd) {
-      const before = value.slice(0, selectionStart).split("\n").at(-1) ?? "";
-      const remove = backspaceWidth(before);
-      if (remove > 1) {
-        event.preventDefault();
-        input.setSelectionRange(selectionStart - remove, selectionStart);
-        this.insert("");
-      }
-      return;
-    }
+    return true;
+  }
+
+  private historyKey(event: KeyboardEvent): boolean {
+    const { value, selectionStart, selectionEnd } = this.input;
     if (event.key === "ArrowUp" && !value.slice(0, selectionStart).includes("\n")) {
       if (this.recall === 0) {
-        return;
+        return true;
       }
       event.preventDefault();
       if (this.recall === this.history.length) {
@@ -420,17 +433,30 @@ export class ReplPanel {
       }
       this.recall -= 1;
       this.setInput(this.history[this.recall]!);
+      return true;
+    }
+    if (event.key !== "ArrowDown" || value.slice(selectionEnd).includes("\n")) {
+      return false;
+    }
+    if (this.recall >= this.history.length) {
+      return true;
+    }
+    event.preventDefault();
+    this.recall += 1;
+    this.setInput(this.recall === this.history.length ? this.draft : this.history[this.recall]!);
+    return true;
+  }
+
+  private onKey(event: KeyboardEvent): void {
+    if (
+      this.enterKey(event) ||
+      this.tabKey(event) ||
+      this.backspaceKey(event) ||
+      this.historyKey(event)
+    ) {
       return;
     }
-    if (event.key === "ArrowDown" && !value.slice(selectionEnd).includes("\n")) {
-      if (this.recall >= this.history.length) {
-        return;
-      }
-      event.preventDefault();
-      this.recall += 1;
-      this.setInput(this.recall === this.history.length ? this.draft : this.history[this.recall]!);
-      return;
-    }
+    const { value } = this.input;
     if (event.ctrlKey && event.key === "l") {
       event.preventDefault();
       this.clear();

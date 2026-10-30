@@ -74,20 +74,12 @@ export function trimmed(state: SessionState): SessionState {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Checks a decoded or loaded value and returns it as a state; undefined if it is not one. */
-export function asState(value: unknown): SessionState | undefined {
-  if (!isRecord(value)) {
+function asInputs(value: unknown): [number, string][] | undefined {
+  if (!Array.isArray(value)) {
     return undefined;
   }
-  const { files, inputs, next, journal, transcript } = value;
-  if (!isRecord(files) || !Object.values(files).every((text) => typeof text === "string")) {
-    return undefined;
-  }
-  if (!Array.isArray(inputs)) {
-    return undefined;
-  }
-  const checkedInputs: [number, string][] = [];
-  for (const item of inputs) {
+  const checked: [number, string][] = [];
+  for (const item of value) {
     if (!Array.isArray(item) || item.length !== 2) {
       return undefined;
     }
@@ -95,19 +87,17 @@ export function asState(value: unknown): SessionState | undefined {
     if (!Number.isInteger(number) || (number as number) < 1 || typeof text !== "string") {
       return undefined;
     }
-    checkedInputs.push([number as number, text]);
+    checked.push([number as number, text]);
   }
-  if (!Number.isInteger(next) || (next as number) < 1) {
-    return undefined;
-  }
-  if (journal !== null && !(journal instanceof Uint8Array)) {
-    return undefined;
-  }
-  if (!Array.isArray(transcript)) {
+  return checked;
+}
+
+function asTranscript(value: unknown): TranscriptEntry[] | undefined {
+  if (!Array.isArray(value)) {
     return undefined;
   }
   const lines: TranscriptEntry[] = [];
-  for (const item of transcript) {
+  for (const item of value) {
     if (!isRecord(item) || typeof item.c !== "string" || typeof item.t !== "string") {
       return undefined;
     }
@@ -121,6 +111,32 @@ export function asState(value: unknown): SessionState | undefined {
     if (keepsLine(entry)) {
       lines.push(entry);
     }
+  }
+  return lines;
+}
+
+/** Checks a decoded or loaded value and returns it as a state; undefined if it is not one. */
+export function asState(value: unknown): SessionState | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const { files, inputs, next, journal, transcript } = value;
+  if (!isRecord(files) || !Object.values(files).every((text) => typeof text === "string")) {
+    return undefined;
+  }
+  const checkedInputs = asInputs(inputs);
+  if (!checkedInputs) {
+    return undefined;
+  }
+  if (!Number.isInteger(next) || (next as number) < 1) {
+    return undefined;
+  }
+  if (journal !== null && !(journal instanceof Uint8Array)) {
+    return undefined;
+  }
+  const lines = asTranscript(transcript);
+  if (!lines) {
+    return undefined;
   }
   return {
     files: files as Record<string, string>,

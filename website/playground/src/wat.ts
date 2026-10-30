@@ -128,6 +128,32 @@ function scanBlockComment(text: string, start: number): number {
   return index;
 }
 
+function scanQuoted(text: string, quote: number): number {
+  let index = quote + 1;
+  while (index < text.length && text[index] !== '"' && text[index] !== "\n") {
+    index += text[index] === "\\" ? 2 : 1;
+  }
+  return text[index] === '"' ? index + 1 : index;
+}
+
+function pushWord(push: (kind: WatTokenKind, value: string) => void, word: string): void {
+  const equals = word.indexOf("=");
+  if (equals > 0 && equals < word.length - 1 && !word.startsWith("$")) {
+    push("keyword", word.slice(0, equals + 1));
+    push(wordKind(word.slice(equals + 1)), word.slice(equals + 1));
+  } else {
+    push(wordKind(word), word);
+  }
+}
+
+function plainEnd(text: string, start: number): number {
+  let index = start;
+  while (index < text.length && !ID_CHAR.test(text[index]!) && !'()";'.includes(text[index]!)) {
+    index += 1;
+  }
+  return index === start ? start + 1 : index;
+}
+
 /** Splits WAT text into highlighted runs; joining their text gives back `text`. */
 export function tokenizeWat(text: string): WatToken[] {
   const tokens: WatToken[] = [];
@@ -155,24 +181,12 @@ export function tokenizeWat(text: string): WatToken[] {
       index += 1;
       push("paren", char);
     } else if (char === '"') {
-      index += 1;
-      while (index < text.length && text[index] !== '"' && text[index] !== "\n") {
-        index += text[index] === "\\" ? 2 : 1;
-      }
-      if (text[index] === '"') {
-        index += 1;
-      }
+      index = scanQuoted(text, index);
       push("string", text.slice(start, index));
     } else if (char === "$" && text[index + 1] === '"') {
       // A quoted name, `$"std/format/impl Display for usize.to_string#0"`,
       // which wasmprinter writes for names that are not plain identifiers.
-      index += 2;
-      while (index < text.length && text[index] !== '"' && text[index] !== "\n") {
-        index += text[index] === "\\" ? 2 : 1;
-      }
-      if (text[index] === '"') {
-        index += 1;
-      }
+      index = scanQuoted(text, index + 1);
       push("name", text.slice(start, index));
     } else if (ID_CHAR.test(char)) {
       while (index < text.length && ID_CHAR.test(text[index]!)) {
@@ -180,20 +194,9 @@ export function tokenizeWat(text: string): WatToken[] {
       }
       const word = text.slice(start, index);
       // `offset=4` and `align=8` are a keyword and a number.
-      const equals = word.indexOf("=");
-      if (equals > 0 && equals < word.length - 1 && !word.startsWith("$")) {
-        push("keyword", word.slice(0, equals + 1));
-        push(wordKind(word.slice(equals + 1)), word.slice(equals + 1));
-      } else {
-        push(wordKind(word), word);
-      }
+      pushWord(push, word);
     } else {
-      while (index < text.length && !ID_CHAR.test(text[index]!) && !'()";'.includes(text[index]!)) {
-        index += 1;
-      }
-      if (index === start) {
-        index += 1;
-      }
+      index = plainEnd(text, start);
       push("plain", text.slice(start, index));
     }
   }

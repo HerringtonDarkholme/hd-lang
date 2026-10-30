@@ -217,6 +217,29 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       journalFull: false,
       ...fields,
     });
+    const completed = (result: Awaited<ReturnType<Session["run"]>>): ReplRan => {
+      for (const n of [...result.skipped, ...result.dropped]) {
+        texts.delete(n);
+      }
+      const live = result.live;
+      const value = outcomeOf(live);
+      outcome(exports, number, value);
+      if (live?.end.kind === "cancelled" || live?.end.kind === "stopped") {
+        sink.err(
+          `note: repl#${number} was ${live.end.kind}, so the next rebuild skips it; its changes are not restored\n`,
+        );
+      }
+      if (value !== OUTCOME.dropped) {
+        texts.set(number, source);
+      }
+      return ran({
+        diagnostics,
+        end: live?.end ?? null,
+        joined: live?.joined ?? false,
+        error: live?.error ? runError(number, live.error) : null,
+        journalFull: session!.takeJournalNotice(),
+      });
+    };
     if (!session) {
       return ran({ error: "no session: start one first" });
     }
@@ -237,27 +260,7 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       outcome(exports, number, OUTCOME.dropped);
       return ran({ diagnostics, error: runError(number, message(error)) });
     }
-    for (const n of [...result.skipped, ...result.dropped]) {
-      texts.delete(n);
-    }
-    const live = result.live;
-    const value = outcomeOf(live);
-    outcome(exports, number, value);
-    if (live?.end.kind === "cancelled" || live?.end.kind === "stopped") {
-      sink.err(
-        `note: repl#${number} was ${live.end.kind}, so the next rebuild skips it; its changes are not restored\n`,
-      );
-    }
-    if (value !== OUTCOME.dropped) {
-      texts.set(number, source);
-    }
-    return ran({
-      diagnostics,
-      end: live?.end ?? null,
-      joined: live?.joined ?? false,
-      error: live?.error ? runError(number, live.error) : null,
-      journalFull: session.takeJournalNotice(),
-    });
+    return completed(result);
   }
 
   async function rebuild(
