@@ -93,9 +93,9 @@ function sharedCancel(boundMs, cell) {
 // Runs `module` (bytes or a compiled module) in this thread under
 // `config`, writing through `sink`, and returns the status. `cancel`,
 // when given, is how a Ctrl-C reaches the run.
-async function runHere(module, config, args, sink, deadline = null, cancel = null) {
+async function runHere({ module, config, args, sink, deadline = null, cancel = null }) {
   try {
-    return await runHereUnchecked(module, config, args, sink, deadline, cancel);
+    return await runHereUnchecked({ module, config, args, sink, deadline, cancel });
   } catch (error) {
     if (!(error instanceof HostContract)) {
       throw error;
@@ -105,7 +105,7 @@ async function runHere(module, config, args, sink, deadline = null, cancel = nul
   }
 }
 
-async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
+async function runHereUnchecked({ module, config, args, sink, deadline, cancel }) {
   // The unsupervised path may receive bytes; retain the compiled module
   // so checked reports can read its custom metadata too.
   module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
@@ -173,13 +173,9 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
   });
   try {
     const instance = await WebAssembly.instantiate(module, host.imports);
-    const { status, frames } = await host.run(
-      instance.instance ?? instance,
-      "hd.init",
-      "hd.poll",
-      null,
+    const { status, frames } = await host.run(instance.instance ?? instance, "hd.init", "hd.poll", {
       cancel,
-    );
+    });
     // The frames of a trap, for `hd` to name (`flow.panic.report`).
     if (frames?.length && config.framesFile) {
       writeFileSync(config.framesFile, JSON.stringify(frames));
@@ -192,7 +188,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
 
 // Runs `module` in a worker until its deadline, `limit` milliseconds from
 // now, and returns the status: the program's, or 3 for a worker it stopped.
-function supervise(module, config, args, limit, output) {
+function supervise({ module, config, args, limit, output }) {
   return new Promise((resolve, fail) => {
     const deadline = now() + limit;
     const { port1: port, port2 } = new MessageChannel();
@@ -340,19 +336,25 @@ if (isMainThread) {
   try {
     process.exitCode =
       limit === null
-        ? await runHere(bytes, config, args, output, null, cancel)
-        : await supervise(await WebAssembly.compile(bytes), config, args, limit, output);
+        ? await runHere({ module: bytes, config, args, sink: output, cancel })
+        : await supervise({
+            module: await WebAssembly.compile(bytes),
+            config,
+            args,
+            limit,
+            output,
+          });
   } finally {
     await output.close();
   }
 } else {
   const { module, config, args, deadline, port, cell, outputConnection } = workerData;
   const output = createOutput(outputConnection);
-  const status = await runHere(
+  const status = await runHere({
     module,
     config,
     args,
-    {
+    sink: {
       out: output.out,
       write: output.write,
       err: (text) => {
@@ -362,8 +364,8 @@ if (isMainThread) {
       fact: (label) => port.postMessage({ fact: label }),
     },
     deadline,
-    cell ? sharedCancel(config.cleanupMs, cell) : null,
-  );
+    cancel: cell ? sharedCancel(config.cleanupMs, cell) : null,
+  });
   port.postMessage({ status });
   port.close();
 }

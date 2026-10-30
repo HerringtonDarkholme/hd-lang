@@ -112,14 +112,21 @@ const handleParam = (args: Dynamic[]): number => {
 class ReplSession {
   [key: string]: Dynamic;
 
-  constructor(
-    sink: Sink,
-    env: CoreEnv,
-    layer: Dynamic,
-    options: { journalCap?: number },
-    createHost: typeof createCoreHost,
-    clear: typeof clearOperations,
-  ) {
+  constructor({
+    sink,
+    env,
+    layer,
+    options,
+    createHost,
+    clear,
+  }: {
+    sink: Sink;
+    env: CoreEnv;
+    layer: Dynamic;
+    options: { journalCap?: number };
+    createHost: typeof createCoreHost;
+    clear: typeof clearOperations;
+  }) {
     this.clearOperations = clear;
     this.muted = false;
     this.host = createHost(
@@ -221,13 +228,19 @@ class ReplSession {
   };
   // Answers a call of a replayed input from its record; a call the record
   // does not hold next throws `Diverged`, which ends the input.
-  serve = (
-    record: string,
-    module: string,
-    name: string,
-    args: Dynamic[],
-    request: Dynamic,
-  ): Dynamic => {
+  serve = ({
+    record,
+    module,
+    name,
+    args,
+    request,
+  }: {
+    record: string;
+    module: string;
+    name: string;
+    args: Dynamic[];
+    request: Dynamic;
+  }): Dynamic => {
     switch (record) {
       case "call":
         return this.replay.call(module, name, request);
@@ -260,7 +273,7 @@ class ReplSession {
     // A replayed call is recorded again, so the new journal holds it.
     const write = (args: Dynamic[], request: Dynamic, value: Dynamic, result: Dynamic): void => {
       if (record === "call") {
-        this.recorder.call(module, name, request, value, result);
+        this.recorder.call({ module, name, request, value, result });
       } else if (record === "finish") {
         this.recorder.finish(handleParam(args), value, result);
       } else if (record === "abort") {
@@ -272,7 +285,7 @@ class ReplSession {
     return (...args: Dynamic[]) => {
       const request = record === "call" ? this.requestOf(args, params, reads) : null;
       if (this.replay) {
-        const { value, result } = this.serve(record, module, name, args, request);
+        const { value, result } = this.serve({ record, module, name, args, request });
         if (result) {
           this.put(result);
         }
@@ -347,7 +360,7 @@ class ReplSession {
         instance,
         `hd.init.${number}`,
         `hd.poll.${number}`,
-        this.driver,
+        { driver: this.driver },
       );
       const end = this.halt ?? (trapped ? { kind: "trapped" } : { kind: "exit", status });
       outcome = { status, end, joined: status === 0 && !trapped, error: null };
@@ -560,14 +573,21 @@ class ReplSession {
     }
   };
 
-  runLinked = async (
-    module: WebAssembly.Module,
-    info: Dynamic,
-    wasm: Uint8Array,
-    sources: Iterable<readonly [number, string]>,
-    live: number | null,
-    restoredJournal: Uint8Array | null | undefined,
-  ): Promise<Ran> => {
+  runLinked = async ({
+    module,
+    info,
+    wasm,
+    sources,
+    live,
+    restoredJournal,
+  }: {
+    module: WebAssembly.Module;
+    info: Dynamic;
+    wasm: Uint8Array;
+    sources: Iterable<readonly [number, string]>;
+    live: number | null;
+    restoredJournal: Uint8Array | null | undefined;
+  }): Promise<Ran> => {
     const texts = new Map(sources);
     if (this.linked === null) {
       if (live === null) {
@@ -698,7 +718,14 @@ class ReplSession {
       !sameCode &&
       sourceRows.every(([number]) => exports.has(`hd.init.${number}`));
     if (info && !rebuilding) {
-      return this.runLinked(module, info, wasm, sourceRows, live, journal);
+      return this.runLinked({
+        module,
+        info,
+        wasm,
+        sources: sourceRows,
+        live,
+        restoredJournal: journal,
+      });
     }
     if (journal === undefined) {
       journal = this.historyJournal();
@@ -847,12 +874,12 @@ export function createSession(
   layer: Dynamic = null,
   options: { journalCap?: number } = {},
 ): Session {
-  return new ReplSession(
+  return new ReplSession({
     sink,
-    { ...env, isReplayDivergence: (error: unknown) => error instanceof Diverged },
+    env: { ...env, isReplayDivergence: (error: unknown) => error instanceof Diverged },
     layer,
     options,
-    createCoreHost,
-    clearOperations,
-  ).interface();
+    createHost: createCoreHost,
+    clear: clearOperations,
+  }).interface();
 }

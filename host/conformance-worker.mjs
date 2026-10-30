@@ -131,7 +131,7 @@ async function runScenario(header, host, instance) {
     // cancelled.
     const cancel = entryCancel(SCENARIO_CLEANUP_MS);
     cancel.request();
-    const { cancelled } = await host.run(instance, "hd.init", "hd.poll", null, cancel);
+    const { cancelled } = await host.run(instance, "hd.init", "hd.poll", { cancel });
     if (!cancelled) {
       return 1;
     }

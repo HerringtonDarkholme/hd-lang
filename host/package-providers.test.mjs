@@ -162,7 +162,10 @@ test("private Serde values retain numeric kind, deep containers and literal obje
 
 // A tiny module with the real contract custom section and exchange memory.
 // Its methods are driven directly so readiness and delivery can be separated.
-function operationHost(wait, suspends = true, grants = {}, extraEnv = {}, generatedIdentity) {
+function operationHost(
+  wait,
+  { suspends = true, grants = {}, extraEnv = {}, generatedIdentity } = {},
+) {
   const identity = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   const moduleName = "hd:pkg:readiness-test";
   const e = new Enc();
@@ -241,19 +244,22 @@ function operationHost(wait, suspends = true, grants = {}, extraEnv = {}, genera
 test("provider interface identity stays checked and immutable after metadata changes", () => {
   const expected = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   let calls = 0;
-  const h = operationHost((context) => {
-    calls++;
-    const identity = context.interfaceIdentity;
-    assert.deepEqual(identity, expected);
-    assert.equal(Object.isFrozen(identity), true);
-    for (const key of Object.keys(expected)) {
-      assert.equal(Reflect.set(identity, key, "forged"), false);
-    }
-    assert.equal(Reflect.set(context, "interfaceIdentity", {}), false);
-    assert.equal(Reflect.defineProperty(context, "interfaceIdentity", { value: {} }), false);
-    assert.equal(Reflect.deleteProperty(context, "interfaceIdentity"), false);
-    return "checked";
-  }, false);
+  const h = operationHost(
+    (context) => {
+      calls++;
+      const identity = context.interfaceIdentity;
+      assert.deepEqual(identity, expected);
+      assert.equal(Object.isFrozen(identity), true);
+      for (const key of Object.keys(expected)) {
+        assert.equal(Reflect.set(identity, key, "forged"), false);
+      }
+      assert.equal(Reflect.set(context, "interfaceIdentity", {}), false);
+      assert.equal(Reflect.defineProperty(context, "interfaceIdentity", { value: {} }), false);
+      assert.equal(Reflect.deleteProperty(context, "interfaceIdentity"), false);
+      return "checked";
+    },
+    { suspends: false },
+  );
   try {
     h.target.wait();
     h.descriptor.module = "hd:pkg:forged";
@@ -277,13 +283,13 @@ test("generated identity claims cannot substitute for the checked interface", ()
         () => {
           calls++;
         },
-        false,
-        {},
-        {},
         {
-          package: "forged",
-          version: "",
-          trait_path: "Forged",
+          suspends: false,
+          generatedIdentity: {
+            package: "forged",
+            version: "",
+            trait_path: "Forged",
+          },
         },
       ),
     /generated method shapes do not match/,
@@ -439,7 +445,7 @@ test("synchronous package methods cannot create or retain pending work", () => {
         () => true,
         () => "value",
       ),
-    false,
+    { suspends: false },
   );
   try {
     assert.throws(() => context.target.wait(), /non-suspending.*pending operation/);
@@ -456,7 +462,7 @@ test("synchronous package methods cannot create or retain pending work", () => {
           aborted++;
         },
       ),
-    false,
+    { suspends: false },
   );
   try {
     assert.throws(() => direct.target.wait(), /non-suspending.*pending operation/);
@@ -524,8 +530,7 @@ function httpContext(grants) {
       policy = context.http;
       return "policy observed";
     },
-    false,
-    grants,
+    { suspends: false, grants },
   );
   h.target.wait();
   return { ...h, policy };
@@ -601,7 +606,7 @@ test("package context Http policy is frozen and supplies the public raw URL help
 });
 
 test("package contexts cannot silently create a missing Http policy service", () => {
-  const original = operationHost(() => "unused", false);
+  const original = operationHost(() => "unused", { suspends: false });
   const r = createPackageRuntime(
     { put: () => 0 },
     { module: original.module, grants: { "pkg.Source": true } },
@@ -640,7 +645,7 @@ test("package contexts cannot silently create a missing Http policy service", ()
 });
 
 test("package contexts cannot silently create a missing Console policy service", () => {
-  const original = operationHost(() => "unused", false);
+  const original = operationHost(() => "unused", { suspends: false });
   const r = createPackageRuntime(
     { put: () => 0 },
     { module: original.module, grants: { "pkg.Source": true } },
@@ -692,8 +697,7 @@ test("one runtime shares its immutable Http view between provider contexts", () 
       assert.equal(context.http, views.at(-1));
       return "same policy";
     },
-    false,
-    { Http: false },
+    { suspends: false, grants: { Http: false } },
   );
   try {
     h.target.wait();
@@ -717,9 +721,7 @@ test("a caller cannot override the context policy with an unrelated env service"
       policy = context.http;
       return "fixed policy";
     },
-    false,
-    { Http: false },
-    { http: forged },
+    { suspends: false, grants: { Http: false }, extraEnv: { http: forged } },
   );
   try {
     h.target.wait();

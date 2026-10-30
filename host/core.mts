@@ -131,7 +131,12 @@ export interface StepDriver {
 
 export interface Host {
   imports: WebAssembly.Imports;
-  run(instance: WebAssembly.Instance, init: string, poll: string): Promise<RunResult>;
+  run(
+    instance: WebAssembly.Instance,
+    init: string,
+    poll: string,
+    options?: { driver?: Dynamic; cancel?: Dynamic },
+  ): Promise<RunResult>;
   createDriver(instance: WebAssembly.Instance, init?: string, poll?: string): StepDriver;
   prime(instance: WebAssembly.Instance): void;
   close(): void;
@@ -465,10 +470,17 @@ class Later {
 
   constructor(
     at: number,
-    done: (() => Dynamic) | null,
-    poll: (() => boolean) | null = null,
-    abort: (() => void) | null = null,
-    finish: (() => Dynamic) | null = null,
+    {
+      done,
+      poll = null,
+      abort = null,
+      finish = null,
+    }: {
+      done: (() => Dynamic) | null;
+      poll?: (() => boolean) | null;
+      abort?: (() => void) | null;
+      finish?: (() => Dynamic) | null;
+    },
   ) {
     this.at = at;
     this.done = done;
@@ -477,7 +489,7 @@ class Later {
     this.finish = finish;
   }
 }
-const later = (at: number, done: (() => Dynamic) | null = null): Later => new Later(at, done);
+const later = (at: number, done: (() => Dynamic) | null = null): Later => new Later(at, { done });
 
 // External I/O supplies a nonblocking readiness probe and a cancellation
 // hook, including when complete() ran but the guest never took .finish.
@@ -490,7 +502,7 @@ export const pendingOperation = <T,>(
   done: () => T,
   abort: (() => void) | null = null,
   finish: (() => T | undefined) | null = null,
-): Later => new Later(performance.now(), done, poll, abort, finish);
+): Later => new Later(performance.now(), { done, poll, abort, finish });
 
 function abortOperation(st: DynamicRecord, h: number): void {
   const operation = st.ops.get(h);
@@ -565,7 +577,14 @@ function traitImports(
     out[`${name}.start`] = (...raw: Dynamic[]) => {
       const v = f(...decode(raw));
       return v instanceof Later
-        ? pending(v.at, v.done, key, v.poll, v.abort, v.finish)
+        ? pending({
+            at: v.at,
+            done: v.done,
+            method: key,
+            poll: v.poll,
+            abort: v.abort,
+            finish: v.finish,
+          })
         : [0, written(v)];
     };
     out[`${name}.finish`] = (h: number) => written(finished(h, key));
@@ -786,7 +805,7 @@ export function httpProvider(
       // Node's worker can keep the request pending; browsers still answer
       // synchronously here. Encode the result only after readiness wins.
       return a instanceof Later
-        ? new Later(a.at, () => result(a.done!()), a.poll, a.abort)
+        ? new Later(a.at, { done: () => result(a.done!()), poll: a.poll, abort: a.abort })
         : result(a);
     },
   };
@@ -950,14 +969,21 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // Pending operations by handle: `at` is when it completes, `done()` what
   // it does then, its result kept as `value`, and `method` the import
   // module and method that started it, whose `.finish` alone takes it.
-  const pending = (
-    at: number,
-    done: (() => Dynamic) | null,
-    method: string | null = null,
-    poll: (() => boolean) | null = null,
-    abort: (() => void) | null = null,
-    finish: (() => Dynamic) | null = null,
-  ): [number, number] => {
+  const pending = ({
+    at,
+    done,
+    method = null,
+    poll = null,
+    abort = null,
+    finish = null,
+  }: {
+    at: number;
+    done: (() => Dynamic) | null;
+    method?: string | null;
+    poll?: (() => boolean) | null;
+    abort?: (() => void) | null;
+    finish?: (() => Dynamic) | null;
+  }): [number, number] => {
     const h = st.nextHandle++;
     st.ops.set(h, { at, done, method, poll, abort, finish, completed: false, value: undefined });
     return [1, h];
@@ -1156,15 +1182,23 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // else waits for it instead of deadlocking. A root that ends cancelled,
   // whoever cancelled it, ends the run with `cancelled` on standard error
   // and status 130 (cli.cancel.end).
-  const continueRun = async (
-    instance: WebAssembly.Instance,
-    ex: DynamicRecord,
-    poll: string,
-    status: number,
-    driver: Dynamic,
-    cancel: Dynamic,
-    firstError: unknown = null,
-  ): Promise<RunResult> => {
+  const continueRun = async ({
+    instance,
+    ex,
+    poll,
+    status,
+    driver,
+    cancel,
+    firstError = null,
+  }: {
+    instance: WebAssembly.Instance;
+    ex: DynamicRecord;
+    poll: string;
+    status: number;
+    driver: Dynamic;
+    cancel: Dynamic;
+    firstError?: unknown;
+  }): Promise<RunResult> => {
     let trapped = false;
     const ended = false;
     let limited = false;
@@ -1175,7 +1209,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     // The requests acted on, the cleanup deadline once the entry is
     // cancelled, and whether it was abandoned.
     let handled = 0;
-    let cleanupBy = null;
+    let cleanupBy: number | null = null;
     let abandoned = false;
     const pollCancellation = (): boolean => {
       if (!cancel) {
@@ -1316,8 +1350,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     instance: WebAssembly.Instance,
     init: string,
     poll: string,
-    driver: Dynamic = null,
-    cancel: Dynamic = null,
+    { driver = null, cancel = null }: { driver?: Dynamic; cancel?: Dynamic } = {},
   ): Promise<RunResult> => {
     if (st.drivingMode === "sync") {
       return Promise.reject(new HostContract("the host already has a synchronous driver"));
@@ -1335,15 +1368,15 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       driver?.poll();
       status = ex[poll](0);
     } catch (error) {
-      return continueRun(instance, ex, poll, 0, driver, cancel, error);
+      return continueRun({ instance, ex, poll, status: 0, driver, cancel, firstError: error });
     }
     if (status === -1 || status === CANCELLED_END || status === CANCELLED_END - 1) {
-      return continueRun(instance, ex, poll, status, driver, cancel);
+      return continueRun({ instance, ex, poll, status, driver, cancel });
     }
     try {
       flush();
       if (overran()) {
-        return continueRun(instance, ex, poll, status, driver, cancel);
+        return continueRun({ instance, ex, poll, status, driver, cancel });
       }
       const result = {
         status,

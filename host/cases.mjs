@@ -265,7 +265,13 @@ class Case {
       start: (cases, shrink, examples) => {
         if (this.kind === null) {
           this.kind = "prop";
-          this.prop = new Property(this.c, this.runner.files, cases, shrink, examples);
+          this.prop = new Property({
+            c: this.c,
+            files: this.runner.files,
+            cases,
+            shrink,
+            examples,
+          });
         }
         const plan = this.prop.next();
         if (plan === null) {
@@ -287,7 +293,7 @@ class Case {
 // The cases of one property test and its counts
 // (spec/std/testing.md#runner-capabilities).
 class Property {
-  constructor(c, files, cases, shrink, examples) {
+  constructor({ c, files, cases, shrink, examples }) {
     this.cases = cases;
     this.shrink = shrink;
     this.examples = examples;
@@ -443,7 +449,7 @@ async function shrink(failing, attempt, budget) {
 }
 
 // Runs a property case to its end and reports it in one record.
-async function runProperty(runner, c, ctl, first, firstResult) {
+async function runProperty({ runner, c, ctl, first, firstResult }) {
   const p = ctl.prop;
   let k = 1;
   let total = firstResult.us;
@@ -563,7 +569,7 @@ export async function runCases(options, start = { case: 0, row: 0, rows: 0 }) {
         runner.emit(result(c, r, { row: 0, rows }));
         await rowsFrom(1, rows);
       } else if (ctl.kind === "prop") {
-        await runProperty(runner, c, ctl, first, r);
+        await runProperty({ runner, c, ctl, first, firstResult: r });
       } else {
         runner.emit(result(c, r));
       }

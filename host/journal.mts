@@ -742,13 +742,19 @@ export class Recorder {
   }
   // A host call of the import `module` `name` with the arguments
   // `request` that returned `value` and, when not null, `result` bytes.
-  call(
-    module: string,
-    name: string,
-    request: Uint8Array,
-    value: Value,
-    result: Uint8Array | null,
-  ): void {
+  call({
+    module,
+    name,
+    request,
+    value,
+    result,
+  }: {
+    module: string;
+    name: string;
+    request: Uint8Array;
+    value: Value;
+    result: Uint8Array | null;
+  }): void {
     if (this.state !== "on") {
       return;
     }

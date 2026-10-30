@@ -102,7 +102,7 @@ const failure = (e, host) => {
 
 // One request without redirects, within `ms` milliseconds, each of its
 // phases within the provider's phase timeouts (std-http.settings.phase-timeouts).
-const once = (url, host, method, headers, body, ms, signal, settings = null) =>
+const once = ({ url, host, method, headers, body, ms, signal, settings = null }) =>
   new Promise((done) => {
     if (ms <= 0) {
       done(err("Timeout"));
@@ -300,16 +300,16 @@ async function send(r, signal) {
     if (!grant.coversHost("Http", host, port)) {
       return err("NotGranted", host);
     }
-    const got = await once(
-      u,
+    const got = await once({
+      url: u,
       host,
       method,
-      r.headers,
+      headers: r.headers,
       body,
-      deadline - Date.now(),
+      ms: deadline - Date.now(),
       signal,
-      r.settings,
-    );
+      settings: r.settings,
+    });
     const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
     if (
       got.error ||
