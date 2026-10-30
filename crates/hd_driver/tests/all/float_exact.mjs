@@ -49,26 +49,25 @@ function split(value, width) {
 // read back as this one reaches halfway to each neighbor, and includes
 // its ends exactly when the significand is even (round-to-nearest-even
 // reading).
-function digits({ f, e, min, hidden }) {
+function interval({ f, e, min, hidden }) {
   // The value is r / s; `up` and `down` are the distances to the halfway
   // points above and below, in the same unit.
-  let r;
-  let s;
-  let up;
-  let down;
   const narrow = f === hidden && e !== min; // the gap below is half the gap above
   if (e >= 0) {
     const scale = 1n << BigInt(e);
     if (!narrow) {
-      [r, s, up, down] = [f * scale * 2n, 2n, scale, scale];
-    } else {
-      [r, s, up, down] = [f * scale * 4n, 4n, scale * 2n, scale];
+      return { r: f * scale * 2n, s: 2n, up: scale, down: scale };
     }
-  } else if (!narrow) {
-    [r, s, up, down] = [f * 2n, (1n << BigInt(-e)) * 2n, 1n, 1n];
-  } else {
-    [r, s, up, down] = [f * 4n, (1n << BigInt(-e + 1)) * 2n, 2n, 1n];
+    return { r: f * scale * 4n, s: 4n, up: scale * 2n, down: scale };
   }
+  if (!narrow) {
+    return { r: f * 2n, s: (1n << BigInt(-e)) * 2n, up: 1n, down: 1n };
+  }
+  return { r: f * 4n, s: (1n << BigInt(-e + 1)) * 2n, up: 2n, down: 1n };
+}
+
+function digits({ f, e, min, hidden }) {
+  let { r, s, up, down } = interval({ f, e, min, hidden });
   const closed = (f & 1n) === 0n;
   // `k` is the least exponent with the high end of the interval below
   // 10**k (at most 10**k when the ends are inside).
@@ -159,6 +158,10 @@ function bitLength(n) {
   return n === 0n ? 0 : n.toString(2).length;
 }
 
+function roundsUp(low, half, rest, significand) {
+  return low > half || (low === half && (rest > 0n || (significand & 1n) === 1n));
+}
+
 // The `f64` nearest the unsigned decimal number `text`, a tie going to the
 // even significand: positive infinity past the range and `0.0` below it
 // (the `parse_f64` primitive, spec/std/README.md#standard-library-
@@ -212,7 +215,7 @@ export function parse(text) {
   let significand = q >> drop;
   const low = q & ((1n << drop) - 1n);
   const half = 1n << (drop - 1n);
-  if (low > half || (low === half && (rest > 0n || (significand & 1n) === 1n))) {
+  if (roundsUp(low, half, rest, significand)) {
     significand += 1n;
   }
   const x = Number(significand);
