@@ -99,6 +99,37 @@ interface Span {
 const isIdentifierStart = (character: string): boolean => /^[\p{ID_Start}_]$/u.test(character);
 const isIdentifierPart = (character: string): boolean => /^[\p{ID_Continue}_!]$/u.test(character);
 
+function scanNumber(line: string, index: number): string {
+  return /^(?:0[xob][0-9a-fA-F_]+|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9]+)?(?:\p{XID_Start}[\p{XID_Continue}_]*)?)/u.exec(
+    line.slice(index),
+  )![0];
+}
+
+function identifierEnd(line: string, index: number): number {
+  let end = index + 1;
+  while (
+    end < line.length &&
+    isIdentifierPart(line[end]!) &&
+    !(line[end] === "!" && line[end + 1] === "=")
+  ) {
+    end += 1;
+  }
+  return end;
+}
+
+function whitespaceEnd(line: string, index: number): number {
+  let end = index + 1;
+  while (end < line.length && /\s/.test(line[end]!)) {
+    end += 1;
+  }
+  return end;
+}
+
+function rawIdentifier(line: string, index: number): { end: number; kind: TokenClass } {
+  const raw = /^`[\p{ID_Continue}_]+`/u.exec(line.slice(index));
+  return raw ? { end: index + raw[0].length, kind: "plain" } : { end: index + 1, kind: "operator" };
+}
+
 /** Splits one line into classified spans whose texts concatenate to `line`. */
 export function classify(line: string): Span[] {
   const spans: Span[] = [];
@@ -142,31 +173,20 @@ export function classify(line: string): Span[] {
     if (/[0-9]/.test(character)) {
       // A literal suffix such as `250ms` stays part of the number; radix
       // literals take none (01-lexical-structure.md#literal-suffixes).
-      const match =
-        /^(?:0[xob][0-9a-fA-F_]+|[0-9][0-9_]*(?:\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9]+)?(?:\p{XID_Start}[\p{XID_Continue}_]*)?)/u.exec(
-          line.slice(index),
-        )!;
-      push(match[0], "number");
-      index += match[0].length;
+      const number = scanNumber(line, index);
+      push(number, "number");
+      index += number.length;
       continue;
     }
     if (character === "`") {
       // A raw identifier is always a plain name, whatever word it encloses.
-      const raw = /^`[\p{ID_Continue}_]+`/u.exec(line.slice(index));
-      const end = raw ? index + raw[0].length : index + 1;
-      push(line.slice(index, end), raw ? "plain" : "operator");
+      const { end, kind } = rawIdentifier(line, index);
+      push(line.slice(index, end), kind);
       index = end;
       continue;
     }
     if (isIdentifierStart(character)) {
-      let end = index + 1;
-      while (
-        end < line.length &&
-        isIdentifierPart(line[end]!) &&
-        !(line[end] === "!" && line[end + 1] === "=")
-      ) {
-        end += 1;
-      }
+      const end = identifierEnd(line, index);
       const word = line.slice(index, end);
       // A prefixed string such as `sql"..."` is one string, prefix included
       // (01-lexical-structure.md#prefixed-strings).
@@ -179,10 +199,7 @@ export function classify(line: string): Span[] {
       continue;
     }
     if (/\s/.test(character)) {
-      let end = index + 1;
-      while (end < line.length && /\s/.test(line[end]!)) {
-        end += 1;
-      }
+      const end = whitespaceEnd(line, index);
       push(line.slice(index, end), "plain");
       index = end;
       continue;

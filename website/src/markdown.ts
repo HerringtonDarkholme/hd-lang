@@ -201,6 +201,56 @@ function labelCells(tableTokens: Token[]): void {
 /** A rule ID marker opening a block or table cell, as spec/STYLE.md defines it. */
 const RULE_MARKER = /^r\[([^\]\s]+)\]\s*/;
 
+function markCallout(tokens: Token[], index: number, token: Token): void {
+  if (token.type !== "blockquote_open") {
+    return;
+  }
+  const inline = tokens[index + 2];
+  const callout = /^\*\*(Why|Note)\.\*\*/.exec(inline?.content ?? "");
+  if (tokens[index + 1]?.type === "paragraph_open" && callout) {
+    token.attrSet("class", `callout callout-${callout[1]!.toLowerCase()}`);
+  }
+}
+
+function markRule({
+  token,
+  opener,
+  env,
+  TokenClass,
+}: {
+  token: Token;
+  opener: string;
+  env: RenderEnv;
+  TokenClass: typeof Token;
+}): boolean {
+  const marker = RULE_MARKER.exec(token.content);
+  if (!marker || !RULE_ID.test(marker[1]!)) {
+    return false;
+  }
+  const id = ruleIdAnchor(marker[1]!);
+  if (env.slugCounts.has(id)) {
+    throw new Error(`${env.source}: duplicate rule ID ${marker[1]}`);
+  }
+  env.slugCounts.set(id, 1);
+  let remaining = marker[0].length;
+  const children = token.children ?? [];
+  while (remaining > 0 && children[0]?.type === "text") {
+    const child = children[0];
+    if (child.content.length <= remaining) {
+      remaining -= child.content.length;
+      children.shift();
+    } else {
+      child.content = child.content.slice(remaining);
+      remaining = 0;
+    }
+  }
+  const anchor = new TokenClass("rule_id", "", 0);
+  anchor.meta = { id: marker[1] };
+  children.unshift(anchor);
+  token.children = children;
+  return opener !== "paragraph_open";
+}
+
 /**
  * Turns each rule ID marker that opens a paragraph, list item, or table cell
  * into a `rule_id` token, which renders as a linkable anchor. A table with a
@@ -221,13 +271,7 @@ function markRulesAndCallouts(tokens: Token[], env: RenderEnv, TokenClass: typeo
       }
       table = undefined;
     }
-    if (token.type === "blockquote_open") {
-      const inline = tokens[index + 2];
-      const callout = /^\*\*(Why|Note)\.\*\*/.exec(inline?.content ?? "");
-      if (tokens[index + 1]?.type === "paragraph_open" && callout) {
-        token.attrSet("class", `callout callout-${callout[1]!.toLowerCase()}`);
-      }
-    }
+    markCallout(tokens, index, token);
     if (token.type !== "inline") {
       continue;
     }
@@ -235,33 +279,7 @@ function markRulesAndCallouts(tokens: Token[], env: RenderEnv, TokenClass: typeo
     if (opener !== "paragraph_open" && opener !== "td_open" && opener !== "th_open") {
       continue;
     }
-    const marker = RULE_MARKER.exec(token.content);
-    if (!marker || !RULE_ID.test(marker[1]!)) {
-      continue;
-    }
-    const id = ruleIdAnchor(marker[1]!);
-    if (env.slugCounts.has(id)) {
-      throw new Error(`${env.source}: duplicate rule ID ${marker[1]}`);
-    }
-    env.slugCounts.set(id, 1);
-    // Drop the marker's text from the leading text children, then put the anchor first.
-    let remaining = marker[0].length;
-    const children = token.children ?? [];
-    while (remaining > 0 && children[0]?.type === "text") {
-      const child = children[0];
-      if (child.content.length <= remaining) {
-        remaining -= child.content.length;
-        children.shift();
-      } else {
-        child.content = child.content.slice(remaining);
-        remaining = 0;
-      }
-    }
-    const anchor = new TokenClass("rule_id", "", 0);
-    anchor.meta = { id: marker[1] };
-    children.unshift(anchor);
-    token.children = children;
-    if (opener !== "paragraph_open" && table) {
+    if (markRule({ token, opener, env, TokenClass }) && table) {
       table.attrSet("class", "rule-table");
     }
   }

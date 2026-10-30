@@ -166,10 +166,7 @@ function searchEntries(
   ];
 }
 
-export async function buildSite(options: BuildOptions): Promise<BuildResult> {
-  const base = normalizeBase(options.base);
-  const outDir = resolve(options.outDir);
-  const tour = loadTour(REPO_DIR);
+async function validateContent(tour: ReturnType<typeof loadTour>): Promise<void> {
   const [failures, tourFailures] = await Promise.all([
     checkHdBlocksParse(REPO_DIR, LEARN_PAGE),
     checkTourSnippets(tour),
@@ -180,12 +177,9 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   if (tourFailures.length > 0) {
     throw new Error(`tour snippets fail their checks:\n${tourFailures.join("\n")}`);
   }
+}
 
-  await rm(outDir, { recursive: true, force: true });
-  await mkdir(outDir, { recursive: true });
-  await cp(join(WEBSITE_DIR, "assets"), join(outDir, "assets"), { recursive: true });
-
-  const { playgroundDist } = options;
+async function installPlayground(outDir: string, playgroundDist?: string): Promise<boolean> {
   const playground = playgroundDist === undefined || existsSync(join(playgroundDist, "index.html"));
   if (playgroundDist === undefined) {
     await buildPlayground(join(outDir, PLAYGROUND_APP_DIR));
@@ -198,6 +192,26 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       bundleClient("tour", join(outDir, TOUR_SCRIPT)),
     ]);
   }
+  return playground;
+}
+
+function assertLinks(errors: string[], area: string): void {
+  if (errors.length > 0) {
+    throw new Error(`broken ${area} links:\n${errors.join("\n")}`);
+  }
+}
+
+export async function buildSite(options: BuildOptions): Promise<BuildResult> {
+  const base = normalizeBase(options.base);
+  const outDir = resolve(options.outDir);
+  const tour = loadTour(REPO_DIR);
+  await validateContent(tour);
+
+  await rm(outDir, { recursive: true, force: true });
+  await mkdir(outDir, { recursive: true });
+  await cp(join(WEBSITE_DIR, "assets"), join(outDir, "assets"), { recursive: true });
+
+  const playground = await installPlayground(outDir, options.playgroundDist);
 
   const md = createMarkdown();
   const linkErrors: string[] = [];
@@ -280,9 +294,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       }),
     );
   }
-  if (linkErrors.length > 0) {
-    throw new Error(`broken source links:\n${linkErrors.join("\n")}`);
-  }
+  assertLinks(linkErrors, "source");
 
   await write(
     PLAYGROUND_PAGE,
@@ -342,9 +354,7 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     );
     search.push({ title: plainClaim(page), page: "Tour", url: pageUrl(output) });
   }
-  if (linkErrors.length > 0) {
-    throw new Error(`broken tour links:\n${linkErrors.join("\n")}`);
-  }
+  assertLinks(linkErrors, "tour");
 
   await write(
     "404.html",

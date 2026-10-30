@@ -117,6 +117,15 @@ const hangingIndent = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
+const runsShortcut = (event: KeyboardEvent): boolean =>
+  event.key === "Enter" && (event.ctrlKey || event.metaKey);
+
+const blocksPager = (event: KeyboardEvent, inEditor: boolean): boolean =>
+  !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || inEditor;
+
+const isTextEntry = (target: EventTarget | null): boolean =>
+  target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
 function start(root: HTMLElement): void {
   const key = root.dataset.tourKey!;
   // Package path to source, src/main.hd first (website/src/tour.ts).
@@ -248,15 +257,15 @@ function start(root: HTMLElement): void {
       return;
     }
     const inEditor = view.dom.contains(event.target as Node);
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !inEditor) {
+    if (runsShortcut(event) && !inEditor) {
       event.preventDefault();
       void run(event.shiftKey ? "check" : primary);
       return;
     }
-    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || inEditor) {
+    if (blocksPager(event, inEditor)) {
       return;
     }
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+    if (isTextEntry(event.target)) {
       return;
     }
     let rel = "";
