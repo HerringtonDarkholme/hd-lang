@@ -39,6 +39,8 @@ import { availableParallelism, tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { decodeStdoutLine, parseCliExpect, type CliStep } from "./conformance-expect.ts";
+
 type Phase = "parse" | "runtime" | "type";
 type Tier = "cli" | "language" | "std";
 
@@ -67,20 +69,6 @@ interface CliRow {
   /** `cli/NAME`, the case's path under the conformance directory. */
   readonly path: string;
   readonly tier: "cli";
-}
-
-/** One `run:` line of an `expect.txt`, with the assertions that follow it. */
-interface CliStep {
-  readonly command: string;
-  readonly exit: number;
-  readonly files: readonly string[];
-  readonly noFiles: readonly string[];
-  /** `same-text: PATH WANT` lines: the two files hold the same text. */
-  readonly sameText: readonly (readonly [string, string])[];
-  readonly stderr?: string;
-  readonly stderrJson?: readonly unknown[];
-  readonly stdout?: string;
-  readonly stdoutJson?: readonly unknown[];
 }
 
 interface Fixture {
@@ -201,36 +189,55 @@ function parseOptions(args: readonly string[]): Options {
   let phase: Phase | undefined;
   let root: string | undefined;
   let tier: Tier | undefined;
+  const handlers: Record<string, (value: string) => void> = {
+    "--compiler": (value) => {
+      command = splitCommand(value);
+    },
+    "--adapter": (value) => {
+      adapter = resolve(value);
+    },
+    "--jobs": (value) => {
+      jobs = Number(value);
+    },
+    "--manifest": (value) => {
+      manifest = resolve(value);
+    },
+    "--cases": (value) => {
+      cases = resolve(value);
+      if (cliCases === defaultCliCases) {
+        cliCases = undefined;
+      }
+    },
+    "--cli-cases": (value) => {
+      cliCases = resolve(value);
+    },
+    "--root": (value) => {
+      root = resolve(value);
+    },
+    "--phase": (value) => {
+      if (!/^(parse|type|runtime)$/.test(value)) {
+        throw new UsageError(`invalid option --phase ${value}`);
+      }
+      phase = value as Phase;
+    },
+    "--tier": (value) => {
+      if (!/^(language|std|cli)$/.test(value)) {
+        throw new UsageError(`invalid option --tier ${value}`);
+      }
+      tier = value as Tier;
+    },
+  };
   for (let index = 0; index < args.length; index += 2) {
     const option = args[index];
     const value = args[index + 1];
     if (value === undefined) {
       throw new UsageError(`missing value for ${option}`);
     }
-    if (option === "--compiler") {
-      command = splitCommand(value);
-    } else if (option === "--adapter") {
-      adapter = resolve(value);
-    } else if (option === "--jobs") {
-      jobs = Number(value);
-    } else if (option === "--manifest") {
-      manifest = resolve(value);
-    } else if (option === "--cases") {
-      cases = resolve(value);
-      if (cliCases === defaultCliCases) {
-        cliCases = undefined;
-      }
-    } else if (option === "--cli-cases") {
-      cliCases = resolve(value);
-    } else if (option === "--root") {
-      root = resolve(value);
-    } else if (option === "--phase" && /^(parse|type|runtime)$/.test(value)) {
-      phase = value as Phase;
-    } else if (option === "--tier" && /^(language|std|cli)$/.test(value)) {
-      tier = value as Tier;
-    } else {
+    const handler = option === undefined ? undefined : handlers[option];
+    if (!handler) {
       throw new UsageError(`invalid option ${option} ${value}`);
     }
+    handler(value);
   }
   if (command.length === 0) {
     throw new UsageError("compiler command must not be empty");
@@ -312,43 +319,20 @@ async function readManifest(path: string): Promise<string[]> {
   return entries;
 }
 
-// Decodes the TEXT of one `# expect-stdout:` line (README, Standard Output).
-// Returns undefined for an invalid escape or trailing whitespace.
-function decodeStdoutLine(text: string): string | undefined {
-  if (/\s$/.test(text)) {
-    return undefined;
-  }
-  let decoded = "";
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]!;
-    if (char !== "\\") {
-      decoded += char;
-      continue;
-    }
-    const next = text[index + 1];
-    if (next === "\\") {
-      decoded += "\\";
-    } else if (next === "t") {
-      decoded += "\t";
-    } else if (next === "u") {
-      const escape = /^\{([0-9A-Fa-f]{1,6})\}/.exec(text.slice(index + 2));
-      const scalar = escape ? Number.parseInt(escape[1]!, 16) : Number.NaN;
-      if (!escape || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff)) {
-        return undefined;
-      }
-      decoded += String.fromCodePoint(scalar);
-      index += escape[0].length;
-    } else {
-      return undefined;
-    }
-    index += 1;
-  }
-  return decoded;
+interface FixtureDirectives {
+  readonly headers: Map<string, string>;
+  readonly markers: Array<{ expectation: string; line: number }>;
+  readonly stdoutLines: string[];
 }
 
-// Reads the fixture's directives. Returns a string when the fixture does not
-// agree with its index row; such a case fails without running.
-function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixture | string {
+function markerExpectation(kind: string, code: string): string {
+  if (kind === "diagnostic") {
+    return `reject:${code}`;
+  }
+  return `${kind === "warning" ? "warn" : "panic"}:${code}`;
+}
+
+function readFixtureDirectives(source: string): FixtureDirectives | string {
   const headers = new Map<string, string>();
   const markers: Array<{ expectation: string; line: number }> = [];
   const stdoutLines: string[] = [];
@@ -373,14 +357,16 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
     if (!marker) {
       continue;
     }
-    let kind = "panic";
-    if (marker[1] === "diagnostic") {
-      kind = "reject";
-    } else if (marker[1] === "warning") {
-      kind = "warn";
-    }
-    markers.push({ expectation: `${kind}:${marker[2]}`, line: index + 1 });
+    markers.push({ expectation: markerExpectation(marker[1]!, marker[2]!), line: index + 1 });
   }
+  return { headers, markers, stdoutLines };
+}
+
+function markerError(
+  row: IndexRow,
+  markers: readonly { expectation: string; line: number }[],
+  panics: ReadonlySet<string>,
+): string | undefined {
   if (row.expectation === "accept" && markers.length > 0) {
     return `accept case has a line marker (${markers[0]!.expectation} on line ${markers[0]!.line})`;
   }
@@ -395,6 +381,10 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   if (row.expectation.startsWith("panic:") && !panics.has(row.expectation.slice(6))) {
     return `'${row.expectation.slice(6)}' is not a stable panic category (spec/lang/06-control-flow.md#runtime-panics)`;
   }
+  return undefined;
+}
+
+function scenarioError(headers: ReadonlyMap<string, string>, row: IndexRow): string | undefined {
   const expect = headers.get("expect");
   const expectPhase = { accept: "type", parse: "parse", test: "runtime" }[expect ?? ""];
   if (expect !== undefined && (row.expectation !== "accept" || expectPhase !== row.phase)) {
@@ -416,6 +406,10 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   if (pendingFunction !== undefined && scenario !== "cancellation-cleanup") {
     return "'# fixture-runtime-pending-function' requires the cancellation-cleanup scenario";
   }
+  return undefined;
+}
+
+function packageDirectiveError(headers: ReadonlyMap<string, string>): string | undefined {
   const packageRole = headers.get("fixture-package-role");
   if (packageRole !== undefined && !packageRoles.has(packageRole)) {
     return `unknown package role '${packageRole}'`;
@@ -438,7 +432,16 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
   if (treeHeader !== undefined && (packageRole !== undefined || testLayout !== undefined)) {
     return "'# fixture-package-tree' names no package role and no test layout";
   }
+  return undefined;
+}
+
+function stdoutDirectiveError(
+  headers: ReadonlyMap<string, string>,
+  row: IndexRow,
+  stdoutLines: readonly string[],
+): string | undefined {
   const profile = headers.get("fixture-runtime-profile");
+  const scenario = headers.get("fixture-runtime-scenario");
   const emptyStdout = headers.get("expect-empty-stdout");
   if (emptyStdout !== undefined && emptyStdout !== "true") {
     return "'# expect-empty-stdout' must have the value 'true'";
@@ -454,6 +457,39 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
       return "'# expect-stdout' requires the console profile and no scenario";
     }
   }
+  return undefined;
+}
+
+// Reads the fixture's directives. Returns a string when the fixture does not
+// agree with its index row; such a case fails without running.
+function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixture | string {
+  const directives = readFixtureDirectives(source);
+  if (typeof directives === "string") {
+    return directives;
+  }
+  const { headers, markers, stdoutLines } = directives;
+  for (const problem of [
+    markerError(row, markers, panics),
+    scenarioError(headers, row),
+    packageDirectiveError(headers),
+    stdoutDirectiveError(headers, row, stdoutLines),
+  ]) {
+    if (problem !== undefined) {
+      return problem;
+    }
+  }
+  const expect = headers.get("expect");
+  const scenario = headers.get("fixture-runtime-scenario");
+  const pendingFunction = headers.get("fixture-runtime-pending-function");
+  const packageRole = headers.get("fixture-package-role");
+  const testLayout = headers.get("fixture-test-layout");
+  const treeHeader = headers.get("fixture-package-tree");
+  const treeMatch =
+    treeHeader === undefined
+      ? undefined
+      : /^([a-z0-9][a-z0-9-]*)\/((?:src|tests)\/[^\s]+\.hd)$/.exec(treeHeader);
+  const profile = headers.get("fixture-runtime-profile");
+  const emptyStdout = headers.get("expect-empty-stdout");
   let expectedStdout: string | undefined;
   if (stdoutLines.length > 0) {
     expectedStdout = stdoutLines.map((text) => `${text}\n`).join("");
@@ -977,126 +1013,6 @@ async function readCliIndex(path: string): Promise<Map<string, CliRow>> {
     rows.set(`cli/${name}`, { name: name!, path: `cli/${name}`, tier: "cli" });
   }
   return rows;
-}
-
-// Parses an `expect.txt` (README, CLI Cases). Returns a string when the file
-// is invalid; such a case fails without running.
-function parseCliExpect(text: string): CliStep[] | string {
-  interface Draft {
-    command: string;
-    exit?: number;
-    files: string[];
-    noFiles: string[];
-    sameText: [string, string][];
-    stderrJson?: unknown[];
-    stderrLines?: string[];
-    stdoutJson?: unknown[];
-    stdoutLines?: string[];
-  }
-  const drafts: Draft[] = [];
-  const jsonLines = (value: string): unknown[] | undefined => {
-    try {
-      const parsed: unknown = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : undefined;
-    } catch {
-      return undefined;
-    }
-  };
-  for (const [index, raw] of text.split("\n").entries()) {
-    const line = raw.replace(/\r$/, "");
-    if (line.trim() === "" || line.startsWith("#")) {
-      continue;
-    }
-    const where = `expect.txt line ${index + 1}`;
-    const match = /^([a-z-]+):(?: (.*))?$/.exec(line);
-    if (!match) {
-      return `${where}: expected 'KIND: VALUE'`;
-    }
-    const [, kind, value = ""] = match;
-    if (kind === "run") {
-      if (!/^hd( \S+)*$/.test(value)) {
-        return `${where}: 'run:' takes 'hd' and words with no quoting`;
-      }
-      drafts.push({ command: value, files: [], noFiles: [], sameText: [] });
-      continue;
-    }
-    const step = drafts.at(-1);
-    if (!step) {
-      return `${where}: '${kind}:' comes before the first 'run:'`;
-    }
-    if (kind === "exit") {
-      if (step.exit !== undefined) {
-        return `${where}: a step has one 'exit:'`;
-      }
-      if (!/^\d{1,3}$/.test(value) || Number(value) > 255) {
-        return `${where}: 'exit:' takes a status from 0 to 255`;
-      }
-      step.exit = Number(value);
-    } else if (kind === "stdout") {
-      if (step.stdoutJson) {
-        return `${where}: 'stdout:' and 'stdout-json:' exclude each other`;
-      }
-      const decoded = decodeStdoutLine(value);
-      if (decoded === undefined) {
-        return `${where}: invalid 'stdout:' text`;
-      }
-      (step.stdoutLines ??= []).push(decoded);
-    } else if (kind === "stderr") {
-      if (step.stderrJson) {
-        return `${where}: 'stderr:' and 'stderr-json:' exclude each other`;
-      }
-      const decoded = decodeStdoutLine(value);
-      if (decoded === undefined) {
-        return `${where}: invalid 'stderr:' text`;
-      }
-      (step.stderrLines ??= []).push(decoded);
-    } else if (kind === "stdout-json" || kind === "stderr-json") {
-      const parsed = jsonLines(value);
-      if (!parsed) {
-        return `${where}: '${kind}:' takes a JSON array`;
-      }
-      if (kind === "stdout-json") {
-        if (step.stdoutJson || step.stdoutLines) {
-          return `${where}: 'stdout-json:' appears once and excludes 'stdout:'`;
-        }
-        step.stdoutJson = parsed;
-      } else {
-        if (step.stderrJson || step.stderrLines) {
-          return `${where}: 'stderr-json:' appears once and excludes 'stderr:'`;
-        }
-        step.stderrJson = parsed;
-      }
-    } else if (kind === "file" || kind === "no-file") {
-      if (value === "" || value.startsWith("/") || value.split("/").includes("..")) {
-        return `${where}: '${kind}:' takes a relative path with no '..'`;
-      }
-      (kind === "file" ? step.files : step.noFiles).push(value);
-    } else if (kind === "same-text") {
-      const paths = value.split(" ");
-      const relative = (path: string) =>
-        path !== "" && !path.startsWith("/") && !path.split("/").includes("..");
-      if (paths.length !== 2 || !paths.every(relative)) {
-        return `${where}: 'same-text:' takes two relative paths with no '..'`;
-      }
-      step.sameText.push([paths[0]!, paths[1]!]);
-    } else {
-      return `${where}: unknown line kind '${kind}'`;
-    }
-  }
-  if (drafts.length === 0) {
-    return "expect.txt has no 'run:' line";
-  }
-  return drafts.map((draft) => ({
-    command: draft.command,
-    exit: draft.exit ?? 0,
-    files: draft.files,
-    noFiles: draft.noFiles,
-    sameText: draft.sameText,
-    stderr: draft.stderrLines?.map((line) => `${line}\n`).join(""),
-    stderrJson: draft.stderrJson,
-    stdout: draft.stdoutLines?.map((line) => `${line}\n`).join(""),
-    stdoutJson: draft.stdoutJson,
-  }));
 }
 
 // Splits JSON-lines output into objects. Returns a string for any other text.
