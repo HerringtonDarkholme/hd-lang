@@ -110,26 +110,26 @@ pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
             SyntaxKind::LetStmt => {
                 for c in item.children() {
                     if c.kind().is_type() {
-                        walk_ty(src, c, Some(Escape::TopLevel), diags);
+                        walk_ty(src, c, Some(Escape::TopLevel), true, diags);
                     } else {
-                        walk(src, c, diags);
+                        walk(src, c, false, diags);
                     }
                 }
             }
-            _ => walk(src, item, diags),
+            _ => walk(src, item, false, diags),
         }
     }
 }
 
 /// Every type under `n` outside a type, in its declaration's position.
-fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
+fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
     match n.kind() {
         SyntaxKind::DataField => {
             for c in n.children() {
                 if c.kind().is_type() {
-                    walk_ty(src, c, Some(Escape::Field), diags);
+                    walk_ty(src, c, Some(Escape::Field), true, diags);
                 } else {
-                    walk(src, c, diags);
+                    walk(src, c, body, diags);
                 }
             }
         }
@@ -140,14 +140,14 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                     for p in c.children() {
                         for t in p.children() {
                             if t.kind().is_type() {
-                                walk_ty(src, t, Some(Escape::Field), diags);
+                                walk_ty(src, t, Some(Escape::Field), true, diags);
                             } else {
-                                walk(src, t, diags);
+                                walk(src, t, body, diags);
                             }
                         }
                     }
                 } else {
-                    walk(src, c, diags);
+                    walk(src, c, body, diags);
                 }
             }
         }
@@ -158,7 +158,13 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                 if c.kind() == SyntaxKind::Block {
                     local_fns(src, c, diags);
                 }
-                walk(src, c, diags);
+                walk(src, c, c.kind() == SyntaxKind::Block, diags);
+            }
+        }
+        // A test case's suite is a body.
+        SyntaxKind::TrailingCallExpr => {
+            for c in n.children() {
+                walk(src, c, true, diags);
             }
         }
         // A closure's written result may hold a local reference, whose
@@ -167,9 +173,9 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
         SyntaxKind::ClosureExpr => {
             for c in n.children() {
                 if c.kind().is_type() {
-                    walk_ty(src, c, None, diags);
+                    walk_ty(src, c, None, !body, diags);
                 } else {
-                    walk(src, c, diags);
+                    walk(src, c, body, diags);
                 }
             }
         }
@@ -178,7 +184,7 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
         SyntaxKind::TypeDecl => {
             if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_none() {
                 for c in n.children().filter(|c| c.kind().is_type()) {
-                    walk_ty(src, c, Some(Escape::Field), diags);
+                    walk_ty(src, c, Some(Escape::Field), true, diags);
                 }
             }
         }
@@ -186,21 +192,34 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
         // hold a local reference (`ref.generic.local`).
         SyntaxKind::TypeArgumentList => {
             for c in n.children() {
-                walk_ty(src, c, None, diags);
+                walk_ty(src, c, None, !body, diags);
             }
         }
-        _ if n.kind().is_type() => walk_ty(src, n, None, diags),
+        // `ref.lifetime.store.type`: a `&mut` parameter's list or
+        // map may hold local references of written lifetimes.
+        SyntaxKind::Parameter if !body => {
+            for c in n.children() {
+                if c.kind().is_type() {
+                    walk_ty(src, c, None, !lifetime_place(src, c), diags);
+                } else {
+                    walk(src, c, body, diags);
+                }
+            }
+        }
+        _ if n.kind().is_type() => walk_ty(src, n, None, !body, diags),
         _ => {
             for c in n.children() {
-                walk(src, c, diags);
+                walk(src, c, body, diags);
             }
         }
     }
 }
 
 /// The type `n` in position `at`: `None` where a local reference may
-/// stand, as a parameter's type does.
-fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBuf) {
+/// stand, as a parameter's type does. `keep` is off in a body and for a
+/// `&mut` parameter of written lifetimes, where a list's or a map's type
+/// argument may hold one (`ref.lifetime.store.type`).
+fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, keep: bool, diags: &mut DiagBuf) {
     match n.kind() {
         SyntaxKind::RefType => {
             let amp = n.direct_token(&src.parse.tokens, TokenKind::Amp);
@@ -214,22 +233,22 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
             }
             // A reference may refer to a local reference (`ref.type.group`).
             for c in n.children() {
-                walk_ty(src, c, None, diags);
+                walk_ty(src, c, None, keep, diags);
             }
         }
         // `ref.local.holding`: a tuple holds what its elements hold.
         SyntaxKind::TupleType | SyntaxKind::ParenType => {
             for c in n.children() {
-                walk_ty(src, c, at, diags);
+                walk_ty(src, c, at, keep, diags);
             }
         }
         // `ref.local.holding`: an optional, and a generic type's instance,
         // hold what their type arguments hold, where a local reference may
         // stand (`ref.dep.result`). A list's or a map's type arguments
-        // never hold one (`ref.local.escape.type-argument`).
+        // hold one only where `keep` is off (`ref.local.escape.type-argument`).
         SyntaxKind::OptionalType => {
             for c in n.children() {
-                walk_ty(src, c, at, diags);
+                walk_ty(src, c, at, keep, diags);
             }
         }
         SyntaxKind::NamedType => {
@@ -239,7 +258,7 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
                 .filter(|&t| matches!(toks.kind(t), TokenKind::Ident | TokenKind::RawIdent))
                 .last()
                 .map(|t| src.text(t));
-            let at = if matches!(name, Some("List" | "Map")) {
+            let at = if keep && matches!(name, Some("List" | "Map")) {
                 Some(Escape::TypeArgument)
             } else {
                 at
@@ -247,10 +266,10 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
             for c in n.children() {
                 if c.kind() == SyntaxKind::TypeArgumentList {
                     for a in c.children() {
-                        walk_ty(src, a, at, diags);
+                        walk_ty(src, a, at, keep, diags);
                     }
                 } else {
-                    walk_ty(src, c, None, diags);
+                    walk_ty(src, c, None, keep, diags);
                 }
             }
         }
@@ -258,7 +277,7 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
         // trait's type arguments.
         SyntaxKind::TypeArgumentList => {
             for c in n.children() {
-                walk_ty(src, c, Some(Escape::TypeArgument), diags);
+                walk_ty(src, c, Some(Escape::TypeArgument), keep, diags);
             }
         }
         // A function type's parameters may be local, and so may its
@@ -281,7 +300,7 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
                         ref_positions(src, c, &mut ins);
                     }
                 }
-                walk_ty(src, c, None, diags);
+                walk_ty(src, c, None, keep, diags);
             }
             if let Some(ret) = ret
                 && outs.iter().any(Option::is_none)
@@ -292,13 +311,27 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
         _ => {
             for c in n.children() {
                 if c.kind().is_type() || c.kind() == SyntaxKind::TypeArgumentList {
-                    walk_ty(src, c, None, diags);
+                    walk_ty(src, c, None, keep, diags);
                 } else {
-                    walk(src, c, diags);
+                    walk(src, c, !keep, diags);
                 }
             }
         }
     }
+}
+
+/// Whether the written parameter type `n` is a `&mut` whose every other
+/// `&` writes a lifetime (`ref.lifetime.store.type`).
+fn lifetime_place(src: &Src<'_>, n: NodeRef<'_>) -> bool {
+    let toks = &src.parse.tokens;
+    let amp = |r: NodeRef<'_>| {
+        r.kind() == SyntaxKind::RefType && r.direct_token(toks, TokenKind::Amp).is_some()
+    };
+    amp(n)
+        && n.direct_token(toks, TokenKind::KwMut).is_some()
+        && n.descendants()
+            .filter(|&d| d.index() != n.index() && amp(d))
+            .all(|d| d.direct_token(toks, TokenKind::Lifetime).is_some())
 }
 
 /// The local reference positions of the written type `n`
@@ -377,17 +410,17 @@ fn fn_type_source(src: &Src<'_>, ret: NodeRef<'_>, ins: &[Option<&str>], diags: 
 }
 
 /// Where a value of type `t` keeps a local reference: in a type argument
-/// of a list or a map (`colls`), a trait value or an opaque type, or as a
+/// of a trait value or an opaque type, or as a
 /// function type's result. A local reference at the top (`top_ok`), in a
 /// tuple, an optional or another generic type's instance at the top
 /// (`ref.local.holding`), as a function type's parameter or behind a
 /// reference is no escape.
-fn escape_in(pool: Types<'_>, colls: Colls, t: Ty, top_ok: bool, depth: u32) -> Option<Escape> {
+fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape> {
     if depth > 32 || !pool.has_ref(t) {
         return None;
     }
     let d = depth + 1;
-    let escape_in = |t, top| escape_in(pool, colls, t, top, d);
+    let escape_in = |t, top| escape_in(pool, t, top, d);
     let list = |l, top: bool| pool.list_items(l).iter().find_map(|&a| escape_in(a, top));
     match pool.get(t) {
         TyData::Ref {
@@ -406,7 +439,6 @@ fn escape_in(pool: Types<'_>, colls: Colls, t: Ty, top_ok: bool, depth: u32) -> 
         TyData::Tuple { elems, rest } => {
             list(elems, top_ok).or_else(|| rest.and_then(|r| escape_in(r, top_ok)))
         }
-        TyData::Adt { def, args } if colls.contains(&def) => list(args, false),
         TyData::Adt { args, .. } => list(args, top_ok),
         // An opaque type that borrows holds a local reference of its own,
         // at the top as a reference is (`types.opaque.borrows`).
@@ -433,14 +465,10 @@ fn escape_in(pool: Types<'_>, colls: Colls, t: Ty, top_ok: bool, depth: u32) -> 
     }
 }
 
-/// The list and map types, whose type arguments never hold a local
-/// reference (`ref.local.escape.type-argument`).
-pub(crate) type Colls = [hd_base::DefId; 2];
-
 /// Whether a value of type `t` holds a local reference anywhere, its top
 /// included (`ref.local.holding`), as `box` checks (`ref.box.no-local`).
 pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
-    escape_in(pool, [hd_base::DefId::NONE; 2], t, false, 0).is_some()
+    escape_in(pool, t, false, 0).is_some()
 }
 
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
@@ -532,12 +560,6 @@ pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32)
 }
 
 impl Ck<'_, '_> {
-    /// The list and map types ([`Colls`]).
-    pub(crate) fn colls(&self) -> Colls {
-        let known = &self.cx.names.known;
-        [known.list, known.map]
-    }
-
     /// Whether `got` converts to `want` by reference kinds alone, which
     /// needs no conversion at run time ([`lends`]).
     pub(crate) fn lends_by_kind(&self, got: Ty, want: Ty) -> bool {
@@ -761,7 +783,6 @@ impl Ck<'_, '_> {
             }
         }
         let pool = self.pool();
-        let colls = self.colls();
         let declared = &self.declared_tys;
         let mut seen: HashSet<(Ty, bool)> = HashSet::default();
         let mut found: Vec<(hd_base::NodeIdx, Escape)> = Vec::new();
@@ -778,7 +799,7 @@ impl Ck<'_, '_> {
                     return;
                 }
                 let e = if top_ok || !is_local_ref(pool, t) {
-                    escape_in(pool, colls, t, top_ok, 0)
+                    escape_in(pool, t, top_ok, 0)
                 } else {
                     Some(Escape::TypeArgument)
                 };

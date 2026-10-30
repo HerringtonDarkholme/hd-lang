@@ -1,0 +1,36 @@
+# test: references stored into a caller's list and map through `&mut` parameters read their sources
+# Spec 13 Lifetime Stores: ref.lifetime.store, ref.lifetime.store.call, ref.lifetime.store.collection.
+# expect-stdout: 2 76 bob
+# expect-stdout: di
+struct User:
+    name: string
+    age: i32
+
+fn remember[T, 'a](seen: &mut List[&'a T], u: &'a T) -> void:
+    seen.push(u)
+
+fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
+    by[u.name] = u
+
+fn oldest(users: List[User]) -> string:
+    let mut seen: List[&User] = []
+    for u in &users:
+        if u.age > 30:
+            remember(&mut seen, u)
+    let mut best = seen[0]
+    for u in seen:
+        if u.age > best.age:
+            best = u
+    best.name
+
+pub fn main() -> void $ Console:
+    ann := User { name: "ann", age: 41 }
+    bob := User { name: "bob", age: 35 }
+    let mut seen: List[&User] = []
+    remember(&mut seen, &ann)
+    remember(&mut seen, &bob)
+    let mut by: Map[string, &User] = {}
+    index(&mut by, &ann)
+    index(&mut by, &bob)
+    println("${seen.len()} ${seen[0].age + seen[1].age} ${by["bob"].name}")
+    println(oldest([User { name: "cy", age: 20 }, User { name: "di", age: 50 }, User { name: "ed", age: 33 }]))

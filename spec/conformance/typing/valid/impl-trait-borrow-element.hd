@@ -1,0 +1,11 @@
+# test: an opaque value that borrows may be an element of a body's list, which holds what the value borrows
+# Spec 04 Opaque Results That Borrow: types.opaque.borrows.holds; 13 Lifetime Stores: ref.lifetime.store.type.
+struct User:
+    name: string
+
+fn label(u: &User) -> impl Display:
+    &u.name
+
+fn labels(u: &User) -> usize:
+    all := [label(u)]
+    all.len()

@@ -29,7 +29,9 @@ use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Body, BodyKind, Callee, NONE, PlaceRoot, Proj, Role, Tag, Word, slots};
+use hd_tir::ir::{
+    Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceRoot, Proj, Role, Tag, Word, slots,
+};
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
@@ -630,6 +632,9 @@ struct Solve<'a> {
     stores: &'a HashMap<u32, DepSig>,
     /// Each parameter's type, which `Origin::Param` slots index.
     params: Vec<Ty>,
+    /// The function's own map, whose parameters' lifetimes decide what a
+    /// place the caller owns may take (`ref.lifetime.store`).
+    own: Option<&'a DepSig>,
     /// Stores of a local-holding value into a place the caller owns.
     out: HashSet<u32>,
     changed: bool,
@@ -845,16 +850,22 @@ impl Solve<'_> {
             // (`ref.dep.origin.element`). The checker has already read
             // that collection value, so follow the read back to its
             // place; a collection made as a value has a hidden local.
+            // An element's value has the collection's element origins
+            // (`ref.lifetime.store.element`).
             PlaceRoot::Value(v) if matches!(p.proj.first(), Some(Proj::Elem(_))) => {
+                let held = match self.ty(v.0) {
+                    Some(t) => self.project(self.of(v.0).to_vec(), t, &p.proj, want),
+                    None => empty,
+                };
                 let mut v = v.0;
                 while v & hd_tir::ir::Ref::CONST_BIT == 0 && self.b.tags[v as usize] == Tag::Coerce
                 {
                     v = self.b.data[v as usize][0];
                 }
                 if v & hd_tir::ir::Ref::CONST_BIT == 0 && self.b.tags[v as usize] == Tag::Read {
-                    (self.place(v, self.b.data[v as usize][0], 0).0, empty)
+                    (self.place(v, self.b.data[v as usize][0], 0).0, held)
                 } else {
-                    (vec![Origin::Hidden(i)], empty)
+                    (vec![Origin::Hidden(i)], held)
                 }
             }
             PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
@@ -993,11 +1004,33 @@ impl Solve<'_> {
         out
     }
 
+    /// `ref.lifetime.store`: whether `value` may land in what slot `s`
+    /// of parameter `q` refers to, a place the caller owns: the reference
+    /// positions of that place's type all have one lifetime, and each
+    /// origin of `value` is one a result of that lifetime may depend on.
+    fn caller_place_takes(&self, q: u32, s: u32, value: &[Origin]) -> bool {
+        let pool = self.pool;
+        let Some(own) = self.own else { return false };
+        let Some((t, ids)) = own.params.get(q as usize) else {
+            return false;
+        };
+        let s = s as usize;
+        let Some(&(rt, _)) = slots_of(pool, *t).get(s) else {
+            return false;
+        };
+        let n = pool.ref_slots(referent(pool, rt));
+        let Some(inner @ [l, ..]) = ids.get(s + 1..s + 1 + n) else {
+            return false;
+        };
+        inner.iter().all(|x| x == l) && value.iter().all(|&o| own.allows(pool, o, *l))
+    }
+
     /// `ref.generic.store`: call `i` may store, through each `&mut`
     /// argument, what the type parameters under that `&mut` stand for, so
     /// the argument's places take what those parameters' argument
-    /// positions depend on. A place the caller owns may take only what it
-    /// already holds (`ref.dep.store`).
+    /// positions depend on, or a written lifetime's (`ref.lifetime.store.call`).
+    /// A place the caller owns may take only what it already holds, or
+    /// values of its lifetime (`ref.lifetime.store`).
     fn generic_store(&mut self, i: usize, sig: &DepSig) {
         let pool = self.pool;
         for (p, (pt, ids)) in sig.params.iter().enumerate() {
@@ -1019,7 +1052,7 @@ impl Solve<'_> {
                 }
                 let mut value = Set::new();
                 for &id in &ids[(s + 1).min(ids.len())..(s + 1 + inner).min(ids.len())] {
-                    if (TVAR..TVAR_END).contains(&id) || id == ANY {
+                    if (TVAR..TVAR_END).contains(&id) || id == ANY || id < ANON {
                         union(&mut value, &self.lifetime_args(i, sig, id));
                     }
                 }
@@ -1032,10 +1065,11 @@ impl Solve<'_> {
                         Origin::Local(_) | Origin::Hidden(_) => {
                             self.hold(o, &[value.clone()], None);
                         }
-                        Origin::Param(q, _) => {
+                        Origin::Param(q, s0) => {
                             if value
                                 .iter()
                                 .any(|x| !matches!(x, Origin::Param(r, _) if *r == q))
+                                && !self.caller_place_takes(q, s0, &value)
                             {
                                 self.out.insert(w(i));
                             }
@@ -1088,40 +1122,76 @@ impl Solve<'_> {
         out
     }
 
+    /// Store `i` of `value` into the place `word`: a place of the body
+    /// takes its origins, and one the caller owns only values of its
+    /// lifetime (`ref.dep.store`). `holds` is whether the value's type
+    /// holds a local reference.
+    fn store(&mut self, i: usize, word: u32, value: &[Set], holds: bool) {
+        if value.iter().all(Vec::is_empty) {
+            return;
+        }
+        let p = self.b.decode_place(word);
+        let through = p
+            .as_ref()
+            .is_some_and(|p| p.proj.first() == Some(&Proj::Deref));
+        let range = match &p {
+            Some(p) if !through => match p.root {
+                PlaceRoot::Local(l) => self.local_range(l.raw(), &p.proj),
+                _ => None,
+            },
+            _ => None,
+        };
+        let (storage, _) = self.place(w(i), word, 0);
+        for s in storage {
+            match s {
+                Origin::Param(q, k) if through => {
+                    if holds && !self.caller_place_takes(q, k, &flat(value)) {
+                        self.out.insert(w(i));
+                    }
+                }
+                Origin::Local(_) | Origin::Hidden(_) => self.hold(s, value, range),
+                _ => {}
+            }
+        }
+    }
+
+    /// A list push or a map store keeps its other operands in the
+    /// collection its first operand reads (`ref.dep.store`).
+    fn intrinsic_store(&mut self, i: usize) {
+        let b = self.b;
+        let ops = intrinsic_ops(b, i);
+        let keeps = matches!(
+            IntrinsicOp::from_u32(b.data[i][0]),
+            Some(IntrinsicOp::ListPush | IntrinsicOp::MapSet)
+        );
+        let Some((&coll, kept)) = ops.split_first() else {
+            return;
+        };
+        let holds = self.ty(coll).is_some_and(|t| holds_local_ref(self.pool, t));
+        if !keeps || !holds || b.tags[coll as usize] != Tag::Read {
+            return;
+        }
+        let mut value = Set::new();
+        for &v in kept {
+            if self.ty(v).is_some_and(|t| holds_local_ref(self.pool, t)) {
+                union(&mut value, &flat(self.of(v)));
+            }
+        }
+        self.store(i, b.data[coll as usize][0], &[value], true);
+    }
+
     fn step(&mut self, i: usize) {
         let b = self.b;
         let tag = b.tags[i];
         if tag == Tag::Store {
             let [word, v] = b.data[i];
             let value = self.of(v).to_vec();
-            if value.iter().all(Vec::is_empty) {
-                return;
-            }
-            let p = b.decode_place(word);
-            let through = p
-                .as_ref()
-                .is_some_and(|p| p.proj.first() == Some(&Proj::Deref));
-            let range = match &p {
-                Some(p) if !through => match p.root {
-                    PlaceRoot::Local(l) => self.local_range(l.raw(), &p.proj),
-                    _ => None,
-                },
-                _ => None,
-            };
-            let (storage, _) = self.place(w(i), word, 0);
-            for s in storage {
-                match s {
-                    Origin::Param(..) if through => {
-                        let t = b.ty.get(v as usize).copied().unwrap_or(Ty::VOID);
-                        if holds_local_ref(self.pool, t) {
-                            self.out.insert(w(i));
-                        }
-                    }
-                    Origin::Local(_) | Origin::Hidden(_) => self.hold(s, &value, range),
-                    _ => {}
-                }
-            }
+            let t = b.ty.get(v as usize).copied().unwrap_or(Ty::VOID);
+            self.store(i, word, &value, holds_local_ref(self.pool, t));
             return;
+        }
+        if tag == Tag::Intrinsic {
+            self.intrinsic_store(i);
         }
         if let Some(sig) = self.stores.get(&w(i)) {
             self.generic_store(i, sig);
@@ -1154,7 +1224,16 @@ impl Solve<'_> {
                 None => return,
             },
             Tag::Coerce => self.of(b.data[i][0]).to_vec(),
-            Tag::Prim | Tag::Intrinsic | Tag::CallHost | Tag::Return => return,
+            // A collection intrinsic's result, as a map lookup's, holds
+            // what its operands hold.
+            Tag::Intrinsic => {
+                let mut s = Set::new();
+                for &v in intrinsic_ops(b, i) {
+                    union(&mut s, &flat(self.of(v)));
+                }
+                vec![s; n]
+            }
+            Tag::Prim | Tag::CallHost | Tag::Return => return,
             Tag::NewTuple | Tag::NewStruct | Tag::NewVariant => self.construct(i, n),
             _ => {
                 let mut s = vec![Set::new(); n];
@@ -1169,6 +1248,14 @@ impl Solve<'_> {
         if union_into(&mut self.val[i], &new) {
             self.changed = true;
         }
+    }
+}
+
+/// Intrinsic `i`'s operands.
+fn intrinsic_ops(b: &Body, i: usize) -> &[u32] {
+    match b.data[i][1] {
+        NONE => &[],
+        r => b.record(r),
     }
 }
 
@@ -1266,8 +1353,9 @@ impl Ck<'_, '_> {
         dep.depends().then_some(dep)
     }
 
-    /// The map of generic call `i`, when it passes a local-holding value
-    /// and may store one through a `&mut` argument (`ref.generic.store`).
+    /// The map of call `i`, when it passes a local-holding value and may
+    /// store one through a `&mut` argument (`ref.generic.store`,
+    /// `ref.lifetime.store.call`).
     fn store_dep(&self, b: &Body, i: usize) -> Option<DepSig> {
         let pool = self.pool();
         let mut holding = false;
@@ -1289,7 +1377,8 @@ impl Ck<'_, '_> {
         let sig = self.sig_of(def).ok()?;
         let writes = sig.params.iter().any(|&(_, t)| {
             slots_of(pool, t).iter().any(|&(rt, top)| {
-                top && matches!(pool.get(rt), TyData::Ref { mutable: true, inner, .. } if pool.has_param(inner))
+                top && matches!(pool.get(rt), TyData::Ref { mutable: true, inner, .. }
+                    if pool.has_param(inner) || pool.ref_slots(inner) > 0)
             })
         });
         if !writes {
@@ -1304,11 +1393,13 @@ impl Ck<'_, '_> {
             &sig.lifetimes,
         )
         .instantiate(pool, b, i);
-        let tvar = dep
-            .params
-            .iter()
-            .any(|(_, ids)| ids.iter().any(|id| (TVAR..TVAR_END).contains(id)));
-        tvar.then_some(dep)
+        // A slot of a type parameter, or of a written lifetime
+        // (`ref.lifetime.store.call`).
+        let shared = dep.params.iter().any(|(_, ids)| {
+            ids.iter()
+                .any(|&id| (TVAR..TVAR_END).contains(&id) || id < ANON)
+        });
+        shared.then_some(dep)
     }
 
     /// The dependent results of the finished body, its result `ret`
@@ -1341,6 +1432,17 @@ impl Ck<'_, '_> {
             }
             _ => None,
         };
+        // The parameters' lifetimes, which decide what a place the caller
+        // owns may take (`ref.lifetime.store`), from the declared
+        // signature: an omitted result is no part of it.
+        let declared = (body.kind == BodyKind::Fn && fun.is_some())
+            .then(|| self.cx.lookup.item(body.item).and_then(|i| i.sig()))
+            .flatten();
+        let mine = declared.map(|sig| {
+            let names = &self.cx.names;
+            let is_self = |s| names.text(s) == "self";
+            DepSig::new(pool, &sig.params, is_self, Ty::VOID, &sig.lifetimes)
+        });
         let mut deps: HashMap<u32, DepSig> = HashMap::default();
         let mut stores: HashMap<u32, DepSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
@@ -1425,6 +1527,16 @@ impl Ck<'_, '_> {
                             .get(v as usize)
                             .is_some_and(|&t| holds_local_ref(pool, t));
                 }
+                // A list push or a map store (`Solve::intrinsic_store`).
+                Tag::Intrinsic => {
+                    through |= intrinsic_ops(body, i).iter().any(|&v| {
+                        v & hd_tir::ir::Ref::CONST_BIT == 0
+                            && body
+                                .ty
+                                .get(v as usize)
+                                .is_some_and(|&t| holds_local_ref(pool, t))
+                    });
+                }
                 _ => {}
             }
         }
@@ -1464,6 +1576,7 @@ impl Ck<'_, '_> {
             deps: &deps,
             stores: &stores,
             params,
+            own: mine.as_ref(),
             out: HashSet::default(),
             changed: true,
         };
@@ -1561,7 +1674,7 @@ impl Ck<'_, '_> {
             self.err(
                 Code::LocalReferenceEscapes,
                 node,
-                "a local reference never escapes to a place the caller owns; store it only in a place of this function",
+                "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime",
             );
         }
         let mut seen = HashSet::default();

@@ -1,0 +1,7 @@
+# test: a `&mut` parameter's list of references that writes no lifetime is an escape to a type argument
+# Spec 13 Lifetime Stores: ref.lifetime.store.type.
+struct User:
+    name: string
+
+fn remember(seen: &mut List[&User], u: &User) -> void:  # diagnostic: local-reference-escapes
+    pass

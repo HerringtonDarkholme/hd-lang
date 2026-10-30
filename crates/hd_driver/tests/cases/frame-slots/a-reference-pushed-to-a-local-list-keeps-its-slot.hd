@@ -1,0 +1,22 @@
+# @dump: own
+# `&a` is stored in `seen` through `remember`'s `&mut`
+# (spec/lang/13-values-and-references.md#lifetime-stores), so every use of
+# `seen` is a use of `a`: `a` lives in a slot of the frame, dropped after
+# the last read of `seen[0]`.
+struct User:
+    name: string
+    age: i32
+
+fn remember[T, 'a](seen: &mut List[&'a T], u: &'a T) -> void:
+    seen.push(u)
+
+fn make(n: i32) -> User:
+    User { name: "u${n}", age: n }
+
+# subject
+fn first(k: i32) -> i32:
+    let mut seen: List[&User] = []
+    a := make(k)
+    remember(&mut seen, &a)
+    b := make(k + 50)
+    seen[0].age * 1000 + b.age

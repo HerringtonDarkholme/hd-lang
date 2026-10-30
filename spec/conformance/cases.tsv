@@ -198,7 +198,7 @@ typing/invalid/impl-targets-an-inherent-impl-outside-the-module-of-its-type-is-n
 typing/invalid/impl-trait-borrows-nothing.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.body
 typing/invalid/impl-trait-borrow-outlives-local.hd	type	reject:local-reference-outlives-local	lang/04-type-system.md#r-types.opaque.borrows.call
 typing/invalid/impl-trait-borrow-box.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.static
-typing/invalid/impl-trait-borrow-element.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.holds
+typing/valid/impl-trait-borrow-element.hd	type	accept	lang/04-type-system.md#r-types.opaque.borrows.holds
 typing/invalid/impl-trait-borrow-two-sources-local.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.source
 typing/invalid/impl-trait-distinct-functions.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.distinct
 typing/invalid/impl-trait-generic-identities.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.identity-position
@@ -5331,6 +5331,12 @@ typing/invalid/lifetime-enum-impl-elided.hd	type	reject:references-not-yet-check
 typing/invalid/lifetime-enum-field-elided.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.enum.type
 typing/valid/lifetime-enum-nested-payload.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.enum.other-payload
 runtime/valid/lifetime-enum-payload.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.enum.match
+typing/valid/lifetime-store-remember.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store
+typing/invalid/lifetime-store-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store
+typing/invalid/lifetime-store-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.store.call
+typing/invalid/lifetime-store-unnamed-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.type
+runtime/valid/lifetime-store-list.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.store.collection
+typing/invalid/lifetime-store-element-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.element
 typing/invalid/lifetime-in-body-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.body
 typing/valid/lifetime-shared-either-source.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.shared
 typing/invalid/lifetime-return-unshared-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.return

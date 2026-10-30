@@ -342,11 +342,11 @@ A local reference escapes when it reaches one of these positions, and each is an
 | Rule | A local reference | Example | Error |
 | --- | --- | --- | --- |
 | r[ref.local.escape.field] Field | is stored in a struct field or an enum payload field, or a field's declared type holds one | `point: &Point` | `local-reference-escapes` |
-| r[ref.local.escape.element] Collection element | is stored as an element of a list, a map, or a set, by a literal or a method such as `push` | `points.push(p)` | `local-reference-escapes` |
+| r[ref.local.escape.element] Collection element | is stored as an element of a list, a map, or a set whose element type holds no local reference, by a literal or a method such as `push` | `points.push(p)` | `local-reference-escapes` |
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
 | r[ref.local.escape.fn-value-result] Function value result | is the result of a function value whose type gives it no source among the inputs, as for a method bound to its receiver | `p::x_ref` for `fn x_ref(&self) -> &i32` | `local-reference-escapes` |
 | r[ref.local.escape.capture] Closure capture | is captured by a closure, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
-| r[ref.local.escape.type-argument] Type argument | is a type argument of a list, a map, a trait, or a trait value, written or inferred | `List[&Point]`, `dyn Store[&Point]` | `local-reference-escapes` |
+| r[ref.local.escape.type-argument] Type argument | is a type argument of a trait or a trait value, or of a list or a map where [`ref.lifetime.store.type`](#r-ref.lifetime.store.type) does not allow one, written or inferred | `List[&Point]`, `dyn Store[&Point]` | `local-reference-escapes` |
 
 6. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
 
@@ -426,7 +426,7 @@ fn demo(u: &mut User) -> void:
 9. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
 10. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
 11. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
-12. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
+12. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
 13. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
 14. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
 
@@ -716,8 +716,8 @@ fn first(outer: string) -> usize:
 > result needs one named.
 
 > **Note.** Lifetimes on traits, a trait implementation for a lifetime
-> struct, lifetime arguments elided in an implementation's target, and
-> stores of local references through `&mut` come in later stages.
+> struct, and lifetime arguments elided in an implementation's target come
+> in later stages.
 
 See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 [Fields](08-data-and-enums.md#fields), [Lifetime Enums](#lifetime-enums).
@@ -805,6 +805,66 @@ fn first(outer: string) -> usize:
 > with their origins, as reading a struct's field does.
 
 See also: [Variant Payloads](08-data-and-enums.md#variant-payloads).
+
+### Lifetime Stores
+
+A function may store a local reference into a place its caller owns when the place's type names the reference's lifetime:
+
+```text
+struct User:
+    name: string
+
+fn bad['a, 'b](seen: &mut List[&'a User], u: &'b User) -> void:
+    seen.push(u)  # error: local-reference-escapes
+
+fn unnamed(seen: &mut List[&User], u: &User) -> void:  # error: local-reference-escapes
+    pass
+
+fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
+    seen.push(u)
+
+fn count(b: bool) -> usize:
+    let mut seen: List[&User] = []
+    if b:
+        local := User { name: "local" }
+        remember(&mut seen, &local)
+    seen.len()  # error: local-reference-outlives-local
+```
+
+1. r[ref.lifetime.store] A store through a parameter's reference into a place the caller owns is valid when the type that reference refers to has one lifetime in all its reference positions. The stored value must depend only on what a result of that lifetime may depend on ([`ref.lifetime.return`](#r-ref.lifetime.return)). Any other such store of a value that holds a local reference is an error ([`ref.dep.store`](#r-ref.dep.store)). Error: `local-reference-escapes`.
+2. r[ref.lifetime.store.collection] A list's `push` and a map's index assignment store their value into the list's or the map's place, so `seen.push(u)` follows [`ref.lifetime.store`](#r-ref.lifetime.store) when `seen` is such a parameter.
+3. r[ref.lifetime.store.call] A `&mut` parameter whose referent has a reference position of a lifetime variable, as `seen: &mut List[&'a T]`, is a place the call may store into. So the argument's place takes what the call's arguments in that lifetime's positions depend on, as for a type parameter ([`ref.generic.store`](#r-ref.generic.store)).
+4. r[ref.lifetime.store.type] A list's or a map's type argument may hold a local reference in a function body. It may hold one in the type of a `&mut` parameter too, when each other `&` of that type writes a lifetime variable, as in `seen: &mut List[&'a User]`.
+5. r[ref.lifetime.store.element] A value read from a list or a map, as `seen[0]` or the result of `get`, has the origins of the collection's elements.
+
+```hd
+struct User:
+    name: string
+
+fn remember[T, 'a](seen: &mut List[&'a T], u: &'a T) -> void:
+    seen.push(u)  # u has 'a, as the list's elements do
+
+fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
+    by[u.name] = u
+
+fn set['a](out: &mut (&'a User), u: &'a User) -> void:
+    *out = u
+
+fn total(a: User, b: User) -> usize:
+    let mut seen: List[&User] = []
+    remember(&mut seen, &a)
+    remember(&mut seen, &b)
+    let mut by: Map[string, &User] = {}
+    index(&mut by, &a)
+    seen[0].name.len() + seen[1].name.len() + by.len()  # valid: a and b are in scope
+```
+
+> **Why.** This is Rust's `fn remember<'a>(seen: &mut Vec<&'a User>, u:
+> &'a User)`: the place's type says which references it may hold, so the
+> caller's list holds what the call stores, and its uses stay in their
+> sources' scopes.
+
+See also: [Generic Calls](#generic-calls), [Local Scope](#local-scope).
 
 ## Generic Locality
 

@@ -1,0 +1,14 @@
+# test: a caller's list that a call stored a reference to an inner block's local into, used after the block, outlives the local
+# Spec 13 Lifetime Stores: ref.lifetime.store.call; Local Scope: ref.dep.scope.
+struct User:
+    name: string
+
+fn remember[T, 'a](seen: &mut List[&'a T], u: &'a T) -> void:
+    seen.push(u)
+
+fn count(b: bool) -> usize:
+    let mut seen: List[&User] = []
+    if b:
+        local := User { name: "local" }
+        remember(&mut seen, &local)
+    seen.len()  # diagnostic: local-reference-outlives-local

@@ -1,0 +1,23 @@
+# test: a store through a `&mut` parameter whose type names the stored reference's lifetime is valid, and the caller uses the list in the source's scope
+# Spec 13 Lifetime Stores: ref.lifetime.store, ref.lifetime.store.call, ref.lifetime.store.type.
+struct User:
+    name: string
+
+fn remember[T, 'a](seen: &mut List[&'a T], u: &'a T) -> void:
+    seen.push(u)
+
+fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
+    by[u.name] = u
+
+fn set['a](out: &mut (&'a User), u: &'a User) -> void:
+    *out = u
+
+fn total(a: User, b: User) -> usize:
+    let mut seen: List[&User] = []
+    remember(&mut seen, &a)
+    remember(&mut seen, &b)
+    let mut by: Map[string, &User] = {}
+    index(&mut by, &a)
+    let mut last = &a
+    set(&mut last, &b)
+    seen[0].name.len() + seen[1].name.len() + by.len() + last.name.len()

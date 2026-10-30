@@ -1,0 +1,4 @@
+# test: a store through a `&mut` parameter of a reference whose lifetime is not the place's is an error
+# Spec 13 Lifetime Stores: ref.lifetime.store.
+fn bad[T, 'a, 'b](seen: &mut List[&'a T], u: &'b T) -> void:
+    seen.push(u)  # diagnostic: local-reference-escapes

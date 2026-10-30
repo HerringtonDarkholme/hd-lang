@@ -1,7 +1,7 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 5 and slices 6a1 to 6a3; stage 6's remaining slices are tickets
+stages 1 to 5 and slices 6a1 to 6a4 and 6b1; stage 6's remaining slices are tickets
 #1020 to #1029 and #1035. It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
@@ -346,6 +346,8 @@ Applied by #1027: 6d2 is specified by [Static Fn Bounds](../../spec/lang/07-func
 Applied by #1019 (6a3): an elided lifetime argument in a signature is a reference position that writes no lifetime, so `p: &Parser[string]` has two and `-> Parser[string]` elides as `-> &T` does; the resolver decides elision over a signature's typed positions. A lifetime written inside a generic argument (`Option[&'a T]`, `Wrap[&'a T]`) and in an implementation's target (`impl[T, 'a] Parser[T, 'a]`) is placed; an elided target lifetime stays not-yet (6c3).
 
 Applied by #1020 (6a4, [Lifetime Enums](../../spec/lang/13-values-and-references.md#lifetime-enums)): a top-level enum declares lifetimes as a struct does; a variant construction puts each payload field in its lifetime's position, and a match binding of the payload takes that position's origins. A variant function value's result takes the payload's lifetime by elision.
+
+Applied by #1021 (6b1, [Lifetime Stores](../../spec/lang/13-values-and-references.md#lifetime-stores)): a store through a parameter's reference into a place the caller owns is valid when every reference position of the referent has one lifetime and the value depends only on that lifetime's sources; a call's `&mut` argument takes what the arguments of the lifetimes under it depend on. A list's or a map's type argument may hold a local reference in a body and in a `&mut` parameter whose inner `&`s all write lifetimes. A single-lifetime struct's field assigned through `&mut Parser['a]` already follows this rule; 6b2 keeps the per-field case of a struct with two lifetimes.
 
 ### Stage 7: exclusivity
 

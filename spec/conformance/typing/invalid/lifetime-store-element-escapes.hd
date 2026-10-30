@@ -1,0 +1,9 @@
+# test: an element read from a body's list of references has the origins of the list's elements, so returning one that points into a local is an error
+# Spec 13 Lifetime Stores: ref.lifetime.store.element; Dependent Results: ref.dep.return.
+struct User:
+    name: string
+
+fn first(fallback: &User) -> &User:
+    local := User { name: "local" }
+    seen := [&local, fallback]
+    seen[0]  # diagnostic: local-reference-escapes
