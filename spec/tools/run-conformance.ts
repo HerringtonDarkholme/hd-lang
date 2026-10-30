@@ -814,6 +814,194 @@ async function packageOptions(
   };
 }
 
+interface CaseExecution {
+  readonly implementation: Implementation;
+  readonly row: IndexRow;
+  readonly panics: Set<string>;
+  readonly file: string;
+  readonly source: string;
+  readonly fixture: Fixture;
+  readonly tree: string | undefined;
+  readonly runner: RunnerOptions;
+  readonly fail: (reason: string, results: readonly CommandResult[]) => Verdict;
+}
+
+async function runStaticCase(context: CaseExecution): Promise<Verdict> {
+  const { implementation, row, panics, file, fixture, tree, runner, fail } = context;
+  const action = row.phase === "parse" ? "parse" : "check";
+  const result = await invoke({
+    implementation,
+    action,
+    flags: action === "check" ? ["--tests"] : [],
+    file,
+    runner,
+  });
+  const violation = await contractViolation({ result, file, panics, tree });
+  if (violation) {
+    return fail(`${action}: ${violation}`, [result]);
+  }
+  if (row.expectation === "accept") {
+    return result.status === 0
+      ? { path: row.path }
+      : fail(`${action}: expected exit 0, got exit ${result.status}`, [result]);
+  }
+  if (row.expectation.startsWith("panic:")) {
+    return { path: row.path, reason: `${row.phase}-phase case cannot expect a panic` };
+  }
+  const problem = await judgeRejectOrWarn({
+    result,
+    file,
+    row,
+    line: fixture.markerLine!,
+    tree,
+  });
+  return problem ? fail(`${action}: ${problem}`, [result]) : { path: row.path };
+}
+
+async function runPendingFirstPoll(
+  context: CaseExecution,
+  {
+    ordinary,
+    tests,
+    step,
+    checked,
+  }: {
+    ordinary: (options: RunnerOptions) => Promise<CommandResult>;
+    tests: boolean;
+    step: string;
+    checked: CommandResult;
+  },
+): Promise<Verdict | undefined> {
+  if (context.fixture.scenario !== "pending-first-poll") {
+    return undefined;
+  }
+  const first = await ordinary(context.runner);
+  const violation = await contractViolation({
+    result: first,
+    file: context.file,
+    panics: context.panics,
+    tree: context.tree,
+    entryRun: !tests,
+  });
+  if (violation) {
+    return context.fail(`${step}: ${violation}`, [checked, first]);
+  }
+  return first.status === 0
+    ? undefined
+    : context.fail(`${step}: expected exit 0, got exit ${first.status}`, [first]);
+}
+
+async function acceptedRuntime(
+  context: CaseExecution,
+  tested: CommandResult,
+  entryOnly: boolean,
+  ran: string,
+): Promise<Verdict> {
+  const { implementation, row, panics, file, fixture, fail } = context;
+  if (tested.status !== 0) {
+    return fail(`${ran}: expected exit 0, got exit ${tested.status}`, [tested]);
+  }
+  if (fixture.expectedStdout === undefined) {
+    return { path: row.path };
+  }
+  const single = entryOnly
+    ? tested
+    : await invoke({ implementation, action: undefined, flags: [], file });
+  const violation = await contractViolation({ result: single, file, panics });
+  if (violation) {
+    return fail(`run: ${violation}`, [single]);
+  }
+  if (single.status !== 0) {
+    return fail(`run: expected exit 0, got exit ${single.status}`, [single]);
+  }
+  if (single.stdout !== fixture.expectedStdout) {
+    return fail(
+      `run: stdout ${JSON.stringify(single.stdout)} differs from expected ${JSON.stringify(fixture.expectedStdout)}`,
+      [single],
+    );
+  }
+  return { path: row.path };
+}
+
+function panickedRuntime(
+  context: CaseExecution,
+  tested: CommandResult,
+  entryOnly: boolean,
+  ran: string,
+): Verdict {
+  const { row, panics, fail } = context;
+  const code = row.expectation.slice("panic:".length);
+  const panicked = entryOnly
+    ? tested.status !== 0 && tested.status !== REJECTED
+    : tested.status === TEST_FAILED;
+  if (!panicked) {
+    return fail(`${ran}: expected panic ${code}, got exit ${tested.status}`, [tested]);
+  }
+  const reports = panicReports(tested, panics);
+  if (reports.length === 0) {
+    return fail(`${ran}: no panic report (expected ${code})`, [tested]);
+  }
+  const wrong = [...new Set(reports.filter((reported) => reported !== code))];
+  return wrong.length
+    ? fail(`${ran}: reported panic category ${wrong.join(", ")}, expected ${code}`, [tested])
+    : { path: row.path };
+}
+
+async function runRuntimeCase(context: CaseExecution): Promise<Verdict> {
+  const { implementation, row, panics, file, source, fixture, tree, runner, fail } = context;
+  if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:")) {
+    return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
+  }
+  const checked = await invoke({
+    implementation,
+    action: "check",
+    flags: ["--tests"],
+    file,
+    runner,
+  });
+  const checkViolation = await contractViolation({ result: checked, file, panics, tree });
+  if (checkViolation) {
+    return fail(`check: ${checkViolation}`, [checked]);
+  }
+  if (checked.status !== 0) {
+    return fail("check: runtime case did not type-check", [checked]);
+  }
+  const tests = registersTestCase(source, fixture);
+  const ordinary = (options: RunnerOptions): Promise<CommandResult> =>
+    tests
+      ? invoke({ implementation, action: "test", flags: [], file, runner: options })
+      : invoke({ implementation, action: undefined, flags: [], file, runner: options });
+  const step = tests ? "test" : "run";
+  const pendingFailure = await runPendingFirstPoll(context, { ordinary, tests, step, checked });
+  if (pendingFailure) {
+    return pendingFailure;
+  }
+  const testRunner: RunnerOptions = {
+    ...runner,
+    ...(fixture.scenario ? { scenario: fixture.scenario } : {}),
+    ...(fixture.pendingFunction ? { pendingFunction: fixture.pendingFunction } : {}),
+  };
+  const scenarioRun = fixture.scenario !== undefined && fixture.scenario !== "pending-first-poll";
+  const tested = scenarioRun
+    ? await invoke({ implementation, action: "test", flags: [], file, runner: testRunner })
+    : await ordinary(testRunner);
+  const entryOnly = !tests && !scenarioRun;
+  const testViolation = await contractViolation({
+    result: tested,
+    file,
+    panics,
+    tree,
+    entryRun: entryOnly,
+  });
+  const ran = scenarioRun ? "test" : step;
+  if (testViolation) {
+    return fail(`${ran}: ${testViolation}`, [checked, tested]);
+  }
+  return row.expectation === "accept"
+    ? acceptedRuntime(context, tested, entryOnly, ran)
+    : panickedRuntime(context, tested, entryOnly, ran);
+}
+
 async function runCase(
   options: Options,
   implementation: Implementation,
@@ -849,150 +1037,8 @@ async function runCase(
     path: row.path,
     reason,
   });
-
-  if (row.phase !== "runtime") {
-    const action = row.phase === "parse" ? "parse" : "check";
-    const result = await invoke({
-      implementation,
-      action,
-      flags: action === "check" ? ["--tests"] : [],
-      file,
-      runner,
-    });
-    const violation = await contractViolation({ result, file, panics, tree });
-    if (violation) {
-      return fail(`${action}: ${violation}`, [result]);
-    }
-    if (row.expectation === "accept") {
-      return result.status === 0
-        ? { path: row.path }
-        : fail(`${action}: expected exit 0, got exit ${result.status}`, [result]);
-    }
-    if (row.expectation.startsWith("panic:")) {
-      return { path: row.path, reason: `${row.phase}-phase case cannot expect a panic` };
-    }
-    const problem = await judgeRejectOrWarn({
-      result,
-      file,
-      row,
-      line: fixture.markerLine!,
-      tree,
-    });
-    return problem ? fail(`${action}: ${problem}`, [result]) : { path: row.path };
-  }
-
-  if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:")) {
-    return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
-  }
-  const checked = await invoke({
-    implementation,
-    action: "check",
-    flags: ["--tests"],
-    file,
-    runner,
-  });
-  const checkViolation = await contractViolation({ result: checked, file, panics, tree });
-  if (checkViolation) {
-    return fail(`check: ${checkViolation}`, [checked]);
-  }
-  if (checked.status !== 0) {
-    return fail("check: runtime case did not type-check", [checked]);
-  }
-  // `test FILE` is an error for a file that registers no test case, so such a
-  // fixture runs only its entry, as `IMPL FILE` (README, Runtime Execution).
-  const tests = registersTestCase(source, fixture);
-  const ordinary = (options: RunnerOptions): Promise<CommandResult> =>
-    tests
-      ? invoke({ implementation, action: "test", flags: [], file, runner: options })
-      : invoke({ implementation, action: undefined, flags: [], file, runner: options });
-  const step = tests ? "test" : "run";
-  // The pending-first-poll scenario must give the ordinary run's result, so
-  // the ordinary run comes first (README, Runtime Scenarios).
-  if (fixture.scenario === "pending-first-poll") {
-    const first = await ordinary(runner);
-    const firstViolation = await contractViolation({
-      result: first,
-      file,
-      panics,
-      tree,
-      entryRun: !tests,
-    });
-    if (firstViolation) {
-      return fail(`${step}: ${firstViolation}`, [checked, first]);
-    }
-    if (first.status !== 0) {
-      return fail(`${step}: expected exit 0, got exit ${first.status}`, [first]);
-    }
-  }
-  const testRunner: RunnerOptions = {
-    ...runner,
-    ...(fixture.scenario ? { scenario: fixture.scenario } : {}),
-    ...(fixture.pendingFunction ? { pendingFunction: fixture.pendingFunction } : {}),
-  };
-  // A scenario other than pending-first-poll replaces the execution steps,
-  // so it runs as `test` whatever the fixture registers.
-  const scenarioRun = fixture.scenario !== undefined && fixture.scenario !== "pending-first-poll";
-  const tested = scenarioRun
-    ? await invoke({ implementation, action: "test", flags: [], file, runner: testRunner })
-    : await ordinary(testRunner);
-  const entryOnly = !tests && !scenarioRun;
-  const testViolation = await contractViolation({
-    result: tested,
-    file,
-    panics,
-    tree,
-    entryRun: entryOnly,
-  });
-  const ran = scenarioRun ? "test" : step;
-  if (testViolation) {
-    return fail(`${ran}: ${testViolation}`, [checked, tested]);
-  }
-  if (row.expectation === "accept") {
-    if (tested.status !== 0) {
-      return fail(`${ran}: expected exit 0, got exit ${tested.status}`, [tested]);
-    }
-    if (fixture.expectedStdout === undefined) {
-      return { path: row.path };
-    }
-    // `IMPL FILE`: run the fixture as a single file (Command Contract). An
-    // entry-only fixture's run is that run.
-    const single = entryOnly
-      ? tested
-      : await invoke({ implementation, action: undefined, flags: [], file });
-    const runViolation = await contractViolation({ result: single, file, panics });
-    if (runViolation) {
-      return fail(`run: ${runViolation}`, [single]);
-    }
-    if (single.status !== 0) {
-      return fail(`run: expected exit 0, got exit ${single.status}`, [single]);
-    }
-    if (single.stdout !== fixture.expectedStdout) {
-      return fail(
-        `run: stdout ${JSON.stringify(single.stdout)} differs from expected ${JSON.stringify(fixture.expectedStdout)}`,
-        [single],
-      );
-    }
-    return { path: row.path };
-  }
-  const code = row.expectation.slice("panic:".length);
-  // `test` reports a failed test case with exit 1; an entry run's panic exit
-  // status is the runtime profile's (module.entry.panic), so any nonzero
-  // status but 101 counts.
-  const panicked = entryOnly
-    ? tested.status !== 0 && tested.status !== REJECTED
-    : tested.status === TEST_FAILED;
-  if (!panicked) {
-    return fail(`${ran}: expected panic ${code}, got exit ${tested.status}`, [tested]);
-  }
-  const reports = panicReports(tested, panics);
-  if (reports.length === 0) {
-    return fail(`${ran}: no panic report (expected ${code})`, [tested]);
-  }
-  const wrong = [...new Set(reports.filter((reported) => reported !== code))];
-  if (wrong.length) {
-    return fail(`${ran}: reported panic category ${wrong.join(", ")}, expected ${code}`, [tested]);
-  }
-  return { path: row.path };
+  const context = { implementation, row, panics, file, source, fixture, tree, runner, fail };
+  return row.phase === "runtime" ? runRuntimeCase(context) : runStaticCase(context);
 }
 
 async function readCliIndex(path: string): Promise<Map<string, CliRow>> {
