@@ -1,28 +1,13 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
-import {
-  closeSync,
-  openSync,
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import net from "node:net";
 import dgram from "node:dgram";
 import http from "node:http";
 import https from "node:https";
 import { once } from "node:events";
-import { MessageChannel, Worker } from "node:worker_threads";
 import {
   createCoreHost,
   httpProvider,
@@ -30,27 +15,14 @@ import {
   pendingOperation,
   TimeLimit,
 } from "./core.mts";
-import { Dec, Enc, Err, HostContract, Ok, str } from "./wire.mts";
+import { Dec, Enc, Err, HostContract, Ok } from "./wire.mts";
 import { ConsoleError, METHODS } from "./gen/abi.mts";
 
 import { cgroupCpuCount, createHost, syncClient } from "./node.mjs";
-import { createOutput } from "./output.mts";
+import { fixture, netHost, netWorker, tcpHost } from "./node-test-support.mjs";
 import { browserSend } from "./web.mts";
 import { failed as failedOutput } from "./output-worker.mts";
-import { postReply, receiveReply } from "./worker-control.mts";
-
-function fixture(t, files) {
-  // The resolved path: grant errors report a path with its links resolved,
-  // and the temporary directory may sit behind one (macOS /var).
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "hd-cgroup-")));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const [name, content] of Object.entries(files)) {
-    const path = join(root, name);
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, content);
-  }
-  return root;
-}
+import { postReply } from "./worker-control.mts";
 
 test("Console errors carry only stream tags and numeric host codes", () => {
   assert.deepEqual(failedOutput({ code: "EPIPE", errno: -32 }), Err({ tag: "Closed" }));
@@ -458,34 +430,6 @@ test("the async entry driver polls external readiness before waking the guest", 
   }
 });
 
-function netWorker(t, options = {}) {
-  const { port1, port2 } = new MessageChannel();
-  const flag = new Int32Array(new SharedArrayBuffer(4));
-  const worker = new Worker(options.url ?? new URL("./net.mjs", import.meta.url), {
-    workerData: { port: port2, flag, ...options.data },
-    transferList: [port2],
-  });
-  t.after(async () => {
-    if (options.close) {
-      call({ op: options.close });
-    }
-    port1.close();
-    await worker.terminate();
-  });
-  let nextCall = 1;
-  const call = (request, transfer = []) => {
-    const id = nextCall++;
-    const deadline = performance.now() + 5000;
-    Atomics.store(flag, 0, 0);
-    port1.postMessage({ id, request }, transfer);
-    const reply = receiveReply(port1, flag, id, () => deadline - performance.now());
-    assert.ok(reply, "worker control reply");
-    return reply.result;
-  };
-  call.worker = worker;
-  return call;
-}
-
 async function loopback(t) {
   const sockets = new Set();
   const server = net.createServer((socket) => {
@@ -504,71 +448,6 @@ async function loopback(t) {
     server.close();
   });
   return { host: "127.0.0.1", port: server.address().port, address: "loopback" };
-}
-
-// Exercise the real provider through the ABI, including complete-before-finish.
-function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
-  const host = make({ out() {}, err() {} }, env);
-  host.core.st.deadline = performance.now() + 5000;
-  t.after(() => host.close());
-  const memory = new WebAssembly.Memory({ initial: trait === "hd:Process" ? 32 : 1 });
-  host.prime({ exports: { "hd.x": memory } });
-  const imports = host.imports[trait];
-  const decode = (name, len) =>
-    METHODS[trait][name].result.dec(new Dec(new Uint8Array(memory.buffer, 0, len)));
-  const call = (name, ...args) => {
-    const method = METHODS[trait][name];
-    const encoded = new Enc(),
-      raw = [];
-    if (method.params.length === 1 && method.params[0] === str) {
-      const bytes = new TextEncoder().encode(args[0]);
-      new Uint8Array(memory.buffer).set(bytes);
-      raw.push(bytes.length);
-    } else {
-      method.params.forEach((param, i) => {
-        if (typeof param === "string") {
-          raw.push(args[i]);
-        } else {
-          param.enc(encoded, args[i]);
-        }
-      });
-      if (raw.length !== method.params.length) {
-        new Uint8Array(memory.buffer).set(encoded.done());
-        raw.push(encoded.len);
-      }
-    }
-    if (method.wait === "never") {
-      return { result: decode(name, imports[name](...raw)) };
-    }
-    const [status, value] = imports[`${name}.start`](...raw);
-    return status === 0 ? { result: decode(name, value) } : { operation: value };
-  };
-  const take = (name, started) => {
-    if (started.result) {
-      return started.result;
-    }
-    if (!host.core.st.ops.get(started.operation).completed) {
-      host.imports["hd:rt"].block();
-    }
-    return decode(name, imports[`${name}.finish`](started.operation));
-  };
-  return { host, call, take };
-}
-
-async function tcpHost(t) {
-  let connected;
-  const arrived = new Promise((resolve) => {
-    connected = resolve;
-  });
-  const server = net.createServer((socket) => connected(socket));
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
-  const api = netHost(t);
-  const stream = api.take("connect", api.call("connect", "127.0.0.1", server.address().port));
-  assert(stream.ok);
-  const peer = await arrived;
-  t.after(() => peer.destroy());
-  return { ...api, handle: stream.value, peer };
 }
 
 for (const phase of ["pending", "completed before finish", "completed past deadline"]) {
@@ -1430,4 +1309,3 @@ test("Process long deadline does not overflow the worker timer", async (t) => {
   );
   call({ op: "wait_finish", operation });
 });
-
