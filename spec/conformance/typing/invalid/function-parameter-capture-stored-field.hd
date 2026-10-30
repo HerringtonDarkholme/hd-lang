@@ -1,0 +1,7 @@
+# test: a function parameter may carry local capture origins, so it cannot be stored in a field
+# Spec 07 Captures: fn.capture.local-store.
+struct Stored:
+    callback: fn() -> i32
+
+fn store(callback: fn() -> i32) -> Stored:
+    Stored { callback: callback } # diagnostic: local-reference-escapes

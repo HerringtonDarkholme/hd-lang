@@ -1,5 +1,5 @@
-# test: a call's dependent result is a local reference of the caller, which a closure never captures
-# Spec 13 Dependent Results: ref.dep.call.local; Local References: ref.local.escape.capture.
+# test: a returned closure cannot capture a dependent result outside a direct function-parameter call
+# Spec 13 Dependent Results: ref.dep.call.local; Local References: ref.local.escape.capture-stored.
 struct User:
     name: string
     age: i32

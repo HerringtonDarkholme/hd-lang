@@ -1229,7 +1229,7 @@ impl Ck<'_, '_> {
             let mut refs = Vec::new();
             for (i, e) in args.positional.iter().enumerate() {
                 let w = ps.get(i).copied();
-                let (r, t) = self.expr(*e, w)?;
+                let (r, t) = self.arg_value(*e, w, true)?;
                 let r = match w {
                     Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
                     None => r,
@@ -1244,7 +1244,7 @@ impl Ck<'_, '_> {
                     "the function value",
                     n,
                 );
-                let (r, t) = self.trailing_closure(block, w)?;
+                let (r, t) = self.trailing_closure(block, w, takes)?;
                 if takes {
                     refs.push(self.coerce(r, t, w, block, "argument", ExpectPosition::General));
                 }
@@ -1319,7 +1319,7 @@ impl Ck<'_, '_> {
                 return Ok(None);
             }
         };
-        let (r, t) = self.arg_value(spread, Some(input))?;
+        let (r, t) = self.arg_value(spread, Some(input), false)?;
         let r = self.coerce(r, t, input, spread, "argument", ExpectPosition::General);
         let solved = self.infer.resolve(pool, input);
         match pool.get(solved) {
@@ -1448,7 +1448,7 @@ impl Ck<'_, '_> {
                         self.vararg_wants(rest[nfixed].1, args.positional.len() - nfixed)?;
                 }
                 let w = item_wants[i - nfixed];
-                let (r, t) = self.arg_value(*e, w)?;
+                let (r, t) = self.arg_value(*e, w, false)?;
                 let r = match w {
                     Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
                     None => r,
@@ -1468,9 +1468,10 @@ impl Ck<'_, '_> {
                 });
             // A closure whose parameter types a later argument solves is
             // checked against them (§2.4 step 4).
+            let mut bounded = None;
             let expect = match w {
                 Some(want) if e.kind() == SyntaxKind::ClosureExpr => {
-                    let bounded = formals
+                    bounded = formals
                         .closure_wants
                         .and_then(|xs| xs.get(skip + i))
                         .copied()
@@ -1491,7 +1492,10 @@ impl Ck<'_, '_> {
                 }
                 _ => w,
             };
-            let (r, t) = self.arg_value(*e, expect)?;
+            let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
+                && bounded.is_none()
+                && formals.inferred.get(skip + i).is_none_or(Vec::is_empty);
+            let (r, t) = self.arg_value(*e, expect, scoped_capture)?;
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
                 && self.infer.resolve(pool, t) == Ty::NEVER
@@ -1586,8 +1590,9 @@ impl Ck<'_, '_> {
             let mut w = self.normalize_deep(rest[i].1)?;
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
+            let mut bounded = None;
             let expect = if e.kind() == SyntaxKind::ClosureExpr {
-                let bounded = formals
+                bounded = formals
                     .closure_wants
                     .and_then(|xs| xs.get(skip + i))
                     .copied()
@@ -1603,7 +1608,10 @@ impl Ck<'_, '_> {
             } else {
                 w
             };
-            let (r, t) = self.arg_value(*e, Some(expect))?;
+            let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
+                && bounded.is_none()
+                && formals.inferred.get(skip + i).is_none_or(Vec::is_empty);
+            let (r, t) = self.arg_value(*e, Some(expect), scoped_capture)?;
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
             }
@@ -1651,13 +1659,21 @@ impl Ck<'_, '_> {
                     let msg = format!("`{pname}` is given twice");
                     self.err(Code::DuplicateArgument, block, &msg);
                 } else {
-                    let (r, t) = self.trailing_closure(block, w)?;
+                    let last_is_generic = formals
+                        .inferred
+                        .get(skip + last)
+                        .is_some_and(|xs| !xs.is_empty())
+                        || formals
+                            .closure_wants
+                            .and_then(|xs| xs.get(skip + last))
+                            .is_some_and(Option::is_some);
+                    let (r, t) = self.trailing_closure(block, w, !last_is_generic)?;
                     slots[last] =
                         Some(self.coerce(r, t, w, block, "argument", ExpectPosition::General));
                 }
             } else {
                 let w = self.trailing_param(None, name, n);
-                self.trailing_closure(block, w)?;
+                self.trailing_closure(block, w, false)?;
             }
         }
         // A vararg nothing supplied collects no arguments.
@@ -1837,7 +1853,7 @@ impl Ck<'_, '_> {
             Some(lt) if !items.is_empty() => self.rest_of(lt)?,
             _ => None,
         };
-        let (r, t) = self.arg_value(e, tail_ty.or(lt))?;
+        let (r, t) = self.arg_value(e, tail_ty.or(lt), false)?;
         let poison = |slots: &mut [Option<Ref>], free: &[usize]| {
             for &i in free {
                 if let Some(s) = slots.get_mut(i) {

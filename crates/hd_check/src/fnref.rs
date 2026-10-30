@@ -214,7 +214,7 @@ impl Ck<'_, '_> {
 
     /// A bound method reference keeps its receiver, as a closure keeps
     /// what it captures, so a local reference receiver escapes
-    /// (`ref.local.escape.capture`).
+    /// (`ref.local.escape.capture-stored`).
     fn bound_receiver_kept(&mut self, recv: Ref, base: NodeRef<'_>) {
         if recv.0 != NONE && self.ref_counted(self.b.ty_of(recv)) == Some(false) {
             self.local_ref_escapes(base, crate::local_refs::Escape::Capture);

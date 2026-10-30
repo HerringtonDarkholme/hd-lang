@@ -10,6 +10,8 @@
 # expect-stdout: nothing
 # expect-stdout: 1 2
 # expect-stdout: 6
+use std.function.Fn
+
 trait Counter:
     fn next(&mut self) -> i32
 
@@ -38,8 +40,8 @@ fn depth_name(value: i32??) -> string:
         .Some(.None) => "some none"
         .None => "none"
 
-fn lift(f: fn(i32) -> i32, keep: bool) -> (fn(i32) -> i32)?:
-    if keep: .Some(f) else: .None
+fn lift[F < Fn(i32) -> i32 & 'static](f: F, keep: bool) -> (fn(i32) -> i32)?:
+    if keep: .Some(fn(value: i32) -> i32: f(value)) else: .None
 
 fn apply_lifted(f: fn(i32) -> i32, keep: bool) -> i32:
     match lift(f, keep):

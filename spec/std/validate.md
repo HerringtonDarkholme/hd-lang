@@ -67,7 +67,7 @@ logic.
 | r[std-validate.rule.uuid] `uuid` | `uuid(message: string? = .None) -> Uuid[string]` | not 8-4-4-4-12 hexadecimal UUID text; code `uuid` |
 | r[std-validate.rule.one-of] `one_of` | `one_of[F < Eq](values: List[F], message: string? = .None) -> OneOf[F]` | unequal to every listed value; code `one-of` |
 | r[std-validate.rule.unique] `unique` | `unique[F < Eq & Hash & Validate](message: string? = .None) -> Unique[List[F]]` | two list elements compare equal; code `unique` |
-| r[std-validate.rule.check] `check` | `check[F](test: fn(&F) -> Result[void, Problem], message: string? = .None) -> Check[F]` | the callback's `Err(problem)`; its code and message, with `message` replacing only the message |
+| r[std-validate.rule.check.capture-free] `check` | `check[F, G < 'static & Fn(&F) -> Result[void, Problem]](test: G, message: string? = .None) -> Check[F]`; stores a concrete `fn` wrapper around `test` | the callback's `Err(problem)`; its code and message, with `message` replacing only the message |
 
 1. r[std-validate.rule.declarations] The table's fact types are structs parameterized by `F`. Each carries `@annotate::[F](.Field)`.
 2. r[std-validate.rule.builtin-order] Distinct rule facts on one member run in the table's declaration order. Thus `Check[F]` runs after every built-in rule. The ordinary duplicate-fact rule rejects two facts of the same concrete fact type.

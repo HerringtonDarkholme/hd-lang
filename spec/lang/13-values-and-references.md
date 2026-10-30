@@ -345,10 +345,12 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.element] Collection element | is stored as an element of a list, a map, or a set, by a literal or a method such as `push` | `points.push(p)` | `local-reference-escapes` |
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
 | r[ref.local.escape.fn-value-result] Function value result | is the result of a function value whose type gives it no source among the inputs, as for a method bound to its receiver | `p::x_ref` for `fn x_ref(&self) -> &i32` | `local-reference-escapes` |
-| r[ref.local.escape.capture] Closure capture | is captured by a closure, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
+| r[ref.local.escape.capture-stored] Stored closure capture | is captured by a closure outside a direct `fn(...)` argument, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
 | r[ref.local.escape.type-argument] Type argument | is a type argument of a list, a map, a trait, or a trait value, written or inferred | `List[&Point]`, `dyn Store[&Point]` | `local-reference-escapes` |
 
 6. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
+7. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
+8. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
 
 ```text
 struct Point:
@@ -418,17 +420,19 @@ fn demo(u: &mut User) -> void:
 1. r[ref.dep.result] A function's or a method's result type may hold a local reference: `&T`, `&mut T`, a tuple of them, or an instance of a generic struct or enum, such as `&T?` or `Result[&T, E]`.
 2. r[ref.dep.result.opaque] An opaque result type that borrows is a dependent result too, and its hidden value follows these rules ([Opaque Results That Borrow](04-type-system.md#opaque-results-that-borrow)).
 3. r[ref.dep.position] Each `&` or `&mut` in a parameter's type is one **reference position**: in `&self`, in `p: &T`, in `opt: &T?`, and in each element of `pair: (&A, &B)`. A `&` inside a function type is none.
-4. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
-5. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
-6. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
-7. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
-8. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
-9. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
-10. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
-11. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
-12. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
-13. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
-14. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
+4. r[ref.dep.capture-position] A direct `fn(...)` parameter is one **capture position** with a fresh lifetime, and a direct function result has one capture position too.
+5. r[ref.dep.capture-elide] An elided direct function result depends on the one direct function parameter's capture position.
+6. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
+7. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
+8. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
+9. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
+10. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
+11. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
+12. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
+13. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
+14. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error. Error: `local-reference-escapes`.
+15. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
+16. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
 
 ```text
 struct User:
@@ -832,6 +836,7 @@ fn demo(u: User) -> string:
 5. r[ref.generic.static.capture] A closure's capture whose type names a type parameter must meet `'static`. Error: `local-reference-escapes`.
 6. r[ref.generic.static.no-fix] Neither diagnostic has a fix-it.
 7. r[ref.generic.static.bound-only] `'static` is written only as a type parameter's bound. A reference type that writes it, as `&'static T`, is an error, and so is any other lifetime bound. Error: `references-not-yet-checked`.
+8. r[ref.generic.static.fn-conjunction] A generic callback that is kept past its call is bounded by both `'static` and `Fn(...)`. The bounds join with `&` in either order: `F < 'static & Fn(A) -> R` and `F < Fn(A) -> R & 'static` are equivalent.
 
 ```text
 struct User:
@@ -1274,7 +1279,8 @@ fn demo() -> i32:
 > **Why.** A reference already names a place, so copying it shares that
 > place.
 
-4. r[ref.capture.local] A closure never captures a local reference, as [`ref.local.escape.capture`](#r-ref.local.escape.capture) states.
+4. r[ref.capture.local-scoped] A closure supplied directly for a function parameter may capture a local reference under [`ref.local.capture-parameter`](#r-ref.local.capture-parameter).
+5. r[ref.capture.local-stored] Any other closure capture of a local reference is an error under [`ref.local.escape.capture-stored`](#r-ref.local.escape.capture-stored).
 
 See also: [Copied And Shared Captures](07-functions.md#copied-and-shared-captures),
 [`ref.read.shallow`](#r-ref.read.shallow).

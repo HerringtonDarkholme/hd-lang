@@ -195,7 +195,7 @@ impl Ck<'_, '_> {
         let mut printed = Vec::new();
         let mut types = Vec::new();
         for e in &args.positional {
-            let (r, t) = self.arg_value(*e, None)?;
+            let (r, t) = self.arg_value(*e, None, false)?;
             let t = self.strip_mut(t);
             let head = format!("{location}: {}", self.dbg_source(*e));
             let head = self.b.const_str(&head);

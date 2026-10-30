@@ -1,0 +1,10 @@
+# test: a generic callback stored as a concrete function cannot capture a caller's local reference
+# Standard Validation, Rule Facts: std-validate.rule.check.capture-free.
+use std.validate.{Check, Problem, check}
+
+fn validation(limit: &i32) -> Check[i32]:
+    check(
+        fn(value: &i32) -> Result[void, Problem]: # diagnostic: local-reference-escapes
+            if *value <= *limit: .Ok(()) else: .Err(Problem { code: "limit", message: "too large" })
+        ,
+    )

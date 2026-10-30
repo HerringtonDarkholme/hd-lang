@@ -1,7 +1,7 @@
 # test: the standard validation facts reject values with stable codes, named messages, and decided text grammars
 # Standard Validation: std-validate.rule.range, std-validate.rule.length, std-validate.rule.pattern,
 # std-validate.rule.email, std-validate.rule.url, std-validate.rule.uuid,
-# std-validate.rule.one-of, std-validate.rule.unique, std-validate.rule.check
+# std-validate.rule.one-of, std-validate.rule.unique, std-validate.rule.check.capture-free
 use std.structure.Structure
 use std.testing.{assert, assert_equal}
 use std.validate.{
