@@ -3799,24 +3799,41 @@ impl Lower<'_, '_, '_> {
     }
 
     /// A shared parameter whose type names a type parameter
-    /// (`data.shared.type-parameter`) is an error when `report` is set, and
-    /// its type becomes poison either way, so later stages stay silent.
+    /// (`data.shared.type-parameter`) or a lifetime of the enum
+    /// (`data.shared.lifetime`) is an error when `report` is set, and its
+    /// type becomes poison either way, so later stages stay silent.
     fn shared_type_parameters(
         &mut self,
         shared: &mut [Field],
         shared_node: Option<NodeRef<'_>>,
+        gn: &Gen,
         report: bool,
     ) {
+        let toks = &self.src.parse.tokens;
         for (n, f) in Self::field_nodes(shared_node).zip(shared.iter_mut()) {
-            if !self.names.pool.has_param(f.ty) {
+            let lifetime = Src::type_child(n).is_some_and(|t| {
+                std::iter::once(t).chain(t.descendants()).any(|c| {
+                    c.direct_tokens().any(|k| {
+                        toks.kind(k) == TokenKind::Lifetime
+                            && gn
+                                .lifetimes
+                                .iter()
+                                .any(|l| self.names.text(*l) == self.src.text(k))
+                    })
+                })
+            });
+            if !lifetime && !self.names.pool.has_param(f.ty) {
                 continue;
             }
             f.ty = Ty::POISON;
             if report {
                 let name = self.names.text(f.name).to_owned();
-                let msg = format!(
-                    "the shared field `{name}` names a type parameter, but shared data has one copy per variant"
-                );
+                let why = if lifetime {
+                    "a lifetime of the enum, but shared data is made at module start and holds no local reference"
+                } else {
+                    "a type parameter, but shared data has one copy per variant"
+                };
+                let msg = format!("the shared field `{name}` names {why}");
                 self.diags
                     .error(Code::SharedDataTypeParameter, self.src.span(n), &msg);
             }
@@ -5090,7 +5107,7 @@ impl Lower<'_, '_, '_> {
                 let mut shared = self.fields(shared_params, &gn, false);
                 let check = self.r.frozen.is_none();
                 let holder = Src::child(n, SyntaxKind::ParameterList);
-                self.shared_type_parameters(&mut shared, holder, check);
+                self.shared_type_parameters(&mut shared, holder, &gn, check);
                 if check {
                     self.field_variance(h.def, &generics, holder, &shared);
                     self.enum_names(&shared, holder, block);

@@ -4551,6 +4551,7 @@ runtime/valid/hasher-struct-ref-receivers.hd	runtime	accept	lang/09-traits.md#r-
 runtime/valid/default-hasher-shared.hd	runtime	accept	std/hash.md#r-std-hash.default.new-ref
 runtime/valid/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
 typing/invalid/shared-enum-type-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.type-parameter
+typing/invalid/shared-enum-lifetime-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.lifetime
 runtime/valid/shared-enum-generic-one-copy.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.generic-copy
 typing/valid/requirement-key-supertrait-binding-row.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.key.binding.identity.super
 runtime/valid/requirement-key-supertrait-binding-run.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding.identity.super

@@ -1,0 +1,5 @@
+# test: a shared parameter whose type names a lifetime of the enum is an error
+# Spec 08 Shared Enum Constructor Data: data.shared.lifetime.
+enum Word['a](text: &'a string): # diagnostic: shared-data-type-parameter
+    Hello -> Word(&"hello")
+    Named(name: &'a string) -> Word(&"named")
