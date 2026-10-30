@@ -2075,7 +2075,7 @@ fn a_historical_rebuild_adopts_a_linked_base_on_both_hosts() {
         assert_eq!(restarted.live, Some((Outcome::Exit(0), End::Exit(0))));
 
         let host = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../host/core.mts")
+            .join("../../host/core.ts")
             .canonicalize()
             .unwrap();
         let pairs = sources
@@ -2087,7 +2087,7 @@ fn a_historical_rebuild_adopts_a_linked_base_on_both_hosts() {
             r"
 import assert from 'node:assert/strict';
 import {{pathToFileURL}} from 'node:url';
-const {{createSession}} = await import(new URL('session.mts', pathToFileURL({host:?})));
+const {{createSession}} = await import(new URL('session.ts', pathToFileURL({host:?})));
 const sources = [{pairs}];
 const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
 const base = new Uint8Array({base_wasm:?});
@@ -2204,7 +2204,7 @@ fn linked_cycles_and_captured_references_survive_checkpoint_restore() {
             assert_eq!(text(&io.out), "");
             assert_eq!(text(&io.err), "");
             let host = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../host/core.mts")
+                .join("../../host/core.ts")
                 .canonicalize()
                 .unwrap();
             let pairs = sources
@@ -2216,7 +2216,7 @@ fn linked_cycles_and_captured_references_survive_checkpoint_restore() {
                 r"
 import assert from 'node:assert/strict';
 import {{pathToFileURL}} from 'node:url';
-const {{createSession}} = await import(new URL('session.mts', pathToFileURL({host:?})));
+const {{createSession}} = await import(new URL('session.ts', pathToFileURL({host:?})));
 const sources = [{pairs}];
 const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
 const errors = [];

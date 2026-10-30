@@ -48,7 +48,7 @@ fn run_tests(name: &str, src: &str) -> Vec<String> {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let result = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.ts"))
         .arg(&path)
         .arg(runs.join(","))
         .output()

@@ -1,7 +1,7 @@
 //! The least common type at every site (spec 04 "Least Common Type",
 //! `types.lct.*`) and the narrower join of a generic call's arguments
 //! (`types.generic.infer.join`). Valid joins build and run on V8
-//! (`host/run.mjs`); a value that does not join is `no-common-type`, or
+//! (`host/run.ts`); a value that does not join is `no-common-type`, or
 //! `no-least-common-type`, reported once at that value.
 
 use hd_diag::Code;

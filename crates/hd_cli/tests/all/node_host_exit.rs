@@ -1,4 +1,4 @@
-//! The Node host (`host/run.mjs`) exits once `main` returns, and enforces
+//! The Node host (`host/run.ts`) exits once `main` returns, and enforces
 //! `--time-limit` (`cli.limit.time`) while the program computes or waits on
 //! a host operation (#161).
 use std::path::{Path, PathBuf};
@@ -10,7 +10,7 @@ use hd_testkit::Scratch;
 const TIME_PANIC: &[u8] = b"panic: time-limit: the program exceeded its time limit\n";
 
 fn host() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts")
 }
 
 fn hd(dir: &Path) -> Command {

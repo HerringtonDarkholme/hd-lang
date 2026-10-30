@@ -2,7 +2,7 @@
 //! by tombstone, growth that keeps the order, keys hashed and compared
 //! through their own `Hash` and `Eq`, and a cursor that keeps its
 //! snapshot while the map changes. Programs build through the driver and run on V8
-//! (`host/run.mjs`), as the conformance runner does.
+//! (`host/run.ts`), as the conformance runner does.
 
 use std::path::Path;
 use std::process::{Command, Output as Ran};
@@ -37,7 +37,7 @@ fn ran(name: &str, main: &str) -> Ran {
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("map-run-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

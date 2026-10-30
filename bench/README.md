@@ -79,7 +79,7 @@ modules: each measured process has fresh V8 tier state. `--quick` measures hd on
 `--backend B` passes `--backend B` to `hd build`.
 
 Each hd program is built with `hd build --release --engine E` and run on
-Node through `host/run.mjs` and on wasmtime as `hd FILE.wasm --engine
+Node through `host/run.ts` and on wasmtime as `hd FILE.wasm --engine
 wasmtime`, which includes Cranelift's compile. Every process output, including the discarded preflight, is checked
 against the expected stdout and must exit successfully. Times are process wall time, so start-up is
 in them: see the empty program's row. Python references use plain CPython

@@ -19,7 +19,7 @@ driver's `Coherence` and `InitOrder` tasks add the overlap and
 initialization-order results. For a program, `hd_mono`
 collects the reachable instances from the TIR, `hd_opt` runs the pass
 pipeline chosen by engine target and level, and `hd_wasm_linear` emits and links
-one RC-managed Wasm module. The CLI runs it on V8 through Node (`host/*.mjs`), or
+one RC-managed Wasm module. The CLI runs it on V8 through Node (`host/*.ts`), or
 in process on wasmtime (`hd_run_wasmtime`) when built with the `wasmtime`
 feature. Every stage boundary goes through the caller's cache store.
 

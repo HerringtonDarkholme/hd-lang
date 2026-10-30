@@ -83,9 +83,9 @@ LOOP=$(build_prog pureloop "$WORK/pureloop.hd")
 echo "## startup: wasmtime vs node on pure"
 # shellcheck disable=SC2086
 time5 wasmtime-startup -- "$WASMTIME" run $WFLAGS $TRAP --invoke hd.poll "$PURE"
-time5 node-startup -- node "$REPO/compiler/host/run.mjs" "$PURE"
+time5 node-startup -- node "$REPO/compiler/host/run.ts" "$PURE"
 echo "## steady state: wasmtime vs node on pureloop"
 # shellcheck disable=SC2086
 time5 wasmtime-steady -- "$WASMTIME" run $WFLAGS $TRAP --invoke hd.poll "$LOOP"
-time5 node-steady -- node "$REPO/compiler/host/run.mjs" "$LOOP"
+time5 node-steady -- node "$REPO/compiler/host/run.ts" "$LOOP"
 echo "workdir kept at: $WORK"

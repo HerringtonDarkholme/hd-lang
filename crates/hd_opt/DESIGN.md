@@ -237,7 +237,7 @@ refactor can prove its output byte-identical.
 ## 8. Knob Measurements (Job e)
 
 Measured on the runtime suite (`bench/runtime/progs`, six programs) with
-`hd build --release`; V8 through `node host/run.mjs`, wasmtime with a
+`hd build --release`; V8 through `node host/run.ts`, wasmtime with a
 cached cwasm. Only `closures` changes with the knobs; the other five emit
 byte-identical Wasm in every variant.
 

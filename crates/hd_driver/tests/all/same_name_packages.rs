@@ -186,7 +186,7 @@ fn same_named_packages_print_alike_and_compare_unequal() {
     let path = hd_testkit::Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "same-name-packages.wasm");
     std::fs::write(&path, out.wasm.expect("wasm")).expect("write wasm");
     let ran = std::process::Command::new("node")
-        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

@@ -5,8 +5,8 @@ import { execFileSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createCoreHost } from "../../../host/core.mts";
-import { createPackageRuntime } from "../../../host/package-providers.mts";
+import { createCoreHost } from "../../../host/core.ts";
+import { createPackageRuntime } from "../../../host/package-providers.ts";
 import { createApplication } from "../adapters/application.mjs";
 import { createSupervisor } from "../adapters/supervisor.mjs";
 
@@ -145,8 +145,8 @@ test(
       program: {
         module,
         bindingsURL,
-        runtimeURL: new URL("../../../host/core.mts", import.meta.url).href,
-        packageRuntimeURL: new URL("../../../host/package-providers.mts", import.meta.url).href,
+        runtimeURL: new URL("../../../host/core.ts", import.meta.url).href,
+        packageRuntimeURL: new URL("../../../host/package-providers.ts", import.meta.url).href,
         applicationURL: new URL("../adapters/application.mjs", import.meta.url).href,
         grants: { [source.selectors[0]]: true, Console: true, Clock: true },
       },

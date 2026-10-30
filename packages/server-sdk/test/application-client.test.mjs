@@ -6,8 +6,8 @@ import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { after, before, test } from "node:test";
-import { createCoreHost } from "../../../host/core.mts";
-import { createPackageRuntime } from "../../../host/package-providers.mts";
+import { createCoreHost } from "../../../host/core.ts";
+import { createPackageRuntime } from "../../../host/package-providers.ts";
 import { createApplication } from "../adapters/application.mjs";
 import { readProductionGrants } from "../packaging/grants.mjs";
 

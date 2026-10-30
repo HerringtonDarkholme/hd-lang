@@ -90,8 +90,8 @@ async function setup({
     program: Object.freeze({
       module,
       bindingsURL,
-      runtimeURL: new URL("../../../host/core.mts", import.meta.url).href,
-      packageRuntimeURL: new URL("../../../host/package-providers.mts", import.meta.url).href,
+      runtimeURL: new URL("../../../host/core.ts", import.meta.url).href,
+      packageRuntimeURL: new URL("../../../host/package-providers.ts", import.meta.url).href,
       applicationURL: new URL(
         cleanupClock
           ? "./fixtures/logical-cleanup-application.mjs" + (cleanupClock.hold ? "?hold" : "")

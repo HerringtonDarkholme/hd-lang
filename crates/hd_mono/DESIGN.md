@@ -144,9 +144,9 @@ TIR lives in `hd_tir`; there is no MIR crate.
 | `hd_run_wasmtime` | the wasmtime engine, providers of the default profile, limits, the `cwasm` cache |
 | `hd_web` | the compiler in the playground's worker |
 
-The JS host's codecs and method descriptors (`host/gen/abi.mjs`) are
+The JS host's codecs and method descriptors (`host/gen/abi.ts`) are
 generated from the ABI model by `hd_host_abi`'s `tests/abi_model.rs`;
-its providers and driver (`host/core.mts`) are written by hand.
+its providers and driver (`host/core.ts`) are written by hand.
 
 ## 12. Emitting From TIR
 

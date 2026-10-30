@@ -2,7 +2,7 @@
 //! and `Map` (spec/lang/10-modules.md#built-in-methods), which have no
 //! declaration: an unbound reference takes the receiver first, a bound
 //! one captures it (`fn.ref.unbound.receiver`, `fn.ref.bound.capture`).
-//! Built and run on V8 (`host/run.mjs`).
+//! Built and run on V8 (`host/run.ts`).
 
 use std::path::Path;
 use std::process::Command;
@@ -45,7 +45,7 @@ fn run(name: &str, main: &str) -> String {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

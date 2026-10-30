@@ -2,7 +2,7 @@
 //! calls with explicit type arguments it needs (`Type::f::[T]()`,
 //! fn.generic.explicit.*, fn.ref.lookup): the owner resolves first, then the
 //! member, then the written type arguments. Checked through the driver, then
-//! built and run on V8 (`host/run.mjs`), as the conformance runner does.
+//! built and run on V8 (`host/run.ts`), as the conformance runner does.
 
 use std::path::Path;
 use std::process::Command;
@@ -142,7 +142,7 @@ fn output_in(name: &str, package: &str, packages: &Packages<'_>, main: &str) -> 
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

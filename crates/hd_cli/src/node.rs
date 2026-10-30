@@ -1,6 +1,6 @@
 //! Node as an `hd_run::Engine` (`f1c55020:future-work/compiler/build-order.md` §22: until wasmtime is an
 //! approved dependency, `hd run` and `hd test` run on V8 through Node).
-//! The JS host (`host/*.mjs`) is embedded, so the binary is
+//! The JS host (`host/*.ts`) is embedded, so the binary is
 //! relocatable.
 
 use std::fmt::Write as _;
@@ -18,61 +18,61 @@ use crate::report::quote;
 
 /// The JS host's platform-neutral core: the import object and the entry
 /// driver.
-const CORE: &str = include_str!("../../../host/core.mts");
+const CORE: &str = include_str!("../../../host/core.ts");
 /// Package-host runtime binding imported by the platform-neutral core.
-const CORE_PACKAGE: &str = include_str!("../../../host/core-package.mts");
+const CORE_PACKAGE: &str = include_str!("../../../host/core-package.ts");
 /// The initialized REPL session and checkpoint lifecycle imported by the core.
-const SESSION: &str = include_str!("../../../host/session.mts");
+const SESSION: &str = include_str!("../../../host/session.ts");
 /// The checked descriptor report imported by the shared core.
-const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.mts");
+const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.ts");
 /// The JS host's Node layer: the providers that touch the machine.
-const NODE: &str = include_str!("../../../host/node.mjs");
+const NODE: &str = include_str!("../../../host/node.ts");
 /// Node path, host-name and file-operation helpers shared with workers.
-const NODE_FILES: &str = include_str!("../../../host/node-files.mjs");
-/// The Node-only REPL glue loaded by `node.mjs` on demand.
-const NODE_SESSION: &str = include_str!("../../../host/node-session.mjs");
+const NODE_FILES: &str = include_str!("../../../host/node-files.ts");
+/// The Node-only REPL glue loaded by `node.ts` on demand.
+const NODE_SESSION: &str = include_str!("../../../host/node-session.ts");
 /// `hd run`: one instance, `hd.init` then `hd.poll`.
-const RUN: &str = include_str!("../../../host/run.mjs");
+const RUN: &str = include_str!("../../../host/run.ts");
 /// Selects the panic-only startup host before the full Node host.
-const STARTUP: &str = include_str!("../../../host/startup.mjs");
+const STARTUP: &str = include_str!("../../../host/startup.ts");
 /// `hd test`: runs the test program's cases and writes their results.
-const TEST: &str = include_str!("../../../host/test.mjs");
+const TEST: &str = include_str!("../../../host/test.ts");
 /// The worker thread the cases run in, and its supervisor.
-const TEST_RUN: &str = include_str!("../../../host/test-run.mjs");
-/// The case loop `test.mjs` runs: one fresh instance per case.
-const CASES: &str = include_str!("../../../host/cases.mjs");
+const TEST_RUN: &str = include_str!("../../../host/test-run.ts");
+/// The case loop `test.ts` runs: one fresh instance per case.
+const CASES: &str = include_str!("../../../host/cases.ts");
 /// The `Http` provider's client thread.
-const HTTP: &str = include_str!("../../../host/http.mjs");
+const HTTP: &str = include_str!("../../../host/http.ts");
 /// The `Http` provider's bounded content-decoding policy.
-const HTTP_DECODE: &str = include_str!("../../../host/http-decode.mjs");
+const HTTP_DECODE: &str = include_str!("../../../host/http-decode.ts");
 /// The `Net` provider's client thread, which holds the sockets.
-const NET: &str = include_str!("../../../host/net.mjs");
+const NET: &str = include_str!("../../../host/net.ts");
 /// The `Process` provider's client thread, which owns child I/O.
-const PROCESS: &str = include_str!("../../../host/process.mjs");
+const PROCESS: &str = include_str!("../../../host/process.ts");
 /// The special-file provider's I/O helper.
-const FS: &str = include_str!("../../../host/fs.mjs");
+const FS: &str = include_str!("../../../host/fs.ts");
 /// The `ConsoleInput` provider's client thread.
-const INPUT: &str = include_str!("../../../host/input.mts");
+const INPUT: &str = include_str!("../../../host/input.ts");
 /// The ordered output writer.
-const OUTPUT: &str = include_str!("../../../host/output.mts");
+const OUTPUT: &str = include_str!("../../../host/output.ts");
 /// The output writer's thread, started when a pipe is full.
-const OUTPUT_WORKER: &str = include_str!("../../../host/output-worker.mts");
+const OUTPUT_WORKER: &str = include_str!("../../../host/output-worker.ts");
 /// Correlated replies shared by the Node control clients and workers.
-const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mts");
-/// The float text of the host primitives (`core.mts` imports it).
-const FLOAT: &str = include_str!("../../../host/float.mts");
-/// A REPL session's journal of host calls (`core.mts` imports it).
-const JOURNAL: &str = include_str!("../../../host/journal.mts");
+const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.ts");
+/// The float text of the host primitives (`core.ts` imports it).
+const FLOAT: &str = include_str!("../../../host/float.ts");
+/// A REPL session's journal of host calls (`core.ts` imports it).
+const JOURNAL: &str = include_str!("../../../host/journal.ts");
 /// Dependency-free entry-driver constants and cancellation helpers.
-const RUN_SUPPORT: &str = include_str!("../../../host/run-support.mts");
+const RUN_SUPPORT: &str = include_str!("../../../host/run-support.ts");
 /// The exchange-buffer encoding the hosts' codecs are built on.
-const WIRE: &str = include_str!("../../../host/wire.mts");
+const WIRE: &str = include_str!("../../../host/wire.ts");
 /// The lightweight decoder for a package-host custom section.
-const PACKAGE_CONTRACT: &str = include_str!("../../../host/package-contract.mts");
+const PACKAGE_CONTRACT: &str = include_str!("../../../host/package-contract.ts");
 /// The checked helpers called by generated package host bindings.
-const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.mts");
+const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.ts");
 /// The codecs and method descriptors generated from the ABI model.
-const ABI: &str = include_str!("../../../host/gen/abi.mts");
+const ABI: &str = include_str!("../../../host/gen/abi.ts");
 
 /// Node as the engine. `trace` receives the Wasm frames of a trap the run
 /// ended in, innermost first, which the caller symbolizes
@@ -256,34 +256,34 @@ impl Scratch {
         let s = Scratch(dir);
         std::fs::create_dir_all(s.0.join("gen")).map_err(|e| format!("{}: {e}", s.0.display()))?;
         for (name, text) in [
-            ("core.mts", CORE),
-            ("core-package.mts", CORE_PACKAGE),
-            ("session.mts", SESSION),
-            ("checked-report.mts", CHECKED_REPORT),
-            ("node.mjs", NODE),
-            ("node-files.mjs", NODE_FILES),
-            ("node-session.mjs", NODE_SESSION),
-            ("run.mjs", RUN),
-            ("startup.mjs", STARTUP),
-            ("test.mjs", TEST),
-            ("test-run.mjs", TEST_RUN),
-            ("cases.mjs", CASES),
-            ("http.mjs", HTTP),
-            ("http-decode.mjs", HTTP_DECODE),
-            ("net.mjs", NET),
-            ("process.mjs", PROCESS),
-            ("fs.mjs", FS),
-            ("input.mts", INPUT),
-            ("output.mts", OUTPUT),
-            ("output-worker.mts", OUTPUT_WORKER),
-            ("worker-control.mts", WORKER_CONTROL),
-            ("float.mts", FLOAT),
-            ("journal.mts", JOURNAL),
-            ("run-support.mts", RUN_SUPPORT),
-            ("wire.mts", WIRE),
-            ("package-contract.mts", PACKAGE_CONTRACT),
-            ("package-providers.mts", PACKAGE_PROVIDERS),
-            ("gen/abi.mts", ABI),
+            ("core.ts", CORE),
+            ("core-package.ts", CORE_PACKAGE),
+            ("session.ts", SESSION),
+            ("checked-report.ts", CHECKED_REPORT),
+            ("node.ts", NODE),
+            ("node-files.ts", NODE_FILES),
+            ("node-session.ts", NODE_SESSION),
+            ("run.ts", RUN),
+            ("startup.ts", STARTUP),
+            ("test.ts", TEST),
+            ("test-run.ts", TEST_RUN),
+            ("cases.ts", CASES),
+            ("http.ts", HTTP),
+            ("http-decode.ts", HTTP_DECODE),
+            ("net.ts", NET),
+            ("process.ts", PROCESS),
+            ("fs.ts", FS),
+            ("input.ts", INPUT),
+            ("output.ts", OUTPUT),
+            ("output-worker.ts", OUTPUT_WORKER),
+            ("worker-control.ts", WORKER_CONTROL),
+            ("float.ts", FLOAT),
+            ("journal.ts", JOURNAL),
+            ("run-support.ts", RUN_SUPPORT),
+            ("wire.ts", WIRE),
+            ("package-contract.ts", PACKAGE_CONTRACT),
+            ("package-providers.ts", PACKAGE_PROVIDERS),
+            ("gen/abi.ts", ABI),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }
@@ -348,7 +348,7 @@ impl NodeInstance {
         }
         let _ = std::io::stdout().flush();
         let status = Command::new("node")
-            .arg(dir.0.join("run.mjs"))
+            .arg(dir.0.join("run.ts"))
             .arg(dir.0.join("main.wasm"))
             .arg(&config)
             .args(&self.args)
@@ -374,7 +374,7 @@ impl NodeInstance {
             Ok(s) if s.success() => Outcome::Exit(0),
             // A Ctrl-C while Wasm ran ended Node with SIGINT's default
             // action, since its host listens only while it waits
-            // (`run.mjs`): the program was stopped (`cli.cancel.computing`).
+            // (`run.ts`): the program was stopped (`cli.cancel.computing`).
             Ok(s) if interrupted(s) => {
                 eprintln!("stopped");
                 Outcome::Exit(crate::engine::CANCEL_STATUS)
@@ -630,7 +630,7 @@ impl Programs {
                 json,
                 "{}:{{\"host\":{},\"wasm\":{},\"config\":{},\"cwd\":{}}}",
                 quote(name),
-                quote(&dir.0.join("run.mjs").to_string_lossy()),
+                quote(&dir.0.join("run.ts").to_string_lossy()),
                 quote(&module.to_string_lossy()),
                 quote(&config.to_string_lossy()),
                 quote(&cwd.to_string_lossy())
@@ -654,7 +654,7 @@ fn process_launcher() -> String {
     String::new()
 }
 
-/// The run host's configuration (`run.mjs`): the program's `Args.program`,
+/// The run host's configuration (`run.ts`): the program's `Args.program`,
 /// its grant, its time limit and its Ctrl-C's cleanup bound in
 /// milliseconds, and, for `hd run`, the files where it writes the frames
 /// of a trap and the status of a run whose process it kills.
@@ -722,7 +722,7 @@ pub fn run_cases(
         .map_err(|e| format!("{}: {e}", config.display()))?;
     let mut command = Command::new("node");
     command
-        .arg(dir.0.join("test.mjs"))
+        .arg(dir.0.join("test.ts"))
         .arg(dir.0.join("main.wasm"))
         .arg(&config);
     if let Some(cwd) = env.cwd {
@@ -843,7 +843,7 @@ fn parse_case(line: &str) -> Option<CaseRun> {
 
 /// The `updates` of a case record: a line for each recorded snapshot, the
 /// call's frames as `function:offset` pairs joined by commas, a tab, and
-/// the text as a JSON string (`host/cases.mjs`).
+/// the text as a JSON string (`host/cases.ts`).
 fn parse_updates(s: &str) -> Option<Vec<Recorded>> {
     s.split('\n')
         .map(|line| {

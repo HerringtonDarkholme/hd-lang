@@ -94,7 +94,7 @@ export async function generateServerSchema({
     throw Error("explicit compiler base revision required");
   }
   const { readPackageContract } = await import(
-    pathToFileURL(join(repository, "host/package-providers.mts")).href
+    pathToFileURL(join(repository, "host/package-providers.ts")).href
   );
   const before = await sourceInventory(repository);
   // hd embeds std. A declared compiler base with different std sources cannot

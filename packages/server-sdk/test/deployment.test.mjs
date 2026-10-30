@@ -12,7 +12,7 @@ import {
 import { rm } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
-import { readPackageContract } from "../../../host/package-providers.mts";
+import { readPackageContract } from "../../../host/package-providers.ts";
 import { fixture, environment, repository } from "./helpers/deployment-fixture.mjs";
 import {
   encode,
@@ -85,8 +85,8 @@ test("ordinary build and deploy task publishes complete output from a nested pac
     "grants.json",
     "sdk/application.mjs",
     "sdk/contract-bindings.mjs",
-    "runtime/core.mjs",
-    "runtime/package-providers.mjs",
+    "runtime/core.js",
+    "runtime/package-providers.js",
   ]) {
     assert.ok(existsSync(join(directory, name)), name);
   }
@@ -113,10 +113,10 @@ test(
     const directory = base(),
       bindings = await import(pathToFileURL(join(directory, "bindings.mjs")).href);
     const { createCoreHost } = await import(
-      pathToFileURL(join(directory, "runtime/core.mjs")).href
+      pathToFileURL(join(directory, "runtime/core.js")).href
     );
     const { createPackageRuntime } = await import(
-      pathToFileURL(join(directory, "runtime/package-providers.mjs")).href
+      pathToFileURL(join(directory, "runtime/package-providers.js")).href
     );
     const { createApplication } = await import(
       pathToFileURL(join(directory, "sdk/application.mjs")).href

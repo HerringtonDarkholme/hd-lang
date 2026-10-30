@@ -161,24 +161,24 @@ exchange buffer; the exports are `hd.init`, `hd.poll` and `hd.wake`, plus
 
 The JS host is split, not forked:
 
-- `host/core.mts`, the platform-neutral core, holds the import object
+- `host/core.ts`, the platform-neutral core, holds the import object
   built from the generated codecs and method descriptors
-  (`host/gen/abi.mjs` over `host/wire.mjs`'s `Enc`/`Dec`), the grant,
+  (`host/gen/abi.ts` over `host/wire.ts`'s `Enc`/`Dec`), the grant,
   the `rt`, `prim`, `Console`, `Clock`, `Random`, `Args`, `TestRunner`
   and `PropertyRunner` providers, and the entry driver. It
   uses only web-standard APIs. Its synchronous sleep uses `Atomics.wait`
   where `SharedArrayBuffer` exists and spins otherwise, since GitHub
   Pages cannot serve the cross-origin-isolation headers
   `SharedArrayBuffer` needs.
-- `host/node.mjs` adds `Fs*`, `Process`, `Net`, `Http`, `Env`, `Sys` and
+- `host/node.ts` adds `Fs*`, `Process`, `Net`, `Http`, `Env`, `Sys` and
   `ConsoleInput`; `hd_cli/src/node.rs` embeds it.
-- `host/web.mts` adds the playground's `Http`, a synchronous
+- `host/web.ts` adds the playground's `Http`, a synchronous
   `XMLHttpRequest` limited to the page's own origin, and
   `TestRunner.temp_dir`. The program runs in a dedicated worker, which
   still allows a synchronous request.
-- `host/cases.mjs` holds the test case loop (a fresh instance per case
+- `host/cases.ts` holds the test case loop (a fresh instance per case
   and per row, the property runner and shrinking), shared by
-  `host/test.mjs` and the playground.
+  `host/test.ts` and the playground.
 
 Before it instantiates a program, the runner reads
 `WebAssembly.Module.imports` (`unboundTraits`). A `hd:<Trait>` module the

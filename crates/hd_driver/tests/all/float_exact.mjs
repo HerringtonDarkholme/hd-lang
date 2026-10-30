@@ -1,6 +1,6 @@
 // The exact reference for the float text primitives: the BigInt printer
 // (Steele and White free-format printing in Burger and Dybvig's form) and
-// the exact-rational parser that host/float.mjs used before it took the
+// the exact-rational parser that host/float.ts used before it took the
 // engine's native printing and `Number`. The side-by-side tests in
 // float_text.rs hold the host to it; it is not used by any host.
 //

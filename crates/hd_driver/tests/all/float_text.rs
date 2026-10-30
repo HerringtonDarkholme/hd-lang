@@ -126,12 +126,12 @@ fn display_f32(x: f32) -> String {
     }
 }
 
-/// Runs `float.mts` on one request per line (`s32 BITS`, `s64 BITS`, or
+/// Runs `float.ts` on one request per line (`s32 BITS`, `s64 BITS`, or
 /// `fixed BITS DIGITS`, bits in hex; `parse TEXT`; `lower HEX` and
 /// `upper HEX`, the UTF-8 bytes in hex) and returns one answer per line.
 fn host_text(requests: &[String]) -> Vec<String> {
-    let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.mts");
-    let float = hd_run::canonicalize(float).expect("float.mts");
+    let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.ts");
+    let float = hd_run::canonicalize(float).expect("float.ts");
     let script = r#"const { shortest, fixed, parse, lower, upper } = await import(process.argv[1]);
 import { readFileSync } from "node:fs";
 const view = new DataView(new ArrayBuffer(8));
@@ -394,7 +394,7 @@ fn run_tests(name: &str, src: &str) -> Vec<String> {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let result = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.ts"))
         .arg(&path)
         .arg(runs.join(","))
         .output()
@@ -611,13 +611,13 @@ fn parse_matches_rust() {
     }
 }
 
-/// Runs the host's `float.mts` and the exact reference `float_exact.mjs`
+/// Runs the host's `float.ts` and the exact reference `float_exact.mjs`
 /// (the `BigInt` printer and parser the host used before it took the
 /// engine's native ones) side by side on one request per line (`s32 BITS`,
 /// `s64 BITS`, `parse TEXT`) and returns the requests where they differ.
 fn reference_mismatches(requests: &[String]) -> Vec<String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let host = hd_run::canonicalize(dir.join("../../host/float.mts")).expect("float.mts");
+    let host = hd_run::canonicalize(dir.join("../../host/float.ts")).expect("float.ts");
     let exact = hd_run::canonicalize(dir.join("tests/all/float_exact.mjs")).expect("float_exact");
     let script = r#"const host = await import(process.argv[1]);
 const exact = await import(process.argv[2]);

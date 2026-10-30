@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test, after } from "node:test";
 import { readFile, writeFile, mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { Enc } from "../../../host/wire.mts";
-import { readPackageContract } from "../../../host/package-providers.mts";
+import { Enc } from "../../../host/wire.ts";
+import { readPackageContract } from "../../../host/package-providers.ts";
 import {
   validateServerContract,
   normalizeServerContract,

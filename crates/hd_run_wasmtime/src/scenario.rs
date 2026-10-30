@@ -34,7 +34,7 @@ pub struct ScenarioRan {
 
 /// The fixture runtime's cleanup bound for a host's cancellation of the
 /// entry (`spec/conformance/README.md`, Runtime Scenarios), as
-/// `host/conformance-worker.mjs` has it.
+/// `host/conformance-worker.ts` has it.
 const SCENARIO_CLEANUP: std::time::Duration = std::time::Duration::from_millis(500);
 
 /// Drives `scenario` over `wasm`'s scenario exports, with the fixture's

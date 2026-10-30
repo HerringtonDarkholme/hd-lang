@@ -1,5 +1,5 @@
 //! One REPL session on wasmtime and on Node: the JS host's session
-//! (`host/core.mts`, `createSession`) runs the same session programs with
+//! (`host/core.ts`, `createSession`) runs the same session programs with
 //! the same transcript, and each engine's journal replays on the other
 //! (`hd_run::journal`'s row format).
 //!

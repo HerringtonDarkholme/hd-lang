@@ -1,7 +1,7 @@
 //! Bare pipe steps (expr.pipe.bare.*): `value |> path` is the call
 //! `path(value)`, a method-reference step is the same call, and a step
 //! that is not a bare name needs `_`. Programs build through the driver
-//! and run on V8 (`host/run.mjs`), as the conformance runner does.
+//! and run on V8 (`host/run.ts`), as the conformance runner does.
 
 use std::path::Path;
 use std::process::Command;
@@ -43,7 +43,7 @@ fn output_of(name: &str, main: &str) -> String {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

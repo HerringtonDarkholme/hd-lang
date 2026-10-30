@@ -1,4 +1,4 @@
-// A REPL session in the JS host (host/core.mts `createSession`) over the
+// A REPL session in the JS host (host/core.ts `createSession`) over the
 // session programs the playground's compiler builds through the REPL
 // goals: each input runs after the kept ones replay from the journal, a
 // panic resets the runtime state, a stop cancels a waiting input, which
@@ -15,8 +15,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { before, test } from "node:test";
 
-import { createWebSession, type Session } from "../../../host/web.mts";
-import { recorded } from "../../../host/journal.mts";
+import { createWebSession, type Session } from "../../../host/web.ts";
+import { recorded } from "../../../host/journal.ts";
 import { COMPILER_WASM } from "../../../scripts/build-web-compiler.js";
 import {
   OUTCOME,

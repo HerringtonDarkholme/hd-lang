@@ -2,7 +2,7 @@
 //! Values and Method References) through the checker: each kind's
 //! `ItemRef` and type, a bound reference's closure, and the errors. Then
 //! called through their adapters (`crates/hd_mono/DESIGN.md` §13.11), built by the driver
-//! and run on V8 (`host/run.mjs`), as the conformance runner does.
+//! and run on V8 (`host/run.ts`), as the conformance runner does.
 
 use std::path::Path;
 use std::process::Command;
@@ -257,7 +257,7 @@ fn run(out: &Output, name: &str) -> String {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

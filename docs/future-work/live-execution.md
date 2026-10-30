@@ -199,7 +199,7 @@ a torn tail is cut at the last valid row.
 ### 4.5 Where It Lives
 
 The reader, writer, recorder and replayer live in `hd_run` and
-`host/journal.mjs`. The terminal REPL keeps the journal in memory for the
+`host/journal.ts`. The terminal REPL keeps the journal in memory for the
 session; the playground keeps it in IndexedDB, written after each input.
 
 ### 4.6 Size And Growth

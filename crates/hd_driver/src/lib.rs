@@ -12888,7 +12888,7 @@ try {
 fn run_package_host_javascript(out: &Output, body: &str) {
     use std::io::Write as _;
     use std::process::{Command, Stdio};
-    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mts");
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.ts");
     let glue = &out.host_artifacts.as_ref().unwrap().javascript;
     let script = format!(
         "\
@@ -12896,7 +12896,7 @@ import assert from 'node:assert/strict';
 import {{ pathToFileURL }} from 'node:url';
 const coreURL = pathToFileURL({:?});
 const {{ createCoreHost: createBaseHost }} = await import(coreURL);
-const {{ createPackageRuntime, readPackageContract }} = await import(new URL('package-providers.mts', coreURL));
+const {{ createPackageRuntime, readPackageContract }} = await import(new URL('package-providers.ts', coreURL));
 const createCoreHost = (sink, env, layer) =>
   createBaseHost(sink, {{ ...env, createPackageRuntime, readPackageContract }}, layer);
 const glue = await import('data:text/javascript,' + encodeURIComponent({glue:?}));

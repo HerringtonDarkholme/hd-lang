@@ -41,7 +41,7 @@ fn run(name: &str, wasm: &[u8]) -> String {
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("{name}.wasm"));
     std::fs::write(&path, wasm).expect("write");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

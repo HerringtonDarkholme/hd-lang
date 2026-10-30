@@ -1,5 +1,5 @@
 //! Explicit conformance fixture providers, never enabled by the default host.
-//! Their boundary values match `host/profiles.mjs`. The `tick`,
+//! Their boundary values match `host/profiles.ts`. The `tick`,
 //! `pending-tick`, `disposed-file` and `pending-gate` providers follow the
 //! spec's Runtime Profiles (`spec/conformance/README.md`) too. `call` is their provider;
 //! `State` is one instance's fixture state.

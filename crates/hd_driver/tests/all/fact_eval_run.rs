@@ -3,7 +3,7 @@
 //! `annot.metadata.eval-as-fact`): a facts body runs once, when the program
 //! first reads the facts, and a panic in it is `fact-evaluation-failed`,
 //! naming the facts and the original panic. Programs build through the
-//! driver and run on V8 (`host/run.mjs`), as the conformance runner does.
+//! driver and run on V8 (`host/run.ts`), as the conformance runner does.
 
 use std::path::Path;
 use std::process::{Command, Output as Ran};
@@ -41,7 +41,7 @@ fn ran(name: &str, main: &str) -> Ran {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

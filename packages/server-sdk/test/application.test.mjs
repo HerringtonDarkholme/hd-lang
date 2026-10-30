@@ -4,8 +4,8 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, cpSync, rmSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createCoreHost } from "../../../host/core.mts";
-import { createPackageRuntime } from "../../../host/package-providers.mts";
+import { createCoreHost } from "../../../host/core.ts";
+import { createPackageRuntime } from "../../../host/package-providers.ts";
 import { createApplication } from "../adapters/application.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));

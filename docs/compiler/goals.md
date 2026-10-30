@@ -40,7 +40,7 @@ checking.
 - The host ABI is hd's own core-Wasm imports, not the Component Model.
 - A browser `block_on` that waits on the host uses JSPI, else a
   synchronous same-origin XHR for HTTP, else a `host-contract` panic.
-  Implementation differs: the browser host (`host/web.mts`) always sends
+  Implementation differs: the browser host (`host/web.ts`) always sends
   HTTP with a synchronous XHR from its worker and has no JSPI path; not
   judged.
 - **Two pipelines** ([tiering.md](tiering.md)): a dev pipeline for
@@ -278,7 +278,7 @@ For the open literal variables of
 - **A race-free path sandbox.** Granted directories are opened once as
   directory handles, and every file operation resolves relative to them,
   as the wasmtime host does (`hd_run_wasmtime/src/fs/sandbox.rs`).
-  Implementation differs: the Node host (`host/node.mjs`) checks
+  Implementation differs: the Node host (`host/node.ts`) checks
   `coversPath`, then opens the path by name, since Node has no `openat`.
   Worse: there, a symlink swapped between the check and the open escapes
   the grant (docs/audit/diagnostic-notes.md).

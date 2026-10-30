@@ -1,5 +1,5 @@
 //! The host primitives of std (`hd:prim`; spec/std/README.md, "Standard
-//! Library Primitives"), as `host/float.mjs` writes them, so a
+//! Library Primitives"), as `host/float.ts` writes them, so a
 //! program prints the same text on wasmtime as on Node:
 //!
 //! - `shortest`: the Display text of a float at its own width
@@ -10,7 +10,7 @@
 //!   quotient rounded half to even, the sign bit kept.
 //! - `parse`: the `f64` nearest an unsigned decimal number, a tie to the
 //!   even significand. Rust's `str::parse` is correctly rounded, as
-//!   float.mjs's exact rational is, so the two give the same bits.
+//!   float.ts's exact rational is, so the two give the same bits.
 //! - `lower` and `upper`: Unicode Default Case Conversion with full
 //!   mappings and the final sigma (`ß` gives `SS`).
 

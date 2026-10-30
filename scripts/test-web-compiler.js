@@ -2,9 +2,9 @@
 // Loads website/playground/assets/hd_web.wasm (build-web-compiler.js writes
 // it), compiles a conformance fixture through the four exports (the
 // playground's own wire module, compiler-wire.ts), runs the
-// program with host/run.mjs as `hd run` on Node does, and checks its
+// program with host/run.ts as `hd run` on Node does, and checks its
 // stdout. Then a two-input REPL session through the REPL goals, each
-// session program run in the JS host's session (host/core.mts) before
+// session program run in the JS host's session (host/core.ts) before
 // its outcome goes back to the compiler. Then the size
 // gate: an LTO build that shrinks (a panicking call such as
 // `Instant::now()` deletes everything after it) fails the floor.
@@ -29,7 +29,7 @@ import {
 } from "../website/playground/src/compiler-wire.ts";
 import { COMPILER_WASM, WAT_WASM, formatBytes, sizes } from "./build-web-compiler.js";
 import { createWatPrinter } from "../website/playground/src/wat-printer.ts";
-import { createNodeSession } from "../host/node-session.mjs";
+import { createNodeSession } from "../host/node-session.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
@@ -72,7 +72,7 @@ const dir = join(root, "target", "web-compiler");
 mkdirSync(dir, { recursive: true });
 const program = join(dir, "main.wasm");
 writeFileSync(program, cold.wasm);
-const stdout = execFileSync(process.execPath, [join(root, "host", "run.mjs"), program], {
+const stdout = execFileSync(process.execPath, [join(root, "host", "run.ts"), program], {
   encoding: "utf8",
 });
 const expected = [...text.matchAll(/^# expect-stdout: (.*)$/gm)].map((m) => `${m[1]}\n`).join("");

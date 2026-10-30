@@ -2,13 +2,13 @@ import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
-const relativeMts = /(["'])(\.\.?\/[^"'\r\n]*?)\.mts((?:[?#][^"'\r\n]*)?)\1/g;
+const relativeTs = /(["'])(\.\.?\/[^"'\r\n]*?)\.ts((?:[?#][^"'\r\n]*)?)\1/g;
 
 const fail = (message) => new Error(`host emission: ${message}`);
 
 function rewriteHostSpecifiers(javascript) {
-  return javascript.replace(relativeMts, (_, quote, path, suffix) => {
-    return `${quote}${path}.mjs${suffix}${quote}`;
+  return javascript.replace(relativeTs, (_, quote, path, suffix) => {
+    return `${quote}${path}.js${suffix}${quote}`;
   });
 }
 
@@ -32,10 +32,10 @@ function checkedPath(root, name, kind) {
   return path;
 }
 
-/** Turn one erasable `.mts` module into runnable ESM with `.mjs` dependencies. */
+/** Turn one erasable `.ts` module into runnable ESM with `.js` dependencies. */
 export function emitHostJavaScript(source, sourceName) {
-  if (!sourceName.endsWith(".mts")) {
-    throw fail(`typed source must end in .mts: ${sourceName}`);
+  if (!sourceName.endsWith(".ts")) {
+    throw fail(`typed source must end in .ts: ${sourceName}`);
   }
   let javascript;
   try {
@@ -46,7 +46,7 @@ export function emitHostJavaScript(source, sourceName) {
   return rewriteHostSpecifiers(javascript);
 }
 
-/** Read a named host graph, emitting `.mts` inputs under their `.mjs` output names. */
+/** Read a named host graph, emitting `.ts` inputs under their `.js` output names. */
 export async function readHostSources(root, sources) {
   const sourceRoot = resolve(root);
   const files = {};
@@ -54,13 +54,11 @@ export async function readHostSources(root, sources) {
     const sourceName = sources[name];
     const input = checkedPath(sourceRoot, sourceName, "source");
     const text = (await readFile(input, "utf8")).replaceAll("\r\n", "\n");
-    if (sourceName.endsWith(".mts")) {
-      if (!name.endsWith(".mjs")) {
-        throw fail(`typed source output must end in .mjs: ${name}`);
+    if (sourceName.endsWith(".ts")) {
+      if (!name.endsWith(".js")) {
+        throw fail(`typed source output must end in .js: ${name}`);
       }
       files[name] = emitHostJavaScript(text, sourceName);
-    } else if (sourceName.endsWith(".mjs") && name.endsWith(".mjs")) {
-      files[name] = rewriteHostSpecifiers(text);
     } else if (sourceName.endsWith(".json") && name.endsWith(".json")) {
       files[name] = text;
     } else {

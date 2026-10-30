@@ -3,7 +3,7 @@ import http from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { test } from "node:test";
 import provider from "../providers/node.mjs";
-import { createGrant, isAsciiUrl, writtenHost } from "../../../host/core.mts";
+import { createGrant, isAsciiUrl, writtenHost } from "../../../host/core.ts";
 
 const nativeFetch = globalThis.fetch;
 const tick = () => new Promise((resolve) => setImmediate(resolve));

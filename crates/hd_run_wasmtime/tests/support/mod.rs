@@ -597,7 +597,7 @@ pub fn run_node(
     fs::write(&file, wasm).unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
-        .join("host/run.mjs");
+        .join("host/run.ts");
     let spawn = CHILD_SPAWN.lock().unwrap();
     let mut node = Command::new("node")
         .arg(root)

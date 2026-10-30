@@ -7,7 +7,7 @@
 // the session's journal after them; and `after`, the number of one more
 // input that ran after the journal was taken.
 //
-// 1. Runs the inputs on Node with the JS host's session (host/core.mts),
+// 1. Runs the inputs on Node with the JS host's session (host/core.ts),
 //    each from its session program after replaying the ones before, and
 //    checks each one's status and output against wasmtime's, then writes
 //    its journal as `node.journal` for the Rust test to replay.
@@ -20,8 +20,8 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { recorded } from "../host/journal.mts";
-import { createNodeSession } from "../host/node-session.mjs";
+import { recorded } from "../host/journal.ts";
+import { createNodeSession } from "../host/node-session.ts";
 
 const dir = process.argv[2];
 const read = (name) => readFileSync(join(dir, name), "utf8");

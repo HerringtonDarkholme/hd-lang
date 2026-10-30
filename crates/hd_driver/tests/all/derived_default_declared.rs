@@ -3,7 +3,7 @@
 //! source carries `fills_defaults()`, so `build` fills a declared member
 //! from its default (`annot.impl-fact.fills-defaults`), and that member's
 //! type needs no `Default`. The
-//! run test builds through the driver and runs on V8 (`host/run.mjs`);
+//! run test builds through the driver and runs on V8 (`host/run.ts`);
 //! the others check the opt-in.
 
 use std::path::Path;
@@ -46,7 +46,7 @@ fn output_of(name: &str, main: &str) -> String {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

@@ -1,7 +1,7 @@
 //! Recursive type layouts (#120; `crates/hd_wasm_linear/DESIGN.md` §15.2, §15.3): an
 //! enum recurs through `&` (`data.enum.recursive`), and data types and
 //! trait values that name themselves have finite RC layouts through counted pointers.
-//! Programs build through the driver and run on V8 (`host/run.mjs`), as the
+//! Programs build through the driver and run on V8 (`host/run.ts`), as the
 //! conformance runner does, so each module also validates there.
 
 use std::fmt::Write as _;
@@ -52,7 +52,7 @@ fn output_of(name: &str, main: &str) -> String {
     );
     std::fs::write(&path, &serial).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

@@ -6,7 +6,7 @@
 //! or member line (annot.typed-fact.check.reported). A handle's
 //! `h.fact::[D]()` matches the same pattern against its `F`
 //! (annot.handle.fact.pattern). The run tests build through the driver and
-//! run on V8 (`host/run.mjs`), as the conformance runner does.
+//! run on V8 (`host/run.ts`), as the conformance runner does.
 
 use std::path::Path;
 use std::process::Command;
@@ -81,7 +81,7 @@ fn output_of(name: &str, main: &str) -> String {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

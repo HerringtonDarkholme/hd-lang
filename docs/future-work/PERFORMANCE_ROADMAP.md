@@ -357,9 +357,9 @@ case builds a fresh host and instance.
 | Fix | Gain | Cost | Risk | Waits on |
 | --- | --- | --- | --- | --- |
 | **The literal host fast path** (§15.4) | no string array for a literal passed to the host; the tiny program toward 2 KB | `hd_wasm` span function per module | low | nothing |
-| **Reuse the host import object per test, instantiate synchronously** (review fix 15) | 28k to about 45k cases per second | `host/cases.mjs`, `host/core.mts` | low | nothing |
+| **Reuse the host import object per test, instantiate synchronously** (review fix 15) | 28k to about 45k cases per second | `host/cases.ts`, `host/core.ts` | low | nothing |
 | **Many cases per instance** | reaches the 100k goal (review estimate) | runner change | weakens isolation between cases | question 5 |
-| **One `realpath` per host file call** (review fix 24) | `list_dir!` 41 to about 25 µs, `read_text!` 32 to about 20 µs | `host/node.mjs`, the wasmtime host | low; a `realpath` cache would be unsafe | nothing |
+| **One `realpath` per host file call** (review fix 24) | `list_dir!` 41 to about 25 µs, `read_text!` 32 to about 20 µs | `host/node.ts`, the wasmtime host | low; a `realpath` cache would be unsafe | nothing |
 | **A size report**, then targeted cuts | finds what fills 17 KB per 1,000 lines | the planned `hd build --size-report` | low | nothing |
 
 ### 3.9 SIMD byte scans (#428)

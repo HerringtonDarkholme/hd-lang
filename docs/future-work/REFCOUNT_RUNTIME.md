@@ -650,7 +650,7 @@ latest at shutdown (section 7.4). Neither report disposes the handle.
   measured host copies 6x to 10x faster from linear memory than element
   by element from a GC array.
 - **The host codecs** read and write memory directly; the 5.2k lines of
-  `host/*.mjs` and about 2.5k lines of codecs in `hd_run_wasmtime` that
+  `host/*.ts` and about 2.5k lines of codecs in `hd_run_wasmtime` that
   walk GC arrays are rewritten.
 - **JavaScript holding an hd object**, if an embedding API ever allows
   it, gets a handle: an index into a table in the instance that holds
@@ -768,7 +768,7 @@ because the linear backend is the only backend.
 12. References and interior references: cells, page-table lookup,
     escape of a local's address to a cell.
 13. Suspension frames as counted objects; the waker and entry driver.
-14. Host codecs over linear memory in `host/*.mjs` (2).
+14. Host codecs over linear memory in `host/*.ts` (2).
 15. Host codecs in `hd_run_wasmtime` (2).
 16. Checked mode: poison freed memory, audit counts, report leaks at
     exit, collect at every allocation; a count fuzzer over conformance.

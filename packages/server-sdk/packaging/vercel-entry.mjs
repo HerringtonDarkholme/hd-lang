@@ -13,7 +13,7 @@ export const startup=new Promise((resolve,reject)=>{accept=resolve;refuse=reject
 startup.catch(()=>{});
 const supervisor=createSupervisor({program:{module,environment,grants,
  bindingsURL:new URL('./bindings.mjs',import.meta.url).href,
- runtimeURL:new URL('./runtime/deployed-core.mjs',import.meta.url).href,
+ runtimeURL:new URL('./runtime/deployed-core.js',import.meta.url).href,
  applicationURL:new URL('./sdk/application.mjs',import.meta.url).href,
 },policy,event(record){
  if(record.kind==='ready'){ready.add(record.slot);if(ready.size===policy.workers)accept();}
@@ -25,8 +25,8 @@ export const close=()=>supervisor.close();
 `;
 }
 export const deployedCoreSource = `import {workerData} from 'node:worker_threads';
-import {createCoreHost as base} from './core.mjs';
-export {createPackageRuntime} from './package-providers.mjs';
+import {createCoreHost as base} from './core.js';
+export {createPackageRuntime} from './package-providers.js';
 export function createCoreHost(sink,env,layer){
  const environment=workerData.program.environment;
  const result=base(sink,env,{...layer,providers(context){

@@ -39,7 +39,7 @@ export function fixedBindingsModule(bytes, runtimeDirectory = "host") {
     throw new Error("unknown fixed runtime layout");
   }
   return `import { contractBindings } from "./sdk/contract-bindings.mjs";
-import { readPackageContract } from "./${runtimeDirectory}/package-providers.mjs";
+import { readPackageContract } from "./${runtimeDirectory}/package-providers.js";
 const bindings = contractBindings(new Uint8Array([${bytes.join(",")}]), readPackageContract);
 export const abiVersion = bindings.abiVersion;
 export const contract = bindings.contract;

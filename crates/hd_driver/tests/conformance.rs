@@ -1143,11 +1143,11 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
 
 /// Runs a program's entry on the run host, under the fixture's runtime
 /// `profile` when it names one: the run configuration names it, and the
-/// host's `profiles.mjs` supplies its providers (README "Runtime
+/// host's `profiles.ts` supplies its providers (README "Runtime
 /// Profiles").
 ///
 /// Entry runs go through one long-lived Node worker per conformance
-/// worker thread (`host/conformance-worker.mjs`), started once.
+/// worker thread (`host/conformance-worker.ts`), started once.
 /// Each case gets a fresh host; the worker never reuses one. A case that
 /// kills its worker restarts it and reports a plain runtime failure, the
 /// same verdict a fresh process's non-zero exit gives. The test harness
@@ -1158,7 +1158,7 @@ fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Resul
 
 /// Runs one request on this thread's Node worker: an entry run, or with
 /// `tests` (`test:init:kind,...`) those cases of a test program, as
-/// `host/test.mjs` runs them. A request that kills the worker is tried
+/// `host/test.ts` runs them. A request that kills the worker is tried
 /// once more on a fresh one.
 fn in_worker(
     wasm: &[u8],
@@ -1229,7 +1229,7 @@ thread_local! {
 }
 
 fn worker_script() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/conformance-worker.mjs")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/conformance-worker.ts")
 }
 
 fn ensure_worker(slot: &mut Option<EntryWorker>) -> std::io::Result<()> {

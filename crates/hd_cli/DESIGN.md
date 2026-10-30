@@ -256,7 +256,7 @@ on wasmtime only.
  editor ─ "check" / "run" ─► Session::compile: one serial driver run
                              ◄── diagnostics JSON, built Wasm
  "run" ──────────────────────────────────────────────────────► instantiate on V8
-                                                                with host/web.mts
+                                                                with host/web.ts
  console, http ◄────────────────────────────────────────────── host calls
  "stop" / 15 s ──────────────────────────────────────────────► terminate the run
                                                                 worker only
@@ -304,7 +304,7 @@ release does, so the compiler needs no spec decision. The full table:
 ## 20. Command Flows Completed
 
 Programs run on one of two engines (`engine.rs`): Node with the JS host
-(`host/*.mjs`), or wasmtime in process. `--engine NAME` picks one, else
+(`host/*.ts`), or wasmtime in process. `--engine NAME` picks one, else
 `HD_ENGINE`, else Node. Making wasmtime the default is #19.
 
 ### 20.1 `hd test`
@@ -386,7 +386,7 @@ Continuing §7.9:
 1. "Run" in the compiler worker: check, then `Collect`, `Emit` and `Link`
    in `hd_web` with the serial scheduler. The `MemoryStore` holds code
    entries, so a second run after a small edit re-emits few instances.
-2. Browser providers (`host/web.mts` over `host/core.mts`): `Console` to
+2. Browser providers (`host/web.ts` over `host/core.ts`): `Console` to
    the page, `Clock` and `Random` from the platform, same-origin `Http`
    as a synchronous `XMLHttpRequest`, `TestRunner.temp_dir`, and test
    snapshot files in memory for one run. Every other platform trait is

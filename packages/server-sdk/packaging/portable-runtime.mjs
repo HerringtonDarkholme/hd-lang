@@ -80,7 +80,7 @@ export async function emitPortableRuntime(directory, source = archive) {
     fingerprint: snapshot.fingerprint,
     packageHostABI: snapshot.packageHostABI,
     baseRevision: snapshot.baseRevision,
-    coreURL: pathToFileURL(join(destination, "core.mjs")).href,
-    packageProvidersURL: pathToFileURL(join(destination, "package-providers.mjs")).href,
+    coreURL: pathToFileURL(join(destination, "core.js")).href,
+    packageProvidersURL: pathToFileURL(join(destination, "package-providers.js")).href,
   });
 }

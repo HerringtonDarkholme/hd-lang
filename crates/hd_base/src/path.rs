@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn a_verbatim_prefix_is_stripped() {
         for (from, to) in [
-            (r"\\?\D:\a\hd\host\node.mjs", r"D:\a\hd\host\node.mjs"),
+            (r"\\?\D:\a\hd\host\node.ts", r"D:\a\hd\host\node.ts"),
             (r"\\?\c:\", r"c:\"),
             (r"\\?\UNC\srv\share\x", r"\\srv\share\x"),
             (r"\\?\Volume{1}\x", r"\\?\Volume{1}\x"),

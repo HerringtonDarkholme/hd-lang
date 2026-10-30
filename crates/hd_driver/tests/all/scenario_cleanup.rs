@@ -68,7 +68,7 @@ fn a_scenario_build_calls_the_entry_cleanup() {
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
     let wasm_path = dir.join("scenario-cleanup-call.wasm");
     std::fs::write(&wasm_path, wasm).expect("write wasm");
-    let node_mjs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.mjs");
+    let node_mjs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.ts");
     let script_path = dir.join("scenario-cleanup-call.mjs");
     std::fs::write(
         &script_path,

@@ -31,7 +31,7 @@ Each run is a fresh `node` process; one discarded warm-up, then `--runs`
 measured runs with hd and MoonBit interleaved, at two V8 tiers (default and
 `--no-liftoff`). Run time is `performance.now()` around the entry call after
 instantiation (hd: `host.run(instance, "hd.init", "hd.poll")` on hd's own
-`host/node.mjs`; MoonBit: `_start()`). Wall time is the whole process.
+`host/node.ts`; MoonBit: `_start()`). Wall time is the whole process.
 The MoonBit host is only `wasi_snapshot_preview1.fd_write` (wasm) or
 `spectest.print_char` (wasm-gc). Medians are
 printed as markdown tables with the geometric mean of hd/MBT (empty excluded)

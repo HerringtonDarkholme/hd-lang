@@ -1292,7 +1292,7 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
   crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is the memory exported as
   `hd.x`, and every structured argument and result crosses in it in the
   §17.4 encoding. This backend generates the encoders and decoders over
-  its own layouts, so `host/*.mjs` and the wasmtime host share one
+  its own layouts, so `host/*.ts` and the wasmtime host share one
   exchange-buffer contract, and the
   ordinary boundary methods never read the heap (memory 0). Checked
   reports inspect its exported counters separately (§23.24). The alternative,

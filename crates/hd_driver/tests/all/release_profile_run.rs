@@ -5,7 +5,7 @@
 //! (`types.arith.always`, `trait.num.from-i64-checked`). The profile is in
 //! every code and program key, so debug and release builds of one program
 //! never share code; a test run stays checked (`cli.profile.test`).
-//! Programs build through the driver and run on V8 (`host/run.mjs`).
+//! Programs build through the driver and run on V8 (`host/run.ts`).
 
 use std::path::Path;
 use std::process::{Command, Output as Run};
@@ -52,7 +52,7 @@ fn run_wasm(name: &str, wasm: &[u8]) -> Run {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

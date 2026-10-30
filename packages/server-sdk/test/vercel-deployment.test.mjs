@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { packageVercelNode, validatePolicy } from "../packaging/vercel.mjs";
-import { readPackageContract } from "../../../host/package-providers.mts";
+import { readPackageContract } from "../../../host/package-providers.ts";
 import { fixture, environment } from "./helpers/deployment-fixture.mjs";
 import {
   encode,
@@ -118,8 +118,8 @@ test("ordinary Vercel facade task prepares complete Build Output v3 from nested 
     "bindings.mjs",
     "grants.json",
     "deployment.json",
-    "runtime/core.mjs",
-    "runtime/deployed-core.mjs",
+    "runtime/core.js",
+    "runtime/deployed-core.js",
     "sdk/worker.mjs",
     "sdk/vercel-node.mjs",
   ]) {

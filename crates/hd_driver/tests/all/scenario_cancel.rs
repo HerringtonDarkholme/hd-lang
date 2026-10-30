@@ -108,7 +108,7 @@ fn a_scenario_build_runs_under_the_plain_driver() {
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "scenario-cancel-run.wasm");
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");
@@ -131,7 +131,7 @@ fn hd_cancel_after_completion_is_a_no_op() {
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
     let wasm_path = dir.join("scenario-cancel-after.wasm");
     std::fs::write(&wasm_path, wasm).expect("write wasm");
-    let node_mjs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.mjs");
+    let node_mjs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.ts");
     let script_path = dir.join("scenario-cancel-after.mjs");
     std::fs::write(
         &script_path,

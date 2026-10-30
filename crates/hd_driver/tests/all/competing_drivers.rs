@@ -84,7 +84,7 @@ fn drive(mode: &str) -> String {
     let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
     let wasm_path = dir.join(format!("scenario-drivers-{mode}.wasm"));
     std::fs::write(&wasm_path, out.wasm.expect("wasm")).expect("write wasm");
-    let node_mjs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.mjs");
+    let node_mjs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.ts");
     let script_path = dir.join(format!("scenario-drivers-{mode}.mjs"));
     std::fs::write(&script_path, script(&node_mjs)).expect("write script");
     let ran = Command::new("node")

@@ -50,7 +50,7 @@ selects one. The playground steps are in [`e2e.ts`](e2e.ts). The browser needs W
   module declares `main`: the `tests:` blocks, `*_test.hd` test modules, and
   each program under `tests/`. Each test case, and each `it_each` row, runs
   in a fresh program instance, with the property runner and shrinking of
-  `hd test` ([`host/cases.mjs`](../../host/cases.mjs), shared with the
+  `hd test` ([`host/cases.ts`](../../host/cases.ts), shared with the
   Node runner). `ignore`, `expect_panic`, and `timeout` apply. The output
   lists each case that did not pass as `hd test` prints it.
 - **WAT**, beside **Output** in the output pane, shows the WebAssembly text
@@ -115,11 +115,11 @@ it once. [`src/rust-runner.ts`](src/rust-runner.ts) holds the pipeline:
    test cases, and the program's bytes or WebAssembly text. The standard
    library is inside the wasm.
 2. Run instantiates the program with the browser host,
-   [`host/web.mts`](../../host/web.mts), the browser layer over the same
+   [`host/web.ts`](../../host/web.ts), the browser layer over the same
    host core `hd run` uses on Node. Before it instantiates a program, it
    refuses one that imports a platform trait the browser cannot provide.
 3. Test runs each case with the case loop of
-   [`host/cases.mjs`](../../host/cases.mjs) over the same browser host.
+   [`host/cases.ts`](../../host/cases.ts) over the same browser host.
 
 The results are `RunResult` and `WatResult`
 ([`src/runner.ts`](src/runner.ts)), which the output panel, the WAT view,
@@ -169,7 +169,7 @@ How the pieces fit:
 - The session runs in a playground compiler worker
   ([`src/worker.ts`](src/worker.ts)): the compiler's REPL session (the
   `repl*` goals of `hd_web`) and the JS session that runs each input's
-  module ([`host/web.mts`](../../host/web.mts) `createWebSession`) sit side
+  module ([`host/web.ts`](../../host/web.ts) `createWebSession`) sit side
   by side in [`src/repl-host.ts`](src/repl-host.ts). The playground's REPL
   view has its own worker, so Run and its Stop never end the session.
 - The worker protocol: `repl-start` (files) answers `started`;

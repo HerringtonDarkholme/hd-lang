@@ -261,7 +261,7 @@ settings instead of claiming false portability.
 redirects, and calls the covering `Http` provider. The spec gives it
 [no timeout setter](../../spec/std/http.md#r-std-http.client.policy-timeout).
 
-[`host/http.mjs`](../../host/http.mjs) uses direct Node requests, no TLS options, and one fixed
+[`host/http.ts`](../../host/http.ts) uses direct Node requests, no TLS options, and one fixed
 30-second deadline. The native Wasmtime host uses ureq, a custom resolver and connector, and rustls.
 The browser uses XHR. The server SDK uses Fetch.
 

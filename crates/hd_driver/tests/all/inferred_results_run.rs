@@ -5,7 +5,7 @@
 //! function or inherent method without `-> T` takes the least common type
 //! of its final value and its `return` operands, and every caller sees
 //! that result. Programs build through the driver and run on V8
-//! (`host/run.mjs`), as the conformance runner does.
+//! (`host/run.ts`), as the conformance runner does.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};

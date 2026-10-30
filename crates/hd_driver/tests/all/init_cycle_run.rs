@@ -7,7 +7,7 @@
 //! (`module.init.cycle.stuck`). The entry module follows the same order:
 //! its statements, split or not, keep the entry's rights, and a script's
 //! run with its entry providers. Programs build through the driver and run
-//! on V8 (`host/run.mjs`).
+//! on V8 (`host/run.ts`).
 
 use std::path::Path;
 use std::process::Command;
@@ -73,7 +73,7 @@ fn node_run(name: &str, wasm: &[u8]) -> std::process::Output {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

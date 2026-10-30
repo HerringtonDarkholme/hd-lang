@@ -1,8 +1,8 @@
 // Check, Run and Test on the Rust compiler (crates/hd_web/DESIGN.md §3).
 // The compiler wasm of crates/hd_web compiles the project; Run instantiates
-// the program with the browser host, host/web.mts, as `hd run` does on
-// Node with host/node.mjs. Test runs each case with the case loop that
-// `hd test` runs on Node (host/cases.mjs), over the browser host, and
+// the program with the browser host, host/web.ts, as `hd run` does on
+// Node with host/node.ts. Test runs each case with the case loop that
+// `hd test` runs on Node (host/cases.ts), over the browser host, and
 // reports what `hd test` would. The worker loads one runner, so the
 // compiler and its in-memory store live as long as the worker.
 //
@@ -11,8 +11,8 @@
 
 import { instantiateCompiler } from "./compiler-host.ts";
 
-import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.mjs";
-import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.mts";
+import { judge, runCases, type CaseRecord, type Verdict } from "../../../host/cases.ts";
+import { createWebHost, memoryFiles, unboundTraits } from "../../../host/web.ts";
 import {
   GOAL,
   STATUS,
@@ -267,7 +267,7 @@ function summarizeCases(
 /**
  * Test: runs every case of every test program as `hd test` does, a fresh
  * instance per case and per row, with the property runner and shrinking
- * of host/cases.mjs. A case running past its `timeout` while it waits is
+ * of host/cases.ts. A case running past its `timeout` while it waits is
  * cut at its deadline; one that never yields is cut only by the
  * playground's run limit. Snapshot and regression files live in memory
  * for the run (crates/hd_web/DESIGN.md §5). The output lists each case that did

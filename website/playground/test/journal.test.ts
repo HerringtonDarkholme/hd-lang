@@ -1,4 +1,4 @@
-// The JS host's journal (host/journal.mts) against the bytes `hd_run`
+// The JS host's journal (host/journal.ts) against the bytes `hd_run`
 // writes: the same xxh3-128 vectors and the same journal for the same
 // recorder calls as crates/hd_run/src/journal_tests.rs pins
 // (`the_js_host_checks_the_same_bytes`), the torn-tail reader, and the
@@ -20,7 +20,7 @@ import {
   requestDigest,
   xxh3_128,
   type Value,
-} from "../../../host/journal.mts";
+} from "../../../host/journal.ts";
 
 const hex = (b: Uint8Array) => Buffer.from(b).toString("hex");
 const text = (s: string) => new TextEncoder().encode(s);

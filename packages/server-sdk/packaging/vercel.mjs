@@ -78,7 +78,7 @@ export async function packageVercelNode(options) {
       ),
     ],
     ["sdk/contract-bindings.mjs", await readFile(new URL("packaging/contract-bindings.mjs", sdk))],
-    ["runtime/deployed-core.mjs", Buffer.from(deployedCoreSource)],
+    ["runtime/deployed-core.js", Buffer.from(deployedCoreSource)],
   ]);
   for (const [name, source] of Object.entries(input.runtime.files)) {
     files.set("runtime/" + name, Buffer.from(source));

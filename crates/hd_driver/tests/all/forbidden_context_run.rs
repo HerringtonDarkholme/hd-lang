@@ -4,7 +4,7 @@
 //! another call while a `defer` suite, a default expression, a facts body or
 //! non-entry module initialization runs panics with
 //! `suspension-forbidden-context`. Outside those contexts it runs. Programs
-//! build through the driver and run on V8 (`host/run.mjs`).
+//! build through the driver and run on V8 (`host/run.ts`).
 
 use std::path::Path;
 use std::process::{Command, Output as Ran};
@@ -44,7 +44,7 @@ fn ran(name: &str, files: &[(&str, &str)]) -> Ran {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

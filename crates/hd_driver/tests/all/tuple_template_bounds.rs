@@ -4,7 +4,7 @@
 //! map key, a tuple with a float, a function or an unhashable data member
 //! is not, and the use reports one `unsatisfied-trait-bound`. A program
 //! that uses such a tuple stops at checking, never in collection. Valid
-//! programs build through the driver and run on V8 (`host/run.mjs`), as
+//! programs build through the driver and run on V8 (`host/run.ts`), as
 //! the conformance runner does.
 
 use hd_diag::Code;

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { createGrant, isAsciiUrl, writtenHost } from "../../../host/core.mts";
+import { createGrant, isAsciiUrl, writtenHost } from "../../../host/core.ts";
 import { createHttpClient, responseHeaders } from "../adapters/http.mjs";
 const request = (url, options = {}) => ({
   url,

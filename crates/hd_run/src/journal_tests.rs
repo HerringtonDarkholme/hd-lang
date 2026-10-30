@@ -202,7 +202,7 @@ fn past_the_cap_recording_stops_with_one_notice() {
     assert!(!r.take_notice());
 }
 
-/// The JS host's journal (`host/journal.mjs`) is checked against the same
+/// The JS host's journal (`host/journal.ts`) is checked against the same
 /// bytes in `website/playground/test/journal.test.ts`: the journal of
 /// `every_row_kind`, and xxh3-128 (`hd_base::hash128`) of a prefix of each
 /// length class of a fixed byte string.

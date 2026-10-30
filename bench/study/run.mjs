@@ -3,7 +3,7 @@
 // appendix), #634's iterator bench, bench/runtime/progs, bench/micro and
 // the tokenizer and math cases. Each hd program is built with
 // `hd build --release --engine E` for E in node and wasmtime, run on Node
-// through host/run.mjs and on wasmtime as `hd FILE.wasm --engine wasmtime`
+// through host/run.ts and on wasmtime as `hd FILE.wasm --engine wasmtime`
 // (Cranelift compile included, as `hd run` pays it), and checked against
 // its reference's output. JavaScript (Node) and Go references run the same
 // way; Python references use python3. The existing wall-time table uses process wall time,
@@ -35,7 +35,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHost } from "../../host/node.mjs";
+import { createHost } from "../../host/node.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");

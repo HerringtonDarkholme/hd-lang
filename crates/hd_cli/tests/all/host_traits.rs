@@ -969,7 +969,7 @@ fn a_compiled_root_runs_through_synchronous_host_turns() {
     let built = run(&dir, &["build", "--engine", "node"]);
     assert!(built.status.success(), "{}", text(&built.stderr));
     let out = Command::new("node")
-        .args(["--test", "host/driver.test.mjs"])
+        .args(["--test", "host/driver.test.ts"])
         .env("HD_DRIVER_GUEST", dir.join("build/debug/driver.wasm"))
         .current_dir(root)
         .output()
@@ -992,8 +992,8 @@ fn node_process_job_owns_descendants_and_preserves_output() {
         .args([
             "--test",
             "--test-name-pattern=Process|Windows processLauncher",
-            "host/node.test.mjs",
-            "host/process.test.mjs",
+            "host/node.test.ts",
+            "host/process.test.ts",
         ])
         .env("HD_PROCESS_LAUNCHER", env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", dir.with_extension("cache"))

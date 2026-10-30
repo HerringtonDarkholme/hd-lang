@@ -6,7 +6,7 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 
 The ABI table is `hd_host_abi`; the engine-neutral embedding API, grants
 and the test model are `hd_run`; the wasmtime engine and its native
-providers are `hd_run_wasmtime`; the JS host is `host/*.mjs`.
+providers are `hd_run_wasmtime`; the JS host is `host/*.ts`.
 
 ## 16. Runtime
 
@@ -122,7 +122,7 @@ model, `host/gen/abi.json`, lists every method of the three tables with
 the std types its values cross as, and each struct, enum and newtype
 those types reach, read from `lib/std`'s declarations. From it:
 
-- `host/gen/abi.mjs` holds the JS codec of each of those std types and
+- `host/gen/abi.ts` holds the JS codec of each of those std types and
   each method's descriptor (§17.10);
 - `hd_run_wasmtime/src/abi.rs` holds each of those std types as a Rust
   type of the same shape with its codec (`Wire`, built on `codec.rs`'s
@@ -144,7 +144,7 @@ fixture's `Gauge`, `Sensor` or `Vault`
 `hd:<Trait>` by method name, a wait when the method suspends, and every
 argument and result in the exchange buffer, so each result gets the
 checks of its declared type. Their providers are fixture code:
-`host/profiles.mjs` on Node, `hd_run_wasmtime/src/profiles.rs` on
+`host/profiles.ts` on Node, `hd_run_wasmtime/src/profiles.rs` on
 wasmtime, never enabled by the default host.
 
 ### 17.2 Import Shapes
@@ -211,7 +211,7 @@ and a scalar result (`parse_f64`) is the import's own result. A program
 that never calls one has no such import. Six exist: `format_f64`,
 `format_f32`, `format_f64_fixed`, `string_lower`, `string_upper` and
 `parse_f64`. Both hosts write the same text from the exact significand
-and exponent: `host/float.mjs` with `BigInt`, `hd_run_wasmtime/src/prim.rs`
+and exponent: `host/float.ts` with `BigInt`, `hd_run_wasmtime/src/prim.rs`
 with its own big integers. No result depends on
 `Number.prototype.toString` or `toFixed`:
 
@@ -273,8 +273,8 @@ each boundary type as a `BTy` (its parts and Wasm layout, no pool) and
 generates one encoder `(off, values...) -> off'` and one decoder
 `(off) -> (values..., off')` per `BTy`, as `rt` helpers, so methods that
 cross the same type share them. The JS host writes the same bytes with
-the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
-`host/wire.mjs`'s `Enc` and `Dec`, and the wasmtime host with those of
+the codecs generated from the ABI model (`host/gen/abi.ts`), built on
+`host/wire.ts`'s `Enc` and `Dec`, and the wasmtime host with those of
 `hd_run_wasmtime/src/abi.rs`, built on `codec.rs`.
 
 | Value | Encoding |
@@ -432,7 +432,7 @@ the variant index and the path.
   synchronous `XMLHttpRequest`), and any other pending operation panics
   `host-contract` naming JSPI.
 
-Implementation differs: `host/web.mts` runs the program in a dedicated
+Implementation differs: `host/web.ts` runs the program in a dedicated
 worker and answers every host call synchronously: `Http.send` is a
 synchronous `XMLHttpRequest` that finishes inside `.start`, and only
 `Clock.sleep` completes later. Not judged: it
@@ -457,7 +457,7 @@ cancelled and holds the worker until it ends.
   capabilities spec requires.
 - **On Node,** `hd run` and `hd FILE` write the run's grant and its
   `Args.program` into the run host's configuration; `hd test` writes each
-  case's grant into the test host's. Every provider of `host/core.mts`
+  case's grant into the test host's. Every provider of `host/core.ts`
   asks `createGrant`'s checks before it touches a resource, and `rename!`
   checks both paths
   ([`cli.cap.scope.rename`](../../spec/cli/command-line.md#r-cli.cap.scope.rename)).
@@ -466,13 +466,13 @@ cancelled and holds the worker until it ends.
   ([`cli.cap.source.hd-run.entry`](../../spec/cli/command-line.md#r-cli.cap.source.hd-run.entry)),
   in the package directory.
 - **`Http` on Node.** `send!` finishes inside its `.start`: the program's
-  thread hands the request to a client thread (`host/http.mjs`) and waits
+  thread hands the request to a client thread (`host/http.ts`) and waits
   on a shared flag, so `block_on` never needs the event loop. The client
   checks the grant for the URL and for each redirect target
   ([`cli.cap.scope.redirect`](../../spec/cli/command-line.md#r-cli.cap.scope.redirect))
   before it connects.
 - **`Net` on Node.** Each instance has a client thread of its own
-  (`host/net.mjs`) that holds its sockets and is stopped when the
+  (`host/net.ts`) that holds its sockets and is stopped when the
   instance ends. Every operation finishes inside its `.start`: `read!`,
   `accept!` and `receive!` hold the program until data, a connection or a
   datagram arrives. The program's thread checks the host's form and the
@@ -497,7 +497,7 @@ its instance and reported with `TestRunner.report_timeout`
 ([`std-testing.runner.timeout`](../../spec/std/testing.md#r-std-testing.runner.timeout)).
 The JS host fails a body that ends after its deadline, and cuts a host
 wait (`block`, the driver's wait) at the deadline, with `time-limit`. V8
-cannot interrupt a Wasm loop from its own thread, so `host/test.mjs` runs
+cannot interrupt a Wasm loop from its own thread, so `host/test.ts` runs
 the cases in a worker thread: its main thread stops a worker whose body
 is still running 50 ms past the deadline, reports that run as a
 `time-limit` panic, and starts a new worker at the next row or case.
@@ -558,14 +558,14 @@ One ES module, generated from `hd_host_abi` and checked in:
 It uses only web platform APIs, so it also runs under Node.
 
 Implementation differs: only the codecs and method descriptors are
-generated. `host/gen/abi.mjs`, generated from the ABI model (§17.1), holds
-each std type's codec, built on `host/wire.mjs`'s encoding, and `METHODS`:
+generated. `host/gen/abi.ts`, generated from the ABI model (§17.1), holds
+each std type's codec, built on `host/wire.ts`'s encoding, and `METHODS`:
 each method by import module and name, with its wait flag, its resource
 argument, and its parameters and result (a scalar as its Wasm type, any
-other value as its codec). `host/core.mts` makes the import object from
+other value as its codec). `host/core.ts` makes the import object from
 them around providers: each method a JS function that takes and returns
 plain values (`traitImports`). It also holds the platform-neutral
-providers and the entry driver; `host/node.mjs` and `host/web.mts` add
-platform providers; `host/run.mjs`, `host/test.mjs` and `host/cases.mjs`
+providers and the entry driver; `host/node.ts` and `host/web.ts` add
+platform providers; `host/run.ts`, `host/test.ts` and `host/cases.ts`
 drive runs and tests. Grant checks stay in each provider, since each
 trait refuses in its own way (§17.7).

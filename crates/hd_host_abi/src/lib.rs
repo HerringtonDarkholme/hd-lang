@@ -8,7 +8,7 @@
 //! `tests/abi_model.rs` builds the ABI model from it and `lib/std`: every
 //! method with the std types it crosses and the std declarations they
 //! reach, checked in as `host/gen/abi.json`, and from the model both
-//! hosts' codecs and method descriptors: the JS host's `host/gen/abi.mts`
+//! hosts' codecs and method descriptors: the JS host's `host/gen/abi.ts`
 //! and the wasmtime host's `hd_run_wasmtime/src/abi.rs`.
 
 pub mod javascript;

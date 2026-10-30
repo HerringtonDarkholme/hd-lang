@@ -4,7 +4,7 @@
 //! tuple type with the derivation generator. So std's tuple templates
 //! (`Eq`, `PartialOrd`, `Ord`, `Hash`, `Debug`, `Display`, `Default`) and
 //! a user's tuple template run. Programs build through the driver and run
-//! on V8 (`host/run.mjs`), as the conformance runner does.
+//! on V8 (`host/run.ts`), as the conformance runner does.
 
 use std::path::Path;
 use std::process::{Command, Output as Ran};
@@ -39,7 +39,7 @@ fn run(name: &str, main: &str) -> Ran {
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("tuple-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

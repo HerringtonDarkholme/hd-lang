@@ -90,7 +90,7 @@ impl CaseRun {
         };
         // The snapshots an update run recorded: a line for each, the call's
         // frames as `function:offset` pairs, a tab, and the text as a JSON
-        // string (`host/cases.mjs`).
+        // string (`host/cases.ts`).
         let snapshots = match object.get("updates") {
             None => Vec::new(),
             Some(v) => v

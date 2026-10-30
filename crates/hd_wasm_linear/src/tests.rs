@@ -1100,14 +1100,14 @@ fn session_host_restores_checkpoint_and_active_tail_without_effects() {
         .expect("cancelled extension");
     validate(&cancelled.wasm);
     let host = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../host/core.mts")
+        .join("../../host/core.ts")
         .canonicalize()
         .unwrap();
     let script = format!(
         r"
 import assert from 'node:assert/strict';
 import {{pathToFileURL}} from 'node:url';
-const {{createSession}} = await import(new URL('session.mts', pathToFileURL({host:?})));
+const {{createSession}} = await import(new URL('session.ts', pathToFileURL({host:?})));
 const modules = {modules:?}.map(bytes => new Uint8Array(bytes));
 const cancelled = new Uint8Array({cancelled:?});
 for (const cap of [1, 300, 100000]) {{

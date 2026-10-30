@@ -1,7 +1,7 @@
 // Q22: runtime of new-compiler programs vs hand-written JS on the same Node.
 //
 // For each program in progs/: build the .hd with `hd build`, run the .wasm
-// through the checked-in host runner (host/run.mjs), run the .js
+// through the checked-in host runner (host/run.ts), run the .js
 // directly, 1 warmup + 5 measured runs each (`--runs N`), p50/p95. Prints a markdown
 // report to stdout. Fails loudly when hd and JS outputs differ.
 //
@@ -159,7 +159,7 @@ function main() {
   console.log(`# Runtime vs Node`);
   console.log(``);
   console.log(`- hd commit: \`${hash}\`; binary: \`${hdBinary} build\` (${profile} profile)`);
-  console.log(`- runner: \`node ${nodeVersion()} host/run.mjs\` for hd, \`node\` directly for JS`);
+  console.log(`- runner: \`node ${nodeVersion()} host/run.ts\` for hd, \`node\` directly for JS`);
   console.log(
     `- method: build once per program; 1 warmup + ${RUNS} measured runs each; p50 = median, p95 = max`,
   );

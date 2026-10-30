@@ -29,10 +29,10 @@ test("the SDK snapshot matches the canonical portable host and ABI sources", asy
 
 for (const [name, mutate] of [
   ["unknown format", (value) => (value.format = 2)],
-  ["missing file", (value) => delete value.files["core.mjs"]],
-  ["path escape", (value) => (value.files["../outside.mjs"] = value.files["core.mjs"])],
-  ["changed code", (value) => (value.files["core.mjs"].source += "\n// changed\n")],
-  ["changed hash", (value) => (value.files["core.mjs"].sha256 = "0".repeat(64))],
+  ["missing file", (value) => delete value.files["core.js"]],
+  ["path escape", (value) => (value.files["../outside.js"] = value.files["core.js"])],
+  ["changed code", (value) => (value.files["core.js"].source += "\n// changed\n")],
+  ["changed hash", (value) => (value.files["core.js"].sha256 = "0".repeat(64))],
   ["changed ABI", (value) => (value.packageHostABI += 1)],
   ["changed provenance", (value) => (value.baseRevision = "0".repeat(40))],
   ["changed fingerprint", (value) => (value.fingerprint = "0".repeat(64))],

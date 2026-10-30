@@ -27,8 +27,8 @@ export function environmentNames(grants, names) {
 export function entrySource(names) {
   return `import module from './app.wasm';
 import * as bindings from './bindings.mjs';
-import { createCoreHost } from './runtime/core.mjs';
-import { createPackageRuntime } from './runtime/package-providers.mjs';
+import { createCoreHost } from './runtime/core.js';
+import { createPackageRuntime } from './runtime/package-providers.js';
 import { createApplication } from './sdk/application.mjs';
 import { createFetchHandler } from './sdk/fetch.mjs';
 import grants from './grants.json';

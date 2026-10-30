@@ -33,8 +33,8 @@ async function contractReader(snapshot) {
       await writeFile(join(directory, name), source, { encoding: "utf8", flag: "wx" });
     }
     const [providers, core] = await Promise.all([
-      import(pathToFileURL(join(directory, "package-providers.mjs")).href),
-      import(pathToFileURL(join(directory, "core.mjs")).href),
+      import(pathToFileURL(join(directory, "package-providers.js")).href),
+      import(pathToFileURL(join(directory, "core.js")).href),
     ]);
     return {
       readPackageContract: providers.readPackageContract,

@@ -1,7 +1,7 @@
 //! Compiler-supplied impls as solver rows (#121; `crates/hd_check/DESIGN.md` (trait solver) §3.9):
 //! bodies, header checks and codegen's `select` get the sealed traits'
 //! answers from the solver. Programs build through the driver and run on
-//! V8 (`host/run.mjs`), as the conformance runner does.
+//! V8 (`host/run.ts`), as the conformance runner does.
 
 use hd_base::SliceSort as _;
 use std::path::Path;
@@ -41,7 +41,7 @@ fn output_of(name: &str, main: &str) -> String {
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("sealed-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");

@@ -2,7 +2,7 @@
 //! (`crates/hd_mono/DESIGN.md` §13.11): an intrinsic, a built-in impl's method, and a
 //! trait method at a trait-value `Self`. The adapter makes the call a
 //! direct call at the same types makes, so each reference gives the
-//! answer the call gives. Built and run on V8 (`host/run.mjs`).
+//! answer the call gives. Built and run on V8 (`host/run.ts`).
 
 use std::path::Path;
 use std::process::Command;
@@ -50,7 +50,7 @@ fn run(name: &str, main: &str) -> String {
     );
     std::fs::write(&path, wasm).expect("write wasm");
     let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
         .expect("node");
