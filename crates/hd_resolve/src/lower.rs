@@ -23,6 +23,7 @@ use hd_types::{
     Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList, Types,
 };
 
+use crate::const_eval::{ConstArg, ConstName};
 use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup, Names,
     TraitData, Variant, fill_trait_args, fill_type_args, show_ty,
@@ -819,10 +820,10 @@ struct Resolver<'a, 'b> {
     /// Whether each generic parameter of the folder's own declarations is
     /// a row parameter, from their heads.
     row_params: HashMap<DefId, Vec<bool>>,
-    /// Whether each non-lifetime generic parameter of a folder declaration
-    /// is const, from their heads. Other folders' come from their
+    /// The kind of each non-lifetime generic parameter of a folder
+    /// declaration, from their heads. Other folders' come from their
     /// interfaces' [`Generic::const_type`].
-    const_params: HashMap<DefId, Vec<bool>>,
+    const_params: HashMap<DefId, Vec<Slot>>,
     /// This folder's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
     aliases: RefCell<HashMap<DefId, (Vec<bool>, Ty)>>,
@@ -1873,8 +1874,8 @@ impl Lower<'_, '_, '_> {
                         position += 1;
                     }
                     SyntaxKind::ConstArgument => {
-                        if self.const_slot(def, position) {
-                            args.push(self.lower_const_argument(a, gn));
+                        if let Slot::Const(want) = self.slot(def, position) {
+                            args.push(self.lower_const_argument(a, gn, want));
                         } else {
                             self.const_kind_mismatch(def, position, a, "a const expression");
                             args.push(Ty::POISON);
@@ -1882,8 +1883,8 @@ impl Lower<'_, '_, '_> {
                         position += 1;
                     }
                     k if k.is_type() => {
-                        if self.const_slot(def, position) {
-                            args.push(self.lower_const_argument(a, gn));
+                        if let Slot::Const(want) = self.slot(def, position) {
+                            args.push(self.lower_const_argument(a, gn, want));
                         } else {
                             args.push(self.ty(Some(a), gn));
                         }
@@ -1920,15 +1921,25 @@ impl Lower<'_, '_, '_> {
     }
 
     fn const_slot(&self, def: DefId, position: usize) -> bool {
+        matches!(self.slot(def, position), Slot::Const(_))
+    }
+
+    /// The kind of the generic parameter of `def` at `position` among its
+    /// non-lifetime parameters.
+    fn slot(&self, def: DefId, position: usize) -> Slot {
         match self.r.const_params.get(&def) {
-            Some(slots) => slots.get(position).copied().unwrap_or(false),
-            None => self.r.item(def).is_some_and(|i| {
-                i.generics
-                    .iter()
-                    .filter(|g| !g.lifetime)
-                    .nth(position)
-                    .is_some_and(|g| g.const_type.is_some())
-            }),
+            Some(slots) => slots.get(position).copied().unwrap_or(Slot::Type),
+            None => self
+                .r
+                .item(def)
+                .and_then(|i| {
+                    i.generics
+                        .iter()
+                        .filter(|g| !g.lifetime)
+                        .nth(position)
+                        .and_then(|g| g.const_type)
+                })
+                .map_or(Slot::Type, |p| Slot::Const(Some(p))),
         }
     }
 
@@ -1960,19 +1971,16 @@ impl Lower<'_, '_, '_> {
             .error(Code::GenericKindMismatch, self.src.span(argument), &msg);
     }
 
-    /// An argument in a const slot. A bare const parameter is its
-    /// [`TyData::Param`] (`types.generic.const.type-position`); a bare type
-    /// or row parameter is a kind error. Closed expressions and named
-    /// constants are evaluated while checking (`types.generic.const.evaluate`),
-    /// which does not exist yet.
-    fn lower_const_argument(&mut self, argument: NodeRef<'_>, gn: &Gen) -> Ty {
+    /// An argument in a const slot of declared type `want`
+    /// (`types.generic.const.argument`): a bare const parameter is its
+    /// [`TyData::Param`], and a closed const expression its evaluated
+    /// [`TyData::Const`] (`types.generic.const.evaluate`). A bare type or
+    /// row parameter is a kind error.
+    fn lower_const_argument(&mut self, argument: NodeRef<'_>, gn: &Gen, want: Option<Prim>) -> Ty {
         if argument.kind() == SyntaxKind::NamedType {
             let segs = self.segments(argument);
             if let [(name, _)] = segs.as_slice() {
                 let sym = self.sym(name);
-                if let Some((_, slot, _, _)) = gn.consts.iter().find(|(s, _, _, _)| *s == sym) {
-                    return self.names.pool.intern_ty(&TyData::Param(*slot));
-                }
                 let kind = if gn.tys.iter().any(|(s, _, _)| *s == sym) {
                     Some("type")
                 } else if gn.rows.iter().any(|(s, _)| *s == sym) {
@@ -1990,8 +1998,56 @@ impl Lower<'_, '_, '_> {
                 }
             }
         }
-        self.gap("const generic arguments");
-        Ty::POISON
+        let src = self.src;
+        let pool = self.names.pool;
+        let mut other_module = false;
+        let mut declared = None;
+        let result = {
+            let syms = self.names.syms;
+            let mut lookup = |name: &str| {
+                let sym = syms.intern(name);
+                if let Some((_, slot, ty, _)) = gn.consts.iter().find(|(s, _, _, _)| *s == sym) {
+                    declared = Some(*ty);
+                    return ConstName::Param(*slot);
+                }
+                top_level_binding(&src, name).unwrap_or_else(|| {
+                    other_module = true;
+                    ConstName::Poison
+                })
+            };
+            crate::const_eval::const_argument(&src, argument, want, syms, &mut lookup)
+        };
+        match result {
+            Ok(ConstArg::Value(v)) => pool.intern_ty(&TyData::Const(v)),
+            Ok(ConstArg::Param(p)) => {
+                // A bare parameter keeps its own declared type.
+                if let (Some(want), Some(TyData::Prim(have))) =
+                    (want, declared.map(|t| pool.get(t)))
+                    && want != have
+                {
+                    let msg = format!(
+                        "this const argument has type `{}`, but `{}` is expected",
+                        have.name(),
+                        want.name()
+                    );
+                    self.diags
+                        .error(Code::TypeMismatch, self.src.span(argument), &msg);
+                    return Ty::POISON;
+                }
+                pool.intern_ty(&TyData::Param(p))
+            }
+            Ok(ConstArg::Poison) => {
+                if other_module {
+                    self.gap("a const generic argument that names another module's value");
+                }
+                Ty::POISON
+            }
+            Err(e) => {
+                self.diags
+                    .error(e.code, self.src.span(argument), &e.message);
+                Ty::POISON
+            }
+        }
     }
 
     /// A trait reference (a bound, a supertrait, an impl's trait, a `dyn`
@@ -6715,7 +6771,18 @@ fn resolver<'a, 'b>(
                             SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
                         )
                     })
-                    .map(|g| g.kind() == SyntaxKind::ConstParameter)
+                    .map(|g| {
+                        if g.kind() != SyntaxKind::ConstParameter {
+                            return Slot::Type;
+                        }
+                        Slot::Const(Src::type_child(g).and_then(|t| {
+                            let name = m.src.text(m.src.first(t));
+                            Prim::ALL
+                                .iter()
+                                .copied()
+                                .find(|p| !p.is_float() && p.name() == name)
+                        }))
+                    })
                     .collect();
                 r.const_params.insert(h.def, consts);
             }
@@ -6757,6 +6824,44 @@ fn resolver<'a, 'b>(
         }
     }
     r
+}
+
+/// The kind of a generic parameter slot: a type (or row) parameter, or a
+/// const parameter with its declared scalar type, `None` when that type
+/// is an error.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Slot {
+    Type,
+    Const(Option<Prim>),
+}
+
+/// The top-level `:=` binding `name` of the module `src`, as a named
+/// constant candidate (`types.generic.const.named`). A top-level binding
+/// has no written type, so its use types its initializer.
+#[must_use]
+pub fn top_level_binding<'a>(src: &Src<'a>, name: &str) -> Option<ConstName<'a>> {
+    src.root().children().find_map(|stmt| {
+        let mut node = stmt
+            .children()
+            .next()
+            .filter(|b| stmt.kind() == SyntaxKind::ExprStmt && b.kind() == SyntaxKind::BindingExpr);
+        // A chain `a := b := e` binds each name to `e`.
+        let mut named = false;
+        while let Some(b) = node {
+            let (pattern, rhs) = (b.children().next()?, b.children().last()?);
+            let toks: Vec<_> = src.tokens(pattern).collect();
+            named |= pattern.kind() == SyntaxKind::BindingPattern
+                && matches!(toks.as_slice(), [t] if src.text(*t) == name);
+            if rhs.kind() != SyntaxKind::BindingExpr {
+                return named.then_some(ConstName::Binding {
+                    src: *src,
+                    init: rhs,
+                });
+            }
+            node = Some(rhs);
+        }
+        None
+    })
 }
 
 /// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).

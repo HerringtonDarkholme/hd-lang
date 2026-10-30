@@ -1,5 +1,5 @@
-//! Const generic parameters and bare parameter arguments reach interfaces;
-//! expression arguments wait for evaluation at the not-yet boundary.
+//! Const generic parameters and arguments reach interfaces: a bare
+//! parameter as itself, and a closed const expression as its value.
 
 use std::sync::Arc;
 
@@ -32,7 +32,7 @@ impl World for OneFolder {
 }
 
 #[test]
-fn const_declarations_and_arguments_reach_the_not_yet_boundary() {
+fn const_declarations_and_arguments_resolve_with_kind_errors() {
     let text = "struct Buffer[T, N < const usize]:\n    value: T\n\nstruct Plain[T]:\n    value: T\n\nstruct BadKind[N < const f32]:\n    value: i32\n\nstruct WrongDefault[T = 4]:\n    value: T\n\ntype Four[T] = Buffer[T, 2 + 2]\ntype Repeated[T, N < const usize] = Buffer[T, N]\ntype ConstAsType[N < const usize] = N\ntype WrongArgument[T, N < const usize] = Buffer[T, T]\ntype WrongSlot = Plain[4]\n";
     let parsed = parse(text.as_bytes());
     assert!(parsed.is_ok());
@@ -66,37 +66,47 @@ fn const_declarations_and_arguments_reach_the_not_yet_boundary() {
         session: None,
     };
     let mut diags = DiagBuf::default();
-    let result = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags);
-
-    let Err(unsupported) = result else {
-        panic!("const generics unexpectedly reached an interface");
-    };
-    assert!(
-        matches!(
-            unsupported.what.as_str(),
-            "const generic parameters" | "const generic arguments"
-        ),
-        "{}",
-        unsupported.what
-    );
+    let out = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
+        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
     assert_eq!(
         diags
             .content_order()
             .into_iter()
             .map(|index| diags.code[index])
             .collect::<Vec<_>>(),
-        vec![
-            Code::GenericKindMismatch,
-            Code::GenericKindMismatch,
-            Code::GenericKindMismatch,
-            Code::GenericKindMismatch,
-            Code::GenericKindMismatch,
-        ]
+        vec![Code::GenericKindMismatch; 5]
+    );
+
+    // `2 + 2` is evaluated as the parameter's `usize` (`types.generic.const.evaluate`).
+    let four = out
+        .modules
+        .iter()
+        .flat_map(|m| &m.items)
+        .find(|i| names.text(i.name) == "Four")
+        .expect("Four");
+    let hd_resolve::ItemData::Alias(body) = four.data else {
+        panic!("`Four` is not an alias");
+    };
+    names.record_params(four);
+    assert_eq!(show_ty(&names, body), "Buffer[T, 4]");
+    let TyData::Adt { args, .. } = pool.get(body) else {
+        panic!("not a struct type");
+    };
+    assert_eq!(
+        pool.get(pool.list_items(args)[1]),
+        TyData::Const(ConstValue::Int {
+            prim: Prim::Usize,
+            bits: 4
+        })
     );
 }
 
-/// The declarations resolved in a fresh session from `text`.
-fn resolve_in(names: Names<'_>, text: &str) -> (Vec<hd_resolve::Item>, Vec<hd_resolve::Export>) {
+/// The declarations resolved in a fresh session from `text`, and the
+/// codes it reports.
+fn resolve_with(
+    names: Names<'_>,
+    text: &str,
+) -> (Vec<hd_resolve::Item>, Vec<hd_resolve::Export>, Vec<Code>) {
     let parsed = parse(text.as_bytes());
     assert!(parsed.is_ok());
     let cx = Cx {
@@ -119,9 +129,66 @@ fn resolve_in(names: Names<'_>, text: &str) -> (Vec<hd_resolve::Item>, Vec<hd_re
     let mut diags = DiagBuf::default();
     let out = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
         .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
-    assert_eq!(diags.len(), 0, "{:?}", diags.code);
+    let codes = diags
+        .content_order()
+        .into_iter()
+        .map(|index| diags.code[index])
+        .collect();
     let items = out.modules.into_iter().flat_map(|m| m.items).collect();
-    (items, out.exports)
+    (items, out.exports, codes)
+}
+
+/// [`resolve_with`] for text that reports nothing.
+fn resolve_in(names: Names<'_>, text: &str) -> (Vec<hd_resolve::Item>, Vec<hd_resolve::Export>) {
+    let (items, exports, codes) = resolve_with(names, text);
+    assert_eq!(codes, []);
+    (items, exports)
+}
+
+#[test]
+fn closed_const_expressions_evaluate_in_the_parameter_type() {
+    let text = r#"struct Big[N < const i64]: pass
+struct Small[N < const u8]: pass
+struct Text[S < const string]: pass
+struct Flag[B < const bool]: pass
+
+LIMIT := 1 << 3
+
+type Lowest = Big[-9223372036854775808]
+type Named = Small[LIMIT * 2 + 0x0f]
+type Joined = Text["a\n" + "b"]
+type Short = Flag[false && 1 / 0 == 0]
+type Negative = Small[-1]
+type Wide = Big[2 ** 63]
+"#;
+    let (pool, paths, syms) = (
+        InternPool::new(),
+        PathTable::new(),
+        ShardedInterner::default(),
+    );
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let (items, _, codes) = resolve_with(names, text);
+    assert_eq!(codes, [Code::TypeMismatch, Code::ConstEvaluationFailed]);
+    let shown = |name: &str| {
+        let item = items
+            .iter()
+            .find(|i| names.text(i.name) == name)
+            .unwrap_or_else(|| panic!("no item `{name}`"));
+        let hd_resolve::ItemData::Alias(body) = item.data else {
+            panic!("`{name}` is not an alias");
+        };
+        show_ty(&names, body)
+    };
+    assert_eq!(shown("Lowest"), "Big[-9223372036854775808]");
+    assert_eq!(shown("Named"), "Small[31]");
+    assert_eq!(shown("Joined"), r#"Text["a\nb"]"#);
+    assert_eq!(shown("Short"), "Flag[false]");
 }
 
 #[test]

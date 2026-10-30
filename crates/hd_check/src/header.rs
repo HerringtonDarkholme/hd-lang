@@ -101,21 +101,23 @@ fn stage_b_over<'i>(
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     for it in items {
-        const_generics_gap(std::slice::from_ref(it), Stage::HeaderCheck)?;
         let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.item(it)?;
     }
     Ok(out)
 }
 
-/// Const generic parameters reach interfaces, but their arguments are not
-/// evaluated or compared yet (`types.generic.const.evaluate`), so `stage`
-/// stops at an item that declares one rather than check it unsoundly.
+/// Const generic arguments are checked, but instances do not carry them
+/// yet (`types.generic.const.runtime`), so `stage` stops at an item that
+/// declares a const parameter rather than build it.
 ///
 /// # Errors
 ///
 /// When an item declares a const generic parameter.
-pub fn const_generics_gap(items: &[Item], stage: Stage) -> StageResult<()> {
+pub fn const_generics_gap<'i>(
+    items: impl IntoIterator<Item = &'i Item>,
+    stage: Stage,
+) -> StageResult<()> {
     let declares = |it: &Item| {
         let sig = match &it.data {
             ItemData::Fn(sig) | ItemData::Method { sig, .. } => &sig.generics[..],
@@ -126,7 +128,7 @@ pub fn const_generics_gap(items: &[Item], stage: Stage) -> StageResult<()> {
             .chain(sig)
             .any(|g| g.const_type.is_some())
     };
-    if items.iter().any(declares) {
+    if items.into_iter().any(declares) {
         return Err(NotImplemented::new(stage, "const generic parameters"));
     }
     Ok(())

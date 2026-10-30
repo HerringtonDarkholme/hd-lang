@@ -25,7 +25,7 @@ use hd_types::solver::{
     Answer, BodyMemo, BuiltinImpl, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls,
     ParamEnv, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InferTable, Inputs, ParamRef, RowId, Ty, TyData, TyList, VarKind};
+use hd_types::{InferTable, Inputs, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind};
 
 use crate::expr::Indexed;
 
@@ -239,6 +239,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
     pub gens: Vec<(Symbol, Ty)>,
+    /// The const parameters among them, with their declared types
+    /// (`types.generic.const.parameter`).
+    pub const_gens: Vec<(Symbol, ParamRef, Prim)>,
     /// The `using` binding being checked (`flow.using.access.v2`).
     pub using_bind: bool,
     /// The locals bound with `using`, which are not reassignable
@@ -571,6 +574,7 @@ pub(crate) fn new_ck<'a, 'c>(
         opaque_annotation: None,
         recursive_returns: vec![],
         gens: Vec::new(),
+        const_gens: Vec::new(),
         using_bind: false,
         using_locals: Vec::new(),
         mut_locals: Vec::new(),
@@ -1491,6 +1495,10 @@ impl Ck<'_, '_> {
             let index = u16::try_from(offset + i).unwrap_or(u16::MAX);
             let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index }));
             self.gens.push((g.name, p));
+            if let Some(prim) = g.const_type {
+                self.const_gens
+                    .push((g.name, ParamRef { owner, index }, prim));
+            }
             if g.row {
                 self.row_gens
                     .push((g.name, hd_types::RowParamRef { owner, index }));
