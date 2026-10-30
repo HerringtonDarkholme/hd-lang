@@ -23,6 +23,36 @@ const method = (name) => {
   return standard[name] ? { tag: standard[name], fields: {} } : { tag: "Other", fields: { name } };
 };
 
+async function requestBody(request, response, waiter) {
+  let length = 0;
+  const chunks = [];
+  for await (const chunk of request) {
+    length += chunk.length;
+    if (length > 1048576) {
+      response.writeHead(413);
+      response.end();
+      waiter.resolve(err("Expired"));
+      return null;
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+function requestHeaders(request) {
+  const headers = [];
+  for (let n = 0; n < request.rawHeaders.length; n += 2) {
+    headers.push([request.rawHeaders[n], request.rawHeaders[n + 1]]);
+  }
+  return headers;
+}
+
+function requestUrl(state, request) {
+  const address = state.server.address();
+  const authority = request.headers.host ?? `127.0.0.1:${address.port}`;
+  return new URL(request.url, `http://${authority}`).href;
+}
+
 function stateFor(context) {
   let state = instances.get(context.instanceSignal);
   if (state) {
@@ -81,35 +111,18 @@ function stateFor(context) {
     });
     let handedToGuest = false;
     try {
-      let length = 0;
-      const chunks = [];
-      for await (const chunk of request) {
-        length += chunk.length;
-        if (length > 1048576) {
-          response.writeHead(413);
-          response.end();
-          waiter.resolve(err("Expired"));
-          return;
-        }
-        chunks.push(chunk);
-      }
-      const address = state.server.address();
-      const url = new URL(
-        request.url,
-        `http://${request.headers.host ?? `127.0.0.1:${address.port}`}`,
-      ).href;
-      const headers = [];
-      for (let n = 0; n < request.rawHeaders.length; n += 2) {
-        headers.push([request.rawHeaders[n], request.rawHeaders[n + 1]]);
+      const body = await requestBody(request, response, waiter);
+      if (body === null) {
+        return;
       }
       handedToGuest = waiter.resolve(
         ok({
           id: { generation: state.generation, sequence },
           request: {
             method: method(request.method),
-            url,
-            headers,
-            body: Buffer.concat(chunks),
+            url: requestUrl(state, request),
+            headers: requestHeaders(request),
+            body,
             redirects: 10,
             dns_servers: null,
             tls_roots: [],

@@ -58,6 +58,75 @@ function incomingBody(incoming) {
   );
 }
 
+function validatedIncoming(incoming) {
+  const headers = [];
+  for (let i = 0; i < incoming.rawHeaders.length; i += 2) {
+    headers.push([incoming.rawHeaders[i], incoming.rawHeaders[i + 1]]);
+  }
+  const host = incoming.headers.host;
+  if (typeof host !== "string" || !host || /[\s\\/#?@]/.test(host)) {
+    throw new Error("invalid request authority");
+  }
+  if (
+    typeof incoming.url !== "string" ||
+    !incoming.url.startsWith("/") ||
+    Array.from(incoming.url).some(
+      (character) =>
+        character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127 || character === "\\",
+    )
+  ) {
+    throw new Error("invalid request target");
+  }
+  return {
+    url: new URL(`https://${host}${incoming.url}`).href,
+    headers: new Headers(headers),
+  };
+}
+
+async function sendResponse(incoming, outgoing, response, body) {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (outgoing.destroyed) {
+    return;
+  }
+  const cookies = [];
+  for (const [name, value] of responseHeaders(response.headers)) {
+    if (name.toLowerCase() === "set-cookie") {
+      cookies.push(value);
+    } else {
+      outgoing.setHeader(name, value);
+    }
+  }
+  if (cookies.length) {
+    outgoing.setHeader("set-cookie", cookies);
+  }
+  if (body && !incoming.readableEnded) {
+    body.cancel().catch(() => {});
+    outgoing.setHeader("connection", "close");
+  }
+  outgoing.writeHead(response.status);
+  outgoing.end(bytes);
+}
+
+function sendFailure(incoming, outgoing, body, ingressValidated) {
+  if (outgoing.destroyed) {
+    return;
+  }
+  if (outgoing.headersSent) {
+    outgoing.destroy();
+    return;
+  }
+  body?.cancel().catch(() => {});
+  const status = ingressValidated ? 500 : 400;
+  outgoing.writeHead(status, {
+    "content-type": "text/plain; charset=utf-8",
+    connection: "close",
+  });
+  outgoing.end(ingressValidated ? "internal server error" : "bad request");
+  if (!body) {
+    discardIncoming(incoming);
+  }
+}
+
 export function createVercelNodeHandler(
   fetcher,
   { isReady = () => true, retryAfter = "1", log = () => {} } = {},
@@ -84,78 +153,24 @@ export function createVercelNodeHandler(
         discardIncoming(incoming);
         return;
       }
-      const headers = [];
-      for (let i = 0; i < incoming.rawHeaders.length; i += 2) {
-        headers.push([incoming.rawHeaders[i], incoming.rawHeaders[i + 1]]);
-      }
-      const host = incoming.headers.host;
-      if (typeof host !== "string" || !host || /[\s\\/#?@]/.test(host)) {
-        throw new Error("invalid request authority");
-      }
-      if (
-        typeof incoming.url !== "string" ||
-        !incoming.url.startsWith("/") ||
-        Array.from(incoming.url).some(
-          (character) =>
-            character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127 || character === "\\",
-        )
-      ) {
-        throw new Error("invalid request target");
-      }
-      const url = new URL(`https://${host}${incoming.url}`).href;
-      const publicHeaders = new Headers(headers);
+      const validated = validatedIncoming(incoming);
       ingressValidated = true;
       body = incomingBody(incoming);
       // Node permits GET/HEAD bodies; Fetch's Request constructor rejects
       // them. The shared mapper deliberately accepts this Request-like view.
-      const request = {
-        url,
+      const response = await fetcher.fetch({
+        ...validated,
         method: incoming.method,
-        headers: publicHeaders,
         body,
         bodyUsed: false,
         signal: cancelled.signal,
-      };
-      const response = await fetcher.fetch(request);
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (outgoing.destroyed) {
-        return;
-      }
-      const cookies = [];
-      for (const [name, value] of responseHeaders(response.headers)) {
-        if (name.toLowerCase() === "set-cookie") {
-          cookies.push(value);
-        } else {
-          outgoing.setHeader(name, value);
-        }
-      }
-      if (cookies.length) {
-        outgoing.setHeader("set-cookie", cookies);
-      }
-      if (body && !incoming.readableEnded) {
-        body.cancel().catch(() => {});
-        outgoing.setHeader("connection", "close");
-      }
-      outgoing.writeHead(response.status);
-      outgoing.end(bytes);
+      });
+      await sendResponse(incoming, outgoing, response, body);
     } catch {
       try {
         log({ kind: "adapter-failure" });
       } catch {}
-      if (!outgoing.destroyed && !outgoing.headersSent) {
-        body?.cancel().catch(() => {});
-        const status = ingressValidated ? 500 : 400;
-        outgoing.writeHead(status, {
-          "content-type": "text/plain; charset=utf-8",
-          connection: "close",
-        });
-        outgoing.end(ingressValidated ? "internal server error" : "bad request");
-        if (!body) {
-          discardIncoming(incoming);
-        }
-      } else if (!outgoing.destroyed) {
-        outgoing.destroy();
-      }
+      sendFailure(incoming, outgoing, body, ingressValidated);
     } finally {
       incoming.off("aborted", disconnect);
       outgoing.off("close", disconnect);
