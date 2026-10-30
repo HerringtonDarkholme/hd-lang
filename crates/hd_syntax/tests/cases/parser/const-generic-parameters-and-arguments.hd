@@ -1,0 +1,33 @@
+# @dump: tree
+# Const parameters in every declaration position, and expression arguments.
+struct Fixed[T, N < const usize]:
+    value: T
+
+enum Choice[N < const i32]:
+    Item(i32)
+
+trait Mark[N < const usize]:
+    fn marked(self) -> bool
+
+impl[T, N < const usize] Mark[N] for Fixed[T, N]:
+    fn marked(self) -> bool:
+        true
+
+type Four[T] = Fixed[T, 2 + 2]
+type Parenthesized[T] = Fixed[T, (2 + 2)]
+type NestedParentheses[T] = Fixed[T, ((1 | 2) & 3) ^ 4]
+type Cast[T] = Fixed[T, usize(4)]
+type Repeated[T, N < const usize] = Fixed[T, N]
+
+fn keep[T, N < const usize](value: Fixed[T, N]) -> Fixed[T, N]:
+    value
+
+impl Fixed[i32, 4]:
+    fn change[M < const usize](self) -> Fixed[i32, M]:
+        panic("not run")
+
+fn pick[N < const usize]() -> i32:
+    0
+
+fn call_pick() -> i32:
+    pick::[4]()

@@ -382,7 +382,26 @@ impl Parser<'_> {
             }
             let row = self.eat(TokenKind::Dollar);
             self.expect_name("a generic parameter name");
-            if self.at(TokenKind::Lt) {
+            let const_parameter = self.at(TokenKind::Lt)
+                && self.nth(1) == Some(TokenKind::Ident)
+                && self.nth_text(1) == "const";
+            if const_parameter {
+                if variance {
+                    self.error(
+                        Code::SyntaxError,
+                        "a const generic parameter takes no variance marker",
+                    );
+                }
+                if row {
+                    self.error(
+                        Code::SyntaxError,
+                        "a const generic parameter takes no row marker",
+                    );
+                }
+                self.bump(); // <
+                self.bump(); // const
+                self.ty();
+            } else if self.at(TokenKind::Lt) {
                 if row {
                     // grammar.generic.row-marker.no-bound
                     self.error(Code::SyntaxError, "a row parameter takes no bound");
@@ -398,7 +417,13 @@ impl Parser<'_> {
                 self.ty();
             }
             if self.at(TokenKind::Eq) {
-                if mode == Generics::Impl {
+                if const_parameter {
+                    // grammar.generic.const.no-default
+                    self.error(
+                        Code::SyntaxError,
+                        "a const generic parameter takes no default",
+                    );
+                } else if mode == Generics::Impl {
                     // grammar.generic.default.impl
                     self.error(
                         Code::SyntaxError,
@@ -410,7 +435,14 @@ impl Parser<'_> {
                 self.ty_argument();
                 self.complete(default, SyntaxKind::TypeDefault);
             }
-            self.complete(param, SyntaxKind::GenericParameter);
+            self.complete(
+                param,
+                if const_parameter {
+                    SyntaxKind::ConstParameter
+                } else {
+                    SyntaxKind::GenericParameter
+                },
+            );
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBracket) {
                     self.expected("',' or ']'");

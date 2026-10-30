@@ -1,5 +1,4 @@
 path	issue	engine	reason
-parse/valid/const-generic-parameter-positions.hd	#993		parser has no const generic parameter or argument syntax
 typing/invalid/const-generic-cast.hd	#993		checker has no const generic argument evaluator
 typing/invalid/const-generic-evaluation-division-by-zero.hd	#993		checker has no const generic argument evaluator
 typing/invalid/const-generic-evaluation-invalid-shift.hd	#993		checker has no const generic argument evaluator

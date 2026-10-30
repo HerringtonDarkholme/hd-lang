@@ -26,11 +26,15 @@ pub enum SyntaxKind {
     DefaultValue,
     GenericParameterList,
     GenericParameter,
+    /// `N < const usize` in a generic parameter list.
+    ConstParameter,
     /// `'name` in a generic list (`types.lifetime.declare`).
     LifetimeParameter,
     BoundList,
     TypeDefault,
     TypeArgumentList,
+    /// An expression-shaped positional generic argument, such as `4` or `N + 1`.
+    ConstArgument,
     AssociatedTypeBinding,
     ArgumentList,
     Argument,
@@ -389,10 +393,12 @@ ast_nodes! {
     DefaultValue => DefaultValue,
     GenericParameterList => GenericParameterList,
     GenericParameter => GenericParameter,
+    ConstParameter => ConstParameter,
     LifetimeParameter => LifetimeParameter,
     BoundList => BoundList,
     TypeDefault => TypeDefault,
     TypeArgumentList => TypeArgumentList,
+    ConstArgument => ConstArgument,
     AssociatedTypeBinding => AssociatedTypeBinding,
     ArgumentList => ArgumentList,
     Argument => Argument,

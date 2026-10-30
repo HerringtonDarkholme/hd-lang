@@ -819,6 +819,9 @@ struct Resolver<'a, 'b> {
     /// Whether each generic parameter of the folder's own declarations is
     /// a row parameter, from their heads.
     row_params: HashMap<DefId, Vec<bool>>,
+    /// Whether each non-lifetime generic parameter of a folder declaration
+    /// is const. Interfaces carry this in slice 2; this map covers own heads.
+    const_params: HashMap<DefId, Vec<bool>>,
     /// This folder's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
     aliases: RefCell<HashMap<DefId, (Vec<bool>, Ty)>>,
@@ -1593,6 +1596,9 @@ struct Gen {
     /// its (default-filled) arguments.
     tys: Vec<(Symbol, Ty, Vec<BoundRef>)>,
     rows: Vec<(Symbol, RowParamRef)>,
+    /// Const parameters in scope: name, stable slot, declared scalar type,
+    /// and declaration span for kind diagnostics.
+    consts: Vec<(Symbol, ParamRef, Ty, Span)>,
     /// Lifetime variables in scope, spelled with their `'`
     /// (`types.lifetime.scope`).
     lifetimes: Vec<Symbol>,
@@ -1617,6 +1623,7 @@ impl Gen {
         let lengths = (
             self.tys.len(),
             self.rows.len(),
+            self.consts.len(),
             self.decls.len(),
             self.bounded.len(),
             self.pending.len(),
@@ -1626,10 +1633,11 @@ impl Gen {
         let value = lower(self);
         self.tys.truncate(lengths.0);
         self.rows.truncate(lengths.1);
-        self.decls.truncate(lengths.2);
-        self.bounded.truncate(lengths.3);
-        self.pending.truncate(lengths.4);
-        self.lifetimes.truncate(lengths.5);
+        self.consts.truncate(lengths.2);
+        self.decls.truncate(lengths.3);
+        self.bounded.truncate(lengths.4);
+        self.pending.truncate(lengths.5);
+        self.lifetimes.truncate(lengths.6);
         (self.self_ty, self.self_trait) = context;
         value
     }
@@ -1802,10 +1810,12 @@ impl Lower<'_, '_, '_> {
         &mut self,
         n: NodeRef<'_>,
         gn: &Gen,
+        def: DefId,
     ) -> (Vec<Ty>, Vec<(Symbol, Ty)>, Option<RowId>) {
         let mut args = Vec::new();
         let mut bindings = Vec::new();
         let mut row = None;
+        let mut position = 0_usize;
         if let Some(al) = Src::child(n, SyntaxKind::TypeArgumentList) {
             for a in al.children() {
                 match a.kind() {
@@ -1820,11 +1830,34 @@ impl Lower<'_, '_, '_> {
                     // A row argument keeps its position: an alias's row
                     // parameter takes it (`req.row.alias.generic.use`).
                     SyntaxKind::RequirementRow => {
-                        let r = self.row(Some(a), gn);
-                        row = Some(r);
-                        args.push(self.names.pool.intern_ty(&TyData::Row(r)));
+                        if self.const_slot(def, position) {
+                            self.const_kind_mismatch(def, position, a, "a row");
+                            args.push(Ty::POISON);
+                        } else {
+                            let r = self.row(Some(a), gn);
+                            row = Some(r);
+                            args.push(self.names.pool.intern_ty(&TyData::Row(r)));
+                        }
+                        position += 1;
                     }
-                    k if k.is_type() => args.push(self.ty(Some(a), gn)),
+                    SyntaxKind::ConstArgument => {
+                        if self.const_slot(def, position) {
+                            self.lower_const_argument(a, gn);
+                        } else {
+                            self.const_kind_mismatch(def, position, a, "a const expression");
+                        }
+                        args.push(Ty::POISON);
+                        position += 1;
+                    }
+                    k if k.is_type() => {
+                        if self.const_slot(def, position) {
+                            self.lower_const_argument(a, gn);
+                            args.push(Ty::POISON);
+                        } else {
+                            args.push(self.ty(Some(a), gn));
+                        }
+                        position += 1;
+                    }
                     _ => {}
                 }
             }
@@ -1855,6 +1888,70 @@ impl Lower<'_, '_, '_> {
         )
     }
 
+    fn const_slot(&self, def: DefId, position: usize) -> bool {
+        self.r
+            .const_params
+            .get(&def)
+            .and_then(|slots| slots.get(position))
+            .copied()
+            .unwrap_or(false)
+    }
+
+    fn const_kind_mismatch(
+        &mut self,
+        def: DefId,
+        position: usize,
+        argument: NodeRef<'_>,
+        found: &str,
+    ) {
+        let name = self.names.display_name(def);
+        let expected = if self
+            .r
+            .row_params
+            .get(&def)
+            .and_then(|slots| slots.get(position))
+            .copied()
+            .unwrap_or(false)
+        {
+            "row"
+        } else {
+            "type"
+        };
+        let msg = format!(
+            "argument {} of `{name}` fills a {expected} parameter, not a const parameter: found {found}",
+            position + 1
+        );
+        self.diags
+            .error(Code::GenericKindMismatch, self.src.span(argument), &msg);
+    }
+
+    /// Registers an argument in a const slot without inventing its interface
+    /// representation. A bare type or row parameter is already a resolvable
+    /// kind error; closed expressions and const names continue in slice 2.
+    fn lower_const_argument(&mut self, argument: NodeRef<'_>, gn: &Gen) {
+        if argument.kind() == SyntaxKind::NamedType {
+            let segs = self.segments(argument);
+            if let [(name, _)] = segs.as_slice() {
+                let sym = self.sym(name);
+                let kind = if gn.tys.iter().any(|(s, _, _)| *s == sym) {
+                    Some("type")
+                } else if gn.rows.iter().any(|(s, _)| *s == sym) {
+                    Some("row")
+                } else {
+                    None
+                };
+                if let Some(kind) = kind {
+                    let msg = format!(
+                        "`{name}` is a {kind} parameter, not a const parameter or closed const expression"
+                    );
+                    self.diags
+                        .error(Code::GenericKindMismatch, self.src.span(argument), &msg);
+                }
+            }
+        }
+        self.gap("const generic arguments");
+    }
+
     /// A trait reference (a bound, a supertrait, an impl's trait, a `dyn`
     /// or a row key) as a trait-value type, its omitted trailing arguments
     /// filled from their defaults with `self_ty` as `Self`
@@ -1863,6 +1960,16 @@ impl Lower<'_, '_, '_> {
     fn trait_value(&mut self, n: NodeRef<'_>, gn: &Gen, self_ty: Option<Ty>) -> Option<Ty> {
         let segs = self.segments(n);
         let span = self.src.span(n);
+        if let [(name, _)] = segs.as_slice()
+            && gn
+                .consts
+                .iter()
+                .any(|(s, _, _, _)| self.names.text(*s) == name)
+        {
+            let msg = format!("`{name}` is a const parameter, not a trait");
+            self.diags.error(Code::GenericKindMismatch, span, &msg);
+            return None;
+        }
         if segs
             .first()
             .is_some_and(|s| self.is_poisoned(self.sym_token(s.1)))
@@ -1883,6 +1990,16 @@ impl Lower<'_, '_, '_> {
     ) -> Option<Ty> {
         let segs = self.segments(n);
         let span = self.src.span(n);
+        if let [(name, _)] = segs.as_slice()
+            && gn
+                .consts
+                .iter()
+                .any(|(s, _, _, _)| self.names.text(*s) == name)
+        {
+            let msg = format!("`{name}` is a const parameter, not a trait");
+            self.diags.error(Code::GenericKindMismatch, span, &msg);
+            return None;
+        }
         let Some((def, kind)) = found else {
             let name = segs.last().map_or("", |s| s.0.as_str()).to_owned();
             if segs.len() == 1 {
@@ -1905,7 +2022,7 @@ impl Lower<'_, '_, '_> {
         {
             self.fn_trait_args(n, gn)
         } else {
-            self.type_args(n, gn)
+            self.type_args(n, gn, def)
         };
         self.lifetime_args(n, (def, kind), gn);
         if let Some(max) = self.r.trait_arity(def)
@@ -2030,6 +2147,22 @@ impl Lower<'_, '_, '_> {
     /// `req.row.param.unmarked`: a type-kinded parameter written in a row.
     /// Reports whether `name` is such a parameter.
     fn type_param_in_row(&mut self, c: NodeRef<'_>, name: &str, gn: &Gen) -> bool {
+        if let Some(decl) = gn
+            .consts
+            .iter()
+            .rev()
+            .find(|(s, _, _, _)| self.names.text(*s) == name)
+            .map(|(_, _, _, span)| *span)
+        {
+            if self.kind_reported.insert(decl.lo) {
+                let msg = format!(
+                    "`{name}` is a const parameter used in a row; a row takes a `$` row parameter or a trait key"
+                );
+                self.diags
+                    .error(Code::GenericKindMismatch, self.src.span(c), &msg);
+            }
+            return true;
+        }
         let Some(decl) = gn
             .decls
             .iter()
@@ -2061,7 +2194,7 @@ impl Lower<'_, '_, '_> {
     /// stands for its keys, which the row flattens in. A type alias names
     /// a type, never a key (`req.row.alias.type-alias.key`).
     fn alias_in_row(&mut self, c: NodeRef<'_>, def: DefId, gn: &Gen, data: &mut RowData) {
-        let (args, _, _) = self.type_args(c, gn);
+        let (args, _, _) = self.type_args(c, gn, def);
         let span = self.src.span(c);
         let t = self.expand_alias(def, &args, span);
         let name = self.names.display_name(def).to_owned();
@@ -2298,6 +2431,17 @@ impl Lower<'_, '_, '_> {
                 self.diags.error(Code::GenericKindMismatch, span, &msg);
                 return Ty::POISON;
             }
+            if gn
+                .consts
+                .iter()
+                .any(|(s, _, _, _)| self.names.text(*s) == first)
+            {
+                let msg = format!(
+                    "`{first}` is a const parameter, not a type: write it in a const generic argument"
+                );
+                self.diags.error(Code::GenericKindMismatch, span, &msg);
+                return Ty::POISON;
+            }
             if first == "never" {
                 return Ty::NEVER;
             }
@@ -2333,7 +2477,7 @@ impl Lower<'_, '_, '_> {
         if kind == HeadKind::Trait || def == known.list || def == known.map {
             self.opaque_result = self.opaque_result.map(|(o, s, _)| (o, s, false));
         }
-        let (args, bindings, row) = self.type_args(n, gn);
+        let (args, bindings, row) = self.type_args(n, gn, def);
         if let (Some((o, s, _)), Some(b)) = (self.opaque_result, borrows) {
             self.opaque_result = Some((o, s, b));
         }
@@ -2928,7 +3072,12 @@ impl Lower<'_, '_, '_> {
         self.declare_lifetimes(gl, gn);
         let params: Vec<NodeRef<'_>> = gl
             .children()
-            .filter(|c| c.kind() == SyntaxKind::GenericParameter)
+            .filter(|c| {
+                matches!(
+                    c.kind(),
+                    SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                )
+            })
             .collect();
         let mut out = Vec::new();
         let start = gn.tys.len();
@@ -2946,10 +3095,18 @@ impl Lower<'_, '_, '_> {
             // this list (`names.type-param.no-redeclare`).
             if self.r.frozen.is_none()
                 && (gn.tys.iter().any(|(s, _, _)| *s == name)
-                    || gn.rows.iter().any(|(s, _)| *s == name))
+                    || gn.rows.iter().any(|(s, _)| *s == name)
+                    || gn.consts.iter().any(|(s, _, _, _)| *s == name))
             {
+                let kind = if g.kind() == SyntaxKind::ConstParameter
+                    || gn.consts.iter().any(|(s, _, _, _)| *s == name)
+                {
+                    "generic"
+                } else {
+                    "type"
+                };
                 let msg = format!(
-                    "`{}` is already a type parameter in scope",
+                    "`{}` is already a {kind} parameter in scope",
                     self.src.text(t)
                 );
                 self.diags
@@ -2964,7 +3121,39 @@ impl Lower<'_, '_, '_> {
             let row = g
                 .direct_token(&self.src.parse.tokens, TokenKind::Dollar)
                 .is_some();
-            if row {
+            let const_parameter = g.kind() == SyntaxKind::ConstParameter;
+            if const_parameter {
+                let slot = ParamRef { owner, index };
+                let declared = self.ty(Src::type_child(*g), gn);
+                if !matches!(
+                    self.names.pool.get(declared),
+                    TyData::Poison
+                        | TyData::Prim(
+                            Prim::I8
+                                | Prim::I16
+                                | Prim::I32
+                                | Prim::I64
+                                | Prim::U8
+                                | Prim::U16
+                                | Prim::U32
+                                | Prim::U64
+                                | Prim::Usize
+                                | Prim::Bool
+                                | Prim::Char
+                                | Prim::String
+                        )
+                ) {
+                    let msg = format!(
+                        "const parameter `{}` has type `{}`; expected an integer type, `bool`, `char`, or `string`",
+                        self.src.text(t),
+                        show_ty(&self.names, declared)
+                    );
+                    self.diags
+                        .error(Code::GenericKindMismatch, self.src.span(*g), &msg);
+                }
+                gn.consts.push((name, slot, declared, name_span));
+                self.gap("const generic parameters");
+            } else if row {
                 gn.rows.push((name, RowParamRef { owner, index }));
             } else {
                 let t = self
@@ -2982,12 +3171,16 @@ impl Lower<'_, '_, '_> {
             } else if g.direct_token(toks, TokenKind::Minus).is_some() {
                 generic.variance = -1;
             }
-            out.push((generic, *g, row));
+            out.push((generic, *g, row, const_parameter));
         }
         let mut done = Vec::new();
         let mut defaulted = false;
-        for (position, (mut g, node, row)) in out.into_iter().enumerate() {
+        for (position, (mut g, node, row, const_parameter)) in out.into_iter().enumerate() {
             self.generic_default_rules(&params, position, row, &mut defaulted);
+            if const_parameter {
+                done.push(g);
+                continue;
+            }
             let mut bounds = Vec::new();
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
                 let me = (!row)
@@ -3134,7 +3327,15 @@ impl Lower<'_, '_, '_> {
             c.kind() == SyntaxKind::RequirementRow
                 && c.direct_token(toks, TokenKind::Dollar).is_some()
         });
-        if row_default != row {
+        let const_default = Src::child(default, SyntaxKind::ConstArgument).is_some();
+        if const_default {
+            let wants = if row { "row" } else { "type" };
+            let msg = format!(
+                "the default is a const expression, but its parameter is a {wants} parameter"
+            );
+            self.diags
+                .error(Code::GenericKindMismatch, self.src.span(default), &msg);
+        } else if row_default != row {
             let (has, wants) = if row {
                 ("a type", "row")
             } else {
@@ -4789,10 +4990,12 @@ impl Lower<'_, '_, '_> {
                 if self.r.frozen.is_none()
                     && let Some(gl) = gl
                 {
-                    for (g, node) in generics.iter().zip(
-                        gl.children()
-                            .filter(|c| c.kind() == SyntaxKind::GenericParameter),
-                    ) {
+                    for (g, node) in generics.iter().zip(gl.children().filter(|c| {
+                        matches!(
+                            c.kind(),
+                            SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                        )
+                    })) {
                         if g.variance != 0 {
                             let msg = format!(
                                 "trait parameter `{}` is invariant and takes no marker",
@@ -4968,7 +5171,12 @@ impl Lower<'_, '_, '_> {
         let params: Vec<&str> = Src::child(n, SyntaxKind::GenericParameterList)
             .iter()
             .flat_map(|gl| gl.children())
-            .filter(|g| g.kind() == SyntaxKind::GenericParameter)
+            .filter(|g| {
+                matches!(
+                    g.kind(),
+                    SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                )
+            })
             .filter_map(|g| g.name(&self.src.parse.tokens))
             .map(|t| self.src.text(t))
             .collect();
@@ -6260,6 +6468,7 @@ fn resolver<'a, 'b>(
         trait_assoc: HashMap::default(),
         variances: HashMap::default(),
         row_params: HashMap::default(),
+        const_params: HashMap::default(),
         aliases: RefCell::new(HashMap::default()),
         seeds: HashMap::default(),
         own_traits: HashMap::default(),
@@ -6301,7 +6510,12 @@ fn resolver<'a, 'b>(
                 let toks = &m.src.parse.tokens;
                 let vs = gl
                     .children()
-                    .filter(|c| c.kind() == SyntaxKind::GenericParameter)
+                    .filter(|c| {
+                        matches!(
+                            c.kind(),
+                            SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                        )
+                    })
                     .map(|g| {
                         if g.direct_token(toks, TokenKind::Plus).is_some() {
                             1
@@ -6315,10 +6529,26 @@ fn resolver<'a, 'b>(
                 r.variances.insert(h.def, vs);
                 let rows = gl
                     .children()
-                    .filter(|c| c.kind() == SyntaxKind::GenericParameter)
+                    .filter(|c| {
+                        matches!(
+                            c.kind(),
+                            SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                        )
+                    })
                     .map(|g| g.direct_token(toks, TokenKind::Dollar).is_some())
                     .collect();
                 r.row_params.insert(h.def, rows);
+                let consts = gl
+                    .children()
+                    .filter(|c| {
+                        matches!(
+                            c.kind(),
+                            SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                        )
+                    })
+                    .map(|g| g.kind() == SyntaxKind::ConstParameter)
+                    .collect();
+                r.const_params.insert(h.def, consts);
             }
             if h.kind == HeadKind::Trait {
                 let assoc = Src::child(h.node, SyntaxKind::Block)

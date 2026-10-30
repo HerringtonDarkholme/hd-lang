@@ -2,7 +2,7 @@
 
 use hd_diag::Code;
 
-use super::{Done, Parser, REST_ELSEWHERE};
+use super::{Ctx, Done, Parser, REST_ELSEWHERE};
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -312,7 +312,109 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::TypeArgumentList)
     }
 
-    /// `type | $ row`.
+    /// Whether the positional argument beginning here is unambiguously a
+    /// const expression. A bare name remains a type-shaped node: resolution
+    /// knows the declaration's parameter kinds and disambiguates it there.
+    fn const_argument_ahead(&mut self) -> bool {
+        let expression_starter = |kind| {
+            matches!(
+                kind,
+                Some(
+                    TokenKind::Number
+                        | TokenKind::String
+                        | TokenKind::StrHead
+                        | TokenKind::Char
+                        | TokenKind::KwTrue
+                        | TokenKind::KwFalse
+                        | TokenKind::Plus
+                        | TokenKind::Minus
+                        | TokenKind::Bang
+                        | TokenKind::Tilde
+                )
+            )
+        };
+        if expression_starter(self.current()) {
+            return true;
+        }
+
+        // Parentheses are shared by types and expressions. Peel their prefix:
+        // a scalar/unary starter is an expression, while a name needs the
+        // operator scan below (`((N + 1))`).
+        let mut leading_parens = 0_usize;
+        while self.nth(leading_parens) == Some(TokenKind::LParen) {
+            leading_parens += 1;
+        }
+        let start = leading_parens;
+        if leading_parens > 0 && expression_starter(self.nth(start)) {
+            return true;
+        }
+        if !matches!(
+            self.nth(start),
+            Some(TokenKind::Ident | TokenKind::RawIdent)
+        ) {
+            return false;
+        }
+        if self.nth(start + 1) == Some(TokenKind::LParen) {
+            return true;
+        }
+        let mut depth = leading_parens;
+        let mut bracket_depth = 0_usize;
+        for &kind in &self.toks.kind[self.pos() + start + 1..] {
+            match kind {
+                TokenKind::Comma | TokenKind::RBracket if depth == 0 => break,
+                // A comma inside the peeled parentheses makes a tuple type;
+                // scalar const expressions have no tuple form.
+                TokenKind::Comma if bracket_depth == 0 => return false,
+                TokenKind::LParen if bracket_depth == 0 => return true,
+                TokenKind::LBracket => {
+                    depth += 1;
+                    bracket_depth += 1;
+                }
+                TokenKind::RBracket if bracket_depth > 0 => {
+                    depth -= 1;
+                    bracket_depth -= 1;
+                }
+                kind if kind.opens() => depth += 1,
+                kind if kind.closes() => {
+                    if depth == 0 {
+                        break;
+                    }
+                    depth -= 1;
+                }
+                TokenKind::OrOr
+                | TokenKind::AndAnd
+                | TokenKind::EqEq
+                | TokenKind::NotEq
+                | TokenKind::Lt
+                | TokenKind::LtEq
+                | TokenKind::Gt
+                | TokenKind::GtEq
+                | TokenKind::KwIs
+                | TokenKind::PipeGt
+                | TokenKind::Pipe
+                | TokenKind::Caret
+                | TokenKind::Amp
+                | TokenKind::Shl
+                | TokenKind::Shr
+                | TokenKind::Plus
+                | TokenKind::Minus
+                | TokenKind::Star
+                | TokenKind::StarStar
+                | TokenKind::Slash
+                | TokenKind::Percent
+                | TokenKind::DotDot
+                | TokenKind::DotDotEq
+                    if bracket_depth == 0 =>
+                {
+                    return true;
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    /// `type | const expression | $ row`.
     pub(crate) fn ty_argument(&mut self) -> Done {
         if self.at(TokenKind::Dollar) && self.nth(1) != Some(TokenKind::Dot) {
             let before = self.opaque_result;
@@ -325,6 +427,11 @@ impl Parser<'_> {
             // grammar.primary.placeholder: `_` is no type.
             self.error(Code::SyntaxError, "'_' is no type; name the type argument");
             return self.token_node(SyntaxKind::InferType);
+        }
+        if self.const_argument_ahead() {
+            let marker = self.start();
+            self.expr(Ctx::Continued);
+            return self.complete(marker, SyntaxKind::ConstArgument);
         }
         self.ty()
     }
