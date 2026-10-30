@@ -193,7 +193,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
 // Runs `module` in a worker until its deadline, `limit` milliseconds from
 // now, and returns the status: the program's, or 3 for a worker it stopped.
 function supervise(module, config, args, limit, output) {
-  return new Promise((done, fail) => {
+  return new Promise((resolve, fail) => {
     const deadline = now() + limit;
     const { port1: port, port2 } = new MessageChannel();
     // The Ctrl-C requests passed on, and whether the worker's host waits
@@ -238,7 +238,7 @@ function supervise(module, config, args, limit, output) {
       port.close();
       output.drain().then(() => {
         exitPast([worker], s, config.statusFile);
-        done(s);
+        resolve(s);
       }, fail);
     };
     // A Ctrl-C reaches a worker whose host waits, which cancels or
