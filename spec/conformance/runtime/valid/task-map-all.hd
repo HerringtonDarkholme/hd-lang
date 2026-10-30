@@ -1,6 +1,6 @@
 # expect-stdout: 5 items, peak 2
 # test: map_all! returns results in item order and keeps at most limit calls in flight
-# Spec std/task Map All: std-task.map-all.decl, .order, .start-order, .limit, .window, .limit-zero, and .empty (issue #369).
+# Spec std/task Map All: std-task.map-all.generic, .order, .start-order, .limit, .window, .limit-zero, and .empty (issue #369).
 use std.task.map_all
 use std.time.{Clock, ManualClock, Timestamp, ms, sleep}
 

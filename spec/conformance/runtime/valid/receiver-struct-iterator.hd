@@ -1,5 +1,5 @@
 # test: a struct with a `&mut self` `next` drives a loop: its `Iterable` implementation wraps the cursor in `from_fn`, so `for` and the iterator adapters use it
-# Spec 07 Reference Receivers: fn.method.auto-address, fn.method.auto-address.place-writable. Spec 06 Iteration Protocols: flow.for.iterable.cursor, std-iter.from-fn.value.
+# Spec 07 Reference Receivers: fn.method.auto-address, fn.method.auto-address.place-writable. Spec std/iter: flow.for.iterable.cursor, std-iter.from-fn.generic.
 # expect-stdout: 3
 # expect-stdout: 2
 # expect-stdout: 1

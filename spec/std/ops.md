@@ -201,9 +201,9 @@ fn work() -> void $ Console:
     println("working")
 ```
 
-1. r[std-ops.scope-guard.type] `std.ops` declares `pub struct ScopeGuard[$R]`, which holds one private action of type `fn() -> void $ R`.
-2. r[std-ops.scope-guard.on-exit] `pub fn on_exit[$R](action: fn() -> void $ R) -> ScopeGuard[$R]` returns a guard that holds `action`.
-3. r[std-ops.scope-guard.dispose] `ScopeGuard[$R]` implements `Disposable[$R]`; each `dispose` call invokes its action once. A `using` binding therefore runs the action once at that binding's scope exit, subject to [`flow.using.cleanup-row.check`](../lang/06-control-flow.md#r-flow.using.cleanup-row.check).
+1. r[std-ops.scope-guard.type.generic] `std.ops` declares `pub struct ScopeGuard[F < Fn() -> void $ R, $R]`, which holds one private action of type `F`.
+2. r[std-ops.scope-guard.on-exit.generic] `pub fn on_exit[F < Fn() -> void $ R, $R](action: F) -> ScopeGuard[F, $R]` returns a guard that holds `action`.
+3. r[std-ops.scope-guard.dispose.generic] `ScopeGuard[F, $R]` implements `Disposable[$R]` when `F < Fn() -> void $ R`; each `dispose` call invokes its action once. A `using` binding therefore runs the action once at that binding's scope exit, subject to [`flow.using.cleanup-row.check`](../lang/06-control-flow.md#r-flow.using.cleanup-row.check).
 4. r[std-ops.scope-guard.explicit] Constructing or ordinarily binding a scope guard does not register cleanup. Registration remains explicit through `using`, by [`flow.using.register.split`](../lang/06-control-flow.md#r-flow.using.register.split).
 
 > **Why.** A callback captures the cleanup it needs while `using` keeps the

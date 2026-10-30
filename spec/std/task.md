@@ -27,19 +27,19 @@ predicate for one error type:
 pub struct Retry:
     backoff: Backoff
 
-pub struct SelectiveRetry[E]:
+pub struct SelectiveRetry[E, F < Fn(E) -> bool = fn(E) -> bool]:
     backoff: Backoff
-    when: fn(E) -> bool
+    when: F
 
 pub fn retry(backoff: Backoff) -> Retry
 ```
 
 1. r[std-task.policy.retry.decl] `std.task` declares the public configuration type `Retry` with a private `backoff: Backoff` field.
-2. r[std-task.policy.selective-retry.decl] `SelectiveRetry[E]` is public and has private fields `backoff: Backoff` and `when: fn(E) -> bool`.
-3. r[std-task.policy.retry.when] `Retry.when[E](self, predicate: fn(E) -> bool) -> SelectiveRetry[E]` stores that predicate with the retry configuration.
+2. r[std-task.policy.selective-retry.decl.generic] `SelectiveRetry[E, F < Fn(E) -> bool = fn(E) -> bool]` is public and has private fields `backoff: Backoff` and `when: F`; its default keeps `SelectiveRetry[E]` as the dynamic-function spelling.
+3. r[std-task.policy.retry.when.generic] `Retry.when[E, F < Fn(E) -> bool](self, predicate: F) -> SelectiveRetry[E, F]` stores that predicate with the retry configuration.
 4. r[std-task.policy.retry.layer] `Retry` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
-5. r[std-task.policy.selective-retry.layer] `SelectiveRetry[E]` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
-6. r[std-task.policy.selective-retry.layer.static] That implementation bounds `E` by `'static`, since the wrapped closure keeps the configuration ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
+5. r[std-task.policy.selective-retry.layer.generic] `SelectiveRetry[E, F]` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock` when `F < Fn(E) -> bool`.
+6. r[std-task.policy.selective-retry.layer.static-generic] That implementation bounds both `E` and `F` by `'static`, since the returned dynamic closure keeps the configuration ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
 7. r[std-task.policy.retry.builder] `retry(backoff: Backoff) -> Retry` constructs a retry configuration.
 8. r[std-task.policy.retry.loop] An applied retry policy calls work sequentially at most `backoff.attempts` times, returning the first `.Ok` without another call.
 9. r[std-task.policy.retry.last-error] When every attempt returns `.Err`, an applied retry policy returns the last error.
@@ -306,10 +306,10 @@ See also: [Cleanup End](#cleanup-end),
 calls are in flight:
 
 ```text
-pub fn map_all![T < 'static, U < 'static, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -> List[U] $ R
+pub fn map_all![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $R](items: List[T], limit: usize, work: F) -> List[U] $ R
 ```
 
-1. r[std-task.map-all.decl] `std.task` declares `map_all!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.map_all`.
+1. r[std-task.map-all.generic] `std.task` declares `map_all!` with the signature above, storing `F` in its worker suspension frames and calling it statically; a suspending function value satisfies the bound through [`fn.type.suspend.weaken`](../lang/07-functions.md#r-fn.type.suspend.weaken). It is an ordinary `fn!` function, not an intrinsic, and code imports it with `use std.task.map_all`.
 2. r[std-task.map-all.static] `T` and `U` are bounded by `'static`: the workers keep the items, and a counted list keeps the values ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
 3. r[std-task.map-all.order] The result holds `work(item)` for each item at the item's index in `items`, whatever order the calls complete in.
 4. r[std-task.map-all.start-order] `work` is called once for each item. Calls start in item order: no call starts before the call for every earlier item has started.
@@ -337,7 +337,7 @@ starts as soon as the first completes.
 
 > **Why.** Effect's `forEach` with `concurrency` and Go's `errgroup.SetLimit`
 > bound fan-out the same way. Setting `limit` to `items.len()` starts every
-> item together. Smaller limits use a sliding window of worker closures
+> item together. Smaller limits use a sliding window of worker suspension frames
 > driven by a private flat engine, each taking the next unstarted index.
 >
 > Bang calls are the only yield points, so the shared index needs no

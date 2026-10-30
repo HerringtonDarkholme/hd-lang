@@ -1,5 +1,5 @@
 # test: a for loop reaches iter
-# Spec std/iter.md: std-iter.from-fn.value.
+# Spec std/iter.md: std-iter.from-fn.generic.
 # expect-stdout: 5
 
 struct Tag:

@@ -1,24 +1,30 @@
 # test: from_fn builds an iterator from a closure, and calls step again after .None
-# Spec 06 Iteration Protocols: std-iter.from-fn.value, std-iter.from-fn.every-next (Chaining Study CS9, CS11).
+# Spec std/iter Iterator Factory: std-iter.from-fn.generic, std-iter.from-fn.every-next (Chaining Study CS9, CS11).
 
 use std.iter.{from_fn}
 fn countdown(start: i32) -> *mut dyn Iterator[i32]:
     let left: i32 = start
-    box(from_fn(
-        fn() -> i32?:
-            left = left - 1
-            if left < 0: .None else: left + 1
+    box(
+        from_fn(
+            fn() -> i32?:
+                left = left - 1
+                if left < 0: .None else: left + 1
+            ,
+        )
         ,
-    ))
+    )
 
 fn gappy() -> *mut dyn Iterator[i32]:
     let calls = +0
-    box(from_fn(
-        fn() -> i32?:
-            calls = calls + 1
-            if calls == 2: .None else: calls
+    box(
+        from_fn(
+            fn() -> i32?:
+                calls = calls + 1
+                if calls == 2: .None else: calls
+            ,
+        )
         ,
-    ))
+    )
 
 tests:
     use std.testing.{assert, assert_equal}

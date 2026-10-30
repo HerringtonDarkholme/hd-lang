@@ -1,5 +1,5 @@
 # test: retry! stops at an error that when rejects, and retries every error without when
-# Spec std/task Retry: std-task.policy.retry.predicate, std-task.policy.retry.all-errors, and std-task.policy.retry.when-plain; Retry With Backoff: std-task.policy.retry.when-sleep (issue #369).
+# Spec std/task Retry: std-task.policy.retry.when.generic, std-task.policy.selective-retry.layer.generic, std-task.policy.retry.predicate, std-task.policy.retry.all-errors, and std-task.policy.retry.when-plain; Retry With Backoff: std-task.policy.retry.when-sleep (issue #369).
 use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 use std.time.{Duration, Instant, ms}
@@ -46,26 +46,18 @@ tests:
     it("retries while when is true and returns the first .Ok"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            replies := box::[List[Result[string, string]]]([
-                .Err("busy"),
-                .Err("busy"),
-                .Ok("ready"),
-            ])
+            replies := box::[List[Result[string, string]]](
+                [.Err("busy"), .Err("busy"), .Ok("ready")],
+            )
             assert_equal(connect!(replies), .Ok("ready"), reason="two busy errors, then ready")
 
     it("returns an error that when rejects without another call"):
         manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=manual):
-            replies := box::[List[Result[string, string]]]([
-                .Err("busy"),
-                .Err("refused"),
-                .Ok("ready"),
-            ])
-            assert_equal(
-                connect!(replies),
-                .Err("refused"),
-                reason="the second error is rejected",
+            replies := box::[List[Result[string, string]]](
+                [.Err("busy"), .Err("refused"), .Ok("ready")],
             )
+            assert_equal(connect!(replies), .Err("refused"), reason="the second error is rejected")
             assert_equal(replies.len(), 1, reason="no third call")
 
     it("asks when once for each error, and not for an .Ok"):

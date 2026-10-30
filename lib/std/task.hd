@@ -6,6 +6,7 @@
 use std.task.all
 use std.error.Error
 use std.convert.From
+use std.function.Fn
 use std.ops.AsyncDisposable
 use std.time.{Clock, Duration, Instant, sleep}
 
@@ -122,17 +123,14 @@ fn race_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[T]:
 fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
     panic("intrinsic")
 
-# The private flat engine of map_all!. Calling a worker without ! keeps
-# it cold until the frame polls it, in list order.
-fn all_list![T, $ R](tasks: List[fn!() -> T $ R]) -> List[T] $ R:
-    let mut pending: List[mut Suspend[T]] = []
-    for task in tasks:
-        pending.push(task())
-    let frame: mut Suspend[List[T]] = all_frame(pending)
+# The private flat engine of map_all!. The worker suspensions stay cold
+# until the frame polls them, in list order.
+fn all_list![T](tasks: List[mut Suspend[T]]) -> List[T]:
+    let frame: mut Suspend[List[T]] = all_frame(tasks)
     frame!()
 
 # Whether `result` is an `.Err` that `when` accepts.
-fn should_retry[T, E](result: Result[T, E], when: fn(E) -> bool) -> bool:
+fn should_retry[T, E, F < Fn(E) -> bool](result: Result[T, E], when: F) -> bool:
     match result:
         .Ok(_) => false
         .Err(error) => when(error)
@@ -148,9 +146,9 @@ pub struct Backoff:
 
 ## Retries with the policy's delays until success, a rejected error, or the final attempt.
 ## See [std-task.policy.retry.layer](../../spec/std/task.md#r-std-task.policy.retry.layer).
-fn retry_work![T, E, $ R](
+fn retry_work![T, E, F < Fn(E) -> bool, $ R](
     policy: Backoff,
-    when: fn(E) -> bool = fn(error: E): true,
+    when: F,
     attempt: fn!() -> Result[T, E] $ R,
 ) -> Result[T, E] $ R + Clock:
     let result = attempt!()
@@ -208,22 +206,25 @@ pub struct Retry:
 impl[T, E, $ R] Layer[fn!() -> Result[T, E] $ R] for Retry:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
-        fn!() -> Result[T, E] $ R + Clock: retry_work!(self.backoff, attempt=work)
+        fn!() -> Result[T, E] $ R + Clock:
+            retry_work!(self.backoff, fn(error: E): true, attempt=work)
 
 ## A retry configuration with a predicate for one concrete error type.
-## See [std-task.policy.selective-retry.decl](../../spec/std/task.md#r-std-task.policy.selective-retry.decl).
-pub struct SelectiveRetry[E]:
+## See [std-task.policy.selective-retry.decl.generic](../../spec/std/task.md#r-std-task.policy.selective-retry.decl.generic).
+pub struct SelectiveRetry[E, F < Fn(E) -> bool = fn(E) -> bool]:
     backoff: Backoff
-    when: fn(E) -> bool
+    when: F
 
 impl Retry:
     ## Selects which errors allow another attempt.
-    ## See [std-task.policy.retry.when](../../spec/std/task.md#r-std-task.policy.retry.when).
-    pub fn when[E](self, predicate: fn(E) -> bool) -> SelectiveRetry[E]:
+    ## See [std-task.policy.retry.when.generic](../../spec/std/task.md#r-std-task.policy.retry.when.generic).
+    pub fn when[E, F < Fn(E) -> bool](self, predicate: F) -> SelectiveRetry[E, F]:
         SelectiveRetry { backoff: self.backoff, when: predicate }
 
-## See [std-task.policy.selective-retry.layer](../../spec/std/task.md#r-std-task.policy.selective-retry.layer).
-impl[T, E < 'static, $ R] Layer[fn!() -> Result[T, E] $ R] for SelectiveRetry[E]:
+## See [std-task.policy.selective-retry.layer.generic](../../spec/std/task.md#r-std-task.policy.selective-retry.layer.generic).
+impl[T, E < 'static, F < Fn(E) -> bool & 'static, $ R] Layer[
+    fn!() -> Result[T, E] $ R,
+] for SelectiveRetry[E, F]:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock
     fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
         fn!() -> Result[T, E] $ R + Clock: retry_work!(self.backoff, when=self.when, attempt=work)
@@ -431,27 +432,27 @@ fn pending_frame[T]() -> mut Suspend[T]:
 
 # Runs `work` on every item with at most `limit` calls in flight and
 # returns the values in item order (spec/std/task.md#map-all). It starts
-# `limit` workers, as one `all_list!`; each takes the next unstarted index
+# `limit` worker suspension frames, as one `all_list!`; each takes the next unstarted index
 # when its previous item completes, which is a sliding window. A bang
 # call is the only yield point (r-req.schedule.yield-points), so the
 # shared counter needs no lock.
 ## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
-## See [std-task.map-all.decl](../../spec/std/task.md#r-std-task.map-all.decl).
-pub fn map_all![T < 'static, U < 'static, $ R](
+## See [std-task.map-all.generic](../../spec/std/task.md#r-std-task.map-all.generic).
+pub fn map_all![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R](
     items: List[T],
     limit: usize,
-    work: fn!(T) -> U $ R,
+    work: F,
 ) -> List[U] $ R:
-    # Both are boxed because stored worker closures retain them across suspension and later calls.
+    # Both are boxed because worker suspension frames retain them across suspension and later calls.
     slots := box::[List[U?]]([])
     for _ in items:
         slots.push(.None)
     cursor := box(Cursor { next: 0 })
-    let mut workers: List[fn!() -> void $ R] = []
+    let mut workers: List[mut Suspend[void]] = []
     width := if limit < 1: 1 else: limit
     let count: usize = 0
     while count < width && count < items.len():
-        workers.push(fn!() -> void $ R: map_all_worker!(items, work, slots, cursor))
+        workers.push(map_all_worker(items, work, slots, cursor))
         count = count + 1
     all_list!(workers)
     let mut values: List[U] = []
@@ -465,13 +466,14 @@ pub fn map_all![T < 'static, U < 'static, $ R](
 struct Cursor:
     next: usize
 
-fn map_all_worker![T, U, $ R](
+fn map_all_worker![T, U, F < Fn(T) -> mut Suspend[U] $ R, $ R](
     items: List[T],
-    work: fn!(T) -> U $ R,
+    work: F,
     slots: &mut List[U?],
     cursor: &mut Cursor,
 ) -> void $ R:
     while cursor.next < items.len():
         index := cursor.next
         cursor.next = index + 1
-        slots[index] = .Some(work!(items[index]))
+        let pending: mut Suspend[U] = work(items[index])
+        slots[index] = .Some(pending!())
