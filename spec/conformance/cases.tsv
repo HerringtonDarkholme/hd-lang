@@ -5189,6 +5189,7 @@ typing/valid/dependent-result-call.hd	type	accept	lang/13-values-and-references.
 runtime/valid/function-parameter-capture-dependent-return.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.capture-elide
 typing/valid/dependent-result-trait.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.trait
 typing/valid/dependent-result-counted-crossing.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.counted
+typing/valid/dependent-result-auto-address-receiver.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.place
 typing/valid/dependent-result-generic-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.result
 typing/valid/dependent-result-local-store.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.store
 typing/invalid/dependent-result-without-source.hd	type	reject:reference-result-without-source	lang/13-values-and-references.md#r-ref.dep.elide.none
@@ -5205,6 +5206,7 @@ typing/invalid/dependent-result-local-source.hd	type	reject:local-reference-esca
 typing/invalid/dependent-result-captured.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.call.local
 typing/invalid/dependent-result-store-caller-place.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.store
 typing/invalid/dependent-result-counted-lend.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/dependent-result-auto-address-receiver-own-storage.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.origin.place
 typing/invalid/dependent-result-temporary.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.temporary
 typing/invalid/dependent-result-trait-value-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.trait
 typing/invalid/local-reference-escapes-bound-method-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.fn-value-result

@@ -1,0 +1,29 @@
+# test: a method call on a local receiver gives its result the origins of the explicit `&p` call
+# Spec 13 Origins: ref.dep.origin.place, ref.dep.call; Spec 7 Methods: fn.method.auto-address.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+impl[T, 'src] Parser[T, 'src]:
+    fn source(&self) -> &'src T:
+        self.src
+
+    fn advance(&mut self) -> &'src T:
+        self.pos = self.pos + 1
+        self.src
+
+fn implicit(text: string, b: bool) -> usize:
+    let mut r: &string = &text
+    if b:
+        let mut p = Parser { src: &text, pos: +0 }
+        r = p.source()
+        r = p.advance()
+    r.len()
+
+fn explicit(text: string, b: bool) -> usize:
+    let mut r: &string = &text
+    if b:
+        let mut p = Parser { src: &text, pos: +0 }
+        r = Parser.source(&p)
+        r = Parser.advance(&mut p)
+    r.len()

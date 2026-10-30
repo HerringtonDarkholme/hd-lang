@@ -472,7 +472,7 @@ An **origin** is a storage root that a local reference may point into. It is wha
 | Rule | Expression | Origins |
 | --- | --- | --- |
 | r[ref.dep.origin.param] Parameter | `p`, for a parameter whose type holds a local reference | what `p` refers to |
-| r[ref.dep.origin.place] Place | `&x` or `&x.f.g`, for a local or a parameter `x` | `x`'s own storage |
+| r[ref.dep.origin.place] Place | `&x` or `&x.f.g`, or the automatic address a method call takes of such a place, for a local or a parameter `x` | `x`'s own storage |
 | r[ref.dep.origin.element] Element place | `&xs[i]`, `&m[k]`, or an element reference loop binding | the origin of the collection's root place |
 | r[ref.dep.origin.reborrow] Reborrow | `&r.f`, `&*r`, or an automatic address through a reference value `r` | the origins of `r` |
 | r[ref.dep.origin.counted] Counted crossing | a place reached through a counted reference, as `&h.p.x` with `p: *mut P` | the origins of the place the counted reference was read from |

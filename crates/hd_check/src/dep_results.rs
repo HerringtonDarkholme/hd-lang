@@ -340,9 +340,7 @@ impl DepSig {
         let mut lossy = false;
         let mut params = Vec::with_capacity(self.params.len());
         for (p, (decl, ids)) in self.params.into_iter().enumerate() {
-            let at = source_arg(b, i, p)
-                .filter(|&a| a & hd_tir::ir::Ref::CONST_BIT == 0)
-                .and_then(|a| b.ty.get(a as usize).copied());
+            let at = source_arg(b, i, p).and_then(|a| arg_ty(pool, b, a));
             let mut out = Vec::new();
             let mut it = ids.iter().copied();
             match at {
@@ -1264,7 +1262,9 @@ impl Solve<'_> {
                 let Some(a) = source_arg(b, i, p) else {
                     continue;
                 };
-                let Some(at) = self.ty(a) else { continue };
+                let Some(at) = arg_ty(self.pool, b, a) else {
+                    continue;
+                };
                 let set = if b.tags[a as usize] == Tag::Ref || may_hold(self.pool, at) {
                     self.reach(flat(self.of(a)))
                 } else {
@@ -1279,7 +1279,9 @@ impl Solve<'_> {
                 let Some(a) = source_arg(b, i, p) else {
                     continue;
                 };
-                let Some(at) = self.ty(a) else { continue };
+                let Some(at) = arg_ty(self.pool, b, a) else {
+                    continue;
+                };
                 // A counted receiver lends its place's value.
                 let (cur, at) = match local_ref(self.pool, at) {
                     Some((true, false)) => {
@@ -1305,7 +1307,9 @@ impl Solve<'_> {
             let Some(a) = source_arg(b, i, p) else {
                 continue;
             };
-            let Some(at) = self.ty(a) else { continue };
+            let Some(at) = arg_ty(self.pool, b, a) else {
+                continue;
+            };
             let set = if b.tags[a as usize] == Tag::Ref || may_hold(self.pool, at) {
                 self.slot_in(self.of(a), at, sig.params[p].0, s, 0)
             } else {
@@ -1879,7 +1883,9 @@ impl Solve<'_> {
                         let Some(value) = source_arg(b, i, p) else {
                             continue;
                         };
-                        let Some(vt) = self.ty(value) else { continue };
+                        let Some(vt) = arg_ty(self.pool, b, value) else {
+                            continue;
+                        };
                         if dests.is_empty() || !may_hold(self.pool, vt) {
                             continue;
                         }
@@ -1958,6 +1964,33 @@ impl Solve<'_> {
         }
         bad
     }
+}
+
+/// The type of argument `a` as a source argument. The address a call
+/// takes for a `&self` or `&mut self` receiver is counted, but the call
+/// lends it as a local reference, so it has the type of the explicit `&x`
+/// or `&mut x` it stands for (`fn.method.auto-address`,
+/// `ref.dep.origin.place`).
+fn arg_ty(pool: Types<'_>, b: &Body, a: u32) -> Option<Ty> {
+    if a & hd_tir::ir::Ref::CONST_BIT != 0 {
+        return None;
+    }
+    let t = *b.ty.get(a as usize)?;
+    if b.tags[a as usize] == Tag::Ref
+        && b.data[a as usize][1] & hd_tir::ir::ref_word::LOCAL != 0
+        && let TyData::Ref {
+            inner,
+            mutable,
+            counted: true,
+        } = pool.get(t)
+    {
+        return Some(pool.intern_ty(&TyData::Ref {
+            inner,
+            mutable,
+            counted: false,
+        }));
+    }
+    Some(t)
 }
 
 /// Intrinsic `i`'s operands.

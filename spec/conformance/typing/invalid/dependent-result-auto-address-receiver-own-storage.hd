@@ -1,0 +1,16 @@
+# test: a method call's result that depends on the receiver's own storage outlives a local receiver
+# Spec 13 Origins: ref.dep.origin.place, ref.dep.call; Local Scope: ref.dep.scope.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+impl[T, 'src] Parser[T, 'src]:
+    fn at(&self) -> &usize:
+        &self.pos
+
+fn implicit(text: string, b: bool) -> usize:
+    let mut r: &usize = &text.len()
+    if b:
+        p := Parser { src: &text, pos: +0 }
+        r = p.at()
+    *r # diagnostic: local-reference-outlives-local
