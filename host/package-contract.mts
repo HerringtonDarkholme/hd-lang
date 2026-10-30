@@ -37,6 +37,91 @@ const fail = (message: string): never => {
   throw new HostContract(`package host: ${message}`);
 };
 
+function validSelector(item: ContractInterface, selector: string): boolean {
+  const parts = selector.split(".");
+  return (
+    !item.handle && parts.length >= 2 && ["dep", "pkg"].includes(parts[0]!) && parts.every(Boolean)
+  );
+}
+
+function validateContract(interfaces: ContractInterface[]): void {
+  const identities = new Set<string>();
+  const modules = new Set<string>();
+  const selectors = new Set<string>();
+  const unique = (set: Set<string>, key: string): void => {
+    if (!key || set.has(key)) {
+      fail("empty or duplicate contract name");
+    }
+    set.add(key);
+  };
+  const checkFields = (fields: ContractField[]): void => {
+    const names = new Set<string>();
+    for (const [name, value] of fields) {
+      unique(names, name);
+      checkValue(value);
+    }
+  };
+  const checkValue = (value: ContractValue): void => {
+    const [tag, a, b] = value;
+    if (tag === 15 && !interfaces.some((item) => item.handle && item.module === a)) {
+      fail("missing handle interface");
+    }
+    if (tag === 8 || tag === 9) {
+      checkValue(a);
+    }
+    if (tag === 10) {
+      a.forEach(checkValue);
+    }
+    if (tag === 11) {
+      checkFields(a);
+    }
+    if (tag === 12) {
+      const names = new Set<string>();
+      for (const [name, fields] of a) {
+        unique(names, name);
+        checkFields(fields);
+      }
+    }
+    if (tag === 13) {
+      checkValue(a);
+      checkValue(b);
+    }
+  };
+  for (const item of interfaces) {
+    if (
+      !item.identity.package ||
+      !item.identity.trait_path ||
+      !item.module.startsWith("hd:pkg:") ||
+      item.module.length === 7
+    ) {
+      fail("invalid nominal identity");
+    }
+    unique(identities, JSON.stringify([item.identity, item.handle]));
+    unique(modules, item.module);
+    for (const selector of item.selectors) {
+      if (!validSelector(item, selector)) {
+        fail("invalid source selector");
+      }
+      unique(selectors, selector);
+    }
+    const methods = new Set<string>();
+    const imports = new Set<string>(item.handle ? ["$release"] : []);
+    for (const method of item.methods) {
+      unique(methods, method.name);
+      if (!method.member) {
+        fail("empty method member");
+      }
+      for (const name of method.wait === "may"
+        ? [`${method.name}.start`, `${method.name}.finish`]
+        : [method.name]) {
+        unique(imports, name);
+      }
+      method.params.forEach(checkValue);
+      checkValue(method.result);
+    }
+  }
+}
+
 export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
   if (!(bytes instanceof Uint8Array)) {
     fail("contract is not bytes");
@@ -140,84 +225,6 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
   if (at !== bytes.length) {
     fail("trailing contract bytes");
   }
-  const identities = new Set<string>(),
-    modules = new Set<string>(),
-    selectors = new Set<string>();
-  const unique = (set: Set<string>, k: string): void => {
-    if (!k || set.has(k)) {
-      fail("empty or duplicate contract name");
-    }
-    set.add(k);
-  };
-  const checkValue = (v: ContractValue): void => {
-    const [tag, a, b] = v;
-    if (tag === 15 && !interfaces.some((i) => i.handle && i.module === a)) {
-      fail("missing handle interface");
-    }
-    if (tag === 8 || tag === 9) {
-      checkValue(a);
-    }
-    if (tag === 10) {
-      a.forEach(checkValue);
-    }
-    if (tag === 11) {
-      checkFields(a);
-    }
-    if (tag === 12) {
-      const names = new Set<string>();
-      for (const [name, fs] of a) {
-        unique(names, name);
-        checkFields(fs);
-      }
-    }
-    if (tag === 13) {
-      checkValue(a);
-      checkValue(b);
-    }
-  };
-  const checkFields = (fs: ContractField[]): void => {
-    const names = new Set<string>();
-    for (const [name, v] of fs) {
-      unique(names, name);
-      checkValue(v);
-    }
-  };
-  for (const i of interfaces) {
-    if (
-      !i.identity.package ||
-      !i.identity.trait_path ||
-      !i.module.startsWith("hd:pkg:") ||
-      i.module.length === 7
-    ) {
-      fail("invalid nominal identity");
-    }
-    unique(identities, JSON.stringify([i.identity, i.handle]));
-    unique(modules, i.module);
-    for (const selector of i.selectors) {
-      const parts = selector.split(".");
-      if (
-        i.handle ||
-        parts.length < 2 ||
-        !["dep", "pkg"].includes(parts[0]) ||
-        parts.some((p) => !p)
-      ) {
-        fail("invalid source selector");
-      }
-      unique(selectors, selector);
-    }
-    const methods = new Set<string>(),
-      imports = new Set<string>(i.handle ? ["$release"] : []);
-    for (const m of i.methods) {
-      unique(methods, m.name);
-      if (!m.member) {
-        fail("empty method member");
-      }
-      for (const name of m.wait === "may" ? [`${m.name}.start`, `${m.name}.finish`] : [m.name]) {
-        unique(imports, name);
-      }
-      m.params.forEach(checkValue);
-      checkValue(m.result);
-    }
-  }
+  validateContract(interfaces);
   return interfaces;
 }
