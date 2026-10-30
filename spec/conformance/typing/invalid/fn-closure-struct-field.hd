@@ -1,0 +1,10 @@
+# test: a struct literal field of an Fn-bounded type parameter may not hold a closure that changes its captures
+# Spec Functions, Read-Only Fn Closures: fn.trait.read-only.positions.
+use std.function.Fn
+
+struct Button[F < Fn() -> void]:
+    on_click: F
+
+fn invalid() -> void:
+    let clicks = +0
+    b := Button { on_click: fn(): clicks += 1 } # diagnostic: not-writable

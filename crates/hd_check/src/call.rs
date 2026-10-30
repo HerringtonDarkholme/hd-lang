@@ -221,7 +221,17 @@ pub(crate) struct Formals<'a> {
     /// A concrete function-type view of a bare generic parameter's one
     /// `Fn` or `FnMut` bound. It supplies closure parameter types without
     /// fixing the parameter to the dynamic `fn` representation.
-    pub closure_wants: Option<&'a [Option<Ty>]>,
+    pub closure_wants: Option<&'a [Option<FnWant>]>,
+}
+
+/// A bare generic parameter's function bound, as [`Formals`] reads it.
+#[derive(Clone, Copy)]
+pub(crate) struct FnWant {
+    /// The concrete function type of the bound's inputs, output and row.
+    pub ty: Ty,
+    /// The bound is `Fn`, so the value may not change its captures
+    /// (`fn.trait.read-only`).
+    pub read_only: bool,
 }
 
 /// Whether a pre-instantiation formal type is a bare occurrence of type
@@ -268,20 +278,21 @@ fn inferred_formals(
 /// Per-formal expected function types supplied by a bare generic
 /// parameter's `Fn` or `FnMut` bound. The argument still infers the
 /// concrete `F`; this view only gives an unannotated closure its input
-/// types.
+/// types, and marks an `Fn` bound read-only.
 fn fn_bound_formals(
     ck: &Ck,
     owner: DefId,
     sig: &FnSig,
     formals: &[(Symbol, Ty)],
     inst: &dyn Fn(Ty) -> Ty,
-) -> Vec<Option<Ty>> {
+) -> Vec<Option<FnWant>> {
     let pool = ck.pool();
     formals
         .iter()
         .zip(&sig.params)
         .map(|(_, (_, raw))| {
             let index = (0..sig.generics.len()).find(|&i| bare_param(pool, *raw, owner, i))?;
+            let read_only = ck.fn_bound_read_only(&sig.generics[index].bounds)?;
             let bound = sig.generics[index].bounds.iter().find_map(|b| {
                 let bound = inst(*b);
                 match pool.get(bound) {
@@ -299,14 +310,17 @@ fn fn_bound_formals(
             let TyData::Row(row) = pool.get(*row) else {
                 return None;
             };
-            Some(pool.intern_ty(&TyData::Fn {
-                params: pool.list(&[*input]),
-                result: *output,
-                row,
-                suspends: false,
-                inputs: Inputs::Tuple,
-                deps: hd_types::FnDeps::NONE,
-            }))
+            Some(FnWant {
+                ty: pool.intern_ty(&TyData::Fn {
+                    params: pool.list(&[*input]),
+                    result: *output,
+                    row,
+                    suspends: false,
+                    inputs: Inputs::Tuple,
+                    deps: hd_types::FnDeps::NONE,
+                }),
+                read_only,
+            })
         })
         .collect()
 }
@@ -1066,6 +1080,82 @@ impl Ck<'_, '_> {
         self.call_value_form(f, ft, args, n, bang, None)
     }
 
+    /// Whether the bounds of a type parameter make it a read-only `Fn`
+    /// value (`Some(true)`), an `FnMut` value only (`Some(false)`), or
+    /// neither.
+    pub(crate) fn fn_bound_read_only(&self, bounds: &[Ty]) -> Option<bool> {
+        let pool = self.pool();
+        let known = &self.cx.names.known;
+        let mut found = None;
+        for &b in bounds {
+            if let TyData::TraitValue { def, .. } = pool.get(b) {
+                if def == known.fn_trait {
+                    return Some(true);
+                }
+                if def == known.fn_mut_trait {
+                    found = Some(false);
+                }
+            }
+        }
+        found
+    }
+
+    /// `fn.trait.read-only`: the value `r` of type `t`, passed or stored
+    /// where a type parameter bounded by `Fn` is expected. A function
+    /// item and a closure written there that changes no capture implement
+    /// `Fn`; a closure that changes one, and any other `fn(...)` value,
+    /// implement only `FnMut`.
+    pub(crate) fn check_read_only_fn(&mut self, r: Ref, t: Ty, e: NodeRef<'_>) {
+        let pool = self.pool();
+        let t = self.strip_mut(self.infer.resolve(pool, t));
+        if !matches!(
+            pool.get(t),
+            TyData::Fn {
+                suspends: false,
+                ..
+            }
+        ) {
+            return;
+        }
+        let mut cur = r;
+        let (tag, syn) = loop {
+            let Some(i) = cur.as_inst() else {
+                return;
+            };
+            let body = self.b.body_mut();
+            let i = i.0 as usize;
+            match body.tags[i] {
+                Tag::Coerce => cur = Ref(body.data[i][0]),
+                Tag::Closure if body.is_instantiation(i) => break (Tag::Read, body.syn[i]),
+                tag => break (tag, body.syn[i]),
+            }
+        };
+        match tag {
+            Tag::ItemRef | Tag::Poison => {}
+            Tag::Closure => {
+                if let Some(&l) = self.closure_writes.get(&syn) {
+                    let name = self.cx.names.text(self.b.body_mut().local_name[l.idx()]);
+                    let what = if name == "$receiver" {
+                        "this method reference changes its receiver".to_owned()
+                    } else {
+                        format!("this closure changes its capture `{name}`")
+                    };
+                    let msg = format!(
+                        "{what}, but a value passed for an `Fn` bound only reads its captures; the parameter's bound must be `FnMut` to allow it"
+                    );
+                    self.err(Code::NotWritable, e, &msg);
+                }
+            }
+            _ => {
+                let msg = format!(
+                    "a {} value implements only `FnMut`, since it may change its captures, but this parameter's bound is `Fn`; pass a function by name or write the closure here",
+                    self.show(t)
+                );
+                self.err(Code::UnsatisfiedTraitBound, e, &msg);
+            }
+        }
+    }
+
     /// `fn.trait.mut.call`: a call of a value whose bound is `FnMut` only
     /// changes the value, so the callee must be a writable place (a `let
     /// mut` binding, a `mut` parameter, a field reached through `&mut`) or
@@ -1073,6 +1163,7 @@ impl Ck<'_, '_> {
     fn fn_mut_callee(&mut self, f: Ref, n: NodeRef<'_>) {
         if self.is_fresh(f) || self.place_writable_quiet(f) {
             if let Some(l) = self.place_root_local(f) {
+                self.note_capture_write_of(l);
                 self.changed_locals.push(l);
             }
             return;
@@ -1541,13 +1632,14 @@ impl Ck<'_, '_> {
             // A closure whose parameter types a later argument solves is
             // checked against them (§2.4 step 4).
             let mut bounded = None;
+            let fn_want = formals
+                .closure_wants
+                .and_then(|xs| xs.get(skip + i))
+                .copied()
+                .flatten();
             let expect = match w {
                 Some(want) if e.kind() == SyntaxKind::ClosureExpr => {
-                    bounded = formals
-                        .closure_wants
-                        .and_then(|xs| xs.get(skip + i))
-                        .copied()
-                        .flatten();
+                    bounded = fn_want.map(|f| f.ty);
                     let later: Vec<(NodeRef<'_>, Ty)> = args.positional[i + 1..]
                         .iter()
                         .zip(rest.get(i + 1..nfixed).unwrap_or(&[]))
@@ -1608,6 +1700,9 @@ impl Ck<'_, '_> {
                 }
                 None => r,
             };
+            if fn_want.is_some_and(|f| f.read_only) {
+                self.check_read_only_fn(r, t, *e);
+            }
             if i < room
                 && let Some(s) = slots.get_mut(i)
             {
@@ -1643,6 +1738,7 @@ impl Ck<'_, '_> {
         // A bad named argument already put the call in error, so a slot
         // it was meant to fill is not also an arity error.
         let mut named_bad = false;
+        let mut read_only_named = Vec::new();
         for (k, (pname, e)) in args.named.iter().enumerate() {
             let Some(i) = rest
                 .iter()
@@ -1663,12 +1759,16 @@ impl Ck<'_, '_> {
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
             let mut bounded = None;
+            let fn_want = formals
+                .closure_wants
+                .and_then(|xs| xs.get(skip + i))
+                .copied()
+                .flatten();
+            if fn_want.is_some_and(|f| f.read_only) {
+                read_only_named.push((i, *e));
+            }
             let expect = if e.kind() == SyntaxKind::ClosureExpr {
-                bounded = formals
-                    .closure_wants
-                    .and_then(|xs| xs.get(skip + i))
-                    .copied()
-                    .flatten();
+                bounded = fn_want.map(|f| f.ty);
                 let later = self.named_params(rest, &args.named[k + 1..]);
                 bounded
                     .or_else(|| {
@@ -1713,6 +1813,12 @@ impl Ck<'_, '_> {
             }
             let r = self.coerce(r, t, w, *e, what2, ExpectPosition::General);
             slots[i] = Some(r);
+        }
+        for (i, e) in read_only_named {
+            if let Some(r) = slots[i] {
+                let t = self.b.ty_of(r);
+                self.check_read_only_fn(r, t, e);
+            }
         }
         if let Some(block) = args.trailing {
             // A block the callee cannot take is still checked, against

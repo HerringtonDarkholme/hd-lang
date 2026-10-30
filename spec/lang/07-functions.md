@@ -492,6 +492,46 @@ fn stuck[F < FnMut(i32) -> void](f: F) -> void:
 > One that lets the value change its state, as an iterator adapter does,
 > takes `FnMut` and calls it through a writable copy.
 
+#### Read-Only Fn Closures
+
+A value passed or stored for a type parameter bounded by `Fn` may not change
+its captures, as Rust's `Fn` closures may not.
+
+```text
+use std.function.{Fn, FnMut}
+
+fn check[F < Fn() -> bool](condition: F) -> bool:
+    condition()
+
+fn each[F < FnMut(i32) -> void](items: List[i32], mut f: F) -> void:
+    for item in items:
+        f(item)
+
+fn ready() -> bool: true
+
+fn demo(test: fn() -> bool) -> void:
+    let count = 0
+    check(fn(): count < 3)
+    check(ready)
+    each([1, 2], fn(x): count += 1)
+    check(
+        fn():  # error: not-writable
+            count += 1
+            true
+        ,
+    )
+    check(test)  # error: unsatisfied-trait-bound
+```
+
+1. r[fn.trait.read-only] A closure that changes a captured local implements `FnMut` but not `Fn`. Writing one where a type parameter bounded by `Fn` is expected is an error. Error: `not-writable`.
+2. r[fn.trait.read-only.changes] A closure changes a captured local when its body assigns the local or one of its fields, takes `&mut` of it, changes it as a collection, or calls it as an `FnMut` value. A closure nested in the body counts too.
+3. r[fn.trait.read-only.through] A store through a captured local `&mut` reference changes that capture too. A store through a captured counted `*mut T` does not.
+4. r[fn.trait.read-only.items] A function name, a variant constructor, an unbound method reference, and a closure that changes no capture implement `Fn`.
+5. r[fn.trait.read-only.bound-ref] A bound method reference implements `Fn` unless it changes its receiver: a `&mut self` method, or a list's `push` or a map's `remove`. Such a reference for an `Fn` bound is an error. Error: `not-writable`.
+6. r[fn.trait.read-only.values] Any other value of a concrete `fn(...)` type implements only `FnMut`, since its body may change its captures. Passing one for an `Fn` bound is an error. Error: `unsatisfied-trait-bound`.
+7. r[fn.trait.read-only.positions] These rules apply to a positional or named call argument for a bare type parameter, and to a struct literal field whose type is a bare type parameter.
+8. r[fn.trait.read-only.concrete] A concrete `fn(...)` parameter takes either kind of value, so a closure passed for one may change its captures.
+
 #### Vararg Inputs
 
 A function with a `List[T]` vararg has inputs that end in the

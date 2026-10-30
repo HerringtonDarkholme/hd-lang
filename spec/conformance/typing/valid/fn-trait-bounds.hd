@@ -11,8 +11,7 @@ fn increment(value: i32) -> i32:
     value + 1
 
 fn valid() -> void:
-    double := fn(value: i32) -> i32: value * 2
     apply(increment, 1)
-    apply(double, 2)
+    apply(fn(value: i32) -> i32: value * 2, 2)
     apply_tuple(increment, 3)
     pass

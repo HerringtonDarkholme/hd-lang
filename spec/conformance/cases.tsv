@@ -2045,6 +2045,14 @@ runtime/valid/fn-mut-bound-calls.hd	runtime	accept	lang/07-functions.md#r-fn.tra
 typing/invalid/fn-mut-call-not-writable.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.mut.call
 typing/invalid/fn-mut-bound-not-fn.hd	type	reject:unsatisfied-trait-bound	lang/07-functions.md#r-fn.trait.mut.not-fn
 typing/invalid/fn-mut-dyn.hd	type	reject:trait-not-dynamically-safe	lang/13-values-and-references.md#r-ref.type.dyn.no-fn-mut
+typing/valid/fn-read-only-closures.hd	type	accept	lang/07-functions.md#r-fn.trait.read-only.items
+runtime/valid/fn-read-only-closures.hd	runtime	accept	lang/07-functions.md#r-fn.trait.read-only
+typing/invalid/fn-closure-changes-capture.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only
+typing/invalid/fn-closure-changes-collection.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only.changes
+typing/invalid/fn-closure-struct-field.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only.positions
+typing/invalid/fn-bound-ref-changes-receiver.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only.bound-ref
+typing/invalid/fn-value-only-fn-mut.hd	type	reject:unsatisfied-trait-bound	lang/07-functions.md#r-fn.trait.read-only.values
+typing/invalid/fn-bound-lifetime-read-only.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.generic.outlives.read-only
 typing/invalid/function-result-representation-change.hd	type	reject:variance-representation-change	lang/07-functions.md#r-fn.type.variance-repr.excluded
 typing/invalid/closure-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
 typing/invalid/named-function-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand

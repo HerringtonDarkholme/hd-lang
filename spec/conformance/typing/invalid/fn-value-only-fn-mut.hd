@@ -1,0 +1,9 @@
+# test: a value of a concrete fn type implements only FnMut, so it does not meet an Fn bound
+# Spec Functions, Read-Only Fn Closures: fn.trait.read-only.values.
+use std.function.Fn
+
+fn read[F < Fn(i32) -> i32](f: F) -> i32:
+    f(1)
+
+fn invalid(g: fn(i32) -> i32) -> i32:
+    read(g) # diagnostic: unsatisfied-trait-bound

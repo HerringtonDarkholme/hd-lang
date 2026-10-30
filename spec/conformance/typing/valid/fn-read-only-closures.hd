@@ -1,0 +1,60 @@
+# test: function names, method references and closures that change no capture meet Fn bounds
+# Spec Functions, Read-Only Fn Closures: fn.trait.read-only.items, fn.trait.read-only.bound-ref, fn.trait.read-only.concrete.
+use std.function.{Fn, FnMut}
+
+struct Meter:
+    scale: i32
+
+impl Meter:
+    fn times(self, x: i32) -> i32:
+        x * self.scale
+
+fn read[F < Fn(i32) -> i32](f: F) -> i32:
+    f(1)
+
+fn named[F < Fn(i32) -> i32](base: i32, f: F) -> i32:
+    f(base)
+
+fn each(items: List[i32], f: fn(i32) -> void) -> void:
+    for item in items:
+        f(item)
+
+fn wrap[F < Fn(i32) -> i32?](f: F) -> i32?:
+    f(1)
+
+fn change[F < FnMut(i32) -> i32](mut f: F) -> i32:
+    f(2)
+
+fn double(x: i32) -> i32:
+    x * 2
+
+struct Show[F < Fn() -> i32]:
+    show: F
+
+fn valid() -> i32:
+    m := Meter { scale: 3 }
+    let total = +0
+    let mut seen: List[i32] = []
+    each([1, 2], fn(x): total += x)
+    a := read(double) + read(m::times) + read(fn(x): x + total)
+    b := named(f=fn(x): x * total, base=2)
+    c := change(
+        fn(x):
+            seen.push(x)
+            x
+        ,
+    )
+    w := wrap(.Some).unwrap_or(0)
+    s := Show { show: fn(): total + i32(seen.len()) }
+    a + b + c + w + (s.show)()
+
+fn check[F < Fn() -> bool](condition: F) -> bool:
+    condition()
+
+fn ready() -> bool:
+    true
+
+fn demo() -> bool:
+    let count = +0
+    each([1, 2], fn(x): count += x)
+    check(fn(): count < 3) && check(ready)

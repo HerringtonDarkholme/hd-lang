@@ -2428,6 +2428,15 @@ impl Ck<'_, '_> {
                 self.read_local(l, d, *a)
             };
             vals[i] = self.coerce(r, t, ft, *a, "field", ExpectPosition::General);
+            // `fn.trait.read-only`: a field of a type parameter bounded by
+            // `Fn` holds a value that changes no capture.
+            if let TyData::Param(p) = pool.get(fields[i].ty)
+                && p.owner == def
+                && let Some(g) = generics.get(p.index as usize)
+                && self.fn_bound_read_only(&g.bounds) == Some(true)
+            {
+                self.check_read_only_fn(vals[i], t, *a);
+            }
             seen[i] = true;
         }
         let targ_list = pool.list(&targs);
@@ -3926,6 +3935,7 @@ impl Ck<'_, '_> {
         self.subs.push(OpenSub {
             mark,
             depth: self.scopes.len() - 1,
+            writes: None,
         });
         self.rets.push(ret);
         self.rows.push(crate::body::RowFrame::Closure {
@@ -3960,7 +3970,9 @@ impl Ck<'_, '_> {
         };
         self.rets.pop();
         self.suspends.pop();
-        self.subs.pop();
+        if let Some(l) = self.subs.pop().and_then(|s| s.writes) {
+            self.closure_writes.insert(n.index(), l);
+        }
         self.scopes.pop();
         // An inferred result is known only now.
         let deps = if deps == hd_types::FnDeps::NONE {

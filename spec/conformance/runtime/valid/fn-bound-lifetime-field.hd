@@ -2,15 +2,15 @@
 # Spec 13 Lifetime Bounds: ref.generic.outlives.field, ref.generic.outlives.position.
 # expect-stdout: 1
 # expect-stdout: 3
-use std.function.Fn
+use std.function.FnMut
 
 struct Counter:
     n: i32
 
-struct Button[F < Fn() -> void & 'a, 'a]:
+struct Button[F < FnMut() -> void & 'a, 'a]:
     on_click: F
 
-fn press[F < Fn() -> void & 'a, 'a](b: Button[F, 'a]) -> void:
+fn press[F < FnMut() -> void & 'a, 'a](mut b: Button[F, 'a]) -> void:
     (b.on_click)()
 
 fn bump(c: &mut Counter) -> void:

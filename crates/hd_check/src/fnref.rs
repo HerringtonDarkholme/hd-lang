@@ -889,6 +889,10 @@ impl Ck<'_, '_> {
             let receiver = self.cx.names.syms.intern("$receiver");
             let rl = self.b.local(lt, receiver, local_flags::ASSIGNED, syn);
             self.set_local(rl, recv, syn);
+            // `fn.trait.read-only.bound-ref`: it changes its receiver.
+            if mutates {
+                self.closure_writes.insert(syn, rl);
+            }
             captured = Some((rl, lt, by_ref));
         } else {
             ptys.push(first_ty);
@@ -1200,6 +1204,11 @@ impl Ck<'_, '_> {
         };
         let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
         self.set_local(rl, recv, syn);
+        // `fn.trait.read-only.bound-ref`: a `&mut self` method changes its
+        // receiver, so the reference implements only `FnMut`.
+        if by_ref == Some((true, false)) {
+            self.closure_writes.insert(syn, rl);
+        }
         let ptys = pool.list_items(params).to_vec();
         let locals: Vec<_> = ptys
             .iter()

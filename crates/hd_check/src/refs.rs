@@ -395,6 +395,7 @@ impl Ck<'_, '_> {
         if r.0 == NONE {
             return;
         }
+        self.note_ref_write(r);
         let mut proj = vec![Proj::Deref];
         proj.extend(fields.iter().map(|k| Proj::Field(*k)));
         let word = self.b.place(&TirPlace {
@@ -402,6 +403,41 @@ impl Ck<'_, '_> {
             proj,
         });
         self.b.emit(Tag::Store, word, v.0, Ty::VOID, at);
+    }
+
+    /// A store through the reference `r`: when `r` is a read of a local
+    /// `&mut` reference, each closure that captures it changes a capture
+    /// (`fn.trait.read-only.through`).
+    fn note_ref_write(&mut self, r: Ref) {
+        let mut cur = r;
+        loop {
+            let Some(i) = cur.as_inst() else {
+                return;
+            };
+            let i = i.0 as usize;
+            let body = self.b.body_mut();
+            match body.tags[i] {
+                Tag::Coerce => cur = Ref(body.data[i][0]),
+                Tag::Read => {
+                    let Some(l) = body.local_read(i) else {
+                        return;
+                    };
+                    let t = body.local_ty[l.idx()];
+                    if matches!(
+                        self.pool().get(self.infer.resolve(self.pool(), t)),
+                        TyData::Ref {
+                            mutable: true,
+                            counted: false,
+                            ..
+                        }
+                    ) {
+                        self.note_capture_write_of(l);
+                    }
+                    return;
+                }
+                _ => return,
+            }
+        }
     }
 
     /// `v` with the type `to`, which differs from `v`'s at most in views
@@ -1123,6 +1159,7 @@ impl Ck<'_, '_> {
             Root::Local(l, d) => {
                 read(self, l, d);
                 if mutable {
+                    self.note_capture_write(l, d);
                     self.add_flags(
                         l,
                         local_flags::CAPTURED

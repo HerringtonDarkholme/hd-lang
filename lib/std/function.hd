@@ -5,7 +5,7 @@
 # constructors that `fn(...) -> O $ R` and `fn!(...) -> O $ R` stand for.
 # In a bound, `Fn[I, O, $R]` and `FnMut[I, O, $R]` are the traits below. The
 # compiler supplies their implementations for every matching plain function
-# type.
+# type; a closure passed for an `Fn` bound may not change its captures.
 
 # An empty sealed marker trait that every tuple type implements: `()`,
 # `(A,)`, and a tuple with a rest element included
@@ -22,7 +22,7 @@ pub trait FnMut[I < Tuple, O, $ R = $ ()]:
     @intrinsic("fn_mut_call")
     fn call_mut(&mut self, args: I) -> O $ R
 
-## The static-dispatch trait implemented by every plain function value; it extends `FnMut`.
+## The static-dispatch trait for a function value that changes none of its captures; it extends `FnMut`.
 ## See [fn.trait.decl](../../spec/lang/07-functions.md#r-fn.trait.decl).
 pub trait Fn[I < Tuple, O, $ R = $ ()] < FnMut[I, O, $ R]:
     ## Calls this function with the parameter tuple `args`.

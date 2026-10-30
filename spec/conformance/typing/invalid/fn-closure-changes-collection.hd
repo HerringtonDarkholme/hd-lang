@@ -1,0 +1,17 @@
+# test: a closure that pushes to a captured list, or nests a closure that does, does not meet an Fn bound
+# Spec Functions, Read-Only Fn Closures: fn.trait.read-only.changes.
+use std.function.Fn
+
+fn later(f: fn() -> void) -> void:
+    f()
+
+fn run[F < Fn() -> void](f: F) -> void:
+    f()
+
+fn invalid() -> void:
+    let mut seen: List[i32] = []
+    run(
+        fn(): # diagnostic: not-writable
+            later(fn(): seen.push(+1))
+        ,
+    )

@@ -1,6 +1,6 @@
 # test: Fn bounds infer closure inputs, function outputs and rows, and the lowered type of suspending functions
 # Spec Functions, Static Fn Bounds: fn.trait.bound.infer-instantiation, fn.trait.bound.closure-inputs, and fn.trait.suspend-weaken.
-use std.function.Fn
+use std.function.{Fn, FnMut}
 use std.ops.Disposable
 
 fn map_one[I, O, F < Fn(I) -> O](value: I, f: F) -> O:
@@ -13,14 +13,14 @@ fn drive![I, O, F < Fn(I) -> mut Suspend[O] $ R, $ R](value: I, f: F) -> O $ R:
 fn work!(value: i32) -> i32:
     value + 1
 
-struct Guard[F < Fn() -> void $ R, $ R]:
+struct Guard[F < FnMut() -> void $ R, $ R]:
     action: F
 
-impl[F < Fn() -> void $ R, $ R] Disposable[$ R] for Guard[F, $ R]:
+impl[F < FnMut() -> void $ R, $ R] Disposable[$ R] for Guard[F, $ R]:
     fn dispose(&mut self) -> void $ R:
         (self.action)()
 
-fn guard[F < Fn() -> void $ R, $ R](action: F) -> Guard[F, $ R]:
+fn guard[F < FnMut() -> void $ R, $ R](action: F) -> Guard[F, $ R]:
     Guard { action: action }
 
 tests:

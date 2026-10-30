@@ -200,6 +200,9 @@ pub(crate) enum LetMutKind {
 pub(crate) struct OpenSub {
     pub mark: SubMark,
     pub depth: usize,
+    /// The first captured local the closure changes, if any: such a
+    /// closure implements `FnMut` but not `Fn` (`fn.trait.read-only`).
+    pub writes: Option<LocalId>,
 }
 
 /// Which mismatch errors an `expect` reports: a binary operator operand
@@ -380,6 +383,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// `fn(...)` parameter. Only that closure may capture local references
     /// (`fn.capture.local-parameter`).
     pub local_capture_argument: Option<hd_base::NodeIdx>,
+    /// Each closure expression that changes a captured local, with the
+    /// first such local (`fn.trait.read-only`).
+    pub closure_writes: HashMap<hd_base::NodeIdx, LocalId>,
     /// The initializer of each unannotated binding, where a `box(...)`
     /// fix-it boxes the value at its declaration (`req.ref.install-value.fix`).
     pub local_inits: HashMap<LocalId, hd_base::NodeIdx>,
@@ -631,6 +637,7 @@ pub(crate) fn new_ck<'a, 'c>(
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
         local_capture_argument: None,
+        closure_writes: HashMap::default(),
         local_inits: HashMap::default(),
         declared_tys: HashSet::default(),
         local_ref_call_targs: Vec::new(),
@@ -1630,8 +1637,31 @@ impl Ck<'_, '_> {
         true
     }
 
+    /// Marks each open closure that local `l`, declared at scope depth
+    /// `depth`, crosses as one that changes a capture
+    /// (`fn.trait.read-only`).
+    pub(crate) fn note_capture_write(&mut self, l: LocalId, depth: usize) {
+        for s in &mut self.subs {
+            if s.depth > depth && s.writes.is_none() {
+                s.writes = Some(l);
+            }
+        }
+    }
+
+    /// [`Self::note_capture_write`] for a local found by its scope.
+    pub(crate) fn note_capture_write_of(&mut self, l: LocalId) {
+        if let Some(depth) = self
+            .scopes
+            .iter()
+            .rposition(|m| m.values().any(|v| *v == l))
+        {
+            self.note_capture_write(l, depth);
+        }
+    }
+
     /// Records an assignment to a local, from inside a closure or not.
     pub(crate) fn note_write(&mut self, l: LocalId, depth: usize) {
+        self.note_capture_write(l, depth);
         let mut captured = false;
         for s in &self.subs {
             if s.depth > depth {

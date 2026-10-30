@@ -951,15 +951,15 @@ fn view(u: &'static User) -> void:  # error: references-not-yet-checked
 A type parameter bounded by a declared lifetime stands for a type whose values may hold local references of that lifetime, so a struct may store a closure that captures one:
 
 ```hd
-use std.function.Fn
+use std.function.FnMut
 
 struct Counter:
     n: i32
 
-struct Button[F < Fn() -> void & 'a, 'a]:
+struct Button[F < FnMut() -> void & 'a, 'a]:
     on_click: F
 
-fn press[F < Fn() -> void & 'a, 'a](b: Button[F, 'a]) -> void:
+fn press[F < FnMut() -> void & 'a, 'a](mut b: Button[F, 'a]) -> void:
     (b.on_click)()
 
 fn bump(c: &mut Counter) -> void:
@@ -967,22 +967,29 @@ fn bump(c: &mut Counter) -> void:
     press(b)
 ```
 
-1. r[ref.generic.outlives] A type parameter may be bounded by one lifetime that is in scope, as in `F < Fn() -> void & 'a`. Its argument may hold local references of that lifetime.
+1. r[ref.generic.outlives] A type parameter may be bounded by one lifetime that is in scope, as in `F < FnMut() -> void & 'a`. Its argument may hold local references of that lifetime.
 2. r[ref.generic.outlives.one] A second lifetime bound on one type parameter is not checked yet, so it is an error. Error: `references-not-yet-checked`.
 3. r[ref.generic.outlives.field] A closure written in a struct literal, for a field whose type is a type parameter with a lifetime bound, may capture local references.
 4. r[ref.generic.outlives.position] Such a field lies in its bound lifetime's position. A literal adds the closure's captured origins to that position, and reading the field gives a function value with that position's origins.
 5. r[ref.generic.outlives.read] A function value with captured origins follows [`fn.capture.local-uses`](07-functions.md#r-fn.capture.local-uses) and [`fn.capture.local-store`](07-functions.md#r-fn.capture.local-store). Returning it where the result has no source for those origins is an error. Error: `local-reference-escapes`.
 6. r[ref.generic.outlives.box] Boxing a function value with captured origins, or passing it for a type parameter bounded by `'static`, is an error. Error: `local-reference-escapes`.
+7. r[ref.generic.outlives.read-only] A store through a captured `&mut` reference, as `c.n += 1` above, changes a capture. Such a closure needs an `FnMut` bound, as [`fn.trait.read-only`](07-functions.md#r-fn.trait.read-only) states. Error: `not-writable`.
 
 ```text
-struct Plain[F < Fn() -> void]:
+struct Plain[F < FnMut() -> void]:
     on_click: F
+
+struct Label[F < Fn() -> void & 'a, 'a]:
+    on_show: F
 
 fn view['a, 'b, T < 'a & 'b](value: T) -> void:  # error: references-not-yet-checked
     pass
 
 fn plain(c: &mut Counter) -> void:
     p := Plain { on_click: fn(): c.n += 1 }  # error: local-reference-escapes
+
+fn show(c: &mut Counter) -> void:
+    l := Label { on_show: fn(): c.n += 1 }  # error: not-writable
 
 fn keep(c: &mut Counter) -> void:
     b := Button { on_click: fn(): c.n += 1 }
@@ -995,7 +1002,7 @@ fn make() -> fn() -> void:
     b.on_click  # error: local-reference-escapes
 ```
 
-> **Why.** This is Rust's `F: Fn() + 'a`. A `fn(...)` type carries no
+> **Why.** This is Rust's `F: FnMut() + 'a`. A `fn(...)` type carries no
 > lifetime, so the struct's lifetime holds what its closure captures.
 
 See also: [Static Fn Bounds](07-functions.md#static-fn-bounds),

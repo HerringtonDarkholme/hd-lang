@@ -1,0 +1,12 @@
+# test: a closure for a lifetime-bounded Fn field may not store through a captured &mut reference
+# Spec 13 Lifetime Bounds: ref.generic.outlives.read-only.
+use std.function.Fn
+
+struct Counter:
+    n: i32
+
+struct Label[F < Fn() -> void & 'a, 'a]:
+    on_show: F
+
+fn show(c: &mut Counter) -> void:
+    l := Label { on_show: fn(): c.n += 1 } # diagnostic: not-writable

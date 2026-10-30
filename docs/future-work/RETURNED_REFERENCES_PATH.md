@@ -353,6 +353,8 @@ Applied by #1022 (6b2): a store into a field through `&mut Two['a, 'b]` checks t
 
 Applied by #1028 (6d3, [Lifetime Bounds](../../spec/lang/13-values-and-references.md#lifetime-bounds)): a type parameter takes one lifetime bound in scope; a closure written for a struct field of such a parameter may capture local references, and the field lies in that lifetime's position. A function value with captured origins is never boxed or passed for a `'static` parameter, which also closes that path for 6d1's `fn(...)` parameters. Still open: a direct closure argument for a lifetime-bounded parameter of a function (`fn on[F < Fn() & 'a, 'a](f: F)`), and a result capturing two `fn(...)` parameters (`compose`), which stays unchecked.
 
+Applied by #1029 (6e, [FnMut Bounds](../../spec/lang/07-functions.md#fnmut-bounds) and [Read-Only Fn Closures](../../spec/lang/07-functions.md#read-only-fn-closures)): `trait FnMut[I, O, $R]` with `call_mut(&mut self, ...)` is `Fn`'s supertrait, and an `FnMut`-only value is called through a writable place. A closure that changes a capture implements only `FnMut`, and so does any other value of a concrete `fn(...)` type; std's iterator adapters, `from_fn` and retry predicates take `FnMut`. Still open: `require`'s condition as `F < Fn() -> bool`, which needs a closure argument for a bare generic parameter to capture local references for the call, as a `fn(...)` parameter's may (today `require(fn(): self.ok())` in a method would become `local-reference-escapes`).
+
 ### Stage 7: exclusivity
 
 Stage 7 follows Swift's lifetime dependence and Rust: a lifetime names a

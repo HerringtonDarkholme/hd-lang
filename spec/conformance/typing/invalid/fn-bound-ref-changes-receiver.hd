@@ -1,0 +1,17 @@
+# test: a bound reference to a &mut self method changes its receiver, so it does not meet an Fn bound
+# Spec Functions, Read-Only Fn Closures: fn.trait.read-only.bound-ref.
+use std.function.Fn
+
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn bump(&mut self, by: i32) -> void:
+        self.value = self.value + by
+
+fn run[F < Fn(i32) -> void](f: F) -> void:
+    f(1)
+
+fn invalid() -> void:
+    let mut c = Counter { value: +0 }
+    run(c::bump) # diagnostic: not-writable
