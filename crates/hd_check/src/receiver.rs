@@ -24,7 +24,7 @@ impl Ck<'_, '_> {
     /// counted, `*self` or `*mut self`.
     pub(crate) fn ref_receiver_kind(&self, method: DefId) -> StageResult<Option<(bool, bool)>> {
         let pool = self.pool();
-        let sig = self.sig_of(method)?;
+        let sig = self.declared_sig(method)?;
         let Some(&(s, st)) = sig.params.first() else {
             return Ok(None);
         };

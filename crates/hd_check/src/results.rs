@@ -929,20 +929,27 @@ impl Ck<'_, '_> {
     /// reads as empty here; a call of it records an edge
     /// (`Ck::callee_row`).
     pub(crate) fn with_result(&self, def: DefId, mut sig: FnSig) -> FnSig {
+        (sig.ret, sig.row) = self.result_row(def, sig.ret, sig.row);
+        sig
+    }
+
+    /// A callee's result and row after applying their inferred values,
+    /// without cloning the rest of its signature.
+    pub(crate) fn result_row(&self, def: DefId, mut ret: Ty, mut row: RowId) -> (Ty, RowId) {
         if self.in_template.is_some() {
             self.cx.results.borrow_mut().template_names(self.cx, def);
         }
         if let Some(s) = seen(self.cx, def, false) {
-            if let Some(ret) = s.ret {
-                sig.ret = ret;
+            if let Some(solved) = s.ret {
+                ret = solved;
             }
             match s.row {
                 RowSeen::Written => {}
-                RowSeen::Solved(row) => sig.row = row,
-                RowSeen::Open => sig.row = RowId::EMPTY,
+                RowSeen::Solved(solved) => row = solved,
+                RowSeen::Open => row = RowId::EMPTY,
             }
         }
-        sig
+        (ret, row)
     }
 }
 

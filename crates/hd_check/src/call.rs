@@ -3620,11 +3620,17 @@ impl Ck<'_, '_> {
         out
     }
 
-    pub(crate) fn sig_of(&self, d: DefId) -> StageResult<FnSig> {
-        match self.cx.lookup.item(d).and_then(|i| i.sig().cloned()) {
-            Some(s) => Ok(self.with_result(d, s)),
+    /// A declaration's signature without inferred result or row overlays.
+    /// Reads of parameters and generics borrow this instead of cloning it.
+    pub(crate) fn declared_sig(&self, d: DefId) -> StageResult<&FnSig> {
+        match self.cx.lookup.item(d).and_then(|i| i.sig()) {
+            Some(sig) => Ok(sig),
             None => unsupported("a method without a signature"),
         }
+    }
+
+    pub(crate) fn sig_of(&self, d: DefId) -> StageResult<FnSig> {
+        Ok(self.with_result(d, self.declared_sig(d)?.clone()))
     }
 
     /// The bounds of a callee's own parameters, under its full
@@ -4314,7 +4320,7 @@ impl Ck<'_, '_> {
                 cands,
             }) => {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
-                if let Some(&(s, st)) = self.sig_of(method)?.params.first()
+                if let Some(&(s, st)) = self.declared_sig(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                     && !addressed
                 {
@@ -4335,7 +4341,7 @@ impl Ck<'_, '_> {
             }
             Some(Hit::Pending { trait_, method }) => {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
-                if let Some(&(s, st)) = self.sig_of(method)?.params.first()
+                if let Some(&(s, st)) = self.declared_sig(method)?.params.first()
                     && self.cx.names.text(s) == "self"
                     && !addressed
                 {
@@ -4510,7 +4516,9 @@ impl Ck<'_, '_> {
                 // A trait value read through `&dyn` or `&mut dyn`
                 // (`trait.dyn.ref.member`).
                 let via_dyn = dyn_recv.filter(|_| choice.0 == ChoiceKind::TraitValue);
-                if choice.0 == ChoiceKind::TraitValue && pool.has_opaque(self.sig_of(method)?.ret) {
+                let sig = self.declared_sig(method)?;
+                let (ret, _) = self.result_row(method, sig.ret, sig.row);
+                if choice.0 == ChoiceKind::TraitValue && pool.has_opaque(ret) {
                     for e in &args.positional {
                         self.expr(*e, Some(Ty::POISON))?;
                     }
@@ -4519,7 +4527,7 @@ impl Ck<'_, '_> {
                     ));
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
-                if let Some(&(s, st)) = self.sig_of(method)?.params.first()
+                if let Some(&(s, st)) = sig.params.first()
                     && self.cx.names.text(s) == "self"
                 {
                     let by_ref = matches!(pool.get(st), TyData::Ref { .. });
@@ -4613,18 +4621,19 @@ impl Ck<'_, '_> {
     /// count: the associated type is bound by the `dyn` type.
     fn names_self_beyond_receiver(&self, method: DefId, trait_: DefId) -> StageResult<bool> {
         let pool = self.pool();
-        let sig = self.sig_of(method)?;
+        let sig = self.declared_sig(method)?;
+        let (ret, row) = self.result_row(method, sig.ret, sig.row);
         let has_receiver = sig
             .params
             .first()
             .is_some_and(|p| self.cx.names.text(p.0) == "self");
-        let rest = sig.params.iter().skip(usize::from(has_receiver));
-        let tys = rest
+        let remaining = sig.params.iter().skip(usize::from(has_receiver));
+        let tys = remaining
             .map(|p| p.1)
-            .chain([sig.ret])
+            .chain([ret])
             .chain(sig.generics.iter().flat_map(|g| g.bounds.iter().copied()));
         let mut found = tys.into_iter().any(|t| pool.names_trait_self(t, trait_));
-        found |= pool.row_names_trait_self(sig.row, trait_);
+        found |= pool.row_names_trait_self(row, trait_);
         Ok(found)
     }
 
