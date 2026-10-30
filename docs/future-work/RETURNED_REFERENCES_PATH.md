@@ -336,7 +336,7 @@ easy to iterate). One checkable rule per slice, in order:
 | 6d4 | a closure argument for a bare generic `F < Fn...` or `F < FnMut...` parameter may capture local references for the call; the call's result carries them | 6d3 |
 | 6e | `FnMut[I, O, $R]` for closures that mutate captures; `Fn` captures shared, so `require`'s condition `F < Fn() -> bool` is read-only (#978) | 6d2 |
 | 6f | `on_exit[F < FnMut() -> void & 'a, 'a](action: F) -> ScopeGuard[F, 'a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d3, 6e |
-| 6g | library `defer` and `ensure` under `@auto_closing` (#978); `ensure` has no access to the result (owner, 2026-10-30): a postcondition on the result is written at the call site or with a local; named return values aren't planned; if they come, they use definite initialization (each normal return path assigns the result, with no zero value) | 6f |
+| 6g | library `defer` and `ensure` under `@auto_closing` (#978); `ensure` has no access to the result (owner, 2026-10-30): a postcondition on the result is written at the call site or with a local; named return values aren't planned | 6f |
 | 6h | read-only live list views, `Span[T, 'a]` (#978), with a minimal API like Rust's `&[T]`: `xs.span()`, `len`, `get(i)`, `[i]`, `iter()` and `slice(range)` returning a smaller `Span` (owner, 2026-10-30); `SpanMut` after | 6a3 |
 | 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
 
