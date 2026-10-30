@@ -15,10 +15,7 @@
         "skipComments": true
       }
     ],
-    "curly": [
-      "error",
-      "all"
-    ],
+    "curly": ["error", "all"],
     "promise/no-callback-in-promise": "error",
     "promise/no-new-statics": "error",
     "promise/valid-params": "error",
@@ -34,32 +31,12 @@
     "no-multi-assign": "error",
     "no-lone-blocks": "error",
     "no-return-assign": "error",
-    "max-params": [
-      "error",
-      4
-    ],
-    "max-depth": [
-      "error",
-      4
-    ],
-    "complexity": [
-      "error",
-      15
-    ],
+    "max-params": ["error", 4],
+    "max-depth": ["error", 4],
+    "complexity": ["error", 15],
     "no-nested-ternary": "error",
-    "max-nested-callbacks": [
-      "error",
-      3
-    ]
+    "max-nested-callbacks": ["error", 3]
   },
-  "plugins": [
-    "eslint",
-    "typescript",
-    "unicorn",
-    "oxc",
-    "promise"
-  ],
-  "ignorePatterns": [
-    "packages/server-sdk/packaging/vendor/**"
-  ]
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "promise"],
+  "ignorePatterns": ["packages/server-sdk/packaging/vendor/**"]
 }
