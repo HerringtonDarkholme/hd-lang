@@ -33,7 +33,9 @@ export const testLatency: Metric = {
       timeoutMs: WARM_TIMEOUT_MS,
     });
     const warmProblem = runProblem(warm, WARM_TIMEOUT_MS, "the warm-up test");
-    if (warmProblem) return [failed(NAME, label, TARGET, warmProblem)];
+    if (warmProblem) {
+      return [failed(NAME, label, TARGET, warmProblem)];
+    }
     const samples: number[] = [];
     for (let index = 0; index < EDITS; index++) {
       const module = pkg.modules[Math.floor(((index + 0.5) * pkg.modules.length) / EDITS)]!;
@@ -44,9 +46,11 @@ export const testLatency: Metric = {
         { cwd: dir, env, timeoutMs: TIMEOUT_MS },
       );
       const problem = runProblem(result, TIMEOUT_MS, `test after edit ${index + 1}`);
-      if (problem) return [failed(NAME, label, TARGET, problem)];
+      if (problem) {
+        return [failed(NAME, label, TARGET, problem)];
+      }
       const tests = jsonLines(result.stdout).filter((record) => record.kind === "test");
-      if (tests.length !== 1 || tests[0]!.outcome !== "passed")
+      if (tests.length !== 1 || tests[0]!.outcome !== "passed") {
         return [
           failed(
             NAME,
@@ -55,6 +59,7 @@ export const testLatency: Metric = {
             `--filter ${module.testName} ran ${tests.length} test cases, not one passing`,
           ),
         ];
+      }
       samples.push(result.wallMs);
     }
     return [judge(NAME, label, p50(samples), 300, "ms")];

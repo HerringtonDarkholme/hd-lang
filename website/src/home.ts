@@ -41,8 +41,9 @@ function readmeParts(readme: string): { slogan: string; pitch: string; rest: str
     .filter((block) => block !== "" && !block.startsWith("#"));
   const slogan = /^\*\*(.+)\*\*$/.exec(paragraphs[0] ?? "")?.[1];
   const pitch = paragraphs[1];
-  if (!slogan || !pitch)
+  if (!slogan || !pitch) {
     throw new Error("landing page: README.md must open with a bold slogan and a pitch paragraph");
+  }
   return {
     slogan,
     pitch: pitch.replaceAll(/\s+/g, " "),
@@ -53,11 +54,15 @@ function readmeParts(readme: string): { slogan: string; pitch: string; rest: str
 /** The README's first hd block, trimmed to its `trait` and the function after it. */
 function heroSample(readme: string): string {
   const block = /^```hd\n([\s\S]*?)^```/m.exec(readme)?.[1];
-  if (!block) throw new Error("landing page: README.md has no ```hd block");
+  if (!block) {
+    throw new Error("landing page: README.md has no ```hd block");
+  }
   const lines = block.replace(/\n$/, "").split("\n");
   const start = lines.findIndex((line) => line.startsWith("trait "));
   const end = lines.findIndex((line, index) => index > start && line.startsWith("struct "));
-  if (start < 0 || end < 0) return lines.join("\n");
+  if (start < 0 || end < 0) {
+    return lines.join("\n");
+  }
   return lines.slice(start, end).join("\n").trimEnd();
 }
 

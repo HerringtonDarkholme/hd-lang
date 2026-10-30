@@ -53,7 +53,7 @@ test("preexisting unowned output is preserved, including an empty directory", ()
   }));
 
 test("changed payloads, added files and changed config refuse replacement", async () => {
-  for (const kind of ["payload", "extra", "config"])
+  for (const kind of ["payload", "extra", "config"]) {
     await fixture(async (output) => {
       await publishCloudflare(input(output));
       const before = await readFile(join(output, "wrangler.json"), "utf8");
@@ -70,9 +70,11 @@ test("changed payloads, added files and changed config refuse replacement", asyn
       await writeFile(target, "user-owned change");
       await assert.rejects(publishCloudflare(input(output, "two")));
       assert.equal(await readFile(target, "utf8"), "user-owned change");
-      if (kind !== "config")
+      if (kind !== "config") {
         assert.equal(await readFile(join(output, "wrangler.json"), "utf8"), before);
+      }
     });
+  }
 });
 
 test("platform caches and unrelated root files survive subsequent publication", () =>
@@ -87,13 +89,14 @@ test("platform caches and unrelated root files survive subsequent publication", 
   }));
 
 test("symlinked output, payload, generation store and marker are refused", async () => {
-  for (const kind of ["root", "payload", "store", "marker"])
+  for (const kind of ["root", "payload", "store", "marker"]) {
     await fixture(async (output) => {
       const outside = output + "-unrelated";
       await mkdir(outside);
       await writeFile(join(outside, "sentinel"), "keep");
-      if (kind === "root") await symlink(outside, output, "dir");
-      else {
+      if (kind === "root") {
+        await symlink(outside, output, "dir");
+      } else {
         await publishCloudflare(input(output));
         const config = await selected(output);
         const target =
@@ -112,6 +115,7 @@ test("symlinked output, payload, generation store and marker are refused", async
       await assert.rejects(publishCloudflare(input(output, "two")));
       assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "keep");
     });
+  }
 });
 
 test("invalid captured paths and missing entries never create output", async () => {
@@ -123,13 +127,14 @@ test("invalid captured paths and missing entries never create output", async () 
     "C:/outside",
     ".hd-generation.json",
     "a//b",
-  ])
+  ]) {
     await fixture(async (output) => {
       const options = input(output);
       options.files.set(name, new Uint8Array([1]));
       await assert.rejects(publishCloudflare(options));
       assert.equal(existsSync(output), false);
     });
+  }
   await fixture(async (output) => {
     const options = input(output);
     options.files.delete("entry.mjs");
@@ -156,8 +161,9 @@ test("cancelled writes keep the old configuration and a reusable complete store"
       if (
         existsSync(output + ".hd-lock") &&
         readdirSyncCompat(join(output, "generations")).length === 2
-      )
+      ) {
         next.abort(new Error("cancel after complete inactive generation"));
+      }
       check();
     };
     await assert.rejects(
@@ -201,7 +207,9 @@ test("an interrupted fresh claim retries without selecting partial output", () =
   fixture(async (output) => {
     const signal = {
       throwIfAborted() {
-        if (existsSync(join(output, "generations"))) throw new Error("stop before first selector");
+        if (existsSync(join(output, "generations"))) {
+          throw new Error("stop before first selector");
+        }
       },
     };
     await assert.rejects(

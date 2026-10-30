@@ -91,7 +91,9 @@ export function pickArtifact(
     return score(a) - score(b) || a.localeCompare(b);
   });
   const wasm = ranked.find((path) => path.endsWith(".wasm"));
-  if (wasm) return { path: wasm, kind: "wasm" };
+  if (wasm) {
+    return { path: wasm, kind: "wasm" };
+  }
   const native = ranked.find((path) => executable(path));
   return native ? { path: native, kind: "native" } : undefined;
 }
@@ -125,7 +127,9 @@ export async function buildProgram(
   const args = release ? ["build", "--release"] : ["build"];
   const result = await runHd(hd, args, { cwd: dir, timeoutMs });
   const problem = runProblem(result, timeoutMs, `hd ${args.join(" ")} (${label})`);
-  if (problem) throw new Error(problem);
+  if (problem) {
+    throw new Error(problem);
+  }
   const buildDir = join(dir, "build");
   let built: string[] = [];
   try {
@@ -134,13 +138,14 @@ export async function buildProgram(
     // No build directory: the program runs through `hd run`.
   }
   const found = pickArtifact(built, release, (path) => isExecutable(join(buildDir, path)));
-  if (!found)
+  if (!found) {
     return {
       dir,
       argv: [...hd.argv, "run", ...(release ? ["--release"] : [])],
       how: "hd run",
       release,
     };
+  }
   const artifact = join(buildDir, found.path);
   return {
     dir,
@@ -184,7 +189,9 @@ export async function runProgram(
 ): Promise<RunResult> {
   const result = await runProcess(program.argv, { cwd: program.dir, ...options });
   const problem = runProblem(result, options.timeoutMs, label);
-  if (problem) throw new Error(problem);
+  if (problem) {
+    throw new Error(problem);
+  }
   return result;
 }
 
@@ -215,10 +222,13 @@ export async function timeWithOutput(
   for (let round = -1; round < runs; round++) {
     for (const [index, program] of programs.entries()) {
       const result = await runProgram(program, `${label} (program ${index + 1})`, { timeoutMs });
-      if (outputs[index] !== undefined && result.stdout !== outputs[index])
+      if (outputs[index] !== undefined && result.stdout !== outputs[index]) {
         throw new Error(`${label}: program ${index + 1} printed different output between runs`);
+      }
       outputs[index] = result.stdout;
-      if (round >= 0) samples[index]!.push(result.wallMs);
+      if (round >= 0) {
+        samples[index]!.push(result.wallMs);
+      }
     }
   }
   return { samples, outputs: outputs.map((output) => output ?? "") };
@@ -289,16 +299,23 @@ export async function timeCommand(
       const cwd = options.fresh ? copyPackage(dir, "fresh") : dir;
       const result = await runHd(hd, args, { cwd, timeoutMs: options.timeoutMs });
       const what = `${options.label} (package ${index + 1}, hd ${args.join(" ")})`;
-      if (result.timedOut) throw new Error(`${what} timed out after ${options.timeoutMs / 1000} s`);
+      if (result.timedOut) {
+        throw new Error(`${what} timed out after ${options.timeoutMs / 1000} s`);
+      }
       if (
         options.expectFailure ? result.status === 0 || result.status === null : result.status !== 0
-      )
+      ) {
         throw new Error(
           `${what} exited ${String(result.status)}${options.expectFailure ? ", not a test failure" : ""}: ${firstLines(result)}`,
         );
+      }
       outputs[index] = result.stdout + result.stderr;
-      if (round >= 0) samples[index]!.push(result.wallMs);
-      if (options.fresh) removeTempDir(cwd);
+      if (round >= 0) {
+        samples[index]!.push(result.wallMs);
+      }
+      if (options.fresh) {
+        removeTempDir(cwd);
+      }
     }
   }
   return { samples, outputs };
@@ -311,7 +328,9 @@ export const passedCount = (output: string): number =>
 /** The number a program printed after `key=`, as `bytes=1200`. */
 export function printed(stdout: string, key: string): number {
   const match = new RegExp(`\\b${key}=(\\d+)\\b`).exec(stdout);
-  if (!match) throw new Error(`the program printed no ${key}=N: ${stdout.slice(0, 120)}`);
+  if (!match) {
+    throw new Error(`the program printed no ${key}=N: ${stdout.slice(0, 120)}`);
+  }
   return Number(match[1]);
 }
 
@@ -370,7 +389,9 @@ export async function runNodeProgram(
   writeFileSync(file, NODE_PRELUDE + body);
   const result = await runProcess([process.execPath, file], { cwd: dir, timeoutMs });
   const problem = runProblem(result, timeoutMs, `node ${label}.mjs`);
-  if (problem) throw new Error(problem);
+  if (problem) {
+    throw new Error(problem);
+  }
   const last = result.stdout.trim().split("\n").at(-1) ?? "";
   try {
     return JSON.parse(last) as Record<string, unknown>;
@@ -382,8 +403,9 @@ export async function runNodeProgram(
 /** The median of a list of numbers a Node program printed under `key`. */
 export function nodeMedian(result: Record<string, unknown>, key: string): number {
   const value = result[key];
-  if (!Array.isArray(value) || value.length === 0 || value.some((v) => typeof v !== "number"))
+  if (!Array.isArray(value) || value.length === 0 || value.some((v) => typeof v !== "number")) {
     throw new Error(`the Node program printed no ${key} list`);
+  }
   return p50(value as number[]);
 }
 
@@ -420,7 +442,9 @@ export function heapProbe(): {
     }),
     allocated: (label, stdout) => {
       const exits = listTree(dir).filter((file) => file.startsWith(`${label}.`));
-      if (exits.length === 0) return undefined;
+      if (exits.length === 0) {
+        return undefined;
+      }
       const used = exits.reduce((sum, file) => {
         const stats = JSON.parse(readFileSync(join(dir, file), "utf8")) as {
           used_heap_size?: number;
@@ -439,7 +463,8 @@ export function heapProbe(): {
  */
 export function freedBytes(log: string): number {
   let freed = 0;
-  for (const match of log.matchAll(/start_object_size=(\d+)\b.*?\bend_object_size=(\d+)\b/g))
+  for (const match of log.matchAll(/start_object_size=(\d+)\b.*?\bend_object_size=(\d+)\b/g)) {
     freed += Number(match[1]) - Number(match[2]);
+  }
   return freed;
 }

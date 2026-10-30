@@ -18,7 +18,9 @@ async function ddmin<T>(
     let reduced = false;
     for (let start = 0; start < current.length && budget.remaining > 0; start += size) {
       const complement = [...current.slice(0, start), ...current.slice(start + size)];
-      if (complement.length === 0) continue;
+      if (complement.length === 0) {
+        continue;
+      }
       budget.remaining -= 1;
       if (await keeps(build(complement))) {
         current = complement;
@@ -28,7 +30,9 @@ async function ddmin<T>(
       }
     }
     if (!reduced) {
-      if (chunks >= current.length) break;
+      if (chunks >= current.length) {
+        break;
+      }
       chunks = Math.min(current.length, chunks * 2);
     }
   }
@@ -50,16 +54,21 @@ async function emptyGroups(
     for (const [row, line] of lines.entries()) {
       const stack: number[] = [];
       for (const [index, token] of line.tokens.entries()) {
-        if (closers[token]) stack.push(index);
-        else if (Object.values(closers).includes(token) && stack.length) {
+        if (closers[token]) {
+          stack.push(index);
+        } else if (Object.values(closers).includes(token) && stack.length) {
           const start = stack.pop()!;
-          if (index - start > 1) groups.push({ end: index, row, start });
+          if (index - start > 1) {
+            groups.push({ end: index, row, start });
+          }
         }
       }
     }
     groups.sort((left, right) => right.end - right.start - (left.end - left.start));
     for (const group of groups) {
-      if (budget.remaining <= 0) break;
+      if (budget.remaining <= 0) {
+        break;
+      }
       const line = lines[group.row]!;
       const tokens = [...line.tokens.slice(0, group.start + 1), ...line.tokens.slice(group.end)];
       const candidate = normalize(
@@ -99,7 +108,9 @@ export async function minimize(source: string, keeps: Predicate, maxTests = 400)
       "\n",
     ),
   );
-  if (uncommented !== best && (await keeps(uncommented))) best = uncommented;
+  if (uncommented !== best && (await keeps(uncommented))) {
+    best = uncommented;
+  }
   // Pass 1: lines.
   const lines = best.split("\n").filter((line, index, all) => line || index < all.length - 1);
   const keptLines = await ddmin(lines, (kept) => normalize(kept.join("\n")), keeps, budget);
@@ -110,7 +121,9 @@ export async function minimize(source: string, keeps: Predicate, maxTests = 400)
   const parsed = splitLines(best);
   for (let row = 0; row < parsed.length && budget.remaining > 0; row += 1) {
     const line = parsed[row]!;
-    if (line.tokens.length < 2) continue;
+    if (line.tokens.length < 2) {
+      continue;
+    }
     const render = (tokens: readonly string[]): string =>
       normalize(
         joinLines(

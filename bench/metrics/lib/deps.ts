@@ -83,7 +83,9 @@ export function makeLocalRemote(): LocalRemote {
       env: { ...process.env, ...env },
       encoding: "utf8",
     });
-    if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${result.stderr.trim()}`);
+    if (result.status !== 0) {
+      throw new Error(`git ${args[0]} failed: ${result.stderr.trim()}`);
+    }
   };
   writeTree(repo, DEPENDENCY_FILES);
   git("init", "--quiet");
@@ -122,12 +124,17 @@ export function writeDependent(dir: string): void {
  */
 export function entryProblem(cache: string, remote: LocalRemote): string | undefined {
   const entry = join(cache, "pkg", `${remote.hostPath}@${remote.version}`);
-  if (!existsSync(entry)) return `no cache entry at pkg/${remote.hostPath}@${remote.version}`;
+  if (!existsSync(entry)) {
+    return `no cache entry at pkg/${remote.hostPath}@${remote.version}`;
+  }
   for (const [path, text] of DEPENDENCY_FILES) {
     const file = join(entry, path);
-    if (!existsSync(file)) return `the cache entry lacks ${path}`;
-    if (readFileSync(file, "utf8") !== text)
+    if (!existsSync(file)) {
+      return `the cache entry lacks ${path}`;
+    }
+    if (readFileSync(file, "utf8") !== text) {
       return `the cache entry's ${path} differs from the tag`;
+    }
   }
   return undefined;
 }
@@ -150,8 +157,12 @@ const ADD_TIMEOUT_MS = 60_000;
 export async function prepareDependent(
   hd: HdCommand,
 ): Promise<DependentSource | { readonly na: string } | { readonly problem: string }> {
-  if (!hasGit()) return { na: "no git on PATH, so no local remote" };
-  if (!(await supportsCommand(hd, "add", makeTempDir("help")))) return { na: "no hd add" };
+  if (!hasGit()) {
+    return { na: "no git on PATH, so no local remote" };
+  }
+  if (!(await supportsCommand(hd, "add", makeTempDir("help")))) {
+    return { na: "no hd add" };
+  }
   const remote = makeLocalRemote();
   const dir = makeTempDir("dependent");
   writeDependent(dir);
@@ -162,9 +173,12 @@ export async function prepareDependent(
     timeoutMs: ADD_TIMEOUT_MS,
   });
   const problem = runProblem(result, ADD_TIMEOUT_MS, "hd add of a local dependency");
-  if (problem) return { problem };
+  if (problem) {
+    return { problem };
+  }
   // The cache is found by behaviour: a fetch writes the version under HD_CACHE.
-  if (listTree(cache).length === 0)
+  if (listTree(cache).length === 0) {
     return { na: "no dependency cache: hd add fetched a version and wrote nothing under HD_CACHE" };
+  }
   return { remote, dir };
 }

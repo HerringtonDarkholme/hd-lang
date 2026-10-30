@@ -49,7 +49,9 @@ interface WorkerScope {
 const scope = self as unknown as WorkerScope;
 const rust = createRustRunner(
   fetch(new URL("./hd_web.wasm", import.meta.url)).then((response) => {
-    if (!response.ok) throw new Error(`hd_web.wasm: HTTP ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`hd_web.wasm: HTTP ${response.status}`);
+    }
     return response.arrayBuffer();
   }),
 );
@@ -64,11 +66,13 @@ scope.onmessage = async ({ data: request }) => {
   } else if (request.kind === "project") {
     const { id, mode, project } = request;
     const built = await rust.compileProject(project, mode);
-    if ("mode" in built)
+    if ("mode" in built) {
       scope.postMessage({ kind: "compiled", id, run: built }, [
         built.compiled.wasm.buffer as ArrayBuffer,
       ]);
-    else scope.postMessage({ kind: "result", id, result: built });
+    } else {
+      scope.postMessage({ kind: "result", id, result: built });
+    }
   } else if (request.kind === "wat") {
     const result = await rust.watProject(request.project, () =>
       scope.postMessage({ kind: "wat-loading", id: request.id }),

@@ -53,15 +53,18 @@ const HEAP_CASES = ["map", "string-build"] as const;
 /** A micro case's `main` run once, for a peak heap. */
 export function nodeOnce(source: string): string {
   const tail = source.indexOf("const times = [];");
-  if (tail < 0) throw new Error("not a micro case program");
+  if (tail < 0) {
+    throw new Error("not a micro case program");
+  }
   return `${source.slice(0, tail)}main();\n`;
 }
 
 async function sizeLine(context: MetricContext, tiny: Program): Promise<TargetResult> {
   const label = "tiny program, release Wasm size";
   const target = `≤ ${formatValue(SIZE_LIMIT, "bytes")}`;
-  if (tiny.how !== "wasm" || tiny.bytes === undefined)
+  if (tiny.how !== "wasm" || tiny.bytes === undefined) {
     return notApplicable(NAME, label, target, `the build wrote no .wasm file (${howNote(tiny)})`);
+  }
   const sizes: string[] = [];
   for (const name of MICRO_CASES) {
     try {
@@ -89,9 +92,12 @@ async function firstOutputLine(tiny: Program): Promise<TargetResult> {
     const samples: number[] = [];
     for (let run = -1; run < FIRST_OUTPUT_RUNS; run++) {
       const result = await runProgram(tiny, "the tiny program", { timeoutMs: TIMEOUT_MS });
-      if (!result.stdout.includes("ready"))
+      if (!result.stdout.includes("ready")) {
         throw new Error(`the tiny program printed ${JSON.stringify(result.stdout.slice(0, 80))}`);
-      if (run >= 0) samples.push(result.firstOutputMs ?? result.wallMs);
+      }
+      if (run >= 0) {
+        samples.push(result.firstOutputMs ?? result.wallMs);
+      }
     }
     return judge(NAME, label, p50(samples), FIRST_OUTPUT_LIMIT_MS, "ms", "at-most", howNote(tiny));
   } catch (error) {
@@ -105,9 +111,12 @@ async function peakRss(argv: readonly string[], cwd: string, what: string): Prom
   for (let run = 0; run < HEAP_RUNS; run++) {
     const result = await runProcess(argv, { cwd, timeoutMs: TIMEOUT_MS, measure: true });
     const problem = runProblem(result, TIMEOUT_MS, what);
-    if (problem) throw new Error(problem);
-    if (result.rssBytes === undefined)
+    if (problem) {
+      throw new Error(problem);
+    }
+    if (result.rssBytes === undefined) {
       throw new Error(`no peak RSS for ${what}: ${firstLines(result)}`);
+    }
     samples.push(result.rssBytes);
   }
   return p50(samples);
@@ -116,10 +125,11 @@ async function peakRss(argv: readonly string[], cwd: string, what: string): Prom
 async function heapLines(context: MetricContext): Promise<TargetResult[]> {
   const target = `≤ ${HEAP_LIMIT.toFixed(2)}x`;
   const labels = HEAP_CASES.map((name) => `peak heap, ${name}: hd / Node`);
-  if (!canMeasure())
+  if (!canMeasure()) {
     return labels.map((label) =>
       notApplicable(NAME, label, target, "no /usr/bin/time on this host"),
     );
+  }
   let base: { readonly hd: number; readonly node: number };
   const nodeDir = makeTempDir("node-heap");
   try {

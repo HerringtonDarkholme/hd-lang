@@ -73,5 +73,7 @@ function advance(dt) {
   }
 }
 const before = Math.trunc(energy() * 1e9);
-for (let s = 0; s < STEPS; s++) advance(0.01);
+for (let s = 0; s < STEPS; s++) {
+  advance(0.01);
+}
 console.log(`${before} ${Math.trunc(energy() * 1e9)}`);

@@ -158,12 +158,15 @@ export function rewrite(options: RewriteOptions): Rewrite {
   const changed: ChangedRule[] = [];
   for (const [id, old] of oldRules) {
     const next = newRules.get(id);
-    if (!next) continue;
-    if (next.chapter.name !== old.chapter.name)
+    if (!next) {
+      continue;
+    }
+    if (next.chapter.name !== old.chapter.name) {
       moved.push({ id, from: old.chapter.name, to: next.chapter.name });
+    }
     const was = normalize(old.rule.text);
     const now = normalize(next.rule.text);
-    if (was !== now)
+    if (was !== now) {
       changed.push({
         id,
         chapter: next.chapter.name,
@@ -171,6 +174,7 @@ export function rewrite(options: RewriteOptions): Rewrite {
         after: now,
         similarity: Math.round(textSimilarity(was, now) * 100) / 100,
       });
+    }
   }
   changed.sort((a, b) => a.similarity - b.similarity || a.id.localeCompare(b.id));
   const revived = options.earlierIds
@@ -278,8 +282,12 @@ export function rewrite(options: RewriteOptions): Rewrite {
 /** The `--fail-on` kinds that the rewrite trips. */
 export function failures(result: Rewrite, kinds: readonly FailKind[]): FailKind[] {
   return kinds.filter((kind) => {
-    if (kind === "lost-codes") return result.lostCodes.length + result.lostTableCodes.length > 0;
-    if (kind === "lost-examples") return result.examples.lost.length > 0;
+    if (kind === "lost-codes") {
+      return result.lostCodes.length + result.lostTableCodes.length > 0;
+    }
+    if (kind === "lost-examples") {
+      return result.examples.lost.length > 0;
+    }
     return result.changed.length + result.revived.length > 0;
   });
 }
@@ -323,20 +331,22 @@ export function rewriteReport(result: Rewrite): string {
     `Retired IDs (${result.retired.length}): ${ids(result.retired.map((entry) => entry.id))}`,
     `Added IDs (${result.added.length}): ${ids(result.added.map((entry) => entry.id))}`,
   );
-  if (result.moved.length > 0)
+  if (result.moved.length > 0) {
     out.push(
       `Moved IDs (${result.moved.length}): ${result.moved.map((m) => `\`${m.id}\` (${m.from} -> ${m.to})`).join(", ")}`,
     );
+  }
   out.push(
     `Reused IDs, retired before the base (${result.revived.length}): ${ids(result.revived)}`,
     `IDs kept with changed text (${result.changed.length}); STYLE.md gives a rule whose meaning changes a new ID:`,
   );
-  for (const entry of result.changed)
+  for (const entry of result.changed) {
     out.push(
       `  ${entry.id} (${entry.chapter}, similarity ${entry.similarity})`,
       `    before: ${entry.before}`,
       `    after:  ${entry.after}`,
     );
+  }
   out.push(
     "",
     `Diagnostic codes named by rules: lost ${ids(result.lostCodes)}; added ${ids(result.addedCodes)}`,
@@ -348,11 +358,12 @@ export function rewriteReport(result: Rewrite): string {
       .map(([status, n]) => `${status} ${n}`)
       .join(", ")}`,
   );
-  for (const entry of result.examples.lost)
+  for (const entry of result.examples.lost) {
     out.push(
       `  lost: ${entry.chapter} example ${entry.index} (line ${entry.line})`,
       ...entry.missing.map((line) => `    ${line.trim()}`),
     );
+  }
   const live = result.citedRetired.filter((c) => c.severity !== "history");
   out.push(
     "",

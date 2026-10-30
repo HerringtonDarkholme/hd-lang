@@ -60,7 +60,9 @@ export function hasEntryPoint(source: string): boolean {
 export function splitCommand(value: string): string[] {
   const parts: string[] = [];
   const pattern = /"([^"]*)"|'([^']*)'|([^\s]+)/g;
-  for (const match of value.matchAll(pattern)) parts.push(match[1] ?? match[2] ?? match[3]!);
+  for (const match of value.matchAll(pattern)) {
+    parts.push(match[1] ?? match[2] ?? match[3]!);
+  }
   return parts;
 }
 
@@ -87,10 +89,14 @@ export function invoke(
       child.kill("SIGKILL");
     }, timeoutMs);
     child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-      if (stdout.length < 200_000) stdout += chunk;
+      if (stdout.length < 200_000) {
+        stdout += chunk;
+      }
     });
     child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-      if (stderr.length < 200_000) stderr += chunk;
+      if (stderr.length < 200_000) {
+        stderr += chunk;
+      }
     });
     child.on("error", (error) => {
       clearTimeout(timer);
@@ -180,18 +186,25 @@ export function loadInventory(): Inventory {
   const warnings = new Set<string>();
   for (const line of readme.split("\n")) {
     const row = /^\| (Error[^|]*|Warning|Boundary failure) \| (.*) \|$/.exec(line);
-    if (!row) continue;
+    if (!row) {
+      continue;
+    }
     for (const code of backticked(row[2]!)) {
       diagnostics.add(code);
-      if (row[1] === "Warning") warnings.add(code);
+      if (row[1] === "Warning") {
+        warnings.add(code);
+      }
     }
   }
   const control = readFileSync(resolve(specRoot, "lang/06-control-flow.md"), "utf8");
   const sentence = /Stable panic categories are exactly([\s\S]*?)\.\s/.exec(control);
-  if (!sentence) throw new Error("spec/lang/06-control-flow.md: panic category sentence not found");
+  if (!sentence) {
+    throw new Error("spec/lang/06-control-flow.md: panic category sentence not found");
+  }
   const panics = new Set(backticked(sentence[1]!));
-  if (diagnostics.size < 50 || panics.size < 10)
+  if (diagnostics.size < 50 || panics.size < 10) {
     throw new Error("spec inventory looks truncated; check spec/README.md and chapter 06");
+  }
   return { diagnostics, panics, warnings };
 }
 
@@ -199,8 +212,11 @@ export function specFiles(directory: string, extension = ".hd"): string[] {
   const result: string[] = [];
   for (const name of readdirSync(directory).sort()) {
     const path = join(directory, name);
-    if (statSync(path).isDirectory()) result.push(...specFiles(path, extension));
-    else if (name.endsWith(extension)) result.push(path);
+    if (statSync(path).isDirectory()) {
+      result.push(...specFiles(path, extension));
+    } else if (name.endsWith(extension)) {
+      result.push(path);
+    }
   }
   return result;
 }
@@ -250,15 +266,22 @@ export function classify(
 ): Outcome {
   const ms = result.ms;
   const output = `${result.stdout}\n${result.stderr}`;
-  if (result.timedOut) return { code: "timeout", detail: "", kind: "violation", ms };
-  if (result.signal) return { code: "signal", detail: result.signal, kind: "violation", ms };
-  if (result.code === 0) return { code: "", detail: "", kind: "accept", ms };
+  if (result.timedOut) {
+    return { code: "timeout", detail: "", kind: "violation", ms };
+  }
+  if (result.signal) {
+    return { code: "signal", detail: result.signal, kind: "violation", ms };
+  }
+  if (result.code === 0) {
+    return { code: "", detail: "", kind: "accept", ms };
+  }
   const label = messageLabel(output, path);
   // 101 rejects a program (cli.exit.hd-failure); 1 is a failed test case, so
   // only run and test may exit 1 (CONTRACT.md).
   const failedTest = result.code === 1 && (action === "run" || action === "test");
-  if (result.code !== 101 && !failedTest)
+  if (result.code !== 101 && !failedTest) {
     return { code: "bad-exit", detail: `exit ${result.code}: ${label}`, kind: "violation", ms };
+  }
   const base = path.split("/").at(-1)!;
   const located = new RegExp(
     `^(?:\\S*?${escapeRegExp(base)}):(\\d+):(\\d+): (warning: )?([a-z0-9]+(?:-[a-z0-9]+)*):`,
@@ -268,16 +291,21 @@ export function classify(
   const errors: string[] = [];
   for (const line of lines) {
     const match = located.exec(line);
-    if (match && !match[3]) errors.push(match[4]!);
+    if (match && !match[3]) {
+      errors.push(match[4]!);
+    }
   }
   if (action === "run" || action === "test") {
     for (const line of lines) {
       const panic = /^(?:\S+:\d+:\d+: )?([a-z0-9]+(?:-[a-z0-9]+)*): /.exec(line.trim());
-      if (panic && inventory.panics.has(panic[1]!) && !errors.includes(panic[1]!))
+      if (panic && inventory.panics.has(panic[1]!) && !errors.includes(panic[1]!)) {
         return { code: panic[1]!, detail: "", kind: "panic", ms };
+      }
     }
   }
-  if (errors.length === 0) return { code: "no-located-code", detail: label, kind: "violation", ms };
+  if (errors.length === 0) {
+    return { code: "no-located-code", detail: label, kind: "violation", ms };
+  }
   const unknownCode =
     action === "parse" || action === "build"
       ? undefined
@@ -286,6 +314,8 @@ export function classify(
 }
 
 export function outcomeLabel(outcome: Outcome): string {
-  if (outcome.kind === "accept") return "accept";
+  if (outcome.kind === "accept") {
+    return "accept";
+  }
   return `${outcome.kind}:${outcome.code}`;
 }

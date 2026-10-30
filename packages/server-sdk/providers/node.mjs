@@ -25,7 +25,9 @@ const method = (name) => {
 
 function stateFor(context) {
   let state = instances.get(context.instanceSignal);
-  if (state) return state;
+  if (state) {
+    return state;
+  }
   state = {
     generation: ++generation,
     sequence: 0n,
@@ -41,9 +43,13 @@ function stateFor(context) {
   state.dispatcher = createLeaseDispatcher({ drive() {} });
   instances.set(context.instanceSignal, state);
   const stop = () => {
-    if (state.stopping) return;
+    if (state.stopping) {
+      return;
+    }
     state.stopping = true;
-    for (const waiter of state.waiting.splice(0)) waiter.resolve(ok(null));
+    for (const waiter of state.waiting.splice(0)) {
+      waiter.resolve(ok(null));
+    }
     state.server.close();
     console.log(JSON.stringify({ event: "stopped", replies: state.replies, peak: state.peak }));
   };
@@ -93,8 +99,9 @@ function stateFor(context) {
         `http://${request.headers.host ?? `127.0.0.1:${address.port}`}`,
       ).href;
       const headers = [];
-      for (let n = 0; n < request.rawHeaders.length; n += 2)
+      for (let n = 0; n < request.rawHeaders.length; n += 2) {
         headers.push([request.rawHeaders[n], request.rawHeaders[n + 1]]);
+      }
       handedToGuest = waiter.resolve(
         ok({
           id: { generation: state.generation, sequence },
@@ -136,7 +143,9 @@ function stateFor(context) {
         // A closed instance cannot retain a useful response or be reused.
         // The private failure is never reflected into a client response.
         if (!response.destroyed && !response.writableEnded) {
-          if (!response.headersSent) response.writeHead(500);
+          if (!response.headersSent) {
+            response.writeHead(500);
+          }
           response.end();
         }
       } finally {
@@ -145,7 +154,9 @@ function stateFor(context) {
     }
   });
   state.server.on("error", (error) => {
-    for (const waiter of state.waiting.splice(0)) waiter.resolve(err("Other", String(error)));
+    for (const waiter of state.waiting.splice(0)) {
+      waiter.resolve(err("Other", String(error)));
+    }
   });
   state.server.listen(Number(process.env.HD_SERVER_PORT ?? 8080), "127.0.0.1", () => {
     console.log(
@@ -177,12 +188,16 @@ function stateFor(context) {
 export default {
   accept(context) {
     const state = stateFor(context);
-    if (state.stopping) return ok(null);
+    if (state.stopping) {
+      return ok(null);
+    }
     return new Promise((resolve) => {
       let live = true;
       const waiter = {
         resolve: (value) => {
-          if (!live) return false;
+          if (!live) {
+            return false;
+          }
           live = false;
           context.signal.removeEventListener("abort", abort);
           resolve(value);
@@ -191,7 +206,9 @@ export default {
       };
       const abort = () => {
         const at = state.waiting.indexOf(waiter);
-        if (at >= 0) state.waiting.splice(at, 1);
+        if (at >= 0) {
+          state.waiting.splice(at, 1);
+        }
         waiter.resolve(ok(null));
       };
       context.signal.addEventListener("abort", abort, { once: true });
@@ -201,16 +218,22 @@ export default {
   respond(id, value, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job || job.closed || job.response.destroyed) return err("Expired");
-    if (job.responded) return err("Other", "duplicate response");
+    if (!job || job.closed || job.response.destroyed) {
+      return err("Expired");
+    }
+    if (job.responded) {
+      return err("Other", "duplicate response");
+    }
     const response = job.response;
     try {
-      if (value.status < 200 || value.status > 599 || value.body.length > 1048576)
+      if (value.status < 200 || value.status > 599 || value.body.length > 1048576) {
         throw new Error("invalid response");
+      }
       job.responded = true;
       for (const [name, text] of value.headers) {
-        if (["connection", "transfer-encoding", "content-length"].includes(name.toLowerCase()))
+        if (["connection", "transfer-encoding", "content-length"].includes(name.toLowerCase())) {
           continue;
+        }
         response.appendHeader(name, text);
       }
       response.writeHead(value.status);
@@ -227,14 +250,18 @@ export default {
       return context.pending(
         () => ready || response.destroyed,
         () => {
-          if (failed || !response.writableFinished) return err("Expired");
+          if (failed || !response.writableFinished) {
+            return err("Expired");
+          }
           state.replies++;
           return ok(undefined);
         },
         () => response.destroy(),
       );
     } catch (error) {
-      if (!response.headersSent) response.writeHead(500);
+      if (!response.headersSent) {
+        response.writeHead(500);
+      }
       response.end();
       return err("Other", String(error));
     }
@@ -242,13 +269,17 @@ export default {
   cancelled(id, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job || job.closed) return { tag: "Stopping", fields: {} };
+    if (!job || job.closed) {
+      return { tag: "Stopping", fields: {} };
+    }
     return job.lease.cancelled(context);
   },
   client(id, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job || job.closed) throw new Error("expired request lease");
+    if (!job || job.closed) {
+      throw new Error("expired request lease");
+    }
     job.lease.assertLive();
     const policy = context.http;
     if (
@@ -256,8 +287,9 @@ export default {
       typeof policy.coversHost !== "function" ||
       typeof policy.isAsciiUrl !== "function" ||
       typeof policy.writtenHost !== "function"
-    )
+    ) {
       throw new Error("server Http requires the compiler HTTP policy service");
+    }
     return createHttpClient(job.lease, {
       grant: { coversHost: (key, host, port) => key === "Http" && policy.coversHost(host, port) },
       isAsciiUrl: policy.isAsciiUrl,
@@ -267,11 +299,14 @@ export default {
   clock(id, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job || job.closed) throw new Error("expired request lease");
+    if (!job || job.closed) {
+      throw new Error("expired request lease");
+    }
     job.lease.assertLive();
     const check = () => {
-      if (job.closed || state.jobs.get(id.sequence) !== job)
+      if (job.closed || state.jobs.get(id.sequence) !== job) {
         throw new Error("expired request lease");
+      }
       job.lease.assertLive();
     };
     return {
@@ -290,8 +325,11 @@ export default {
           let timer;
           const arm = () => {
             const left = due - performance.now();
-            if (left <= 0) resolve(undefined);
-            else timer = setTimeout(arm, Math.min(left, 2147483647));
+            if (left <= 0) {
+              resolve(undefined);
+            } else {
+              timer = setTimeout(arm, Math.min(left, 2147483647));
+            }
           };
           arm();
           return () => clearTimeout(timer);
@@ -302,7 +340,9 @@ export default {
   console(id, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job || job.closed) throw new Error("expired request lease");
+    if (!job || job.closed) {
+      throw new Error("expired request lease");
+    }
     return createRequestConsole(job.lease, {
       id,
       policy: context.console,
@@ -315,7 +355,9 @@ export default {
   finish(id, abandoned, context) {
     const state = stateFor(context);
     const job = id.generation === state.generation ? state.jobs.get(id.sequence) : null;
-    if (!job || job.closed) return;
+    if (!job || job.closed) {
+      return;
+    }
     job.closed = true;
     if (!job.response.writableEnded) {
       if (!job.response.destroyed) {
@@ -324,7 +366,7 @@ export default {
       }
     }
     job.lease.finish(abandoned);
-    if (job.cancelled || abandoned)
+    if (job.cancelled || abandoned) {
       console.log(
         JSON.stringify({
           event: "request-finished",
@@ -333,5 +375,6 @@ export default {
           abandoned,
         }),
       );
+    }
   },
 };

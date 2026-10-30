@@ -33,9 +33,15 @@ export function makeTempDir(label: string): string {
 /** Gives the owner write access to every directory and file under `root`. */
 function makeWritable(root: string): void {
   const stats = lstatSync(root, { throwIfNoEntry: false });
-  if (!stats || stats.isSymbolicLink()) return;
+  if (!stats || stats.isSymbolicLink()) {
+    return;
+  }
   chmodSync(root, stats.mode | (stats.isDirectory() ? 0o700 : 0o600));
-  if (stats.isDirectory()) for (const entry of readdirSync(root)) makeWritable(join(root, entry));
+  if (stats.isDirectory()) {
+    for (const entry of readdirSync(root)) {
+      makeWritable(join(root, entry));
+    }
+  }
 }
 
 /**
@@ -55,12 +61,16 @@ export function removeTree(dir: string): void {
 /** Removes one directory made by `makeTempDir`, unless directories are kept. */
 export function removeTempDir(dir: string): void {
   made.delete(dir);
-  if (!keep) removeTree(dir);
+  if (!keep) {
+    removeTree(dir);
+  }
 }
 
 /** Removes every directory still left, as at the runner's exit. */
 export function removeAllTempDirs(): void {
-  for (const dir of made) removeTempDir(dir);
+  for (const dir of made) {
+    removeTempDir(dir);
+  }
 }
 
 /** Runs `body` with a fresh directory and removes the directory afterwards. */
@@ -93,8 +103,11 @@ export function listTree(root: string): string[] {
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else files.push(relative(root, full));
+      if (entry.isDirectory()) {
+        walk(full);
+      } else {
+        files.push(relative(root, full));
+      }
     }
   };
   walk(root);
@@ -116,12 +129,18 @@ export function treeBytes(root: string): { readonly bytes: number; readonly file
   let bytes = 0;
   const walk = (path: string): void => {
     const stats = lstatSync(path, { throwIfNoEntry: false, bigint: false });
-    if (!stats) return;
+    if (!stats) {
+      return;
+    }
     if (stats.isDirectory()) {
-      for (const entry of readdirSync(path)) walk(join(path, entry));
+      for (const entry of readdirSync(path)) {
+        walk(join(path, entry));
+      }
     } else if (stats.isFile()) {
       const key = `${stats.dev}:${stats.ino}`;
-      if (seen.has(key)) return;
+      if (seen.has(key)) {
+        return;
+      }
       seen.add(key);
       bytes += stats.size;
     }

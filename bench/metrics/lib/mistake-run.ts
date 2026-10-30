@@ -45,7 +45,9 @@ async function checkJson(hd: HdCommand, dir: string, file: string, tool: Mistake
     cwd: dir,
     timeoutMs: TIMEOUT_MS,
   });
-  if (result.timedOut) throw new Error(`hd ${tool} timed out after ${TIMEOUT_MS / 1000} s`);
+  if (result.timedOut) {
+    throw new Error(`hd ${tool} timed out after ${TIMEOUT_MS / 1000} s`);
+  }
   return diagnosticsOf(result.stdout + result.stderr);
 }
 
@@ -69,7 +71,9 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
         ...(reported ? { reported } : {}),
         fixFieldSeen,
       };
-      if (!edits || edits.length === 0) return { ...base, fixApplied: false };
+      if (!edits || edits.length === 0) {
+        return { ...base, fixApplied: false };
+      }
       writeFileSync(join(dir, file), applyEdits(mistake.text, edits));
       return { ...base, fixApplied: true, afterFix: await checkJson(hd, dir, file, mistake.tool) };
     } catch (error) {

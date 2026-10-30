@@ -18,12 +18,17 @@ let available = [];
 const take = (state, length) => {
   const item = available[0];
   state.parts.push({ offset: item.offset, bytes: item.bytes.subarray(0, length) });
-  if (length === item.bytes.length) available.shift();
-  else available[0] = { offset: item.offset + length, bytes: item.bytes.subarray(length) };
+  if (length === item.bytes.length) {
+    available.shift();
+  } else {
+    available[0] = { offset: item.offset + length, bytes: item.bytes.subarray(length) };
+  }
 };
 const serve = () => {
   for (const state of operations.values()) {
-    if (state.result !== null) continue;
+    if (state.result !== null) {
+      continue;
+    }
     let newline = false;
     while (available.length) {
       const bytes = available[0].bytes;
@@ -34,25 +39,35 @@ const serve = () => {
         break;
       }
     }
-    if (failure !== null) state.result = { error: failure };
-    else if (newline || ended) {
+    if (failure !== null) {
+      state.result = { error: failure };
+    } else if (newline || ended) {
       let bytes = Buffer.concat(state.parts.map((part) => part.bytes));
       if (state.kind === "line") {
         if (newline) {
           bytes = bytes.subarray(0, bytes.length - 1);
-          if (bytes.at(-1) === 13) bytes = bytes.subarray(0, bytes.length - 1);
+          if (bytes.at(-1) === 13) {
+            bytes = bytes.subarray(0, bytes.length - 1);
+          }
         }
         state.result = { ok: !newline && !bytes.length ? null : bytes.toString("utf8") };
-      } else state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
+      } else {
+        state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
+      }
     }
   }
   // Do not read ahead without a pending call; retain already buffered bytes.
-  if ([...operations.values()].some((state) => state.result === null)) source?.resume();
-  else source?.pause();
+  if ([...operations.values()].some((state) => state.result === null)) {
+    source?.resume();
+  } else {
+    source?.pause();
+  }
 };
 
 function open(fd) {
-  if (initialized) return;
+  if (initialized) {
+    return;
+  }
   initialized = true;
   if (fd === null) {
     ended = true;
@@ -96,12 +111,16 @@ const run = (request) => {
     }
     case "wait_poll": {
       const state = operations.get(request.operation);
-      if (!state) throw new Error("unknown input wait");
+      if (!state) {
+        throw new Error("unknown input wait");
+      }
       return state.result ?? { pending: true };
     }
     case "wait_finish": {
       const state = operations.get(request.operation);
-      if (!state || state.result === null) throw new Error("unfinished input wait");
+      if (!state || state.result === null) {
+        throw new Error("unfinished input wait");
+      }
       operations.delete(request.operation);
       return { ok: null };
     }

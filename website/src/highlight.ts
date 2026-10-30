@@ -103,10 +103,15 @@ const isIdentifierPart = (character: string): boolean => /^[\p{ID_Continue}_!]$/
 export function classify(line: string): Span[] {
   const spans: Span[] = [];
   const push = (text: string, kind: TokenClass): void => {
-    if (text === "") return;
+    if (text === "") {
+      return;
+    }
     const last = spans.at(-1);
-    if (last && last.kind === kind) spans[spans.length - 1] = { text: last.text + text, kind };
-    else spans.push({ text, kind });
+    if (last && last.kind === kind) {
+      spans[spans.length - 1] = { text: last.text + text, kind };
+    } else {
+      spans.push({ text, kind });
+    }
   };
   let index = 0;
   while (index < line.length) {
@@ -159,8 +164,9 @@ export function classify(line: string): Span[] {
         end < line.length &&
         isIdentifierPart(line[end]!) &&
         !(line[end] === "!" && line[end + 1] === "=")
-      )
+      ) {
         end += 1;
+      }
       const word = line.slice(index, end);
       // A prefixed string such as `sql"..."` is one string, prefix included
       // (01-lexical-structure.md#prefixed-strings).
@@ -174,7 +180,9 @@ export function classify(line: string): Span[] {
     }
     if (/\s/.test(character)) {
       let end = index + 1;
-      while (end < line.length && /\s/.test(line[end]!)) end += 1;
+      while (end < line.length && /\s/.test(line[end]!)) {
+        end += 1;
+      }
       push(line.slice(index, end), "plain");
       index = end;
       continue;
@@ -186,11 +194,21 @@ export function classify(line: string): Span[] {
 }
 
 function wordClass(word: string, line: string, start: number, end: number): TokenClass {
-  if (LITERAL_WORDS.has(word)) return "literal";
-  if (KEYWORDS.has(word)) return "keyword";
-  if (contextualKeyword(word, line, start, end)) return "keyword";
-  if (PRIMITIVE_TYPES.has(word) || /^\p{Lu}/u.test(word)) return "type";
-  if (/^\s*(?:\(|\[[^\]]*\]\s*\()/.test(line.slice(end))) return "function";
+  if (LITERAL_WORDS.has(word)) {
+    return "literal";
+  }
+  if (KEYWORDS.has(word)) {
+    return "keyword";
+  }
+  if (contextualKeyword(word, line, start, end)) {
+    return "keyword";
+  }
+  if (PRIMITIVE_TYPES.has(word) || /^\p{Lu}/u.test(word)) {
+    return "type";
+  }
+  if (/^\s*(?:\(|\[[^\]]*\]\s*\()/.test(line.slice(end))) {
+    return "function";
+  }
   return "plain";
 }
 
@@ -199,26 +217,39 @@ function wordClass(word: string, line: string, start: number, end: number): Toke
 // keywords
 // (01-lexical-structure.md#contextual-words).
 function contextualKeyword(word: string, line: string, start: number, end: number): boolean {
-  if (word === "using" || word === "using!")
+  if (word === "using" || word === "using!") {
     return /^\s*$/.test(line.slice(0, start)) && /^\s+\p{ID_Start}/u.test(line.slice(end));
-  if (PROVIDER_WORDS.has(word) && line.slice(0, start).endsWith("$.")) return true;
-  if (word === "derive") return line[start - 1] === "@";
-  if (word === "by")
+  }
+  if (PROVIDER_WORDS.has(word) && line.slice(0, start).endsWith("$.")) {
+    return true;
+  }
+  if (word === "derive") {
+    return line[start - 1] === "@";
+  }
+  if (word === "by") {
     return (
       /^\s*impl\b.*\bfor\s+\S.*\s$/.test(line.slice(0, start)) && /^\s+\S/.test(line.slice(end))
     );
-  if (word === "use")
+  }
+  if (word === "use") {
     return USE_DECLARATION.test(line) && /^\s*(?:pub\s+)?$/.test(line.slice(0, start));
-  if (word === "super" || word === "as") return USE_DECLARATION.test(line);
+  }
+  if (word === "super" || word === "as") {
+    return USE_DECLARATION.test(line);
+  }
   return false;
 }
 
 function scanChar(line: string, start: number): number {
   let index = start + 1;
   while (index < line.length) {
-    if (line[index] === "\\") index += 2;
-    else if (line[index] === "'") return index + 1;
-    else index += 1;
+    if (line[index] === "\\") {
+      index += 2;
+    } else if (line[index] === "'") {
+      return index + 1;
+    } else {
+      index += 1;
+    }
   }
   return line.length;
 }
@@ -249,14 +280,20 @@ function scanString(
     if (character === "$" && line[index + 1] === "{") {
       const end = interpolationEnd(line, index + 2);
       push("${", "interpolation");
-      for (const span of classify(line.slice(index + 2, end))) push(span.text, span.kind);
-      if (line[end] === "}") push("}", "interpolation");
+      for (const span of classify(line.slice(index + 2, end))) {
+        push(span.text, span.kind);
+      }
+      if (line[end] === "}") {
+        push("}", "interpolation");
+      }
       index = Math.min(line.length, end + 1);
       continue;
     }
     if (character === "$" && isIdentifierStart(line[index + 1] ?? "")) {
       let end = index + 2;
-      while (end < line.length && /[\p{ID_Continue}_]/u.test(line[end]!)) end += 1;
+      while (end < line.length && /[\p{ID_Continue}_]/u.test(line[end]!)) {
+        end += 1;
+      }
       push(line.slice(index, end), "interpolation");
       index = end;
       continue;
@@ -274,10 +311,15 @@ function interpolationEnd(line: string, start: number): number {
     const character = line[index]!;
     if (character === '"') {
       index += 1;
-      while (index < line.length && line[index] !== '"') index += line[index] === "\\" ? 2 : 1;
-    } else if (character === "{") depth += 1;
-    else if (character === "}") {
-      if (depth === 0) return index;
+      while (index < line.length && line[index] !== '"') {
+        index += line[index] === "\\" ? 2 : 1;
+      }
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      if (depth === 0) {
+        return index;
+      }
       depth -= 1;
     }
     index += 1;

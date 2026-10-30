@@ -53,8 +53,9 @@ test("malformed hashes load nothing", () => {
     bad('{"files":{}}'),
     bad('{"files":{"src/main.hd":1}}'),
     bad('{"files":{"../etc/passwd.hd":"x"}}'),
-  ])
+  ]) {
     assert.equal(projectFromHash(hash), undefined, hash);
+  }
   assert.deepEqual(projectFromHash(bad('{"files":{"src/a.hd":"x"},"main":"src/b.hd"}')), {
     files: { "src/a.hd": "x" },
     main: "src/a.hd",

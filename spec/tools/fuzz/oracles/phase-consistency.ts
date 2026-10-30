@@ -16,20 +16,22 @@ export function phaseConsistency(input: OracleInput): Observation[] {
   for (const [index, execution] of input.executions.entries()) {
     const tag = who(index, input.executions.length);
     const { parse, check, run, test } = execution;
-    if (rejects(parse) && check?.kind === "accept")
+    if (rejects(parse) && check?.kind === "accept") {
       observations.push({
         detail: parse!.detail,
         signature: `phase|${tag}parse-reject/check-accept|${parse!.code}`,
       });
+    }
     for (const [name, later] of [
       ["run", run],
       ["test", test],
     ] as const) {
-      if (rejects(check) && succeeds(later))
+      if (rejects(check) && succeeds(later)) {
         observations.push({
           detail: `${check!.detail} -> ${later!.kind}:${later!.code}`,
           signature: `phase|${tag}check-reject/${name}-${later!.kind}|${check!.code}`,
         });
+      }
     }
   }
   return observations;

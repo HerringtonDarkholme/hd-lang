@@ -12,8 +12,9 @@ function inspect(context, trait) {
   assert.equal(Reflect.set(context, "interfaceIdentity", {}), false);
   assert.equal(Reflect.defineProperty(context, "interfaceIdentity", { value: {} }), false);
   assert.equal(Reflect.deleteProperty(context, "interfaceIdentity"), false);
-  if (trait === "main.Source") sourceIdentity = { ...identity };
-  else {
+  if (trait === "main.Source") {
+    sourceIdentity = { ...identity };
+  } else {
     assert.equal(identity.package, sourceIdentity.package);
     assert.equal(identity.version, sourceIdentity.version);
   }

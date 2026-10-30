@@ -26,11 +26,12 @@ export const editLatency: Metric = {
     context.log(`${NAME}: ${pkg.lines} lines, ${pkg.modules.length} modules; warm-up check`);
     const warm = await runHd(context.hd, ["check"], { cwd: dir, env, timeoutMs: WARM_TIMEOUT_MS });
     const warmProblem = runProblem(warm, WARM_TIMEOUT_MS, "the warm-up check");
-    if (warmProblem)
+    if (warmProblem) {
       return [
         failed(NAME, "p50 check after an edit", "≤ 50 ms", warmProblem),
         failed(NAME, "p95 check after an edit", "≤ 200 ms", warmProblem),
       ];
+    }
     const series = await timedSeries(
       context.hd,
       EDITS,
@@ -42,11 +43,12 @@ export const editLatency: Metric = {
         editFile(dir, module.file, editBody);
       },
     );
-    if (series.samples.length < EDITS)
+    if (series.samples.length < EDITS) {
       return [
         failed(NAME, "p50 check after an edit", "≤ 50 ms", series.problem!),
         failed(NAME, "p95 check after an edit", "≤ 200 ms", series.problem!),
       ];
+    }
     return [
       judge(NAME, "p50 check after an edit", p50(series.samples), 50, "ms"),
       judge(NAME, "p95 check after an edit", p95(series.samples), 200, "ms"),

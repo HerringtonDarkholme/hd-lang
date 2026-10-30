@@ -52,7 +52,9 @@ if (workerData?.port) {
     } catch (error) {
       state.result = failure(error);
       state.abort();
-      if (state.child === null) reaped();
+      if (state.child === null) {
+        reaped();
+      }
     }
     return state;
   };
@@ -65,12 +67,16 @@ if (workerData?.port) {
       }
       case "wait_poll": {
         const state = operations.get(request.operation);
-        if (!state) throw new Error("unknown file wait");
+        if (!state) {
+          throw new Error("unknown file wait");
+        }
         return state.result ?? { pending: true };
       }
       case "wait_finish": {
         const state = operations.get(request.operation);
-        if (!state || state.result === null) throw new Error("unfinished file wait");
+        if (!state || state.result === null) {
+          throw new Error("unfinished file wait");
+        }
         operations.delete(request.operation);
         return { ok: null };
       }
@@ -80,7 +86,9 @@ if (workerData?.port) {
         return { ok: null };
       case "close": {
         const waiting = [...children];
-        for (const state of waiting) state.abort();
+        for (const state of waiting) {
+          state.abort();
+        }
         operations.clear();
         return Promise.all(waiting.map((state) => state.closed)).then(() => ({ ok: null }));
       }
@@ -100,10 +108,14 @@ if (workerData?.port) {
   // would wait for that thread. An in-flight write may have taken effect.
   let worker = null;
   process.once("disconnect", () => {
-    if (worker !== null && worker.threadId !== -1) process.kill(process.pid, "SIGKILL");
+    if (worker !== null && worker.threadId !== -1) {
+      process.kill(process.pid, "SIGKILL");
+    }
   });
   process.once("message", ({ module, name, args }) => {
-    if (!process.connected) return;
+    if (!process.connected) {
+      return;
+    }
     worker = new Worker(new URL(import.meta.url), { workerData: { job: { module, name, args } } });
     worker.on("message", (result) => {
       // Sending the result is asynchronous; wait for the worker's exit

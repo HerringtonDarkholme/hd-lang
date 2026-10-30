@@ -44,7 +44,9 @@ const server = createServer(async (request, response) => {
     return;
   }
   let relative = normalize(decodeURIComponent(url.pathname.slice(PAGES_BASE.length)));
-  if (relative === "." || relative.endsWith("/")) relative = join(relative, "index.html");
+  if (relative === "." || relative.endsWith("/")) {
+    relative = join(relative, "index.html");
+  }
   try {
     const body = await readFile(join(DIST, relative));
     response.writeHead(200, {
@@ -86,7 +88,9 @@ async function openPage(
   const workers: string[] = [];
   page.on("pageerror", (error) => console.error("page error:", error.message));
   page.on("request", (request) => {
-    if (request.url().endsWith("/worker.js")) workers.push(request.url());
+    if (request.url().endsWith("/worker.js")) {
+      workers.push(request.url());
+    }
   });
   await page.goto(`${origin}${PAGES_BASE}${path}`);
   await page.locator(options.ready ?? "body").waitFor();
@@ -174,10 +178,11 @@ try {
       await ref.click();
       const note = page.locator("#fn-miku");
       assert.ok(await note.evaluate((node) => node.matches(":target")), `${view}: note target`);
-      if (SCREENSHOTS)
+      if (SCREENSHOTS) {
         await page.screenshot({
           path: join(SCREENSHOTS, `spec-rules-${colorScheme}-${width}-footnotes.png`),
         });
+      }
       await note.locator(".footnote-backref").click();
       assert.ok(await ref.evaluate((node) => node.matches(":target")), `${view}: back-link target`);
       await page.context().close();
@@ -200,7 +205,9 @@ try {
     assert.equal(await background(), "rgb(17, 19, 24)");
     await page.reload();
     assert.equal(await background(), "rgb(17, 19, 24)", "the choice persists");
-    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "home-phone-dark.png") });
+    if (SCREENSHOTS) {
+      await page.screenshot({ path: join(SCREENSHOTS, "home-phone-dark.png") });
+    }
     await page.context().close();
   });
 
@@ -288,7 +295,9 @@ try {
     await page.waitForURL(`${origin}${PAGES_BASE}tour/1-hello/`);
     await page.keyboard.press("Alt+ArrowRight");
     await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-bindings/`);
-    if (SCREENSHOTS) await page.screenshot({ path: join(SCREENSHOTS, "tour-desktop.png") });
+    if (SCREENSHOTS) {
+      await page.screenshot({ path: join(SCREENSHOTS, "tour-desktop.png") });
+    }
     await page.context().close();
   });
 
@@ -386,7 +395,9 @@ try {
       assert.equal(await tab("pricing.hd").getAttribute("aria-selected"), "true");
       await page.locator(".cm-line", { hasText: "if subtotal >= 5000: 0 else: 499" }).click();
       await page.keyboard.press("End");
-      for (let index = 0; index < 3; index += 1) await page.keyboard.press("Backspace");
+      for (let index = 0; index < 3; index += 1) {
+        await page.keyboard.press("Backspace");
+      }
       await page.keyboard.type('"free"');
       await tab("main.hd").click();
       await page.locator(".cm-line", { hasText: "use pkg.pricing.{Line, total}" }).waitFor();

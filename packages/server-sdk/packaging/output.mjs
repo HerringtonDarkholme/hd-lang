@@ -12,7 +12,9 @@ function publisher(profile) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const regular = async (file) => {
     const stat = await lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw fail("expected an owned regular file");
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw fail("expected an owned regular file");
+    }
     return readFile(file);
   };
   async function ownershipRecord(file) {
@@ -27,13 +29,19 @@ function publisher(profile) {
     for (const name of (await readdir(join(directory, prefix))).sort()) {
       const path = prefix ? prefix + "/" + name : name;
       const stat = await lstat(join(directory, path));
-      if (stat.isSymbolicLink()) throw fail("output contains a symbolic link");
+      if (stat.isSymbolicLink()) {
+        throw fail("output contains a symbolic link");
+      }
       if (stat.isDirectory()) {
-        if (!allowedDirectories.has(path)) throw fail("generation contains an unrelated directory");
+        if (!allowedDirectories.has(path)) {
+          throw fail("generation contains an unrelated directory");
+        }
         Object.assign(files, await inventory(directory, allowedDirectories, path));
-      } else if (stat.isFile() && path !== generationMarker)
+      } else if (stat.isFile() && path !== generationMarker) {
         files[path] = hash(await regular(join(directory, path)));
-      else if (!stat.isFile()) throw fail("output contains a non-file");
+      } else if (!stat.isFile()) {
+        throw fail("output contains a non-file");
+      }
     }
     return Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b, "en")));
   }
@@ -45,20 +53,26 @@ function publisher(profile) {
     try {
       stat = await lstat(output);
     } catch (error) {
-      if (error.code === "ENOENT") return null;
+      if (error.code === "ENOENT") {
+        return null;
+      }
       throw error;
     }
-    if (!stat.isDirectory() || stat.isSymbolicLink())
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
       throw fail("output is not an owned directory");
-    if (!same(await ownershipRecord(join(output, marker)), owner))
+    }
+    if (!same(await ownershipRecord(join(output, marker)), owner)) {
       throw fail("refusing output without its ownership record");
+    }
     // Platform caches and unrelated root files are outside the SDK's ownership.
     // Only the selector and reserved generation store are inspected or changed.
     let active;
     try {
       active = (await regular(join(output, profile.selector))).toString("utf8");
     } catch (error) {
-      if (error.code !== "ENOENT") throw error;
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
       active = null;
     }
     const generations = join(output, profile.store);
@@ -66,25 +80,33 @@ function publisher(profile) {
     try {
       directory = await lstat(generations);
     } catch (error) {
-      if (error.code === "ENOENT" && active === null) return new Set();
+      if (error.code === "ENOENT" && active === null) {
+        return new Set();
+      }
       throw error;
     }
-    if (!directory.isDirectory() || directory.isSymbolicLink())
+    if (!directory.isDirectory() || directory.isSymbolicLink()) {
       throw fail("generation store is not an owned directory");
+    }
     const known = new Set();
     let activeKnown = active === null;
     for (const name of await readdir(generations)) {
-      if (!profile.validName(name)) throw fail("unrecognized generation");
+      if (!profile.validName(name)) {
+        throw fail("unrecognized generation");
+      }
       const base = join(generations, name);
       const entry = await lstat(base);
-      if (!entry.isDirectory() || entry.isSymbolicLink())
+      if (!entry.isDirectory() || entry.isSymbolicLink()) {
         throw fail("invalid generation directory");
+      }
       const record = await ownershipRecord(join(base, generationMarker));
       const id = generationId(record.configuration, record.files);
       const allowedDirectories = new Set();
       for (const name of Object.keys(record.files ?? {})) {
         const parts = name.split("/");
-        for (let n = 1; n < parts.length; n++) allowedDirectories.add(parts.slice(0, n).join("/"));
+        for (let n = 1; n < parts.length; n++) {
+          allowedDirectories.add(parts.slice(0, n).join("/"));
+        }
       }
       if (
         record.format !== 1 ||
@@ -94,13 +116,18 @@ function publisher(profile) {
         typeof record.files?.[profile.entry] !== "string" ||
         !same(record.files, await inventory(base, allowedDirectories)) ||
         profile.directory(record.configuration, id) !== name
-      )
+      ) {
         throw fail("generation contains added or changed files");
+      }
       const configuration = json(profile.configuration(record.configuration, id));
-      if (active === configuration) activeKnown = true;
+      if (active === configuration) {
+        activeKnown = true;
+      }
       known.add(id);
     }
-    if (!activeKnown) throw fail("platform configuration was changed outside the SDK");
+    if (!activeKnown) {
+      throw fail("platform configuration was changed outside the SDK");
+    }
     return known;
   }
 
@@ -109,8 +136,9 @@ function publisher(profile) {
   // their original generation. Prior generations are deliberately retained.
   async function publish({ outputDirectory, files, configuration, signal }) {
     signal?.throwIfAborted();
-    if (!(files instanceof Map) || !files.has(profile.entry))
+    if (!(files instanceof Map) || !files.has(profile.entry)) {
       throw fail("platform entry is required");
+    }
     profile.check(configuration);
     const captured = new Map();
     for (const [name, value] of [...files].sort(([a], [b]) => a.localeCompare(b, "en"))) {
@@ -123,8 +151,9 @@ function publisher(profile) {
         name.includes(":") ||
         name.split("/").includes(generationMarker) ||
         !(value instanceof Uint8Array)
-      )
+      ) {
         throw fail("invalid captured output file");
+      }
       captured.set(name, Uint8Array.from(value));
     }
     const config = JSON.parse(JSON.stringify(configuration));
@@ -166,8 +195,9 @@ function publisher(profile) {
         // Recheck SDK-owned paths; unrelated root files are never traversed.
         await inspect(output);
         await mkdir(join(output, profile.store), { recursive: true });
-        if (!known.has(generation))
+        if (!known.has(generation)) {
           await rename(payload, join(output, profile.store, profile.directory(config, generation)));
+        }
       }
       signal?.throwIfAborted();
       // Only cooperating SDK writers hold the lock. Other tools may own root
@@ -176,7 +206,9 @@ function publisher(profile) {
       await rename(join(stage, profile.selector), join(output, profile.selector));
       return Object.freeze({ directory: output, generation, files: captured.size });
     } finally {
-      if (stage) await rm(stage, { recursive: true, force: true });
+      if (stage) {
+        await rm(stage, { recursive: true, force: true });
+      }
       await rm(lock, { recursive: true, force: true });
     }
   }
@@ -196,7 +228,9 @@ export const publishCloudflare = publisher({
     return id;
   },
   check(configuration) {
-    if (Object.hasOwn(configuration, "main")) throw fail("the SDK chooses the entry path");
+    if (Object.hasOwn(configuration, "main")) {
+      throw fail("the SDK chooses the entry path");
+    }
   },
   configuration(value, id) {
     return { ...value, main: `generations/${id}/entry.mjs` };
@@ -218,8 +252,9 @@ export const publishVercelNode = publisher({
       typeof configuration?.name !== "string" ||
       Object.keys(configuration).length !== 1 ||
       !/^[a-z0-9][a-z0-9-]{0,62}$/.test(configuration.name)
-    )
+    ) {
       throw fail("simple Vercel function name required");
+    }
   },
   configuration(value, id) {
     return {

@@ -42,9 +42,9 @@ export const answerSize: Metric = {
     const run = (args: string[], cwd = dir) =>
       runHd(context.hd, args, { cwd, timeoutMs: TIMEOUT_MS });
 
-    if (!(await supportsCommand(context.hd, "doc", dir)))
+    if (!(await supportsCommand(context.hd, "doc", dir))) {
       results.push(notApplicable(NAME, "hd doc of a data type", `≤ ${BUDGETS.doc} B`, "no hd doc"));
-    else {
+    } else {
       const doc = await run(["doc", "m001.Item1"]);
       results.push(
         doc.status === 0 && !doc.timedOut

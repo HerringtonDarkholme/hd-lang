@@ -49,7 +49,9 @@ async function round(context: MetricContext, source: string, n: number) {
       runHd(context.hd, ["check"], { cwd, env, timeoutMs: TIMEOUT_MS, measure: true }),
     ),
   );
-  for (const dir of dirs) removeTempDir(dir);
+  for (const dir of dirs) {
+    removeTempDir(dir);
+  }
   const problems = results
     .map((result, index) => runProblem(result, TIMEOUT_MS, `check ${index + 1} of ${n}`))
     .filter((problem) => problem !== undefined);
@@ -72,13 +74,14 @@ export const concurrency: Metric = {
     const solo: RunResult[] = [];
     for (let index = 0; index < SOLO_ROUNDS; index++) {
       const { results, problem } = await round(context, source, 1);
-      if (problem)
+      if (problem) {
         return [
           ...counts.map((n) =>
             failed(NAME, ratioLabel(n), `≤ ${formatValue(latencyBound(n, cores), "x")}`, problem),
           ),
           failed(NAME, cpuLabel, "< 1.00", problem),
         ];
+      }
       solo.push(...results);
     }
     const soloP95 = p95(solo.map((result) => result.wallMs));
@@ -99,7 +102,9 @@ export const concurrency: Metric = {
       const cpu = totalCpu(results);
       const note = `p95 ${formatValue(soloP95, "ms")} at N = 1; ${cores} cores; total CPU ${formatValue(cpu, "ms")}`;
       out.push(judge(NAME, ratioLabel(n), ratio, bound, "x", "at-most", note));
-      if (n === counts.at(-1)) last = { n, cpu };
+      if (n === counts.at(-1)) {
+        last = { n, cpu };
+      }
     }
     if (!canMeasure()) {
       out.push(notApplicable(NAME, cpuLabel, "< 1.00", "no /usr/bin/time on this host"));

@@ -20,6 +20,8 @@ export function browserPath(): string {
     ),
   ];
   const found = candidates.find((candidate) => candidate && existsSync(candidate));
-  if (!found) throw new Error("no Chromium found; set CHROME_PATH");
+  if (!found) {
+    throw new Error("no Chromium found; set CHROME_PATH");
+  }
   return found;
 }

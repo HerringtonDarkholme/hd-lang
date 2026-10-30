@@ -13,10 +13,14 @@ const post = (port, flag, id, reply) => {
 export function receiveReply(port, flag, id, left) {
   for (;;) {
     const remaining = left();
-    if (remaining <= 0) return null;
+    if (remaining <= 0) {
+      return null;
+    }
     const reply = receiveMessageOnPort(port);
     if (reply) {
-      if (reply.message.id === id) return reply.message;
+      if (reply.message.id === id) {
+        return reply.message;
+      }
       continue;
     }
     // Poll after a bounded wait even if the matching notification already
@@ -40,6 +44,8 @@ export function serve(port, flag, run, closes = () => false) {
       reply = { fault: String(error?.message ?? error) };
     }
     post(port, flag, id, reply);
-    if (closes(request)) port.close();
+    if (closes(request)) {
+      port.close();
+    }
   });
 }

@@ -11,7 +11,9 @@ export function contract(input: OracleInput, label = "contract"): Observation[] 
     const tag = who(index, input.executions.length);
     for (const action of contractActions) {
       const outcome = execution[action];
-      if (!outcome) continue;
+      if (!outcome) {
+        continue;
+      }
       if (outcome.kind === "violation") {
         const code =
           outcome.code === "no-located-code" || outcome.code === "bad-exit"
@@ -22,12 +24,14 @@ export function contract(input: OracleInput, label = "contract"): Observation[] 
           signature: `${label}|${tag}violation:${action}|${code}`,
         });
       } else if (outcome.unknownCode)
-        // All uninventoried codes share one signature per command; the codes
-        // themselves are tallied separately (see SUMMARY "uninventoried codes").
+      // All uninventoried codes share one signature per command; the codes
+      // themselves are tallied separately (see SUMMARY "uninventoried codes").
+      {
         observations.push({
           detail: outcome.unknownCode,
           signature: `${label}|${tag}uninventoried-code:${action}|*`,
         });
+      }
     }
   }
   return observations;

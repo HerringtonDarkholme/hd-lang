@@ -30,10 +30,11 @@ export const parallelSpeedup: Metric = {
     const label = (size: string) => `speedup, ${size} lines, ${cores} threads vs 1`;
     const help = await helpText(context.hd);
     const found = findThreadControl(help.check, help.all);
-    if (!found)
+    if (!found) {
       return [
         notApplicable(NAME, label("50k"), target, "no documented thread count flag or variable"),
       ];
+    }
     let control: ThreadControl = found;
     let problem = "";
     for (const size of ["50k", "10k"] as const satisfies readonly SizeName[]) {
@@ -52,11 +53,17 @@ export const parallelSpeedup: Metric = {
         one = await check(1);
       }
       problem = runProblem(one, TIMEOUT_MS, `the 1-thread check of ${size}`) ?? "";
-      if (one.timedOut && size === "50k") continue;
-      if (problem) return [failed(NAME, label(size), target, problem)];
+      if (one.timedOut && size === "50k") {
+        continue;
+      }
+      if (problem) {
+        return [failed(NAME, label(size), target, problem)];
+      }
       const all = await check(cores);
       problem = runProblem(all, TIMEOUT_MS, `the ${cores}-thread check of ${size}`) ?? "";
-      if (problem) return [failed(NAME, label(size), target, problem)];
+      if (problem) {
+        return [failed(NAME, label(size), target, problem)];
+      }
       return [
         judge(
           NAME,

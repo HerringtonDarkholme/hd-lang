@@ -48,10 +48,11 @@ before(async () => {
   directory = await mkdtemp(join(tmpdir(), "hd-playground-"));
   // The compiler wasm is a build output (not committed); build it when a
   // fresh checkout has none.
-  if (!existsSync(COMPILER_WASM) || !existsSync(join(playground, "assets/hd_wat.wasm")))
+  if (!existsSync(COMPILER_WASM) || !existsSync(join(playground, "assets/hd_wat.wasm"))) {
     execFileSync(process.execPath, [join(playground, "../../scripts/build-web-compiler.js")], {
       stdio: "inherit",
     });
+  }
   const { createRustRunner } = await bundled<typeof RustRunnerModule>("rust-runner.ts");
   rust = createRustRunner(await readFile(COMPILER_WASM), () =>
     readFile(join(playground, "assets/hd_wat.wasm")),
@@ -257,8 +258,9 @@ test("Http reaches the page's own origin through the browser, and no other", asy
       this.#headers.push(`${name}=${value}`);
     }
     send(body: Uint8Array | null): void {
-      if (this.#url.endsWith("/cors"))
+      if (this.#url.endsWith("/cors")) {
         throw Object.assign(new Error("x"), { name: "NetworkError" });
+      }
       this.status = this.#url.endsWith("/missing") ? 404 : 200;
       const text = `${this.#headers.join(",")}|${body ? new TextDecoder().decode(body) : ""}`;
       this.response = new TextEncoder().encode(text).buffer as ArrayBuffer;
@@ -877,8 +879,9 @@ test("the bundled examples run and check", async () => {
   assert.equal(await tested("effects-in-signature"), "1 test passed");
   assert.equal(await tested("derive"), "1 test passed");
   assert.equal(await tested("exhaustive"), "1 test passed");
-  for (const id of ["closures", "numbers", "suffixes", "std", "inventory", "concurrency"])
+  for (const id of ["closures", "numbers", "suffixes", "std", "inventory", "concurrency"]) {
     assert.match(await tested(id), /^\d+ tests? passed$/, id);
+  }
 });
 
 /**
@@ -904,7 +907,9 @@ test("each tour snippet runs and tests as its page says; each edit breaks it as 
       assert.equal(result.summary, page.tests, page.source);
     }
     const { edit } = page;
-    if (!edit) continue;
+    if (!edit) {
+      continue;
+    }
     if (edit.failure !== undefined) {
       const tested = await run(tourProject(page, editedCode(page)), "test");
       assert.ok(["failure", "panic"].includes(tested.status), `${page.source}: the edit passes`);
@@ -975,7 +980,9 @@ test("ordinary compiler modes do not load WAT, including a failed WAT compile", 
     throw new Error("printer offline");
   });
   const project = single("pub fn main() -> void:\n    pass\n");
-  for (const mode of ["check", "run", "test"] as const) await runner.compileProject(project, mode);
+  for (const mode of ["check", "run", "test"] as const) {
+    await runner.compileProject(project, mode);
+  }
   assert.equal(loads, 0);
   const broken = await runner.watProject(single('pub fn main() -> void:\n    let x: i32 = "no"\n'));
   assert.equal(broken.status, "compile-error");

@@ -9,8 +9,9 @@ export function compilerImports(getMemory: () => WebAssembly.Memory): WebAssembl
       nfc_utf8(input: number, length: number, output: number, capacity: number): number {
         const text = decoder.decode(new Uint8Array(getMemory().buffer, input >>> 0, length >>> 0));
         const bytes = encoder.encode(text.normalize("NFC"));
-        if (capacity >>> 0 !== 0 && capacity >>> 0 >= bytes.length)
+        if (capacity >>> 0 !== 0 && capacity >>> 0 >= bytes.length) {
           new Uint8Array(getMemory().buffer, output >>> 0, bytes.length).set(bytes);
+        }
         return bytes.length;
       },
     },
@@ -21,8 +22,9 @@ function linker() {
   let memory: WebAssembly.Memory | undefined;
   return {
     imports: compilerImports(() => {
-      if (memory === undefined)
+      if (memory === undefined) {
         throw new Error("the compiler called NFC before its memory was ready");
+      }
       return memory;
     }),
     attach(instance: WebAssembly.Instance): void {

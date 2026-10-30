@@ -23,22 +23,28 @@ const INTRINSIC_SEGMENT = /^(?:intrinsics?|lang-items?|prelude)$/;
  * - semantic: every other language-tier rule.
  */
 function ruleKind(chapter: Chapter, rule: Rule): Kind {
-  if (chapter.tier === "std") return "core-library";
-  if (chapter.tier === "cli") return "tooling";
+  if (chapter.tier === "std") {
+    return "core-library";
+  }
+  if (chapter.tier === "cli") {
+    return "tooling";
+  }
   const prefix = rule.id.split(".", 1)[0]!;
   const trail = (sectionAt(chapter, rule.line)?.trail ?? []).join(" ");
   if (
     SYNTAX_PREFIXES.has(prefix) ||
     rule.codes.includes("syntax-error") ||
     SYNTAX_HEADING.test(trail)
-  )
+  ) {
     return "syntax";
+  }
   if (
     rule.id.split(".").some((segment) => INTRINSIC_SEGMENT.test(segment)) ||
     INTRINSIC_TEXT.test(trail) ||
     INTRINSIC_TEXT.test(rule.text)
-  )
+  ) {
     return "intrinsic";
+  }
   return "semantic";
 }
 
@@ -147,13 +153,14 @@ export function countsReport(result: Counts, view: CountsView = "chapter"): stri
         KINDS.map((kind) => [kind, result.kinds[kind]]),
       ),
     );
-  } else
+  } else {
     out.push(
       ...table(
         ["Chapter", "Tier", "Prefix", "Rules"],
         result.chapters.map((row) => [row.chapter, row.tier, row.prefix, row.rules]),
       ),
     );
+  }
   out.push(
     "",
     `Language tier: ${result.tiers.language}`,

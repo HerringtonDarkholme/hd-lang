@@ -42,8 +42,9 @@ export const checkCost: Metric = {
         writeProgram("check-cost", { rounds }, `check-${rounds}`),
       ]),
     );
-    if (!(await supportsFlag(context.hd, "test", "--release", packages.get(SMALL)!)))
+    if (!(await supportsFlag(context.hd, "test", "--release", packages.get(SMALL)!))) {
       return [notApplicable(NAME, LABEL, TARGET, "hd test has no --release")];
+    }
     const time = async (rounds: number, checked: boolean) => {
       const args = checked ? ["test", "--release"] : ["run", "--release"];
       const series = await timedSeries(
@@ -53,7 +54,9 @@ export const checkCost: Metric = {
         { cwd: packages.get(rounds)!, timeoutMs: TIMEOUT_MS },
         `hd ${args.join(" ")} (${rounds} rounds)`,
       );
-      if (series.problem) throw new Error(series.problem);
+      if (series.problem) {
+        throw new Error(series.problem);
+      }
       return p50(series.samples);
     };
     try {
@@ -64,7 +67,7 @@ export const checkCost: Metric = {
       const uncheckedLarge = await time(LARGE, false);
       const checked = checkedLarge - checkedSmall;
       const unchecked = uncheckedLarge - uncheckedSmall;
-      if (unchecked < NOISE_MS)
+      if (unchecked < NOISE_MS) {
         return [
           failed(
             NAME,
@@ -73,6 +76,7 @@ export const checkCost: Metric = {
             `unchecked work is within noise (${unchecked.toFixed(1)} ms)`,
           ),
         ];
+      }
       return [
         judge(
           NAME,

@@ -56,16 +56,18 @@ async function dependencyLines(context: MetricContext): Promise<TargetResult[]> 
   const safeLabel = `dependency cache, ${N} concurrent fetches: ${SAFE}`;
   const onceLabel = `dependency cache, ${N} concurrent fetches: fetched once`;
   const setup = await prepareDependent(context.hd);
-  if ("na" in setup)
+  if ("na" in setup) {
     return [
       notApplicable(NAME, safeLabel, SAFE, setup.na),
       notApplicable(NAME, onceLabel, ONCE, setup.na),
     ];
-  if ("problem" in setup)
+  }
+  if ("problem" in setup) {
     return [
       failed(NAME, safeLabel, SAFE, setup.problem),
       failed(NAME, onceLabel, ONCE, setup.problem),
     ];
+  }
   const { remote } = setup;
   let start = remote.connections();
   const single = await checkAll(
@@ -74,7 +76,9 @@ async function dependencyLines(context: MetricContext): Promise<TargetResult[]> 
     { ...remote.env, HD_CACHE: makeTempDir("cache") },
     "the single check",
   );
-  if (single) return [failed(NAME, safeLabel, SAFE, single), failed(NAME, onceLabel, ONCE, single)];
+  if (single) {
+    return [failed(NAME, safeLabel, SAFE, single), failed(NAME, onceLabel, ONCE, single)];
+  }
   const one = remote.connections() - start;
   start = remote.connections();
   const cache = makeTempDir("cache");
@@ -120,17 +124,21 @@ async function compileLines(context: MetricContext): Promise<TargetResult[]> {
   const safeLabel = `compilation cache, ${N} concurrent checks: ${SAFE}`;
   const onceLabel = `compilation cache, ${N} concurrent checks: written once`;
   const cache = await findCompileCache(context.hd);
-  if (cache === undefined)
+  if (cache === undefined) {
     return [
       notApplicable(NAME, safeLabel, SAFE, "hd check writes no compilation cache"),
       notApplicable(NAME, onceLabel, ONCE, "hd check writes no compilation cache"),
     ];
-  if (typeof cache === "string")
+  }
+  if (typeof cache === "string") {
     return [failed(NAME, safeLabel, SAFE, cache), failed(NAME, onceLabel, ONCE, cache)];
+  }
   const { dir: source } = materialize("small", NAME);
   const alone = freshCache();
   const single = await checkAll(context, [copyPackage(source, NAME)], alone, "the single check");
-  if (single) return [failed(NAME, safeLabel, SAFE, single), failed(NAME, onceLabel, ONCE, single)];
+  if (single) {
+    return [failed(NAME, safeLabel, SAFE, single), failed(NAME, onceLabel, ONCE, single)];
+  }
   const env = freshCache();
   const dirs = Array.from({ length: N }, () => copyPackage(source, NAME));
   context.log(`${NAME}: ${N} concurrent checks with one compilation cache`);
@@ -145,11 +153,12 @@ async function compileLines(context: MetricContext): Promise<TargetResult[]> {
     problem ? "corrupt" : "intact",
     problem,
   );
-  if (cache.where === "package")
+  if (cache.where === "package") {
     return [
       safe,
       notApplicable(NAME, onceLabel, ONCE, "the cache lives in each package, so none is shared"),
     ];
+  }
   const expected = cacheShape(listTree(alone.HD_CACHE!));
   const found = cacheShape(listTree(env.HD_CACHE!));
   const same = expected.length === found.length && expected.every((path, k) => found[k] === path);

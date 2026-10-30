@@ -27,12 +27,16 @@ export function parseStrace(text: string): FileAccess {
       /^(?:\[pid\s+\d+\]\s*|\d+\s+)?(\w+)\((?:AT_FDCWD|-?\d+)?(?:,\s*)?"((?:[^"\\]|\\.)*)"(.*)$/.exec(
         line,
       );
-    if (!match || match[2] === "") continue;
+    if (!match || match[2] === "") {
+      continue;
+    }
     const [, call, path, rest] = match as unknown as [string, string, string, string];
     const failedCall = /\)\s*=\s*-1\b/.test(rest);
-    if (OPENS.has(call) && !/O_WRONLY/.test(rest) && call !== "creat" && !failedCall)
+    if (OPENS.has(call) && !/O_WRONLY/.test(rest) && call !== "creat" && !failedCall) {
       reads.add(path);
-    else stats.add(path);
+    } else {
+      stats.add(path);
+    }
   }
   return { reads, stats };
 }
@@ -42,13 +46,21 @@ export function parseStrace(text: string): FileAccess {
  * reason tracing is not possible here without elevated privileges.
  */
 export function fileTracer(output: string): readonly string[] | string {
-  if (platform === "darwin") return "fs_usage and dtruss need root on macOS";
-  if (platform !== "linux") return `no file tracer on ${platform}`;
+  if (platform === "darwin") {
+    return "fs_usage and dtruss need root on macOS";
+  }
+  if (platform !== "linux") {
+    return `no file tracer on ${platform}`;
+  }
   const argv = ["strace", "-f", "-qq", "-e", "trace=%file", "-e", "signal=none", "-o"];
   const probe = spawnSync(argv[0]!, [...argv.slice(1), "/dev/null", "--", "true"], {
     encoding: "utf8",
   });
-  if (probe.error) return "no strace on PATH";
-  if (probe.status !== 0) return `strace cannot trace here: ${probe.stderr.trim().slice(0, 200)}`;
+  if (probe.error) {
+    return "no strace on PATH";
+  }
+  if (probe.status !== 0) {
+    return `strace cannot trace here: ${probe.stderr.trim().slice(0, 200)}`;
+  }
   return [...argv, output, "--"];
 }

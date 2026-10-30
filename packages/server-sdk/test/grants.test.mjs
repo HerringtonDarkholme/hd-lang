@@ -22,7 +22,9 @@ for (const fixture of cases) {
           return true;
         },
       );
-    } else assert.deepEqual(parseProductionGrants(fixture.toml), fixture.grants);
+    } else {
+      assert.deepEqual(parseProductionGrants(fixture.toml), fixture.grants);
+    }
   });
 }
 

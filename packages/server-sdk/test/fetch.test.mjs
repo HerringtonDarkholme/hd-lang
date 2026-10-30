@@ -4,7 +4,9 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createFetchHandler } from "../adapters/fetch.mjs";
 
 const tick = async () => {
-  for (let n = 0; n < 12; n++) await Promise.resolve();
+  for (let n = 0; n < 12; n++) {
+    await Promise.resolve();
+  }
 };
 const reply = (patch = {}) => ({
   response: {
@@ -60,7 +62,9 @@ function clock() {
         const next = [...pending]
           .filter(([, value]) => value.at <= end)
           .sort((a, b) => a[1].at - b[1].at)[0];
-        if (!next) break;
+        if (!next) {
+          break;
+        }
         time = next[1].at;
         pending.delete(next[0]);
         next[1].fn();
@@ -141,8 +145,9 @@ test("Fetch response strips all host framing and Connection-listed fields while 
     "upgrade",
     "proxy-authenticate",
     "proxy-authorization",
-  ])
+  ]) {
     assert.equal(result.headers.has(name), false, name);
+  }
   assert.equal(result.headers.get("x-repeat"), "one, two");
   assert.deepEqual(result.headers.getSetCookie(), [
     "a=1; Expires=Wed, 21 Oct 2030 07:28:00 GMT",
@@ -220,11 +225,12 @@ test("64KiB input headers reject before reading; malformed declared lengths retu
   assert.equal(pulls, 0);
   assert.equal(cancelled, 1);
   assert.equal(app.calls.length, 0);
-  for (const length of ["-1", "1, 2", "nonsense"])
+  for (const length of ["-1", "1, 2", "nonsense"]) {
     assert.equal(
       (await createFetchHandler(fake()).fetch(request("x", { "content-length": length }))).status,
       400,
     );
+  }
 });
 
 test("oversized/invalid responses become generic private-log 500 without committing header or body data", async () => {
@@ -508,7 +514,9 @@ test("a guest acknowledgement at105ms keeps admission healthy until the200ms bac
   let calls = 0;
   const app = fake((_request, signal) => {
     calls++;
-    if (calls > 1) return reply();
+    if (calls > 1) {
+      return reply();
+    }
     return new Promise((resolve) =>
       signal.addEventListener(
         "abort",

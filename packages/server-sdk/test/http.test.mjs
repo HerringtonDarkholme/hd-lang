@@ -42,7 +42,9 @@ function operation(
   assert.equal(typeof start, "function", "the provider delegates start to its lease");
   enter(() => {
     cleanup = start((value) => {
-      if (!live) return;
+      if (!live) {
+        return;
+      }
       live = false;
       cleanup?.();
       complete(value);
@@ -51,7 +53,9 @@ function operation(
   return {
     done,
     abort() {
-      if (!live) return;
+      if (!live) {
+        return;
+      }
       live = false;
       enter(() => cleanup?.());
       complete(undefined);
@@ -253,9 +257,9 @@ test("POST redirects use GET without body framing; 307 replays owned bytes", asy
     const value = await operation(input, { fetch }).done;
     assert.ok(value.ok);
     assert.equal(calls[1].init.method, status === 307 || status === 308 ? "POST" : "GET");
-    if (status === 307 || status === 308)
+    if (status === 307 || status === 308) {
       assert.deepEqual(calls[1].init.body, new Uint8Array([0, 255]));
-    else {
+    } else {
       assert.equal(calls[1].init.body, undefined);
       assert.deepEqual(calls[1].init.headers, []);
     }

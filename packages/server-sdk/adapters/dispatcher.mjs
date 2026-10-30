@@ -10,7 +10,9 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
 
   const lookup = (id) => {
     const job = id.generation === generation ? jobs.get(id.sequence) : null;
-    if (!job || job.finished) throw new Error("expired request lease");
+    if (!job || job.finished) {
+      throw new Error("expired request lease");
+    }
     return job;
   };
   const signal = (job) => job.wake?.();
@@ -19,7 +21,9 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
     signal(job);
   };
   const turn = () => {
-    if (failure) return;
+    if (failure) {
+      return;
+    }
     try {
       drive();
     } catch (error) {
@@ -27,22 +31,32 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
     }
   };
   const dispose = (job, operation) => {
-    if (!operation.live) return;
+    if (!operation.live) {
+      return;
+    }
     operation.live = false;
     job.operations.delete(operation);
     enqueue(job, () => operation.cleanup?.());
   };
   const finish = (job, abandoned) => {
-    if (job.finished) return;
+    if (job.finished) {
+      return;
+    }
     job.finished = true;
     job.abandoned = abandoned;
-    for (const operation of job.operations) dispose(job, operation);
+    for (const operation of job.operations) {
+      dispose(job, operation);
+    }
     signal(job);
   };
   function poison(error) {
-    if (failure) return;
+    if (failure) {
+      return;
+    }
     failure = error instanceof Error ? error : new Error(String(error));
-    for (const job of jobs.values()) finish(job, true);
+    for (const job of jobs.values()) {
+      finish(job, true);
+    }
     // Cleanup is queued before a user callback can close the core host.
     try {
       failed(failure);
@@ -53,7 +67,9 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
   }
 
   function open(request) {
-    if (failure) throw new Error("server instance failed");
+    if (failure) {
+      throw new Error("server instance failed");
+    }
     const job = {
       id: Object.freeze({ generation, sequence: ++sequence }),
       request,
@@ -76,7 +92,9 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
       },
       effect(task) {
         check();
-        if (typeof task !== "function") throw new TypeError("a lease effect must be a function");
+        if (typeof task !== "function") {
+          throw new TypeError("a lease effect must be a function");
+        }
         enqueue(job, task);
       },
       operation(context, start) {
@@ -90,22 +108,27 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
         };
         job.operations.add(operation);
         const settle = (value, error = null) => {
-          if (!operation.live || job.finished || operation.ready) return;
+          if (!operation.live || job.finished || operation.ready) {
+            return;
+          }
           operation.value = value;
           operation.error = error;
           operation.ready = true;
           turn();
         };
         enqueue(job, () => {
-          if (!operation.live) return;
+          if (!operation.live) {
+            return;
+          }
           try {
             operation.cleanup = start(
               (value) => settle(value),
               (error) =>
                 settle(undefined, error instanceof Error ? error : new Error(String(error))),
             );
-            if (operation.cleanup != null && typeof operation.cleanup !== "function")
+            if (operation.cleanup != null && typeof operation.cleanup !== "function") {
               throw new TypeError("an operation start must return a cleanup function or void");
+            }
           } catch (error) {
             settle(undefined, error);
           }
@@ -113,7 +136,9 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
         return context.pending(
           () => operation.ready,
           () => {
-            if (operation.error) throw operation.error;
+            if (operation.error) {
+              throw operation.error;
+            }
             return operation.value;
           },
           () => dispose(job, operation),
@@ -130,15 +155,21 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
         );
       },
       cancel(reason) {
-        if (job.finished || job.cancelled !== null) return;
+        if (job.finished || job.cancelled !== null) {
+          return;
+        }
         job.cancelled = reason;
         turn();
         signal(job);
       },
       respond(response) {
         check();
-        if (job.cancelled) return false;
-        if (job.response) throw new Error("duplicate response");
+        if (job.cancelled) {
+          return false;
+        }
+        if (job.response) {
+          throw new Error("duplicate response");
+        }
         // Copy data out before releasing the guest's lease. Native Response
         // construction belongs to the platform caller after run() settles.
         job.response = {
@@ -153,7 +184,9 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
         finish(check(), abandoned);
       },
       async run() {
-        if (job.running) throw new Error("request lease already has an owner");
+        if (job.running) {
+          throw new Error("request lease already has an owner");
+        }
         job.running = true;
         try {
           turn();
@@ -169,13 +202,17 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
                 }
               }
             }
-            if (job.finished) break;
+            if (job.finished) {
+              break;
+            }
             await new Promise((resolve) => {
               job.wake = resolve;
             });
             job.wake = null;
           }
-          if (failure) throw failure;
+          if (failure) {
+            throw failure;
+          }
           return {
             response: job.response,
             cancelled: job.cancelled,

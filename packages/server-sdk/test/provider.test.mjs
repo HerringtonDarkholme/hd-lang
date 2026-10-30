@@ -20,7 +20,9 @@ test(
     const port = process.env.HD_SERVER_PORT;
     process.env.HD_SERVER_PORT = "0";
     console.log = (text) => {
-      if (text.startsWith('{"event":"listening"')) listening(JSON.parse(text));
+      if (text.startsWith('{"event":"listening"')) {
+        listening(JSON.parse(text));
+      }
     };
     let response;
     try {
@@ -40,8 +42,9 @@ test(
         () => clock.now(),
         () => clock.monotonic(),
         () => clock.sleep(0n, context),
-      ])
+      ]) {
         assert.throws(use, /expired request lease/);
+      }
       assert.equal(long.poll(), false, "finishing the lease cancels its still-pending timer");
       const ended = await response;
       assert.equal(ended.status, 503);
@@ -50,8 +53,11 @@ test(
       instance.abort();
       await response?.catch(() => {});
       console.log = log;
-      if (port === undefined) delete process.env.HD_SERVER_PORT;
-      else process.env.HD_SERVER_PORT = port;
+      if (port === undefined) {
+        delete process.env.HD_SERVER_PORT;
+      } else {
+        process.env.HD_SERVER_PORT = port;
+      }
     }
   },
 );

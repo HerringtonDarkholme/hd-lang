@@ -30,12 +30,19 @@ let only;
 let workRoot;
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
-  if (arg === "--release") release = true;
-  else if (arg === "--hd" && args[i + 1]) hdBinary = resolve(args[++i]);
-  else if (arg === "--only" && args[i + 1]) only = args[++i].split(",");
-  else if (arg === "--runs" && args[i + 1]) RUNS = Number(args[++i]);
-  else if (!arg.startsWith("--") && workRoot === undefined) workRoot = arg;
-  else throw new Error(`unknown argument ${arg}`);
+  if (arg === "--release") {
+    release = true;
+  } else if (arg === "--hd" && args[i + 1]) {
+    hdBinary = resolve(args[++i]);
+  } else if (arg === "--only" && args[i + 1]) {
+    only = args[++i].split(",");
+  } else if (arg === "--runs" && args[i + 1]) {
+    RUNS = Number(args[++i]);
+  } else if (!arg.startsWith("--") && workRoot === undefined) {
+    workRoot = arg;
+  } else {
+    throw new Error(`unknown argument ${arg}`);
+  }
 }
 workRoot ??= join(tmpdir(), `hd-runtime-${process.pid}`);
 const profile = release ? "release" : "debug";
@@ -65,8 +72,12 @@ function measure(fn) {
   fn(); // warmup, excluded
   const samples = [];
   let last = null;
-  for (let i = 0; i < RUNS; i++) last = fn();
-  for (let i = 0; i < RUNS; i++) samples.push(fn().ms);
+  for (let i = 0; i < RUNS; i++) {
+    last = fn();
+  }
+  for (let i = 0; i < RUNS; i++) {
+    samples.push(fn().ms);
+  }
   return { ...stats(samples), last };
 }
 
@@ -96,7 +107,9 @@ function main() {
     .sort();
   if (only) {
     for (const name of only) {
-      if (!names.includes(name)) throw new Error(`unknown program ${name}`);
+      if (!names.includes(name)) {
+        throw new Error(`unknown program ${name}`);
+      }
     }
   }
   const selected = names.filter((name) => !only || only.includes(name));

@@ -2,16 +2,19 @@
 // Observer effects run later in the lease owner, never another guest turn.
 export function createRequestConsole(lease, { id = lease.id, policy, write }) {
   lease.assertLive();
-  if (!policy || typeof policy.allows !== "function")
+  if (!policy || typeof policy.allows !== "function") {
     throw new Error("server Console requires the compiler Console policy service");
+  }
   const identity = Object.freeze({
     generation: String(id.generation),
     sequence: String(id.sequence),
   });
   const capture = (stream, text) => {
     lease.assertLive();
-    if (typeof text !== "string") throw new TypeError("a Console record needs text");
-    if (!policy.allows())
+    if (typeof text !== "string") {
+      throw new TypeError("a Console record needs text");
+    }
+    if (!policy.allows()) {
       return {
         ok: false,
         error: {
@@ -21,6 +24,7 @@ export function createRequestConsole(lease, { id = lease.id, policy, write }) {
           },
         },
       };
+    }
     const record = Object.freeze({ version: 1, lease: identity, stream, text });
     lease.effect(() => {
       try {

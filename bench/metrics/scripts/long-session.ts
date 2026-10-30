@@ -52,7 +52,9 @@ export function replInput(index: number): string {
 export function parseSamples(text: string): Sample[] {
   const samples: Sample[] = [];
   for (const line of text.split("\n")) {
-    if (!line.startsWith("LONG-SESSION ")) continue;
+    if (!line.startsWith("LONG-SESSION ")) {
+      continue;
+    }
     const field = (key: string) => Number(new RegExp(`\\b${key}=(\\d+)`).exec(line)?.[1]);
     const sample = {
       inputs: field("inputs"),
@@ -61,7 +63,9 @@ export function parseSamples(text: string): Sample[] {
       runUs: field("mean_run_us"),
       journalBytes: field("journal"),
     };
-    if (Object.values(sample).every(Number.isFinite)) samples.push(sample);
+    if (Object.values(sample).every(Number.isFinite)) {
+      samples.push(sample);
+    }
   }
   return samples;
 }
@@ -75,7 +79,9 @@ export function growthBound(from: number, to: number, pageBytes: number): number
 export function growthFrom(samples: readonly Sample[], from: number): number {
   const base = samples.find((s) => s.inputs === from);
   const later = samples.filter((s) => s.inputs >= from);
-  if (!base || later.length === 0) return Number.NaN;
+  if (!base || later.length === 0) {
+    return Number.NaN;
+  }
   return Math.max(...later.map((s) => s.rssBytes)) - base.rssBytes;
 }
 
@@ -101,8 +107,9 @@ export const longSession: Metric = {
     const bound = growthBound(BASELINE_INPUT, INPUTS, page);
     const label = `RSS growth, REPL inputs ${BASELINE_INPUT} to ${INPUTS}`;
     const target = `≤ ${formatValue(bound, "MB")}`;
-    if ((await run("cargo", ["--version"])) === undefined)
+    if ((await run("cargo", ["--version"])) === undefined) {
       return [notApplicable(NAME, label, target, "no cargo to run the in-process session test")];
+    }
     context.log(
       `${NAME}: ${INPUTS} inputs in steps of ${STEP}, in process (${page / 1024} KiB pages)`,
     );
@@ -128,9 +135,12 @@ export const longSession: Metric = {
     );
     const samples = parseSamples(result.stdout);
     const last = samples.at(-1);
-    if (result.timedOut) return [failed(NAME, label, target, "the session test timed out")];
-    if (result.status !== 0 || !last)
+    if (result.timedOut) {
+      return [failed(NAME, label, target, "the session test timed out")];
+    }
+    if (result.status !== 0 || !last) {
       return [failed(NAME, label, target, `the session test failed: ${result.stderr.slice(-300)}`)];
+    }
     const at = (inputs: number) => samples.find((s) => s.inputs === inputs);
     const mb = (s: Sample | undefined) => (s ? formatValue(s.rssBytes, "MB") : "?");
     const ms = (s: Sample | undefined) => (s ? `${(s.buildUs / 1000).toFixed(0)} ms` : "?");
@@ -139,8 +149,9 @@ export const longSession: Metric = {
       `build per input ${ms(at(STEP))} at ${STEP}, ${ms(last)} at ${last.inputs}; ` +
       `${page / 1024} KiB pages`;
     const growth = growthFrom(samples, BASELINE_INPUT);
-    if (Number.isNaN(growth))
+    if (Number.isNaN(growth)) {
       return [failed(NAME, label, target, "no sample at the baseline input")];
+    }
     return [judge(NAME, label, growth, bound, "MB", "at-most", detail)];
   },
 };

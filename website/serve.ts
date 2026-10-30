@@ -35,9 +35,13 @@ const TYPES: Readonly<Record<string, string>> = {
 async function fileFor(root: string, urlPath: string): Promise<string | null> {
   const relative = normalize(decodeURIComponent(urlPath)).replace(/^(\.\.[/\\])+/, "");
   let path = join(root, relative);
-  if (!path.startsWith(root)) return null;
+  if (!path.startsWith(root)) {
+    return null;
+  }
   try {
-    if ((await stat(path)).isDirectory()) path = join(path, "index.html");
+    if ((await stat(path)).isDirectory()) {
+      path = join(path, "index.html");
+    }
     await stat(path);
     return path;
   } catch {
@@ -71,12 +75,13 @@ async function main(): Promise<void> {
   };
   await watchPlayground(PLAYGROUND_DIST, schedule);
   await rebuild(outDir);
-  for (const directory of ["spec", "website/guide", "website/assets"])
+  for (const directory of ["spec", "website/guide", "website/assets"]) {
     try {
       watch(join(REPO_DIR, directory), { recursive: true }, schedule);
     } catch {
       // A directory that does not exist yet is simply not watched.
     }
+  }
   watch(join(REPO_DIR, "README.md"), schedule);
 
   const server = createServer(async (request, response) => {

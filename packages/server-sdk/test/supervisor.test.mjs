@@ -37,11 +37,12 @@ function harness(policy = {}, fixture, log = () => {}) {
     event(event) {
       events.push(event);
       // Matching watchers remove themselves; iterate a stable snapshot.
-      for (const watch of watchers.slice())
+      for (const watch of watchers.slice()) {
         if (watch.predicate(event)) {
           watchers.splice(watchers.indexOf(watch), 1);
           watch.resolve(event);
         }
+      }
     },
   });
   return {
@@ -281,7 +282,9 @@ async function physicalListener(f) {
   const server = http.createServer(async (request, response) => {
     const controller = new AbortController();
     response.once("close", () => {
-      if (!response.writableFinished) controller.abort("Disconnected");
+      if (!response.writableFinished) {
+        controller.abort("Disconnected");
+      }
     });
     const url = new URL(request.url, "http://listener.invalid");
     const result = await f.supervisor.dispatch(
@@ -289,13 +292,17 @@ async function physicalListener(f) {
       controller.signal,
     );
     outcomes.push(result);
-    if (response.destroyed) return;
+    if (response.destroyed) {
+      return;
+    }
     const value = result.response ?? {
       status: result.cancelled === "Deadline" ? 504 : 503,
       headers: [],
       body: new Uint8Array(),
     };
-    for (const [key, text] of value.headers) response.setHeader(key, text);
+    for (const [key, text] of value.headers) {
+      response.setHeader(key, text);
+    }
     response.writeHead(value.status);
     response.end(value.body);
   });
@@ -348,17 +355,20 @@ test(
       );
     } finally {
       await f.supervisor.close();
-      if (listener) await listener.close();
+      if (listener) {
+        await listener.close();
+      }
     }
   },
 );
 
 test("scheduled lifecycle timer budgets reject MAX+1 before starting workers", () => {
-  for (const key of ["startupMs", "requestMs", "drainMs", "stopKillMs"])
+  for (const key of ["startupMs", "requestMs", "drainMs", "stopKillMs"]) {
     assert.throws(
       () => harness({ [key]: 2147483648 }),
       new RegExp(`${key} must not exceed 2147483647 milliseconds`),
     );
+  }
 });
 
 test(

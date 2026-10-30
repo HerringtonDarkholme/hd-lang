@@ -60,11 +60,12 @@ export const resources: Metric = {
   summary:
     "CPU time and peak RSS of check, test and build on small, 10k and 50k lines, cold and warm",
   async run(context) {
-    if (!canMeasure())
+    if (!canMeasure()) {
       return [
         notApplicable(NAME, CPU_LABEL, `≤ ${CPU_LIMIT_MS} ms`, "no /usr/bin/time on this host"),
         notApplicable(NAME, RSS_LABEL, "≤ 50.0 MB", "no /usr/bin/time on this host"),
       ];
+    }
     const results: TargetResult[] = [];
     let warmCheck10k: RunResult | undefined;
     let warmCheckProblem = "the 10k warm check did not run";
@@ -87,7 +88,9 @@ export const resources: Metric = {
             failed(NAME, coldLabel, target, skip),
             failed(NAME, warmLabel, target, skip),
           );
-          if (command === "check" && size === "10k") warmCheckProblem = skip;
+          if (command === "check" && size === "10k") {
+            warmCheckProblem = skip;
+          }
           continue;
         }
         const dir = copyPackage(source, `${NAME}-${size}`);
@@ -97,7 +100,9 @@ export const resources: Metric = {
         const cold = await runHd(context.hd, [command], options);
         const coldProblem = runProblem(cold, timeoutMs, `cold hd ${command}`);
         if (coldProblem) {
-          if (cold.timedOut) timedOutAt.set(command, size);
+          if (cold.timedOut) {
+            timedOutAt.set(command, size);
+          }
           results.push(failed(NAME, coldLabel, target, coldProblem));
           results.push(failed(NAME, warmLabel, target, "skipped: the cold run failed"));
           warmSkip = `the cold run failed: ${coldProblem}`;
@@ -105,7 +110,9 @@ export const resources: Metric = {
           results.push(measured(coldLabel, cold, timeoutMs));
           warm = await runHd(context.hd, [command], options);
           warmSkip = runProblem(warm, timeoutMs, `warm hd ${command}`);
-          if (warmSkip && warm.timedOut) timedOutAt.set(command, size);
+          if (warmSkip && warm.timedOut) {
+            timedOutAt.set(command, size);
+          }
           results.push(
             warmSkip
               ? failed(NAME, warmLabel, target, warmSkip)
@@ -113,18 +120,22 @@ export const resources: Metric = {
           );
         }
         if (command === "check" && size === "10k") {
-          if (warmSkip) warmCheckProblem = warmSkip;
-          else warmCheck10k = warm;
+          if (warmSkip) {
+            warmCheckProblem = warmSkip;
+          } else {
+            warmCheck10k = warm;
+          }
         }
         removeTempDir(dir);
       }
     }
-    if (!warmCheck10k || warmCheck10k.cpuMs === undefined || warmCheck10k.rssBytes === undefined)
+    if (!warmCheck10k || warmCheck10k.cpuMs === undefined || warmCheck10k.rssBytes === undefined) {
       return [
         failed(NAME, CPU_LABEL, `≤ ${CPU_LIMIT_MS} ms`, warmCheckProblem),
         failed(NAME, RSS_LABEL, "≤ 50.0 MB", warmCheckProblem),
         ...results,
       ];
+    }
     return [
       judge(NAME, CPU_LABEL, warmCheck10k.cpuMs, CPU_LIMIT_MS, "ms"),
       judge(NAME, RSS_LABEL, warmCheck10k.rssBytes, RSS_LIMIT, "MB"),

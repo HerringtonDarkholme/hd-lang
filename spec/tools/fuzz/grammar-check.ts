@@ -31,14 +31,23 @@ let jobs = Number(process.env.HD_TEST_JOBS ?? Math.min(8, availableParallelism()
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index += 2) {
   const value = args[index + 1] ?? "";
-  if (args[index] === "--compiler") compiler = splitCommand(value);
-  else if (args[index] === "--seed") seed = value;
-  else if (args[index] === "--cases") cases = Number(value);
-  else if (args[index] === "--show") show = Number(value);
-  else if (args[index] === "--jobs") jobs = Number(value);
-  else throw new Error(`unknown option ${args[index]}`);
+  if (args[index] === "--compiler") {
+    compiler = splitCommand(value);
+  } else if (args[index] === "--seed") {
+    seed = value;
+  } else if (args[index] === "--cases") {
+    cases = Number(value);
+  } else if (args[index] === "--show") {
+    show = Number(value);
+  } else if (args[index] === "--jobs") {
+    jobs = Number(value);
+  } else {
+    throw new Error(`unknown option ${args[index]}`);
+  }
 }
-if (compiler.length === 0) throw new Error("compiler command must not be empty");
+if (compiler.length === 0) {
+  throw new Error("compiler command must not be empty");
+}
 
 const inventory = loadInventory();
 const generator = new Generator(loadGrammar());
@@ -57,7 +66,9 @@ try {
       path,
       inventory,
     );
-    if (outcome.kind === "accept") return;
+    if (outcome.kind === "accept") {
+      return;
+    }
     const label = outcomeLabel(outcome);
     const list = rejected.get(label) ?? [];
     list.push(source);
@@ -70,9 +81,12 @@ const total = [...rejected.values()].reduce((sum, sources) => sum + sources.leng
 process.stdout.write(`seed=${seed} derivations=${cases} rejected=${total}\n`);
 for (const [label, sources] of [...rejected].sort(
   (left, right) => right[1].length - left[1].length,
-))
+)) {
   process.stdout.write(`  ${String(sources.length).padStart(5)}  ${label}\n`);
+}
 const smallest = [...new Set([...rejected.values()].flat())].sort(
   (left, right) => left.length - right.length,
 );
-for (const source of smallest.slice(0, show)) process.stdout.write(`----\n${source.trimEnd()}\n`);
+for (const source of smallest.slice(0, show)) {
+  process.stdout.write(`----\n${source.trimEnd()}\n`);
+}

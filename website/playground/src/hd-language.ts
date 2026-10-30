@@ -46,7 +46,9 @@ interface ClassifiedLine {
 let lastLine: ClassifiedLine | undefined;
 
 function classifiedLine(text: string): ClassifiedLine {
-  if (lastLine?.text === text) return lastLine;
+  if (lastLine?.text === text) {
+    return lastLine;
+  }
   let end = 0;
   const spans = classify(text).map(({ text: part, kind }) => ({ end: (end += part.length), kind }));
   lastLine = { text, spans };
@@ -85,8 +87,11 @@ const newlineAndIndent: Command = (view) => {
       const line = state.doc.lineAt(range.from);
       const before = line.text.slice(0, range.from - line.from);
       let indent = /^ */.exec(line.text)![0].length;
-      if (before.trim() === "") indent = before.length;
-      else if (codeOf(before).trimEnd().endsWith(":")) indent += 4;
+      if (before.trim() === "") {
+        indent = before.length;
+      } else if (codeOf(before).trimEnd().endsWith(":")) {
+        indent += 4;
+      }
       const insert = `\n${" ".repeat(indent)}`;
       return {
         changes: { from: range.from, to: range.to, insert },

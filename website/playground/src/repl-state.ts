@@ -51,9 +51,15 @@ const MAX_DECODED_BYTES = 8 * 1024 * 1024;
 
 export function stateSize(state: SessionState): number {
   let size = state.journal?.length ?? 0;
-  for (const source of Object.values(state.files)) size += source.length;
-  for (const [, text] of state.inputs) size += text.length;
-  for (const entry of state.transcript) size += entry.t.length + 16;
+  for (const source of Object.values(state.files)) {
+    size += source.length;
+  }
+  for (const [, text] of state.inputs) {
+    size += text.length;
+  }
+  for (const entry of state.transcript) {
+    size += entry.t.length + 16;
+  }
   return size;
 }
 
@@ -70,32 +76,51 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** Checks a decoded or loaded value and returns it as a state; undefined if it is not one. */
 export function asState(value: unknown): SessionState | undefined {
-  if (!isRecord(value)) return undefined;
-  const { files, inputs, next, journal, transcript } = value;
-  if (!isRecord(files) || !Object.values(files).every((text) => typeof text === "string"))
+  if (!isRecord(value)) {
     return undefined;
-  if (!Array.isArray(inputs)) return undefined;
+  }
+  const { files, inputs, next, journal, transcript } = value;
+  if (!isRecord(files) || !Object.values(files).every((text) => typeof text === "string")) {
+    return undefined;
+  }
+  if (!Array.isArray(inputs)) {
+    return undefined;
+  }
   const checkedInputs: [number, string][] = [];
   for (const item of inputs) {
-    if (!Array.isArray(item) || item.length !== 2) return undefined;
-    const [number, text] = item as [unknown, unknown];
-    if (!Number.isInteger(number) || (number as number) < 1 || typeof text !== "string")
+    if (!Array.isArray(item) || item.length !== 2) {
       return undefined;
+    }
+    const [number, text] = item as [unknown, unknown];
+    if (!Number.isInteger(number) || (number as number) < 1 || typeof text !== "string") {
+      return undefined;
+    }
     checkedInputs.push([number as number, text]);
   }
-  if (!Number.isInteger(next) || (next as number) < 1) return undefined;
-  if (journal !== null && !(journal instanceof Uint8Array)) return undefined;
-  if (!Array.isArray(transcript)) return undefined;
+  if (!Number.isInteger(next) || (next as number) < 1) {
+    return undefined;
+  }
+  if (journal !== null && !(journal instanceof Uint8Array)) {
+    return undefined;
+  }
+  if (!Array.isArray(transcript)) {
+    return undefined;
+  }
   const lines: TranscriptEntry[] = [];
   for (const item of transcript) {
-    if (!isRecord(item) || typeof item.c !== "string" || typeof item.t !== "string")
+    if (!isRecord(item) || typeof item.c !== "string" || typeof item.t !== "string") {
       return undefined;
-    if (item.n !== undefined && !Number.isInteger(item.n)) return undefined;
+    }
+    if (item.n !== undefined && !Number.isInteger(item.n)) {
+      return undefined;
+    }
     const entry: TranscriptEntry =
       item.n === undefined
         ? { c: item.c, t: item.t }
         : { c: item.c, t: item.t, n: item.n as number };
-    if (keepsLine(entry)) lines.push(entry);
+    if (keepsLine(entry)) {
+      lines.push(entry);
+    }
   }
   return {
     files: files as Record<string, string>,
@@ -136,7 +161,9 @@ async function withStore<T>(
 ): Promise<T> {
   const opening = idb.open(DATABASE, 1);
   opening.onupgradeneeded = () => {
-    if (!opening.result.objectStoreNames.contains(STORE)) opening.result.createObjectStore(STORE);
+    if (!opening.result.objectStoreNames.contains(STORE)) {
+      opening.result.createObjectStore(STORE);
+    }
   };
   const db = await request(opening);
   try {
@@ -152,7 +179,9 @@ export async function saveState(
   state: SessionState,
   idb: IDBFactory | undefined = factory(),
 ): Promise<SaveResult> {
-  if (!idb) return "unavailable";
+  if (!idb) {
+    return "unavailable";
+  }
   const kept = trimmed(state);
   if (kept.journal === null || stateSize(kept) > MAX_SAVED_BYTES) {
     await forgetState(key, idb);
@@ -171,7 +200,9 @@ export async function loadState(
   key: string,
   idb: IDBFactory | undefined = factory(),
 ): Promise<SessionState | undefined> {
-  if (!idb) return undefined;
+  if (!idb) {
+    return undefined;
+  }
   try {
     return asState(await withStore(idb, "readonly", (store) => request(store.get(key))));
   } catch {
@@ -184,7 +215,9 @@ export async function forgetState(
   key: string,
   idb: IDBFactory | undefined = factory(),
 ): Promise<void> {
-  if (!idb) return;
+  if (!idb) {
+    return;
+  }
   try {
     await withStore(idb, "readwrite", (store) => request(store.delete(key)));
   } catch {
@@ -198,8 +231,9 @@ const SHARE = /^#?repl=([zj])\.([A-Za-z0-9_-]*)$/;
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
-  for (let index = 0; index < bytes.length; index += 0x8000)
+  for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -215,7 +249,9 @@ async function pipe(bytes: Uint8Array, stream: CompressionStream | Decompression
   let total = 0;
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      break;
+    }
     total += value.length;
     if (total > MAX_DECODED_BYTES) {
       await reader.cancel();
@@ -243,7 +279,9 @@ interface Payload {
 
 async function encodePayload(payload: Payload): Promise<string> {
   const json = new TextEncoder().encode(JSON.stringify(payload));
-  if (typeof CompressionStream === "undefined") return `#repl=j.${bytesToBase64Url(json)}`;
+  if (typeof CompressionStream === "undefined") {
+    return `#repl=j.${bytesToBase64Url(json)}`;
+  }
   return `#repl=z.${bytesToBase64Url(await pipe(json, new CompressionStream("deflate-raw")))}`;
 }
 
@@ -271,7 +309,9 @@ export async function shareLink(state: SessionState): Promise<SharedLink> {
       journal: bytesToBase64Url(kept.journal),
       transcript: kept.transcript.map((e) => ({ ...e })),
     });
-    if (full.length <= MAX_SHARE_HASH) return { hash: full, outputs: true, long: false };
+    if (full.length <= MAX_SHARE_HASH) {
+      return { hash: full, outputs: true, long: false };
+    }
   }
   const bare = await encodePayload({ v: 1, files: { ...kept.files }, inputs });
   return { hash: bare, outputs: false, long: bare.length > MAX_SHARE_HASH };
@@ -285,13 +325,17 @@ export function isShareHash(hash: string): boolean {
 /** Reads a `#repl=` hash; undefined for a malformed one. */
 export async function sessionFromHash(hash: string): Promise<SessionState | undefined> {
   const match = SHARE.exec(hash.trim());
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   try {
     const bytes = base64UrlToBytes(match[2]!);
     const json =
       match[1] === "z" ? await pipe(bytes, new DecompressionStream("deflate-raw")) : bytes;
     const payload: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(json));
-    if (!isRecord(payload) || payload.v !== 1) return undefined;
+    if (!isRecord(payload) || payload.v !== 1) {
+      return undefined;
+    }
     const journal = typeof payload.journal === "string" ? base64UrlToBytes(payload.journal) : null;
     const inputs = payload.inputs;
     return asState({

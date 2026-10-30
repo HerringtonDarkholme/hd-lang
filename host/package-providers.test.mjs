@@ -24,9 +24,12 @@ test("package codecs retain exact integer ranges, float widths and void", () => 
       const t = r.int(bits, signed);
       const low = signed ? -(1n << BigInt(bits - 1)) : 0n;
       const high = (1n << BigInt(bits - (signed ? 1 : 0))) - 1n;
-      for (const n of [low, 0n, high]) assert.equal(roundTrip(t, n), bits === 64 ? n : Number(n));
-      for (const bad of [low - 1n, high + 1n, 1.1, NaN, Infinity, "1", null])
+      for (const n of [low, 0n, high]) {
+        assert.equal(roundTrip(t, n), bits === 64 ? n : Number(n));
+      }
+      for (const bad of [low - 1n, high + 1n, 1.1, NaN, Infinity, "1", null]) {
         assert.throws(() => encode(t, bad), HostContract);
+      }
     }
   }
   assert.equal(encode(r.f32, 1.25).length, 4);
@@ -99,15 +102,17 @@ test("package codecs own their data and preserve names including __proto__", () 
 test("package contract reader rejects truncated, noncanonical and unknown versions", () => {
   const empty = new Uint8Array([1, 0, 0, 0, 0]);
   assert.deepEqual(readPackageContract(empty), []);
-  for (let n = 0; n < empty.length; n++)
+  for (let n = 0; n < empty.length; n++) {
     assert.throws(() => readPackageContract(empty.subarray(0, n)), HostContract);
+  }
   for (const bytes of [
     [2, 0, 0, 0, 0],
     [1, 0, 0, 0, 128, 0],
     [1, 0, 0, 0, 0, 0],
     [1, 0, 0, 0, 255, 255, 255, 255, 15],
-  ])
+  ]) {
     assert.throws(() => readPackageContract(new Uint8Array(bytes)), HostContract);
+  }
 });
 
 test("private Serde values retain numeric kind, deep containers and literal object keys", () => {
@@ -132,17 +137,21 @@ test("private Serde values retain numeric kind, deep containers and literal obje
     [["a", 2], ["n"]],
     [["o", 1], ["b", true], ["n"]],
     [["n"], ["n"]],
-  ])
+  ]) {
     assert.throws(() => r.json.dec(wire(tokens)), HostContract);
-  for (const bad of [undefined, () => {}, 1n << 64n, -(1n << 63n) - 1n, new Date(), [undefined]])
+  }
+  for (const bad of [undefined, () => {}, 1n << 64n, -(1n << 63n) - 1n, new Date(), [undefined]]) {
     assert.throws(() => encode(r.json, bad), HostContract);
+  }
   const cyclic = {};
   cyclic.self = cyclic;
   assert.throws(() => encode(r.json, cyclic), /cyclic/);
   const shared = { value: 7n };
   assert.deepEqual(roundTrip(r.json, [shared, shared]), [shared, shared]);
   let deep = null;
-  for (let i = 0; i < 128; ++i) deep = [deep];
+  for (let i = 0; i < 128; ++i) {
+    deep = [deep];
+  }
   let decoded = roundTrip(r.json, deep);
   for (let i = 0; i < 128; ++i) {
     assert.equal(decoded.length, 1);
@@ -237,8 +246,9 @@ test("provider interface identity stays checked and immutable after metadata cha
     const identity = context.interfaceIdentity;
     assert.deepEqual(identity, expected);
     assert.equal(Object.isFrozen(identity), true);
-    for (const key of Object.keys(expected))
+    for (const key of Object.keys(expected)) {
       assert.equal(Reflect.set(identity, key, "forged"), false);
+    }
     assert.equal(Reflect.set(context, "interfaceIdentity", {}), false);
     assert.equal(Reflect.defineProperty(context, "interfaceIdentity", { value: {} }), false);
     assert.equal(Reflect.deleteProperty(context, "interfaceIdentity"), false);
@@ -462,7 +472,9 @@ test("pollable callback failures preserve cancellation ownership", () => {
     const h = operationHost((context) =>
       context.pending(
         () => {
-          if (stage === "poll") throw new Error("probe failed");
+          if (stage === "poll") {
+            throw new Error("probe failed");
+          }
           return stage === "invalid readiness" ? 1 : true;
         },
         () => {

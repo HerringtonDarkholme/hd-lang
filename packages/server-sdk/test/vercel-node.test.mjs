@@ -14,7 +14,9 @@ class NativeResponse extends EventEmitter {
   }
   writeHead(status, headers = {}) {
     this.status = status;
-    for (const [name, value] of Object.entries(headers)) this.setHeader(name, value);
+    for (const [name, value] of Object.entries(headers)) {
+      this.setHeader(name, value);
+    }
     this.headersSent = true;
   }
   end(bytes) {

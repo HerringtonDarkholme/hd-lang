@@ -49,7 +49,9 @@ export function providers(name, io) {
       // `.Err(E.Closed)`: `Err` is variant 1, `Closed` variant 1.
       const disposed = () => new io.Enc().leb(1).leb(1);
       const known = (file) => {
-        if (!files.has(file)) throw new Error(`no disposed-file handle numbered ${file}`);
+        if (!files.has(file)) {
+          throw new Error(`no disposed-file handle numbered ${file}`);
+        }
         return files.get(file);
       };
       return {
@@ -75,7 +77,9 @@ export function providers(name, io) {
             return io.put(known(file) ? new io.Enc().leb(0).str("") : disposed());
           },
           close: (file) => {
-            if (!known(file)) return io.put(disposed());
+            if (!known(file)) {
+              return io.put(disposed());
+            }
             files.set(file, false);
             return io.put(new io.Enc().leb(0));
           },

@@ -26,7 +26,9 @@ function scan(text: string, from: Scan = { depth: 0, inTriple: false }): Scan {
   while (i < text.length) {
     if (inTriple) {
       const end = text.indexOf('"""', i);
-      if (end < 0) return { depth, inTriple };
+      if (end < 0) {
+        return { depth, inTriple };
+      }
       inTriple = false;
       i = end + 3;
       continue;
@@ -34,7 +36,9 @@ function scan(text: string, from: Scan = { depth: 0, inTriple: false }): Scan {
     const c = text[i]!;
     if (c === "#") {
       const end = text.indexOf("\n", i);
-      if (end < 0) break;
+      if (end < 0) {
+        break;
+      }
       i = end;
     } else if (text.startsWith('"""', i)) {
       inTriple = true;
@@ -43,9 +47,14 @@ function scan(text: string, from: Scan = { depth: 0, inTriple: false }): Scan {
     } else if (c === '"') {
       // A one-line string: up to its closing quote or the line's end.
       i += 1;
-      while (i < text.length && text[i] !== '"' && text[i] !== "\n") i += text[i] === "\\" ? 2 : 1;
-    } else if ("([{".includes(c)) depth += 1;
-    else if (")]}".includes(c)) depth = Math.max(0, depth - 1);
+      while (i < text.length && text[i] !== '"' && text[i] !== "\n") {
+        i += text[i] === "\\" ? 2 : 1;
+      }
+    } else if ("([{".includes(c)) {
+      depth += 1;
+    } else if (")]}".includes(c)) {
+      depth = Math.max(0, depth - 1);
+    }
     i += 1;
   }
   return { depth, inTriple };
@@ -56,10 +65,14 @@ function codeOf(line: string): string {
   let i = 0;
   while (i < line.length) {
     const c = line[i]!;
-    if (c === "#") return line.slice(0, i).trimEnd();
+    if (c === "#") {
+      return line.slice(0, i).trimEnd();
+    }
     if (c === '"') {
       i += 1;
-      while (i < line.length && line[i] !== '"') i += line[i] === "\\" ? 2 : 1;
+      while (i < line.length && line[i] !== '"') {
+        i += line[i] === "\\" ? 2 : 1;
+      }
     }
     i += 1;
   }
@@ -69,12 +82,18 @@ function codeOf(line: string): string {
 /** Whether `text`, an input's lines so far joined with `\n`, needs more lines. */
 export function needsMoreInput(text: string): boolean {
   const { depth, inTriple } = scan(text);
-  if (depth > 0 || inTriple) return true;
+  if (depth > 0 || inTriple) {
+    return true;
+  }
   const lines = text.split("\n");
   const last = lines.at(-1)!;
   // An empty line ends a block.
-  if (last.trim() === "") return false;
-  if (codeOf(last).endsWith(":")) return true;
+  if (last.trim() === "") {
+    return false;
+  }
+  if (codeOf(last).endsWith(":")) {
+    return true;
+  }
   // A line of an indented block may be followed by more of the block.
   return lines.length > 1 && /^\s/.test(last);
 }
@@ -87,7 +106,9 @@ export function continuationIndent(line: string): string {
 
 /** How many characters Backspace deletes after `before`, the line's text up to the caret. */
 export function backspaceWidth(before: string): number {
-  if (before === "" || before.trim() !== "" || before.includes("\t")) return 1;
+  if (before === "" || before.trim() !== "" || before.includes("\t")) {
+    return 1;
+  }
   return before.length % INDENT_UNIT.length || INDENT_UNIT.length;
 }
 
@@ -109,16 +130,22 @@ export function splitInputs(code: string): string[] {
   let holdsItem = false;
   const flush = (): void => {
     const text = current.join("\n").trimEnd();
-    if (holdsItem && text !== "") inputs.push(`${text}\n`);
+    if (holdsItem && text !== "") {
+      inputs.push(`${text}\n`);
+    }
     current = [];
     holdsItem = false;
   };
   for (const line of code.split("\n")) {
     const atMargin = state.depth === 0 && !state.inTriple && /^\S/.test(line);
-    if (atMargin && holdsItem && !CARRIES_ON.test(line)) flush();
+    if (atMargin && holdsItem && !CARRIES_ON.test(line)) {
+      flush();
+    }
     current.push(line);
     const code = codeOf(line).trim();
-    if (atMargin && code !== "") holdsItem = !code.startsWith("@");
+    if (atMargin && code !== "") {
+      holdsItem = !code.startsWith("@");
+    }
     state = scan(`${line}\n`, state);
   }
   flush();

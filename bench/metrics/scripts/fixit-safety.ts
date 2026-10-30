@@ -36,7 +36,7 @@ export const fixitSafety: Metric = {
   async run(context) {
     const outcomes = await mistakeOutcomes(context);
     const target = "≥ 100.0%";
-    if (!outcomes.some((o) => o.fixFieldSeen))
+    if (!outcomes.some((o) => o.fixFieldSeen)) {
       return [
         notApplicable(
           NAME,
@@ -45,8 +45,9 @@ export const fixitSafety: Metric = {
           "no fix-it field in --format json",
         ),
       ];
+    }
     const applied = outcomes.filter((o) => o.fixApplied && o.afterFix);
-    if (applied.length === 0)
+    if (applied.length === 0) {
       return [
         notApplicable(
           NAME,
@@ -55,6 +56,7 @@ export const fixitSafety: Metric = {
           "no corpus diagnostic offers a fix-it",
         ),
       ];
+    }
     const unsafe = applied
       .map((o) => ({ name: o.mistake.name, added: newErrors(o.diagnostics, o.afterFix!) }))
       .filter((entry) => entry.added.length > 0);

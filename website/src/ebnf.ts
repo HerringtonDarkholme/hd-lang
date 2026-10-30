@@ -69,7 +69,9 @@ function scan(code: string): { text: string; kind: EbnfKind | "name" }[] {
       index = scanTo(code, index + 1, "?");
     } else if (/\s/.test(character)) {
       kind = "plain";
-      while (index < code.length && /\s/.test(code[index]!)) index += 1;
+      while (index < code.length && /\s/.test(code[index]!)) {
+        index += 1;
+      }
     } else {
       NAME.lastIndex = index;
       const name = NAME.exec(code);
@@ -106,15 +108,21 @@ export function tokenizeEbnf(code: string): EbnfSpan[] {
       return { text: span.text, kind: "operator" };
     }
     if (span.kind !== "name") {
-      if (!isTrivia(span.kind)) ruleStart = false;
+      if (!isTrivia(span.kind)) {
+        ruleStart = false;
+      }
       return { text: span.text, kind: span.kind };
     }
     let after = index + 1;
-    while (after < spans.length && isTrivia(spans[after]!.kind)) after += 1;
+    while (after < spans.length && isTrivia(spans[after]!.kind)) {
+      after += 1;
+    }
     const next = spans[after];
     const defines = ruleStart && next?.kind === "operator" && next.text === "=";
     ruleStart = false;
-    if (defines) return { text: span.text, kind: "definition" };
+    if (defines) {
+      return { text: span.text, kind: "definition" };
+    }
     return { text: span.text, kind: isTokenName(span.text) ? "token" : "reference" };
   });
 }
@@ -166,14 +174,16 @@ export function buildGrammarIndex(
   const definitions = new Map<string, string[]>();
   const uses: UnresolvedReference[] = [];
   let definitionCount = 0;
-  for (const { source, blocks } of pages)
+  for (const { source, blocks } of pages) {
     for (const block of blocks) {
       let line = block.line + 1;
       for (const span of tokenizeEbnf(block.code)) {
         if (span.kind === "definition") {
           definitionCount += 1;
           const pagesDefining = definitions.get(span.text) ?? [];
-          if (!pagesDefining.includes(source)) pagesDefining.push(source);
+          if (!pagesDefining.includes(source)) {
+            pagesDefining.push(source);
+          }
           definitions.set(span.text, pagesDefining);
         } else if (span.kind === "reference" || span.kind === "token") {
           uses.push({ name: span.text, source, line });
@@ -181,11 +191,15 @@ export function buildGrammarIndex(
         line += span.text.split("\n").length - 1;
       }
     }
-  if (canonicalSource !== undefined)
+  }
+  if (canonicalSource !== undefined) {
     for (const pagesDefining of definitions.values()) {
       const at = pagesDefining.indexOf(canonicalSource);
-      if (at > 0) pagesDefining.unshift(...pagesDefining.splice(at, 1));
+      if (at > 0) {
+        pagesDefining.unshift(...pagesDefining.splice(at, 1));
+      }
     }
+  }
   const missing = uses.filter((use) => !definitions.has(use.name));
   return {
     definitions,
@@ -205,6 +219,8 @@ export function buildGrammarIndex(
  */
 export function ruleTarget(index: GrammarIndex, name: string, source: string): string | undefined {
   const pagesDefining = index.definitions.get(name);
-  if (!pagesDefining) return undefined;
+  if (!pagesDefining) {
+    return undefined;
+  }
   return pagesDefining.includes(source) ? source : pagesDefining[0];
 }

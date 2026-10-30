@@ -38,7 +38,9 @@ function incomingBody(incoming) {
       },
       cancel() {
         detach();
-        if (incoming.readableEnded || incoming.destroyed) return;
+        if (incoming.readableEnded || incoming.destroyed) {
+          return;
+        }
         return new Promise((resolve) => {
           const done = () => {
             incoming.off("end", done);
@@ -64,12 +66,15 @@ export async function nativeListener(fetcher) {
   const server = http.createServer(async (incoming, outgoing) => {
     const signal = new AbortController();
     outgoing.once("close", () => {
-      if (!outgoing.writableFinished) signal.abort("Disconnected");
+      if (!outgoing.writableFinished) {
+        signal.abort("Disconnected");
+      }
     });
     incoming.once("aborted", () => signal.abort("Disconnected"));
     const headers = [];
-    for (let i = 0; i < incoming.rawHeaders.length; i += 2)
+    for (let i = 0; i < incoming.rawHeaders.length; i += 2) {
       headers.push([incoming.rawHeaders[i], incoming.rawHeaders[i + 1]]);
+    }
     const body = ["GET", "HEAD"].includes(incoming.method) ? undefined : incomingBody(incoming);
     try {
       const request = new Request(`http://127.0.0.1${incoming.url}`, {
@@ -81,23 +86,34 @@ export async function nativeListener(fetcher) {
       });
       const response = await fetcher.fetch(request);
       const bytes = new Uint8Array(await response.arrayBuffer());
-      if (outgoing.destroyed) return;
+      if (outgoing.destroyed) {
+        return;
+      }
       const cookies = [];
       for (const [name, value] of responseHeaders(response.headers)) {
-        if (name.toLowerCase() === "set-cookie") cookies.push(value);
-        else outgoing.setHeader(name, value);
+        if (name.toLowerCase() === "set-cookie") {
+          cookies.push(value);
+        } else {
+          outgoing.setHeader(name, value);
+        }
       }
-      if (cookies.length) outgoing.setHeader("set-cookie", cookies);
+      if (cookies.length) {
+        outgoing.setHeader("set-cookie", cookies);
+      }
       // Rejection can leave an upload unread. Flush its response before
       // closing, instead of reusing a socket whose parser is still paused.
-      if (body && !incoming.readableEnded) outgoing.setHeader("connection", "close");
+      if (body && !incoming.readableEnded) {
+        outgoing.setHeader("connection", "close");
+      }
       outgoing.writeHead(response.status);
       outgoing.end(bytes, () =>
         acknowledgements.push({ path: incoming.url, status: response.status }),
       );
     } catch (error) {
       failures.push({ path: incoming.url, name: error.name });
-      if (!outgoing.destroyed) outgoing.destroy();
+      if (!outgoing.destroyed) {
+        outgoing.destroy();
+      }
     }
   });
   server.listen(0, "127.0.0.1");

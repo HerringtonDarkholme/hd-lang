@@ -42,10 +42,12 @@ export function createApplication({
   };
   const unassociated = (stream, text) =>
     emitLog(Object.freeze({ version: 1, lease: null, stream, text }));
-  if (sources.length !== 1 || sources[0].identity.trait_path !== "server.HttpServer")
+  if (sources.length !== 1 || sources[0].identity.trait_path !== "server.HttpServer") {
     throw new Error("the application must bind the SDK HttpServer capability");
-  if (!grants || !sources[0].selectors.some((name) => grants[name] === true))
+  }
+  if (!grants || !sources[0].selectors.some((name) => grants[name] === true)) {
     throw new Error("the application must grant its HttpServer capability");
+  }
   const source = sources[0];
   const leases = new Map();
   const incoming = [];
@@ -69,7 +71,9 @@ export function createApplication({
   });
   const lookup = (id) => {
     const lease = leases.get(id.sequence);
-    if (!lease || lease.id.generation !== id.generation) throw new Error("expired request lease");
+    if (!lease || lease.id.generation !== id.generation) {
+      throw new Error("expired request lease");
+    }
     lease.assertLive();
     return lease;
   };
@@ -81,13 +85,17 @@ export function createApplication({
         () => {
           while (!held && incoming.length) {
             const candidate = incoming.shift();
-            if (leases.has(candidate.id.sequence)) held = candidate;
+            if (leases.has(candidate.id.sequence)) {
+              held = candidate;
+            }
           }
           return Boolean(held) || stopping;
         },
         () => ok(held ? { id: held.id, request: held.request } : null),
         () => {
-          if (held && leases.has(held.id.sequence)) incoming.unshift(held);
+          if (held && leases.has(held.id.sequence)) {
+            incoming.unshift(held);
+          }
         },
       );
     },
@@ -105,8 +113,9 @@ export function createApplication({
         typeof policy.coversHost !== "function" ||
         typeof policy.isAsciiUrl !== "function" ||
         typeof policy.writtenHost !== "function"
-      )
+      ) {
         throw new Error("server Http requires the compiler HTTP policy service");
+      }
       return createHttpClient(lease, {
         grant: {
           coversHost: (key, host, port) => key === "Http" && policy.coversHost(host, port),
@@ -132,8 +141,11 @@ export function createApplication({
             let timer;
             const arm = () => {
               const left = due - performance.now();
-              if (left <= 0) resolve(undefined);
-              else timer = setTimeout(arm, Math.min(left, 2147483647));
+              if (left <= 0) {
+                resolve(undefined);
+              } else {
+                timer = setTimeout(arm, Math.min(left, 2147483647));
+              }
             };
             arm();
             return () => clearTimeout(timer);
@@ -151,8 +163,12 @@ export function createApplication({
     },
   };
   function drive() {
-    if (ended) return;
-    if (driving) throw new Error("reentrant application turn");
+    if (ended) {
+      return;
+    }
+    if (driving) {
+      throw new Error("reentrant application turn");
+    }
     driving = true;
     try {
       if (!driver) {
@@ -189,8 +205,12 @@ export function createApplication({
       for (let budget = 0; budget < 1000; budget++) {
         const turn = driver.step();
         if (turn.status !== -1) {
-          if (turn.status !== 0) throw new Error("server main failed with status " + turn.status);
-          if (!stopping || leases.size) throw new Error("server main ended before its leases");
+          if (turn.status !== 0) {
+            throw new Error("server main failed with status " + turn.status);
+          }
+          if (!stopping || leases.size) {
+            throw new Error("server main ended before its leases");
+          }
           ended = true;
           host.close();
           try {
@@ -230,7 +250,9 @@ export function createApplication({
   return Object.freeze({
     start,
     async dispatch(request, signal) {
-      if (stopping) throw new Error("server admission is closed");
+      if (stopping) {
+        throw new Error("server admission is closed");
+      }
       const lease = dispatcher.open(incomingRequest(request));
       leases.set(lease.id.sequence, lease);
       incoming.push(lease);
@@ -241,7 +263,9 @@ export function createApplication({
             : "Disconnected",
         );
       signal?.addEventListener("abort", abort, { once: true });
-      if (signal?.aborted) abort();
+      if (signal?.aborted) {
+        abort();
+      }
       try {
         return await lease.run();
       } finally {

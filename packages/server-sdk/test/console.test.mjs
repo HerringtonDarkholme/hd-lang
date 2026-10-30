@@ -53,11 +53,12 @@ test("denied Console captures no record and returns each stream's NotGranted", a
   for (const [method, stream] of [
     ["write_sync", "Stdout"],
     ["write_error_sync", "Stderr"],
-  ])
+  ]) {
     assert.deepEqual(console[method]("private"), {
       ok: false,
       error: { tag: "NotGranted", fields: { stream: { tag: stream, fields: {} } } },
     });
+  }
   lease.finish(false);
   await lease.run();
   assert.deepEqual(records, []);
@@ -71,7 +72,9 @@ test("a throwing log observer does not prevent later delivery or lease completio
     policy: { allows: () => true },
     write(record) {
       delivered.push(record.text);
-      if (record.stream === "err") throw new Error("observer failed");
+      if (record.stream === "err") {
+        throw new Error("observer failed");
+      }
     },
   });
   assert.throws(() => lease.effect(null), /must be a function/);

@@ -60,18 +60,25 @@ export function parseMistake(name: string, file: string, text: string): Mistake 
   const mistake = header(text, "mistake");
   const log = header(text, "log");
   const tool = header(text, "tool") ?? "check";
-  if (tool !== "check" && tool !== "lint")
+  if (tool !== "check" && tool !== "lint") {
     throw new Error(`${file}: tool must be check or lint, got ${tool}`);
-  if (!code || !mistake || !log) throw new Error(`${file}: needs mistake, log, and expect headers`);
+  }
+  if (!code || !mistake || !log) {
+    throw new Error(`${file}: needs mistake, log, and expect headers`);
+  }
   const marked = lines
     .map((line, index) => ({
       index,
       match: /#\s*(diagnostic|warning): ([a-z0-9-]+)\s*$/.exec(line),
     }))
     .filter((entry) => entry.match && !lines[entry.index]!.startsWith("#"));
-  if (marked.length !== 1) throw new Error(`${file}: needs exactly one line marker`);
+  if (marked.length !== 1) {
+    throw new Error(`${file}: needs exactly one line marker`);
+  }
   const [{ index, match }] = marked as [{ index: number; match: RegExpExecArray }];
-  if (match[2] !== code) throw new Error(`${file}: marker ${match[2]} differs from expect ${code}`);
+  if (match[2] !== code) {
+    throw new Error(`${file}: marker ${match[2]} differs from expect ${code}`);
+  }
   const fixed = header(text, "fixed");
   const span = Number(header(text, "fixed-lines") ?? "1");
   const fixedText =

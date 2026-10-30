@@ -19,7 +19,9 @@ globalThis.setTimeout = (callback, delay, ...args) => {
     }
     callback.apply(this, args);
   }, delay);
-  if (delay === 200) activeCleanupTimers.add(timer);
+  if (delay === 200) {
+    activeCleanupTimers.add(timer);
+  }
   return timer;
 };
 globalThis.clearTimeout = (timer) => {

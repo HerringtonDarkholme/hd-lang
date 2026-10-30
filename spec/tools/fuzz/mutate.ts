@@ -38,7 +38,9 @@ export function joinLines(lines: readonly Line[]): string {
     .map((line) => {
       const body = line.original ?? line.tokens.join(" ");
       const code = body ? `${line.indent}${body}` : "";
-      if (!line.comment) return code;
+      if (!line.comment) {
+        return code;
+      }
       return code ? `${code}  ${line.comment}` : `${line.indent}${line.comment}`;
     })
     .join("\n");
@@ -96,9 +98,11 @@ const mutationNames: readonly MutationName[] = [
 
 function tokenSlots(lines: readonly Line[]): Array<[number, number]> {
   const slots: Array<[number, number]> = [];
-  for (const [lineIndex, line] of lines.entries())
-    for (let tokenIndex = 0; tokenIndex < line.tokens.length; tokenIndex += 1)
+  for (const [lineIndex, line] of lines.entries()) {
+    for (let tokenIndex = 0; tokenIndex < line.tokens.length; tokenIndex += 1) {
       slots.push([lineIndex, tokenIndex]);
+    }
+  }
   return slots;
 }
 
@@ -128,10 +132,14 @@ function applyMutation(
 ): boolean {
   const slots = tokenSlots(lines);
   const nonEmpty = codeLines(lines);
-  if (slots.length === 0 || nonEmpty.length === 0) return false;
+  if (slots.length === 0 || nonEmpty.length === 0) {
+    return false;
+  }
   const [lineIndex, tokenIndex] = rng.pick(slots);
   const line = lines[lineIndex]!;
-  if (name.endsWith("-token") || name === "replace-literal") line.original = undefined;
+  if (name.endsWith("-token") || name === "replace-literal") {
+    line.original = undefined;
+  }
   switch (name) {
     case "delete-token":
       line.tokens.splice(tokenIndex, 1);
@@ -140,7 +148,9 @@ function applyMutation(
       line.tokens.splice(tokenIndex, 0, line.tokens[tokenIndex]!);
       return true;
     case "swap-tokens": {
-      if (line.tokens.length < 2) return false;
+      if (line.tokens.length < 2) {
+        return false;
+      }
       const left = Math.min(tokenIndex, line.tokens.length - 2);
       const swapped = line.tokens[left]!;
       line.tokens[left] = line.tokens[left + 1]!;
@@ -163,7 +173,9 @@ function applyMutation(
       return true;
     }
     case "swap-lines": {
-      if (nonEmpty.length < 2) return false;
+      if (nonEmpty.length < 2) {
+        return false;
+      }
       const position = rng.int(nonEmpty.length - 1);
       const first = nonEmpty[position]!;
       const second = nonEmpty[position + 1]!;
@@ -179,14 +191,18 @@ function applyMutation(
       const literalSlots = slots.filter(([row, column]) =>
         /^(?:\d|"|'|\w+"|true$|false$)/.test(lines[row]!.tokens[column]!),
       );
-      if (literalSlots.length === 0) return false;
+      if (literalSlots.length === 0) {
+        return false;
+      }
       const [row, column] = rng.pick(literalSlots);
       lines[row]!.original = undefined;
       lines[row]!.tokens[column] = rng.pick(interestingLiterals);
       return true;
     }
     case "splice-line": {
-      if (donors.length === 0) return false;
+      if (donors.length === 0) {
+        return false;
+      }
       const donor = cloneLine(rng.pick(donors));
       donor.comment = "";
       donor.indent = lines[lineIndex]!.indent;
@@ -198,13 +214,15 @@ function applyMutation(
 
 /** Strips conformance markers so a mutated seed does not carry stale expectations. */
 function stripMarkers(lines: Line[]): void {
-  for (const line of lines)
+  for (const line of lines) {
     if (
       /^#\s*(?:diagnostic|warning|panic|test|expect|expect-result|fixture-[a-z-]+):/.test(
         line.comment,
       )
-    )
+    ) {
       line.comment = "";
+    }
+  }
 }
 
 interface Mutant {
@@ -224,7 +242,9 @@ export function mutate(
   const operators: MutationName[] = [];
   for (let attempt = 0; operators.length < count && attempt < count * 4; attempt += 1) {
     const name = rng.pick(mutationNames);
-    if (applyMutation(lines, name, rng, vocabulary, donors)) operators.push(name);
+    if (applyMutation(lines, name, rng, vocabulary, donors)) {
+      operators.push(name);
+    }
   }
   return { operators, source: `${joinLines(lines).replace(/\n*$/, "")}\n` };
 }

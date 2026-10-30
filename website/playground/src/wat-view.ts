@@ -26,15 +26,21 @@ function watHtml(wat: string, maxLines = MAX_WAT_LINES): string {
         lines.push(line);
         line = "";
       }
-      if (part === "") return;
+      if (part === "") {
+        return;
+      }
       line +=
         kind === "plain"
           ? escapeHtml(part)
           : `<span class="wat-${kind}">${escapeHtml(part)}</span>`;
     });
-    if (lines.length >= maxLines) break;
+    if (lines.length >= maxLines) {
+      break;
+    }
   }
-  if (lines.length < maxLines && line !== "") lines.push(line);
+  if (lines.length < maxLines && line !== "") {
+    lines.push(line);
+  }
   return lines
     .slice(0, maxLines)
     .map((html) => `<span class="wat-line">${html}</span>`)
@@ -43,8 +49,9 @@ function watHtml(wat: string, maxLines = MAX_WAT_LINES): string {
 
 const lineCount = (text: string): number => {
   let count = 1;
-  for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1))
+  for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) {
     count += 1;
+  }
   return text.endsWith("\n") ? count - 1 : count;
 };
 
@@ -82,8 +89,9 @@ export class WatPanel {
           ? `✗ ${errors} ${errors === 1 ? "error" : "errors"}: no module to show`
           : `✗ ${result.summary}`;
       const children: HTMLElement[] = [element("div", "outcome failed", heading)];
-      if (result.diagnostics.length > 0)
+      if (result.diagnostics.length > 0) {
         children.push(diagnosticList(result.diagnostics, this.onJump));
+      }
       this.root.replaceChildren(...children);
       return;
     }

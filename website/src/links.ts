@@ -18,8 +18,12 @@ function decodeEntities(value: string): string {
 function servedFile(outDir: string, sitePath: string): string {
   const path = decodeURIComponent(sitePath);
   const direct = join(outDir, path);
-  if (path === "" || path.endsWith("/")) return join(direct, "index.html");
-  if (existsSync(direct) && statSync(direct).isDirectory()) return join(direct, "index.html");
+  if (path === "" || path.endsWith("/")) {
+    return join(direct, "index.html");
+  }
+  if (existsSync(direct) && statSync(direct).isDirectory()) {
+    return join(direct, "index.html");
+  }
   return direct;
 }
 
@@ -50,7 +54,9 @@ export async function checkLinks(
     const html = await readFile(pageFile, "utf8");
     for (const match of html.matchAll(ATTRIBUTE)) {
       const url = decodeEntities(match[1]!);
-      if (EXTERNAL.test(url)) continue;
+      if (EXTERNAL.test(url)) {
+        continue;
+      }
       const hash = url.indexOf("#");
       const path = hash < 0 ? url : url.slice(0, hash);
       const fragment = hash < 0 ? "" : decodeURIComponent(url.slice(hash + 1));
@@ -66,9 +72,12 @@ export async function checkLinks(
           continue;
         }
       }
-      if (fragment === "" || fragment.startsWith("code=") || !target.endsWith(".html")) continue;
-      if (!(await ids(target)).has(fragment))
+      if (fragment === "" || fragment.startsWith("code=") || !target.endsWith(".html")) {
+        continue;
+      }
+      if (!(await ids(target)).has(fragment)) {
         failures.push(`${page}: ${url} names a missing anchor #${fragment}`);
+      }
     }
   }
   return failures;

@@ -49,7 +49,9 @@ export class CompilerClient {
 
   constructor(options: CompilerClientOptions = {}) {
     this.options = options;
-    if (!options.lazy) this.start();
+    if (!options.lazy) {
+      this.start();
+    }
   }
 
   get busy(): boolean {
@@ -63,7 +65,9 @@ export class CompilerClient {
 
   /** Loads the worker if it is not loaded yet. */
   start(): void {
-    if (this.worker) return;
+    if (this.worker) {
+      return;
+    }
     const url = this.workerUrl("worker.js");
     const worker = new Worker(url, { type: "module" });
     this.worker = worker;
@@ -77,7 +81,9 @@ export class CompilerClient {
         if (data.kind === "ready") {
           resolve();
           this.options.onReady?.();
-        } else this.deliver(data);
+        } else {
+          this.deliver(data);
+        }
       });
     });
   }
@@ -90,7 +96,9 @@ export class CompilerClient {
 
   /** Loads the run worker if it is not loaded yet. */
   private startRunner(): void {
-    if (this.runner) return;
+    if (this.runner) {
+      return;
+    }
     const runner = new Worker(this.workerUrl("run-worker.js"), { type: "module" });
     this.runner = runner;
     this.runnerReady = new Promise((resolve, reject) => {
@@ -100,24 +108,34 @@ export class CompilerClient {
         { once: true },
       );
       runner.addEventListener("message", ({ data }: MessageEvent<RunMessage>) => {
-        if (data.kind === "ready") resolve();
-        else this.deliver(data);
+        if (data.kind === "ready") {
+          resolve();
+        } else {
+          this.deliver(data);
+        }
       });
     });
   }
 
   /** A worker's answer or output for the request in progress. */
   private deliver(data: Exclude<WorkerMessage | RunMessage, { kind: "ready" }>): void {
-    if (!("id" in data) || data.id !== this.pending?.id) return;
-    if (data.kind === "wat-loading") this.options.onWatLoading?.();
-    else if (data.kind === "stdout") this.pending.onStdout(data.line, data.debug);
-    else if (data.kind === "result" || data.kind === "wat" || data.kind === "compiled")
+    if (!("id" in data) || data.id !== this.pending?.id) {
+      return;
+    }
+    if (data.kind === "wat-loading") {
+      this.options.onWatLoading?.();
+    } else if (data.kind === "stdout") {
+      this.pending.onStdout(data.line, data.debug);
+    } else if (data.kind === "result" || data.kind === "wat" || data.kind === "compiled") {
       this.settle(data);
+    }
   }
 
   private settle(answer: Answer | Interrupted): void {
     const pending = this.pending;
-    if (!pending) return;
+    if (!pending) {
+      return;
+    }
     clearTimeout(pending.timer);
     this.pending = undefined;
     pending.resolve(answer);
@@ -141,9 +159,11 @@ export class CompilerClient {
       const timer = setTimeout(() => this.restart("timeout"), Math.max(limit, 0));
       this.pending = { id: request.id, phase, onStdout, resolve, timer };
       const worker = phase === "run" ? this.runner! : this.worker!;
-      if (request.kind === "run")
+      if (request.kind === "run") {
         worker.postMessage(request, [request.run.compiled.wasm.buffer as ArrayBuffer]);
-      else worker.postMessage(request);
+      } else {
+        worker.postMessage(request);
+      }
     });
   }
 
@@ -156,19 +176,26 @@ export class CompilerClient {
     this.runs += 1;
     try {
       await this.watRequest;
-      if (this.pending) this.stop();
+      if (this.pending) {
+        this.stop();
+      }
       const deadline = performance.now() + TIME_LIMIT_MS;
       const id = this.nextId++;
       let answer = await this.send({ kind: "project", id, mode, project } as const, onStdout);
       // The compiler built a program: the run worker runs it.
-      if (typeof answer !== "string" && answer.kind === "compiled")
+      if (typeof answer !== "string" && answer.kind === "compiled") {
         answer = await this.send(
           { kind: "run", id, run: answer.run },
           onStdout,
           deadline - performance.now(),
         );
-      if (typeof answer === "string") return answer;
-      if (answer.kind !== "result") throw new Error(`unexpected ${answer.kind} answer`);
+      }
+      if (typeof answer === "string") {
+        return answer;
+      }
+      if (answer.kind !== "result") {
+        throw new Error(`unexpected ${answer.kind} answer`);
+      }
       return answer.result;
     } finally {
       this.runs -= 1;
@@ -181,13 +208,19 @@ export class CompilerClient {
    * stop it.
    */
   async wat(project: Project): Promise<WatResult | Interrupted | "busy"> {
-    if (this.pending || this.runs > 0 || this.watRequest) return "busy";
+    if (this.pending || this.runs > 0 || this.watRequest) {
+      return "busy";
+    }
     const request = this.send({ kind: "wat", id: this.nextId++, project });
     this.watRequest = request.catch(() => undefined);
     try {
       const answer = await request;
-      if (typeof answer === "string") return answer;
-      if (answer.kind !== "wat") throw new Error(`unexpected ${answer.kind} answer`);
+      if (typeof answer === "string") {
+        return answer;
+      }
+      if (answer.kind !== "wat") {
+        throw new Error(`unexpected ${answer.kind} answer`);
+      }
       return answer.result;
     } finally {
       this.watRequest = undefined;

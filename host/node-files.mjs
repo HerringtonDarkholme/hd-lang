@@ -60,7 +60,9 @@ export function resolvePath(path, cwd = process.cwd(), links = 0) {
     }
     const next = join(out, name);
     const resolved = missing === 0 ? linkStep(next, links) : null;
-    if (resolved === null) missing += 1;
+    if (resolved === null) {
+      missing += 1;
+    }
     out = resolved ?? next;
   }
   return out;
@@ -84,7 +86,9 @@ function realOf(path) {
 // when no such file or link exists.
 function linkStep(path, links) {
   const real = realOf(path);
-  if (real !== null || links >= MAX_LINKS) return real;
+  if (real !== null || links >= MAX_LINKS) {
+    return real;
+  }
   let target;
   try {
     target = readlinkSync(path);
@@ -136,10 +140,14 @@ const opening = (path, open) => {
         try {
           st = statSync(up);
         } catch {
-          if (dirname(up) === up) break;
+          if (dirname(up) === up) {
+            break;
+          }
           continue;
         }
-        if (!st.isDirectory()) throw Object.assign(err, { code: "ENOTDIR" });
+        if (!st.isDirectory()) {
+          throw Object.assign(err, { code: "ENOTDIR" });
+        }
         break;
       }
     }
@@ -164,7 +172,9 @@ export const beforeDotDot = (path) => {
       } catch {
         return "NotFound";
       }
-      if (!st.isDirectory()) return "NotADirectory";
+      if (!st.isDirectory()) {
+        return "NotADirectory";
+      }
     }
     prefix = `${prefix}/${part}`;
   }
@@ -215,7 +225,9 @@ export const fileOperations = {
       try {
         st = lstatSync(p, { bigint: true });
       } catch (err) {
-        if (err.code === "ENOENT" || err.code === "ENOTDIR") return Ok(null);
+        if (err.code === "ENOENT" || err.code === "ENOTDIR") {
+          return Ok(null);
+        }
         throw err;
       }
       return Ok(entry(p, st));
@@ -227,15 +239,20 @@ export const fileOperations = {
     append_text: (p, text) => Ok(opening(p, () => appendFileSync(p, text))),
     create_dir_all: {
       run: (p) => {
-        if (existsSync(p) && !statSync(p).isDirectory()) return fsErr(p, "NotADirectory");
+        if (existsSync(p) && !statSync(p).isDirectory()) {
+          return fsErr(p, "NotADirectory");
+        }
         mkdirSync(p, { recursive: true });
         return Ok(undefined);
       },
       create: true,
     },
     remove: (p) => {
-      if (lstatSync(p).isDirectory()) rmdirSync(p);
-      else unlinkSync(p);
+      if (lstatSync(p).isDirectory()) {
+        rmdirSync(p);
+      } else {
+        unlinkSync(p);
+      }
       return Ok(undefined);
     },
     // cli.cap.scope.rename: the grant covers both paths.
@@ -243,12 +260,16 @@ export const fileOperations = {
     copy: (from, to) => {
       // Validate the source as a read before attributing destination errors.
       try {
-        if (opening(from, () => statSync(from)).isDirectory()) return fsErr(from, "IsADirectory");
+        if (opening(from, () => statSync(from)).isDirectory()) {
+          return fsErr(from, "IsADirectory");
+        }
         closeSync(opening(from, () => openSync(from, "r")));
       } catch (err) {
         return fsFail(from, err);
       }
-      if (existsSync(to) && statSync(to).isDirectory()) return fsErr(to, "IsADirectory");
+      if (existsSync(to) && statSync(to).isDirectory()) {
+        return fsErr(to, "IsADirectory");
+      }
       return Ok(opening(to, () => copyFileSync(from, to)));
     },
   },

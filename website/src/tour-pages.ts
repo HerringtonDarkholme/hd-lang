@@ -104,8 +104,9 @@ function parseEdit(source: string, text: string): TourEdit {
   for (const line of text.split("\n").filter((line) => line !== "")) {
     // An empty `with:` deletes the line.
     const match = /^(replace|with|error|failure):(?: (.*))?$/.exec(line);
-    if (!match)
+    if (!match) {
       throw new Error(`${source}: edit block line '${line}' is not replace/with/error/failure`);
+    }
     fields.set(match[1]!, match[2] ?? "");
   }
   const [replace, replacement, error, failure] = ["replace", "with", "error", "failure"].map(
@@ -115,10 +116,11 @@ function parseEdit(source: string, text: string): TourEdit {
     replace === undefined ||
     replacement === undefined ||
     (error === undefined) === (failure === undefined)
-  )
+  ) {
     throw new Error(
       `${source}: an edit block needs replace:, with:, and one of error: or failure:`,
     );
+  }
   return error === undefined
     ? { replace, with: replacement, failure: failure! }
     : { replace, with: replacement, error };
@@ -126,44 +128,61 @@ function parseEdit(source: string, text: string): TourEdit {
 
 export function parseTourPage(source: string, text: string, number: number): TourPage {
   const slug = /^\d+-([a-z0-9-]+)\.md$/.exec(source.split("/").at(-1)!)?.[1];
-  if (!slug) throw new Error(`${source}: name a tour page NN-slug.md`);
+  if (!slug) {
+    throw new Error(`${source}: name a tour page NN-slug.md`);
+  }
   const front = /^---\ntitle: (.+)\n---\n/.exec(text);
-  if (!front) throw new Error(`${source}: a tour page starts with a title: front matter block`);
+  if (!front) {
+    throw new Error(`${source}: a tour page starts with a title: front matter block`);
+  }
   const blocks = new Map<string, string>();
   const files: Record<string, string> = {};
   const body = text
     .slice(front[0].length)
     .replaceAll(FENCE, (_, info: string, path: string | undefined, code: string) => {
       // ```hd example: a fragment shown in the prose, not a file of the package.
-      if (info === "hd" && path === "example") return "```hd\n" + code + "```\n";
+      if (info === "hd" && path === "example") {
+        return "```hd\n" + code + "```\n";
+      }
       if (path !== undefined) {
-        if (info !== "hd" || !FILE_PATH.test(path) || path === TOUR_MAIN)
+        if (info !== "hd" || !FILE_PATH.test(path) || path === TOUR_MAIN) {
           throw new Error(`${source}: \`\`\`${info} ${path} is not \`\`\`hd src/<name>.hd`);
-        if (path in files) throw new Error(`${source}: more than one \`\`\`hd ${path} block`);
+        }
+        if (path in files) {
+          throw new Error(`${source}: more than one \`\`\`hd ${path} block`);
+        }
         files[path] = code;
         return "";
       }
-      if (blocks.has(info)) throw new Error(`${source}: more than one \`\`\`${info} block`);
+      if (blocks.has(info)) {
+        throw new Error(`${source}: more than one \`\`\`${info} block`);
+      }
       blocks.set(info, code);
       return "";
     });
   const code = blocks.get("hd");
   const output = blocks.get("output");
   const tests = blocks.get("tests")?.trim();
-  if (code === undefined || (output === undefined && tests === undefined))
+  if (code === undefined || (output === undefined && tests === undefined)) {
     throw new Error(
       `${source}: a tour page needs one \`\`\`hd block and an \`\`\`output or \`\`\`tests block`,
     );
+  }
   const unknown = [...blocks.keys()].filter(
     (info) => !["hd", "edit", "output", "tests"].includes(info),
   );
-  if (unknown.length > 0) throw new Error(`${source}: unknown block \`\`\`${unknown[0]}`);
+  if (unknown.length > 0) {
+    throw new Error(`${source}: unknown block \`\`\`${unknown[0]}`);
+  }
   const heading = /^# (.+)\n/m.exec(body);
-  if (!heading) throw new Error(`${source}: a tour page needs a # headline`);
+  if (!heading) {
+    throw new Error(`${source}: a tour page needs a # headline`);
+  }
   const editText = blocks.get("edit");
   const edit = editText === undefined ? undefined : parseEdit(source, editText);
-  if (edit?.failure !== undefined && tests === undefined)
+  if (edit?.failure !== undefined && tests === undefined) {
     throw new Error(`${source}: a failure: edit needs a \`\`\`tests block`);
+  }
   return {
     number,
     slug,
@@ -201,13 +220,16 @@ export function tourProject(
 /** The snippet with the page's edit applied; throws unless it names exactly one line. */
 export function editedCode(page: TourPage): string {
   const { edit } = page;
-  if (!edit) throw new Error(`${page.source}: the page has no edit`);
+  if (!edit) {
+    throw new Error(`${page.source}: the page has no edit`);
+  }
   const lines = page.code.split("\n");
   const at = lines.flatMap((line, index) => (line === edit.replace ? [index] : []));
-  if (at.length !== 1)
+  if (at.length !== 1) {
     throw new Error(
       `${page.source}: the edit's replace: line occurs ${at.length} times in the snippet, not once`,
     );
+  }
   lines[at[0]!] = edit.with;
   return lines.join("\n");
 }

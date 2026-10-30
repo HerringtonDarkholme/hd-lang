@@ -54,9 +54,14 @@ async function runCase(context: MetricContext, entry: PathologicalCase, startup:
   for (const scale of SCALES) {
     context.log(`${NAME}: ${name} at ${scale}x`);
     const result = await checkProgram(context, name, generate(entry, scale));
-    if (result.timedOut) problem = `${scale}x timed out after ${TIMEOUT_MS / 1000} s`;
-    else if (result.status !== 0) problem = `${scale}x: hd check failed: ${firstLines(result)}`;
-    if (problem) break;
+    if (result.timedOut) {
+      problem = `${scale}x timed out after ${TIMEOUT_MS / 1000} s`;
+    } else if (result.status !== 0) {
+      problem = `${scale}x: hd check failed: ${firstLines(result)}`;
+    }
+    if (problem) {
+      break;
+    }
     runs.set(scale, result);
   }
   const results: TargetResult[] = [];
@@ -119,7 +124,7 @@ export const pathological: Metric = {
     const startupRuns: number[] = [];
     for (let index = 0; index < 3; index++) {
       const result = await checkProgram(context, "startup", fixture(STARTUP));
-      if (result.status !== 0 || result.timedOut)
+      if (result.status !== 0 || result.timedOut) {
         return [
           failed(
             NAME,
@@ -128,12 +133,17 @@ export const pathological: Metric = {
             `hd check of a one-line program failed: ${firstLines(result)}`,
           ),
         ];
+      }
       startupRuns.push(result.wallMs);
     }
     const startup = p50(startupRuns);
-    if (!canMeasure()) context.log(`${NAME}: no /usr/bin/time; peak RSS is n/a`);
+    if (!canMeasure()) {
+      context.log(`${NAME}: no /usr/bin/time; peak RSS is n/a`);
+    }
     const results: TargetResult[] = [];
-    for (const entry of CASES) results.push(...(await runCase(context, entry, startup)));
+    for (const entry of CASES) {
+      results.push(...(await runCase(context, entry, startup)));
+    }
     return results;
   },
 };

@@ -140,8 +140,11 @@ export function navSections(): NavSection[] {
   const sections: NavSection[] = [];
   for (const entry of PAGES) {
     const last = sections.at(-1);
-    if (last && last.title === entry.section) (last.pages as PageSource[]).push(entry);
-    else sections.push({ title: entry.section, pages: [entry] });
+    if (last && last.title === entry.section) {
+      (last.pages as PageSource[]).push(entry);
+    } else {
+      sections.push({ title: entry.section, pages: [entry] });
+    }
   }
   return sections;
 }

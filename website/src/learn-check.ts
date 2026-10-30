@@ -23,10 +23,12 @@ const HD_BINARY = join(REPO_DIR, "target", "debug", process.platform === "win32"
  */
 export function compilerCommand(): string[] {
   const text = process.env.HD_TEST_COMMAND;
-  if (text !== undefined)
+  if (text !== undefined) {
     return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!);
-  if (!existsSync(HD_BINARY))
+  }
+  if (!existsSync(HD_BINARY)) {
     execFileSync("cargo", ["build", "-p", "hd_cli"], { cwd: REPO_DIR, stdio: "inherit" });
+  }
   return [HD_BINARY];
 }
 
@@ -43,8 +45,12 @@ function errorLines(
 ): string[] {
   const lines = `${output.stdout}\n${output.stderr}`.split("\n").flatMap((line) => {
     const located = line.replace(/^(?:error|warning): /, "");
-    if (located.startsWith(`${file}:`)) return [located.slice(file.length + 1)];
-    if (/^[\w./-]+\.hd:\d+:\d+: /.test(located)) return [located];
+    if (located.startsWith(`${file}:`)) {
+      return [located.slice(file.length + 1)];
+    }
+    if (/^[\w./-]+\.hd:\d+:\d+: /.test(located)) {
+      return [located];
+    }
     return [];
   });
   const crash = output.stderr.trim().split("\n")[0] || fallback;
@@ -62,7 +68,9 @@ function compilerErrors(action: readonly string[], file: string, tree?: string):
   const argv = [...args, ...action, ...(tree ? [] : [file])];
   return new Promise((complete) => {
     execFile(program!, argv, { cwd: tree ?? REPO_DIR }, (error, stdout, stderr) => {
-      if (!error) return complete([]);
+      if (!error) {
+        return complete([]);
+      }
       complete(errorLines({ stdout, stderr }, file, error.message.split("\n")[0]!));
     });
   });
@@ -88,7 +96,9 @@ async function inParallel<T>(jobs: readonly (() => Promise<T>)[]): Promise<T[]> 
 export async function checkHdBlocksParse(root: string, path: string): Promise<string[]> {
   const markdown = await readFile(`${root}/${path}`, "utf8");
   const blocks = fencedBlocks(createMarkdown(), markdown).filter((block) => block.info === "hd");
-  if (blocks.length === 0) return [`${path}: no hd blocks found`];
+  if (blocks.length === 0) {
+    return [`${path}: no hd blocks found`];
+  }
   const scratch = await mkdtemp(join(tmpdir(), "hd-learn-check-"));
   try {
     const results = await inParallel(
@@ -123,7 +133,9 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
     const file = join(scratch, `${page.number}-${name}.hd`);
     await writeFile(file, code);
     const paths = Object.keys(page.files);
-    if (paths.length === 0) return compilerErrors(["check", "--tests"], file);
+    if (paths.length === 0) {
+      return compilerErrors(["check", "--tests"], file);
+    }
     // The snippet is src/main.hd of a package that holds the page's other files.
     const tree = join(scratch, `${page.number}-${name}-tree`);
     const files = {
@@ -142,7 +154,9 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
     (await check(page, page.code, "snippet")).map((error) => `${page.source}: snippet: ${error}`);
   const edited = (page: TourPage) => async (): Promise<string[]> => {
     const { edit } = page;
-    if (!edit) return [];
+    if (!edit) {
+      return [];
+    }
     // The page's "Try it" box shows the edit and its result (website/src/tour.ts).
     const problems: string[] = [];
     let code: string;
@@ -154,14 +168,16 @@ export async function checkTourSnippets(pages: readonly TourPage[]): Promise<str
     const errors = await check(page, code, "edit");
     if (edit.error === undefined) {
       // A failure: edit still compiles; Test reports the failure.
-      if (errors.length > 0)
+      if (errors.length > 0) {
         problems.push(`${page.source}: the failure: edit does not compile: ${errors.join("; ")}`);
+      }
       return problems;
     }
-    if (!errors.some((error) => error.includes(edit.error)))
+    if (!errors.some((error) => error.includes(edit.error))) {
       problems.push(
         `${page.source}: the edit gives ${errors.length ? errors.join("; ") : "no error"}, not '${edit.error}'`,
       );
+    }
     return problems;
   };
   try {

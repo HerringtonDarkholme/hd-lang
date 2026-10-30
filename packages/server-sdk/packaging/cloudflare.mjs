@@ -8,15 +8,17 @@ const sdk = new URL("../", import.meta.url);
 const bad = (message) => new Error("SDK Cloudflare deployment: " + message);
 export async function packageCloudflare(options) {
   const { name, compatibilityDate, envBindings, signal } = options;
-  if (typeof name !== "string" || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name))
+  if (typeof name !== "string" || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) {
     throw bad("name must be a lowercase Worker name of at most 63 characters");
+  }
   if (
     typeof compatibilityDate !== "string" ||
     !/^\d{4}-\d{2}-\d{2}$/.test(compatibilityDate) ||
     Number.isNaN(Date.parse(compatibilityDate)) ||
     new Date(compatibilityDate).toISOString().slice(0, 10) !== compatibilityDate
-  )
+  ) {
     throw bad("compatibilityDate must be an ISO calendar date");
+  }
   const output = resolve(options.outputDirectory),
     root = resolve(options.rootDirectory);
   const rootFromOutput = relative(output, root);
@@ -25,8 +27,9 @@ export async function packageCloudflare(options) {
     (!isAbsolute(rootFromOutput) &&
       rootFromOutput !== ".." &&
       !rootFromOutput.startsWith(".." + sep))
-  )
+  ) {
     throw bad("output cannot contain the root package");
+  }
   const input = await deploymentInputs(options);
   const names = environmentNames(input.grants, envBindings);
   const binding = Buffer.from(fixedBindingsModule(input.contract, "runtime"));
@@ -37,10 +40,18 @@ export async function packageCloudflare(options) {
     ["grants.json", Buffer.from(JSON.stringify(input.grants, null, 2) + "\n")],
     ["sdk/contract-bindings.mjs", await readFile(new URL("packaging/contract-bindings.mjs", sdk))],
   ]);
-  for (const [name, source] of Object.entries(input.runtime.files))
+  for (const [name, source] of Object.entries(input.runtime.files)) {
     files.set("runtime/" + name, Buffer.from(source));
-  for (const name of ["application.mjs", "dispatcher.mjs", "console.mjs", "http.mjs", "fetch.mjs"])
+  }
+  for (const name of [
+    "application.mjs",
+    "dispatcher.mjs",
+    "console.mjs",
+    "http.mjs",
+    "fetch.mjs",
+  ]) {
     files.set("sdk/" + name, await readFile(new URL("adapters/" + name, sdk)));
+  }
   const receipt = {
     runtimeFingerprint: input.runtime.fingerprint,
     wasmSha256: input.wasmSha256,

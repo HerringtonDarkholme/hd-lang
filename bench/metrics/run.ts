@@ -52,7 +52,9 @@ export function selectMetrics(
     .map((value) => value.trim())
     .filter(Boolean);
   const unknown = names.filter((name) => !all.some((metric) => metric.name === name));
-  if (unknown.length) throw new Error(`unknown metric: ${unknown.join(", ")}`);
+  if (unknown.length) {
+    throw new Error(`unknown metric: ${unknown.join(", ")}`);
+  }
   return all.filter(
     (metric) =>
       (names.length === 0 || names.includes(metric.name)) &&
@@ -137,12 +139,18 @@ export function appendMetricsHistory(history: string, run: MetricsRun): string {
 function previousMetrics(history: string, run: MetricsRun): readonly TargetResult[] | undefined {
   const [header = [], ...rows] = historyRows(history);
   const row = rows.findLast((cells) => cells[header.indexOf("finished")] !== run.finished);
-  if (!row) return undefined;
+  if (!row) {
+    return undefined;
+  }
   return header.flatMap((key, i) => {
-    if (!key.startsWith("value ") || !row[i]) return [];
+    if (!key.startsWith("value ") || !row[i]) {
+      return [];
+    }
     const [metric, name] = JSON.parse(key.slice(6)) as [string, string];
     const status = row[header.indexOf("status " + key.slice(6))];
-    if (status !== "pass" && status !== "fail" && status !== "n/a") return [];
+    if (status !== "pass" && status !== "fail" && status !== "n/a") {
+      return [];
+    }
     return [{ metric, name, value: row[i]!, status, target: "" }];
   });
 }
@@ -164,7 +172,9 @@ function quantities(value: string): { amount: number; unit: string; timing: bool
       /^(-?(?:\d+(?:\.\d*)?|\.\d+))\s*(ms|s|ns|µs|MB\/s|M\/s|k\/s|\/s|MB|B|tokens|%|x|B\/iter)?$/.exec(
         part,
       );
-    if (!match) return null;
+    if (!match) {
+      return null;
+    }
     const unit = match[2] ?? "count";
     const [scale, normalized] = units[unit] ?? [1, unit];
     return { amount: Number(match[1]) * scale, unit: normalized, timing: normalized === "ms" };
@@ -180,8 +190,9 @@ function movement(before: string, after: string): { large: boolean; noise: boole
     !right ||
     left.length !== right.length ||
     left.some((part, i) => part.unit !== right[i]!.unit)
-  )
+  ) {
     return { large: false, noise: false };
+  }
   const exceeds = left.some(
     (part, i) =>
       Math.abs(part.amount - right[i]!.amount) > Math.abs(part.amount) * 0.1 + Number.EPSILON,
@@ -195,16 +206,21 @@ function movement(before: string, after: string): { large: boolean; noise: boole
 /** The same comparison section is published in README and the Actions summary. */
 export function metricsChanges(run: MetricsRun, previous?: readonly TargetResult[]): string {
   const lines = ["## Changed since the previous run", ""];
-  if (!previous) return lines.concat("First recorded run.", "").join("\n");
+  if (!previous) {
+    return lines.concat("First recorded run.", "").join("\n");
+  }
   const old = new Map(previous.map((result) => [targetKey(result), result]));
   for (const result of run.results) {
     const before = old.get(targetKey(result));
-    if (before && (before.status !== result.status || movement(before.value, result.value).large))
+    if (before && (before.status !== result.status || movement(before.value, result.value).large)) {
       lines.push(
         `- ${markdownCell(result.metric + ": " + result.name)}: ${markdownCell(before.status + " " + before.value)} → ${markdownCell(result.status + " " + result.value)}`,
       );
+    }
   }
-  if (lines.length === 2) lines.push("No status flips or value movements greater than 10%.");
+  if (lines.length === 2) {
+    lines.push("No status flips or value movements greater than 10%.");
+  }
   return lines.concat("").join("\n");
 }
 
@@ -232,7 +248,9 @@ export function metricsReadme(
     const results = run.results.filter(
       (result) => (pillars.get(result.metric) ?? "other") === pillar,
     );
-    if (!results.length) continue;
+    if (!results.length) {
+      continue;
+    }
     lines.push(
       pillar === "gate" ? "## Correctness gate" : `## Pillar ${pillar}`,
       "",
@@ -279,8 +297,9 @@ export function storeDailyMetrics(run: MetricsRun, directory: string): string {
   if (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(run.finished) ||
     !Number.isFinite(Date.parse(run.finished))
-  )
+  ) {
     throw new Error("metrics run needs an ISO finished timestamp");
+  }
   mkdirSync(join(directory, "daily"), { recursive: true });
   const historyFile = join(directory, "history.tsv");
   const history = existsSync(historyFile) ? readFileSync(historyFile, "utf8") : "";
@@ -329,7 +348,9 @@ async function main(): Promise<number> {
     return 0;
   }
   const selected = selectMetrics(METRICS, values.only ?? [], values.pillar);
-  if (selected.length === 0) throw new Error("no metric selected");
+  if (selected.length === 0) {
+    throw new Error("no metric selected");
+  }
   keepTempDirs(values["keep-temp"] ?? false);
   const hd = parseHdCommand(values.hd ?? process.env.HD_METRICS_COMMAND ?? DEFAULT_HD, REPO_ROOT);
   console.log(`hd under test: ${hd.display}`);
@@ -361,7 +382,9 @@ async function main(): Promise<number> {
         },
       ];
     }
-    for (const result of found) console.log(resultLine(result));
+    for (const result of found) {
+      console.log(resultLine(result));
+    }
     console.error(`  ${metric.name} took ${((performance.now() - started) / 1000).toFixed(1)} s`);
     results.push(...found);
   }

@@ -91,8 +91,9 @@ test("GC types and reference instructions", () => {
 });
 
 test("number forms", () => {
-  for (const number of ["0", "1_000", "0xFF", "-0x1p-3", "2.5e10", "inf", "-nan", "nan:0x7f"])
+  for (const number of ["0", "1_000", "0xFF", "-0x1p-3", "2.5e10", "inf", "-nan", "nan:0x7f"]) {
     assert.deepEqual(styled(number), [`number:${number}`], number);
+  }
   assert.deepEqual(styled("offset=16 align=4"), [
     "keyword:offset=",
     "number:16",
@@ -147,10 +148,11 @@ test("tokens concatenate back to the text the compiler wasm prints", async () =>
   // The optional WAT module prints the same Run bytes; both modules are
   // build outputs, built when a checkout has none.
   const wasm = resolve(import.meta.dirname, "../assets/hd_web.wasm");
-  if (!existsSync(wasm) || !existsSync(resolve(import.meta.dirname, "../assets/hd_wat.wasm")))
+  if (!existsSync(wasm) || !existsSync(resolve(import.meta.dirname, "../assets/hd_wat.wasm"))) {
     execFileSync(process.execPath, [resolve(root, "scripts/build-web-compiler.js")], {
       stdio: "inherit",
     });
+  }
   const { instance } = await instantiateCompiler(await readFile(wasm));
   const source = 'pub fn main() -> void $ Console:\n    println("hi")\n';
   const compiled = compileRequest(
@@ -168,8 +170,9 @@ test("tokens concatenate back to the text the compiler wasm prints", async () =>
   const tokens = tokenizeWat(text);
   assert.equal(tokens.map(({ text: value }) => value).join(""), text);
   const kinds = new Set<WatTokenKind>(tokens.map(({ kind }) => kind));
-  for (const kind of ["keyword", "instruction", "type", "name", "number", "paren"] as const)
+  for (const kind of ["keyword", "instruction", "type", "name", "number", "paren"] as const) {
     assert.ok(kinds.has(kind), kind);
+  }
   assert.ok(
     tokens.some(({ kind, text: value }) => kind === "name" && value === "$playground/main/main#0"),
   );

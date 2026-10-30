@@ -71,14 +71,18 @@ export async function supervise(module, config, writeOut) {
       // its facts (annot.fact.eval.panic-runtime).
       let fact = null;
       const clear = () => {
-        if (timer !== null) clearTimeout(timer);
+        if (timer !== null) {
+          clearTimeout(timer);
+        }
         timer = null;
       };
       const arm = () => {
         clear();
         const program = limitAt !== null && (timeout === null || limitAt <= timeout.at);
         const target = program ? limitAt : timeout?.at;
-        if (target === undefined || target === null) return;
+        if (target === undefined || target === null) {
+          return;
+        }
         timer = setTimeout(
           () => stop(program ? null : timeout.ms),
           Math.max(0, target - now()) + GRACE_MS,
@@ -115,7 +119,9 @@ export async function supervise(module, config, writeOut) {
         }
       };
       worker.on("message", (m) => {
-        if (stopped) return;
+        if (stopped) {
+          return;
+        }
         if (m.type === "line") {
           // A result ends the case or row being watched, so nothing is
           // left to stop until the next one begins. A stop between this
@@ -130,7 +136,9 @@ export async function supervise(module, config, writeOut) {
           at = { ci: m.ci, row: null, rows: null };
         } else if (m.type === "rows") {
           at.rows = m.rows;
-          if (at.row === null) at.row = 0;
+          if (at.row === null) {
+            at.row = 0;
+          }
         } else if (m.type === "row") {
           limitAt = timeout = null;
           arm();
@@ -152,7 +160,9 @@ export async function supervise(module, config, writeOut) {
       worker.on("error", fail);
       worker.on("exit", () => {
         clear();
-        if (!stopped) next({ case: config.cases.length, row: 0, rows: 0 });
+        if (!stopped) {
+          next({ case: config.cases.length, row: 0, rows: 0 });
+        }
       });
     });
   }

@@ -21,7 +21,9 @@ function sort(items) {
 }
 function checksum(items) {
   let total = 0;
-  for (const value of items) total = (total + value) % 1000003;
+  for (const value of items) {
+    total = (total + value) % 1000003;
+  }
   return total;
 }
 const items = fill(30000);

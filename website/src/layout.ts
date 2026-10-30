@@ -123,7 +123,9 @@ const OUTLINE_MINIMUM = 3;
 
 function outline(headings: readonly Heading[]): string {
   const entries = headings.filter((heading) => heading.level === 2 || heading.level === 3);
-  if (entries.length < OUTLINE_MINIMUM) return "";
+  if (entries.length < OUTLINE_MINIMUM) {
+    return "";
+  }
   const items = entries
     .map(
       (heading) =>
@@ -135,7 +137,9 @@ function outline(headings: readonly Heading[]): string {
 
 function pager(input: LayoutInput): string {
   const index = PAGES.findIndex((entry) => entry.output === input.output);
-  if (index < 0) return "";
+  if (index < 0) {
+    return "";
+  }
   const neighbor = (entry: PageSource | undefined, rel: "prev" | "next"): string =>
     entry
       ? `<a class="pager-${rel}" rel="${rel}" href="${link(input.base, entry.output)}"><span>${rel === "prev" ? "Previous" : "Next"}</span>${inlineCode(entry.navTitle)}</a>`
@@ -147,15 +151,17 @@ function main(input: LayoutInput, shape: PageShape): string {
   const sourceLink = input.source
     ? `<p class="source-link"><a href="${REPOSITORY_URL}/blob/main/${input.source}">View source on GitHub</a></p>`
     : "";
-  if (shape === "home")
+  if (shape === "home") {
     return `<main id="content" class="content content-home">
 ${input.body}
 </main>`;
-  if (shape === "app")
+  }
+  if (shape === "app") {
     return `<main id="content" class="content content-app">
 ${input.body}
 </main>`;
-  if (shape === "split")
+  }
+  if (shape === "split") {
     return `<main id="content" class="content content-split">
 <div class="split">
 <article class="prose split-prose">
@@ -167,6 +173,7 @@ ${input.aside ?? ""}
 </aside>
 </div>
 </main>`;
+  }
   const section = PAGES.find((entry) => entry.output === input.output)?.section;
   const breadcrumb = section ? `<p class="breadcrumb">${escapeHtml(section)}</p>\n` : "";
   return `<main id="content" class="content">

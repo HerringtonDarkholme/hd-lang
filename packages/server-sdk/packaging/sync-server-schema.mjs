@@ -24,29 +24,45 @@ export async function sourceInventory(repository) {
     sourceHashes[file] = hash(source);
     const lines = source.split("\n"),
       at = lines.findIndex((line) => line === `pub trait ${trait}:`);
-    if (at < 0) throw Error(`missing maintenance trait declaration ${key}`);
+    if (at < 0) {
+      throw Error(`missing maintenance trait declaration ${key}`);
+    }
     const names = [];
     // A bridged trait's method with a default body is std code over the
     // bridge: its signature ends in `:` where its parentheses close.
     let pending = null,
       depth = 0;
     for (const line of lines.slice(at + 1)) {
-      if (line && !/^[ \t#]/.test(line)) break;
+      if (line && !/^[ \t#]/.test(line)) {
+        break;
+      }
       const method = /^    fn ([_\p{XID_Start}][_\p{XID_Continue}]*)!?(?:\[|\()/u.exec(line);
-      if (line.startsWith("    fn ") && !method)
+      if (line.startsWith("    fn ") && !method) {
         throw Error(`unsupported maintenance method declaration ${key}`);
-      if (method) pending = method[1];
-      if (pending === null) continue;
-      for (const char of line) depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+      }
+      if (method) {
+        pending = method[1];
+      }
+      if (pending === null) {
+        continue;
+      }
+      for (const char of line) {
+        depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+      }
       if (depth === 0) {
-        if (!bridged || !line.trimEnd().endsWith(":")) names.push(pending);
+        if (!bridged || !line.trimEnd().endsWith(":")) {
+          names.push(pending);
+        }
         pending = null;
       }
     }
-    if (!names.length) throw Error(`empty maintenance trait ${key}`);
+    if (!names.length) {
+      throw Error(`empty maintenance trait ${key}`);
+    }
     names.sort();
-    if (coverage[key] && JSON.stringify(coverage[key]) !== JSON.stringify(names))
+    if (coverage[key] && JSON.stringify(coverage[key]) !== JSON.stringify(names)) {
       throw Error(`public/wire maintenance method coverage differs: ${key}`);
+    }
     coverage[key] = names;
   }
   return { sourceHashes, coverage };
@@ -61,8 +77,9 @@ export async function generateServerSchema({
 }) {
   repository = resolve(repository);
   compilerPath = resolve(compilerPath);
-  if (!/^[0-9a-f]{40,64}$/.test(compilerBaseRevision))
+  if (!/^[0-9a-f]{40,64}$/.test(compilerBaseRevision)) {
     throw Error("explicit compiler base revision required");
+  }
   const { readPackageContract } = await import(
     pathToFileURL(join(repository, "host/package-providers.mjs")).href
   );
@@ -76,8 +93,9 @@ export async function generateServerSchema({
       cwd: repository,
       encoding: "utf8",
     }).replaceAll("\r\n", "\n");
-    if (hash(recorded) !== before.sourceHashes[file])
+    if (hash(recorded) !== before.sourceHashes[file]) {
       throw Error(`compiler base std source differs: ${file}`);
+    }
   }
   const scratchRoot = join(repository, ".cache-muse-server-schema-maintenance");
   await mkdir(scratchRoot, { recursive: true });
@@ -91,7 +109,9 @@ export async function generateServerSchema({
       `[package]\nname="sdk_schema_probe"\n[dependencies]\nserver_sdk={path=${JSON.stringify(join(repository, "packages/server-sdk"))}}\n[capabilities]\n"dep.server_sdk.server.HttpServer"=true\n`,
     );
     const env = { PATH: process.env.PATH, HD_CACHE: join(work, "cache") };
-    if (process.platform === "win32") env.SystemRoot = process.env.SystemRoot;
+    if (process.platform === "win32") {
+      env.SystemRoot = process.env.SystemRoot;
+    }
     execFileSync(compilerPath, ["build", "--engine", "node"], {
       cwd: work,
       env,
@@ -101,16 +121,20 @@ export async function generateServerSchema({
     const wasm = await readFile(join(work, "build/debug/sdk_schema_probe.wasm")),
       module = new WebAssembly.Module(wasm);
     const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
-    if (sections.length !== 1) throw Error("reference probe must have exactly one contract");
+    if (sections.length !== 1) {
+      throw Error("reference probe must have exactly one contract");
+    }
     const bytes = new Uint8Array(sections[0]),
       interfaces = readPackageContract(bytes);
     const { sourceHashes, coverage } = await sourceInventory(repository);
-    if (JSON.stringify(sourceHashes) !== JSON.stringify(before.sourceHashes))
+    if (JSON.stringify(sourceHashes) !== JSON.stringify(before.sourceHashes)) {
       throw Error("declaration sources changed during schema maintenance");
+    }
     checkCoverage(interfaces, coverage);
     const roots = interfaces.filter((i) => !i.handle);
-    if (roots.length !== 1 || roots[0].identity.trait_path !== "server.HttpServer")
+    if (roots.length !== 1 || roots[0].identity.trait_path !== "server.HttpServer") {
       throw Error("reference probe must use only SDK HttpServer");
+    }
     const snapshot = {
       format: 1,
       packageHostABI: new DataView(sections[0]).getUint32(0, true),
@@ -154,7 +178,9 @@ export async function generateServerSchema({
       closed = true;
       await rename(pending, resolve(outputFile));
     } catch (error) {
-      if (!closed) await file.close();
+      if (!closed) {
+        await file.close();
+      }
       await rm(pending, { force: true });
       throw error;
     }
@@ -166,7 +192,9 @@ export async function generateServerSchema({
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [repository, compilerPath, compilerBaseRevision, probeFile, outputFile, evidenceDirectory] =
     process.argv.slice(2);
-  if (!outputFile) throw Error("usage: sync-server-schema.mjs REPO HD COMPILER-BASE PROBE OUTPUT");
+  if (!outputFile) {
+    throw Error("usage: sync-server-schema.mjs REPO HD COMPILER-BASE PROBE OUTPUT");
+  }
   const snapshot = await generateServerSchema({
     repository,
     compilerPath,

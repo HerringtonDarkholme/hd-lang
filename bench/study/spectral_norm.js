@@ -4,14 +4,18 @@ const a = (i, j) => 1 / (((i + j) * (i + j + 1)) / 2 + i + 1);
 function mulAv(n, v, out) {
   for (let i = 0; i < n; i++) {
     let s = 0;
-    for (let j = 0; j < n; j++) s += a(i, j) * v[j];
+    for (let j = 0; j < n; j++) {
+      s += a(i, j) * v[j];
+    }
     out[i] = s;
   }
 }
 function mulAtv(n, v, out) {
   for (let i = 0; i < n; i++) {
     let s = 0;
-    for (let j = 0; j < n; j++) s += a(j, i) * v[j];
+    for (let j = 0; j < n; j++) {
+      s += a(j, i) * v[j];
+    }
     out[i] = s;
   }
 }

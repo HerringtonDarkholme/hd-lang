@@ -9,13 +9,17 @@ export function createApplication({ module, grants, onReady, onStopped, log }) {
     hits = 0;
   return {
     start() {
-      if (grants.fixture === "main-cpu") spin();
+      if (grants.fixture === "main-cpu") {
+        spin();
+      }
       onReady();
     },
     async dispatch(request, signal) {
       active++;
       try {
-        if (request.url === "/cpu") spin();
+        if (request.url === "/cpu") {
+          spin();
+        }
         if (request.url === "/stale-messages") {
           parentPort.postMessage({
             type: "result",
@@ -59,16 +63,23 @@ export function createApplication({ module, grants, onReady, onStopped, log }) {
           });
           log(record);
         }
-        if (request.url === "/trap") throw new Error("private-error-must-never-leak");
+        if (request.url === "/trap") {
+          throw new Error("private-error-must-never-leak");
+        }
         if (request.url === "/wait" || request.url === "/cleanup-cpu") {
-          if (!signal.aborted)
+          if (!signal.aborted) {
             await new Promise((resolve) =>
               signal.addEventListener("abort", resolve, { once: true }),
             );
-          if (request.url === "/cleanup-cpu") spin();
+          }
+          if (request.url === "/cleanup-cpu") {
+            spin();
+          }
           return { response: null, cancelled: signal.reason, abandoned: false };
         }
-        if (request.delay) await new Promise((resolve) => setTimeout(resolve, request.delay));
+        if (request.delay) {
+          await new Promise((resolve) => setTimeout(resolve, request.delay));
+        }
         return {
           response: {
             status: 200,
@@ -81,12 +92,16 @@ export function createApplication({ module, grants, onReady, onStopped, log }) {
         };
       } finally {
         active--;
-        if (stopping && !active) onStopped();
+        if (stopping && !active) {
+          onStopped();
+        }
       }
     },
     stop() {
       stopping = true;
-      if (!active) onStopped();
+      if (!active) {
+        onStopped();
+      }
     },
   };
 }

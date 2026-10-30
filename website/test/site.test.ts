@@ -45,12 +45,17 @@ describe("website build", () => {
     assert.equal(result.playground, false);
     grammar = result.grammar;
     const sources = new Set(PAGES.map((entry) => entry.source));
-    for (const directory of ["spec", "spec/lang", "spec/std", "spec/cli", "website/guide"])
-      for (const name of await readdir(join(REPO_DIR, directory)))
-        if (name.endsWith(".md"))
+    for (const directory of ["spec", "spec/lang", "spec/std", "spec/cli", "website/guide"]) {
+      for (const name of await readdir(join(REPO_DIR, directory))) {
+        if (name.endsWith(".md")) {
           assert.ok(sources.has(`${directory}/${name}`), `${directory}/${name} is rendered`);
+        }
+      }
+    }
     assert.ok(existsSync(join(outDir, "index.html")));
-    for (const entry of PAGES) assert.ok(existsSync(join(outDir, entry.output)), entry.output);
+    for (const entry of PAGES) {
+      assert.ok(existsSync(join(outDir, entry.output)), entry.output);
+    }
 
     const types = await readFile(join(outDir, "spec/04-type-system.html"), "utf8");
     assert.match(types, /<span class="hl-keyword">fn<\/span>/);
@@ -162,11 +167,12 @@ describe("website build", () => {
       ...home.matchAll(/<a href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)">Run the full/g),
     ].map((match) => Buffer.from(match[1]!, "base64url").toString("utf8"));
     assert.equal(examples.length, FEATURES.length);
-    for (const [index, feature] of FEATURES.entries())
+    for (const [index, feature] of FEATURES.entries()) {
       assert.equal(
         examples[index],
         await readFile(join(EXAMPLES_DIR, `${feature.example}.hd`), "utf8"),
       );
+    }
     // A punchline line is marked, and a diagnostic sits in an error pane.
     assert.match(
       home,
@@ -182,11 +188,14 @@ describe("website build", () => {
     try {
       for (const feature of FEATURES) {
         const { output } = feature;
-        if (!output) continue;
+        if (!output) {
+          continue;
+        }
         if (output.source === "comment") {
           const source = readFileSync(join(EXAMPLES_DIR, `${feature.example}.hd`), "utf8");
-          for (const line of output.lines)
+          for (const line of output.lines) {
             assert.ok(source.includes(line), `${feature.title}: ${line}`);
+          }
           continue;
         }
         const file = join(dir, "main.hd");
@@ -194,8 +203,9 @@ describe("website build", () => {
         const [program, ...args] = compilerCommand();
         const result = spawnSync(program!, [...args, "check", file], { encoding: "utf8" });
         const printed = `${result.stdout}${result.stderr}`.replaceAll(`${dir}/`, "");
-        for (const line of output.lines)
+        for (const line of output.lines) {
           assert.ok(printed.includes(line), `${feature.title}: ${printed}`);
+        }
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -264,8 +274,12 @@ describe("website build", () => {
       assert.doesNotMatch(html, /tour\.js|id="tour-run"/);
       // The edit and output blocks are check data, not page text.
       assert.doesNotMatch(html, /replace: |```/);
-      if (page.number > 1) assert.match(html, /<a class="tour-prev" rel="prev"/);
-      if (page.number < tour.length) assert.match(html, /<a class="tour-next" rel="next"/);
+      if (page.number > 1) {
+        assert.match(html, /<a class="tour-prev" rel="prev"/);
+      }
+      if (page.number < tour.length) {
+        assert.match(html, /<a class="tour-next" rel="next"/);
+      }
     }
   });
 
@@ -421,11 +435,12 @@ describe("tour pages", () => {
       files: { "src/main.hd": "b", "src/a.hd": "pub fn f() -> i32:\n    1\n" },
       main: "src/main.hd",
     });
-    for (const bad of ["```hd src/main.hd", "```hd lib/a.hd", "```output src/a.hd"])
+    for (const bad of ["```hd src/main.hd", "```hd lib/a.hd", "```output src/a.hd"]) {
       assert.throws(
         () => parseTourPage("website/tour/01-t.md", text.replace("```hd src/a.hd", bad), 1),
         /is not ```hd src\/<name>.hd/,
       );
+    }
     const render = { md: createMarkdown(), env, pageUrl: (output: string) => output };
     const online = tourEditor(page, { ...render, workerUrl: "w.js" });
     assert.match(
@@ -450,13 +465,16 @@ describe("grammar blocks", () => {
 
   test("indexes the specification's rules and lists names no rule defines", () => {
     assert.ok(grammar, "the Pages-base build ran");
-    for (const rule of ["source_file", "trait_decl", "requirement_clause", "identifier"])
+    for (const rule of ["source_file", "trait_decl", "requirement_clause", "identifier"]) {
       assert.ok(grammar.definitions.has(rule), rule);
+    }
     assert.equal(grammar.definitions.get("requirement_clause")?.[0], "spec/lang/02-grammar.md");
     assert.ok(grammar.linkedCount > 500);
     assert.ok(grammar.abstractTokens.includes("NEWLINE"));
     assert.ok(grammar.abstractTokens.includes("SUITE_END"));
-    for (const { name } of grammar.unresolved) assert.ok(!grammar.definitions.has(name), name);
+    for (const { name } of grammar.unresolved) {
+      assert.ok(!grammar.definitions.has(name), name);
+    }
   });
 
   test("anchors definitions and links references within and across pages", async () => {

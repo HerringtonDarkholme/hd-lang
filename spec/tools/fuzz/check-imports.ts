@@ -17,23 +17,33 @@ for (const file of specFiles(fuzzRoot, ".ts")) {
   for (const match of text.matchAll(pattern)) {
     const specifier = match[1] ?? match[2] ?? match[3]!;
     const where = relative(repoRoot, file);
-    if (specifier.startsWith("node:")) continue;
+    if (specifier.startsWith("node:")) {
+      continue;
+    }
     if (!specifier.startsWith(".")) {
       failures.push(`${where}: package import ${specifier}`);
       continue;
     }
     const target = resolve(dirname(file), specifier);
     const inside = (root: string): boolean => !relative(root, target).startsWith("..");
-    if (!inside(fuzzRoot) && !inside(specRoot))
+    if (!inside(fuzzRoot) && !inside(specRoot)) {
       failures.push(`${where}: imports ${relative(repoRoot, target)}`);
+    }
   }
   // Belt and braces: no string that points into the compiler source tree.
-  for (const line of text.split("\n"))
-    if (/["'`](?:\.\.\/)+src\/|["'`]\/?src\//.test(line) && !line.includes("check-imports: allow"))
+  for (const line of text.split("\n")) {
+    if (
+      /["'`](?:\.\.\/)+src\/|["'`]\/?src\//.test(line) &&
+      !line.includes("check-imports: allow")
+    ) {
       failures.push(`${relative(repoRoot, file)}: references src/: ${line.trim()}`);
+    }
+  }
 }
 
 if (failures.length) {
   process.stderr.write(`${failures.join("\n")}\n`);
   process.exitCode = 1;
-} else process.stdout.write("check-imports: ok (node built-ins, spec/tools/fuzz, spec/ only)\n");
+} else {
+  process.stdout.write("check-imports: ok (node built-ins, spec/tools/fuzz, spec/ only)\n");
+}

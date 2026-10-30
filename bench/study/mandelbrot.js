@@ -15,7 +15,9 @@ for (let y = 0; y < SIZE; y++) {
       zr = t;
       i++;
     }
-    if (i === ITER) inside++;
+    if (i === ITER) {
+      inside++;
+    }
   }
 }
 console.log(inside);

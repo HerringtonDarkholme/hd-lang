@@ -128,7 +128,9 @@ function leb(out: number[], n: number): void {
 function string(out: number[], text: string): void {
   const bytes = new TextEncoder().encode(text);
   leb(out, bytes.length);
-  for (const byte of bytes) out.push(byte);
+  for (const byte of bytes) {
+    out.push(byte);
+  }
 }
 
 /** The files, entry and goal byte that every request starts with. */
@@ -166,7 +168,9 @@ export function encodeReplStart(files: Readonly<Record<string, string>>): Uint8A
 export function encodeReplInput(text: string, number?: number): Uint8Array {
   const out = header({}, "", GOAL.replInput);
   string(out, text);
-  if (number !== undefined) leb(out, number);
+  if (number !== undefined) {
+    leb(out, number);
+  }
   return Uint8Array.from(out);
 }
 

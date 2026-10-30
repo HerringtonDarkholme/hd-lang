@@ -153,9 +153,10 @@ test("counts matches rule-inventory over the real chapters", async () => {
     .filter((name) => /^\d\d-.*\.md$/.test(name))
     .map((name) => `lang/${name}`);
   let language = 0;
-  for (const name of numbered)
+  for (const name of numbered) {
     language += inventory(name, await readFile(resolve(SPEC_ROOT, name), "utf8"), known).rules
       .length;
+  }
   assert.equal(counts(loadCorpus()).tiers.language, language);
 });
 
@@ -354,7 +355,9 @@ async function withSpecs(
     const spec = join(root, "spec");
     await mkdir(join(spec, "std"), { recursive: true });
     await mkdir(join(spec, "lang"), { recursive: true });
-    for (const [name, text] of Object.entries(files)) await writeFile(join(spec, name), text);
+    for (const [name, text] of Object.entries(files)) {
+      await writeFile(join(spec, name), text);
+    }
     await run(spec);
   } finally {
     await rm(root, { recursive: true, force: true });

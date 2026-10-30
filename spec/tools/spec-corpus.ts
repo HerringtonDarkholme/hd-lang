@@ -126,11 +126,17 @@ function gitReader(repoRoot: string, rev: string): SpecReader {
  */
 function currentLayout(reader: SpecReader): SpecReader {
   const top = reader.list(".");
-  if (top.includes(LANG_DIRECTORY)) return reader;
+  if (top.includes(LANG_DIRECTORY)) {
+    return reader;
+  }
   return {
     list: (directory) => {
-      if (directory === LANG_DIRECTORY) return top.filter((name) => /^\d\d-.*\.md$/.test(name));
-      if (directory === CLI_DIRECTORY) return top.includes("cli.md") ? ["command-line.md"] : [];
+      if (directory === LANG_DIRECTORY) {
+        return top.filter((name) => /^\d\d-.*\.md$/.test(name));
+      }
+      if (directory === CLI_DIRECTORY) {
+        return top.includes("cli.md") ? ["command-line.md"] : [];
+      }
       return reader.list(directory);
     },
     read: (name) => reader.read(legacyChapterPath(name)),
@@ -162,7 +168,9 @@ function sectionsOf(text: string, parsed: readonly Block[]): Section[] {
   const stack: { level: number; title: string }[] = [];
   return headings.map((heading, index) => {
     const level = /^#+/.exec(lines[heading.line - 1] ?? "")?.[0].length ?? 1;
-    while (stack.length > 0 && stack.at(-1)!.level >= level) stack.pop();
+    while (stack.length > 0 && stack.at(-1)!.level >= level) {
+      stack.pop();
+    }
     stack.push({ level, title: heading.text.trim() });
     const next = headings[index + 1];
     return {

@@ -9,7 +9,9 @@ export function schemaFingerprint(snapshot) {
 }
 function freeze(value) {
   if (value && typeof value === "object") {
-    for (const v of Object.values(value)) freeze(v);
+    for (const v of Object.values(value)) {
+      freeze(v);
+    }
     Object.freeze(value);
   }
   return value;
@@ -20,8 +22,9 @@ export function validateSchemaAsset(snapshot) {
     snapshot.packageHostABI !== 1 ||
     !hex.test(snapshot.fingerprint ?? "") ||
     schemaFingerprint(snapshot) !== snapshot.fingerprint
-  )
+  ) {
     throw bad("expected schema metadata or checksum mismatch");
+  }
   if (
     snapshot.schema?.root !== "server.HttpServer" ||
     !Array.isArray(snapshot.schema.interfaces) ||
@@ -30,8 +33,9 @@ export function validateSchemaAsset(snapshot) {
     !hex.test(snapshot.provenance.compilerSha256 ?? "") ||
     !hex.test(snapshot.provenance.referenceWasmSha256 ?? "") ||
     !hex.test(snapshot.provenance.referenceContractSha256 ?? "")
-  )
+  ) {
     throw bad("invalid expected schema payload");
+  }
   return freeze(snapshot);
 }
 export async function readServerSchema(

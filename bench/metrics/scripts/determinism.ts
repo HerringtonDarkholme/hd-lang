@@ -32,8 +32,9 @@ export const determinism: Metric = {
   async run(context) {
     const { dir } = failingPackage(NAME);
     const programs = makeTempDir("determinism");
-    for (const name of PROGRAMS)
+    for (const name of PROGRAMS) {
       writeFileSync(join(programs, `${name}.hd`), fixture(`mistakes/${name}.hd`));
+    }
     const inputs: { label: string; args: string[]; cwd: string }[] = [
       { label: "check", args: ["check"], cwd: dir },
       { label: "check json", args: ["check", "--format", "json"], cwd: dir },
@@ -45,8 +46,9 @@ export const determinism: Metric = {
         cwd: programs,
       })),
     ];
-    if (await supportsCommand(context.hd, "doc", dir))
+    if (await supportsCommand(context.hd, "doc", dir)) {
       inputs.push({ label: "doc", args: ["doc", "m001.Item1"], cwd: dir });
+    }
     context.log(`${NAME}: ${inputs.length} inputs x ${RUNS} runs`);
     const differing: string[] = [];
     for (const input of inputs) {
@@ -63,7 +65,9 @@ export const determinism: Metric = {
             : `${String(result.status)}\n${result.stdout}\n--\n${result.stderr}`,
         );
       }
-      if (outputs.size > 1) differing.push(`${input.label} (${outputs.size} variants)`);
+      if (outputs.size > 1) {
+        differing.push(`${input.label} (${outputs.size} variants)`);
+      }
     }
     return [
       judgeBool(

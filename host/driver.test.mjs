@@ -13,12 +13,14 @@ function instance(callbacks, resultType = 0x7f) {
   types.leb(0x60).leb(1).leb(0x7f).leb(1).leb(resultType);
   types.leb(0x60).leb(1).leb(0x7f).leb(0);
   const imports = new Enc().leb(3);
-  for (const [index, name] of ["init", "poll", "wake"].entries())
+  for (const [index, name] of ["init", "poll", "wake"].entries()) {
     imports.str("test").str(name).leb(0).leb(index);
+  }
   const memory = new Enc().leb(1).leb(0).leb(1);
   const exports = new Enc().leb(4);
-  for (const [index, name] of ["hd.init", "hd.poll", "hd.wake"].entries())
+  for (const [index, name] of ["hd.init", "hd.poll", "hd.wake"].entries()) {
     exports.str(name).leb(0).leb(index);
+  }
   exports.str("hd.x").leb(2).leb(0);
   const body = new Enc()
     .leb(1)
@@ -111,7 +113,9 @@ test("idle turns retain pollable I/O without creating a timer or background driv
         new Uint8Array(guest.exports["hd.x"].buffer)[0] = 65;
         [, handle] = host.imports["hd:ConsoleInput"]["read_line.start"]();
       }
-      if (!woken) return -1;
+      if (!woken) {
+        return -1;
+      }
       host.imports["hd:ConsoleInput"]["read_line.finish"](handle);
       return 0;
     },
@@ -152,8 +156,9 @@ test("synchronous waits accept ready work and reject a pending wait", () => {
     });
     try {
       const driver = host.createDriver(guest);
-      if (duration === 0n) assert.deepEqual(driver.step(), { status: 0, wakes: 0 });
-      else {
+      if (duration === 0n) {
+        assert.deepEqual(driver.step(), { status: 0, wakes: 0 });
+      } else {
         assert.throws(() => driver.step(), /synchronous host wait is pending/);
         assert.throws(() => driver.step(), /driver has failed/);
       }
@@ -361,7 +366,9 @@ test(
           assert.equal(turn.status, 0);
           break;
         }
-        if (turn.wakes === 0) await delay(1);
+        if (turn.wakes === 0) {
+          await delay(1);
+        }
       }
       assert.equal(output.join(""), "before\nafter\n");
       assert.deepEqual(errors, []);

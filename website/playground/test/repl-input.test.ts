@@ -23,7 +23,9 @@ test("an input continues while it is incomplete", () => {
     "fn f() -> i32:\n    1",
     "if a:\n    b\nelse:",
   ];
-  for (const text of more) assert.equal(needsMoreInput(text), true, JSON.stringify(text));
+  for (const text of more) {
+    assert.equal(needsMoreInput(text), true, JSON.stringify(text));
+  }
   const done = [
     "[3, 6]",
     "fn f() -> i32: 1",
@@ -35,7 +37,9 @@ test("an input continues while it is incomplete", () => {
     "fn f() -> i32:\n    1\n    ",
     "[1,\n2]",
   ];
-  for (const text of done) assert.equal(needsMoreInput(text), false, JSON.stringify(text));
+  for (const text of done) {
+    assert.equal(needsMoreInput(text), false, JSON.stringify(text));
+  }
 });
 
 test("a continuation line indents one level after a header", () => {

@@ -1,9 +1,15 @@
 function main() {
   const table = new Map();
-  for (let i = 0; i < 100_000; i++) table.set(i, i * 2);
+  for (let i = 0; i < 100_000; i++) {
+    table.set(i, i * 2);
+  }
   let total = 0;
-  for (let i = 0; i < 100_000; i++) total += table.get(i) ?? 0;
-  if (total !== 9999900000) throw new Error(`wrong: ${total}`);
+  for (let i = 0; i < 100_000; i++) {
+    total += table.get(i) ?? 0;
+  }
+  if (total !== 9999900000) {
+    throw new Error(`wrong: ${total}`);
+  }
 }
 
 const times = [];

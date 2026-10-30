@@ -29,8 +29,12 @@ export const fetchDedup: Metric = {
   summary: `a dependency used by ${WORKTREES} worktrees with one shared cache is fetched once`,
   async run(context) {
     const setup = await prepareDependent(context.hd);
-    if ("na" in setup) return [notApplicable(NAME, LABEL, TARGET, setup.na)];
-    if ("problem" in setup) return [failed(NAME, LABEL, TARGET, setup.problem)];
+    if ("na" in setup) {
+      return [notApplicable(NAME, LABEL, TARGET, setup.na)];
+    }
+    if ("problem" in setup) {
+      return [failed(NAME, LABEL, TARGET, setup.problem)];
+    }
     const { remote } = setup;
     const env = { ...remote.env, HD_CACHE: makeTempDir("cache") };
     const start = remote.connections();
@@ -42,14 +46,19 @@ export const fetchDedup: Metric = {
         timeoutMs: TIMEOUT_MS,
       });
       const problem = runProblem(result, TIMEOUT_MS, `hd check in worktree ${index + 1}`);
-      if (problem) return [failed(NAME, LABEL, TARGET, problem)];
-      if (index === 0) first = remote.connections() - start;
+      if (problem) {
+        return [failed(NAME, LABEL, TARGET, problem)];
+      }
+      if (index === 0) {
+        first = remote.connections() - start;
+      }
     }
     const total = remote.connections() - start;
-    if (first === 0)
+    if (first === 0) {
       return [
         failed(NAME, LABEL, TARGET, "the first check made no connection, so it fetched nothing"),
       ];
+    }
     return [
       judgeBool(
         NAME,

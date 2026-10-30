@@ -43,20 +43,29 @@ export function parseKey(ctx, end = 0x3d /* = */) {
   do {
     // End of key
     if (c === end) {
-      if (!state) TomlError.x("unexpected end of key", ctx);
-      if (state === 1) parsed.push(ctx.s.slice(sliceStart, ctx.p));
+      if (!state) {
+        TomlError.x("unexpected end of key", ctx);
+      }
+      if (state === 1) {
+        parsed.push(ctx.s.slice(sliceStart, ctx.p));
+      }
       return (ctx.p++, parsed);
     }
     // Dotted key separator
     else if (c === 0x2e /* . */) {
-      if (!state) TomlError.x("illegal empty bare key", ctx);
-      if (state === 1) parsed.push(ctx.s.slice(sliceStart, ctx.p));
+      if (!state) {
+        TomlError.x("illegal empty bare key", ctx);
+      }
+      if (state === 1) {
+        parsed.push(ctx.s.slice(sliceStart, ctx.p));
+      }
       state = 0;
     }
     // Quoted key
     else if (!state && (c === 0x22 /* " */ || c === 0x27) /* ' */) {
-      if (c === ctx.s.charCodeAt(ctx.p + 1) && c === ctx.s.charCodeAt(ctx.p + 2))
+      if (c === ctx.s.charCodeAt(ctx.p + 1) && c === ctx.s.charCodeAt(ctx.p + 2)) {
         TomlError.x("illegal quoted key: multiline strings are not allowed", ctx);
+      }
       parsed.push(parseString(ctx));
       state = 2;
       ctx.p--;
@@ -104,7 +113,9 @@ export function parseInlineTable(ctx) {
     let errPtr = ctx.p;
     let key = parseKey(ctx);
     for (let i = 0; i < key.length; i++) {
-      if (i) t = hasOwn ? t[k] : (t[k] = Object.create(null));
+      if (i) {
+        t = hasOwn ? t[k] : (t[k] = Object.create(null));
+      }
       k = key[i];
       if ((hasOwn = Object.hasOwn(t, k)) && (typeof t[k] !== "object" || seen.has(t[k]))) {
         TomlError.x("trying to redefine an already defined value", ctx, errPtr);
@@ -123,12 +134,16 @@ export function parseInlineTable(ctx) {
     }
     skipVoid(ctx, true, true);
     let value = extractValue(ctx, 0x7d /* } */);
-    if (t && typeof (t[k] = value) === "object") seen.add(value);
+    if (t && typeof (t[k] = value) === "object") {
+      seen.add(value);
+    }
     skipVoid(ctx);
     if ((c = ctx.s.charCodeAt(ctx.p++)) === 0x7d /* } */) {
       return res;
     }
-    if (c !== 0x2c /* , */) TomlError.x("expected comma or end of structure", ctx, ctx.p - 1);
+    if (c !== 0x2c /* , */) {
+      TomlError.x("expected comma or end of structure", ctx, ctx.p - 1);
+    }
   }
   TomlError.x("unfinished table", ctx, startPtr);
 }
@@ -148,7 +163,9 @@ export function parseArray(ctx) {
     if ((c = ctx.s.charCodeAt(ctx.p++)) === 0x5d /* ] */) {
       return res;
     }
-    if (c !== 0x2c /* , */) TomlError.x("expected comma or end of structure", ctx, ctx.p - 1);
+    if (c !== 0x2c /* , */) {
+      TomlError.x("expected comma or end of structure", ctx, ctx.p - 1);
+    }
   }
   TomlError.x("unfinished array", ctx, startPtr);
 }

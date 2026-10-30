@@ -9,8 +9,9 @@ function paths(options, context) {
     !identity.package ||
     typeof identity.version !== "string" ||
     identity.trait_path !== "deployment.Deployment"
-  )
+  ) {
     throw new Error("SDK deployment requires its validated host interface identity");
+  }
   const rootDirectory = process.cwd();
   return {
     rootDirectory,

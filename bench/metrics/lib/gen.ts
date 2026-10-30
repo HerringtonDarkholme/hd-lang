@@ -180,7 +180,9 @@ export function reachEveryModule(pkg: GeneratedPackage): string {
 
 function replaceOnce(text: string, pattern: RegExp, replacement: string, what: string): string {
   const next = text.replace(pattern, replacement);
-  if (next === text) throw new Error(`no ${what} in the module`);
+  if (next === text) {
+    throw new Error(`no ${what} in the module`);
+  }
   return next;
 }
 
@@ -190,7 +192,9 @@ export function editBody(text: string): string {
     /^( {4}let bump = \+)(\d+)$/m,
     (_, head: string, n: string) => `${head}${Number(n) + 1}`,
   );
-  if (next === text) throw new Error("no body edit site in the module");
+  if (next === text) {
+    throw new Error("no body edit site in the module");
+  }
   return next;
 }
 
@@ -314,7 +318,7 @@ export function integrationPackage(programs: number): Files {
     ["hd.toml", integrationManifest()],
     ["src/lib.hd", integrationLib(0)],
   ]);
-  for (let p = 0; p < programs; p++)
+  for (let p = 0; p < programs; p++) {
     files.set(
       `tests/export${p}.hd`,
       renderFixture("integration-test-perf/export.hd.tmpl", {
@@ -322,6 +326,7 @@ export function integrationPackage(programs: number): Files {
         cases: [0, 1].map((c) => ({ c })),
       }),
     );
+  }
   return files;
 }
 

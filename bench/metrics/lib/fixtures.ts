@@ -73,14 +73,17 @@ interface ParamLine {
 
 function paramLine(line: string, where: string): ParamLine | undefined {
   const mark = PARAM_MARK.exec(line);
-  if (!mark) return undefined;
+  if (!mark) {
+    return undefined;
+  }
   const code = line.slice(0, mark.index);
   const blanked = code.replaceAll(STRING, (text) => " ".repeat(text.length));
   const literals = [...blanked.matchAll(INTEGER)];
-  if (literals.length !== 1)
+  if (literals.length !== 1) {
     throw new Error(
       `${where}: a \`# param: ${mark[1]}\` line needs exactly one integer literal outside strings, found ${literals.length}`,
     );
+  }
   return {
     name: mark[1]!,
     code,
@@ -95,7 +98,9 @@ export function paramsOf(text: string, where = "fixture"): Map<string, number> {
   const found = new Map<string, number>();
   for (const line of text.split("\n")) {
     const param = paramLine(line, where);
-    if (param) found.set(param.name, Number(param.literal.replaceAll("_", "")));
+    if (param) {
+      found.set(param.name, Number(param.literal.replaceAll("_", "")));
+    }
   }
   return found;
 }
@@ -109,14 +114,19 @@ export function withParams(text: string, params: Params, where = "fixture"): str
   const unused = new Set(Object.keys(params));
   const lines = text.split("\n").map((line) => {
     const param = paramLine(line, where);
-    if (!param || !(param.name in params)) return line;
+    if (!param || !(param.name in params)) {
+      return line;
+    }
     unused.delete(param.name);
     const value = params[param.name]!;
-    if (!Number.isSafeInteger(value) || value < 0)
+    if (!Number.isSafeInteger(value) || value < 0) {
       throw new Error(`${where}: param ${param.name} must be a non-negative integer, not ${value}`);
+    }
     return `${param.code.slice(0, param.at)}${value}${param.code.slice(param.at + param.literal.length)}${param.mark}`;
   });
-  if (unused.size > 0) throw new Error(`${where}: no param ${[...unused].join(", ")}`);
+  if (unused.size > 0) {
+    throw new Error(`${where}: no param ${[...unused].join(", ")}`);
+  }
   return lines.join("\n");
 }
 
@@ -139,7 +149,9 @@ const COMMENT = /^\s*\{\{!.*\}\}\s*$/;
 const FIELD = /\{\{([a-z][a-zA-Z0-9]*)((?:\s+[^\s{}]+)*)\}\}/g;
 
 function lookup(scope: TemplateScope, name: string, where: string): TemplateValue {
-  if (!(name in scope)) throw new Error(`${where}: the template names {{${name}}}, which is unset`);
+  if (!(name in scope)) {
+    throw new Error(`${where}: the template names {{${name}}}, which is unset`);
+  }
   return scope[name]!;
 }
 
@@ -147,38 +159,57 @@ function renderLines(lines: readonly string[], scope: TemplateScope, where: stri
   const out: string[] = [];
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]!;
-    if (COMMENT.test(line)) continue;
+    if (COMMENT.test(line)) {
+      continue;
+    }
     const block = BLOCK.exec(line);
     if (block) {
-      if (block[1] === "/" || !block[3])
+      if (block[1] === "/" || !block[3]) {
         throw new Error(`${where}:${index + 1}: unexpected ${line.trim()}`);
+      }
       const [, , kind, name] = block as unknown as [string, string, string, string];
       let depth = 1;
       let end = index + 1;
       for (; end < lines.length; end++) {
         const inner = BLOCK.exec(lines[end]!);
-        if (inner?.[2] !== kind) continue;
+        if (inner?.[2] !== kind) {
+          continue;
+        }
         depth += inner[1] === "#" ? 1 : -1;
-        if (depth === 0) break;
+        if (depth === 0) {
+          break;
+        }
       }
-      if (end === lines.length)
+      if (end === lines.length) {
         throw new Error(`${where}:${index + 1}: {{#${kind}}} is not closed`);
+      }
       const body = lines.slice(index + 1, end);
       const value = lookup(scope, name, where);
       if (kind === "each") {
-        if (!Array.isArray(value)) throw new Error(`${where}: {{#each ${name}}} needs a list`);
-        for (const item of value as readonly TemplateScope[])
+        if (!Array.isArray(value)) {
+          throw new Error(`${where}: {{#each ${name}}} needs a list`);
+        }
+        for (const item of value as readonly TemplateScope[]) {
           out.push(...renderLines(body, { ...scope, ...item }, where));
-      } else if (Boolean(value) === (kind === "if")) out.push(...renderLines(body, scope, where));
+        }
+      } else if (Boolean(value) === (kind === "if")) {
+        out.push(...renderLines(body, scope, where));
+      }
       index = end;
       continue;
     }
     out.push(
       line.replaceAll(FIELD, (_, name: string, args: string) => {
         const value = lookup(scope, name, where);
-        if (typeof value === "function") return String(value(...args.trim().split(/\s+/)));
-        if (args.trim()) throw new Error(`${where}: {{${name}}} is not a function`);
-        if (typeof value === "object") throw new Error(`${where}: {{${name}}} is a list`);
+        if (typeof value === "function") {
+          return String(value(...args.trim().split(/\s+/)));
+        }
+        if (args.trim()) {
+          throw new Error(`${where}: {{${name}}} is not a function`);
+        }
+        if (typeof value === "object") {
+          throw new Error(`${where}: {{${name}}} is a list`);
+        }
         return String(value);
       }),
     );
@@ -318,10 +349,14 @@ export function programFiles(name: ProgramName, params: Params = {}): Map<string
     const text = fixture(source);
     const own = paramsOf(text, source);
     const mine = Object.fromEntries(Object.entries(params).filter(([key]) => own.has(key)));
-    for (const key of Object.keys(mine)) unused.delete(key);
+    for (const key of Object.keys(mine)) {
+      unused.delete(key);
+    }
     files.set(path, withParams(text, mine, source));
   }
-  if (unused.size > 0) throw new Error(`${name}: no param ${[...unused].join(", ")}`);
+  if (unused.size > 0) {
+    throw new Error(`${name}: no param ${[...unused].join(", ")}`);
+  }
   return files;
 }
 

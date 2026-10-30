@@ -41,10 +41,11 @@ function pager(pages: readonly TourPage[], page: TourPage, pageUrl: TourRender["
   const next = pages[page.number];
   const link = (target: TourPage | undefined, rel: "prev" | "next"): string => {
     const label = rel === "prev" ? "Previous" : "Next";
-    if (!target)
+    if (!target) {
       return rel === "prev"
         ? `<a class="tour-prev" rel="prev" href="${pageUrl(TOUR_INDEX)}"><span>${label}</span>Contents</a>`
         : "<span></span>";
+    }
     return `<a class="tour-${rel}" rel="${rel}" href="${pageUrl(tourOutput(target))}"><span>${label}</span>${escapeHtml(target.title)}</a>`;
   };
   return `<nav class="pager tour-pager" aria-label="Tour pages">${link(previous, "prev")}${link(next, "next")}</nav>`;
@@ -64,7 +65,9 @@ ${pager(pages, page, pageUrl)}`;
 /** The page's edit as one plain "Try it" line: the change to make in the editor. */
 function tryIt(page: TourPage): string {
   const { edit } = page;
-  if (!edit) return "";
+  if (!edit) {
+    return "";
+  }
   const action = edit.error === undefined ? "Test" : "Run";
   const from = `<code>${escapeHtml(edit.replace.trim())}</code>`;
   const change =
@@ -76,8 +79,9 @@ function tryIt(page: TourPage): string {
 
 /** The output panel's text before the first run. */
 function tourHint(page: TourPage): string {
-  if (page.output && page.tests)
+  if (page.output && page.tests) {
     return "Press Run to see the output here, or Test to run the tests.";
+  }
   return page.output ? "Press Run to see the output here." : "Press Test to run the tests.";
 }
 

@@ -6,7 +6,9 @@ const base = document.body.dataset.base ?? "/";
 
 function setupMenu() {
   const button = document.querySelector(".menu-button");
-  if (!button) return;
+  if (!button) {
+    return;
+  }
   const close = () => {
     document.body.classList.remove("nav-open");
     button.setAttribute("aria-expanded", "false");
@@ -16,11 +18,15 @@ function setupMenu() {
     button.setAttribute("aria-expanded", String(open));
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") close();
+    if (event.key === "Escape") {
+      close();
+    }
   });
   document.querySelector(".content")?.addEventListener("click", close);
   document.getElementById("sidebar")?.addEventListener("click", (event) => {
-    if (event.target instanceof Element && event.target.closest("a")) close();
+    if (event.target instanceof Element && event.target.closest("a")) {
+      close();
+    }
   });
 }
 
@@ -29,7 +35,9 @@ const THEME_KEY = "hd-theme";
 
 function setupTheme() {
   const button = document.querySelector(".theme-toggle");
-  if (!button) return;
+  if (!button) {
+    return;
+  }
   const root = document.documentElement;
   const dark = () =>
     root.dataset.theme === "dark" ||
@@ -65,9 +73,13 @@ function setupTheme() {
  * REPL or playground link; a plain ```text block gets a wrapper to hold it.
  */
 function setupCopy() {
-  if (!navigator.clipboard) return;
+  if (!navigator.clipboard) {
+    return;
+  }
   for (const pre of document.querySelectorAll("main pre.code")) {
-    if (pre.closest(".code-window, .claim")) continue;
+    if (pre.closest(".code-window, .claim")) {
+      continue;
+    }
     let block = pre.parentElement;
     if (!block?.classList.contains("code-block")) {
       block = document.createElement("div");
@@ -96,7 +108,9 @@ function setupCopy() {
       }, 1500);
     });
     const tryLink = block.querySelector(":scope > .try-link");
-    if (tryLink) actions.append(tryLink);
+    if (tryLink) {
+      actions.append(tryLink);
+    }
     actions.append(copy);
     block.append(actions);
   }
@@ -105,11 +119,15 @@ function setupCopy() {
 function setupSearch() {
   const input = document.getElementById("search-input");
   const results = document.getElementById("search-results");
-  if (!input || !results) return;
+  if (!input || !results) {
+    return;
+  }
   let entries = null;
   let active = -1;
   const load = async () => {
-    if (entries) return entries;
+    if (entries) {
+      return entries;
+    }
     try {
       const response = await fetch(`${base}search-index.json`);
       entries = await response.json();
@@ -178,7 +196,9 @@ function setupSearch() {
       highlight((active - 1 + items.length) % items.length);
     } else if (event.key === "Enter") {
       const target = items[active] ?? items[0];
-      if (target) window.location.href = target.href;
+      if (target) {
+        window.location.href = target.href;
+      }
     } else if (event.key === "Escape") {
       input.value = "";
       results.hidden = true;
@@ -186,8 +206,9 @@ function setupSearch() {
     }
   });
   document.addEventListener("click", (event) => {
-    if (!(event.target instanceof Node) || !results.parentElement?.contains(event.target))
+    if (!(event.target instanceof Node) || !results.parentElement?.contains(event.target)) {
       results.hidden = true;
+    }
   });
   document.addEventListener("keydown", (event) => {
     const typing = event.target instanceof HTMLElement && event.target.matches("input, textarea");
@@ -200,7 +221,9 @@ function setupSearch() {
 
 function decodeCode(hash) {
   const match = /^#code=([A-Za-z0-9_-]*)/.exec(hash);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   try {
     const base64 = match[1].replaceAll("-", "+").replaceAll("_", "/");
     const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
@@ -216,7 +239,9 @@ function setupPlayground() {
     const hash = window.location.hash.startsWith("#code=") ? window.location.hash : "";
     if (frame) {
       const target = frame.dataset.src + hash;
-      if (frame.getAttribute("src") !== target) frame.setAttribute("src", target);
+      if (frame.getAttribute("src") !== target) {
+        frame.setAttribute("src", target);
+      }
       return;
     }
     const wrap = document.getElementById("playground-code-wrap");
@@ -227,30 +252,41 @@ function setupPlayground() {
       wrap.hidden = false;
     }
   };
-  if (!frame && !document.getElementById("playground-code")) return;
+  if (!frame && !document.getElementById("playground-code")) {
+    return;
+  }
   sync();
   window.addEventListener("hashchange", sync);
 }
 
 function setupOutline() {
   const links = [...document.querySelectorAll(".toc a")];
-  if (links.length === 0 || !("IntersectionObserver" in window)) return;
+  if (links.length === 0 || !("IntersectionObserver" in window)) {
+    return;
+  }
   const byId = new Map(links.map((link) => [decodeURIComponent(link.hash.slice(1)), link]));
   const visible = new Set();
   const observer = new IntersectionObserver(
     (records) => {
       for (const record of records) {
-        if (record.isIntersecting) visible.add(record.target.id);
-        else visible.delete(record.target.id);
+        if (record.isIntersecting) {
+          visible.add(record.target.id);
+        } else {
+          visible.delete(record.target.id);
+        }
       }
       const current = links.find((link) => visible.has(decodeURIComponent(link.hash.slice(1))));
-      if (current) links.forEach((link) => link.classList.toggle("active", link === current));
+      if (current) {
+        links.forEach((link) => link.classList.toggle("active", link === current));
+      }
     },
     { rootMargin: "0px 0px -70% 0px" },
   );
   for (const id of byId.keys()) {
     const heading = document.getElementById(id);
-    if (heading) observer.observe(heading);
+    if (heading) {
+      observer.observe(heading);
+    }
   }
 }
 

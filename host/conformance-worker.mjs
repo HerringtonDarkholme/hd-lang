@@ -50,13 +50,17 @@ const OUT = 1;
 // Reads exactly `n` bytes from `fd`, or null on clean EOF before any
 // byte. Throws on a truncated message.
 function readExact(fd, n) {
-  if (n === 0) return Buffer.alloc(0);
+  if (n === 0) {
+    return Buffer.alloc(0);
+  }
   const out = Buffer.alloc(n);
   let at = 0;
   while (at < n) {
     const got = readSync(fd, out, at, n - at, null);
     if (got === 0) {
-      if (at === 0) return null;
+      if (at === 0) {
+        return null;
+      }
       throw new Error("conformance worker: truncated message");
     }
     at += got;
@@ -73,15 +77,23 @@ function writeAll(fd, buf) {
 
 function readFrame() {
   const lenBuf = readExact(IN, 4);
-  if (lenBuf === null) return null;
+  if (lenBuf === null) {
+    return null;
+  }
   const len = lenBuf.readUInt32BE(0);
   const headerBuf = readExact(IN, len);
-  if (headerBuf === null) throw new Error("conformance worker: truncated header");
+  if (headerBuf === null) {
+    throw new Error("conformance worker: truncated header");
+  }
   const header = JSON.parse(headerBuf.toString("utf8"));
   const wasm = readExact(IN, header.wasmLen);
-  if (wasm === null) throw new Error("conformance worker: truncated wasm");
+  if (wasm === null) {
+    throw new Error("conformance worker: truncated wasm");
+  }
   const stdinText = readExact(IN, header.stdinLen);
-  if (stdinText === null) throw new Error("conformance worker: truncated stdin");
+  if (stdinText === null) {
+    throw new Error("conformance worker: truncated stdin");
+  }
   return { header, wasm, stdinText };
 }
 
@@ -120,27 +132,37 @@ async function runScenario(header, host, instance) {
     const cancel = entryCancel(SCENARIO_CLEANUP_MS);
     cancel.request();
     const { cancelled } = await host.run(instance, "hd.init", "hd.poll", null, cancel);
-    if (!cancelled) return 1;
+    if (!cancelled) {
+      return 1;
+    }
     return ex["hd.scenario.cleanup"]() === 1 ? 0 : 1;
   }
   host.prime(instance);
   ex["hd.init"]();
   if (header.scenario === "competing-drivers") {
-    if (ex["hd.poll"](0) !== -1) return 1;
+    if (ex["hd.poll"](0) !== -1) {
+      return 1;
+    }
     try {
       ex["hd.poll"](1);
     } catch (e) {
-      if (e instanceof WebAssembly.RuntimeError) return 3;
+      if (e instanceof WebAssembly.RuntimeError) {
+        return 3;
+      }
       throw e;
     }
     return 1;
   }
   if (header.scenario === "reentrant-poll") {
-    if (ex["hd.poll"](0) !== -1) return 1;
+    if (ex["hd.poll"](0) !== -1) {
+      return 1;
+    }
     try {
       ex["hd.poll"](0);
     } catch (e) {
-      if (e instanceof WebAssembly.RuntimeError) return 3;
+      if (e instanceof WebAssembly.RuntimeError) {
+        return 3;
+      }
       throw e;
     }
     return 1;
@@ -189,7 +211,9 @@ async function runEntry(header, wasm, stdinText) {
       // scenarios drive exports directly and report once here.
       if (header.scenario !== "cancellation-cleanup") {
         const report = cycleReport(module, instance);
-        if (report !== null) stderrStr += report;
+        if (report !== null) {
+          stderrStr += report;
+        }
       }
       return { status, stdoutStr, stderrStr };
     }
@@ -238,7 +262,9 @@ async function runTests(header, wasm) {
 
 for (;;) {
   const msg = readFrame();
-  if (msg === null) break;
+  if (msg === null) {
+    break;
+  }
   const { header, wasm, stdinText } = msg;
   const { status, stdoutStr, stderrStr } =
     typeof header.tests === "string"

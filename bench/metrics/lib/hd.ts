@@ -27,13 +27,18 @@ export function splitCommand(text: string): string[] {
   let started = false;
   for (const char of text) {
     if (quote) {
-      if (char === quote) quote = null;
-      else current += char;
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
     } else if (char === "'" || char === '"') {
       quote = char;
       started = true;
     } else if (/\s/.test(char)) {
-      if (started) words.push(current);
+      if (started) {
+        words.push(current);
+      }
       current = "";
       started = false;
     } else {
@@ -41,8 +46,12 @@ export function splitCommand(text: string): string[] {
       started = true;
     }
   }
-  if (quote) throw new Error(`unclosed ${quote} in the hd command: ${text}`);
-  if (started) words.push(current);
+  if (quote) {
+    throw new Error(`unclosed ${quote} in the hd command: ${text}`);
+  }
+  if (started) {
+    words.push(current);
+  }
   return words;
 }
 
@@ -53,7 +62,9 @@ export function splitCommand(text: string): string[] {
  */
 export function parseHdCommand(text: string, base = process.cwd()): HdCommand {
   const words = splitCommand(text);
-  if (words.length === 0) throw new Error("the hd command is empty");
+  if (words.length === 0) {
+    throw new Error("the hd command is empty");
+  }
   const argv = words.map((word) =>
     !isAbsolute(word) && !word.startsWith("-") && existsSync(join(base, word))
       ? resolve(base, word)
@@ -116,19 +127,21 @@ export function parseTimeReport(
 ): { readonly cpuMs: number; readonly rssBytes: number } | undefined {
   const bsd = /([\d.]+)\s+real\s+([\d.]+)\s+user\s+([\d.]+)\s+sys/.exec(text);
   const bsdRss = /(\d+)\s+maximum resident set size/.exec(text);
-  if (bsd && bsdRss)
+  if (bsd && bsdRss) {
     return {
       cpuMs: (Number(bsd[2]) + Number(bsd[3])) * 1000,
       rssBytes: Number(bsdRss[1]),
     };
+  }
   const user = /User time \(seconds\):\s*([\d.]+)/.exec(text);
   const sys = /System time \(seconds\):\s*([\d.]+)/.exec(text);
   const gnuRss = /Maximum resident set size \(kbytes\):\s*(\d+)/.exec(text);
-  if (user && sys && gnuRss)
+  if (user && sys && gnuRss) {
     return {
       cpuMs: (Number(user[1]) + Number(sys[1])) * 1000,
       rssBytes: Number(gnuRss[1]) * 1024,
     };
+  }
   return undefined;
 }
 
@@ -148,7 +161,9 @@ export function runProcess(argv: readonly string[], options: RunOptions): Promis
       detached: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
-    if (child.pid !== undefined) live.add(child.pid);
+    if (child.pid !== undefined) {
+      live.add(child.pid);
+    }
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let firstOutputMs: number | undefined;
@@ -176,12 +191,17 @@ export function runProcess(argv: readonly string[], options: RunOptions): Promis
     });
     child.on("close", (status) => {
       clearTimeout(timer);
-      if (child.pid !== undefined) live.delete(child.pid);
+      if (child.pid !== undefined) {
+        live.delete(child.pid);
+      }
       const wallMs = performance.now() - start;
       let usage: ReturnType<typeof parseTimeReport>;
-      if (reportFile && existsSync(reportFile))
+      if (reportFile && existsSync(reportFile)) {
         usage = parseTimeReport(readFileSync(reportFile, "utf8"));
-      if (reportDir) rmSync(reportDir, { recursive: true, force: true });
+      }
+      if (reportDir) {
+        rmSync(reportDir, { recursive: true, force: true });
+      }
       done({
         status,
         stdout: Buffer.concat(out).toString("utf8"),
@@ -211,8 +231,12 @@ export const firstLines = (result: RunResult, count = 2): string =>
 
 /** Why a run that should succeed did not, or undefined when it succeeded. */
 export function runProblem(result: RunResult, timeoutMs: number, what: string): string | undefined {
-  if (result.timedOut) return `${what} timed out after ${timeoutMs / 1000} s`;
-  if (result.status !== 0) return `${what} exited ${String(result.status)}: ${firstLines(result)}`;
+  if (result.timedOut) {
+    return `${what} timed out after ${timeoutMs / 1000} s`;
+  }
+  if (result.status !== 0) {
+    return `${what} exited ${String(result.status)}: ${firstLines(result)}`;
+  }
   return undefined;
 }
 
@@ -240,7 +264,9 @@ export async function timedSeries(
     before?.(index);
     const result = await runHd(hd, args(index), options);
     const problem = runProblem(result, options.timeoutMs, `${what} ${index + 1}`);
-    if (problem) return { samples, problem };
+    if (problem) {
+      return { samples, problem };
+    }
     samples.push(result.wallMs);
   }
   return { samples };
@@ -263,11 +289,14 @@ export function jsonLines(text: string): Record<string, unknown>[] {
   const records: Record<string, unknown>[] = [];
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
-    if (!trimmed.startsWith("{")) continue;
+    if (!trimmed.startsWith("{")) {
+      continue;
+    }
     try {
       const value: unknown = JSON.parse(trimmed);
-      if (value && typeof value === "object" && !Array.isArray(value))
+      if (value && typeof value === "object" && !Array.isArray(value)) {
         records.push(value as Record<string, unknown>);
+      }
     } catch {
       // Not a JSON object line: some other output.
     }
@@ -294,7 +323,9 @@ export function parsePsRss(text: string, pgid: number): number | undefined {
   let total: number | undefined;
   for (const line of text.split("\n")) {
     const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
-    if (match && Number(match[1]) === pgid) total = (total ?? 0) + Number(match[2]) * 1024;
+    if (match && Number(match[1]) === pgid) {
+      total = (total ?? 0) + Number(match[2]) * 1024;
+    }
   }
   return total;
 }
@@ -340,7 +371,9 @@ export function runSampled(
       stdio: ["ignore", "pipe", "pipe"],
     });
     const pid = child.pid;
-    if (pid !== undefined) live.add(pid);
+    if (pid !== undefined) {
+      live.add(pid);
+    }
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
@@ -349,12 +382,16 @@ export function runSampled(
     let stopped = false;
     let sampling = false;
     const sampler = setInterval(() => {
-      if (sampling || pid === undefined) return;
+      if (sampling || pid === undefined) {
+        return;
+      }
       sampling = true;
       const atMs = performance.now() - start;
       void groupRssBytes(pid).then((rssBytes) => {
         sampling = false;
-        if (!stopped) samples.push({ atMs, rssBytes });
+        if (!stopped) {
+          samples.push({ atMs, rssBytes });
+        }
       });
     }, options.intervalMs);
     const stop = setTimeout(() => {
@@ -373,7 +410,9 @@ export function runSampled(
     child.on("close", (status) => {
       clearInterval(sampler);
       clearTimeout(stop);
-      if (pid !== undefined) live.delete(pid);
+      if (pid !== undefined) {
+        live.delete(pid);
+      }
       const early = !stopped;
       stopped = true;
       done({ samples, stdout, stderr, ...(early ? { exited: status } : {}) });
@@ -420,7 +459,9 @@ export function runSession(
     stdio: ["pipe", "pipe", "pipe"],
   });
   const pid = child.pid;
-  if (pid !== undefined) live.add(pid);
+  if (pid !== undefined) {
+    live.add(pid);
+  }
   let stdout = "";
   let stderr = "";
   let exit: number | null | undefined;
@@ -439,7 +480,9 @@ export function runSession(
     });
     child.on("close", (status) => {
       exit = status;
-      if (pid !== undefined) live.delete(pid);
+      if (pid !== undefined) {
+        live.delete(pid);
+      }
       wake?.();
       done();
     });
@@ -449,7 +492,9 @@ export function runSession(
   const waitFor = async (test: () => boolean): Promise<boolean> => {
     while (!test() && exit === undefined) {
       const left = deadline - performance.now();
-      if (left <= 0) return false;
+      if (left <= 0) {
+        return false;
+      }
       await new Promise<void>((done) => {
         const timer = setTimeout(done, left);
         wake = () => {
@@ -472,7 +517,9 @@ export function runSession(
     const rssBytes: (number | undefined)[] = [];
     let problem = pid === undefined ? "the session did not start" : undefined;
     for (const [index, step] of options.steps.entries()) {
-      if (problem) break;
+      if (problem) {
+        break;
+      }
       child.stdin.write(step.input);
       if (await waitFor(() => step.done(stdout))) {
         rssBytes.push(await groupRssBytes(pid!));

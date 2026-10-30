@@ -57,7 +57,9 @@ export function editorExtensions(callbacks: EditorCallbacks): Extension {
     theme,
     EditorView.contentAttributes.of({ "aria-label": "hd source" }),
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) callbacks.changed();
+      if (update.docChanged) {
+        callbacks.changed();
+      }
     }),
   ];
 }
@@ -76,7 +78,9 @@ export function lintDiagnostics(
   return diagnostics.map((diagnostic) => {
     const from = offsetOf(doc, diagnostic.line, diagnostic.column);
     let to = offsetOf(doc, diagnostic.endLine, diagnostic.endColumn);
-    if (to <= from) to = Math.min(doc.lineAt(from).to, from + 1);
+    if (to <= from) {
+      to = Math.min(doc.lineAt(from).to, from + 1);
+    }
     return {
       from,
       to,

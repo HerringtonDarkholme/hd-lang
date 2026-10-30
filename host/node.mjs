@@ -74,8 +74,12 @@ const EXIT_GRACE_MS = 500;
 function refusedPath(path, cwd = process.cwd()) {
   const base = resolvePath(cwd);
   const target = resolvePath(path, cwd);
-  if (target === resolve(base, path)) return path;
-  if (target === base) return ".";
+  if (target === resolve(base, path)) {
+    return path;
+  }
+  if (target === base) {
+    return ".";
+  }
   const prefix = base.endsWith(sep) ? base : base + sep;
   return (target.startsWith(prefix) ? target.slice(prefix.length) : target).split(sep).join("/");
 }
@@ -97,8 +101,9 @@ export const syncClient = (file, close = null) => {
   // Stops the thread, allowing an optional close request to release OS children.
   const stop = () => {
     if (client !== null) {
-      if (close === null) client.worker.terminate();
-      else {
+      if (close === null) {
+        client.worker.terminate();
+      } else {
         // Child processes outlive worker termination. Let this worker kill
         // and reap them even if a short control call hit the run deadline.
         client.worker.ref();
@@ -112,7 +117,9 @@ export const syncClient = (file, close = null) => {
     // Whether the thread has started, so it may hold something open.
     started: () => client !== null,
     call: (request, left = () => Infinity) => {
-      if (left() <= 0) throw new TimeLimit();
+      if (left() <= 0) {
+        throw new TimeLimit();
+      }
       if (client === null) {
         const { port1, port2 } = new MessageChannel();
         const flag = new Int32Array(new SharedArrayBuffer(4));
@@ -150,11 +157,15 @@ const httpSend = (client, request) => {
   let result = null;
   const poll = () => {
     const outcome = client.call({ op: "poll", operation });
-    if (outcome.pending) return false;
+    if (outcome.pending) {
+      return false;
+    }
     result = outcome;
     return true;
   };
-  if (poll()) return result;
+  if (poll()) {
+    return result;
+  }
   return pendingOperation(
     poll,
     () => result,
@@ -187,11 +198,16 @@ export function lineReader(fd) {
         Atomics.wait(waiter, 0, 0, 5);
         return true;
       }
-      if (err.code !== "EOF") return false;
+      if (err.code !== "EOF") {
+        return false;
+      }
       n = 0;
     }
-    if (n === 0) ended = true;
-    else pending = Buffer.concat([pending, chunk.subarray(0, n)]);
+    if (n === 0) {
+      ended = true;
+    } else {
+      pending = Buffer.concat([pending, chunk.subarray(0, n)]);
+    }
     return true;
   };
   const line = () => {
@@ -200,22 +216,32 @@ export function lineReader(fd) {
       if (nl >= 0) {
         let line = pending.subarray(0, nl);
         pending = pending.subarray(nl + 1);
-        if (line.length && line[line.length - 1] === 13) line = line.subarray(0, line.length - 1);
+        if (line.length && line[line.length - 1] === 13) {
+          line = line.subarray(0, line.length - 1);
+        }
         return line.toString("utf8");
       }
       if (ended) {
-        if (!pending.length) return null;
+        if (!pending.length) {
+          return null;
+        }
         const line = pending.toString("utf8");
         pending = Buffer.alloc(0);
         return line;
       }
-      if (!fill()) return false;
+      if (!fill()) {
+        return false;
+      }
     }
   };
   // The rest of the input as read, with `\r\n` read as `\n`
   // (std-console.input.read-all-host-coded-error).
   line.all = () => {
-    while (!ended) if (!fill()) return false;
+    while (!ended) {
+      if (!fill()) {
+        return false;
+      }
+    }
     const text = pending.toString("utf8");
     pending = Buffer.alloc(0);
     return text.replaceAll("\r\n", "\n");
@@ -238,7 +264,9 @@ function consoleInputProvider({ env, flush, inputClient }) {
       let result = null;
       const poll = () => {
         const outcome = inputClient.call({ op: "wait_poll", operation });
-        if (outcome.pending) return false;
+        if (outcome.pending) {
+          return false;
+        }
         result = outcome;
         return true;
       };
@@ -275,7 +303,9 @@ function consoleInputProvider({ env, flush, inputClient }) {
     (() => {
       let text = "";
       for (let line; (line = readLine()) !== null;) {
-        if (line === false) return false;
+        if (line === false) {
+          return false;
+        }
         text += `${line}\n`;
       }
       return text;
@@ -321,7 +351,9 @@ export function cgroupCpuCount(root, group, offered) {
     if (/^\d+$/.test(quota ?? "") && /^\d+$/.test(period ?? "") && BigInt(period) > 0n) {
       count = Math.min(count, Number(BigInt(quota) / BigInt(period)));
     }
-    if (dir === root) break;
+    if (dir === root) {
+      break;
+    }
     dir = dirname(dir);
   }
   return Math.max(1, count);
@@ -329,23 +361,33 @@ export function cgroupCpuCount(root, group, offered) {
 
 function cpuCount() {
   const offered = availableParallelism();
-  if (platform() !== "linux") return offered;
+  if (platform() !== "linux") {
+    return offered;
+  }
   const membership = quotaText("/proc/self/cgroup");
-  if (membership === null) return offered;
+  if (membership === null) {
+    return offered;
+  }
   const groups = membership.split("\n").map((line) => /^(\d+):([^:]*):(\/.*)$/.exec(line));
   const cpu = groups.find((group) => group?.[2].split(",").includes("cpu"));
   const unified = groups.find((group) => group?.[1] === "0" && group[2] === "");
-  if (!cpu) return unified ? cgroupCpuCount("/sys/fs/cgroup", unified[3], offered) : offered;
+  if (!cpu) {
+    return unified ? cgroupCpuCount("/sys/fs/cgroup", unified[3], offered) : offered;
+  }
 
   // Rust checks these conventional v1 mounts before scanning mountinfo.
   const group = cpu[3];
   for (const root of ["/sys/fs/cgroup/cpu", "/sys/fs/cgroup/cpu,cpuacct"]) {
-    if (existsSync(join(root, group))) return cgroupCpuCount(root, group, offered);
+    if (existsSync(join(root, group))) {
+      return cgroupCpuCount(root, group, offered);
+    }
   }
   for (const line of (quotaText("/proc/self/mountinfo") ?? "").split("\n")) {
     const [mounted, filesystem] = line.split(" - ");
     const [kind, , options] = filesystem?.split(" ") ?? [];
-    if (kind !== "cgroup" || !options?.split(",").includes("cpu")) continue;
+    if (kind !== "cgroup" || !options?.split(",").includes("cpu")) {
+      continue;
+    }
     const [, , , subtree, root] = mounted.split(" ");
     if (group === subtree || group.startsWith(subtree === "/" ? "/" : subtree + "/")) {
       return cgroupCpuCount(root, group.slice(subtree.length), offered);
@@ -362,7 +404,9 @@ function sysProvider({ grant }) {
   // returns, `.Err(.NotGranted(name))` outside the grant, or
   // `.Err(.Unsupported(name))` when the host cannot answer it.
   const sysRead = (name, value) => {
-    if (!grant.coversName("Sys", name)) return Err({ tag: "NotGranted", subject: name });
+    if (!grant.coversName("Sys", name)) {
+      return Err({ tag: "NotGranted", subject: name });
+    }
     try {
       return Ok(value());
     } catch {
@@ -384,8 +428,12 @@ function netProvider({ grant, netClient }) {
   // `Result[T, NetError]` of a handle's method: an operation on a closed
   // handle is `Closed` (std-net.handles.closed).
   const handleResult = (r) => {
-    if (r.unknown) throw new HostContract("an operation on a handle the host never made");
-    if (r.disposed) return Err(variant(NetError, "Closed"));
+    if (r.unknown) {
+      throw new HostContract("an operation on a handle the host never made");
+    }
+    if (r.disposed) {
+      return Err(variant(NetError, "Closed"));
+    }
     return r.error ? Err(variant(NetError, ...r.error)) : Ok(r.ok);
   };
   // A call names its address `host:port` (std-net.error.address): one
@@ -393,25 +441,37 @@ function netProvider({ grant, netClient }) {
   // cover `NotGranted` (cli.cap.scope.net), before any socket opens.
   const netAt = (op, host, port, more = {}) => {
     const address = `${host}:${port}`;
-    if (!validHost(host)) return { error: ["InvalidAddress", address] };
-    if (!grant.coversHost("Net", host, port)) return { error: ["NotGranted", address] };
+    if (!validHost(host)) {
+      return { error: ["InvalidAddress", address] };
+    }
+    if (!grant.coversHost("Net", host, port)) {
+      return { error: ["NotGranted", address] };
+    }
     return netClient.call({ op, host, port, address, ...more });
   };
   const waitFor = (started, resultOf) => {
-    if (started.ok === undefined) return resultOf(started);
+    if (started.ok === undefined) {
+      return resultOf(started);
+    }
     const operation = started.ok;
     let result = null;
     const poll = () => {
       const outcome = netClient.call({ op: "wait_poll", operation });
-      if (outcome.pending) return false;
+      if (outcome.pending) {
+        return false;
+      }
       result = outcome;
       return true;
     };
     const finish = () => {
       const committed = netClient.call({ op: "wait_finish", operation });
-      if (committed.disposed) return resultOf(committed);
+      if (committed.disposed) {
+        return resultOf(committed);
+      }
     };
-    if (poll()) return finish() ?? resultOf(result);
+    if (poll()) {
+      return finish() ?? resultOf(result);
+    }
     return pendingOperation(
       poll,
       () => resultOf(result),
@@ -440,37 +500,53 @@ function netProvider({ grant, netClient }) {
   // `dispose!` closes an open handle and reports nothing (std-net.dispose).
   const dispose = (h) => {
     const r = netClient.call({ op: "dispose", handle: h });
-    if (r.unknown) throw new HostContract("an operation on a handle the host never made");
+    if (r.unknown) {
+      throw new HostContract("an operation on a handle the host never made");
+    }
   };
   return {
     // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
     lookup: (host) => {
-      if (!validHost(host)) return netResult({ error: ["InvalidAddress", host] });
-      if (!grant.coversHostName("Net", host)) return netResult({ error: ["NotGranted", host] });
+      if (!validHost(host)) {
+        return netResult({ error: ["InvalidAddress", host] });
+      }
+      if (!grant.coversHostName("Net", host)) {
+        return netResult({ error: ["NotGranted", host] });
+      }
       return waitFor(netClient.call({ op: "wait_start", kind: "lookup", host }), netResult);
     },
     connect: (host, port) => {
       const started = netAt("connect_start", host, port);
-      if (started.error) return netResult(started);
+      if (started.error) {
+        return netResult(started);
+      }
       const operation = started.ok;
       let result = null;
       const poll = () => {
         const outcome = netClient.call({ op: "connect_poll", operation });
-        if (outcome.pending) return false;
+        if (outcome.pending) {
+          return false;
+        }
         result = outcome;
         return true;
       };
       // An already ready connect wins its first-poll tie. Otherwise the
       // guest can poll its clock while the worker owns the pending socket.
-      if (poll()) return netResult(result);
+      if (poll()) {
+        return netResult(result);
+      }
       return pendingOperation(
         poll,
         () => netResult(result),
         () => {
-          if (result === null) netClient.cancel({ op: "connect_abort", operation });
+          if (result === null) {
+            netClient.cancel({ op: "connect_abort", operation });
+          }
           // complete() can run before the guest consumes .finish: the
           // cancelled outcome still owns an undelivered stream in that gap.
-          else if (result.ok !== undefined) netClient.cancel({ op: "dispose", handle: result.ok });
+          else if (result.ok !== undefined) {
+            netClient.cancel({ op: "dispose", handle: result.ok });
+          }
         },
       );
     },
@@ -493,7 +569,9 @@ function netProvider({ grant, netClient }) {
       // Reject closed and unknown handles before destination validation.
       // This checks metadata only.
       const checked = netClient.call({ op: "check", handle: h });
-      if (checked.unknown || checked.disposed) return handleResult(checked);
+      if (checked.unknown || checked.disposed) {
+        return handleResult(checked);
+      }
       // Each live send still checks its destination grant.
       return waitFor(
         netAt("wait_start", host, port, { kind: "send_to", handle: h, bytes }),
@@ -550,8 +628,9 @@ const specialFile = (path) => {
       normalized.startsWith("\\\\?\\pipe\\") ||
       normalized.startsWith("\\\\?\\globalroot\\device\\") ||
       /^\\\\(?:\?\\unc\\)?[^\\]+\\pipe\\/.test(normalized)
-    )
+    ) {
       return true;
+    }
   }
   try {
     const st = statSync(path);
@@ -583,10 +662,14 @@ function fsProviders({ grant, flush, fsClient }) {
                 p,
               ),
           );
-          if (refused !== undefined) return fsErr(refusedPath(refused), "NotGranted");
+          if (refused !== undefined) {
+            return fsErr(refusedPath(refused), "NotGranted");
+          }
           for (const p of create ? [] : ps) {
             const missing = beforeDotDot(p);
-            if (missing !== undefined) return fsErr(p, missing);
+            if (missing !== undefined) {
+              return fsErr(p, missing);
+            }
           }
           flush();
           if (fileOpening.has(name) && ps.some(specialFile)) {
@@ -594,7 +677,9 @@ function fsProviders({ grant, flush, fsClient }) {
             let result = null;
             const poll = () => {
               const outcome = fsClient.call({ op: "wait_poll", operation });
-              if (outcome.pending) return false;
+              if (outcome.pending) {
+                return false;
+              }
               result = outcome.result;
               return true;
             };
@@ -624,14 +709,24 @@ function fsProviders({ grant, flush, fsClient }) {
 // that exists.
 const refusal = (name, argv, pairs, dir) => {
   const other = (message) => Err({ tag: "Other", message });
-  if (name.includes("\0")) return other("program name contains a NUL byte");
+  if (name.includes("\0")) {
+    return other("program name contains a NUL byte");
+  }
   const arg = argv.findIndex((a) => a.includes("\0"));
-  if (arg >= 0) return other(`process argument ${arg} contains a NUL byte`);
+  if (arg >= 0) {
+    return other(`process argument ${arg} contains a NUL byte`);
+  }
   const bad = pairs.findIndex(([key]) => key === "" || /[=\0]/.test(key));
-  if (bad >= 0) return other(`process environment name ${bad} is empty or holds = or a NUL byte`);
+  if (bad >= 0) {
+    return other(`process environment name ${bad} is empty or holds = or a NUL byte`);
+  }
   const nul = pairs.findIndex(([, value]) => value.includes("\0"));
-  if (nul >= 0) return other(`process environment value ${nul} contains a NUL byte`);
-  if (dir !== null && dir.includes("\0")) return other("working directory contains a NUL byte");
+  if (nul >= 0) {
+    return other(`process environment value ${nul} contains a NUL byte`);
+  }
+  if (dir !== null && dir.includes("\0")) {
+    return other("working directory contains a NUL byte");
+  }
   return null;
 };
 const isDirectory = (path) => {
@@ -649,9 +744,13 @@ const noDirectory = (dir) => Err({ tag: "Other", message: `working directory not
 // program.
 function processProvider({ grant, env, left, processClient }) {
   const run = ({ program: name, args: argv, env: pairs, current_dir: dir, stdin: text }) => {
-    if (!grant.coversName("Process", name)) return Err({ tag: "NotGranted" });
+    if (!grant.coversName("Process", name)) {
+      return Err({ tag: "NotGranted" });
+    }
     const ms = left();
-    if (ms <= 0) throw new TimeLimit();
+    if (ms <= 0) {
+      throw new TimeLimit();
+    }
     // module.process.command-env: later pairs win, without case on Windows.
     const childEnv = { ...process.env };
     for (const [key, value] of pairs) {
@@ -666,19 +765,29 @@ function processProvider({ grant, env, left, processClient }) {
     let cwd;
     if (env.programs) {
       const p = env.programs[name];
-      if (!p) return Err({ tag: "NotFound", program: name });
+      if (!p) {
+        return Err({ tag: "NotFound", program: name });
+      }
       const bad = refusal(name, argv, pairs, dir);
-      if (bad) return bad;
+      if (bad) {
+        return bad;
+      }
       cwd = dir === null ? p.cwd : resolve(p.cwd, dir);
       program = process.execPath;
       args = [p.host, p.wasm, p.config, ...argv];
     } else {
-      if (name === "") return Err({ tag: "NotFound", program: name });
+      if (name === "") {
+        return Err({ tag: "NotFound", program: name });
+      }
       const bad = refusal(name, argv, pairs, dir);
-      if (bad) return bad;
+      if (bad) {
+        return bad;
+      }
       cwd = dir === null ? process.cwd() : resolve(process.cwd(), dir);
     }
-    if (!isDirectory(cwd)) return noDirectory(dir);
+    if (!isDirectory(cwd)) {
+      return noDirectory(dir);
+    }
     const { ok: operation } = processClient.call({
       op: "wait_start",
       launcher: env.processLauncher ?? null,
@@ -692,18 +801,25 @@ function processProvider({ grant, env, left, processClient }) {
     let result = null;
     const poll = () => {
       const outcome = processClient.call({ op: "wait_poll", operation });
-      if (outcome.pending) return false;
+      if (outcome.pending) {
+        return false;
+      }
       result = outcome;
       return true;
     };
     const finish = () => processClient.call({ op: "wait_finish", operation });
     const output = () => {
-      if (result.timeout) throw new TimeLimit();
+      if (result.timeout) {
+        throw new TimeLimit();
+      }
       if (result.error) {
         const { code, message } = result.error;
-        if (code === "ENOENT") return Err({ tag: "NotFound", program: name });
-        if (code === "EACCES" || code === "EPERM")
+        if (code === "ENOENT") {
+          return Err({ tag: "NotFound", program: name });
+        }
+        if (code === "EACCES" || code === "EPERM") {
           return Err({ tag: "PermissionDenied", program: name });
+        }
         return Err({ tag: "Other", message });
       }
       return Ok({ ...result.ok, program: name });
@@ -745,7 +861,9 @@ function testRunnerProvider({ env, st }) {
       st.ownTemp ??= mkdtempSync(join(tmpdir(), "hd-case-"));
       return st.ownTemp;
     }
-    if (!st.tempMade) mkdirSync(env.tempDir, { recursive: true });
+    if (!st.tempMade) {
+      mkdirSync(env.tempDir, { recursive: true });
+    }
     st.tempMade = true;
     return env.tempDir;
   };
@@ -765,7 +883,9 @@ function urandom(count) {
   const out = new Uint8Array(count);
   const fd = openSync("/dev/urandom", "r");
   try {
-    for (let at = 0; at < count;) at += readSync(fd, out, at, count - at, null);
+    for (let at = 0; at < count;) {
+      at += readSync(fd, out, at, count - at, null);
+    }
   } finally {
     closeSync(fd);
   }
@@ -819,7 +939,9 @@ export const nodeLayer = {
       tempDir: testRunner.tempDir,
       // The sockets still open, by kind (cli.test.leak).
       leaks: () => {
-        if (!net.started()) return [];
+        if (!net.started()) {
+          return [];
+        }
         const counts = net.call({ op: "open" }).ok ?? {};
         return [
           ["TcpStream", counts.stream ?? 0],

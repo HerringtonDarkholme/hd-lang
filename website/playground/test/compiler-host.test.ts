@@ -28,7 +28,9 @@ test("NFC uses a sized owned output, including expansion and memory growth", () 
         "an insufficient buffer is not written",
       );
     }
-    if (text === "e\u0301") memory.grow(1);
+    if (text === "e\u0301") {
+      memory.grow(1);
+    }
     assert.equal(normalize(16, input.length, 1024, size), size);
     assert.equal(decoder.decode(new Uint8Array(memory.buffer, 1024, size)), text.normalize("NFC"));
   }

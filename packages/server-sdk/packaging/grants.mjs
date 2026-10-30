@@ -26,26 +26,35 @@ export function parseProductionGrants(text) {
     // Parser errors can include source excerpts; never echo manifest values.
     throw invalid("invalid TOML");
   }
-  if (!Object.hasOwn(manifest, "capabilities")) return Object.freeze({});
+  if (!Object.hasOwn(manifest, "capabilities")) {
+    return Object.freeze({});
+  }
   const table = manifest.capabilities;
   if (
     table === null ||
     typeof table !== "object" ||
     Array.isArray(table) ||
     ![null, Object.prototype].includes(Object.getPrototypeOf(table))
-  )
+  ) {
     throw invalid("`capabilities` must be a table");
+  }
   const entries = Object.entries(table).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   for (const entry of entries) {
     const [key, value] = entry;
     const builtin = unscoped.has(key) || scoped.has(key);
     const selector = !builtin && packageSelector(key);
-    if (!builtin && !selector) throw invalid(`unknown capability ${JSON.stringify(key)}`);
-    if (typeof value === "boolean") continue;
-    if (!Array.isArray(value) || !value.every((scope) => typeof scope === "string"))
+    if (!builtin && !selector) {
+      throw invalid(`unknown capability ${JSON.stringify(key)}`);
+    }
+    if (typeof value === "boolean") {
+      continue;
+    }
+    if (!Array.isArray(value) || !value.every((scope) => typeof scope === "string")) {
       throw invalid(`capability ${JSON.stringify(key)} needs true, false or a string list`);
-    if (selector || unscoped.has(key))
+    }
+    if (selector || unscoped.has(key)) {
       throw invalid(`capability ${JSON.stringify(key)} takes no scope list`);
+    }
     entry[1] = Object.freeze([...value]);
   }
   return Object.freeze(Object.fromEntries(entries));
@@ -66,7 +75,9 @@ export async function readProductionGrants(rootDirectory) {
 // Internal SDK task bridge. It reads a manifest, not the command's grants.
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
-    if (process.argv.length !== 3) throw new Error("usage: grants.mjs ROOT-PACKAGE");
+    if (process.argv.length !== 3) {
+      throw new Error("usage: grants.mjs ROOT-PACKAGE");
+    }
     console.log(JSON.stringify(await readProductionGrants(process.argv[2])));
   } catch (error) {
     console.error(error.message);

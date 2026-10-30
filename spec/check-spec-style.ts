@@ -56,15 +56,20 @@ function selfCheck(): string[] {
   const { markers, problems } = ruleMarkers(blocks(sample));
   const found = markers.map((marker) => marker.id).join(",");
   const failures: string[] = [];
-  if (found !== "data.good.one,data.good.cell") failures.push(`self-check found markers ${found}`);
+  if (found !== "data.good.one,data.good.cell") {
+    failures.push(`self-check found markers ${found}`);
+  }
   const expected = ["malformed rule ID r[Data.Bad]", "r[data.stray] must open"];
   if (
     problems.length !== expected.length ||
     !expected.every((text, index) => problems[index]!.includes(text))
-  )
+  ) {
     failures.push(`self-check problems: ${problems.join("; ")}`);
+  }
   const split = sentences("Use `a. B` here. Then stop.");
-  if (split.length !== 2) failures.push(`self-check split ${JSON.stringify(split)}`);
+  if (split.length !== 2) {
+    failures.push(`self-check split ${JSON.stringify(split)}`);
+  }
   return failures;
 }
 
@@ -102,57 +107,81 @@ async function main(args: readonly string[]): Promise<number> {
     const parsed = blocks(text);
     const prefix = CHAPTER_PREFIXES[name];
     const { markers, problems } = ruleMarkers(parsed);
-    for (const problem of problems) failures.push(`spec/${name}:${problem}`);
+    for (const problem of problems) {
+      failures.push(`spec/${name}:${problem}`);
+    }
     for (const marker of markers) {
       const where = `spec/${name}:${marker.line}`;
       if (prefix === undefined) {
         failures.push(`${where}: rule ID ${marker.id} outside a chapter`);
         continue;
       }
-      if (marker.id.split(".", 1)[0] !== prefix)
+      if (marker.id.split(".", 1)[0] !== prefix) {
         failures.push(
           `${where}: rule ID ${marker.id} must start with this chapter's prefix ${prefix}.`,
         );
+      }
       const previous = seen.get(marker.id);
-      if (previous) failures.push(`${where}: duplicate rule ID ${marker.id}, first at ${previous}`);
-      else seen.set(marker.id, where);
+      if (previous) {
+        failures.push(`${where}: duplicate rule ID ${marker.id}, first at ${previous}`);
+      } else {
+        seen.set(marker.id, where);
+      }
     }
-    if (prefix === undefined) continue;
+    if (prefix === undefined) {
+      continue;
+    }
 
-    for (const block of parsed)
-      if (block.kind === "code")
-        for (const code of errorMarkerCodes(block.text))
-          if (!codes.has(code))
+    for (const block of parsed) {
+      if (block.kind === "code") {
+        for (const code of errorMarkerCodes(block.text)) {
+          if (!codes.has(code)) {
             failures.push(`spec/${name}:${block.line}: error example names unknown code ${code}`);
+          }
+        }
+      }
+    }
 
     const warnings: string[] = [];
     for (const block of paragraphs(parsed)) {
       const words = wordCount(block.text);
-      if (words > PARAGRAPH_WORDS)
+      if (words > PARAGRAPH_WORDS) {
         warnings.push(
           `spec/${name}:${block.line}: warning: paragraph has ${words} words (limit ${PARAGRAPH_WORDS})`,
         );
+      }
     }
     for (const block of parsed) {
-      if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "quote") continue;
+      if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "quote") {
+        continue;
+      }
       for (const sentence of sentences(block.text)) {
         const words = wordCount(sentence);
-        if (words > SENTENCE_WORDS)
+        if (words > SENTENCE_WORDS) {
           warnings.push(
             `spec/${name}:${block.line}: warning: sentence has ${words} words (limit ${SENTENCE_WORDS}): ${readable(sentence).slice(0, 60)}...`,
           );
+        }
       }
     }
-    if (warnings.length === 0) continue;
-    if (all || markers.length > 0) details.push(...warnings);
-    else summaries.push(`${name} ${warnings.length}`);
+    if (warnings.length === 0) {
+      continue;
+    }
+    if (all || markers.length > 0) {
+      details.push(...warnings);
+    } else {
+      summaries.push(`${name} ${warnings.length}`);
+    }
   }
 
-  if (details.length > 0) console.log(details.join("\n"));
-  if (summaries.length > 0)
+  if (details.length > 0) {
+    console.log(details.join("\n"));
+  }
+  if (summaries.length > 0) {
     console.log(
       `style warnings in chapters not yet restyled (--all lists them): ${summaries.join(", ")}`,
     );
+  }
   if (failures.length > 0) {
     console.error(`specification style failures:\n${failures.map((f) => `- ${f}`).join("\n")}`);
     return 1;
@@ -162,5 +191,6 @@ async function main(args: readonly string[]): Promise<number> {
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url))
+if (invokedPath === fileURLToPath(import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2));
+}

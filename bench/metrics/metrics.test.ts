@@ -292,7 +292,9 @@ describe("fixtures", () => {
     for (const name of Object.keys(PROGRAMS) as (keyof typeof PROGRAMS)[]) {
       const files = programFiles(name);
       assert.ok(files.has("hd.toml") && [...files.keys()].some((path) => path.startsWith("src/")));
-      for (const source of Object.values(PROGRAMS[name].files)) assert.ok(fixture(source));
+      for (const source of Object.values(PROGRAMS[name].files)) {
+        assert.ok(fixture(source));
+      }
     }
     assert.match(
       programFiles("serde-throughput/encode", { repeat: 32 }).get("src/main.hd")!,
@@ -358,8 +360,9 @@ describe("corpora", () => {
   });
 
   it("marks ten mistakes in each errors-per-run file", () => {
-    for (const label of FILES)
+    for (const label of FILES) {
       assert.equal(markedLines(fixture(`errors-per-run/${label}.hd`)).length, 10, label);
+    }
   });
 
   it("reads the cascade codes a mistake allows", () => {
@@ -763,8 +766,9 @@ describe("daily metrics", () => {
       ["1 MB", "1048576 B"],
       ["1M/s", "1000k/s"],
       ["100 ms, 2 MB", "110 ms, 2 MB"],
-    ])
+    ]) {
       assert.doesNotMatch(metricsChanges(run(after), run(before).results), /→/);
+    }
     assert.match(metricsChanges(run("100 ms, 3 MB"), run("100 ms, 2 MB").results), /→/);
     assert.doesNotMatch(metricsChanges(run("identical"), run("same").results), /→/);
   });

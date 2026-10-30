@@ -45,16 +45,33 @@ const HISTORY =
 
 /** The area of a repository-relative path, or undefined when refs does not scan it. */
 export function areaOf(file: string): Area | undefined {
-  if (file.startsWith("spec/conformance/"))
+  if (file.startsWith("spec/conformance/")) {
     return /\.(?:hd|tsv|md)$/.test(file) ? "fixtures" : undefined;
-  if (file.startsWith("spec/tools/")) return file.endsWith(".md") ? "spec" : undefined;
-  if (file.startsWith("spec/")) return file.endsWith(".md") ? "spec" : undefined;
-  if (file.startsWith("website/guide/")) return file.endsWith(".md") ? "guide" : undefined;
-  if (file.startsWith("lib/std/")) return file.endsWith(".hd") ? "lib-std" : undefined;
-  if (file.startsWith("docs/future-work/")) return file.endsWith(".md") ? "records" : undefined;
-  if (file.startsWith("docs/")) return file.endsWith(".md") ? "records" : undefined;
-  if (file === "KNOWN_FAILURES.tsv") return "records";
-  if (file.startsWith("crates/")) return /\.(?:rs|md)$/.test(file) ? "crates" : undefined;
+  }
+  if (file.startsWith("spec/tools/")) {
+    return file.endsWith(".md") ? "spec" : undefined;
+  }
+  if (file.startsWith("spec/")) {
+    return file.endsWith(".md") ? "spec" : undefined;
+  }
+  if (file.startsWith("website/guide/")) {
+    return file.endsWith(".md") ? "guide" : undefined;
+  }
+  if (file.startsWith("lib/std/")) {
+    return file.endsWith(".hd") ? "lib-std" : undefined;
+  }
+  if (file.startsWith("docs/future-work/")) {
+    return file.endsWith(".md") ? "records" : undefined;
+  }
+  if (file.startsWith("docs/")) {
+    return file.endsWith(".md") ? "records" : undefined;
+  }
+  if (file === "KNOWN_FAILURES.tsv") {
+    return "records";
+  }
+  if (file.startsWith("crates/")) {
+    return /\.(?:rs|md)$/.test(file) ? "crates" : undefined;
+  }
   return undefined;
 }
 
@@ -66,21 +83,28 @@ function citableLines(file: string, text: string): string[] {
     return lines.map((line) => {
       const open = /^\s*(`{3,}|~{3,})/.exec(line);
       if (fence === undefined) {
-        if (open) fence = open[1]!;
+        if (open) {
+          fence = open[1]!;
+        }
         return open ? "" : line;
       }
-      if (open && open[1]![0] === fence[0] && open[1]!.length >= fence.length) fence = undefined;
+      if (open && open[1]![0] === fence[0] && open[1]!.length >= fence.length) {
+        fence = undefined;
+      }
       return "";
     });
   }
-  if (file.endsWith(".hd"))
+  if (file.endsWith(".hd")) {
     return lines.map((line) => line.slice(Math.max(0, line.indexOf("#"))).replace(/^[^#].*$/, ""));
+  }
   if (file.endsWith(".ts") || file.endsWith(".rs")) {
     let block = false;
     return lines.map((line) => {
       const trimmed = line.trim();
       if (block) {
-        if (trimmed.includes("*/")) block = false;
+        if (trimmed.includes("*/")) {
+          block = false;
+        }
         return line;
       }
       if (trimmed.startsWith("/*")) {
@@ -104,7 +128,9 @@ export function citationsIn(
   const out: Citation[] = [];
   const lines = citableLines(file, text);
   lines.forEach((content, index) => {
-    if (content === "") return;
+    if (content === "") {
+      return;
+    }
     const line = index + 1;
     // Prose wraps, so the history words may sit on a neighboring line.
     const nearby = lines.slice(Math.max(0, index - 1), index + 2).join(" ");
@@ -115,13 +141,19 @@ export function citationsIn(
       taken.push([match.index, match.index + match[0].length]);
       const target = match[1] ?? "";
       // `[r-id](chapter.md#r-id)` cites once: skip the link text when its target follows.
-      if (target === "" && /^`?\]\(/.test(content.slice(match.index + match[0].length))) continue;
+      if (target === "" && /^`?\]\(/.test(content.slice(match.index + match[0].length))) {
+        continue;
+      }
       out.push({ file, line, id: match[2]!, form: "anchor", target, area, history, text });
     }
     const anchored = new Set(out.filter((c) => c.line === line).map((c) => c.id));
     for (const match of content.matchAll(BARE)) {
-      if (taken.some(([start, end]) => match.index >= start && match.index < end)) continue;
-      if (anchored.has(match[1]!) || !isRuleId(match[1]!)) continue;
+      if (taken.some(([start, end]) => match.index >= start && match.index < end)) {
+        continue;
+      }
+      if (anchored.has(match[1]!) || !isRuleId(match[1]!)) {
+        continue;
+      }
       out.push({ file, line, id: match[1]!, form: "id", target: "", area, history, text });
     }
   });
@@ -141,13 +173,20 @@ function scannedFiles(repoRoot: string): string[] {
     }
     if (stats.isFile()) {
       const file = relative(repoRoot, path);
-      if (areaOf(file)) files.push(file);
+      if (areaOf(file)) {
+        files.push(file);
+      }
       return;
     }
-    for (const entry of readdirSync(path))
-      if (entry !== "node_modules" && !entry.startsWith(".")) walk(resolve(path, entry));
+    for (const entry of readdirSync(path)) {
+      if (entry !== "node_modules" && !entry.startsWith(".")) {
+        walk(resolve(path, entry));
+      }
+    }
   };
-  for (const root of roots) walk(resolve(repoRoot, root));
+  for (const root of roots) {
+    walk(resolve(repoRoot, root));
+  }
   return files.sort();
 }
 
@@ -201,14 +240,19 @@ export function ruleHistory(repoRoot: string, rev = "HEAD"): RuleHistory {
     const added = new Set<string>();
     for (const line of commit.split("\n")) {
       const sign = line[0];
-      if ((sign !== "-" && sign !== "+") || line.startsWith("---") || line.startsWith("+++"))
+      if ((sign !== "-" && sign !== "+") || line.startsWith("---") || line.startsWith("+++")) {
         continue;
+      }
       for (const match of line.matchAll(definition)) {
         ids.add(match[1]!);
         (sign === "-" ? removed : added).add(match[1]!);
       }
     }
-    for (const id of removed) if (!added.has(id) && !removedIn.has(id)) removedIn.set(id, label);
+    for (const id of removed) {
+      if (!added.has(id) && !removedIn.has(id)) {
+        removedIn.set(id, label);
+      }
+    }
   }
   return { ids, removedIn };
 }
@@ -227,8 +271,9 @@ export interface RefIndex {
 
 export function buildIndex(corpus: Corpus, repoRoot: string): RefIndex {
   const live = new Map<string, string>();
-  for (const { chapter, rule } of allRules(corpus))
+  for (const { chapter, rule } of allRules(corpus)) {
     live.set(rule.id, `spec/${chapter.name}:${rule.line}`);
+  }
   const history = ruleHistory(repoRoot);
   const isRuleId = (id: string): boolean => live.has(id) || history.ids.has(id);
   const citations = scannedFiles(repoRoot).flatMap((file) =>
@@ -241,9 +286,13 @@ export function buildIndex(corpus: Corpus, repoRoot: string): RefIndex {
 function deadReason(index: RefIndex, citation: Citation): string | undefined {
   const home = index.live.get(citation.id);
   if (home) {
-    if (citation.target === "") return undefined;
+    if (citation.target === "") {
+      return undefined;
+    }
     const chapter = home.slice("spec/".length, home.lastIndexOf(":"));
-    if (basename(citation.target) === basename(chapter)) return undefined;
+    if (basename(citation.target) === basename(chapter)) {
+      return undefined;
+    }
     return `anchor names ${citation.target}, but the rule is in spec/${chapter}`;
   }
   return retiredLabel(index, citation.id);
@@ -252,8 +301,12 @@ function deadReason(index: RefIndex, citation: Citation): string | undefined {
 /** How a missing rule ID left the specification, from git history. */
 function retiredLabel(index: RefIndex, id: string): string {
   const commit = index.history.removedIn.get(id);
-  if (commit) return `retired in commit ${commit}`;
-  if (index.history.ids.has(id)) return "retired (in git history)";
+  if (commit) {
+    return `retired in commit ${commit}`;
+  }
+  if (index.history.ids.has(id)) {
+    return "retired (in git history)";
+  }
   return "never a rule ID in the chapters' history";
 }
 
@@ -267,7 +320,9 @@ export function deadCitations(index: RefIndex): DeadCitation[] {
   const out: DeadCitation[] = [];
   for (const citation of index.citations) {
     const reason = deadReason(index, citation);
-    if (reason === undefined) continue;
+    if (reason === undefined) {
+      continue;
+    }
     out.push({ ...citation, reason, failing: GATED_AREAS.has(citation.area) && !citation.history });
   }
   return out;
@@ -281,10 +336,11 @@ export function refsReport(index: RefIndex, id: string): string {
       ? `${id}: defined at ${home}`
       : `${id}: not in the current spec; ${retiredLabel(index, id)}`,
   ];
-  for (const citation of found)
+  for (const citation of found) {
     out.push(
       `${citation.file}:${citation.line}: ${citation.area}, ${citation.form}${citation.history ? ", history" : ""}: ${citation.text.slice(0, 120)}`,
     );
+  }
   const byArea = AREAS.map((area) => [area, found.filter((c) => c.area === area).length] as const)
     .filter(([, n]) => n > 0)
     .map(([area, n]) => `${area} ${n}`);
@@ -301,8 +357,12 @@ export function deadReport(
   const out: string[] = [];
   for (const citation of dead) {
     const severity = citation.failing ? "error" : citation.history ? "allowed history" : "warning";
-    if (citation.history && !options.all) continue;
-    if (options.brief && !citation.failing) continue;
+    if (citation.history && !options.all) {
+      continue;
+    }
+    if (options.brief && !citation.failing) {
+      continue;
+    }
     out.push(
       `${citation.file}:${citation.line}: ${severity}: dead ${citation.form} ${citation.id}: ${citation.reason}`,
     );

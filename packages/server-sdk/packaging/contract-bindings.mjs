@@ -3,7 +3,9 @@
 // The caller separately pins the installed SDK identity and checks method
 // shapes against its trusted provider schema. Decoding data is not authentication.
 export function contractBindings(bytes, readPackageContract) {
-  if (!(bytes instanceof Uint8Array)) throw new Error("contract must be bytes");
+  if (!(bytes instanceof Uint8Array)) {
+    throw new Error("contract must be bytes");
+  }
   const checked = Uint8Array.from(bytes);
   const declarations = readPackageContract(checked);
   const interfaces = Object.freeze(
@@ -24,15 +26,19 @@ export function contractBindings(bytes, readPackageContract) {
     contract: checked.slice(),
     interfaces,
     bind(runtime, implementations) {
-      if (!(implementations instanceof Map))
+      if (!(implementations instanceof Map)) {
         throw new Error("provider implementations must be a map keyed by interface module");
+      }
       const roots = interfaces.filter((i) => !i.handle);
-      for (const key of implementations.keys())
-        if (!roots.some((i) => i.module === key))
+      for (const key of implementations.keys()) {
+        if (!roots.some((i) => i.module === key)) {
           throw new Error("implementation names no required package capability");
+        }
+      }
       const providers = roots.map((i) => {
-        if (!implementations.has(i.module))
+        if (!implementations.has(i.module)) {
           throw new Error("missing package provider implementation");
+        }
         return Object.freeze({
           identity: i.identity,
           module: i.module,

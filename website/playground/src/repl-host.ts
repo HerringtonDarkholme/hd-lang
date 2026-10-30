@@ -137,15 +137,17 @@ const lines = (compiled: Compiled): string[] =>
 /** A link error of the session, in the words Run uses for a trait the browser lacks. */
 function runError(number: number, error: string): string {
   const trait = /the import `hd:(\w+)`/.exec(error)?.[1];
-  if (trait && !["rt", "prim"].includes(trait))
+  if (trait && !["rt", "prim"].includes(trait)) {
     return `repl#${number} needs ${trait}, which the playground does not provide`;
+  }
   return `repl#${number}: ${error}`;
 }
 
 /** The outcome byte of an input that ran as `ran` (`OUTCOME`). */
 function outcomeOf(ran: InputOutcome | null): number {
-  if (ran === null || ran.end.kind === "stopped" || ran.end.kind === "cancelled")
+  if (ran === null || ran.end.kind === "stopped" || ran.end.kind === "cancelled") {
     return OUTCOME.dropped;
+  }
   return ran.joined ? OUTCOME.joined : OUTCOME.failed;
 }
 
@@ -183,9 +185,12 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     };
     const exports = await compiler;
     const started = compileRequest(exports, encodeReplStart(files));
-    if (started.status === STATUS.malformed) return failed([], started.json.error ?? "refused");
-    if (started.status !== STATUS.ok)
+    if (started.status === STATUS.malformed) {
+      return failed([], started.json.error ?? "refused");
+    }
+    if (started.status !== STATUS.ok) {
       return failed(lines(started), "the session's package does not build");
+    }
     session = fresh();
     texts = new Map();
     current = id;
@@ -210,13 +215,18 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       journalFull: false,
       ...fields,
     });
-    if (!session) return ran({ error: "no session: start one first" });
+    if (!session) {
+      return ran({ error: "no session: start one first" });
+    }
     const exports = await compiler;
     const compiled = compileRequest(exports, encodeReplInput(source, number));
-    if (compiled.status === STATUS.malformed)
+    if (compiled.status === STATUS.malformed) {
       return ran({ error: compiled.json.error ?? "refused" });
+    }
     const diagnostics = lines(compiled);
-    if (compiled.status !== STATUS.ok || compiled.wasm.length === 0) return ran({ diagnostics });
+    if (compiled.status !== STATUS.ok || compiled.wasm.length === 0) {
+      return ran({ diagnostics });
+    }
     current = id;
     let result;
     try {
@@ -225,7 +235,9 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       outcome(exports, number, OUTCOME.dropped);
       return ran({ diagnostics, error: runError(number, message(error)) });
     }
-    for (const n of [...result.skipped, ...result.dropped]) texts.delete(n);
+    for (const n of [...result.skipped, ...result.dropped]) {
+      texts.delete(n);
+    }
     const live = result.live;
     const value = outcomeOf(live);
     outcome(exports, number, value);
@@ -234,7 +246,9 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
         `note: repl#${number} was ${live.end.kind}, so the next rebuild skips it; its changes are not restored\n`,
       );
     }
-    if (value !== OUTCOME.dropped) texts.set(number, source);
+    if (value !== OUTCOME.dropped) {
+      texts.set(number, source);
+    }
     return ran({
       diagnostics,
       end: live?.end ?? null,
@@ -266,10 +280,11 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     session?.close();
     session = null;
     texts = new Map();
-    if (journal === null)
+    if (journal === null) {
       return done({
         error: "the session's record of host calls is full, so it cannot be rebuilt",
       });
+    }
     const exports = await compiler;
     const record = recorded(journal);
     // Starts the compiler's session again and builds `inputs` in order,
@@ -302,11 +317,12 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       return { wasm, built, cut: null, diagnostics: [] as string[] };
     };
     const started = compileRequest(exports, encodeReplStart(files));
-    if (started.status !== STATUS.ok)
+    if (started.status !== STATUS.ok) {
       return done({
         diagnostics: lines(started),
         error: started.json.error ?? "the session's package does not build",
       });
+    }
     const replayable = record.inputs.filter(
       (i) => i.end?.kind !== "stopped" && i.end?.kind !== "cancelled",
     );

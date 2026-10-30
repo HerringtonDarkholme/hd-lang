@@ -11,30 +11,41 @@ export const hasNoBody = (method, status) =>
 // reverse order. Node's gzip decoder accepts concatenated members and checks
 // every member trailer.
 export function decodedResponse(method, status, headers, encoded) {
-  if (hasNoBody(method, status)) return { status, headers, body: Buffer.alloc(0) };
+  if (hasNoBody(method, status)) {
+    return { status, headers, body: Buffer.alloc(0) };
+  }
   const fields = headers.filter(([name]) => name.toLowerCase() === "content-encoding");
   const codings = [];
   for (const [, value] of fields) {
     for (const part of value.split(",")) {
       const coding = part.trim().toLowerCase();
-      if (!coding || !["gzip", "deflate", "identity"].includes(coding))
+      if (!coding || !["gzip", "deflate", "identity"].includes(coding)) {
         return err("InvalidContentEncoding", coding || value);
+      }
       codings.push(coding);
     }
   }
   let body = encoded;
   for (const coding of [...codings].reverse()) {
-    if (coding === "identity") continue;
+    if (coding === "identity") {
+      continue;
+    }
     try {
       const options = { maxOutputLength: MAX_DECODED_BYTES + 1 };
       body = coding === "gzip" ? gunzipSync(body, options) : inflateSync(body, options);
     } catch (error) {
-      if (error?.code === "ERR_BUFFER_TOO_LARGE") return err("OutputTooLarge");
+      if (error?.code === "ERR_BUFFER_TOO_LARGE") {
+        return err("OutputTooLarge");
+      }
       return err("InvalidContentEncoding", coding);
     }
-    if (body.length > MAX_DECODED_BYTES) return err("OutputTooLarge");
+    if (body.length > MAX_DECODED_BYTES) {
+      return err("OutputTooLarge");
+    }
   }
-  if (body.length > MAX_DECODED_BYTES) return err("OutputTooLarge");
+  if (body.length > MAX_DECODED_BYTES) {
+    return err("OutputTooLarge");
+  }
   const normalized = fields.length
     ? headers.filter(
         ([name]) => !["content-encoding", "content-length"].includes(name.toLowerCase()),

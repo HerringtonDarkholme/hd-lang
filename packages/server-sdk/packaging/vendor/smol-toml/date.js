@@ -37,7 +37,7 @@ export class TomlDate extends Date {
     let offset = "Z";
     let c;
     if (typeof date === "string") {
-      if (fasttype)
+      if (fasttype) {
         prep: {
           // Date-time
           if (fasttype < 3) {
@@ -57,7 +57,9 @@ export class TomlDate extends Date {
             ) {
               offset = date.slice(date.length - 6);
             }
-            if (unsafeDelim) date = date.slice(0, 10) + "T" + date.slice(11);
+            if (unsafeDelim) {
+              date = date.slice(0, 10) + "T" + date.slice(11);
+            }
           }
           // Time
           else if (fasttype === 4) {
@@ -66,7 +68,7 @@ export class TomlDate extends Date {
           hasDate = fasttype !== 4;
           hasTime = fasttype !== 3;
         }
-      else {
+      } else {
         let match = date.match(DATE_TIME_RE);
         if (match) {
           if (!match[1]) {
@@ -75,13 +77,17 @@ export class TomlDate extends Date {
           }
           hasTime = !!match[2];
           // Make sure to use T instead of a space. Breaks in case of extreme values otherwise.
-          if (hasTime && date[10] === " ") date = date.replace(" ", "T");
+          if (hasTime && date[10] === " ") {
+            date = date.replace(" ", "T");
+          }
           // Do not allow rollover hours.
           if (match[2] && +match[2] > 23) {
             date = "";
           } else {
             offset = match[3] || null;
-            if (!offset && hasTime) date += "Z";
+            if (!offset && hasTime) {
+              date += "Z";
+            }
           }
         } else {
           date = "";
@@ -113,13 +119,21 @@ export class TomlDate extends Date {
   toISOString() {
     let iso = super.toISOString();
     // Local Date
-    if (this.isDate()) return iso.slice(0, 10);
+    if (this.isDate()) {
+      return iso.slice(0, 10);
+    }
     // Local Time
-    if (this.isTime()) return iso.slice(11, 23);
+    if (this.isTime()) {
+      return iso.slice(11, 23);
+    }
     // Local DateTime
-    if (this.#offset === null) return iso.slice(0, -1);
+    if (this.#offset === null) {
+      return iso.slice(0, -1);
+    }
     // Offset DateTime
-    if (this.#offset === "Z" || this.#offset === "z") return iso;
+    if (this.#offset === "Z" || this.#offset === "z") {
+      return iso;
+    }
     // This part is quite annoying: JS strips the original timezone from the ISO string representation
     // Instead of using a "modified" date and "Z", we restore the representation "as authored"
     let offset = +this.#offset.slice(1, 3) * 60 + +this.#offset.slice(4, 6);

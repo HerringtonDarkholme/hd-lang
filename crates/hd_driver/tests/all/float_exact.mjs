@@ -31,7 +31,9 @@ function split(value, width) {
   const biased = Number((bits >> BigInt(mantissa)) & ((1n << BigInt(expBits)) - 1n));
   const negative = bits >> BigInt(mantissa + expBits) !== 0n;
   const min = 1 - bias - mantissa;
-  if (biased === 0) return { negative, f: fraction, e: min, min, hidden: 1n << BigInt(mantissa) };
+  if (biased === 0) {
+    return { negative, f: fraction, e: min, min, hidden: 1n << BigInt(mantissa) };
+  }
   return {
     negative,
     f: fraction | (1n << BigInt(mantissa)),
@@ -73,8 +75,9 @@ function digits({ f, e, min, hidden }) {
   const reaches = () => (closed ? r + up >= s : r + up > s);
   const fits = () => (closed ? (r + up) * 10n < s : (r + up) * 10n <= s);
   let k = Math.ceil(Math.log10(Number(f) * 2 ** e) - 1e-9);
-  if (k >= 0) s *= 10n ** BigInt(k);
-  else {
+  if (k >= 0) {
+    s *= 10n ** BigInt(k);
+  } else {
     const scale = 10n ** BigInt(-k);
     r *= scale;
     up *= scale;
@@ -105,8 +108,12 @@ function digits({ f, e, min, hidden }) {
     }
     if (low && high) {
       const twice = r * 2n;
-      if (twice > s || (twice === s && (d & 1n) === 1n)) d += 1n;
-    } else if (high) d += 1n;
+      if (twice > s || (twice === s && (d & 1n) === 1n)) {
+        d += 1n;
+      }
+    } else if (high) {
+      d += 1n;
+    }
     out += d;
     return { digits: out, k };
   }
@@ -114,16 +121,26 @@ function digits({ f, e, min, hidden }) {
 
 // The Display text of a float of the given width (32 or 64).
 export function shortest(value, width) {
-  if (value !== value) return "NaN";
-  if (value === Infinity) return "inf";
-  if (value === -Infinity) return "-inf";
+  if (value !== value) {
+    return "NaN";
+  }
+  if (value === Infinity) {
+    return "inf";
+  }
+  if (value === -Infinity) {
+    return "-inf";
+  }
   const parts = split(value, width);
   const sign = parts.negative ? "-" : "";
-  if (parts.f === 0n) return `${sign}0.0`;
+  if (parts.f === 0n) {
+    return `${sign}0.0`;
+  }
   const { digits: ds, k } = digits(parts);
   const exponent = k - 1;
   if (exponent >= -6 && exponent < 21) {
-    if (exponent < 0) return `${sign}0.${"0".repeat(-exponent - 1)}${ds}`;
+    if (exponent < 0) {
+      return `${sign}0.${"0".repeat(-exponent - 1)}${ds}`;
+    }
     const whole =
       ds.length > exponent + 1 ? ds.slice(0, exponent + 1) : ds.padEnd(exponent + 1, "0");
     const rest = ds.slice(exponent + 1);
@@ -150,27 +167,41 @@ function bitLength(n) {
 // after the twentieth digit. Text outside the grammar is a bug in std.
 export function parse(text) {
   const m = DECIMAL.exec(text);
-  if (m === null) throw new Error(`parse_f64: text outside the grammar: ${text}`);
+  if (m === null) {
+    throw new Error(`parse_f64: text outside the grammar: ${text}`);
+  }
   const whole = m[1] ?? "";
   const fraction = m[2] ?? m[3] ?? "";
   const digits = (whole + fraction).replace(/^0+/, "");
-  if (digits === "") return 0;
+  if (digits === "") {
+    return 0;
+  }
   const exponent = BigInt(m[4] ?? "0") - BigInt(fraction.length);
   // The value is in [10^(n-1+exponent), 10^(n+exponent)).
   const magnitude = BigInt(digits.length) + exponent;
-  if (magnitude > 310n) return Infinity;
-  if (magnitude < -330n) return 0;
+  if (magnitude > 310n) {
+    return Infinity;
+  }
+  if (magnitude < -330n) {
+    return 0;
+  }
   const d = BigInt(digits);
   const e = Number(exponent);
   let num = d;
   let den = 1n;
-  if (e >= 0) num = d * 10n ** BigInt(e);
-  else den = 10n ** BigInt(-e);
+  if (e >= 0) {
+    num = d * 10n ** BigInt(e);
+  } else {
+    den = 10n ** BigInt(-e);
+  }
   // Scale so the quotient has 54 to 56 bits, then round it to the width
   // of the result.
   const shift = 54 - (bitLength(num) - bitLength(den));
-  if (shift >= 0) num <<= BigInt(shift);
-  else den <<= BigInt(-shift);
+  if (shift >= 0) {
+    num <<= BigInt(shift);
+  } else {
+    den <<= BigInt(-shift);
+  }
   const q = num / den;
   const rest = num % den;
   const top = bitLength(q) - 1 - shift;
@@ -181,7 +212,9 @@ export function parse(text) {
   let significand = q >> drop;
   const low = q & ((1n << drop) - 1n);
   const half = 1n << (drop - 1n);
-  if (low > half || (low === half && (rest > 0n || (significand & 1n) === 1n))) significand += 1n;
+  if (low > half || (low === half && (rest > 0n || (significand & 1n) === 1n))) {
+    significand += 1n;
+  }
   const x = Number(significand);
   return unit >= -1000 ? x * 2 ** unit : x * 2 ** -1000 * 2 ** (unit + 1000);
 }

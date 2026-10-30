@@ -19,18 +19,20 @@ export const fmt: Metric = {
   summary: "hd fmt time on a 10k-line package, and idempotence",
   async run(context) {
     const { dir } = materialize("10k", NAME);
-    if (!(await supportsCommand(context.hd, "fmt", dir)))
+    if (!(await supportsCommand(context.hd, "fmt", dir))) {
       return [
         notApplicable(NAME, "hd fmt, 10k lines", "≤ 200 ms", "no hd fmt"),
         notApplicable(NAME, "second hd fmt changes nothing", "idempotent", "no hd fmt"),
       ];
+    }
     const first = await runHd(context.hd, ["fmt"], { cwd: dir, timeoutMs: TIMEOUT_MS });
     const problem = runProblem(first, TIMEOUT_MS, "hd fmt");
-    if (problem)
+    if (problem) {
       return [
         failed(NAME, "hd fmt, 10k lines", "≤ 200 ms", problem),
         failed(NAME, "second hd fmt changes nothing", "idempotent", problem),
       ];
+    }
     const once = readTree(dir);
     const second = await runHd(context.hd, ["fmt"], { cwd: dir, timeoutMs: TIMEOUT_MS });
     const twice = readTree(dir);

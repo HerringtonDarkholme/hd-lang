@@ -92,7 +92,7 @@ const EMPTY = 'pub fn main() -> void:\n    if 1 + 1 != 2: panic("wrong")\n';
 /** Every case: its name, hd source, and the references that print the same output. */
 function cases() {
   const list = [];
-  for (const n of STUDY)
+  for (const n of STUDY) {
     list.push({
       name: n,
       hd: join(HERE, `${n}.hd`),
@@ -100,6 +100,7 @@ function cases() {
       go: join(HERE, "go", `${n}.go`),
       py: join(HERE, "py", `${n}.py`),
     });
+  }
   list.push({
     name: "dyn_iter",
     hd: join(HERE, "dyn_iter.hd"),
@@ -110,8 +111,9 @@ function cases() {
     const base = join(REPO, "bench", "runtime", "progs", n);
     list.push({ name: `progs/${n}`, hd: `${base}.hd`, js: `${base}.js` });
   }
-  for (const n of MICRO)
+  for (const n of MICRO) {
     list.push({ name: `micro/${n}`, hd: join(REPO, "bench", "micro", `${n}.hd`) });
+  }
   list.push({ name: "empty", src: EMPTY, emptyExpected: true });
   for (const n of ["tokenizer", "math"]) {
     const dir = join(REPO, "bench", n);
@@ -143,28 +145,44 @@ function parseArgs(argv) {
   const opts = { runs: 5, engines: ["node", "wasmtime"], refs: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--runs") opts.runs = Number(argv[++i]);
-    else if (a === "--only") opts.only = argv[++i].split(",");
-    else if (a === "--engines") opts.engines = argv[++i].split(",");
-    else if (a === "--hd") opts.hd = resolve(argv[++i]);
-    else if (a === "--work") opts.work = resolve(argv[++i]);
-    else if (a === "--checked") opts.checked = resolve(argv[++i]);
-    else if (a === "--no-refs") opts.refs = false;
-    else if (a === "--warm-module") opts.warmModule = true;
-    else if (a === "--backend") opts.backend = argv[++i];
-    else if (a === "--quick") {
+    if (a === "--runs") {
+      opts.runs = Number(argv[++i]);
+    } else if (a === "--only") {
+      opts.only = argv[++i].split(",");
+    } else if (a === "--engines") {
+      opts.engines = argv[++i].split(",");
+    } else if (a === "--hd") {
+      opts.hd = resolve(argv[++i]);
+    } else if (a === "--work") {
+      opts.work = resolve(argv[++i]);
+    } else if (a === "--checked") {
+      opts.checked = resolve(argv[++i]);
+    } else if (a === "--no-refs") {
+      opts.refs = false;
+    } else if (a === "--warm-module") {
+      opts.warmModule = true;
+    } else if (a === "--backend") {
+      opts.backend = argv[++i];
+    } else if (a === "--quick") {
       opts.quick = true;
       opts.runs = 3;
       opts.engines = ["node"];
       opts.refs = false;
-    } else if (a === "--python-only") opts.pythonOnly = true;
-    else throw new Error(`unknown flag ${a}`);
+    } else if (a === "--python-only") {
+      opts.pythonOnly = true;
+    } else {
+      throw new Error(`unknown flag ${a}`);
+    }
   }
-  if (opts.quick && argv.includes("--runs")) opts.runs = Number(argv[argv.indexOf("--runs") + 1]);
-  if (!Number.isInteger(opts.runs) || opts.runs < 1)
+  if (opts.quick && argv.includes("--runs")) {
+    opts.runs = Number(argv[argv.indexOf("--runs") + 1]);
+  }
+  if (!Number.isInteger(opts.runs) || opts.runs < 1) {
     throw new Error("--runs must be a positive integer");
-  if (opts.warmModule && (opts.checked || opts.pythonOnly || !opts.engines.includes("node")))
+  }
+  if (opts.warmModule && (opts.checked || opts.pythonOnly || !opts.engines.includes("node"))) {
     throw new Error("--warm-module requires the Node engine and ordinary timing mode");
+  }
   opts.hd ??= join(REPO, "target", "release", "hd");
   opts.work ??= join(REPO, "target", "bench-study");
   return opts;
@@ -203,13 +221,17 @@ export function measure(argv, runs, expect, preflight = true) {
   const first = timed(argv);
   const expected = expect ?? first.out;
   const failure = validate(first, expected);
-  if (failure) return { error: failure };
+  if (failure) {
+    return { error: failure };
+  }
   const samples = !preflight || first.ms > 20_000 ? [first] : [];
   const want = first.ms > 60_000 ? 1 : runs;
   while (samples.length < want) {
     const sample = timed(argv);
     const failure = validate(sample, expected);
-    if (failure) return { error: failure };
+    if (failure) {
+      return { error: failure };
+    }
     samples.push(sample);
   }
   return {
@@ -221,8 +243,12 @@ export function measure(argv, runs, expect, preflight = true) {
 }
 
 function validate(sample, expected) {
-  if (sample.status !== 0) return `exit ${sample.status}: ${sample.err.slice(-400)}`;
-  if (sample.out !== expected) return `output ${JSON.stringify(sample.out.slice(0, 200))}`;
+  if (sample.status !== 0) {
+    return `exit ${sample.status}: ${sample.err.slice(-400)}`;
+  }
+  if (sample.out !== expected) {
+    return `output ${JSON.stringify(sample.out.slice(0, 200))}`;
+  }
   return null;
 }
 
@@ -257,8 +283,12 @@ export async function measureWarmModule(module, runs, expect, warmups = 3) {
     }
     const sample = { ms: performance.now() - start, status, out: out.join(""), err: err.join("") };
     const failure = validate(sample, expect);
-    if (failure) return { error: failure };
-    if (i >= warmups) samples.push(sample);
+    if (failure) {
+      return { error: failure };
+    }
+    if (i >= warmups) {
+      samples.push(sample);
+    }
   }
   return { ...summarize(samples), warmups, outputValidation: "exact stdout, every activation" };
 }
@@ -298,7 +328,9 @@ function checkedRun(opts, list) {
   for (const c of list) {
     let src = c.src ?? readFileSync(c.hd, "utf8");
     const small = SMALL[c.name] ?? [];
-    for (const [from, to] of small) src = src.replace(from, to);
+    for (const [from, to] of small) {
+      src = src.replace(from, to);
+    }
     const wasm = build(opts.checked, work, c.name, src, "node", env);
     const r = spawnSync("node", [probe, wasm], { encoding: "utf8", maxBuffer: 1 << 28 });
     const line = /PROBE (.*)/.exec(r.stderr ?? "");
@@ -342,15 +374,23 @@ async function main() {
   const startedAt = performance.now();
   const opts = parseArgs(process.argv.slice(2));
   let list = cases();
-  if (opts.only) list = list.filter((c) => opts.only.includes(c.name));
+  if (opts.only) {
+    list = list.filter((c) => opts.only.includes(c.name));
+  }
   mkdirSync(join(opts.work, "go"), { recursive: true });
-  if (opts.checked) return checkedRun(opts, list);
-  if (opts.pythonOnly) list = list.filter((c) => c.py);
+  if (opts.checked) {
+    return checkedRun(opts, list);
+  }
+  if (opts.pythonOnly) {
+    list = list.filter((c) => c.py);
+  }
   let python = false;
   if ((opts.refs || opts.pythonOnly) && list.some((c) => c.py)) {
     const probe = spawnSync("python3", ["--version"], { encoding: "utf8" });
     python = probe.status === 0;
-    if (!python) console.error("Note: python3 unavailable; skipping Python references.");
+    if (!python) {
+      console.error("Note: python3 unavailable; skipping Python references.");
+    }
   }
   const rows = [];
   for (const c of list) {
@@ -358,23 +398,29 @@ async function main() {
     rows.push(row);
     // Known study outputs need no reference process, including --no-refs.
     let expect = EXPECTED[c.name];
-    if (expect === undefined && c.js && !opts.pythonOnly)
+    if (expect === undefined && c.js && !opts.pythonOnly) {
       expect = execFileSync("node", [c.js], { encoding: "utf8" });
-    else if (c.expected) expect = readFileSync(c.expected, "utf8");
-    else if (c.emptyExpected) expect = "";
-    if (opts.refs && !opts.pythonOnly && c.js) row.js = measure(["node", c.js], opts.runs, expect);
+    } else if (c.expected) {
+      expect = readFileSync(c.expected, "utf8");
+    } else if (c.emptyExpected) {
+      expect = "";
+    }
+    if (opts.refs && !opts.pythonOnly && c.js) {
+      row.js = measure(["node", c.js], opts.runs, expect);
+    }
     if (opts.refs && !opts.pythonOnly && c.go) {
       const bin = join(opts.work, "go", c.name);
       execFileSync("go", ["build", "-o", bin, c.go]);
       row.go = measure([bin], opts.runs, expect);
     }
-    if (python && c.py)
+    if (python && c.py) {
       row.py = measure(
         ["python3", c.py],
         opts.pythonOnly ? 1 : opts.runs,
         expect,
         !opts.pythonOnly,
       );
+    }
     for (const engine of opts.pythonOnly ? [] : opts.engines) {
       const wasm = build(
         opts.hd,
@@ -412,9 +458,13 @@ async function main() {
       `| ${r.name} | ${cell(r.node)} | ${cell(r.wasmtime)} | ${cell(r.js)} | ${cell(r.go)} | ${cell(r.py)} | ${ratio(r.node, r.js)} | ${ratio(r.node, r.go)} | ${[r.node, r.wasmtime, r.js, r.go, r.py].map(rss).join(", ")} |`,
     );
   }
-  for (const r of rows)
-    for (const k of ["node", "wasmtime", "js", "go", "py"])
-      if (r[k]?.error) console.log(`- ${r.name} ${k}: ${r[k].error}`);
+  for (const r of rows) {
+    for (const k of ["node", "wasmtime", "js", "go", "py"]) {
+      if (r[k]?.error) {
+        console.log(`- ${r.name} ${k}: ${r[k].error}`);
+      }
+    }
+  }
   if (opts.warmModule) {
     console.log("\nNode/V8 timings, ms (median):");
     console.log(
@@ -425,28 +475,36 @@ async function main() {
       console.log(
         `| ${r.name} | ${cell(r.node)} | ${r.node?.runs ?? ""} | ${cell(r.warmModule)} | ${r.warmModule?.runs ?? ""} | ${r.warmModule?.warmups ?? ""} | ${r.warmModule && !r.warmModule.error ? "exact stdout, every sample" : "failed"} |`,
       );
-      if (r.warmModule?.error) console.log(`- ${r.name} warm-module: ${r.warmModule.error}`);
+      if (r.warmModule?.error) {
+        console.log(`- ${r.name} warm-module: ${r.warmModule.error}`);
+      }
     }
   }
   const dyn = rows.find((r) => r.name === "dyn_iter");
-  if (dyn)
-    for (const k of ["node", "wasmtime", "go", "py"])
-      if (dyn[k] && !dyn[k].error)
+  if (dyn) {
+    for (const k of ["node", "wasmtime", "go", "py"]) {
+      if (dyn[k] && !dyn[k].error) {
         console.log(
           `- dyn_iter ${k}: ${dyn[k].err
             .split("\n")
             .filter((l) => /^\S+ \d+ms$/.test(l))
             .join("; ")}`,
         );
+      }
+    }
+  }
   console.log(`\nTotal ${Math.round((performance.now() - startedAt) / 1000)} s.`);
   if (
     rows.some((r) => ["node", "wasmtime", "js", "go", "py", "warmModule"].some((k) => r[k]?.error))
-  )
+  ) {
     process.exitCode = 1;
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (!existsSync(RUNNER)) throw new Error(`no ${RUNNER}`);
+  if (!existsSync(RUNNER)) {
+    throw new Error(`no ${RUNNER}`);
+  }
   main().catch((error) => {
     console.error(error);
     process.exitCode = 1;

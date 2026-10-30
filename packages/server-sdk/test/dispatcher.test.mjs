@@ -148,7 +148,9 @@ test("a trap drains native aborts in every owner before failing their requests",
   });
   const a = dispatcher.open("A"),
     b = dispatcher.open("B");
-  for (const lease of [a, b]) lease.operation(context, () => () => disposed.push(owner.getStore()));
+  for (const lease of [a, b]) {
+    lease.operation(context, () => () => disposed.push(owner.getStore()));
+  }
   const ra = owner.run("A", () => a.run());
   const rb = owner.run("B", () => b.run());
   const trap = new Error("private trap detail");

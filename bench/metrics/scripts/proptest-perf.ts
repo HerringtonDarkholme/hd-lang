@@ -54,7 +54,9 @@ async function casesPerSecond(context: MetricContext, seed: string[]): Promise<T
     const [large, small] = timing.samples as [number[], number[]];
     const ms = p50(large.map((value, index) => value - small[index]!));
     const cases = PROPERTIES * (LARGE - SMALL);
-    if (ms <= 0) throw new Error("no work measured between the two case counts");
+    if (ms <= 0) {
+      throw new Error("no work measured between the two case counts");
+    }
     return judge(
       NAME,
       label,

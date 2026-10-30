@@ -29,7 +29,9 @@ const pending = (poll, done, abort = () => {}, finish = () => {}) => ({
 async function ready(operation) {
   const until = performance.now() + 3000;
   while (!operation.poll()) {
-    if (performance.now() > until) throw new Error("operation did not become ready");
+    if (performance.now() > until) {
+      throw new Error("operation did not become ready");
+    }
     await tick();
   }
   const value = operation.done();
@@ -60,7 +62,9 @@ async function fixture(Http = true, Console = true) {
     events = [];
   process.env.HD_SERVER_PORT = "0";
   console.log = (text) => {
-    if (text.startsWith("{")) events.push(JSON.parse(text));
+    if (text.startsWith("{")) {
+      events.push(JSON.parse(text));
+    }
     if (text.startsWith('{"event":"listening"')) {
       address = JSON.parse(text);
       acceptAddress();
@@ -72,7 +76,9 @@ async function fixture(Http = true, Console = true) {
     events,
     async accept(owner = "A", signal = AbortSignal.timeout(5000)) {
       const incoming = provider.accept(context);
-      if (!address) await listening;
+      if (!address) {
+        await listening;
+      }
       const response = nativeFetch(`http://127.0.0.1:${address.port}`, {
         headers: { "x-owner": owner },
         signal,
@@ -88,8 +94,11 @@ async function fixture(Http = true, Console = true) {
       instance.abort();
       await Promise.allSettled(downstreams.map(async (p) => (await p).arrayBuffer()));
       console.log = log;
-      if (port === undefined) delete process.env.HD_SERVER_PORT;
-      else process.env.HD_SERVER_PORT = port;
+      if (port === undefined) {
+        delete process.env.HD_SERVER_PORT;
+      } else {
+        process.env.HD_SERVER_PORT = port;
+      }
     },
   };
 }
@@ -103,7 +112,7 @@ test(
     const records = [];
     const streams = [process.stdout, process.stderr],
       writes = streams.map((stream) => stream.write);
-    for (const [index, stream] of streams.entries())
+    for (const [index, stream] of streams.entries()) {
       stream.write = function (text, ...args) {
         if (typeof text === "string" && text.startsWith('{"version":1,')) {
           records.push({ channel: index, record: JSON.parse(text) });
@@ -111,6 +120,7 @@ test(
         }
         return writes[index].call(this, text, ...args);
       };
+    }
     try {
       for (const allowed of [true, false]) {
         const f = await fixture(true, allowed);
@@ -361,11 +371,12 @@ test(
     let resolveA,
       abortedA = 0;
     globalThis.fetch = (url, options) => {
-      if (url.endsWith("/A"))
+      if (url.endsWith("/A")) {
         return new Promise((resolve) => {
           resolveA = resolve;
           options.signal.addEventListener("abort", () => abortedA++, { once: true });
         });
+      }
       return Promise.resolve(new Response("B upstream"));
     };
     const f = await fixture();
@@ -452,7 +463,9 @@ test(
       const abort = new AbortController();
       const context = { ...f.context, signal: abort.signal };
       const incoming = provider.accept(context);
-      while (!f.events.some((event) => event.event === "listening")) await tick();
+      while (!f.events.some((event) => event.event === "listening")) {
+        await tick();
+      }
       const address = f.events.find((event) => event.event === "listening");
       const response = new Promise((resolve, reject) => {
         native = http.request(`http://127.0.0.1:${address.port}`, { method: "POST" }, (res) => {

@@ -56,7 +56,9 @@ const failure = (e, address, host) => {
   ) {
     return fail("Dns", host);
   }
-  if (code === "ECONNREFUSED" || code === "EADDRINUSE") return fail("Refused", address);
+  if (code === "ECONNREFUSED" || code === "EADDRINUSE") {
+    return fail("Refused", address);
+  }
   return fail("Other", String(e?.message ?? e));
 };
 
@@ -90,7 +92,9 @@ class Inbox {
   wake() {
     const waiters = [...this.waiters];
     this.waiters.clear();
-    for (const wake of waiters) wake();
+    for (const wake of waiters) {
+      wake();
+    }
   }
   // The next arrival, or `null` once nothing more will come, or
   // `TIMED_OUT` once `ms` milliseconds pass first (`null`: no bound).
@@ -103,8 +107,12 @@ class Inbox {
       // pass waits for future input or adds a wall-clock grace period.
       await nextCheck();
       await nextCheck();
-      if (signal?.aborted) return CANCELLED;
-      if (!ready()) return TIMED_OUT;
+      if (signal?.aborted) {
+        return CANCELLED;
+      }
+      if (!ready()) {
+        return TIMED_OUT;
+      }
     }
     let late = false;
     const timer =
@@ -118,13 +126,19 @@ class Inbox {
     signal?.addEventListener("abort", abort, { once: true });
     try {
       while (!ready()) {
-        if (signal?.aborted) return CANCELLED;
-        if (late) return TIMED_OUT;
+        if (signal?.aborted) {
+          return CANCELLED;
+        }
+        if (late) {
+          return TIMED_OUT;
+        }
         await new Promise((r) => {
           this.waiters.add(r);
         });
       }
-      if (signal?.aborted) return CANCELLED;
+      if (signal?.aborted) {
+        return CANCELLED;
+      }
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
@@ -144,7 +158,9 @@ const stream = (socket) => {
   const inbox = new Inbox();
   socket.on("data", (c) => {
     inbox.push(c);
-    if (queued(inbox) >= READ_AHEAD) socket.pause();
+    if (queued(inbox) >= READ_AHEAD) {
+      socket.pause();
+    }
   });
   socket.on("end", () => inbox.finish({ end: true }));
   socket.on("error", (e) => inbox.finish({ error: e }));
@@ -166,21 +182,27 @@ const beginConnect = ({ host, port, address }, done) => {
   let stopped = false;
   let socket = null;
   const finish = (outcome) => {
-    if (stopped || result !== null) return;
+    if (stopped || result !== null) {
+      return;
+    }
     result = outcome;
     done(outcome);
   };
   socket = net.connect({ host, port });
   socket.once("error", (e) => finish(failure(e, address, host)));
   socket.once("connect", () => {
-    if (stopped || result !== null) return socket.destroy();
+    if (stopped || result !== null) {
+      return socket.destroy();
+    }
     socket.removeAllListeners("error");
     finish({ ok: stream(socket) });
   });
   return () => {
     stopped = true;
     socket?.destroy();
-    if (result?.ok !== undefined) handles.delete(result.ok);
+    if (result?.ok !== undefined) {
+      handles.delete(result.ok);
+    }
   };
 };
 
@@ -190,31 +212,40 @@ const ops = {
       !["read", "accept", "receive", "lookup", "listen", "bind_udp", "write", "send_to"].includes(
         kind,
       )
-    )
+    ) {
       throw new Error("unknown socket wait");
+    }
     const id = nextWait++;
     const state = { h, result: null, undo: null, controller: new AbortController() };
     waits.set(id, state);
     const retain = (undo) => {
-      if (state.controller.signal.aborted) undo();
-      else state.undo = undo;
+      if (state.controller.signal.aborted) {
+        undo();
+      } else {
+        state.undo = undo;
+      }
     };
     Promise.resolve()
       .then(() => ops[kind]({ ...request, h, signal: state.controller.signal, retain }))
       .then(
         (result) => {
-          if (!state.controller.signal.aborted) state.result = result;
+          if (!state.controller.signal.aborted) {
+            state.result = result;
+          }
         },
         (error) => {
-          if (!state.controller.signal.aborted)
+          if (!state.controller.signal.aborted) {
             state.result = failure(error, request.address ?? "", request.host ?? "");
+          }
         },
       );
     return { ok: id };
   },
   wait_poll: ({ operation }) => {
     const state = waits.get(operation);
-    if (state === undefined) throw new Error("unknown socket wait");
+    if (state === undefined) {
+      throw new Error("unknown socket wait");
+    }
     if (state.h?.closed) {
       state.undo?.();
       state.undo = null;
@@ -224,9 +255,15 @@ const ops = {
   },
   wait_finish: ({ operation }) => {
     const state = waits.get(operation);
-    if (state === undefined) throw new Error("unknown socket wait");
-    if (state.result === null && !state.h?.closed) throw new Error("unfinished socket wait");
-    if (state.h?.closed) state.undo?.();
+    if (state === undefined) {
+      throw new Error("unknown socket wait");
+    }
+    if (state.result === null && !state.h?.closed) {
+      throw new Error("unfinished socket wait");
+    }
+    if (state.h?.closed) {
+      state.undo?.();
+    }
     state.undo = null;
     waits.delete(operation);
     return state.h?.closed ? { disposed: true } : { ok: null };
@@ -264,8 +301,12 @@ const ops = {
   },
   connect_poll: ({ operation }) => {
     const state = connects.get(operation);
-    if (state === undefined) throw new Error("unknown connect operation");
-    if (state.result === null) return { pending: true };
+    if (state === undefined) {
+      throw new Error("unknown connect operation");
+    }
+    if (state.result === null) {
+      return { pending: true };
+    }
     connects.delete(operation);
     return state.result;
   },
@@ -283,11 +324,15 @@ const ops = {
       const close = () => {
         stopped = true;
         server.close(() => {});
-        for (const item of inbox.items) item.value.destroy();
+        for (const item of inbox.items) {
+          item.value.destroy();
+        }
         inbox.items = [];
       };
       const settle = (result) => {
-        if (settled) return;
+        if (settled) {
+          return;
+        }
         settled = true;
         signal?.removeEventListener("abort", abort);
         done(result);
@@ -306,7 +351,9 @@ const ops = {
         if (!settled) {
           close();
           settle(failure(error, address, host));
-        } else inbox.finish({ error });
+        } else {
+          inbox.finish({ error });
+        }
       });
       server.listen(port, host, () => {
         if (stopped || signal?.aborted) {
@@ -332,11 +379,15 @@ const ops = {
         try {
           socket.close();
         } catch (error) {
-          if (error.code !== "ERR_SOCKET_DGRAM_NOT_RUNNING") throw error;
+          if (error.code !== "ERR_SOCKET_DGRAM_NOT_RUNNING") {
+            throw error;
+          }
         }
       };
       const settle = (result) => {
-        if (settled) return;
+        if (settled) {
+          return;
+        }
         settled = true;
         signal?.removeEventListener("abort", abort);
         done(result);
@@ -351,13 +402,17 @@ const ops = {
         return;
       }
       socket.on("message", (msg, rinfo) => {
-        if (!stopped) inbox.push({ msg, rinfo });
+        if (!stopped) {
+          inbox.push({ msg, rinfo });
+        }
       });
       socket.on("error", (error) => {
         if (!settled) {
           close();
           settle(failure(error, address, host));
-        } else inbox.finish({ error });
+        } else {
+          inbox.finish({ error });
+        }
       });
       socket.bind(port, host, () => {
         if (stopped || signal?.aborted) {
@@ -376,11 +431,19 @@ const ops = {
   read: async ({ h, max: signed, signal, retain }) => {
     // `usize` crosses the ABI as an i32 bit pattern, so read it unsigned.
     const max = signed >>> 0;
-    if (max === 0) return { ok: new Uint8Array(0) };
+    if (max === 0) {
+      return { ok: new Uint8Array(0) };
+    }
     const item = await h.inbox.next(h.timeout, signal);
-    if (item === CANCELLED) return { cancelled: true };
-    if (item === TIMED_OUT) return timedOut();
-    if (h.closed) return { disposed: true };
+    if (item === CANCELLED) {
+      return { cancelled: true };
+    }
+    if (item === TIMED_OUT) {
+      return timedOut();
+    }
+    if (h.closed) {
+      return { disposed: true };
+    }
     if (item === null) {
       const why = h.inbox.end;
       return why?.error ? failure(why.error, "", "") : { ok: new Uint8Array(0) };
@@ -392,9 +455,13 @@ const ops = {
     }
     const unread = { ...item, value: chunk };
     retain?.(() => {
-      if (!h.closed) h.inbox.restore(unread);
+      if (!h.closed) {
+        h.inbox.restore(unread);
+      }
     });
-    if (h.socket.isPaused() && queued(h.inbox) < READ_AHEAD / 2) h.socket.resume();
+    if (h.socket.isPaused() && queued(h.inbox) < READ_AHEAD / 2) {
+      h.socket.resume();
+    }
     return { ok: chunk };
   },
   // std-net.write: once every byte is written.
@@ -403,12 +470,18 @@ const ops = {
     // Limit queued data so cancellation stops submitting further chunks,
     // leaving the stream open and only already accepted bytes in flight.
     for (let offset = 0; offset < buffer.length; offset += 65536) {
-      if (signal?.aborted) return { cancelled: true };
-      if (h.closed) return { disposed: true };
+      if (signal?.aborted) {
+        return { cancelled: true };
+      }
+      if (h.closed) {
+        return { disposed: true };
+      }
       const result = await new Promise((done) => {
         let settled = false;
         const settle = (result) => {
-          if (settled) return;
+          if (settled) {
+            return;
+          }
           settled = true;
           signal?.removeEventListener("abort", abort);
           done(result);
@@ -419,21 +492,29 @@ const ops = {
           settle(error ? failure(error, "", "") : { ok: null }),
         );
       });
-      if (result.error || result.cancelled) return result;
+      if (result.error || result.cancelled) {
+        return result;
+      }
     }
     return { ok: null };
   },
   // std-net.accept: the next connection's stream.
   accept: async ({ h, signal, retain }) => {
     const item = await h.inbox.next(h.timeout, signal);
-    if (item === CANCELLED) return { cancelled: true };
-    if (item === TIMED_OUT) return timedOut();
+    if (item === CANCELLED) {
+      return { cancelled: true };
+    }
+    if (item === TIMED_OUT) {
+      return timedOut();
+    }
     const socket = item?.value;
     if (h.closed) {
       socket?.destroy();
       return { disposed: true };
     }
-    if (item === null) return failure(h.inbox.end?.error ?? "the listener stopped", "", "");
+    if (item === null) {
+      return failure(h.inbox.end?.error ?? "the listener stopped", "", "");
+    }
     const handle = stream(socket);
     retain?.(() => {
       socket.destroy();
@@ -453,8 +534,12 @@ const ops = {
               family: h.socket.type === "udp6" ? 6 : 4,
             })
           ).address;
-      if (signal?.aborted) return { cancelled: true };
-      if (h.closed) return { disposed: true };
+      if (signal?.aborted) {
+        return { cancelled: true };
+      }
+      if (h.closed) {
+        return { disposed: true };
+      }
       return await new Promise((done) => {
         h.socket.send(Buffer.from(bytes), port, destination, (error) =>
           done(error ? failure(error, address, host) : { ok: null }),
@@ -468,12 +553,22 @@ const ops = {
   receive: async ({ h, max: signed, signal, retain }) => {
     const max = signed >>> 0;
     const item = await h.inbox.next(h.timeout, signal);
-    if (item === CANCELLED) return { cancelled: true };
-    if (item === TIMED_OUT) return timedOut();
-    if (h.closed) return { disposed: true };
-    if (item === null) return failure(h.inbox.end?.error ?? "the socket stopped", "", "");
+    if (item === CANCELLED) {
+      return { cancelled: true };
+    }
+    if (item === TIMED_OUT) {
+      return timedOut();
+    }
+    if (h.closed) {
+      return { disposed: true };
+    }
+    if (item === null) {
+      return failure(h.inbox.end?.error ?? "the socket stopped", "", "");
+    }
     retain?.(() => {
-      if (!h.closed) h.inbox.restore(item);
+      if (!h.closed) {
+        h.inbox.restore(item);
+      }
     });
     const got = item.value;
     return {
@@ -500,8 +595,11 @@ const ops = {
   // rounds up to one second, as on wasmtime.
   set_keepalive: ({ h, idle }) => {
     try {
-      if (idle === null) h.socket.setKeepAlive(false);
-      else h.socket.setKeepAlive(true, Math.max(1, Math.ceil(idle / 1000)) * 1000);
+      if (idle === null) {
+        h.socket.setKeepAlive(false);
+      } else {
+        h.socket.setKeepAlive(true, Math.max(1, Math.ceil(idle / 1000)) * 1000);
+      }
       return { ok: null };
     } catch (e) {
       return fail("Other", e.message);
@@ -519,9 +617,13 @@ const ops = {
   },
   close: ({ h }) => {
     // std-net.close.release: a full close of both directions.
-    if (h.kind === "stream") h.socket.destroy();
-    else if (h.kind === "listener") h.server.close();
-    else h.socket.close();
+    if (h.kind === "stream") {
+      h.socket.destroy();
+    } else if (h.kind === "listener") {
+      h.server.close();
+    } else {
+      h.socket.close();
+    }
     h.closed = true;
     h.inbox.finish({ closed: true });
     return { ok: null };
@@ -533,7 +635,11 @@ const ops = {
   // (cli.test.leak).
   open: () => {
     const counts = { stream: 0, listener: 0, udp: 0 };
-    for (const h of handles.values()) if (!h.closed) counts[h.kind] += 1;
+    for (const h of handles.values()) {
+      if (!h.closed) {
+        counts[h.kind] += 1;
+      }
+    }
     return { ok: counts };
   },
 };
@@ -541,11 +647,17 @@ const ops = {
 // Shared with worker callback-order regressions; this is the same
 // dispatcher the message transport below calls.
 export const run = async (r) => {
-  if (r.handle === undefined) return ops[r.op](r);
+  if (r.handle === undefined) {
+    return ops[r.op](r);
+  }
   const h = handles.get(r.handle);
-  if (h === undefined) return { unknown: true };
+  if (h === undefined) {
+    return { unknown: true };
+  }
   // Disposing a closed handle does nothing (std-net.dispose).
-  if (h.closed) return r.op === "dispose" ? { ok: null } : { disposed: true };
+  if (h.closed) {
+    return r.op === "dispose" ? { ok: null } : { disposed: true };
+  }
   return ops[r.op]({ ...r, h });
 };
 

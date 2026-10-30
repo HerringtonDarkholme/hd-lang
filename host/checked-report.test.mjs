@@ -37,8 +37,9 @@ test("absent or malformed metadata is ignored", () => {
     [1, 0, 0, 0, 0, 1],
     [1, 1, 0, 0, 0, 7],
     [1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 2],
-  ])
+  ]) {
     assert.equal(cycleReport(moduleWith(bytes), instance()), null);
+  }
 });
 test("an invalid counter range is ignored", () => {
   const value = instance();

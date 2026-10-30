@@ -23,10 +23,11 @@ const cache = new Map<string, boolean>();
 
 function load(): { exports: CompilerExports; syntax: ReadonlySet<string> } {
   if (compiler === undefined) {
-    if (!existsSync(COMPILER_WASM))
+    if (!existsSync(COMPILER_WASM)) {
       execFileSync(process.execPath, [join(REPO_DIR, "scripts/build-web-compiler.js")], {
         stdio: "inherit",
       });
+    }
     const module = new WebAssembly.Module(readFileSync(COMPILER_WASM));
     compiler = instantiateCompilerModule(module).exports as unknown as CompilerExports;
     const phases = diagnosticCodePhases(

@@ -73,7 +73,9 @@ export const serdeThroughput: Metric = {
           { orders: ORDERS },
         );
         const bytes = printed(measured.large, "bytes");
-        if (measured.msPerUnit <= 0) throw new Error("no work measured beyond start-up");
+        if (measured.msPerUnit <= 0) {
+          throw new Error("no work measured beyond start-up");
+        }
         const hd = mbPerSecond(bytes, measured.msPerUnit);
         const nodeRate = mbPerSecond(Number(node.bytes), nodeMedian(node, operation));
         results.push(

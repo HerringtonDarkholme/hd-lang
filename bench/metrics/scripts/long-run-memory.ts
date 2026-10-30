@@ -29,7 +29,9 @@ const TARGET = `≤ ${formatValue(LIMIT, "MB")}`;
 export function flatGrowth(samples: readonly (number | undefined)[]): number {
   const known = samples.filter((value): value is number => value !== undefined);
   const start = Math.floor(known.length / 4);
-  if (known.length - start < 6) return Number.NaN;
+  if (known.length - start < 6) {
+    return Number.NaN;
+  }
   return p50(known.slice(-3)) - p50(known.slice(start, start + 3));
 }
 
@@ -49,7 +51,7 @@ export const longRunMemory: Metric = {
         intervalMs: durationMs / SAMPLES,
       });
       const served = [...run.stdout.matchAll(/served=(\d+)/g)].at(-1)?.[1];
-      if (run.exited !== undefined)
+      if (run.exited !== undefined) {
         return [
           failed(
             NAME,
@@ -58,12 +60,15 @@ export const longRunMemory: Metric = {
             `the service exited ${String(run.exited)}: ${(run.stdout + run.stderr).trim().slice(-200)}`,
           ),
         ];
-      if (served === undefined)
+      }
+      if (served === undefined) {
         return [failed(NAME, label, TARGET, "the service reported no request")];
+      }
       const rss = run.samples.map((sample) => sample.rssBytes);
       const growth = flatGrowth(rss);
-      if (Number.isNaN(growth))
+      if (Number.isNaN(growth)) {
         return [failed(NAME, label, TARGET, "ps reported too few RSS samples")];
+      }
       const known = rss.filter((value): value is number => value !== undefined);
       return [
         judge(

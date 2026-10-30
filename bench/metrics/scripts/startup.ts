@@ -28,7 +28,9 @@ const RSS_LIMIT = 10 * 1024 * 1024;
 async function versionCommand(context: MetricContext, cwd: string) {
   for (const args of [["--version"], ["version"]]) {
     const result = await runHd(context.hd, args, { cwd, timeoutMs: TIMEOUT_MS });
-    if (result.status === 0) return { args, label: `hd ${args[0]}` };
+    if (result.status === 0) {
+      return { args, label: `hd ${args[0]}` };
+    }
   }
   return { args: ["help"], label: "hd help (no version command)" };
 }
@@ -47,11 +49,19 @@ async function measure(
   for (let index = 0; index <= RUNS; index++) {
     const result = await runHd(context.hd, args, { cwd, timeoutMs: TIMEOUT_MS, measure: true });
     const problem = runProblem(result, TIMEOUT_MS, `${label}, run ${index + 1}`);
-    if (problem) return labels.map((name, k) => failed(NAME, name, targets[k]!, problem));
-    if (index === 0) continue;
+    if (problem) {
+      return labels.map((name, k) => failed(NAME, name, targets[k]!, problem));
+    }
+    if (index === 0) {
+      continue;
+    }
     walls.push(result.wallMs);
-    if (result.cpuMs !== undefined) cpus.push(result.cpuMs);
-    if (result.rssBytes !== undefined) rsss.push(result.rssBytes);
+    if (result.cpuMs !== undefined) {
+      cpus.push(result.cpuMs);
+    }
+    if (result.rssBytes !== undefined) {
+      rsss.push(result.rssBytes);
+    }
   }
   const unmeasured = (k: number) =>
     notApplicable(NAME, labels[k]!, targets[k]!, "no /usr/bin/time on this host");
@@ -69,7 +79,9 @@ export const startup: Metric = {
   async run(context) {
     const cwd = makeTempDir(NAME);
     writeFileSync(join(cwd, "empty.hd"), "");
-    if (!canMeasure()) context.log(`${NAME}: no /usr/bin/time; CPU and RSS are n/a`);
+    if (!canMeasure()) {
+      context.log(`${NAME}: no /usr/bin/time; CPU and RSS are n/a`);
+    }
     const version = await versionCommand(context, cwd);
     return [
       ...(await measure(context, version.label, version.args, cwd)),

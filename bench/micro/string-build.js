@@ -1,8 +1,12 @@
 function main() {
   const parts = [];
-  for (let i = 0; i < 100_000; i++) parts.push(`part-${i};`);
+  for (let i = 0; i < 100_000; i++) {
+    parts.push(`part-${i};`);
+  }
   const text = parts.join("");
-  if (text.length !== 1_088_890) throw new Error(`wrong length: ${text.length}`);
+  if (text.length !== 1_088_890) {
+    throw new Error(`wrong length: ${text.length}`);
+  }
 }
 
 const times = [];

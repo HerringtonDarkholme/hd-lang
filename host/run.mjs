@@ -97,7 +97,9 @@ async function runHere(module, config, args, sink, deadline = null, cancel = nul
   try {
     return await runHereUnchecked(module, config, args, sink, deadline, cancel);
   } catch (error) {
-    if (!(error instanceof HostContract)) throw error;
+    if (!(error instanceof HostContract)) {
+      throw error;
+    }
     sink.err(`error: ${error.message}\n`);
     return 101;
   }
@@ -108,7 +110,9 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
   // so checked reports can read its custom metadata too.
   module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
   const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
-  if (sections.length > 1) throw new HostContract("duplicate package host contracts");
+  if (sections.length > 1) {
+    throw new HostContract("duplicate package host contracts");
+  }
   const required = sections.length
     ? (await import("./package-contract.mjs")).readPackageContract(new Uint8Array(sections[0]))
     : [];
@@ -116,23 +120,27 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
   const grants = { ...config.grants };
   for (const registration of config.hostProviders ?? []) {
     const i = required.find((i) => !i.handle && i.module === registration.module);
-    if (!i || !i.selectors.includes(registration.grantPath))
+    if (!i || !i.selectors.includes(registration.grantPath)) {
       throw new HostContract("provider mapping names no required package capability");
-    if (registrations.has(i.module))
+    }
+    if (registrations.has(i.module)) {
       throw new HostContract(`duplicate provider for ${i.identity.trait_path}`);
+    }
     registrations.set(i.module, registration);
   }
   // Preflight every grant before importing any provider: initialization can
   // already touch the machine. Mappings come from the CLI's manifest check.
   for (const i of required.filter((i) => !i.handle)) {
     const name = `${i.identity.package}@${i.identity.version}/${i.identity.trait_path}`;
-    if (i.selectors.some((s) => grants[s] === false))
+    if (i.selectors.some((s) => grants[s] === false)) {
       throw new HostContract(`package capability denied: ${name}`);
+    }
     const registration = registrations.get(i.module);
-    if (!registration)
+    if (!registration) {
       throw new HostContract(
         `package capability ${name} is not granted; add its trait path to the app's [capabilities] table`,
       );
+    }
     grants[registration.grantPath] = true;
   }
   let packageBindings = null;
@@ -173,8 +181,9 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
       cancel,
     );
     // The frames of a trap, for `hd` to name (`flow.panic.report`).
-    if (frames?.length && config.framesFile)
+    if (frames?.length && config.framesFile) {
       writeFileSync(config.framesFile, JSON.stringify(frames));
+    }
     return status;
   } finally {
     host.close();
@@ -206,18 +215,26 @@ function supervise(module, config, args, limit, output) {
     // A message is output (`fd`, `text`), the facts body (`fact`),
     // or the program's status.
     const take = (m) => {
-      if (m.fact !== undefined) fact = m.fact;
-      else if (m.fd === undefined) status = m.status;
-      else {
+      if (m.fact !== undefined) {
+        fact = m.fact;
+      } else if (m.fd === undefined) {
+        status = m.status;
+      } else {
         // The guest already queued these bytes through its writer connection.
-        if (m.fd === 2 && m.text === reportIn(fact, PROGRAM_TIME_LIMIT)) reported = true;
+        if (m.fd === 2 && m.text === reportIn(fact, PROGRAM_TIME_LIMIT)) {
+          reported = true;
+        }
       }
     };
     const end = (s) => {
-      if (ended) return;
+      if (ended) {
+        return;
+      }
       ended = true;
       clearTimeout(timer);
-      if (cell) process.off(signal, interrupt);
+      if (cell) {
+        process.off(signal, interrupt);
+      }
       port.close();
       output.drain().then(() => {
         exitPast([worker], s, config.statusFile);
@@ -228,41 +245,63 @@ function supervise(module, config, args, limit, output) {
     // abandons the entry; one that computes is stopped at once, after what
     // it sent is written (cli.cancel.computing).
     const interrupt = () => {
-      if (ended) return;
+      if (ended) {
+        return;
+      }
       if (Atomics.load(cell, 1) === 1) {
         Atomics.add(cell, 0, 1);
         Atomics.notify(cell, 0);
         return;
       }
-      for (let m; status === null && (m = receiveMessageOnPort(port));) take(m.message);
-      if (status !== null) return end(status);
+      for (let m; status === null && (m = receiveMessageOnPort(port));) {
+        take(m.message);
+      }
+      if (status !== null) {
+        return end(status);
+      }
       worker.terminate();
       output.err("stopped\n");
       end(CANCEL_STATUS);
     };
-    if (cell) process.on(signal, interrupt);
+    if (cell) {
+      process.on(signal, interrupt);
+    }
     // What the worker sent before the deadline is written first; a worker
     // that ended the run itself is not stopped.
     const timer = setTimeout(() => {
-      for (let m; status === null && (m = receiveMessageOnPort(port));) take(m.message);
-      if (status !== null) return end(status);
+      for (let m; status === null && (m = receiveMessageOnPort(port));) {
+        take(m.message);
+      }
+      if (status !== null) {
+        return end(status);
+      }
       worker.terminate();
-      if (!reported) output.err(reportIn(fact, PROGRAM_TIME_LIMIT));
+      if (!reported) {
+        output.err(reportIn(fact, PROGRAM_TIME_LIMIT));
+      }
       end(3);
     }, limit + GRACE_MS);
     port.on("message", (m) => {
-      if (!ended) take(m);
+      if (!ended) {
+        take(m);
+      }
     });
     worker.on("error", (e) => {
-      if (ended) return;
+      if (ended) {
+        return;
+      }
       ended = true;
       clearTimeout(timer);
-      if (cell) process.off(signal, interrupt);
+      if (cell) {
+        process.off(signal, interrupt);
+      }
       port.close();
       fail(e);
     });
     worker.on("exit", () => {
-      for (let m; !ended && (m = receiveMessageOnPort(port));) take(m.message);
+      for (let m; !ended && (m = receiveMessageOnPort(port));) {
+        take(m.message);
+      }
       end(status ?? 1);
     });
   });
@@ -278,19 +317,26 @@ if (isMainThread) {
   const signal = interruptOf(config);
   // `hd` passes the interrupt on as another signal: ignore the terminal's
   // own SIGINT for good, so it is not heard twice.
-  if (config.cleanupMs != null && signal !== "SIGINT") process.on("SIGINT", () => {});
+  if (config.cleanupMs != null && signal !== "SIGINT") {
+    process.on("SIGINT", () => {});
+  }
   const cancel =
     config.cleanupMs == null
       ? null
       : entryCancel(config.cleanupMs, (waiting) => {
-          if (waiting) process.on(signal, cancel.request);
-          else process.off(signal, cancel.request);
+          if (waiting) {
+            process.on(signal, cancel.request);
+          } else {
+            process.off(signal, cancel.request);
+          }
         });
   const output = createOutput();
   // A supervised run shares the writer thread with its worker, and on
   // Windows every write uses it, so there it boots while the module
   // compiles. Otherwise writes go direct and a full pipe starts it.
-  if (limit !== null || output.threaded()) output.start();
+  if (limit !== null || output.threaded()) {
+    output.start();
+  }
   try {
     process.exitCode =
       limit === null

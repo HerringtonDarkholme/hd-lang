@@ -88,12 +88,15 @@ async function checkDir(
     env: { HD_CACHE: makeTempDir("cache") },
     timeoutMs: TIMEOUT_MS,
   });
-  if (result.timedOut) throw new Error(`hd ${tool} timed out after ${TIMEOUT_MS / 1000} s`);
+  if (result.timedOut) {
+    throw new Error(`hd ${tool} timed out after ${TIMEOUT_MS / 1000} s`);
+  }
   const found = diagnosticsOf(result.stdout + result.stderr);
-  if (result.status !== 0 && found.length === 0)
+  if (result.status !== 0 && found.length === 0) {
     throw new Error(
       `hd ${tool} exited ${String(result.status)}: ${(result.stdout + result.stderr).trim().slice(0, 300)}`,
     );
+  }
   return found;
 }
 
@@ -125,7 +128,9 @@ const cleanFile = (hd: HdCommand, name: string, text: () => string): Check => ({
 
 function programChecks(hd: HdCommand): Check[] {
   return (Object.keys(PROGRAMS) as ProgramName[]).map((name) => {
-    for (const path of Object.values(PROGRAMS[name].files)) use(path);
+    for (const path of Object.values(PROGRAMS[name].files)) {
+      use(path);
+    }
     return cleanPackage(hd, `program ${name}`, () => programFiles(name));
   });
 }
@@ -147,8 +152,9 @@ function generatorChecks(hd: HdCommand, context: MetricContext): Check[] {
     "deps/dependent.hd",
     STARTUP,
     ...CASES.map((entry) => `pathological/${entry.name}.hd.tmpl`),
-  ])
+  ]) {
     use(path);
+  }
   const small = () => generatePackage({ seed: "fixtures", lines: 400 });
   const withMain = (main: (pkg: ReturnType<typeof small>) => string) => () => {
     const pkg = small();
@@ -173,10 +179,16 @@ function generatorChecks(hd: HdCommand, context: MetricContext): Check[] {
     {
       name: "dependent package, after hd add",
       run: async () => {
-        if (!hasGit()) return undefined;
+        if (!hasGit()) {
+          return undefined;
+        }
         const prepared = await prepareDependent(hd);
-        if ("problem" in prepared) return prepared.problem;
-        if ("na" in prepared) return `no dependency to check: ${prepared.na}`;
+        if ("problem" in prepared) {
+          return prepared.problem;
+        }
+        if ("na" in prepared) {
+          return `no dependency to check: ${prepared.na}`;
+        }
         const result = await runHd(hd, ["check", "--tests", "--format", "json"], {
           cwd: prepared.dir,
           env: { ...prepared.remote.env, HD_CACHE: makeTempDir("cache") },
@@ -200,10 +212,13 @@ function generatorChecks(hd: HdCommand, context: MetricContext): Check[] {
 export function mistakeProblem(mistake: Mistake, found: readonly Diagnostic[]): string | undefined {
   const codes = found.map((d) => String(d.code));
   const allowed = new Set([mistake.code, ...mistake.cascade]);
-  if (!codes.includes(mistake.code)) return `expected ${mistake.code}, got ${describe(found)}`;
+  if (!codes.includes(mistake.code)) {
+    return `expected ${mistake.code}, got ${describe(found)}`;
+  }
   const other = found.filter((d) => !allowed.has(String(d.code)));
-  if (other.length > 0)
+  if (other.length > 0) {
     return `expected ${[...allowed].join(", ")} only, also got ${describe(other)}`;
+  }
   return undefined;
 }
 
@@ -216,7 +231,9 @@ function mistakeChecks(hd: HdCommand, verbose: boolean): Check[] {
         name: `mistake ${mistake.name}`,
         run: async () => {
           const found = await checkFile(hd, file, mistake.text, mistake.tool);
-          if (verbose) console.log(`${mistake.name}: ${describe(found)}`);
+          if (verbose) {
+            console.log(`${mistake.name}: ${describe(found)}`);
+          }
           return mistakeProblem(mistake, found);
         },
       },
@@ -237,17 +254,22 @@ export function markerProblem(text: string, found: readonly Diagnostic[]): strin
   const marks = new Map<number, string>();
   text.split("\n").forEach((line, index) => {
     const match = /# (?:diagnostic|warning): ([a-z0-9-]+)\s*$/.exec(line);
-    if (match) marks.set(index + 1, match[1]!);
+    if (match) {
+      marks.set(index + 1, match[1]!);
+    }
   });
   const stray = found.filter((d) => marks.get(Number(d.line)) !== d.code);
-  if (stray.length > 0) return `unmarked or wrong diagnostics: ${describe(stray)}`;
+  if (stray.length > 0) {
+    return `unmarked or wrong diagnostics: ${describe(stray)}`;
+  }
   const parses = ![...marks.values()].includes("syntax-error");
   const missing = [...marks].filter(
     ([line, code]) =>
       (parses || code === "syntax-error") && !found.some((d) => Number(d.line) === line),
   );
-  if (missing.length > 0)
+  if (missing.length > 0) {
     return `marked lines not reported: ${missing.map(([line, code]) => `${code}@${line}`).join(" ")}`;
+  }
   return undefined;
 }
 
@@ -290,7 +312,9 @@ async function main(): Promise<number> {
       const check = checks[next++]!;
       try {
         const problem = await check.run();
-        if (problem) problems.push(`${check.name}: ${problem}`);
+        if (problem) {
+          problems.push(`${check.name}: ${problem}`);
+        }
       } catch (error) {
         problems.push(`${check.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -298,7 +322,9 @@ async function main(): Promise<number> {
   };
   await Promise.all(Array.from({ length: POOL }, worker));
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
-  for (const problem of problems.sort()) console.log(`FAIL ${problem}`);
+  for (const problem of problems.sort()) {
+    console.log(`FAIL ${problem}`);
+  }
   console.log(
     `${checks.length} fixture checks with ${hd.display} in ${seconds} s: ${problems.length} failed`,
   );

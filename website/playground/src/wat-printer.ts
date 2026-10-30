@@ -14,7 +14,9 @@ export function printWat(exports: WatExports, wasm: Uint8Array): string {
   const text = new TextDecoder().decode(
     new Uint8Array(exports.memory.buffer, exports.hd_output() >>> 0, exports.hd_output_len() >>> 0),
   );
-  if (status !== 0) throw new Error(text);
+  if (status !== 0) {
+    throw new Error(text);
+  }
   return text;
 }
 

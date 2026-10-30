@@ -96,7 +96,9 @@ export class ReplClient {
 
   /** Loads the worker if it is not loaded yet. */
   load(): void {
-    if (this.worker) return;
+    if (this.worker) {
+      return;
+    }
     const url = this.options.workerUrl ?? new URL("./worker.js", import.meta.url);
     const worker = new Worker(url, { type: "module" });
     this.worker = worker;
@@ -112,8 +114,11 @@ export class ReplClient {
           this.options.onReady?.();
         } else if (data.kind === "repl-out") {
           const sink = this.pending.get(data.id)?.sink;
-          if (data.stream === "out") sink?.out(data.text);
-          else sink?.err(data.text);
+          if (data.stream === "out") {
+            sink?.out(data.text);
+          } else {
+            sink?.err(data.text);
+          }
         } else if (data.kind === "repl") {
           const pending = this.pending.get(data.id);
           this.pending.delete(data.id);
@@ -129,7 +134,9 @@ export class ReplClient {
     const id = this.nextId++;
     return new Promise((resolve) => {
       this.pending.set(id, { sink, resolve });
-      if (request.kind === "repl-input") this.running = { id, number: request.number };
+      if (request.kind === "repl-input") {
+        this.running = { id, number: request.number };
+      }
       this.worker!.postMessage({ ...request, id });
     });
   }
@@ -147,7 +154,9 @@ export class ReplClient {
         journal: Uint8Array | null;
       }
     | undefined {
-    if (!this.started) return undefined;
+    if (!this.started) {
+      return undefined;
+    }
     const inputs = [...this.sources].filter(([number]) => number !== 0);
     return { files: this.files, inputs, next: this.next, journal: this.journal };
   }
@@ -165,7 +174,9 @@ export class ReplClient {
     this.reset();
     this.files = saved.files;
     this.sources.set(0, "");
-    for (const [number, text] of saved.inputs) this.sources.set(number, text);
+    for (const [number, text] of saved.inputs) {
+      this.sources.set(number, text);
+    }
     this.journal = saved.journal;
     this.next = saved.next;
     this.lost = true;
@@ -178,7 +189,9 @@ export class ReplClient {
     const answer = (await this.send({ kind: "repl-start", files })) as ReplStarted;
     this.live = answer.ok;
     this.keep(answer.journal);
-    if (answer.ok) this.sources.set(0, "");
+    if (answer.ok) {
+      this.sources.set(0, "");
+    }
     return answer;
   }
 
@@ -188,7 +201,9 @@ export class ReplClient {
     this.sources.set(number, source);
     try {
       const answer = await this.send({ kind: "repl-input", number, source }, sink);
-      if (answer.type === "ran") this.keep(answer.journal);
+      if (answer.type === "ran") {
+        this.keep(answer.journal);
+      }
       return answer as ReplRan | ReplStopped;
     } finally {
       clearTimeout(this.stopTimer);
@@ -203,11 +218,15 @@ export class ReplClient {
    */
   stop(): void {
     const running = this.running;
-    if (!running || this.stopTimer !== undefined) return;
+    if (!running || this.stopTimer !== undefined) {
+      return;
+    }
     this.worker?.postMessage({ kind: "repl-stop" } satisfies ReplRequest);
     this.stopTimer = setTimeout(() => {
       this.stopTimer = undefined;
-      if (this.running !== running) return;
+      if (this.running !== running) {
+        return;
+      }
       this.terminate();
       this.lost = true;
       this.pending.get(running.id)?.resolve({ type: "stopped", number: running.number });
@@ -233,14 +252,22 @@ export class ReplClient {
     this.keep(answer.journal);
     const kept = new Set(answer.kept);
     // Deleting from a Map while iterating its keys is safe.
-    for (const number of this.sources.keys()) if (!kept.has(number)) this.sources.delete(number);
-    if (!answer.ok) this.reset();
+    for (const number of this.sources.keys()) {
+      if (!kept.has(number)) {
+        this.sources.delete(number);
+      }
+    }
+    if (!answer.ok) {
+      this.reset();
+    }
     return answer;
   }
 
   /** Ends the session; the next `start` begins a new one, numbered from 1. */
   async quit(): Promise<void> {
-    if (this.worker && !this.lost) await this.send({ kind: "repl-quit" });
+    if (this.worker && !this.lost) {
+      await this.send({ kind: "repl-quit" });
+    }
     this.reset();
   }
 

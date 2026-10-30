@@ -63,7 +63,9 @@ async function runs(session, i) {
 // What a journal records, with each input's module hash left out.
 const butModules = (journal) => {
   const record = recorded(journal);
-  for (const input of record.inputs) input.module = 0n;
+  for (const input of record.inputs) {
+    input.module = 0n;
+  }
   return record;
 };
 

@@ -17,8 +17,12 @@ function element<K extends keyof HTMLElementTagNameMap>(
   text = "",
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
+  if (className) {
+    node.className = className;
+  }
+  if (text) {
+    node.textContent = text;
+  }
   return node;
 }
 
@@ -117,7 +121,9 @@ class DockedRepl {
     this.toggle.setAttribute("aria-expanded", String(open));
     this.toggle.title = `${open ? "Close" : "Open"} the hd REPL (Ctrl+\`)`;
     document.body.classList.toggle("repl-open", open);
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     this.repl.load();
     this.repl.focus();
   }

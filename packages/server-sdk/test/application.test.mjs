@@ -50,7 +50,9 @@ before(() => {
   });
 });
 after(() => {
-  if (directory) rmSync(directory, { recursive: true, force: true });
+  if (directory) {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 function application() {
@@ -89,8 +91,9 @@ test(
   async () => {
     const { app, errors, output } = application();
     try {
-      for (let n = 1; n <= 3; n++)
+      for (let n = 1; n <= 3; n++) {
         assert.equal(body(await app.dispatch(request("/", "hello"))).count, n);
+      }
       const results = await Promise.all(
         ["a", "b", "c"].map((text) => app.dispatch(request("/slow", text))),
       );

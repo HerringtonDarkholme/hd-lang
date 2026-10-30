@@ -39,7 +39,9 @@ test("a failed WAT download is reported and a later request can retry", async ()
   let loads = 0;
   const print = createWatPrinter(async () => {
     loads += 1;
-    if (loads === 1) throw new Error("HTTP 503");
+    if (loads === 1) {
+      throw new Error("HTTP 503");
+    }
     return bytes();
   });
   await assert.rejects(print(empty), /HTTP 503/);

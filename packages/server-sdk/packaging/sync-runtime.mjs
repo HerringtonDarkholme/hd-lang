@@ -18,7 +18,9 @@ for (const name of Object.keys(runtimeSources).sort()) {
 }
 const schema = await readFile(new URL("crates/hd_host_abi/src/schema.rs", root), "utf8");
 const version = schema.match(/^pub const VERSION: u32 = (\d+);$/m);
-if (!version) throw new Error("cannot find the package-host ABI version");
+if (!version) {
+  throw new Error("cannot find the package-host ABI version");
+}
 const baseRevision = execFileSync("git", ["rev-parse", "HEAD"], {
   cwd: fileURLToPath(root),
   encoding: "utf8",

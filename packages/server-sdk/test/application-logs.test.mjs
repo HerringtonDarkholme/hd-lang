@@ -43,7 +43,9 @@ before(async () => {
   source = bindings.interfaces.find((item) => !item.handle);
 });
 after(() => {
-  if (directory) rmSync(directory, { recursive: true, force: true });
+  if (directory) {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 const request = (path) => ({
   method: { tag: "Get", fields: {} },
@@ -160,15 +162,18 @@ test(
       },
       event(event) {
         events.push(event);
-        for (const watch of waiting.slice())
+        for (const watch of waiting.slice()) {
           if (watch.predicate(event)) {
             waiting.splice(waiting.indexOf(watch), 1);
             watch.resolve(event);
           }
+        }
       },
       log(record) {
         logs.push(record);
-        if (record.lease === null) throw new Error("private observer failure");
+        if (record.lease === null) {
+          throw new Error("private observer failure");
+        }
       },
     });
     const wait = (predicate) =>

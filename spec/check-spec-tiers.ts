@@ -17,13 +17,18 @@ const problems: string[] = [];
 
 function readTsv(name: string, header: string): string[][] {
   const lines = readFileSync(resolve(conformance, name), "utf8").split("\n");
-  if (lines.at(-1) === "") lines.pop();
-  if (lines.shift() !== header) throw new Error(`conformance/${name}: header must be ${header}`);
+  if (lines.at(-1) === "") {
+    lines.pop();
+  }
+  if (lines.shift() !== header) {
+    throw new Error(`conformance/${name}: header must be ${header}`);
+  }
   const width = header.split("\t").length;
   return lines.map((line, index) => {
     const fields = line.split("\t");
-    if (fields.length !== width || fields.some((field) => field.trim() === ""))
+    if (fields.length !== width || fields.some((field) => field.trim() === "")) {
       throw new Error(`conformance/${name}:${index + 2}: expected ${width} non-empty fields`);
+    }
     return fields;
   });
 }
@@ -38,7 +43,9 @@ function importedStdPaths(source: string): string[] {
   for (const match of source.matchAll(pattern)) {
     const base = match[1]!;
     const tail = match[2];
-    if (tail === "*") continue;
+    if (tail === "*") {
+      continue;
+    }
     if (!tail) {
       paths.push(base);
       continue;
@@ -48,7 +55,9 @@ function importedStdPaths(source: string): string[] {
         .trim()
         .split(/\s+as\s+/)[0]!
         .trim();
-      if (name !== "") paths.push(`${base}.${name}`);
+      if (name !== "") {
+        paths.push(`${base}.${name}`);
+      }
     }
   }
   return paths;
@@ -68,15 +77,17 @@ const stdlibItems = readTsv("stdlib-items.tsv", "item\tspecification");
 const crossings = readTsv("tier-crossings.tsv", "path\titems\treason");
 
 for (const [item, specification] of stdlibItems) {
-  if (!/^std(\.\w+)+$/.test(item!))
+  if (!/^std(\.\w+)+$/.test(item!)) {
     problems.push(`stdlib-items.tsv: ${item} is not a std path such as std.time.s`);
+  }
   if (
     !specification!.startsWith("std/") ||
     !existsSync(resolve(specDir, specification!.split("#")[0]!))
-  )
+  ) {
     problems.push(
       `stdlib-items.tsv: ${item} must cite an existing std/ chapter, not ${specification}`,
     );
+  }
 }
 
 const sources = new Map<string, string>();
@@ -93,14 +104,17 @@ const allowed = new Map<string, string[]>();
 const seen = new Set<string>();
 for (const [path, itemList] of crossings) {
   const specification = cases.get(path!);
-  if (seen.has(path!)) problems.push(`tier-crossings.tsv: duplicate row for ${path}`);
+  if (seen.has(path!)) {
+    problems.push(`tier-crossings.tsv: duplicate row for ${path}`);
+  }
   seen.add(path!);
   if (specification === undefined) {
     problems.push(`tier-crossings.tsv: ${path} is not a case in cases.tsv`);
     continue;
   }
-  if (specification.startsWith("std/"))
+  if (specification.startsWith("std/")) {
     problems.push(`tier-crossings.tsv: ${path} is stdlib tier now; delete its row`);
+  }
   const items = itemList!.split(",").map((item) => item.trim());
   const imports = importedStdPaths(source(path!));
   for (const item of items) {
@@ -108,18 +122,25 @@ for (const [path, itemList] of crossings) {
     const present = item.startsWith("std.")
       ? imports.some((imported) => overlaps(imported, item))
       : /^\w+\.\w+$/.test(item) && source(path!).includes(`.${item.split(".")[1]}(`);
-    if (!present)
+    if (!present) {
       problems.push(`tier-crossings.tsv: ${path} no longer uses ${item}; update or delete its row`);
+    }
   }
   allowed.set(path!, items);
 }
 
 for (const [path, specification] of cases) {
-  if (specification.startsWith("std/")) continue;
+  if (specification.startsWith("std/")) {
+    continue;
+  }
   for (const imported of importedStdPaths(source(path))) {
     const item = stdlibItems.find(([listed]) => overlaps(imported, listed!));
-    if (!item) continue;
-    if ((allowed.get(path) ?? []).some((entry) => overlaps(entry, imported))) continue;
+    if (!item) {
+      continue;
+    }
+    if ((allowed.get(path) ?? []).some((entry) => overlaps(entry, imported))) {
+      continue;
+    }
     problems.push(
       `${path}: language-tier case (${specification}) imports ${imported}, a stdlib-tier item of ${item[1]}; ` +
         "drop the import, cite a std/ section, or record it in tier-crossings.tsv",
@@ -128,6 +149,8 @@ for (const [path, specification] of cases) {
 }
 
 if (problems.length) {
-  for (const problem of problems) console.error(`spec tiers: ${problem}`);
+  for (const problem of problems) {
+    console.error(`spec tiers: ${problem}`);
+  }
   process.exitCode = 1;
 }

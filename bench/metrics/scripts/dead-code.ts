@@ -94,8 +94,9 @@ async function bytesPerThousand(context: MetricContext): Promise<TargetResult> {
       });
     }
     const [small, large] = built as [(typeof built)[0], (typeof built)[0]];
-    if (small.program.bytes === undefined || large.program.bytes === undefined)
+    if (small.program.bytes === undefined || large.program.bytes === undefined) {
       throw new Error(`the build wrote no file to measure (${howNote(large.program)})`);
+    }
     const perThousand =
       ((large.program.bytes - small.program.bytes) / (large.pkg.lines - small.pkg.lines)) * 1000;
     return judge(
@@ -118,17 +119,21 @@ async function unusedStd(context: MetricContext): Promise<TargetResult> {
   try {
     const bare = await buildFixture(context.hd, "dead-code/std-free");
     const withUses = await buildFixture(context.hd, "dead-code/unused-uses");
-    if (bare.bytes === undefined || withUses.bytes === undefined)
+    if (bare.bytes === undefined || withUses.bytes === undefined) {
       throw new Error(`the build wrote no file to measure (${howNote(bare)})`);
+    }
     const problems: string[] = [];
-    if (withUses.bytes !== bare.bytes)
+    if (withUses.bytes !== bare.bytes) {
       problems.push(
         `unused uses add ${withUses.bytes - bare.bytes} B (${bare.bytes} B without them)`,
       );
+    }
     let checked = "sizes only (no .wasm file)";
     if (bare.how === "wasm" && bare.artifact) {
       const named = stdNamesIn(wasmNames(bare.artifact), stdModules(context.repoRoot));
-      if (named.length) problems.push(`std names in the module: ${named.slice(0, 5).join(", ")}`);
+      if (named.length) {
+        problems.push(`std names in the module: ${named.slice(0, 5).join(", ")}`);
+      }
       checked = "sizes, and import and export names";
     }
     return judgeBool(

@@ -4,7 +4,9 @@ function fib(n) {
 
 function main() {
   const result = fib(30);
-  if (result !== 832040) throw new Error(`wrong: ${result}`);
+  if (result !== 832040) {
+    throw new Error(`wrong: ${result}`);
+  }
 }
 
 const times = [];

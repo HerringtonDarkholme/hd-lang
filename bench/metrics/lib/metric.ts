@@ -71,7 +71,9 @@ const fine = (value: number): string =>
   Math.abs(value) < 10 ? value.toFixed(Math.abs(value) < 1 ? 2 : 1) : String(Math.round(value));
 
 export function formatValue(value: number, unit: Unit): string {
-  if (!Number.isFinite(value)) return String(value);
+  if (!Number.isFinite(value)) {
+    return String(value);
+  }
   switch (unit) {
     case "ns":
       return `${fine(value)} ns`;
@@ -80,7 +82,9 @@ export function formatValue(value: number, unit: Unit): string {
     case "MB/s":
       return `${fine(value)} MB/s`;
     case "per-s":
-      if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M/s`;
+      if (value >= 1e6) {
+        return `${(value / 1e6).toFixed(1)}M/s`;
+      }
       return value >= 10_000 ? `${(value / 1000).toFixed(0)}k/s` : `${fine(value)}/s`;
     case "B/iter":
       return `${fine(value)} B/iter`;

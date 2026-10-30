@@ -14,12 +14,13 @@ const archive = new URL("../runtime/runtime-sources.json", import.meta.url);
 
 test("the SDK snapshot matches the canonical portable host and ABI sources", async () => {
   const snapshot = await readPortableRuntime();
-  for (const [name, source] of Object.entries(runtimeSources))
+  for (const [name, source] of Object.entries(runtimeSources)) {
     assert.equal(
       snapshot.files[name],
       (await readFile(join(root, source), "utf8")).replaceAll("\r\n", "\n"),
       name,
     );
+  }
   const schema = await readFile(join(root, "crates/hd_host_abi/src/schema.rs"), "utf8");
   assert.equal(
     snapshot.packageHostABI,
@@ -61,8 +62,9 @@ test("runtime emission copies exact bytes and refuses existing output", async ()
     const info = await emitPortableRuntime(output);
     const snapshot = await readPortableRuntime();
     assert.equal(info.fingerprint, snapshot.fingerprint);
-    for (const [name, text] of Object.entries(snapshot.files))
+    for (const [name, text] of Object.entries(snapshot.files)) {
       assert.equal(await readFile(join(output, name), "utf8"), text);
+    }
     const core = await import(info.coreURL);
     assert.equal(typeof core.createCoreHost, "function");
     const sentinel = join(output, "keep.txt");

@@ -58,7 +58,9 @@ class Worker {
     await this.host.handle({ ...request, id } as ReplRequest);
     const found = this.messages.find((m) => m.kind === "repl" && m.id === id);
     assert.ok(found?.kind === "repl", `no answer to ${request.kind}`);
-    if ("journal" in found.answer && found.answer.journal) this.journal = found.answer.journal;
+    if ("journal" in found.answer && found.answer.journal) {
+      this.journal = found.answer.journal;
+    }
     return found.answer;
   }
 
@@ -67,9 +69,14 @@ class Worker {
     let out = "";
     let err = "";
     for (const m of this.messages) {
-      if (m.kind !== "repl-out") continue;
-      if (m.stream === "out") out += m.text;
-      else err += m.text;
+      if (m.kind !== "repl-out") {
+        continue;
+      }
+      if (m.stream === "out") {
+        out += m.text;
+      } else {
+        err += m.text;
+      }
     }
     this.messages = [];
     return [out, err];

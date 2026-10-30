@@ -17,7 +17,9 @@ function editorRuns(source: string): Run[][] {
   const tree = hdStreamLanguage.parser.parse(source);
   const classes = Array.from<string>({ length: source.length }).fill("");
   highlightTree(tree, hdHighlighter, (from, to, className) => {
-    for (let index = from; index < to; index += 1) classes[index] = className;
+    for (let index = from; index < to; index += 1) {
+      classes[index] = className;
+    }
   });
   let offset = 0;
   return source.split("\n").map((line) => {
@@ -40,8 +42,11 @@ function mergeRuns(runs: readonly Run[]): Run[] {
   const merged: [string, string][] = [];
   for (const [text, className] of runs) {
     const last = merged.at(-1);
-    if (last && last[1] === className) last[0] += text;
-    else if (text !== "") merged.push([text, className]);
+    if (last && last[1] === className) {
+      last[0] += text;
+    } else if (text !== "") {
+      merged.push([text, className]);
+    }
   }
   return merged;
 }

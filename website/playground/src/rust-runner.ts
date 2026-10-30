@@ -101,7 +101,9 @@ function lineStream(each: (line: string) => void): { write(text: string): void; 
       lines.forEach(each);
     },
     end() {
-      if (rest !== "") each(rest);
+      if (rest !== "") {
+        each(rest);
+      }
       rest = "";
     },
   };
@@ -125,15 +127,17 @@ const tests = (count: number): string => `${count} ${count === 1 ? "test" : "tes
 function reportLines(at: string, name: string, verdict: Verdict, input?: string): string[] {
   const indent = (text: string): string[] => text.split("\n").map((line) => `    ${line}`);
   const shown = input === undefined ? [] : [`    input: ${input}`];
-  if (verdict.outcome === "failed")
+  if (verdict.outcome === "failed") {
     return [`FAIL ${at}: ${name}`, ...indent(verdict.message), ...shown];
-  if (verdict.outcome === "panicked")
+  }
+  if (verdict.outcome === "panicked") {
     return [
       `PANIC ${at}: ${name}`,
       `    panic: ${verdict.category}${verdict.message === "" ? "" : `: ${verdict.message}`}`,
       ...verdict.debug.map((line) => `    ${line}`),
       ...shown,
     ];
+  }
   return [];
 }
 
@@ -154,12 +158,13 @@ async function runTests(
   finish: Finish,
 ): Promise<RunResult> {
   const cases = compiled.json.tests ?? [];
-  if (cases.length === 0)
+  if (cases.length === 0) {
     return finish(
       "failure",
       diagnostics,
       "nothing to test: add a `tests:` block or a `_test.hd` module with `it(...)` test cases",
     );
+  }
   const programs = compiled.json.programs ?? [];
   const bytes = programBytes(compiled);
   const files = memoryFiles();
@@ -169,15 +174,18 @@ async function runTests(
     test.run !== null && test.ignore === null && test.unsupported === null;
   for (const [index, program] of programs.entries()) {
     const own = cases.flatMap((test, at) => (test.program === index && runs(test) ? [at] : []));
-    if (own.length === 0) continue;
+    if (own.length === 0) {
+      continue;
+    }
     const module = await WebAssembly.compile(bytes[index] as BufferSource);
     const missing = unboundTraits(module, createWebHost({ out() {}, err() {} }));
-    if (missing.length > 0)
+    if (missing.length > 0) {
       return finish(
         "failure",
         diagnostics,
         `${program.file ?? "the tests"} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd test`,
       );
+    }
     // The case of each `hd.test.i` export of this program.
     const byExport = new Map(own.map((at) => [cases[at]!.run![0], at]));
     await runCases({
@@ -210,7 +218,9 @@ async function runTests(
       notify: () => undefined,
       emit: (record) => {
         const at = byExport.get(record.test);
-        if (at !== undefined) records[at]!.push(record);
+        if (at !== undefined) {
+          records[at]!.push(record);
+        }
       },
     });
   }
@@ -236,7 +246,9 @@ async function runTests(
     }
     for (const record of records[at]!) {
       // An empty table reports nothing (std-testing.it-each).
-      if (record.status === undefined) continue;
+      if (record.status === undefined) {
+        continue;
+      }
       // An `it_each` row is named `name[i]` (std-testing.it-each.name).
       const name = record.row === undefined ? test.name : `${test.name}[${record.row}]`;
       const verdict = judge(
@@ -272,7 +284,9 @@ async function runTests(
     ignored > 0 ? `, ${ignored} ignored` : "",
     unsupported > 0 ? `, ${unsupported} unsupported` : "",
   ].join("");
-  if (first === undefined) return finish("ok", diagnostics, `${tests(passed)} passed${others}`);
+  if (first === undefined) {
+    return finish("ok", diagnostics, `${tests(passed)} passed${others}`);
+  }
   const more = failed > 1 ? `; ${failed} of ${tests(passed + failed)} failed` : "";
   return finish(first.status, diagnostics, `${first.summary}${more}`);
 }
@@ -285,7 +299,9 @@ export function createRustRunner(
   bytes: Promise<BufferSource> | BufferSource,
   loadWat: () => Promise<BufferSource> = async () => {
     const response = await fetch(new URL("./hd_wat.wasm", import.meta.url));
-    if (!response.ok) throw new Error(`hd_wat.wasm: HTTP ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`hd_wat.wasm: HTTP ${response.status}`);
+    }
     return response.arrayBuffer();
   },
 ): RustRunner {
@@ -320,16 +336,21 @@ export function createRustRunner(
     }
     const request = encodeRequest(project.files, project.main, GOAL[mode]);
     const compiled = compileRequest(exports, request);
-    if (compiled.status === STATUS.malformed)
+    if (compiled.status === STATUS.malformed) {
       return finish("failure", [], `the compiler refused the request: ${compiled.json.error}`);
+    }
     const diagnostics = (compiled.json.diagnostics ?? []).map((diagnostic) =>
       toRunDiagnostic(diagnostic, project.main),
     );
-    if (compiled.status === STATUS.errors)
+    if (compiled.status === STATUS.errors) {
       return finish("compile-error", diagnostics, "compilation failed");
-    if (mode === "check") return finish("ok", diagnostics, "no errors");
-    if (mode === "run" && compiled.wasm.length === 0)
+    }
+    if (mode === "check") {
+      return finish("ok", diagnostics, "no errors");
+    }
+    if (mode === "run" && compiled.wasm.length === 0) {
       return finish("failure", diagnostics, "no program to run");
+    }
     return {
       mode,
       compiled,
@@ -361,19 +382,22 @@ export function createRustRunner(
       };
     }
     const compiled = compileRequest(exports, encodeRequest(project.files, project.main, GOAL.run));
-    if (compiled.status === STATUS.malformed)
+    if (compiled.status === STATUS.malformed) {
       return {
         status: "failure",
         diagnostics: [],
         summary: `the compiler refused the request: ${compiled.json.error}`,
       };
+    }
     const diagnostics = (compiled.json.diagnostics ?? []).map((diagnostic) =>
       toRunDiagnostic(diagnostic, project.main),
     );
-    if (compiled.status === STATUS.errors)
+    if (compiled.status === STATUS.errors) {
       return { status: "compile-error", diagnostics, summary: "compilation failed" };
-    if (compiled.wasm.length === 0)
+    }
+    if (compiled.wasm.length === 0) {
       return { status: "failure", diagnostics, summary: "no module to show" };
+    }
     try {
       return {
         status: "ok",
@@ -430,9 +454,13 @@ export async function runCompiled(
   let report: string | undefined;
   const out = lineStream((line) => emit(line));
   const err = lineStream((line) => {
-    if (report !== undefined) report += `; ${line}`;
-    else if (/^(panic|internal error): /.test(line)) report = line.replace(/^panic: /, "");
-    else emit(line, true);
+    if (report !== undefined) {
+      report += `; ${line}`;
+    } else if (/^(panic|internal error): /.test(line)) {
+      report = line.replace(/^panic: /, "");
+    } else {
+      emit(line, true);
+    }
   });
   const host = createWebHost(
     { out: (text) => out.write(text), err: (text) => err.write(text) },
@@ -442,12 +470,13 @@ export async function runCompiled(
     const module = await WebAssembly.compile(compiled.wasm as BufferSource);
     // A trait the browser cannot provide stops the run before it starts.
     const missing = unboundTraits(module, host);
-    if (missing.length > 0)
+    if (missing.length > 0) {
       return finish(
         "failure",
         diagnostics,
         `${who} needs ${missing.join(" and ")}, which the playground does not provide; run it with hd run`,
       );
+    }
     const instance = await WebAssembly.instantiate(module, host.imports);
     const { status, trapped } = await host.run(instance, "hd.init", "hd.poll");
     out.end();
@@ -460,7 +489,9 @@ export async function runCompiled(
         summary,
       );
     }
-    if (status !== 0) return finish("failure", diagnostics, `${who} exited with code ${status}`);
+    if (status !== 0) {
+      return finish("failure", diagnostics, `${who} exited with code ${status}`);
+    }
     return finish("ok", diagnostics, "exited normally");
   } catch (error) {
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);

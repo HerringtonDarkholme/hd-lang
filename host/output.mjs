@@ -39,7 +39,9 @@ export function createOutput(connection = null) {
   // short instead of blocking, and an in-flight thread write cannot keep
   // writing a cancelled suffix when a reader resumes.
   const prepare = () => {
-    if (prepared) return;
+    if (prepared) {
+      return;
+    }
     prepared = true;
     process.stdout._handle?.setBlocking(false);
     process.stderr._handle?.setBlocking(false);
@@ -75,7 +77,9 @@ export function createOutput(connection = null) {
         ? () => Number.POSITIVE_INFINITY
         : () => deadline - performance.now();
     const reply = receiveReply(client.port, client.flag, id, left);
-    if (reply === null) throw new Error("output control reply timed out");
+    if (reply === null) {
+      throw new Error("output control reply timed out");
+    }
     return reply.result;
   };
   // Moves the direct queue, in order, to the thread: the head's unwritten
@@ -84,8 +88,11 @@ export function createOutput(connection = null) {
     remote = true;
     for (const e of local.splice(0)) {
       const bytes = new Uint8Array(e.bytes.subarray(e.offset));
-      if (e.wait) e.result = call({ op: "wait_start", fd: e.fd, bytes }, [bytes.buffer]);
-      else call({ op: "enqueue", fd: e.fd, bytes }, [bytes.buffer]);
+      if (e.wait) {
+        e.result = call({ op: "wait_start", fd: e.fd, bytes }, [bytes.buffer]);
+      } else {
+        call({ op: "enqueue", fd: e.fd, bytes }, [bytes.buffer]);
+      }
     }
   };
   // Writes the queued entries directly, until the queue is empty or a
@@ -96,12 +103,16 @@ export function createOutput(connection = null) {
       try {
         while (e.offset < e.bytes.length) {
           const count = writeSync(e.fd, e.bytes, e.offset, e.bytes.length - e.offset);
-          if (count === 0) return handOff();
+          if (count === 0) {
+            return handOff();
+          }
           e.offset += count;
         }
         e.result = Ok(undefined);
       } catch (error) {
-        if (full(error)) return handOff();
+        if (full(error)) {
+          return handOff();
+        }
         e.result = failed(error);
       }
       local.shift();
@@ -110,8 +121,12 @@ export function createOutput(connection = null) {
   // Whether a new write may go direct: the thread, if it took over, has
   // written everything it was given.
   const direct = () => {
-    if (!remote) return true;
-    if (pinned || !call({ op: "idle" }).ok) return false;
+    if (!remote) {
+      return true;
+    }
+    if (pinned || !call({ op: "idle" }).ok) {
+      return false;
+    }
     remote = false;
     return true;
   };
@@ -124,8 +139,11 @@ export function createOutput(connection = null) {
     return e;
   };
   const send = (fd, text) => {
-    if (direct()) queue(fd, text, false);
-    else call({ op: "enqueue", fd, text });
+    if (direct()) {
+      queue(fd, text, false);
+    } else {
+      call({ op: "enqueue", fd, text });
+    }
   };
   const output = {
     start,
@@ -144,7 +162,9 @@ export function createOutput(connection = null) {
       return call({ op: "wait_start", fd, text });
     },
     connection: () => {
-      if (!remote) handOff();
+      if (!remote) {
+        handOff();
+      }
       pinned = true;
       const { port1, port2 } = new MessageChannel();
       const flag = new Int32Array(new SharedArrayBuffer(4));
@@ -154,19 +174,26 @@ export function createOutput(connection = null) {
     drain: async () => {
       for (;;) {
         pump();
-        if (!local.length && (client === null || call({ op: "idle" }).ok)) return;
+        if (!local.length && (client === null || call({ op: "idle" }).ok)) {
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, 1));
       }
     },
     close: async () => {
       // A writer that was started but never written to has nothing to
       // flush; its unref'd thread need not delay the exit.
-      if (used || local.length) await output.drain();
+      if (used || local.length) {
+        await output.drain();
+      }
       client?.port.close();
       client = null;
       if (worker !== null) {
-        if (used) await worker.terminate();
-        else void worker.terminate();
+        if (used) {
+          await worker.terminate();
+        } else {
+          void worker.terminate();
+        }
       }
       worker = null;
     },

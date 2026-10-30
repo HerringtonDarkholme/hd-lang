@@ -90,11 +90,21 @@ const NUMBER =
   /^[+-]?(?:inf|nan(?::0x[0-9A-Fa-f](?:_?[0-9A-Fa-f])*)?|0x[0-9A-Fa-f](?:_?[0-9A-Fa-f])*(?:\.(?:[0-9A-Fa-f](?:_?[0-9A-Fa-f])*)?)?(?:[Pp][+-]?\d(?:_?\d)*)?|\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?(?:[Ee][+-]?\d(?:_?\d)*)?)$/;
 
 function wordKind(word: string): WatTokenKind {
-  if (word.startsWith("$")) return "name";
-  if (NUMBER.test(word)) return "number";
-  if (TYPES.has(word)) return "type";
-  if (KEYWORDS.has(word)) return "keyword";
-  if (/^[a-z]/.test(word)) return "instruction";
+  if (word.startsWith("$")) {
+    return "name";
+  }
+  if (NUMBER.test(word)) {
+    return "number";
+  }
+  if (TYPES.has(word)) {
+    return "type";
+  }
+  if (KEYWORDS.has(word)) {
+    return "keyword";
+  }
+  if (/^[a-z]/.test(word)) {
+    return "instruction";
+  }
   return "plain";
 }
 
@@ -103,9 +113,11 @@ export function tokenizeWat(text: string): WatToken[] {
   const tokens: WatToken[] = [];
   const push = (kind: WatTokenKind, value: string): void => {
     const last = tokens.at(-1);
-    if (last && last.kind === kind && (kind === "plain" || kind === "paren"))
+    if (last && last.kind === kind && (kind === "plain" || kind === "paren")) {
       tokens[tokens.length - 1] = { kind, text: last.text + value };
-    else tokens.push({ kind, text: value });
+    } else {
+      tokens.push({ kind, text: value });
+    }
   };
   let index = 0;
   while (index < text.length) {
@@ -125,8 +137,12 @@ export function tokenizeWat(text: string): WatToken[] {
         } else if (text.startsWith(";)", index)) {
           depth -= 1;
           index += 2;
-          if (depth === 0) break;
-        } else index += 1;
+          if (depth === 0) {
+            break;
+          }
+        } else {
+          index += 1;
+        }
       }
       push("comment", text.slice(start, index));
     } else if (char === "(" || char === ")") {
@@ -134,31 +150,44 @@ export function tokenizeWat(text: string): WatToken[] {
       push("paren", char);
     } else if (char === '"') {
       index += 1;
-      while (index < text.length && text[index] !== '"' && text[index] !== "\n")
+      while (index < text.length && text[index] !== '"' && text[index] !== "\n") {
         index += text[index] === "\\" ? 2 : 1;
-      if (text[index] === '"') index += 1;
+      }
+      if (text[index] === '"') {
+        index += 1;
+      }
       push("string", text.slice(start, index));
     } else if (char === "$" && text[index + 1] === '"') {
       // A quoted name, `$"std/format/impl Display for usize.to_string#0"`,
       // which wasmprinter writes for names that are not plain identifiers.
       index += 2;
-      while (index < text.length && text[index] !== '"' && text[index] !== "\n")
+      while (index < text.length && text[index] !== '"' && text[index] !== "\n") {
         index += text[index] === "\\" ? 2 : 1;
-      if (text[index] === '"') index += 1;
+      }
+      if (text[index] === '"') {
+        index += 1;
+      }
       push("name", text.slice(start, index));
     } else if (ID_CHAR.test(char)) {
-      while (index < text.length && ID_CHAR.test(text[index]!)) index += 1;
+      while (index < text.length && ID_CHAR.test(text[index]!)) {
+        index += 1;
+      }
       const word = text.slice(start, index);
       // `offset=4` and `align=8` are a keyword and a number.
       const equals = word.indexOf("=");
       if (equals > 0 && equals < word.length - 1 && !word.startsWith("$")) {
         push("keyword", word.slice(0, equals + 1));
         push(wordKind(word.slice(equals + 1)), word.slice(equals + 1));
-      } else push(wordKind(word), word);
+      } else {
+        push(wordKind(word), word);
+      }
     } else {
-      while (index < text.length && !ID_CHAR.test(text[index]!) && !'()";'.includes(text[index]!))
+      while (index < text.length && !ID_CHAR.test(text[index]!) && !'()";'.includes(text[index]!)) {
         index += 1;
-      if (index === start) index += 1;
+      }
+      if (index === start) {
+        index += 1;
+      }
       push("plain", text.slice(start, index));
     }
   }

@@ -47,7 +47,9 @@ const REPEAT = 30;
 
 /** A micro case as test source: its `main` becomes `case_main`, which one test case runs. */
 export function asTestCase(source: string, repeat = REPEAT): string {
-  if (!source.includes("pub fn main() -> void:")) throw new Error("not a micro case program");
+  if (!source.includes("pub fn main() -> void:")) {
+    throw new Error("not a micro case program");
+  }
   return renderFixture("dev-speed/case-test.hd.tmpl", {
     case: source.replace("pub fn main() -> void:", "fn case_main() -> void:").trimEnd(),
     repeat,
@@ -69,11 +71,12 @@ export const devSpeed: Metric = {
     const empty = writeProgram("dev-speed/empty-test", {}, "dev-empty");
     const geomeanTarget = `≤ ${GEOMEAN_LIMIT.toFixed(2)}x`;
     const worstTarget = `≤ ${CASE_LIMIT.toFixed(2)}x`;
-    if (!(await supportsFlag(context.hd, "test", "--release", empty)))
+    if (!(await supportsFlag(context.hd, "test", "--release", empty))) {
       return [
         notApplicable(NAME, GEOMEAN_LABEL, geomeanTarget, "hd test has no --release"),
         notApplicable(NAME, WORST_LABEL, worstTarget, "hd test has no --release"),
       ];
+    }
     const time = async (dir: string, optimized: boolean) => {
       const args = optimized ? ["test", "--release"] : ["test"];
       const series = await timedSeries(
@@ -83,7 +86,9 @@ export const devSpeed: Metric = {
         { cwd: dir, timeoutMs: TIMEOUT_MS },
         `hd ${args.join(" ")}`,
       );
-      if (series.problem) throw new Error(series.problem);
+      if (series.problem) {
+        throw new Error(series.problem);
+      }
       return p50(series.samples);
     };
     try {
@@ -96,8 +101,11 @@ export const devSpeed: Metric = {
         const dir = writePackage(`dev-${name}`, casePackage(context, name));
         const dev = (await time(dir, false)) - emptyDev;
         const optimized = (await time(dir, true)) - emptyOptimized;
-        if (optimized < NOISE_MS) noisy.push(`${name} (${optimized.toFixed(1)} ms)`);
-        else ratios.push({ name, ratio: dev / optimized });
+        if (optimized < NOISE_MS) {
+          noisy.push(`${name} (${optimized.toFixed(1)} ms)`);
+        } else {
+          ratios.push({ name, ratio: dev / optimized });
+        }
       }
       if (noisy.length > 0) {
         const reason = `optimized work is within noise: ${noisy.join(", ")}`;

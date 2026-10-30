@@ -25,12 +25,16 @@ function parseCodes(cases: string): Set<string> {
   const header = lines.shift()?.split("\t") ?? [];
   const phaseAt = header.indexOf("phase");
   const expectationAt = header.indexOf("expectation");
-  if (phaseAt < 0 || expectationAt < 0) throw new Error("cases.tsv lacks phase or expectation");
+  if (phaseAt < 0 || expectationAt < 0) {
+    throw new Error("cases.tsv lacks phase or expectation");
+  }
   const result = new Set<string>();
   for (const line of lines) {
     const fields = line.split("\t");
     const match = /^(?:reject|warn):(.*)$/.exec(fields[expectationAt] ?? "");
-    if (fields[phaseAt] === "parse" && match) result.add(match[1]!);
+    if (fields[phaseAt] === "parse" && match) {
+      result.add(match[1]!);
+    }
   }
   return result;
 }
@@ -39,7 +43,11 @@ function boundaryCodes(readme: string): Set<string> {
   const result = new Set<string>();
   for (const line of readme.split("\n")) {
     const row = /^\| Boundary failure \| (.*) \|$/.exec(line);
-    if (row) for (const match of row[1]!.matchAll(/`([a-z0-9-]+)`/g)) result.add(match[1]!);
+    if (row) {
+      for (const match of row[1]!.matchAll(/`([a-z0-9-]+)`/g)) {
+        result.add(match[1]!);
+      }
+    }
   }
   return result;
 }
@@ -82,7 +90,7 @@ pub enum Phase {
 #[repr(u16)]
 pub enum Code {
 ${variants.join("\n")}
-    /// Internal: a stage this build needs answered \"not implemented\".
+    /// Internal: a stage this build needs answered "not implemented".
     Unsupported,
 }
 
@@ -129,7 +137,9 @@ function main(args: readonly string[]): number {
     try {
       actual = readFileSync(OUTPUT, "utf8");
     } catch {}
-    if (actual === expected) return 0;
+    if (actual === expected) {
+      return 0;
+    }
     console.error("generated diagnostic codes are stale; run spec/tools/diagnostic-codes.ts");
     return 1;
   }
@@ -137,5 +147,6 @@ function main(args: readonly string[]): number {
   return 2;
 }
 
-if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url))
+if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2));
+}

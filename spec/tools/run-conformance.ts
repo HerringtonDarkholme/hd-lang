@@ -183,7 +183,9 @@ class UsageError extends Error {}
 function splitCommand(value: string): string[] {
   const parts: string[] = [];
   const pattern = /"([^"]*)"|'([^']*)'|([^\s]+)/g;
-  for (const match of value.matchAll(pattern)) parts.push(match[1] ?? match[2] ?? match[3]!);
+  for (const match of value.matchAll(pattern)) {
+    parts.push(match[1] ?? match[2] ?? match[3]!);
+  }
   return parts;
 }
 
@@ -202,22 +204,40 @@ function parseOptions(args: readonly string[]): Options {
   for (let index = 0; index < args.length; index += 2) {
     const option = args[index];
     const value = args[index + 1];
-    if (value === undefined) throw new UsageError(`missing value for ${option}`);
-    if (option === "--compiler") command = splitCommand(value);
-    else if (option === "--adapter") adapter = resolve(value);
-    else if (option === "--jobs") jobs = Number(value);
-    else if (option === "--manifest") manifest = resolve(value);
-    else if (option === "--cases") {
+    if (value === undefined) {
+      throw new UsageError(`missing value for ${option}`);
+    }
+    if (option === "--compiler") {
+      command = splitCommand(value);
+    } else if (option === "--adapter") {
+      adapter = resolve(value);
+    } else if (option === "--jobs") {
+      jobs = Number(value);
+    } else if (option === "--manifest") {
+      manifest = resolve(value);
+    } else if (option === "--cases") {
       cases = resolve(value);
-      if (cliCases === defaultCliCases) cliCases = undefined;
-    } else if (option === "--cli-cases") cliCases = resolve(value);
-    else if (option === "--root") root = resolve(value);
-    else if (option === "--phase" && /^(parse|type|runtime)$/.test(value)) phase = value as Phase;
-    else if (option === "--tier" && /^(language|std|cli)$/.test(value)) tier = value as Tier;
-    else throw new UsageError(`invalid option ${option} ${value}`);
+      if (cliCases === defaultCliCases) {
+        cliCases = undefined;
+      }
+    } else if (option === "--cli-cases") {
+      cliCases = resolve(value);
+    } else if (option === "--root") {
+      root = resolve(value);
+    } else if (option === "--phase" && /^(parse|type|runtime)$/.test(value)) {
+      phase = value as Phase;
+    } else if (option === "--tier" && /^(language|std|cli)$/.test(value)) {
+      tier = value as Tier;
+    } else {
+      throw new UsageError(`invalid option ${option} ${value}`);
+    }
   }
-  if (command.length === 0) throw new UsageError("compiler command must not be empty");
-  if (!Number.isInteger(jobs) || jobs < 1) throw new UsageError("jobs must be a positive integer");
+  if (command.length === 0) {
+    throw new UsageError("compiler command must not be empty");
+  }
+  if (!Number.isInteger(jobs) || jobs < 1) {
+    throw new UsageError("jobs must be a positive integer");
+  }
   // A CLI case runs the command in another directory, so a relative path to a
   // file in the command, such as `target/debug/hd`, must name that file absolutely.
   command = command.map((word) => (word.includes("/") && existsSync(word) ? resolve(word) : word));
@@ -237,14 +257,17 @@ function parseOptions(args: readonly string[]): Options {
 async function readPanicCategories(): Promise<Set<string>> {
   const chapter = await readFile(resolve(specRoot, "lang/06-control-flow.md"), "utf8");
   const sentence = /Stable panic categories are exactly([^.]*)\./.exec(chapter);
-  if (!sentence)
+  if (!sentence) {
     throw new UsageError("spec/lang/06-control-flow.md lists no stable panic categories");
+  }
   return new Set([...sentence[1]!.matchAll(/`([a-z0-9-]+)`/g)].map((match) => match[1]!));
 }
 
 async function readIndex(path: string): Promise<Map<string, IndexRow>> {
   const lines = (await readFile(path, "utf8")).split("\n").filter((line) => line !== "");
-  if (lines.shift() !== indexHeader) throw new UsageError(`${path}: invalid header`);
+  if (lines.shift() !== indexHeader) {
+    throw new UsageError(`${path}: invalid header`);
+  }
   const rows = new Map<string, IndexRow>();
   for (const line of lines) {
     const fields = line.split("\t");
@@ -254,9 +277,12 @@ async function readIndex(path: string): Promise<Map<string, IndexRow>> {
       fields.some((field) => field === "") ||
       !/^(parse|type|runtime)$/.test(phase!) ||
       !/^(accept|(reject|warn|panic):[a-z0-9-]+)$/.test(expectation!)
-    )
+    ) {
       throw new UsageError(`${path}: invalid row: ${line}`);
-    if (rows.has(casePath!)) throw new UsageError(`${path}: duplicate row for ${casePath}`);
+    }
+    if (rows.has(casePath!)) {
+      throw new UsageError(`${path}: duplicate row for ${casePath}`);
+    }
     rows.set(casePath!, {
       expectation: expectation!,
       path: casePath!,
@@ -272,10 +298,16 @@ async function readManifest(path: string): Promise<string[]> {
   const lines = (await readFile(path, "utf8")).split("\n");
   for (const [index, raw] of lines.entries()) {
     const line = raw.replace(/\r$/, "");
-    if (line.trim() === "" || line.startsWith("#")) continue;
+    if (line.trim() === "" || line.startsWith("#")) {
+      continue;
+    }
     const first = line.split("\t", 1)[0]!.trim();
-    if (index === 0 && first === "path") continue;
-    if (!entries.includes(first)) entries.push(first);
+    if (index === 0 && first === "path") {
+      continue;
+    }
+    if (!entries.includes(first)) {
+      entries.push(first);
+    }
   }
   return entries;
 }
@@ -283,7 +315,9 @@ async function readManifest(path: string): Promise<string[]> {
 // Decodes the TEXT of one `# expect-stdout:` line (README, Standard Output).
 // Returns undefined for an invalid escape or trailing whitespace.
 function decodeStdoutLine(text: string): string | undefined {
-  if (/\s$/.test(text)) return undefined;
+  if (/\s$/.test(text)) {
+    return undefined;
+  }
   let decoded = "";
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index]!;
@@ -292,15 +326,21 @@ function decodeStdoutLine(text: string): string | undefined {
       continue;
     }
     const next = text[index + 1];
-    if (next === "\\") decoded += "\\";
-    else if (next === "t") decoded += "\t";
-    else if (next === "u") {
+    if (next === "\\") {
+      decoded += "\\";
+    } else if (next === "t") {
+      decoded += "\t";
+    } else if (next === "u") {
       const escape = /^\{([0-9A-Fa-f]{1,6})\}/.exec(text.slice(index + 2));
       const scalar = escape ? Number.parseInt(escape[1]!, 16) : Number.NaN;
-      if (!escape || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff)) return undefined;
+      if (!escape || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff)) {
+        return undefined;
+      }
       decoded += String.fromCodePoint(scalar);
       index += escape[0].length;
-    } else return undefined;
+    } else {
+      return undefined;
+    }
     index += 1;
   }
   return decoded;
@@ -316,74 +356,98 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
     const stdout = /^# expect-stdout:(?: (.*))?$/.exec(line);
     if (stdout) {
       const decoded = decodeStdoutLine(stdout[1] ?? "");
-      if (decoded === undefined) return `invalid '# expect-stdout:' text on line ${index + 1}`;
+      if (decoded === undefined) {
+        return `invalid '# expect-stdout:' text on line ${index + 1}`;
+      }
       stdoutLines.push(decoded);
       continue;
     }
     const header = /^# ([a-z-]+): (.*?)\s*$/.exec(line);
     if (header && headerDirectives.has(header[1]!)) {
-      if (headers.has(header[1]!)) return `header directive '${header[1]}' appears twice`;
+      if (headers.has(header[1]!)) {
+        return `header directive '${header[1]}' appears twice`;
+      }
       headers.set(header[1]!, header[2]!);
     }
     const marker = /# (diagnostic|warning|panic): ([a-z0-9-]+)\s*$/.exec(line);
-    if (!marker) continue;
+    if (!marker) {
+      continue;
+    }
     const kind = marker[1] === "diagnostic" ? "reject" : marker[1] === "warning" ? "warn" : "panic";
     markers.push({ expectation: `${kind}:${marker[2]}`, line: index + 1 });
   }
-  if (row.expectation === "accept" && markers.length > 0)
+  if (row.expectation === "accept" && markers.length > 0) {
     return `accept case has a line marker (${markers[0]!.expectation} on line ${markers[0]!.line})`;
-  if (row.expectation !== "accept") {
-    if (markers.length !== 1)
-      return `expected exactly one line marker for ${row.expectation}, found ${markers.length}`;
-    if (markers[0]!.expectation !== row.expectation)
-      return `marker ${markers[0]!.expectation} disagrees with index expectation ${row.expectation}`;
   }
-  if (row.expectation.startsWith("panic:") && !panics.has(row.expectation.slice(6)))
+  if (row.expectation !== "accept") {
+    if (markers.length !== 1) {
+      return `expected exactly one line marker for ${row.expectation}, found ${markers.length}`;
+    }
+    if (markers[0]!.expectation !== row.expectation) {
+      return `marker ${markers[0]!.expectation} disagrees with index expectation ${row.expectation}`;
+    }
+  }
+  if (row.expectation.startsWith("panic:") && !panics.has(row.expectation.slice(6))) {
     return `'${row.expectation.slice(6)}' is not a stable panic category (spec/lang/06-control-flow.md#runtime-panics)`;
+  }
   const expect = headers.get("expect");
   const expectPhase = { accept: "type", parse: "parse", test: "runtime" }[expect ?? ""];
-  if (expect !== undefined && (row.expectation !== "accept" || expectPhase !== row.phase))
+  if (expect !== undefined && (row.expectation !== "accept" || expectPhase !== row.phase)) {
     return `'# expect: ${expect}' disagrees with index row ${row.phase} ${row.expectation}`;
+  }
   const scenario = headers.get("fixture-runtime-scenario");
-  if (scenario !== undefined && !runtimeScenarios.has(scenario))
+  if (scenario !== undefined && !runtimeScenarios.has(scenario)) {
     return `unknown runtime scenario '${scenario}'`;
+  }
   if (scenario === "pending-first-poll") {
-    if (row.phase !== "runtime" || row.expectation !== "accept")
+    if (row.phase !== "runtime" || row.expectation !== "accept") {
       return "the pending-first-poll scenario is valid only in a runtime accept case";
-    if (headers.has("fixture-runtime-profile"))
+    }
+    if (headers.has("fixture-runtime-profile")) {
       return "the pending-first-poll scenario names no runtime profile";
+    }
   }
   const pendingFunction = headers.get("fixture-runtime-pending-function");
-  if (pendingFunction !== undefined && scenario !== "cancellation-cleanup")
+  if (pendingFunction !== undefined && scenario !== "cancellation-cleanup") {
     return "'# fixture-runtime-pending-function' requires the cancellation-cleanup scenario";
+  }
   const packageRole = headers.get("fixture-package-role");
-  if (packageRole !== undefined && !packageRoles.has(packageRole))
+  if (packageRole !== undefined && !packageRoles.has(packageRole)) {
     return `unknown package role '${packageRole}'`;
+  }
   const testLayout = headers.get("fixture-test-layout");
-  if (testLayout !== undefined && !testLayouts.has(testLayout))
+  if (testLayout !== undefined && !testLayouts.has(testLayout)) {
     return `unknown test layout '${testLayout}'`;
-  if (testLayout !== undefined && packageRole !== undefined)
+  }
+  if (testLayout !== undefined && packageRole !== undefined) {
     return "'# fixture-test-layout' names no package role";
+  }
   const treeHeader = headers.get("fixture-package-tree");
   const treeMatch =
     treeHeader === undefined
       ? undefined
       : /^([a-z0-9][a-z0-9-]*)\/((?:src|tests)\/[^\s]+\.hd)$/.exec(treeHeader);
-  if (treeHeader !== undefined && !treeMatch)
+  if (treeHeader !== undefined && !treeMatch) {
     return `'# fixture-package-tree: ${treeHeader}' is not TREE/PATH with PATH under src/ or tests/`;
-  if (treeHeader !== undefined && (packageRole !== undefined || testLayout !== undefined))
+  }
+  if (treeHeader !== undefined && (packageRole !== undefined || testLayout !== undefined)) {
     return "'# fixture-package-tree' names no package role and no test layout";
+  }
   const profile = headers.get("fixture-runtime-profile");
   const emptyStdout = headers.get("expect-empty-stdout");
-  if (emptyStdout !== undefined && emptyStdout !== "true")
+  if (emptyStdout !== undefined && emptyStdout !== "true") {
     return "'# expect-empty-stdout' must have the value 'true'";
-  if (emptyStdout !== undefined && stdoutLines.length > 0)
+  }
+  if (emptyStdout !== undefined && stdoutLines.length > 0) {
     return "'# expect-empty-stdout' and '# expect-stdout' exclude each other";
+  }
   if (stdoutLines.length > 0 || emptyStdout !== undefined) {
-    if (row.phase !== "runtime" || row.expectation !== "accept")
+    if (row.phase !== "runtime" || row.expectation !== "accept") {
       return "'# expect-stdout' is valid only in a runtime accept case";
-    if (profile !== undefined || scenario !== undefined)
+    }
+    if (profile !== undefined || scenario !== undefined) {
       return "'# expect-stdout' requires the console profile and no scenario";
+    }
   }
   return {
     expectHeader: expect,
@@ -409,7 +473,7 @@ function spawnImplementation(command: readonly string[]): Implementation {
       return new Promise((complete) => {
         // A spawned command has no adapter to take runner options, and the
         // contract has no command-line spelling for them.
-        if (options && Object.keys(options).length > 0)
+        if (options && Object.keys(options).length > 0) {
           return complete({
             error: "the case selects runner options, which only an --adapter can receive",
             status: null,
@@ -417,6 +481,7 @@ function spawnImplementation(command: readonly string[]): Implementation {
             stdout: "",
             timedOut: false,
           });
+        }
         // A language case sets no cwd: its working directory is not part of
         // the contract. A CLI case runs in its own directory.
         const child = spawn(command[0]!, [...command.slice(1), ...args], {
@@ -453,8 +518,9 @@ async function adapterImplementation(module: string, jobs: number): Promise<Impl
   const { createAdapter } = (await import(pathToFileURL(module).href)) as {
     createAdapter?: (options: { jobs: number }) => Implementation;
   };
-  if (typeof createAdapter !== "function")
+  if (typeof createAdapter !== "function") {
     throw new UsageError(`${module} exports no createAdapter function`);
+  }
   return createAdapter({ jobs });
 }
 
@@ -514,7 +580,9 @@ async function locatedDiagnostics(
   const located: Located[] = [];
   for (const text of outputLines(result)) {
     const match = /^(.+?):(\d+):(\d+): (?:(warning): )?([a-z0-9-]+):(?:\s|$)/.exec(text);
-    if (!match) continue;
+    if (!match) {
+      continue;
+    }
     const reported = await realPathOf(match[1]!);
     located.push({
       code: match[5]!,
@@ -534,7 +602,9 @@ function panicReports(result: CommandResult, panics: Set<string>): string[] {
   const reports: string[] = [];
   for (const text of outputLines(result)) {
     const match = /^(?:.+?:\d+:\d+: )?([a-z0-9-]+):(?:\s|$)/.exec(text);
-    if (match && panics.has(match[1]!)) reports.push(match[1]!);
+    if (match && panics.has(match[1]!)) {
+      reports.push(match[1]!);
+    }
   }
   return reports;
 }
@@ -549,27 +619,37 @@ async function contractViolation(
   tree?: string,
   entryRun = false,
 ): Promise<string | undefined> {
-  if (result.error) return `could not start the implementation: ${result.error}`;
-  if (result.timedOut) return `ran longer than ${timeoutMs / 1000} s`;
-  if (result.signal) return `terminated by signal ${result.signal}`;
+  if (result.error) {
+    return `could not start the implementation: ${result.error}`;
+  }
+  if (result.timedOut) {
+    return `ran longer than ${timeoutMs / 1000} s`;
+  }
+  if (result.signal) {
+    return `terminated by signal ${result.signal}`;
+  }
   // An entry run (`IMPL FILE`) exits with the program's own status.
   if (
     result.status !== 0 &&
     result.status !== REJECTED &&
     result.status !== TEST_FAILED &&
     !entryRun
-  )
+  ) {
     return `exit status ${result.status}`;
+  }
   if (result.status === REJECTED) {
     const located = (await locatedDiagnostics(result, file, tree)).some((entry) => entry.sameFile);
-    if (!located) return `exit ${REJECTED} without a located diagnostic`;
+    if (!located) {
+      return `exit ${REJECTED} without a located diagnostic`;
+    }
   }
   if (
     result.status !== 0 &&
     result.status !== REJECTED &&
     panicReports(result, panics).length === 0
-  )
+  ) {
     return `exit ${result.status} without a panic report`;
+  }
   return undefined;
 }
 
@@ -591,15 +671,17 @@ async function judgeRejectOrWarn(
   // A package tree case judges the code, not the line (README, Package Trees).
   const onLine = (entry: Located): boolean => tree !== undefined || entry.line === line;
   if (kind === "warn") {
-    if (result.status !== 0)
+    if (result.status !== 0) {
       return `expected exit 0 with warning ${code}, got exit ${result.status}`;
+    }
     const found = located.some(
       (entry) => entry.warning && entry.sameFile && entry.code === code && onLine(entry),
     );
     return found ? undefined : `no located warning ${code} on line ${line}`;
   }
-  if (result.status !== REJECTED)
+  if (result.status !== REJECTED) {
     return `expected rejection ${code} (exit ${REJECTED}), got exit ${result.status}`;
+  }
   const errors = located.filter((entry) => !entry.warning);
   const marked = (entry: Located): boolean =>
     entry.sameFile && entry.code === code && onLine(entry);
@@ -608,7 +690,9 @@ async function judgeRejectOrWarn(
     return `no located error ${code} on line ${line}${near.length ? ` (found ${describe(near)})` : ""}`;
   }
   const others = errors.filter((entry) => !marked(entry));
-  if (others.length) return `other located errors reported: ${describe(others)}`;
+  if (others.length) {
+    return `other located errors reported: ${describe(others)}`;
+  }
   return undefined;
 }
 
@@ -618,8 +702,12 @@ async function judgeRejectOrWarn(
  * file that a test layout or a package tree places as a test module.
  */
 function registersTestCase(source: string, fixture: Fixture): boolean {
-  if (/^tests:/m.test(source) || /^##\s*```hd\b/m.test(source)) return true;
-  if (fixture.testLayout !== undefined) return true;
+  if (/^tests:/m.test(source) || /^##\s*```hd\b/m.test(source)) {
+    return true;
+  }
+  if (fixture.testLayout !== undefined) {
+    return true;
+  }
   const path = fixture.packageTree?.path;
   return path !== undefined && (path.startsWith("tests/") || path.endsWith("_test.hd"));
 }
@@ -627,7 +715,9 @@ function registersTestCase(source: string, fixture: Fixture): boolean {
 function snippet(results: readonly CommandResult[]): string {
   const lines = results.flatMap(outputLines);
   const shown = lines.slice(0, 12);
-  if (lines.length > shown.length) shown.push(`... (${lines.length - shown.length} more lines)`);
+  if (lines.length > shown.length) {
+    shown.push(`... (${lines.length - shown.length} more lines)`);
+  }
   return shown.join("\n");
 }
 
@@ -637,7 +727,9 @@ async function packageOptions(
   options: Options,
   role: string | undefined,
 ): Promise<Pick<RunnerOptions, "dependencies" | "packageRole">> {
-  if (role === undefined) return {};
+  if (role === undefined) {
+    return {};
+  }
   const directory = resolve(options.root, "packages");
   const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
   const names = entries
@@ -675,12 +767,16 @@ async function runCase(
     return { path: row.path, reason: `cannot read fixture ${file}` };
   }
   const fixture = readFixture(source, row, panics);
-  if (typeof fixture === "string") return { path: row.path, reason: fixture };
+  if (typeof fixture === "string") {
+    return { path: row.path, reason: fixture };
+  }
   const tree = fixture.packageTree && resolve(options.root, "trees", fixture.packageTree.tree);
-  if (tree && (await realPathOf(tree)) === undefined)
+  if (tree && (await realPathOf(tree)) === undefined) {
     return { path: row.path, reason: `package tree ${tree} does not exist` };
-  if (tree && (await realPathOf(resolve(tree, fixture.packageTree!.path))) !== undefined)
+  }
+  if (tree && (await realPathOf(resolve(tree, fixture.packageTree!.path))) !== undefined) {
     return { path: row.path, reason: `package tree already holds ${fixture.packageTree!.path}` };
+  }
   const runner: RunnerOptions = {
     ...(fixture.profile ? { profile: fixture.profile } : {}),
     ...(await packageOptions(options, fixture.packageRole)),
@@ -703,23 +799,32 @@ async function runCase(
       runner,
     );
     const violation = await contractViolation(result, file, panics, tree);
-    if (violation) return fail(`${action}: ${violation}`, [result]);
-    if (row.expectation === "accept")
+    if (violation) {
+      return fail(`${action}: ${violation}`, [result]);
+    }
+    if (row.expectation === "accept") {
       return result.status === 0
         ? { path: row.path }
         : fail(`${action}: expected exit 0, got exit ${result.status}`, [result]);
-    if (row.expectation.startsWith("panic:"))
+    }
+    if (row.expectation.startsWith("panic:")) {
       return { path: row.path, reason: `${row.phase}-phase case cannot expect a panic` };
+    }
     const problem = await judgeRejectOrWarn(result, file, row, fixture.markerLine!, tree);
     return problem ? fail(`${action}: ${problem}`, [result]) : { path: row.path };
   }
 
-  if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:"))
+  if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:")) {
     return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
+  }
   const checked = await invoke(implementation, "check", ["--tests"], file, runner);
   const checkViolation = await contractViolation(checked, file, panics, tree);
-  if (checkViolation) return fail(`check: ${checkViolation}`, [checked]);
-  if (checked.status !== 0) return fail("check: runtime case did not type-check", [checked]);
+  if (checkViolation) {
+    return fail(`check: ${checkViolation}`, [checked]);
+  }
+  if (checked.status !== 0) {
+    return fail("check: runtime case did not type-check", [checked]);
+  }
   // `test FILE` is an error for a file that registers no test case, so such a
   // fixture runs only its entry, as `IMPL FILE` (README, Runtime Execution).
   const tests = registersTestCase(source, fixture);
@@ -733,9 +838,12 @@ async function runCase(
   if (fixture.scenario === "pending-first-poll") {
     const first = await ordinary(runner);
     const firstViolation = await contractViolation(first, file, panics, tree, !tests);
-    if (firstViolation) return fail(`${step}: ${firstViolation}`, [checked, first]);
-    if (first.status !== 0)
+    if (firstViolation) {
+      return fail(`${step}: ${firstViolation}`, [checked, first]);
+    }
+    if (first.status !== 0) {
       return fail(`${step}: expected exit 0, got exit ${first.status}`, [first]);
+    }
   }
   const testRunner: RunnerOptions = {
     ...runner,
@@ -751,23 +859,32 @@ async function runCase(
   const entryOnly = !tests && !scenarioRun;
   const testViolation = await contractViolation(tested, file, panics, tree, entryOnly);
   const ran = scenarioRun ? "test" : step;
-  if (testViolation) return fail(`${ran}: ${testViolation}`, [checked, tested]);
+  if (testViolation) {
+    return fail(`${ran}: ${testViolation}`, [checked, tested]);
+  }
   if (row.expectation === "accept") {
-    if (tested.status !== 0)
+    if (tested.status !== 0) {
       return fail(`${ran}: expected exit 0, got exit ${tested.status}`, [tested]);
-    if (fixture.expectedStdout === undefined) return { path: row.path };
+    }
+    if (fixture.expectedStdout === undefined) {
+      return { path: row.path };
+    }
     // `IMPL FILE`: run the fixture as a single file (Command Contract). An
     // entry-only fixture's run is that run.
     const single = entryOnly ? tested : await invoke(implementation, undefined, [], file);
     const runViolation = await contractViolation(single, file, panics);
-    if (runViolation) return fail(`run: ${runViolation}`, [single]);
-    if (single.status !== 0)
+    if (runViolation) {
+      return fail(`run: ${runViolation}`, [single]);
+    }
+    if (single.status !== 0) {
       return fail(`run: expected exit 0, got exit ${single.status}`, [single]);
-    if (single.stdout !== fixture.expectedStdout)
+    }
+    if (single.stdout !== fixture.expectedStdout) {
       return fail(
         `run: stdout ${JSON.stringify(single.stdout)} differs from expected ${JSON.stringify(fixture.expectedStdout)}`,
         [single],
       );
+    }
     return { path: row.path };
   }
   const code = row.expectation.slice("panic:".length);
@@ -777,25 +894,35 @@ async function runCase(
   const panicked = entryOnly
     ? tested.status !== 0 && tested.status !== REJECTED
     : tested.status === TEST_FAILED;
-  if (!panicked) return fail(`${ran}: expected panic ${code}, got exit ${tested.status}`, [tested]);
+  if (!panicked) {
+    return fail(`${ran}: expected panic ${code}, got exit ${tested.status}`, [tested]);
+  }
   const reports = panicReports(tested, panics);
-  if (reports.length === 0) return fail(`${ran}: no panic report (expected ${code})`, [tested]);
+  if (reports.length === 0) {
+    return fail(`${ran}: no panic report (expected ${code})`, [tested]);
+  }
   const wrong = [...new Set(reports.filter((reported) => reported !== code))];
-  if (wrong.length)
+  if (wrong.length) {
     return fail(`${ran}: reported panic category ${wrong.join(", ")}, expected ${code}`, [tested]);
+  }
   return { path: row.path };
 }
 
 async function readCliIndex(path: string): Promise<Map<string, CliRow>> {
   const lines = (await readFile(path, "utf8")).split("\n").filter((line) => line !== "");
-  if (lines.shift() !== cliIndexHeader) throw new UsageError(`${path}: invalid header`);
+  if (lines.shift() !== cliIndexHeader) {
+    throw new UsageError(`${path}: invalid header`);
+  }
   const rows = new Map<string, CliRow>();
   for (const line of lines) {
     const fields = line.split("\t");
     const [name, rules] = fields;
-    if (fields.length !== 2 || !/^[a-z0-9][a-z0-9-]*$/.test(name!) || rules === "")
+    if (fields.length !== 2 || !/^[a-z0-9][a-z0-9-]*$/.test(name!) || rules === "") {
       throw new UsageError(`${path}: invalid row: ${line}`);
-    if (rows.has(`cli/${name}`)) throw new UsageError(`${path}: duplicate row for ${name}`);
+    }
+    if (rows.has(`cli/${name}`)) {
+      throw new UsageError(`${path}: duplicate row for ${name}`);
+    }
     rows.set(`cli/${name}`, { name: name!, path: `cli/${name}`, tier: "cli" });
   }
   return rows;
@@ -826,60 +953,88 @@ function parseCliExpect(text: string): CliStep[] | string {
   };
   for (const [index, raw] of text.split("\n").entries()) {
     const line = raw.replace(/\r$/, "");
-    if (line.trim() === "" || line.startsWith("#")) continue;
+    if (line.trim() === "" || line.startsWith("#")) {
+      continue;
+    }
     const where = `expect.txt line ${index + 1}`;
     const match = /^([a-z-]+):(?: (.*))?$/.exec(line);
-    if (!match) return `${where}: expected 'KIND: VALUE'`;
+    if (!match) {
+      return `${where}: expected 'KIND: VALUE'`;
+    }
     const [, kind, value = ""] = match;
     if (kind === "run") {
-      if (!/^hd( \S+)*$/.test(value))
+      if (!/^hd( \S+)*$/.test(value)) {
         return `${where}: 'run:' takes 'hd' and words with no quoting`;
+      }
       drafts.push({ command: value, files: [], noFiles: [], sameText: [] });
       continue;
     }
     const step = drafts.at(-1);
-    if (!step) return `${where}: '${kind}:' comes before the first 'run:'`;
+    if (!step) {
+      return `${where}: '${kind}:' comes before the first 'run:'`;
+    }
     if (kind === "exit") {
-      if (step.exit !== undefined) return `${where}: a step has one 'exit:'`;
-      if (!/^\d{1,3}$/.test(value) || Number(value) > 255)
+      if (step.exit !== undefined) {
+        return `${where}: a step has one 'exit:'`;
+      }
+      if (!/^\d{1,3}$/.test(value) || Number(value) > 255) {
         return `${where}: 'exit:' takes a status from 0 to 255`;
+      }
       step.exit = Number(value);
     } else if (kind === "stdout") {
-      if (step.stdoutJson) return `${where}: 'stdout:' and 'stdout-json:' exclude each other`;
+      if (step.stdoutJson) {
+        return `${where}: 'stdout:' and 'stdout-json:' exclude each other`;
+      }
       const decoded = decodeStdoutLine(value);
-      if (decoded === undefined) return `${where}: invalid 'stdout:' text`;
+      if (decoded === undefined) {
+        return `${where}: invalid 'stdout:' text`;
+      }
       (step.stdoutLines ??= []).push(decoded);
     } else if (kind === "stderr") {
-      if (step.stderrJson) return `${where}: 'stderr:' and 'stderr-json:' exclude each other`;
+      if (step.stderrJson) {
+        return `${where}: 'stderr:' and 'stderr-json:' exclude each other`;
+      }
       const decoded = decodeStdoutLine(value);
-      if (decoded === undefined) return `${where}: invalid 'stderr:' text`;
+      if (decoded === undefined) {
+        return `${where}: invalid 'stderr:' text`;
+      }
       (step.stderrLines ??= []).push(decoded);
     } else if (kind === "stdout-json" || kind === "stderr-json") {
       const parsed = jsonLines(value);
-      if (!parsed) return `${where}: '${kind}:' takes a JSON array`;
+      if (!parsed) {
+        return `${where}: '${kind}:' takes a JSON array`;
+      }
       if (kind === "stdout-json") {
-        if (step.stdoutJson || step.stdoutLines)
+        if (step.stdoutJson || step.stdoutLines) {
           return `${where}: 'stdout-json:' appears once and excludes 'stdout:'`;
+        }
         step.stdoutJson = parsed;
       } else {
-        if (step.stderrJson || step.stderrLines)
+        if (step.stderrJson || step.stderrLines) {
           return `${where}: 'stderr-json:' appears once and excludes 'stderr:'`;
+        }
         step.stderrJson = parsed;
       }
     } else if (kind === "file" || kind === "no-file") {
-      if (value === "" || value.startsWith("/") || value.split("/").includes(".."))
+      if (value === "" || value.startsWith("/") || value.split("/").includes("..")) {
         return `${where}: '${kind}:' takes a relative path with no '..'`;
+      }
       (kind === "file" ? step.files : step.noFiles).push(value);
     } else if (kind === "same-text") {
       const paths = value.split(" ");
       const relative = (path: string) =>
         path !== "" && !path.startsWith("/") && !path.split("/").includes("..");
-      if (paths.length !== 2 || !paths.every(relative))
+      if (paths.length !== 2 || !paths.every(relative)) {
         return `${where}: 'same-text:' takes two relative paths with no '..'`;
+      }
       step.sameText.push([paths[0]!, paths[1]!]);
-    } else return `${where}: unknown line kind '${kind}'`;
+    } else {
+      return `${where}: unknown line kind '${kind}'`;
+    }
   }
-  if (drafts.length === 0) return "expect.txt has no 'run:' line";
+  if (drafts.length === 0) {
+    return "expect.txt has no 'run:' line";
+  }
   return drafts.map((draft) => ({
     command: draft.command,
     exit: draft.exit ?? 0,
@@ -896,7 +1051,9 @@ function parseCliExpect(text: string): CliStep[] | string {
 // Splits JSON-lines output into objects. Returns a string for any other text.
 function parseJsonLines(text: string): unknown[] | string {
   const lines = text.split("\n");
-  if (lines.at(-1) === "") lines.pop();
+  if (lines.at(-1) === "") {
+    lines.pop();
+  }
   const objects: unknown[] = [];
   for (const [index, line] of lines.entries()) {
     let value: unknown;
@@ -905,8 +1062,9 @@ function parseJsonLines(text: string): unknown[] | string {
     } catch {
       return `line ${index + 1} is not JSON`;
     }
-    if (typeof value !== "object" || value === null || Array.isArray(value))
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
       return `line ${index + 1} is not a JSON object`;
+    }
     objects.push(value);
   }
   return objects;
@@ -915,27 +1073,37 @@ function parseJsonLines(text: string): unknown[] | string {
 // The subset match of `stdout-json:` (README, CLI Cases). Returns a reason
 // when `actual` does not match `expected`.
 function jsonMismatch(expected: unknown, actual: unknown, where: string): string | undefined {
-  if (expected === null) return undefined;
+  if (expected === null) {
+    return undefined;
+  }
   if (Array.isArray(expected)) {
-    if (!Array.isArray(actual) || actual.length !== expected.length)
+    if (!Array.isArray(actual) || actual.length !== expected.length) {
       return `${where}: expected an array of ${expected.length}, got ${JSON.stringify(actual)}`;
+    }
     for (const [index, item] of expected.entries()) {
       const mismatch = jsonMismatch(item, actual[index], `${where}[${index}]`);
-      if (mismatch) return mismatch;
+      if (mismatch) {
+        return mismatch;
+      }
     }
     return undefined;
   }
   if (typeof expected === "object") {
-    if (typeof actual !== "object" || actual === null || Array.isArray(actual))
+    if (typeof actual !== "object" || actual === null || Array.isArray(actual)) {
       return `${where}: expected an object, got ${JSON.stringify(actual)}`;
+    }
     for (const [key, item] of Object.entries(expected)) {
-      if (!(key in actual)) return `${where}: missing key '${key}'`;
+      if (!(key in actual)) {
+        return `${where}: missing key '${key}'`;
+      }
       const mismatch = jsonMismatch(
         item,
         (actual as Record<string, unknown>)[key],
         `${where}.${key}`,
       );
-      if (mismatch) return mismatch;
+      if (mismatch) {
+        return mismatch;
+      }
     }
     return undefined;
   }
@@ -957,7 +1125,9 @@ async function runCliCase(
     return { path: row.path, reason: `cannot read ${join(directory, "expect.txt")}` };
   }
   const steps = parseCliExpect(text);
-  if (typeof steps === "string") return { path: row.path, reason: steps };
+  if (typeof steps === "string") {
+    return { path: row.path, reason: steps };
+  }
   // The case runs in a copy named after the case, without expect.txt, so a
   // command may write files and a package takes its name from the directory.
   const work = await mkdtemp(join(tmpdir(), "hd-cli-"));
@@ -975,33 +1145,54 @@ async function runCliCase(
         path: row.path,
         reason: `${label}: ${reason}`,
       });
-      if (result.error) return fail(`could not start the implementation: ${result.error}`);
-      if (result.timedOut) return fail(`ran longer than ${timeoutMs / 1000} s`);
-      if (result.signal) return fail(`terminated by signal ${result.signal}`);
-      if (result.status !== step.exit)
+      if (result.error) {
+        return fail(`could not start the implementation: ${result.error}`);
+      }
+      if (result.timedOut) {
+        return fail(`ran longer than ${timeoutMs / 1000} s`);
+      }
+      if (result.signal) {
+        return fail(`terminated by signal ${result.signal}`);
+      }
+      if (result.status !== step.exit) {
         return fail(`expected exit ${step.exit}, got exit ${result.status}`);
-      if (step.stdout !== undefined && result.stdout !== step.stdout)
+      }
+      if (step.stdout !== undefined && result.stdout !== step.stdout) {
         return fail(
           `stdout ${JSON.stringify(result.stdout)} differs from expected ${JSON.stringify(step.stdout)}`,
         );
-      if (step.stderr !== undefined && result.stderr !== step.stderr)
+      }
+      if (step.stderr !== undefined && result.stderr !== step.stderr) {
         return fail(
           `stderr ${JSON.stringify(result.stderr)} differs from expected ${JSON.stringify(step.stderr)}`,
         );
+      }
       for (const [stream, expected, actual] of [
         ["stdout-json", step.stdoutJson, result.stdout],
         ["stderr-json", step.stderrJson, result.stderr],
       ] as const) {
-        if (expected === undefined) continue;
+        if (expected === undefined) {
+          continue;
+        }
         const parsed = parseJsonLines(actual);
-        if (typeof parsed === "string") return fail(`${stream}: ${parsed}`);
+        if (typeof parsed === "string") {
+          return fail(`${stream}: ${parsed}`);
+        }
         const mismatch = jsonMismatch(expected, parsed, stream);
-        if (mismatch) return fail(mismatch);
+        if (mismatch) {
+          return fail(mismatch);
+        }
       }
-      for (const file of step.files)
-        if (!existsSync(join(cwd, file))) return fail(`expected file ${file} does not exist`);
-      for (const file of step.noFiles)
-        if (existsSync(join(cwd, file))) return fail(`file ${file} exists, and should not`);
+      for (const file of step.files) {
+        if (!existsSync(join(cwd, file))) {
+          return fail(`expected file ${file} does not exist`);
+        }
+      }
+      for (const file of step.noFiles) {
+        if (existsSync(join(cwd, file))) {
+          return fail(`file ${file} exists, and should not`);
+        }
+      }
       for (const [path, want] of step.sameText) {
         // Line ends are LF on both sides: a Windows checkout has CRLF.
         const read = (file: string) =>
@@ -1009,8 +1200,9 @@ async function runCliCase(
             ? readFileSync(join(cwd, file), "utf8").replaceAll("\r\n", "\n")
             : undefined;
         const [got, expected] = [read(path), read(want)];
-        if (got === undefined || expected === undefined || got !== expected)
+        if (got === undefined || expected === undefined || got !== expected) {
           return fail(`${path} does not hold the text of ${want}`);
+        }
       }
     }
   } finally {
@@ -1063,13 +1255,15 @@ async function main(): Promise<number> {
   const rows: Array<IndexRow | CliRow> = [];
   for (const path of selected) {
     const row = index.get(path) ?? cliIndex.get(path);
-    if (!row) verdicts.push({ path, reason: "selected case is not in the case index" });
-    else if (
+    if (!row) {
+      verdicts.push({ path, reason: "selected case is not in the case index" });
+    } else if (
       // A CLI case has no phase, so `--phase` leaves it out.
       (!options.phase || ("phase" in row && row.phase === options.phase)) &&
       (!options.tier || row.tier === options.tier)
-    )
+    ) {
       rows.push(row);
+    }
   }
   verdicts.push(
     ...(await mapParallel(rows, options.jobs, async (row) => ({
@@ -1088,7 +1282,9 @@ async function main(): Promise<number> {
     }
     failed += 1;
     console.log(`FAIL  ${verdict.path}: ${verdict.reason}`);
-    if (verdict.output) console.log(verdict.output.replace(/^/gm, "      | "));
+    if (verdict.output) {
+      console.log(verdict.output.replace(/^/gm, "      | "));
+    }
   }
   // Per-tier passes, as spec/conformance/README.md#case-selection states:
   // "language: X of Y; stdlib: X of Y; cli: X of Y".

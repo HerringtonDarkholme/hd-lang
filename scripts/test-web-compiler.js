@@ -125,8 +125,9 @@ for (const names of [
   });
   assert.equal(result.status, STATUS.errors);
   assert.ok(result.json.diagnostics.some(({ code }) => code === "duplicate-module-name"));
-  if (names[1] === "cafe\u0301")
+  if (names[1] === "cafe\u0301") {
     assert.ok(result.json.diagnostics.some(({ code }) => code === "invalid-module-path"));
+  }
 }
 console.log("NFC: ASCII host calls 0; identifiers and case-fold collisions passed");
 

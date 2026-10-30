@@ -60,14 +60,18 @@ async function main(args: readonly string[]): Promise<number> {
   for (const row of rows) {
     const [specification = "", blockText = "", classification = "", fixtureText = ""] =
       row.split("\t");
-    if (!new Set(["accept", "mixed"]).has(classification)) continue;
+    if (!new Set(["accept", "mixed"]).has(classification)) {
+      continue;
+    }
     let blocks = blockCache.get(specification);
     if (!blocks) {
       blocks = textBlocks(await readFile(resolve(specificationDirectory, specification), "utf8"));
       blockCache.set(specification, blocks);
     }
     const blockIds = salientIdentifiers(blocks[Number(blockText) - 1]!);
-    if (blockIds.size === 0) continue;
+    if (blockIds.size === 0) {
+      continue;
+    }
     const fixtureIds = new Set<string>();
     for (const fixture of fixtureText.split("|")) {
       const path = resolve(specificationDirectory, "conformance", fixture);
@@ -76,7 +80,9 @@ async function main(args: readonly string[]): Promise<number> {
         source = await readFile(path, "utf8");
         fixtureCache.set(path, source);
       }
-      for (const value of identifiers(source)) fixtureIds.add(value);
+      for (const value of identifiers(source)) {
+        fixtureIds.add(value);
+      }
     }
     const overlap = [...blockIds].filter((value) => fixtureIds.has(value));
     const coverage = overlap.length / blockIds.size;
@@ -101,5 +107,6 @@ async function main(args: readonly string[]): Promise<number> {
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url))
+if (invokedPath === fileURLToPath(import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2));
+}

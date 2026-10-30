@@ -48,7 +48,9 @@ const microDir = (context: MetricContext): string => join(context.repoRoot, "ben
  */
 export function nodeBody(source: string): string {
   const tail = source.indexOf("const times = [];");
-  if (tail < 0 || !source.includes("function main(")) throw new Error("not a micro case program");
+  if (tail < 0 || !source.includes("function main(")) {
+    throw new Error("not a micro case program");
+  }
   return `${source.slice(0, tail)}console.log(JSON.stringify({ ms: measure(main) }));\n`;
 }
 

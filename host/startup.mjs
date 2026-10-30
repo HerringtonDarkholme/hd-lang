@@ -33,7 +33,9 @@ function createStartupOnlyHost(sink, deadline) {
         reported = true;
         const text = decoder.decode(new Uint8Array(memory.buffer, 0, len));
         sink.err(text);
-        if (panic !== null) panic += text;
+        if (panic !== null) {
+          panic += text;
+        }
       },
       panic() {
         reported = true;
@@ -54,8 +56,9 @@ function createStartupOnlyHost(sink, deadline) {
     try {
       instance.exports[init]();
       status = instance.exports[poll](0);
-      if (typeof status !== "number" || (status | 0) !== status)
+      if (typeof status !== "number" || (status | 0) !== status) {
         throw new HostContract("root poll returned an invalid status");
+      }
       if (status === -1) {
         sink.err("panic: deadlock: the program waits, but no host operation is pending\n");
         panic = "deadlock: the program waits, but no host operation is pending\n";
@@ -78,7 +81,9 @@ function createStartupOnlyHost(sink, deadline) {
         frames = wasmFrames(error);
       } else if (error instanceof WebAssembly.RuntimeError) {
         frames = wasmFrames(error);
-        if (!reported) sink.err(`internal error: ${error.message}\n`);
+        if (!reported) {
+          sink.err(`internal error: ${error.message}\n`);
+        }
       } else {
         throw error;
       }
@@ -112,8 +117,9 @@ export async function createStartupHost(module, sink, env = {}) {
     !env.providers &&
     !env.packageBindings &&
     !env.processLauncher
-  )
+  ) {
     return createStartupOnlyHost(sink, env.deadline ?? null);
+  }
   const { createHost } = await import("./node.mjs");
   return createHost(sink, { ...env, module });
 }

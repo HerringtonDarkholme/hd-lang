@@ -30,7 +30,9 @@ export function under(paths: Iterable<string>, roots: readonly string[], cwd: st
   const found = new Set<string>();
   for (const path of paths) {
     const full = isAbsolute(path) ? path : resolve(cwd, path);
-    if (roots.some((root) => full.startsWith(`${root}/`))) found.add(full);
+    if (roots.some((root) => full.startsWith(`${root}/`))) {
+      found.add(full);
+    }
   }
   return [...found].sort();
 }
@@ -42,16 +44,23 @@ export const ioPerCheck: Metric = {
   async run(context) {
     const log = join(makeTempDir("trace"), "trace.log");
     const tracer = fileTracer(log);
-    if (typeof tracer === "string") return [notApplicable(NAME, LABEL, TARGET, tracer)];
+    if (typeof tracer === "string") {
+      return [notApplicable(NAME, LABEL, TARGET, tracer)];
+    }
     const cache = await findCompileCache(context.hd);
-    if (cache === undefined)
+    if (cache === undefined) {
       return [notApplicable(NAME, LABEL, TARGET, "hd check writes no compilation cache")];
-    if (typeof cache === "string") return [failed(NAME, LABEL, TARGET, cache)];
+    }
+    if (typeof cache === "string") {
+      return [failed(NAME, LABEL, TARGET, cache)];
+    }
     const { dir, pkg } = materialize("10k", NAME);
     const env = freshCache();
     const warm = await runHd(context.hd, ["check"], { cwd: dir, env, timeoutMs: TIMEOUT_MS });
     const warmProblem = runProblem(warm, TIMEOUT_MS, "the warm-up check");
-    if (warmProblem) return [failed(NAME, LABEL, TARGET, warmProblem)];
+    if (warmProblem) {
+      return [failed(NAME, LABEL, TARGET, warmProblem)];
+    }
     const module = pkg.modules[Math.floor(pkg.modules.length / 2)]!;
     editFile(dir, module.file, editBody);
     const traced = await runProcess([...tracer, ...context.hd.argv, "check"], {
@@ -60,7 +69,9 @@ export const ioPerCheck: Metric = {
       timeoutMs: TIMEOUT_MS,
     });
     const problem = runProblem(traced, TIMEOUT_MS, "the traced check");
-    if (problem) return [failed(NAME, LABEL, TARGET, problem)];
+    if (problem) {
+      return [failed(NAME, LABEL, TARGET, problem)];
+    }
     const access = parseStrace(readFileSync(log, "utf8"));
     const roots = [...new Set([join(dir, "src"), join(realpathSync(dir), "src")])];
     const reads = under(access.reads, roots, dir);

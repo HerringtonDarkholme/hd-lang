@@ -29,8 +29,9 @@ const FIRST_REPLY_MS = 60_000;
 async function enter(repl: Locator, text: string): Promise<void> {
   const input = repl.locator(".repl-input");
   await input.fill(text);
-  for (let presses = 0; presses < 3 && (await input.inputValue()) !== ""; presses += 1)
+  for (let presses = 0; presses < 3 && (await input.inputValue()) !== ""; presses += 1) {
     await input.press("End").then(() => input.press("Enter"));
+  }
   assert.equal(await input.inputValue(), "", `${JSON.stringify(text)} was not sent`);
 }
 
@@ -350,6 +351,8 @@ export async function replSteps(options: ReplE2e): Promise<void> {
 function randomText(count: number): string {
   const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let out = "";
-  for (let i = 0; i < count; i += 1) out += alphabet[Math.floor(Math.random() * 64)];
+  for (let i = 0; i < count; i += 1) {
+    out += alphabet[Math.floor(Math.random() * 64)];
+  }
   return out;
 }

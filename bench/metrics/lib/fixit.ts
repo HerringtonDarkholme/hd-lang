@@ -20,8 +20,9 @@ const isOffset = (value: unknown): value is number =>
 export const hasFixField = (diagnostic: Record<string, unknown>): boolean => "fixes" in diagnostic;
 
 function readFix(value: unknown): Edit[] | undefined {
-  if (!isObject(value) || typeof value.message !== "string" || !Array.isArray(value.edits))
+  if (!isObject(value) || typeof value.message !== "string" || !Array.isArray(value.edits)) {
     return undefined;
+  }
   const edits: Edit[] = [];
   for (const edit of value.edits) {
     if (
@@ -32,8 +33,9 @@ function readFix(value: unknown): Edit[] | undefined {
       !isOffset(edit.end) ||
       edit.end < edit.start ||
       typeof edit.text !== "string"
-    )
+    ) {
       return undefined;
+    }
     edits.push({ file: edit.file, start: edit.start, end: edit.end, text: edit.text });
   }
   return edits;
@@ -41,18 +43,24 @@ function readFix(value: unknown): Edit[] | undefined {
 
 /** One unambiguous fix this single-file metric can apply, or undefined. */
 export function fixOf(diagnostic: Record<string, unknown>): Edit[] | undefined {
-  if (!Array.isArray(diagnostic.fixes) || diagnostic.fixes.length !== 1) return undefined;
-  const edits = readFix(diagnostic.fixes[0]);
-  if (!edits || new Set(edits.map((edit) => edit.file)).size > 1) return undefined;
-  if (typeof diagnostic.file === "string" && edits.some((edit) => edit.file !== diagnostic.file))
+  if (!Array.isArray(diagnostic.fixes) || diagnostic.fixes.length !== 1) {
     return undefined;
+  }
+  const edits = readFix(diagnostic.fixes[0]);
+  if (!edits || new Set(edits.map((edit) => edit.file)).size > 1) {
+    return undefined;
+  }
+  if (typeof diagnostic.file === "string" && edits.some((edit) => edit.file !== diagnostic.file)) {
+    return undefined;
+  }
   return edits;
 }
 
 /** Applies UTF-8 byte edits last first; invalid boundaries or overlaps throw. */
 export function applyEdits(text: string, edits: readonly Edit[]): string {
-  if (new Set(edits.map((edit) => edit.file)).size > 1)
+  if (new Set(edits.map((edit) => edit.file)).size > 1) {
     throw new Error("edits span multiple files");
+  }
   const source = Buffer.from(text, "utf8");
   const boundary = (offset: number): boolean =>
     offset === source.length || (source[offset]! & 0xc0) !== 0x80;
@@ -67,9 +75,12 @@ export function applyEdits(text: string, edits: readonly Edit[]): string {
       edit.end < edit.start ||
       !boundary(edit.start) ||
       !boundary(edit.end)
-    )
+    ) {
       throw new Error("invalid UTF-8 byte edit range");
-    if (edit.end > limit) throw new Error("overlapping edits");
+    }
+    if (edit.end > limit) {
+      throw new Error("overlapping edits");
+    }
     result = Buffer.concat([
       result.subarray(0, edit.start),
       Buffer.from(edit.text, "utf8"),

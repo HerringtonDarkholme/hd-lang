@@ -86,22 +86,32 @@ export function applyEdit(
     case "body":
       return editBody(text);
     case "signature":
-      if (state.signed.has(k)) return undefined;
+      if (state.signed.has(k)) {
+        return undefined;
+      }
       state.signed.add(k);
       return editSignature(text);
     case "break":
-      if (state.broken.has(k)) return undefined;
+      if (state.broken.has(k)) {
+        return undefined;
+      }
       state.broken.add(k);
       return breakBody(text);
     case "repair":
-      if (!state.broken.delete(k)) return undefined;
+      if (!state.broken.delete(k)) {
+        return undefined;
+      }
       return repairBody(text);
     case "break-test":
-      if (state.brokenTests.has(k)) return undefined;
+      if (state.brokenTests.has(k)) {
+        return undefined;
+      }
       state.brokenTests.add(k);
       return breakTest(text);
     case "repair-test":
-      if (!state.brokenTests.delete(k)) return undefined;
+      if (!state.brokenTests.delete(k)) {
+        return undefined;
+      }
       return repairTest(text);
     case "add":
       state.added += 1;
@@ -117,7 +127,7 @@ export function applyEdit(
 export function outcome(status: number | null, stdout: string, dir: string): string[] {
   const clean = (value: unknown) => String(value ?? "").replaceAll(dir, "<pkg>");
   const lines = jsonLines(stdout).flatMap((record) => {
-    if (record.kind === "diagnostic")
+    if (record.kind === "diagnostic") {
       return [
         [
           "diagnostic",
@@ -131,8 +141,10 @@ export function outcome(status: number | null, stdout: string, dir: string): str
           .map(clean)
           .join(" | "),
       ];
-    if (record.kind === "test")
+    }
+    if (record.kind === "test") {
       return [["test", record.name, record.outcome].map(clean).join(" | ")];
+    }
     return [];
   });
   return [`status ${String(status)}`, ...lines.sort()];
@@ -147,7 +159,9 @@ export function difference(
     a.filter((line) => !b.includes(line));
   const extra = only(incremental, clean);
   const missing = only(clean, incremental);
-  if (extra.length === 0 && missing.length === 0) return undefined;
+  if (extra.length === 0 && missing.length === 0) {
+    return undefined;
+  }
   return [
     extra.length ? `incremental only: ${extra[0]}` : "",
     missing.length ? `clean only: ${missing[0]}` : "",
@@ -178,7 +192,9 @@ async function compare(
       runHd(hd, args, { cwd: dir, env, timeoutMs: TIMEOUT_MS });
     const incremental = await run(working.dir, working.env);
     const clean = await run(fresh, freshCache());
-    if (incremental.timedOut || clean.timedOut) return `hd ${args.join(" ")} timed out`;
+    if (incremental.timedOut || clean.timedOut) {
+      return `hd ${args.join(" ")} timed out`;
+    }
     return difference(
       outcome(incremental.status, incremental.stdout, working.dir),
       outcome(clean.status, clean.stdout, fresh),
@@ -214,17 +230,24 @@ async function editScript(
       const k = Math.floor(random() * modules.length);
       const file = join(dir, modules[k]!.file);
       const next = applyEdit(kind, k, readFileSync(file, "utf8"), state);
-      if (next === undefined) continue;
+      if (next === undefined) {
+        continue;
+      }
       writeFileSync(file, next);
       applied = `${kind} ${modules[k]!.name}`;
     }
     const runs = [["check", "--tests", "--format", "json"]];
-    if (step % TEST_EVERY === 0 || step === edits) runs.push(["test", "--format", "json"]);
+    if (step % TEST_EVERY === 0 || step === edits) {
+      runs.push(["test", "--format", "json"]);
+    }
     for (const args of runs) {
       total += 1;
       const problem = await compare(context.hd, args, working);
-      if (problem === undefined) matched += 1;
-      else mismatch ??= `edit ${step} (${applied}), hd ${args[0]}: ${problem}`;
+      if (problem === undefined) {
+        matched += 1;
+      } else {
+        mismatch ??= `edit ${step} (${applied}), hd ${args[0]}: ${problem}`;
+      }
     }
   }
   return { matched, total, ...(mismatch === undefined ? {} : { mismatch }) };
@@ -236,7 +259,9 @@ export const incrementalSoundness: Metric = {
   summary: "random edit scripts: the incremental check and test results equal a clean run",
   async run(context) {
     const cache = await findCompileCache(context.hd);
-    if (typeof cache === "string") return [failed(NAME, LABEL, TARGET, cache)];
+    if (typeof cache === "string") {
+      return [failed(NAME, LABEL, TARGET, cache)];
+    }
     const incremental = cache !== undefined;
     const edits = incremental ? EDITS : SAMPLE_EDITS;
     context.log(
@@ -248,7 +273,9 @@ export const incrementalSoundness: Metric = {
         result.mismatch ? `; first mismatch: ${result.mismatch}` : ""
       }`;
       const judged = judge(NAME, LABEL, result.matched / result.total, 1, "%", "at-least", note);
-      if (incremental || result.mismatch) return [judged];
+      if (incremental || result.mismatch) {
+        return [judged];
+      }
       return [
         { ...judged, status: "n/a", note: `no incremental mode detected; the sample: ${note}` },
       ];

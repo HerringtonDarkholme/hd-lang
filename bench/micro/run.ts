@@ -47,8 +47,9 @@ function hdBinary(): string {
       cwd: ROOT,
       encoding: "utf8",
     });
-    if (build.status !== 0 || !existsSync(HD))
+    if (build.status !== 0 || !existsSync(HD)) {
       throw new Error(`cargo build --release -p hd_cli failed:\n${build.stderr}${build.stdout}`);
+    }
   }
   return HD;
 }
@@ -70,8 +71,9 @@ function makeScratch(name: string): string {
  * build/release/bench.wasm. */
 function buildRelease(hd: string, scratch: string): { bytes: Buffer; size: number } {
   const build = spawnSync(hd, ["build", "--release"], { cwd: scratch, encoding: "utf8" });
-  if (build.status !== 0)
+  if (build.status !== 0) {
     throw new Error(`hd build --release ${scratch} failed:\n${build.stderr}${build.stdout}`);
+  }
   const path = join(scratch, "build", "release", "bench.wasm");
   const bytes = readFileSync(path);
   return { bytes: Buffer.from(bytes), size: statSync(path).size };
@@ -99,7 +101,9 @@ async function timeHd(wasm: Buffer): Promise<number> {
     const { status } = await host.run(instance, "hd.init", "hd.poll");
     times.push(performance.now() - start);
     host.close();
-    if (status !== 0) throw new Error(`hd case exited with status ${status}:\n${errors}`);
+    if (status !== 0) {
+      throw new Error(`hd case exited with status ${status}:\n${errors}`);
+    }
   }
   return min(times);
 }
@@ -108,9 +112,12 @@ async function timeHd(wasm: Buffer): Promise<number> {
 function timeTool(tool: string, name: string): number | undefined {
   const extension = tool === "python3" ? "py" : "js";
   const result = spawnSync(tool, [join(HERE, `${name}.${extension}`)], { encoding: "utf8" });
-  if (result.error) return undefined; // the tool is not installed
-  if (result.status !== 0)
+  if (result.error) {
+    return undefined;
+  } // the tool is not installed
+  if (result.status !== 0) {
     throw new Error(`${tool} ${name}.${extension} failed:\n${result.stderr}${result.stdout}`);
+  }
   return Number(result.stdout.trim());
 }
 
@@ -145,4 +152,6 @@ const line = (cells: readonly string[]): string =>
   cells.map((cell, column) => cell.padStart(widths[column]!)).join("  ");
 console.log(line(header));
 console.log(widths.map((width) => "-".repeat(width)).join("  "));
-for (const row of rows) console.log(line(row));
+for (const row of rows) {
+  console.log(line(row));
+}

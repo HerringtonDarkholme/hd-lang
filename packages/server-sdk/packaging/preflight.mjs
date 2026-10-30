@@ -29,8 +29,9 @@ async function contractReader(snapshot) {
   const directory = await mkdtemp(join(tmpdir(), "hd-sdk-contract-"));
   try {
     await mkdir(join(directory, "gen"));
-    for (const [name, source] of Object.entries(snapshot.files))
+    for (const [name, source] of Object.entries(snapshot.files)) {
       await writeFile(join(directory, name), source, { encoding: "utf8", flag: "wx" });
+    }
     const [providers, core] = await Promise.all([
       import(pathToFileURL(join(directory, "package-providers.mjs")).href),
       import(pathToFileURL(join(directory, "core.mjs")).href),
@@ -71,16 +72,18 @@ export async function deploymentInputs({
   if (
     !["hd.init", "hd.poll", "hd.wake"].every((name) => exports.get(name) === "function") ||
     exports.get("hd.x") !== "memory"
-  )
+  ) {
     throw bad("module lacks the SDK's synchronous driver exports");
+  }
   const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
   if (
     sections.length !== 1 ||
     sections[0].byteLength < 4 ||
     new DataView(sections[0]).getUint32(0, true) !== runtime.packageHostABI ||
     schema.packageHostABI !== runtime.packageHostABI
-  )
+  ) {
     throw bad("module and SDK package-host ABI do not match");
+  }
   const contract = new Uint8Array(sections[0]);
   const { readPackageContract, createPackageRuntime, createCoreHost } =
     await contractReader(runtime);
@@ -89,15 +92,18 @@ export async function deploymentInputs({
   if (
     !source.selectors.some((name) => grants[name] === true) ||
     source.selectors.some((name) => grants[name] === false)
-  )
+  ) {
     throw bad("root production policy refuses the SDK HttpServer");
+  }
   checkCompanionPairing(sidecar, contract);
   const modules = new Set(interfaces.map((i) => i.module));
   for (const item of WebAssembly.Module.imports(module)) {
-    if (!portable.has(item.module) && !modules.has(item.module))
+    if (!portable.has(item.module) && !modules.has(item.module)) {
       throw bad("unsupported deployed capability module " + item.module);
-    if (["hd:Clock", "hd:Random"].includes(item.module) && grants[item.module.slice(3)] === false)
+    }
+    if (["hd:Clock", "hd:Random"].includes(item.module) && grants[item.module.slice(3)] === false) {
       throw bad("required primitive capability is explicitly denied: " + item.module.slice(3));
+    }
   }
   const bindings = contractBindings(contract, readPackageContract);
   const implementation = Object.fromEntries(
@@ -145,8 +151,9 @@ export async function deploymentInputs({
         !namespace ||
         !Object.hasOwn(namespace, item.name) ||
         typeof namespace[item.name] !== "function"
-      )
+      ) {
         throw bad("unsupported deployed import member " + item.module + "." + item.name);
+      }
     }
   } finally {
     host.close();

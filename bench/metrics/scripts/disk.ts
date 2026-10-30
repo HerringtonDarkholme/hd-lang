@@ -35,7 +35,9 @@ export type Toolchain =
 function onPath(program: string): string | undefined {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     const candidate = join(dir, program);
-    if (dir && existsSync(candidate) && lstatSync(candidate).isFile()) return candidate;
+    if (dir && existsSync(candidate) && lstatSync(candidate).isFile()) {
+      return candidate;
+    }
   }
   return undefined;
 }
@@ -43,9 +45,12 @@ function onPath(program: string): string | undefined {
 /** The node_modules of the nearest Node package above `file`, if it has one. */
 function nodeModulesAbove(file: string): string | undefined {
   for (let dir = dirname(file); ; dir = dirname(dir)) {
-    if (existsSync(join(dir, "package.json")))
+    if (existsSync(join(dir, "package.json"))) {
       return existsSync(join(dir, "node_modules")) ? join(dir, "node_modules") : undefined;
-    if (dirname(dir) === dir) return undefined;
+    }
+    if (dirname(dir) === dir) {
+      return undefined;
+    }
   }
 }
 
@@ -57,12 +62,18 @@ export function toolchainOf(argv: readonly string[]): Toolchain {
   const program = isAbsolute(argv[0]!) ? argv[0] : onPath(argv[0]!);
   const native = program && existsSync(program) ? realpathSync(program) : undefined;
   for (const file of files) {
-    if (file === native) continue;
+    if (file === native) {
+      continue;
+    }
     const modules = nodeModulesAbove(file);
-    if (modules) return { kind: "node_modules", path: modules };
+    if (modules) {
+      return { kind: "node_modules", path: modules };
+    }
   }
   const paths = new Set(files);
-  if (program && existsSync(program)) paths.add(realpathSync(program));
+  if (program && existsSync(program)) {
+    paths.add(realpathSync(program));
+  }
   return { kind: "files", paths: [...paths] };
 }
 
@@ -83,7 +94,9 @@ export const disk: Metric = {
     for (const command of ["check", "test", "build"]) {
       const result = await runHd(context.hd, [command], { cwd: dir, env, timeoutMs: TIMEOUT_MS });
       const problem = runProblem(result, TIMEOUT_MS, `hd ${command}`);
-      if (problem) return [failed(NAME, label, "≤ 10.0 MB", problem)];
+      if (problem) {
+        return [failed(NAME, label, "≤ 10.0 MB", problem)];
+      }
     }
     const added = listTree(dir).filter((path) => !source.has(path));
     const artifacts = added.reduce((sum, path) => sum + lstatSync(join(dir, path)).size, 0);

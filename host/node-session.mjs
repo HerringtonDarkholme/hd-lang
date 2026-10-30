@@ -17,8 +17,12 @@ export async function driveNodeSession() {
   const control = lineReader(0);
   const receive = () => {
     const line = control();
-    if (line === null) return null;
-    if (line === false) throw new Error("cannot read the session control stream");
+    if (line === null) {
+      return null;
+    }
+    if (line === false) {
+      throw new Error("cannot read the session control stream");
+    }
     return JSON.parse(line);
   };
   const output = createOutput();
@@ -56,7 +60,9 @@ export async function driveNodeSession() {
               request.live,
             );
             const notice = session.takeJournalNotice();
-            if (notice) recording = false;
+            if (notice) {
+              recording = false;
+            }
             const live = ran.live;
             send(
               "ran",

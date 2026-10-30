@@ -137,6 +137,7 @@ test("malformed links open nothing", async () => {
     "#repl=j.e30",
     "#repl=j.bm90IGpzb24",
     "#code=abc",
-  ])
+  ]) {
     assert.equal(await sessionFromHash(hash), undefined, hash);
+  }
 });

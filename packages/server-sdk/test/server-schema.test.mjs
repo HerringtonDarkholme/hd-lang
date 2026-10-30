@@ -85,12 +85,17 @@ test("compiler module-ID changes preserve schema only when references follow the
     changes = new Map(needed.map((i, n) => [i.module, "hd:pkg:opaque-renamed-" + n]));
   function change(v) {
     const [tag, a, b] = v;
-    if (tag === 15) v[1] = changes.get(a);
-    else if (tag === 8 || tag === 9) change(a);
-    else if (tag === 10) a.forEach(change);
-    else if (tag === 11) a.forEach(([, t]) => change(t));
-    else if (tag === 12) a.forEach(([, fs]) => fs.forEach(([, t]) => change(t)));
-    else if (tag === 13) {
+    if (tag === 15) {
+      v[1] = changes.get(a);
+    } else if (tag === 8 || tag === 9) {
+      change(a);
+    } else if (tag === 10) {
+      a.forEach(change);
+    } else if (tag === 11) {
+      a.forEach(([, t]) => change(t));
+    } else if (tag === 12) {
+      a.forEach(([, fs]) => fs.forEach(([, t]) => change(t)));
+    } else if (tag === 13) {
       change(a);
       change(b);
     }
@@ -205,7 +210,7 @@ for (const [name, mutate] of [
       });
     },
   ],
-])
+]) {
   test(`paired Wasm and sidecar data cannot forge ${name} under the correct SDK identity`, () => {
     const needed = clone(reference);
     mutate(needed);
@@ -216,6 +221,7 @@ for (const [name, mutate] of [
       /method shape differs|unknown interface/,
     );
   });
+}
 test("foreign source identity is rejected before trusting its same-spelled trait", () => {
   const needed = clone(reference);
   rootOf(needed).identity.package = "foreign/sdk";

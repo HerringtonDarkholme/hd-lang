@@ -38,8 +38,9 @@ const malicious = (bytes) =>
 const selected = () => JSON.parse(readFileSync(selector, "utf8"));
 const base = () => dirname(join(output, selected().main));
 function ordinaryTask(ok = true, cwd = app) {
-  if (ok) run(["run", "deploy-cloudflare", "--engine", "node"], cwd);
-  else
+  if (ok) {
+    run(["run", "deploy-cloudflare", "--engine", "node"], cwd);
+  } else {
     assert.throws(
       () => run(["run", "deploy-cloudflare", "--engine", "node"], cwd),
       (error) => {
@@ -47,6 +48,7 @@ function ordinaryTask(ok = true, cwd = app) {
         return true;
       },
     );
+  }
   assert.equal(existsSync(marker), false, "artifact JavaScript must never execute");
 }
 async function changed(operation, unchanged = true) {
@@ -58,8 +60,9 @@ async function changed(operation, unchanged = true) {
     writeFileSync(bindingsPath, companion);
     writeFileSync(manifest, originalManifest);
   }
-  if (before && unchanged)
+  if (before && unchanged) {
     assert.deepEqual(readFileSync(selector), before, "refusal must preserve the active deployment");
+  }
 }
 
 test("ordinary build and deploy task publishes complete output from a nested package directory", () => {
@@ -84,16 +87,18 @@ test("ordinary build and deploy task publishes complete output from a nested pac
     "sdk/contract-bindings.mjs",
     "runtime/core.mjs",
     "runtime/package-providers.mjs",
-  ])
+  ]) {
     assert.ok(existsSync(join(directory, name)), name);
+  }
   for (const name of [
     "runtimeFingerprint",
     "wasmSha256",
     "bindingsSha256",
     "sourceBindingsSha256",
     "schemaFingerprint",
-  ])
+  ]) {
     assert.match(receipt[name], /^[0-9a-f]{64}$/);
+  }
   assert.ok(
     !readFileSync(join(directory, "bindings.mjs"), "utf8").includes("untrusted companion body"),
   );
@@ -196,12 +201,14 @@ for (const kind of [
   "false alias",
   "source method shape",
   "returned-handle method shape",
-])
+]) {
   test(`paired artifact metadata cannot bypass ${kind}`, () =>
     changed(() => {
       const declarations = structuredClone(interfaces),
         source = declarations.find((i) => !i.handle);
-      if (kind === "foreign SDK") source.identity.package = "foreign:" + source.identity.package;
+      if (kind === "foreign SDK") {
+        source.identity.package = "foreign:" + source.identity.package;
+      }
       if (kind === "false alias") {
         source.selectors.push("dep.sdk_alias.server.HttpServer");
         writeFileSync(
@@ -212,7 +219,9 @@ for (const kind of [
           ),
         );
       }
-      if (kind === "source method shape") source.methods[0].member = "forged";
+      if (kind === "source method shape") {
+        source.methods[0].member = "forged";
+      }
       if (kind === "returned-handle method shape") {
         const method = declarations.find((i) => i.handle && i.methods.length).methods[0];
         method.wait = method.wait === "may" ? "never" : "may";
@@ -222,6 +231,7 @@ for (const kind of [
       writeFileSync(bindingsPath, malicious(bytes));
       ordinaryTask(false);
     }));
+}
 
 test("stale companion metadata refuses deployment without evaluating its body", () =>
   changed(() => {
@@ -242,7 +252,7 @@ test("unknown physical package import is rejected despite valid paired contract 
     ordinaryTask(false);
   }));
 
-for (const kind of ["unsupported builtin", "denied Clock", "denied Random"])
+for (const kind of ["unsupported builtin", "denied Clock", "denied Random"]) {
   test(`deployment preflight refuses ${kind} before publishing`, () =>
     changed(() => {
       const target =
@@ -252,15 +262,18 @@ for (const kind of ["unsupported builtin", "denied Clock", "denied Random"])
             ? "hd:Random"
             : "hd:Clock";
       writeFileSync(wasmPath, withImportModule(wasm, "hd:Clock", target));
-      if (kind === "denied Clock")
+      if (kind === "denied Clock") {
         writeFileSync(manifest, originalManifest.replace("Clock = true", "Clock = false"));
-      if (kind === "denied Random")
+      }
+      if (kind === "denied Random") {
         writeFileSync(
           manifest,
           originalManifest.replace("Clock = true", "Clock = true\nRandom = false"),
         );
+      }
       ordinaryTask(false);
     }));
+}
 
 test(
   "installed packaging survives relocation with no source, compiler cache or checkout graph",
@@ -274,8 +287,9 @@ test(
       ["app/tasks", "app-tasks"],
       ["sdk/src", "sdk-source"],
       ["sdk/providers", "sdk-providers"],
-    ])
+    ]) {
       renameSync(join(moved, path), join(compiled.directory, name));
+    }
     renameSync(compiled.cache, join(compiled.directory, "old-compiler-cache"));
     const cwd = join(compiled.directory, "unrelated/nested");
     mkdirSync(cwd, { recursive: true });

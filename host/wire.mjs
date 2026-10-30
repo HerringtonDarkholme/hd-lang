@@ -37,7 +37,9 @@ export class Enc {
     this.len = 0;
   }
   room(n) {
-    if (this.len + n <= this.buf.length) return;
+    if (this.len + n <= this.buf.length) {
+      return;
+    }
     const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + n));
     next.set(this.buf.subarray(0, this.len));
     this.buf = next;
@@ -48,7 +50,9 @@ export class Enc {
     do {
       let b = Number(x & 0x7fn);
       x >>= 7n;
-      if (x) b |= 0x80;
+      if (x) {
+        b |= 0x80;
+      }
       this.buf[this.len++] = b;
     } while (x);
     return this;
@@ -92,7 +96,9 @@ export class Dec {
     let b;
     do {
       b = this.b[this.at++];
-      if (b === undefined) throw new HostContract("an argument does not decode");
+      if (b === undefined) {
+        throw new HostContract("an argument does not decode");
+      }
       r |= BigInt(b & 0x7f) << s;
       s += 7n;
     } while (b & 0x80);
@@ -107,7 +113,9 @@ export class Dec {
   }
   bytes() {
     const n = this.num();
-    if (this.at + n > this.b.length) throw new HostContract("an argument does not decode");
+    if (this.at + n > this.b.length) {
+      throw new HostContract("an argument does not decode");
+    }
     const out = this.b.subarray(this.at, this.at + n);
     this.at += n;
     return out;
@@ -118,7 +126,9 @@ export class Dec {
   // A tag below `count`: an option's, a result's or an enum's.
   tag(count) {
     const t = this.num();
-    if (t >= count) throw new HostContract("an argument does not decode");
+    if (t >= count) {
+      throw new HostContract("an argument does not decode");
+    }
     return t;
   }
 }
@@ -143,20 +153,27 @@ export const handle = { enc: (e, v) => e.leb(v), dec: (d) => d.num() };
 export const list = (t) => ({
   enc: (e, xs) => {
     e.leb(xs.length);
-    for (const x of xs) t.enc(e, x);
+    for (const x of xs) {
+      t.enc(e, x);
+    }
   },
   dec: (d) => {
     const n = d.num();
     const out = [];
-    for (let i = 0; i < n; i++) out.push(t.dec(d));
+    for (let i = 0; i < n; i++) {
+      out.push(t.dec(d));
+    }
     return out;
   },
 });
 
 export const option = (t) => ({
   enc: (e, v) => {
-    if (v === null) e.leb(0);
-    else t.enc(e.leb(1), v);
+    if (v === null) {
+      e.leb(0);
+    } else {
+      t.enc(e.leb(1), v);
+    }
   },
   dec: (d) => (d.tag(2) === 0 ? null : t.dec(d)),
 });
@@ -193,9 +210,13 @@ export const variants = (cases) => {
     fields: new Map(all.map(([tag, fs]) => [tag, fs.map(([name]) => name)])),
     enc: (e, v) => {
       const i = index.get(v.tag);
-      if (i === undefined) throw new Error(`no variant \`${v.tag}\``);
+      if (i === undefined) {
+        throw new Error(`no variant \`${v.tag}\``);
+      }
       e.leb(i);
-      for (const [name, t] of all[i][1]) t.enc(e, v[name]);
+      for (const [name, t] of all[i][1]) {
+        t.enc(e, v[name]);
+      }
     },
     dec: (d) => {
       const [tag, fs] = all[d.tag(all.length)];
@@ -208,6 +229,8 @@ export const variants = (cases) => {
 // values past the payload are dropped.
 export const variant = (codec, tag, ...values) => {
   const names = codec.fields.get(tag);
-  if (names === undefined) throw new Error(`no variant \`${tag}\``);
+  if (names === undefined) {
+    throw new Error(`no variant \`${tag}\``);
+  }
   return Object.fromEntries([["tag", tag], ...names.map((name, i) => [name, values[i]])]);
 };

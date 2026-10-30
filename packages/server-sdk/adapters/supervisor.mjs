@@ -26,12 +26,17 @@ export function createSupervisor({
   log = () => {},
   exhausted = () => {},
 }) {
-  if (!(program.module instanceof WebAssembly.Module))
+  if (!(program.module instanceof WebAssembly.Module)) {
     throw new TypeError("compiled module required");
-  for (const key of ["runtimeURL", "bindingsURL", "applicationURL"])
-    if (typeof program[key] !== "string") throw new TypeError(`explicit ${key} required`);
-  if (program.packageRuntimeURL !== undefined && typeof program.packageRuntimeURL !== "string")
+  }
+  for (const key of ["runtimeURL", "bindingsURL", "applicationURL"]) {
+    if (typeof program[key] !== "string") {
+      throw new TypeError(`explicit ${key} required`);
+    }
+  }
+  if (program.packageRuntimeURL !== undefined && typeof program.packageRuntimeURL !== "string") {
     throw new TypeError("packageRuntimeURL must be a string");
+  }
   for (const key of [
     "workers",
     "startupMs",
@@ -40,16 +45,22 @@ export function createSupervisor({
     "stopKillMs",
     "restartLimit",
     "restartWindowMs",
-  ])
-    if (!Number.isSafeInteger(policy[key]) || policy[key] < (key === "restartLimit" ? 0 : 1))
+  ]) {
+    if (!Number.isSafeInteger(policy[key]) || policy[key] < (key === "restartLimit" ? 0 : 1)) {
       throw new TypeError(`explicit positive ${key} required`);
-  for (const key of ["startupMs", "requestMs", "drainMs", "stopKillMs"])
-    if (policy[key] > 2147483647)
+    }
+  }
+  for (const key of ["startupMs", "requestMs", "drainMs", "stopKillMs"]) {
+    if (policy[key] > 2147483647) {
       throw new TypeError(`${key} must not exceed 2147483647 milliseconds`);
-  if (policy.stopKillMs < CLEANUP_BACKSTOP_MS)
+    }
+  }
+  if (policy.stopKillMs < CLEANUP_BACKSTOP_MS) {
     throw new TypeError("the outer stop budget cannot precede the cleanup backstop");
-  if (typeof policy.retryAfter !== "string")
+  }
+  if (typeof policy.retryAfter !== "string") {
     throw new TypeError("explicit Retry-After value required");
+  }
   // The snapshot owns plain grant/config values; callers cannot change a live generation.
   const input = { ...structuredClone(program), module: program.module };
   const rules = Object.freeze({ ...policy });
@@ -88,7 +99,9 @@ export function createSupervisor({
   };
   const ready = () => lifecycle === "Ready" && slots.every((slot) => slot.ready);
   const changed = () => {
-    if (lifecycle === "Starting" && slots.every((slot) => slot.ready)) lifecycle = "Ready";
+    if (lifecycle === "Starting" && slots.every((slot) => slot.ready)) {
+      lifecycle = "Ready";
+    }
     if (
       ["Draining", "Cancelling"].includes(lifecycle) &&
       slots.every((slot) => !slot.worker && !slot.terminating)
@@ -101,7 +114,9 @@ export function createSupervisor({
   };
   const settle = (slot, result) => {
     const job = slot.active;
-    if (!job) return;
+    if (!job) {
+      return;
+    }
     slot.active = null;
     clearTimeout(job.deadline);
     clearTimeout(job.cleanup);
@@ -110,7 +125,9 @@ export function createSupervisor({
   };
   const cancel = (slot, reason) => {
     const job = slot.active;
-    if (!job || job.reason) return;
+    if (!job || job.reason) {
+      return;
+    }
     job.reason = reason;
     publish("cancel", slot, { id: job.id, reason });
     slot.worker?.postMessage({ type: "cancel", generation: slot.generation, id: job.id, reason });
@@ -121,7 +138,9 @@ export function createSupervisor({
   };
   function retire(slot, cause, result = generic(500)) {
     const worker = slot.worker;
-    if (!worker) return;
+    if (!worker) {
+      return;
+    }
     slot.worker = null;
     slot.ready = false;
     slot.terminating = true;
@@ -157,7 +176,9 @@ export function createSupervisor({
     publish("starting", slot);
     slot.startupTimer = setTimeout(() => retire(slot, "startup-deadline"), rules.startupMs);
     worker.on("message", (message) => {
-      if (slot.worker !== worker || message.generation !== generation) return;
+      if (slot.worker !== worker || message.generation !== generation) {
+        return;
+      }
       if (message.type === "log") {
         const record = message.record;
         if (
@@ -172,8 +193,9 @@ export function createSupervisor({
           (record.lease === null
             ? message.request !== null
             : !Number.isSafeInteger(message.request) || message.request !== slot.active?.id)
-        )
+        ) {
           return;
+        }
         try {
           log(
             Object.freeze({
@@ -199,10 +221,15 @@ export function createSupervisor({
         publish("ready", slot);
         changed();
       } else if (message.type === "result") {
-        if (!slot.active || message.id !== slot.active.id) return;
-        if (!message.released) return retire(slot, "response-before-release");
-        if (!message.result || typeof message.result.abandoned !== "boolean")
+        if (!slot.active || message.id !== slot.active.id) {
+          return;
+        }
+        if (!message.released) {
+          return retire(slot, "response-before-release");
+        }
+        if (!message.result || typeof message.result.abandoned !== "boolean") {
           return retire(slot, "invalid-worker-result");
+        }
         const reason = slot.active.reason;
         settle(slot, reason ? { ...message.result, cancelled: reason } : message.result);
         publish("released", slot, { id: message.id, cleanupConfirmed: !message.result.abandoned });
@@ -211,7 +238,9 @@ export function createSupervisor({
         // failure classification reaches affected physical response owners.
         retire(slot, message.category === "host-contract" ? "host-contract" : "poisoned-instance");
       } else if (message.type === "stopped") {
-        if (["Starting", "Ready"].includes(lifecycle)) return retire(slot, "unexpected-main-stop");
+        if (["Starting", "Ready"].includes(lifecycle)) {
+          return retire(slot, "unexpected-main-stop");
+        }
         clearTimeout(slot.startupTimer);
         slot.ready = false;
         slot.worker = null;
@@ -225,29 +254,44 @@ export function createSupervisor({
       }
     });
     worker.on("error", () => {
-      if (slot.worker === worker) retire(slot, "worker-error");
+      if (slot.worker === worker) {
+        retire(slot, "worker-error");
+      }
     });
     worker.on("exit", () => {
-      if (slot.worker === worker) retire(slot, "unexpected-exit");
+      if (slot.worker === worker) {
+        retire(slot, "unexpected-exit");
+      }
     });
   }
   const escalate = () => {
-    if (lifecycle === "Stopped" || lifecycle === "Cancelling") return;
+    if (lifecycle === "Stopped" || lifecycle === "Cancelling") {
+      return;
+    }
     lifecycle = "Cancelling";
     clearTimeout(drainTimer);
-    for (const slot of slots) cancel(slot, "Stopping");
+    for (const slot of slots) {
+      cancel(slot, "Stopping");
+    }
     stopTimer = setTimeout(() => {
-      for (const slot of slots)
+      for (const slot of slots) {
         retire(slot, "outer-stop-deadline", cancelled(slot.active?.reason ?? "Stopping"));
+      }
       changed();
     }, rules.stopKillMs);
     publish("cancelling");
   };
-  for (const slot of slots) spawn(slot);
+  for (const slot of slots) {
+    spawn(slot);
+  }
   return Object.freeze({
     dispatch(request, signal, { admittedAt = performance.now() } = {}) {
-      if (signal?.aborted) return Promise.resolve(cancelled(reasonOf(signal)));
-      if (!Number.isFinite(admittedAt)) throw new TypeError("finite admission timestamp required");
+      if (signal?.aborted) {
+        return Promise.resolve(cancelled(reasonOf(signal)));
+      }
+      if (!Number.isFinite(admittedAt)) {
+        throw new TypeError("finite admission timestamp required");
+      }
       const remaining = admittedAt + rules.requestMs - performance.now();
       if (remaining <= 0) {
         publish("deadline-before-dispatch");
@@ -282,14 +326,17 @@ export function createSupervisor({
       });
     },
     stop() {
-      if (lifecycle === "Stopped") return stopped;
+      if (lifecycle === "Stopped") {
+        return stopped;
+      }
       if (["Draining", "Cancelling"].includes(lifecycle)) {
         escalate();
         return stopped;
       }
       lifecycle = "Draining";
-      for (const slot of slots)
+      for (const slot of slots) {
         slot.worker?.postMessage({ type: "stop", generation: slot.generation });
+      }
       drainTimer = setTimeout(escalate, rules.drainMs);
       publish("draining");
       changed();
@@ -300,14 +347,19 @@ export function createSupervisor({
       clearTimeout(drainTimer);
       clearTimeout(stopTimer);
       publish("failed");
-      for (const slot of slots) retire(slot, "adapter-failure", generic(500));
+      for (const slot of slots) {
+        retire(slot, "adapter-failure", generic(500));
+      }
     },
     close() {
-      if (lifecycle === "Stopped") return stopped;
+      if (lifecycle === "Stopped") {
+        return stopped;
+      }
       lifecycle = "Cancelling";
       clearTimeout(drainTimer);
-      for (const slot of slots)
+      for (const slot of slots) {
         retire(slot, "forced-close", cancelled(slot.active?.reason ?? "Stopping"));
+      }
       changed();
       return stopped;
     },

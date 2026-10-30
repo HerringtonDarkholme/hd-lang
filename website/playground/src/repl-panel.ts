@@ -62,8 +62,12 @@ function element<K extends keyof HTMLElementTagNameMap>(
   text = "",
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
+  if (className) {
+    node.className = className;
+  }
+  if (text) {
+    node.textContent = text;
+  }
   return node;
 }
 
@@ -77,7 +81,9 @@ function lineStream(each: (line: string) => void): { write(text: string): void; 
       lines.forEach(each);
     },
     end() {
-      if (rest !== "") each(rest);
+      if (rest !== "") {
+        each(rest);
+      }
       rest = "";
     },
   };
@@ -133,7 +139,9 @@ export class ReplPanel {
     parent.append(this.element);
     this.note(WELCOME);
     this.render();
-    if (options.storageKey) this.stored = loadState(options.storageKey);
+    if (options.storageKey) {
+      this.stored = loadState(options.storageKey);
+    }
   }
 
   /**
@@ -141,14 +149,21 @@ export class ReplPanel {
    * The first time, a session saved for this page is rebuilt from its journal.
    */
   load(): void {
-    if (!this.client.started) this.status("Loading the compiler…");
+    if (!this.client.started) {
+      this.status("Loading the compiler…");
+    }
     this.client.load();
-    if (this.resumed || !this.options.storageKey) return;
+    if (this.resumed || !this.options.storageKey) {
+      return;
+    }
     this.resumed = true;
     this.enqueue(async () => {
       const saved = await this.stored;
-      if (saved && !this.client.started) await this.resume(saved, "restored");
-      else this.status("REPL ready");
+      if (saved && !this.client.started) {
+        await this.resume(saved, "restored");
+      } else {
+        this.status("REPL ready");
+      }
     });
   }
 
@@ -170,10 +185,15 @@ export class ReplPanel {
   private async resume(state: SessionState, done: string): Promise<void> {
     this.wipe();
     for (const entry of state.transcript) {
-      if (entry.c === "repl-echo") this.echo(entry.t, entry.n);
-      else this.line(entry.c, entry.t);
+      if (entry.c === "repl-echo") {
+        this.echo(entry.t, entry.n);
+      } else {
+        this.line(entry.c, entry.t);
+      }
     }
-    for (const [, text] of state.inputs) this.remember(text);
+    for (const [, text] of state.inputs) {
+      this.remember(text);
+    }
     this.client.adopt(state);
     this.status("Restoring the session…");
     this.rebuilt(await this.client.rebuild(), done);
@@ -199,7 +219,9 @@ export class ReplPanel {
       }
       this.options.onSharedFiles?.(state.files);
       if (state.journal !== null) {
-        if (this.client.started) await this.client.quit();
+        if (this.client.started) {
+          await this.client.quit();
+        }
         await this.resume(state, "restored from a shared link");
         return;
       }
@@ -209,7 +231,9 @@ export class ReplPanel {
         "shared link: it carried the inputs only, so their outputs are recomputed and host calls run again",
       );
       const started = await this.client.start(state.files);
-      for (const line of started.diagnostics) this.line(this.severity(line), line);
+      for (const line of started.diagnostics) {
+        this.line(this.severity(line), line);
+      }
       if (!started.ok) {
         this.line("repl-error", `error: ${started.error ?? "the session did not start"}`);
         return;
@@ -225,14 +249,18 @@ export class ReplPanel {
   /** The session as it is now, for saving and sharing; undefined when none runs. */
   private snapshot(): SessionState | undefined {
     const state = this.client.state();
-    if (!state || this.client.needsRebuild) return undefined;
+    if (!state || this.client.needsRebuild) {
+      return undefined;
+    }
     return { ...state, transcript: this.transcript };
   }
 
   /** Saves the session after an input; one line says when it is too big. */
   private persist(): void {
     const key = this.options.storageKey;
-    if (!key) return;
+    if (!key) {
+      return;
+    }
     const state = this.snapshot();
     this.saving = this.saving.then(async () => {
       if (!state) {
@@ -267,7 +295,9 @@ export class ReplPanel {
     this.note(
       `${copied ? "link copied" : "link"} (${link.hash.length} characters, ${carries})${link.long ? "; it is long, and some apps cut long links" : ""}`,
     );
-    if (!copied) this.note(url);
+    if (!copied) {
+      this.note(url);
+    }
   }
 
   focus(): void {
@@ -287,7 +317,9 @@ export class ReplPanel {
 
   /** Stops the input that runs (the Stop button). */
   stop(): void {
-    if (!this.client.busy) return;
+    if (!this.client.busy) {
+      return;
+    }
     this.status("Stopping…");
     this.client.stop();
   }
@@ -303,11 +335,14 @@ export class ReplPanel {
   /** Appends `code` to `parent` as spans with the host's token classes. */
   private highlighted(parent: HTMLElement, code: string): void {
     code.split("\n").forEach((line, index) => {
-      if (index > 0) parent.append("\n");
-      for (const { text, kind } of classify(line))
+      if (index > 0) {
+        parent.append("\n");
+      }
+      for (const { text, kind } of classify(line)) {
         parent.append(
           kind === "plain" ? text : element("span", this.options.tokenClass(kind), text),
         );
+      }
     });
   }
 
@@ -317,8 +352,11 @@ export class ReplPanel {
     const lines = value.split("\n");
     this.prompt.textContent = lines.map((_, i) => (i === 0 ? PROMPT : CONTINUE).trim()).join("\n");
     this.shadow.replaceChildren();
-    if (value.trimStart().startsWith(":")) this.shadow.append(value);
-    else this.highlighted(this.shadow, value);
+    if (value.trimStart().startsWith(":")) {
+      this.shadow.append(value);
+    } else {
+      this.highlighted(this.shadow, value);
+    }
     // A trailing newline in a <pre> collapses; keep the last line visible.
     this.shadow.append("\n");
     this.input.rows = Math.max(1, lines.length);
@@ -352,7 +390,9 @@ export class ReplPanel {
         return;
       }
       this.setInput("");
-      if (value.trim() !== "") void this.submit(value.replace(/\s+$/, ""));
+      if (value.trim() !== "") {
+        void this.submit(value.replace(/\s+$/, ""));
+      }
       return;
     }
     if (event.key === "Tab" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
@@ -371,15 +411,21 @@ export class ReplPanel {
       return;
     }
     if (event.key === "ArrowUp" && !value.slice(0, selectionStart).includes("\n")) {
-      if (this.recall === 0) return;
+      if (this.recall === 0) {
+        return;
+      }
       event.preventDefault();
-      if (this.recall === this.history.length) this.draft = value;
+      if (this.recall === this.history.length) {
+        this.draft = value;
+      }
       this.recall -= 1;
       this.setInput(this.history[this.recall]!);
       return;
     }
     if (event.key === "ArrowDown" && !value.slice(selectionEnd).includes("\n")) {
-      if (this.recall >= this.history.length) return;
+      if (this.recall >= this.history.length) {
+        return;
+      }
       event.preventDefault();
       this.recall += 1;
       this.setInput(this.recall === this.history.length ? this.draft : this.history[this.recall]!);
@@ -397,7 +443,9 @@ export class ReplPanel {
   }
 
   private remember(text: string): void {
-    if (this.history.at(-1) !== text) this.history.push(text);
+    if (this.history.at(-1) !== text) {
+      this.history.push(text);
+    }
     this.recall = this.history.length;
     this.draft = "";
   }
@@ -417,12 +465,19 @@ export class ReplPanel {
     const node = element("pre", "repl-echo");
     const command = text.trimStart().startsWith(":");
     text.split("\n").forEach((line, index) => {
-      if (index > 0) node.append("\n");
+      if (index > 0) {
+        node.append("\n");
+      }
       node.append(element("span", "repl-echo-prompt", index === 0 ? PROMPT : CONTINUE));
-      if (command) node.append(line);
-      else this.highlighted(node, line);
+      if (command) {
+        node.append(line);
+      } else {
+        this.highlighted(node, line);
+      }
     });
-    if (number !== undefined) node.append(element("span", "repl-number", `repl#${number}`));
+    if (number !== undefined) {
+      node.append(element("span", "repl-number", `repl#${number}`));
+    }
     this.log.append(node);
     this.transcript.push(
       number === undefined ? { c: "repl-echo", t: text } : { c: "repl-echo", t: text, n: number },
@@ -447,7 +502,9 @@ export class ReplPanel {
 
   /** Runs a code block's top-level items as inputs, one after another. */
   async trySnippet(code: string): Promise<void> {
-    for (const text of splitInputs(code)) await this.submit(text.replace(/\n$/, ""));
+    for (const text of splitInputs(code)) {
+      await this.submit(text.replace(/\n$/, ""));
+    }
   }
 
   private async run(text: string): Promise<void> {
@@ -456,7 +513,9 @@ export class ReplPanel {
       if (command.startsWith(":") && !command.includes("\n")) {
         this.echo(command);
         await this.command(command);
-      } else await this.evaluate(text);
+      } else {
+        await this.evaluate(text);
+      }
     } finally {
       this.waiting -= 1;
       this.scroll();
@@ -511,12 +570,17 @@ export class ReplPanel {
       this.status("Restoring the session…");
       this.rebuilt(await this.client.rebuild(), "restored");
     }
-    if (this.client.started) return true;
+    if (this.client.started) {
+      return true;
+    }
     this.status(this.client.busy ? "Starting the session…" : "Loading the compiler…");
     const started = await this.client.start(this.options.files?.() ?? {});
-    for (const line of started.diagnostics) this.line(this.severity(line), line);
-    if (!started.ok)
+    for (const line of started.diagnostics) {
+      this.line(this.severity(line), line);
+    }
+    if (!started.ok) {
       this.line("repl-error", `error: ${started.error ?? "the session did not start"}`);
+    }
     return started.ok;
   }
 
@@ -569,35 +633,48 @@ export class ReplPanel {
       this.persist();
       return;
     }
-    for (const line of answer.diagnostics) this.line(this.severity(line), line);
-    if (answer.error) this.line("repl-error", `error: ${answer.error}`);
-    if (answer.journalFull)
+    for (const line of answer.diagnostics) {
+      this.line(this.severity(line), line);
+    }
+    if (answer.error) {
+      this.line("repl-error", `error: ${answer.error}`);
+    }
+    if (answer.journalFull) {
       this.note(
         "note: the session's record of host calls is full, so this session can no longer be rebuilt",
       );
+    }
     this.status(this.waiting > 1 ? "Running…" : "REPL ready");
     this.persist();
   }
 
   /** Reports a rebuild as `hd` reports `:reload`. */
   private rebuilt(rebuilt: ReplRebuilt, done: string): void {
-    for (const n of rebuilt.skipped)
+    for (const n of rebuilt.skipped) {
       this.note(
         `note: repl#${n} was stopped, so the rebuild skipped it; its changes are not restored`,
       );
+    }
     const [first] = rebuilt.dropped;
     if (first !== undefined && rebuilt.reason !== null) {
-      if (rebuilt.diagnostics.length > 0)
-        for (const line of rebuilt.diagnostics) this.line(this.severity(line), line);
-      else this.line("repl-error", `error: repl#${first} does not replay: ${rebuilt.reason}`);
+      if (rebuilt.diagnostics.length > 0) {
+        for (const line of rebuilt.diagnostics) {
+          this.line(this.severity(line), line);
+        }
+      } else {
+        this.line("repl-error", `error: repl#${first} does not replay: ${rebuilt.reason}`);
+      }
       const later = rebuilt.dropped.length - 1;
       this.note(
         `note: the rebuild dropped repl#${first} and the ${counted(later, "input")} after it`,
       );
     }
     if (!rebuilt.ok) {
-      if (first === undefined)
-        for (const line of rebuilt.diagnostics) this.line(this.severity(line), line);
+      if (first === undefined) {
+        for (const line of rebuilt.diagnostics) {
+          this.line(this.severity(line), line);
+        }
+      }
       this.line("repl-error", `error: ${rebuilt.error ?? "the rebuild failed"}`);
       this.note("note: the session starts again empty with the next input");
       return;

@@ -43,7 +43,9 @@ before(async () => {
   source = bindings.interfaces.find((item) => !item.handle);
 });
 after(() => {
-  if (directory) rmSync(directory, { recursive: true, force: true });
+  if (directory) {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const incoming = (url) => ({
@@ -218,11 +220,12 @@ test(
       );
       assert.equal(new Set(state.clients).size, 4);
       assert.equal(state.app.active(), 0);
-      for (const client of state.clients)
+      for (const client of state.clients) {
         assert.throws(
           () => client.send(incoming(state.url + "/late"), {}),
           /expired request lease/,
         );
+      }
       await tick();
       assert.equal(hits, 4, "expired handles start no additional native request");
       state.check();
@@ -250,7 +253,9 @@ test(
         response.write("partial");
         started();
         response.once("close", closed);
-      } else response.end("sibling");
+      } else {
+        response.end("sibling");
+      }
     });
     try {
       const controller = new AbortController();
@@ -270,11 +275,12 @@ test(
         ),
         "sibling",
       );
-      for (const client of state.clients)
+      for (const client of state.clients) {
         assert.throws(
           () => client.send(incoming(state.url + "/late"), {}),
           /expired request lease/,
         );
+      }
       assert.equal(state.app.active(), 0);
       state.check();
       state.app.stop();

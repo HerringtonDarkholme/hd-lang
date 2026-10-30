@@ -33,11 +33,16 @@ export const cacheGrowth: Metric = {
   summary: "compilation cache size after a scripted day of edits, against a configured cap",
   async run(context) {
     const cache = await findCompileCache(context.hd);
-    if (cache === undefined)
+    if (cache === undefined) {
       return [notApplicable(NAME, LABEL, TARGET, "hd check writes no compilation cache")];
-    if (typeof cache === "string") return [failed(NAME, LABEL, TARGET, cache)];
+    }
+    if (typeof cache === "string") {
+      return [failed(NAME, LABEL, TARGET, cache)];
+    }
     const cap = findCacheCap((await helpText(context.hd)).all);
-    if (!cap) return [notApplicable(NAME, LABEL, TARGET, "no documented cache size cap")];
+    if (!cap) {
+      return [notApplicable(NAME, LABEL, TARGET, "no documented cache size cap")];
+    }
     const { dir, pkg } = materialize("small", NAME);
     const env = { ...freshCache(), [cap]: String(CAP) };
     context.log(`${NAME}: ${CYCLES} edits and checks, ${cap}=${CAP}`);
@@ -49,7 +54,9 @@ export const cacheGrowth: Metric = {
       editFile(dir, module.file, index % 10 === 9 ? signature : editBody);
       const result = await runHd(context.hd, ["check"], { cwd: dir, env, timeoutMs: TIMEOUT_MS });
       const problem = runProblem(result, TIMEOUT_MS, `check ${index + 1}`);
-      if (problem) return [failed(NAME, LABEL, TARGET, problem)];
+      if (problem) {
+        return [failed(NAME, LABEL, TARGET, problem)];
+      }
     }
     const bytes =
       cache.where === "HD_CACHE"

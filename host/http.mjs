@@ -59,7 +59,9 @@ const defaultRoots = () =>
 // The TLS options of a derived provider's settings, for an HTTPS hop.
 const tlsOptions = (settings) => {
   const options = {};
-  if (settings?.tlsRoots?.length) options.ca = [...defaultRoots(), ...settings.tlsRoots];
+  if (settings?.tlsRoots?.length) {
+    options.ca = [...defaultRoots(), ...settings.tlsRoots];
+  }
   if (settings?.tlsIdentity) {
     options.cert = settings.tlsIdentity.certificateChain;
     options.key = settings.tlsIdentity.privateKey;
@@ -131,17 +133,24 @@ const once = (url, host, method, headers, body, ms, signal, settings = null) =>
     const phase = (limit) => {
       clearTimeout(phaseTimer);
       phaseTimer = null;
-      if (limit == null || settled) return;
+      if (limit == null || settled) {
+        return;
+      }
       const expire = () => {
         settle(err("Timeout"));
         req?.destroy();
       };
-      if (limit <= 0) expire();
-      else phaseTimer = setTimeout(expire, limit);
+      if (limit <= 0) {
+        expire();
+      } else {
+        phaseTimer = setTimeout(expire, limit);
+      }
     };
     // The connect phase starts before DNS (std-http.settings.phase-timeouts).
     phase(settings?.connectTimeout);
-    if (settled) return;
+    if (settled) {
+      return;
+    }
     // A body is sent with its length, as `fetch` sends a byte body,
     // unless the request gives its own framing.
     // Compression negotiation is raw-transport policy. Providers and
@@ -198,11 +207,15 @@ const once = (url, host, method, headers, body, ms, signal, settings = null) =>
     // written. Node makes a new connection for every hop (`agent: false`).
     req.on("socket", (socket) => {
       socket.once("connect", () => phase(secure ? settings?.tlsHandshakeTimeout : null));
-      if (secure) socket.once("secureConnect", () => phase(null));
+      if (secure) {
+        socket.once("secureConnect", () => phase(null));
+      }
     });
     let responded = false;
     req.on("finish", () => {
-      if (!responded) phase(settings?.responseHeaderTimeout);
+      if (!responded) {
+        phase(settings?.responseHeaderTimeout);
+      }
     });
     // Node 24 silently drops response headers past 1000 pairs; a request
     // option does not lift that, the property does (0 is no limit).
@@ -221,7 +234,9 @@ const once = (url, host, method, headers, body, ms, signal, settings = null) =>
       const groups = new Map();
       for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
         const name = res.rawHeaders[i].toLowerCase();
-        if (!groups.has(name)) groups.set(name, []);
+        if (!groups.has(name)) {
+          groups.set(name, []);
+        }
         groups.get(name).push(res.rawHeaders[i + 1]);
       }
       const pairs = [...groups].flatMap(([name, values]) => values.map((v) => [name, v]));
@@ -257,24 +272,34 @@ async function send(r, signal) {
   // Every changed setting is checked before any URL, grant or connection
   // work (std-http.settings.preflight).
   const refused = unsupportedSetting(r.settings, SUPPORTED);
-  if (refused) return refused;
+  if (refused) {
+    return refused;
+  }
   const grant = createGrant(r.grants, resolvePath, pathSeparator);
   let { method, url, body } = r;
   let written = url;
   const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
   for (let redirects = 0; ; redirects++) {
-    if (signal.aborted) return err("Other", "request cancelled");
+    if (signal.aborted) {
+      return err("Other", "request cancelled");
+    }
     let u;
     try {
-      if (!isAsciiUrl(url)) return err("InvalidUrl", url);
+      if (!isAsciiUrl(url)) {
+        return err("InvalidUrl", url);
+      }
       u = new URL(url);
     } catch {
       return err("InvalidUrl", url);
     }
-    if (u.protocol !== "http:" && u.protocol !== "https:") return err("InvalidUrl", url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return err("InvalidUrl", url);
+    }
     const host = writtenHost(written);
     const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
-    if (!grant.coversHost("Http", host, port)) return err("NotGranted", host);
+    if (!grant.coversHost("Http", host, port)) {
+      return err("NotGranted", host);
+    }
     const got = await once(
       u,
       host,
@@ -295,14 +320,18 @@ async function send(r, signal) {
       return got.error ? got : { ...got, url };
     }
     // A Location outside printable ASCII is no RFC 3986 URL.
-    if (!isAsciiUrl(location)) return err("InvalidUrl", location);
+    if (!isAsciiUrl(location)) {
+      return err("InvalidUrl", location);
+    }
     url = new URL(location, u).href;
     // A relative Location keeps the host as written; an absolute one
     // brings its own.
     if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(location)) {
-      written = /^\/\//.test(location) ? `${u.protocol}${location}` : location;
+      written = location.startsWith("//") ? `${u.protocol}${location}` : location;
     }
-    if (redirects === r.redirects) return err("TooManyRedirects", url);
+    if (redirects === r.redirects) {
+      return err("TooManyRedirects", url);
+    }
     if (got.status === 303 || ((got.status === 301 || got.status === 302) && method === "POST")) {
       method = "GET";
       body = new Uint8Array(0);
@@ -322,7 +351,9 @@ const run = (r) => {
       const state = { controller, result: null };
       operations.set(operation, state);
       const complete = (result) => {
-        if (operations.get(operation) === state) state.result = result;
+        if (operations.get(operation) === state) {
+          state.result = result;
+        }
       };
       send(r, controller.signal).then(complete, (error) =>
         complete(err("Other", String(error?.message ?? error))),
@@ -331,8 +362,12 @@ const run = (r) => {
     }
     case "poll": {
       const state = operations.get(r.operation);
-      if (state === undefined) throw new Error("unknown HTTP operation");
-      if (state.result === null) return { pending: true };
+      if (state === undefined) {
+        throw new Error("unknown HTTP operation");
+      }
+      if (state.result === null) {
+        return { pending: true };
+      }
       operations.delete(r.operation);
       return state.result;
     }

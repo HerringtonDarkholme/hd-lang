@@ -57,10 +57,18 @@ export function compilerPasses(
 
 function passedCitation(file: string, text: string, passed: ReadonlySet<string>): boolean {
   const prefix = "spec/conformance/";
-  if (!file.startsWith(prefix)) return false;
-  if (file === `${prefix}cases.tsv`) return passed.has(text.split("\t")[0]!);
-  if (file === `${prefix}cli-cases.tsv`) return passed.has(`cli/${text.split("\t")[0]!}`);
-  if (file.endsWith(".tsv") || file.endsWith(".md")) return false;
+  if (!file.startsWith(prefix)) {
+    return false;
+  }
+  if (file === `${prefix}cases.tsv`) {
+    return passed.has(text.split("\t")[0]!);
+  }
+  if (file === `${prefix}cli-cases.tsv`) {
+    return passed.has(`cli/${text.split("\t")[0]!}`);
+  }
+  if (file.endsWith(".tsv") || file.endsWith(".md")) {
+    return false;
+  }
   return passed.has(file.slice(prefix.length));
 }
 
@@ -116,7 +124,9 @@ export function coverageReport(result: Coverage, uncovered?: string): string {
         c.chapter === uncovered ||
         c.chapter.replace(/^(?:lang|std|cli)\//, "").startsWith(uncovered),
     );
-    if (found.length === 0) throw new Error(`no chapter matches ${uncovered}`);
+    if (found.length === 0) {
+      throw new Error(`no chapter matches ${uncovered}`);
+    }
     return found.flatMap((c) => c.compilerUncovered ?? c.uncovered).join("\n") + "\n";
   }
   if (result.compiler !== undefined) {

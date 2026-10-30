@@ -14,6 +14,10 @@
         "skipBlankLines": true,
         "skipComments": true
       }
+    ],
+    "curly": [
+      "error",
+      "all"
     ]
   }
 }

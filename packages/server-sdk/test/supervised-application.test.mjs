@@ -42,7 +42,9 @@ before(() => {
   }
 });
 after(() => {
-  if (directory) rmSync(directory, { recursive: true, force: true });
+  if (directory) {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 function bounded(promise, ms = 4000) {
@@ -112,11 +114,12 @@ async function setup({
     event(event) {
       events.push(event);
       // Matching watchers remove themselves; iterate a stable snapshot.
-      for (const watch of waiting.slice())
+      for (const watch of waiting.slice()) {
         if (watch.predicate(event)) {
           waiting.splice(waiting.indexOf(watch), 1);
           watch.resolve(event);
         }
+      }
     },
   });
   const wait = (predicate) =>
@@ -133,12 +136,13 @@ async function setup({
   });
   let listener;
   try {
-    if (ready)
+    if (ready) {
       await Promise.all(
         Array.from({ length: workers }, (_, slot) =>
           wait((e) => e.kind === "ready" && e.slot === slot),
         ),
       );
+    }
     listener = await nativeListener(fetcher);
     return {
       supervisor,
@@ -156,7 +160,9 @@ async function setup({
     };
   } catch (error) {
     await supervisor.close();
-    if (listener) await listener.close();
+    if (listener) {
+      await listener.close();
+    }
     throw error;
   }
 }
@@ -559,7 +565,9 @@ test(
         );
       } finally {
         realClearTimeout(observationTimer);
-        if (timersMocked) t.mock.timers.reset();
+        if (timersMocked) {
+          t.mock.timers.reset();
+        }
         await f.close();
         await up.close();
       }

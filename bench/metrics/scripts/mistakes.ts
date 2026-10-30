@@ -54,7 +54,7 @@ export const mistakes: Metric = {
       ),
     );
 
-    if (!outcomes.some((o) => o.fixFieldSeen))
+    if (!outcomes.some((o) => o.fixFieldSeen)) {
       results.push(
         notApplicable(
           NAME,
@@ -63,7 +63,7 @@ export const mistakes: Metric = {
           "no fix-it field in --format json",
         ),
       );
-    else {
+    } else {
       const resolved = outcomes.filter((o) => o.afterFix && o.afterFix.length === 0);
       const offered = outcomes.filter((o) => o.fixApplied).length;
       results.push(

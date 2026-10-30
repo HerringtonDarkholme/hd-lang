@@ -5,7 +5,9 @@ function tally(n, buckets) {
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   let total = 0;
-  for (const count of counts.values()) total += count;
+  for (const count of counts.values()) {
+    total += count;
+  }
   return total;
 }
 console.log(tally(17000000, 5000));

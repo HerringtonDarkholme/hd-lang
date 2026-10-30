@@ -148,9 +148,12 @@ export const FEATURES: readonly Feature[] = [
 /** The example's text with the feature's variant applied. */
 export function featureSource(feature: Feature, examplesDir: string): string {
   const source = readFileSync(join(examplesDir, `${feature.example}.hd`), "utf8");
-  if (!feature.variant) return source;
-  if (!source.includes(feature.variant.replace))
+  if (!feature.variant) {
+    return source;
+  }
+  if (!source.includes(feature.variant.replace)) {
     throw new Error(`landing page: ${feature.example}.hd has no "${feature.variant.replace}"`);
+  }
   return source.replace(feature.variant.replace, feature.variant.with);
 }
 
@@ -158,7 +161,9 @@ export function featureSource(feature: Feature, examplesDir: string): string {
 function excerpt(source: string, range: Range, file: string): string {
   const lines = source.split("\n");
   const start = lines.findIndex((line) => line.trim() === range.from);
-  if (start < 0) throw new Error(`landing page: ${file} has no line "${range.from}"`);
+  if (start < 0) {
+    throw new Error(`landing page: ${file} has no line "${range.from}"`);
+  }
   const picked = lines.slice(start, start + range.lines);
   const indent = Math.min(...picked.map((line) => /^ */.exec(line)![0].length));
   return picked.map((line) => line.slice(indent)).join("\n");

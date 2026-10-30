@@ -41,9 +41,11 @@ export interface Claim {
  */
 export function markedCode(code: string, marks: readonly string[], className = ""): string {
   const lines = code.split("\n");
-  for (const mark of marks)
-    if (!lines.some((line) => line.trim() === mark))
+  for (const mark of marks) {
+    if (!lines.some((line) => line.trim() === mark)) {
       throw new Error(`marked line not in the snippet: ${mark}`);
+    }
+  }
   const html = lines
     .map((line) => {
       const highlighted = highlightHd(line);
@@ -58,12 +60,14 @@ export function markedCode(code: string, marks: readonly string[], className = "
 
 export function claimCard(claim: Claim, headingLevel: 2 | 3 = 3): string {
   const count = claim.code.split("\n").length;
-  if (count > CLAIM_MAX_LINES)
+  if (count > CLAIM_MAX_LINES) {
     throw new Error(
       `${claim.title}: ${count} lines; a claim snippet has at most ${CLAIM_MAX_LINES}`,
     );
-  if (claim.marks.length === 0 || claim.marks.length > CLAIM_MAX_MARKS)
+  }
+  if (claim.marks.length === 0 || claim.marks.length > CLAIM_MAX_MARKS) {
     throw new Error(`${claim.title}: mark 1 to ${CLAIM_MAX_MARKS} punchline lines`);
+  }
   const h = `h${headingLevel}`;
   const contrast = claim.contrast
     ? `<p class="claim-contrast">${inlineCode(claim.contrast)}</p>`

@@ -28,9 +28,13 @@ export function helpText(hd: HdCommand): Promise<{ readonly all: string; readonl
           cwd,
           timeoutMs: 30_000,
         });
-        if (result.status !== 0) continue;
+        if (result.status !== 0) {
+          continue;
+        }
         texts.push(result.stdout);
-        if (command === "check") check = result.stdout;
+        if (command === "check") {
+          check = result.stdout;
+        }
       }
       return { all: texts.join("\n"), check };
     })();
@@ -65,13 +69,14 @@ export function findThreadControl(checkHelp: string, allHelp: string): ThreadCon
   const named = (pattern: string) =>
     new RegExp(`(?:^|\\s)(${pattern})(?=[\\s=,]|$)`, "m").exec(checkHelp)?.[1];
   const flag = named("--jobs|--threads") ?? named("-j");
-  if (flag)
+  if (flag) {
     return {
       name: flag,
       args: (threads) => (flag === "-j" ? [`-j${threads}`] : [`${flag}=${threads}`]),
       env: () => ({}),
       ...(variable ? { fallback: variable } : {}),
     };
+  }
   return variable;
 }
 
@@ -109,11 +114,17 @@ export function findCompileCache(hd: HdCommand): Promise<CompileCache | string |
       const env = freshCache();
       const result = await runHd(hd, ["check"], { cwd: dir, env, timeoutMs: 60_000 });
       const problem = runProblem(result, 60_000, "the cache probe's hd check");
-      if (problem) return problem;
+      if (problem) {
+        return problem;
+      }
       const cached = listTree(env.HD_CACHE!);
-      if (cached.length) return { where: "HD_CACHE", paths: cached };
+      if (cached.length) {
+        return { where: "HD_CACHE", paths: cached };
+      }
       const written = listTree(dir).filter((path) => !pkg.files.has(path));
-      if (written.length) return { where: "package", paths: written };
+      if (written.length) {
+        return { where: "package", paths: written };
+      }
       return undefined;
     })();
     compileCaches.set(hd.display, found);
@@ -133,7 +144,9 @@ export function hasStdinRepl(hd: HdCommand): Promise<boolean> {
     found = (async () => {
       const cwd = makeTempDir("repl-probe");
       const help = await runHd(hd, ["help", "repl"], { cwd, timeoutMs: 30_000 });
-      if (help.status !== 0) return false;
+      if (help.status !== 0) {
+        return false;
+      }
       const result = await runHd(hd, ["repl"], { cwd, timeoutMs: 30_000, input: "1 + 2\n" });
       return result.status === 0 && /(^|\D)3(\D|$)/m.test(result.stdout);
     })();

@@ -13,7 +13,9 @@ if (mode !== "descendant") {
   });
   child.unref();
   writeFileSync(root + ".parent", String(process.pid));
-  if (mode === "running") setTimeout(() => process.exit(99), 30_000);
+  if (mode === "running") {
+    setTimeout(() => process.exit(99), 30_000);
+  }
 } else {
   // A socket is a physical liveness witness even when PID reuse or an
   // unreaped Unix zombie makes process.kill(pid, 0) ambiguous.

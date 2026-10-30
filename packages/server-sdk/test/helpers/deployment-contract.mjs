@@ -8,13 +8,18 @@ function value(e, [tag, a, b]) {
       value(e, t);
     }
   };
-  if (tag === 3) e.leb(a).leb(b ? 1 : 0);
-  else if (tag === 8 || tag === 9) value(e, a);
-  else if (tag === 10) {
+  if (tag === 3) {
+    e.leb(a).leb(b ? 1 : 0);
+  } else if (tag === 8 || tag === 9) {
+    value(e, a);
+  } else if (tag === 10) {
     e.leb(a.length);
-    for (const t of a) value(e, t);
-  } else if (tag === 11) fields(a);
-  else if (tag === 12) {
+    for (const t of a) {
+      value(e, t);
+    }
+  } else if (tag === 11) {
+    fields(a);
+  } else if (tag === 12) {
     e.leb(a.length);
     for (const [n, fs] of a) {
       e.str(n);
@@ -23,7 +28,9 @@ function value(e, [tag, a, b]) {
   } else if (tag === 13) {
     value(e, a);
     value(e, b);
-  } else if (tag === 15) e.str(a);
+  } else if (tag === 15) {
+    e.str(a);
+  }
 }
 export function encode(interfaces) {
   const e = new Enc();
@@ -31,14 +38,18 @@ export function encode(interfaces) {
   for (const i of interfaces) {
     e.str(i.identity.package).str(i.identity.version).str(i.identity.trait_path).str(i.module);
     e.leb(i.selectors.length);
-    for (const s of i.selectors) e.str(s);
+    for (const s of i.selectors) {
+      e.str(s);
+    }
     e.leb(i.handle ? 1 : 0).leb(i.methods.length);
     for (const m of i.methods) {
       e.str(m.name)
         .str(m.member)
         .leb(m.wait === "may" ? 1 : 0)
         .leb(m.params.length);
-      for (const p of m.params) value(e, p);
+      for (const p of m.params) {
+        value(e, p);
+      }
       value(e, m.result);
     }
   }
@@ -50,7 +61,9 @@ export function contractSection(wasm) {
     new WebAssembly.Module(wasm),
     "hd.capabilities",
   );
-  if (sections.length !== 1) throw Error("expected exactly one contract");
+  if (sections.length !== 1) {
+    throw Error("expected exactly one contract");
+  }
   return new Uint8Array(sections[0]);
 }
 function leb(bytes, at) {
@@ -59,7 +72,9 @@ function leb(bytes, at) {
   for (;;) {
     const byte = bytes[at++];
     value |= (byte & 127) << shift;
-    if (!(byte & 128)) return [value, at];
+    if (!(byte & 128)) {
+      return [value, at];
+    }
     shift += 7;
   }
 }
@@ -78,8 +93,9 @@ export function withContract(wasm, contract) {
   return transformSection(wasm, (id, bytes) => {
     if (id === 0) {
       const [length, at] = leb(bytes, 0);
-      if (bytes.subarray(at, at + length).toString("utf8") === "hd.capabilities")
+      if (bytes.subarray(at, at + length).toString("utf8") === "hd.capabilities") {
         return new Uint8Array([...new Enc().str("hd.capabilities").done(), ...contract]);
+      }
     }
     return bytes;
   });
@@ -87,10 +103,14 @@ export function withContract(wasm, contract) {
 export function withImportModule(wasm, before, after) {
   let changed = false;
   const result = transformSection(wasm, (id, bytes) => {
-    if (id !== 2) return bytes;
+    if (id !== 2) {
+      return bytes;
+    }
     const needle = Buffer.from(new Enc().str(before).done());
     const at = bytes.indexOf(needle);
-    if (at < 0) throw Error("expected import module " + before);
+    if (at < 0) {
+      throw Error("expected import module " + before);
+    }
     changed = true;
     return Buffer.concat([
       bytes.subarray(0, at),
@@ -98,7 +118,9 @@ export function withImportModule(wasm, before, after) {
       bytes.subarray(at + needle.length),
     ]);
   });
-  if (!changed) throw Error("expected import section");
+  if (!changed) {
+    throw Error("expected import section");
+  }
   new WebAssembly.Module(result);
   return result;
 }

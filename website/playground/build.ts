@@ -45,10 +45,11 @@ export const WAT_WASM = join(playground, "assets", "hd_wat.wasm");
 
 async function copyStatic(outDir: string): Promise<void> {
   for (const path of [COMPILER_WASM, WAT_WASM]) {
-    if (!existsSync(path))
+    if (!existsSync(path)) {
       throw new Error(
         `${path} is missing: run \`pnpm run build:web-compiler\` before building the playground`,
       );
+    }
   }
   await rm(outDir, { recursive: true, force: true });
   await mkdir(join(outDir, "assets"), { recursive: true });
@@ -83,7 +84,9 @@ export async function watchPlayground(
         if (first) {
           first();
           first = undefined;
-        } else onRebuild();
+        } else {
+          onRebuild();
+        }
       });
     },
   };

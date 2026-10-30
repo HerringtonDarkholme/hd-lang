@@ -58,12 +58,18 @@ function parse(
     const arg = args[index]!;
     if (valued.includes(arg)) {
       const value = args[index + 1];
-      if (value === undefined) throw new UsageError(`${arg} needs a value`);
+      if (value === undefined) {
+        throw new UsageError(`${arg} needs a value`);
+      }
       result.values.set(arg, value);
       index += 1;
-    } else if (flags.includes(arg)) result.flags.add(arg);
-    else if (arg.startsWith("--")) throw new UsageError(`unknown option ${arg}`);
-    else result.positional.push(arg);
+    } else if (flags.includes(arg)) {
+      result.flags.add(arg);
+    } else if (arg.startsWith("--")) {
+      throw new UsageError(`unknown option ${arg}`);
+    } else {
+      result.positional.push(arg);
+    }
   }
   return result;
 }
@@ -79,8 +85,9 @@ export function run(
   if (command === "counts") {
     const options = parse(rest, ["--json"], ["--by"]);
     const view = (options.values.get("--by") ?? "chapter") as CountsView;
-    if (!VIEWS.includes(view) || options.positional.length > 0)
+    if (!VIEWS.includes(view) || options.positional.length > 0) {
       throw new UsageError(`unknown counts view ${view}`);
+    }
     const result = counts(loadCorpus(roots.spec));
     return {
       status: 0,
@@ -89,7 +96,9 @@ export function run(
   }
   if (command === "audit") {
     const options = parse(rest, ["--strict", "--list", "--json"], []);
-    if (options.positional.length > 0) throw new UsageError("audit takes no arguments");
+    if (options.positional.length > 0) {
+      throw new UsageError("audit takes no arguments");
+    }
     const warnings = audit(loadCorpus(roots.spec));
     const stdout = options.flags.has("--json")
       ? json({ totals: auditTotals(warnings), warnings })
@@ -98,7 +107,9 @@ export function run(
   }
   if (command === "coverage") {
     const options = parse(rest, ["--compiler", "--json"], ["--uncovered"]);
-    if (options.positional.length > 0) throw new UsageError("coverage takes no arguments");
+    if (options.positional.length > 0) {
+      throw new UsageError("coverage takes no arguments");
+    }
     const corpus = loadCorpus(roots.spec);
     const passes = options.flags.has("--compiler")
       ? compilerPasses(
@@ -119,7 +130,9 @@ export function run(
   }
   if (command === "phase-audit") {
     const options = parse(rest, ["--json"], []);
-    if (options.positional.length > 0) throw new UsageError("phase-audit takes no arguments");
+    if (options.positional.length > 0) {
+      throw new UsageError("phase-audit takes no arguments");
+    }
     const corpus = loadCorpus(roots.spec);
     const cases = readFileSync(resolve(roots.spec, "conformance", "cases.tsv"), "utf8");
     const result = phaseAudit(corpus.readme, corpus.controlFlow, cases);
@@ -131,8 +144,9 @@ export function run(
   if (command === "refs") {
     const options = parse(rest, ["--dead", "--brief", "--all", "--json"], []);
     const dead = options.flags.has("--dead");
-    if (dead ? options.positional.length !== 0 : options.positional.length !== 1)
+    if (dead ? options.positional.length !== 0 : options.positional.length !== 1) {
       throw new UsageError(dead ? "refs --dead takes no rule ID" : "refs needs one rule ID");
+    }
     const index = buildIndex(loadCorpus(roots.spec), roots.repo);
     if (dead) {
       const found = deadCitations(index);
@@ -156,12 +170,15 @@ export function run(
   }
   if (command === "rewrite") {
     const options = parse(rest, ["--json"], ["--fail-on"]);
-    if (options.positional.length < 1 || options.positional.length > 2)
+    if (options.positional.length < 1 || options.positional.length > 2) {
       throw new UsageError("rewrite needs a base revision and at most one head revision");
+    }
     const failOn = (options.values.get("--fail-on") ?? "").split(",").filter((kind) => kind !== "");
-    for (const kind of failOn)
-      if (!(FAIL_KINDS as readonly string[]).includes(kind))
+    for (const kind of failOn) {
+      if (!(FAIL_KINDS as readonly string[]).includes(kind)) {
         throw new UsageError(`unknown --fail-on kind ${kind}`);
+      }
+    }
     const [baseRev, headRev] = options.positional as [string, string | undefined];
     const at = (rev: string) => {
       try {
@@ -186,7 +203,9 @@ export function run(
   }
   if (command === "glossary") {
     const options = parse(rest, ["--markdown", "--json", "--check"], []);
-    if (options.positional.length > 0) throw new UsageError("glossary takes no arguments");
+    if (options.positional.length > 0) {
+      throw new UsageError("glossary takes no arguments");
+    }
     const result = glossary(loadCorpus(roots.spec));
     if (options.flags.has("--check")) {
       const dups = glossaryDuplicates(result);
@@ -211,11 +230,15 @@ function main(args: readonly string[]): number {
     process.stdout.write(stdout);
     return status;
   } catch (error) {
-    if (!(error instanceof UsageError)) throw error;
+    if (!(error instanceof UsageError)) {
+      throw error;
+    }
     console.error(`${error.message}\n${USAGE}`);
     return 2;
   }
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  process.exitCode = main(process.argv.slice(2));
+}

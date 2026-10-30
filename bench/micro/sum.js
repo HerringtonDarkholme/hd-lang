@@ -1,7 +1,11 @@
 function main() {
   let total = 0;
-  for (let i = 1; i <= 10_000_000; i++) total += i;
-  if (total !== 50000005000000) throw new Error(`wrong: ${total}`);
+  for (let i = 1; i <= 10_000_000; i++) {
+    total += i;
+  }
+  if (total !== 50000005000000) {
+    throw new Error(`wrong: ${total}`);
+  }
 }
 
 const times = [];

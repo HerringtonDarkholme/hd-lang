@@ -3,8 +3,12 @@ import { parentPort, workerData } from "node:worker_threads";
 const { program, generation } = workerData;
 const post = (type, fields = {}) => parentPort.postMessage({ type, generation, ...fields });
 const freeze = (value) => {
-  if (!value || typeof value !== "object" || value instanceof WebAssembly.Module) return value;
-  for (const item of Object.values(value)) freeze(item);
+  if (!value || typeof value !== "object" || value instanceof WebAssembly.Module) {
+    return value;
+  }
+  for (const item of Object.values(value)) {
+    freeze(item);
+  }
   return Object.freeze(value);
 };
 freeze(program.grants);
@@ -28,7 +32,9 @@ try {
   ]);
   const ready = () => {
     hasAccept = true;
-    if (startupReturned) post("ready");
+    if (startupReturned) {
+      post("ready");
+    }
   };
   app = application.createApplication({
     module: program.module,
@@ -40,22 +46,32 @@ try {
     onReady: ready,
     onStopped: () => {
       stopped = true;
-      if (!active) post("stopped");
+      if (!active) {
+        post("stopped");
+      }
     },
   });
   // Required eager-start seam: readiness follows a completed turn parked on
   // HttpServer.accept. Merely constructing the lazy adapter is insufficient.
-  if (typeof app.start !== "function") throw new Error("Application.start readiness seam required");
+  if (typeof app.start !== "function") {
+    throw new Error("Application.start readiness seam required");
+  }
   app.start();
   startupReturned = true;
-  if (hasAccept) post("ready");
+  if (hasAccept) {
+    post("ready");
+  }
 } catch (error) {
   fail(error);
 }
 parentPort.on("message", (message) => {
-  if (!app || message.generation !== generation) return;
+  if (!app || message.generation !== generation) {
+    return;
+  }
   if (message.type === "request") {
-    if (active) return fail();
+    if (active) {
+      return fail();
+    }
     const controller = new AbortController();
     const job = (active = { id: message.id, controller });
     // The plain copied result is posted only after dispatch has joined guest
@@ -63,17 +79,22 @@ parentPort.on("message", (message) => {
     // in the supervisor's thread, outside this interruptible isolate.
     try {
       Promise.resolve(app.dispatch(message.request, controller.signal)).then((result) => {
-        if (active !== job) return;
+        if (active !== job) {
+          return;
+        }
         active = null;
         post("result", { id: job.id, released: true, result });
-        if (stopped) post("stopped");
+        if (stopped) {
+          post("stopped");
+        }
       }, fail);
     } catch (error) {
       fail(error);
     }
   } else if (message.type === "cancel") {
-    if (active?.id === message.id && !active.controller.signal.aborted)
+    if (active?.id === message.id && !active.controller.signal.aborted) {
       active.controller.abort(message.reason);
+    }
   } else if (message.type === "stop") {
     try {
       app.stop();

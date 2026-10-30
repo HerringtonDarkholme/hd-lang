@@ -49,10 +49,13 @@ function loadEdit(key: string, original: string): string | undefined {
   try {
     const storageKey = STORAGE_PREFIX + key;
     const item = localStorage.getItem(storageKey);
-    if (item === null) return undefined;
+    if (item === null) {
+      return undefined;
+    }
     const saved = JSON.parse(item) as Partial<SavedEdit>;
-    if (saved.originalHash === sourceHash(original) && typeof saved.code === "string")
+    if (saved.originalHash === sourceHash(original) && typeof saved.code === "string") {
       return saved.code;
+    }
     localStorage.removeItem(storageKey);
   } catch {
     try {
@@ -66,8 +69,9 @@ function loadEdit(key: string, original: string): string | undefined {
 
 function saveEdit(key: string, original: string, code: string | undefined): void {
   try {
-    if (code === undefined) localStorage.removeItem(STORAGE_PREFIX + key);
-    else {
+    if (code === undefined) {
+      localStorage.removeItem(STORAGE_PREFIX + key);
+    } else {
       const saved: SavedEdit = { originalHash: sourceHash(original), code };
       localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(saved));
     }
@@ -105,7 +109,9 @@ const hangingIndent = ViewPlugin.fromClass(
       this.decorations = hangs(view);
     }
     update(update: ViewUpdate): void {
-      if (update.docChanged || update.viewportChanged) this.decorations = hangs(update.view);
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = hangs(update.view);
+      }
     }
   },
   { decorations: (plugin) => plugin.decorations },
@@ -143,11 +149,15 @@ function start(root: HTMLElement): void {
 
   /** Shows `path`'s file in the editor and marks its tab. */
   const open = (path: string): void => {
-    if (path === current || !states.has(path)) return;
+    if (path === current || !states.has(path)) {
+      return;
+    }
     states.set(current, view.state);
     current = path;
     view.setState(states.get(path)!);
-    for (const tab of tabs) tab.setAttribute("aria-selected", String(tab.dataset.file === path));
+    for (const tab of tabs) {
+      tab.setAttribute("aria-selected", String(tab.dataset.file === path));
+    }
   };
 
   const jumpTo = (diagnostic: RunDiagnostic): void => {
@@ -165,14 +175,18 @@ function start(root: HTMLElement): void {
       const located = diagnostics.filter((diagnostic) => diagnostic.path === path);
       const next = withDiagnostics(state, located);
       states.set(path, next);
-      if (path === current) view.setState(next);
+      if (path === current) {
+        view.setState(next);
+      }
     }
   };
 
   const project = (): { files: Record<string, string>; main: string } => {
     states.set(current, view.state);
     const files: Record<string, string> = {};
-    for (const [path, state] of states) files[path] = state.doc.toString();
+    for (const [path, state] of states) {
+      files[path] = state.doc.toString();
+    }
     return { files, main: MAIN };
   };
 
@@ -201,14 +215,18 @@ function start(root: HTMLElement): void {
       doc: text,
       extensions: [extensions, EditorView.lineWrapping, hangingIndent],
     });
-  for (const path of paths)
+  for (const path of paths) {
     states.set(path, newState(loadEdit(storageKey(path), originals[path]!) ?? originals[path]!));
+  }
   const view = new EditorView({ state: states.get(MAIN)! });
   code.replaceChildren(view.dom);
 
-  for (const tab of tabs) tab.addEventListener("click", () => open(tab.dataset.file!));
-  for (const mode of ["run", "test"] as const)
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => open(tab.dataset.file!));
+  }
+  for (const mode of ["run", "test"] as const) {
     document.getElementById(`tour-${mode}`)?.addEventListener("click", () => void run(mode));
+  }
   document.getElementById("tour-reset")!.addEventListener("click", () => {
     open(MAIN);
     for (const path of paths) {
@@ -220,16 +238,21 @@ function start(root: HTMLElement): void {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.defaultPrevented) return;
+    if (event.defaultPrevented) {
+      return;
+    }
     const inEditor = view.dom.contains(event.target as Node);
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !inEditor) {
       event.preventDefault();
       void run(event.shiftKey ? "check" : primary);
       return;
     }
-    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || inEditor) return;
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || inEditor) {
       return;
+    }
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
     const rel = event.key === "ArrowLeft" ? "prev" : event.key === "ArrowRight" ? "next" : "";
     const link = rel
       ? document.querySelector<HTMLAnchorElement>(`.tour-pager a[rel="${rel}"]`)
@@ -245,4 +268,6 @@ function start(root: HTMLElement): void {
 }
 
 const root = document.getElementById("tour-editor");
-if (root) start(root);
+if (root) {
+  start(root);
+}

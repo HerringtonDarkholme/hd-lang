@@ -96,8 +96,12 @@ export const CLI_DIRECTORY = "cli";
  * history tools read older revisions through it; other paths map to themselves.
  */
 export function legacyChapterPath(name: string): string {
-  if (name.startsWith(`${LANG_DIRECTORY}/`)) return name.slice(LANG_DIRECTORY.length + 1);
-  if (name === `${CLI_DIRECTORY}/command-line.md`) return "cli.md";
+  if (name.startsWith(`${LANG_DIRECTORY}/`)) {
+    return name.slice(LANG_DIRECTORY.length + 1);
+  }
+  if (name === `${CLI_DIRECTORY}/command-line.md`) {
+    return "cli.md";
+  }
   return name;
 }
 
@@ -135,8 +139,9 @@ export function blocks(markdown: string): Block[] {
   const result: Block[] = [];
   let open: { kind: Block["kind"]; parts: string[]; line: number } | undefined;
   const flush = (): void => {
-    if (open)
+    if (open) {
       result.push({ kind: open.kind, text: open.parts.join(" "), line: open.line, info: "" });
+    }
     open = undefined;
   };
   for (let index = 0; index < lines.length; index += 1) {
@@ -153,8 +158,9 @@ export function blocks(markdown: string): Block[] {
           closing[2]![0] === fence[2]![0] &&
           closing[2]!.length >= fence[2]!.length &&
           closing[3]!.trim() === ""
-        )
+        ) {
           break;
+        }
         body.push(lines[index]!);
       }
       result.push({
@@ -176,8 +182,9 @@ export function blocks(markdown: string): Block[] {
     }
     if (line.trimStart().startsWith("|")) {
       flush();
-      if (!TABLE_RULE.test(line.trim()))
+      if (!TABLE_RULE.test(line.trim())) {
         result.push({ kind: "row", text: line.trim(), line: index + 1, info: "" });
+      }
       continue;
     }
     const quote = /^\s*>\s?(.*)$/.exec(line);
@@ -190,7 +197,9 @@ export function blocks(markdown: string): Block[] {
         // A blank quoted line separates paragraphs inside one quote.
         flush();
         open = { kind: "quote", parts: [], line: index + 2 };
-      } else open.parts.push(quote[1]!.trim());
+      } else {
+        open.parts.push(quote[1]!.trim());
+      }
       continue;
     }
     const item = ITEM.exec(line);
@@ -199,7 +208,9 @@ export function blocks(markdown: string): Block[] {
       open = { kind: "item", parts: [line.slice(item[0].length).trim()], line: index + 1 };
       continue;
     }
-    if (!open) open = { kind: "paragraph", parts: [], line: index + 1 };
+    if (!open) {
+      open = { kind: "paragraph", parts: [], line: index + 1 };
+    }
     open.parts.push(line.trim());
   }
   flush();
@@ -295,19 +306,30 @@ export function ruleMarkers(all: readonly Block[]): MarkerScan {
     const lead = LEADING_MARKER.exec(text);
     if (lead) {
       const id = lead[1]!;
-      if (!RULE_ID.test(id)) problems.push(`${line}: malformed rule ID r[${id}]`);
-      else markers.push({ id, line, text: text.slice(lead[0].length).trim() });
+      if (!RULE_ID.test(id)) {
+        problems.push(`${line}: malformed rule ID r[${id}]`);
+      } else {
+        markers.push({ id, line, text: text.slice(lead[0].length).trim() });
+      }
     }
     const rest = withoutInlineCode(lead ? text.slice(lead[0].length) : text);
-    for (const stray of rest.matchAll(/(?<![\w\]])r\[([^\]\s]*)\]/g))
+    for (const stray of rest.matchAll(/(?<![\w\]])r\[([^\]\s]*)\]/g)) {
       problems.push(
         `${line}: rule ID marker r[${stray[1]}] must open a paragraph, list item, or table cell`,
       );
+    }
   };
   for (const block of all) {
-    if (block.kind === "code" || block.kind === "heading") continue;
-    if (block.kind === "row") for (const cell of cells(block.text)) consider(cell, block.line);
-    else consider(block.text, block.line);
+    if (block.kind === "code" || block.kind === "heading") {
+      continue;
+    }
+    if (block.kind === "row") {
+      for (const cell of cells(block.text)) {
+        consider(cell, block.line);
+      }
+    } else {
+      consider(block.text, block.line);
+    }
   }
   return { markers, problems };
 }
@@ -329,9 +351,17 @@ export function knownCodes(readme: string, controlFlow: string): Set<string> {
     const row = /^\| (Error[^|]*|Warning|Lint finding[^|]*|Boundary failure) \| (.*) \|$/.exec(
       line,
     );
-    if (row) for (const match of row[2]!.matchAll(/`([a-z0-9-]+)`/g)) codes.add(match[1]!);
+    if (row) {
+      for (const match of row[2]!.matchAll(/`([a-z0-9-]+)`/g)) {
+        codes.add(match[1]!);
+      }
+    }
   }
   const panics = /Stable panic categories are exactly([\s\S]*?)\.\s/.exec(controlFlow);
-  if (panics) for (const match of panics[1]!.matchAll(/`([a-z0-9-]+)`/g)) codes.add(match[1]!);
+  if (panics) {
+    for (const match of panics[1]!.matchAll(/`([a-z0-9-]+)`/g)) {
+      codes.add(match[1]!);
+    }
+  }
   return codes;
 }

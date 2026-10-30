@@ -16,26 +16,33 @@ export function validatePolicy(policy) {
     "stopKillMs",
     "restartLimit",
     "restartWindowMs",
-  ])
-    if (!Number.isSafeInteger(policy?.[name]) || policy[name] < (name === "restartLimit" ? 0 : 1))
+  ]) {
+    if (!Number.isSafeInteger(policy?.[name]) || policy[name] < (name === "restartLimit" ? 0 : 1)) {
       throw bad("explicit lifecycle policy " + name + " required");
-  for (const name of ["startupMs", "requestMs", "drainMs", "stopKillMs"])
-    if (policy[name] > 2147483647) throw bad(name + " must not exceed 2147483647 milliseconds");
+    }
+  }
+  for (const name of ["startupMs", "requestMs", "drainMs", "stopKillMs"]) {
+    if (policy[name] > 2147483647) {
+      throw bad(name + " must not exceed 2147483647 milliseconds");
+    }
+  }
   if (
     policy.workers > 8 ||
     policy.requestMs !== 20000 ||
     policy.stopKillMs < 200 ||
     typeof policy.retryAfter !== "string" ||
     !/^[\x20-\x7e]+$/.test(policy.retryAfter)
-  )
+  ) {
     throw bad("policy violates fixed server bounds");
+  }
 }
 export async function packageVercelNode(options) {
   const { name, signal } = options;
   const policy = Object.freeze({ ...options.policy }),
     envBindings = options.envBindings === undefined ? undefined : [...options.envBindings];
-  if (typeof name !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(name))
+  if (typeof name !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(name)) {
     throw bad("simple function name required");
+  }
   validatePolicy(policy);
   const output = resolve(options.outputDirectory),
     root = resolve(options.rootDirectory),
@@ -43,8 +50,9 @@ export async function packageVercelNode(options) {
   if (
     containment === "" ||
     (!isAbsolute(containment) && containment !== ".." && !containment.startsWith(".." + sep))
-  )
+  ) {
     throw bad("output cannot contain the root package");
+  }
   const input = await deploymentInputs(options);
   const names = environmentNames(input.grants, envBindings);
   const binding = Buffer.from(fixedBindingsModule(input.contract, "runtime"));
@@ -72,8 +80,9 @@ export async function packageVercelNode(options) {
     ["sdk/contract-bindings.mjs", await readFile(new URL("packaging/contract-bindings.mjs", sdk))],
     ["runtime/deployed-core.mjs", Buffer.from(deployedCoreSource)],
   ]);
-  for (const [name, source] of Object.entries(input.runtime.files))
+  for (const [name, source] of Object.entries(input.runtime.files)) {
     files.set("runtime/" + name, Buffer.from(source));
+  }
   for (const name of [
     "application.mjs",
     "dispatcher.mjs",
@@ -83,8 +92,9 @@ export async function packageVercelNode(options) {
     "worker.mjs",
     "supervisor.mjs",
     "vercel-node.mjs",
-  ])
+  ]) {
     files.set("sdk/" + name, await readFile(new URL("adapters/" + name, sdk)));
+  }
   const receipt = {
     runtimeFingerprint: input.runtime.fingerprint,
     wasmSha256: input.wasmSha256,

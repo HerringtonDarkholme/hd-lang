@@ -60,8 +60,12 @@ interface Options {
 
 function fuzzerList(value: string): FuzzerName[] {
   return value.split(",").flatMap((name) => {
-    if (name === "all") return allFuzzers;
-    if ((allFuzzers as readonly string[]).includes(name)) return [name as FuzzerName];
+    if (name === "all") {
+      return allFuzzers;
+    }
+    if ((allFuzzers as readonly string[]).includes(name)) {
+      return [name as FuzzerName];
+    }
     throw new Error(`unknown fuzzer ${name}`);
   });
 }
@@ -85,39 +89,69 @@ function parseOptions(args: readonly string[]): Options {
     const option = args[index]!;
     const value = args[index + 1];
     const need = (): string => {
-      if (value === undefined) throw new Error(`${option} needs a value`);
+      if (value === undefined) {
+        throw new Error(`${option} needs a value`);
+      }
       index += 1;
       return value;
     };
-    if (option === "--compiler") compilers.push(splitCommand(need()));
-    else if (option === "--seed") seed = need();
-    else if (option === "--cases") cases = Number(need());
-    else if (option === "--jobs") jobs = Number(need());
-    else if (option === "--timeout") timeoutMs = Number(need());
-    else if (option === "--out") out = resolve(need());
-    else if (option === "--work") work = resolve(need());
-    else if (option === "--max-signatures") maxSignatures = Number(need());
-    else if (option === "--min-tests") minTests = Number(need());
-    else if (option === "--replay") replay = resolve(need());
-    else if (option === "--adapter") adapters.add(need());
-    else if (option === "--minimize") doMinimize = true;
-    else if (option === "--fail-on") for (const name of fuzzerList(need())) failOn.add(name);
-    else if (option === "--fuzzer") fuzzers.push(...fuzzerList(need()));
-    else throw new Error(`unknown option ${option}`);
+    if (option === "--compiler") {
+      compilers.push(splitCommand(need()));
+    } else if (option === "--seed") {
+      seed = need();
+    } else if (option === "--cases") {
+      cases = Number(need());
+    } else if (option === "--jobs") {
+      jobs = Number(need());
+    } else if (option === "--timeout") {
+      timeoutMs = Number(need());
+    } else if (option === "--out") {
+      out = resolve(need());
+    } else if (option === "--work") {
+      work = resolve(need());
+    } else if (option === "--max-signatures") {
+      maxSignatures = Number(need());
+    } else if (option === "--min-tests") {
+      minTests = Number(need());
+    } else if (option === "--replay") {
+      replay = resolve(need());
+    } else if (option === "--adapter") {
+      adapters.add(need());
+    } else if (option === "--minimize") {
+      doMinimize = true;
+    } else if (option === "--fail-on") {
+      for (const name of fuzzerList(need())) {
+        failOn.add(name);
+      }
+    } else if (option === "--fuzzer") {
+      fuzzers.push(...fuzzerList(need()));
+    } else {
+      throw new Error(`unknown option ${option}`);
+    }
   }
-  if (compilers.length === 0)
+  if (compilers.length === 0) {
     compilers.push(
       process.env.HD_FUZZ_COMMAND
         ? splitCommand(process.env.HD_FUZZ_COMMAND)
         : [...defaultCompiler],
     );
-  if (compilers.some((command) => command.length === 0))
+  }
+  if (compilers.some((command) => command.length === 0)) {
     throw new Error("compiler command must not be empty");
-  if (!Number.isInteger(cases) || cases < 1) throw new Error("--cases must be a positive integer");
-  if (!Number.isInteger(jobs) || jobs < 1) throw new Error("--jobs must be a positive integer");
+  }
+  if (!Number.isInteger(cases) || cases < 1) {
+    throw new Error("--cases must be a positive integer");
+  }
+  if (!Number.isInteger(jobs) || jobs < 1) {
+    throw new Error("--jobs must be a positive integer");
+  }
   let selected = fuzzers.length ? [...new Set(fuzzers)] : [...allFuzzers];
-  if (compilers.length < 2) selected = selected.filter((name) => name !== "cross");
-  if (!adapters.has("wasm")) selected = selected.filter((name) => name !== "wasm");
+  if (compilers.length < 2) {
+    selected = selected.filter((name) => name !== "cross");
+  }
+  if (!adapters.has("wasm")) {
+    selected = selected.filter((name) => name !== "wasm");
+  }
   return {
     adapters,
     cases,
@@ -204,24 +238,28 @@ class Corpus {
     const seed = rng.pick(this.accepted);
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const mutant = mutate(seed.source, rng, this.vocabulary, this.donors);
-      if (await this.parses(mutant.source))
+      if (await this.parses(mutant.source)) {
         return {
           actions: contractActions,
           origin: `mutate:${seed.path}:${mutant.operators.join("+")}`,
           source: mutant.source,
         };
+      }
     }
     return { actions: contractActions, origin: `seed:${seed.path}`, source: seed.source };
   }
 
   async input(fuzzer: FuzzerName, index: number): Promise<Input> {
-    if (fuzzer === "parse") return this.parseInput(index);
+    if (fuzzer === "parse") {
+      return this.parseInput(index);
+    }
     if (fuzzer === "fmt") {
       const input = await this.contractInput(index);
       return { ...input, actions: ["parse"] };
     }
-    if (fuzzer === "cross")
+    if (fuzzer === "cross") {
       return index % 2 === 0 ? this.parseInput(index / 2) : this.contractInput((index - 1) / 2);
+    }
     return this.contractInput(index);
   }
 }
@@ -315,8 +353,9 @@ class Executor {
         // A module that checks clean but has no entry point gives `run` nothing
         // to execute, and how `run` treats it is open (F-265 in src/KNOWN_ISSUES.md), so only
         // `test` runs it. A rejected module still goes to `run`.
-        if (action === "run" && execution.check?.kind === "accept" && !hasEntryPoint(source))
+        if (action === "run" && execution.check?.kind === "accept" && !hasEntryPoint(source)) {
           continue;
+        }
         execution[action] = await this.outcome(compiler, action, source);
       }
       executions.push(execution);
@@ -340,7 +379,9 @@ async function evaluate(
     const observations: Observation[] = [];
     const executions = await executor.execute(input.source, ["check"]);
     for (const [index, execution] of executions.entries()) {
-      if (execution.check?.kind !== "accept") continue;
+      if (execution.check?.kind !== "accept") {
+        continue;
+      }
       const path = executor.file(input.source);
       const verdict = await validateBuild(options.compilers[index]!, path, options.timeoutMs);
       if (verdict.status !== "valid") {
@@ -357,7 +398,9 @@ async function evaluate(
   const formatting: Observation[] = [];
   for (let compiler = 0; fuzzer === "fmt" && compiler < executions.length; compiler += 1) {
     const parsed = executions[compiler]?.parse;
-    if (parsed?.kind !== "accept") continue;
+    if (parsed?.kind !== "accept") {
+      continue;
+    }
     const tag = options.compilers.length > 1 ? `c${compiler}:` : "";
     const once = await executor.format(compiler, input.source);
     if (once.outcome.kind !== "accept" || once.source === undefined) {
@@ -368,30 +411,33 @@ async function evaluate(
       continue;
     }
     const reparsed = await executor.outcome(compiler, "parse", once.source);
-    if (reparsed.kind !== "accept")
+    if (reparsed.kind !== "accept") {
       formatting.push({
         detail: reparsed.detail,
         signature: `fmt|${tag}reparse-${outcomeLabel(reparsed)}`,
       });
+    }
     const twice = await executor.format(compiler, once.source);
-    if (twice.outcome.kind !== "accept" || twice.source === undefined)
+    if (twice.outcome.kind !== "accept" || twice.source === undefined) {
       formatting.push({
         detail: twice.outcome.detail,
         signature: `fmt|${tag}second-${outcomeLabel(twice.outcome)}`,
       });
-    else if (twice.source !== once.source)
+    } else if (twice.source !== once.source) {
       formatting.push({
         detail: "the second formatter pass changed the first pass",
         signature: `fmt|${tag}not-idempotent`,
       });
+    }
     const originalCheck =
       executions[compiler]?.check ?? (await executor.outcome(compiler, "check", input.source));
     const formattedCheck = await executor.outcome(compiler, "check", once.source);
-    if (outcomeLabel(originalCheck) !== outcomeLabel(formattedCheck))
+    if (outcomeLabel(originalCheck) !== outcomeLabel(formattedCheck)) {
       formatting.push({
         detail: `original ${outcomeLabel(originalCheck)}, formatted ${outcomeLabel(formattedCheck)}`,
         signature: `fmt|${tag}check-verdict`,
       });
+    }
   }
   const oracleInput = { executions };
   // The `parse` fuzzer judges its `parse` results by the command contract.
@@ -435,16 +481,23 @@ function bump(map: Map<string, number>, key: string): void {
 
 function tally(report: FuzzerReport, evaluation: Evaluation, input: Input): void {
   const parsed = evaluation.executions[0]?.parse?.kind === "accept";
-  if (parsed) report.parseAccepted += 1;
+  if (parsed) {
+    report.parseAccepted += 1;
+  }
   if (input.origin === "generate") {
     report.generated += 1;
-    if (parsed) report.generatedAccepted += 1;
+    if (parsed) {
+      report.generatedAccepted += 1;
+    }
   }
-  for (const [index, execution] of evaluation.executions.entries())
+  for (const [index, execution] of evaluation.executions.entries()) {
     for (const [action, outcome] of Object.entries(execution)) {
       bump(report.labels, `c${index}\t${action}\t${outcomeLabel(outcome)}`);
-      if (outcome.unknownCode) bump(report.unknownCodes, `${action}\t${outcome.unknownCode}`);
+      if (outcome.unknownCode) {
+        bump(report.unknownCodes, `${action}\t${outcome.unknownCode}`);
+      }
     }
+  }
 }
 
 async function runFuzzer(
@@ -480,8 +533,10 @@ async function runFuzzer(
       const record = report.signatures.get(observation.signature);
       if (record) {
         record.count += 1;
-        if (record.details.size < 6) record.details.add(observation.detail);
-      } else if (report.signatures.size < options.maxSignatures)
+        if (record.details.size < 6) {
+          record.details.add(observation.detail);
+        }
+      } else if (report.signatures.size < options.maxSignatures) {
         report.signatures.set(observation.signature, {
           count: 1,
           details: new Set([observation.detail]),
@@ -489,11 +544,13 @@ async function runFuzzer(
           origin: input.origin,
           source: input.source,
         });
+      }
     }
-    if (report.cases % 250 === 0)
+    if (report.cases % 250 === 0) {
       process.stderr.write(
         `[${fuzzer}] ${report.cases}/${options.cases} cases, ${report.signatures.size} signatures, ${((performance.now() - started) / 1000).toFixed(0)} s\n`,
       );
+    }
   });
   report.seconds = (performance.now() - started) / 1000;
   return report;
@@ -515,7 +572,9 @@ async function minimizeReport(
       // implementation's `parse`; minimization keeps that precondition.
       const requireAccepted = report.fuzzer !== "parse" && template.actions.length > 1;
       const keeps = async (source: string): Promise<boolean> => {
-        if (requireAccepted && !(await executor.parses(source))) return false;
+        if (requireAccepted && !(await executor.parses(source))) {
+          return false;
+        }
         const evaluation = await evaluate(
           report.fuzzer,
           { ...template, source },
@@ -539,8 +598,9 @@ function writeReport(report: FuzzerReport, options: Options, executor: Executor)
     id += 1;
     const name = `${String(id).padStart(2, "0")}-${hash(signature)}`;
     writeFileSync(join(directory, "examples", `${name}.hd`), record.source);
-    if (record.minimized !== undefined)
+    if (record.minimized !== undefined) {
       writeFileSync(join(directory, "examples", `${name}.min.hd`), record.minimized);
+    }
     const details = [...record.details].map((item) => item.replaceAll(/\s+/g, " ")).join(" ; ");
     rows.push(
       `${name}\t${record.count}\t${record.firstIndex}\t${signature}\t${record.origin}\t${details}`,
@@ -584,8 +644,9 @@ function writeReport(report: FuzzerReport, options: Options, executor: Executor)
   process.stdout.write(
     `${report.fuzzer}: ${report.cases} cases, ${report.signatures.size} signatures${report.stoppedEarly ? " (stopped early)" : ""}, ${report.seconds.toFixed(0)} s\n`,
   );
-  for (const [signature, record] of report.signatures)
+  for (const [signature, record] of report.signatures) {
     process.stdout.write(`  ${String(record.count).padStart(5)}  ${signature}\n`);
+  }
 }
 
 async function replay(options: Options, executor: Executor): Promise<number> {
@@ -600,11 +661,13 @@ async function replay(options: Options, executor: Executor): Promise<number> {
       options,
     );
     process.stdout.write(`${fuzzer}:\n`);
-    for (const [index, execution] of evaluation.executions.entries())
-      for (const [action, outcome] of Object.entries(execution))
+    for (const [index, execution] of evaluation.executions.entries()) {
+      for (const [action, outcome] of Object.entries(execution)) {
         process.stdout.write(
           `  c${index} ${action}: ${outcomeLabel(outcome)}${outcome.unknownCode ? ` (uninventoried ${outcome.unknownCode})` : ""}${outcome.kind === "violation" ? ` [${outcome.detail}]` : ""}\n`,
         );
+      }
+    }
     for (const observation of evaluation.observations) {
       found += 1;
       process.stdout.write(`  SIGNATURE ${observation.signature}\n`);
@@ -618,7 +681,9 @@ async function main(): Promise<number> {
   const inventory = loadInventory();
   const executor = new Executor(options, inventory);
   mkdirSync(options.work, { recursive: true });
-  if (options.replay) return replay(options, executor);
+  if (options.replay) {
+    return replay(options, executor);
+  }
   const corpus = new Corpus(options.seed, (source) => executor.parses(source));
   mkdirSync(options.out, { recursive: true });
   process.stdout.write(
@@ -632,13 +697,16 @@ async function main(): Promise<number> {
       await minimizeReport(report, corpus, executor, options);
       writeReport(report, options, executor);
     }
-    if (options.failOn.has(fuzzer)) failed += report.signatures.size;
+    if (options.failOn.has(fuzzer)) {
+      failed += report.signatures.size;
+    }
   }
   process.stdout.write(`report: ${options.out}\n`);
-  if (failed > 0)
+  if (failed > 0) {
     process.stderr.write(
       `fuzz: ${failed} signature(s) in a --fail-on fuzzer; see ${options.out}\n`,
     );
+  }
   return failed > 0 ? 1 : 0;
 }
 
@@ -647,6 +715,7 @@ try {
   process.exitCode = await main();
 } finally {
   // The default scratch directory is private to this process; reports go to --out.
-  if (defaultWork)
+  if (defaultWork) {
     rmSync(join(tmpdir(), `hd-fuzz-${process.pid}`), { force: true, recursive: true });
+  }
 }

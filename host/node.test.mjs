@@ -466,7 +466,9 @@ function netWorker(t, options = {}) {
     transferList: [port2],
   });
   t.after(async () => {
-    if (options.close) call({ op: options.close });
+    if (options.close) {
+      call({ op: options.close });
+    }
     port1.close();
     await worker.terminate();
   });
@@ -496,7 +498,9 @@ async function loopback(t) {
     server.listen(0, "127.0.0.1", resolve);
   });
   t.after(() => {
-    for (const socket of sockets) socket.destroy();
+    for (const socket of sockets) {
+      socket.destroy();
+    }
     server.close();
   });
   return { host: "127.0.0.1", port: server.address().port, address: "loopback" };
@@ -522,21 +526,30 @@ function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
       raw.push(bytes.length);
     } else {
       method.params.forEach((param, i) => {
-        if (typeof param === "string") raw.push(args[i]);
-        else param.enc(encoded, args[i]);
+        if (typeof param === "string") {
+          raw.push(args[i]);
+        } else {
+          param.enc(encoded, args[i]);
+        }
       });
       if (raw.length !== method.params.length) {
         new Uint8Array(memory.buffer).set(encoded.done());
         raw.push(encoded.len);
       }
     }
-    if (method.wait === "never") return { result: decode(name, imports[name](...raw)) };
+    if (method.wait === "never") {
+      return { result: decode(name, imports[name](...raw)) };
+    }
     const [status, value] = imports[`${name}.start`](...raw);
     return status === 0 ? { result: decode(name, value) } : { operation: value };
   };
   const take = (name, started) => {
-    if (started.result) return started.result;
-    if (!host.core.st.ops.get(started.operation).completed) host.imports["hd:rt"].block();
+    if (started.result) {
+      return started.result;
+    }
+    if (!host.core.st.ops.get(started.operation).completed) {
+      host.imports["hd:rt"].block();
+    }
     return decode(name, imports[`${name}.finish`](started.operation));
   };
   return { host, call, take };
@@ -570,10 +583,14 @@ for (const phase of ["pending", "completed before finish", "completed past deadl
       assert.throws(() => host.imports["hd:Net"]["TcpListener.accept.finish"](first.operation));
     }
     const deadline = host.core.st.deadline;
-    if (phase === "completed past deadline") host.core.st.deadline = performance.now() - 1;
+    if (phase === "completed past deadline") {
+      host.core.st.deadline = performance.now() - 1;
+    }
     host.imports["hd:rt"].abort(first.operation);
     host.core.st.deadline = deadline;
-    if (phase === "pending") peer.write("abc");
+    if (phase === "pending") {
+      peer.write("abc");
+    }
     for (const byte of ["a", "b", "c"]) {
       const result = take("TcpStream.read", call("TcpStream.read", handle, 1));
       assert(result.ok);
@@ -598,8 +615,12 @@ for (const reversed of [false, true]) {
         host.imports["hd:rt"].block();
       }
       const operations = [first.operation, second.operation];
-      if (reversed) operations.reverse();
-      for (const operation of operations) host.imports["hd:rt"].abort(operation);
+      if (reversed) {
+        operations.reverse();
+      }
+      for (const operation of operations) {
+        host.imports["hd:rt"].abort(operation);
+      }
       for (const byte of ["a", "b", "c"]) {
         assert.equal(
           Buffer.from(take("TcpStream.read", call("TcpStream.read", handle, 1)).value).toString(),
@@ -800,7 +821,9 @@ async function httpLoopback(t, handler) {
     server.listen(0, "127.0.0.1", resolve);
   });
   t.after(() => {
-    for (const socket of sockets) socket.destroy();
+    for (const socket of sockets) {
+      socket.destroy();
+    }
     server.close();
   });
   return `http://127.0.0.1:${server.address().port}`;
@@ -1013,8 +1036,9 @@ test("a zero connect timeout expires before any connection", async (t) => {
 test("each redirect hop restarts the phase timers", { timeout: 10000 }, async (t) => {
   const url = await httpLoopback(t, (request, response) => {
     setTimeout(() => {
-      if (request.url === "/end") response.end("done");
-      else {
+      if (request.url === "/end") {
+        response.end("done");
+      } else {
         response.writeHead(302, { Location: request.url === "/" ? "/next" : "/end" });
         response.end();
       }
@@ -1294,7 +1318,9 @@ for (const phase of ["running", "leader-exited"]) {
       const parentPid = Number(readFileSync(parent, "utf8"));
       if (phase === "leader-exited") {
         await t.waitFor(() => assert.throws(() => process.kill(parentPid, 0)), { timeout: 5000 });
-      } else process.kill(parentPid, 0);
+      } else {
+        process.kill(parentPid, 0);
+      }
       t.after(() => {
         try {
           process.kill(pid, "SIGKILL");
@@ -1465,17 +1491,23 @@ for (const abort of [false, true]) {
       host.imports["hd:Clock"]["sleep.finish"](clock);
       assert.equal(host.core.st.ops.get(lookup.operation).completed, false);
     }
-    if (abort) host.imports["hd:rt"].abort(lookup.operation);
+    if (abort) {
+      host.imports["hd:rt"].abort(lookup.operation);
+    }
     writeFileSync(release, "");
     if (abort) {
       await t.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
       assert.deepEqual(take("lookup", call("lookup", "127.0.0.1")), Ok(["127.0.0.1"]));
-    } else assert.deepEqual(take("lookup", lookup), Ok(["127.0.0.1"]));
+    } else {
+      assert.deepEqual(take("lookup", lookup), Ok(["127.0.0.1"]));
+    }
   });
 }
 
 async function finishWrite(t, api, started) {
-  if (started.result) return started.result;
+  if (started.result) {
+    return started.result;
+  }
   await t.waitFor(
     () => {
       const [, clock] = api.host.imports["hd:Clock"]["sleep.start"](0n);
@@ -1498,7 +1530,9 @@ for (const abort of [false, true]) {
       peer.pause();
       host.core.st.memory.grow(256);
       const bytes = Buffer.alloc(16 * 1024 * 1024);
-      for (let i = 0; i < bytes.length; i++) bytes[i] = i % 251;
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = i % 251;
+      }
       const started = call("TcpStream.write", handle, bytes);
       assert.equal(typeof started.operation, "number");
       for (let tick = 0; tick < 3; tick++) {
@@ -1513,7 +1547,9 @@ for (const abort of [false, true]) {
         chunks.push(chunk);
         size += chunk.length;
       });
-      if (abort) host.imports["hd:rt"].abort(started.operation);
+      if (abort) {
+        host.imports["hd:rt"].abort(started.operation);
+      }
       peer.resume();
       if (abort) {
         const tail = Buffer.from("after-abort");
@@ -1703,12 +1739,15 @@ function siblingClocks(api, operations) {
     const [, clock] = api.host.imports["hd:Clock"]["sleep.start"](0n);
     assert.equal(api.host.imports["hd:rt"].block(), 1);
     api.host.imports["hd:Clock"]["sleep.finish"](clock);
-    for (const operation of operations)
+    for (const operation of operations) {
       assert.equal(api.host.core.st.ops.get(operation).completed, false);
+    }
   }
 }
 function finishFile(api, name, pending) {
-  while (!api.host.core.st.ops.get(pending.operation).completed) api.host.imports["hd:rt"].block();
+  while (!api.host.core.st.ops.get(pending.operation).completed) {
+    api.host.imports["hd:rt"].block();
+  }
   return api.take(name, pending);
 }
 
@@ -1720,8 +1759,9 @@ test("Fs regular files and path/grant errors stay inline", (t) => {
     [join(root, "absent"), "NotFound"],
     [join(root, "not-dir/child"), "NotADirectory"],
     [root, "IsADirectory"],
-  ])
+  ]) {
     assert.deepEqual(api.call("read_text", path), { result: Err({ tag, path }) });
+  }
   const denied = netHost(t, "hd:FsRead", { grants: { FsRead: false } });
   const path = join(root, "absent");
   assert.deepEqual(denied.call("read_text", path), {
@@ -1847,7 +1887,9 @@ test("Fs finished special-file results can be discarded before guest finish", fi
   const api = netHost(t, "hd:FsRead");
   const pending = api.call("read_bytes", "/dev/null");
   assert.ok(pending.operation);
-  while (!api.host.core.st.ops.get(pending.operation).completed) api.host.imports["hd:rt"].block();
+  while (!api.host.core.st.ops.get(pending.operation).completed) {
+    api.host.imports["hd:rt"].block();
+  }
   api.host.imports["hd:rt"].abort(pending.operation);
   assert.throws(() => api.host.imports["hd:FsRead"]["read_bytes.finish"](pending.operation));
   const next = api.call("read_bytes", "/dev/null");
@@ -1910,11 +1952,14 @@ test("Fs blocked helper exits if its control worker is terminated", fifoTest, as
       }
     });
   t.after(() => {
-    for (const pid of alive()) process.kill(pid, "SIGKILL");
+    for (const pid of alive()) {
+      process.kill(pid, "SIGKILL");
+    }
   });
   const until = performance.now() + 3000;
-  while (alive().length && performance.now() < until)
+  while (alive().length && performance.now() < until) {
     await new Promise((resolve) => setTimeout(resolve, 10));
+  }
   assert.deepEqual(alive(), [], "abrupt worker termination leaves no file helper process");
 });
 
@@ -1967,8 +2012,9 @@ for (const reverse of [false, true]) {
       second = input.start();
     assert.deepEqual(await input.ready(first), { ok: "first" });
     assert.deepEqual(await input.ready(second), { ok: "second" });
-    for (const operation of reverse ? [second, first] : [first, second])
+    for (const operation of reverse ? [second, first] : [first, second]) {
       input.call({ op: "wait_abort", operation });
+    }
     assert.deepEqual(await input.read(), { ok: "first" });
     assert.deepEqual(await input.read("all"), { ok: "second\nthird\n" });
   });
@@ -2083,7 +2129,9 @@ test(
     );
     const closed = once(reader, "close");
     t.after(() => {
-      if (reader.exitCode === null && reader.signalCode === null) reader.kill("SIGKILL");
+      if (reader.exitCode === null && reader.signalCode === null) {
+        reader.kill("SIGKILL");
+      }
     });
     reader.stdout.setEncoding("utf8");
     let received = "";
@@ -2145,7 +2193,9 @@ test(
     await new Promise((resolve, reject) => {
       child.stderr.on("data", (bytes) => {
         errors += bytes;
-        if (errors.includes("blocking\n")) setTimeout(resolve, 200);
+        if (errors.includes("blocking\n")) {
+          setTimeout(resolve, 200);
+        }
       });
       closed.then(() => reject(new Error(`exited before the reader resumed: ${errors}`)));
     });

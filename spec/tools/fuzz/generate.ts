@@ -33,13 +33,17 @@ function lexEbnf(text: string): Token[] {
       index += word.length;
     } else if (character === '"' || character === "'") {
       let end = index + 1;
-      while (end < text.length && text[end] !== character) end += text[end] === "\\" ? 2 : 1;
+      while (end < text.length && text[end] !== character) {
+        end += text[end] === "\\" ? 2 : 1;
+      }
       tokens.push({ kind: "lit", value: text.slice(index + 1, end) });
       index = end + 1;
     } else if ("=;|,()[]{}".includes(character)) {
       tokens.push({ kind: character, value: character });
       index += 1;
-    } else throw new Error(`generate.ts: unexpected EBNF character ${JSON.stringify(character)}`);
+    } else {
+      throw new Error(`generate.ts: unexpected EBNF character ${JSON.stringify(character)}`);
+    }
   }
   return tokens;
 }
@@ -58,7 +62,9 @@ class Reader {
 
   private expect(kind: string): Token {
     const found = this.tokens[this.index];
-    if (found?.kind !== kind) throw new Error(`generate.ts: expected ${kind} in EBNF`);
+    if (found?.kind !== kind) {
+      throw new Error(`generate.ts: expected ${kind} in EBNF`);
+    }
     this.index += 1;
     return found;
   }
@@ -94,14 +100,22 @@ class Reader {
 
   private factor(): Node {
     const found = this.peek();
-    if (!found) throw new Error("generate.ts: unexpected end of EBNF");
+    if (!found) {
+      throw new Error("generate.ts: unexpected end of EBNF");
+    }
     this.index += 1;
-    if (found.kind === "name") return { kind: "sym", value: found.value };
-    if (found.kind === "lit") return { kind: "lit", value: found.value };
+    if (found.kind === "name") {
+      return { kind: "sym", value: found.value };
+    }
+    if (found.kind === "lit") {
+      return { kind: "lit", value: found.value };
+    }
     const close = found.kind === "(" ? ")" : found.kind === "[" ? "]" : "}";
     const inner = this.alternatives();
     this.expect(close);
-    if (found.kind === "(") return inner;
+    if (found.kind === "(") {
+      return inner;
+    }
     return found.kind === "[" ? { item: inner, kind: "opt" } : { item: inner, kind: "rep" };
   }
 }
@@ -209,10 +223,13 @@ export class Generator {
     if (start === "source_file") {
       // `source_file` allows zero items; force 1-4 so the output is never empty.
       const count = 1 + rng.int(4);
-      for (let index = 0; index < count; index += 1)
+      for (let index = 0; index < count; index += 1) {
         this.expand({ kind: "sym", value: "top_level_item" }, rng, 1);
+      }
       this.emitted.push("EOF");
-    } else this.expand({ kind: "sym", value: start }, rng, 0);
+    } else {
+      this.expand({ kind: "sym", value: start }, rng, 0);
+    }
     return this.emitted;
   }
 
@@ -224,29 +241,44 @@ export class Generator {
         return;
       case "sym": {
         const pool = terminalPools[node.value];
-        if (pool) this.emitted.push(rng.pick(pool));
-        else if (this.grammar.has(node.value))
+        if (pool) {
+          this.emitted.push(rng.pick(pool));
+        } else if (this.grammar.has(node.value)) {
           this.expand(this.grammar.get(node.value)!, rng, depth + 1);
-        else this.emitted.push(layout.has(node.value) ? node.value : rng.pick(["x", "0"]));
+        } else {
+          this.emitted.push(layout.has(node.value) ? node.value : rng.pick(["x", "0"]));
+        }
         return;
       }
       case "seq":
-        for (const item of node.items) this.expand(item, rng, depth);
+        for (const item of node.items) {
+          this.expand(item, rng, depth);
+        }
         return;
       case "opt":
-        if (!starving && rng.chance(0.4)) this.expand(node.item, rng, depth);
+        if (!starving && rng.chance(0.4)) {
+          this.expand(node.item, rng, depth);
+        }
         return;
       case "rep": {
         const limit = starving ? 0 : rng.pick([0, 0, 1, 1, 2, 3]);
-        for (let count = 0; count < limit; count += 1) this.expand(node.item, rng, depth);
+        for (let count = 0; count < limit; count += 1) {
+          this.expand(node.item, rng, depth);
+        }
         return;
       }
       case "alt": {
         if (starving) {
           let best = node.items[0]!;
-          for (const item of node.items) if (this.nodeCost(item) < this.nodeCost(best)) best = item;
+          for (const item of node.items) {
+            if (this.nodeCost(item) < this.nodeCost(best)) {
+              best = item;
+            }
+          }
           this.expand(best, rng, depth);
-        } else this.expand(rng.pick(node.items), rng, depth);
+        } else {
+          this.expand(rng.pick(node.items), rng, depth);
+        }
       }
     }
   }
@@ -258,13 +290,16 @@ export function render(tokens: readonly string[]): string {
   let level = 0;
   let current: string[] = [];
   const flush = (): void => {
-    if (current.length) lines.push(`${"    ".repeat(level)}${current.join(" ")}`);
+    if (current.length) {
+      lines.push(`${"    ".repeat(level)}${current.join(" ")}`);
+    }
     current = [];
   };
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]!;
-    if (token === "NEWLINE") flush();
-    else if (token === "INDENT") {
+    if (token === "NEWLINE") {
+      flush();
+    } else if (token === "INDENT") {
       flush();
       level += 1;
     } else if (token === "DEDENT") {
@@ -272,8 +307,12 @@ export function render(tokens: readonly string[]): string {
       level = Math.max(0, level - 1);
     } else if (token === "SUITE_END") {
       const next = tokens.slice(index + 1).find((item) => !layout.has(item) || item === "EOF");
-      if (!next || !["else", ",", ")", "]", "}"].includes(next)) flush();
-    } else if (token !== "EOF") current.push(token);
+      if (!next || !["else", ",", ")", "]", "}"].includes(next)) {
+        flush();
+      }
+    } else if (token !== "EOF") {
+      current.push(token);
+    }
   }
   flush();
   return `${lines.join("\n")}\n`;
@@ -283,10 +322,16 @@ export function render(tokens: readonly string[]): string {
 export function grammarLiterals(grammar: Grammar): string[] {
   const found = new Set<string>();
   const visit = (node: Node): void => {
-    if (node.kind === "lit") found.add(node.value);
-    else if (node.kind === "opt" || node.kind === "rep") visit(node.item);
-    else if (node.kind === "seq" || node.kind === "alt") node.items.forEach(visit);
+    if (node.kind === "lit") {
+      found.add(node.value);
+    } else if (node.kind === "opt" || node.kind === "rep") {
+      visit(node.item);
+    } else if (node.kind === "seq" || node.kind === "alt") {
+      node.items.forEach(visit);
+    }
   };
-  for (const node of grammar.values()) visit(node);
+  for (const node of grammar.values()) {
+    visit(node);
+  }
   return [...found].filter((value) => !value.startsWith('"')).sort();
 }

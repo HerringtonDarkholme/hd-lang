@@ -44,7 +44,9 @@ function split(value, width) {
   const biased = Number((bits >> BigInt(mantissa)) & ((1n << BigInt(expBits)) - 1n));
   const negative = bits >> BigInt(mantissa + expBits) !== 0n;
   const min = 1 - bias - mantissa;
-  if (biased === 0) return { negative, f: fraction, e: min, min, hidden: 1n << BigInt(mantissa) };
+  if (biased === 0) {
+    return { negative, f: fraction, e: min, min, hidden: 1n << BigInt(mantissa) };
+  }
   return {
     negative,
     f: fraction | (1n << BigInt(mantissa)),
@@ -86,8 +88,9 @@ function digits({ f, e, min, hidden }) {
   const reaches = () => (closed ? r + up >= s : r + up > s);
   const fits = () => (closed ? (r + up) * 10n < s : (r + up) * 10n <= s);
   let k = Math.ceil(Math.log10(Number(f) * 2 ** e) - 1e-9);
-  if (k >= 0) s *= 10n ** BigInt(k);
-  else {
+  if (k >= 0) {
+    s *= 10n ** BigInt(k);
+  } else {
     const scale = 10n ** BigInt(-k);
     r *= scale;
     up *= scale;
@@ -118,8 +121,12 @@ function digits({ f, e, min, hidden }) {
     }
     if (low && high) {
       const twice = r * 2n;
-      if (twice > s || (twice === s && (d & 1n) === 1n)) d += 1n;
-    } else if (high) d += 1n;
+      if (twice > s || (twice === s && (d & 1n) === 1n)) {
+        d += 1n;
+      }
+    } else if (high) {
+      d += 1n;
+    }
     out += d;
     return { digits: out, k };
   }
@@ -127,12 +134,20 @@ function digits({ f, e, min, hidden }) {
 
 // The Display text of a float of the given width (32 or 64).
 export function shortest(value, width) {
-  if (value !== value) return "NaN";
-  if (value === Infinity) return "inf";
-  if (value === -Infinity) return "-inf";
+  if (value !== value) {
+    return "NaN";
+  }
+  if (value === Infinity) {
+    return "inf";
+  }
+  if (value === -Infinity) {
+    return "-inf";
+  }
   const negative = value < 0 || Object.is(value, -0);
   const sign = negative ? "-" : "";
-  if (value === 0) return `${sign}0.0`;
+  if (value === 0) {
+    return `${sign}0.0`;
+  }
   if (width === 64) {
     // `toExponential()` with no argument writes the shortest digits that
     // read back as the same `f64`, closest to the value, an exact tie going
@@ -153,7 +168,9 @@ export function shortest(value, width) {
 // scientific notation otherwise.
 function layout(sign, ds, exponent) {
   if (exponent >= -6 && exponent < 21) {
-    if (exponent < 0) return `${sign}0.${"0".repeat(-exponent - 1)}${ds}`;
+    if (exponent < 0) {
+      return `${sign}0.${"0".repeat(-exponent - 1)}${ds}`;
+    }
     const whole =
       ds.length > exponent + 1 ? ds.slice(0, exponent + 1) : ds.padEnd(exponent + 1, "0");
     const rest = ds.slice(exponent + 1);
@@ -165,19 +182,28 @@ function layout(sign, ds, exponent) {
 
 // The `to_fixed` text of an `f64` with `places` digits after the point.
 export function fixed(value, places) {
-  if (value !== value) return "NaN";
-  if (value === Infinity) return "inf";
-  if (value === -Infinity) return "-inf";
+  if (value !== value) {
+    return "NaN";
+  }
+  if (value === Infinity) {
+    return "inf";
+  }
+  if (value === -Infinity) {
+    return "-inf";
+  }
   const { negative, f, e } = split(value, 64);
   const n = BigInt(places);
   let scaled;
-  if (e >= 0) scaled = f * (1n << BigInt(e)) * 10n ** n;
-  else {
+  if (e >= 0) {
+    scaled = f * (1n << BigInt(e)) * 10n ** n;
+  } else {
     const numerator = f * 10n ** n;
     const denominator = 1n << BigInt(-e);
     scaled = numerator / denominator;
     const twice = (numerator % denominator) * 2n;
-    if (twice > denominator || (twice === denominator && (scaled & 1n) === 1n)) scaled += 1n;
+    if (twice > denominator || (twice === denominator && (scaled & 1n) === 1n)) {
+      scaled += 1n;
+    }
   }
   const text = scaled.toString().padStart(places + 1, "0");
   const whole = text.slice(0, text.length - places);
@@ -197,11 +223,15 @@ const DECIMAL = /^(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))(?:[eE]([+-]?[0-9]+))?$/
 // by `parseExact`. Text outside the grammar is a bug in std.
 export function parse(text) {
   const m = DECIMAL.exec(text);
-  if (m === null) throw new Error(`parse_f64: text outside the grammar: ${text}`);
+  if (m === null) {
+    throw new Error(`parse_f64: text outside the grammar: ${text}`);
+  }
   const whole = m[1] ?? "";
   const fraction = m[2] ?? m[3] ?? "";
   const significant = (whole + fraction).replace(/^0+/, "");
-  if (significant.length <= 20) return Number(text);
+  if (significant.length <= 20) {
+    return Number(text);
+  }
   return parseExact(significant, BigInt(m[4] ?? "0") - BigInt(fraction.length));
 }
 
@@ -214,19 +244,29 @@ function bitLength(n) {
 function parseExact(digits, exponent) {
   // The value is in [10^(n-1+exponent), 10^(n+exponent)).
   const magnitude = BigInt(digits.length) + exponent;
-  if (magnitude > 310n) return Infinity;
-  if (magnitude < -330n) return 0;
+  if (magnitude > 310n) {
+    return Infinity;
+  }
+  if (magnitude < -330n) {
+    return 0;
+  }
   const d = BigInt(digits);
   const e = Number(exponent);
   let num = d;
   let den = 1n;
-  if (e >= 0) num = d * 10n ** BigInt(e);
-  else den = 10n ** BigInt(-e);
+  if (e >= 0) {
+    num = d * 10n ** BigInt(e);
+  } else {
+    den = 10n ** BigInt(-e);
+  }
   // Scale so the quotient has 54 to 56 bits, then round it to the width
   // of the result.
   const shift = 54 - (bitLength(num) - bitLength(den));
-  if (shift >= 0) num <<= BigInt(shift);
-  else den <<= BigInt(-shift);
+  if (shift >= 0) {
+    num <<= BigInt(shift);
+  } else {
+    den <<= BigInt(-shift);
+  }
   const q = num / den;
   const rest = num % den;
   const top = bitLength(q) - 1 - shift;
@@ -237,7 +277,9 @@ function parseExact(digits, exponent) {
   let significand = q >> drop;
   const low = q & ((1n << drop) - 1n);
   const half = 1n << (drop - 1n);
-  if (low > half || (low === half && (rest > 0n || (significand & 1n) === 1n))) significand += 1n;
+  if (low > half || (low === half && (rest > 0n || (significand & 1n) === 1n))) {
+    significand += 1n;
+  }
   const x = Number(significand);
   return unit >= -1000 ? x * 2 ** unit : x * 2 ** -1000 * 2 ** (unit + 1000);
 }

@@ -42,15 +42,21 @@ const EXIT_GRACE_MS = 500;
 
 export function exitPast(workers, status = 0, statusFile = null) {
   const running = workers.filter((worker) => worker.threadId !== -1);
-  if (!running.length) return;
+  if (!running.length) {
+    return;
+  }
   let left = running.length;
   const timer = setTimeout(() => {
-    if (statusFile) process.getBuiltinModule("node:fs").writeFileSync(statusFile, `${status}\n`);
+    if (statusFile) {
+      process.getBuiltinModule("node:fs").writeFileSync(statusFile, `${status}\n`);
+    }
     process.kill(process.pid, "SIGKILL");
   }, EXIT_GRACE_MS);
   for (const worker of running) {
     worker.once("exit", () => {
-      if (--left === 0) clearTimeout(timer);
+      if (--left === 0) {
+        clearTimeout(timer);
+      }
     });
   }
 }

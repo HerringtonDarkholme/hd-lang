@@ -71,11 +71,12 @@ export const conformance: Metric = {
       ...judge(NAME, KNOWN_LABEL, known, 0, "count", "at-most", "KNOWN_FAILURES.tsv"),
       target: KNOWN_TARGET,
     };
-    if (!context.suite)
+    if (!context.suite) {
       return [
         { ...notApplicable(NAME, RATE_LABEL, RATE_TARGET, ""), note: "run with --suite" },
         knownLine,
       ];
+    }
     context.log(`${NAME}: the cargo conformance tiers, up to ${TIMEOUT_MS / 60_000} min`);
     let output = "";
     for (const [crate, test, features] of TIERS) {
@@ -87,13 +88,15 @@ export const conformance: Metric = {
           env: { HD_CACHE: makeTempDir(`${NAME}-cache`) },
         },
       );
-      if (result.timedOut)
+      if (result.timedOut) {
         return [failed(NAME, RATE_LABEL, RATE_TARGET, `${test} timed out`), knownLine];
+      }
       output += result.stdout;
     }
     const counts = conformanceCounts(output);
-    if (!counts || counts.selected === 0)
+    if (!counts || counts.selected === 0) {
       return [failed(NAME, RATE_LABEL, RATE_TARGET, "no summary line"), knownLine];
+    }
     return [
       judge(
         NAME,

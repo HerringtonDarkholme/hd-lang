@@ -51,7 +51,9 @@ function quantity(text: string): { amount: number; unit: string } | null {
     /(-?(?:\d+(?:\.\d*)?|\.\d+))\s*(ms|s|ns|µs|MB\/s|M\/s|k\/s|\/s|MB|B|tokens|%|x|B\/iter)?/.exec(
       text.split(", ")[0] ?? "",
     );
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   const unit = match[2] ?? "";
   const [scale, normalized] = UNITS[unit] ?? [1, unit];
   return { amount: Number(match[1]) * scale, unit: normalized };
@@ -83,12 +85,15 @@ function loadSeries(dir: string): { series: Series[]; latest: string } {
     const run = JSON.parse(readFileSync(join(daily, newest), "utf8")) as {
       results: { metric: string; name: string; target: string }[];
     };
-    for (const result of run.results)
+    for (const result of run.results) {
       goals.set(JSON.stringify([result.metric, result.name]), result.target);
+    }
   }
   const series: Series[] = [];
   for (const key of header) {
-    if (!key.startsWith("value ")) continue;
+    if (!key.startsWith("value ")) {
+      continue;
+    }
     const id = key.slice(6);
     const [metric, name] = JSON.parse(id) as [string, string];
     const statusCol = col("status " + id);
@@ -171,7 +176,9 @@ const PILLAR_COLOUR = ["metric-c1", "metric-c2", "metric-c3", "metric-c4"];
 /** How far a value is from its goal: 1 is the goal, below 1 meets it. */
 function goalRatio(series: Series): number | null {
   const last = series.points.at(-1);
-  if (!last || last.amount === null || series.goal === null || series.goal === 0) return null;
+  if (!last || last.amount === null || series.goal === null || series.goal === 0) {
+    return null;
+  }
   const atLeast = series.target.trim().startsWith("≥");
   const ratio = atLeast ? series.goal / last.amount : last.amount / series.goal;
   return Number.isFinite(ratio) ? ratio : null;
@@ -189,7 +196,9 @@ interface Group {
 /** One row per metric script: missed if any target missed, its worst target's ratio. */
 function groups(series: readonly Series[]): Group[] {
   const by = new Map<string, Series[]>();
-  for (const s of series) by.set(s.metric, [...(by.get(s.metric) ?? []), s]);
+  for (const s of series) {
+    by.set(s.metric, [...(by.get(s.metric) ?? []), s]);
+  }
   return [...by.entries()].map(([metric, targets]) => {
     const statuses = targets.map((t) => t.points.at(-1)?.status ?? "n/a");
     const status: Status = statuses.includes("fail")
@@ -206,7 +215,9 @@ function groups(series: readonly Series[]): Group[] {
         worst = t;
       }
     }
-    if (ratio === null) worst = targets.find((t) => t.points.at(-1)?.status === "fail") ?? worst;
+    if (ratio === null) {
+      worst = targets.find((t) => t.points.at(-1)?.status === "fail") ?? worst;
+    }
     return { metric, targets, status, ratio, worst };
   });
 }
@@ -268,19 +279,21 @@ function trendChart(
             : `<g class="metric-point ${colour}"><circle class="metric-hit" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="9"/><circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4"/><title>${escapeHtml(`${pillar.title}, ${shortDate(runs[i]!)}: ${Math.round(v)}% of targets met`)}</title></g>`,
         )
         .join("");
-      if (last >= 0)
+      if (last >= 0) {
         labels.push({
           x: x(last) + 10,
           y: y(values[last]!) + 4,
           text: `${pillar.title} ${Math.round(values[last]!)}%`,
         });
+      }
       return line + dots;
     })
     .join("");
   // Direct labels at the line ends, pushed apart so they never overlap.
   labels.sort((a, b) => a.y - b.y);
-  for (let i = 1; i < labels.length; i++)
+  for (let i = 1; i < labels.length; i++) {
     labels[i]!.y = Math.max(labels[i]!.y, labels[i - 1]!.y + 15);
+  }
   const text = labels
     .map(
       (l) =>
@@ -333,11 +346,12 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
   };
   const intro = `${h(1, "daily-goal-metrics", "Daily goal metrics")}
 <p>hd is built for programs written by coding agents, so we judge it with the <a href="https://x.com/hd_nvim/status/2107634125083451468"><em>Agentic Programming Language Arena</em></a>: three pillars that ask what agent-driven development actually costs and produces. Each pillar is kept on its own and compared on a Pareto frontier rather than folded into one score, because a faster compiler that makes agents retry more is not a win. Compiler correctness is a gate in front of all three. Every metric is a script with a fixed target; no AI or agent run is involved, and the same scripts run against any <code>hd</code> binary. They run twice a day, at 00:00 and 12:00 UTC.</p>`;
-  if (!dir || !existsSync(join(dir, "history.tsv")))
+  if (!dir || !existsSync(join(dir, "history.tsv"))) {
     return {
       headings,
       body: `${intro}<p>This build has no metrics data. The runs are on the <a href="${BRANCH}#readme">metrics-data branch</a>.</p>`,
     };
+  }
   const { series, latest } = loadSeries(dir);
   const pillarOf = new Map(METRICS.map((metric) => [metric.name, String(metric.pillar)]));
   const inPillar = (key: string): Series[] =>
@@ -373,7 +387,9 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
 
   PILLARS.forEach((pillar) => {
     const rows = groups(inPillar(pillar.key)).sort((a, b) => (b.ratio ?? -1) - (a.ratio ?? -1));
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      return;
+    }
     parts.push(
       h(2, `pillar-${pillar.key}`, pillar.title),
       `<p class="metric-explain">${escapeHtml(pillar.question)} Each bar is one metric, drawn at its worst target's distance from the goal: left of the dashed line meets it, right of it misses by that multiple. Metrics without a numeric goal show only met or missed. The full list of targets is in the table below.</p>`,

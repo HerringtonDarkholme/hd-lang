@@ -3,7 +3,9 @@ import { responseHeaders } from "./http.mjs";
 // The physical response closes an unread connection after its rejection flushes.
 // Observe native stream completion without making guest cleanup await the client.
 function discardIncoming(incoming) {
-  if (incoming.readableEnded || incoming.destroyed) return;
+  if (incoming.readableEnded || incoming.destroyed) {
+    return;
+  }
   const done = () => {
     incoming.off("end", done);
     incoming.off("close", done);
@@ -63,7 +65,9 @@ export function createVercelNodeHandler(
   return async (incoming, outgoing) => {
     const cancelled = new AbortController();
     const disconnect = () => {
-      if (!outgoing.writableFinished) cancelled.abort("Disconnected");
+      if (!outgoing.writableFinished) {
+        cancelled.abort("Disconnected");
+      }
     };
     outgoing.once("close", disconnect);
     incoming.once("aborted", disconnect);
@@ -81,11 +85,13 @@ export function createVercelNodeHandler(
         return;
       }
       const headers = [];
-      for (let i = 0; i < incoming.rawHeaders.length; i += 2)
+      for (let i = 0; i < incoming.rawHeaders.length; i += 2) {
         headers.push([incoming.rawHeaders[i], incoming.rawHeaders[i + 1]]);
+      }
       const host = incoming.headers.host;
-      if (typeof host !== "string" || !host || /[\s\\/#?@]/.test(host))
+      if (typeof host !== "string" || !host || /[\s\\/#?@]/.test(host)) {
         throw new Error("invalid request authority");
+      }
       if (
         typeof incoming.url !== "string" ||
         !incoming.url.startsWith("/") ||
@@ -93,8 +99,9 @@ export function createVercelNodeHandler(
           (character) =>
             character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127 || character === "\\",
         )
-      )
+      ) {
         throw new Error("invalid request target");
+      }
       const url = new URL(`https://${host}${incoming.url}`).href;
       const publicHeaders = new Headers(headers);
       ingressValidated = true;
@@ -111,13 +118,20 @@ export function createVercelNodeHandler(
       };
       const response = await fetcher.fetch(request);
       const bytes = new Uint8Array(await response.arrayBuffer());
-      if (outgoing.destroyed) return;
+      if (outgoing.destroyed) {
+        return;
+      }
       const cookies = [];
       for (const [name, value] of responseHeaders(response.headers)) {
-        if (name.toLowerCase() === "set-cookie") cookies.push(value);
-        else outgoing.setHeader(name, value);
+        if (name.toLowerCase() === "set-cookie") {
+          cookies.push(value);
+        } else {
+          outgoing.setHeader(name, value);
+        }
       }
-      if (cookies.length) outgoing.setHeader("set-cookie", cookies);
+      if (cookies.length) {
+        outgoing.setHeader("set-cookie", cookies);
+      }
       if (body && !incoming.readableEnded) {
         body.cancel().catch(() => {});
         outgoing.setHeader("connection", "close");
@@ -136,8 +150,12 @@ export function createVercelNodeHandler(
           connection: "close",
         });
         outgoing.end(ingressValidated ? "internal server error" : "bad request");
-        if (!body) discardIncoming(incoming);
-      } else if (!outgoing.destroyed) outgoing.destroy();
+        if (!body) {
+          discardIncoming(incoming);
+        }
+      } else if (!outgoing.destroyed) {
+        outgoing.destroy();
+      }
     } finally {
       incoming.off("aborted", disconnect);
       outgoing.off("close", disconnect);

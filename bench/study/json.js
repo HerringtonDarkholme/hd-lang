@@ -13,5 +13,7 @@ for (let i = 0; i < N; i++) {
 const text = JSON.stringify(records);
 const back = JSON.parse(text);
 let sum = 0;
-for (const r of back) sum += r.score + r.tags[1].length + (r.active ? 1 : 0);
+for (const r of back) {
+  sum += r.score + r.tags[1].length + (r.active ? 1 : 0);
+}
 console.log(`${text.length} ${sum}`);

@@ -28,8 +28,11 @@ async function anchors(path: string): Promise<Set<string>> {
     result.add(index === 0 ? base : `${base}-${index}`);
   }
   // Rule ID markers (spec/STYLE.md) are anchors too, so a case or link may cite a rule.
-  if (path.endsWith(".md"))
-    for (const marker of ruleMarkers(blocks(text)).markers) result.add(ruleIdAnchor(marker.id));
+  if (path.endsWith(".md")) {
+    for (const marker of ruleMarkers(blocks(text)).markers) {
+      result.add(ruleIdAnchor(marker.id));
+    }
+  }
   return result;
 }
 
@@ -39,7 +42,9 @@ function proseWithoutFences(text: string): string {
 
 function linkTarget(raw: string): string {
   const value = raw.trim();
-  if (value.startsWith("<") && value.includes(">")) return value.slice(1, value.indexOf(">"));
+  if (value.startsWith("<") && value.includes(">")) {
+    return value.slice(1, value.indexOf(">"));
+  }
   return value.split(/\s+/, 1)[0]!;
 }
 
@@ -55,15 +60,20 @@ async function markdownPaths(directory: string): Promise<string[]> {
   const paths: string[] = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) paths.push(...(await markdownPaths(path)));
-    else if (entry.isFile() && entry.name.endsWith(".md")) paths.push(path);
+    if (entry.isDirectory()) {
+      paths.push(...(await markdownPaths(path)));
+    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+      paths.push(path);
+    }
   }
   return paths.sort();
 }
 
 async function knownAnchors(path: string, cache: Map<string, Set<string>>): Promise<Set<string>> {
   const found = cache.get(path);
-  if (found) return found;
+  if (found) {
+    return found;
+  }
   const loaded = await anchors(path);
   cache.set(path, loaded);
   return loaded;
@@ -74,16 +84,23 @@ async function checkReference(
   destination: string,
   cache: Map<string, Set<string>>,
 ): Promise<string | undefined> {
-  if (!destination || /^(?:https?:\/\/|mailto:)/.test(destination)) return undefined;
+  if (!destination || /^(?:https?:\/\/|mailto:)/.test(destination)) {
+    return undefined;
+  }
   const [rawTarget = "", rawFragment] = destination.split("#", 2);
   const targetText = decodeURIComponent(rawTarget).split("?", 1)[0]!;
-  if (targetText && ![".md", ".hd", ".tsv"].includes(extname(targetText))) return undefined;
+  if (targetText && ![".md", ".hd", ".tsv"].includes(extname(targetText))) {
+    return undefined;
+  }
   const target = targetText ? resolve(dirname(source), targetText) : source;
-  if (!(await isFile(target))) return `${source}: missing link target ${destination}`;
+  if (!(await isFile(target))) {
+    return `${source}: missing link target ${destination}`;
+  }
   if (rawFragment) {
     const fragment = decodeURIComponent(rawFragment);
-    if (!(await knownAnchors(target, cache)).has(fragment))
+    if (!(await knownAnchors(target, cache)).has(fragment)) {
       return `${source}: missing link anchor ${destination}`;
+    }
   }
   return undefined;
 }
@@ -102,9 +119,11 @@ async function main(args: readonly string[]): Promise<number> {
     const [fixture, , , reference = ""] = row.split("\t");
     const [fileText = "", fragment] = reference.split("#", 2);
     const target = resolve(specDirectory!, fileText);
-    if (!(await isFile(target))) failures.push(`${fixture}: missing specification ${reference}`);
-    else if (fragment && !(await knownAnchors(target, cache)).has(fragment))
+    if (!(await isFile(target))) {
+      failures.push(`${fixture}: missing specification ${reference}`);
+    } else if (fragment && !(await knownAnchors(target, cache)).has(fragment)) {
       failures.push(`${fixture}: missing specification anchor ${reference}`);
+    }
   }
   const directories = [
     specDirectory!,
@@ -116,7 +135,9 @@ async function main(args: readonly string[]): Promise<number> {
     const prose = proseWithoutFences(await readFile(source, "utf8"));
     for (const match of prose.matchAll(linkPattern)) {
       const failure = await checkReference(source, linkTarget(match[1]!), cache);
-      if (failure) failures.push(failure);
+      if (failure) {
+        failures.push(failure);
+      }
     }
   }
   if (failures.length > 0) {
@@ -130,5 +151,6 @@ async function main(args: readonly string[]): Promise<number> {
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url))
+if (invokedPath === fileURLToPath(import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2));
+}

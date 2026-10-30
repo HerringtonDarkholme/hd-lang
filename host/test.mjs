@@ -45,7 +45,9 @@ function writeOut(text) {
     try {
       at += writeSync(1, buf, at, buf.length - at);
     } catch (e) {
-      if (e.code !== "EAGAIN") throw e;
+      if (e.code !== "EAGAIN") {
+        throw e;
+      }
     }
   }
 }

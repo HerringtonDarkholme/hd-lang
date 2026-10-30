@@ -62,8 +62,9 @@ const options = (name) => ({
   policy: policy(),
 });
 function ordinaryTask(ok = true, cwd = app) {
-  if (ok) run(["run", "deploy-vercel", "--engine", "node"], cwd);
-  else
+  if (ok) {
+    run(["run", "deploy-vercel", "--engine", "node"], cwd);
+  } else {
     assert.throws(
       () => run(["run", "deploy-vercel", "--engine", "node"], cwd),
       (error) => {
@@ -71,6 +72,7 @@ function ordinaryTask(ok = true, cwd = app) {
         return true;
       },
     );
+  }
   assert.equal(existsSync(marker), false);
 }
 async function changed(operation, unchanged = true) {
@@ -83,7 +85,9 @@ async function changed(operation, unchanged = true) {
     writeFileSync(manifest, originalManifest);
     writeFileSync(task, oneWorkerTask);
   }
-  if (before && unchanged) assert.deepEqual(readFileSync(selector), before);
+  if (before && unchanged) {
+    assert.deepEqual(readFileSync(selector), before);
+  }
 }
 
 test("ordinary Vercel facade task prepares complete Build Output v3 from nested CWD", () => {
@@ -118,8 +122,9 @@ test("ordinary Vercel facade task prepares complete Build Output v3 from nested 
     "runtime/deployed-core.mjs",
     "sdk/worker.mjs",
     "sdk/vercel-node.mjs",
-  ])
+  ]) {
     assert.ok(existsSync(join(directory, file)), file);
+  }
   const receipt = JSON.parse(readFileSync(join(directory, "deployment.json"), "utf8"));
   assert.equal(receipt.wasmSha256, hash(wasm));
   assert.equal(receipt.sourceBindingsSha256, hash(Buffer.from(malicious(contract))));
@@ -165,7 +170,7 @@ test("production true remains effective despite development false", () =>
     assert.equal(Object.hasOwn(grants, "dep.server_sdk.deployment.Deployment"), false);
   }, false));
 
-for (const kind of ["false alias", "foreign nominal SDK", "stale companion"])
+for (const kind of ["false alias", "foreign nominal SDK", "stale companion"]) {
   test(`Vercel task rejects ${kind} without changing the selected function`, () =>
     changed(() => {
       const declarations = structuredClone(interfaces),
@@ -180,14 +185,19 @@ for (const kind of ["false alias", "foreign nominal SDK", "stale companion"])
           ),
         );
       }
-      if (kind === "foreign nominal SDK")
+      if (kind === "foreign nominal SDK") {
         source.identity.package = "foreign:" + source.identity.package;
+      }
       const bytes = encode(declarations);
-      if (kind !== "stale companion") writeFileSync(wasmPath, withContract(wasm, bytes));
-      else bytes[bytes.length - 1] ^= 1;
+      if (kind !== "stale companion") {
+        writeFileSync(wasmPath, withContract(wasm, bytes));
+      } else {
+        bytes[bytes.length - 1] ^= 1;
+      }
       writeFileSync(bindingsPath, malicious(bytes));
       ordinaryTask(false);
     }));
+}
 
 test("physical import mismatches and primitive denials reject before output", () =>
   changed(() => {
@@ -197,12 +207,13 @@ test("physical import mismatches and primitive denials reject before output", ()
         const at = bytes.indexOf(Buffer.from("accept.finish"));
         assert.ok(at >= 0);
         Buffer.from("xccept.finish").copy(bytes, at);
-      } else
+      } else {
         bytes = withImportModule(
           wasm,
           "hd:Clock",
           kind === "unsupported" ? "hd:Store" : "hd:" + kind,
         );
+      }
       writeFileSync(wasmPath, bytes);
       writeFileSync(
         manifest,
@@ -287,8 +298,9 @@ test(
       ["app/tasks", "saved-task-source"],
       ["sdk/src", "saved-sdk-source"],
       ["sdk/providers", "saved-providers"],
-    ])
+    ]) {
       renameSync(join(moved, path), join(compiled.directory, name));
+    }
     renameSync(compiled.cache, join(compiled.directory, "saved-cache"));
     const script = fileURLToPath(new URL("./helpers/vercel-runtime-control.mjs", import.meta.url));
     const cwd = join(compiled.directory, "unrelated/nested");

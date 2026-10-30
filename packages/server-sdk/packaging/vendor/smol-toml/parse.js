@@ -57,7 +57,9 @@ function peekTable(ctx, key, table, meta, type) {
     }
     if (!hasOwn) {
       let unsafe = k === "__proto__";
-      if (ctx.uk && (unsafe || k === "constructor")) return false;
+      if (ctx.uk && (unsafe || k === "constructor")) {
+        return false;
+      }
       if (unsafe) {
         Object.defineProperty(t, k, { enumerable: true, configurable: true, writable: true });
         Object.defineProperty(m, k, { enumerable: true, configurable: true, writable: true });
@@ -104,7 +106,7 @@ function peekTable(ctx, key, table, meta, type) {
   return [k, t, state.c];
 }
 function validateTablePeek(ctx, peek, ptr) {
-  if (peek === null || ctx.uk === 2)
+  if (peek === null || ctx.uk === 2) {
     TomlError.x(
       peek === null
         ? "trying to redefine an already defined table or value"
@@ -112,6 +114,7 @@ function validateTablePeek(ctx, peek, ptr) {
       ctx,
       ptr,
     );
+  }
 }
 export function parse(toml, options = {}) {
   let ctx = {
@@ -130,7 +133,9 @@ export function parse(toml, options = {}) {
   let m = meta;
   // BOM is allowed, skip.
   // JS is UTF-16, so we have to check for the UTF-16 BOM instead of the UTF-8 BOM sequence!
-  if (toml.charCodeAt(0) === 0xfeff) ctx.p++;
+  if (toml.charCodeAt(0) === 0xfeff) {
+    ctx.p++;
+  }
   skipVoid(ctx);
   while (ctx.p < toml.length) {
     if (toml.charCodeAt(ctx.p) === 0x5b /* [ */) {
@@ -162,10 +167,14 @@ export function parse(toml, options = {}) {
       tmp = ctx.p;
       let k = parseKey(ctx);
       let p = peekTable(ctx, k, tbl, m, 0 /* Type.DOTTED */);
-      if (!p && !skipping) validateTablePeek(ctx, p, tmp);
+      if (!p && !skipping) {
+        validateTablePeek(ctx, p, tmp);
+      }
       skipVoid(ctx, true, true);
       let v = extractValue(ctx, void 0);
-      if (p && !skipping) p[1][p[0]] = v;
+      if (p && !skipping) {
+        p[1][p[0]] = v;
+      }
     }
     skipVoid(ctx, true);
     if (

@@ -89,13 +89,17 @@ class Repl {
     const running = this.session.run(compiled.wasm, [...this.texts, [number, source]], number);
     during?.(this.session);
     const ran = await running;
-    for (const n of [...ran.skipped, ...ran.dropped]) this.texts.delete(n);
+    for (const n of [...ran.skipped, ...ran.dropped]) {
+      this.texts.delete(n);
+    }
     const live = ran.live!;
     assert.equal(live.error ?? null, null);
     const stopped = live.end.kind === "stopped" || live.end.kind === "cancelled";
     const outcome = live.joined ? OUTCOME.joined : stopped ? OUTCOME.dropped : OUTCOME.failed;
     assert.equal(compileRequest(compiler, encodeReplOutcome(number, outcome)).status, STATUS.ok);
-    if (!stopped) this.texts.set(number, source);
+    if (!stopped) {
+      this.texts.set(number, source);
+    }
     return live.status;
   }
 
@@ -132,7 +136,9 @@ const journalInputs = (session: Session) =>
 /** What a journal records, with each input's module hash left out. */
 const butModules = (journal: Uint8Array) => {
   const record = recorded(journal);
-  for (const input of record.inputs) input.module = 0n;
+  for (const input of record.inputs) {
+    input.module = 0n;
+  }
   return record;
 };
 

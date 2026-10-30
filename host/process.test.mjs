@@ -207,21 +207,30 @@ function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
       raw.push(bytes.length);
     } else {
       method.params.forEach((param, i) => {
-        if (typeof param === "string") raw.push(args[i]);
-        else param.enc(encoded, args[i]);
+        if (typeof param === "string") {
+          raw.push(args[i]);
+        } else {
+          param.enc(encoded, args[i]);
+        }
       });
       if (raw.length !== method.params.length) {
         new Uint8Array(memory.buffer).set(encoded.done());
         raw.push(encoded.len);
       }
     }
-    if (method.wait === "never") return { result: decode(name, imports[name](...raw)) };
+    if (method.wait === "never") {
+      return { result: decode(name, imports[name](...raw)) };
+    }
     const [status, value] = imports[`${name}.start`](...raw);
     return status === 0 ? { result: decode(name, value) } : { operation: value };
   };
   const take = (name, started) => {
-    if (started.result) return started.result;
-    if (!host.core.st.ops.get(started.operation).completed) host.imports["hd:rt"].block();
+    if (started.result) {
+      return started.result;
+    }
+    if (!host.core.st.ops.get(started.operation).completed) {
+      host.imports["hd:rt"].block();
+    }
     return decode(name, imports[`${name}.finish`](started.operation));
   };
   return { host, call, take };

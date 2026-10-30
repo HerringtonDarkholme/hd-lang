@@ -31,7 +31,9 @@ export const coldCheck: Metric = {
         timeoutMs: TIMEOUT_MS,
       });
       const problem = runProblem(result, TIMEOUT_MS, `cold check ${index + 1}`);
-      if (problem) return [failed(NAME, "median cold check, 10k lines", "≤ 1000 ms", problem)];
+      if (problem) {
+        return [failed(NAME, "median cold check, 10k lines", "≤ 1000 ms", problem)];
+      }
       samples.push(result.wallMs);
     }
     return [judge(NAME, "median cold check, 10k lines", p50(samples), 1000, "ms")];

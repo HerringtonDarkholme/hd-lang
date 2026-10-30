@@ -36,7 +36,9 @@ function emittedModule(result: CommandResult, path: string): string | undefined 
     const candidate = line.trim();
     if (candidate.endsWith(".wasm")) {
       const absolute = resolve(dirname(path), candidate);
-      if (existsSync(absolute)) return absolute;
+      if (existsSync(absolute)) {
+        return absolute;
+      }
     }
   }
   const sibling = path.replace(/\.hd$/, ".wasm");
@@ -78,28 +80,33 @@ export async function validateBuild(
   copyFileSync(path, copy);
   path = copy;
   const built = await invoke(absoluteCommand(command), "build", path, [], timeoutMs, sources);
-  if (built.timedOut || built.signal || built.code !== 0)
+  if (built.timedOut || built.signal || built.code !== 0) {
     return {
       detail: messageLabel(`${built.stdout}\n${built.stderr}`, path),
       status: built.timedOut ? "build-timeout" : "build-failed",
     };
+  }
   const module = emittedModule(built, path);
-  if (!module) return { detail: firstLine(built.stdout), status: "no-module" };
+  if (!module) {
+    return { detail: firstLine(built.stdout), status: "no-module" };
+  }
   if (existsSync(wasmOpt)) {
     const checked = spawnSync(wasmOpt, ["--all-features", module], {
       encoding: "utf8",
       timeout: timeoutMs,
     });
-    if (checked.status !== 0)
+    if (checked.status !== 0) {
       return { detail: firstLine(checked.stderr || checked.stdout), status: "invalid:wasm-opt" };
+    }
   }
   if (wasmTools) {
     const checked = spawnSync(wasmTools, ["validate", "--features", "all", module], {
       encoding: "utf8",
       timeout: timeoutMs,
     });
-    if (checked.status !== 0)
+    if (checked.status !== 0) {
       return { detail: firstLine(checked.stderr), status: "invalid:wasm-tools" };
+    }
   }
   return { detail: "", status: "valid" };
 }

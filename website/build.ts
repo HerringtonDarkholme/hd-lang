@@ -76,15 +76,21 @@ function linkResolver(
   tourOutputs: ReadonlyMap<string, string>,
 ): RenderEnv["resolveLink"] {
   return (href, source) => {
-    if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) return href;
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) {
+      return href;
+    }
     const hash = href.indexOf("#");
     const path = decodeURIComponent(hash < 0 ? href : href.slice(0, hash));
     const fragment = hash < 0 ? "" : href.slice(hash);
     const target = posix.normalize(posix.join(posix.dirname(source), path)).replace(/\/$/, "");
     const output = pageBySource.get(target)?.output ?? tourOutputs.get(target);
-    if (output) return siteLink(base, output) + fragment;
+    if (output) {
+      return siteLink(base, output) + fragment;
+    }
     // A link to the playground's directory opens the site's playground page.
-    if (target === "website/playground") return siteLink(base, PLAYGROUND_PAGE) + fragment;
+    if (target === "website/playground") {
+      return siteLink(base, PLAYGROUND_PAGE) + fragment;
+    }
     const onDisk = join(REPO_DIR, target);
     if (target.startsWith("..") || !existsSync(onDisk)) {
       errors.push(`${source}: link ${href} names a missing repository path`);
@@ -129,9 +135,10 @@ function firstParagraph(markdown: string): string {
 }
 
 function playgroundBody(base: string, available: boolean): string {
-  if (available)
+  if (available) {
     return `<h1 class="visually-hidden">Playground</h1>
 <div class="playground-frame"><iframe id="playground-frame" src="${base}${PLAYGROUND_APP_DIR}/" data-src="${base}${PLAYGROUND_APP_DIR}/" title="hd-lang playground"></iframe></div>`;
+  }
   return `<div class="prose"><h1>Playground</h1>
 <p class="notice">The playground is not part of this build. <code>pnpm run website:build</code> builds it and serves it here.</p>
 <div id="playground-code-wrap" hidden><p>The code you opened:</p><pre class="code hd"><code id="playground-code"></code></pre></div>
@@ -167,10 +174,12 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     checkHdBlocksParse(REPO_DIR, LEARN_PAGE),
     checkTourSnippets(tour),
   ]);
-  if (failures.length > 0)
+  if (failures.length > 0) {
     throw new Error(`learn page examples do not parse:\n${failures.join("\n")}`);
-  if (tourFailures.length > 0)
+  }
+  if (tourFailures.length > 0) {
     throw new Error(`tour snippets fail their checks:\n${tourFailures.join("\n")}`);
+  }
 
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -178,14 +187,17 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
 
   const { playgroundDist } = options;
   const playground = playgroundDist === undefined || existsSync(join(playgroundDist, "index.html"));
-  if (playgroundDist === undefined) await buildPlayground(join(outDir, PLAYGROUND_APP_DIR));
-  else if (playground)
+  if (playgroundDist === undefined) {
+    await buildPlayground(join(outDir, PLAYGROUND_APP_DIR));
+  } else if (playground) {
     await cp(playgroundDist, join(outDir, PLAYGROUND_APP_DIR), { recursive: true });
-  if (playground)
+  }
+  if (playground) {
     await Promise.all([
       bundleClient("repl", join(outDir, REPL_SCRIPT)),
       bundleClient("tour", join(outDir, TOUR_SCRIPT)),
     ]);
+  }
 
   const md = createMarkdown();
   const linkErrors: string[] = [];
@@ -232,7 +244,9 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     };
     const home = entry.output === "index.html";
     const metrics = entry.generated === "metrics" ? metricsPage(process.env["METRICS_DIR"]) : null;
-    if (metrics) env.headings.push(...metrics.headings);
+    if (metrics) {
+      env.headings.push(...metrics.headings);
+    }
     const body = metrics
       ? metrics.body
       : home
@@ -261,7 +275,9 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
       }),
     );
   }
-  if (linkErrors.length > 0) throw new Error(`broken source links:\n${linkErrors.join("\n")}`);
+  if (linkErrors.length > 0) {
+    throw new Error(`broken source links:\n${linkErrors.join("\n")}`);
+  }
 
   await write(
     PLAYGROUND_PAGE,
@@ -321,7 +337,9 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
     );
     search.push({ title: plainClaim(page), page: "Tour", url: pageUrl(output) });
   }
-  if (linkErrors.length > 0) throw new Error(`broken tour links:\n${linkErrors.join("\n")}`);
+  if (linkErrors.length > 0) {
+    throw new Error(`broken tour links:\n${linkErrors.join("\n")}`);
+  }
 
   await write(
     "404.html",
@@ -337,7 +355,9 @@ export async function buildSite(options: BuildOptions): Promise<BuildResult> {
   await writeFile(join(outDir, "search-index.json"), JSON.stringify(search));
 
   const broken = await checkLinks(outDir, base, written);
-  if (broken.length > 0) throw new Error(`broken site links:\n${broken.join("\n")}`);
+  if (broken.length > 0) {
+    throw new Error(`broken site links:\n${broken.join("\n")}`);
+  }
   return { pages: written.length, playground, grammar };
 }
 
@@ -356,13 +376,14 @@ async function main(): Promise<void> {
     `grammar: ${grammar.definitions.size} rules (${grammar.definitionCount} definitions), ` +
       `${grammar.linkedCount} of ${grammar.referenceCount} references linked`,
   );
-  if (grammar.unresolved.length > 0)
+  if (grammar.unresolved.length > 0) {
     console.warn(
       `warning: ${grammar.unresolved.length} grammar references name no rule:\n` +
         grammar.unresolved
           .map(({ name, source, line }) => `  ${source}:${line}: ${name}`)
           .join("\n"),
     );
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

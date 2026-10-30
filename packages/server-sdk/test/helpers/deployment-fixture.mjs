@@ -7,7 +7,9 @@ export const repository = fileURLToPath(new URL("../../../../", import.meta.url)
 export const hd = process.env.HD_SDK_TEST_HD ?? resolve(repository, "target/debug/hd");
 export function environment(cache) {
   const env = { PATH: process.env.PATH, HD_CACHE: cache };
-  if (process.platform === "win32") env.SystemRoot = process.env.SystemRoot;
+  if (process.platform === "win32") {
+    env.SystemRoot = process.env.SystemRoot;
+  }
   return env;
 }
 export function fixture({ probe = false } = {}) {
@@ -24,11 +26,12 @@ export function fixture({ probe = false } = {}) {
     manifest,
     readFileSync(manifest, "utf8").replace('"../../packages/server-sdk"', '"../sdk"'),
   );
-  if (probe)
+  if (probe) {
     writeFileSync(
       join(app, "src/main.hd"),
       readFileSync(join(sdk, "test/fixtures/server-schema-probe.hd")),
     );
+  }
   const cache = join(directory, "cache");
   const run = (args, cwd = app) =>
     execFileSync(hd, args, { cwd, env: environment(cache), stdio: "pipe", timeout: 30000 });

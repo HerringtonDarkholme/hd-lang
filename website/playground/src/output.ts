@@ -42,8 +42,11 @@ export class OutputPanel {
       this.stdout = element("pre", "stdout");
       this.root.append(this.stdout);
     }
-    if (debug) this.stdout.append(element("span", "debug", `${text}\n`));
-    else this.stdout.append(`${text}\n`);
+    if (debug) {
+      this.stdout.append(element("span", "debug", `${text}\n`));
+    } else {
+      this.stdout.append(`${text}\n`);
+    }
   }
 
   message(text: string, kind: "info" | "error" = "info"): void {
@@ -55,32 +58,43 @@ export class OutputPanel {
     this.root.querySelector(".outcome.running")?.remove();
     const header = this.outcomeLine(outcome, mode);
     this.root.prepend(header);
-    if (typeof outcome === "string") return;
-    if (outcome.stdout.length === 0 && mode !== "check" && outcome.status !== "compile-error")
+    if (typeof outcome === "string") {
+      return;
+    }
+    if (outcome.stdout.length === 0 && mode !== "check" && outcome.status !== "compile-error") {
       this.root.append(element("div", "empty", "(no console output)"));
-    if (outcome.diagnostics.length > 0)
+    }
+    if (outcome.diagnostics.length > 0) {
       this.root.append(diagnosticList(outcome.diagnostics, this.onJump));
+    }
   }
 
   private outcomeLine(outcome: Outcome, mode: RunMode): HTMLElement {
-    if (outcome === "stopped") return element("div", "outcome failed", "Stopped.");
-    if (outcome === "timeout")
+    if (outcome === "stopped") {
+      return element("div", "outcome failed", "Stopped.");
+    }
+    if (outcome === "timeout") {
       return element(
         "div",
         "outcome failed",
         "Stopped: the program ran longer than 15 seconds. Is there an endless loop?",
       );
+    }
     const errors = outcome.diagnostics.filter(({ severity }) => severity === "error").length;
     const time = `${outcome.milliseconds} ms`;
-    if (outcome.status === "compile-error")
+    if (outcome.status === "compile-error") {
       return element(
         "div",
         "outcome failed",
         `✗ ${errors} ${errors === 1 ? "error" : "errors"} · ${time}`,
       );
-    if (outcome.status === "panic") return element("div", "outcome panic", `✗ ${outcome.summary}`);
-    if (outcome.status === "failure")
+    }
+    if (outcome.status === "panic") {
+      return element("div", "outcome panic", `✗ ${outcome.summary}`);
+    }
+    if (outcome.status === "failure") {
       return element("div", "outcome failed", `✗ ${outcome.summary}`);
+    }
     const label = mode === "check" ? "✓ No errors" : `✓ ${outcome.summary}`;
     return element("div", "outcome passed", `${label} · ${time}`);
   }
@@ -103,7 +117,9 @@ export function diagnosticList(
       element("span", "code", diagnostic.code),
       element("span", "message", diagnostic.message),
     );
-    for (const note of diagnostic.notes) button.append(element("span", "note", `note: ${note}`));
+    for (const note of diagnostic.notes) {
+      button.append(element("span", "note", `note: ${note}`));
+    }
     button.addEventListener("click", () => onJump(diagnostic));
     item.append(button);
     list.append(item);

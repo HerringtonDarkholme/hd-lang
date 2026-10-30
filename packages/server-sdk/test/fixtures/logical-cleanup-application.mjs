@@ -29,16 +29,18 @@ export function createApplication(options) {
                   const amount = BigInt(duration);
                   // The handler's 60s sleeps and SDK 20s request deadline stay
                   // pending real operations; only the cleanup timer advances.
-                  if (amount === 60000n || amount === 20000n)
+                  if (amount === 60000n || amount === 20000n) {
                     return actual.sleep(duration, context);
+                  }
                   Atomics.store(observation, 1, Number(amount));
                   Atomics.add(observation, 0, 1);
                   Atomics.notify(observation, 0);
-                  if (hold)
+                  if (hold) {
                     return context.pending(
                       () => false,
                       () => undefined,
                     );
+                  }
                   return actual.sleep(0n, {
                     ...context,
                     pending(ready, done, ...callbacks) {

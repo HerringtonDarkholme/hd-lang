@@ -75,14 +75,21 @@ async function editorClassesMatch(open: (source: string) => Promise<Page>): Prom
       const walk = (node: Node, className: string): void => {
         if (node.nodeType === Node.TEXT_NODE) {
           const last = runs.at(-1);
-          if (last && last[1] === className) last[0] += node.textContent;
-          else runs.push([node.textContent ?? "", className]);
+          if (last && last[1] === className) {
+            last[0] += node.textContent;
+          } else {
+            runs.push([node.textContent ?? "", className]);
+          }
           return;
         }
         const own = [...(node as Element).classList].find((name) => name.startsWith("hd-"));
-        for (const child of node.childNodes) walk(child, own ?? className);
+        for (const child of node.childNodes) {
+          walk(child, own ?? className);
+        }
       };
-      for (const child of line.childNodes) walk(child, "");
+      for (const child of line.childNodes) {
+        walk(child, "");
+      }
       return runs.filter(([text]) => text !== "");
     }),
   );
@@ -91,8 +98,11 @@ async function editorClassesMatch(open: (source: string) => Promise<Page>): Prom
     for (const { text, kind } of classify(line)) {
       const className = kind === "plain" ? "" : `hd-${kind}`;
       const last = runs.at(-1);
-      if (last && last[1] === className) last[0] += text;
-      else runs.push([text, className]);
+      if (last && last[1] === className) {
+        last[0] += text;
+      } else {
+        runs.push([text, className]);
+      }
     }
     return runs;
   });
@@ -297,11 +307,14 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
     const text = (await module.textContent()) ?? "";
     assert.ok(text.startsWith("(module"), text.slice(0, 40));
     assert.match(text, /\(func \$playground\/main\/main#0 /);
-    for (const kind of ["keyword", "instruction", "type", "name", "string", "number"])
+    for (const kind of ["keyword", "instruction", "type", "name", "string", "number"]) {
       assert.ok((await page.locator(`.wat-code .wat-${kind}`).count()) > 0, kind);
+    }
     const main = page.locator(".wat-line", { hasText: "(func $playground/main/main#0 " }).first();
     assert.equal(await main.locator(".wat-keyword").first().textContent(), "func");
-    if (screenshots) await page.screenshot({ path: join(screenshots, "desktop-wat.png") });
+    if (screenshots) {
+      await page.screenshot({ path: join(screenshots, "desktop-wat.png") });
+    }
     await page.click("#wat-copy");
     await page.getByText("WAT copied").waitFor();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
@@ -393,7 +406,9 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     assert.equal(overflow, 0);
-    if (screenshots) await page.screenshot({ path: join(screenshots, "phone-dark.png") });
+    if (screenshots) {
+      await page.screenshot({ path: join(screenshots, "phone-dark.png") });
+    }
     await page.click("#view-wat");
     await page.locator(".wat-code").waitFor();
     const watOverflow = await page.evaluate(
@@ -410,12 +425,16 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
         .first()
         .evaluate((node) => getComputedStyle(node).color),
     );
-    if (screenshots) await page.screenshot({ path: join(screenshots, "phone-dark-wat.png") });
+    if (screenshots) {
+      await page.screenshot({ path: join(screenshots, "phone-dark-wat.png") });
+    }
     await page.context().close();
     const light = await openPage();
     await light.click("#run");
     await light.locator(".outcome.passed").waitFor();
-    if (screenshots) await light.screenshot({ path: join(screenshots, "desktop-light.png") });
+    if (screenshots) {
+      await light.screenshot({ path: join(screenshots, "desktop-light.png") });
+    }
     await light.context().close();
   });
 }

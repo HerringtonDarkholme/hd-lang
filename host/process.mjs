@@ -15,7 +15,9 @@ const MAX_BUFFER = 1 << 30;
 const failure = (error) => ({ error: { code: error.code, message: String(error.message) } });
 
 function begin(request) {
-  if (process.platform === "win32") return beginWindows(request);
+  if (process.platform === "win32") {
+    return beginWindows(request);
+  }
   const state = { result: null, child: null, timer: null };
   let reaped;
   state.closed = new Promise((resolve) => {
@@ -28,11 +30,15 @@ function begin(request) {
   const kill = () => {
     clearTimeout(state.timer);
     const child = state.child;
-    if (!child?.pid || state.result !== null) return;
+    if (!child?.pid || state.result !== null) {
+      return;
+    }
     try {
       process.kill(-child.pid, "SIGKILL");
     } catch (error) {
-      if (error.code !== "ESRCH") throw error;
+      if (error.code !== "ESRCH") {
+        throw error;
+      }
     }
     child.stdin.destroy();
     child.stdout.destroy();
@@ -62,15 +68,22 @@ function begin(request) {
     child.stdin.on("error", (e) => {
       // A child that never started still reports its spawn error. A closed
       // reader drops remaining input, keeping the real output and status.
-      if (!brokenInput.has(e.code)) failed(e);
+      if (!brokenInput.has(e.code)) {
+        failed(e);
+      }
     });
     const collect = (chunks, stream) => (bytes) => {
-      if (stream === "stdout") outSize += bytes.length;
-      else errSize += bytes.length;
+      if (stream === "stdout") {
+        outSize += bytes.length;
+      } else {
+        errSize += bytes.length;
+      }
       if (outSize > MAX_BUFFER || errSize > MAX_BUFFER) {
         failed(Object.assign(new Error("child output exceeds maxBuffer"), { code: "ENOBUFS" }));
         kill();
-      } else chunks.push(bytes);
+      } else {
+        chunks.push(bytes);
+      }
     };
     child.stdout.on("data", collect(stdout, "stdout"));
     child.stderr.on("data", collect(stderr, "stderr"));
@@ -98,7 +111,9 @@ function begin(request) {
         if (left <= 0) {
           timeout = true;
           kill();
-        } else state.timer = setTimeout(expire, Math.min(left, 2_147_483_647));
+        } else {
+          state.timer = setTimeout(expire, Math.min(left, 2_147_483_647));
+        }
       };
       expire();
     }
@@ -106,7 +121,9 @@ function begin(request) {
   } catch (error) {
     kill();
     state.result = failure(error);
-    if (!state.child) closed();
+    if (!state.child) {
+      closed();
+    }
   }
   return state;
 }
@@ -128,7 +145,9 @@ function beginWindows(request) {
   let settle = () => {};
   const abort = () => {
     clearTimeout(state.timer);
-    if (aborted || state.result !== null) return;
+    if (aborted || state.result !== null) {
+      return;
+    }
     aborted = true;
     state.child?.stdin.destroy();
     settle();
@@ -160,7 +179,9 @@ function beginWindows(request) {
       failed(new Error(`cannot start Windows processLauncher: ${reason.message}`)),
     );
     child.stdin.on("error", (reason) => {
-      if (!brokenInput.has(reason.code)) failed(reason);
+      if (!brokenInput.has(reason.code)) {
+        failed(reason);
+      }
     });
     child.stdout.on("error", failed);
     child.stderr.on("error", failed);
@@ -179,29 +200,39 @@ function beginWindows(request) {
     });
     child.stderr.resume();
     settle = () => {
-      if (state.result !== null || !exited || (!framed && !ended && !timeout && !error && !aborted))
+      if (
+        state.result !== null ||
+        !exited ||
+        (!framed && !ended && !timeout && !error && !aborted)
+      ) {
         return;
+      }
       clearTimeout(state.timer);
       try {
-        if (timeout) state.result = { timeout: true };
-        else if (error) state.result = failure(error);
-        else if (aborted) state.result = failure(new Error("process cancelled"));
-        else {
+        if (timeout) {
+          state.result = { timeout: true };
+        } else if (error) {
+          state.result = failure(error);
+        } else if (aborted) {
+          state.result = failure(new Error("process cancelled"));
+        } else {
           const result = JSON.parse(Buffer.concat(output).toString("utf8"));
           if (
             result?.ok &&
             typeof result.ok.stdout === "string" &&
             typeof result.ok.stderr === "string" &&
             Number.isInteger(result.ok.status)
-          )
+          ) {
             state.result = result;
-          else if (
+          } else if (
             result?.error &&
             typeof result.error.code === "string" &&
             typeof result.error.message === "string"
-          )
+          ) {
             state.result = result;
-          else throw new Error("invalid result");
+          } else {
+            throw new Error("invalid result");
+          }
         }
       } catch {
         state.result = failure(new Error("invalid Windows processLauncher result"));
@@ -242,14 +273,18 @@ function beginWindows(request) {
         if (left <= 0) {
           timeout = true;
           abort();
-        } else state.timer = setTimeout(expire, Math.min(left, 2_147_483_647));
+        } else {
+          state.timer = setTimeout(expire, Math.min(left, 2_147_483_647));
+        }
       };
       expire();
     }
   } catch (reason) {
     abort();
     state.result = failure(reason);
-    if (!state.child) closed();
+    if (!state.child) {
+      closed();
+    }
   }
   return state;
 }
@@ -263,12 +298,16 @@ const run = (r) => {
     }
     case "wait_poll": {
       const state = operations.get(r.operation);
-      if (!state) throw new Error("unknown process wait");
+      if (!state) {
+        throw new Error("unknown process wait");
+      }
       return state.result ?? { pending: true };
     }
     case "wait_finish": {
       const state = operations.get(r.operation);
-      if (!state || state.result === null) throw new Error("unfinished process wait");
+      if (!state || state.result === null) {
+        throw new Error("unfinished process wait");
+      }
       operations.delete(r.operation);
       return { ok: null };
     }
@@ -278,7 +317,9 @@ const run = (r) => {
       return { ok: null };
     case "close": {
       const waiting = [...children];
-      for (const state of waiting) state.abort();
+      for (const state of waiting) {
+        state.abort();
+      }
       operations.clear();
       return Promise.all(waiting.map((state) => state.closed)).then(() => ({ ok: null }));
     }

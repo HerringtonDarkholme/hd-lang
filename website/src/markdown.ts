@@ -69,8 +69,12 @@ const HD_MARKERS =
  * does when it contains an hd construct or the compiler's parser accepts it.
  */
 function isHdBlock(info: string, code: string): boolean {
-  if (info === "hd") return true;
-  if (info !== "text") return false;
+  if (info === "hd") {
+    return true;
+  }
+  if (info !== "text") {
+    return false;
+  }
   return HD_MARKERS.test(code) || isErrorExample(code) || parsesAsHd(code);
 }
 
@@ -89,7 +93,9 @@ export function highlightHd(code: string): string {
       const rejected = ERROR_LINE.test(line);
       const html = classify(line)
         .map(({ text, kind }) => {
-          if (kind === "plain") return escapeHtml(text);
+          if (kind === "plain") {
+            return escapeHtml(text);
+          }
           const marker = rejected && kind === "comment" && ERROR_LINE.test(text);
           const classes = marker ? `hl-${kind} hl-error-marker` : `hl-${kind}`;
           return `<span class="${classes}">${escapeHtml(text)}</span>`;
@@ -103,7 +109,9 @@ export function highlightHd(code: string): string {
 /** The URL of rule `name`'s definition on page `target`, from the page `env` renders. */
 function ruleUrl(env: RenderEnv, target: string, name: string): string {
   const fragment = `#${ruleAnchor(name)}`;
-  if (target === env.source) return fragment;
+  if (target === env.source) {
+    return fragment;
+  }
   const relative = posix.relative(posix.dirname(env.source), target);
   return env.resolveLink(relative + fragment, env.source);
 }
@@ -118,13 +126,18 @@ function highlightEbnf(code: string, env: RenderEnv): string {
   return tokenizeEbnf(code)
     .map(({ text, kind }) => {
       const html = escapeHtml(text);
-      if (kind === "plain") return html;
+      if (kind === "plain") {
+        return html;
+      }
       if (kind === "definition") {
         const id = ruleAnchor(text);
-        if (env.headings.some((heading) => heading.id === id))
+        if (env.headings.some((heading) => heading.id === id)) {
           throw new Error(`${env.source}: heading id ${id} collides with a grammar rule anchor`);
+        }
         const first = !env.slugCounts.has(id);
-        if (first) env.slugCounts.set(id, 1);
+        if (first) {
+          env.slugCounts.set(id, 1);
+        }
         const canonical = env.grammar?.definitions.get(text)?.[0] ?? env.source;
         const restated = canonical !== env.source;
         const href = restated ? ruleUrl(env, canonical, text) : `#${id}`;
@@ -134,8 +147,9 @@ function highlightEbnf(code: string, env: RenderEnv): string {
       }
       if (kind === "reference" || kind === "token") {
         const target = env.grammar && ruleTarget(env.grammar, text, env.source);
-        if (target !== undefined)
+        if (target !== undefined) {
           return `<a class="eb-${kind}" href="${escapeHtml(ruleUrl(env, target, text))}">${html}</a>`;
+        }
       }
       return `<span class="eb-${kind}">${html}</span>`;
     })
@@ -151,7 +165,9 @@ function inlineText(token: Token): string {
 
 function assignHeadingIds(tokens: Token[], env: RenderEnv): void {
   for (const [index, token] of tokens.entries()) {
-    if (token.type !== "heading_open") continue;
+    if (token.type !== "heading_open") {
+      continue;
+    }
     const inline = tokens[index + 1]!;
     const base = githubSlug(inline.content);
     const seen = env.slugCounts.get(base) ?? 0;
@@ -167,11 +183,17 @@ function labelCells(tableTokens: Token[]): void {
   const headers: string[] = [];
   let column = 0;
   for (const [index, token] of tableTokens.entries()) {
-    if (token.type === "th_open") headers.push(tableTokens[index + 1]!.content.replaceAll("`", ""));
-    if (token.type === "tr_open") column = 0;
+    if (token.type === "th_open") {
+      headers.push(tableTokens[index + 1]!.content.replaceAll("`", ""));
+    }
+    if (token.type === "tr_open") {
+      column = 0;
+    }
     if (token.type === "td_open") {
       const header = headers[column++];
-      if (header) token.attrSet("data-label", header);
+      if (header) {
+        token.attrSet("data-label", header);
+      }
     }
   }
 }
@@ -194,22 +216,33 @@ function markRulesAndCallouts(tokens: Token[], env: RenderEnv, TokenClass: typeo
       tableStart = index;
     }
     if (token.type === "table_close") {
-      if (table?.attrGet("class") === "rule-table") labelCells(tokens.slice(tableStart, index));
+      if (table?.attrGet("class") === "rule-table") {
+        labelCells(tokens.slice(tableStart, index));
+      }
       table = undefined;
     }
     if (token.type === "blockquote_open") {
       const inline = tokens[index + 2];
       const callout = /^\*\*(Why|Note)\.\*\*/.exec(inline?.content ?? "");
-      if (tokens[index + 1]?.type === "paragraph_open" && callout)
+      if (tokens[index + 1]?.type === "paragraph_open" && callout) {
         token.attrSet("class", `callout callout-${callout[1]!.toLowerCase()}`);
+      }
     }
-    if (token.type !== "inline") continue;
+    if (token.type !== "inline") {
+      continue;
+    }
     const opener = tokens[index - 1]?.type;
-    if (opener !== "paragraph_open" && opener !== "td_open" && opener !== "th_open") continue;
+    if (opener !== "paragraph_open" && opener !== "td_open" && opener !== "th_open") {
+      continue;
+    }
     const marker = RULE_MARKER.exec(token.content);
-    if (!marker || !RULE_ID.test(marker[1]!)) continue;
+    if (!marker || !RULE_ID.test(marker[1]!)) {
+      continue;
+    }
     const id = ruleIdAnchor(marker[1]!);
-    if (env.slugCounts.has(id)) throw new Error(`${env.source}: duplicate rule ID ${marker[1]}`);
+    if (env.slugCounts.has(id)) {
+      throw new Error(`${env.source}: duplicate rule ID ${marker[1]}`);
+    }
     env.slugCounts.set(id, 1);
     // Drop the marker's text from the leading text children, then put the anchor first.
     let remaining = marker[0].length;
@@ -228,7 +261,9 @@ function markRulesAndCallouts(tokens: Token[], env: RenderEnv, TokenClass: typeo
     anchor.meta = { id: marker[1] };
     children.unshift(anchor);
     token.children = children;
-    if (opener !== "paragraph_open" && table) table.attrSet("class", "rule-table");
+    if (opener !== "paragraph_open" && table) {
+      table.attrSet("class", "rule-table");
+    }
   }
 }
 
@@ -244,9 +279,12 @@ function isWholeProgram(code: string): boolean {
  * playground instead, since a REPL input cannot declare `main`.
  */
 function tryAction(code: string, env: RenderEnv): string {
-  if (env.noTryActions || !parsesAsHd(code)) return "";
-  if (isWholeProgram(code))
+  if (env.noTryActions || !parsesAsHd(code)) {
+    return "";
+  }
+  if (isWholeProgram(code)) {
     return `<a class="try-link try-playground" href="${escapeHtml(env.playgroundUrl(code))}">Open in playground</a>`;
+  }
   return '<button type="button" class="try-link try-repl" title="Run this code in the REPL panel">Try in REPL</button>';
 }
 
@@ -275,8 +313,9 @@ function renderFootnotes(md: MarkdownIt): void {
   /** Claims anchor `id` on the page, failing when a heading slug or rule anchor holds it. */
   const claim = (env: unknown, id: string): string => {
     const renderEnv = asRenderEnv(env);
-    if (renderEnv.slugCounts.has(id))
+    if (renderEnv.slugCounts.has(id)) {
       throw new Error(`${renderEnv.source}: footnote anchor ${id} collides with another anchor`);
+    }
     renderEnv.slugCounts.set(id, 1);
     return escapeHtml(id);
   };
@@ -326,7 +365,9 @@ export function createMarkdown(): MarkdownIt {
     const token = tokens[index]!;
     const renderEnv = asRenderEnv(env);
     const href = token.attrGet("href");
-    if (href !== null) token.attrSet("href", renderEnv.resolveLink(String(href), renderEnv.source));
+    if (href !== null) {
+      token.attrSet("href", renderEnv.resolveLink(String(href), renderEnv.source));
+    }
     return self.renderToken(tokens, index, options);
   };
 
@@ -340,14 +381,16 @@ export function createMarkdown(): MarkdownIt {
     const token = tokens[index]!;
     const info = token.info.trim().split(/\s+/, 1)[0] ?? "";
     const code = token.content.replace(/\n$/, "");
-    if (info === "ebnf")
+    if (info === "ebnf") {
       return `<pre class="code ebnf"><code class="language-ebnf">${highlightEbnf(code, asRenderEnv(env))}</code></pre>\n`;
+    }
     if (!isHdBlock(info, code)) {
       const language = info === "" ? "" : ` class="language-${escapeHtml(info)}"`;
       return `<pre class="code"><code${language}>${escapeHtml(code)}</code></pre>\n`;
     }
-    if (isErrorExample(code))
+    if (isErrorExample(code)) {
       return `<div class="code-block error-example"><div class="example-label">Error example</div><pre class="code hd"><code class="language-hd">${highlightHd(code)}</code></pre>${tryAction(code, asRenderEnv(env))}</div>\n`;
+    }
     return `<div class="code-block"><pre class="code hd"><code class="language-hd">${highlightHd(code)}</code></pre>${tryAction(code, asRenderEnv(env))}</div>\n`;
   };
   return md;

@@ -51,22 +51,31 @@ function proseWarnings(chapter: Chapter): AuditWarning[] {
     out.push({ kind, file: chapter.name, line, message });
   };
   for (const block of chapter.blocks) {
-    if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "quote") continue;
+    if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "quote") {
+      continue;
+    }
     for (const sentence of sentences(block.text)) {
       const words = wordCount(sentence);
-      if (words > SENTENCE_TARGET)
+      if (words > SENTENCE_TARGET) {
         at("long-sentence", block.line, `sentence has ${words} words: ${clip(readable(sentence))}`);
+      }
     }
   }
   for (const block of paragraphs(chapter.blocks)) {
     const words = wordCount(block.text);
-    if (words > PARAGRAPH_TARGET) at("long-paragraph", block.line, `paragraph has ${words} words`);
+    if (words > PARAGRAPH_TARGET) {
+      at("long-paragraph", block.line, `paragraph has ${words} words`);
+    }
   }
   for (const section of chapter.sections) {
     const inside = (line: number): boolean => line > section.line && line <= section.end;
     const rules = chapter.inventory.rules.filter((rule) => inside(rule.line));
-    if (rules.length === 0) continue;
-    if (chapter.blocks.some((block) => block.kind === "code" && inside(block.line))) continue;
+    if (rules.length === 0) {
+      continue;
+    }
+    if (chapter.blocks.some((block) => block.kind === "code" && inside(block.line))) {
+      continue;
+    }
     at(
       "no-example",
       section.line,
@@ -94,25 +103,33 @@ function idWarnings(corpus: Corpus): AuditWarning[] {
       const warn = (message: string): void => {
         out.push({ kind: "bad-rule-id", file: chapter.name, line: rule.line, message });
       };
-      if (!RULE_ID.test(rule.id)) warn(`rule ID ${rule.id} breaks the RULE_ID pattern`);
-      if (chapter.prefix === undefined)
+      if (!RULE_ID.test(rule.id)) {
+        warn(`rule ID ${rule.id} breaks the RULE_ID pattern`);
+      }
+      if (chapter.prefix === undefined) {
         warn(`rule ID ${rule.id} is in a chapter with no prefix in CHAPTER_PREFIXES`);
-      else if (rule.id.split(".", 1)[0] !== chapter.prefix)
+      } else if (rule.id.split(".", 1)[0] !== chapter.prefix) {
         warn(`rule ID ${rule.id} lacks this chapter's prefix ${chapter.prefix}`);
+      }
       const first = seen.get(rule.id);
-      if (first) warn(`rule ID ${rule.id} duplicates ${first}`);
-      else seen.set(rule.id, where);
+      if (first) {
+        warn(`rule ID ${rule.id} duplicates ${first}`);
+      } else {
+        seen.set(rule.id, where);
+      }
     }
   }
   const prefixes = Object.values(CHAPTER_PREFIXES);
-  for (const prefix of new Set(prefixes))
-    if (prefixes.filter((other) => other === prefix).length > 1)
+  for (const prefix of new Set(prefixes)) {
+    if (prefixes.filter((other) => other === prefix).length > 1) {
       out.push({
         kind: "bad-rule-id",
         file: "tools/spec-prose.ts",
         line: 0,
         message: `prefix ${prefix} names two chapters in CHAPTER_PREFIXES`,
       });
+    }
+  }
   return out;
 }
 
@@ -128,27 +145,36 @@ export function normalizeSentence(sentence: string): string {
 
 function duplicateWarnings(corpus: Corpus): AuditWarning[] {
   const groups = new Map<string, { file: string; line: number; id: string }[]>();
-  for (const { chapter, rule } of allRules(corpus))
+  for (const { chapter, rule } of allRules(corpus)) {
     for (const sentence of sentences(rule.text)) {
-      if (/^(?:Error|Warning|Panic):/.test(sentence.trim())) continue;
-      if (wordCount(sentence) < DUPLICATE_MIN_WORDS) continue;
+      if (/^(?:Error|Warning|Panic):/.test(sentence.trim())) {
+        continue;
+      }
+      if (wordCount(sentence) < DUPLICATE_MIN_WORDS) {
+        continue;
+      }
       const key = normalizeSentence(sentence);
       const group = groups.get(key) ?? [];
-      if (!group.some((entry) => entry.id === rule.id))
+      if (!group.some((entry) => entry.id === rule.id)) {
         group.push({ file: chapter.name, line: rule.line, id: rule.id });
+      }
       groups.set(key, group);
     }
+  }
   const out: AuditWarning[] = [];
   for (const [key, group] of groups) {
-    if (group.length < 2) continue;
+    if (group.length < 2) {
+      continue;
+    }
     const [first, ...rest] = group;
-    for (const entry of rest)
+    for (const entry of rest) {
       out.push({
         kind: "duplicate-rule",
         file: entry.file,
         line: entry.line,
         message: `${entry.id} repeats a sentence of ${first!.id} (${first!.file}:${first!.line}): ${clip(key)}`,
       });
+    }
   }
   return out;
 }
@@ -165,30 +191,37 @@ function codeWarnings(corpus: Corpus): AuditWarning[] {
     .filter((block) => block.kind !== "code" && /(?:^|\| )r\[/.test(block.text))
     .map((block) => block.text)
     .join("\n");
-  for (const chapter of corpus.chapters)
+  for (const chapter of corpus.chapters) {
     for (const block of chapter.blocks) {
-      if (block.kind === "code" || block.kind === "heading") continue;
-      for (const match of block.text.matchAll(NAMED_CODES))
+      if (block.kind === "code" || block.kind === "heading") {
+        continue;
+      }
+      for (const match of block.text.matchAll(NAMED_CODES)) {
         for (const code of match[2]!.matchAll(/`([a-z0-9-]+)`/g)) {
           const known = match[1] === "Panic" ? panics : tableCodes;
-          if (!known.has(code[1]!))
+          if (!known.has(code[1]!)) {
             out.push({
               kind: "unknown-code",
               file: chapter.name,
               line: block.line,
               message: `${match[1]}: \`${code[1]}\` is not in the ${match[1] === "Panic" ? "panic category list" : "README Diagnostics table"}`,
             });
+          }
         }
+      }
     }
+  }
   const prose = corpus.chapters.map((chapter) => chapter.text).join("\n");
-  for (const code of [...tableCodes].sort())
-    if (!ruleText.includes(`\`${code}\``))
+  for (const code of [...tableCodes].sort()) {
+    if (!ruleText.includes(`\`${code}\``)) {
       out.push({
         kind: "unused-code",
         file: "README.md",
         line: corpus.readme.split("\n").findIndex((line) => line.includes(`\`${code}\``)) + 1,
         message: `\`${code}\` is in the Diagnostics table, but no rule names it${prose.includes(`\`${code}\``) ? " (chapter prose does)" : ""}`,
       });
+    }
+  }
   return out;
 }
 
@@ -206,7 +239,9 @@ export function auditTotals(warnings: readonly AuditWarning[]): Record<AuditKind
     AuditKind,
     number
   >;
-  for (const warning of warnings) totals[warning.kind] += 1;
+  for (const warning of warnings) {
+    totals[warning.kind] += 1;
+  }
   return totals;
 }
 
@@ -222,11 +257,13 @@ const SHORT: Record<AuditKind, string> = {
 
 export function auditReport(warnings: readonly AuditWarning[], listAll: boolean): string {
   const out: string[] = [];
-  if (listAll)
-    for (const warning of warnings)
+  if (listAll) {
+    for (const warning of warnings) {
       out.push(
         `spec/${warning.file}:${warning.line}: warning: ${warning.kind}: ${warning.message}`,
       );
+    }
+  }
   const files = [...new Set(warnings.map((warning) => warning.file))].sort();
   const header = ["File", ...AUDIT_KINDS.map((kind) => SHORT[kind]), "total"];
   const rows = files.map((file) => {
@@ -248,7 +285,9 @@ export function auditReport(warnings: readonly AuditWarning[], listAll: boolean)
         index === 0 ? String(cell).padEnd(widths[0]!) : String(cell).padStart(widths[index]!),
       )
       .join("  ");
-  if (out.length > 0) out.push("");
+  if (out.length > 0) {
+    out.push("");
+  }
   out.push(
     `Audit summary (spec/STYLE.md targets: sentences <= ${SENTENCE_TARGET} words, paragraphs <= ${PARAGRAPH_TARGET} words)`,
     "",

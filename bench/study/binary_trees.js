@@ -13,7 +13,9 @@ const long = make(MAX);
 for (let d = MIN; d <= MAX; d += 2) {
   const iters = 1 << (MAX - d + MIN);
   let sum = 0;
-  for (let i = 0; i < iters; i++) sum += check(make(d));
+  for (let i = 0; i < iters; i++) {
+    sum += check(make(d));
+  }
   out.push(`${iters} ${d} ${sum}`);
 }
 out.push(`long ${MAX} ${check(long)}`);

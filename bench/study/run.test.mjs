@@ -63,7 +63,9 @@ test("warm activations reuse the compiled module and isolate mutable instance st
   assert.equal(result.warmups, 2);
   assert.equal(instances.length, 5);
   assert.equal(new Set(instances).size, 5);
-  for (const instance of instances) assert.equal(instance.exports.counter.value, 1);
+  for (const instance of instances) {
+    assert.equal(instance.exports.counter.value, 1);
+  }
 });
 
 test("warm-up stdout is validated", async () => {
@@ -76,7 +78,9 @@ test("a failed measured activation is refused after successful warm-up", async (
   let calls = 0;
   t.mock.method(WebAssembly, "instantiate", async (...args) => {
     const instance = await instantiate(...args);
-    if (++calls === 2) instance.exports.counter.value = 7;
+    if (++calls === 2) {
+      instance.exports.counter.value = 7;
+    }
     return instance;
   });
   const result = await measureWarmModule(counterModule(), 2, "", 1);

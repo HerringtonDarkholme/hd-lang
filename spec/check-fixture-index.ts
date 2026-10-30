@@ -37,8 +37,9 @@ const marker = /# (diagnostic|warning|panic): [a-z0-9-]+[ \t]*$/;
 
 // cases.tsv
 const [header, ...cases] = readRows(join(conformance, "cases.tsv"));
-if (header?.join("\t") !== "path\tphase\texpectation\tspecification")
+if (header?.join("\t") !== "path\tphase\texpectation\tspecification") {
   fail("malformed conformance/cases.tsv");
+}
 const entries = new Map<string, number>();
 for (const row of cases) {
   if (row.length !== 4 || row.some((field) => field === "")) {
@@ -54,33 +55,52 @@ for (const row of cases) {
   }
   const lines = text.split("\n");
   const markers = lines.filter((line) => marker.test(line)).length;
-  if (!["parse", "type", "runtime"].includes(phase)) fail(`unknown phase '${phase}' for ${path}`);
+  if (!["parse", "type", "runtime"].includes(phase)) {
+    fail(`unknown phase '${phase}' for ${path}`);
+  }
   if (expectation === "accept") {
-    if (markers !== 0) fail(`accept fixture ${path} declares an error marker`);
+    if (markers !== 0) {
+      fail(`accept fixture ${path} declares an error marker`);
+    }
   } else if (/^(reject|warn|panic):/.test(expectation)) {
-    if (markers !== 1) fail(`fixture ${path} must declare exactly one expectation marker`);
-  } else fail(`unknown expectation '${expectation}' for ${path}`);
+    if (markers !== 1) {
+      fail(`fixture ${path} must declare exactly one expectation marker`);
+    }
+  } else {
+    fail(`unknown expectation '${expectation}' for ${path}`);
+  }
   const runtimeAccept = phase === "runtime" && expectation === "accept";
-  if (lines.some((line) => line.startsWith("# expect-stdout:")) && !runtimeAccept)
+  if (lines.some((line) => line.startsWith("# expect-stdout:")) && !runtimeAccept) {
     fail(`fixture ${path} uses # expect-stdout: outside a runtime accept case`);
+  }
   if (lines.some((line) => line.startsWith("# expect-empty-stdout:"))) {
-    if (!runtimeAccept)
+    if (!runtimeAccept) {
       fail(`fixture ${path} uses # expect-empty-stdout: outside a runtime accept case`);
-    if (!lines.includes("# expect-empty-stdout: true"))
+    }
+    if (!lines.includes("# expect-empty-stdout: true")) {
       fail(`fixture ${path}: # expect-empty-stdout: takes the value true`);
+    }
   }
   const specFile = section.split("#")[0]!;
-  if (!existsSync(join(specDir, specFile))) fail(`missing specification ${specFile} for ${path}`);
+  if (!existsSync(join(specDir, specFile))) {
+    fail(`missing specification ${specFile} for ${path}`);
+  }
   const [kind, code] = expectation.split(/:(.*)/s) as [string, string | undefined];
   const check = (directive: string, label: string, source: string, category: string): void => {
-    if (!text.includes(`# ${directive}: ${code}`))
+    if (!text.includes(`# ${directive}: ${code}`)) {
       fail(`fixture ${path} does not declare ${label} ${code}`);
-    if (!source.includes(`\`${code}\``))
+    }
+    if (!source.includes(`\`${code}\``)) {
       fail(`fixture ${path} uses unknown ${category} category ${code}`);
+    }
   };
-  if (kind === "reject") check("diagnostic", "diagnostic", readme, "error");
-  else if (kind === "warn") check("warning", "warning", readme, "warning");
-  else if (kind === "panic") check("panic", "panic", controlFlow, "panic");
+  if (kind === "reject") {
+    check("diagnostic", "diagnostic", readme, "error");
+  } else if (kind === "warn") {
+    check("warning", "warning", readme, "warning");
+  } else if (kind === "panic") {
+    check("panic", "panic", controlFlow, "panic");
+  }
 }
 
 // Every fixture outside the package sources has exactly one cases.tsv row.
@@ -88,19 +108,23 @@ function walk(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory())
-      // The inputs of a CLI case (cli/NAME) are indexed by cli-cases.tsv, below.
+    // The inputs of a CLI case (cli/NAME) are indexed by cli-cases.tsv, below.
+    {
       return path === join(conformance, "packages") ||
         path === join(conformance, "trees") ||
         path === join(conformance, "cli")
         ? []
         : walk(path);
+    }
     return entry.isFile() && entry.name.endsWith(".hd") ? [path] : [];
   });
 }
 for (const file of walk(conformance).sort()) {
   const path = relative(conformance, file);
   const count = entries.get(path) ?? 0;
-  if (count !== 1) fail(`fixture ${path} has ${count} manifest entries`);
+  if (count !== 1) {
+    fail(`fixture ${path} has ${count} manifest entries`);
+  }
 }
 
 // cli-cases.tsv: every directory under cli/ is one case with an expect.txt and
@@ -111,7 +135,9 @@ const cliRules = new Set(
   ].map((match) => match[1]!),
 );
 const [cliHeader, ...cliRows] = readRows(join(conformance, "cli-cases.tsv"));
-if (cliHeader?.join("\t") !== "case\trules") fail("malformed conformance/cli-cases.tsv");
+if (cliHeader?.join("\t") !== "case\trules") {
+  fail("malformed conformance/cli-cases.tsv");
+}
 const cliNamed = new Set<string>();
 for (const row of cliRows) {
   const [name = "", rules = ""] = row;
@@ -119,17 +145,24 @@ for (const row of cliRows) {
     fail(`malformed conformance/cli-cases.tsv row ${row.join("\t")}`);
     continue;
   }
-  if (cliNamed.has(name)) fail(`cli case ${name} has two rows`);
+  if (cliNamed.has(name)) {
+    fail(`cli case ${name} has two rows`);
+  }
   cliNamed.add(name);
-  if (!existsSync(join(conformance, "cli", name, "expect.txt")))
+  if (!existsSync(join(conformance, "cli", name, "expect.txt"))) {
     fail(`cli case ${name} has no expect.txt`);
-  for (const rule of rules.split(","))
-    if (!cliRules.has(rule))
+  }
+  for (const rule of rules.split(",")) {
+    if (!cliRules.has(rule)) {
       fail(`cli case ${name} cites ${rule}, which cli/command-line.md lacks`);
+    }
+  }
 }
-for (const entry of readdirSync(join(conformance, "cli"), { withFileTypes: true }))
-  if (entry.isDirectory() && !cliNamed.has(entry.name))
+for (const entry of readdirSync(join(conformance, "cli"), { withFileTypes: true })) {
+  if (entry.isDirectory() && !cliNamed.has(entry.name)) {
     fail(`cli case directory ${entry.name} has no cli-cases.tsv row`);
+  }
+}
 
 // examples.tsv
 const fragments = new Set([
@@ -144,19 +177,27 @@ const fragments = new Set([
 for (const [specification = "", block, classification = "", fixtures = ""] of readRows(
   join(conformance, "examples.tsv"),
 ).slice(1)) {
-  if (!existsSync(join(specDir, specification)))
+  if (!existsSync(join(specDir, specification))) {
     fail(`missing example specification ${specification}`);
+  }
   if (classification === "accept" || classification === "mixed") {
-    for (const path of fixtures.split("|"))
-      if (!existsSync(join(conformance, path)))
+    for (const path of fixtures.split("|")) {
+      if (!existsSync(join(conformance, path))) {
         fail(`missing example fixture ${path} for ${specification} block ${block}`);
+      }
+    }
   } else if (fragments.has(classification)) {
-    if (fixtures !== "-")
+    if (fixtures !== "-") {
       fail(`${classification} entry must use '-' for ${specification} block ${block}`);
-  } else fail(`unknown example classification '${classification}'`);
+    }
+  } else {
+    fail(`unknown example classification '${classification}'`);
+  }
 }
 
 if (problems.length) {
-  for (const problem of problems) console.error(`spec check failed: ${problem}`);
+  for (const problem of problems) {
+    console.error(`spec check failed: ${problem}`);
+  }
   process.exit(1);
 }

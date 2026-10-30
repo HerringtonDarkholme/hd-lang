@@ -75,9 +75,13 @@ function setStatus(text: string): void {
 }
 
 function project(sync = true): Project {
-  if (sync) states.set(current, view.state);
+  if (sync) {
+    states.set(current, view.state);
+  }
   const files: Record<string, string> = {};
-  for (const [path, state] of states) files[path] = state.doc.toString();
+  for (const [path, state] of states) {
+    files[path] = state.doc.toString();
+  }
   return { files, main: entry };
 }
 
@@ -87,7 +91,9 @@ function newState(source: string): EditorState {
 
 function load(next: Project): void {
   states.clear();
-  for (const [path, source] of Object.entries(next.files)) states.set(path, newState(source));
+  for (const [path, source] of Object.entries(next.files)) {
+    states.set(path, newState(source));
+  }
   entry = next.main;
   current = next.main;
   view.setState(states.get(current)!);
@@ -97,7 +103,9 @@ function load(next: Project): void {
 }
 
 function open(path: string): void {
-  if (path === current) return;
+  if (path === current) {
+    return;
+  }
   states.set(current, view.state);
   current = path;
   view.setState(states.get(path)!);
@@ -191,7 +199,9 @@ function renderTabs(): void {
 function freshPath(): string {
   for (let index = 1; ; index += 1) {
     const path = index === 1 ? "src/module.hd" : `src/module${index}.hd`;
-    if (!states.has(path)) return path;
+    if (!states.has(path)) {
+      return path;
+    }
   }
 }
 
@@ -203,7 +213,9 @@ function addFile(): void {
   const tab = [...tabs.querySelectorAll<HTMLElement>(".tab")].find(
     (candidate) => candidate.querySelector(".tab-name")?.textContent === tabLabel(path),
   );
-  if (tab) startRename(tab, path);
+  if (tab) {
+    startRename(tab, path);
+  }
   save();
 }
 
@@ -218,7 +230,9 @@ function startRename(tab: HTMLElement, path: string): void {
   input.setSelectionRange(path.lastIndexOf("/") + 1, path.length - ".hd".length);
   let done = false;
   const finish = (commit: boolean): void => {
-    if (done) return;
+    if (done) {
+      return;
+    }
     const next = input.value.trim();
     const problem = commit && next !== path ? pathProblem(next, project(), path) : undefined;
     if (problem) {
@@ -228,17 +242,26 @@ function startRename(tab: HTMLElement, path: string): void {
       return;
     }
     done = true;
-    if (commit && next !== path) rename(path, next);
-    else renderTabs();
+    if (commit && next !== path) {
+      rename(path, next);
+    } else {
+      renderTabs();
+    }
   };
   input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") finish(true);
-    if (event.key === "Escape") finish(false);
+    if (event.key === "Enter") {
+      finish(true);
+    }
+    if (event.key === "Escape") {
+      finish(false);
+    }
   });
   input.addEventListener("input", () => input.setCustomValidity(""));
   input.addEventListener("blur", () => {
     finish(true);
-    if (!done) finish(false);
+    if (!done) {
+      finish(false);
+    }
   });
 }
 
@@ -246,9 +269,15 @@ function rename(from: string, to: string): void {
   states.set(current, view.state);
   const entries = [...states].map(([path, state]) => [path === from ? to : path, state] as const);
   states.clear();
-  for (const [path, state] of entries) states.set(path, state);
-  if (entry === from) entry = to;
-  if (current === from) current = to;
+  for (const [path, state] of entries) {
+    states.set(path, state);
+  }
+  if (entry === from) {
+    entry = to;
+  }
+  if (current === from) {
+    current = to;
+  }
   renderTabs();
   save();
   watChanged();
@@ -257,11 +286,15 @@ function rename(from: string, to: string): void {
 
 function remove(path: string): void {
   const source = (path === current ? view.state : states.get(path)!).doc.toString();
-  if (source.trim() !== "" && !confirm(`Delete ${path}?`)) return;
+  if (source.trim() !== "" && !confirm(`Delete ${path}?`)) {
+    return;
+  }
   states.set(current, view.state);
   states.delete(path);
   const [first] = orderedPaths(project(false));
-  if (entry === path) entry = states.has(DEFAULT_MAIN) ? DEFAULT_MAIN : first!;
+  if (entry === path) {
+    entry = states.has(DEFAULT_MAIN) ? DEFAULT_MAIN : first!;
+  }
   if (current === path) {
     current = entry;
     view.setState(states.get(current)!);
@@ -272,7 +305,9 @@ function remove(path: string): void {
 }
 
 function jumpTo(diagnostic: RunDiagnostic): void {
-  if (!states.has(diagnostic.path) && diagnostic.path !== current) return;
+  if (!states.has(diagnostic.path) && diagnostic.path !== current) {
+    return;
+  }
   open(diagnostic.path);
   const { doc } = view.state;
   const from = offsetOf(doc, diagnostic.line, diagnostic.column);
@@ -289,7 +324,9 @@ function showDiagnostics(diagnostics: readonly RunDiagnostic[]): void {
       diagnostics.filter((diagnostic) => diagnostic.path === path),
     );
     states.set(path, next);
-    if (path === current) view.setState(next);
+    if (path === current) {
+      view.setState(next);
+    }
   }
 }
 
@@ -309,7 +346,9 @@ async function execute(mode: RunMode): Promise<void> {
   stopButton.hidden = false;
   output.begin(`${busy}…`);
   setStatus(busy);
-  if (mode !== "check") void refreshWat();
+  if (mode !== "check") {
+    void refreshWat();
+  }
   try {
     const outcome = await compiler.run(mode, snapshot, (line, debug) => output.line(line, debug));
     output.finish(outcome, mode);
@@ -325,7 +364,9 @@ async function execute(mode: RunMode): Promise<void> {
     stopButton.hidden = true;
     running = false;
     // A run or test may have compiled a new module; Check compiles none.
-    if (mode !== "check") watStale = true;
+    if (mode !== "check") {
+      watStale = true;
+    }
     void refreshWat();
   }
 }
@@ -344,7 +385,9 @@ function showView(next: "output" | "wat" | "repl"): void {
   watDownloadButton.hidden = !watOpen;
   replStopButton.hidden = next !== "repl" || !replBusy;
   replShareButton.hidden = next !== "repl";
-  if (next === "repl") openRepl().focus();
+  if (next === "repl") {
+    openRepl().focus();
+  }
   void refreshWat();
 }
 
@@ -359,7 +402,9 @@ function openRepl(shared?: string): ReplPanel {
     storageKey: `playground:${Object.keys(project(false).files).sort().join(",")}`,
     onSharedFiles: (files) => {
       const shared = asProject({ files, main: DEFAULT_MAIN });
-      if (shared) load(shared);
+      if (shared) {
+        load(shared);
+      }
     },
     reloadHelp: "rebuild the session over the editor's files as they are now",
     tokenClass: (kind) => cssClass(kind as StyledClass),
@@ -370,7 +415,9 @@ function openRepl(shared?: string): ReplPanel {
     onStatus: setStatus,
   });
   // A shared session link opens before the saved session would.
-  if (fresh && shared) repl.openShared(shared);
+  if (fresh && shared) {
+    repl.openShared(shared);
+  }
   repl.load();
   return repl;
 }
@@ -379,7 +426,9 @@ function openRepl(shared?: string): ReplPanel {
 function watChanged(delay = 0): void {
   watStale = true;
   clearTimeout(watTimer);
-  if (watOpen) watTimer = setTimeout(() => void refreshWat(), delay);
+  if (watOpen) {
+    watTimer = setTimeout(() => void refreshWat(), delay);
+  }
 }
 
 function setWatText(text: string | undefined): void {
@@ -388,7 +437,9 @@ function setWatText(text: string | undefined): void {
 }
 
 async function refreshWat(): Promise<void> {
-  if (!watOpen || watInFlight) return;
+  if (!watOpen || watInFlight) {
+    return;
+  }
   if (running) {
     wat.message("Waiting for the run to finish…");
     setWatText(undefined);
@@ -396,16 +447,23 @@ async function refreshWat(): Promise<void> {
   }
   const snapshot = project();
   const key = JSON.stringify(snapshot);
-  if (!watStale && key === watShown) return;
+  if (!watStale && key === watShown) {
+    return;
+  }
   watInFlight = true;
   watStale = false;
-  if (watShown !== key) wat.message("Compiling…");
+  if (watShown !== key) {
+    wat.message("Compiling…");
+  }
   try {
     const result = await compiler.wat(snapshot);
-    if (result === "busy") watStale = true;
-    else if (result === "stopped" || result === "timeout")
+    if (result === "busy") {
+      watStale = true;
+    } else if (result === "stopped" || result === "timeout") {
       wat.message("Stopped: compiling took longer than 15 seconds.", "error");
-    else wat.show(result);
+    } else {
+      wat.show(result);
+    }
     watShown = key;
   } catch (error) {
     wat.message(`The compiler could not start: ${String(error)}`, "error");
@@ -426,7 +484,9 @@ function watFileName(): string {
 }
 
 function downloadWat(): void {
-  if (wat.text === undefined) return;
+  if (wat.text === undefined) {
+    return;
+  }
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob([wat.text], { type: "text/plain" }));
   link.download = watFileName();
@@ -436,7 +496,9 @@ function downloadWat(): void {
 }
 
 async function copyWat(): Promise<void> {
-  if (wat.text === undefined) return;
+  if (wat.text === undefined) {
+    return;
+  }
   try {
     await navigator.clipboard.writeText(wat.text);
     setStatus("WAT copied to the clipboard");
@@ -459,9 +521,13 @@ async function share(): Promise<void> {
 }
 
 function loadFromHash(): boolean {
-  if (location.hash === hashShown) return false;
+  if (location.hash === hashShown) {
+    return false;
+  }
   const shared = projectFromHash(location.hash);
-  if (!shared) return false;
+  if (!shared) {
+    return false;
+  }
   load(shared);
   hashShown = location.hash;
   setStatus("Loaded the shared project");
@@ -477,9 +543,13 @@ for (const example of EXAMPLES) {
 examplesSelect.addEventListener("change", () => {
   const example = EXAMPLES.find(({ id }) => id === examplesSelect.value);
   examplesSelect.value = "";
-  if (!example) return;
+  if (!example) {
+    return;
+  }
   load(example.project);
-  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  if (location.hash) {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
   hashShown = undefined;
   save();
   setStatus(`Loaded example: ${example.title}`);
@@ -500,7 +570,9 @@ watCopyButton.addEventListener("click", () => void copyWat());
 watDownloadButton.addEventListener("click", downloadWat);
 window.addEventListener("hashchange", () => void loadFromHash());
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey) || view.hasFocus) return;
+  if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey) || view.hasFocus) {
+    return;
+  }
   event.preventDefault();
   void execute(event.shiftKey ? "check" : "run");
 });
@@ -526,7 +598,9 @@ if (framed()) {
   fullscreenLink.addEventListener("click", syncFullscreen);
 }
 
-if (!loadFromHash()) load(stored() ?? DEFAULT_EXAMPLE.project);
+if (!loadFromHash()) {
+  load(stored() ?? DEFAULT_EXAMPLE.project);
+}
 setStatus("Loading the compiler…");
 // A #repl= link opens the REPL view on the sender's session.
 if (isShareHash(location.hash)) {

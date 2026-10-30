@@ -55,16 +55,24 @@ function githubSlug(text: string): string {
 export function termKeys(term: string): string[] {
   const key = term.toLowerCase().replaceAll("`", "").replaceAll(/\s+/g, " ").trim();
   const keys = [key];
-  if (key.endsWith("es") && key.length > 4) keys.push(key.slice(0, -2));
-  if (key.endsWith("s") && key.length > 3) keys.push(key.slice(0, -1));
+  if (key.endsWith("es") && key.length > 4) {
+    keys.push(key.slice(0, -2));
+  }
+  if (key.endsWith("s") && key.length > 3) {
+    keys.push(key.slice(0, -1));
+  }
   return keys;
 }
 
 /** Rewrites the relative links of Markdown written in `directory` (under spec/) to be relative to spec/. */
 export function rebaseLinks(markdown: string, directory: string): string {
-  if (directory === "" || directory === ".") return markdown;
+  if (directory === "" || directory === ".") {
+    return markdown;
+  }
   return markdown.replaceAll(/\]\(([^)\s]+)\)/g, (whole, href: string) => {
-    if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(href)) return whole;
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(href)) {
+      return whole;
+    }
     return `](${posix.normalize(posix.join(directory, href))})`;
   });
 }
@@ -77,7 +85,9 @@ const LINK = /\[([^\]]*)\]\(([^)\s]+)\)/;
 function handWrittenGlossary(readme: string, directory: string): GlossaryTerm[] {
   const lines = readme.split("\n");
   const start = lines.findIndex((line) => /^## Glossary\s*$/.test(line));
-  if (start < 0) return [];
+  if (start < 0) {
+    return [];
+  }
   const file = posix.join("spec", directory, "README.md");
   const out: GlossaryTerm[] = [];
   for (
@@ -86,15 +96,21 @@ function handWrittenGlossary(readme: string, directory: string): GlossaryTerm[] 
     index += 1
   ) {
     const row = GLOSSARY_ROW.exec(lines[index]!);
-    if (!row) continue;
+    if (!row) {
+      continue;
+    }
     const see = SEE.exec(row[2]!);
     const link = see ?? LINK.exec(row[2]!);
-    if (!link) continue;
+    if (!link) {
+      continue;
+    }
     const target = posix.normalize(posix.join(directory, link[2]!));
     const hash = target.indexOf("#");
     const anchor = hash < 0 ? "" : target.slice(hash + 1);
     // A pointer to the other glossary, such as "A stdlib term, in the ... glossary".
-    if (anchor === "glossary") continue;
+    if (anchor === "glossary") {
+      continue;
+    }
     out.push({
       term: row[1]!,
       definition: rebaseLinks(see ? row[2]!.slice(0, see.index).trim() : row[2]!, directory),
@@ -119,8 +135,12 @@ function boldTerms(text: string): string[] {
     .replaceAll(/`[^`]*`/g, (span) => span.replaceAll("*", " "))
     .matchAll(/\*\*([^*]+?)\*\*/g)) {
     const term = match[1]!.trim();
-    if (/[.:!?]$/.test(term) || NOT_A_TERM.test(term) || !/\p{L}/u.test(term)) continue;
-    if (term.split(/\s+/).length > 6) continue;
+    if (/[.:!?]$/.test(term) || NOT_A_TERM.test(term) || !/\p{L}/u.test(term)) {
+      continue;
+    }
+    if (term.split(/\s+/).length > 6) {
+      continue;
+    }
     found.push(term);
   }
   return found;
@@ -158,7 +178,9 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
         };
   };
   for (const block of chapter.blocks) {
-    if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "row") continue;
+    if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "row") {
+      continue;
+    }
     const parts = block.kind === "row" ? cells(block.text) : [block.text];
     const rule = parts.map((part) => LEADING_MARKER.exec(part)?.[1]).find((id) => id);
     for (const term of boldTerms(block.text)) {
@@ -185,14 +207,18 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
   // A heading defines its term when its section opens with "A term is a ...",
   // "The term is the ...", or "The terms are ...".
   for (const section of chapter.sections) {
-    if (section.level < 2) continue;
+    if (section.level < 2) {
+      continue;
+    }
     const first = chapter.blocks.find(
       (block) =>
         block.line > section.line &&
         block.line <= section.end &&
         (block.kind === "paragraph" || block.kind === "item"),
     );
-    if (!first) continue;
+    if (!first) {
+      continue;
+    }
     const sentence = sentences(first.text)[0] ?? "";
     const title = section.title.replaceAll("`", "").toLowerCase();
     const opens = termKeys(title).some((key) =>
@@ -201,7 +227,9 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
         "i",
       ).test(sentence.replace(LEADING_MARKER, "")),
     );
-    if (!opens) continue;
+    if (!opens) {
+      continue;
+    }
     const rule = LEADING_MARKER.exec(first.text)?.[1];
     out.push({
       term: section.title.replaceAll("`", "").toLowerCase(),
@@ -244,8 +272,12 @@ export function glossaryDuplicates(result: Glossary): string[] {
   for (const entries of groups.values()) {
     const raws = new Set(entries.map((entry) => entry.term));
     const handwritten = entries.filter((entry) => entry.source === "glossary");
-    if (raws.size < 2 && handwritten.length < 2) continue;
-    for (const entry of entries) out.push(`${entry.term} at ${entry.at}`);
+    if (raws.size < 2 && handwritten.length < 2) {
+      continue;
+    }
+    for (const entry of entries) {
+      out.push(`${entry.term} at ${entry.at}`);
+    }
   }
   return out.sort();
 }
@@ -257,13 +289,18 @@ export function glossary(corpus: Corpus): Glossary {
   ];
   const known = new Set(listed.flatMap((entry) => termKeys(entry.term)));
   const missing: GlossaryTerm[] = [];
-  for (const chapter of corpus.chapters)
+  for (const chapter of corpus.chapters) {
     for (const entry of chapterTerms(chapter)) {
       const keys = termKeys(entry.term);
-      if (keys.some((key) => known.has(key))) continue;
-      for (const key of keys) known.add(key);
+      if (keys.some((key) => known.has(key))) {
+        continue;
+      }
+      for (const key of keys) {
+        known.add(key);
+      }
       missing.push(entry);
     }
+  }
   return {
     handWritten: listed.length > 0,
     terms: [...listed, ...missing].sort(byTerm),
@@ -309,11 +346,14 @@ export function glossaryReport(result: Glossary): string {
   const out = [
     `Glossary terms: ${result.terms.length} (${count("glossary")} hand-written, ${count("chapter-bold")} bold in a chapter, ${count("chapter-heading")} from a heading)`,
   ];
-  if (!result.handWritten) out.push("spec/README.md has no hand-written glossary.");
+  if (!result.handWritten) {
+    out.push("spec/README.md has no hand-written glossary.");
+  }
   out.push(
     `Defined in a chapter but missing from the hand-written glossaries: ${result.missing.length}`,
   );
-  for (const entry of result.missing)
+  for (const entry of result.missing) {
     out.push(`  ${entry.at}: ${entry.term} (${entry.rule ?? `#${entry.anchor}`})`);
+  }
   return `${out.join("\n")}\n`;
 }

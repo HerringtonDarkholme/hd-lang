@@ -68,7 +68,7 @@ test("Vercel v3 selector names complete immutable functions and keeps old reader
   }));
 
 test("Vercel refuses unowned roots and another platform's owned output", async () => {
-  for (const kind of ["empty", "sentinel", "cloudflare"])
+  for (const kind of ["empty", "sentinel", "cloudflare"]) {
     await fixture(async (output) => {
       if (kind === "cloudflare") {
         const cloudflare = {
@@ -88,19 +88,25 @@ test("Vercel refuses unowned roots and another platform's owned output", async (
         );
       } else {
         await mkdir(output);
-        if (kind === "sentinel") await writeFile(join(output, "sentinel"), "keep");
+        if (kind === "sentinel") {
+          await writeFile(join(output, "sentinel"), "keep");
+        }
       }
       const before = await readdir(output);
       await assert.rejects(publishVercelNode(input(output)), /ownership|ownership record/);
       assert.deepEqual(await readdir(output), before);
-      if (kind === "sentinel")
+      if (kind === "sentinel") {
         assert.equal(await readFile(join(output, "sentinel"), "utf8"), "keep");
-      if (kind === "cloudflare") assert.equal(existsSync(join(output, "wrangler.json")), true);
+      }
+      if (kind === "cloudflare") {
+        assert.equal(existsSync(join(output, "wrangler.json")), true);
+      }
     });
+  }
 });
 
 test("changed selectors, function bytes and extra functions are preserved and refused", async () => {
-  for (const kind of ["selector", "payload", "extra", "full-digest", "missing-digest"])
+  for (const kind of ["selector", "payload", "extra", "full-digest", "missing-digest"]) {
     await fixture(async (output) => {
       await publishVercelNode(input(output));
       const before = await readFile(join(output, "config.json"), "utf8"),
@@ -120,27 +126,38 @@ test("changed selectors, function bytes and extra functions are preserved and re
           // Retain all 48 path-prefix digits while corrupting only the full identity.
           record.generation =
             record.generation.slice(0, 63) + (record.generation.endsWith("0") ? "1" : "0");
-        } else delete record.generation;
+        } else {
+          delete record.generation;
+        }
         edited = JSON.stringify(record);
       }
-      if (kind === "extra") await mkdir(target);
-      else await writeFile(target, edited);
+      if (kind === "extra") {
+        await mkdir(target);
+      } else {
+        await writeFile(target, edited);
+      }
       await assert.rejects(publishVercelNode(input(output, "two")));
-      if (kind === "extra") assert.deepEqual(await readdir(target), []);
-      else assert.equal(await readFile(target, "utf8"), edited);
-      if (kind !== "selector")
+      if (kind === "extra") {
+        assert.deepEqual(await readdir(target), []);
+      } else {
+        assert.equal(await readFile(target, "utf8"), edited);
+      }
+      if (kind !== "selector") {
         assert.equal(await readFile(join(output, "config.json"), "utf8"), before);
+      }
     });
+  }
 });
 
 test("symlinked Vercel roots, stores, functions and selectors are refused without following them", async () => {
-  for (const kind of ["root", "store", "function", "selector", "marker"])
+  for (const kind of ["root", "store", "function", "selector", "marker"]) {
     await fixture(async (output, root) => {
       const outside = join(root, "outside");
       await mkdir(outside);
       await writeFile(join(outside, "sentinel"), "keep");
-      if (kind === "root") await symlink(outside, output, "dir");
-      else {
+      if (kind === "root") {
+        await symlink(outside, output, "dir");
+      } else {
         await publishVercelNode(input(output));
         const config = await selected(output);
         const target =
@@ -162,6 +179,7 @@ test("symlinked Vercel roots, stores, functions and selectors are refused withou
       await assert.rejects(publishVercelNode(input(output, "two")));
       assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "keep");
     });
+  }
 });
 
 test("cancellation after a complete inactive function preserves selection and permits retry", () =>
@@ -173,8 +191,9 @@ test("cancellation after a complete inactive function preserves selection and pe
         if (
           existsSync(join(output, "functions")) &&
           readdirSync(join(output, "functions")).length === 2
-        )
+        ) {
           throw new Error("cancel after complete function");
+        }
       },
     };
     await assert.rejects(
@@ -224,7 +243,7 @@ test("caller mutation and overlapping SDK writers cannot publish mixed functions
   }));
 
 test("invalid Vercel function configuration and escaping payload paths fail before output", async () => {
-  for (const patch of [{ name: "../escape" }, { name: "Uppercase" }, { name: "api", routes: [] }])
+  for (const patch of [{ name: "../escape" }, { name: "Uppercase" }, { name: "api", routes: [] }]) {
     await fixture(async (output) => {
       await assert.rejects(
         publishVercelNode({ ...input(output), configuration: patch }),
@@ -232,13 +251,15 @@ test("invalid Vercel function configuration and escaping payload paths fail befo
       );
       assert.equal(existsSync(output), false);
     });
-  for (const name of ["../escape", "a\\b", "/absolute", ".hd-generation.json", "C:/absolute"])
+  }
+  for (const name of ["../escape", "a\\b", "/absolute", ".hd-generation.json", "C:/absolute"]) {
     await fixture(async (output) => {
       const options = input(output);
       options.files.set(name, Buffer.from("escape"));
       await assert.rejects(publishVercelNode(options), /SDK output:/);
       assert.equal(existsSync(output), false);
     });
+  }
 });
 
 test("maximum function names use a bounded basename while retaining full generation identity", () =>

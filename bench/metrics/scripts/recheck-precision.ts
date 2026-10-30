@@ -38,16 +38,18 @@ export const recheckPrecision: Metric = {
     const bodyLabel = "modules rechecked, private body edit";
     const signatureLabel = "modules rechecked, public signature edit";
     const warm = await check("the warm-up check");
-    if (warm.problem)
+    if (warm.problem) {
       return [
         failed(NAME, bodyLabel, "≤ 1", warm.problem),
         failed(NAME, signatureLabel, "≤ 1 + dependents", warm.problem),
       ];
-    if (warm.count === undefined)
+    }
+    if (warm.count === undefined) {
       return [
         notApplicable(NAME, bodyLabel, "≤ 1", `no ${FIELD} in the JSON summary`),
         notApplicable(NAME, signatureLabel, "≤ 1 + dependents", `no ${FIELD} in the JSON summary`),
       ];
+    }
     const target = pkg.modules[Math.floor(pkg.modules.length / 2)]!;
     editFile(dir, target.file, editBody);
     const body = await check("the check after a body edit");

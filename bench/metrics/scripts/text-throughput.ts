@@ -47,8 +47,9 @@ const OPERATIONS: readonly Operation[] = [
         printed(small, "bytes") !== bytes ||
         printed(small, "total") !== bytes * sizes.small ||
         printed(large, "total") !== bytes * sizes.large
-      )
+      ) {
         throw new Error("string builds did not repeat the same-sized text");
+      }
       return bytes;
     },
   },
@@ -111,10 +112,13 @@ export const textThroughput: Metric = {
           TIMEOUT_MS,
           { words: WORDS },
         );
-        if (measured.msPerUnit <= 0) throw new Error("no work measured beyond start-up");
+        if (measured.msPerUnit <= 0) {
+          throw new Error("no work measured beyond start-up");
+        }
         const bytes = operation.bytesPerUnit(measured.large, operation.sizes, measured.small);
-        if (bytes !== Number(node.bytes))
+        if (bytes !== Number(node.bytes)) {
           throw new Error(`hd built ${bytes} bytes per text; Node built ${node.bytes}`);
+        }
         const hd = mbPerSecond(bytes, measured.msPerUnit);
         // Both sides time one whole, fixed-size text per unit.
         const nodeRate = mbPerSecond(Number(node.bytes), nodeMedian(node, operation.name));

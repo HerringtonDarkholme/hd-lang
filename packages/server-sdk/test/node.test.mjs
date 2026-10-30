@@ -14,7 +14,9 @@ function killProcess(pid) {
   try {
     process.kill(pid, "SIGKILL");
   } catch (error) {
-    if (error.code !== "ESRCH") throw error;
+    if (error.code !== "ESRCH") {
+      throw error;
+    }
   }
 }
 
@@ -95,7 +97,9 @@ test(
       assert.equal(lines.at(-1), "total 6");
     } finally {
       if (child.exitCode === null && child.signalCode === null) {
-        if (listening) killProcess(listening.pid);
+        if (listening) {
+          killProcess(listening.pid);
+        }
         child.kill("SIGKILL");
         await closed;
       }
@@ -135,7 +139,9 @@ test(
         listening = JSON.parse(line);
         acceptReady(listening);
       }
-      if (line.startsWith('{"event":"request-finished"')) acceptFinished(JSON.parse(line));
+      if (line.startsWith('{"event":"request-finished"')) {
+        acceptFinished(JSON.parse(line));
+      }
     });
     const deadline = AbortSignal.timeout(15000);
     const aborted = new Promise((_, reject) =>
@@ -192,7 +198,9 @@ test(
       assert.equal(errors, "");
     } finally {
       if (child.exitCode === null && child.signalCode === null) {
-        if (listening) killProcess(listening.pid);
+        if (listening) {
+          killProcess(listening.pid);
+        }
         child.kill("SIGKILL");
         await closed;
       }

@@ -19,9 +19,13 @@ function u32(cursor) {
   for (;;) {
     const byte = bytes[cursor.at++];
     value |= (byte & 0x7f) << shift;
-    if ((byte & 0x80) === 0) return value >>> 0;
+    if ((byte & 0x80) === 0) {
+      return value >>> 0;
+    }
     shift += 7;
-    if (shift > 35) throw new Error("invalid u32 LEB");
+    if (shift > 35) {
+      throw new Error("invalid u32 LEB");
+    }
   }
 }
 
@@ -35,18 +39,36 @@ function string(cursor) {
 function limits(cursor) {
   const flags = u32(cursor);
   u32(cursor);
-  if (flags & 1) u32(cursor);
-  if (flags & 4) u32(cursor);
+  if (flags & 1) {
+    u32(cursor);
+  }
+  if (flags & 4) {
+    u32(cursor);
+  }
 }
 
 function skipRefType(cursor) {
   const first = bytes[cursor.at++];
-  if (first === 0x63 || first === 0x64) u32(cursor);
+  if (first === 0x63 || first === 0x64) {
+    u32(cursor);
+  }
 }
 
 const sectionNames = [
-  "custom", "type", "import", "function", "table", "memory", "global",
-  "export", "start", "element", "code", "data", "data_count", "tag",
+  "custom",
+  "type",
+  "import",
+  "function",
+  "table",
+  "memory",
+  "global",
+  "export",
+  "start",
+  "element",
+  "code",
+  "data",
+  "data_count",
+  "tag",
 ];
 const sections = [];
 const byId = new Map();
@@ -58,7 +80,9 @@ while (cursor.at < bytes.length) {
   const payloadBytes = u32(cursor);
   const payloadStart = cursor.at;
   const end = payloadStart + payloadBytes;
-  if (end > bytes.length) throw new Error("section exceeds module");
+  if (end > bytes.length) {
+    throw new Error("section exceeds module");
+  }
   let name = sectionNames[id] ?? `section_${id}`;
   if (id === 0) {
     const c = { at: payloadStart };
@@ -108,7 +132,9 @@ if (nameSection) {
     const end = cursor.at + size;
     if (kind === 1) {
       const count = u32(cursor);
-      for (let i = 0; i < count; i++) functionNames.set(u32(cursor), string(cursor));
+      for (let i = 0; i < count; i++) {
+        functionNames.set(u32(cursor), string(cursor));
+      }
     }
     cursor.at = end;
   }
@@ -128,12 +154,18 @@ if (exportSection) {
 }
 
 function paddedIndex(at, end) {
-  if (at + 5 > end) return undefined;
+  if (at + 5 > end) {
+    return undefined;
+  }
   if (
-    (bytes[at] & 0x80) === 0 || (bytes[at + 1] & 0x80) === 0 ||
-    (bytes[at + 2] & 0x80) === 0 || (bytes[at + 3] & 0x80) === 0 ||
+    (bytes[at] & 0x80) === 0 ||
+    (bytes[at + 1] & 0x80) === 0 ||
+    (bytes[at + 2] & 0x80) === 0 ||
+    (bytes[at + 3] & 0x80) === 0 ||
     (bytes[at + 4] & 0x80) !== 0
-  ) return undefined;
+  ) {
+    return undefined;
+  }
   const c = { at };
   return u32(c);
 }
@@ -152,7 +184,9 @@ if (codeSection) {
     const edges = [];
     for (let at = bodyStart; at < bodyEnd - 5; at++) {
       const opcode = bytes[at];
-      if (opcode !== 0x10 && opcode !== 0xd2) continue;
+      if (opcode !== 0x10 && opcode !== 0xd2) {
+        continue;
+      }
       const target = paddedIndex(at + 1, bodyEnd);
       if (target !== undefined) {
         edges.push({ kind: opcode === 0x10 ? "call" : "ref.func", target });
@@ -178,7 +212,9 @@ if (dataSection) {
   for (let i = 0; i < count; i++) {
     const flags = u32(cursor);
     if (flags === 0 || flags === 2) {
-      if (flags === 2) u32(cursor);
+      if (flags === 2) {
+        u32(cursor);
+      }
       while (bytes[cursor.at++] !== 0x0b) {}
     }
     const length = u32(cursor);
@@ -201,9 +237,13 @@ const functionByIndex = new Map(functions.map((fn) => [fn.index, fn]));
 while (queue.length) {
   const from = queue.shift();
   const fn = functionByIndex.get(from);
-  if (!fn) continue;
+  if (!fn) {
+    continue;
+  }
   for (const edge of fn.edges) {
-    if (parents.has(edge.target)) continue;
+    if (parents.has(edge.target)) {
+      continue;
+    }
     parents.set(edge.target, from);
     edgeKinds.set(edge.target, edge.kind);
     queue.push(edge.target);
@@ -211,14 +251,20 @@ while (queue.length) {
 }
 
 function chain(index) {
-  if (!parents.has(index)) return "reachable through a table, adapter, or linker root";
+  if (!parents.has(index)) {
+    return "reachable through a table, adapter, or linker root";
+  }
   const path = [];
-  for (let at = index; at !== null; at = parents.get(at)) path.push(at);
+  for (let at = index; at !== null; at = parents.get(at)) {
+    path.push(at);
+  }
   path.reverse();
-  return path.map((item, i) => {
-    const name = functionNames.get(item) ?? `func[${item}]`;
-    return i === 0 ? name : `${edgeKinds.get(item) ?? "call"} ${name}`;
-  }).join(" -> ");
+  return path
+    .map((item, i) => {
+      const name = functionNames.get(item) ?? `func[${item}]`;
+      return i === 0 ? name : `${edgeKinds.get(item) ?? "call"} ${name}`;
+    })
+    .join(" -> ");
 }
 
 const output = {
@@ -227,7 +273,12 @@ const output = {
   sections,
   exports,
   functions: [
-    ...imports.map((item) => ({ ...item, bodyBytes: 0, encodedBytes: 0, why: "host import reached by emitted code" })),
+    ...imports.map((item) => ({
+      ...item,
+      bodyBytes: 0,
+      encodedBytes: 0,
+      why: "host import reached by emitted code",
+    })),
     ...functions.map((fn) => ({ ...fn, why: chain(fn.index) })),
   ],
   dataSegments,

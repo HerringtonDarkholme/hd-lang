@@ -23,7 +23,9 @@ const HD = join(REPO, "target", "release", "hd");
 const TARGET = process.argv.includes("--target")
   ? process.argv[process.argv.indexOf("--target") + 1]
   : "wasm";
-if (TARGET !== "wasm" && TARGET !== "wasm-gc") throw new Error(`unknown --target ${TARGET}`);
+if (TARGET !== "wasm" && TARGET !== "wasm-gc") {
+  throw new Error(`unknown --target ${TARGET}`);
+}
 const MBT_BUILD = join(HERE, "_build", TARGET, "release", "build");
 
 const EMPTY = 'pub fn main() -> void:\n    if 1 + 1 != 2: panic("wrong")\n';
@@ -107,7 +109,9 @@ async function child(kind, file) {
     const { status } = await host.run(instance, "hd.init", "hd.poll");
     ms = performance.now() - t;
     host.close();
-    if (status !== 0) throw new Error(`hd status ${status}`);
+    if (status !== 0) {
+      throw new Error(`hd status ${status}`);
+    }
   } else {
     // The whole host MoonBit needs: fd_write for println (wasm), or
     // print_char, one UTF-16 unit per call (wasm-gc).
@@ -137,8 +141,9 @@ async function child(kind, file) {
     instance.exports._start();
     ms = performance.now() - t;
     out.push(Buffer.concat(chunks).toString());
-    for (let i = 0; i < units.length; i += 4096)
+    for (let i = 0; i < units.length; i += 4096) {
       out.push(String.fromCharCode(...units.slice(i, i + 4096)));
+    }
   }
   process.stdout.write(JSON.stringify({ ms, out: out.join("") }));
 }
@@ -153,7 +158,9 @@ function once(kind, file, flags) {
     maxBuffer: 1 << 26,
   });
   const wall = performance.now() - t;
-  if (r.status !== 0) throw new Error(`${kind} ${file}: ${r.stderr.slice(-400)}`);
+  if (r.status !== 0) {
+    throw new Error(`${kind} ${file}: ${r.stderr.slice(-400)}`);
+  }
   const { ms, out } = JSON.parse(r.stdout);
   return { ms, wall, out };
 }
@@ -166,17 +173,20 @@ function measure(c, flags, runs) {
     for (const k of ["hd", "mbt"]) {
       const r = once(k, files[k], flags);
       outs[k] ??= r.out;
-      if (r.out !== outs[k]) throw new Error(`${c.name} ${k}: output changed between runs`);
+      if (r.out !== outs[k]) {
+        throw new Error(`${c.name} ${k}: output changed between runs`);
+      }
       if (i >= 0) {
         res[k].ms.push(r.ms);
         res[k].wall.push(r.wall);
       }
     }
   }
-  if (outs.hd !== outs.mbt)
+  if (outs.hd !== outs.mbt) {
     throw new Error(
       `${c.name}: stdout differs\n hd:  ${JSON.stringify(outs.hd.slice(0, 200))}\n mbt: ${JSON.stringify(outs.mbt.slice(0, 200))}`,
     );
+  }
   return {
     hd: median(res.hd.ms),
     mbt: median(res.mbt.ms),
@@ -187,21 +197,34 @@ function measure(c, flags, runs) {
 
 async function main() {
   const argv = process.argv.slice(2);
-  if (argv[0] === "--child") return child(argv[1], argv[2]);
+  if (argv[0] === "--child") {
+    return child(argv[1], argv[2]);
+  }
   let runs = 11;
   let only;
   let hd = HD;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--build") continue;
-    else if (argv[i] === "--target") i++;
-    else if (argv[i] === "--hd" && argv[i + 1]) hd = resolve(argv[++i]);
-    else if (argv[i] === "--runs") runs = Number(argv[++i]);
-    else if (argv[i] === "--only") only = argv[++i].split(",");
-    else throw new Error(`unknown flag ${argv[i]}`);
+    if (argv[i] === "--build") {
+      continue;
+    } else if (argv[i] === "--target") {
+      i++;
+    } else if (argv[i] === "--hd" && argv[i + 1]) {
+      hd = resolve(argv[++i]);
+    } else if (argv[i] === "--runs") {
+      runs = Number(argv[++i]);
+    } else if (argv[i] === "--only") {
+      only = argv[++i].split(",");
+    } else {
+      throw new Error(`unknown flag ${argv[i]}`);
+    }
   }
   const cases = [...CASES, EMPTY_CASE].filter((c) => !only || only.includes(c.name));
-  if (!cases.length) throw new Error("no matching program");
-  if (argv.includes("--build")) return build(cases, hd);
+  if (!cases.length) {
+    throw new Error("no matching program");
+  }
+  if (argv.includes("--build")) {
+    return build(cases, hd);
+  }
   const tiers = [[], ["--no-liftoff"]];
   const rows = [];
   for (const c of cases) {

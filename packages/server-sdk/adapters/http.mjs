@@ -24,17 +24,21 @@ const tlsCodes = new Set([
 ]);
 
 function failure(cause, host, timedOut) {
-  if (timedOut) return error("Timeout");
+  if (timedOut) {
+    return error("Timeout");
+  }
   const code = cause?.cause?.code ?? cause?.code ?? "";
-  if (["ENOTFOUND", "EAI_AGAIN", "EAI_NODATA", "EAI_FAIL"].includes(code))
+  if (["ENOTFOUND", "EAI_AGAIN", "EAI_NODATA", "EAI_FAIL"].includes(code)) {
     return error("Dns", { host });
+  }
   const message = String(cause?.cause?.message ?? cause?.message ?? cause);
   if (
     tlsCodes.has(code) ||
     /^ERR_(TLS|SSL)/.test(code) ||
     (code === "EPROTO" && /\b(tls|ssl)/i.test(message))
-  )
+  ) {
     return error("Tls", { message });
+  }
   return error(code ? "Connect" : "Other", { message });
 }
 
@@ -49,26 +53,40 @@ export function responseHeaders(headers) {
         : headers.has("set-cookie")
           ? null
           : [];
-  if (cookies === null) throw new Error("the platform does not expose separate Set-Cookie values");
+  if (cookies === null) {
+    throw new Error("the platform does not expose separate Set-Cookie values");
+  }
   const pairs = [];
   let emittedCookies = false;
   for (const [name, value] of headers) {
     if (name.toLowerCase() === "set-cookie") {
       if (!emittedCookies) {
-        if (!cookies.length) throw new Error("the platform omitted Set-Cookie values");
-        for (const cookie of cookies) pairs.push([name, cookie]);
+        if (!cookies.length) {
+          throw new Error("the platform omitted Set-Cookie values");
+        }
+        for (const cookie of cookies) {
+          pairs.push([name, cookie]);
+        }
         emittedCookies = true;
       }
-    } else pairs.push([name, value]);
+    } else {
+      pairs.push([name, value]);
+    }
   }
-  if (!emittedCookies) for (const cookie of cookies) pairs.push(["set-cookie", cookie]);
+  if (!emittedCookies) {
+    for (const cookie of cookies) {
+      pairs.push(["set-cookie", cookie]);
+    }
+  }
   return pairs;
 }
 
 function decodedFetchResponse(response) {
   return response.arrayBuffer().then((buffer) => {
     const body = new Uint8Array(buffer);
-    if (body.length > maxDecodedBytes) return error("OutputTooLarge");
+    if (body.length > maxDecodedBytes) {
+      return error("OutputTooLarge");
+    }
     const headers = responseHeaders(response.headers);
     const staleEncoding = headers.some(([name]) => name.toLowerCase() === "content-encoding");
     return ok({
@@ -103,8 +121,9 @@ export function createHttpClient(
   lease,
   { grant, isAsciiUrl, writtenHost, fetch: fetcher = globalThis.fetch, timeoutMs = 30000 },
 ) {
-  if (!grant || typeof grant.coversHost !== "function")
+  if (!grant || typeof grant.coversHost !== "function") {
     throw new TypeError("an explicit resolved grant is required");
+  }
   return {
     send(request, context) {
       return lease.operation(context, (resolve) => {
@@ -116,7 +135,9 @@ export function createHttpClient(
         }, timeoutMs);
         const run = async () => {
           const unsupported = changedSetting(request);
-          if (unsupported !== null) return error("UnsupportedSetting", { name: unsupported });
+          if (unsupported !== null) {
+            return error("UnsupportedSetting", { name: unsupported });
+          }
           let method =
             request.method.tag === "Other"
               ? request.method.fields.name
@@ -129,11 +150,13 @@ export function createHttpClient(
             for (let count = 0; ; count++) {
               let parsed;
               try {
-                if (!isAsciiUrl(url) || url.includes("\\") || !/^https?:\/\/[^/?#]+/i.test(url))
+                if (!isAsciiUrl(url) || url.includes("\\") || !/^https?:\/\/[^/?#]+/i.test(url)) {
                   return error("InvalidUrl", { url });
+                }
                 parsed = new URL(url);
-                if (!["http:", "https:"].includes(parsed.protocol))
+                if (!["http:", "https:"].includes(parsed.protocol)) {
                   return error("InvalidUrl", { url });
+                }
               } catch {
                 return error("InvalidUrl", { url });
               }
@@ -143,7 +166,9 @@ export function createHttpClient(
                 : parsed.protocol === "https:"
                   ? 443
                   : 80;
-              if (!grant.coversHost("Http", host, port)) return error("NotGranted", { host });
+              if (!grant.coversHost("Http", host, port)) {
+                return error("NotGranted", { host });
+              }
               const response = await fetcher(url, {
                 method,
                 headers,
@@ -158,11 +183,15 @@ export function createHttpClient(
                 location === null
               ) {
                 const decoded = await decodedFetchResponse(response);
-                if (!decoded.ok) return decoded;
+                if (!decoded.ok) {
+                  return decoded;
+                }
                 return ok({ ...decoded.value, url });
               }
               const decodedRedirect = await decodedFetchResponse(response);
-              if (!decodedRedirect.ok) return decodedRedirect;
+              if (!decodedRedirect.ok) {
+                return decodedRedirect;
+              }
               // WHATWG URL accepts slashless schemes and extra authority
               // slashes; reject those before it can change the written host.
               const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(location);
@@ -173,17 +202,21 @@ export function createHttpClient(
                 location.includes("\\") ||
                 (hasScheme && !/^https?:\/\/[^/?#]+/i.test(location)) ||
                 (networkPath && !/^\/\/[^/?#]+/.test(location))
-              )
+              ) {
                 return error("InvalidUrl", { url: location });
+              }
               let next;
               try {
                 next = new URL(location, parsed);
               } catch {
                 return error("InvalidUrl", { url: location });
               }
-              if (count === request.redirects) return error("TooManyRedirects", { url: next.href });
-              if (next.origin !== parsed.origin)
+              if (count === request.redirects) {
+                return error("TooManyRedirects", { url: next.href });
+              }
+              if (next.origin !== parsed.origin) {
                 headers = headers.filter(([name]) => !credentials.has(name.toLowerCase()));
+              }
               if (
                 (response.status === 303 && !["GET", "HEAD"].includes(method)) ||
                 ([301, 302].includes(response.status) && method === "POST")
@@ -192,8 +225,9 @@ export function createHttpClient(
                 body = new Uint8Array(0);
                 headers = headers.filter(([name]) => !bodyHeaders.has(name.toLowerCase()));
               }
-              if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(location))
+              if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(location)) {
                 written = location.startsWith("//") ? parsed.protocol + location : location;
+              }
               url = next.href;
             }
           } catch (cause) {

@@ -99,8 +99,11 @@ test("all 16 codec tags, integer widths and nested value shapes retain canonical
     [14],
     [15, handleName],
   ];
-  for (const bits of [8, 16, 32, 64])
-    for (const signed of [false, true]) types.push([3, bits, signed]);
+  for (const bits of [8, 16, 32, 64]) {
+    for (const signed of [false, true]) {
+      types.push([3, bits, signed]);
+    }
+  }
   const source = {
     ...root,
     methods: types.map((result, i) => ({
@@ -238,8 +241,9 @@ test("malformed contract metadata is rejected by the canonical data reader", () 
     new Uint8Array([2, 0, 0, 0, 0]),
     actual.subarray(0, actual.length - 1),
     new Uint8Array([...actual, 0]),
-  ])
+  ]) {
     assert.throws(() => contractBindings(bytes, readPackageContract));
+  }
   const source = {
     ...root,
     methods: [
@@ -260,8 +264,9 @@ test("companion metadata pairing is pure and rejects malformed or mismatched hea
     companion.replace("Uint8Array([1,", "Uint8Array([256,"),
     "export const contract=alert(1);",
     companion.replace("Uint8Array([1,", "Uint8Array([1,,"),
-  ])
+  ]) {
     assert.throws(() => checkCompanionPairing(source, actual));
+  }
   assert.throws(() => checkCompanionPairing(new Uint8Array([255]), actual));
   assert.throws(() => fixedBindingsModule(actual, "../outside"), /unknown fixed/);
 });

@@ -99,13 +99,16 @@ const NORMATIVE =
   /\b(?:must|may|should|shall|cannot|can only|never|only|requires?|required|diagnose[sd]?|invalid|rejected|not allowed|not part of the language)\b|\bis an? (?:[a-z-]+ )?error\b|\bare (?:[a-z-]+ )?errors\b|\bError: `/i;
 
 function load(spec: string): string {
-  if (existsSync(spec)) return readFileSync(spec, "utf8");
+  if (existsSync(spec)) {
+    return readFileSync(spec, "utf8");
+  }
   const colon = spec.indexOf(":");
-  if (colon > 0)
+  if (colon > 0) {
     return execFileSync("git", ["-C", repoRoot, "show", spec], {
       encoding: "utf8",
       maxBuffer: 1 << 26,
     });
+  }
   throw new Error(`cannot read ${spec}`);
 }
 
@@ -117,7 +120,9 @@ function load(spec: string): string {
  */
 function historySearch(spec: string): ((id: string) => boolean) | undefined {
   const colon = spec.indexOf(":");
-  if (existsSync(spec) || colon <= 0) return undefined;
+  if (existsSync(spec) || colon <= 0) {
+    return undefined;
+  }
   const revision = spec.slice(0, colon);
   const pickaxe = (id: string): string[] => [
     "-C",
@@ -156,17 +161,24 @@ export function inventory(source: string, markdown: string, known: ReadonlySet<s
   const normative: Sentence[] = [];
   const all: Sentence[] = [];
   for (const block of prose) {
-    for (const code of codesIn(block.text)) count(code);
+    for (const code of codesIn(block.text)) {
+      count(code);
+    }
     for (const sentence of sentences(proseOf(block))) {
       all.push({ line: block.line, text: sentence });
-      if (NORMATIVE.test(readable(sentence)) || codesIn(sentence).length > 0)
+      if (NORMATIVE.test(readable(sentence)) || codesIn(sentence).length > 0) {
         normative.push({ line: block.line, text: sentence });
+      }
     }
   }
   const examples: Example[] = [];
   for (const block of parsed) {
-    if (block.kind !== "code") continue;
-    for (const code of errorMarkerCodes(block.text)) count(code);
+    if (block.kind !== "code") {
+      continue;
+    }
+    for (const code of errorMarkerCodes(block.text)) {
+      count(code);
+    }
     examples.push({
       index: examples.length + 1,
       line: block.line,
@@ -254,7 +266,9 @@ const withoutComment = (line: string): string => line.replace(/\s+#(?![{"]).*$/,
 
 function matchExample(old: Example, next: readonly Example[]): ExampleMatch {
   const exact = next.find((example) => example.code.trim() === old.code.trim());
-  if (exact) return { old: old.index, status: "unchanged", into: [exact.index], missing: [] };
+  if (exact) {
+    return { old: old.index, status: "unchanged", into: [exact.index], missing: [] };
+  }
   const into = new Set<number>();
   const missing: string[] = [];
   let edited = false;
@@ -270,7 +284,9 @@ function matchExample(old: Example, next: readonly Example[]): ExampleMatch {
     if (loose) {
       into.add(loose.index);
       edited = true;
-    } else missing.push(line);
+    } else {
+      missing.push(line);
+    }
   }
   const status: ExampleStatus =
     missing.length > 0 ? "lost" : edited ? "comment-edited" : into.size > 1 ? "split" : "contained";
@@ -300,9 +316,15 @@ export function textSimilarity(a: string, b: string): number {
 }
 
 function similarity(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0;
+  if (a.size === 0 || b.size === 0) {
+    return 0;
+  }
   let shared = 0;
-  for (const token of a) if (b.has(token)) shared += 1;
+  for (const token of a) {
+    if (b.has(token)) {
+      shared += 1;
+    }
+  }
   return (2 * shared) / (a.size + b.size);
 }
 
@@ -341,7 +363,9 @@ export function diff(
         bestIndex = index;
       }
     });
-    if (bestIndex >= 0) chosen.add(bestIndex);
+    if (bestIndex >= 0) {
+      chosen.add(bestIndex);
+    }
     return { old: sentence, best: nextSentences[bestIndex], score: Math.round(score * 100) / 100 };
   });
   const unmatchedNew = nextSentences.filter((_, index) => !chosen.has(index));
@@ -402,17 +426,21 @@ function inventoryReport(inv: Inventory): string {
   const out = [`# Rule inventory: ${inv.source}`, "", ...statsTable([["", inv.stats]]), ""];
   out.push(`## Diagnostic codes (${Object.keys(inv.codes).length})`, "", codeList(inv.codes), "");
   out.push(`## Rule IDs (${inv.rules.length})`, "");
-  for (const rule of inv.rules)
+  for (const rule of inv.rules) {
     out.push(
       `- \`${rule.id}\` (line ${rule.line})${rule.codes.length ? ` → ${rule.codes.map((c) => `\`${c}\``).join(", ")}` : ""}`,
     );
+  }
   out.push("", `## Examples (${inv.examples.length})`, "");
-  for (const example of inv.examples)
+  for (const example of inv.examples) {
     out.push(
       `- ${example.index}. line ${example.line}, \`${example.info || "plain"}\`${example.error ? ", error example" : ""}: \`${lines(example.code)[0]?.trim() ?? ""}\``,
     );
+  }
   out.push("", `## Normative sentences (${inv.normative.length})`, "");
-  for (const sentence of inv.normative) out.push(`- ${sentence.line}: ${quote(sentence.text)}`);
+  for (const sentence of inv.normative) {
+    out.push(`- ${sentence.line}: ${quote(sentence.text)}`);
+  }
   return `${out.join("\n")}\n`;
 }
 
@@ -536,10 +564,15 @@ function main(args: readonly string[]): number {
     const result = inventory(spec, load(spec), known);
     text = json ? `${JSON.stringify(result, null, 2)}\n` : inventoryReport(result);
   }
-  if (out) writeFileSync(out, text);
-  else process.stdout.write(text);
+  if (out) {
+    writeFileSync(out, text);
+  } else {
+    process.stdout.write(text);
+  }
   return ok ? 0 : 1;
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  process.exitCode = main(process.argv.slice(2));
+}

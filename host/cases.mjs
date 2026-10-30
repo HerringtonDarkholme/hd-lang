@@ -83,7 +83,9 @@ class Runner {
   // runs of a property case share the case's.
   begin() {
     const ms = this.config.timeLimitMs ?? null;
-    if (ms === null) return;
+    if (ms === null) {
+      return;
+    }
     this.deadline = now() + ms;
     this.notify({ type: "limit", at: this.deadline });
   }
@@ -98,7 +100,9 @@ class Runner {
   async runOnce(c, k, runner, reuse = false) {
     const dir = c.tempDir && k > 0 ? this.files.join(c.tempDir, String(k)) : c.tempDir;
     const updates = c.snapshot?.update && c.kind === "it" ? [] : null;
-    if (!reuse) this.release();
+    if (!reuse) {
+      this.release();
+    }
     if (!this.live) {
       const io = { stdout: "", stderr: "" };
       const env = {
@@ -163,15 +167,21 @@ class Runner {
     const leaks = host.leaks?.() ?? [];
     const leaked = !trapped && ran.status === 0 && leaks.length > 0;
     const status = leaked ? 1 : ran.status;
-    if (leaked) io.stderr += leakReport(leaks);
-    if (dir) this.files.remove(dir);
+    if (leaked) {
+      io.stderr += leakReport(leaks);
+    }
+    if (dir) {
+      this.files.remove(dir);
+    }
     // A platform-created temporary directory is per body too.
     if (st.ownTemp) {
       this.files.remove(st.ownTemp);
       st.ownTemp = null;
     }
     const us = Math.round((performance.now() - t0) * 1000);
-    if (trapped || status !== 0 || ended) this.release();
+    if (trapped || status !== 0 || ended) {
+      this.release();
+    }
     return {
       status,
       trapped,
@@ -258,13 +268,17 @@ class Case {
           this.prop = new Property(this.c, this.runner.files, cases, shrink, examples);
         }
         const plan = this.prop.next();
-        if (plan === null) throw new EndCase();
+        if (plan === null) {
+          throw new EndCase();
+        }
         run.plan = plan;
         return plan;
       },
       record: (value) => run.draws.push(value),
       show: (text) => {
-        if (run.shown === null) run.shown = text;
+        if (run.shown === null) {
+          run.shown = text;
+        }
       },
     };
   }
@@ -340,16 +354,24 @@ const isDiscard = (r) =>
 // before `show` (std-testing.runner.discard-read); the same panic after it
 // is a failure (std-testing.runner.discard-after-show).
 const outcome = (run, r) => {
-  if (r.ended) return "ended";
-  if (r.trapped) return run.shown === null && isDiscard(r) ? "discard" : "fail";
+  if (r.ended) {
+    return "ended";
+  }
+  if (r.trapped) {
+    return run.shown === null && isDiscard(r) ? "discard" : "fail";
+  }
   return r.status === 0 ? "pass" : "fail";
 };
 
 // `a` is simpler than `b`: shorter, or as long and smaller draw by draw.
 const simpler = (a, b) => {
-  if (a.length !== b.length) return a.length < b.length;
+  if (a.length !== b.length) {
+    return a.length < b.length;
+  }
   for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return a[i] < b[i];
+    if (a[i] !== b[i]) {
+      return a[i] < b[i];
+    }
   }
   return false;
 };
@@ -362,7 +384,9 @@ async function shrink(failing, attempt, budget) {
   let best = failing;
   let left = budget;
   const tryStream = async (stream) => {
-    if (left <= 0) return false;
+    if (left <= 0) {
+      return false;
+    }
     left -= 1;
     const got = await attempt(stream);
     if (got !== null && simpler(got.run.draws, best.run.draws)) {
@@ -377,29 +401,41 @@ async function shrink(failing, attempt, budget) {
     for (const k of [8, 4, 2, 1]) {
       for (let i = 0; i + k <= best.run.draws.length && left > 0;) {
         const s = best.run.draws;
-        if (await tryStream([...s.slice(0, i), ...s.slice(i + k)])) improved = true;
-        else i += 1;
+        if (await tryStream([...s.slice(0, i), ...s.slice(i + k)])) {
+          improved = true;
+        } else {
+          i += 1;
+        }
       }
     }
     for (const k of [8, 4, 2, 1]) {
       for (let i = 0; i + k <= best.run.draws.length && left > 0; i++) {
         const s = best.run.draws;
-        if (s.slice(i, i + k).every((v) => v === 0n)) continue;
+        if (s.slice(i, i + k).every((v) => v === 0n)) {
+          continue;
+        }
         const z = [...s];
         z.fill(0n, i, i + k);
-        if (await tryStream(z)) improved = true;
+        if (await tryStream(z)) {
+          improved = true;
+        }
       }
     }
     for (let i = 0; i < best.run.draws.length && left > 0; i++) {
       let lo = 0n;
       while (left > 0) {
         const s = best.run.draws;
-        if (i >= s.length || s[i] <= lo) break;
+        if (i >= s.length || s[i] <= lo) {
+          break;
+        }
         const mid = lo + (s[i] - lo) / 2n;
         const t = [...s];
         t[i] = mid;
-        if (await tryStream(t)) improved = true;
-        else lo = mid + 1n;
+        if (await tryStream(t)) {
+          improved = true;
+        } else {
+          lo = mid + 1n;
+        }
       }
     }
   }
@@ -421,7 +457,9 @@ async function runProperty(runner, c, ctl, first, firstResult) {
   let current = { run: first, r: firstResult, outcome: outcome(first, firstResult) };
   for (;;) {
     let { run, outcome: o } = current;
-    if (o === "ended") break;
+    if (o === "ended") {
+      break;
+    }
     if (o === "fail") {
       // An example is reported as it is; a generated or saved case is
       // shrunk first.
@@ -477,7 +515,9 @@ async function runProperty(runner, c, ctl, first, firstResult) {
       p.passed += 1;
       p.size += 1;
     }
-    if (!p.more()) break;
+    if (!p.more()) {
+      break;
+    }
     current = await again(null, o === "pass");
   }
   runner.emit(result(c, { ...firstResult, status: 0, trapped: false, us: total }));
@@ -561,10 +601,14 @@ export function panicOf(record) {
 // "failed", message }`, or `{ outcome: "panicked", category, message,
 // debug }`.
 export function judge(record, expectPanic) {
-  if (record.failure !== undefined) return { outcome: "failed", message: record.failure };
+  if (record.failure !== undefined) {
+    return { outcome: "failed", message: record.failure };
+  }
   if (record.trapped) {
     const panic = panicOf(record);
-    if (panic.category === expectPanic) return { outcome: "passed" };
+    if (panic.category === expectPanic) {
+      return { outcome: "passed" };
+    }
     return { outcome: "panicked", ...panic };
   }
   if (expectPanic !== null) {
@@ -573,7 +617,9 @@ export function judge(record, expectPanic) {
       message: `the case completed, but it expects the panic \`${expectPanic}\``,
     };
   }
-  if (record.status === 0) return { outcome: "passed" };
+  if (record.status === 0) {
+    return { outcome: "passed" };
+  }
   const text = record.stderr.trimEnd();
   return {
     outcome: "failed",
