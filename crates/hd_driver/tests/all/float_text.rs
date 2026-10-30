@@ -130,8 +130,8 @@ fn display_f32(x: f32) -> String {
 /// `fixed BITS DIGITS`, bits in hex; `parse TEXT`; `lower HEX` and
 /// `upper HEX`, the UTF-8 bytes in hex) and returns one answer per line.
 fn host_text(requests: &[String]) -> Vec<String> {
-    let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.mjs");
-    let float = hd_run::canonicalize(float).expect("float.mjs");
+    let float = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/float.mts");
+    let float = hd_run::canonicalize(float).expect("float.mts");
     let script = r#"const { shortest, fixed, parse, lower, upper } = await import(process.argv[1]);
 import { readFileSync } from "node:fs";
 const view = new DataView(new ArrayBuffer(8));
@@ -617,7 +617,7 @@ fn parse_matches_rust() {
 /// `s64 BITS`, `parse TEXT`) and returns the requests where they differ.
 fn reference_mismatches(requests: &[String]) -> Vec<String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let host = hd_run::canonicalize(dir.join("../../host/float.mjs")).expect("float.mjs");
+    let host = hd_run::canonicalize(dir.join("../../host/float.mts")).expect("float.mts");
     let exact = hd_run::canonicalize(dir.join("tests/all/float_exact.mjs")).expect("float_exact");
     let script = r#"const host = await import(process.argv[1]);
 const exact = await import(process.argv[2]);
