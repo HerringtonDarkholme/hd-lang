@@ -95,7 +95,7 @@ class Repl {
     const live = ran.live!;
     assert.equal(live.error ?? null, null);
     const stopped = live.end.kind === "stopped" || live.end.kind === "cancelled";
-    let outcome = OUTCOME.failed;
+    let outcome: number = OUTCOME.failed;
     if (live.joined) {
       outcome = OUTCOME.joined;
     } else if (stopped) {
