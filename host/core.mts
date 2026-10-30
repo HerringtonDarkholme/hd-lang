@@ -1284,10 +1284,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       }
       return !(await waitForDeadline());
     };
-    try {
-      if (firstError !== null) {
-        throw firstError;
-      }
+    const drive = async (): Promise<void> => {
       while (status === -1) {
         let n;
         if (driver?.replaying()) {
@@ -1307,54 +1304,75 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
         driver?.poll();
         status = ex[poll](0);
       }
-      if (status === CANCELLED_END || status === CANCELLED_END - 1) {
-        flush();
-        sink.err(status === CANCELLED_END ? "cancelled\n" : "cancelled, cleanup abandoned\n");
-        status = CANCEL_STATUS;
-        cancelled = true;
+    };
+    const finishCancellation = (): void => {
+      if (status !== CANCELLED_END && status !== CANCELLED_END - 1) {
+        return;
       }
-    } catch (e) {
       flush();
-      if (e instanceof EndCase) {
+      sink.err(status === CANCELLED_END ? "cancelled\n" : "cancelled, cleanup abandoned\n");
+      status = CANCEL_STATUS;
+      cancelled = true;
+    };
+    const handleError = async (error: unknown): Promise<RunResult | null> => {
+      flush();
+      if (error instanceof EndCase) {
         await writeCycleReport(instance);
         return { status: 0, trapped: false, ended: true };
       }
-      if (e instanceof HostContract) {
-        hostPanic(`panic: host-contract: ${e.message}\n`);
-      } else if (e instanceof TimeLimit) {
+      if (error instanceof HostContract) {
+        hostPanic(`panic: host-contract: ${error.message}\n`);
+      } else if (error instanceof TimeLimit) {
         st.reported = true;
         limited = true;
-      } else if (e instanceof RangeError && /call stack size/i.test(e.message)) {
+      } else if (error instanceof RangeError && /call stack size/i.test(error.message)) {
         // V8 reports a guest stack overflow as a RangeError ("Maximum call
         // stack size exceeded"), not a WebAssembly.RuntimeError; it is the
         // stack-exhausted panic. Other RangeErrors are host bugs and rethrow.
         hostPanic(
           "panic: stack-exhausted: the call stack ran out; check for recursion that never ends\n",
         );
-        frames = wasmFrames(e);
-      } else if (e instanceof WebAssembly.RuntimeError) {
-        frames = wasmFrames(e);
-      } else if (env.isReplayDivergence?.(e)) {
+        frames = wasmFrames(error);
+      } else if (error instanceof WebAssembly.RuntimeError) {
+        frames = wasmFrames(error);
+      } else if (env.isReplayDivergence?.(error)) {
         st.reported = true;
-      } else if (!(e instanceof Deadlock)) {
-        throw e;
+      } else if (!(error instanceof Deadlock)) {
+        throw error;
       }
       // A panic stub wrote its report; any other trap is an internal error.
       if (!st.reported) {
-        sink.err(`internal error: ${(e as Dynamic).message}\n`);
+        sink.err(`internal error: ${(error as Dynamic).message}\n`);
       }
       status = 3;
       trapped = true;
-    }
-    flush();
-    // A body that ended after its deadline ran longer than its timeout,
-    // whatever it did after the deadline.
-    if (limited || overran()) {
+      return null;
+    };
+    const enforceDeadline = (): void => {
+      // A body that ended after its deadline ran longer than its timeout,
+      // whatever it did after the deadline.
+      if (!limited && !overran()) {
+        return;
+      }
       hostPanic(st.timeoutMs === null ? PROGRAM_TIME_LIMIT : timeLimitReport(st.timeoutMs));
       status = 3;
       trapped = true;
       frames = [];
+    };
+    try {
+      if (firstError !== null) {
+        throw firstError;
+      }
+      await drive();
+      finishCancellation();
+    } catch (error) {
+      const endedRun = await handleError(error);
+      if (endedRun) {
+        return endedRun;
+      }
     }
+    flush();
+    enforceDeadline();
     // A trap's panic as the host recorded it, or null.
     const panic = trapped && st.panic !== null ? panicOfReport(st.panic) : null;
     await writeCycleReport(instance);
