@@ -471,7 +471,7 @@ An **origin** is a storage root that a local reference may point into. It is wha
 2. r[ref.dep.origin.least] The sets are the least solution of the constraints in the table below. A reassignment adds origins and never removes them.
 3. r[ref.dep.origin.position] A value has one origin set per reference position outside another reference, so the positions of `(&A, &B)` and of `Result[&A, &B]` have separate sets.
 4. r[ref.dep.origin.position.parts] A construction and a projection keep each part in its own positions: a tuple element, an optional's payload, and a field whose declared type is a type parameter. So does a lifetime struct's field of one lifetime ([`ref.lifetime.struct.read`](#r-ref.lifetime.struct.read)).
-5. r[ref.dep.origin.position.union] Every position takes the union of all of them for any other part, for a value stored through a reference, and for the hidden local of `&e`.
+5. r[ref.dep.origin.position.union] Every position takes the union of all of them for any other part, for a value stored through a reference, and for the hidden local of `&e`. A reborrow of a part, shared or `&mut`, is not such a part: `r := &t.x` and `r := &mut t.inner` keep that part's own positions.
 
 | Rule | Expression | Origins |
 | --- | --- | --- |

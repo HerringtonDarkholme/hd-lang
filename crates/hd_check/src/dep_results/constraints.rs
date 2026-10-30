@@ -706,15 +706,15 @@ impl Gen<'_, '_> {
                 let (at, place) = self.place(i, a, usize::MAX, (true, inv));
                 self.lies_in(at, me.0[0]);
                 let inner = (me.0[1..].to_vec(), referent(pool, me.1));
-                // A `&mut` of a local's or a reference's part has that
-                // part's own slots, by the field slot maps
-                // (`ref.lifetime.store.field`).
+                // A reborrow of a local's or a reference's part, shared or
+                // `&mut`, has that part's own slots, by the field slot maps
+                // (`ref.dep.origin.position.union`, `ref.lifetime.store.field`).
                 let own = place.as_ref().filter(|p| {
-                    inv && matches!(at, Some(Ok(Origin::Local(_)) | Err(_)))
+                    matches!(at, Some(Ok(Origin::Local(_)) | Err(_)))
                         && referent_fn(pool, p.1) == referent_fn(pool, inner.1)
                 });
                 if let Some(p) = own {
-                    return self.relate(p, &inner, true, false);
+                    return self.relate(p, &inner, inv, false);
                 }
                 // Otherwise the referent holds what its storage holds, each
                 // slot the union of all of them through a hub where the
