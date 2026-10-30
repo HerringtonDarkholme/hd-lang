@@ -1,5 +1,5 @@
 # test: retry! stops at an error that when rejects, and retries every error without when
-# Spec std/task Retry: std-task.policy.retry.when.generic, std-task.policy.selective-retry.layer.generic, std-task.policy.retry.predicate, std-task.policy.retry.all-errors, and std-task.policy.retry.when-plain; Retry With Backoff: std-task.policy.retry.when-sleep (issue #369).
+# Spec std/task Retry: std-task.policy.retry.when.fn-mut, std-task.policy.selective-retry.layer.fn-mut, std-task.policy.retry.predicate, std-task.policy.retry.all-errors, and std-task.policy.retry.when-plain; Retry With Backoff: std-task.policy.retry.when-sleep (issue #369).
 use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 use std.time.{Duration, Instant, ms}

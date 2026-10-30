@@ -103,7 +103,7 @@ std.console.print	std/console.md#printing-without-a-newline
 std.contract.require	std/contract.md#require
 std.task.TimeLimit	std/task.md#r-std-task.policy.time-limit.decl
 std.task.Retry	std/task.md#r-std-task.policy.retry.decl
-std.task.SelectiveRetry	std/task.md#r-std-task.policy.selective-retry.decl.generic
+std.task.SelectiveRetry	std/task.md#r-std-task.policy.selective-retry.decl.fn-mut
 std.task.with_timeout	std/task.md#r-std-task.policy.with-timeout.builder
 std.task.Fallback	std/task.md#r-std-task.policy.fallback.decl
 std.task.fallback	std/task.md#r-std-task.policy.fallback.builder

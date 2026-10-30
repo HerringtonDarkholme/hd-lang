@@ -1168,7 +1168,7 @@ runtime/valid/tuple-rebuild.hd	runtime	accept	lang/05-expressions.md#expression-
 typing/invalid/init-read-through-generic-bound.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
 typing/invalid/init-read-through-trait-value.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
 typing/invalid/initialization-implicit-a-derived-impl-reaches-its-fields-impls-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
-typing/invalid/initialization-implicit-a-for-loop-reaches-iter-01.hd	type	reject:top-level-read-before-initialization	std/iter.md#r-std-iter.from-fn.generic
+typing/invalid/initialization-implicit-a-for-loop-reaches-iter-01.hd	type	reject:top-level-read-before-initialization	std/iter.md#r-std-iter.from-fn.fn-mut
 typing/invalid/initialization-implicit-a-missing-impl-adds-no-initialization-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-question-mark-reaches-from-01.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite.implicit
 typing/invalid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-01.hd	type	reject:top-level-read-before-initialization	std/cmp.md#r-std-cmp.min-max.result
@@ -2542,7 +2542,8 @@ typing/invalid/collect-target-not-fromiterator.hd	type	reject:unsatisfied-trait-
 runtime/valid/comprehension-propagation.hd	runtime	accept	lang/05-expressions.md#comprehension-restrictions
 runtime/valid/pipe-nested-placeholder.hd	runtime	accept	lang/05-expressions.md#r-expr.pipe.slot.nested
 runtime/valid/pipe-bare-method-step.hd	runtime	accept	lang/05-expressions.md#r-expr.pipe.bare.method
-runtime/valid/iterator-from-fn.hd	runtime	accept	std/iter.md#r-std-iter.from-fn.generic
+runtime/valid/iterator-from-fn.hd	runtime	accept	std/iter.md#r-std-iter.from-fn.fn-mut
+runtime/valid/iterator-adapters-change-captures.hd	runtime	accept	std/iter.md#r-std-iter.adapter.map.fn-mut
 typing/invalid/iterator-step-private.hd	type	reject:private-member	lang/06-control-flow.md#r-flow.for.collection-cursor.private
 typing/invalid/bound-reference-associated-function.hd	type	reject:unknown-method	lang/07-functions.md#r-fn.ref.bound.associated
 typing/valid/from-iterator-imported.hd	type	accept	std/iter.md#r-std-iter.prelude.from-iterator
@@ -3386,11 +3387,11 @@ typing/invalid/list-helper-callback-row.hd	type	reject:type-mismatch	std/collect
 runtime/valid/list-counts.hd	runtime	accept	std/collections.md#r-std-collections.counts.decl
 runtime/valid/map-get-unwrap-or.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
 runtime/valid/set-basics.hd	runtime	accept	std/collections.md#set
-runtime/valid/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.adapter.take-while.generic
+runtime/valid/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.adapter.take-while.fn-mut
 runtime/valid/iterator-zip-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip-iterable.order
 runtime/valid/iterator-chain-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.chain-iterable.order
 typing/invalid/iterator-chain-iterator-arg.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.iterable-arg.iterator-bound
-runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.generic
+runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.fn-mut
 runtime/valid/iterator-search-count.hd	runtime	accept	std/iter.md#r-std-iter.adapter.stop-early.owned
 typing/invalid/iterator-any-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.more
 runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error.either
@@ -3981,7 +3982,7 @@ runtime/valid/sibling-method-generic-scopes.hd	runtime	accept	lang/03-names-and-
 runtime/valid/sibling-module-enum-and-trait.hd	runtime	accept	lang/10-modules.md#r-module.vis.variants
 runtime/valid/init-ready-groups-by-identity.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.ready-order
 runtime/valid/initialization-implicit-a-derived-impl-reaches-its-fields-impls-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
-runtime/valid/initialization-implicit-a-for-loop-reaches-iter-02.hd	runtime	accept	std/iter.md#r-std-iter.from-fn.generic
+runtime/valid/initialization-implicit-a-for-loop-reaches-iter-02.hd	runtime	accept	std/iter.md#r-std-iter.from-fn.fn-mut
 runtime/valid/initialization-implicit-a-question-mark-reaches-from-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
 runtime/valid/initialization-implicit-a-std-function-bound-reaches-the-impls-it-is-given-02.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.result
 runtime/valid/initialization-implicit-a-trait-value-reaches-every-impl-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
@@ -4475,7 +4476,7 @@ runtime/valid/map-entries-most-common.hd	runtime	accept	std/collections.md#r-std
 runtime/valid/set-collect.hd	runtime	accept	std/collections.md#r-std-collections.set.collect
 runtime/valid/set-properties.hd	runtime	accept	std/collections.md#set
 runtime/valid/string-rfind-splitn.hd	runtime	accept	std/text.md#r-std-text.rfind.empty
-runtime/valid/task-retry-when.hd	runtime	accept	std/task.md#r-std-task.policy.selective-retry.layer.generic
+runtime/valid/task-retry-when.hd	runtime	accept	std/task.md#r-std-task.policy.selective-retry.layer.fn-mut
 runtime/valid/task-timeout.hd	runtime	accept	std/task.md#r-std-task.policy.time-limit.race
 runtime/valid/task-timeout-cleanup.hd	runtime	accept	std/task.md#r-std-task.policy.time-limit.cleanup-abandon
 runtime/valid/timeout-cleanup-zero.hd	runtime	accept	std/task.md#r-std-task.timeout.cleanup-zero
@@ -5114,7 +5115,7 @@ typing/invalid/http-client-default-header-removed.hd	type	reject:unknown-method	
 typing/invalid/http-client-send-missing-clock.hd	type	reject:missing-requirement	std/http.md#r-std-http.client.send-borrowed-clock
 typing/invalid/http-client-timeout-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.client.policy-timeout
 typing/invalid/http-client-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.client.send-borrowed-clock
-runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.generic
+runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.fn-mut
 runtime/valid/task-retry-policy.hd	runtime	accept	std/task.md#retry-with-backoff
 typing/invalid/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.policy.retry.clock
 runtime/valid/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-owned
@@ -5213,7 +5214,7 @@ runtime/valid/impl-trait-nested-local.hd	runtime	accept	lang/07-functions.md#r-f
 runtime/valid/impl-trait-nested-recursive.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/impl-trait-nested-error-only.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/impl-trait-nested-optional-lift.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
-runtime/valid/std-iter-impl-trait-result-filter.hd	runtime	accept	std/iter.md#r-std-iter.adapter.filter.generic
+runtime/valid/std-iter-impl-trait-result-filter.hd	runtime	accept	std/iter.md#r-std-iter.adapter.filter.fn-mut
 typing/invalid/impl-trait-nested-return-mismatch.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.opaque.occurrence-same-type
 typing/invalid/impl-trait-nested-distinct-occurrences.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.distinct-position
 parse/invalid/impl-trait-inside-opaque-bound.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.fn.opaque-bound.no-nesting

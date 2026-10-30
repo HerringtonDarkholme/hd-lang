@@ -27,7 +27,7 @@ predicate for one error type:
 pub struct Retry:
     backoff: Backoff
 
-pub struct SelectiveRetry[E, F < Fn(E) -> bool = fn(E) -> bool]:
+pub struct SelectiveRetry[E, F < FnMut(E) -> bool = fn(E) -> bool]:
     backoff: Backoff
     when: F
 
@@ -35,10 +35,10 @@ pub fn retry(backoff: Backoff) -> Retry
 ```
 
 1. r[std-task.policy.retry.decl] `std.task` declares the public configuration type `Retry` with a private `backoff: Backoff` field.
-2. r[std-task.policy.selective-retry.decl.generic] `SelectiveRetry[E, F < Fn(E) -> bool = fn(E) -> bool]` is public and has private fields `backoff: Backoff` and `when: F`; its default keeps `SelectiveRetry[E]` as the dynamic-function spelling.
-3. r[std-task.policy.retry.when.generic] `Retry.when[E, F < Fn(E) -> bool](self, predicate: F) -> SelectiveRetry[E, F]` stores that predicate with the retry configuration.
+2. r[std-task.policy.selective-retry.decl.fn-mut] `SelectiveRetry[E, F < FnMut(E) -> bool = fn(E) -> bool]` is public and has private fields `backoff: Backoff` and `when: F`; its default keeps `SelectiveRetry[E]` as the dynamic-function spelling.
+3. r[std-task.policy.retry.when.fn-mut] `Retry.when[E, F < FnMut(E) -> bool](self, predicate: F) -> SelectiveRetry[E, F]` stores that predicate with the retry configuration.
 4. r[std-task.policy.retry.layer] `Retry` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock`.
-5. r[std-task.policy.selective-retry.layer.generic] `SelectiveRetry[E, F]` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock` when `F < Fn(E) -> bool`.
+5. r[std-task.policy.selective-retry.layer.fn-mut] `SelectiveRetry[E, F]` implements `Layer[fn!() -> Result[T, E] $ R]` with `Wrapped = fn!() -> Result[T, E] $ R + Clock` when `F < FnMut(E) -> bool`.
 6. r[std-task.policy.selective-retry.layer.static-generic] That implementation bounds both `E` and `F` by `'static`, since the returned dynamic closure keeps the configuration ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
 7. r[std-task.policy.retry.builder] `retry(backoff: Backoff) -> Retry` constructs a retry configuration.
 8. r[std-task.policy.retry.loop] An applied retry policy calls work sequentially at most `backoff.attempts` times, returning the first `.Ok` without another call.

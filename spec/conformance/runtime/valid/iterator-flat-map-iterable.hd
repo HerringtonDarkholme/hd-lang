@@ -1,5 +1,5 @@
 # test: Option is iterable, and flat_map drains any Iterable lazily without a list per result
-# Spec std/iter More Adapters: std-iter.adapter.flat-map.generic, std-iter.adapter.flat-map.open-once, std-iter.option.iterable-cursor, std-iter.option.cursor.none, std-iter.option.cursor.independent.
+# Spec std/iter More Adapters: std-iter.adapter.flat-map.fn-mut, std-iter.adapter.flat-map.open-once, std-iter.option.iterable-cursor, std-iter.option.cursor.none, std-iter.option.cursor.independent.
 # expect: test
 
 use std.iter.ListIter

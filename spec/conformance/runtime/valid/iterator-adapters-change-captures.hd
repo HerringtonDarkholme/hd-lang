@@ -1,0 +1,50 @@
+# test: iterator adapters, from_fn and a retry predicate take FnMut callbacks that change their captures
+# expect: test
+use std.iter.from_fn
+use std.task.{Backoff, retry, apply}
+use std.time.{Clock, ManualClock, Timestamp, ms}
+
+fn counted(count: &mut usize, value: usize) -> usize:
+    *count = *count + 1
+    value
+
+tests:
+    use std.testing.assert_equal
+
+    it("lets map, filter, take_while and flat_map count their calls"):
+        let mut mapped = 0
+        let mut kept = 0
+        let mut taken = 0
+        let mut flat = 0
+        xs := [1, 2, 3, 4]
+        let doubled: List[usize] = xs.iter().map(fn(x): counted(&mut mapped, x * 2)).collect()
+        let evens: List[usize] = xs.iter().filter(fn(x): counted(&mut kept, x) % 2 == 0).collect()
+        let small: List[usize] = xs.iter().take_while(fn(x): counted(&mut taken, x) < 3).collect()
+        let pairs: List[usize] = xs.iter().flat_map(fn(x): [counted(&mut flat, x), x]).collect()
+        assert_equal(doubled, [2, 4, 6, 8])
+        assert_equal(evens, [2, 4])
+        assert_equal(small, [1, 2])
+        assert_equal(pairs.len(), 8)
+        assert_equal([mapped, kept, taken, flat], [4, 4, 3, 4])
+
+    it("lets a from_fn step advance its own counter"):
+        let n = 0
+        let steps: List[usize] = from_fn(
+            fn():
+                n += 1
+                if n <= 3: .Some(n) else: .None
+            ,
+        )
+            .collect()
+        assert_equal(steps, [1, 2, 3])
+
+    it("lets a retry predicate count the errors it saw"):
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            let mut seen = 0
+            replies := box::[List[Result[string, string]]]([.Err("busy"), .Err("busy"), .Ok("ok")])
+            policy := retry(Backoff { attempts: 5, initial: 0ms })
+            result := apply!(policy.when(fn(e: string): counted(&mut seen, 1) > 0 && e == "busy")):
+                replies.remove_at(0)
+            assert_equal(result, .Ok("ok"))
+            assert_equal(seen, 2)

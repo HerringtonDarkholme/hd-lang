@@ -1,5 +1,5 @@
 # std.iter: user-defined cursors and lazy, named adapter values.
-use std.function.Fn
+use std.function.FnMut
 use std.num.Num
 
 ## A cursor that yields its next item, or None when exhausted.
@@ -15,10 +15,10 @@ pub trait Iterator[T]:
     fn by_ref(*mut self) -> ByRef[Self]:
         ByRef { inner: self }
 
-    fn map[U, F < Fn(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]:
+    fn map[U, F < FnMut(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]:
         MapIter { source: self, transform: transform }
 
-    fn filter[F < Fn(T) -> bool](self, keep: F) -> Filter[Self, T, F]:
+    fn filter[F < FnMut(T) -> bool](self, keep: F) -> Filter[Self, T, F]:
         Filter { source: self, keep: keep }
 
     fn take(self, count: usize) -> Take[Self, T]:
@@ -30,7 +30,7 @@ pub trait Iterator[T]:
     fn skip(self, count: usize) -> Skip[Self, T]:
         Skip { source: self, left: count }
 
-    fn take_while[F < Fn(T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]:
+    fn take_while[F < FnMut(T) -> bool](self, keep: F) -> TakeWhile[Self, T, F]:
         TakeWhile { source: self, keep: keep, open: true }
 
     fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U, J]:
@@ -39,7 +39,7 @@ pub trait Iterator[T]:
     fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T, J]:
         Chain { source: self, rest: other.iter(), first: true }
 
-    fn flat_map[U, J < Iterable[U], F < Fn(T) -> J](
+    fn flat_map[U, J < Iterable[U], F < FnMut(T) -> J](
         self,
         transform: F,
     ) -> FlatMap[Self, T, U, J, F]:
@@ -173,10 +173,10 @@ impl[T] dyn Iterator[T]:
     pub fn by_ref(*mut self) -> DynIterator[T]:
         DynIterator { source: self }
 
-    pub fn map[U, F < Fn(T) -> U](*mut self, transform: F) -> MapIter[DynIterator[T], T, U, F]:
+    pub fn map[U, F < FnMut(T) -> U](*mut self, transform: F) -> MapIter[DynIterator[T], T, U, F]:
         DynIterator { source: self }.map::[U, F](transform)
 
-    pub fn filter[F < Fn(T) -> bool](*mut self, keep: F) -> Filter[DynIterator[T], T, F]:
+    pub fn filter[F < FnMut(T) -> bool](*mut self, keep: F) -> Filter[DynIterator[T], T, F]:
         DynIterator { source: self }.filter::[F](keep)
 
     pub fn take(*mut self, count: usize) -> Take[DynIterator[T], T]:
@@ -188,7 +188,7 @@ impl[T] dyn Iterator[T]:
     pub fn skip(*mut self, count: usize) -> Skip[DynIterator[T], T]:
         DynIterator { source: self }.skip(count)
 
-    pub fn take_while[F < Fn(T) -> bool](*mut self, keep: F) -> TakeWhile[DynIterator[T], T, F]:
+    pub fn take_while[F < FnMut(T) -> bool](*mut self, keep: F) -> TakeWhile[DynIterator[T], T, F]:
         DynIterator { source: self }.take_while::[F](keep)
 
     pub fn zip[U, J < Iterable[U]](*mut self, other: J) -> Zip[DynIterator[T], T, U, J]:
@@ -197,7 +197,7 @@ impl[T] dyn Iterator[T]:
     pub fn chain[J < Iterable[T]](*mut self, other: J) -> Chain[DynIterator[T], T, J]:
         DynIterator { source: self }.chain::[J](other)
 
-    pub fn flat_map[U, J < Iterable[U], F < Fn(T) -> J](
+    pub fn flat_map[U, J < Iterable[U], F < FnMut(T) -> J](
         *mut self,
         transform: F,
     ) -> FlatMap[DynIterator[T], T, U, J, F]:
@@ -221,31 +221,31 @@ impl[T] dyn Iterator[T]:
     pub fn collect[C < FromIterator[T] = List[T]](*mut self) -> C:
         DynIterator { source: self }.collect::[C]()
 
-pub struct FromFn[T, F < Fn() -> T? = fn() -> T?]:
+pub struct FromFn[T, F < FnMut() -> T? = fn() -> T?]:
     step: F
 
-pub fn from_fn[T, F < Fn() -> T?](step: F) -> FromFn[T, F]:
+pub fn from_fn[T, F < FnMut() -> T?](step: F) -> FromFn[T, F]:
     FromFn { step: step }
 
-impl[T, F < Fn() -> T?] Iterator[T] for FromFn[T, F]:
+impl[T, F < FnMut() -> T?] Iterator[T] for FromFn[T, F]:
     fn next(&mut self) -> T?:
         (self.step)()
 
-pub struct MapIter[I < Iterator[T], T, U, F < Fn(T) -> U = fn(T) -> U]:
+pub struct MapIter[I < Iterator[T], T, U, F < FnMut(T) -> U = fn(T) -> U]:
     source: I
     transform: F
 
-impl[I < Iterator[T], T, U, F < Fn(T) -> U] Iterator[U] for MapIter[I, T, U, F]:
+impl[I < Iterator[T], T, U, F < FnMut(T) -> U] Iterator[U] for MapIter[I, T, U, F]:
     fn next(&mut self) -> U?:
         match self.source.next():
             .Some(item) => .Some((self.transform)(item))
             .None => .None
 
-pub struct Filter[I < Iterator[T], T, F < Fn(T) -> bool = fn(T) -> bool]:
+pub struct Filter[I < Iterator[T], T, F < FnMut(T) -> bool = fn(T) -> bool]:
     source: I
     keep: F
 
-impl[I < Iterator[T], T, F < Fn(T) -> bool] Iterator[T] for Filter[I, T, F]:
+impl[I < Iterator[T], T, F < FnMut(T) -> bool] Iterator[T] for Filter[I, T, F]:
     fn next(&mut self) -> T?:
         while true:
             item := match self.source.next():
@@ -291,12 +291,12 @@ impl[I < Iterator[T], T] Iterator[T] for Skip[I, T]:
                 .None => return .None
         self.source.next()
 
-pub struct TakeWhile[I < Iterator[T], T, F < Fn(T) -> bool = fn(T) -> bool]:
+pub struct TakeWhile[I < Iterator[T], T, F < FnMut(T) -> bool = fn(T) -> bool]:
     source: I
     keep: F
     open: bool
 
-impl[I < Iterator[T], T, F < Fn(T) -> bool] Iterator[T] for TakeWhile[I, T, F]:
+impl[I < Iterator[T], T, F < FnMut(T) -> bool] Iterator[T] for TakeWhile[I, T, F]:
     fn next(&mut self) -> T?:
         if !self.open:
             return .None
@@ -334,12 +334,12 @@ impl[I < Iterator[T], T, J < Iterable[T]] Iterator[T] for Chain[I, T, J]:
                 .None => self.first = false
         self.rest.next()
 
-pub struct FlatMap[I < Iterator[T], T, U, J < Iterable[U], F < Fn(T) -> J = fn(T) -> J]:
+pub struct FlatMap[I < Iterator[T], T, U, J < Iterable[U], F < FnMut(T) -> J = fn(T) -> J]:
     source: I
     transform: F
     part: J::IntoIter?
 
-impl[I < Iterator[T], T, U, J < Iterable[U], F < Fn(T) -> J] Iterator[U] for FlatMap[I, T, U, J, F]:
+impl[I < Iterator[T], T, U, J < Iterable[U], F < FnMut(T) -> J] Iterator[U] for FlatMap[I, T, U, J, F]:
     fn next(&mut self) -> U?:
         while true:
             match self.part:

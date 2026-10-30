@@ -6,7 +6,7 @@
 use std.task.all
 use std.error.Error
 use std.convert.From
-use std.function.Fn
+use std.function.{Fn, FnMut}
 use std.ops.AsyncDisposable
 use std.time.{Clock, Duration, Instant, sleep}
 
@@ -130,7 +130,7 @@ fn all_list![T](tasks: List[mut Suspend[T]]) -> List[T]:
     frame!()
 
 # Whether `result` is an `.Err` that `when` accepts.
-fn should_retry[T, E, F < Fn(E) -> bool](result: Result[T, E], when: F) -> bool:
+fn should_retry[T, E, F < FnMut(E) -> bool](result: Result[T, E], mut when: F) -> bool:
     match result:
         .Ok(_) => false
         .Err(error) => when(error)
@@ -146,7 +146,7 @@ pub struct Backoff:
 
 ## Retries with the policy's delays until success, a rejected error, or the final attempt.
 ## See [std-task.policy.retry.layer](../../spec/std/task.md#r-std-task.policy.retry.layer).
-fn retry_work![T, E, F < Fn(E) -> bool, $ R](
+fn retry_work![T, E, F < FnMut(E) -> bool, $ R](
     policy: Backoff,
     when: F,
     attempt: fn!() -> Result[T, E] $ R,
@@ -210,19 +210,19 @@ impl[T, E, $ R] Layer[fn!() -> Result[T, E] $ R] for Retry:
             retry_work!(self.backoff, fn(error: E): true, attempt=work)
 
 ## A retry configuration with a predicate for one concrete error type.
-## See [std-task.policy.selective-retry.decl.generic](../../spec/std/task.md#r-std-task.policy.selective-retry.decl.generic).
-pub struct SelectiveRetry[E, F < Fn(E) -> bool = fn(E) -> bool]:
+## See [std-task.policy.selective-retry.decl.fn-mut](../../spec/std/task.md#r-std-task.policy.selective-retry.decl.fn-mut).
+pub struct SelectiveRetry[E, F < FnMut(E) -> bool = fn(E) -> bool]:
     backoff: Backoff
     when: F
 
 impl Retry:
     ## Selects which errors allow another attempt.
-    ## See [std-task.policy.retry.when.generic](../../spec/std/task.md#r-std-task.policy.retry.when.generic).
-    pub fn when[E, F < Fn(E) -> bool](self, predicate: F) -> SelectiveRetry[E, F]:
+    ## See [std-task.policy.retry.when.fn-mut](../../spec/std/task.md#r-std-task.policy.retry.when.fn-mut).
+    pub fn when[E, F < FnMut(E) -> bool](self, predicate: F) -> SelectiveRetry[E, F]:
         SelectiveRetry { backoff: self.backoff, when: predicate }
 
-## See [std-task.policy.selective-retry.layer.generic](../../spec/std/task.md#r-std-task.policy.selective-retry.layer.generic).
-impl[T, E < 'static, F < Fn(E) -> bool & 'static, $ R] Layer[
+## See [std-task.policy.selective-retry.layer.fn-mut](../../spec/std/task.md#r-std-task.policy.selective-retry.layer.fn-mut).
+impl[T, E < 'static, F < FnMut(E) -> bool & 'static, $ R] Layer[
     fn!() -> Result[T, E] $ R,
 ] for SelectiveRetry[E, F]:
     type Wrapped = fn!() -> Result[T, E] $ R + Clock

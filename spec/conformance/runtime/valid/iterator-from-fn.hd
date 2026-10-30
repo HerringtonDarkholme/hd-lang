@@ -1,5 +1,5 @@
 # test: from_fn builds an iterator from a closure, and calls step again after .None
-# Spec std/iter Iterator Factory: std-iter.from-fn.generic, std-iter.from-fn.every-next (Chaining Study CS9, CS11).
+# Spec std/iter Iterator Factory: std-iter.from-fn.fn-mut, std-iter.from-fn.every-next (Chaining Study CS9, CS11).
 
 use std.iter.{from_fn}
 fn countdown(start: i32) -> *mut dyn Iterator[i32]:

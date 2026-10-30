@@ -1,5 +1,5 @@
 # test: flat_map yields the elements of each returned list, in order, lazily
-# Spec std/iter More Adapters: std-iter.adapter.flat-map.generic and .lazy.more.
+# Spec std/iter More Adapters: std-iter.adapter.flat-map.fn-mut and .lazy.more.
 tests:
     use std.testing.assert_equal
 

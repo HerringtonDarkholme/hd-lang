@@ -1,5 +1,5 @@
 # test: public policy builders are reusable values and preserve typed results
-# Spec std/task: std-task.policy.timeout.builder, std-task.policy.retry.builder, std-task.policy.with-timeout.builder, std-task.policy.retry.when.generic.
+# Spec std/task: std-task.policy.timeout.builder, std-task.policy.retry.builder, std-task.policy.with-timeout.builder, std-task.policy.retry.when.fn-mut.
 use std.convert.From
 use std.task.{Backoff, TimedOut, apply, retry, timeout, with_timeout}
 use std.time.{Clock, ManualClock, Timestamp}
