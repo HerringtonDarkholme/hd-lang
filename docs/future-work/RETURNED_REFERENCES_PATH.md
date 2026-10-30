@@ -1,8 +1,8 @@
 # The Path To Returned Local References
 
-**Status:** accepted 2026-10-29; domain: references and lifetimes. Stages 1,
-2a and 4 are built (#1002, #1003, #1007, #1008); #1006 and #996 are in progress;
-stage 3 is decided as single lifetime variables (#1005). It reviews
+**Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
+stages 1 to 5 and slices 6a1 to 6a3; stage 6's remaining slices are tickets
+#1020 to #1029 and #1035. It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999

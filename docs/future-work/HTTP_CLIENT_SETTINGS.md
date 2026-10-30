@@ -26,8 +26,7 @@ $.with(Http=transport):
 The provider also offers TLS-handshake, response-header, and body-read timeouts. These bound one
 host-measured phase per redirect hop. `apply!(timeout(...))` remains the only whole-operation deadline.
 
-The checked [signatures and examples](http-client-settings/) cover the public proposal. Their local
-`Http` and `HttpError` stand in for extending the existing standard items.
+The checked signatures and examples are in git history at 611fca589, `docs/future-work/http-client-settings/`; the build (#950) works from them.
 
 A zero phase timeout expires immediately, as the existing timeout policy
 already does. A configured DNS server is a literal IP address, so it never
