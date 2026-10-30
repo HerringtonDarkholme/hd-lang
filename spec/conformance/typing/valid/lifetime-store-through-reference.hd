@@ -1,0 +1,19 @@
+# test: a store through a `&mut` parameter puts each reference position into its own lifetime, so the other positions keep theirs
+# Spec 13 Lifetime Stores: ref.lifetime.store.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+struct Outer['a, 'b]:
+    inner: Two['b, 'a]
+
+fn set_all['a, 'b](t: &mut Two['a, 'b], a: &'a string, b: &'b string) -> void:
+    *t = Two { x: a, y: b }
+
+fn set_then_other['a, 'b](t: &mut Two['a, 'b], s: &'a string) -> &'b string:
+    t.x = s
+    t.y
+
+fn set_nested['a, 'b](t: &mut Outer['a, 'b], a: &'a string, b: &'b string) -> &'a string:
+    t.inner = Two { x: b, y: a }
+    t.inner.y

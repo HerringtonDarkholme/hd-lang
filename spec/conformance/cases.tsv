@@ -5457,3 +5457,5 @@ typing/valid/lifetime-store-reborrow-field.hd	type	accept	lang/13-values-and-ref
 typing/invalid/lifetime-store-reborrow-chain-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.field
 typing/valid/lifetime-reborrow-field-read.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.position.union
 typing/invalid/lifetime-reborrow-field-read-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.position.union
+typing/valid/lifetime-store-through-reference.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store
+typing/invalid/lifetime-store-through-reference-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store

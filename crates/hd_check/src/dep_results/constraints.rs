@@ -283,13 +283,11 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// Stores `value` into the place `word`: through a reference, into
-    /// the whole referent (`ref.dep.origin.position.union`).
+    /// Stores `value` into the place `word`, each slot into its own
+    /// position by the field slot maps, through a reference too
+    /// (`ref.lifetime.store`).
     fn store(&mut self, word: u32, value: &View, merge: bool) {
-        let p = self.s.b.decode_place(word);
-        let deref = p.and_then(|p| p.proj.iter().position(|&x| x == Proj::Deref));
-        let limit = deref.map_or(usize::MAX, |k| k + 1);
-        if let (_, Some(p)) = self.place(self.at, word, limit, (false, true)) {
+        if let (_, Some(p)) = self.place(self.at, word, usize::MAX, (false, true)) {
             self.relate(value, &p, false, merge);
         }
     }
