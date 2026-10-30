@@ -133,6 +133,10 @@ export const syncClient = (file, close = null) => {
         stop();
         throw new TimeLimit();
       }
+      if (reply.fault !== undefined) {
+        stop();
+        throw new HostContract(reply.fault);
+      }
       return reply.result;
     },
     stop,
