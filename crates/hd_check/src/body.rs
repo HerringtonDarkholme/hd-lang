@@ -22,10 +22,10 @@ use hd_tir::ir::{
     TirSink, VerifyError, local_flags,
 };
 use hd_types::solver::{
-    Answer, BodyMemo, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls, ParamEnv, SolveCx,
-    Solver, TraitRef,
+    Answer, BodyMemo, BuiltinImpl, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls,
+    ParamEnv, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InferTable, ParamRef, RowId, Ty, TyData, TyList, VarKind};
+use hd_types::{InferTable, Inputs, ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
 use crate::expr::Indexed;
 
@@ -2079,6 +2079,52 @@ impl Ck<'_, '_> {
         }))
     }
 
+    /// The one `Fn[I, O, $R]` instantiation supplied for a concrete
+    /// function value. A suspending function exposes the same lowered
+    /// constructor that an expected concrete `fn` type gives it
+    /// (`fn.type.suspend.weaken`, `fn.trait.suspend-weaken`).
+    pub(crate) fn fn_trait_args_of(&self, t: Ty) -> Option<[Ty; 3]> {
+        let pool = self.pool();
+        let TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+            inputs,
+            ..
+        } = pool.get(self.strip_mut(self.infer.shallow(pool, t)))
+        else {
+            return None;
+        };
+        let ps = pool.list_items(params);
+        let input = match inputs {
+            Inputs::Fixed => pool.intern_ty(&TyData::Tuple {
+                elems: params,
+                rest: None,
+            }),
+            Inputs::Rest => {
+                let (rest, elems) = ps
+                    .split_last()
+                    .map_or((Ty::POISON, &[][..]), |(&rest, elems)| (rest, elems));
+                pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(elems),
+                    rest: Some(rest),
+                })
+            }
+            Inputs::Tuple => ps.first().copied().unwrap_or(Ty::POISON),
+        };
+        let output = if suspends {
+            let suspend = pool.intern_ty(&TyData::Adt {
+                def: self.cx.names.known.suspend,
+                args: pool.list(&[result]),
+            });
+            pool.intern_ty(&TyData::Mut(suspend))
+        } else {
+            result
+        };
+        Some([input, output, pool.intern_ty(&TyData::Row(row))])
+    }
+
     /// Reports a mismatch and returns whether it did.
     ///
     /// `position` selects the error codes: a binary operator operand or
@@ -2790,6 +2836,26 @@ impl Ck<'_, '_> {
         // (`types.sealed.never`, `trait.inspectable.not.never`).
         if self.strip_mut(tref.self_ty) == Ty::NEVER && self.diags.has_errors() {
             return Ok(Some(hd_types::solver::Evidence::Poison));
+        }
+        // `Instantiations` and ordinary `Implements` goals both see the
+        // compiler-supplied `Fn` implementation. The general solver owns
+        // the plain-function case; the checker also admits the lowered
+        // constructor of a suspending function, whose coercion is driven
+        // by its generic bound rather than an expected concrete type.
+        if tref.trait_ == self.cx.names.known.fn_trait
+            && let Some(got) = self.fn_trait_args_of(tref.self_ty)
+        {
+            let want = pool.list_items(tref.args);
+            let mark = self.infer.snapshot();
+            let fits = got.len() == want.len()
+                && got
+                    .iter()
+                    .zip(want)
+                    .all(|(g, w)| self.infer.unify(pool, *g, *w).is_ok());
+            if fits {
+                return Ok(Some(Evidence::Builtin(BuiltinImpl::Fn)));
+            }
+            self.infer.rollback(mark);
         }
         match self.solve(tref)? {
             Answer::Holds { evidence, learned } => {

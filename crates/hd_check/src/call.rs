@@ -218,6 +218,10 @@ pub(crate) struct Formals<'a> {
     /// index, so the inference join checks arguments that share one
     /// (`types.generic.infer.join.other-conflict`).
     pub inferred: &'a [Vec<usize>],
+    /// A concrete function-type view of a bare generic parameter's one
+    /// `Fn` bound. It supplies closure parameter types without fixing the
+    /// parameter to the dynamic `fn` representation.
+    pub closure_wants: Option<&'a [Option<Ty>]>,
 }
 
 /// Whether a pre-instantiation formal type is a bare occurrence of type
@@ -258,6 +262,49 @@ fn inferred_formals(
         })
         .chain(std::iter::repeat_with(Vec::new))
         .take(formals.len())
+        .collect()
+}
+
+/// Per-formal expected function types supplied by a bare generic
+/// parameter's `Fn` bound. The argument still infers the concrete `F`;
+/// this view only gives an unannotated closure its input types.
+fn fn_bound_formals(
+    ck: &Ck,
+    owner: DefId,
+    sig: &FnSig,
+    formals: &[(Symbol, Ty)],
+    inst: &dyn Fn(Ty) -> Ty,
+) -> Vec<Option<Ty>> {
+    let pool = ck.pool();
+    formals
+        .iter()
+        .zip(&sig.params)
+        .map(|(_, (_, raw))| {
+            let index = (0..sig.generics.len()).find(|&i| bare_param(pool, *raw, owner, i))?;
+            let bound = sig.generics[index].bounds.iter().find_map(|b| {
+                let bound = inst(*b);
+                match pool.get(bound) {
+                    TyData::TraitValue { def, args, .. } if def == ck.cx.names.known.fn_trait => {
+                        Some(args)
+                    }
+                    _ => None,
+                }
+            })?;
+            let [input, output, row] = pool.list_items(bound) else {
+                return None;
+            };
+            let TyData::Row(row) = pool.get(*row) else {
+                return None;
+            };
+            Some(pool.intern_ty(&TyData::Fn {
+                params: pool.list(&[*input]),
+                result: *output,
+                row,
+                suspends: false,
+                inputs: Inputs::Tuple,
+                deps: hd_types::FnDeps::NONE,
+            }))
+        })
         .collect()
 }
 
@@ -1134,6 +1181,7 @@ impl Ck<'_, '_> {
                 defaults: &defaults,
                 variadic: false,
                 inferred: &inferred,
+                closure_wants: None,
             };
             self.local_defaults = Some(crate::local::LocalDefaults {
                 defaults: form.defaults.clone(),
@@ -1163,6 +1211,7 @@ impl Ck<'_, '_> {
                 defaults: &defaults,
                 variadic: true,
                 inferred: &inferred,
+                closure_wants: None,
             };
             self.check_args(&formals, 0, args, n, "the function value")?
         } else if args.spread.is_some() {
@@ -1420,14 +1469,25 @@ impl Ck<'_, '_> {
             // A closure whose parameter types a later argument solves is
             // checked against them (§2.4 step 4).
             let expect = match w {
-                Some(want) if e.kind() == SyntaxKind::ClosureExpr && self.open_inputs(want) => {
+                Some(want) if e.kind() == SyntaxKind::ClosureExpr => {
+                    let bounded = formals
+                        .closure_wants
+                        .and_then(|xs| xs.get(skip + i))
+                        .copied()
+                        .flatten();
                     let later: Vec<(NodeRef<'_>, Ty)> = args.positional[i + 1..]
                         .iter()
                         .zip(rest.get(i + 1..nfixed).unwrap_or(&[]))
                         .map(|(a, p)| (*a, p.1))
                         .chain(self.named_params(rest, &args.named))
                         .collect();
-                    self.solved_by_later(want, &later).or(w)
+                    bounded
+                        .or_else(|| {
+                            self.open_inputs(want)
+                                .then(|| self.solved_by_later(want, &later))
+                                .flatten()
+                        })
+                        .or(w)
                 }
                 _ => w,
             };
@@ -1526,9 +1586,20 @@ impl Ck<'_, '_> {
             let mut w = self.normalize_deep(rest[i].1)?;
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
-            let expect = if e.kind() == SyntaxKind::ClosureExpr && self.open_inputs(w) {
+            let expect = if e.kind() == SyntaxKind::ClosureExpr {
+                let bounded = formals
+                    .closure_wants
+                    .and_then(|xs| xs.get(skip + i))
+                    .copied()
+                    .flatten();
                 let later = self.named_params(rest, &args.named[k + 1..]);
-                self.solved_by_later(w, &later).unwrap_or(w)
+                bounded
+                    .or_else(|| {
+                        self.open_inputs(w)
+                            .then(|| self.solved_by_later(w, &later))
+                            .flatten()
+                    })
+                    .unwrap_or(w)
             } else {
                 w
             };
@@ -2059,11 +2130,14 @@ impl Ck<'_, '_> {
                 }
                 self.default_owner = Some((def, pool.list(&vars), vec![]));
                 let inferred = inferred_formals(self, def, &sig, explicit, &params);
+                let inst = |x| subst_owner(pool, def, &vars, x);
+                let closure_wants = fn_bound_formals(self, def, &sig, &params, &inst);
                 let formals = Formals {
                     params: &params,
                     defaults: &sig.defaults,
                     variadic: sig.variadic,
                     inferred: &inferred,
+                    closure_wants: Some(&closure_wants),
                 };
                 let refs = self.check_args(&formals, 0, args, n, &name)?;
                 // A rejected argument makes the call an error value, so
@@ -3059,11 +3133,13 @@ impl Ck<'_, '_> {
             all.extend(&vars);
             self.default_owner = Some((method, pool.list(&all), vec![]));
             let inferred = inferred_formals(self, method, &sig, &explicit, &params);
+            let closure_wants = fn_bound_formals(self, method, &sig, &params, &inst);
             let formals = Formals {
                 params: &params,
                 defaults: &sig.defaults,
                 variadic: sig.variadic,
                 inferred: &inferred,
+                closure_wants: Some(&closure_wants),
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -4053,11 +4129,13 @@ impl Ck<'_, '_> {
                 all.extend(&vars);
                 self.default_owner = Some((method, pool.list(&all), vec![refs[0]]));
                 let inferred = inferred_formals(self, method, &sig, &explicit, &params);
+                let closure_wants = fn_bound_formals(self, method, &sig, &params, &inst);
                 let formals = Formals {
                     params: &params,
                     defaults: &sig.defaults,
                     variadic: sig.variadic,
                     inferred: &inferred,
+                    closure_wants: Some(&closure_wants),
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -4121,6 +4199,7 @@ impl Ck<'_, '_> {
                     defaults: &[],
                     variadic: false,
                     inferred: &inferred,
+                    closure_wants: None,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
@@ -4334,11 +4413,13 @@ impl Ck<'_, '_> {
             _ => 0,
         };
         let inferred = inferred_formals(self, method, &sig, &explicit, &params);
+        let closure_wants = fn_bound_formals(self, method, &sig, &params, &inst);
         let formals = Formals {
             params: &params,
             defaults: &sig.defaults,
             variadic: sig.variadic,
             inferred: &inferred,
+            closure_wants: Some(&closure_wants),
         };
         let method_name = self
             .cx

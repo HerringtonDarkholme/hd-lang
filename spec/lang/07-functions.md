@@ -454,6 +454,9 @@ may hold and call.
 3. r[fn.trait.bound-sugar] In a bound, `Fn(A, B) -> O $R` denotes `Fn[(A, B), O, $R]`, and an omitted row is `$()`.
 4. r[fn.trait.bound-tuple] The tuple form `Fn[(A, B), O, $R]` remains valid in a bound.
 5. r[fn.trait.call] A value of type parameter `F < Fn(A, B) -> O $R` may be called as `f(a, b)` and requires `$R`.
+6. r[fn.trait.suspend-weaken] A suspending function value `fn!(A, B) -> O $R` satisfies `F < Fn(A, B) -> mut Suspend[O] $R` through the same weakening as an expected concrete plain function type.
+7. r[fn.trait.bound.infer-instantiation] Call inference solves an `Fn` bound's input tuple, output and requirement-row arguments from a concrete function value's one `Fn` instantiation, including a suspending function's weakened instantiation.
+8. r[fn.trait.bound.closure-inputs] An unannotated closure passed to a bare parameter `F` takes its parameter types from `F`'s `Fn` bound when those input types are known; the closure's concrete type still solves `F`.
 
 > **Why.** The concrete `fn(...)` type remains the dynamic function value.
 > `Fn(...)` gives stored callbacks static dispatch without a second dynamic form.

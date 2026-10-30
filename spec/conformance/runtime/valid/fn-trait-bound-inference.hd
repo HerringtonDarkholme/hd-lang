@@ -1,0 +1,36 @@
+# test: Fn bounds infer closure inputs, function outputs and rows, and the lowered type of suspending functions
+# Spec Functions, Static Fn Bounds: fn.trait.bound.infer-instantiation, fn.trait.bound.closure-inputs, and fn.trait.suspend-weaken.
+use std.function.Fn
+use std.ops.Disposable
+
+fn map_one[I, O, F < Fn(I) -> O](value: I, f: F) -> O:
+    f(value)
+
+fn drive![I, O, F < Fn(I) -> mut Suspend[O] $ R, $ R](value: I, f: F) -> O $ R:
+    let pending: mut Suspend[O] = f(value)
+    pending!()
+
+fn work!(value: i32) -> i32:
+    value + 1
+
+struct Guard[F < Fn() -> void $ R, $ R]:
+    action: F
+
+impl[F < Fn() -> void $ R, $ R] Disposable[$ R] for Guard[F, $ R]:
+    fn dispose(&mut self) -> void $ R:
+        (self.action)()
+
+fn guard[F < Fn() -> void $ R, $ R](action: F) -> Guard[F, $ R]:
+    Guard { action: action }
+
+tests:
+    use std.testing.assert_equal
+
+    it("infers every part of a generic Fn bound"):
+        assert_equal(map_one(3i32, fn(value): value * 2), 6)
+        assert_equal(drive!(4i32, work), 5)
+        let count = +0
+        if true:
+            using done = guard(fn(): count = count + 1)
+            assert_equal(count, 0)
+        assert_equal(count, 1)
