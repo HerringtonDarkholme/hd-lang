@@ -119,33 +119,25 @@ function cloneLine(line: Line): Line {
   };
 }
 
-/**
- * Applies one mutation in place. Returns false when the mutation had nothing to act on.
- * `vocabulary` supplies insertable tokens (EBNF literals); `donors` supplies spliced lines.
- */
-function applyMutation({
+function applyTokenMutation({
   lines,
   name,
   rng,
   vocabulary,
-  donors,
+  slots,
+  lineIndex,
+  tokenIndex,
 }: {
   lines: Line[];
   name: MutationName;
   rng: Rng;
   vocabulary: readonly string[];
-  donors: readonly Line[];
+  slots: readonly [number, number][];
+  lineIndex: number;
+  tokenIndex: number;
 }): boolean {
-  const slots = tokenSlots(lines);
-  const nonEmpty = codeLines(lines);
-  if (slots.length === 0 || nonEmpty.length === 0) {
-    return false;
-  }
-  const [lineIndex, tokenIndex] = rng.pick(slots);
   const line = lines[lineIndex]!;
-  if (name.endsWith("-token") || name === "replace-literal") {
-    line.original = undefined;
-  }
+  line.original = undefined;
   switch (name) {
     case "delete-token":
       line.tokens.splice(tokenIndex, 1);
@@ -163,6 +155,42 @@ function applyMutation({
       line.tokens[left + 1] = swapped;
       return true;
     }
+    case "insert-token":
+      line.tokens.splice(tokenIndex + rng.int(2), 0, rng.pick(vocabulary));
+      return true;
+    case "replace-literal": {
+      const literalSlots = slots.filter(([row, column]) =>
+        /^(?:\d|"|'|\w+"|true$|false$)/.test(lines[row]!.tokens[column]!),
+      );
+      if (literalSlots.length === 0) {
+        return false;
+      }
+      const [row, column] = rng.pick(literalSlots);
+      lines[row]!.original = undefined;
+      lines[row]!.tokens[column] = rng.pick(interestingLiterals);
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+function applyLineMutation({
+  lines,
+  name,
+  rng,
+  donors,
+  nonEmpty,
+  lineIndex,
+}: {
+  lines: Line[];
+  name: MutationName;
+  rng: Rng;
+  donors: readonly Line[];
+  nonEmpty: readonly number[];
+  lineIndex: number;
+}): boolean {
+  switch (name) {
     case "reindent": {
       const target = lines[rng.pick(nonEmpty)]!;
       const width = target.indent.replaceAll("\t", "    ").length;
@@ -190,21 +218,6 @@ function applyMutation({
       lines[second] = saved;
       return true;
     }
-    case "insert-token":
-      line.tokens.splice(tokenIndex + rng.int(2), 0, rng.pick(vocabulary));
-      return true;
-    case "replace-literal": {
-      const literalSlots = slots.filter(([row, column]) =>
-        /^(?:\d|"|'|\w+"|true$|false$)/.test(lines[row]!.tokens[column]!),
-      );
-      if (literalSlots.length === 0) {
-        return false;
-      }
-      const [row, column] = rng.pick(literalSlots);
-      lines[row]!.original = undefined;
-      lines[row]!.tokens[column] = rng.pick(interestingLiterals);
-      return true;
-    }
     case "splice-line": {
       if (donors.length === 0) {
         return false;
@@ -215,7 +228,38 @@ function applyMutation({
       lines.splice(lineIndex + rng.int(2), 0, donor);
       return true;
     }
+    default:
+      return false;
   }
+}
+
+/**
+ * Applies one mutation in place. Returns false when the mutation had nothing to act on.
+ * `vocabulary` supplies insertable tokens (EBNF literals); `donors` supplies spliced lines.
+ */
+function applyMutation({
+  lines,
+  name,
+  rng,
+  vocabulary,
+  donors,
+}: {
+  lines: Line[];
+  name: MutationName;
+  rng: Rng;
+  vocabulary: readonly string[];
+  donors: readonly Line[];
+}): boolean {
+  const slots = tokenSlots(lines);
+  const nonEmpty = codeLines(lines);
+  if (slots.length === 0 || nonEmpty.length === 0) {
+    return false;
+  }
+  const [lineIndex, tokenIndex] = rng.pick(slots);
+  if (name.endsWith("-token") || name === "replace-literal" || name === "insert-token") {
+    return applyTokenMutation({ lines, name, rng, vocabulary, slots, lineIndex, tokenIndex });
+  }
+  return applyLineMutation({ lines, name, rng, donors, nonEmpty, lineIndex });
 }
 
 /** Strips conformance markers so a mutated seed does not carry stale expectations. */

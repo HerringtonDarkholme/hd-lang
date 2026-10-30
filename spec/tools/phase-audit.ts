@@ -16,6 +16,18 @@ export interface PhaseAudit {
   readonly mismatches: readonly PhaseMismatch[];
 }
 
+function expectedPhase(
+  kind: string,
+  code: string,
+  panics: ReadonlySet<string>,
+  diagnostics: ReadonlyMap<string, DiagnosticPhase>,
+): DiagnosticPhase | null {
+  if (kind !== "panic") {
+    return diagnostics.get(code) ?? null;
+  }
+  return panics.has(code) ? "runtime" : null;
+}
+
 /** Checks every reject, warning, and panic expectation in a fixture index. */
 export function phaseAudit(readme: string, controlFlow: string, cases: string): PhaseAudit {
   const lines = cases.trimEnd().split(/\r?\n/);
@@ -42,19 +54,14 @@ export function phaseAudit(readme: string, controlFlow: string, cases: string): 
     }
     checked += 1;
     const [, kind, code] = match;
-    let expectedPhase: DiagnosticPhase | null;
-    if (kind === "panic") {
-      expectedPhase = panics.has(code!) ? "runtime" : null;
-    } else {
-      expectedPhase = diagnostics.get(code!) ?? null;
-    }
+    const expected = expectedPhase(kind!, code!, panics, diagnostics);
     const rowPhase = fields[phaseAt] ?? "";
-    if (expectedPhase !== rowPhase) {
+    if (expected !== rowPhase) {
       mismatches.push({
         path: fields[pathAt] ?? "",
         code: code!,
         rowPhase,
-        expectedPhase,
+        expectedPhase: expected,
       });
     }
   }

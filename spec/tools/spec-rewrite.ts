@@ -132,6 +132,13 @@ function tierOrder(chapter: string): number {
   return chapter.startsWith("cli/") ? 2 : 0;
 }
 
+function revivedRules(
+  earlierIds: ReadonlySet<string> | undefined,
+  added: readonly { id: string }[],
+): string[] {
+  return earlierIds ? added.map((entry) => entry.id).filter((id) => earlierIds.has(id)) : [];
+}
+
 export function rewrite(options: RewriteOptions): Rewrite {
   const { base, head } = options;
   const before = counts(base);
@@ -180,9 +187,7 @@ export function rewrite(options: RewriteOptions): Rewrite {
     }
   }
   changed.sort((a, b) => a.similarity - b.similarity || a.id.localeCompare(b.id));
-  const revived = options.earlierIds
-    ? added.map((entry) => entry.id).filter((id) => options.earlierIds!.has(id))
-    : [];
+  const revived = revivedRules(options.earlierIds, added);
 
   const namedBefore = namedCodes(base);
   const namedAfter = namedCodes(head);

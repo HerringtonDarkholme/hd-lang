@@ -162,6 +162,24 @@ function sectionAnchors(chapter: Chapter): Map<number, string> {
 const LEADING_MARKER = /^r\[([^\]]+)\]\s*/;
 const escapeCells = (text: string): string => text.replaceAll(/(?<!\\)\|/g, "\\|");
 
+function termDefinition(
+  block: Chapter["blocks"][number],
+  parts: readonly string[],
+  term: string,
+): string {
+  if (block.kind !== "row") {
+    return (
+      sentences(block.text).find((sentence) => sentence.includes(`**${term}**`)) ??
+      block.text.replace(LEADING_MARKER, "")
+    );
+  }
+  const after = parts.slice(parts.findIndex((part) => part.includes(`**${term}**`)) + 1);
+  return (after.length > 0 ? after : parts)
+    .map((part) => part.replace(LEADING_MARKER, ""))
+    .filter((part) => part !== "")
+    .join(" | ");
+}
+
 /** The terms a chapter defines: bold terms in prose and rules, and defining headings. */
 function chapterTerms(chapter: Chapter): GlossaryTerm[] {
   const anchors = sectionAnchors(chapter);
@@ -184,16 +202,7 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
     const parts = block.kind === "row" ? cells(block.text) : [block.text];
     const rule = parts.map((part) => LEADING_MARKER.exec(part)?.[1]).find((id) => id);
     for (const term of boldTerms(block.text)) {
-      // In a table row, the cells after the term's cell define it.
-      const after = parts.slice(parts.findIndex((part) => part.includes(`**${term}**`)) + 1);
-      const definition =
-        block.kind === "row"
-          ? (after.length > 0 ? after : parts)
-              .map((part) => part.replace(LEADING_MARKER, ""))
-              .filter((part) => part !== "")
-              .join(" | ")
-          : (sentences(block.text).find((sentence) => sentence.includes(`**${term}**`)) ??
-            block.text.replace(LEADING_MARKER, ""));
+      const definition = termDefinition(block, parts, term);
       out.push({
         term,
         definition: rebaseLinks(definition, directory),

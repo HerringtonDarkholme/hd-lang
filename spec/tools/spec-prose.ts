@@ -133,6 +133,36 @@ const HEADING = /^#{1,6}\s+/;
 const ITEM = /^(\s*)(?:[-*+]|\d+[.)])\s+/;
 const TABLE_RULE = /^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
 
+function fencedBlock(
+  lines: readonly string[],
+  start: number,
+  fence: RegExpExecArray,
+): { block: Block; end: number } {
+  const body: string[] = [];
+  let end = start + 1;
+  for (; end < lines.length; end += 1) {
+    const closing = FENCE.exec(lines[end]!);
+    if (
+      closing &&
+      closing[2]![0] === fence[2]![0] &&
+      closing[2]!.length >= fence[2]!.length &&
+      closing[3]!.trim() === ""
+    ) {
+      break;
+    }
+    body.push(lines[end]!);
+  }
+  return {
+    block: {
+      kind: "code",
+      text: body.join("\n"),
+      line: start + 1,
+      info: fence[3]!.trim().split(/\s+/, 1)[0] ?? "",
+    },
+    end,
+  };
+}
+
 /** Splits a Markdown document into blocks. */
 export function blocks(markdown: string): Block[] {
   const lines = markdown.split(/\r?\n/);
@@ -149,26 +179,9 @@ export function blocks(markdown: string): Block[] {
     const fence = FENCE.exec(line);
     if (fence) {
       flush();
-      const start = index;
-      const body: string[] = [];
-      for (index += 1; index < lines.length; index += 1) {
-        const closing = FENCE.exec(lines[index]!);
-        if (
-          closing &&
-          closing[2]![0] === fence[2]![0] &&
-          closing[2]!.length >= fence[2]!.length &&
-          closing[3]!.trim() === ""
-        ) {
-          break;
-        }
-        body.push(lines[index]!);
-      }
-      result.push({
-        kind: "code",
-        text: body.join("\n"),
-        line: start + 1,
-        info: fence[3]!.trim().split(/\s+/, 1)[0] ?? "",
-      });
+      const parsed = fencedBlock(lines, index, fence);
+      result.push(parsed.block);
+      index = parsed.end;
       continue;
     }
     if (line.trim() === "") {

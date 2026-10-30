@@ -91,6 +91,70 @@ function checkErrorExamples(
   }
 }
 
+function checkMarkers({
+  parsed,
+  name,
+  prefix,
+  seen,
+  failures,
+}: {
+  parsed: ReturnType<typeof blocks>;
+  name: string;
+  prefix: string | undefined;
+  seen: Map<string, string>;
+  failures: string[];
+}): ReturnType<typeof ruleMarkers>["markers"] {
+  const { markers, problems } = ruleMarkers(parsed);
+  for (const problem of problems) {
+    failures.push(`spec/${name}:${problem}`);
+  }
+  for (const marker of markers) {
+    const where = `spec/${name}:${marker.line}`;
+    if (prefix === undefined) {
+      failures.push(`${where}: rule ID ${marker.id} outside a chapter`);
+      continue;
+    }
+    if (marker.id.split(".", 1)[0] !== prefix) {
+      failures.push(
+        `${where}: rule ID ${marker.id} must start with this chapter's prefix ${prefix}.`,
+      );
+    }
+    const previous = seen.get(marker.id);
+    if (previous) {
+      failures.push(`${where}: duplicate rule ID ${marker.id}, first at ${previous}`);
+    } else {
+      seen.set(marker.id, where);
+    }
+  }
+  return markers;
+}
+
+function styleWarnings(parsed: ReturnType<typeof blocks>, name: string): string[] {
+  const warnings: string[] = [];
+  for (const block of paragraphs(parsed)) {
+    const words = wordCount(block.text);
+    if (words > PARAGRAPH_WORDS) {
+      warnings.push(
+        `spec/${name}:${block.line}: warning: paragraph has ${words} words (limit ${PARAGRAPH_WORDS})`,
+      );
+    }
+  }
+  for (const block of parsed) {
+    if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "quote") {
+      continue;
+    }
+    for (const sentence of sentences(block.text)) {
+      const words = wordCount(sentence);
+      if (words > SENTENCE_WORDS) {
+        warnings.push(
+          `spec/${name}:${block.line}: warning: sentence has ${words} words (limit ${SENTENCE_WORDS}): ${readable(sentence).slice(0, 60)}...`,
+        );
+      }
+    }
+  }
+  return warnings;
+}
+
 async function main(args: readonly string[]): Promise<number> {
   const positional = args.filter((arg) => !arg.startsWith("--"));
   if (positional.length !== 1) {
@@ -124,56 +188,14 @@ async function main(args: readonly string[]): Promise<number> {
     const text = await read(name);
     const parsed = blocks(text);
     const prefix = CHAPTER_PREFIXES[name];
-    const { markers, problems } = ruleMarkers(parsed);
-    for (const problem of problems) {
-      failures.push(`spec/${name}:${problem}`);
-    }
-    for (const marker of markers) {
-      const where = `spec/${name}:${marker.line}`;
-      if (prefix === undefined) {
-        failures.push(`${where}: rule ID ${marker.id} outside a chapter`);
-        continue;
-      }
-      if (marker.id.split(".", 1)[0] !== prefix) {
-        failures.push(
-          `${where}: rule ID ${marker.id} must start with this chapter's prefix ${prefix}.`,
-        );
-      }
-      const previous = seen.get(marker.id);
-      if (previous) {
-        failures.push(`${where}: duplicate rule ID ${marker.id}, first at ${previous}`);
-      } else {
-        seen.set(marker.id, where);
-      }
-    }
+    const markers = checkMarkers({ parsed, name, prefix, seen, failures });
     if (prefix === undefined) {
       continue;
     }
 
     checkErrorExamples(parsed, codes, name, failures);
 
-    const warnings: string[] = [];
-    for (const block of paragraphs(parsed)) {
-      const words = wordCount(block.text);
-      if (words > PARAGRAPH_WORDS) {
-        warnings.push(
-          `spec/${name}:${block.line}: warning: paragraph has ${words} words (limit ${PARAGRAPH_WORDS})`,
-        );
-      }
-    }
-    for (const block of parsed) {
-      if (block.kind !== "paragraph" && block.kind !== "item" && block.kind !== "quote") {
-        continue;
-      }
-      for (const sentence of sentences(block.text)) {
-        const words = wordCount(sentence);
-        if (words > SENTENCE_WORDS) {
-          warnings.push(
-            `spec/${name}:${block.line}: warning: sentence has ${words} words (limit ${SENTENCE_WORDS}): ${readable(sentence).slice(0, 60)}...`,
-          );
-        }
-      }
-    }
+    const warnings = styleWarnings(parsed, name);
     if (warnings.length === 0) {
       continue;
     }

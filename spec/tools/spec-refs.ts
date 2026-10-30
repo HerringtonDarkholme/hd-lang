@@ -43,34 +43,26 @@ const BARE = new RegExp(String.raw`(?<![\w#./@$-])(${ID})(?![\w(-]|\.[\w*])`, "g
 const HISTORY =
   /\b(?:retired|retires|retiring|since (?:moved|removed|replaced|renamed|revised)|withdrawn|formerly|former|previously|was removed|were removed|replaced by|renamed|reverses|reversed|becomes|became)\b/i;
 
+const AREA_RULES: readonly [string, Area, RegExp][] = [
+  ["spec/conformance/", "fixtures", /\.(?:hd|tsv|md)$/],
+  ["spec/tools/", "spec", /\.md$/],
+  ["spec/", "spec", /\.md$/],
+  ["website/guide/", "guide", /\.md$/],
+  ["lib/std/", "lib-std", /\.hd$/],
+  ["docs/future-work/", "records", /\.md$/],
+  ["docs/", "records", /\.md$/],
+  ["crates/", "crates", /\.(?:rs|md)$/],
+];
+
 /** The area of a repository-relative path, or undefined when refs does not scan it. */
 export function areaOf(file: string): Area | undefined {
-  if (file.startsWith("spec/conformance/")) {
-    return /\.(?:hd|tsv|md)$/.test(file) ? "fixtures" : undefined;
-  }
-  if (file.startsWith("spec/tools/")) {
-    return file.endsWith(".md") ? "spec" : undefined;
-  }
-  if (file.startsWith("spec/")) {
-    return file.endsWith(".md") ? "spec" : undefined;
-  }
-  if (file.startsWith("website/guide/")) {
-    return file.endsWith(".md") ? "guide" : undefined;
-  }
-  if (file.startsWith("lib/std/")) {
-    return file.endsWith(".hd") ? "lib-std" : undefined;
-  }
-  if (file.startsWith("docs/future-work/")) {
-    return file.endsWith(".md") ? "records" : undefined;
-  }
-  if (file.startsWith("docs/")) {
-    return file.endsWith(".md") ? "records" : undefined;
-  }
   if (file === "KNOWN_FAILURES.tsv") {
     return "records";
   }
-  if (file.startsWith("crates/")) {
-    return /\.(?:rs|md)$/.test(file) ? "crates" : undefined;
+  for (const [prefix, area, extension] of AREA_RULES) {
+    if (file.startsWith(prefix)) {
+      return extension.test(file) ? area : undefined;
+    }
   }
   return undefined;
 }
