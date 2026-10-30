@@ -55,7 +55,9 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
   // short instead of blocking, and an in-flight thread write cannot keep
   // writing a cancelled suffix when a reader resumes.
   const prepare = (): void => {
-    if (prepared) return;
+    if (prepared) {
+      return;
+    }
     prepared = true;
     (process.stdout as Dynamic)._handle?.setBlocking(false);
     (process.stderr as Dynamic)._handle?.setBlocking(false);
@@ -91,7 +93,9 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
         ? () => Number.POSITIVE_INFINITY
         : () => deadline - performance.now();
     const reply = receiveReply(client!.port, client!.flag, id, left);
-    if (reply === null) throw new Error("output control reply timed out");
+    if (reply === null) {
+      throw new Error("output control reply timed out");
+    }
     return reply.result;
   };
   // Moves the direct queue, in order, to the thread: the head's unwritten
@@ -100,9 +104,11 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
     remote = true;
     for (const e of local.splice(0)) {
       const bytes = new Uint8Array(e.bytes.subarray(e.offset));
-      if (e.wait)
+      if (e.wait) {
         e.result = call({ op: "wait_start", fd: e.fd, bytes }, [bytes.buffer as ArrayBuffer]);
-      else call({ op: "enqueue", fd: e.fd, bytes }, [bytes.buffer as ArrayBuffer]);
+      } else {
+        call({ op: "enqueue", fd: e.fd, bytes }, [bytes.buffer as ArrayBuffer]);
+      }
     }
   };
   // Writes the queued entries directly, until the queue is empty or a
@@ -113,12 +119,16 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
       try {
         while (e.offset < e.bytes.length) {
           const count = writeSync(e.fd, e.bytes, e.offset, e.bytes.length - e.offset);
-          if (count === 0) return handOff();
+          if (count === 0) {
+            return handOff();
+          }
           e.offset += count;
         }
         e.result = Ok(undefined);
       } catch (error) {
-        if (full(error as NodeJS.ErrnoException)) return handOff();
+        if (full(error as NodeJS.ErrnoException)) {
+          return handOff();
+        }
         e.result = failed(error as NodeJS.ErrnoException);
       }
       local.shift();
@@ -127,8 +137,12 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
   // Whether a new write may go direct: the thread, if it took over, has
   // written everything it was given.
   const direct = (): boolean => {
-    if (!remote) return true;
-    if (pinned || !call({ op: "idle" }).ok) return false;
+    if (!remote) {
+      return true;
+    }
+    if (pinned || !call({ op: "idle" }).ok) {
+      return false;
+    }
     remote = false;
     return true;
   };
@@ -140,8 +154,11 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
     return e;
   };
   const send = (fd: number, text: string): void => {
-    if (direct()) queue(fd, text, false);
-    else call({ op: "enqueue", fd, text });
+    if (direct()) {
+      queue(fd, text, false);
+    } else {
+      call({ op: "enqueue", fd, text });
+    }
   };
   const output: DynamicRecord = {
     start,
@@ -160,7 +177,9 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
       return call({ op: "wait_start", fd, text });
     },
     connection: () => {
-      if (!remote) handOff();
+      if (!remote) {
+        handOff();
+      }
       pinned = true;
       const { port1, port2 } = new MessageChannel();
       const flag = new Int32Array(new SharedArrayBuffer(4));
@@ -170,19 +189,26 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
     drain: async (): Promise<void> => {
       for (;;) {
         pump();
-        if (!local.length && (client === null || call({ op: "idle" }).ok)) return;
+        if (!local.length && (client === null || call({ op: "idle" }).ok)) {
+          return;
+        }
         await new Promise<void>((resolve) => setTimeout(resolve, 1));
       }
     },
     close: async (): Promise<void> => {
       // A writer that was started but never written to has nothing to
       // flush; its unref'd thread need not delay the exit.
-      if (used || local.length) await output.drain();
+      if (used || local.length) {
+        await output.drain();
+      }
       client?.port.close();
       client = null;
       if (worker !== null) {
-        if (used) await worker.terminate();
-        else void worker.terminate();
+        if (used) {
+          await worker.terminate();
+        } else {
+          void worker.terminate();
+        }
       }
       worker = null;
     },

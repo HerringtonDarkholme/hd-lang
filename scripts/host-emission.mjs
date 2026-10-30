@@ -22,15 +22,21 @@ function inside(root, path) {
 }
 
 function checkedPath(root, name, kind) {
-  if (typeof name !== "string" || name.length === 0) throw fail(`invalid ${kind} path`);
+  if (typeof name !== "string" || name.length === 0) {
+    throw fail(`invalid ${kind} path`);
+  }
   const path = resolve(root, name);
-  if (!inside(root, path)) throw fail(`${kind} path escapes its root: ${name}`);
+  if (!inside(root, path)) {
+    throw fail(`${kind} path escapes its root: ${name}`);
+  }
   return path;
 }
 
 /** Turn one erasable `.mts` module into runnable ESM with `.mjs` dependencies. */
 export function emitHostJavaScript(source, sourceName) {
-  if (!sourceName.endsWith(".mts")) throw fail(`typed source must end in .mts: ${sourceName}`);
+  if (!sourceName.endsWith(".mts")) {
+    throw fail(`typed source must end in .mts: ${sourceName}`);
+  }
   let javascript;
   try {
     javascript = stripTypeScriptTypes(source, { mode: "strip" });
@@ -49,7 +55,9 @@ export async function readHostSources(root, sources) {
     const input = checkedPath(sourceRoot, sourceName, "source");
     const text = (await readFile(input, "utf8")).replaceAll("\r\n", "\n");
     if (sourceName.endsWith(".mts")) {
-      if (!name.endsWith(".mjs")) throw fail(`typed source output must end in .mjs: ${name}`);
+      if (!name.endsWith(".mjs")) {
+        throw fail(`typed source output must end in .mjs: ${name}`);
+      }
       files[name] = emitHostJavaScript(text, sourceName);
     } else if (sourceName.endsWith(".mjs") && name.endsWith(".mjs")) {
       files[name] = rewriteHostSpecifiers(text);

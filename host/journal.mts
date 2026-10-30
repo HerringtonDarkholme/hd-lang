@@ -115,7 +115,9 @@ const fold = (a: bigint, b: bigint): bigint => {
 };
 const bswap64 = (v: bigint): bigint => {
   let r = 0n;
-  for (let i = 0; i < 8; i++) r = (r << 8n) | ((v >> BigInt(8 * i)) & 0xffn);
+  for (let i = 0; i < 8; i++) {
+    r = (r << 8n) | ((v >> BigInt(8 * i)) & 0xffn);
+  }
   return r;
 };
 const bswap32 = (v: number): number =>
@@ -177,18 +179,24 @@ function mid128(b: Uint8Array, dv: DataView): bigint {
   if (len <= 128) {
     if (len > 32) {
       if (len > 64) {
-        if (len > 96) mix32(48, len - 64, 96);
+        if (len > 96) {
+          mix32(48, len - 64, 96);
+        }
         mix32(32, len - 48, 64);
       }
       mix32(16, len - 32, 32);
     }
     mix32(0, len - 16, 0);
   } else {
-    for (let i = 0; i < 4; i++) mix32(32 * i, 32 * i + 16, 32 * i);
+    for (let i = 0; i < 4; i++) {
+      mix32(32 * i, 32 * i + 16, 32 * i);
+    }
     a0 = avalanche(a0);
     a1 = avalanche(a1);
     const rounds = Math.floor(len / 32);
-    for (let i = 4; i < rounds; i++) mix32(32 * i, 32 * i + 16, 3 + 32 * (i - 4));
+    for (let i = 4; i < rounds; i++) {
+      mix32(32 * i, 32 * i + 16, 3 + 32 * (i - 4));
+    }
     mix32(len - 16, len - 32, 136 - 17 - 16);
   }
   const lo = add(a0, a1);
@@ -210,11 +218,17 @@ function long128(b: Uint8Array, dv: DataView): bigint {
   const blockLen = 64 * 16;
   const blocks = Math.floor((len - 1) / blockLen);
   for (let n = 0; n < blocks; n++) {
-    for (let s = 0; s < 16; s++) stripe(n * blockLen + 64 * s, 8 * s);
-    for (let i = 0; i < 8; i++) acc[i] = mul(xorshift(acc[i]!, 47n) ^ s64(128 + 8 * i), P32_1);
+    for (let s = 0; s < 16; s++) {
+      stripe(n * blockLen + 64 * s, 8 * s);
+    }
+    for (let i = 0; i < 8; i++) {
+      acc[i] = mul(xorshift(acc[i]!, 47n) ^ s64(128 + 8 * i), P32_1);
+    }
   }
   const stripes = Math.floor((len - 1 - blockLen * blocks) / 64);
-  for (let s = 0; s < stripes; s++) stripe(blocks * blockLen + 64 * s, 8 * s);
+  for (let s = 0; s < stripes; s++) {
+    stripe(blocks * blockLen + 64 * s, 8 * s);
+  }
   stripe(len - 64, 192 - 64 - 7);
   const merge = (sat: number, start: bigint): bigint => {
     let r = start;
@@ -229,8 +243,12 @@ function long128(b: Uint8Array, dv: DataView): bigint {
 // The xxh3-128 hash of `bytes`, as a bigint (`hd_base::hash128`).
 export function xxh3_128(bytes: Uint8Array): bigint {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (bytes.length <= 16) return short128(bytes, dv);
-  if (bytes.length <= 240) return mid128(bytes, dv);
+  if (bytes.length <= 16) {
+    return short128(bytes, dv);
+  }
+  if (bytes.length <= 240) {
+    return mid128(bytes, dv);
+  }
   return long128(bytes, dv);
 }
 
@@ -238,14 +256,18 @@ export function xxh3_128(bytes: Uint8Array): bigint {
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, i) => {
   let c = i;
-  for (let bit = 0; bit < 8; bit++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+  for (let bit = 0; bit < 8; bit++) {
+    c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+  }
   return c >>> 0;
 });
 
 // CRC-32 (IEEE), the journal checksum.
 export function crc32(bytes: Uint8Array): number {
   let c = 0xffffffff;
-  for (const b of bytes) c = CRC_TABLE[(c ^ b) & 0xff]! ^ (c >>> 8);
+  for (const b of bytes) {
+    c = CRC_TABLE[(c ^ b) & 0xff]! ^ (c >>> 8);
+  }
   return ~c >>> 0;
 }
 
@@ -259,7 +281,9 @@ class Bytes {
     this.len = 0;
   }
   room(n: number): void {
-    if (this.len + n <= this.buf.length) return;
+    if (this.len + n <= this.buf.length) {
+      return;
+    }
     const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + n));
     next.set(this.buf.subarray(0, this.len));
     this.buf = next;
@@ -279,13 +303,17 @@ class Bytes {
     do {
       let b = Number(x & 0x7fn);
       x >>= 7n;
-      if (x) b |= 0x80;
+      if (x) {
+        b |= 0x80;
+      }
       this.buf[this.len++] = b;
     } while (x);
   }
   // A u64 or u128 as `bytes` little-endian bytes.
   le(v: number | bigint, bytes: number): void {
-    for (let i = 0; i < bytes; i++) this.byte(Number((BigInt(v) >> BigInt(8 * i)) & 0xffn));
+    for (let i = 0; i < bytes; i++) {
+      this.byte(Number((BigInt(v) >> BigInt(8 * i)) & 0xffn));
+    }
   }
   view(): Uint8Array {
     return this.buf.subarray(0, this.len);
@@ -297,7 +325,9 @@ class Bytes {
 
 const ulebLen = (v: number | bigint): number => {
   let n = 1;
-  for (let x = BigInt(v) >> 7n; x; x >>= 7n) n++;
+  for (let x = BigInt(v) >> 7n; x; x >>= 7n) {
+    n++;
+  }
   return n;
 };
 
@@ -342,10 +372,14 @@ class Reader {
     let v = 0n;
     for (let shift = 0n; shift < 64n; shift += 7n) {
       const byte = this.b[this.at];
-      if (byte === undefined) return undefined;
+      if (byte === undefined) {
+        return undefined;
+      }
       this.at++;
       v |= BigInt(byte & 0x7f) << shift;
-      if (!(byte & 0x80)) return v;
+      if (!(byte & 0x80)) {
+        return v;
+      }
     }
     return undefined;
   }
@@ -354,21 +388,29 @@ class Reader {
     return v === undefined || v > 0xffffffffn ? undefined : Number(v);
   }
   bytes(n: number | undefined): Uint8Array | undefined {
-    if (n === undefined || this.at + n > this.b.length) return undefined;
+    if (n === undefined || this.at + n > this.b.length) {
+      return undefined;
+    }
     const out = this.b.slice(this.at, this.at + n);
     this.at += n;
     return out;
   }
   le(n: number): bigint | undefined {
     const b = this.bytes(n);
-    if (b === undefined) return undefined;
+    if (b === undefined) {
+      return undefined;
+    }
     let v = 0n;
-    for (let i = n - 1; i >= 0; i--) v = (v << 8n) | BigInt(b[i]!);
+    for (let i = n - 1; i >= 0; i--) {
+      v = (v << 8n) | BigInt(b[i]!);
+    }
     return v;
   }
   text(): string | undefined {
     const b = this.bytes(this.num());
-    if (b === undefined) return undefined;
+    if (b === undefined) {
+      return undefined;
+    }
     try {
       return new TextDecoder("utf-8", { fatal: true }).decode(b);
     } catch {
@@ -377,11 +419,15 @@ class Reader {
   }
   handles(): number[] | undefined {
     const n = this.num();
-    if (n === undefined) return undefined;
+    if (n === undefined) {
+      return undefined;
+    }
     const out: number[] = [];
     for (let i = 0; i < n; i++) {
       const h = this.num();
-      if (h === undefined) return undefined;
+      if (h === undefined) {
+        return undefined;
+      }
       out.push(h);
     }
     return out;
@@ -395,7 +441,9 @@ export function readRows(b: Uint8Array): { rows: Row[]; valid: number } {
   let at = 0;
   for (;;) {
     const start = at;
-    if (at >= b.length) return { rows, valid: start };
+    if (at >= b.length) {
+      return { rows, valid: start };
+    }
     const r = new Reader(b);
     r.at = at + 1;
     const kind = b[at]!;
@@ -454,8 +502,9 @@ export function callArgs(
   const dv = new DataView(new ArrayBuffer(8));
   values.forEach((v, i) => {
     const type = types[i];
-    if (type === "i32" || type === "i64") putIntArg(out, v);
-    else if (type === "f64") {
+    if (type === "i32" || type === "i64") {
+      putIntArg(out, v);
+    } else if (type === "f64") {
       dv.setFloat64(0, Number(v), true);
       out.raw(new Uint8Array(dv.buffer));
     } else if (type === "f32") {
@@ -463,15 +512,19 @@ export function callArgs(
       out.le(BigInt(dv.getUint32(0, true)), 8);
     }
   });
-  if (tail) out.raw(tail);
+  if (tail) {
+    out.raw(tail);
+  }
   return out.view().slice();
 }
 
 function putReply(out: Bytes, value: Value, result: Uint8Array | null): void {
   out.byte(value.tag | (result ? 4 : 0));
-  if (value.tag === 1) out.uleb(BigInt.asUintN(64, BigInt(value.v)));
-  else if (value.tag === 2) out.le(value.v, 8);
-  else if (value.tag === 3) {
+  if (value.tag === 1) {
+    out.uleb(BigInt.asUintN(64, BigInt(value.v)));
+  } else if (value.tag === 2) {
+    out.le(value.v, 8);
+  } else if (value.tag === 3) {
     out.uleb(value.v >>> 0);
     out.uleb(value.w >>> 0);
   }
@@ -483,7 +536,9 @@ function putReply(out: Bytes, value: Value, result: Uint8Array | null): void {
 
 function getReply(r: Reader): { value: Value; result: Uint8Array | null } | undefined {
   const tag = r.bytes(1)?.[0];
-  if (tag === undefined) return undefined;
+  if (tag === undefined) {
+    return undefined;
+  }
   const low = (v: bigint | undefined): number | undefined =>
     v === undefined ? undefined : Number(BigInt.asIntN(32, v));
   let value: Value;
@@ -493,29 +548,39 @@ function getReply(r: Reader): { value: Value; result: Uint8Array | null } | unde
       break;
     case 1: {
       const v = r.uleb();
-      if (v === undefined) return undefined;
+      if (v === undefined) {
+        return undefined;
+      }
       value = { tag: 1, v: BigInt.asIntN(64, v) };
       break;
     }
     case 2: {
       const v = r.le(8);
-      if (v === undefined) return undefined;
+      if (v === undefined) {
+        return undefined;
+      }
       value = { tag: 2, v };
       break;
     }
     default: {
       const v = low(r.uleb());
       const w = low(r.uleb());
-      if (v === undefined || w === undefined) return undefined;
+      if (v === undefined || w === undefined) {
+        return undefined;
+      }
       value = { tag: 3, v, w };
     }
   }
   let result: Uint8Array | null = null;
   if (tag >> 2 === 1) {
     const bytes = r.bytes(r.num());
-    if (bytes === undefined) return undefined;
+    if (bytes === undefined) {
+      return undefined;
+    }
     result = bytes;
-  } else if (tag >> 2 !== 0) return undefined;
+  } else if (tag >> 2 !== 0) {
+    return undefined;
+  }
   return { value, result };
 }
 
@@ -533,31 +598,47 @@ function decodeRow(row: Row, methods: (string | undefined)[][]): Event | undefin
       break;
     case KIND.call: {
       const method = r.num();
-      if (method === methods.length) methods.push([r.text(), r.text()]);
-      if (method === undefined) return undefined;
+      if (method === methods.length) {
+        methods.push([r.text(), r.text()]);
+      }
+      if (method === undefined) {
+        return undefined;
+      }
       const named = methods[method];
-      if (!named || named.includes(undefined)) return undefined;
+      if (!named || named.includes(undefined)) {
+        return undefined;
+      }
       const len = r.uleb();
-      if (len === undefined) return undefined;
+      if (len === undefined) {
+        return undefined;
+      }
       let request: Request;
       if (len <= 8n) {
         const args = r.bytes(Number(len));
-        if (args === undefined) return undefined;
+        if (args === undefined) {
+          return undefined;
+        }
         request = { args };
       } else {
         const digest = r.le(8);
-        if (digest === undefined) return undefined;
+        if (digest === undefined) {
+          return undefined;
+        }
         request = { len: Number(len), digest };
       }
       const reply = getReply(r);
-      if (!reply) return undefined;
+      if (!reply) {
+        return undefined;
+      }
       event = { kind: "call", module: named[0]!, name: named[1]!, request, ...reply };
       break;
     }
     case KIND.finish: {
       const handle = r.num();
       const reply = getReply(r);
-      if (!reply) return undefined;
+      if (!reply) {
+        return undefined;
+      }
       event = { kind: "finish", handle, ...reply };
       break;
     }
@@ -575,17 +656,25 @@ function decodeRow(row: Row, methods: (string | undefined)[][]): Event | undefin
       break;
     default: {
       const tag = r.bytes(1)?.[0];
-      if (tag === undefined || tag >= END_KINDS.length) return undefined;
+      if (tag === undefined || tag >= END_KINDS.length) {
+        return undefined;
+      }
       let end: End;
       if (tag === 0) {
         const status = r.bytes(1)?.[0];
-        if (status === undefined) return undefined;
+        if (status === undefined) {
+          return undefined;
+        }
         end = { kind: "exit", status };
-      } else end = { kind: END_KINDS[tag]! as Exclude<End["kind"], "exit"> };
+      } else {
+        end = { kind: END_KINDS[tag]! as Exclude<End["kind"], "exit"> };
+      }
       event = { kind: "end", end };
     }
   }
-  if (Object.values(event).includes(undefined) || r.at !== row.payload.length) return undefined;
+  if (Object.values(event).includes(undefined) || r.at !== row.payload.length) {
+    return undefined;
+  }
   return event as unknown as Event;
 }
 
@@ -645,7 +734,9 @@ export class Recorder {
     this.capBytes = cap;
   }
   takeNotice(): boolean {
-    if (this.state !== "off") return false;
+    if (this.state !== "off") {
+      return false;
+    }
     this.state = "told";
     return true;
   }
@@ -658,7 +749,9 @@ export class Recorder {
     value: Value,
     result: Uint8Array | null,
   ): void {
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     const key = `${module}\0${name}`;
     const known = this.methods.get(key);
     if (known === undefined) {
@@ -673,24 +766,33 @@ export class Recorder {
       this.row.uleb(known);
     }
     this.row.uleb(request.length);
-    if (request.length <= 8) this.row.raw(request);
-    else this.row.le(requestDigest(request), 8);
+    if (request.length <= 8) {
+      this.row.raw(request);
+    } else {
+      this.row.le(requestDigest(request), 8);
+    }
     putReply(this.row, value, result);
     this.push(KIND.call);
   }
   finish(handle: number, value: Value, result: Uint8Array | null): void {
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     this.row.uleb(handle);
     putReply(this.row, value, result);
     this.push(KIND.finish);
   }
   block(handles: readonly number[]): void {
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     this.handles(handles);
     this.push(KIND.block);
   }
   abort(handle: number): void {
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     this.row.uleb(handle);
     this.push(KIND.abort);
   }
@@ -698,13 +800,17 @@ export class Recorder {
     this.polls += 1;
   }
   wake(handles: readonly number[]): void {
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     this.row.uleb(this.polls);
     this.handles(handles);
     this.push(KIND.wake);
   }
   cancel(): void {
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     this.row.uleb(this.polls);
     this.push(KIND.cancel);
   }
@@ -712,21 +818,29 @@ export class Recorder {
   // string) and module bytes.
   input(number: number, source: string, module: Uint8Array): void {
     this.polls = 0;
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     this.row.uleb(number);
     this.row.le(xxh3_128(utf8.encode(source)), 16);
     this.row.le(xxh3_128(module), 16);
     this.push(KIND.input);
   }
   end(end: End): void {
-    if (this.state !== "on") return;
+    if (this.state !== "on") {
+      return;
+    }
     this.row.byte(END_KINDS.indexOf(end.kind));
-    if (end.kind === "exit") this.row.byte(end.status);
+    if (end.kind === "exit") {
+      this.row.byte(end.status);
+    }
     this.push(KIND.end);
   }
   private handles(handles: readonly number[]): void {
     this.row.uleb(handles.length);
-    for (const h of handles) this.row.uleb(h);
+    for (const h of handles) {
+      this.row.uleb(h);
+    }
   }
   private push(kind: number): void {
     const len = this.row.len;
@@ -799,7 +913,9 @@ export function recorded(bytes: Uint8Array): {
 } {
   const events = decodeRows(readRows(bytes).rows);
   const header = events.shift();
-  if (header?.kind !== "header") throw new Error("the journal has no header");
+  if (header?.kind !== "header") {
+    throw new Error("the journal has no header");
+  }
   if (header.format !== BigInt(FORMAT)) {
     throw new Error(`the journal has format ${header.format}, not ${FORMAT}`);
   }
@@ -811,9 +927,14 @@ export function recorded(bytes: Uint8Array): {
       continue;
     }
     const input = inputs.at(-1);
-    if (!input || input.end) throw new Error(`the journal has ${describe(event)} outside an input`);
-    if (event.kind === "end") input.end = event.end;
-    else input.events.push(event);
+    if (!input || input.end) {
+      throw new Error(`the journal has ${describe(event)} outside an input`);
+    }
+    if (event.kind === "end") {
+      input.end = event.end;
+    } else {
+      input.events.push(event);
+    }
   }
   return { execution: header.execution, inputs };
 }
@@ -829,7 +950,9 @@ export function joinJournals(chunks: Iterable<Uint8Array>): Uint8Array {
   let last = -1;
   for (const bytes of chunks) {
     const read = readRows(bytes);
-    if (read.valid !== bytes.byteLength) throw new Error("an archived journal is cut short");
+    if (read.valid !== bytes.byteLength) {
+      throw new Error("an archived journal is cut short");
+    }
     const record = recorded(bytes);
     if (record.inputs.some((input) => input.end === null)) {
       throw new Error("an archived journal has an unfinished input");
@@ -841,11 +964,15 @@ export function joinJournals(chunks: Iterable<Uint8Array>): Uint8Array {
     for (const [index, event] of events.entries()) {
       const row = read.rows[index]!;
       if (event.kind === "header") {
-        if (execution) continue;
+        if (execution) {
+          continue;
+        }
         execution = record.execution;
       }
       if (event.kind === "input") {
-        if (event.number <= last) throw new Error("archived inputs are not in increasing order");
+        if (event.number <= last) {
+          throw new Error("archived inputs are not in increasing order");
+        }
         last = event.number;
       }
       let payload = row.payload;
@@ -875,7 +1002,9 @@ export function joinJournals(chunks: Iterable<Uint8Array>): Uint8Array {
       appendRow(out, row.kind, next++, payload);
     }
   }
-  if (!execution) throw new Error("no archived journal header");
+  if (!execution) {
+    throw new Error("no archived journal header");
+  }
   return out.view();
 }
 
@@ -931,7 +1060,9 @@ export class Replay {
   // more (the block finds nothing pending, as the first run's did).
   block(): number[] | null {
     const front = this.events[0];
-    if (front === undefined) return null;
+    if (front === undefined) {
+      return null;
+    }
     if (front.kind === "block") {
       this.events.shift();
       return front.handles;
@@ -940,8 +1071,11 @@ export class Replay {
   }
   abort(handle: number): void {
     const front = this.events[0];
-    if (front?.kind === "abort" && front.handle === handle) this.events.shift();
-    else this.unexpected(`aborted operation ${handle}`);
+    if (front?.kind === "abort" && front.handle === handle) {
+      this.events.shift();
+    } else {
+      this.unexpected(`aborted operation ${handle}`);
+    }
   }
   poll(): void {
     this.polls += 1;
@@ -962,8 +1096,12 @@ export class Replay {
   // The input ended with `end`: a divergence unless the record ended it
   // so, `recordedEnd`, after every row was served.
   end(end: End, recordedEnd: End | null): void {
-    if (this.diverged !== null) throw new Diverged(this.diverged);
-    if (this.events.length) this.unexpected(`${ended(end)} early`);
+    if (this.diverged !== null) {
+      throw new Diverged(this.diverged);
+    }
+    if (this.events.length) {
+      this.unexpected(`${ended(end)} early`);
+    }
     if (recordedEnd === null) {
       this.diverge(`input ${this.number} ${ended(end)}, but the record of it is cut short`);
     }
@@ -1011,8 +1149,12 @@ export function importTypes(bytes: Uint8Array | ArrayBuffer): Map<string, Import
   };
   const valtype = (): string => {
     const t = b[r.at++]!;
-    if (NUM[t]) return NUM[t];
-    if (t === 0x63 || t === 0x64) sleb();
+    if (NUM[t]) {
+      return NUM[t];
+    }
+    if (t === 0x63 || t === 0x64) {
+      sleb();
+    }
     return "ref";
   };
   const vec = <T,>(each: () => T): T[] => Array.from({ length: r.num() ?? 0 }, each);
@@ -1021,10 +1163,14 @@ export function importTypes(bytes: Uint8Array | ArrayBuffer): Map<string, Import
   const limits = (): void => {
     const flags = r.num() ?? 0;
     r.num();
-    if (flags & 1) r.num();
+    if (flags & 1) {
+      r.num();
+    }
   };
   const functionType = (): void => {
-    if (b[r.at++] !== 0x60) throw new Error("a module type is not a function");
+    if (b[r.at++] !== 0x60) {
+      throw new Error("a module type is not a function");
+    }
     types.push({ params: vec(valtype), results: vec(valtype) });
   };
   while (r.at < b.length) {
@@ -1038,9 +1184,11 @@ export function importTypes(bytes: Uint8Array | ArrayBuffer): Map<string, Import
         const module = r.text()!;
         const name = r.text()!;
         const kind = b[r.at++]!;
-        if (kind === 0x00) out.set(`${module}\0${name}`, types[r.num()!] ?? null);
-        else if (kind === 0x02) limits();
-        else if (kind === 0x01) {
+        if (kind === 0x00) {
+          out.set(`${module}\0${name}`, types[r.num()!] ?? null);
+        } else if (kind === 0x02) {
+          limits();
+        } else if (kind === 0x01) {
           valtype();
           limits();
         } else if (kind === 0x03) {

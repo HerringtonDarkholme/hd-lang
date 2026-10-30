@@ -87,16 +87,21 @@ export function browserSend({
   // XHR exposes no resolver, TLS identity or phase timer, so every
   // transport setting is refused before any work (std-http.settings.host-support).
   const refused = unsupportedSetting(settings);
-  if (refused) return refused;
+  if (refused) {
+    return refused;
+  }
   let parsed: URL;
   try {
-    if (!isAsciiUrl(url)) return { error: "InvalidUrl", text: url };
+    if (!isAsciiUrl(url)) {
+      return { error: "InvalidUrl", text: url };
+    }
     parsed = new URL(url);
   } catch {
     return { error: "InvalidUrl", text: url };
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     return { error: "InvalidUrl", text: url };
+  }
   // The grant covers the page's own origin alone (std-http.playground.origin).
   // The host is the one as written (std-http.url.grant, .no-normalize),
   // not WHATWG's rewrite of it; the scheme and port are the origin's.
@@ -118,17 +123,27 @@ export function browserSend({
   try {
     xhr.open(method, parsed.href, false);
     xhr.responseType = "arraybuffer";
-    if (timeout !== null) xhr.timeout = timeout;
+    if (timeout !== null) {
+      xhr.timeout = timeout;
+    }
     // The browser drops a forbidden header, such as Cookie or Host.
-    for (const [name, value] of headers) xhr.setRequestHeader(name, value);
+    for (const [name, value] of headers) {
+      xhr.setRequestHeader(name, value);
+    }
     xhr.send(method === "GET" || method === "HEAD" ? null : (body as XMLHttpRequestBodyInit));
   } catch (error) {
-    if ((error as Dynamic)?.name === "TimeoutError") return { error: "Timeout", text: "" };
+    if ((error as Dynamic)?.name === "TimeoutError") {
+      return { error: "Timeout", text: "" };
+    }
     return { error: "Connect", text: REFUSED };
   }
-  if (xhr.status === 0) return { error: "Connect", text: REFUSED };
+  if (xhr.status === 0) {
+    return { error: "Connect", text: REFUSED };
+  }
   const decodedBody = new Uint8Array(xhr.response);
-  if (decodedBody.length > MAX_DECODED_BYTES) return { error: "OutputTooLarge", text: null };
+  if (decodedBody.length > MAX_DECODED_BYTES) {
+    return { error: "OutputTooLarge", text: null };
+  }
   const responseHeaders = headerPairs(xhr.getAllResponseHeaders());
   const staleEncoding = responseHeaders.some(([name]) => name.toLowerCase() === "content-encoding");
   return {
@@ -182,7 +197,9 @@ export function memoryFiles(): TestFiles {
     },
     remove: (dir: string) => {
       for (const path of texts.keys()) {
-        if (path === dir || path.startsWith(`${dir}/`)) texts.delete(path);
+        if (path === dir || path.startsWith(`${dir}/`)) {
+          texts.delete(path);
+        }
       }
     },
   };

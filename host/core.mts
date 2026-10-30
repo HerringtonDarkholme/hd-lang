@@ -245,7 +245,9 @@ export const panicOfReport = (report: string): { category: string; message: stri
 // `new URL` does both, so a program's URL is checked before it is parsed;
 // a host is written in punycode.
 export const isAsciiUrl = (text: string): boolean => {
-  if (!/^[\x21-\x7e]*$/.test(text)) return false;
+  if (!/^[\x21-\x7e]*$/.test(text)) {
+    return false;
+  }
   const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(text)?.[1] ?? "";
   return !authority.slice(authority.lastIndexOf("@") + 1).includes("%");
 };
@@ -297,9 +299,14 @@ export function createGrant(
         let h = e;
         let p: string | null = null;
         const v6 = /^\[([^\]]*)\](?::(\d+))?$/.exec(e);
-        if (v6) [h, p] = [v6[1]!, v6[2] ?? null];
-        else if (e.split(":").length === 2) [h, p] = [e.split(":")[0]!, e.split(":")[1]!];
-        if (p !== null && !/^\d+$/.test(p)) p = null;
+        if (v6) {
+          [h, p] = [v6[1]!, v6[2] ?? null];
+        } else if (e.split(":").length === 2) {
+          [h, p] = [e.split(":")[0]!, e.split(":")[1]!];
+        }
+        if (p !== null && !/^\d+$/.test(p)) {
+          p = null;
+        }
         const hostOk = h.startsWith("*.")
           ? host.endsWith(h.slice(1)) && host.length > h.length - 1
           : h.toLowerCase() === host.toLowerCase();
@@ -341,7 +348,7 @@ function sleeper(): (ms: number) => void {
   }
   return (ms: number) => {
     const end = performance.now() + ms;
-    while (performance.now() < end);
+    while (performance.now() < end) {}
   };
 }
 
@@ -364,7 +371,9 @@ function rtImports({
       flush();
       const text = decodeUtf8(view(len));
       sink.err(text);
-      if (st.panic !== null) st.panic += text;
+      if (st.panic !== null) {
+        st.panic += text;
+      }
     },
     // A panic stub's start: the host writes `panic: `, and what the
     // instance writes to standard error until it traps is the report,
@@ -380,21 +389,31 @@ function rtImports({
     // supervisor that reports a time limit for the instance hears of it
     // through `sink.fact`.
     fact: (len) => {
-      if (len < 0) st.facts.pop();
-      else st.facts.push(decodeUtf8(view(len)));
+      if (len < 0) {
+        st.facts.pop();
+      } else {
+        st.facts.push(decodeUtf8(view(len)));
+      }
       sink.fact?.(st.facts.at(-1) ?? null);
     },
     block: () => {
       for (;;) {
         const n = complete();
-        if (n) return n;
-        if (st.readyOnly)
+        if (n) {
+          return n;
+        }
+        if (st.readyOnly) {
           throw new HostContract("a synchronous host wait is pending in a synchronous step driver");
+        }
         const d = nextDeadline();
-        if (d === null) deadlock();
+        if (d === null) {
+          deadlock();
+        }
         flush();
         sleep(Math.max(0, until(d) - performance.now()));
-        if (overran()) throw new TimeLimit();
+        if (overran()) {
+          throw new TimeLimit();
+        }
       }
     },
     stdout: (len) => {
@@ -425,7 +444,9 @@ function primImports({ put, text, env }: DynamicRecord): Record<string, Provider
     // on; otherwise it answers 0 and the snapshot fails.
     snapshot_update: (len) => {
       const actual = text(len);
-      if (!env.updates) return 0;
+      if (!env.updates) {
+        return 0;
+      }
       env.updates.push({ text: actual, frames: wasmFrames(new Error()) });
       return 1;
     },
@@ -477,7 +498,9 @@ function abortOperation(st: DynamicRecord, h: number): void {
   operation?.abort?.();
 }
 export function clearOperations(st: DynamicRecord): void {
-  for (const h of st.ops.keys()) abortOperation(st, h);
+  for (const h of st.ops.keys()) {
+    abortOperation(st, h);
+  }
 }
 
 // A method's provider arguments from its import's (§17.4): its scalar
@@ -491,8 +514,12 @@ function argsDecoder(
   text: (length: number) => string,
 ): (raw: Dynamic[]) => Dynamic[] {
   const scalars = m.params.filter((p: Dynamic) => typeof p === "string").length;
-  if (scalars === m.params.length) return (raw) => raw;
-  if (m.params.length === 1 && m.params[0] === str) return (raw) => [text(raw[0])];
+  if (scalars === m.params.length) {
+    return (raw) => raw;
+  }
+  if (m.params.length === 1 && m.params[0] === str) {
+    return (raw) => [text(raw[0])];
+  }
   return (raw) => {
     const d = new Dec(Uint8Array.from(view(raw[scalars])));
     let at = 0;
@@ -513,7 +540,9 @@ function traitImports(
   const methods: DynamicRecord = METHODS;
   for (const [name, f] of Object.entries(provider)) {
     const m = methods[module]?.[name];
-    if (!m) throw new Error(`the host ABI has no \`${module}\` \`${name}\``);
+    if (!m) {
+      throw new Error(`the host ABI has no \`${module}\` \`${name}\``);
+    }
     const decode = argsDecoder(m, view, text);
     const key = `${module} ${name}`;
     // The import's result: a scalar as itself; a structured value written
@@ -524,7 +553,9 @@ function traitImports(
         m.result.enc(e, v);
         return put(e);
       }
-      if (m.result !== "void") return v;
+      if (m.result !== "void") {
+        return v;
+      }
       return m.wait === "may" ? 0 : undefined;
     };
     if (m.wait === "never") {
@@ -585,7 +616,9 @@ function clockProvider(): Record<string, ProviderFunction> {
 // first use of `crypto` loads its module, about 3 ms of a run.
 function randomBytes(count: number): Uint8Array {
   const out = new Uint8Array(count);
-  for (let at = 0; at < count; at += 65536) crypto.getRandomValues(out.subarray(at, at + 65536));
+  for (let at = 0; at < count; at += 65536) {
+    crypto.getRandomValues(out.subarray(at, at + 65536));
+  }
   return out;
 }
 
@@ -617,7 +650,9 @@ function propertyRunnerProvider({ env }: { env: CoreEnv }): Record<string, Provi
     // (std-testing.runner.start-case, .record, .show): the test runner
     // decides each case and keeps its draws and its input's text.
     start: (cases: Dynamic, shrink: Dynamic, examples: Dynamic) => {
-      if (!env.runner) throw new HostContract("no property runner binds this run");
+      if (!env.runner) {
+        throw new HostContract("no property runner binds this run");
+      }
       return env.runner.start(cases, shrink, examples);
     },
     record: (value: Dynamic) => env.runner?.record(BigInt(value)),
@@ -633,7 +668,9 @@ function testRunnerProvider({ env, st, files }: DynamicRecord): Record<string, P
   const snapshotCheck = (actual: string): string => {
     const s = env.snapshot;
     st.snapshots += 1;
-    if (!s || !files) return "no snapshot file: this run names no snapshot directory";
+    if (!s || !files) {
+      return "no snapshot file: this run names no snapshot directory";
+    }
     // An `it_each` row's slug adds the row's index
     // (std-testing.snapshot-file.row).
     const slug = s.slug + (env.runner?.slugSuffix() ?? "");
@@ -641,7 +678,9 @@ function testRunnerProvider({ env, st, files }: DynamicRecord): Record<string, P
     const shown = s.shown ? `${s.shown}/${slug}-${st.snapshots}.snap` : file;
     const expected = files.read(file);
     if (expected !== null) {
-      if (expected === actual) return "";
+      if (expected === actual) {
+        return "";
+      }
       if (!s.update) {
         return `the text differs from the snapshot file ${shown}: expected ${JSON.stringify(expected)}, actual ${JSON.stringify(actual)}; run \`hd test --update\` to record it`;
       }
@@ -788,11 +827,16 @@ function createStepDriver(
   poll: string,
   { st, prime, complete, flush }: DynamicRecord,
 ): StepDriver {
-  if (st.closed) throw new HostContract("instance is closed");
-  if (st.drivingMode !== null) throw new HostContract("the host already has a driver");
+  if (st.closed) {
+    throw new HostContract("instance is closed");
+  }
+  if (st.drivingMode !== null) {
+    throw new HostContract("the host already has a driver");
+  }
   const ex: DynamicRecord = instance.exports;
-  if (![init, poll, "hd.wake"].every((name) => typeof ex[name] === "function"))
+  if (![init, poll, "hd.wake"].every((name) => typeof ex[name] === "function")) {
     throw new HostContract("the instance is missing root driver exports");
+  }
   st.drivingMode = "sync";
   st.readyOnly = true;
   prime(instance);
@@ -802,10 +846,18 @@ function createStepDriver(
     status = -1;
   return {
     step() {
-      if (st.closed) throw new HostContract("instance is closed");
-      if (busy) throw new HostContract("reentrant instance poll");
-      if (failed) throw new HostContract("the driver has failed");
-      if (started && status !== -1) return { status, wakes: 0 };
+      if (st.closed) {
+        throw new HostContract("instance is closed");
+      }
+      if (busy) {
+        throw new HostContract("reentrant instance poll");
+      }
+      if (failed) {
+        throw new HostContract("the driver has failed");
+      }
+      if (started && status !== -1) {
+        return { status, wakes: 0 };
+      }
       busy = true;
       try {
         try {
@@ -814,10 +866,13 @@ function createStepDriver(
             ex[init]();
           }
           status = ex[poll](0);
-          if (typeof status !== "number" || (status | 0) !== status)
+          if (typeof status !== "number" || (status | 0) !== status) {
             throw new HostContract("root poll returned an invalid status");
+          }
           const wakes = status === -1 ? complete() : 0;
-          if (wakes) ex["hd.wake"](wakes);
+          if (wakes) {
+            ex["hd.wake"](wakes);
+          }
           return { status, wakes };
         } finally {
           flush();
@@ -863,10 +918,14 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     module instanceof WebAssembly.Module &&
     WebAssembly.Module.customSections(module, "hd.cycles").length === 1;
   const writeCycleReport = async (instance: WebAssembly.Instance): Promise<void> => {
-    if (!reportsCycles) return;
+    if (!reportsCycles) {
+      return;
+    }
     const { cycleReport } = await import("./checked-report.mts");
     const report = cycleReport(module!, instance);
-    if (report !== null) sink.err(report);
+    if (report !== null) {
+      sink.err(report);
+    }
   };
   const view = (len: number): Uint8Array => new Uint8Array(st.memory.buffer, 0, len);
   const text = (len: number): string => decodeUtf8(view(len));
@@ -906,7 +965,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   const nextDeadline = (): number | null => {
     let d: number | null = null;
     for (const o of st.ops.values()) {
-      if (!o.completed && (d === null || o.at < d)) d = o.at;
+      if (!o.completed && (d === null || o.at < d)) {
+        d = o.at;
+      }
     }
     return d;
   };
@@ -917,7 +978,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       .filter(([, o]) => !o.completed && (o.poll || o.at <= now))
       .sort((a, b) => a[1].at - b[1].at || a[0] - b[0])
       .filter(([, o]) => {
-        if (!o.poll || o.poll()) return true;
+        if (!o.poll || o.poll()) {
+          return true;
+        }
         o.at = performance.now() + 1;
         return false;
       });
@@ -927,7 +990,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     const words = new DataView(st.memory.buffer);
     due.forEach(([h, o], i) => {
       o.completed = true;
-      if (o.done) o.value = o.done();
+      if (o.done) {
+        o.value = o.done();
+      }
       words.setInt32(4 * i, h, true);
     });
     return due.length;
@@ -1005,7 +1070,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
 
   // A runtime profile's own providers (`env.providers`, profiles.mjs):
   // `pending` registers a wait the driver wakes, `finish` drops one.
-  if (env.providers) Object.assign(imports, env.providers({ put, Enc, pending, finish }));
+  if (env.providers) {
+    Object.assign(imports, env.providers({ put, Enc, pending, finish }));
+  }
 
   // Invoker-selected package providers use signature-generated glue. A guest
   // descriptor is data only: it never selects or loads a JavaScript module.
@@ -1019,8 +1086,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       writtenHost,
     });
     const console = Object.freeze({ allows: () => grant.allows("Console") });
-    if (typeof env.createPackageRuntime !== "function")
+    if (typeof env.createPackageRuntime !== "function") {
       throw new HostContract("package host runtime was not supplied");
+    }
     packageRuntime = env.createPackageRuntime({ ...io, http, console }, env);
     try {
       Object.assign(imports, env.packageBindings(packageRuntime));
@@ -1032,16 +1100,20 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   } else if (env.module) {
     try {
       const sections = WebAssembly.Module.customSections(env.module, "hd.capabilities");
-      if (sections.length > 1) throw new HostContract("duplicate package host contracts");
+      if (sections.length > 1) {
+        throw new HostContract("duplicate package host contracts");
+      }
       if (sections.length) {
-        if (typeof env.readPackageContract !== "function")
+        if (typeof env.readPackageContract !== "function") {
           throw new HostContract("package host contract reader was not supplied");
+        }
         const required = env.readPackageContract(new Uint8Array(sections[0]));
         const i = required.find((item: Dynamic) => !item.handle) ?? required[0];
-        if (i)
+        if (i) {
           throw new HostContract(
             `missing package host provider for ${i.identity.package}@${i.identity.version}/${i.identity.trait_path}; register it explicitly`,
           );
+        }
       }
     } catch (error) {
       platform?.close?.();
@@ -1106,16 +1178,21 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     let cleanupBy = null;
     let abandoned = false;
     try {
-      if (firstError !== null) throw firstError;
+      if (firstError !== null) {
+        throw firstError;
+      }
       while (status === -1) {
         let n;
-        if (driver?.replaying()) n = driver.served();
-        else {
+        if (driver?.replaying()) {
+          n = driver.served();
+        } else {
           n = complete();
           if (n === 0) {
             if (cancel) {
               const asked = cancel.requests() > handled;
-              if (asked) handled += 1;
+              if (asked) {
+                handled += 1;
+              }
               if (asked && cleanupBy === null) {
                 cleanupBy = performance.now() + cancel.boundMs;
                 ex["hd.cancel"]();
@@ -1130,14 +1207,22 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
               }
             }
             let d = nextDeadline();
-            if (cleanupBy !== null && !abandoned && (d === null || cleanupBy < d)) d = cleanupBy;
-            if (d === null) deadlock();
+            if (cleanupBy !== null && !abandoned && (d === null || cleanupBy < d)) {
+              d = cleanupBy;
+            }
+            if (d === null) {
+              deadlock();
+            }
             flush();
             await wait(Math.max(0, until(d!) - performance.now()));
-            if (overran()) throw new TimeLimit();
+            if (overran()) {
+              throw new TimeLimit();
+            }
             const stop = driver?.stopping(Boolean(ex["hd.cancel"]));
             if (stop) {
-              if (stop === "cancelled") ex["hd.cancel"]();
+              if (stop === "cancelled") {
+                ex["hd.cancel"]();
+              }
               flush();
               sink.err(`${stop}\n`);
               st.reported = true;
@@ -1186,7 +1271,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
         throw e;
       }
       // A panic stub wrote its report; any other trap is an internal error.
-      if (!st.reported) sink.err(`internal error: ${(e as Dynamic).message}\n`);
+      if (!st.reported) {
+        sink.err(`internal error: ${(e as Dynamic).message}\n`);
+      }
       status = 3;
       trapped = true;
     }
@@ -1215,8 +1302,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     driver: Dynamic = null,
     cancel: Dynamic = null,
   ): Promise<RunResult> => {
-    if (st.drivingMode === "sync")
+    if (st.drivingMode === "sync") {
       return Promise.reject(new HostContract("the host already has a synchronous driver"));
+    }
     st.drivingMode = "async";
     try {
       prime(instance);
@@ -1232,11 +1320,14 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     } catch (error) {
       return continueRun(instance, ex, poll, 0, driver, cancel, error);
     }
-    if (status === -1 || status === CANCELLED_END || status === CANCELLED_END - 1)
+    if (status === -1 || status === CANCELLED_END || status === CANCELLED_END - 1) {
       return continueRun(instance, ex, poll, status, driver, cancel);
+    }
     try {
       flush();
-      if (overran()) return continueRun(instance, ex, poll, status, driver, cancel);
+      if (overran()) {
+        return continueRun(instance, ex, poll, status, driver, cancel);
+      }
       const result = {
         status,
         trapped: false,

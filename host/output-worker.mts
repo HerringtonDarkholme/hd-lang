@@ -36,29 +36,42 @@ if (workerData?.output) {
   const queue: OutputState[] = [];
   let active = false;
   const pump = (): void => {
-    if (active || !queue.length) return;
+    if (active || !queue.length) {
+      return;
+    }
     active = true;
     const state = queue[0];
     const finish = (error: NodeJS.ErrnoException | null = null): void => {
       const result = error ? failed(error) : Ok(undefined);
       queue.shift();
       active = false;
-      if (state.reply !== null && !state.cancelled) state.reply(result);
+      if (state.reply !== null && !state.cancelled) {
+        state.reply(result);
+      }
       pump();
     };
     const step = (): void => {
-      if (state.cancelled || state.offset === state.bytes.length) return finish();
+      if (state.cancelled || state.offset === state.bytes.length) {
+        return finish();
+      }
       write(
         state.fd,
         state.bytes,
         state.offset,
         Math.min(65536, state.bytes.length - state.offset),
         (error, count) => {
-          if (full(error)) return setTimeout(step, 1);
-          if (error) return finish(error);
+          if (full(error)) {
+            return setTimeout(step, 1);
+          }
+          if (error) {
+            return finish(error);
+          }
           state.offset += count;
-          if (count === 0) setTimeout(step, 1);
-          else step();
+          if (count === 0) {
+            setTimeout(step, 1);
+          } else {
+            step();
+          }
         },
       );
     };
@@ -69,7 +82,9 @@ if (workerData?.output) {
     // A supervised guest may be terminated without running its abort hooks.
     // Its closed connection must not leave pending output in this shared queue.
     port.on("close", () => {
-      for (const state of owned) state.cancelled = true;
+      for (const state of owned) {
+        state.cancelled = true;
+      }
       owned.clear();
       pump();
     });
@@ -99,7 +114,9 @@ if (workerData?.output) {
           }
           queue.push(state);
           pump();
-          if (request.op === "wait_start") return;
+          if (request.op === "wait_start") {
+            return;
+          }
           result = { ok: null };
           break;
         }
