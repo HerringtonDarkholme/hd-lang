@@ -1,0 +1,18 @@
+# test: a trait implementation target may write a lifetime inside a type argument, and its methods keep that lifetime in Self
+# Spec 13 Lifetime Implementation Targets: ref.lifetime.impl-target.
+struct Wrap[T]:
+    value: T
+
+trait Identity:
+    fn identity(self) -> Self
+
+impl['a] Identity for Wrap[&'a string]:
+    fn identity(self) -> Self:
+        self
+
+fn keep['a](wrapped: Wrap[&'a string]) -> Wrap[&'a string]:
+    wrapped.identity()
+
+fn length(text: string) -> usize:
+    wrapped := Wrap { value: &text }
+    keep(wrapped).value.len()

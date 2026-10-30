@@ -5341,11 +5341,13 @@ typing/invalid/lifetime-struct-elided-parameter-ambiguous.hd	type	reject:ambiguo
 typing/valid/lifetime-struct-impl-method.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.impl
 typing/invalid/lifetime-struct-impl-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.struct.impl
 typing/invalid/lifetime-struct-impl-elided.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.struct.impl.elided
-typing/invalid/lifetime-trait-impl-target-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.trait-target-unpassed
+typing/valid/lifetime-impl-target-written.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.impl-target
+typing/invalid/lifetime-impl-target-result-outlives.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.impl-target
 typing/valid/lifetime-generic-argument-written.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.alias-in-order
 runtime/valid/lifetime-struct-elided.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.elide
 runtime/valid/lifetime-trait-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.trait
 runtime/valid/lifetime-alias-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.alias
+runtime/valid/lifetime-impl-target-written.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.impl-target
 typing/invalid/lifetime-struct-argument-count.hd	type	reject:argument-count	lang/13-values-and-references.md#r-ref.lifetime.struct.argument.count
 runtime/valid/lifetime-struct-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.position
 typing/valid/lifetime-struct-field-read.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.read

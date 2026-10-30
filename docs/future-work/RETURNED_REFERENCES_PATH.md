@@ -347,9 +347,11 @@ Applied by #1027: 6d2 is specified by [Static Fn Bounds](../../spec/lang/07-func
 
 Applied by #1019 (6a3): an elided lifetime argument in a signature is a reference position that writes no lifetime, so `p: &Parser[string]` has two and `-> Parser[string]` elides as `-> &T` does; the resolver decides elision over a signature's typed positions. A lifetime written inside a generic argument (`Option[&'a T]`, `Wrap[&'a T]`) and in an implementation's target (`impl[T, 'a] Parser[T, 'a]`) is placed; an elided target lifetime stays not-yet (6c3).
 
-Applied by #1023 (6c1, [Lifetime Traits](../../spec/lang/13-values-and-references.md#lifetime-traits)): a trait may declare lifetimes after its type parameters, and its methods may write them. Implementations, bounds and trait values instantiate those lifetimes. A trait implementation target may write the lifetimes passed to the trait; other target lifetimes stay not-yet (6c3).
+Applied by #1023 (6c1, [Lifetime Traits](../../spec/lang/13-values-and-references.md#lifetime-traits)): a trait may declare lifetimes after its type parameters, and its methods may write them. Implementations, bounds and trait values instantiate those lifetimes. A trait implementation target may write the lifetimes passed to the trait; at that slice, other target lifetimes stayed not-yet until 6c3.
 
 Applied by #1024 (6c2, [Lifetime Aliases](../../spec/lang/13-values-and-references.md#lifetime-aliases)): a top-level type alias may declare lifetimes and write or pass them in its body. Each use instantiates the body's reference positions with the alias's lifetime arguments.
+
+Applied by #1025 (6c3, [Lifetime Implementation Targets](../../spec/lang/13-values-and-references.md#lifetime-implementation-targets)): an implementation target may write any lifetime declared by the implementation, including inside a type argument. Its methods' `self` and `Self` have the target's reference positions with those lifetimes.
 
 Applied by #1020 (6a4, [Lifetime Enums](../../spec/lang/13-values-and-references.md#lifetime-enums)): a top-level enum declares lifetimes as a struct does; a variant construction puts each payload field in its lifetime's position, and a match binding of the payload takes that position's origins. A variant function value's result takes the payload's lifetime by elision.
 

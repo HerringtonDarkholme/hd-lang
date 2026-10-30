@@ -1812,6 +1812,7 @@ fn demo(u: &User) -> i32:
 > `[T, origin]` lists.
 
 See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
+[Lifetime Implementation Targets](13-values-and-references.md#lifetime-implementation-targets),
 [Lifetimes](01-lexical-structure.md#lifetimes).
 
 ## Variance

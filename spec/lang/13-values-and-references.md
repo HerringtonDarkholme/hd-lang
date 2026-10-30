@@ -596,8 +596,7 @@ fn view(u: User) -> i32:
 14. r[ref.lifetime.not-yet.local-or-newtype-owner] Any other lifetime parameter is not checked yet, so it is an error: a newtype's, a local function's, a local struct's, a local enum's, or a local alias's. A top-level struct's follows [Lifetime Structs](#lifetime-structs), a top-level enum's [Lifetime Enums](#lifetime-enums), a trait's [Lifetime Traits](#lifetime-traits), and a top-level alias's [Lifetime Aliases](#lifetime-aliases). Error: `references-not-yet-checked`.
 15. r[ref.lifetime.alias-in-order] A type alias passes on the lifetimes written in its arguments when its type uses each parameter once, in order, outside function types, and writes no `&` of its own. So `Option[&'a T]` is `&'a T?`.
 16. r[ref.lifetime.not-yet.alias] A lifetime written in the arguments of any other type alias is an error too. Error: `references-not-yet-checked`.
-17. r[ref.lifetime.not-yet.trait-target-unpassed] A lifetime written in a trait implementation's target but not passed to the trait is an error too. Error: `references-not-yet-checked`.
-18. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
+17. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
 
 ```hd
 struct User:
@@ -617,6 +616,7 @@ fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:  # the result tak
 See also: [Lifetimes In Function Types](07-functions.md#lifetimes-in-function-types),
 [Method Generic Parameters](09-traits.md#method-generic-parameters),
 [Lifetime Traits](#lifetime-traits), [Lifetime Aliases](#lifetime-aliases),
+[Lifetime Implementation Targets](#lifetime-implementation-targets),
 [Lifetime Structs](#lifetime-structs).
 
 ### Lifetime Traits
@@ -655,6 +655,27 @@ type OptionalBorrowed[T, 'src] = Option[Borrowed[T, 'src]]
 
 See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 [Transparent Aliases](04-type-system.md#transparent-aliases-and-newtypes).
+
+### Lifetime Implementation Targets
+
+An implementation target may write a declared lifetime inside any reference position:
+
+```hd
+struct Wrap[T]:
+    value: T
+
+trait Identity:
+    fn identity(self) -> Self
+
+impl['a] Identity for Wrap[&'a string]:
+    fn identity(self) -> Self:
+        self
+```
+
+1. r[ref.lifetime.impl-target] An implementation target may write any lifetime declared by the implementation, including in a type argument, and every method's `self` and `Self` have those lifetimes.
+
+See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
+[Lifetime Traits](#lifetime-traits), [Lifetime Structs](#lifetime-structs).
 
 ### Lifetime Structs
 
@@ -760,9 +781,8 @@ fn first(outer: string) -> usize:
 > Elision is Rust's too: `&Parser<'_, T>` has two input lifetimes, so a
 > result needs one named.
 
-> **Note.** Lifetimes on traits, a trait implementation for a lifetime
-> struct, and lifetime arguments elided in an implementation's target come
-> in later stages.
+> **Note.** Lifetime arguments elided in an implementation's target come
+> in a later stage.
 
 See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 [Fields](08-data-and-enums.md#fields), [Lifetime Enums](#lifetime-enums).

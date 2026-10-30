@@ -4474,7 +4474,7 @@ impl Lower<'_, '_, '_> {
             }
             return;
         }
-        // `ref.lifetime.struct.impl`: the target's lifetimes are those of
+        // `ref.lifetime.impl-target`: the target's lifetimes are those of
         // its methods' `self` and `Self`.
         let saved = self.slots.replace(Vec::new());
         let self_ty = self.ty_at(Some(target), &gn, true);
@@ -4584,25 +4584,6 @@ impl Lower<'_, '_, '_> {
                 }
             }
         };
-        // `ref.lifetime.trait.impl-target`: until the general impl-target rule
-        // lands, every written target lifetime is instantiated by one of
-        // this trait's lifetime arguments.
-        if trait_ != DefId::NONE
-            && gn
-                .self_slots
-                .iter()
-                .any(|l| *l != 0 && !trait_lifetimes.contains(l))
-        {
-            if self.r.frozen.is_none() {
-                self.diags.error(
-                    Code::ReferencesNotYetChecked,
-                    self.src.span(target),
-                    "a lifetime in a trait implementation's target is not checked yet unless the trait takes it as a lifetime argument",
-                );
-            }
-            Self::poisoned_impl(h, self_ty, generics, out);
-            return;
-        }
         // Only the compiler and the standard library implement a sealed
         // trait (`trait.sealed.user-impl`). The rejected implementation
         // is left out, so nothing else is reported about it.

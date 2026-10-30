@@ -1,0 +1,16 @@
+# test: Self returned through an implementation-target lifetime may not outlive the local in that target position
+# Spec 13 Lifetime Implementation Targets: ref.lifetime.impl-target; Lifetime Variables: ref.lifetime.return.
+struct Wrap[T]:
+    value: T
+
+trait Identity:
+    fn identity(self) -> Self
+
+impl['a] Identity for Wrap[&'a string]:
+    fn identity(self) -> Self:
+        self
+
+fn leak['outer]() -> Wrap[&'outer string]:
+    local := "local"
+    wrapped := Wrap { value: &local }
+    wrapped.identity()  # diagnostic: local-reference-escapes
