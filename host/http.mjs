@@ -23,7 +23,7 @@
 //   hop, and its four phase timeouts bound each hop's connect, TLS
 //   handshake, response headers and body (std-http.settings.*). A setting
 //   this host does not honour is `UnsupportedSetting` before any work.
-import { serve } from "./worker-control.mjs";
+import { serve } from "./worker-control.mts";
 import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";

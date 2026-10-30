@@ -50,13 +50,13 @@ const PROCESS: &str = include_str!("../../../host/process.mjs");
 /// The special-file provider's I/O helper.
 const FS: &str = include_str!("../../../host/fs.mjs");
 /// The `ConsoleInput` provider's client thread.
-const INPUT: &str = include_str!("../../../host/input.mjs");
+const INPUT: &str = include_str!("../../../host/input.mts");
 /// The ordered output writer.
-const OUTPUT: &str = include_str!("../../../host/output.mjs");
+const OUTPUT: &str = include_str!("../../../host/output.mts");
 /// The output writer's thread, started when a pipe is full.
-const OUTPUT_WORKER: &str = include_str!("../../../host/output-worker.mjs");
+const OUTPUT_WORKER: &str = include_str!("../../../host/output-worker.mts");
 /// Correlated replies shared by the Node control clients and workers.
-const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mjs");
+const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mts");
 /// The float text of the host primitives (`core.mts` imports it).
 const FLOAT: &str = include_str!("../../../host/float.mts");
 /// A REPL session's journal of host calls (`core.mts` imports it).
@@ -270,10 +270,10 @@ impl Scratch {
             ("net.mjs", NET),
             ("process.mjs", PROCESS),
             ("fs.mjs", FS),
-            ("input.mjs", INPUT),
-            ("output.mjs", OUTPUT),
-            ("output-worker.mjs", OUTPUT_WORKER),
-            ("worker-control.mjs", WORKER_CONTROL),
+            ("input.mts", INPUT),
+            ("output.mts", OUTPUT),
+            ("output-worker.mts", OUTPUT_WORKER),
+            ("worker-control.mts", WORKER_CONTROL),
             ("float.mts", FLOAT),
             ("journal.mts", JOURNAL),
             ("run-support.mts", RUN_SUPPORT),

@@ -19,7 +19,7 @@
 // (std-net.handles.closed). The program's thread checks the host's form
 // and the grant before it posts an operation that accesses an address;
 // a metadata-only check may first reject a closed or unknown handle.
-import { serve } from "./worker-control.mjs";
+import { serve } from "./worker-control.mts";
 import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
 import net from "node:net";

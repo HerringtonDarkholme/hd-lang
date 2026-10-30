@@ -546,7 +546,7 @@ function traitImports(
 // its text to standard error, after the held output
 // (module.console.write-error-sync.raw). Each write returns once its text
 // is written (module.console.write-sync.never-suspends): a captured sink
-// takes it at once, and a direct sink (output.mjs) blocks until the
+// takes it at once, and a direct sink (output.mts) blocks until the
 // stream has taken every byte.
 function consoleProvider({
   st,

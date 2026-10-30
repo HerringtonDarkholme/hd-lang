@@ -1,7 +1,7 @@
 // A child's I/O belongs to this worker, so a synchronous hd:rt.block can
 // keep polling sibling tasks. As with Net, control calls only start, probe,
 // commit or cancel an operation; completion never posts unsolicited replies.
-import { serve } from "./worker-control.mjs";
+import { serve } from "./worker-control.mts";
 import { spawn } from "node:child_process";
 import { constants } from "node:os";
 import { workerData } from "node:worker_threads";

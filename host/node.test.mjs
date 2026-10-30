@@ -34,10 +34,10 @@ import { Dec, Enc, Err, HostContract, Ok, str } from "./wire.mts";
 import { ConsoleError, METHODS } from "./gen/abi.mts";
 
 import { cgroupCpuCount, createHost, syncClient } from "./node.mjs";
-import { createOutput } from "./output.mjs";
+import { createOutput } from "./output.mts";
 import { browserSend } from "./web.mts";
-import { failed as failedOutput } from "./output-worker.mjs";
-import { postReply, receiveReply } from "./worker-control.mjs";
+import { failed as failedOutput } from "./output-worker.mts";
+import { postReply, receiveReply } from "./worker-control.mts";
 
 function fixture(t, files) {
   // The resolved path: grant errors report a path with its links resolved,
@@ -1440,9 +1440,9 @@ async function heldLookupHost(t) {
     "node-files.mjs",
     "core.mts",
     "session.mts",
-    "output.mjs",
-    "output-worker.mjs",
-    "worker-control.mjs",
+    "output.mts",
+    "output-worker.mts",
+    "worker-control.mts",
     "checked-report.mts",
     "float.mts",
     "journal.mts",
@@ -1968,7 +1968,7 @@ function inputWorker(t, content) {
   const root = mkdtempSync(join(tmpdir(), "hd-input-"));
   writeFileSync(join(root, "input"), content);
   const fd = openSync(join(root, "input"), "r");
-  const call = netWorker(t, { url: new URL("./input.mjs", import.meta.url) });
+  const call = netWorker(t, { url: new URL("./input.mts", import.meta.url) });
   t.after(() => {
     closeSync(fd);
     rmSync(root, { recursive: true, force: true });
@@ -2032,7 +2032,7 @@ test("Console read_all abort restores bytes after readiness", async (t) => {
 });
 
 test("Console unreadable input reports a numeric host code", async (t) => {
-  const call = netWorker(t, { url: new URL("./input.mjs", import.meta.url) });
+  const call = netWorker(t, { url: new URL("./input.mts", import.meta.url) });
   const operation = call({ op: "wait_start", kind: "line", fd: -1 }).ok;
   const result = call({ op: "wait_poll", operation });
   assert.equal(typeof result.error, "number");
@@ -2076,7 +2076,7 @@ test("Output full socket keeps control live", async (t) => {
     reader.destroy();
   });
   const call = netWorker(t, {
-    url: new URL("./output-worker.mjs", import.meta.url),
+    url: new URL("./output-worker.mts", import.meta.url),
     data: { output: true },
   });
   const { port1, port2 } = new MessageChannel();
@@ -2160,7 +2160,7 @@ test(
   "Output to a held stdout pipe blocks, hands off to the thread, and keeps order",
   { skip: process.platform === "win32", timeout: 15000 },
   async (t) => {
-    const url = new URL("./output.mjs", import.meta.url).href;
+    const url = new URL("./output.mts", import.meta.url).href;
     const script = `
       import { writeSync } from "node:fs";
       import { createOutput } from ${JSON.stringify(url)};

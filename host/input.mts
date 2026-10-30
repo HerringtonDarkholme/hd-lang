@@ -1,34 +1,40 @@
 // Guest stdin belongs to an I/O worker, including under synchronous rt.block.
 // Like Net, reads reserve bytes until guest finish; abort restores reservations.
-import { postReply } from "./worker-control.mjs";
+import { postReply } from "./worker-control.mts";
 import { createReadStream, fstatSync } from "node:fs";
 import { Socket } from "node:net";
 import { isatty, ReadStream } from "node:tty";
 import { workerData } from "node:worker_threads";
 
-const operations = new Map();
+type Dynamic = ReturnType<typeof JSON.parse>;
+interface Available {
+  offset: number;
+  bytes: Buffer;
+}
+interface InputState {
+  kind: "line" | "all";
+  parts: Available[];
+  result: Dynamic | null;
+}
+
+const operations = new Map<number, InputState>();
 let nextOperation = 1;
-let source = null;
+let source: Dynamic = null;
 let initialized = false;
 let ended = false;
-let failure = null;
+let failure: number | null = null;
 let offset = 0;
-let available = [];
+let available: Available[] = [];
 
-const take = (state, length) => {
+const take = (state: InputState, length: number): void => {
   const item = available[0];
   state.parts.push({ offset: item.offset, bytes: item.bytes.subarray(0, length) });
-  if (length === item.bytes.length) {
-    available.shift();
-  } else {
-    available[0] = { offset: item.offset + length, bytes: item.bytes.subarray(length) };
-  }
+  if (length === item.bytes.length) available.shift();
+  else available[0] = { offset: item.offset + length, bytes: item.bytes.subarray(length) };
 };
-const serve = () => {
+const serve = (): void => {
   for (const state of operations.values()) {
-    if (state.result !== null) {
-      continue;
-    }
+    if (state.result !== null) continue;
     let newline = false;
     while (available.length) {
       const bytes = available[0].bytes;
@@ -39,35 +45,25 @@ const serve = () => {
         break;
       }
     }
-    if (failure !== null) {
-      state.result = { error: failure };
-    } else if (newline || ended) {
-      let bytes = Buffer.concat(state.parts.map((part) => part.bytes));
+    if (failure !== null) state.result = { error: failure };
+    else if (newline || ended) {
+      let bytes = Buffer.concat(state.parts.map((part: Available) => part.bytes));
       if (state.kind === "line") {
         if (newline) {
           bytes = bytes.subarray(0, bytes.length - 1);
-          if (bytes.at(-1) === 13) {
-            bytes = bytes.subarray(0, bytes.length - 1);
-          }
+          if (bytes.at(-1) === 13) bytes = bytes.subarray(0, bytes.length - 1);
         }
         state.result = { ok: !newline && !bytes.length ? null : bytes.toString("utf8") };
-      } else {
-        state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
-      }
+      } else state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
     }
   }
   // Do not read ahead without a pending call; retain already buffered bytes.
-  if ([...operations.values()].some((state) => state.result === null)) {
-    source?.resume();
-  } else {
-    source?.pause();
-  }
+  if ([...operations.values()].some((state) => state.result === null)) source?.resume();
+  else source?.pause();
 };
 
-function open(fd) {
-  if (initialized) {
-    return;
-  }
+function open(fd: number | null): void {
+  if (initialized) return;
   initialized = true;
   if (fd === null) {
     ended = true;
@@ -80,8 +76,8 @@ function open(fd) {
       ? new ReadStream(fd)
       : stat.isFIFO() || stat.isSocket()
         ? new Socket({ fd, readable: true, writable: false })
-        : createReadStream(null, { fd, autoClose: false });
-    source.on("data", (bytes) => {
+        : createReadStream(null as Dynamic, { fd, autoClose: false });
+    source.on("data", (bytes: Buffer) => {
       available.push({ offset, bytes });
       offset += bytes.length;
       serve();
@@ -90,17 +86,19 @@ function open(fd) {
       ended = true;
       serve();
     });
-    source.on("error", (error) => {
-      failure = Number.isInteger(error?.errno) ? error.errno : 0;
+    source.on("error", (error: NodeJS.ErrnoException) => {
+      failure = Number.isInteger(error?.errno) ? error.errno! : 0;
       serve();
     });
     source.pause();
   } catch (error) {
-    failure = Number.isInteger(error?.errno) ? error.errno : 0;
+    failure = Number.isInteger((error as NodeJS.ErrnoException)?.errno)
+      ? (error as NodeJS.ErrnoException).errno!
+      : 0;
   }
 }
 
-const run = (request) => {
+const run = (request: Dynamic): Dynamic => {
   switch (request.op) {
     case "wait_start": {
       open(request.fd);
@@ -111,16 +109,12 @@ const run = (request) => {
     }
     case "wait_poll": {
       const state = operations.get(request.operation);
-      if (!state) {
-        throw new Error("unknown input wait");
-      }
+      if (!state) throw new Error("unknown input wait");
       return state.result ?? { pending: true };
     }
     case "wait_finish": {
       const state = operations.get(request.operation);
-      if (!state || state.result === null) {
-        throw new Error("unfinished input wait");
-      }
+      if (!state || state.result === null) throw new Error("unfinished input wait");
       operations.delete(request.operation);
       return { ok: null };
     }
@@ -139,8 +133,8 @@ const run = (request) => {
   }
 };
 
-const { port, flag } = workerData;
-port.on("message", ({ id, request }) => {
+const { port, flag } = workerData as Dynamic;
+port.on("message", ({ id, request }: { id: number; request: Dynamic }) => {
   const result = run(request);
   postReply(port, flag, id, result);
 });

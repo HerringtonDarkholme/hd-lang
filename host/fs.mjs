@@ -3,7 +3,7 @@
 // a FIFO open cannot be interrupted by terminating a Node worker, and
 // blocked libuv pool jobs would also starve unrelated special-file calls.
 // Only these uncommon calls start a child; regular files stay inline.
-import { serve } from "./worker-control.mjs";
+import { serve } from "./worker-control.mts";
 import { fork } from "node:child_process";
 import { parentPort, Worker, workerData } from "node:worker_threads";
 import { fileOperation } from "./node-files.mjs";

@@ -3,14 +3,32 @@
 // Builtins come from `process.getBuiltinModule`, which skips the ESM
 // facade an `import` builds (node.mjs).
 const { receiveMessageOnPort } = process.getBuiltinModule("node:worker_threads");
+import type { MessagePort } from "node:worker_threads";
 
-const post = (port, flag, id, reply) => {
+type Dynamic = ReturnType<typeof JSON.parse>;
+type Flag = Int32Array<SharedArrayBuffer>;
+interface ControlCall {
+  id: number;
+  request: Dynamic;
+}
+interface ControlReply {
+  id: number;
+  result?: Dynamic;
+  fault?: string;
+}
+
+const post = (port: MessagePort, flag: Flag, id: number, reply: Omit<ControlReply, "id">): void => {
   port.postMessage({ id, ...reply });
   Atomics.store(flag, 0, 1);
   Atomics.notify(flag, 0);
 };
 
-export function receiveReply(port, flag, id, left) {
+export function receiveReply(
+  port: MessagePort,
+  flag: Flag,
+  id: number,
+  left: () => number,
+): ControlReply | null {
   for (;;) {
     const remaining = left();
     if (remaining <= 0) {
@@ -29,19 +47,24 @@ export function receiveReply(port, flag, id, left) {
   }
 }
 
-export function postReply(port, flag, id, result) {
+export function postReply(port: MessagePort, flag: Flag, id: number, result: Dynamic): void {
   post(port, flag, id, { result });
 }
 
 // Serve one capability worker's correlated control calls. A thrown error is
 // a fault in the host protocol, not an ordinary provider error for the guest.
-export function serve(port, flag, run, closes = () => false) {
-  port.on("message", async ({ id, request }) => {
-    let reply;
+export function serve(
+  port: MessagePort,
+  flag: Flag,
+  run: (request: Dynamic) => Dynamic | Promise<Dynamic>,
+  closes: (request: Dynamic) => boolean = () => false,
+): void {
+  port.on("message", async ({ id, request }: ControlCall) => {
+    let reply: Omit<ControlReply, "id">;
     try {
       reply = { result: await run(request) };
     } catch (error) {
-      reply = { fault: String(error?.message ?? error) };
+      reply = { fault: String((error as Dynamic)?.message ?? error) };
     }
     post(port, flag, id, reply);
     if (closes(request)) {

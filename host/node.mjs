@@ -8,7 +8,7 @@
 
 // module.profile.panic-status).
 
-import { receiveReply } from "./worker-control.mjs";
+import { receiveReply } from "./worker-control.mts";
 export { exitPast } from "./run-support.mts";
 import {
   createCoreHost,
@@ -906,7 +906,7 @@ export const nodeLayer = {
     const http = syncClient("http.mjs");
     const child = syncClient("process.mjs", "close");
     const files = syncClient("fs.mjs", "close");
-    const input = syncClient("input.mjs");
+    const input = syncClient("input.mts");
     // The program's output reaches its stream before it waits on the host
     // (std-console.host.visible-text-sync): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.

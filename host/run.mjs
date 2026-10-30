@@ -37,7 +37,7 @@
 // alone, and passes it on as that signal, once. A terminal's Ctrl-C also
 // reaches this process, so a process told of such a signal ignores SIGINT
 // (the listener below), else the one interrupt would arrive twice.
-import { createOutput } from "./output.mjs";
+import { createOutput } from "./output.mts";
 import { createStartupHost } from "./startup.mjs";
 import {
   CANCEL_STATUS,

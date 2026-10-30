@@ -1,6 +1,6 @@
 // Node-only REPL session glue. Kept separate from node.mjs so `hd run`
 // does not parse or initialize the journal and session implementation.
-import { createOutput } from "./output.mjs";
+import { createOutput } from "./output.mts";
 import { createSession } from "./session.mts";
 import { lineReader, nodeLayer } from "./node.mjs";
 
