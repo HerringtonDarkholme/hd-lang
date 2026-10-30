@@ -12890,7 +12890,7 @@ import assert from 'node:assert/strict';
 import {{ pathToFileURL }} from 'node:url';
 const coreURL = pathToFileURL({:?});
 const {{ createCoreHost: createBaseHost }} = await import(coreURL);
-const {{ createPackageRuntime, readPackageContract }} = await import(new URL('package-providers.mjs', coreURL));
+const {{ createPackageRuntime, readPackageContract }} = await import(new URL('package-providers.mts', coreURL));
 const createCoreHost = (sink, env, layer) =>
   createBaseHost(sink, {{ ...env, createPackageRuntime, readPackageContract }}, layer);
 const glue = await import('data:text/javascript,' + encodeURIComponent({glue:?}));
