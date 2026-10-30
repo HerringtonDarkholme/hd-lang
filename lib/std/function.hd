@@ -1,10 +1,10 @@
-# std.function: the function type constructors and the `Tuple` marker trait
+# std.function: function types, their `Fn` bound and the `Tuple` marker trait
 # (spec/lang/07-functions.md#function-type-constructors).
 #
-# `Fn` and `SuspendFn` are the constructors that `fn(...) -> O $ R` and
-# `fn!(...) -> O $ R` stand for. They have no fields and no construction
-# syntax, so the compiler rewrites a spelled one to its sugar
-# (src/checker/function-types.ts) and they need no declaration here.
+# In a type position, `Fn[I, O, $R]` and `SuspendFn[I, O, $R]` are the
+# constructors that `fn(...) -> O $ R` and `fn!(...) -> O $ R` stand for.
+# In a bound, `Fn[I, O, $R]` is the trait below. The compiler supplies its
+# implementation for every matching plain function type.
 
 # An empty sealed marker trait that every tuple type implements: `()`,
 # `(A,)`, and a tuple with a rest element included
@@ -13,3 +13,10 @@
 ## The empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
 ## See [fn.type.ctor.tuple-trait](../../spec/lang/07-functions.md#r-fn.type.ctor.tuple-trait).
 pub trait Tuple
+
+## The static-dispatch trait implemented by every plain function value.
+## See [fn.trait.decl](../../spec/lang/07-functions.md#r-fn.trait.decl).
+pub trait Fn[I < Tuple, O, $ R = $ ()]:
+    ## Calls this function with the parameter tuple `args`.
+    @intrinsic("fn_call")
+    fn call(&self, args: I) -> O $ R

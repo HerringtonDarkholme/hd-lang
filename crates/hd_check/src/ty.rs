@@ -303,6 +303,30 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        if role == NameRole::Trait
+            && segs.as_slice() == ["Fn"]
+            && n.direct_token(&self.cx.src.parse.tokens, TokenKind::Arrow)
+                .is_some()
+        {
+            let mut tys = n
+                .children()
+                .filter(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow);
+            if let Some(input) = tys.next() {
+                args.push(self.ty_node(input)?);
+                arg_nodes.push(input);
+            }
+            if let Some(output) = tys.next() {
+                args.push(self.ty_node(output)?);
+                arg_nodes.push(output);
+            }
+            let (r, node) = match Src::child(n, SyntaxKind::RequirementRow) {
+                Some(r) => (self.row_of(r)?, r),
+                None => (RowId::EMPTY, n),
+            };
+            row = Some(r);
+            args.push(pool.intern_ty(&TyData::Row(r)));
+            arg_nodes.push(node);
+        }
         if let (Some((s, _)), Some(b)) = (self.opaque_annotation, borrows) {
             self.opaque_annotation = Some((s, b));
         }
@@ -352,7 +376,7 @@ impl Ck<'_, '_> {
                 .paths
                 .segment(hd_base::PathId::from_raw(def.raw()))
                 .to_owned();
-            if name == "Fn" || name == "SuspendFn" {
+            if role != NameRole::Trait && (name == "Fn" || name == "SuspendFn") {
                 let inputs = args.first().copied().unwrap_or(Ty::POISON);
                 if !self.inputs_tuple(inputs) {
                     let msg = format!(
@@ -853,6 +877,15 @@ impl Ck<'_, '_> {
                 match Src::child(n, SyntaxKind::NamedType) {
                     Some(c) => {
                         let t = self.named_ty_as(c, NameRole::Trait)?;
+                        if matches!(pool.get(t), TyData::TraitValue { def, .. } if def == self.cx.names.known.fn_trait)
+                        {
+                            self.err(
+                                Code::TraitNotDynamicallySafe,
+                                n,
+                                "`Fn` is the static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls",
+                            );
+                            return Ok(Ty::POISON);
+                        }
                         let view = hd_resolve::assoc::LookupView {
                             lookup: self.cx.lookup,
                             names: &self.cx.names,

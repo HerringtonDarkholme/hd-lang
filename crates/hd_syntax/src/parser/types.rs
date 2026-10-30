@@ -199,7 +199,57 @@ impl Parser<'_> {
             );
             self.bump();
         }
+        if self.at_word("Fn") && self.nth(1) == Some(TokenKind::LParen) {
+            return self.ty_fn_trait();
+        }
         self.ty_named(bindings)
+    }
+
+    /// `Fn(A, B) -> O [$ row]`, the bound spelling of
+    /// `Fn[(A, B), O, $ row]`. It stays a `NamedType`, so every bound
+    /// position and resolver path treats it as the `Fn` trait rather than
+    /// adding a second trait-reference syntax kind.
+    fn ty_fn_trait(&mut self) -> Done {
+        let marker = self.start();
+        self.bump(); // Fn
+        self.ty_fn_inputs();
+        if self.expect(TokenKind::Arrow, "'->'") {
+            self.ty_with(false);
+        }
+        if self.at(TokenKind::Dollar) {
+            self.requirement_clause();
+        }
+        self.complete(marker, SyntaxKind::NamedType)
+    }
+
+    /// The input list of `Fn(A, B) -> O`. Unlike an ordinary parenthesized
+    /// type, a single input is still a one-element tuple: the sugar's first
+    /// trait argument is always the complete parameter tuple.
+    fn ty_fn_inputs(&mut self) -> Done {
+        let marker = self.start();
+        self.bump(); // (
+        let mut rest_seen = false;
+        while !self.at(TokenKind::RParen) && self.current().is_some() {
+            let before = self.pos();
+            if rest_seen {
+                self.error(
+                    Code::SyntaxError,
+                    "a rest element must be the last parameter type",
+                );
+            }
+            let element = self.ty();
+            if self.at(TokenKind::Ellipsis) {
+                let rest = self.precede(element);
+                self.bump();
+                self.complete(rest, SyntaxKind::RestType);
+                rest_seen = true;
+            }
+            if !self.eat(TokenKind::Comma) || self.pos() == before {
+                break;
+            }
+        }
+        self.expect(TokenKind::RParen, "')'");
+        self.complete(marker, SyntaxKind::TupleType)
     }
 
     /// `[ type_argument, ..., Name = type, ... ]`.

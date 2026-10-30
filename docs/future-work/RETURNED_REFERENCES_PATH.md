@@ -330,7 +330,7 @@ easy to iterate). One checkable rule per slice, in order:
 | 6c2 | a `type` alias may take and pass lifetimes | 6a3 |
 | 6c3 | an impl target may write lifetimes (`impl[T, 'a] Wrap[&'a T]`) | 6a3 |
 | 6d1 | a `fn(A) -> R` parameter may capture local references (a fresh lifetime): a closure value carries its captures' origins; storing such a parameter is `local-reference-escapes`; `fn` elsewhere has no local captures | stage 5 |
-| 6d2 | `trait Fn[I, O, $R]` with the sugar `Fn(A, B) -> R $ Row`; every closure implements it; `F < Fn(T) -> U` calls through it | 6d1 |
+| 6d2 | `trait Fn[I, O, $R]` with the sugar `Fn(A, B) -> R $ Row`; every closure implements it; `F < Fn(T) -> U` calls through it | stage 5 |
 | 6d3 | stored capturing closures, `struct Button[F < Fn() -> void & 'a, 'a]`, with `&` after the sugar's result starting the next bound; boxing a capturing closure is an error | 6d2, 6a1 |
 | 6e | `FnMut[I, O, $R]` for closures that mutate captures; `Fn` captures shared, so `require`'s condition `F < Fn() -> bool` is read-only (#978) | 6d2 |
 | 6f | `on_exit[F < FnMut() -> void & 'a, 'a](action: F) -> ScopeGuard[F, 'a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d3, 6e |
@@ -341,6 +341,7 @@ easy to iterate). One checkable rule per slice, in order:
 Applied by #1017 (6a1, [Lifetime Structs](../../spec/lang/13-values-and-references.md#lifetime-structs)): each struct lifetime is one reference position of the struct's type, after its type arguments, so its values hold a local reference.
 
 Applied by #1018 (6a2): a field typed `&'a T`, or any field whose reference positions all name `'a`, lies in the value's `'a` position, both when a literal constructs it and when it is read; a field of two or more lifetimes still takes every position.
+Applied by #1027: 6d2 is specified by [Static Fn Bounds](../../spec/lang/07-functions.md#static-fn-bounds) and [`ref.type.dyn.no-fn`](../../spec/lang/13-values-and-references.md#r-ref.type.dyn.no-fn).
 
 ### Stage 7: exclusivity
 

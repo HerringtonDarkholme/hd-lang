@@ -1,0 +1,18 @@
+# test: Fn sugar and tuple bounds accept plain functions and closures
+use std.function.Fn
+
+fn apply[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
+    f(value)
+
+fn apply_tuple[F < Fn[(i32,), i32, $ ()]](f: F, value: i32) -> i32:
+    f.call((value,))
+
+fn increment(value: i32) -> i32:
+    value + 1
+
+fn valid() -> void:
+    double := fn(value: i32) -> i32: value * 2
+    apply(increment, 1)
+    apply(double, 2)
+    apply_tuple(increment, 3)
+    pass

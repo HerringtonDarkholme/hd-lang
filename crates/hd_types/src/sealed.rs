@@ -22,6 +22,9 @@ pub struct SealedTraits {
     pub any_ref: DefId,
     pub inspectable: DefId,
     pub tuple: DefId,
+    /// `Fn[I, O, $R]`, implemented by every plain function type with
+    /// matching inputs, output and row.
+    pub fn_trait: DefId,
     pub structure: DefId,
     /// The `'static` bound (`ref.generic.static`), which a type meets
     /// when it holds no local reference.
@@ -40,6 +43,7 @@ impl Default for SealedTraits {
             any_ref: DefId::NONE,
             inspectable: DefId::NONE,
             tuple: DefId::NONE,
+            fn_trait: DefId::NONE,
             structure: DefId::NONE,
             static_bound: DefId::NONE,
             list: DefId::NONE,
@@ -59,6 +63,7 @@ impl SealedTraits {
                 self.any_ref,
                 self.inspectable,
                 self.tuple,
+                self.fn_trait,
                 self.structure,
                 self.static_bound,
             ]

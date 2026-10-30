@@ -409,9 +409,15 @@ fn sugared(callback: Fn[(i32, string), bool, $()]) -> fn(i32, string) -> bool:
 
 fn suspending() -> SuspendFn[(i32,), string, $ Database]:
     load
+
+fn invoke[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
+    f(value)
+
+fn invoke_tuple[F < Fn[(i32,), i32, $ ()]](f: F, value: i32) -> i32:
+    f.call((value,))
 ```
 
-1. r[fn.type.ctor.decl] `std.function` declares the function type constructors `Fn` and `SuspendFn`. Each takes three arguments: the inputs, the output, and the requirement row.
+1. r[fn.type.ctor.decl.contextual] In type positions, `std.function` declares `Fn[I, O, $R]` and `SuspendFn[I, O, $R]` as plain and suspending function type constructors.
 2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, or `(A, B)`. It may also be a type parameter bounded by `Tuple`.
 3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, $ R]` takes one pair, and `Fn[(A, B), O, $ R]` takes two values.
 4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
@@ -437,6 +443,20 @@ impl[Args < Tuple, O, $R] Describe for Fn[Args, O, $ R]:
 fn invalid(callback: Fn[i32, i32, $()]) -> void: pass             # error: generic-kind-mismatch
 fn unbounded[Args, O](callback: Fn[Args, O, $()]) -> void: pass  # error: generic-kind-mismatch
 ```
+
+#### Static Fn Bounds
+
+The `Fn` trait describes the exact plain function type that a generic value
+may hold and call.
+
+1. r[fn.trait.decl] `std.function` declares `trait Fn[I < Tuple, O, $R = $()]` with `fn call(&self, args: I) -> O $R`.
+2. r[fn.trait.function-values] Every plain function value implements `Fn` for its exact inputs tuple, output type, and requirement row.
+3. r[fn.trait.bound-sugar] In a bound, `Fn(A, B) -> O $R` denotes `Fn[(A, B), O, $R]`, and an omitted row is `$()`.
+4. r[fn.trait.bound-tuple] The tuple form `Fn[(A, B), O, $R]` remains valid in a bound.
+5. r[fn.trait.call] A value of type parameter `F < Fn(A, B) -> O $R` may be called as `f(a, b)` and requires `$R`.
+
+> **Why.** The concrete `fn(...)` type remains the dynamic function value.
+> `Fn(...)` gives stored callbacks static dispatch without a second dynamic form.
 
 #### Vararg Inputs
 

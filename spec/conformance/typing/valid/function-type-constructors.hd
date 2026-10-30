@@ -1,5 +1,5 @@
 # test: the spelled constructors Fn and SuspendFn name the same types as the fn sugar
-# Spec 07 Function Type Constructors: fn.type.ctor.decl, fn.type.ctor.inputs,
+# Spec 07 Function Type Constructors: fn.type.ctor.decl.contextual, fn.type.ctor.inputs,
 # fn.type.ctor.no-flatten, fn.type.ctor.row, fn.type.ctor.anywhere,
 # fn.type.ctor.imports.
 use std.function.{Fn, SuspendFn}
@@ -22,3 +22,9 @@ fn suspending() -> SuspendFn[(i32,), string, $ Database]:
 
 fn back(callback: fn!(i32) -> string $ Database) -> SuspendFn[(i32,), string, $ Database]:
     callback
+
+fn invoke[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
+    f(value)
+
+fn invoke_tuple[F < Fn[(i32,), i32, $ ()]](f: F, value: i32) -> i32:
+    f.call((value,))

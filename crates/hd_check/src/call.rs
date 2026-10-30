@@ -982,6 +982,46 @@ impl Ck<'_, '_> {
         self.call_value_form(f, ft, args, n, bang, None)
     }
 
+    /// The concrete function type exposed by a value's `Fn[I, O, $R]`
+    /// bound. The solver teaches the three fresh arguments from either a
+    /// parameter's environment clause or a concrete function type's
+    /// compiler-supplied implementation.
+    fn fn_bound_type(&mut self, self_ty: Ty) -> StageResult<Option<Ty>> {
+        let pool = self.pool();
+        let mut args: Vec<Ty> = (0..3)
+            .map(|_| self.infer.fresh(pool, VarKind::General))
+            .collect();
+        let tref = TraitRef {
+            trait_: self.cx.names.known.fn_trait,
+            self_ty,
+            args: pool.list(&args),
+        };
+        let Answer::Holds { learned, .. } = self.solve(tref)? else {
+            return Ok(None);
+        };
+        for (v, t) in learned {
+            let var = pool.intern_ty(&TyData::Infer(v));
+            let _ = self.infer.unify(pool, var, t);
+        }
+        for t in &mut args {
+            *t = self.infer.resolve(pool, *t);
+        }
+        let [input, output, row] = args.as_slice() else {
+            return Ok(None);
+        };
+        let TyData::Row(row) = pool.get(*row) else {
+            return Ok(None);
+        };
+        Ok(Some(pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[*input]),
+            result: *output,
+            row,
+            suspends: false,
+            inputs: Inputs::Tuple,
+            deps: hd_types::FnDeps::NONE,
+        })))
+    }
+
     /// A call of a function value, or of a local function by its name
     /// (`form`, with its type arguments if generic): the call then takes
     /// named arguments and omits parameters that have defaults.
@@ -1009,7 +1049,7 @@ impl Ck<'_, '_> {
         }
         let full = ft;
         let ft = self.infer.resolve(pool, ft);
-        let ft = match pool.get(ft) {
+        let mut ft = match pool.get(ft) {
             TyData::Mut(i) => i,
             _ => ft,
         };
@@ -1032,6 +1072,11 @@ impl Ck<'_, '_> {
             let t = pool.list_items(sa).first().copied().unwrap_or(Ty::POISON);
             self.check_bang(true, n);
             return Ok((self.b.emit(Tag::AwaitValue, f.0, NONE, t, n.index()), t));
+        }
+        if !matches!(pool.get(ft), TyData::Fn { .. })
+            && let Some(bound) = self.fn_bound_type(ft)?
+        {
+            ft = bound;
         }
         let TyData::Fn {
             params,
@@ -4361,6 +4406,24 @@ impl Ck<'_, '_> {
             }
         };
         let ret = self.normalize_deep(inst(sig.ret))?;
+        if trait_ == self.cx.names.known.fn_trait
+            && method == self.cx.names.known.fn_call
+            && choice != PENDING_CHOICE
+        {
+            let Some(&receiver) = refs.first() else {
+                return unsupported("`Fn.call` without a receiver");
+            };
+            let receiver_ty = self.b.ty_of(receiver);
+            let (function, _) = self.emit_deref(receiver, receiver_ty, n.index());
+            let rec = self.b.refs_record(&refs[1..]);
+            if bang {
+                self.check_bang(false, n);
+            }
+            return Ok((
+                self.b.emit(Tag::CallValue, function.0, rec, ret, n.index()),
+                ret,
+            ));
+        }
         let mut all = targs.clone();
         all.extend(&vars);
         let c = Callee::TraitMethod {

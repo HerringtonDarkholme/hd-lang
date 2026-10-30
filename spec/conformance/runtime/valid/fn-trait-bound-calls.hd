@@ -1,0 +1,38 @@
+# test: functions and closures call through Fn bounds
+# expect: test
+use std.function.Fn
+
+trait Scale:
+    fn factor(self) -> i32
+
+struct Triple: pass
+
+impl Scale for Triple:
+    fn factor(self) -> i32:
+        3
+
+fn apply[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
+    f(value)
+
+fn apply_method[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
+    f.call((value,))
+
+fn apply_row[F < Fn(i32) -> i32 $ Scale](f: F, value: i32) -> i32 $ Scale:
+    f(value)
+
+fn increment(value: i32) -> i32:
+    value + 1
+
+fn scaled(value: i32) -> i32 $ Scale:
+    value * $.use(Scale).factor()
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls functions and closures through Fn bounds"):
+        double := fn(value: i32) -> i32: value * 2
+        assert_equal(apply(increment, 3), 4)
+        assert_equal(apply(double, 3), 6)
+        assert_equal(apply_method(increment, 4), 5)
+        $.with(Scale=Triple {}):
+            assert_equal(apply_row(scaled, 5), 15)

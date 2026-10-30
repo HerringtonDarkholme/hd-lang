@@ -498,7 +498,7 @@ lang/09-traits.md	67	mixed	typing/invalid/trait-value-unbound-associated-type.hd
 lang/09-traits.md	68	accept	runtime/valid/dynamic-trait-value-satisfies-own-bound.hd
 lang/09-traits.md	69	mixed	typing/invalid/dyn-ref-mut-method-through-shared.hd|typing/invalid/dyn-ref-mutable-upgrade.hd|typing/invalid/dyn-ref-value-mutable.hd
 lang/09-traits.md	70	mixed	typing/invalid/none-to-any.hd
-lang/09-traits.md	71	mixed	typing/invalid/inspectable-user-implementation.hd|typing/invalid/user-anyref-implementation.hd
+lang/09-traits.md	71	mixed	typing/invalid/inspectable-user-implementation.hd|typing/invalid/user-anyref-implementation.hd|typing/invalid/fn-trait-user-impl.hd
 lang/09-traits.md	72	accept	typing/valid/num-traits.hd|runtime/valid/num-traits-run.hd
 lang/09-traits.md	73	type-fragment	-
 lang/09-traits.md	74	mixed	typing/invalid/num-bound-newtype.hd
@@ -651,7 +651,7 @@ lang/11-requirements-and-suspension.md	57	accept	typing/valid/requirements-and-s
 lang/11-requirements-and-suspension.md	58	accept	typing/valid/row-extension-entailment.hd
 lang/11-requirements-and-suspension.md	59	accept	typing/valid/row-extension-absent-key.hd
 lang/12-variadic-generics.md	1	accept	runtime/valid/tuple-bound-vararg-call.hd
-lang/13-values-and-references.md	1	mixed	parse/invalid/reference-type-and-and.hd|parse/invalid/reference-type-mut-before-reference.hd|parse/invalid/reference-type-function.hd|parse/invalid/counted-reference-type-power.hd
+lang/13-values-and-references.md	1	mixed	parse/invalid/reference-type-and-and.hd|parse/invalid/reference-type-mut-before-reference.hd|parse/invalid/reference-type-function.hd|parse/invalid/counted-reference-type-power.hd|typing/invalid/fn-trait-dyn.hd
 lang/13-values-and-references.md	2	mixed	parse/invalid/reference-expression-and-and.hd|parse/invalid/caret-prefix-expression.hd
 lang/13-values-and-references.md	3	mixed	typing/invalid/reference-expression-to-counted-parameter.hd|typing/invalid/reference-expression-counted-result.hd
 lang/13-values-and-references.md	4	mixed	typing/invalid/box-local-reference.hd|typing/invalid/box-prelude-shadow.hd

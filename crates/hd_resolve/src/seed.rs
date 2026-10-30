@@ -7,7 +7,7 @@
 
 use hd_base::Symbol;
 use hd_intern::PathKind;
-use hd_types::{ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
 use crate::iface::{Field, FnSig, Generic, Item, ItemData, Names, TraitData, Variant};
 
@@ -242,10 +242,66 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             }
         }
         "std.function" => {
-            let mut g = gens(names, &["Params", "Result", "R"]);
+            let tr = names.item(module, "Fn");
+            let tuple = pool.intern_ty(&TyData::TraitValue {
+                def: names.known.tuple,
+                args: TyList::EMPTY,
+                bindings: vec![],
+            });
+            let mut g = gens(names, &["I", "O", "R"]);
+            g[0].bound = Some(names.known.tuple);
+            g[0].bounds = vec![tuple];
             g[2].row = true;
-            item("Fn", g.clone(), ItemData::Data(vec![]));
+            g[2].default = Some(pool.intern_ty(&TyData::Row(RowId::EMPTY)));
+
+            let self_ty = param(names, tr, 0);
+            let input = param(names, tr, 1);
+            let output = param(names, tr, 2);
+            let row = pool.row(&RowData {
+                keys: vec![],
+                params: vec![RowParamRef {
+                    owner: tr,
+                    index: 3,
+                }],
+            });
+            let mut sig = FnSig::simple(
+                vec![],
+                vec![
+                    (
+                        sym(names, "self"),
+                        pool.intern_ty(&TyData::Ref {
+                            inner: self_ty,
+                            mutable: false,
+                            counted: false,
+                        }),
+                    ),
+                    (sym(names, "args"), input),
+                ],
+                output,
+            );
+            sig.row = row;
+            let method = names.member(tr, PathKind::Member, "call");
+            item(
+                "Fn",
+                g.clone(),
+                ItemData::Trait(TraitData {
+                    methods: vec![(sym(names, "call"), method)],
+                    ..TraitData::default()
+                }),
+            );
+            let mut call = Item::new(
+                method,
+                sym(names, "call"),
+                true,
+                ItemData::Method {
+                    owner: tr,
+                    sig,
+                    has_body: false,
+                },
+            );
+            call.intrinsic = Some(sym(names, "fn_call"));
             item("SuspendFn", g, ItemData::Data(vec![]));
+            out.push(call);
         }
         "std.structure" => {
             // `Structure` (annotations, "The Structure Trait"): sealed; the
