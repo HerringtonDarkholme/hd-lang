@@ -1,0 +1,5 @@
+# test: a const generic parameter has no default in stage 1
+# Spec 02 Const Generic Parameter Syntax: grammar.generic.const.no-default.
+
+struct Fixed[N < const usize = 4]:  # diagnostic: syntax-error
+    value: i32

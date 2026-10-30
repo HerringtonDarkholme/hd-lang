@@ -1,0 +1,7 @@
+# test: different evaluated const values make different types
+# Spec 04 Const Generic Arguments: types.generic.const.identity.
+
+struct Fixed[N < const usize]: pass
+
+fn different(value: Fixed[4]) -> Fixed[5]:
+    value  # diagnostic: type-mismatch

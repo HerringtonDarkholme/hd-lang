@@ -1,0 +1,29 @@
+# test: const generic parameters and arguments parse in every generic declaration position, while const stays an identifier elsewhere
+# Spec 01 Contextual Words: lex.contextual.fixed.const-generic, lex.contextual.const-generic, lex.contextual.elsewhere.
+# Spec 02 Const Generic Parameter Syntax: grammar.generic.const.declaration, grammar.generic.const.positions, grammar.generic.const.argument.
+
+struct Fixed[T, N < const usize]:
+    value: T
+
+enum Choice[N < const i32]:
+    Item(i32)
+
+trait Mark[N < const usize]:
+    fn marked(self) -> bool
+
+impl[T, N < const usize] Mark[N] for Fixed[T, N]:
+    fn marked(self) -> bool:
+        true
+
+type Four[T] = Fixed[T, 2 + 2]
+type Repeated[T, N < const usize] = Fixed[T, N]
+
+fn keep[T, N < const usize](value: Fixed[T, N]) -> Fixed[T, N]:
+    value
+
+impl Fixed[i32, 4]:
+    fn change[M < const usize](self) -> Fixed[i32, M]:
+        panic("not run")
+
+fn const(value: i32) -> i32:
+    value

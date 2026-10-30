@@ -1,5 +1,5 @@
 # test: a lifetime parameter may precede a type parameter, and explicit type arguments still fill only the type parameters
-# Spec 04 Lifetime Parameters: types.lifetime.free-order, types.lifetime.arguments.
+# Spec 04 Lifetime Parameters: types.lifetime.free-order, types.lifetime.arguments.type-const.
 fn first['a, T](x: &'a T, y: &'a T) -> &'a T:
     x
 

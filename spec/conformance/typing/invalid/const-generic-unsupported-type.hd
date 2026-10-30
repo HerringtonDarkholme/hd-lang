@@ -1,0 +1,5 @@
+# test: floats are not scalar const generic parameter types
+# Spec 04 Const Generic Parameters: types.generic.const.types, types.generic.const.type-error.
+
+struct FloatSize[N < const f32]:  # diagnostic: generic-kind-mismatch
+    value: i32

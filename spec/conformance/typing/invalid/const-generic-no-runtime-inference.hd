@@ -1,0 +1,10 @@
+# test: a runtime argument value does not infer a const parameter
+# Spec 04 Const Generic Arguments: types.generic.const.no-runtime-inference, types.generic.const.infer-unsolved.
+
+struct Fixed[N < const usize]: pass
+
+fn make[N < const usize](n: usize) -> Fixed[N]:
+    panic("not run")
+
+fn runtime_value_does_not_infer() -> void:
+    value := make(4)  # diagnostic: cannot-infer-type

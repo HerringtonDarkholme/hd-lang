@@ -1,6 +1,6 @@
 # test: generic parameters take bounds joined by &, associated type bindings, defaults, variance, and row markers, beside plain comparisons
 # Spec 02 Row Operators: grammar.type.row.plus-rows-only.
-# Spec 02 Generic Parameters And Bounds: grammar.generic.bound.and, grammar.generic.bound.and.positions, grammar.generic.bound.and.examples, grammar.generic.bound.and.types-only, grammar.generic.binding, grammar.generic.default, grammar.generic.default.binding, grammar.generic.default.semantic, grammar.generic.variance, grammar.generic.row-marker, grammar.generic.row-marker.default.
+# Spec 02 Generic Parameters And Bounds: grammar.generic.bound.and, grammar.generic.bound.and.positions, grammar.generic.bound.and.examples, grammar.generic.bound.and.types-only, grammar.generic.binding, grammar.generic.default.type-row, grammar.generic.default.binding, grammar.generic.default.semantic, grammar.generic.variance, grammar.generic.row-marker, grammar.generic.row-marker.default.
 # expect-stdout: 9
 # expect-stdout: true false
 # expect-stdout: 7 7

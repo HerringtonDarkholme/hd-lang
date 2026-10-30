@@ -1,0 +1,20 @@
+# test: primitive scalar operators are const operations and boolean operators short-circuit
+# Spec 04 Const Generic Arguments: types.generic.const.operators, types.generic.const.short-circuit.
+
+struct Number[N < const i32]: pass
+struct Flag[B < const bool]: pass
+struct Text[S < const string]: pass
+
+fn operators(
+    arithmetic: Number[(1 + 2) * 3 - 4 / 2 + 5 % 2],
+    power: Number[2 ** 3],
+    bits: Number[((1 | 2) & 3) ^ 4],
+    shifted: Number[(1 << 2) >> 1],
+    unary: Number[~(-1)],
+    comparisons: Flag[1 < 2 && 2 <= 2 && 3 > 2 && 3 >= 3 && 1 != 2 && 1 == 1],
+    logic: Flag[!false || false],
+    short_and: Flag[false && (1 / 0 == 0)],
+    short_or: Flag[true || (1 / 0 == 0)],
+    text: Text["const" + " generic"],
+) -> void:
+    pass

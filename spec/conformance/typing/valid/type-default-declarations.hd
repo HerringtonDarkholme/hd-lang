@@ -1,5 +1,5 @@
 # test: a written type that omits a defaulted slot takes the default, for aliases, data types, and traits whose default names Self
-# Spec 04 Type-Argument Defaults: types.generic.default.form, types.generic.default.written, types.generic.default.bare; Spec 09 Generic Traits: trait.decl.generic.default (Type-Argument Defaults TD7).
+# Spec 04 Type-Argument Defaults: types.generic.default.type-row, types.generic.default.written, types.generic.default.bare; Spec 09 Generic Traits: trait.decl.generic.default (Type-Argument Defaults TD7).
 
 struct AppError:
     message: string

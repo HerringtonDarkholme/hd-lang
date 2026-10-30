@@ -1,0 +1,7 @@
+# test: overflow during const argument evaluation is a compile-time error
+# Spec 04 Const Generic Arguments: types.generic.const.evaluate-failure, types.generic.const.evaluate-message.
+
+struct Byte[N < const i8]: pass
+
+fn overflow() -> void:
+    let value: Byte[127i8 + 1i8] = panic("not run")  # diagnostic: const-evaluation-failed

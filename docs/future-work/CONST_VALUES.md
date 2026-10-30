@@ -1,6 +1,6 @@
 # Compile-Time Values
 
-Status: direction accepted 2026-10-28; not specified or implemented.
+Status: direction accepted 2026-10-28; stage 1 specified 2026-10-29 and not implemented; stages 2 and 3 are not specified or implemented.
 
 This record explores [issue #875](https://github.com/HerringtonDarkholme/hd-lang/issues/875).
 It reviews const generic parameters, compile-time-only value parameters, and validation of static inputs.
@@ -106,7 +106,7 @@ Go is the useful negative case. It preserves simple generics by declining fixed-
 Add a const-kinded generic slot and a const-qualified ordinary parameter. Add explicit const functions whose bodies pass a restricted evaluator check.
 
 ```text
-struct Array[T, N < const usize]:  # hypothetical syntax
+struct Array[T, N < const usize]:
     storage: intrinsic_array[T, N]  # hypothetical syntax
 
 const fn compile_pattern(pattern: string) -> Regex:  # hypothetical syntax
@@ -241,7 +241,9 @@ The accepted direction is **typed const parameters and explicit const functions*
 2. Then add const value parameters and explicit const functions, excluding requirements, suspension, references, and host effects.
 3. Add frozen materialization only for immutable value graphs before promising `Regex::must_compile` or `Url::must_parse`.
 
-Building these slices is not scheduled and needs a separate go-ahead.
+Stage 1 is specified by [Const Generic Parameter Syntax](../../spec/lang/02-grammar.md#const-generic-parameter-syntax), [Const Generic Parameters](../../spec/lang/04-type-system.md#const-generic-parameters), and [Const Generic Arguments](../../spec/lang/04-type-system.md#const-generic-arguments).
+Its compiler work is split into the implementation slices recorded on issue #993.
+Stages 2 and 3 are not scheduled and need a separate go-ahead.
 
 This is less magical than unified comptime execution. It keeps declaration intent visible and gives diagnostics a stable function boundary.
 

@@ -1,0 +1,36 @@
+# test: each scalar const type is accepted and evaluated values define type identity
+# Spec 04 Const Generic Parameters and Arguments: types.generic.const.types, types.generic.const.named, types.generic.const.evaluate, types.generic.const.identity, types.generic.const.display.
+
+struct Signed8[N < const i8]: pass
+struct Signed16[N < const i16]: pass
+struct Signed32[N < const i32]: pass
+struct Signed64[N < const i64]: pass
+struct Unsigned8[N < const u8]: pass
+struct Unsigned16[N < const u16]: pass
+struct Unsigned32[N < const u32]: pass
+struct Unsigned64[N < const u64]: pass
+struct Size[N < const usize]: pass
+struct Flag[B < const bool]: pass
+struct Scalar[C < const char]: pass
+struct Text[S < const string]: pass
+
+WIDTH := 2 + 2
+
+fn scalar_types(
+    a: Signed8[-1],
+    b: Signed16[-1],
+    c: Signed32[-1],
+    d: Signed64[-1],
+    e: Unsigned8[1],
+    f: Unsigned16[1],
+    g: Unsigned32[1],
+    h: Unsigned64[1],
+    i: Size[1],
+    j: Flag[true],
+    k: Scalar['x'],
+    l: Text["x"],
+) -> void:
+    pass
+
+fn canonical(value: Size[WIDTH]) -> Size[4]:
+    value

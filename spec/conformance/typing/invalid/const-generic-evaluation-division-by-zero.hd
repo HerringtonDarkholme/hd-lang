@@ -1,0 +1,7 @@
+# test: division by zero during const argument evaluation is a compile-time error
+# Spec 04 Const Generic Arguments: types.generic.const.evaluate-failure, types.generic.const.evaluate-message.
+
+struct Byte[N < const i8]: pass
+
+fn division_by_zero() -> void:
+    let value: Byte[1i8 / 0i8] = panic("not run")  # diagnostic: const-evaluation-failed

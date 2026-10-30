@@ -1,0 +1,17 @@
+# test: an implementation for one const value does not satisfy another value
+# Spec 04 Const Generic Arguments: types.generic.const.impl-exact.
+
+trait Mark[N < const usize]:
+    fn marked(self) -> bool
+
+struct Four: pass
+
+impl Mark[4] for Four:
+    fn marked(self) -> bool:
+        true
+
+fn needs_five[T < Mark[5]](value: T) -> bool:
+    value.marked()
+
+fn mismatch(value: Four) -> bool:
+    needs_five(value)  # diagnostic: unsatisfied-trait-bound

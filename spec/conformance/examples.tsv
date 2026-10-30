@@ -57,7 +57,7 @@ lang/02-grammar.md	17	mixed	parse/invalid/row-alias-and-operator.hd
 lang/02-grammar.md	18	mixed	parse/invalid/associated-binding-outside-bound.hd
 lang/02-grammar.md	19	accept	parse/valid/type-argument-defaults.hd
 lang/02-grammar.md	20	mixed	parse/invalid/impl-generic-default.hd
-lang/02-grammar.md	21	mixed	parse/invalid/row-parameter-bound.hd|parse/invalid/lifetime-parameter-bound.hd
+lang/02-grammar.md	21	mixed	parse/invalid/row-parameter-bound.hd|parse/invalid/lifetime-parameter-bound.hd|parse/invalid/const-generic-parameter-default.hd|parse/valid/const-generic-parameter-positions.hd
 lang/02-grammar.md	22	mixed	parse/invalid/parenthesized-row.hd|parse/invalid/bare-row-list-in-type.hd
 lang/02-grammar.md	23	mixed	parse/invalid/row-subtraction.hd
 lang/02-grammar.md	24	mixed	typing/invalid/row-kind-mismatch.hd
@@ -181,7 +181,7 @@ lang/04-type-system.md	48	accept	typing/valid/collection-value-tagged.hd
 lang/04-type-system.md	49	mixed	typing/invalid/list-push-short-binding.hd|typing/invalid/list-store-plain-let.hd|typing/invalid/collection-identity.hd
 lang/04-type-system.md	50	accept	runtime/valid/map-value-field-write.hd|typing/valid/map-value-reference.hd
 lang/04-type-system.md	51	accept	typing/valid/generic-mutual-bounds.hd
-lang/04-type-system.md	52	mixed	typing/invalid/written-type-too-many-arguments.hd
+lang/04-type-system.md	52	mixed	typing/invalid/written-type-too-many-arguments.hd|typing/valid/const-generic-scalar-types-and-identity.hd|typing/invalid/const-generic-identity-mismatch.hd|typing/invalid/const-generic-runtime-dependent-argument.hd|typing/invalid/const-generic-symbolic-arithmetic.hd
 lang/04-type-system.md	53	mixed	typing/invalid/generic-inference-numeric-widening.hd|typing/invalid/generic-inference-trait-value.hd
 lang/04-type-system.md	54	accept	runtime/valid/generic-inference-explicit-conversions.hd|runtime/valid/generic-inference-literal-any-position.hd
 lang/04-type-system.md	55	accept	runtime/valid/bound-inference-user-trait.hd

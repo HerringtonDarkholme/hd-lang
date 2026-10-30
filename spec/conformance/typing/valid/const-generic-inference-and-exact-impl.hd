@@ -1,0 +1,24 @@
+# test: const arguments infer from argument types and exact values select implementations
+# Spec 04 Const Generic Arguments: types.generic.const.infer-argument-type, types.generic.const.impl-exact.
+
+trait Mark[N < const usize]:
+    fn marked(self) -> bool
+
+struct Fixed[T, N < const usize]:
+    value: T
+
+impl Mark[4] for Fixed[i32, 4]:
+    fn marked(self) -> bool:
+        true
+
+fn keep[T, N < const usize](value: Fixed[T, N]) -> Fixed[T, N]:
+    value
+
+fn inferred(value: Fixed[i32, 4]) -> Fixed[i32, 4]:
+    keep(value)
+
+fn exact[T < Mark[4]](value: T) -> bool:
+    value.marked()
+
+fn selected(value: Fixed[i32, 4]) -> bool:
+    exact(value)

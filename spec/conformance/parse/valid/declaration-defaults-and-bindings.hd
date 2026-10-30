@@ -1,5 +1,5 @@
 # test: parser accepts defaults, associated-type bindings and nested commas in declarations
-# Spec 02 Grammar: grammar.generic.default, grammar.scope.syntax, grammar.data.default, grammar.generic.binding.positions-key.reference-values, grammar.stmt.let-pattern, grammar.fn.semantic.
+# Spec 02 Grammar: grammar.generic.default.type-row, grammar.scope.syntax, grammar.data.default, grammar.generic.binding.positions-key.reference-values, grammar.stmt.let-pattern, grammar.fn.semantic.
 
 # generic default.
 pub trait Add[Rhs = Self]

@@ -586,7 +586,7 @@ trait     true      type      while
 
 ### Contextual Words
 
-r[lex.contextual.fixed] The following contextual words have special meaning
+r[lex.contextual.fixed.const-generic] The following contextual words have special meaning
 only in fixed positions:
 
 | Rule | Words | Position |
@@ -598,6 +598,7 @@ only in fixed positions:
 | r[lex.contextual.derive] Derive | `derive` | immediately after `@` |
 | r[lex.contextual.by-header] Delegation and derivation | `by` | after the target type of an implementation header, as in `impl Describe for Service by Logger` or `impl User by Structure`, without a trait |
 | r[lex.contextual.using-split] Using binding | `using` | at the start of a statement, before an optional glued `!` and a name on the same line, as [`grammar.stmt.using-split`](02-grammar.md#r-grammar.stmt.using-split) specifies |
+| r[lex.contextual.const-generic] Const generic parameter | `const` | after `<` in a generic parameter, before its declared scalar type |
 
 1. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn with() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
 2. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.

@@ -1300,9 +1300,9 @@ See also: [Snapshot Iteration](06-control-flow.md#snapshot-iteration),
 
 ## Generics
 
-This section defines generic parameters, bounds, arguments, and their runtime representation.
+This section defines generic parameters, bounds, arguments, and their compile-time and runtime representation.
 
-1. r[types.generic.complete] Generic type and function parameters denote complete types.
+1. r[types.generic.type-parameter.complete] A type parameter of a generic type, function, method, trait, or implementation denotes a complete type.
 2. r[types.generic.naming] By convention, generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`.
 3. r[types.generic.kind] The convention is style only: a parameter's kind comes from its declaration and use, never from the case of its name.
 
@@ -1311,6 +1311,28 @@ fn first[T](items: List[T]) -> T?:
     if items.len() == 0: .None
     else: .Some(items[0])
 ```
+
+### Const Generic Parameters
+
+1. r[types.generic.const.parameter] A const generic parameter denotes one compile-time scalar value of its declared type rather than a type.
+2. r[types.generic.const.types] Its declared type is one of `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `bool`, `char`, or `string`.
+3. r[types.generic.const.type-error] Any other declared type is an error. Error: `generic-kind-mismatch`.
+4. r[types.generic.const.positions] Const generic parameters have the same declaration positions and scopes as type parameters.
+5. r[types.generic.const.type-position] Inside a generic body, a const parameter may occur alone as a const argument in a type position, as `N` does in `Buffer[T, N]`.
+6. r[types.generic.const.no-runtime-value] Declaring a const parameter does not declare a runtime value with that name.
+7. r[types.generic.const.no-symbolic-arithmetic] Stage 1 has no symbolic const arithmetic, so a use such as `Buffer[T, N + 1]` is an error. Error: `nonconstant-generic-argument`.
+
+```hd
+struct Buffer[T, N < const usize]:
+    value: T
+
+fn keep[T, N < const usize](value: Buffer[T, N]) -> Buffer[T, N]:
+    value
+```
+
+> **Why.** Scalar values have stable equality and need no compile-time heap.
+> Restricting a parameter to a bare type argument avoids choosing an
+> algebra for symbolic expressions in stage 1.
 
 ### Bound Order
 
@@ -1376,7 +1398,63 @@ See also: [Function And Closure Scopes](03-names-and-scopes.md#function-and-clos
 ```text
 fn count(names: List[string, i32]) -> i32:  # error: argument-count
     0
+
+struct Fixed[T, N < const usize]:
+    value: T
+
+WIDTH := 2 + 2
+
+fn canonical(value: Fixed[i32, WIDTH]) -> Fixed[i32, 4]:
+    value
+
+fn different(value: Fixed[i32, 4]) -> Fixed[i32, 5]:
+    value  # error: type-mismatch
+
+fn runtime_value(n: usize, value: Fixed[i32, 4]) -> void:
+    let bad: Fixed[i32, n] = value  # error: nonconstant-generic-argument
+
+fn symbolic[N < const usize](value: Fixed[i32, N + 1]) -> void:  # error: nonconstant-generic-argument
+    pass
 ```
+
+### Const Generic Arguments
+
+1. r[types.generic.const.argument] A const generic argument is either a closed const expression or one bare const parameter allowed by [`types.generic.const.type-position`](#r-types.generic.const.type-position).
+2. r[types.generic.const.closed] A **closed const expression** is a literal, a named top-level constant, or an allowed scalar operator whose operands are recursively closed const expressions.
+3. r[types.generic.const.named] A top-level `:=` binding is a named top-level constant when its initializer is closed. Every referenced binding must recursively qualify too.
+4. r[types.generic.const.operators] Allowed operators are built-in primitive unary and binary operators whose operands and result have allowed const types.
+5. r[types.generic.const.operator-set] They are integer arithmetic, bitwise operations, shifts, comparisons, boolean logic, and string `+`.
+6. r[types.generic.const.short-circuit] Const evaluation of `&&` and `||` short-circuits, so an unevaluated right operand causes no evaluation failure.
+7. r[types.generic.const.no-cast-or-trait] Casts and user trait operators are not const operations in stage 1, even when all their inputs are closed.
+8. r[types.generic.const.evaluate] The compiler evaluates a closed const argument while checking its use, using the parameter's declared type.
+9. r[types.generic.const.evaluate-failure] Overflow, division by zero, or an invalid shift during that evaluation is an error on the argument expression. Error: `const-evaluation-failed`.
+10. r[types.generic.const.evaluate-message] A `const-evaluation-failed` diagnostic names the failure as overflow, division by zero, or invalid shift.
+11. r[types.generic.const.nonconstant] A runtime-dependent argument, a cast, a user trait operation, or a symbolic expression over a const parameter is an error on that argument. Error: `nonconstant-generic-argument`.
+12. r[types.generic.const.nonconstant-message] A `nonconstant-generic-argument` diagnostic says whether the expression depends on runtime data, uses symbolic const arithmetic, or contains an operation unavailable to const evaluation.
+13. r[types.generic.const.identity] The evaluated value and its declared type determine const identity. Thus `Fixed[i32, 2 + 2]` equals `Fixed[i32, 4]`, but not `Fixed[i32, 5]`.
+14. r[types.generic.const.display] A const argument in a displayed type uses its evaluated canonical literal spelling: decimal integers, `true` or `false`, and escaped character or string literals.
+15. r[types.generic.const.infer-argument-type] Call-site inference may solve a const parameter by matching an argument's type against a parameter type that contains the const parameter.
+16. r[types.generic.const.no-runtime-inference] A runtime argument value never solves a const parameter, even when its value is a literal.
+17. r[types.generic.const.infer-unsolved] A const parameter left unsolved by argument types is an error unless the caller supplies it explicitly. Error: `cannot-infer-type`.
+18. r[types.generic.const.impl-exact] Trait and inherent implementation selection matches const arguments by their exact evaluated value and declared type.
+
+For example, `Byte[127i8 + 1i8]`, `Byte[1i8 / 0i8]`, and
+`Byte[1i8 << 8i8]` report `const-evaluation-failed` for overflow, division
+by zero, and an invalid shift, respectively.
+
+```hd
+struct Fixed[N < const usize]:
+    value: i32
+
+WIDTH := 2 + 2
+
+fn canonical(value: Fixed[WIDTH]) -> Fixed[4]:
+    value
+```
+
+> **Why.** Evaluating closed expressions gives `2 + 2` one stable identity
+> without admitting general compile-time execution. Argument-type-only
+> inference makes a const value visible in the source type that proves it.
 
 ### Inference From Several Arguments
 
@@ -1589,7 +1667,7 @@ fn small() -> i32:
     narrow
 ```
 
-1. r[types.generic.default.form] A generic parameter of a function, method, struct, enum, trait, or `type` declaration may declare a default.
+1. r[types.generic.default.type-row] A type or row parameter of a function, method, struct, enum, trait, or `type` declaration may declare a default.
 2. r[types.generic.default.order] After the first parameter with a default, every later parameter of the same list must have one. A later parameter without one is an error. Error: `default-order`.
 3. r[types.generic.default.scope] A default may name earlier parameters of the same list, the parameters of an enclosing declaration, and `Self` where `Self` is in scope.
 4. r[types.generic.default.later] A default that names its own parameter or a later one is an error. Error: `binding-not-yet-visible`.
@@ -1654,6 +1732,8 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
 12. r[types.generic.call-cycle.projection] A type argument does not hold a type parameter that occurs only inside a projection, such as `P.Item`.
 13. r[types.limit.type-size] An implementation may limit the size of one type, counted in the types it is built from. The limit is implementation-defined.
 14. r[types.limit.type-size.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
+15. r[types.generic.const.runtime] A const generic argument contributes to compile-time identity and specialization keys but does not add a runtime parameter by itself.
+16. r[types.generic.const.interfaces] Package interfaces preserve const parameter declarations, evaluated const arguments, and generic bodies needed by downstream compilation.
 
 ```hd
 fn first[T](items: List[T]) -> T?:
@@ -1720,7 +1800,7 @@ fn demo(u: &User) -> i32:
 4. r[types.lifetime.unique] A lifetime parameter that reuses the name of a lifetime parameter in scope is an error. Error: `duplicate-binding`.
 5. r[types.lifetime.unknown] A lifetime written in a declaration's header or fields must name a lifetime parameter in scope. Error: `unknown-lifetime`.
 6. r[types.lifetime.free-order] Lifetime parameters and type parameters may appear in any order in a generic parameter list, and the order has no meaning.
-7. r[types.lifetime.arguments] Explicit type arguments, as in `pick::[i32](x, y)`, fill only the type parameters, and a lifetime parameter takes no explicit argument.
+7. r[types.lifetime.arguments.type-const] Explicit generic arguments, as in `pick::[i32, 4](x, y)`, fill type and const parameters, while a lifetime parameter takes no explicit argument.
 8. r[types.lifetime.static] `'static` is a reserved lifetime name. A generic list that declares it is an error. Error: `syntax-error`. It is written as a type parameter's bound, as [Generic Locality](13-values-and-references.md#generic-locality) states.
 
 9. r[types.lifetime.convention] By convention, type parameters come first, as in `fn f[T, 'a]`. A lifetime parameter written before a type parameter produces a lint finding. Warning: `lifetime-order`.

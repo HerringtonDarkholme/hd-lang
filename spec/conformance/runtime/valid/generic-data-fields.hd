@@ -1,5 +1,5 @@
 # test: generic data fields
-# Spec 04 Generics: types.generic.complete, types.generic.naming,
+# Spec 04 Generics: types.generic.type-parameter.complete, types.generic.naming,
 # types.generic.kind, types.generic.explicit,
 # types.generic.sharing, types.generic.interfaces,
 # types.generic.identity.primitive.

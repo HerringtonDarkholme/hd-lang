@@ -1,0 +1,7 @@
+# test: a runtime-dependent expression is not a const generic argument
+# Spec 04 Const Generic Arguments: types.generic.const.nonconstant, types.generic.const.nonconstant-message.
+
+struct Fixed[N < const usize]: pass
+
+fn runtime_value(n: usize) -> void:
+    let value: Fixed[n] = panic("not run")  # diagnostic: nonconstant-generic-argument

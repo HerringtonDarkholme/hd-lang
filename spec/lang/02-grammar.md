@@ -700,15 +700,19 @@ function_generic_params = "[", function_generic_parameter,
 
 type_parameter = [ variance ], identifier, [ "<", trait_bounds ],
                  [ type_default ]
+               | const_parameter_decl
                | row_parameter_decl, [ type_default ]
                | lifetime ;
 generic_parameter = identifier, [ "<", trait_bounds ]
+                  | const_parameter_decl
                   | row_parameter_decl
                   | lifetime ;
 row_parameter_decl = "$", identifier ;
 function_generic_parameter = identifier, [ "<", trait_bounds ], [ type_default ]
+                           | const_parameter_decl
                            | row_parameter_decl, [ type_default ]
                            | lifetime ;
+const_parameter_decl = identifier, "<", "const", type ;
 type_default = "=", type_argument ;
 variance = "+" | "-" ;
 
@@ -724,6 +728,24 @@ bound_type_argument_list = type_argument, { ",", type_argument },
 associated_type_binding = identifier, "=", type ;
 trait_type = qualified_name, [ type_arguments ] ;
 ```
+
+### Const Generic Parameter Syntax
+
+1. r[grammar.generic.const.declaration] A const generic parameter writes its name, `< const`, and its declared type, as in `N < const usize`.
+2. r[grammar.generic.const.positions] A const generic parameter may occur in the generic parameter list of a struct, enum, trait, `type` declaration, function, method, or implementation.
+3. r[grammar.generic.const.no-default] A const generic parameter takes no default in stage 1, so `N < const usize = 4` is an error. Error: `syntax-error`.
+4. r[grammar.generic.const.argument] A positional generic argument may be an expression when its corresponding parameter is const.
+
+```hd
+struct Fixed[T, N < const usize]:
+    value: T
+
+fn keep[T, N < const usize](value: Fixed[T, N]) -> Fixed[T, N]:
+    value
+```
+
+> **Why.** The `const` marker distinguishes a value slot from a type slot.
+> The declared type fixes evaluation and identity before specialization.
 
 ### Multiple Bounds
 
@@ -790,7 +812,7 @@ fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
     source.get()
 ```
 
-1. r[grammar.generic.default] A `type_default` may end a generic parameter of a struct, enum, trait, `type` declaration, function, or method, after any bound.
+1. r[grammar.generic.default.type-row] A `type_default` may end a type or row parameter of a struct, enum, trait, `type` declaration, function, or method, after any bound.
 2. r[grammar.generic.default.binding] A binding sits inside a bound trait's brackets, while a default follows them at the level of the parameter list. `I < Supplier[Item = T] = Constant` has both.
 3. r[grammar.generic.default.impl] The generic parameters of an implementation use `generic_params`, which has no default. A default there is an error. Error: `syntax-error`.
 4. r[grammar.generic.default.semantic] Default order, the names a default may use, and when it applies are semantic rules of [Type-Argument Defaults](04-type-system.md#type-argument-defaults).
@@ -820,6 +842,15 @@ fn run[$R < Log](job: fn() -> void $ R) -> void $ R:  # error: syntax-error
     job()
 
 fn first['a < Log](x: &'a i32) -> void: pass  # error: syntax-error
+
+struct Fixed[N < const usize]:
+    value: i32
+
+fn const(value: i32) -> i32:
+    value
+
+struct Defaulted[N < const usize = 4]:  # error: syntax-error
+    value: i32
 ```
 
 See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
@@ -854,8 +885,10 @@ dyn_type = "dyn", bound_trait_type ;
 type_arguments = "[", type_argument, { ",", type_argument }, [ "," ], "]" ;
 type_argument = type
               | row_type_argument
+              | const_argument
               ;
 row_type_argument = "$", requirement_row ;
+const_argument = expression ;
 
 tuple_type = "(", ")"
            | "(", type, ",", [ type_list ], ")"

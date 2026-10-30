@@ -1,0 +1,7 @@
+# test: a cast is not a stage-1 const operation
+# Spec 04 Const Generic Arguments: types.generic.const.no-cast-or-trait, types.generic.const.nonconstant.
+
+struct Fixed[N < const usize]: pass
+
+fn cast() -> void:
+    let value: Fixed[usize(4)] = panic("not run")  # diagnostic: nonconstant-generic-argument

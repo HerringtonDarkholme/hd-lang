@@ -1,5 +1,5 @@
 # test: lifetime parameters follow the type parameters, and explicit type arguments fill only the type parameters
-# Spec 04 Lifetime Parameters: types.lifetime.convention, types.lifetime.arguments.
+# Spec 04 Lifetime Parameters: types.lifetime.convention, types.lifetime.arguments.type-const.
 fn first[T, 'a](x: &'a T, y: &'a T) -> &'a T:
     x
 
