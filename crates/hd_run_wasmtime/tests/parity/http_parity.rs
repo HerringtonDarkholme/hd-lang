@@ -26,6 +26,10 @@ fn request(
     }
     e = e.bytes(body);
     e = e.leb(redirects.unwrap_or(10));
+    // No transport setting: no resolver, roots or identity, and no phase timeout.
+    for _ in 0..7 {
+        e = e.leb(0);
+    }
     e.0
 }
 

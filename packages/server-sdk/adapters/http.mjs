@@ -83,6 +83,22 @@ function decodedFetchResponse(response) {
   });
 }
 
+// Fetch exposes no resolver, TLS roots or identity, or phase timer, so the
+// first transport setting a derived provider changed is refused before any
+// work, in the order every host reports them (std-http.settings.host-support).
+export function changedSetting(request) {
+  const settings = [
+    ["resolver", request.dns_servers != null],
+    ["tls.roots", (request.tls_roots?.length ?? 0) > 0],
+    ["tls.identity", request.tls_identity != null],
+    ["connect_timeout", request.connect_timeout != null],
+    ["tls_handshake_timeout", request.tls_handshake_timeout != null],
+    ["response_header_timeout", request.response_header_timeout != null],
+    ["body_read_timeout", request.body_read_timeout != null],
+  ];
+  return settings.find(([, changed]) => changed)?.[0] ?? null;
+}
+
 export function createHttpClient(
   lease,
   { grant, isAsciiUrl, writtenHost, fetch: fetcher = globalThis.fetch, timeoutMs = 30000 },
@@ -99,6 +115,8 @@ export function createHttpClient(
           controller.abort();
         }, timeoutMs);
         const run = async () => {
+          const unsupported = changedSetting(request);
+          if (unsupported !== null) return error("UnsupportedSetting", { name: unsupported });
           let method =
             request.method.tag === "Other"
               ? request.method.fields.name

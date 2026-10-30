@@ -13,6 +13,16 @@ export interface BrowserRequest {
   body: Uint8Array;
   /** Milliseconds, or `null` for none. */
   timeout: number | null;
+  /** A derived provider's transport settings, which the browser refuses. */
+  settings?: {
+    dnsServers: string[] | null;
+    tlsRoots: string[];
+    tlsIdentity: { certificateChain: string; privateKey: string } | null;
+    connectTimeout: number | null;
+    tlsHandshakeTimeout: number | null;
+    responseHeaderTimeout: number | null;
+    bodyReadTimeout: number | null;
+  };
 }
 
 export type BrowserAnswer =

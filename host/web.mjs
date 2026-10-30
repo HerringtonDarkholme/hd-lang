@@ -11,7 +11,13 @@
 // call synchronously, so `send` uses a synchronous `XMLHttpRequest`, which a
 // worker still allows.
 
-import { createCoreHost, httpProvider, isAsciiUrl, writtenHost } from "./core.mjs";
+import {
+  createCoreHost,
+  httpProvider,
+  isAsciiUrl,
+  unsupportedSetting,
+  writtenHost,
+} from "./core.mjs";
 import { createSession } from "./session.mjs";
 
 // The text of a request the browser refused (std-http.playground.refused).
@@ -29,13 +35,17 @@ const headerPairs = (text) =>
     });
 
 // Sends one request with the browser: `{ method, url, headers, body,
-// redirects, timeout }`, with `body` a `Uint8Array` and `timeout` milliseconds or
+// redirects, timeout, settings }`, with `body` a `Uint8Array` and `timeout` milliseconds or
 // `null`. The answer is the Node client's shape (http.mjs): `{ status,
 // headers, body }`, or `{ error, text }` with an `HttpError` variant name. A
 // URL of another origin is `NotGranted(host)`
 // (std-http.playground.other-origin), and a request the browser refuses is
 // `Connect` (std-http.playground.refused).
-export function browserSend({ method, url, headers, body, redirects, timeout }) {
+export function browserSend({ method, url, headers, body, redirects, timeout, settings }) {
+  // XHR exposes no resolver, TLS identity or phase timer, so every
+  // transport setting is refused before any work (std-http.settings.host-support).
+  const refused = unsupportedSetting(settings);
+  if (refused) return refused;
   let parsed;
   try {
     if (!isAsciiUrl(url)) return { error: "InvalidUrl", text: url };

@@ -1,0 +1,5 @@
+# test: Identity has no Debug, so diagnostics cannot print its key
+use std.http.Identity
+
+fn show(identity: Identity) -> string:
+    debug(identity) # diagnostic: unsatisfied-trait-bound

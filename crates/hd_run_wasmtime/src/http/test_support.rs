@@ -63,6 +63,10 @@ pub(crate) fn request(
     e.leb(7).str(method).str(url);
     headers.enc(&mut e);
     e.bytes(body).leb(redirects as u64);
+    // No transport setting: no resolver, roots or identity, and no phase timeout.
+    for _ in 0..7 {
+        e.leb(0);
+    }
     e
 }
 

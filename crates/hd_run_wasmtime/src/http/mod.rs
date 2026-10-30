@@ -29,6 +29,7 @@ pub(crate) mod request;
 pub(crate) mod target;
 #[cfg(test)]
 pub(crate) mod test_support;
+pub(crate) mod tls;
 
 /// Exchange headers: name and value pairs.
 pub(crate) type Headers = Vec<(String, String)>;

@@ -1,0 +1,81 @@
+# test: transport setting values validate literal DNS servers and PEM structure, and their errors display
+# Spec std/http Transport Settings: std-http.settings.dns-servers, std-http.settings.dns-servers.literal, std-http.settings.dns-servers.invalid, std-http.settings.certificate, std-http.settings.identity, std-http.settings.identity.key-labels, std-http.settings.identity.invalid, std-http.settings.pem, std-http.settings.config-error.
+# Also covers std-http.settings.value-traits, std-http.settings.config-error.traits, std-http.error.unsupported-setting, std-http.error.unsupported-setting-display, std-http.error.permanent-kinds.
+# expect: test
+use std.http.{Certificate, DnsResolver, HttpConfigError, HttpError, Identity, dns_servers}
+
+fn pem(label: string, body: string) -> string:
+    ["-----BEGIN ${label}-----", body, "-----END ${label}-----", ""].join("\n")
+
+fn accepted(server: string) -> bool:
+    dns_servers([server]).is_ok()
+
+fn certificate_ok(text: string) -> bool:
+    Certificate::from_pem(text).is_ok()
+
+fn identity_ok(chain: string, key: string) -> bool:
+    Identity::from_pem(chain, key).is_ok()
+
+tests:
+    use std.testing.assert_equal
+
+    it("DNS servers are literal IP addresses"):
+        for server in ["10.0.0.2", "255.255.255.255", "::1", "fe80::1", "2001:db8::10.0.0.1"]:
+            assert_equal(accepted(server), true, reason=server)
+        for server in ["example.com", "10.0.0.256", "010.0.0.1", "10.0.0", "[::1]", "10.0.0.2:53", "fe80::1%en0", ""]:
+            assert_equal(accepted(server), false, reason=server)
+        assert_equal(
+            dns_servers(["10.0.0.2", "bad", "worse"]),
+            .Err(HttpConfigError.InvalidDnsServer("bad")),
+            reason="the first invalid entry",
+        )
+        assert_equal(dns_servers(["::1"]), dns_servers(["::1"]), reason="Eq")
+        let resolver: Result[DnsResolver, HttpConfigError] = dns_servers([])
+        assert_equal(resolver.is_ok(), true, reason="no entry is invalid")
+
+    it("a certificate is exactly one CERTIFICATE block"):
+        root := pem("CERTIFICATE", "AQIDBA==")
+        assert_equal(certificate_ok(root), true, reason="one block")
+        assert_equal(certificate_ok("\n${root}\n"), true, reason="blank lines around it")
+        assert_equal(certificate_ok(pem("CERTIFICATE", "AQID\nBA==")), true, reason="wrapped body")
+        assert_equal(certificate_ok("${root}${root}"), false, reason="two blocks")
+        assert_equal(certificate_ok(pem("PRIVATE KEY", "AQIDBA==")), false, reason="another label")
+        assert_equal(certificate_ok(pem("CERTIFICATE", "not base64")), false, reason="bad body")
+        assert_equal(certificate_ok(pem("CERTIFICATE", "")), false, reason="empty body")
+        assert_equal(certificate_ok("note\n${root}"), false, reason="text outside a block")
+        assert_equal(certificate_ok(root.replace("-----END CERTIFICATE-----", "")), false, reason="unclosed")
+        assert_equal(
+            Certificate::from_pem(root),
+            Certificate::from_pem(root),
+            reason="Eq",
+        )
+
+    it("an identity is a certificate chain and one private key"):
+        cert := pem("CERTIFICATE", "AQIDBA==")
+        for label in ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"]:
+            assert_equal(identity_ok(cert, pem(label, "BQYHCA==")), true, reason=label)
+        key := pem("PRIVATE KEY", "BQYHCA==")
+        assert_equal(identity_ok("${cert}${cert}", key), true, reason="a two-certificate chain")
+        assert_equal(identity_ok("", key), false, reason="no chain")
+        assert_equal(identity_ok(key, key), false, reason="a key as the chain")
+        assert_equal(identity_ok(cert, "${key}${key}"), false, reason="two keys")
+        assert_equal(identity_ok(cert, pem("ENCRYPTED PRIVATE KEY", "BQYHCA==")), false, reason="encrypted")
+        match Identity::from_pem(cert, cert):
+            .Ok(_) => panic("expected InvalidIdentity")
+            .Err(error) => assert_equal(error, HttpConfigError.InvalidIdentity, reason="the error")
+
+    it("setting errors display"):
+        assert_equal(
+            HttpConfigError.InvalidDnsServer("bad").to_string(),
+            "invalid DNS server: bad",
+            reason="DNS",
+        )
+        assert_equal(HttpConfigError.InvalidCertificate.to_string(), "invalid PEM certificate")
+        assert_equal(HttpConfigError.InvalidIdentity.to_string(), "invalid PEM client identity")
+        unsupported := HttpError.UnsupportedSetting("tls.roots")
+        assert_equal(
+            unsupported.to_string(),
+            "HTTP setting is not supported by this host: tls.roots",
+            reason="display",
+        )
+        assert_equal(unsupported.is_transient(), false, reason="not transient")

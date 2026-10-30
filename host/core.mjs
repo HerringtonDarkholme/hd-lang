@@ -491,8 +491,54 @@ function testRunnerProvider({ env, st, files }) {
   };
 }
 
+// A wire request's transport settings (std-http.settings.*): `dnsServers`
+// is `null` or the literal addresses, `tlsRoots` the extra PEM roots,
+// `tlsIdentity` `null` or `{ certificateChain, privateKey }`, and each
+// timeout `null` or whole milliseconds.
+export const httpSettings = (r) => {
+  const ms = (duration) => (duration == null ? null : Number(duration.millis));
+  return {
+    dnsServers: r.dns_servers ?? null,
+    tlsRoots: r.tls_roots ?? [],
+    tlsIdentity:
+      r.tls_identity == null
+        ? null
+        : {
+            certificateChain: r.tls_identity.certificate_chain,
+            privateKey: r.tls_identity.private_key,
+          },
+    connectTimeout: ms(r.connect_timeout),
+    tlsHandshakeTimeout: ms(r.tls_handshake_timeout),
+    responseHeaderTimeout: ms(r.response_header_timeout),
+    bodyReadTimeout: ms(r.body_read_timeout),
+  };
+};
+
+// The stable name of each setting a request changes from the host default,
+// in a fixed order (std-http.settings.unsupported-name).
+export const changedSettings = (settings) =>
+  [
+    ["resolver", settings?.dnsServers != null],
+    ["tls.roots", (settings?.tlsRoots?.length ?? 0) > 0],
+    ["tls.identity", settings?.tlsIdentity != null],
+    ["connect_timeout", settings?.connectTimeout != null],
+    ["tls_handshake_timeout", settings?.tlsHandshakeTimeout != null],
+    ["response_header_timeout", settings?.responseHeaderTimeout != null],
+    ["body_read_timeout", settings?.bodyReadTimeout != null],
+  ]
+    .filter(([, changed]) => changed)
+    .map(([name]) => name);
+
+// The preflight refusal of a host that honours only the settings named in
+// `supported`: `{ error: "UnsupportedSetting", text }` for the first other
+// changed setting, or `null` (std-http.settings.preflight).
+export const unsupportedSetting = (settings, supported = []) => {
+  const name = changedSettings(settings).find((each) => !supported.includes(each));
+  return name === undefined ? null : { error: "UnsupportedSetting", text: name };
+};
+
 // `hd:Http` over `send`, a client that takes `{ method, url, headers,
-// body, redirects }` and answers
+// body, redirects, settings }` and answers
 // `{ status, headers, body, url }`, or `{ error, text }` with an `HttpError`
 // variant's name and text: http.mjs's thread on Node, `browserSend` in the
 // browser (std-http.send.*).
@@ -506,6 +552,7 @@ export function httpProvider(send) {
         headers: r.headers,
         body: r.body,
         redirects: r.redirects,
+        settings: httpSettings(r),
       });
       const result = (answer) =>
         answer.error ? Err(variant(HttpError, answer.error, answer.text)) : Ok(answer);

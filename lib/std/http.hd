@@ -13,7 +13,8 @@ use std.format.DebugWriter
 use std.json.{JsonError, decode, encode}
 use std.serde.{Deserialize, Serialize, Serializer, Deserializer, ValueKind, member_name}
 use std.structure.{Facts, VariantInfo, Member}
-use std.http_wire.{Http as WireHttp, WireRequest, WireResponse, WireHttpError}
+use std.http_wire.{Http as WireHttp, WireIdentity, WireRequest, WireResponse, WireHttpError}
+use std.encoding.Base64
 
 ## A standard HTTP status or another numeric code.
 @derive(Debug)
@@ -1853,18 +1854,7 @@ fn url_host_valid(host: &string) -> bool:
                 if !url_unreserved(byte) && !url_subdelimiter(byte) && byte != 58:
                     return false
             return true
-        match address.split_once("::"):
-            .Some((left, right)) =>
-                if right.contains("::"):
-                    return false
-                before := match url_ipv6_groups(&left, false):
-                    .Some(count) => count
-                    .None => return false
-                after := match url_ipv6_groups(&right, true):
-                    .Some(count) => count
-                    .None => return false
-                return before + after < 8
-            .None => return url_ipv6_groups(&address, true) == .Some(8)
+        return url_ipv6(&address)
     let at = 0
     while at < bytes.len():
         byte := bytes[at]
@@ -1881,6 +1871,21 @@ fn url_host_valid(host: &string) -> bool:
                 return false
             at += 1
     true
+
+# An IPv6 address as RFC 3986 writes it inside brackets, without them.
+fn url_ipv6(address: &string) -> bool:
+    match address.split_once("::"):
+        .Some((left, right)) =>
+            if right.contains("::"):
+                return false
+            before := match url_ipv6_groups(&left, false):
+                .Some(count) => count
+                .None => return false
+            after := match url_ipv6_groups(&right, true):
+                .Some(count) => count
+                .None => return false
+            before + after < 8
+        .None => url_ipv6_groups(address, true) == .Some(8)
 
 fn url_ipv6_groups(text: &string, ipv4: bool) -> usize?:
     if text.is_empty():
@@ -2439,7 +2444,7 @@ impl Response:
         if code >= 400 && code <= 599: .Err(.Status(*self)) else: .Ok(*self)
 
 ## Why a request failed, including transport, content-decoding and response-size failures.
-## See [std-http.error.decl-decoded-response-errors](../../spec/std/http.md#r-std-http.error.decl-decoded-response-errors).
+## See [std-http.error.decl-unsupported-setting](../../spec/std/http.md#r-std-http.error.decl-unsupported-setting).
 @error
 @derive(Debug, Eq)
 pub enum HttpError:
@@ -2472,6 +2477,8 @@ pub enum HttpError:
     InvalidContentEncoding(encoding: string)
     @error("the decoded HTTP response exceeds 64 MiB")
     OutputTooLarge
+    @error("HTTP setting is not supported by this host: ${name}")
+    UnsupportedSetting(name: string)
 
 impl From[BodyError] for HttpError:
     fn from(error: BodyError) -> HttpError:
@@ -2506,21 +2513,184 @@ fn status_url(url: string) -> string:
     without_query := url.split_once("?").map(fn(parts): parts._0).unwrap_or(url)
     without_query.split_once("#").map(fn(parts): parts._0).unwrap_or(without_query)
 
+## A validated list of literal DNS server addresses for a derived host provider.
+## See [std-http.settings.dns-servers](../../spec/std/http.md#r-std-http.settings.dns-servers).
+@derive(Debug, Eq)
+pub struct DnsResolver:
+    servers: List[string]
+
+## Validates each server as a literal IPv4 or IPv6 address.
+## See [std-http.settings.dns-servers](../../spec/std/http.md#r-std-http.settings.dns-servers).
+pub fn dns_servers(servers: List[string]) -> Result[DnsResolver, HttpConfigError]:
+    for server in servers:
+        if !url_ipv4(&server) && !url_ipv6(&server):
+            return .Err(.InvalidDnsServer(server))
+    .Ok(DnsResolver { servers: servers })
+
+## One PEM certificate that extends the host's trusted roots.
+## See [std-http.settings.certificate](../../spec/std/http.md#r-std-http.settings.certificate).
+@derive(Debug, Eq)
+pub struct Certificate:
+    pem: string
+
+impl Certificate:
+    ## Checks that the text is exactly one PEM `CERTIFICATE` block.
+    ## See [std-http.settings.certificate](../../spec/std/http.md#r-std-http.settings.certificate).
+    pub fn from_pem(pem: string) -> Result[Certificate, HttpConfigError]:
+        labels := pem_labels(&pem).unwrap_or([])
+        if labels != ["CERTIFICATE"]:
+            return .Err(.InvalidCertificate)
+        .Ok(Certificate { pem: pem })
+
+# Debug, Eq and serde are deliberately absent, so no diagnostic or
+# encoding can print the key material.
+## A PEM client certificate chain and its PEM private key, for mutual TLS.
+## See [std-http.settings.identity](../../spec/std/http.md#r-std-http.settings.identity).
+pub struct Identity:
+    certificate_chain: string
+    private_key: string
+
+impl Identity:
+    ## Checks a PEM certificate chain and one PEM private key.
+    ## See [std-http.settings.identity](../../spec/std/http.md#r-std-http.settings.identity).
+    pub fn from_pem(
+        certificate_chain: string,
+        private_key: string,
+    ) -> Result[Identity, HttpConfigError]:
+        chain := pem_labels(&certificate_chain).unwrap_or([])
+        let chain_valid = !chain.is_empty()
+        for label in chain:
+            if label != "CERTIFICATE":
+                chain_valid = false
+        key := pem_labels(&private_key).unwrap_or([])
+        key_valid := (
+            key == ["PRIVATE KEY"] || key == ["RSA PRIVATE KEY"] || key == ["EC PRIVATE KEY"]
+        )
+        if !chain_valid || !key_valid:
+            return .Err(.InvalidIdentity)
+        .Ok(Identity { certificate_chain: certificate_chain, private_key: private_key })
+
+## Why a transport setting could not be constructed.
+## See [std-http.settings.config-error](../../spec/std/http.md#r-std-http.settings.config-error).
+@error
+@derive(Debug, Eq)
+pub enum HttpConfigError:
+    @error("invalid DNS server: ${server}")
+    InvalidDnsServer(server: string)
+    @error("invalid PEM certificate")
+    InvalidCertificate
+    @error("invalid PEM client identity")
+    InvalidIdentity
+
+# The labels of the RFC 7468 blocks that make up the whole text, in order,
+# or `.None` when anything but blank lines lies outside a block or a block
+# body is not nonempty padded base64.
+fn pem_labels(text: &string) -> List[string]?:
+    let mut labels: List[string] = []
+    let open: string? = .None
+    let mut body = StringBuilder::new()
+    for raw in text.lines():
+        line := raw.trim()
+        match open:
+            .None =>
+                if line.is_empty():
+                    continue
+                if !line.starts_with("-----BEGIN ") || !line.ends_with("-----") || line.len() <= 16:
+                    return .None
+                open = .Some(line.slice(11, line.len() - 5))
+                body = StringBuilder::new()
+            .Some(label) =>
+                if line == "-----END ${label}-----":
+                    match Base64.Standard.decode(body.build()):
+                        .Ok(bytes) if !bytes.is_empty() => labels.push(label)
+                        _ => return .None
+                    open = .None
+                else:
+                    body.push(line)
+    if open.is_some():
+        return .None
+    .Some(labels)
+
 # The host capability to send a request (r-std-http.trait.decl-borrowed-request).
 ## The host capability to send an HTTP request and complete with the whole response.
 ## See [std-http.trait.decl-borrowed-request](../../spec/std/http.md#r-std-http.trait.decl-borrowed-request).
 pub trait Http:
     fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]
 
+    ## A new provider that resolves host names with these DNS servers.
+    ## See [std-http.settings.resolver](../../spec/std/http.md#r-std-http.settings.resolver).
+    fn resolver(&self, _resolver: DnsResolver) -> *mut dyn Http:
+        unsupported("resolver")
+
+    ## A new provider whose TLS adds these trusted roots and presents this client identity.
+    ## See [std-http.settings.tls.extend](../../spec/std/http.md#r-std-http.settings.tls.extend).
+    fn tls(&self, roots: List[Certificate] = [], identity: Identity? = .None) -> *mut dyn Http:
+        if !roots.is_empty():
+            return unsupported("tls.roots")
+        if identity.is_some():
+            return unsupported("tls.identity")
+        unsupported("tls.roots")
+
+    ## A new provider that bounds DNS lookup and TCP connection on each redirect hop.
+    ## See [std-http.settings.phase-timeouts](../../spec/std/http.md#r-std-http.settings.phase-timeouts).
+    fn connect_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("connect_timeout")
+
+    ## A new provider that bounds the TLS handshake on each HTTPS redirect hop.
+    ## See [std-http.settings.phase-timeouts](../../spec/std/http.md#r-std-http.settings.phase-timeouts).
+    fn tls_handshake_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("tls_handshake_timeout")
+
+    ## A new provider that bounds the wait for complete response headers on each redirect hop.
+    ## See [std-http.settings.phase-timeouts](../../spec/std/http.md#r-std-http.settings.phase-timeouts).
+    fn response_header_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("response_header_timeout")
+
+    ## A new provider that bounds reading the whole response body on each redirect hop.
+    ## See [std-http.settings.phase-timeouts](../../spec/std/http.md#r-std-http.settings.phase-timeouts).
+    fn body_read_timeout(&self, _limit: Duration) -> *mut dyn Http:
+        unsupported("body_read_timeout")
+
+# What a trait default derives: a provider that refuses every send and
+# never calls the provider it came from (r-std-http.settings.default-unsupported).
+struct UnsupportedHttp:
+    name: string
+
+impl Http for UnsupportedHttp:
+    fn send!(&mut self, _request: &Request, _redirects: usize) -> Result[Response, HttpError]:
+        .Err(.UnsupportedSetting(self.name))
+
+fn unsupported(name: string) -> *mut dyn Http:
+    # Boxed because the derived provider outlives the call that made it.
+    box(UnsupportedHttp { name: name })
+
 # The compiler installs this ordinary HD adapter around either a default
 # wire provider or a package host's returned Http handle. W is the raw
 # wire trait value; only its retained reference escapes into the adapter.
 pub fn host_provider[W < WireHttp & 'static](wire: W) -> *mut dyn Http:
     # Both boxes escape: the returned trait provider retains its erased wire provider.
-    box(HostHttp { wire: box(wire) })
+    box(HostHttp { wire: box(wire), settings: HostSettings {} })
+
+# A host provider's transport settings; each derived provider holds its own
+# copy, so no setting call changes the provider it was called on.
+struct HostSettings:
+    dns_servers: List[string]? = .None
+    tls_roots: List[string] = []
+    tls_identity: Identity? = .None
+    connect_timeout: Duration? = .None
+    tls_handshake_timeout: Duration? = .None
+    response_header_timeout: Duration? = .None
+    body_read_timeout: Duration? = .None
 
 struct HostHttp:
     wire: *mut dyn WireHttp
+    settings: HostSettings
+
+impl HostHttp:
+    # The derived provider shares the host's wire authority, never the
+    # receiver's local reference.
+    fn derived(&self, settings: HostSettings) -> *mut dyn Http:
+        box(HostHttp { wire: self.wire, settings: settings })
 
 impl Http for HostHttp:
     fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]:
@@ -2528,6 +2698,13 @@ impl Http for HostHttp:
         url := Url::parse(request.url.to_string())?
         headers := [for (name, value) in request.headers.entries() => (name.wire_name(), value)]
         body := request.body.bytes()?
+        settings := self.settings
+        identity := settings.tls_identity.map(
+            fn(identity): WireIdentity {
+                certificate_chain: identity.certificate_chain,
+                private_key: identity.private_key,
+            },
+        )
         response := self.wire.send!(
             WireRequest {
                 method: request.method,
@@ -2535,10 +2712,36 @@ impl Http for HostHttp:
                 headers: headers,
                 body: body,
                 redirects: redirects,
+                dns_servers: settings.dns_servers,
+                tls_roots: settings.tls_roots,
+                tls_identity: identity,
+                connect_timeout: settings.connect_timeout,
+                tls_handshake_timeout: settings.tls_handshake_timeout,
+                response_header_timeout: settings.response_header_timeout,
+                body_read_timeout: settings.body_read_timeout,
             },
         )
             .map_err(wire_error)?
         response_from_wire(response)
+
+    fn resolver(&self, resolver: DnsResolver) -> *mut dyn Http:
+        self.derived(HostSettings { ...self.settings, dns_servers: .Some(resolver.servers) })
+
+    fn tls(&self, roots: List[Certificate], identity: Identity?) -> *mut dyn Http:
+        pems := [for root in roots => root.pem]
+        self.derived(HostSettings { ...self.settings, tls_roots: pems, tls_identity: identity })
+
+    fn connect_timeout(&self, limit: Duration) -> *mut dyn Http:
+        self.derived(HostSettings { ...self.settings, connect_timeout: .Some(limit) })
+
+    fn tls_handshake_timeout(&self, limit: Duration) -> *mut dyn Http:
+        self.derived(HostSettings { ...self.settings, tls_handshake_timeout: .Some(limit) })
+
+    fn response_header_timeout(&self, limit: Duration) -> *mut dyn Http:
+        self.derived(HostSettings { ...self.settings, response_header_timeout: .Some(limit) })
+
+    fn body_read_timeout(&self, limit: Duration) -> *mut dyn Http:
+        self.derived(HostSettings { ...self.settings, body_read_timeout: .Some(limit) })
 
 fn response_from_wire(response: WireResponse) -> Result[Response, HttpError]:
     let url: Url? = .None
@@ -2599,6 +2802,7 @@ fn wire_error(error: WireHttpError) -> HttpError:
         .Body(error) => .Body(error)
         .InvalidContentEncoding(encoding) => .InvalidContentEncoding(encoding)
         .OutputTooLarge => .OutputTooLarge
+        .UnsupportedSetting(name) => .UnsupportedSetting(name)
 
 ## Sends a GET and checks its response for a 400–599 failure.
 ## See [std-http.helper.get.parsed-response](../../spec/std/http.md#r-std-http.helper.get.parsed-response).

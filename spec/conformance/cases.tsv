@@ -56,6 +56,8 @@ runtime/valid/http-form-root-enum.hd	runtime	accept	std/http.md#r-std-http.reque
 runtime/valid/http-form-root-list.hd	runtime	accept	std/http.md#r-std-http.request.form-preparation-error
 runtime/valid/http-form-root-scalar.hd	runtime	accept	std/http.md#r-std-http.request.form-preparation-error
 runtime/valid/http-send-validation.hd	runtime	accept	std/http.md#r-std-http.request.send-query-error
+runtime/valid/http-settings-default-unsupported.hd	runtime	accept	std/http.md#r-std-http.settings.default-unsupported
+runtime/valid/http-settings-values.hd	runtime	accept	std/http.md#setting-values
 runtime/valid/http-cookie-jar.hd	runtime	accept	std/http.md#cookie-jar
 runtime/valid/http-form-query-readers.hd	runtime	accept	std/http.md#typed-query-and-form-values
 runtime/valid/http-form-query-writers.hd	runtime	accept	std/http.md#typed-query-and-form-values
@@ -5117,6 +5119,7 @@ runtime/valid/deque-heap-collect.hd	runtime	accept	std/collections.md#r-std-coll
 runtime/valid/deque-heap-properties.hd	runtime	accept	std/collections.md#deque
 runtime/valid/http-scripted-replies.hd	runtime	accept	std/http.md#r-std-http.scripted.queue-order
 typing/invalid/http-scripted-sent-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.scripted.received-bodies
+typing/invalid/http-settings-identity-no-debug.hd	type	reject:unsatisfied-trait-bound	std/http.md#r-std-http.settings.identity.no-traits
 runtime/valid/http-client-cookies.hd	runtime	accept	std/http.md#client
 runtime/valid/http-client-redirects.hd	runtime	accept	std/http.md#client
 runtime/valid/http-response-header-combination.hd	runtime	accept	std/http.md#r-std-http.headers.combined
@@ -5125,6 +5128,7 @@ typing/invalid/http-body-serialize-removed.hd	type	reject:unsatisfied-trait-boun
 typing/invalid/http-client-base-url-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.client.no-default-builders
 typing/invalid/http-client-default-header-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.client.no-default-builders
 typing/invalid/http-client-send-missing-clock.hd	type	reject:missing-requirement	std/http.md#r-std-http.client.send-borrowed-clock
+typing/invalid/http-client-settings-absent.hd	type	reject:unknown-method	std/http.md#r-std-http.settings.no-client-setting
 typing/invalid/http-client-timeout-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.client.policy-timeout
 typing/invalid/http-client-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.client.send-borrowed-clock
 runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.fn-mut

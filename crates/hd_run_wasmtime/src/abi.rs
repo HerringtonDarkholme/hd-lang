@@ -817,6 +817,7 @@ pub enum WireHttpError {
     Body { error: BodyError },
     InvalidContentEncoding { encoding: String },
     OutputTooLarge,
+    UnsupportedSetting { name: String },
 }
 
 impl Wire for WireHttpError {
@@ -872,10 +873,14 @@ impl Wire for WireHttpError {
             Self::OutputTooLarge => {
                 e.leb(12);
             }
+            Self::UnsupportedSetting { name } => {
+                e.leb(13);
+                name.enc(e);
+            }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(13)? {
+        Ok(match d.tag(14)? {
             0 => Self::NotGranted {
                 host: Wire::dec(d)?,
             },
@@ -906,7 +911,30 @@ impl Wire for WireHttpError {
             11 => Self::InvalidContentEncoding {
                 encoding: Wire::dec(d)?,
             },
-            _ => Self::OutputTooLarge,
+            12 => Self::OutputTooLarge,
+            _ => Self::UnsupportedSetting {
+                name: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
+/// `WireIdentity` of `lib/std/http_wire.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WireIdentity {
+    pub certificate_chain: String,
+    pub private_key: String,
+}
+
+impl Wire for WireIdentity {
+    fn enc(&self, e: &mut Enc) {
+        self.certificate_chain.enc(e);
+        self.private_key.enc(e);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(Self {
+            certificate_chain: Wire::dec(d)?,
+            private_key: Wire::dec(d)?,
         })
     }
 }
@@ -919,6 +947,13 @@ pub struct WireRequest {
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
     pub redirects: usize,
+    pub dns_servers: Option<Vec<String>>,
+    pub tls_roots: Vec<String>,
+    pub tls_identity: Option<WireIdentity>,
+    pub connect_timeout: Option<Duration>,
+    pub tls_handshake_timeout: Option<Duration>,
+    pub response_header_timeout: Option<Duration>,
+    pub body_read_timeout: Option<Duration>,
 }
 
 impl Wire for WireRequest {
@@ -928,6 +963,13 @@ impl Wire for WireRequest {
         self.headers.enc(e);
         self.body.enc(e);
         self.redirects.enc(e);
+        self.dns_servers.enc(e);
+        self.tls_roots.enc(e);
+        self.tls_identity.enc(e);
+        self.connect_timeout.enc(e);
+        self.tls_handshake_timeout.enc(e);
+        self.response_header_timeout.enc(e);
+        self.body_read_timeout.enc(e);
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
         Ok(Self {
@@ -936,6 +978,13 @@ impl Wire for WireRequest {
             headers: Wire::dec(d)?,
             body: Wire::dec(d)?,
             redirects: Wire::dec(d)?,
+            dns_servers: Wire::dec(d)?,
+            tls_roots: Wire::dec(d)?,
+            tls_identity: Wire::dec(d)?,
+            connect_timeout: Wire::dec(d)?,
+            tls_handshake_timeout: Wire::dec(d)?,
+            response_header_timeout: Wire::dec(d)?,
+            body_read_timeout: Wire::dec(d)?,
         })
     }
 }

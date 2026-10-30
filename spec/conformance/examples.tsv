@@ -904,9 +904,14 @@ std/process.md	4	accept	runtime/valid/scripted-process.hd|runtime/valid/process-
 std/http.md	1	type-fragment	-
 std/http.md	2	type-fragment	-
 std/http.md	3	accept	runtime/valid/http-scripted-provider.hd
-std/http.md	4	accept	runtime/valid/http-json.hd
-std/http.md	5	accept	runtime/valid/http-scripted-provider.hd
-std/http.md	6	accept	runtime/valid/http-scripted-unknown-url.hd
+std/http.md	4	illustrative-pseudocode	-
+std/http.md	5	illustrative-pseudocode	-
+std/http.md	6	illustrative-pseudocode	-
+std/http.md	7	illustrative-pseudocode	-
+std/http.md	8	illustrative-pseudocode	-
+std/http.md	9	accept	runtime/valid/http-json.hd
+std/http.md	10	accept	runtime/valid/http-scripted-provider.hd
+std/http.md	11	accept	runtime/valid/http-scripted-unknown-url.hd
 std/net.md	1	type-fragment	-
 std/net.md	2	type-fragment	-
 std/net.md	3	type-fragment	-

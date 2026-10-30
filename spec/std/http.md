@@ -6,6 +6,7 @@ This chapter defines `std.http`, which `lib/std` writes in ordinary hd
 over the language tier:
 
 - the capability trait `Http`, and the free helpers `get!` and `post!`;
+- the transport settings that derive a narrower `Http` provider;
 - the struct values `Request` and `Response`, and the enums `Method` and
   `HttpError`;
 - status checking, retained error responses, and the JSON calls;
@@ -573,9 +574,10 @@ pub enum HttpError:
     Body(error: BodyError)
     InvalidContentEncoding(encoding: string)
     OutputTooLarge
+    UnsupportedSetting(name: string)
 ```
 
-1. r[std-http.error.decl-decoded-response-errors] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
+1. r[std-http.error.decl-unsupported-setting] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
 2. r[std-http.error.traits] `HttpError` implements `Eq`, `Debug`, `Display`, and `std.error.Error`.
 
 | Rule | Variant | Means |
@@ -591,6 +593,7 @@ pub enum HttpError:
 | r[std-http.error.status-response-value] Status | `Status(response)` | `Response.ok` found a status from 400 to 599, retaining the whole response |
 | r[std-http.error.invalid-content-encoding] Invalid content encoding | `InvalidContentEncoding(encoding)` | a response content coding was unsupported or malformed; `encoding` names the coding |
 | r[std-http.error.output-too-large] Output too large | `OutputTooLarge` | a decoded response would exceed 64 MiB |
+| r[std-http.error.unsupported-setting] Unsupported setting | `UnsupportedSetting(name)` | the provider cannot honour a [transport setting](#transport-settings); `name` is that setting's stable name |
 
 3. r[std-http.error.not-granted.plain] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted`, with the host for `HOST`.
 4. r[std-http.error.status.safe-response-text] `Status(response)` displays `HTTP status STATUS for URL`, with the response status and its URL before any query or fragment.
@@ -605,6 +608,7 @@ pub enum HttpError:
 13. r[std-http.error.from-body] `From[BodyError] for HttpError` wraps its input in `HttpError.Body`.
 14. r[std-http.error.invalid-content-encoding-display] `InvalidContentEncoding(encoding)` displays `invalid HTTP content encoding ENCODING`, using `encoding` for `ENCODING`.
 15. r[std-http.error.output-too-large-display] `OutputTooLarge` displays `the decoded HTTP response exceeds 64 MiB`.
+16. r[std-http.error.unsupported-setting-display] `UnsupportedSetting(name)` displays `HTTP setting is not supported by this host: NAME`, using `name` for `NAME`.
 
 ## Sending
 
@@ -641,6 +645,174 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 > **Why.** A status is data about a request that worked, as with `fetch`
 > and Go, and as a non-zero exit status is for `Process`. Header pairs
 > keep a repeated header, which a map would lose.
+
+## Transport Settings
+
+A transport setting derives a new `Http` provider that resolves, verifies
+TLS, or times each phase of a request differently. The provider it came
+from is unchanged:
+
+```hd
+use std.http.{Certificate, Http, HttpConfigError, HttpError, Request, Response}
+use std.task.{apply, timeout}
+use std.time.Clock
+
+fn internal_transport(root_pem: string) -> Result[*mut dyn Http, HttpConfigError] $ Http:
+    root := Certificate::from_pem(root_pem)?
+    .Ok($.use(Http).tls(roots=[root]).connect_timeout(2s).response_header_timeout(5s))
+
+fn fetch_internal!(request: &Request, root_pem: string) -> Result[Response, HttpError] $ Http + Clock:
+    transport := match internal_transport(root_pem):
+        .Ok(transport) => transport
+        .Err(error) => return .Err(.Other("$error"))
+    $.with(Http=transport):
+        apply!(timeout(10s)):
+            $.use(Http).send!(request, 10)
+```
+
+### Setting Values
+
+A setting value is checked when it is made, before any provider uses it:
+
+```text
+dns_servers(["10.0.0.2", "fe80::1"])     # .Ok
+dns_servers(["dns.internal"])            # .Err(.InvalidDnsServer("dns.internal"))
+root := Certificate::from_pem(root_pem)?
+id := Identity::from_pem(chain_pem, key_pem)?
+```
+
+1. r[std-http.settings.dns-servers] `dns_servers(servers: List[string]) -> Result[DnsResolver, HttpConfigError]` returns a `DnsResolver` holding `servers` when each entry is a literal IPv4 or IPv6 address.
+2. r[std-http.settings.dns-servers.literal] A literal address has no brackets, port, or zone. An IPv4 address is four decimal octets without leading zeros.
+3. r[std-http.settings.dns-servers.invalid] Otherwise `dns_servers` returns `.Err(HttpConfigError.InvalidDnsServer(server))` for the first entry that is not a literal address.
+4. r[std-http.settings.certificate] `Certificate::from_pem(pem: string) -> Result[Certificate, HttpConfigError]` accepts text that is exactly one PEM `CERTIFICATE` block. Otherwise it returns `.Err(HttpConfigError.InvalidCertificate)`.
+5. r[std-http.settings.identity] `Identity::from_pem(certificate_chain: string, private_key: string) -> Result[Identity, HttpConfigError]` accepts a chain of one or more PEM `CERTIFICATE` blocks and one private key block.
+6. r[std-http.settings.identity.key-labels] The private key block is labeled `PRIVATE KEY`, `RSA PRIVATE KEY`, or `EC PRIVATE KEY`.
+7. r[std-http.settings.identity.invalid] Any other chain or key text returns `.Err(HttpConfigError.InvalidIdentity)`.
+8. r[std-http.settings.pem] PEM text is a sequence of RFC 7468 blocks and blank lines. Each block's body lines, joined, must be nonempty padded standard base64.
+9. r[std-http.settings.pem.structure] The constructors check this structure only. A host reports a root or identity it cannot use, including a key that does not match its chain, as `HttpError.Tls(message)` when it sends.
+10. r[std-http.settings.value-traits] `DnsResolver` and `Certificate` implement `Debug` and `Eq`. Their fields are private.
+11. r[std-http.settings.identity.no-traits] `Identity` has private fields and implements none of `Debug`, `Eq`, `Serialize`, or `Deserialize`.
+
+12. r[std-http.settings.config-error] `std.http` declares the enum `HttpConfigError` with the variants and Display texts below.
+
+| Variant | Display text |
+| --- | --- |
+| `InvalidDnsServer(server: string)` | `invalid DNS server: SERVER` |
+| `InvalidCertificate` | `invalid PEM certificate` |
+| `InvalidIdentity` | `invalid PEM client identity` |
+
+13. r[std-http.settings.config-error.traits] `HttpConfigError` implements `Eq`, `Debug`, `Display`, and `std.error.Error`.
+
+### Deriving A Provider
+
+`Http` declares six setting methods. Each takes `&self` and returns a new
+`*mut dyn Http`:
+
+```text
+base := $.use(Http)
+fast := base.connect_timeout(1s)
+slow := base.connect_timeout(10s)          # base and fast are unchanged
+both := fast.response_header_timeout(5s)   # keeps the 1s connect timeout
+```
+
+1. r[std-http.settings.methods] `Http` declares the setting methods below, each returning `*mut dyn Http`.
+
+| Method | Setting | Stable name |
+| --- | --- | --- |
+| `resolver(&self, resolver: DnsResolver)` | DNS servers for every host name | `resolver` |
+| `tls(&self, roots: List[Certificate] = [], identity: Identity? = .None)` | extra trusted roots and a client identity | `tls.roots`, `tls.identity` |
+| `connect_timeout(&self, limit: Duration)` | the connect phase | `connect_timeout` |
+| `tls_handshake_timeout(&self, limit: Duration)` | the TLS handshake phase | `tls_handshake_timeout` |
+| `response_header_timeout(&self, limit: Duration)` | the response header phase | `response_header_timeout` |
+| `body_read_timeout(&self, limit: Duration)` | the body read phase | `body_read_timeout` |
+
+2. r[std-http.settings.immutable] A setting method never changes its receiver. Two providers derived from one receiver keep independent settings.
+3. r[std-http.settings.compose] A derived provider keeps every setting of its receiver and replaces the one its method sets.
+4. r[std-http.settings.replace] A later call for the same setting replaces the earlier value. A later `tls` replaces both the roots and the identity.
+5. r[std-http.settings.host-derived] A provider derived from a host's `Http` sends through that host with the same grant. It never retains the receiver's local reference.
+6. r[std-http.settings.carried] A derived host provider's settings travel with each request it sends, and never in the public `Request`.
+7. r[std-http.settings.default-unsupported] Each setting method has a default body. The provider it returns answers every `send!` with `.Err(HttpError.UnsupportedSetting(name))`, and never calls the provider it was derived from.
+8. r[std-http.settings.default-name] The default `resolver` and each default timeout method use their stable name. The default `tls` uses `tls.identity` when it has an identity and no roots, and `tls.roots` otherwise.
+9. r[std-http.settings.no-client-setting] `Client` and `Request` have no setting methods. A client sends through whichever provider covers its `send!`.
+
+### Phase Timeouts
+
+A phase timeout bounds one phase of each redirect hop, as the host measures it:
+
+```text
+$.with(Http=$.use(Http).connect_timeout(2s).body_read_timeout(20s)):
+    apply!(timeout(30s)):     # the whole send, every redirect included
+        client.send!(&request)?
+```
+
+1. r[std-http.settings.phase-timeouts] Each timeout setting bounds the phase from its start to its end below.
+
+| Setting | Starts | Ends |
+| --- | --- | --- |
+| `connect_timeout` | before the DNS lookup | when the TCP connection is made |
+| `tls_handshake_timeout` | after the TCP connection of an HTTPS hop | when TLS is ready |
+| `response_header_timeout` | after the request is written | when the response headers are complete |
+| `body_read_timeout` | after the response headers | when the whole body is buffered |
+
+2. r[std-http.settings.timeout-error] A phase that outlasts its timeout ends the request with `.Err(HttpError.Timeout)`.
+3. r[std-http.settings.zero-timeout] A zero phase timeout expires as soon as its phase starts.
+4. r[std-http.settings.per-hop] Each redirect hop restarts the timer of every phase it has.
+5. r[std-http.settings.reused-connection] A hop on a reused connection has no connect or TLS handshake phase.
+6. r[std-http.settings.whole-operation] A phase timeout never bounds a whole send. A caller bounds a whole send, every redirect included, with `std.task.timeout` through `std.task.apply!`.
+
+### TLS And DNS
+
+TLS settings and a resolver let one provider reach a private service:
+
+```text
+cluster := $.use(Http)
+    .resolver(dns_servers([cluster_dns])?)
+    .tls(roots=[cluster_ca], identity=.Some(workload_id))
+```
+
+1. r[std-http.settings.tls.extend] Extra roots extend the host's default trusted roots for each HTTPS hop. They never replace them.
+2. r[std-http.settings.tls.identity] The identity is the client certificate chain and key that the host presents in each HTTPS hop's handshake.
+3. r[std-http.settings.resolver] A provider derived with `resolver` resolves each hop's host name with its DNS servers instead of the host's resolver.
+4. r[std-http.settings.resolver.no-grant] `dns_servers` grants no authority. A host sends a DNS query only to a resolver address that its grant allow-lists.
+
+### Host Support
+
+A host that cannot honour a setting refuses the request instead of
+sending it without the setting:
+
+```text
+match transport.send!(&request, 10):
+    .Err(.UnsupportedSetting(name)) => "this host cannot honour $name"
+    .Err(error) => "$error"
+    .Ok(response) => "status ${response.status.code()}"
+```
+
+1. r[std-http.settings.preflight] A host checks each setting a request changes before any DNS lookup or connection. A setting it cannot honour returns `.Err(HttpError.UnsupportedSetting(name))`.
+2. r[std-http.settings.never-ignored] A host never sends a request while ignoring one of its settings.
+3. r[std-http.settings.unsupported-name] With several unsupported settings, `name` is the first in this order: `resolver`, `tls.roots`, `tls.identity`, `connect_timeout`, `tls_handshake_timeout`, `response_header_timeout`, `body_read_timeout`.
+4. r[std-http.settings.host-support] Each host honours the settings marked Support below, and rejects the others by `std-http.settings.preflight`.
+
+| Host | DNS | Roots | Identity | Connect | TLS handshake | Headers | Body read |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Node | Reject | Support | Support | Support | Support | Support | Support |
+| Wasmtime CLI | Reject | Support | Support | Support | Support | Support | Support |
+| Browser | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
+| Cloudflare SDK | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
+| Vercel and Node server SDK | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
+
+5. r[std-http.scripted.settings-unsupported] `ScriptedHttp` keeps the default setting methods, so a provider derived from it answers with `UnsupportedSetting`.
+
+> **Note.** Node and the Wasmtime CLI reject `resolver` until a grant can
+> allow-list resolver endpoints. Browser XHR and the Fetch adapters expose
+> no resolver, TLS identity, or phase timer.
+
+> **Why.** A security or timing setting that a host silently drops
+> promises a guarantee it does not keep. Settings live on the provider,
+> which owns the transport, not on `Client`, which owns only cookies and
+> redirects.
+
+See also: [Sending](#sending), [Timeout](task.md#timeout),
+[Capability Grants](../cli/command-line.md#capability-grants).
 
 ## Decoded Responses
 

@@ -10,26 +10,38 @@ const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const declarations = [
   ["packages/server-sdk/src/server.hd", "HttpServer", "server.HttpServer"],
   ["lib/std/console.hd", "Console", "console.Console"],
-  ["lib/std/http.hd", "Http", "http.Http"],
+  // The public trait is bridged over the wire trait by std code
+  // (`std.http.host_provider`), so only its bodiless methods reach the host.
+  ["lib/std/http.hd", "Http", "http.Http", "bridged"],
   ["lib/std/http_wire.hd", "Http", "http.Http"],
   ["lib/std/time.hd", "Clock", "time.Clock"],
 ];
 export async function sourceInventory(repository) {
   const sourceHashes = {},
     coverage = {};
-  for (const [file, trait, key] of declarations) {
+  for (const [file, trait, key, bridged] of declarations) {
     const source = (await readFile(join(repository, file), "utf8")).replaceAll("\r\n", "\n");
     sourceHashes[file] = hash(source);
     const lines = source.split("\n"),
       at = lines.findIndex((line) => line === `pub trait ${trait}:`);
     if (at < 0) throw Error(`missing maintenance trait declaration ${key}`);
     const names = [];
+    // A bridged trait's method with a default body is std code over the
+    // bridge: its signature ends in `:` where its parentheses close.
+    let pending = null,
+      depth = 0;
     for (const line of lines.slice(at + 1)) {
       if (line && !/^[ \t#]/.test(line)) break;
       const method = /^    fn ([_\p{XID_Start}][_\p{XID_Continue}]*)!?(?:\[|\()/u.exec(line);
       if (line.startsWith("    fn ") && !method)
         throw Error(`unsupported maintenance method declaration ${key}`);
-      if (method) names.push(method[1]);
+      if (method) pending = method[1];
+      if (pending === null) continue;
+      for (const char of line) depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+      if (depth === 0) {
+        if (!bridged || !line.trimEnd().endsWith(":")) names.push(pending);
+        pending = null;
+      }
     }
     if (!names.length) throw Error(`empty maintenance trait ${key}`);
     names.sort();

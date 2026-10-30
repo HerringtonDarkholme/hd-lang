@@ -1,13 +1,28 @@
 # Internal byte DTOs for the Http host ABI. Public std.http messages and
 # their private read-once state stay inside HD behind its adapter.
 use std.http.{Method, BodyError}
+use std.time.Duration
 
+# A client identity's PEM certificate chain and PEM private key.
+pub struct WireIdentity:
+    pub certificate_chain: string
+    pub private_key: string
+
+# The transport settings of a derived provider travel with each request,
+# never in the public Request. `.None` and `[]` are the host defaults.
 pub struct WireRequest:
     pub method: Method
     pub url: string
     pub headers: List[(string, string)] = []
     pub body: List[u8] = []
     pub redirects: usize = 0
+    pub dns_servers: List[string]? = .None
+    pub tls_roots: List[string] = []
+    pub tls_identity: WireIdentity? = .None
+    pub connect_timeout: Duration? = .None
+    pub tls_handshake_timeout: Duration? = .None
+    pub response_header_timeout: Duration? = .None
+    pub body_read_timeout: Duration? = .None
 
 pub struct WireResponse:
     pub status: u16
@@ -30,6 +45,7 @@ pub enum WireHttpError:
     Body(error: BodyError)
     InvalidContentEncoding(encoding: string)
     OutputTooLarge
+    UnsupportedSetting(name: string)
 
 @host
 pub trait Http:

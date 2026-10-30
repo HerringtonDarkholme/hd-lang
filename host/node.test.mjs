@@ -20,14 +20,22 @@ import { test } from "node:test";
 import net from "node:net";
 import dgram from "node:dgram";
 import http from "node:http";
+import https from "node:https";
 import { once } from "node:events";
 import { MessageChannel, Worker } from "node:worker_threads";
-import { createCoreHost, httpProvider, pendingOperation, TimeLimit } from "./core.mjs";
+import {
+  createCoreHost,
+  httpProvider,
+  httpSettings,
+  pendingOperation,
+  TimeLimit,
+} from "./core.mjs";
 import { Dec, Enc, Err, HostContract, Ok, str } from "./wire.mjs";
 import { ConsoleError, METHODS } from "./gen/abi.mjs";
 
 import { cgroupCpuCount, createHost, syncClient } from "./node.mjs";
 import { createOutput } from "./output.mjs";
+import { browserSend } from "./web.mjs";
 import { failed as failedOutput } from "./output-worker.mjs";
 import { postReply, receiveReply } from "./worker-control.mjs";
 
@@ -921,6 +929,154 @@ test("HTTP grant and URL errors finish before any network wait", async (t) => {
   assert.deepEqual(call({ op: "open" }), { ok: 0 });
 });
 
+// #950: a derived provider's transport settings on the Node host. The TLS
+// fixtures are test-only keys: a CA, a server certificate for 127.0.0.1
+// that it signed, and a client identity that it signed.
+const tlsFixture = (name) =>
+  readFileSync(new URL(`./fixtures/tls/${name}.pem`, import.meta.url), "utf8");
+const settings = (changes = {}) => ({
+  dnsServers: null,
+  tlsRoots: [],
+  tlsIdentity: null,
+  connectTimeout: null,
+  tlsHandshakeTimeout: null,
+  responseHeaderTimeout: null,
+  bodyReadTimeout: null,
+  ...changes,
+});
+
+async function httpsLoopback(t, options, handler) {
+  const server = https.createServer(
+    { cert: tlsFixture("server"), key: tlsFixture("server-key"), ...options },
+    handler,
+  );
+  server.on("tlsClientError", () => {});
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => {
+    server.closeAllConnections?.();
+    server.close();
+  });
+  return `https://127.0.0.1:${server.address().port}`;
+}
+
+test("an HTTP setting the Node host does not honour is refused before any work", (t) => {
+  const { call, start } = httpWorker(t);
+  const refused = start("http://127.0.0.1:1/", {
+    grants: { Http: false },
+    settings: settings({ dnsServers: ["10.0.0.2"], connectTimeout: 1000 }),
+  });
+  assert.deepEqual(call({ op: "poll", operation: refused }), {
+    error: "UnsupportedSetting",
+    text: "resolver",
+  });
+});
+
+test("HTTP phase timeouts bound the header wait and the body read", { timeout: 10000 }, async (t) => {
+  const url = await httpLoopback(t, (request, response) => {
+    if (request.url === "/body") {
+      response.writeHead(200, { "Content-Length": "10" });
+      response.write("part");
+    }
+  });
+  const { start, result } = httpWorker(t);
+  for (const [path, change] of [
+    ["/headers", { responseHeaderTimeout: 100 }],
+    ["/body", { bodyReadTimeout: 100 }],
+  ]) {
+    const started = performance.now();
+    const answer = await result(start(`${url}${path}`, { settings: settings(change) }));
+    assert.deepEqual(answer, { error: "Timeout", text: null }, path);
+    assert.ok(performance.now() - started < 3000, `${path} stops long before the 30 s bound`);
+  }
+});
+
+test("a zero connect timeout expires before any connection", async (t) => {
+  let connections = 0;
+  const server = net.createServer((socket) => {
+    connections += 1;
+    socket.destroy();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const { start, result } = httpWorker(t);
+  const url = `http://127.0.0.1:${server.address().port}/`;
+  const answer = await result(start(url, { settings: settings({ connectTimeout: 0 }) }));
+  assert.deepEqual(answer, { error: "Timeout", text: null });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(connections, 0);
+});
+
+test("each redirect hop restarts the phase timers", { timeout: 10000 }, async (t) => {
+  const url = await httpLoopback(t, (request, response) => {
+    setTimeout(() => {
+      if (request.url === "/end") response.end("done");
+      else {
+        response.writeHead(302, { Location: request.url === "/" ? "/next" : "/end" });
+        response.end();
+      }
+    }, 150);
+  });
+  const { start, result } = httpWorker(t);
+  // Three hops of 150 ms each outlast one 250 ms header timer; the connect
+  // timer ends at each connection.
+  const answer = await result(
+    start(url, { settings: settings({ connectTimeout: 50, responseHeaderTimeout: 250 }) }),
+  );
+  assert.equal(answer.status, 200, JSON.stringify(answer));
+  assert.equal(new TextDecoder().decode(answer.body), "done");
+});
+
+test("a TLS handshake timeout stops a peer that never answers the hello", async (t) => {
+  const server = net.createServer((socket) => socket.on("error", () => {}));
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const { start, result } = httpWorker(t);
+  const answer = await result(
+    start(`https://127.0.0.1:${server.address().port}/`, {
+      settings: settings({ tlsHandshakeTimeout: 100 }),
+    }),
+  );
+  assert.deepEqual(answer, { error: "Timeout", text: null });
+});
+
+test("extra TLS roots extend the store and an identity reaches the server", async (t) => {
+  const url = await httpsLoopback(
+    t,
+    { ca: tlsFixture("ca"), requestCert: true, rejectUnauthorized: false },
+    (request, response) => {
+      const peer = request.socket.getPeerCertificate();
+      response.end(request.socket.authorized ? `client ${peer.subject.CN}` : "anonymous");
+    },
+  );
+  const { start, result } = httpWorker(t);
+  const untrusted = await result(start(url));
+  assert.equal(untrusted.error, "Tls", JSON.stringify(untrusted));
+  const trusted = await result(start(url, { settings: settings({ tlsRoots: [tlsFixture("ca")] }) }));
+  assert.equal(new TextDecoder().decode(trusted.body), "anonymous", JSON.stringify(trusted));
+  const identity = {
+    certificateChain: tlsFixture("client"),
+    privateKey: tlsFixture("client-key"),
+  };
+  const mutual = await result(
+    start(url, { settings: settings({ tlsRoots: [tlsFixture("ca")], tlsIdentity: identity }) }),
+  );
+  assert.equal(new TextDecoder().decode(mutual.body), "client hd test client");
+});
+
+test("a TLS key Node cannot load is a TLS failure", async (t) => {
+  const url = await httpsLoopback(t, {}, (request, response) => response.end());
+  const { start, result } = httpWorker(t);
+  const answer = await result(
+    start(url, {
+      settings: settings({
+        tlsRoots: [tlsFixture("ca")],
+        tlsIdentity: { certificateChain: tlsFixture("client"), privateKey: tlsFixture("ca") },
+      }),
+    }),
+  );
+  assert.equal(answer.error, "Tls", JSON.stringify(answer));
+});
+
 for (const mode of ["expired deadline", "host close"]) {
   test(`the real Node host aborts pending HTTP after ${mode}`, { timeout: 10000 }, async (t) => {
     let seen;
@@ -941,6 +1097,13 @@ for (const mode of ["expired deadline", "host close"]) {
       headers: [],
       body: new Uint8Array(),
       redirects: 5,
+      dns_servers: null,
+      tls_roots: [],
+      tls_identity: null,
+      connect_timeout: null,
+      tls_handshake_timeout: null,
+      response_header_timeout: null,
+      body_read_timeout: null,
     });
     new Uint8Array(memory.buffer).set(encoded.done());
     const [status, operation] = host.imports["hd:Http"]["send.start"](encoded.len);
@@ -968,13 +1131,28 @@ test("the shared HTTP adapter preserves synchronous browser-style answers", () =
   };
   const response = { status: 207, headers: [], body: Uint8Array.of(3), url: request.url };
   const provider = httpProvider((sent) => {
-    assert.deepEqual(sent, { ...request, method: "PROPFIND" });
+    assert.deepEqual(sent, { ...request, method: "PROPFIND", settings: httpSettings(request) });
     return response;
   });
   assert.deepEqual(provider.send(request), Ok(response));
   const failed = httpProvider(() => ({ error: "Timeout" })).send(request);
   assert.equal(failed.ok, false);
   assert.equal(failed.error.tag, "Timeout");
+});
+
+test("the browser host refuses every transport setting before any request", () => {
+  const sent = {
+    method: "GET",
+    url: "https://example.test/",
+    headers: [],
+    body: new Uint8Array(),
+    redirects: 1,
+    timeout: null,
+  };
+  assert.deepEqual(
+    browserSend({ ...sent, settings: settings({ bodyReadTimeout: 0, tlsRoots: ["root"] }) }),
+    { error: "UnsupportedSetting", text: "tls.roots" },
+  );
 });
 
 // #812: real children live on a worker even when the guest uses rt.block.

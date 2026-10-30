@@ -1,0 +1,5 @@
+# test: transport settings live on the Http provider, not on Client
+use std.http.Client
+
+pub fn main() -> void:
+    Client::new().connect_timeout(1s) # diagnostic: unknown-method

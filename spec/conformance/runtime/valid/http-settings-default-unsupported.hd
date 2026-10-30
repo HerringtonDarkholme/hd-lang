@@ -1,0 +1,63 @@
+# test: a provider without setting support derives providers that refuse every send and never call it
+# Spec std/http Transport Settings: std-http.settings.methods, std-http.settings.default-unsupported, std-http.settings.default-name, std-http.settings.immutable.
+# Also covers std-http.scripted.settings-unsupported, std-http.error.unsupported-setting.
+# expect: test
+use std.http.{Certificate, Http, HttpError, Identity, Request, Response, ScriptedHttp, Url, dns_servers}
+
+struct Counting:
+    sends: usize
+
+impl Http for Counting:
+    fn send!(&mut self, _request: &Request, _redirects: usize) -> Result[Response, HttpError]:
+        self.sends += 1
+        .Ok(Response::status(.NoContent))
+
+fn pem(label: string) -> string:
+    ["-----BEGIN ${label}-----", "AQIDBA==", "-----END ${label}-----"].join("\n")
+
+fn request() -> Request:
+    Request::get(Url::parse("https://example.com/").expect("fixture URL"))
+
+fn refusal!(provider: *mut dyn Http) -> string:
+    match provider.send!(&request(), 0):
+        .Err(.UnsupportedSetting(name)) => name
+        .Err(error) => "error ${error}"
+        .Ok(response) => "status ${response.status.code()}"
+
+tests:
+    use std.testing.assert_equal
+
+    it("each default setting names itself and never reaches the provider"):
+        base := box(Counting { sends: 0 })
+        root := Certificate::from_pem(pem("CERTIFICATE")).expect("root")
+        identity := Identity::from_pem(pem("CERTIFICATE"), pem("PRIVATE KEY")).expect("identity")
+        resolver := dns_servers(["10.0.0.2"]).expect("resolver")
+        assert_equal(refusal!(base.resolver(resolver)), "resolver")
+        assert_equal(refusal!(base.tls(roots=[root])), "tls.roots")
+        assert_equal(refusal!(base.tls(identity=.Some(identity))), "tls.identity")
+        assert_equal(refusal!(base.tls()), "tls.roots", reason="neither roots nor identity")
+        assert_equal(refusal!(base.connect_timeout(2s)), "connect_timeout")
+        assert_equal(refusal!(base.tls_handshake_timeout(2s)), "tls_handshake_timeout")
+        assert_equal(refusal!(base.response_header_timeout(2s)), "response_header_timeout")
+        assert_equal(refusal!(base.body_read_timeout(0s)), "body_read_timeout")
+        assert_equal(base.sends, 0, reason="no derived send reached the provider")
+        assert_equal(refusal!(base), "status 204", reason="the receiver is unchanged")
+        assert_equal(base.sends, 1)
+
+    it("a derived provider covers sends under $.with"):
+        base := box(Counting { sends: 0 })
+        derived := base.connect_timeout(1s)
+        $.with(Http=derived):
+            assert_equal(
+                request().send!(),
+                .Err(HttpError.UnsupportedSetting("connect_timeout")),
+                reason="the covering provider refuses",
+            )
+        assert_equal(base.sends, 0)
+
+    it("ScriptedHttp keeps the defaults"):
+        http := ScriptedHttp::new()
+        http.reply("https://example.com/", .Ok(Response::status(.Ok)))
+        assert_equal(refusal!(http.response_header_timeout(1s)), "response_header_timeout")
+        assert_equal(http.received().len(), 0, reason="nothing was sent")
+        assert_equal(refusal!(http), "status 200")

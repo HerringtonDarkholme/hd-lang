@@ -5,15 +5,16 @@ use std::time::Instant;
 use flate2::read::{MultiGzDecoder, ZlibDecoder};
 use hd_run::Grants;
 use ureq::http::{HeaderName, HeaderValue};
-use ureq::unversioned::transport::{Connector, RustlsConnector};
+use ureq::unversioned::transport::Connector;
 
 pub(crate) use crate::abi::WireHttpError as HttpError;
 use crate::abi::{self, Method};
 use crate::codec::{self, Dec, Enc, Wire};
 
 use super::client::granted_url;
-use super::connector::{Cancel, HttpResolver, HttpTcpConnector};
+use super::connector::{Cancel, HttpResolver, HttpTcpConnector, Phase, earlier};
 use super::target::{Target, resolve};
+use super::tls::{HopTls, client_config};
 use super::{Headers, is_token};
 
 const MAX_DECODED_BYTES: usize = 64 * 1024 * 1024;
@@ -24,6 +25,50 @@ pub(crate) struct Request {
     headers: Headers,
     body: Vec<u8>,
     redirects: usize,
+    pub(crate) settings: Settings,
+}
+
+/// A derived provider's transport settings (`std-http.settings.*`); each
+/// `None` or empty value is the host default.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Settings {
+    pub(crate) dns_servers: Option<Vec<String>>,
+    pub(crate) tls_roots: Vec<String>,
+    pub(crate) tls_identity: Option<abi::WireIdentity>,
+    pub(crate) connect_timeout: Option<std::time::Duration>,
+    pub(crate) tls_handshake_timeout: Option<std::time::Duration>,
+    pub(crate) response_header_timeout: Option<std::time::Duration>,
+    pub(crate) body_read_timeout: Option<std::time::Duration>,
+}
+
+impl Settings {
+    /// The stable name of each setting changed from the host default, in
+    /// the order every host reports them (`std-http.settings.unsupported-name`).
+    pub(crate) fn changed(&self) -> Vec<&'static str> {
+        [
+            ("resolver", self.dns_servers.is_some()),
+            ("tls.roots", !self.tls_roots.is_empty()),
+            ("tls.identity", self.tls_identity.is_some()),
+            ("connect_timeout", self.connect_timeout.is_some()),
+            (
+                "tls_handshake_timeout",
+                self.tls_handshake_timeout.is_some(),
+            ),
+            (
+                "response_header_timeout",
+                self.response_header_timeout.is_some(),
+            ),
+            ("body_read_timeout", self.body_read_timeout.is_some()),
+        ]
+        .into_iter()
+        .filter_map(|(name, changed)| changed.then_some(name))
+        .collect()
+    }
+}
+
+/// A wire duration as a std one; std never builds a negative one.
+fn duration(value: Option<abi::Duration>) -> Option<std::time::Duration> {
+    value.map(|d| std::time::Duration::from_millis(u64::try_from(d.millis).unwrap_or(0)))
 }
 
 impl Request {
@@ -34,7 +79,23 @@ impl Request {
             headers,
             body,
             redirects,
+            dns_servers,
+            tls_roots,
+            tls_identity,
+            connect_timeout,
+            tls_handshake_timeout,
+            response_header_timeout,
+            body_read_timeout,
         } = Wire::dec(&mut Dec::new(bytes))?;
+        let settings = Settings {
+            dns_servers,
+            tls_roots,
+            tls_identity,
+            connect_timeout: duration(connect_timeout),
+            tls_handshake_timeout: duration(tls_handshake_timeout),
+            response_header_timeout: duration(response_header_timeout),
+            body_read_timeout: duration(body_read_timeout),
+        };
         let method = match method {
             Method::Get => "GET".into(),
             Method::Head => "HEAD".into(),
@@ -51,6 +112,7 @@ impl Request {
             headers,
             body,
             redirects,
+            settings,
         })
     }
 }
@@ -146,12 +208,26 @@ fn once(
     };
     let internal = outgoing(url, &method, &request.headers)?;
     let candidates = Arc::new(Mutex::new(None));
+    // The connect phase begins before DNS and is reset for each redirect
+    // hop (`std-http.settings.phase-timeouts`).
+    let connect_deadline = request
+        .settings
+        .connect_timeout
+        .and_then(|limit| Instant::now().checked_add(limit));
+    let phase = Phase::default();
     let connector = HttpTcpConnector {
         deadline,
+        connect_deadline,
         candidates: candidates.clone(),
         cancel: cancel.clone(),
+        phase: phase.clone(),
     }
-    .chain(RustlsConnector::default());
+    .chain(HopTls {
+        config: client_config(&request.settings)?,
+        handshake_timeout: request.settings.tls_handshake_timeout,
+        phase,
+        default: Default::default(),
+    });
     let config = ureq::Agent::config_builder()
         .max_redirects(0)
         .http_status_as_error(false)
@@ -164,13 +240,15 @@ fn once(
         // An unrepresentably distant deadline is effectively infinite;
         // avoid overflowing ureq's Instant arithmetic for i64 durations.
         .timeout_global(deadline.map(|deadline| deadline.saturating_duration_since(Instant::now())))
+        .timeout_recv_response(request.settings.response_header_timeout)
+        .timeout_recv_body(request.settings.body_read_timeout)
         .build();
     let agent = ureq::Agent::with_parts(
         config,
         connector,
         HttpResolver {
             candidates,
-            deadline,
+            deadline: earlier(deadline, connect_deadline),
             cancel: cancel.clone(),
             #[cfg(test)]
             lookup: None,
@@ -418,11 +496,34 @@ fn check_credentials(value: &str) -> Result<(), HttpError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HttpError, MAX_DECODED_BYTES, Request, decode_bytes, encode};
+    use super::{
+        HttpError, MAX_DECODED_BYTES, Request, Settings, decode_bytes, encode, send as send_request,
+    };
+    use crate::abi::WireIdentity;
     use crate::codec::{Dec, Enc};
     use crate::http::test_support::{bounded_accept, read_request, request, send, write_response};
     use hd_run::{Grants, Limit};
+    use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    const TEST_CA: &str = include_str!("../../../../host/fixtures/tls/ca.pem");
+    const TEST_SERVER_CERT: &str = include_str!("../../../../host/fixtures/tls/server.pem");
+    const TEST_SERVER_KEY: &str = include_str!("../../../../host/fixtures/tls/server-key.pem");
+    const TEST_CLIENT_CERT: &str = include_str!("../../../../host/fixtures/tls/client.pem");
+    const TEST_CLIENT_KEY: &str = include_str!("../../../../host/fixtures/tls/client-key.pem");
+
+    fn configured(url: String, settings: Settings) -> Request {
+        Request {
+            method: "GET".into(),
+            url,
+            headers: vec![],
+            body: vec![],
+            redirects: 0,
+            settings,
+        }
+    }
 
     #[test]
     fn request_codec_and_errors_use_the_node_variant_order() {
@@ -495,6 +596,119 @@ mod tests {
             decode_bytes(vec![0; MAX_DECODED_BYTES + 1], &identity),
             Err(HttpError::OutputTooLarge)
         );
+    }
+
+    #[test]
+    fn zero_phase_timeouts_expire_connect_headers_body_and_tls_handshake() {
+        let timed_out = |request| {
+            assert!(matches!(
+                send_request(
+                    request,
+                    &Grants::default(),
+                    None,
+                    &super::super::connector::Cancel::default(),
+                ),
+                Err(HttpError::Timeout)
+            ));
+        };
+
+        timed_out(configured(
+            "http://127.0.0.1:1/".into(),
+            Settings {
+                connect_timeout: Some(Duration::ZERO),
+                ..Settings::default()
+            },
+        ));
+
+        for phase in ["headers", "body", "tls"] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = std::thread::spawn(move || {
+                let mut peer = bounded_accept(&listener);
+                if phase == "body" {
+                    read_request(&mut peer);
+                    write_response(&mut peer, b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\n")
+                        .unwrap();
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            });
+            let settings = match phase {
+                "headers" => Settings {
+                    response_header_timeout: Some(Duration::ZERO),
+                    ..Settings::default()
+                },
+                "body" => Settings {
+                    body_read_timeout: Some(Duration::ZERO),
+                    ..Settings::default()
+                },
+                _ => Settings {
+                    tls_handshake_timeout: Some(Duration::ZERO),
+                    ..Settings::default()
+                },
+            };
+            let scheme = if phase == "tls" { "https" } else { "http" };
+            timed_out(configured(format!("{scheme}://{address}/"), settings));
+            server.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn extra_root_and_client_identity_complete_a_mutual_tls_request() {
+        use rustls::pki_types::pem::PemObject;
+        use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+        use rustls::server::WebPkiClientVerifier;
+        use rustls::{RootCertStore, ServerConfig, ServerConnection, StreamOwned};
+
+        let mut client_roots = RootCertStore::empty();
+        client_roots
+            .add(CertificateDer::from_pem_slice(TEST_CA.as_bytes()).unwrap())
+            .unwrap();
+        let verifier = WebPkiClientVerifier::builder(Arc::new(client_roots))
+            .build()
+            .unwrap();
+        let server_chain = CertificateDer::pem_slice_iter(TEST_SERVER_CERT.as_bytes())
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let server_key = PrivateKeyDer::from_pem_slice(TEST_SERVER_KEY.as_bytes()).unwrap();
+        let config = ServerConfig::builder()
+            .with_client_cert_verifier(verifier)
+            .with_single_cert(server_chain, server_key)
+            .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let peer = bounded_accept(&listener);
+            peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            peer.set_write_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let connection = ServerConnection::new(Arc::new(config)).unwrap();
+            let mut tls = StreamOwned::new(connection, peer);
+            let mut request = [0; 4096];
+            assert!(tls.read(&mut request).unwrap() > 0);
+            tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+                .unwrap();
+        });
+        let request = configured(
+            format!("https://{address}/"),
+            Settings {
+                tls_roots: vec![TEST_CA.into()],
+                tls_identity: Some(WireIdentity {
+                    certificate_chain: TEST_CLIENT_CERT.into(),
+                    private_key: TEST_CLIENT_KEY.into(),
+                }),
+                ..Settings::default()
+            },
+        );
+        let response = send_request(
+            request,
+            &Grants::default(),
+            None,
+            &super::super::connector::Cancel::default(),
+        )
+        .unwrap();
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, b"ok");
+        server.join().unwrap();
     }
 
     #[test]

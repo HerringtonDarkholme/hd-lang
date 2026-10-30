@@ -1,11 +1,13 @@
 # HTTP Transport Settings
 
-Status: accepted 2026-10-29; domain: `std.http` providers and host transports. Settings chain on the provider (`Http.default().connect_timeout(s(5)).tls(roots)`).
+Status: accepted 2026-10-29 and applied in [Transport Settings](../../spec/std/http.md#transport-settings).
+Domain: `std.http` providers and host transports. Settings chain on the provider
+(`Http.default().connect_timeout(s(5)).tls(roots)`).
 
 This note addresses [#950](https://github.com/HerringtonDarkholme/hd-lang/issues/950).
 It reviews the current [Client](../../spec/std/http.md#client),
 [timeout policy](../../spec/std/task.md#timeout), and host transports.
-Nothing here changes the specification or implementation.
+The specification is authoritative; this record keeps the decision's rationale and stress test.
 
 ## Proposal
 
@@ -93,8 +95,8 @@ its provider. An unlisted address fails before a DNS packet is sent.
 
 | Host | DNS | Roots | Identity | Connect | TLS handshake | Headers | Body read |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Node | Support | Support | Support | Support | Support | Support | Support |
-| Wasmtime CLI | Support | Support | Support | Support | Support | Support | Support |
+| Node | Reject | Support | Support | Support | Support | Support | Support |
+| Wasmtime CLI | Reject | Support | Support | Support | Support | Support | Support |
 | Browser | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
 | Cloudflare SDK | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
 | Vercel Node SDK | Reject | Reject | Reject | Reject | Reject | Reject | Reject |
@@ -107,8 +109,9 @@ the selected resolver and rustls configuration, ureq's connect/response/body dea
 handshake deadline in the connector. Browser XHR and the Cloudflare and Vercel Fetch adapters expose
 neither transport identity nor separate phase timers.
 
-Node and Wasmtime support still needs implementation. Proxy settings wait for their own grant,
-credential, bypass, redirect, and CONNECT design.
+Node and Wasmtime implement the settings marked Support. Resolver support waits for a decided grant
+key and error for an unlisted address. Proxy settings wait for their own grant, credential, bypass,
+redirect, and CONNECT design.
 
 ### Chaining versus `new_http(HttpConfig)`
 

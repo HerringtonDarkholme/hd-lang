@@ -22,6 +22,16 @@ use super::connector::Cancel;
 use super::request::{HttpError, Request, Response, encode, send};
 use super::target::Target;
 
+/// The settings this host honours (`std-http.settings.host-support`).
+const SUPPORTED: &[&str] = &[
+    "tls.roots",
+    "tls.identity",
+    "connect_timeout",
+    "tls_handshake_timeout",
+    "response_header_timeout",
+    "body_read_timeout",
+];
+
 /// What `.start` decides.
 pub(crate) enum Start {
     /// The encoded result of a request that is not sent.
@@ -49,6 +59,18 @@ pub(crate) type Sent = Result<Result<Response, HttpError>, String>;
 pub(crate) fn start(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Start> {
     let started = Instant::now();
     let request = Request::decode(bytes)?;
+    // Every changed setting this host cannot honour is refused before any
+    // DNS or connection work (`std-http.settings.preflight`).
+    if let Some(name) = request
+        .settings
+        .changed()
+        .into_iter()
+        .find(|name| !SUPPORTED.contains(name))
+    {
+        return Ok(Start::Ready(encode(Err(HttpError::UnsupportedSetting {
+            name: name.into(),
+        }))));
+    }
     if let Err(failure) = granted_url(&request.url, grants) {
         return Ok(Start::Ready(encode(Err(failure))));
     }
@@ -110,6 +132,8 @@ pub(crate) fn granted_url(value: &str, grants: &Grants) -> Result<Target, HttpEr
 #[cfg(test)]
 mod tests {
     use super::{Job, Start, start};
+    use crate::abi::{Duration as WireDuration, Method, WireRequest};
+    use crate::codec::Dec;
     use crate::http::connector::Cancel;
     use crate::http::request::{Request, send as send_blocking};
     use crate::http::test_support::{
@@ -140,6 +164,54 @@ mod tests {
         let mut reactor = Reactor::new(None);
         let h = offload(&mut reactor, job);
         super::finish(finished(&mut reactor, h)).unwrap()
+    }
+
+    #[test]
+    fn resolver_is_refused_first_and_other_transport_settings_reach_url_checks() {
+        let wire = |dns_servers, tls_roots, connect_timeout| {
+            crate::codec::encode(&WireRequest {
+                method: Method::Get,
+                url: "http://127.0.0.1:1/".into(),
+                headers: vec![],
+                body: vec![],
+                redirects: 0,
+                dns_servers,
+                tls_roots,
+                tls_identity: None,
+                connect_timeout,
+                tls_handshake_timeout: None,
+                response_header_timeout: None,
+                body_read_timeout: None,
+            })
+        };
+        let Start::Ready(refused) = start(
+            wire(
+                Some(vec![]),
+                vec!["not inspected before refusal".into()],
+                Some(WireDuration { millis: 0 }),
+            )
+            .done(),
+            &Grants::default(),
+        )
+        .unwrap() else {
+            panic!("the resolver setting must be refused")
+        };
+        let mut decoded = Dec::new(refused.done());
+        assert_eq!(decoded.leb().unwrap(), 1);
+        assert_eq!(decoded.leb().unwrap(), 13);
+        assert_eq!(decoded.str().unwrap(), "resolver");
+
+        let deny = Grants {
+            limits: vec![("Http".into(), hd_run::Limit::Deny)],
+        };
+        let Start::Ready(denied) = start(
+            wire(None, vec![], Some(WireDuration { millis: 0 })).done(),
+            &deny,
+        )
+        .unwrap() else {
+            panic!("the URL denial must return before transport")
+        };
+        assert_eq!(&denied.done()[..2], &[1, 0]);
     }
 
     #[test]

@@ -115,6 +115,42 @@ test("ungranted, invalid, percent-host and URL-parser-smuggling requests perform
   assert.equal(calls, 0);
 });
 
+test("every transport setting is refused in its fixed order before any fetch", async () => {
+  let calls = 0;
+  const fetch = () => {
+    calls++;
+    return answer();
+  };
+  const timeout = { millis: 1000n };
+  for (const [settings, name] of [
+    [{ dns_servers: ["10.0.0.2"], tls_roots: ["root"] }, "resolver"],
+    [{ dns_servers: [] }, "resolver"],
+    [{ tls_roots: ["root"], connect_timeout: timeout }, "tls.roots"],
+    [{ tls_identity: { certificate_chain: "chain", private_key: "key" } }, "tls.identity"],
+    [{ connect_timeout: timeout }, "connect_timeout"],
+    [{ tls_handshake_timeout: timeout }, "tls_handshake_timeout"],
+    [{ response_header_timeout: timeout }, "response_header_timeout"],
+    [{ body_read_timeout: { millis: 0n } }, "body_read_timeout"],
+  ]) {
+    const result = await operation(request("https://denied.test/", settings), {
+      Http: false,
+      fetch,
+    }).done;
+    assert.deepEqual(result.error, { tag: "UnsupportedSetting", fields: { name } });
+  }
+  const defaults = {
+    dns_servers: null,
+    tls_roots: [],
+    tls_identity: null,
+    connect_timeout: null,
+    tls_handshake_timeout: null,
+    response_header_timeout: null,
+    body_read_timeout: null,
+  };
+  assert.ok((await operation(request("https://allowed.test/", defaults), { fetch }).done).ok);
+  assert.equal(calls, 1);
+});
+
 test("written host and port are checked before every redirect", async () => {
   const calls = [];
   const fetch = (url, init) => {

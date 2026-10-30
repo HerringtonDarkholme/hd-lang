@@ -162,6 +162,11 @@ export const WireHttpError = variants({
   Body: { error: BodyError },
   InvalidContentEncoding: { encoding: str },
   OutputTooLarge: {},
+  UnsupportedSetting: { name: str },
+});
+export const WireIdentity = data({
+  certificate_chain: str,
+  private_key: str,
 });
 export const WireRequest = data({
   method: Method,
@@ -169,6 +174,13 @@ export const WireRequest = data({
   headers: list(tuple(str, str)),
   body: bytes,
   redirects: unsigned,
+  dns_servers: option(list(str)),
+  tls_roots: list(str),
+  tls_identity: option(WireIdentity),
+  connect_timeout: option(Duration),
+  tls_handshake_timeout: option(Duration),
+  response_header_timeout: option(Duration),
+  body_read_timeout: option(Duration),
 });
 
 // Each host method by import module and name (crates/hd_run_wasmtime/DESIGN.md

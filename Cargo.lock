@@ -891,6 +891,7 @@ dependencies = [
  "ureq",
  "wasm-encoder 0.258.3",
  "wasmtime",
+ "webpki-roots",
  "windows-sys 0.61.2",
 ]
 

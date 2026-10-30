@@ -138,8 +138,47 @@ fn resolve_lookup(
 #[derive(Debug)]
 pub(crate) struct HttpTcpConnector {
     pub(crate) deadline: Option<Instant>,
+    /// The end of the hop's connect phase (`std-http.settings.phase-timeouts`),
+    /// which bounds only the connection, never the later I/O.
+    pub(crate) connect_deadline: Option<Instant>,
     pub(crate) candidates: Candidates,
     pub(crate) cancel: Cancel,
+    /// The TLS handshake phase the TLS connector arms, which the socket
+    /// enforces on its waits.
+    pub(crate) phase: Phase,
+}
+
+/// The end of a hop's current transport phase, shared by the TLS connector
+/// that arms it and the socket whose waits it caps (`std-http.settings.phase-timeouts`).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Phase(Arc<Mutex<Option<Instant>>>);
+
+impl Phase {
+    /// Starts a phase that ends `limit` from now, or ends the current one.
+    pub(crate) fn set(&self, limit: Option<Duration>) {
+        let end = limit.map(|limit| Instant::now().checked_add(limit).unwrap_or_else(far_future));
+        if let Ok(mut phase) = self.0.lock() {
+            *phase = end;
+        }
+    }
+
+    fn end(&self) -> Option<Instant> {
+        self.0.lock().ok().and_then(|phase| *phase)
+    }
+}
+
+/// An instant beyond any deadline a request can reach.
+fn far_future() -> Instant {
+    Instant::now() + Duration::from_secs(100 * 365 * 24 * 60 * 60)
+}
+
+/// The earlier of two optional deadlines.
+pub(crate) fn earlier(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, None) => a,
+        (None, b) => b,
+    }
 }
 
 impl Connector<()> for HttpTcpConnector {
@@ -151,8 +190,7 @@ impl Connector<()> for HttpTcpConnector {
         _: Option<()>,
     ) -> Result<Option<Self::Out>, ureq::Error> {
         let started = Instant::now();
-        let total = self
-            .deadline
+        let total = earlier(self.deadline, self.connect_deadline)
             .map(|deadline| deadline.saturating_duration_since(started));
         let addresses = self
             .candidates
@@ -193,6 +231,7 @@ impl Connector<()> for HttpTcpConnector {
                     ),
                     self.deadline,
                     self.cancel.clone(),
+                    self.phase.clone(),
                 )?;
                 Ok(Some(Box::new(transport) as Box<dyn Transport>))
             },
@@ -292,6 +331,7 @@ struct SocketTransport {
     buffers: LazyBuffers,
     deadline: Option<Instant>,
     cancel: Cancel,
+    phase: Phase,
 }
 
 impl std::fmt::Debug for SocketTransport {
@@ -309,6 +349,7 @@ impl SocketTransport {
         buffers: LazyBuffers,
         deadline: Option<Instant>,
         cancel: Cancel,
+        phase: Phase,
     ) -> Result<Self, ureq::Error> {
         cancel.check()?;
         let runtime = crate::runtime::io::handle()
@@ -324,21 +365,29 @@ impl SocketTransport {
             buffers,
             deadline,
             cancel,
+            phase,
         })
     }
 
+    /// Caps a wait at the whole-request deadline and at the end of the
+    /// current phase; a phase that has already ended times out at once
+    /// (`std-http.settings.zero-timeout`).
     fn cap(&self, mut timeout: NextTimeout) -> Result<NextTimeout, ureq::Error> {
-        if let Some(deadline) = self.deadline {
+        for (deadline, reason) in [
+            (self.deadline, ureq::Timeout::Global),
+            (self.phase.end(), ureq::Timeout::Connect),
+        ] {
+            let Some(deadline) = deadline else { continue };
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                return Err(ureq::Error::Timeout(ureq::Timeout::Global));
+                return Err(ureq::Error::Timeout(reason));
             }
             if timeout
                 .not_zero()
                 .is_none_or(|duration| *duration > remaining)
             {
                 timeout.after = remaining.into();
-                timeout.reason = ureq::Timeout::Global;
+                timeout.reason = reason;
             }
         }
         Ok(timeout)
@@ -619,8 +668,10 @@ mod tests {
         };
         let connector = HttpTcpConnector {
             deadline,
+            connect_deadline: None,
             candidates: candidates.clone(),
             cancel: super::Cancel::default(),
+            phase: super::Phase::default(),
         }
         .chain(RustlsConnector::default());
         let config = ureq::Agent::config_builder()
@@ -696,8 +747,10 @@ mod tests {
         };
         let connector = HttpTcpConnector {
             deadline: None,
+            connect_deadline: None,
             candidates,
             cancel: cancel.clone(),
+            phase: super::Phase::default(),
         }
         .chain(RustlsConnector::default());
         let config = ureq::Agent::config_builder()
