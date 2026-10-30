@@ -586,9 +586,66 @@ function getReply(r: Reader): { value: Value; result: Uint8Array | null } | unde
 
 const END_KINDS: End["kind"][] = ["exit", "trapped", "stopped", "cancelled", "failed"];
 
+function getRequest(r: Reader, len: bigint): Request | undefined {
+  if (len <= 8n) {
+    const args = r.bytes(Number(len));
+    return args === undefined ? undefined : { args };
+  }
+  const digest = r.le(8);
+  return digest === undefined ? undefined : { len: Number(len), digest };
+}
+
+function decodeCall(
+  r: Reader,
+  methods: (string | undefined)[][],
+): Record<string, unknown> | undefined {
+  const method = r.num();
+  if (method === methods.length) {
+    methods.push([r.text(), r.text()]);
+  }
+  if (method === undefined) {
+    return undefined;
+  }
+  const named = methods[method];
+  if (!named || named.includes(undefined)) {
+    return undefined;
+  }
+  const len = r.uleb();
+  if (len === undefined) {
+    return undefined;
+  }
+  const request = getRequest(r, len);
+  const reply = getReply(r);
+  if (!request || !reply) {
+    return undefined;
+  }
+  return { kind: "call", module: named[0]!, name: named[1]!, request, ...reply };
+}
+
+function decodeFinish(r: Reader): Record<string, unknown> | undefined {
+  const handle = r.num();
+  const reply = getReply(r);
+  return reply ? { kind: "finish", handle, ...reply } : undefined;
+}
+
+function decodeEnd(r: Reader): Record<string, unknown> | undefined {
+  const tag = r.bytes(1)?.[0];
+  if (tag === undefined || tag >= END_KINDS.length) {
+    return undefined;
+  }
+  if (tag === 0) {
+    const status = r.bytes(1)?.[0];
+    return status === undefined ? undefined : { kind: "end", end: { kind: "exit", status } };
+  }
+  return {
+    kind: "end",
+    end: { kind: END_KINDS[tag]! as Exclude<End["kind"], "exit"> },
+  };
+}
+
 function decodeRow(row: Row, methods: (string | undefined)[][]): Event | undefined {
   const r = new Reader(row.payload);
-  let event: Record<string, unknown>;
+  let event: Record<string, unknown> | undefined;
   switch (row.kind) {
     case KIND.header:
       event = { kind: "header", format: r.uleb(), execution: r.bytes(16) };
@@ -596,52 +653,12 @@ function decodeRow(row: Row, methods: (string | undefined)[][]): Event | undefin
     case KIND.input:
       event = { kind: "input", number: r.num(), source: r.le(16), module: r.le(16) };
       break;
-    case KIND.call: {
-      const method = r.num();
-      if (method === methods.length) {
-        methods.push([r.text(), r.text()]);
-      }
-      if (method === undefined) {
-        return undefined;
-      }
-      const named = methods[method];
-      if (!named || named.includes(undefined)) {
-        return undefined;
-      }
-      const len = r.uleb();
-      if (len === undefined) {
-        return undefined;
-      }
-      let request: Request;
-      if (len <= 8n) {
-        const args = r.bytes(Number(len));
-        if (args === undefined) {
-          return undefined;
-        }
-        request = { args };
-      } else {
-        const digest = r.le(8);
-        if (digest === undefined) {
-          return undefined;
-        }
-        request = { len: Number(len), digest };
-      }
-      const reply = getReply(r);
-      if (!reply) {
-        return undefined;
-      }
-      event = { kind: "call", module: named[0]!, name: named[1]!, request, ...reply };
+    case KIND.call:
+      event = decodeCall(r, methods);
       break;
-    }
-    case KIND.finish: {
-      const handle = r.num();
-      const reply = getReply(r);
-      if (!reply) {
-        return undefined;
-      }
-      event = { kind: "finish", handle, ...reply };
+    case KIND.finish:
+      event = decodeFinish(r);
       break;
-    }
     case KIND.wake:
       event = { kind: "wake", poll: r.uleb(), handles: r.handles() };
       break;
@@ -654,25 +671,10 @@ function decodeRow(row: Row, methods: (string | undefined)[][]): Event | undefin
     case KIND.cancel:
       event = { kind: "cancel", poll: r.uleb() };
       break;
-    default: {
-      const tag = r.bytes(1)?.[0];
-      if (tag === undefined || tag >= END_KINDS.length) {
-        return undefined;
-      }
-      let end: End;
-      if (tag === 0) {
-        const status = r.bytes(1)?.[0];
-        if (status === undefined) {
-          return undefined;
-        }
-        end = { kind: "exit", status };
-      } else {
-        end = { kind: END_KINDS[tag]! as Exclude<End["kind"], "exit"> };
-      }
-      event = { kind: "end", end };
-    }
+    default:
+      event = decodeEnd(r);
   }
-  if (Object.values(event).includes(undefined) || r.at !== row.payload.length) {
+  if (!event || Object.values(event).includes(undefined) || r.at !== row.payload.length) {
     return undefined;
   }
   return event as unknown as Event;

@@ -14,6 +14,33 @@ const brokenInput = new Set(["EPIPE", "ECONNRESET", "ENOTCONN", "EOF"]);
 const MAX_BUFFER = 1 << 30;
 const failure = (error) => ({ error: { code: error.code, message: String(error.message) } });
 
+function windowsResult(output, status) {
+  if (status.timeout) {
+    return { timeout: true };
+  }
+  if (status.error) {
+    return failure(status.error);
+  }
+  if (status.aborted) {
+    return failure(new Error("process cancelled"));
+  }
+  const result = JSON.parse(Buffer.concat(output).toString("utf8"));
+  const ok = result?.ok;
+  if (
+    ok &&
+    typeof ok.stdout === "string" &&
+    typeof ok.stderr === "string" &&
+    Number.isInteger(ok.status)
+  ) {
+    return result;
+  }
+  const error = result?.error;
+  if (error && typeof error.code === "string" && typeof error.message === "string") {
+    return result;
+  }
+  throw new Error("invalid result");
+}
+
 function begin(request) {
   if (process.platform === "win32") {
     return beginWindows(request);
@@ -211,31 +238,7 @@ function beginWindows(request) {
       }
       clearTimeout(state.timer);
       try {
-        if (timeout) {
-          state.result = { timeout: true };
-        } else if (error) {
-          state.result = failure(error);
-        } else if (aborted) {
-          state.result = failure(new Error("process cancelled"));
-        } else {
-          const result = JSON.parse(Buffer.concat(output).toString("utf8"));
-          if (
-            result?.ok &&
-            typeof result.ok.stdout === "string" &&
-            typeof result.ok.stderr === "string" &&
-            Number.isInteger(result.ok.status)
-          ) {
-            state.result = result;
-          } else if (
-            result?.error &&
-            typeof result.error.code === "string" &&
-            typeof result.error.message === "string"
-          ) {
-            state.result = result;
-          } else {
-            throw new Error("invalid result");
-          }
-        }
+        state.result = windowsResult(output, { timeout, error, aborted });
       } catch {
         state.result = failure(new Error("invalid Windows processLauncher result"));
       } finally {
