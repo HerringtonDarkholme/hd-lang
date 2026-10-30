@@ -19,7 +19,7 @@
 //   (std-http.response.url).
 // - A request that takes longer than the provider's 30 s bound is
 //   `Timeout` (std-http.send.provider-timeout).
-import { postReply } from "./worker-control.mjs";
+import { serve } from "./worker-control.mjs";
 import http from "node:http";
 import https from "node:https";
 import { isAsciiUrl, writtenHost } from "./core.mjs";
@@ -250,12 +250,4 @@ const run = (r) => {
 };
 
 const { port, flag } = workerData;
-port.on("message", ({ id, request: r }) => {
-  let out;
-  try {
-    out = run(r);
-  } catch (e) {
-    out = err("Other", String(e?.message ?? e));
-  }
-  postReply(port, flag, id, out);
-});
+serve(port, flag, run);

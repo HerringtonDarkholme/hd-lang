@@ -1,7 +1,7 @@
 // A child's I/O belongs to this worker, so a synchronous hd:rt.block can
 // keep polling sibling tasks. As with Net, control calls only start, probe,
 // commit or cancel an operation; completion never posts unsolicited replies.
-import { postReply } from "./worker-control.mjs";
+import { serve } from "./worker-control.mjs";
 import { spawn } from "node:child_process";
 import { constants } from "node:os";
 import { workerData } from "node:worker_threads";
@@ -288,13 +288,4 @@ const run = (r) => {
 };
 
 const { port, flag } = workerData;
-port.on("message", async ({ id, request }) => {
-  let result;
-  try {
-    result = await run(request);
-  } catch (error) {
-    result = failure(error);
-  }
-  postReply(port, flag, id, result);
-  if (request.op === "close") port.close();
-});
+serve(port, flag, run, (request) => request.op === "close");

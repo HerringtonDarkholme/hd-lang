@@ -4,6 +4,12 @@
 // facade an `import` builds (node.mjs).
 const { receiveMessageOnPort } = process.getBuiltinModule("node:worker_threads");
 
+const post = (port, flag, id, reply) => {
+  port.postMessage({ id, ...reply });
+  Atomics.store(flag, 0, 1);
+  Atomics.notify(flag, 0);
+};
+
 export function receiveReply(port, flag, id, left) {
   for (;;) {
     const remaining = left();
@@ -20,7 +26,20 @@ export function receiveReply(port, flag, id, left) {
 }
 
 export function postReply(port, flag, id, result) {
-  port.postMessage({ id, result });
-  Atomics.store(flag, 0, 1);
-  Atomics.notify(flag, 0);
+  post(port, flag, id, { result });
+}
+
+// Serve one capability worker's correlated control calls. A thrown error is
+// a fault in the host protocol, not an ordinary provider error for the guest.
+export function serve(port, flag, run, closes = () => false) {
+  port.on("message", async ({ id, request }) => {
+    let reply;
+    try {
+      reply = { result: await run(request) };
+    } catch (error) {
+      reply = { fault: String(error?.message ?? error) };
+    }
+    post(port, flag, id, reply);
+    if (closes(request)) port.close();
+  });
 }

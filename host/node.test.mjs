@@ -134,6 +134,21 @@ test("worker control publishes a reply before setting its wake hint", () => {
   assert.equal(Atomics.load(flag, 0), 1);
 });
 
+for (const [name, file, request, close, message] of [
+  ["HTTP", "http.mjs", { op: "poll", operation: 0 }, null, "unknown HTTP operation"],
+  ["Process", "process.mjs", { op: "wait_poll", operation: 0 }, "close", "unknown process wait"],
+]) {
+  test(`${name} worker protocol faults are host contracts`, (t) => {
+    const client = syncClient(new URL(`./${file}`, import.meta.url), close);
+    t.after(() => client.stop());
+    assert.throws(
+      () => client.call(request),
+      (error) => error instanceof HostContract && error.message === message,
+    );
+    assert.equal(client.started(), false);
+  });
+}
+
 // #408: libuv's last finite ancestor must not override a stricter child.
 test("v2: one-CPU child inside a four-CPU parent offers one CPU", (t) => {
   const root = fixture(t, {

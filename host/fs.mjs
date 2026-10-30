@@ -3,7 +3,7 @@
 // a FIFO open cannot be interrupted by terminating a Node worker, and
 // blocked libuv pool jobs would also starve unrelated special-file calls.
 // Only these uncommon calls start a child; regular files stay inline.
-import { postReply } from "./worker-control.mjs";
+import { serve } from "./worker-control.mjs";
 import { fork } from "node:child_process";
 import { parentPort, Worker, workerData } from "node:worker_threads";
 import { fileOperation } from "./node.mjs";
@@ -89,16 +89,7 @@ if (workerData?.port) {
     }
   };
   const { port, flag } = workerData;
-  port.on("message", async ({ id, request }) => {
-    let result;
-    try {
-      result = await run(request);
-    } catch (error) {
-      result = failure(error);
-    }
-    postReply(port, flag, id, result);
-    if (request.op === "close") port.close();
-  });
+  serve(port, flag, run, (request) => request.op === "close");
 } else if (workerData?.job) {
   const { module, name, args } = workerData.job;
   parentPort.postMessage(fileOperation(module, name, args));

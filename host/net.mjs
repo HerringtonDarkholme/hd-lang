@@ -19,7 +19,7 @@
 // (std-net.handles.closed). The program's thread checks the host's form
 // and the grant before it posts an operation that accesses an address;
 // a metadata-only check may first reject a closed or unknown handle.
-import { postReply } from "./worker-control.mjs";
+import { serve } from "./worker-control.mjs";
 import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
 import net from "node:net";
@@ -550,12 +550,4 @@ export const run = async (r) => {
 };
 
 const { port, flag } = workerData;
-port.on("message", async ({ id, request: r }) => {
-  let out;
-  try {
-    out = await run(r);
-  } catch (e) {
-    out = fail("Other", String(e?.message ?? e));
-  }
-  postReply(port, flag, id, out);
-});
+serve(port, flag, run);
