@@ -126,7 +126,7 @@ fn display_f32(x: f32) -> String {
     }
 }
 
-/// Runs `float.mjs` on one request per line (`s32 BITS`, `s64 BITS`, or
+/// Runs `float.mts` on one request per line (`s32 BITS`, `s64 BITS`, or
 /// `fixed BITS DIGITS`, bits in hex; `parse TEXT`; `lower HEX` and
 /// `upper HEX`, the UTF-8 bytes in hex) and returns one answer per line.
 fn host_text(requests: &[String]) -> Vec<String> {
@@ -611,7 +611,7 @@ fn parse_matches_rust() {
     }
 }
 
-/// Runs the host's `float.mjs` and the exact reference `float_exact.mjs`
+/// Runs the host's `float.mts` and the exact reference `float_exact.mjs`
 /// (the `BigInt` printer and parser the host used before it took the
 /// engine's native ones) side by side on one request per line (`s32 BITS`,
 /// `s64 BITS`, `parse TEXT`) and returns the requests where they differ.
