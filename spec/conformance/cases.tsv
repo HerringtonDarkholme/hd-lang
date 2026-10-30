@@ -5446,6 +5446,8 @@ typing/valid/generic-call-local-reference-argument.hd	type	accept	lang/13-values
 runtime/valid/generic-call-tunnels-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.call
 typing/invalid/generic-call-result-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.call
 typing/invalid/generic-call-method-result-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.call
+typing/valid/generic-call-unrelated-short-argument.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.call.line-up
+typing/invalid/generic-call-related-short-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.call
 typing/invalid/generic-store-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.generic.store
 typing/invalid/generic-store-caller-place.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
 typing/invalid/generic-local-function-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.local.local-function

@@ -1,0 +1,8 @@
+# test: a generic call's result still depends on its own type parameter's argument when another argument is a constant
+# Spec 13 Generic Calls: ref.generic.call, ref.generic.call.line-up.
+fn first[T, U, V](a: T, b: U, c: V) -> T:
+    a
+
+fn bad(u: &string) -> &string:
+    local := "x"
+    first(&local, u, 3) # diagnostic: local-reference-escapes

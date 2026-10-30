@@ -1,0 +1,8 @@
+# test: a generic call's result depends only on its own type parameter's argument, so a short-lived unrelated argument never ties it, a constant argument included
+# Spec 13 Generic Calls: ref.generic.call, ref.generic.call.line-up.
+fn first[T, U, V](a: T, b: U, c: V) -> T:
+    a
+
+fn keep(u: &string) -> &string:
+    local := "x"
+    first(u, &local, 3)

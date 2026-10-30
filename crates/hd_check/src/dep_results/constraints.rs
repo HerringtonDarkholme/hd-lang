@@ -10,7 +10,7 @@ use hd_types::{Ty, TyData};
 
 use super::{
     ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HOST_MSG, Inputs, Layout,
-    NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts, arg_ty,
+    NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty,
     capture_slot, closure_allows, intrinsic_ops, local_ref, referent, referent_fn, returned,
     scoped_uses, site, source_arg, w,
 };
@@ -372,11 +372,11 @@ impl Gen<'_, '_> {
         };
         let mut vars: HashMap<Var, Region> = HashMap::default();
         let mut var = |t: &mut RegionTable, v| *vars.entry(v).or_insert_with(|| t.fresh(1).start);
-        let any = sig.result && sig.outs.contains(&Some(Var::Life(ANY)));
-        let any_fn = sig.result && sig.outs.contains(&Some(Var::AnyFn));
-        for (p, (pt, slots)) in sig.params.iter().enumerate() {
-            let Some((a, at)) = source_arg(b, iu, p).and_then(|a| Some((a, arg_ty(pool, b, a)?)))
-            else {
+        let has = |v: Var| sig.result && sig.outs.iter().any(|o| o.contains(&v));
+        let (any, any_fn) = (has(Var::Life(ANY)), has(Var::AnyFn));
+        for (p, (pt, slots, borrow)) in sig.params.iter().enumerate() {
+            let arg = |a| Some((a, call_arg_ty(pool, b, a, *pt)?));
+            let Some((a, at)) = source_arg(b, iu, p).and_then(arg) else {
                 continue;
             };
             let mut vs: Vec<Var> = slots.iter().map(|x| x.0).collect();
@@ -422,13 +422,13 @@ impl Gen<'_, '_> {
                     self.flow(v.0[k], r);
                 }
             }
-            if v.0.len() != vs.len() || lay.tops != ls.of(*pt).tops {
-                // `ref.generic.call.unaligned`: each lifetime takes it all.
-                let rs: Vec<Region> = vs.into_iter().map(|v| var(&mut self.t, v)).collect();
-                self.flow_vars(&v.0, &rs, cat);
-                continue;
+            if let Some(id) = *borrow {
+                let r = var(&mut self.t, id);
+                self.flow_vars(&v.0, &[r], cat);
             }
-            for (k, &id) in vs.iter().enumerate() {
+            // A lined-up argument has a set per slot; a trait value with
+            // none has one more, which `borrow` takes.
+            for (k, &id) in vs.iter().enumerate().take(v.0.len()) {
                 let r = var(&mut self.t, id);
                 if under_mut(pool, &lay, k) {
                     self.c.equal(v.0[k], r, self.at);
@@ -449,7 +449,7 @@ impl Gen<'_, '_> {
             return;
         }
         for (k, &to) in me.0.iter().enumerate() {
-            if let Some(&Some(v)) = sig.outs.get(k) {
+            for &v in sig.outs.get(k).into_iter().flatten() {
                 let r = var(&mut self.t, v);
                 self.flow(r, to);
             }

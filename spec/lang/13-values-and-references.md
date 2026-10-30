@@ -1156,8 +1156,8 @@ fn demo(u: &User) -> usize:
 
 1. r[ref.generic.local] A written or inferred type argument of a function, a method, or an implementation may hold a local reference.
 2. r[ref.generic.local.local-function] A type argument of a local function never holds one yet. Error: `local-reference-escapes`.
-3. r[ref.generic.call] A reference position that a type argument adds to a call's result depends on the argument positions that the same type parameter adds to the call's parameters, as a lifetime variable's positions do ([`ref.lifetime.call`](#r-ref.lifetime.call)).
-4. r[ref.generic.call.unaligned] Where an argument's type does not line up with its parameter's declared type, such a result position depends on every argument.
+3. r[ref.generic.call] A reference position that a type argument adds to a call's result depends on the argument positions that the same type parameter adds to the call's parameters, as a lifetime variable's positions do ([`ref.lifetime.call`](#r-ref.lifetime.call)). It depends on no other argument. A position the type parameter adds to no argument depends on nothing.
+4. r[ref.generic.call.line-up] Each argument lines up with its parameter's type instantiated at the call. A trait value given for `&T` lines up with that reference, and a position of a projection such as `P::Out` is a position of `P`.
 5. r[ref.generic.store] A parameter `&mut P`, whose `P` names a type parameter, is a place the call may store into. So the argument's place takes what that type parameter's other argument positions depend on, as `*p = v` does ([`ref.dep.store`](#r-ref.dep.store)).
 6. r[ref.generic.body] A generic body treats a value of a type parameter as one that may hold a local reference: it may return it or pass it on, and keeps it past the call only under `'static`.
 
