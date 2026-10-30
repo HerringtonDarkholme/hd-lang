@@ -906,6 +906,8 @@ pub enum BuiltinImpl {
     Structure,
     /// `'static` (`ref.generic.static`), from the type's parts.
     Static,
+    /// A plain function type's `Fn[I, O, $R]` implementation.
+    Fn,
 }
 
 /// What a `Holds` answer carries (§8.1).
@@ -2039,6 +2041,14 @@ impl<'s, 'a> Search<'s, 'a> {
             };
             return Ok(self.leaf(key, root, holds));
         }
+        // Every plain function type implements the sealed
+        // `Fn[Inputs, Output, $Row]` trait with exactly the parts of its
+        // function type. A parameter's written `Fn` bound was answered by
+        // the environment above; this row supplies concrete function
+        // values and teaches fresh trait-argument variables their parts.
+        if tref.trait_ == self.cx.decls.sealed().fn_trait {
+            return Ok(self.supplied_fn(key, cg, tref, self_ty, root));
+        }
         // Compiler-supplied impls (§3.9).
         if let Some(row) = crate::sealed::row(pool, self.cx.decls, tref.trait_, self_ty) {
             return self.supplied(key, cg, tref.trait_, row, depth, root);
@@ -2160,6 +2170,89 @@ impl<'s, 'a> Search<'s, 'a> {
                 Ok((Outcome::leaf(Answer::Stalled { on }), heads))
             }
         }
+    }
+
+    /// The compiler-supplied `Fn` implementation. Unlike the category
+    /// rows in `sealed`, this one also matches the goal's trait arguments,
+    /// so it lives beside the solver's ordinary head matching.
+    fn supplied_fn(
+        &mut self,
+        key: &MemoKey,
+        cg: CanonGoal,
+        tref: TraitRef,
+        self_ty: Ty,
+        root: bool,
+    ) -> (Outcome, u16) {
+        let pool = self.cx.pool;
+        let answer = match pool.get(self_ty) {
+            TyData::Infer(v) => Answer::Stalled { on: vec![v] },
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends: false,
+                inputs,
+                ..
+            } => {
+                let ps = pool.list_items(params);
+                let input = match inputs {
+                    Inputs::Fixed => pool.intern_ty(&TyData::Tuple {
+                        elems: params,
+                        rest: None,
+                    }),
+                    Inputs::Rest => {
+                        let (rest, elems) = ps
+                            .split_last()
+                            .map_or((Ty::POISON, &[][..]), |(&rest, elems)| (rest, elems));
+                        pool.intern_ty(&TyData::Tuple {
+                            elems: pool.list(elems),
+                            rest: Some(rest),
+                        })
+                    }
+                    Inputs::Tuple => ps.first().copied().unwrap_or(Ty::POISON),
+                };
+                let row = pool.intern_ty(&TyData::Row(row));
+                let expected = pool.list(&[input, result, row]);
+                match match_list(pool, DefId::NONE, expected, tref.args, &mut Vec::new()) {
+                    M::Yes => Answer::Holds {
+                        evidence: Evidence::Builtin(BuiltinImpl::Fn),
+                        learned: learned_from(pool, expected, tref.args),
+                    },
+                    M::Maybe => {
+                        let mut on = Vec::new();
+                        for t in [self_ty]
+                            .into_iter()
+                            .chain(pool.list_items(tref.args).iter().copied())
+                        {
+                            collect_vars(pool, t, &mut on);
+                        }
+                        let mut unique = Vec::new();
+                        for v in on {
+                            if !unique.contains(&v) {
+                                unique.push(v);
+                            }
+                        }
+                        Answer::Stalled { on: unique }
+                    }
+                    M::No => Answer::Fails(Box::new(FailInfo {
+                        leaf: cg,
+                        chain: vec![],
+                        reason: FailReason::NoImpl,
+                        near: vec![],
+                    })),
+                }
+            }
+            _ => Answer::Fails(Box::new(FailInfo {
+                leaf: cg,
+                chain: vec![],
+                reason: FailReason::NoImpl,
+                near: vec![],
+            })),
+        };
+        if !self.charge(key, 0, root) {
+            return (Outcome::leaf(Answer::OutOfFuel), 0);
+        }
+        self.leaf(key, root, answer)
     }
 
     /// A compiler-supplied row's answer (§3.9): its subgoals, each on the
@@ -4699,6 +4792,7 @@ mod tests {
                 any_ref: id(3),
                 inspectable: id(4),
                 tuple: id(5),
+                fn_trait: DefId::NONE,
                 structure: id(6),
                 static_bound: DefId::NONE,
                 list: DefId::NONE,

@@ -28,6 +28,11 @@ pub struct KnownItems {
     pub counted_cell: DefId,
     // std.function
     pub function_module: PathId,
+    /// The `Fn[I, O, $R]` trait. In a type position the same declaration
+    /// remains the compiler's `Fn[I, O, $R]` function type constructor.
+    pub fn_trait: DefId,
+    /// `Fn.call`, which the checker lowers to a function-value call.
+    pub fn_call: DefId,
     pub tuple: DefId,
     // std.structure
     pub structure: DefId,
@@ -162,7 +167,7 @@ pub struct KnownItems {
     pub property_runner: DefId,
     /// The sealed traits, in the order of the table in spec/lang/09-traits.md
     /// "Sealed Traits" (`trait.sealed.list`).
-    sealed: [DefId; 11],
+    sealed: [DefId; 12],
 }
 
 impl KnownItems {
@@ -184,6 +189,7 @@ impl KnownItems {
             any_ref: self.any_ref,
             inspectable: self.inspectable,
             tuple: self.tuple,
+            fn_trait: self.fn_trait,
             structure: self.structure,
             static_bound: self.static_bound,
             list: self.list,
@@ -224,6 +230,7 @@ impl KnownItems {
         let walker = item("std.structure", "Walker");
         let serializer = item("std.serde", "Serializer");
         let tuple = item("std.function", "Tuple");
+        let fn_trait = item("std.function", "Fn");
         let suspend = item("std.task", "Suspend");
         let inspectable = item("std.inspect", "Inspectable");
         let num = item("std.num", "Num");
@@ -241,6 +248,8 @@ impl KnownItems {
             ref_cell: item("std.core", "Ref"),
             counted_cell: item("std.core", "Counted"),
             function_module: module("std.function"),
+            fn_trait,
+            fn_call: trait_method(fn_trait, "call"),
             tuple,
             structure,
             static_bound,
@@ -344,6 +353,7 @@ impl KnownItems {
                 integer,
                 float,
                 tuple,
+                fn_trait,
                 static_bound,
             ],
         }

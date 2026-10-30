@@ -1815,6 +1815,29 @@ impl Lower<'_, '_, '_> {
         (args, bindings, row)
     }
 
+    /// The trait arguments of the bound sugar `Fn(A, B) -> O $ R`:
+    /// `[(A, B), O, $ R]`. The parser keeps the whole form in one
+    /// `NamedType`, with its inputs tuple and output as children.
+    fn fn_trait_args(
+        &mut self,
+        n: NodeRef<'_>,
+        gn: &Gen,
+    ) -> (Vec<Ty>, Vec<(Symbol, Ty)>, Option<RowId>) {
+        let pool = self.names.pool;
+        let mut tys = n
+            .children()
+            .filter(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow);
+        let input = self.ty(tys.next(), gn);
+        let output = self.ty(tys.next(), gn);
+        let row = Src::child(n, SyntaxKind::RequirementRow)
+            .map_or(RowId::EMPTY, |r| self.row(Some(r), gn));
+        (
+            vec![input, output, pool.intern_ty(&TyData::Row(row))],
+            vec![],
+            Some(row),
+        )
+    }
+
     /// A trait reference (a bound, a supertrait, an impl's trait, a `dyn`
     /// or a row key) as a trait-value type, its omitted trailing arguments
     /// filled from their defaults with `self_ty` as `Self`
@@ -1859,7 +1882,14 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::UnknownTrait, span, &msg);
             return None;
         }
-        let (args, written, _) = self.type_args(n, gn);
+        let (args, written, _) = if def == self.names.known.fn_trait
+            && n.direct_token(&self.src.parse.tokens, TokenKind::Arrow)
+                .is_some()
+        {
+            self.fn_trait_args(n, gn)
+        } else {
+            self.type_args(n, gn)
+        };
         if let Some(max) = self.r.trait_arity(def)
             && args.len() > max
         {
@@ -2610,11 +2640,21 @@ impl Lower<'_, '_, '_> {
                 let Some(c) = Src::child(n, SyntaxKind::NamedType) else {
                     return Ty::POISON;
                 };
-                self.trait_value(c, gn, None).map_or(Ty::POISON, |t| {
-                    let t = crate::assoc::with_super_bindings(self.names.pool.types(), self.r, t);
-                    self.require_complete(t, self.src.span(n));
-                    t
-                })
+                let Some(t) = self.trait_value(c, gn, None) else {
+                    return Ty::POISON;
+                };
+                if matches!(pool.get(t), TyData::TraitValue { def, .. } if def == self.names.known.fn_trait)
+                {
+                    self.diags.error(
+                        Code::TraitNotDynamicallySafe,
+                        self.src.span(n),
+                        "`Fn` is the static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls",
+                    );
+                    return Ty::POISON;
+                }
+                let t = crate::assoc::with_super_bindings(self.names.pool.types(), self.r, t);
+                self.require_complete(t, self.src.span(n));
+                t
             }
             SyntaxKind::FunctionType => {
                 let arrow = n

@@ -1,0 +1,8 @@
+# @dump: tir
+use std.function.Fn
+
+fn direct[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
+    f(value)
+
+fn explicit[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
+    f.call((value,))

@@ -4938,6 +4938,7 @@ impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
             (B::Inspectable, s.inspectable),
             (B::Tuple, s.tuple),
             (B::Structure, s.structure),
+            (B::Fn, s.fn_trait),
         ]
         .into_iter()
         .find(|(b, _)| *b as u32 == index)

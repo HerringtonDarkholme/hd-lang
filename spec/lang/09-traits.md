@@ -2087,6 +2087,7 @@ compiler and the standard library supply.
 | r[trait.sealed.integer] Integer | `Integer` | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, and `usize` ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.float] Float | `Float` | `f32` and `f64` ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.tuple] Tuple | `Tuple` | every tuple type ([Function Type Constructors](07-functions.md#function-type-constructors)) |
+| r[trait.sealed.fn] Fn | `Fn` | every plain function type ([Static Fn Bounds](07-functions.md#static-fn-bounds)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.
@@ -2095,6 +2096,7 @@ compiler and the standard library supply.
 5. r[trait.sealed.user-impl] An `impl` of a sealed trait outside the standard library is an error, reported on the `impl` line, whatever its target. Error: `sealed-trait-implementation`.
 
 ```text
+use std.function.Fn
 use std.inspect.{Inspectable, TypeId}
 
 struct User:
@@ -2106,6 +2108,9 @@ impl Inspectable for User:  # error: sealed-trait-implementation
     fn runtime_type(self) -> TypeId: TypeId::of::[string]()
 
 impl AnyRef for Handle  # error: sealed-trait-implementation
+
+impl Fn[(i32,), i32, $ ()] for Handle:  # error: sealed-trait-implementation
+    fn call(&self, args: (i32,)) -> i32: args._0
 ```
 
 ### Compiler-Supplied Implementations
