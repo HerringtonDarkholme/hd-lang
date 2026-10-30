@@ -1,0 +1,14 @@
+# test: an enum value that holds a reference to an inner block's local, matched after the block, outlives the local
+# Spec 13 Lifetime Enums: ref.lifetime.enum.holds, ref.lifetime.enum.construct; Local Scope: ref.dep.scope.
+enum Token['a]:
+    Word(&'a string)
+    End
+
+fn count(fallback: &string) -> usize:
+    let mut t = Token.Word(fallback)
+    if fallback.len() > 0:
+        text := "hello"
+        t = Token.Word(&text)
+    match t:  # diagnostic: local-reference-outlives-local
+        Token.Word(w) => w.len()
+        Token.End => 0

@@ -1,0 +1,13 @@
+# test: a payload of another lifetime enum whose positions all name one lifetime binds with that lifetime
+# Spec 13 Lifetime Enums: ref.lifetime.enum.other-payload.
+enum Pair['a, 'b]:
+    Left(&'a string)
+    Right(&'b string)
+
+enum Wrap['c]:
+    One(Pair['c, 'c])
+
+fn inside['c](w: Wrap['c]) -> &'c string:
+    match w:
+        Wrap.One(Pair.Left(x)) => x
+        Wrap.One(Pair.Right(y)) => y

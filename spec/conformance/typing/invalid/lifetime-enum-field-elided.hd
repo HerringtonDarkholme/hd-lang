@@ -1,0 +1,8 @@
+# test: a field whose type names a lifetime enum without lifetime arguments is local-reference-escapes
+# Spec 13 Lifetime Enums: ref.lifetime.enum.type; Lifetime Structs: ref.lifetime.struct.field-elided.
+enum Token['a]:
+    Word(&'a string)
+    End
+
+struct Holder:
+    token: Token  # diagnostic: local-reference-escapes

@@ -1,0 +1,14 @@
+# test: a match binding of an enum's `&'a` payload returns with the enum's lifetime
+# Spec 13 Lifetime Enums: ref.lifetime.enum, ref.lifetime.enum.payload, ref.lifetime.enum.match.
+enum Token['a]:
+    Word(&'a string)
+    End
+
+fn word['a](t: Token['a], fallback: &'a string) -> &'a string:
+    match t:
+        Token.Word(w) => w
+        Token.End => fallback
+
+fn count(text: string) -> usize:
+    t := Token.Word(&text)
+    word(t, &text).len()  # text is in scope

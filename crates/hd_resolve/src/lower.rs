@@ -2567,7 +2567,7 @@ impl Lower<'_, '_, '_> {
     /// scope, in any order beside the list's type parameters
     /// (`types.lifetime.free-order`).
     /// Only a function's, an implementation's, a method's and a top-level
-    /// struct's lifetimes are checked; declaring one elsewhere is an error
+    /// struct's or enum's lifetimes are checked; declaring one elsewhere is an error
     /// until its checks land (`ref.lifetime.not-yet.other-owner`).
     fn declare_lifetimes(&mut self, gl: NodeRef<'_>, gn: &mut Gen) {
         let mut checked = None;
@@ -2592,7 +2592,7 @@ impl Lower<'_, '_, '_> {
                         .error(Code::DuplicateBinding, self.src.span(p), &msg);
                 } else if !checked {
                     let msg = format!(
-                        "lifetime `{text}` is not checked yet here; so far only functions, implementations, methods and structs take lifetimes"
+                        "lifetime `{text}` is not checked yet here; so far only functions, implementations, methods, structs and enums take lifetimes"
                     );
                     self.diags
                         .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
@@ -2619,17 +2619,19 @@ impl Lower<'_, '_, '_> {
         path
     }
 
-    /// Whether `gl` is a top-level struct's generic list, whose lifetimes
-    /// are generic parameters of the struct (`ref.lifetime.struct`).
+    /// Whether `gl` is a top-level struct's or enum's generic list, whose
+    /// lifetimes are generic parameters of the type (`ref.lifetime.struct`,
+    /// `ref.lifetime.enum`).
     fn struct_generics(&self, gl: NodeRef<'_>) -> bool {
         matches!(self.owner_path(gl).as_slice(),
-            [outer, owner] if owner.kind() == SyntaxKind::DataDecl && outer.kind() == SyntaxKind::Root)
+            [outer, owner] if matches!(owner.kind(), SyntaxKind::DataDecl | SyntaxKind::EnumDecl)
+                && outer.kind() == SyntaxKind::Root)
     }
 
     /// Whether the lifetimes the generic list `gl` declares are checked
     /// (`ref.lifetime.declarations`): a top-level function's, an
     /// implementation's, a method's of an implementation or a trait, or
-    /// a top-level struct's (`ref.lifetime.struct`).
+    /// a top-level struct's or enum's (`ref.lifetime.struct`, `ref.lifetime.enum`).
     fn lifetimes_checked(&self, gl: NodeRef<'_>) -> bool {
         if self.struct_generics(gl) {
             return true;
@@ -2665,18 +2667,14 @@ impl Lower<'_, '_, '_> {
                     .collect()
             })
             .unwrap_or_default();
-        let want = if kind == HeadKind::Data {
-            self.r.lifetime_count(def)
-        } else {
-            0
-        };
+        let typed = matches!(kind, HeadKind::Data | HeadKind::Enum);
+        let want = if typed { self.r.lifetime_count(def) } else { 0 };
         let ids: Vec<u16> = written.iter().map(|&t| self.lifetime_of(t, gn)).collect();
         if self.r.frozen.is_none() {
             let name = self.names.display_name(def).to_owned();
             let span = self.src.span(n);
-            if want == 0 && !written.is_empty() && kind != HeadKind::Data {
-                let msg =
-                    "a lifetime argument is not checked yet here; so far only a struct takes one";
+            if want == 0 && !written.is_empty() && !typed {
+                let msg = "a lifetime argument is not checked yet here; so far only a struct or an enum takes one";
                 self.diags.error(Code::ReferencesNotYetChecked, span, msg);
             } else if !written.is_empty() && written.len() != want {
                 let s = if want == 1 { "" } else { "s" };
@@ -2687,7 +2685,7 @@ impl Lower<'_, '_, '_> {
                 self.diags.error(Code::ArgumentCount, span, &msg);
             } else if written.is_empty() && want > 0 && self.in_field {
                 let msg = format!(
-                    "a local reference never escapes to a field, and `{name}` holds one; a struct's field writes one of the struct's lifetimes as its argument, as in `{name}[T, 'a]`"
+                    "a local reference never escapes to a field, and `{name}` holds one; a field writes one of its declaration's lifetimes as the argument, as in `{name}[T, 'a]`"
                 );
                 self.diags.error(Code::LocalReferenceEscapes, span, &msg);
             }
@@ -5079,6 +5077,9 @@ impl Lower<'_, '_, '_> {
             HeadKind::Enum => {
                 let mut gn = Gen::default();
                 let generics = self.generics(gl, h.def, 0, &mut gn);
+                // `ref.lifetime.enum.payload`: a payload records its slots'
+                // lifetimes as a lifetime struct's field does.
+                let lifetimes = generics.iter().any(|g| g.lifetime);
                 let shared_params = Src::child(n, SyntaxKind::ParameterList);
                 let nodes: Vec<NodeRef<'_>> = shared_params
                     .iter()
@@ -5104,7 +5105,8 @@ impl Lower<'_, '_, '_> {
                         continue;
                     };
                     let text = self.src.text(t).to_owned();
-                    let fields = self.fields(Src::child(v, SyntaxKind::ParameterList), &gn, false);
+                    let fields =
+                        self.fields(Src::child(v, SyntaxKind::ParameterList), &gn, lifetimes);
                     if check {
                         let holder = Src::child(v, SyntaxKind::ParameterList);
                         self.field_variance(h.def, &generics, holder, &fields);

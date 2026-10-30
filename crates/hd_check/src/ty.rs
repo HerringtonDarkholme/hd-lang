@@ -226,12 +226,16 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported(format!("the type {}", self.cx.names.path(def)));
         };
-        let n = item.generics.len();
         // An omitted trailing argument takes its default with the earlier
         // arguments substituted (`types.generic.default.written`).
         let mut args = hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, args);
-        while args.len() < n {
-            args.push(self.infer.fresh(pool, VarKind::General));
+        while let Some(g) = item.generics.get(args.len()) {
+            // `ref.lifetime.struct`: a lifetime has its one argument.
+            args.push(if g.lifetime {
+                hd_resolve::lifetime_arg(pool)
+            } else {
+                self.infer.fresh(pool, VarKind::General)
+            });
         }
         Ok(match &item.data {
             ItemData::Alias(body) => pool.subst(*body, &|p: ParamRef| {

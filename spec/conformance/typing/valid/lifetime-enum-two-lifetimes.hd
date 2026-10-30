@@ -1,0 +1,19 @@
+# test: matching an enum with two lifetimes returns the payload of the result's lifetime, and a caller's result follows that source only
+# Spec 13 Lifetime Enums: ref.lifetime.enum.construct, ref.lifetime.enum.match.
+enum Pair['a, 'b]:
+    Left(&'a string)
+    Right(&'b string)
+    Both(&'a string, &'b string)
+
+fn left['a, 'b](p: Pair['a, 'b], fallback: &'a string) -> &'a string:
+    match p:
+        Pair.Left(x) => x
+        Pair.Both(x, _) => x
+        Pair.Right(_) => fallback
+
+fn first(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "inner"
+        kept = left(Pair.Both(&outer, &inner), &outer)
+    kept.len()  # kept does not point into inner

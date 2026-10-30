@@ -5299,7 +5299,7 @@ typing/invalid/lifetime-parameter-not-checked.hd	type	reject:references-not-yet-
 typing/invalid/lifetime-unknown.hd	type	reject:unknown-lifetime	lang/04-type-system.md#r-types.lifetime.unknown
 typing/invalid/lifetime-alias-argument-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.alias
 typing/valid/lifetime-trait-impl-parameter.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.declarations
-typing/invalid/lifetime-enum-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.other-owner
+typing/invalid/lifetime-local-enum-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.other-owner
 typing/valid/lifetime-struct-in-scope.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.field
 typing/invalid/lifetime-struct-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.struct.holds
 typing/invalid/lifetime-struct-box.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.struct.holds
@@ -5321,6 +5321,16 @@ typing/valid/lifetime-struct-field-read.hd	type	accept	lang/13-values-and-refere
 typing/invalid/lifetime-struct-field-read-other.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.struct.read
 typing/invalid/lifetime-struct-field-read-outlives.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.struct.read
 runtime/valid/lifetime-struct-field-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.construct
+typing/valid/lifetime-enum-match-payload.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.enum.payload
+typing/invalid/lifetime-enum-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.enum.holds
+typing/invalid/lifetime-enum-box.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.enum.holds
+typing/valid/lifetime-enum-two-lifetimes.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.enum.construct
+typing/invalid/lifetime-enum-wrong-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.enum.match
+typing/valid/lifetime-enum-signature.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.enum.signature
+typing/invalid/lifetime-enum-impl-elided.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.enum.signature
+typing/invalid/lifetime-enum-field-elided.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.enum.type
+typing/valid/lifetime-enum-nested-payload.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.enum.other-payload
+runtime/valid/lifetime-enum-payload.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.enum.match
 typing/invalid/lifetime-in-body-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.body
 typing/valid/lifetime-shared-either-source.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.shared
 typing/invalid/lifetime-return-unshared-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.return

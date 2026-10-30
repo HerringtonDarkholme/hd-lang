@@ -1,0 +1,10 @@
+# test: returning an enum's `'b` payload as an `'a` reference is local-reference-escapes
+# Spec 13 Lifetime Enums: ref.lifetime.enum.match.
+enum Pair['a, 'b]:
+    Left(&'a string)
+    Right(&'b string)
+
+fn right['a, 'b](p: Pair['a, 'b], fallback: &'a string) -> &'a string:
+    match p:
+        Pair.Right(y) => y  # diagnostic: local-reference-escapes
+        _ => fallback

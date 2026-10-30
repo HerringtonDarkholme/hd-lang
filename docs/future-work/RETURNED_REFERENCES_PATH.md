@@ -345,6 +345,8 @@ Applied by #1027: 6d2 is specified by [Static Fn Bounds](../../spec/lang/07-func
 
 Applied by #1019 (6a3): an elided lifetime argument in a signature is a reference position that writes no lifetime, so `p: &Parser[string]` has two and `-> Parser[string]` elides as `-> &T` does; the resolver decides elision over a signature's typed positions. A lifetime written inside a generic argument (`Option[&'a T]`, `Wrap[&'a T]`) and in an implementation's target (`impl[T, 'a] Parser[T, 'a]`) is placed; an elided target lifetime stays not-yet (6c3).
 
+Applied by #1020 (6a4, [Lifetime Enums](../../spec/lang/13-values-and-references.md#lifetime-enums)): a top-level enum declares lifetimes as a struct does; a variant construction puts each payload field in its lifetime's position, and a match binding of the payload takes that position's origins. A variant function value's result takes the payload's lifetime by elision.
+
 ### Stage 7: exclusivity
 
 Stage 7 follows Swift's lifetime dependence and Rust: a lifetime names a

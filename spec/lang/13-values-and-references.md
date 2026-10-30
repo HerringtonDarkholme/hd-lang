@@ -565,8 +565,8 @@ fn pick(x: &User, first: bool) -> usize:
         r = choose(x, &local, first)
     r.name.len()  # error: local-reference-outlives-local
 
-enum Tagged['a]:  # error: references-not-yet-checked
-    Plain
+trait Named['a]:  # error: references-not-yet-checked
+    fn name(&self) -> usize
 
 fn view(u: User) -> i32:
     let r: &'a User = &u  # error: references-not-yet-checked
@@ -586,7 +586,7 @@ fn view(u: User) -> i32:
 11. r[ref.lifetime.return.message] The diagnostic's message names the root, the lifetime, and the parameters with that lifetime. It has no fix-it.
 12. r[ref.lifetime.call] A call's result position depends on what every argument in a parameter position of its lifetime depends on.
 13. r[ref.lifetime.declarations] A top-level function, an implementation, and a method of an implementation or a trait may declare lifetime parameters.
-14. r[ref.lifetime.not-yet.other-owner] Any other lifetime parameter is not checked yet, so it is an error: an enum's, a trait's own, a `type` declaration's, a local function's, or a local struct's. A top-level struct's follows [Lifetime Structs](#lifetime-structs). Error: `references-not-yet-checked`.
+14. r[ref.lifetime.not-yet.other-owner] Any other lifetime parameter is not checked yet, so it is an error: a trait's own, a `type` declaration's, a local function's, a local struct's, or a local enum's. A top-level struct's follows [Lifetime Structs](#lifetime-structs), and a top-level enum's [Lifetime Enums](#lifetime-enums). Error: `references-not-yet-checked`.
 15. r[ref.lifetime.alias-in-order] A type alias passes on the lifetimes written in its arguments when its type uses each parameter once, in order, outside function types, and writes no `&` of its own. So `Option[&'a T]` is `&'a T?`.
 16. r[ref.lifetime.not-yet.alias] A lifetime written in the arguments of any other type alias is an error too. Error: `references-not-yet-checked`.
 17. r[ref.lifetime.not-yet.trait-target] A lifetime written in a trait implementation's target is an error too. Error: `references-not-yet-checked`.
@@ -655,7 +655,7 @@ fn keep(text: string) -> void:
 2. r[ref.lifetime.struct.field] A field of a lifetime struct may write `&'a T` or `&'a mut T` with one of the struct's lifetimes. Such a field is no escape to a field.
 3. r[ref.lifetime.struct.argument] A type names a lifetime struct with one lifetime argument per lifetime parameter, as in `Parser[string, 'a]`. The lifetime arguments take the lifetime parameters in order.
 4. r[ref.lifetime.struct.argument.count] A struct type with lifetime arguments, but not one per lifetime parameter of the struct, is an error. Error: `argument-count`.
-5. r[ref.lifetime.struct.argument.other] A lifetime argument of an enum, a trait, or a type alias is not checked yet, so it is an error. Error: `references-not-yet-checked`.
+5. r[ref.lifetime.struct.argument.other] A lifetime argument of a trait or a type alias is not checked yet, so it is an error. Error: `references-not-yet-checked`.
 6. r[ref.lifetime.struct.holds] A lifetime struct holds a local reference ([`ref.local.holding`](#r-ref.local.holding)), so every rule of [Local References](#local-references) applies to its values.
 7. r[ref.lifetime.struct.position] Each lifetime parameter is one reference position of the struct's type, after the positions of its type arguments. A written lifetime argument names that position's lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
 8. r[ref.lifetime.struct.construct] A struct literal adds the origins of a field typed `&'a T` to the value's `'a` position only.
@@ -715,13 +715,96 @@ fn first(outer: string) -> usize:
 > Elision is Rust's too: `&Parser<'_, T>` has two input lifetimes, so a
 > result needs one named.
 
-> **Note.** Lifetimes on enums and traits, a trait implementation for a
-> lifetime struct, lifetime arguments elided in an implementation's
-> target, and stores of local references through `&mut` come in later
-> stages.
+> **Note.** Lifetimes on traits, a trait implementation for a lifetime
+> struct, lifetime arguments elided in an implementation's target, and
+> stores of local references through `&mut` come in later stages.
 
 See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
-[Fields](08-data-and-enums.md#fields).
+[Fields](08-data-and-enums.md#fields), [Lifetime Enums](#lifetime-enums).
+
+### Lifetime Enums
+
+A **lifetime enum** declares lifetime parameters, and its variants' payloads may hold local references of those lifetimes:
+
+```text
+enum Token[T, 'src]:
+    Word(&'src T)
+    End
+
+enum Pair['a, 'b]:
+    Left(&'a string)
+    Right(&'b string)
+
+fn right['a, 'b](p: Pair['a, 'b], fallback: &'a string) -> &'a string:
+    match p:
+        Pair.Right(y) => y  # error: local-reference-escapes
+        _ => fallback
+
+fn count(fallback: &string) -> usize:
+    let mut t = Token.Word(fallback)
+    if fallback.len() > 0:
+        text := "hello"
+        t = Token.Word(&text)
+    match t:  # error: local-reference-outlives-local
+        Token.Word(w) => w.len()
+        Token.End => 0
+
+fn keep(text: string) -> void:
+    t := Token.Word(&text)
+    b := box(t)  # error: local-reference-escapes
+```
+
+1. r[ref.lifetime.enum] A top-level enum may declare lifetime parameters, as in `enum Token[T, 'src]`.
+2. r[ref.lifetime.enum.payload] A variant's payload field may write `&'a T` or `&'a mut T` with one of the enum's lifetimes. Such a field is no escape to a field.
+3. r[ref.lifetime.enum.type] A type names a lifetime enum as it names a lifetime struct: [`ref.lifetime.struct.argument`](#r-ref.lifetime.struct.argument), [`.argument.count`](#r-ref.lifetime.struct.argument.count), [`.position`](#r-ref.lifetime.struct.position) and [`.field-elided`](#r-ref.lifetime.struct.field-elided) apply.
+4. r[ref.lifetime.enum.holds] A lifetime enum holds a local reference ([`ref.local.holding`](#r-ref.local.holding)), so every rule of [Local References](#local-references) applies to its values.
+5. r[ref.lifetime.enum.construct] A variant construction adds the origins of a payload field typed `&'a T` to the value's `'a` position only.
+6. r[ref.lifetime.enum.match] A match binding of a payload field typed `&'a T` has the origins of the value's `'a` position, since it is a copy of the payload ([`ref.match.copy`](#r-ref.match.copy)).
+7. r[ref.lifetime.enum.other-payload] A payload field of another type is constructed and bound as [`ref.lifetime.struct.read.one-lifetime`](#r-ref.lifetime.struct.read.one-lifetime) and [`.read.mixed`](#r-ref.lifetime.struct.read.mixed) state for a field.
+8. r[ref.lifetime.enum.fn-value] A variant constructor as a function value has a result whose lifetimes take the payload's lifetime, as an elided result does ([`ref.lifetime.struct.elide.result`](#r-ref.lifetime.struct.elide.result)). So `Token.Word` is a `fn(&T) -> Token[T]`.
+9. r[ref.lifetime.enum.signature] A signature, an implementation's target and a function body name a lifetime enum without lifetime arguments as they name a lifetime struct: [`ref.lifetime.struct.elide`](#r-ref.lifetime.struct.elide) to [`.body`](#r-ref.lifetime.struct.body) apply.
+
+```hd
+enum Token[T, 'src]:
+    Word(&'src T)
+    End
+
+fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
+    match t:
+        Token.Word(w) => w
+        Token.End => fallback
+
+fn make(src: &string) -> Token[string]:  # the result takes src's lifetime
+    Token.Word(src)
+
+impl[T, 'a] Token[T, 'a]:
+    fn or(self, fallback: &'a T) -> &'a T:
+        match self:
+            Token.Word(w) => w
+            Token.End => fallback
+
+enum Pair['a, 'b]:
+    Left(&'a string)
+    Right(&'b string)
+
+fn left['a, 'b](p: Pair['a, 'b], fallback: &'a string) -> &'a string:
+    match p:
+        Pair.Left(x) => x  # valid: the `'a` position only
+        Pair.Right(_) => fallback
+
+fn first(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "hello"
+        kept = left(Pair.Right(&inner), &outer)
+    kept.len() + word(make(&outer), &outer).len()  # valid: kept does not point into inner
+```
+
+> **Why.** These are Rust's enum lifetimes, as in `enum Token<'a>`. A
+> payload is a copy, so a match binding holds the payload's references
+> with their origins, as reading a struct's field does.
+
+See also: [Variant Payloads](08-data-and-enums.md#variant-payloads).
 
 ## Generic Locality
 

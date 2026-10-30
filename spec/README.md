@@ -256,6 +256,7 @@ The stdlib chapters' terms are in the
 | **let-else** | A `let` statement with a refutable pattern and an `else` block, which runs when the pattern does not match and must diverge. See [Let-Else Statements](lang/02-grammar.md#let-else-statements). |
 | **lexical provider** | A provider a closure fixes where it is written, by capturing the value of `$.use`. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
 | **lifetime** | A token that names a lifetime variable: an apostrophe and identifier characters with no closing `'`, as in `'a`. See [Lifetimes](lang/01-lexical-structure.md#lifetimes). |
+| **lifetime enum** | An enum that declares lifetime parameters, so its payloads may hold local references and its values hold one. See [Lifetime Enums](lang/13-values-and-references.md#lifetime-enums). |
 | **lifetime parameter** | A generic parameter `'name` that names a lifetime of local references, not a type. See [Lifetime Parameters](lang/04-type-system.md#lifetime-parameters). |
 | **lifetime struct** | A struct that declares lifetime parameters, so its fields may hold local references and its values hold one. See [Lifetime Structs](lang/13-values-and-references.md#lifetime-structs). |
 | **lifetime variable** | A lifetime written after `&`, as in `&'a T`, naming a lifetime parameter in scope. See [Lifetime Variables](lang/13-values-and-references.md#lifetime-variables). |

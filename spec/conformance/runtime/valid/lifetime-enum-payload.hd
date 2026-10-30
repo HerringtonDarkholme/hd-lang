@@ -1,0 +1,34 @@
+# test: enum payload references built and matched with their own lifetimes run
+# Spec 13 Lifetime Enums: ref.lifetime.enum.construct, ref.lifetime.enum.match, ref.lifetime.enum.signature.
+# expect-stdout: outer inner end
+# expect-stdout: 5 4
+enum Pair['a, 'b]:
+    Left(&'a string)
+    Right(&'b string)
+    Both(&'a string, &'b string)
+
+fn left['a, 'b](p: Pair['a, 'b], fallback: &'a string) -> &'a string:
+    match p:
+        Pair.Left(x) => x
+        Pair.Both(x, _) => x
+        Pair.Right(_) => fallback
+
+fn right['a, 'b](p: &Pair['a, 'b], fallback: &'b string) -> &'b string:
+    match p:
+        Pair.Right(y) => y
+        Pair.Both(_, y) => y
+        Pair.Left(_) => fallback
+
+fn make(s: &string) -> Pair:
+    Pair.Left(s)
+
+pub fn main() -> void $ Console:
+    outer := "outer"
+    end := "end"
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "inner"
+        p := Pair.Both(&outer, &inner)
+        kept = left(p, &outer)
+        println("${*kept} ${*right(&p, &end)} ${*right(&make(&outer), &end)}")
+    println("${kept.len()} ${left(Pair.Right(&end), &end).len() + 1}")

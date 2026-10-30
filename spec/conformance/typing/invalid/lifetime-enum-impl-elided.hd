@@ -1,0 +1,11 @@
+# test: an implementation's target that names a lifetime enum without its lifetime arguments is references-not-yet-checked
+# Spec 13 Lifetime Enums: ref.lifetime.enum.signature; Lifetime Structs: ref.lifetime.struct.impl.elided.
+enum Token['a]:
+    Word(&'a string)
+    End
+
+impl Token:  # diagnostic: references-not-yet-checked
+    fn ended(&self) -> bool:
+        match *self:
+            Token.End => true
+            _ => false

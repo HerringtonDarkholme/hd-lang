@@ -2866,13 +2866,20 @@ impl Ck<'_, '_> {
             }
         }
         let payload = fields[0];
+        // `ref.lifetime.enum.construct`: an enum with lifetimes takes them
+        // from the payload, as an elided result would.
+        let deps = if pool.ref_slots(t) > 0 {
+            pool.fn_deps_written(&[payload], t, &[])
+        } else {
+            hd_types::FnDeps::NONE
+        };
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&[payload]),
             result: t,
             row: hd_types::RowId::EMPTY,
             suspends: false,
             inputs: hd_types::Inputs::Fixed,
-            deps: hd_types::FnDeps::NONE,
+            deps,
         });
         self.fit_expected(ft, want);
         // The enum's own type arguments are decided like a reference's.

@@ -533,10 +533,11 @@ enum ToolError:
 3. r[data.enum.payload.typed] Each payload type is explicit.
 4. r[data.enum.payload.large] Large payloads should use a separate struct rather than a nested field block.
 5. r[data.enum.payload.no-field-blocks] Variant field blocks are not part of the language.
-6. r[data.enum.immutable] An enum value never changes once built: its variant and its payload values are fixed at construction.
-7. r[data.enum.immutable.shallow] The rule is shallow. A payload of type `*mut U` still refers to a place, which may change through that reference.
-8. r[data.enum.no-identity] An enum value has no identity, so every enum type implements `AnyVal`, as [`types.sealed.anyval-members`](04-type-system.md#r-types.sealed.anyval-members) states.
-9. r[data.enum.no-identity.is] `is` with an enum operand is an error. Error: `identity-requires-references`.
+6. r[data.enum.payload.local-reference] A payload holds a local reference only by writing a lifetime of its enum, as `Word(&'src string)` does in `enum Token['src]` ([Lifetime Enums](13-values-and-references.md#lifetime-enums)).
+7. r[data.enum.immutable] An enum value never changes once built: its variant and its payload values are fixed at construction.
+8. r[data.enum.immutable.shallow] The rule is shallow. A payload of type `*mut U` still refers to a place, which may change through that reference.
+9. r[data.enum.no-identity] An enum value has no identity, so every enum type implements `AnyVal`, as [`types.sealed.anyval-members`](04-type-system.md#r-types.sealed.anyval-members) states.
+10. r[data.enum.no-identity.is] `is` with an enum operand is an error. Error: `identity-requires-references`.
 
 ### Variant Construction
 

@@ -1,0 +1,18 @@
+# test: a lifetime enum's elided arguments, an inherent implementation's lifetimes and a variant function value
+# Spec 13 Lifetime Enums: ref.lifetime.enum.signature, ref.lifetime.enum.fn-value.
+enum Token[T, 'src]:
+    Word(&'src T)
+    End
+
+fn make(src: &string) -> Token[string]:  # the result takes src's lifetime
+    Token.Word(src)
+
+impl[T, 'a] Token[T, 'a]:
+    fn or(self, fallback: &'a T) -> &'a T:
+        match self:
+            Token.Word(w) => w
+            Token.End => fallback
+
+fn count(text: string) -> usize:
+    let build: fn(&string) -> Token[string] = Token.Word
+    make(&text).or(&text).len() + build(&text).or(&text).len()
