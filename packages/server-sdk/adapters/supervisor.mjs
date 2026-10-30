@@ -17,15 +17,7 @@ const cancelled = (reason) => ({ response: null, cancelled: reason, abandoned: t
 const reasonOf = (signal) =>
   ["Deadline", "Stopping"].includes(signal?.reason) ? signal.reason : "Disconnected";
 
-// The cleanup backstop is fixed by the SDK contract. Other lifecycle budgets
-// and explicit module URLs are supplied by the embedding application.
-export function createSupervisor({
-  program,
-  policy,
-  event = () => {},
-  log = () => {},
-  exhausted = () => {},
-}) {
+function validateProgram(program) {
   if (!(program.module instanceof WebAssembly.Module)) {
     throw new TypeError("compiled module required");
   }
@@ -37,6 +29,9 @@ export function createSupervisor({
   if (program.packageRuntimeURL !== undefined && typeof program.packageRuntimeURL !== "string") {
     throw new TypeError("packageRuntimeURL must be a string");
   }
+}
+
+function validatePolicy(policy) {
   for (const key of [
     "workers",
     "startupMs",
@@ -61,18 +56,38 @@ export function createSupervisor({
   if (typeof policy.retryAfter !== "string") {
     throw new TypeError("explicit Retry-After value required");
   }
-  // The snapshot owns plain grant/config values; callers cannot change a live generation.
-  const input = { ...structuredClone(program), module: program.module };
-  const rules = Object.freeze({ ...policy });
-  let lifecycle = "Starting",
-    nextRequest = 0,
-    drainTimer,
-    stopTimer,
-    stopResolve;
-  const stopped = new Promise((resolve) => {
-    stopResolve = resolve;
-  });
-  const slots = Array.from({ length: rules.workers }, (_, index) => ({
+}
+
+function validLease(lease) {
+  return (
+    typeof lease?.generation === "string" &&
+    typeof lease?.sequence === "string" &&
+    /^\d+$/.test(lease.generation) &&
+    /^\d+$/.test(lease.sequence)
+  );
+}
+
+function validLogMessage(slot, message) {
+  const record = message.record;
+  if (
+    record?.version !== 1 ||
+    !["out", "err"].includes(record.stream) ||
+    typeof record.text !== "string"
+  ) {
+    return false;
+  }
+  if (record.lease === null) {
+    return message.request === null;
+  }
+  return (
+    validLease(record.lease) &&
+    Number.isSafeInteger(message.request) &&
+    message.request === slot.active?.id
+  );
+}
+
+function workerSlots(workers) {
+  return Array.from({ length: workers }, (_, index) => ({
     index,
     generation: 0,
     worker: null,
@@ -82,21 +97,62 @@ export function createSupervisor({
     startupTimer: null,
     terminating: false,
   }));
-  const publish = (kind, slot, extra = {}) => {
-    try {
-      event(
-        Object.freeze({
-          kind,
-          slot: slot?.index,
-          generation: slot?.generation,
-          lifecycle,
-          ...extra,
-        }),
-      );
-    } catch {
-      /* Observers cannot bypass owned cleanup. */
-    }
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
+function requestJob({ id, signal, resolve, abort }) {
+  return {
+    id,
+    signal,
+    resolve,
+    reason: null,
+    abort,
+    deadline: null,
+    cleanup: null,
   };
+}
+
+function publishEvent({ event, lifecycle, kind, slot, extra }) {
+  try {
+    event(
+      Object.freeze({
+        kind,
+        slot: slot?.index,
+        generation: slot?.generation,
+        lifecycle,
+        ...extra,
+      }),
+    );
+  } catch {}
+}
+
+// The cleanup backstop is fixed by the SDK contract. Other lifecycle budgets
+// and explicit module URLs are supplied by the embedding application.
+export function createSupervisor({
+  program,
+  policy,
+  event = () => {},
+  log = () => {},
+  exhausted = () => {},
+}) {
+  validateProgram(program);
+  validatePolicy(policy);
+  const input = { ...structuredClone(program), module: program.module };
+  const rules = Object.freeze({ ...policy });
+  let lifecycle = "Starting",
+    nextRequest = 0,
+    drainTimer,
+    stopTimer;
+  const { promise: stopped, resolve: stopResolve } = deferred();
+  const slots = workerSlots(rules.workers);
+  const publish = (kind, slot, extra = {}) => publishEvent({ event, lifecycle, kind, slot, extra });
   const ready = () => lifecycle === "Ready" && slots.every((slot) => slot.ready);
   const changed = () => {
     if (lifecycle === "Starting" && slots.every((slot) => slot.ready)) {
@@ -147,8 +203,7 @@ export function createSupervisor({
     clearTimeout(slot.startupTimer);
     settle(slot, result);
     publish("terminated", slot, { cause, cleanupConfirmed: false });
-    // Termination is owned even for a worker stuck inside Wasm or JS. There
-    // are no child processes in the portable profile; no shell kill command.
+    // Termination owns even a worker stuck in Wasm or JS; the portable profile has no children.
     worker.terminate().then(() => {
       slot.terminating = false;
       if (["Starting", "Ready"].includes(lifecycle)) {
@@ -167,6 +222,89 @@ export function createSupervisor({
       changed();
     });
   }
+  function emitLog(slot, generation, message) {
+    if (!validLogMessage(slot, message)) {
+      return;
+    }
+    const record = message.record;
+    try {
+      log(
+        Object.freeze({
+          version: 1,
+          stream: record.stream,
+          text: record.text,
+          lease: record.lease
+            ? Object.freeze({
+                generation: record.lease.generation,
+                sequence: record.lease.sequence,
+              })
+            : null,
+          worker: Object.freeze({ slot: slot.index, generation }),
+          request: message.request ?? null,
+        }),
+      );
+    } catch {}
+  }
+  function workerReady(slot) {
+    clearTimeout(slot.startupTimer);
+    slot.ready = true;
+    publish("ready", slot);
+    changed();
+  }
+  function workerResult(slot, message) {
+    if (!slot.active || message.id !== slot.active.id) {
+      return;
+    }
+    if (!message.released) {
+      retire(slot, "response-before-release");
+      return;
+    }
+    if (!message.result || typeof message.result.abandoned !== "boolean") {
+      retire(slot, "invalid-worker-result");
+      return;
+    }
+    const reason = slot.active.reason;
+    settle(slot, reason ? { ...message.result, cancelled: reason } : message.result);
+    publish("released", slot, { id: message.id, cleanupConfirmed: !message.result.abandoned });
+  }
+  function workerStopped(slot, worker) {
+    if (["Starting", "Ready"].includes(lifecycle)) {
+      retire(slot, "unexpected-main-stop");
+      return;
+    }
+    clearTimeout(slot.startupTimer);
+    slot.ready = false;
+    slot.worker = null;
+    slot.terminating = true;
+    settle(slot, cancelled(slot.active?.reason ?? "Stopping"));
+    worker.terminate().then(() => {
+      slot.terminating = false;
+      changed();
+    });
+    publish("drained", slot, { cleanupConfirmed: true });
+  }
+  function workerMessage(slot, worker, generation, message) {
+    if (slot.worker !== worker || message.generation !== generation) {
+      return;
+    }
+    switch (message.type) {
+      case "log":
+        emitLog(slot, generation, message);
+        break;
+      case "ready":
+        workerReady(slot);
+        break;
+      case "result":
+        workerResult(slot, message);
+        break;
+      case "failed":
+        retire(slot, message.category === "host-contract" ? "host-contract" : "poisoned-instance");
+        break;
+      case "stopped":
+        workerStopped(slot, worker);
+        break;
+    }
+  }
   function spawn(slot) {
     const generation = ++slot.generation;
     const worker = new Worker(new URL("./worker.mjs", import.meta.url), {
@@ -175,84 +313,7 @@ export function createSupervisor({
     slot.worker = worker;
     publish("starting", slot);
     slot.startupTimer = setTimeout(() => retire(slot, "startup-deadline"), rules.startupMs);
-    worker.on("message", (message) => {
-      if (slot.worker !== worker || message.generation !== generation) {
-        return;
-      }
-      if (message.type === "log") {
-        const record = message.record;
-        if (
-          record?.version !== 1 ||
-          !["out", "err"].includes(record.stream) ||
-          typeof record.text !== "string" ||
-          (record.lease !== null &&
-            (typeof record.lease?.generation !== "string" ||
-              typeof record.lease?.sequence !== "string" ||
-              !/^\d+$/.test(record.lease.generation) ||
-              !/^\d+$/.test(record.lease.sequence))) ||
-          (record.lease === null
-            ? message.request !== null
-            : !Number.isSafeInteger(message.request) || message.request !== slot.active?.id)
-        ) {
-          return;
-        }
-        try {
-          log(
-            Object.freeze({
-              version: 1,
-              stream: record.stream,
-              text: record.text,
-              lease: record.lease
-                ? Object.freeze({
-                    generation: record.lease.generation,
-                    sequence: record.lease.sequence,
-                  })
-                : null,
-              worker: Object.freeze({ slot: slot.index, generation }),
-              request: message.request ?? null,
-            }),
-          );
-        } catch {
-          // Application logs are separate observers, never response owners.
-        }
-      } else if (message.type === "ready") {
-        clearTimeout(slot.startupTimer);
-        slot.ready = true;
-        publish("ready", slot);
-        changed();
-      } else if (message.type === "result") {
-        if (!slot.active || message.id !== slot.active.id) {
-          return;
-        }
-        if (!message.released) {
-          return retire(slot, "response-before-release");
-        }
-        if (!message.result || typeof message.result.abandoned !== "boolean") {
-          return retire(slot, "invalid-worker-result");
-        }
-        const reason = slot.active.reason;
-        settle(slot, reason ? { ...message.result, cancelled: reason } : message.result);
-        publish("released", slot, { id: message.id, cleanupConfirmed: !message.result.abandoned });
-      } else if (message.type === "failed") {
-        // The original diagnostic stays inside the worker. Only a generic
-        // failure classification reaches affected physical response owners.
-        retire(slot, message.category === "host-contract" ? "host-contract" : "poisoned-instance");
-      } else if (message.type === "stopped") {
-        if (["Starting", "Ready"].includes(lifecycle)) {
-          return retire(slot, "unexpected-main-stop");
-        }
-        clearTimeout(slot.startupTimer);
-        slot.ready = false;
-        slot.worker = null;
-        slot.terminating = true;
-        settle(slot, cancelled(slot.active?.reason ?? "Stopping"));
-        worker.terminate().then(() => {
-          slot.terminating = false;
-          changed();
-        });
-        publish("drained", slot, { cleanupConfirmed: true });
-      }
-    });
+    worker.on("message", (message) => workerMessage(slot, worker, generation, message));
     worker.on("error", () => {
       if (slot.worker === worker) {
         retire(slot, "worker-error");
@@ -304,15 +365,12 @@ export function createSupervisor({
       }
       const ownedRequest = structuredClone(request);
       return new Promise((resolve) => {
-        const job = {
+        const job = requestJob({
           id: ++nextRequest,
           signal,
           resolve,
-          reason: null,
           abort: () => cancel(slot, reasonOf(signal)),
-          deadline: null,
-          cleanup: null,
-        };
+        });
         slot.active = job;
         signal?.addEventListener("abort", job.abort, { once: true });
         job.deadline = setTimeout(() => cancel(slot, "Deadline"), remaining);
