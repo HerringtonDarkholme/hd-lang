@@ -1,30 +1,20 @@
 //! Outlives constraints for places, stores, constructions, control flow,
 //! calls and closures, and the checked edges into universal regions
-//! (`docs/future-work/LIFETIME_SOLVER.md`, slices S3 to S5), solved beside
-//! [`Solve`] in shadow: with `HD_REGION_SHADOW` set, [`shadow`] prints each
-//! instruction's top slots where the two disagree, and [`compare`] each
-//! diagnostic only one of them gives.
-
-use std::sync::LazyLock;
+//! (`docs/future-work/LIFETIME_SOLVER.md`): [`solve`] generates them for
+//! one body, solves them and reads its diagnostics off the solution.
 
 use hd_base::{HashMap, HashSet, NodeIdx, SliceSort as _};
-use hd_diag::Code;
 use hd_tir::ir::{IntrinsicOp, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData};
 
 use super::{
-    ANY, ANY_FN, BOX_MSG, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, FnDest, HOST_MSG, Layout,
-    NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Solve, Verdicts, arg_ty,
+    ANY, ANY_FN, BOX_MSG, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, FnDest, HOST_MSG, Inputs,
+    Layout, NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Verdicts, arg_ty,
     capture_slot, closure_allows, intrinsic_ops, local_ref, referent, referent_fn, returned,
     scoped_uses, site, source_arg, w,
 };
-use crate::body::BodyCx;
 use crate::local_refs::holds_local_ref;
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
-
-/// Whether `HD_REGION_SHADOW` asks for the shadow comparison.
-pub(super) static SHADOW: LazyLock<bool> =
-    LazyLock::new(|| std::env::var_os("HD_REGION_SHADOW").is_some());
 
 /// A value's or a place's region variables, one per slot of its type.
 type View = (Vec<Region>, Ty);
@@ -36,7 +26,7 @@ type Split = (Vec<Region>, Vec<Region>);
 type Lies = (Option<Result<Origin, u32>>, Option<View>);
 
 struct Gen<'s, 'a> {
-    s: &'s Solve<'a>,
+    s: &'s Inputs<'a>,
     t: RegionTable,
     c: Constraints,
     /// Each loan's origin: loan `l` is `loans[l]`, placeholders first.
@@ -221,43 +211,63 @@ impl Gen<'_, '_> {
         (self.s.ty(v).is_some() && b.tags[v as usize] == Tag::Read).then_some(v)
     }
 
-    /// The place `word`: what it lies in, as `Solve::place` finds it (a
-    /// loan, or a reference value it reborrows from), and its
-    /// slots past its first `limit` projections none
-    /// (`ref.dep.origin.place`), none for a top-level binding's and through
-    /// a counted reference.
+    /// What the place `word` of instruction `i` lies in: a loan, or a
+    /// reference value it reborrows from (`ref.dep.origin.place`).
+    fn lies(&self, i: u32, word: u32) -> Option<Result<Origin, u32>> {
+        let b = self.s.b;
+        let p = b.decode_place(word)?;
+        let (first, read) = (p.proj.first().copied(), |v: u32| b.data[v as usize][0]);
+        match p.root {
+            PlaceRoot::Local(l) => Some(Ok(Origin::Local(l.raw()))),
+            PlaceRoot::Value(v) if matches!(first, Some(Proj::Elem(_))) => {
+                match self.read_of(v.0) {
+                    Some(r) => self.lies(r, read(r)),
+                    None => Some(Ok(Origin::Hidden(i))),
+                }
+            }
+            PlaceRoot::Value(v) if first == Some(Proj::Deref) => {
+                match self.s.ty(v.0).and_then(|t| local_ref(self.s.pool, t)) {
+                    Some((false, _)) => Some(Err(v.0)),
+                    _ if b.tags.get(v.0 as usize) == Some(&Tag::Read) => self.lies(v.0, read(v.0)),
+                    _ => Some(Ok(Origin::Hidden(v.0))),
+                }
+            }
+            PlaceRoot::Value(_) => Some(Ok(Origin::Hidden(i))),
+            PlaceRoot::Global(d, _) => Some(Ok(Origin::Global(d.raw()))),
+            _ => None,
+        }
+    }
+
+    /// The place `word`: what it lies in ([`Gen::lies`]), and its slots
+    /// past its first `limit` projections none (`ref.dep.origin.place`),
+    /// none for a top-level binding's and through a counted reference.
     fn place(&mut self, i: u32, word: u32, limit: usize, dir: (bool, bool)) -> Lies {
         let b = self.s.b;
         let Some(p) = b.decode_place(word) else {
             return (None, None);
         };
-        let (first, read) = (p.proj.first().copied(), |v: u32| b.data[v as usize][0]);
-        let (at, root) = match p.root {
-            PlaceRoot::Local(l) => (Some(Ok(Origin::Local(l.raw()))), Some(self.local(l.raw()))),
+        let first = p.proj.first().copied();
+        let root = match p.root {
+            PlaceRoot::Local(l) => Some(self.local(l.raw())),
             PlaceRoot::Value(v) if matches!(first, Some(Proj::Elem(_))) => {
                 match self.read_of(v.0) {
-                    Some(r) => self.place(r, read(r), usize::MAX, dir),
-                    None => (Some(Ok(Origin::Hidden(i))), self.val(v.0)),
+                    Some(r) => self.place(r, b.data[r as usize][0], usize::MAX, dir).1,
+                    None => self.val(v.0),
                 }
             }
             PlaceRoot::Value(v) if first == Some(Proj::Deref) => {
-                match self.s.ty(v.0).and_then(|t| local_ref(self.s.pool, t)) {
-                    Some((false, _)) => {
-                        let view = self.val(v.0);
-                        (view.as_ref().map(|_| Err(v.0)), view)
-                    }
-                    _ if b.tags.get(v.0 as usize) == Some(&Tag::Read) => {
-                        (self.place(v.0, read(v.0), 0, (false, false)).0, None)
-                    }
-                    _ => (Some(Ok(Origin::Hidden(v.0))), None),
+                let kind = self.s.ty(v.0).and_then(|t| local_ref(self.s.pool, t));
+                if matches!(kind, Some((false, _))) {
+                    self.val(v.0)
+                } else {
+                    None
                 }
             }
-            PlaceRoot::Value(v) => (Some(Ok(Origin::Hidden(i))), self.val(v.0)),
-            PlaceRoot::Global(d, _) => (Some(Ok(Origin::Global(d.raw()))), None),
-            _ => (None, None),
+            PlaceRoot::Value(v) => self.val(v.0),
+            _ => None,
         };
         let proj = &p.proj[..limit.min(p.proj.len())];
-        (at, root.map(|r| self.project(r, proj, dir)))
+        (self.lies(i, word), root.map(|r| self.project(r, proj, dir)))
     }
 
     /// Puts what a place lies in into region `r`.
@@ -785,10 +795,9 @@ impl Gen<'_, '_> {
     }
 }
 
-/// Generates the body's constraints and checked edges, solves them,
-/// prints each top slot whose loans differ from `s`'s origin set and one
-/// count line, and returns the diagnostics the solution gives.
-pub(super) fn shadow(s: &Solve<'_>, r: &Returns<'_>) -> Verdicts {
+/// Generates the body's constraints and checked edges, solves them, and
+/// returns the diagnostics the solution gives.
+pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
     let b = s.b;
     let mut g = Gen {
         s,
@@ -832,70 +841,60 @@ pub(super) fn shadow(s: &Solve<'_>, r: &Returns<'_>) -> Verdicts {
         }
     }
     let sol = g.c.solve(g.t.len());
-    let (mut same, mut differ) = (0, 0);
-    for (i, today) in s.val.iter().enumerate() {
-        let tops = g.split(&g.val(w(i)).expect("a value")).0;
-        for (k, set) in today.iter().enumerate() {
-            let new = g.set(&sol, tops[k]);
-            if new == *set {
-                same += 1;
-            } else {
-                differ += 1;
-                let (line, tag) = (line(s.cx, b.syn[i]), b.tags[i]);
-                eprintln!(
-                    "region-shadow: line {line} %{i} {tag:?} slot {k}: today {set:?} new {new:?}"
-                );
-            }
-        }
-    }
-    eprintln!("region-shadow-body: {same} same, {differ} differ");
     g.verdicts(&sol, r)
 }
 
-impl<'a> Gen<'_, 'a> {
-    /// Region `r`'s solved loans as an origin set.
-    fn set(&self, sol: &Solution, r: Region) -> Set {
-        let mut set: Set = sol
-            .value(r)
-            .iter()
-            .map(|l| self.loans[l as usize])
-            .collect();
+impl Gen<'_, '_> {
+    /// The origins the top slots of view `v` hold.
+    fn origins(&self, sol: &Solution, v: &View) -> Set {
+        let tops = self.split(v).0;
+        let loans = tops.iter().flat_map(|&r| sol.value(r).iter());
+        let mut set: Set = loans.map(|l| self.loans[l as usize]).collect();
         set.sort_stable();
+        set.dedup();
         set
     }
 
-    /// `s` with the solved values: each instruction's and each local's top
-    /// slots, and each `&e`'s hidden local.
-    fn solved(&self, sol: &Solution) -> Solve<'a> {
-        let s = self.s;
-        let sets = |v: &View| self.split(v).0.iter().map(|&r| self.set(sol, r)).collect();
-        let val = (0..w(s.b.tags.len()))
-            .map(|i| self.val(i).map(|v| sets(&v)).unwrap_or_default())
+    /// Whether a top slot of value `v` holds `o`.
+    fn has(&self, sol: &Solution, v: u32, o: Origin) -> bool {
+        let (Some(&l), Some(v)) = (self.ids.get(&o), self.val(v)) else {
+            return false;
+        };
+        (self.split(&v).0.iter()).any(|&r| sol.value(r).contains(l))
+    }
+
+    /// What instruction `i` uses, for the scope check: its value's
+    /// origins, and for a place it reads, borrows or stores through, what
+    /// each local or hidden local the place lies in holds, with that local.
+    fn uses(&self, sol: &Solution, i: u32) -> Vec<(Option<Origin>, Origin)> {
+        let b = self.s.b;
+        let val = self.val(i).map(|v| self.origins(sol, &v));
+        let mut out: Vec<_> = (val.unwrap_or_default().into_iter())
+            .map(|o| (None, o))
             .collect();
-        let mut held: HashMap<Origin, Vec<Set>> = (0..self.locals)
-            .map(|l| (Origin::Local(l), sets(&self.local(l))))
-            .collect();
-        held.extend(
-            self.hidden
-                .iter()
-                .map(|(&h, v)| (Origin::Hidden(h), sets(v))),
-        );
-        Solve {
-            b: s.b,
-            pool: s.pool,
-            ls: s.ls,
-            cx: s.cx,
-            val,
-            held,
-            deps: s.deps,
-            stores: s.stores,
-            params: s.params.clone(),
-            own: s.own,
-            out: HashSet::default(),
-            boxes: s.boxes,
-            reported: s.reported.clone(),
-            changed: false,
+        let (tag, word) = (b.tags[i as usize], b.data[i as usize][0]);
+        let deref = || (b.decode_place(word)).is_some_and(|p| p.proj.contains(&Proj::Deref));
+        if !(matches!(tag, Tag::Read | Tag::Ref) || tag == Tag::Store && deref()) {
+            return out;
         }
+        let storage = match self.lies(i, word) {
+            Some(Ok(o)) => vec![o],
+            Some(Err(v)) => self
+                .val(v)
+                .map(|v| self.origins(sol, &v))
+                .unwrap_or_default(),
+            None => vec![],
+        };
+        for st in storage {
+            let held = match st {
+                Origin::Local(l) => Some(self.local(l)),
+                Origin::Hidden(h) => self.hidden.get(&h).cloned(),
+                _ => None,
+            };
+            let held = held.map(|v| self.origins(sol, &v)).unwrap_or_default();
+            out.extend(held.into_iter().map(|o| (Some(st), o)));
+        }
+        out
     }
 
     /// Whether slot `j` of parameter `q`, a place the caller owns, may take
@@ -977,7 +976,7 @@ impl<'a> Gen<'_, 'a> {
                 _ => global,
             }
         };
-        let nv = self.solved(sol);
+        let has = |v: u32, o: Origin| self.has(sol, v, o);
         let mut v = Verdicts::default();
         let mut returns = HashSet::default();
         for x in sol.violations(&self.c, allowed) {
@@ -987,7 +986,7 @@ impl<'a> Gen<'_, 'a> {
             let at = self.sites.get(&(e.from, e.to, e.inst)).copied();
             match e.cat {
                 Category::Result if returns.insert(e.inst) => {
-                    let at = site(&nv, e.inst, o, 0);
+                    let at = site(b, &has, e.inst, o, 0);
                     match results[&e.to] {
                         (None, ids) => v.results.push((at, o, *ids.first().unwrap_or(&NO_SOURCE))),
                         (Some(_), _) => v.closures.push((at, o)),
@@ -1000,7 +999,7 @@ impl<'a> Gen<'_, 'a> {
                     .extend(at.map(|at| (at, message(cat, b.tags[e.inst as usize])))),
             }
         }
-        v.scope = scoped_uses(&nv, r.skip, self.s.cx);
+        v.scope = scoped_uses(b, self.s.cx, r.skip, &|i| self.uses(sol, i));
         v
     }
 }
@@ -1020,31 +1019,3 @@ fn message(cat: Category, tag: Tag) -> &'static str {
         _ => FIELD_MSG,
     }
 }
-
-/// The line of node `at`, for the shadow report.
-fn line(cx: &BodyCx<'_>, at: NodeIdx) -> usize {
-    let src = cx.src;
-    let node = (at != NodeIdx::NONE).then(|| src.parse.tree.node(at));
-    let lo = node.map_or(0, |n| src.parse.tokens.span(src.first(n)).0);
-    src.parse.tokens.line_of(lo) + 1
-}
-
-/// Prints each diagnostic that only one of the two solvers gives, then
-/// one count line (`region-verdict`).
-pub(super) fn compare(cx: &BodyCx<'_>, today: &[Diag], new: &[Diag]) {
-    let only = |a: &[Diag], b: &[Diag]| a.iter().filter(|x| !b.contains(x)).count();
-    for (side, a, b) in [("today", today, new), ("new", new, today)] {
-        for (at, code, msg) in a.iter().filter(|x| !b.contains(x)) {
-            eprintln!(
-                "region-verdict: line {} only {side}: {code:?} {msg}",
-                line(cx, *at)
-            );
-        }
-    }
-    let (gone, added) = (only(today, new), only(new, today));
-    let same = today.len() - gone;
-    eprintln!("region-verdict-body: {same} same, {} differ", gone + added);
-}
-
-/// One diagnostic: its node, code and message.
-type Diag = (NodeIdx, Code, String);

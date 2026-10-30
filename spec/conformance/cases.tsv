@@ -5450,3 +5450,4 @@ typing/invalid/generic-local-function-reference-argument.hd	type	reject:local-re
 typing/invalid/fn-bound-closure-signature.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.trait.bound-closure
 typing/valid/lifetime-store-nested-field.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.field
 typing/invalid/lifetime-store-nested-field-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.field
+typing/invalid/lifetime-store-reborrow-field-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.field

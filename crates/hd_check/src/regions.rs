@@ -53,7 +53,7 @@ impl RegionTable {
     }
 
     /// The variable of slot `slot` of `key`.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
+    #[cfg_attr(not(test), expect(dead_code, reason = "only the unit tests read it"))]
     pub(crate) fn region(&self, key: u32, slot: u32) -> Region {
         let r = self.slots(key);
         assert!(slot < r.end - r.start, "slot {slot} of key {key}");
@@ -115,14 +115,13 @@ impl Loans {
         self.0[w] |= 1 << (l % 64);
     }
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn contains(&self, l: Loan) -> bool {
         self.0
             .get((l / 64) as usize)
             .is_some_and(|w| w & (1 << (l % 64)) != 0)
     }
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
+    #[cfg_attr(not(test), expect(dead_code, reason = "only the unit tests read it"))]
     pub(crate) fn is_empty(&self) -> bool {
         self.0.iter().all(|&w| w == 0)
     }
