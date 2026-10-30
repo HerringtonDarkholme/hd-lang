@@ -222,9 +222,15 @@ impl Ck<'_, '_> {
                 if let Some(b) = hd_resolve::lower::top_level_binding(&src, name) {
                     return b;
                 }
+                if Prim::ALL.iter().any(|p| p.name() == name) {
+                    return ConstName::Type;
+                }
                 match self.scope_name(name) {
                     Some(Named::Item(d)) if self.kind_of_item(d) == Some(HeadKind::Fn) => {
                         ConstName::Runtime
+                    }
+                    Some(Named::Item(d)) if self.kind_of_item(d).is_some_and(HeadKind::is_type) => {
+                        ConstName::Type
                     }
                     Some(Named::Item(_)) => {
                         elsewhere = true;
@@ -800,6 +806,46 @@ impl Ck<'_, '_> {
         // (`local_refs::declarations`).
         self.declared_tys.insert(t);
         Ok(t)
+    }
+
+    /// The written arguments of `tl` for the parameters `gens`: a const
+    /// slot's argument evaluated (`types.generic.const.argument`), any
+    /// other lowered as a type.
+    pub(crate) fn explicit_targs(
+        &mut self,
+        tl: NodeRef<'_>,
+        gens: &[Generic],
+    ) -> StageResult<Vec<Ty>> {
+        let mut out = Vec::new();
+        for (i, t) in tl
+            .children()
+            .filter(|c| c.kind().is_type() || c.kind() == SyntaxKind::ConstArgument)
+            .enumerate()
+        {
+            out.push(self.explicit_slot_arg(t, gens.get(i), i)?);
+        }
+        Ok(out)
+    }
+
+    /// One written argument `t` at `position` for the parameter `g`.
+    pub(crate) fn explicit_slot_arg(
+        &mut self,
+        t: NodeRef<'_>,
+        g: Option<&Generic>,
+        position: usize,
+    ) -> StageResult<Ty> {
+        if let Some(prim) = g.and_then(|g| g.const_type) {
+            return self.const_arg(t, Some(prim));
+        }
+        if t.kind() == SyntaxKind::ConstArgument {
+            let msg = format!(
+                "argument {} fills a type parameter, not a const parameter",
+                position + 1
+            );
+            self.err(Code::GenericKindMismatch, t, &msg);
+            return Ok(Ty::POISON);
+        }
+        self.explicit_targ(t, g.is_some_and(|g| g.row))
     }
 
     /// A type written in an explicit type-argument list of an expression:

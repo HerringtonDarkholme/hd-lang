@@ -2244,7 +2244,11 @@ impl Ck<'_, '_> {
                     return unsupported("a data literal name");
                 };
                 let tl: Vec<NodeRef<'_>> = Src::child(*name_node, SyntaxKind::TypeArgumentList)
-                    .map(|l| l.children().filter(|c| c.kind().is_type()).collect())
+                    .map(|l| {
+                        l.children()
+                            .filter(|c| c.kind().is_type() || c.kind() == SyntaxKind::ConstArgument)
+                            .collect()
+                    })
                     .unwrap_or_default();
                 (inner, tl)
             } else {
@@ -2278,8 +2282,7 @@ impl Ck<'_, '_> {
         self.check_literal_visible(def, n);
         let mut targs = Vec::new();
         for (i, t) in targ_nodes.iter().enumerate() {
-            let row_slot = item.generics.get(i).is_some_and(|g| g.row);
-            targs.push(self.explicit_targ(*t, row_slot)?);
+            targs.push(self.explicit_slot_arg(*t, item.generics.get(i), i)?);
         }
         let generics = item.generics.clone();
         self.check_data_targ_kinds(def, &generics, &targs, *name_node);

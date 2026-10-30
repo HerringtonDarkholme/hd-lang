@@ -14,6 +14,7 @@ mod closure_parameter_annotation;
 mod coherence_scale;
 mod collection_value_fix;
 mod competing_drivers;
+mod const_generics;
 mod constant_defaults;
 mod context_values;
 mod cycle_linking;

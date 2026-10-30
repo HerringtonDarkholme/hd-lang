@@ -558,11 +558,8 @@ impl Ck<'_, '_> {
         };
         let mut explicit = Vec::new();
         if let Some(tl) = Src::child(n, SyntaxKind::TypeArgumentList) {
-            let rows = self.explicit_row_slots(inner);
-            for (i, t) in tl.children().filter(|c| c.kind().is_type()).enumerate() {
-                let row_slot = rows.get(i).copied().unwrap_or(false);
-                explicit.push(self.explicit_targ(t, row_slot)?);
-            }
+            let gens = self.explicit_generics(inner);
+            explicit = self.explicit_targs(tl, &gens)?;
         }
         if inner.kind() == SyntaxKind::PathExpr {
             return self.path_value(inner, want, &explicit);
@@ -590,19 +587,20 @@ impl Ck<'_, '_> {
         unsupported("a type with arguments used as a value")
     }
 
-    /// Which slots of the function or data constructor a type-argument
-    /// callee names by path are row parameters, so a bare key written there
-    /// is a kind error (`fn.generic.explicit.row-dollar`,
-    /// `req.row.slot.data`); empty for any other callee.
-    fn explicit_row_slots(&self, callee: NodeRef<'_>) -> Vec<bool> {
+    /// The generic parameters of the function or type a type-argument
+    /// callee names by path, for the kinds of its slots: a bare key in a
+    /// row slot is a kind error (`fn.generic.explicit.row-dollar`,
+    /// `req.row.slot.data`), and a const slot takes a const argument.
+    /// Empty for any other callee.
+    pub(crate) fn explicit_generics(&self, callee: NodeRef<'_>) -> Vec<hd_resolve::Generic> {
         if self.local_generic_named(callee).is_some() {
             return vec![];
         }
         self.resolve_path(&self.segments_expr(callee))
             .and_then(|d| self.cx.lookup.item(d))
             .map(|item| match item.sig() {
-                Some(sig) => sig.generics.iter().map(|g| g.row).collect(),
-                None => item.generics.iter().map(|g| g.row).collect(),
+                Some(sig) => sig.generics.clone(),
+                None => item.generics.clone(),
             })
             .unwrap_or_default()
     }
@@ -670,6 +668,45 @@ impl Ck<'_, '_> {
             })
             .collect();
         vars
+    }
+
+    /// A const parameter of a call that no explicit argument fills and no
+    /// parameter type names: only argument types solve one, so neither a
+    /// runtime value nor the expected result can
+    /// (`types.generic.const.infer-unsolved`). Its variable becomes poison,
+    /// so the call reports nothing more about it.
+    pub(crate) fn unsolvable_consts(
+        &mut self,
+        sig: &FnSig,
+        owner: DefId,
+        explicit: usize,
+        vars: &mut [Ty],
+        n: NodeRef<'_>,
+    ) {
+        let pool = self.pool();
+        for (i, g) in sig.generics.iter().enumerate().skip(explicit) {
+            if g.const_type.is_none() {
+                continue;
+            }
+            let index = u16::try_from(i).unwrap_or(u16::MAX);
+            let named = std::cell::Cell::new(false);
+            for (_, t) in &sig.params {
+                pool.subst(*t, &|p| {
+                    named.set(named.get() || (p.owner == owner && p.index == index));
+                    None
+                });
+            }
+            if !named.get() {
+                let name = self.cx.names.text(g.name);
+                let msg = format!(
+                    "no argument's type names const parameter `{name}`, so it cannot be inferred: write it in the call, as in `f::[4](...)`"
+                );
+                self.err(Code::CannotInferType, n, &msg);
+                if let Some(v) = vars.get_mut(i) {
+                    *v = Ty::POISON;
+                }
+            }
+        }
     }
 
     /// Records a call's type variables for the end of the body: one
@@ -836,11 +873,8 @@ impl Ck<'_, '_> {
                 };
                 let mut explicit = Vec::new();
                 if let Some(tl) = Src::child(callee, SyntaxKind::TypeArgumentList) {
-                    let rows = self.explicit_row_slots(inner);
-                    for (i, t) in tl.children().filter(|c| c.kind().is_type()).enumerate() {
-                        let row_slot = rows.get(i).copied().unwrap_or(false);
-                        explicit.push(self.explicit_targ(t, row_slot)?);
-                    }
+                    let gens = self.explicit_generics(inner);
+                    explicit = self.explicit_targs(tl, &gens)?;
                 }
                 // `f::[T](..)` of a generic local function.
                 if let Some(l) = self.local_generic_named(inner) {
@@ -2054,7 +2088,8 @@ impl Ck<'_, '_> {
                     return Ok((Ref(NONE), Ty::POISON));
                 }
                 let sig = self.with_result(def, sig.clone());
-                let vars = self.fresh_generics(&sig, explicit, n);
+                let mut vars = self.fresh_generics(&sig, explicit, n);
+                self.unsolvable_consts(&sig, def, explicit.len(), &mut vars, n);
                 let inst = |t: Ty| subst_owner(pool, def, &vars, t);
                 let params: Vec<(Symbol, Ty)> =
                     sig.params.iter().map(|(s, t)| (*s, inst(*t))).collect();
@@ -3022,9 +3057,8 @@ impl Ck<'_, '_> {
                 };
                 let mut ex = Vec::new();
                 if let Some(tl) = Src::child(base, SyntaxKind::TypeArgumentList) {
-                    for t in tl.children().filter(|c| c.kind().is_type()) {
-                        ex.push(self.explicit_targ(t, false)?);
-                    }
+                    let gens = self.explicit_generics(inner);
+                    ex = self.explicit_targs(tl, &gens)?;
                 }
                 (inner, ex)
             } else {
@@ -3125,7 +3159,8 @@ impl Ck<'_, '_> {
         if !is_param && let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
             let sig = self.sig_of(method)?;
             let explicit = std::mem::take(&mut self.method_targs);
-            let vars = self.fresh_generics(&sig, &explicit, n);
+            let mut vars = self.fresh_generics(&sig, &explicit, n);
+            self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
             let inst = |x: Ty| {
                 subst_owner(
                     pool,
@@ -4103,7 +4138,8 @@ impl Ck<'_, '_> {
             }) => {
                 let sig = self.sig_of(method)?;
                 let explicit = std::mem::take(&mut self.method_targs);
-                let vars = self.fresh_generics(&sig, &explicit, n);
+                let mut vars = self.fresh_generics(&sig, &explicit, n);
+                self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
                 let inst = |x: Ty| {
                     subst_owner(
                         pool,
@@ -4389,7 +4425,8 @@ impl Ck<'_, '_> {
             targs.push(self.infer.fresh(pool, VarKind::General));
         }
         let explicit = std::mem::take(&mut self.method_targs);
-        let vars = self.fresh_generics(&sig, &explicit, n);
+        let mut vars = self.fresh_generics(&sig, &explicit, n);
+        self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
         let tv = targs.clone();
         let tl = pool.list(&tv);
         let inst = |x: Ty| {
