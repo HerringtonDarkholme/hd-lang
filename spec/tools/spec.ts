@@ -82,149 +82,157 @@ export function run(
   roots: { spec: string; repo: string } = { spec: SPEC_ROOT, repo: REPO_ROOT },
 ): { status: number; stdout: string } {
   const [command, ...rest] = args;
-  if (command === "counts") {
-    const options = parse(rest, ["--json"], ["--by"]);
-    const view = (options.values.get("--by") ?? "chapter") as CountsView;
-    if (!VIEWS.includes(view) || options.positional.length > 0) {
-      throw new UsageError(`unknown counts view ${view}`);
-    }
-    const result = counts(loadCorpus(roots.spec));
-    return {
-      status: 0,
-      stdout: options.flags.has("--json") ? json(result) : countsReport(result, view),
-    };
-  }
-  if (command === "audit") {
-    const options = parse(rest, ["--strict", "--list", "--json"], []);
-    if (options.positional.length > 0) {
-      throw new UsageError("audit takes no arguments");
-    }
-    const warnings = audit(loadCorpus(roots.spec));
-    const stdout = options.flags.has("--json")
-      ? json({ totals: auditTotals(warnings), warnings })
-      : auditReport(warnings, options.flags.has("--list"));
-    return { status: options.flags.has("--strict") && warnings.length > 0 ? 1 : 0, stdout };
-  }
-  if (command === "coverage") {
-    const options = parse(rest, ["--compiler", "--json"], ["--uncovered"]);
-    if (options.positional.length > 0) {
-      throw new UsageError("coverage takes no arguments");
-    }
-    const corpus = loadCorpus(roots.spec);
-    const passes = options.flags.has("--compiler")
-      ? compilerPasses(
-          readFileSync(resolve(roots.spec, "conformance", "cases.tsv"), "utf8"),
-          readFileSync(resolve(roots.spec, "conformance", "cli-cases.tsv"), "utf8"),
-          readFileSync(resolve(roots.repo, "KNOWN_FAILURES.tsv"), "utf8"),
-        )
-      : undefined;
-    const result = coverage(corpus, buildIndex(corpus, roots.repo), passes);
-    try {
-      const stdout = options.flags.has("--json")
-        ? json(result)
-        : coverageReport(result, options.values.get("--uncovered"));
-      return { status: 0, stdout };
-    } catch (error) {
-      throw new UsageError((error as Error).message);
-    }
-  }
-  if (command === "phase-audit") {
-    const options = parse(rest, ["--json"], []);
-    if (options.positional.length > 0) {
-      throw new UsageError("phase-audit takes no arguments");
-    }
-    const corpus = loadCorpus(roots.spec);
-    const cases = readFileSync(resolve(roots.spec, "conformance", "cases.tsv"), "utf8");
-    const result = phaseAudit(corpus.readme, corpus.controlFlow, cases);
-    return {
-      status: result.mismatches.length > 0 ? 1 : 0,
-      stdout: options.flags.has("--json") ? json(result) : phaseAuditReport(result),
-    };
-  }
-  if (command === "refs") {
-    const options = parse(rest, ["--dead", "--brief", "--all", "--json"], []);
-    const dead = options.flags.has("--dead");
-    if (dead ? options.positional.length !== 0 : options.positional.length !== 1) {
-      throw new UsageError(dead ? "refs --dead takes no rule ID" : "refs needs one rule ID");
-    }
-    const index = buildIndex(loadCorpus(roots.spec), roots.repo);
-    if (dead) {
-      const found = deadCitations(index);
-      const stdout = options.flags.has("--json")
-        ? json(found)
-        : deadReport(found, {
-            brief: options.flags.has("--brief"),
-            all: options.flags.has("--all"),
-          });
-      return { status: found.some((citation) => citation.failing) ? 1 : 0, stdout };
-    }
-    const id = options.positional[0]!.replace(/^#?r-/, "");
-    const stdout = options.flags.has("--json")
-      ? json({
-          id,
-          defined: index.live.get(id) ?? null,
-          citations: index.citations.filter((c) => c.id === id),
-        })
-      : refsReport(index, id);
-    return { status: 0, stdout };
-  }
-  if (command === "rewrite") {
-    const options = parse(rest, ["--json"], ["--fail-on"]);
-    if (options.positional.length < 1 || options.positional.length > 2) {
-      throw new UsageError("rewrite needs a base revision and at most one head revision");
-    }
-    const failOn = (options.values.get("--fail-on") ?? "").split(",").filter((kind) => kind !== "");
-    for (const kind of failOn) {
-      if (!(FAIL_KINDS as readonly string[]).includes(kind)) {
-        throw new UsageError(`unknown --fail-on kind ${kind}`);
+  const handlers: Record<string, () => { status: number; stdout: string }> = {
+    counts: () => {
+      const options = parse(rest, ["--json"], ["--by"]);
+      const view = (options.values.get("--by") ?? "chapter") as CountsView;
+      if (!VIEWS.includes(view) || options.positional.length > 0) {
+        throw new UsageError(`unknown counts view ${view}`);
       }
-    }
-    const [baseRev, headRev] = options.positional as [string, string | undefined];
-    const at = (rev: string) => {
-      try {
-        return loadCorpusAt(roots.repo, rev);
-      } catch {
-        throw new UsageError(`git cannot read revision ${rev}`);
-      }
-    };
-    const result = rewrite({
-      base: at(baseRev),
-      head: headRev === undefined ? loadCorpus(roots.spec) : at(headRev),
-      baseLabel: baseRev,
-      headLabel: headRev ?? "working tree",
-      repoRoot: roots.repo,
-      earlierIds: historicalIds(roots.repo, baseRev),
-    });
-    const tripped = failures(result, failOn as FailKind[]);
-    const stdout = options.flags.has("--json")
-      ? json({ ...result, failed: tripped })
-      : rewriteReport(result) + (tripped.length > 0 ? `Failed: ${tripped.join(", ")}\n` : "");
-    return { status: tripped.length > 0 ? 1 : 0, stdout };
-  }
-  if (command === "glossary") {
-    const options = parse(rest, ["--markdown", "--json", "--check"], []);
-    if (options.positional.length > 0) {
-      throw new UsageError("glossary takes no arguments");
-    }
-    const result = glossary(loadCorpus(roots.spec));
-    if (options.flags.has("--check")) {
-      const dups = glossaryDuplicates(result);
+      const result = counts(loadCorpus(roots.spec));
       return {
-        status: dups.length > 0 ? 1 : 0,
-        stdout: dups.length > 0 ? `${dups.join("\n")}\n` : "",
+        status: 0,
+        stdout: options.flags.has("--json") ? json(result) : countsReport(result, view),
       };
-    }
-    let stdout: string;
-    if (options.flags.has("--json")) {
-      stdout = json(result);
-    } else if (options.flags.has("--markdown")) {
-      stdout = glossaryMarkdown(result);
-    } else {
-      stdout = glossaryReport(result);
-    }
-    return { status: 0, stdout };
+    },
+    audit: () => {
+      const options = parse(rest, ["--strict", "--list", "--json"], []);
+      if (options.positional.length > 0) {
+        throw new UsageError("audit takes no arguments");
+      }
+      const warnings = audit(loadCorpus(roots.spec));
+      const stdout = options.flags.has("--json")
+        ? json({ totals: auditTotals(warnings), warnings })
+        : auditReport(warnings, options.flags.has("--list"));
+      return { status: options.flags.has("--strict") && warnings.length > 0 ? 1 : 0, stdout };
+    },
+    coverage: () => {
+      const options = parse(rest, ["--compiler", "--json"], ["--uncovered"]);
+      if (options.positional.length > 0) {
+        throw new UsageError("coverage takes no arguments");
+      }
+      const corpus = loadCorpus(roots.spec);
+      const passes = options.flags.has("--compiler")
+        ? compilerPasses(
+            readFileSync(resolve(roots.spec, "conformance", "cases.tsv"), "utf8"),
+            readFileSync(resolve(roots.spec, "conformance", "cli-cases.tsv"), "utf8"),
+            readFileSync(resolve(roots.repo, "KNOWN_FAILURES.tsv"), "utf8"),
+          )
+        : undefined;
+      const result = coverage(corpus, buildIndex(corpus, roots.repo), passes);
+      try {
+        const stdout = options.flags.has("--json")
+          ? json(result)
+          : coverageReport(result, options.values.get("--uncovered"));
+        return { status: 0, stdout };
+      } catch (error) {
+        throw new UsageError((error as Error).message);
+      }
+    },
+    "phase-audit": () => {
+      const options = parse(rest, ["--json"], []);
+      if (options.positional.length > 0) {
+        throw new UsageError("phase-audit takes no arguments");
+      }
+      const corpus = loadCorpus(roots.spec);
+      const cases = readFileSync(resolve(roots.spec, "conformance", "cases.tsv"), "utf8");
+      const result = phaseAudit(corpus.readme, corpus.controlFlow, cases);
+      return {
+        status: result.mismatches.length > 0 ? 1 : 0,
+        stdout: options.flags.has("--json") ? json(result) : phaseAuditReport(result),
+      };
+    },
+    refs: () => {
+      const options = parse(rest, ["--dead", "--brief", "--all", "--json"], []);
+      const dead = options.flags.has("--dead");
+      if (dead ? options.positional.length !== 0 : options.positional.length !== 1) {
+        throw new UsageError(dead ? "refs --dead takes no rule ID" : "refs needs one rule ID");
+      }
+      const index = buildIndex(loadCorpus(roots.spec), roots.repo);
+      if (dead) {
+        const found = deadCitations(index);
+        const stdout = options.flags.has("--json")
+          ? json(found)
+          : deadReport(found, {
+              brief: options.flags.has("--brief"),
+              all: options.flags.has("--all"),
+            });
+        return { status: found.some((citation) => citation.failing) ? 1 : 0, stdout };
+      }
+      const id = options.positional[0]!.replace(/^#?r-/, "");
+      const stdout = options.flags.has("--json")
+        ? json({
+            id,
+            defined: index.live.get(id) ?? null,
+            citations: index.citations.filter((c) => c.id === id),
+          })
+        : refsReport(index, id);
+      return { status: 0, stdout };
+    },
+    rewrite: () => {
+      const options = parse(rest, ["--json"], ["--fail-on"]);
+      if (options.positional.length < 1 || options.positional.length > 2) {
+        throw new UsageError("rewrite needs a base revision and at most one head revision");
+      }
+      const failOn = (options.values.get("--fail-on") ?? "")
+        .split(",")
+        .filter((kind) => kind !== "");
+      for (const kind of failOn) {
+        if (!(FAIL_KINDS as readonly string[]).includes(kind)) {
+          throw new UsageError(`unknown --fail-on kind ${kind}`);
+        }
+      }
+      const [baseRev, headRev] = options.positional as [string, string | undefined];
+      const at = (rev: string) => {
+        try {
+          return loadCorpusAt(roots.repo, rev);
+        } catch {
+          throw new UsageError(`git cannot read revision ${rev}`);
+        }
+      };
+      const result = rewrite({
+        base: at(baseRev),
+        head: headRev === undefined ? loadCorpus(roots.spec) : at(headRev),
+        baseLabel: baseRev,
+        headLabel: headRev ?? "working tree",
+        repoRoot: roots.repo,
+        earlierIds: historicalIds(roots.repo, baseRev),
+      });
+      const tripped = failures(result, failOn as FailKind[]);
+      const stdout = options.flags.has("--json")
+        ? json({ ...result, failed: tripped })
+        : rewriteReport(result) + (tripped.length > 0 ? `Failed: ${tripped.join(", ")}\n` : "");
+      return { status: tripped.length > 0 ? 1 : 0, stdout };
+    },
+    glossary: () => {
+      const options = parse(rest, ["--markdown", "--json", "--check"], []);
+      if (options.positional.length > 0) {
+        throw new UsageError("glossary takes no arguments");
+      }
+      const result = glossary(loadCorpus(roots.spec));
+      if (options.flags.has("--check")) {
+        const dups = glossaryDuplicates(result);
+        return {
+          status: dups.length > 0 ? 1 : 0,
+          stdout: dups.length > 0 ? `${dups.join("\n")}\n` : "",
+        };
+      }
+      let stdout: string;
+      if (options.flags.has("--json")) {
+        stdout = json(result);
+      } else if (options.flags.has("--markdown")) {
+        stdout = glossaryMarkdown(result);
+      } else {
+        stdout = glossaryReport(result);
+      }
+      return { status: 0, stdout };
+    },
+  };
+  const handler = command === undefined ? undefined : handlers[command];
+  if (!handler) {
+    throw new UsageError(command ? `unknown command ${command}` : "missing command");
   }
-  throw new UsageError(command ? `unknown command ${command}` : "missing command");
+  return handler();
 }
 
 function main(args: readonly string[]): number {
