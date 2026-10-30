@@ -900,6 +900,9 @@ impl Ck<'_, '_> {
             Some(t) => Some(self.ty_node(t)?),
             None => None,
         };
+        if let (Some(t), Some(n)) = (annot, ty_node) {
+            self.top_level_annotation(t, n);
+        }
         // `grammar.stmt.chain`: `a := b := e` binds `b` to `e`, then `a` to
         // the value of that binding, in order.
         let (r, t) = match chain {

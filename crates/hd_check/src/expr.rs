@@ -2373,8 +2373,13 @@ impl Ck<'_, '_> {
         let generics = item.generics.clone();
         self.check_data_targ_kinds(def, &generics, &targs, *name_node);
         let explicit = targs.len();
-        while targs.len() < item.generics.len() {
-            targs.push(self.infer.fresh(pool, VarKind::General));
+        while let Some(g) = item.generics.get(targs.len()) {
+            // `ref.lifetime.struct`: a lifetime has its one argument.
+            targs.push(if g.lifetime {
+                hd_resolve::lifetime_arg(pool)
+            } else {
+                self.infer.fresh(pool, VarKind::General)
+            });
         }
         // An expected type of the same declaration solves the inferred
         // arguments first, so a field sees its substituted type (`mut U`

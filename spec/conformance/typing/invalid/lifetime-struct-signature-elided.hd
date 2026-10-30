@@ -1,0 +1,8 @@
+# test: a signature that names a struct with a lifetime writes its lifetime argument
+# Spec 13 Lifetime Structs: ref.lifetime.struct.signature-elided.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn position(p: &Parser[string]) -> usize: # diagnostic: references-not-yet-checked
+    p.pos

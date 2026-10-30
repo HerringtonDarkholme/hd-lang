@@ -1,0 +1,21 @@
+# test: a struct with a lifetime holds a local reference, used within its local's scope
+# Spec 13 Lifetime Structs: ref.lifetime.struct, ref.lifetime.struct.field, ref.lifetime.struct.argument, ref.lifetime.struct.position, ref.lifetime.struct.construct.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+struct Nested['a]:
+    parser: Parser[string, 'a]
+    depth: i32
+
+fn source['a](p: &Parser[string, 'a]) -> &'a string:
+    p.src
+
+fn parser['a](src: &'a string) -> Parser[string, 'a]:
+    Parser { src: src, pos: 0 }
+
+fn demo() -> usize:
+    text := "hello"
+    p := Parser { src: &text, pos: 0 }
+    n := Nested { parser: parser(&text), depth: 1 }
+    source(&p).len() + n.parser.src.len() + p.pos

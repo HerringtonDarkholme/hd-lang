@@ -225,6 +225,10 @@ impl Parser<'_> {
                 self.bump();
                 self.ty();
                 self.complete(binding, SyntaxKind::AssociatedTypeBinding);
+            } else if self.at(TokenKind::Lifetime) {
+                // grammar.type.lifetime-argument: `Parser[T, 'a]` keeps the
+                // lifetime as a direct token of the list.
+                self.bump();
             } else {
                 if saw_binding {
                     // grammar.generic.binding.order

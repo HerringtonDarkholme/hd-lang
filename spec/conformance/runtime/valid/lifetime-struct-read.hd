@@ -1,0 +1,17 @@
+# test: a struct value that holds a local reference reads through it
+# Spec 13 Lifetime Structs: ref.lifetime.struct, ref.lifetime.struct.field, ref.lifetime.struct.position.
+# expect-stdout: hello 5 2
+# expect-stdout: hello
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn source['a](p: &Parser[string, 'a]) -> &'a string:
+    p.src
+
+pub fn main() -> void $ Console:
+    text := "hello"
+    p := Parser { src: &text, pos: 2 }
+    println("${*source(&p)} ${p.src.len()} ${p.pos}")
+    let Parser { src, pos: _ } = p
+    println(*src)

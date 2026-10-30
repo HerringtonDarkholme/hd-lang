@@ -720,12 +720,13 @@ trait_bounds = trait_bound, { "&", trait_bound } ;
 trait_bound = bound_trait_type | lifetime ;
 bound_trait_type = qualified_name, [ bound_type_arguments ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
-bound_type_argument_list = type_argument, { ",", type_argument },
+bound_type_argument_list = generic_argument, { ",", generic_argument },
                            { ",", associated_type_binding }
                          | associated_type_binding,
                            { ",", associated_type_binding }
                          ;
 associated_type_binding = identifier, "=", type ;
+generic_argument = type_argument | lifetime ;
 trait_type = qualified_name, [ type_arguments ] ;
 ```
 
@@ -944,6 +945,13 @@ fn grouped() -> void $(Clock + Logger): pass  # error: syntax-error
 
 fn run(callback: fn() -> void $ Clock, Logger) -> void: pass  # error: syntax-error
 ```
+
+### Lifetime Arguments
+
+A lifetime may stand among a named type's arguments, as in `Parser[string, 'a]`.
+
+1. r[grammar.type.lifetime-argument] A named type's or a bound's argument list may hold lifetimes beside its type arguments. [Lifetime Structs](13-values-and-references.md#lifetime-structs) gives their meaning.
+2. r[grammar.type.lifetime-argument.expression] An expression's type argument list, as in `pick::[i32]`, holds no lifetime, so `pick::['a]` is an error ([`types.lifetime.arguments.type-const`](04-type-system.md#r-types.lifetime.arguments.type-const)). Error: `syntax-error`.
 
 ### Row Operators
 

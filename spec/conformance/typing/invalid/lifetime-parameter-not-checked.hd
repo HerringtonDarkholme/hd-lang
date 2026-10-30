@@ -1,5 +1,5 @@
 # test: a trait's own lifetime parameter is references-not-yet-checked
-# Spec 04 Lifetime Parameters; spec 13 Lifetime Variables: ref.lifetime.not-yet.owner.
+# Spec 04 Lifetime Parameters; spec 13 Lifetime Variables: ref.lifetime.not-yet.other-owner.
 struct User:
     name: string
 

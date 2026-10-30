@@ -272,6 +272,18 @@ impl Ck<'_, '_> {
             }
         }
         if let Some(al) = Src::child(n, SyntaxKind::TypeArgumentList) {
+            // ref.lifetime.not-yet.body: a lifetime argument in a body.
+            let toks = &self.cx.src.parse.tokens;
+            if al
+                .direct_tokens()
+                .any(|t| toks.kind(t) == hd_syntax::TokenKind::Lifetime)
+            {
+                self.err(
+                    Code::ReferencesNotYetChecked,
+                    n,
+                    "a lifetime inside a function body is not checked yet",
+                );
+            }
             for a in al.children() {
                 if a.kind() == SyntaxKind::RequirementRow {
                     let r = self.row_of(a)?;
@@ -364,7 +376,7 @@ impl Ck<'_, '_> {
         // `types.generic.too-long`: no more arguments than parameters, in a
         // type, an alias or a trait alike.
         if let Some(item) = self.cx.lookup.item(def) {
-            let max = item.generics.len();
+            let max = item.generics.iter().filter(|g| !g.lifetime).count();
             if args.len() > max {
                 let msg = format!(
                     "`{}` takes {max} type arguments, not {}",

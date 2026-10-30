@@ -1,0 +1,8 @@
+# test: a struct type writes one lifetime argument per lifetime parameter
+# Spec 13 Lifetime Structs: ref.lifetime.struct.argument.count.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn position['a](p: &Parser[string, 'a, 'a]) -> usize: # diagnostic: argument-count
+    p.pos

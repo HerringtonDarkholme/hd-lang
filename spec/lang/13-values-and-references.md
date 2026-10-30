@@ -561,8 +561,8 @@ fn pick(x: &User, first: bool) -> usize:
         r = choose(x, &local, first)
     r.name.len()  # error: local-reference-outlives-local
 
-struct Tagged['a]:  # error: references-not-yet-checked
-    id: i32
+enum Tagged['a]:  # error: references-not-yet-checked
+    Plain
 
 fn view(u: User) -> i32:
     let r: &'a User = &u  # error: references-not-yet-checked
@@ -582,7 +582,7 @@ fn view(u: User) -> i32:
 11. r[ref.lifetime.return.message] The diagnostic's message names the root, the lifetime, and the parameters with that lifetime. It has no fix-it.
 12. r[ref.lifetime.call] A call's result position depends on what every argument in a parameter position of its lifetime depends on.
 13. r[ref.lifetime.declarations] A top-level function, an implementation, and a method of an implementation or a trait may declare lifetime parameters.
-14. r[ref.lifetime.not-yet.owner] Any other lifetime parameter is not checked yet, so it is an error: a struct's, an enum's, a trait's own, a `type` declaration's, or a local function's. Error: `references-not-yet-checked`.
+14. r[ref.lifetime.not-yet.other-owner] Any other lifetime parameter is not checked yet, so it is an error: an enum's, a trait's own, a `type` declaration's, a local function's, or a local struct's. A top-level struct's follows [Lifetime Structs](#lifetime-structs). Error: `references-not-yet-checked`.
 15. r[ref.lifetime.not-yet.alias-target] A lifetime written in a type alias's arguments or in an implementation's target is an error too. Error: `references-not-yet-checked`.
 16. r[ref.lifetime.not-yet.body] A lifetime variable written inside a function body is an error too. Error: `references-not-yet-checked`.
 
@@ -601,11 +601,75 @@ fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:  # the result tak
 > only the positions that write no lifetime, and a reference's referent
 > outlives it. A lifetime is only checked; it adds nothing at run time.
 
-> **Note.** Stored references, with lifetimes on structs, enums and
-> traits, come in a later stage.
-
 See also: [Lifetimes In Function Types](07-functions.md#lifetimes-in-function-types),
-[Method Generic Parameters](09-traits.md#method-generic-parameters).
+[Method Generic Parameters](09-traits.md#method-generic-parameters),
+[Lifetime Structs](#lifetime-structs).
+
+### Lifetime Structs
+
+A **lifetime struct** declares lifetime parameters, and its fields may hold local references of those lifetimes:
+
+```text
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+struct Holder:
+    parser: Parser[string]  # error: local-reference-escapes
+
+fn source['a](p: &Parser[string, 'a]) -> &'a string:
+    p.src
+
+fn position(p: &Parser[string]) -> usize:  # error: references-not-yet-checked
+    p.pos
+
+fn scan(fallback: &string) -> usize:
+    let mut p = Parser { src: fallback, pos: 0 }
+    if fallback.len() > 0:
+        text := "hello"
+        p = Parser { src: &text, pos: 0 }
+    p.pos  # error: local-reference-outlives-local
+
+fn keep(text: string) -> void:
+    p := Parser { src: &text, pos: 0 }
+    b := box(p)  # error: local-reference-escapes
+```
+
+1. r[ref.lifetime.struct] A top-level struct may declare lifetime parameters, as in `struct Parser[T, 'src]`.
+2. r[ref.lifetime.struct.field] A field of a lifetime struct may write `&'a T` or `&'a mut T` with one of the struct's lifetimes. Such a field is no escape to a field.
+3. r[ref.lifetime.struct.argument] A type names a lifetime struct with one lifetime argument per lifetime parameter, as in `Parser[string, 'a]`. The lifetime arguments take the lifetime parameters in order.
+4. r[ref.lifetime.struct.argument.count] A struct type with lifetime arguments, but not one per lifetime parameter of the struct, is an error. Error: `argument-count`.
+5. r[ref.lifetime.struct.argument.other] A lifetime argument of an enum, a trait, or a type alias is not checked yet, so it is an error. Error: `references-not-yet-checked`.
+6. r[ref.lifetime.struct.holds] A lifetime struct holds a local reference ([`ref.local.holding`](#r-ref.local.holding)), so every rule of [Local References](#local-references) applies to its values.
+7. r[ref.lifetime.struct.position] Each lifetime parameter is one reference position of the struct's type, after the positions of its type arguments. A written lifetime argument names that position's lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
+8. r[ref.lifetime.struct.construct] A `&'a` field is one of the other parts of [`ref.dep.origin.position.union`](#r-ref.dep.origin.position.union), so a struct literal adds its value's origins to every reference position of the struct value.
+9. r[ref.lifetime.struct.field-elided] A field whose type names a lifetime struct without lifetime arguments holds a local reference, so it is an error. Error: `local-reference-escapes`.
+10. r[ref.lifetime.struct.signature-elided] A signature or an implementation's target that names a lifetime struct without lifetime arguments is not checked yet, so it is an error. Error: `references-not-yet-checked`.
+11. r[ref.lifetime.struct.body] A function body names a lifetime struct without lifetime arguments, as in `let p: Parser[string] = q`.
+
+```hd
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn parser['a](src: &'a string) -> Parser[string, 'a]:
+    Parser { src: src, pos: 0 }
+
+fn length(text: string) -> usize:
+    p := parser(&text)
+    p.src.len() - p.pos  # valid: text is in scope
+```
+
+> **Why.** These are Rust's struct lifetimes, as in `struct Parser<'a>`.
+> A lifetime struct has the representation of the same struct without
+> lifetimes; only the checker tells its lifetimes apart.
+
+> **Note.** Lifetime arguments elided in signatures, lifetimes on enums,
+> traits and implementation targets, and stores of local references
+> through `&mut` come in later stages.
+
+See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
+[Fields](08-data-and-enums.md#fields).
 
 ## Generic Locality
 

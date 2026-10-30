@@ -1,0 +1,12 @@
+# test: a struct value that holds a reference to an inner block's local, used after the block, outlives the local
+# Spec 13 Lifetime Structs: ref.lifetime.struct.holds, ref.lifetime.struct.construct; Local Scope: ref.dep.scope.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn scan(fallback: &string) -> usize:
+    let mut p = Parser { src: fallback, pos: 0 }
+    if fallback.len() > 0:
+        text := "hello"
+        p = Parser { src: &text, pos: 0 }
+    p.pos # diagnostic: local-reference-outlives-local

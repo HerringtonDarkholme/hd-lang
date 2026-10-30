@@ -210,6 +210,9 @@ pub struct Generic {
     pub row: bool,
     /// The declared variance marker: `+T` is 1, `-T` is -1, unmarked 0.
     pub variance: i8,
+    /// A struct's lifetime parameter (`ref.lifetime.struct`): it follows
+    /// the type parameters, and its argument is always [`lifetime_arg`].
+    pub lifetime: bool,
 }
 
 impl Generic {
@@ -222,8 +225,34 @@ impl Generic {
             default: None,
             row: false,
             variance: 0,
+            lifetime: false,
         }
     }
+}
+
+/// The argument of every struct lifetime parameter (`ref.lifetime.struct`):
+/// one local reference slot, so a value of the struct holds a local
+/// reference and its origins live in that slot. Lifetimes themselves are
+/// not types: a signature's slot table names them (`FnSig::lifetimes`).
+#[must_use]
+pub fn lifetime_arg(pool: hd_types::Types<'_>) -> Ty {
+    pool.intern_ty(&TyData::Ref {
+        inner: Ty::VOID,
+        mutable: false,
+        counted: false,
+    })
+}
+
+/// Whether `t` is [`lifetime_arg`].
+fn is_lifetime_arg(pool: hd_types::Types<'_>, t: Ty) -> bool {
+    matches!(
+        pool.get(t),
+        TyData::Ref {
+            inner: Ty::VOID,
+            mutable: false,
+            counted: false
+        }
+    )
 }
 
 /// A trait reference's arguments with the trait's omitted trailing
@@ -1041,7 +1070,7 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
             -1 => 0b1000,
             _ => 0,
         };
-        w.u8(u8::from(g.row) | variance);
+        w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4));
     }
     Ok(())
 }
@@ -1070,6 +1099,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
                 0b1000 => -1,
                 _ => 0,
             },
+            lifetime: flags & 0b1_0000 != 0,
         });
     }
     Some(out)
@@ -2201,6 +2231,25 @@ fn show_marked(
             if args == TyList::EMPTY =>
         {
             seg(def)
+        }
+        // A struct's lifetime arguments are not shown (`ref.lifetime.struct`).
+        TyData::Adt { def, args }
+            if pool
+                .list_items(args)
+                .iter()
+                .any(|&x| is_lifetime_arg(pool, x)) =>
+        {
+            let shown: Vec<String> = pool
+                .list_items(args)
+                .iter()
+                .filter(|&&x| !is_lifetime_arg(pool, x))
+                .map(|x| show_marked(names, pool, *x, (rows, qualified), marks))
+                .collect();
+            if shown.is_empty() {
+                seg(def)
+            } else {
+                format!("{}[{}]", seg(def), shown.join(", "))
+            }
         }
         TyData::Adt { def, args } | TyData::TraitValue { def, args, .. } => {
             format!("{}[{}]", seg(def), list(args))

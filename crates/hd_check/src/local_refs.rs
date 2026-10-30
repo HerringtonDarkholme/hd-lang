@@ -209,7 +209,12 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
     match n.kind() {
         SyntaxKind::RefType => {
             let amp = n.direct_token(&src.parse.tokens, TokenKind::Amp);
-            if let (Some(_), Some(at)) = (amp, at) {
+            // `ref.lifetime.struct.field`: a field's `&'a T` names a
+            // lifetime of its declaration, which the resolver checks.
+            let named = at == Some(Escape::Field)
+                && n.direct_token(&src.parse.tokens, TokenKind::Lifetime)
+                    .is_some();
+            if let (Some(_), Some(at), false) = (amp, at, named) {
                 diags.error(Code::LocalReferenceEscapes, src.span(n), &message(at));
             }
             // A reference may refer to a local reference (`ref.type.group`).
@@ -627,6 +632,20 @@ impl Ck<'_, '_> {
                 self.err(Code::LocalReferenceEscapes, value, &box_message(at));
             }
             None => self.err(Code::LocalReferenceEscapes, value, &message(at)),
+        }
+    }
+
+    /// `ref.local.escape.top-level`: a top-level binding's annotation `n`
+    /// of type `t` that holds a local reference with no `&` written, as a
+    /// struct with lifetimes does (`ref.lifetime.struct.holds`). A written
+    /// `&` reported already ([`declarations`]).
+    pub(crate) fn top_level_annotation(&mut self, t: Ty, n: NodeRef<'_>) {
+        let toks = &self.cx.src.parse.tokens;
+        let written = std::iter::once(n).chain(n.descendants()).any(|d| {
+            d.kind() == SyntaxKind::RefType && d.direct_token(toks, TokenKind::Amp).is_some()
+        });
+        if !written && holds_local_ref(self.pool(), t) {
+            self.err(Code::LocalReferenceEscapes, n, &message(Escape::TopLevel));
         }
     }
 

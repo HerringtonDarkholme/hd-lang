@@ -1,0 +1,13 @@
+# test: a field of a struct without lifetimes cannot hold a struct with a lifetime
+# Spec 13 Lifetime Structs: ref.lifetime.struct.field-elided.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+struct Holder:
+    parser: Parser[string] # diagnostic: local-reference-escapes
+
+fn wrap(text: string) -> usize:
+    p := Parser { src: &text, pos: 0 }
+    h := Holder { parser: p }
+    h.parser.pos

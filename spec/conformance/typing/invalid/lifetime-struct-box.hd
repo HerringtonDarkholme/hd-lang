@@ -1,0 +1,9 @@
+# test: boxing a struct value that holds a local reference is local-reference-escapes
+# Spec 13 Lifetime Structs: ref.lifetime.struct.holds; Boxes: ref.box.no-local.
+struct Parser[T, 'src]:
+    src: &'src T
+    pos: usize
+
+fn keep(text: string) -> void:
+    p := Parser { src: &text, pos: 0 }
+    b := box(p) # diagnostic: local-reference-escapes
