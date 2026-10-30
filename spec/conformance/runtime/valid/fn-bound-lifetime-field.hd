@@ -1,0 +1,28 @@
+# test: a stored closure that captures a local reference runs through a lifetime-bounded field
+# Spec 13 Lifetime Bounds: ref.generic.outlives.field, ref.generic.outlives.position.
+# expect-stdout: 1
+# expect-stdout: 3
+use std.function.Fn
+
+struct Counter:
+    n: i32
+
+struct Button[F < Fn() -> void & 'a, 'a]:
+    on_click: F
+
+fn press[F < Fn() -> void & 'a, 'a](b: Button[F, 'a]) -> void:
+    (b.on_click)()
+
+fn bump(c: &mut Counter) -> void:
+    b := Button { on_click: fn(): c.n += 1 }
+    press(b)
+    press(b)
+
+pub fn main() -> void $ Console:
+    let clicks = +0
+    b := Button { on_click: fn(): clicks += 1 }
+    press(b)
+    println("$clicks")
+    let mut c = Counter { n: +1 }
+    bump(&mut c)
+    println("${c.n}")

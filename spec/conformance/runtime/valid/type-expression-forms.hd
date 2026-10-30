@@ -43,7 +43,7 @@ fn depth_name(value: i32??) -> string:
 fn lift[F < Fn(i32) -> i32 & 'static](f: F, keep: bool) -> (fn(i32) -> i32)?:
     if keep: .Some(fn(value: i32) -> i32: f(value)) else: .None
 
-fn apply_lifted(f: fn(i32) -> i32, keep: bool) -> i32:
+fn apply_lifted[F < Fn(i32) -> i32 & 'static](f: F, keep: bool) -> i32:
     match lift(f, keep):
         .Some(g) => g(+4)
         .None => -1

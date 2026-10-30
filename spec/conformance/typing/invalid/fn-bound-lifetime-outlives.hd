@@ -1,0 +1,20 @@
+# test: a struct value whose closure field captures a reference to an inner block's local outlives the local
+# Spec 13 Lifetime Bounds: ref.generic.outlives.position; Local Scope: ref.dep.scope.
+use std.function.Fn
+
+struct Counter:
+    n: i32
+
+struct Button[F < Fn() -> void & 'a, 'a]:
+    on_click: F
+
+fn press[F < Fn() -> void & 'a, 'a](b: Button[F, 'a]) -> void:
+    (b.on_click)()
+
+fn scan(c: &mut Counter) -> void:
+    let mut b = Button { on_click: fn(): c.n += 1 }
+    if c.n > 0:
+        inner := Counter { n: +2 }
+        r := &inner
+        b = Button { on_click: fn(): c.n += r.n }
+    press(b) # diagnostic: local-reference-outlives-local

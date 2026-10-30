@@ -16,8 +16,9 @@
 //! ([`Ck::coerce_ref_kind`]), and the body's end reports the inferred
 //! types that hold one ([`Ck::check_local_ref_types`]). Captures report
 //! when their closure closes ([`Ck::local_ref_captures`]), except for a
-//! closure passed directly to a `fn(...)` parameter; dependent-result
-//! solving tracks that closure's capture origins.
+//! closure passed directly to a `fn(...)` parameter or written for a
+//! lifetime-bounded field ([`outlives_field`]); dependent-result solving
+//! tracks that closure's capture origins.
 
 use hd_base::{HashSet, LocalId, TokenIdx};
 use hd_diag::{Code, DiagBuf};
@@ -471,6 +472,24 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
 /// included (`ref.local.holding`), as `box` checks (`ref.box.no-local`).
 pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
     escape_in(pool, t, false, 0).is_some()
+}
+
+/// `ref.generic.outlives.field`: the lifetime that bounds field type `f`
+/// of `def`, a type parameter of `def` bounded by a declared lifetime, as
+/// `on_click: F` of `struct Button[F < Fn() -> void & 'a, 'a]`.
+pub(crate) fn outlives_field(
+    pool: Types<'_>,
+    def: hd_base::DefId,
+    generics: &[hd_resolve::Generic],
+    f: Ty,
+) -> Option<u16> {
+    match pool.get(f) {
+        TyData::Param(p) if p.owner == def => generics
+            .get(p.index as usize)
+            .map(|g| g.outlives)
+            .filter(|&l| l != 0),
+        _ => None,
+    }
 }
 
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {

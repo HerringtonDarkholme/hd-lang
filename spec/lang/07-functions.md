@@ -457,6 +457,7 @@ may hold and call.
 6. r[fn.trait.suspend-weaken] A suspending function value `fn!(A, B) -> O $R` satisfies `F < Fn(A, B) -> mut Suspend[O] $R` through the same weakening as an expected concrete plain function type.
 7. r[fn.trait.bound.infer-instantiation] Call inference solves an `Fn` bound's input tuple, output and requirement-row arguments from a concrete function value's one `Fn` instantiation, including a suspending function's weakened instantiation.
 8. r[fn.trait.bound.closure-inputs] An unannotated closure passed to a bare parameter `F` takes its parameter types from `F`'s `Fn` bound when those input types are known; the closure's concrete type still solves `F`.
+9. r[fn.trait.bound-sugar.next-bound] In a bound list, `&` after the sugar's result type starts the next bound. So `F < Fn() -> void & 'a` is `Fn() -> void` and `'a` ([Lifetime Bounds](13-values-and-references.md#lifetime-bounds)).
 
 > **Why.** The concrete `fn(...)` type remains the dynamic function value.
 > `Fn(...)` gives stored callbacks static dispatch without a second dynamic form.
@@ -896,7 +897,8 @@ fn demo() -> i32:
 12. r[fn.capture.local-origins] The supplied closure value carries the origins of its captured local references.
 13. r[fn.capture.local-uses] The callee may call that parameter, pass it to another direct function parameter, or return it as a dependent result.
 14. r[fn.capture.local-store] Storing that parameter in a field, a box, a provider, or a top-level binding is an error. Error: `local-reference-escapes`.
-15. r[fn.capture.no-local-reference-stored] A closure in any other function-value position must not capture a local reference, as [`ref.local.escape.capture-stored`](13-values-and-references.md#r-ref.local.escape.capture-stored) states. Error: `local-reference-escapes`.
+15. r[fn.capture.local-field] A closure written for a struct field of a lifetime-bounded type parameter may capture local references, as [`ref.generic.outlives.field`](13-values-and-references.md#r-ref.generic.outlives.field) states.
+16. r[fn.capture.no-local-reference-stored] A closure in any other function-value position must not capture a local reference, as [`ref.local.escape.capture-stored`](13-values-and-references.md#r-ref.local.escape.capture-stored) states. Error: `local-reference-escapes`.
 
 > **Why.** An immutable binding never changes, so copying it and sharing it
 > look the same. A variable changes, so the closure and its scope must refer

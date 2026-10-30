@@ -1,0 +1,9 @@
+# test: passing a fn parameter that may capture local references for a type parameter bounded by 'static is local-reference-escapes
+# Spec 13 Lifetime Bounds: ref.generic.outlives.box.
+use std.function.Fn
+
+fn later[F < Fn() -> void & 'static](f: F) -> *mut F:
+    box(f)
+
+fn keep(f: fn() -> void) -> void:
+    kept := later(f) # diagnostic: local-reference-escapes

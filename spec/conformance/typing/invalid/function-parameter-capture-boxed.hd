@@ -1,0 +1,10 @@
+# test: boxing a fn parameter that may capture local references is local-reference-escapes
+# Spec 13 Lifetime Bounds: ref.generic.outlives.box; Spec 07 Captures: fn.capture.local-store.
+struct Counter:
+    n: i32
+
+fn keep(f: fn() -> void) -> void:
+    kept := box(f) # diagnostic: local-reference-escapes
+
+fn run(c: &mut Counter) -> void:
+    keep(fn(): c.n += 1)

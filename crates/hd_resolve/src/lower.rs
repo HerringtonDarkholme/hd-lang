@@ -3260,8 +3260,8 @@ impl Lower<'_, '_, '_> {
                     }
                     bounds.push(bound);
                 }
-                // `T < 'static` (ref.generic.static); no other lifetime
-                // bounds a type yet.
+                // `T < 'static` (ref.generic.static), or one declared
+                // lifetime (`F < Fn() -> void & 'a`, ref.generic.outlives).
                 for t in bl.direct_tokens() {
                     if self.src.parse.tokens.kind(t) != TokenKind::Lifetime {
                         continue;
@@ -3272,12 +3272,16 @@ impl Lower<'_, '_, '_> {
                             args: TyList::EMPTY,
                             bindings: vec![],
                         }));
-                    } else if self.r.frozen.is_none() {
-                        self.diags.error(
-                            Code::ReferencesNotYetChecked,
-                            self.src.token_span(t),
-                            "only `'static` bounds a type parameter so far",
-                        );
+                    } else if row || g.outlives != 0 {
+                        if self.r.frozen.is_none() {
+                            self.diags.error(
+                                Code::ReferencesNotYetChecked,
+                                self.src.token_span(t),
+                                "one lifetime bounds a type parameter so far",
+                            );
+                        }
+                    } else {
+                        g.outlives = self.lifetime_of(t, gn);
                     }
                 }
                 if let Some(me) = me {

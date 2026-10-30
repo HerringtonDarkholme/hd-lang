@@ -2487,7 +2487,19 @@ impl Ck<'_, '_> {
                 })
                 .unwrap_or_else(|| inst(fields[i].ty));
             let (r, t) = if let Some(e) = a.children().next() {
-                self.expr(e, Some(ft))?
+                // `ref.generic.outlives.field`: a closure for a field of a
+                // type parameter bounded by a lifetime may capture local
+                // references; the value holds their origins.
+                let saved = self.local_capture_argument;
+                if e.kind() == SyntaxKind::ClosureExpr
+                    && crate::local_refs::outlives_field(pool, def, &generics, fields[i].ty)
+                        .is_some()
+                {
+                    self.local_capture_argument = Some(e.index());
+                }
+                let result = self.expr(e, Some(ft));
+                self.local_capture_argument = saved;
+                result?
             } else {
                 // Shorthand `Name { x }`.
                 let Some((l, d)) = self.find_local(fname) else {

@@ -349,7 +349,9 @@ Applied by #1020 (6a4, [Lifetime Enums](../../spec/lang/13-values-and-references
 
 Applied by #1021 (6b1, [Lifetime Stores](../../spec/lang/13-values-and-references.md#lifetime-stores)): a store through a parameter's reference into a place the caller owns is valid when every reference position of the referent has one lifetime and the value depends only on that lifetime's sources; a call's `&mut` argument takes what the arguments of the lifetimes under it depend on. A list's or a map's type argument may hold a local reference in a body and in a `&mut` parameter whose inner `&`s all write lifetimes. A single-lifetime struct's field assigned through `&mut Parser['a]` already follows this rule; 6b2 keeps the per-field case of a struct with two lifetimes.
 
-Applied by #1022 (6b2): a store into a field through `&mut Two['a, 'b]` checks the value against that field's one lifetime, and a call's `&mut` argument takes each lifetime's arguments in that lifetime's positions of its place only. A field of two or more lifetimes, and a nested field below one, keep the whole-referent check.
+Applied by #1022 (6b2): a store into a field through `&mut Two['a, 'b]` checks the value against that field's one lifetime, and a call's `&mut` argument takes each lifetime's arguments in that lifetime's positions of its place only. A field of two or more lifetimes, and a nested field below one, keep the whole-referent check (#1039).
+
+Applied by #1028 (6d3, [Lifetime Bounds](../../spec/lang/13-values-and-references.md#lifetime-bounds)): a type parameter takes one lifetime bound in scope; a closure written for a struct field of such a parameter may capture local references, and the field lies in that lifetime's position. A function value with captured origins is never boxed or passed for a `'static` parameter, which also closes that path for 6d1's `fn(...)` parameters. Still open: a direct closure argument for a lifetime-bounded parameter of a function (`fn on[F < Fn() & 'a, 'a](f: F)`), and a result capturing two `fn(...)` parameters (`compose`), which stays unchecked.
 
 ### Stage 7: exclusivity
 

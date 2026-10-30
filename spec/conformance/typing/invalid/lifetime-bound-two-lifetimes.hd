@@ -1,0 +1,4 @@
+# test: a type parameter takes one lifetime bound so far
+# Spec 13 Lifetime Bounds: ref.generic.outlives.one.
+fn view['a, 'b, T < 'a & 'b](value: T) -> void: # diagnostic: references-not-yet-checked
+    pass

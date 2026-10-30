@@ -213,6 +213,10 @@ pub struct Generic {
     /// A struct's lifetime parameter (`ref.lifetime.struct`): it follows
     /// the type parameters, and its argument is always [`lifetime_arg`].
     pub lifetime: bool,
+    /// A type parameter bounded by a declared lifetime, as `F < Fn() ->
+    /// void & 'a` (`ref.generic.outlives`): that lifetime's 1-based place
+    /// in scope, 0 for none.
+    pub outlives: u16,
 }
 
 impl Generic {
@@ -226,6 +230,7 @@ impl Generic {
             row: false,
             variance: 0,
             lifetime: false,
+            outlives: 0,
         }
     }
 }
@@ -1075,6 +1080,7 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
             _ => 0,
         };
         w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4));
+        w.u32(u32::from(g.outlives));
     }
     Ok(())
 }
@@ -1092,6 +1098,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
         let d = r.u32();
         let default = if d == u32::MAX { None } else { Some(t.ty(d)?) };
         let flags = r.u8();
+        let outlives = u16::try_from(r.u32()).ok()?;
         out.push(Generic {
             name,
             bound,
@@ -1104,6 +1111,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
                 _ => 0,
             },
             lifetime: flags & 0b1_0000 != 0,
+            outlives,
         });
     }
     Some(out)

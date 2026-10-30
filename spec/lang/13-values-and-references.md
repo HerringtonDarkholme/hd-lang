@@ -345,7 +345,7 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.element] Collection element | is stored as an element of a list, a map, or a set whose element type holds no local reference, by a literal or a method such as `push` | `points.push(p)` | `local-reference-escapes` |
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
 | r[ref.local.escape.fn-value-result] Function value result | is the result of a function value whose type gives it no source among the inputs, as for a method bound to its receiver | `p::x_ref` for `fn x_ref(&self) -> &i32` | `local-reference-escapes` |
-| r[ref.local.escape.capture-stored] Stored closure capture | is captured by a closure outside a direct `fn(...)` argument, a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
+| r[ref.local.escape.capture-stored] Stored closure capture | is captured by a closure outside a direct `fn(...)` argument and a [lifetime-bounded field](#r-ref.generic.outlives.field), a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
 | r[ref.local.escape.type-argument] Type argument | is a type argument of a trait or a trait value, or of a list or a map where [`ref.lifetime.store.type`](#r-ref.lifetime.store.type) does not allow one, written or inferred | `List[&Point]`, `dyn Store[&Point]` | `local-reference-escapes` |
 
 6. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
@@ -920,7 +920,7 @@ fn demo(u: User) -> string:
 4. r[ref.generic.static.impl] An implementation whose type parameter is bounded by `'static` applies only where that parameter's argument meets `'static`, as for any other bound.
 5. r[ref.generic.static.capture] A closure's capture whose type names a type parameter must meet `'static`. Error: `local-reference-escapes`.
 6. r[ref.generic.static.no-fix] Neither diagnostic has a fix-it.
-7. r[ref.generic.static.bound-only] `'static` is written only as a type parameter's bound. A reference type that writes it, as `&'static T`, is an error, and so is any other lifetime bound. Error: `references-not-yet-checked`.
+7. r[ref.generic.static.bound-only] `'static` is written only as a type parameter's bound. A reference type that writes it, as `&'static T`, is an error. Error: `references-not-yet-checked`.
 8. r[ref.generic.static.fn-conjunction] A generic callback that is kept past its call is bounded by both `'static` and `Fn(...)`. The bounds join with `&` in either order: `F < 'static & Fn(A) -> R` and `F < Fn(A) -> R & 'static` are equivalent.
 
 ```text
@@ -943,6 +943,61 @@ fn view(u: &'static User) -> void:  # error: references-not-yet-checked
 > **Why.** This is Rust's `T: 'static`. A counted reference and a function
 > value carry no lifetime, so a value kept in one must hold no local
 > reference.
+
+### Lifetime Bounds
+
+A type parameter bounded by a declared lifetime stands for a type whose values may hold local references of that lifetime, so a struct may store a closure that captures one:
+
+```hd
+use std.function.Fn
+
+struct Counter:
+    n: i32
+
+struct Button[F < Fn() -> void & 'a, 'a]:
+    on_click: F
+
+fn press[F < Fn() -> void & 'a, 'a](b: Button[F, 'a]) -> void:
+    (b.on_click)()
+
+fn bump(c: &mut Counter) -> void:
+    b := Button { on_click: fn(): c.n += 1 }  # captures the local reference c
+    press(b)
+```
+
+1. r[ref.generic.outlives] A type parameter may be bounded by one lifetime that is in scope, as in `F < Fn() -> void & 'a`. Its argument may hold local references of that lifetime.
+2. r[ref.generic.outlives.one] A second lifetime bound on one type parameter is not checked yet, so it is an error. Error: `references-not-yet-checked`.
+3. r[ref.generic.outlives.field] A closure written in a struct literal, for a field whose type is a type parameter with a lifetime bound, may capture local references.
+4. r[ref.generic.outlives.position] Such a field lies in its bound lifetime's position. A literal adds the closure's captured origins to that position, and reading the field gives a function value with that position's origins.
+5. r[ref.generic.outlives.read] A function value with captured origins follows [`fn.capture.local-uses`](07-functions.md#r-fn.capture.local-uses) and [`fn.capture.local-store`](07-functions.md#r-fn.capture.local-store). Returning it where the result has no source for those origins is an error. Error: `local-reference-escapes`.
+6. r[ref.generic.outlives.box] Boxing a function value with captured origins, or passing it for a type parameter bounded by `'static`, is an error. Error: `local-reference-escapes`.
+
+```text
+struct Plain[F < Fn() -> void]:
+    on_click: F
+
+fn view['a, 'b, T < 'a & 'b](value: T) -> void:  # error: references-not-yet-checked
+    pass
+
+fn plain(c: &mut Counter) -> void:
+    p := Plain { on_click: fn(): c.n += 1 }  # error: local-reference-escapes
+
+fn keep(c: &mut Counter) -> void:
+    b := Button { on_click: fn(): c.n += 1 }
+    kept := box(b.on_click)  # error: local-reference-escapes
+
+fn make() -> fn() -> void:
+    let mut x = Counter { n: +0 }
+    r := &mut x
+    b := Button { on_click: fn(): r.n += 1 }
+    b.on_click  # error: local-reference-escapes
+```
+
+> **Why.** This is Rust's `F: Fn() + 'a`. A `fn(...)` type carries no
+> lifetime, so the struct's lifetime holds what its closure captures.
+
+See also: [Static Fn Bounds](07-functions.md#static-fn-bounds),
+[Lifetime Structs](#lifetime-structs).
 
 ### Generic Calls
 
