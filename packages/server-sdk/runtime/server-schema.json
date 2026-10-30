@@ -2,17 +2,17 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "6c20cce6649b567bf002b459bd05b2b30268f0dd",
-    "compilerBaseRevision": "6c20cce6649b567bf002b459bd05b2b30268f0dd",
-    "compilerSha256": "a4ac71d2432cd571a049ed0d16392e3f9b747fa203aca3a2a6381a9180243b86",
-    "referenceWasmSha256": "4615070cd4f0e5e60346452c8b0bbe889750054b95a87a6f88e145165d1b7a0d",
-    "referenceContractSha256": "f4bd89496477c1db2278a022bb369b73947d35a25962e04e7e7ad88bacd2cf3c",
+    "sourceBaseRevision": "306648b12844f955ab0e71afdb528117a7bb7ce5",
+    "compilerBaseRevision": "306648b12844f955ab0e71afdb528117a7bb7ce5",
+    "compilerSha256": "8ee63393f1757a09b2b1f7d6cf0719e5ff65f42bedcedcc809ce15ce047565af",
+    "referenceWasmSha256": "0ca33dd4dd2bc91268154a882a6ebdbec28eb7fe873993713493f0b03b8b2349",
+    "referenceContractSha256": "fd8b7b9f8730b6e9ac5f5570bd7754a0c69d5bace3f897e729f7390ffc55fe73",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
       "packages/server-sdk/src/server.hd": "ba559def42f9eb2f61e9688dcb1b4c7271bd8ccd5bfaeab7908e8d4182f1eb7f",
       "lib/std/console.hd": "29b2aa997642d52825cf17b5cca7da688e000b429be54de59f6911ce2b3ba8d7",
-      "lib/std/http.hd": "97ef7d2e32477936c8158dfaf15b401a4a72edca67a995f115cbfab2e919721a",
-      "lib/std/http_wire.hd": "1fcc64d5658b0a235fdc43de84970c84b52fb196e7cbbecf040371254fb212b2",
+      "lib/std/http.hd": "e6261f3c864c2797a5db9d68e18dbc620b171280498fc97a8d1c004a46d6c25c",
+      "lib/std/http_wire.hd": "bc8ccf8a09b048b3b102639f8f4a409d39ff27dc77ac3b38610f9352187afa11",
       "lib/std/time.hd": "fa541281b8868e226a3ad4bb5bdf3018689ce30911ea25df7e84ea18c34cf0dd"
     }
   },
@@ -174,6 +174,86 @@
                               3,
                               32,
                               false
+                            ]
+                          ],
+                          [
+                            "dns_servers",
+                            [
+                              9,
+                              [
+                                8,
+                                [
+                                  6
+                                ]
+                              ]
+                            ]
+                          ],
+                          [
+                            "tls_roots",
+                            [
+                              8,
+                              [
+                                6
+                              ]
+                            ]
+                          ],
+                          [
+                            "tls_identity",
+                            [
+                              9,
+                              [
+                                11,
+                                [
+                                  [
+                                    "certificate_chain",
+                                    [
+                                      6
+                                    ]
+                                  ],
+                                  [
+                                    "private_key",
+                                    [
+                                      6
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ],
+                          [
+                            "connect_timeout",
+                            [
+                              9,
+                              [
+                                14
+                              ]
+                            ]
+                          ],
+                          [
+                            "tls_handshake_timeout",
+                            [
+                              9,
+                              [
+                                14
+                              ]
+                            ]
+                          ],
+                          [
+                            "response_header_timeout",
+                            [
+                              9,
+                              [
+                                14
+                              ]
+                            ]
+                          ],
+                          [
+                            "body_read_timeout",
+                            [
+                              9,
+                              [
+                                14
+                              ]
                             ]
                           ]
                         ]
@@ -722,6 +802,86 @@
                       32,
                       false
                     ]
+                  ],
+                  [
+                    "dns_servers",
+                    [
+                      9,
+                      [
+                        8,
+                        [
+                          6
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "tls_roots",
+                    [
+                      8,
+                      [
+                        6
+                      ]
+                    ]
+                  ],
+                  [
+                    "tls_identity",
+                    [
+                      9,
+                      [
+                        11,
+                        [
+                          [
+                            "certificate_chain",
+                            [
+                              6
+                            ]
+                          ],
+                          [
+                            "private_key",
+                            [
+                              6
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "connect_timeout",
+                    [
+                      9,
+                      [
+                        14
+                      ]
+                    ]
+                  ],
+                  [
+                    "tls_handshake_timeout",
+                    [
+                      9,
+                      [
+                        14
+                      ]
+                    ]
+                  ],
+                  [
+                    "response_header_timeout",
+                    [
+                      9,
+                      [
+                        14
+                      ]
+                    ]
+                  ],
+                  [
+                    "body_read_timeout",
+                    [
+                      9,
+                      [
+                        14
+                      ]
+                    ]
                   ]
                 ]
               ]
@@ -1158,6 +1318,17 @@
                   [
                     "OutputTooLarge",
                     []
+                  ],
+                  [
+                    "UnsupportedSetting",
+                    [
+                      [
+                        "name",
+                        [
+                          6
+                        ]
+                      ]
+                    ]
                   ]
                 ]
               ]
@@ -1209,5 +1380,5 @@
       }
     ]
   },
-  "fingerprint": "ed0d80147a20804256760ac6ca97a4426990167ef6b559c4b5be42492ff5774f"
+  "fingerprint": "eab28192c0e7ead2ab7b54f04f27c1e7bcd61546af117140c5fad45884284948"
 }

@@ -45,7 +45,7 @@ pub(crate) enum Start {
 /// (`std-http.send.timeout.whole`); `None` when that end is too far away
 /// to represent.
 pub(crate) struct Job {
-    request: Request,
+    request: Box<Request>,
     grants: Grants,
     deadline: Option<Instant>,
 }
@@ -76,7 +76,7 @@ pub(crate) fn start(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Start> {
     }
     let timeout = Duration::from_secs(30);
     Ok(Start::Run(Job {
-        request,
+        request: Box::new(request),
         grants: grants.clone(),
         deadline: started.checked_add(timeout),
     }))
@@ -101,7 +101,7 @@ impl Job {
             deadline,
         } = self;
         let sent =
-            tokio::task::spawn_blocking(move || send(request, &grants, deadline, &cancel)).await;
+            tokio::task::spawn_blocking(move || send(*request, &grants, deadline, &cancel)).await;
         Done::Http(sent.map_err(|error| format!("the Http request stopped: {error}")))
     }
 }

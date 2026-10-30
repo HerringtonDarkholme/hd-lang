@@ -971,24 +971,28 @@ test("an HTTP setting the Node host does not honour is refused before any work",
   });
 });
 
-test("HTTP phase timeouts bound the header wait and the body read", { timeout: 10000 }, async (t) => {
-  const url = await httpLoopback(t, (request, response) => {
-    if (request.url === "/body") {
-      response.writeHead(200, { "Content-Length": "10" });
-      response.write("part");
+test(
+  "HTTP phase timeouts bound the header wait and the body read",
+  { timeout: 10000 },
+  async (t) => {
+    const url = await httpLoopback(t, (request, response) => {
+      if (request.url === "/body") {
+        response.writeHead(200, { "Content-Length": "10" });
+        response.write("part");
+      }
+    });
+    const { start, result } = httpWorker(t);
+    for (const [path, change] of [
+      ["/headers", { responseHeaderTimeout: 100 }],
+      ["/body", { bodyReadTimeout: 100 }],
+    ]) {
+      const started = performance.now();
+      const answer = await result(start(`${url}${path}`, { settings: settings(change) }));
+      assert.deepEqual(answer, { error: "Timeout", text: null }, path);
+      assert.ok(performance.now() - started < 3000, `${path} stops long before the 30 s bound`);
     }
-  });
-  const { start, result } = httpWorker(t);
-  for (const [path, change] of [
-    ["/headers", { responseHeaderTimeout: 100 }],
-    ["/body", { bodyReadTimeout: 100 }],
-  ]) {
-    const started = performance.now();
-    const answer = await result(start(`${url}${path}`, { settings: settings(change) }));
-    assert.deepEqual(answer, { error: "Timeout", text: null }, path);
-    assert.ok(performance.now() - started < 3000, `${path} stops long before the 30 s bound`);
-  }
-});
+  },
+);
 
 test("a zero connect timeout expires before any connection", async (t) => {
   let connections = 0;
@@ -1051,7 +1055,9 @@ test("extra TLS roots extend the store and an identity reaches the server", asyn
   const { start, result } = httpWorker(t);
   const untrusted = await result(start(url));
   assert.equal(untrusted.error, "Tls", JSON.stringify(untrusted));
-  const trusted = await result(start(url, { settings: settings({ tlsRoots: [tlsFixture("ca")] }) }));
+  const trusted = await result(
+    start(url, { settings: settings({ tlsRoots: [tlsFixture("ca")] }) }),
+  );
   assert.equal(new TextDecoder().decode(trusted.body), "anonymous", JSON.stringify(trusted));
   const identity = {
     certificateChain: tlsFixture("client"),

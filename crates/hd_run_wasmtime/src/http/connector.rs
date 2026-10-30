@@ -169,7 +169,7 @@ impl Phase {
 
 /// An instant beyond any deadline a request can reach.
 fn far_future() -> Instant {
-    Instant::now() + Duration::from_secs(100 * 365 * 24 * 60 * 60)
+    Instant::now() + Duration::from_hours(876_000)
 }
 
 /// The earlier of two optional deadlines.

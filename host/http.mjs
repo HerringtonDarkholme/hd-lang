@@ -76,6 +76,7 @@ const TLS_CODES = new Set([
   "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
   "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
 ]);
+const REQUEST_VALIDATION_CODES = new Set(["ERR_INVALID_CHAR", "ERR_INVALID_HTTP_TOKEN"]);
 
 // The `HttpError` of a failed connection to `host`.
 const failure = (e, host) => {
@@ -181,8 +182,15 @@ const once = (url, host, method, headers, body, ms, signal, settings = null) =>
       });
     } catch (e) {
       // Node builds the TLS context here: a root or identity it cannot
-      // load is a TLS failure.
-      settle(secure ? err("Tls", String(e?.message ?? e)) : failure(e, host));
+      // load is a TLS failure. Request syntax keeps its exact portable
+      // validation error on both HTTP and HTTPS.
+      settle(
+        REQUEST_VALIDATION_CODES.has(e?.code)
+          ? err("Other", String(e?.message ?? e))
+          : secure
+            ? err("Tls", String(e?.message ?? e))
+            : failure(e, host),
+      );
       return;
     }
     // Connect ends at the TCP connection, the TLS handshake then runs to a

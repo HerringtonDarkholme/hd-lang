@@ -104,6 +104,13 @@ function stateFor(context) {
             headers,
             body: Buffer.concat(chunks),
             redirects: 10,
+            dns_servers: null,
+            tls_roots: [],
+            tls_identity: null,
+            connect_timeout: null,
+            tls_handshake_timeout: null,
+            response_header_timeout: null,
+            body_read_timeout: null,
           },
         }),
       );

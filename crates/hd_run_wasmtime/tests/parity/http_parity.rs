@@ -824,10 +824,9 @@ fn http_invalid_method_and_headers_keep_exact_validation_errors() {
         .str("bad method")
         .str(url)
         .leb(0)
-        .leb(0)
         .bytes(b"")
-        .leb(10)
-        .0;
+        .leb(10);
+    let invalid_method = (0..7).fold(invalid_method, |request, _| request.leb(0)).0;
     let mut p = Program::new();
     p.call_waiting(
         "hd:Http",

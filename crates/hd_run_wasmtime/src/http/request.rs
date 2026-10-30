@@ -5,7 +5,7 @@ use std::time::Instant;
 use flate2::read::{MultiGzDecoder, ZlibDecoder};
 use hd_run::Grants;
 use ureq::http::{HeaderName, HeaderValue};
-use ureq::unversioned::transport::Connector;
+use ureq::unversioned::transport::{Connector, RustlsConnector};
 
 pub(crate) use crate::abi::WireHttpError as HttpError;
 use crate::abi::{self, Method};
@@ -226,7 +226,7 @@ fn once(
         config: client_config(&request.settings)?,
         handshake_timeout: request.settings.tls_handshake_timeout,
         phase,
-        default: Default::default(),
+        default: RustlsConnector::default(),
     });
     let config = ureq::Agent::config_builder()
         .max_redirects(0)

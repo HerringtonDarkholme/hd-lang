@@ -4,6 +4,19 @@ import { createRequestConsole } from "./console.mjs";
 
 const ok = (value) => ({ ok: true, value });
 const expired = () => ({ ok: false, error: { tag: "Expired", fields: {} } });
+// An incoming server message shares std's host DTO with outgoing HTTP, but
+// carries no outbound transport policy. Complete that DTO at the one
+// application admission boundary before package-host encoding.
+const incomingRequest = (request) => ({
+  ...request,
+  dns_servers: null,
+  tls_roots: [],
+  tls_identity: null,
+  connect_timeout: null,
+  tls_handshake_timeout: null,
+  response_header_timeout: null,
+  body_read_timeout: null,
+});
 
 // Runtime and signature-generated bindings are explicit inputs. Packaging
 // supplies their public modules; the SDK never reads compiler cache internals.
@@ -218,7 +231,7 @@ export function createApplication({
     start,
     async dispatch(request, signal) {
       if (stopping) throw new Error("server admission is closed");
-      const lease = dispatcher.open(request);
+      const lease = dispatcher.open(incomingRequest(request));
       leases.set(lease.id.sequence, lease);
       incoming.push(lease);
       const abort = () =>
