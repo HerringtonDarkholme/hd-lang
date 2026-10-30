@@ -2453,16 +2453,16 @@ impl Lower<'_, '_, '_> {
                     written.len()
                 );
                 self.diags.error(Code::ArgumentCount, span, &msg);
-            } else if written.is_empty() && want > 0 && self.slots.is_some() {
-                let msg = format!(
-                    "write the lifetime arguments of `{name}`, as in `{name}[T, 'a]`; an elided one is not checked yet in a signature or an implementation's target"
-                );
-                self.diags.error(Code::ReferencesNotYetChecked, span, &msg);
             } else if written.is_empty() && want > 0 && self.in_field {
                 let msg = format!(
                     "a local reference never escapes to a field, and `{name}` holds one; a struct's field writes one of the struct's lifetimes as its argument, as in `{name}[T, 'a]`"
                 );
                 self.diags.error(Code::LocalReferenceEscapes, span, &msg);
+            } else if written.is_empty() && want > 0 && self.slots.is_some() {
+                let msg = format!(
+                    "write the lifetime arguments of `{name}`, as in `{name}[T, 'a]`; an elided one is not checked yet in a signature or an implementation's target"
+                );
+                self.diags.error(Code::ReferencesNotYetChecked, span, &msg);
             }
         }
         if let Some(slots) = &mut self.slots {
@@ -2531,7 +2531,9 @@ impl Lower<'_, '_, '_> {
         let Some(slots) = &mut self.slots else { return };
         let written = slots[before..].iter().any(|l| *l != 0);
         slots.truncate(before);
-        if written && self.r.frozen.is_none() {
+        // A field's unplaced lifetime is unknown, and its reads
+        // conservative (`ref.lifetime.struct.read`).
+        if written && self.r.frozen.is_none() && !self.in_field {
             self.diags.error(
                 Code::ReferencesNotYetChecked,
                 self.src.span(n),
@@ -2722,6 +2724,7 @@ impl Lower<'_, '_, '_> {
                 // `fn.type.lifetime`: the type's own reference slots, whose
                 // written lifetimes name the enclosing declaration's.
                 let outer = self.slots.replace(Vec::new());
+                let in_field = std::mem::replace(&mut self.in_field, false);
                 for c in n.children() {
                     if c.kind() == SyntaxKind::RequirementRow {
                         row = self.row(Some(c), gn);
@@ -2753,6 +2756,7 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 let written = std::mem::replace(&mut self.slots, outer).unwrap_or_default();
+                self.in_field = in_field;
                 let deps = pool.types().fn_deps_written(&params, result, &written);
                 pool.intern_ty(&TyData::Fn {
                     params: pool.list(&params),
@@ -3321,43 +3325,40 @@ impl Lower<'_, '_, '_> {
         }
     }
 
-    fn fields(&mut self, holder: Option<NodeRef<'_>>, gn: &Gen) -> Vec<Field> {
+    /// The fields in `holder`. A lifetime struct's (`lifetimes`) record
+    /// the lifetime of each local reference slot (`ref.lifetime.struct.read`).
+    fn fields(&mut self, holder: Option<NodeRef<'_>>, gn: &Gen, lifetimes: bool) -> Vec<Field> {
         let mut out = Vec::new();
         let Some(holder) = holder else { return out };
         for (i, f) in holder.children().enumerate() {
-            match f.kind() {
-                SyntaxKind::DataField | SyntaxKind::Parameter => {
-                    let token = f.name(&self.src.parse.tokens);
-                    let name = token.map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
-                    let outer = std::mem::replace(&mut self.in_field, true);
-                    let ty = self.ty(Src::type_child(f), gn);
-                    self.in_field = outer;
-                    out.push(Field {
-                        name: token.map_or_else(|| self.sym(&name), |t| self.sym_token(t)),
-                        ty,
-                        public: self.src.is_pub(f),
-                        has_default: Src::child(f, SyntaxKind::DefaultValue).is_some(),
-                        embedded: false,
-                    });
-                }
-                SyntaxKind::EmbeddedField => {
-                    let tn = Src::type_child(f);
-                    let token = tn
-                        .map(|t| self.segments(t))
-                        .and_then(|s| s.last().map(|x| x.1));
-                    let outer = std::mem::replace(&mut self.in_field, true);
-                    let ty = self.ty(tn, gn);
-                    self.in_field = outer;
-                    out.push(Field {
-                        name: token.map_or_else(|| self.sym(""), |t| self.sym_token(t)),
-                        ty,
-                        public: self.src.is_pub(f),
-                        has_default: false,
-                        embedded: true,
-                    });
-                }
-                _ => {}
-            }
+            let (tn, embedded) = match f.kind() {
+                SyntaxKind::DataField | SyntaxKind::Parameter => (Src::type_child(f), false),
+                SyntaxKind::EmbeddedField => (Src::type_child(f), true),
+                _ => continue,
+            };
+            let name = if embedded {
+                let token = tn
+                    .map(|t| self.segments(t))
+                    .and_then(|s| s.last().map(|x| x.1));
+                token.map_or_else(|| self.sym(""), |t| self.sym_token(t))
+            } else {
+                let token = f.name(&self.src.parse.tokens);
+                let text = token.map_or_else(|| i.to_string(), |t| self.src.text(t).to_owned());
+                token.map_or_else(|| self.sym(&text), |t| self.sym_token(t))
+            };
+            let outer = std::mem::replace(&mut self.in_field, true);
+            let saved = std::mem::replace(&mut self.slots, lifetimes.then(Vec::new));
+            let ty = self.ty(tn, gn);
+            let slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+            self.in_field = outer;
+            out.push(Field {
+                name,
+                ty,
+                public: self.src.is_pub(f),
+                has_default: !embedded && Src::child(f, SyntaxKind::DefaultValue).is_some(),
+                embedded,
+                lifetimes: slots,
+            });
         }
         out
     }
@@ -4669,7 +4670,8 @@ impl Lower<'_, '_, '_> {
             HeadKind::Data => {
                 let mut gn = Gen::default();
                 let generics = self.generics(gl, h.def, 0, &mut gn);
-                let fields = self.fields(block, &gn);
+                let lifetimes = generics.iter().any(|g| g.lifetime);
+                let fields = self.fields(block, &gn, lifetimes);
                 if self.r.frozen.is_none() {
                     self.field_variance(h.def, &generics, block, &fields);
                     self.data_fields(block, &fields);
@@ -4696,7 +4698,7 @@ impl Lower<'_, '_, '_> {
                     .filter(|c| c.kind() == SyntaxKind::Parameter)
                     .collect();
                 self.parameter_default_order(&nodes, false);
-                let mut shared = self.fields(shared_params, &gn);
+                let mut shared = self.fields(shared_params, &gn, false);
                 let check = self.r.frozen.is_none();
                 let holder = Src::child(n, SyntaxKind::ParameterList);
                 self.shared_type_parameters(&mut shared, holder, check);
@@ -4714,7 +4716,7 @@ impl Lower<'_, '_, '_> {
                         continue;
                     };
                     let text = self.src.text(t).to_owned();
-                    let fields = self.fields(Src::child(v, SyntaxKind::ParameterList), &gn);
+                    let fields = self.fields(Src::child(v, SyntaxKind::ParameterList), &gn, false);
                     if check {
                         let holder = Src::child(v, SyntaxKind::ParameterList);
                         self.field_variance(h.def, &generics, holder, &fields);

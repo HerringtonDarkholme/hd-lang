@@ -456,7 +456,7 @@ An **origin** is a storage root that a local reference may point into. It is wha
 1. r[ref.dep.origin.set] Each value that holds a local reference has an origin set. The checker solves the sets once per function, per binding, regardless of the order of statements.
 2. r[ref.dep.origin.least] The sets are the least solution of the constraints in the table below. A reassignment adds origins and never removes them.
 3. r[ref.dep.origin.position] A value has one origin set per reference position outside another reference, so the positions of `(&A, &B)` and of `Result[&A, &B]` have separate sets.
-4. r[ref.dep.origin.position.parts] A construction and a projection keep each part in its own positions: a tuple element, an optional's payload, and a field whose declared type is a type parameter.
+4. r[ref.dep.origin.position.parts] A construction and a projection keep each part in its own positions: a tuple element, an optional's payload, and a field whose declared type is a type parameter. So does a lifetime struct's field of one lifetime ([`ref.lifetime.struct.read`](#r-ref.lifetime.struct.read)).
 5. r[ref.dep.origin.position.union] Every position takes the union of all of them for any other part, for a value stored through a reference, and for the hidden local of `&e`.
 
 | Rule | Expression | Origins |
@@ -620,6 +620,13 @@ struct Holder:
 fn source['a](p: &Parser[string, 'a]) -> &'a string:
     p.src
 
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn left['a, 'b](t: &Two['a, 'b]) -> &'a string:
+    t.y  # error: local-reference-escapes
+
 fn position(p: &Parser[string]) -> usize:  # error: references-not-yet-checked
     p.pos
 
@@ -642,10 +649,13 @@ fn keep(text: string) -> void:
 5. r[ref.lifetime.struct.argument.other] A lifetime argument of an enum, a trait, or a type alias is not checked yet, so it is an error. Error: `references-not-yet-checked`.
 6. r[ref.lifetime.struct.holds] A lifetime struct holds a local reference ([`ref.local.holding`](#r-ref.local.holding)), so every rule of [Local References](#local-references) applies to its values.
 7. r[ref.lifetime.struct.position] Each lifetime parameter is one reference position of the struct's type, after the positions of its type arguments. A written lifetime argument names that position's lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
-8. r[ref.lifetime.struct.construct] A `&'a` field is one of the other parts of [`ref.dep.origin.position.union`](#r-ref.dep.origin.position.union), so a struct literal adds its value's origins to every reference position of the struct value.
-9. r[ref.lifetime.struct.field-elided] A field whose type names a lifetime struct without lifetime arguments holds a local reference, so it is an error. Error: `local-reference-escapes`.
-10. r[ref.lifetime.struct.signature-elided] A signature or an implementation's target that names a lifetime struct without lifetime arguments is not checked yet, so it is an error. Error: `references-not-yet-checked`.
-11. r[ref.lifetime.struct.body] A function body names a lifetime struct without lifetime arguments, as in `let p: Parser[string] = q`.
+8. r[ref.lifetime.struct.construct] A struct literal adds the origins of a field typed `&'a T` to the value's `'a` position only.
+9. r[ref.lifetime.struct.read] Reading a field typed `&'a T` gives a reference whose origins are the origins of the value's `'a` position.
+10. r[ref.lifetime.struct.read.one-lifetime] A field of another type whose reference positions all name one lifetime, as `Option[&'a T]` or `Parser[T, 'a]`, is constructed and read the same way.
+11. r[ref.lifetime.struct.read.mixed] A field whose reference positions name two or more lifetimes is one of the other parts of [`ref.dep.origin.position.union`](#r-ref.dep.origin.position.union).
+12. r[ref.lifetime.struct.field-elided] A field whose type names a lifetime struct without lifetime arguments holds a local reference, so it is an error. Error: `local-reference-escapes`.
+13. r[ref.lifetime.struct.signature-elided] A signature or an implementation's target that names a lifetime struct without lifetime arguments is not checked yet, so it is an error. Error: `references-not-yet-checked`.
+14. r[ref.lifetime.struct.body] A function body names a lifetime struct without lifetime arguments, as in `let p: Parser[string] = q`.
 
 ```hd
 struct Parser[T, 'src]:
@@ -658,6 +668,20 @@ fn parser['a](src: &'a string) -> Parser[string, 'a]:
 fn length(text: string) -> usize:
     p := parser(&text)
     p.src.len() - p.pos  # valid: text is in scope
+
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn left['a, 'b](t: &Two['a, 'b]) -> &'a string:
+    t.x  # valid: the `'a` position only
+
+fn first(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "hello"
+        kept = left(&Two { x: &outer, y: &inner })
+    kept.len()  # valid: kept does not point into inner
 ```
 
 > **Why.** These are Rust's struct lifetimes, as in `struct Parser<'a>`.

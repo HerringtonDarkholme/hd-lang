@@ -377,6 +377,10 @@ pub struct Field {
     pub public: bool,
     pub has_default: bool,
     pub embedded: bool,
+    /// A lifetime struct's field (`ref.lifetime.struct.read`): the lifetime
+    /// each local reference slot of `ty` names, 1-based among the struct's
+    /// lifetimes, 0 when unknown. Empty for a struct without lifetimes.
+    pub lifetimes: Vec<u16>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1157,6 +1161,10 @@ fn put_fields(w: &mut Writer, t: &mut TableWriter<'_>, fields: &[Field]) -> Stag
         w.u32(t.sym(f.name));
         w.u32(t.ty(f.ty)?);
         w.u8(u8::from(f.public) | (u8::from(f.has_default) << 1) | (u8::from(f.embedded) << 2));
+        w.len_of(&f.lifetimes);
+        for l in &f.lifetimes {
+            w.u32(u32::from(*l));
+        }
     }
     Ok(())
 }
@@ -1167,12 +1175,17 @@ fn get_fields(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Field>> {
         let name = t.sym(r.u32())?;
         let ty = t.ty(r.u32())?;
         let f = r.u8();
+        let mut lifetimes = Vec::new();
+        for _ in 0..r.count() {
+            lifetimes.push(u16::try_from(r.u32()).ok()?);
+        }
         fields.push(Field {
             name,
             ty,
             public: f & 1 != 0,
             has_default: f & 2 != 0,
             embedded: f & 4 != 0,
+            lifetimes,
         });
     }
     Some(fields)

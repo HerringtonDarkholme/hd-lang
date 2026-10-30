@@ -43,6 +43,7 @@ fn field(names: &Names<'_>, name: &str, ty: Ty) -> Field {
         public: true,
         has_default: false,
         embedded: false,
+        lifetimes: Vec::new(),
     }
 }
 

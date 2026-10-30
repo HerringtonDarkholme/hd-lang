@@ -1,0 +1,16 @@
+# test: a field read's result used after the block of its own lifetime's local outlives that local
+# Spec 13 Lifetime Structs: ref.lifetime.struct.read; Local Scope: ref.dep.scope.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn left['a, 'b](t: &Two['a, 'b]) -> &'a string:
+    t.x
+
+fn demo(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "hello"
+        t := Two { x: &inner, y: &outer }
+        kept = left(&t)
+    kept.len() # diagnostic: local-reference-outlives-local

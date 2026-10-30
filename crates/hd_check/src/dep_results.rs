@@ -715,23 +715,42 @@ impl Solve<'_> {
             }
             (TyData::Option(i), Some(1)) if j == 0 => Some((i, Some((0, n(i))))),
             (TyData::Adt { def, args }, _) => {
-                let fields = match (&self.cx.lookup.item(def)?.data, variant) {
+                let item = self.cx.lookup.item(def)?;
+                let fields = match (&item.data, variant) {
                     (ItemData::Data(fs), None) => fs,
                     (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
                         &variants.get(k as usize)?.fields
                     }
                     _ => return None,
                 };
-                let f = fields.get(j as usize)?.ty;
+                let field = fields.get(j as usize)?;
+                let f = field.ty;
                 let argv = pool.list_items(args);
                 let child = subst_owner(pool, def, argv, f);
+                let at = |a: usize| (argv[..a].iter().map(|&x| n(x)).sum(), n(argv[a]));
                 let range = match pool.get(f) {
                     TyData::Param(p) if p.owner == def && (p.index as usize) < argv.len() => {
-                        let a = p.index as usize;
-                        let start = argv[..a].iter().map(|&x| n(x)).sum();
-                        Some((start, n(argv[a])))
+                        Some(at(p.index as usize))
                     }
-                    _ => None,
+                    // `ref.lifetime.struct.read`: a field whose top slots
+                    // all name one lifetime holds that lifetime's position.
+                    _ => {
+                        let slots = slots_of(pool, f);
+                        let mut ids = slots
+                            .iter()
+                            .zip(&field.lifetimes)
+                            .filter(|((_, top), _)| *top)
+                            .map(|(_, &l)| l);
+                        let l = ids.next().filter(|&l| l != 0 && ids.all(|x| x == l));
+                        let g = l.and_then(|l| {
+                            let mut lts =
+                                item.generics.iter().enumerate().filter(|(_, g)| g.lifetime);
+                            lts.nth(usize::from(l) - 1).map(|(g, _)| g)
+                        });
+                        let aligned = slots.len() == field.lifetimes.len()
+                            && tops(pool, f).len() == tops(pool, child).len();
+                        g.filter(|&g| aligned && g < argv.len()).map(at)
+                    }
                 };
                 Some((child, range))
             }

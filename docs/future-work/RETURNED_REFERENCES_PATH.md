@@ -338,7 +338,9 @@ easy to iterate). One checkable rule per slice, in order:
 | 6h | read-only live list views, `Span[T, 'a]` (#978); `SpanMut` after | 6a3; owner: the API |
 | 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
 
-Applied by #1017 (6a1, [Lifetime Structs](../../spec/lang/13-values-and-references.md#lifetime-structs)): each struct lifetime is one reference position of the struct's type, after its type arguments, so its values hold a local reference. A struct literal adds every `&'a` field's origins to each position of the value, and a field read still takes all of the value's origins, which 6a2 narrows.
+Applied by #1017 (6a1, [Lifetime Structs](../../spec/lang/13-values-and-references.md#lifetime-structs)): each struct lifetime is one reference position of the struct's type, after its type arguments, so its values hold a local reference.
+
+Applied by #1018 (6a2): a field typed `&'a T`, or any field whose reference positions all name `'a`, lies in the value's `'a` position, both when a literal constructs it and when it is read; a field of two or more lifetimes still takes every position.
 
 ### Stage 7: exclusivity
 

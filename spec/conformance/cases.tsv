@@ -5302,6 +5302,10 @@ typing/invalid/lifetime-struct-field-elided.hd	type	reject:local-reference-escap
 typing/invalid/lifetime-struct-signature-elided.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.struct.signature-elided
 typing/invalid/lifetime-struct-argument-count.hd	type	reject:argument-count	lang/13-values-and-references.md#r-ref.lifetime.struct.argument.count
 runtime/valid/lifetime-struct-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.position
+typing/valid/lifetime-struct-field-read.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.read
+typing/invalid/lifetime-struct-field-read-other.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.struct.read
+typing/invalid/lifetime-struct-field-read-outlives.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.struct.read
+runtime/valid/lifetime-struct-field-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.construct
 typing/invalid/lifetime-in-body-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.body
 typing/valid/lifetime-shared-either-source.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.shared
 typing/invalid/lifetime-return-unshared-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.return

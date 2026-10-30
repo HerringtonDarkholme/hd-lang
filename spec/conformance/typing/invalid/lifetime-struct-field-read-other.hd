@@ -1,0 +1,8 @@
+# test: a field of one lifetime returned as a reference of another lifetime escapes
+# Spec 13 Lifetime Structs: ref.lifetime.struct.read; Lifetime Variables: ref.lifetime.return.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn left['a, 'b](t: &Two['a, 'b]) -> &'a string:
+    t.y # diagnostic: local-reference-escapes

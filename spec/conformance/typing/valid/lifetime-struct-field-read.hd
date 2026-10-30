@@ -1,0 +1,20 @@
+# test: a field read takes only the origins of its own lifetime, so a result outlives the other lifetime's local
+# Spec 13 Lifetime Structs: ref.lifetime.struct.read, ref.lifetime.struct.construct.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn left['a, 'b](t: &Two['a, 'b]) -> &'a string:
+    t.x
+
+fn right['a, 'b](t: Two['a, 'b]) -> &'b string:
+    t.y
+
+fn demo(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "hello"
+        t := Two { x: &outer, y: &inner }
+        kept = left(&t)
+        kept = right(Two { x: &inner, y: &outer })
+    kept.len()

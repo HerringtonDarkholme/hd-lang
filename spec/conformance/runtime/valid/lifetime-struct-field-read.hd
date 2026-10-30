@@ -1,0 +1,23 @@
+# test: each field of a struct with two lifetimes reads its own reference
+# Spec 13 Lifetime Structs: ref.lifetime.struct.read, ref.lifetime.struct.construct.
+# expect-stdout: outer inner
+# expect-stdout: 5
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn left['a, 'b](t: &Two['a, 'b]) -> &'a string:
+    t.x
+
+fn right['a, 'b](t: Two['a, 'b]) -> &'b string:
+    t.y
+
+pub fn main() -> void $ Console:
+    outer := "outer"
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "inner"
+        t := Two { x: &outer, y: &inner }
+        kept = left(&t)
+        println("${*kept} ${*right(t)}")
+    println("${kept.len()}")
