@@ -4,16 +4,17 @@
 //! one body, solves them and reads its diagnostics off the solution.
 
 use hd_base::{HashMap, HashSet, NodeIdx, SliceSort as _};
+use hd_resolve::ItemData;
 use hd_tir::ir::{IntrinsicOp, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData};
 
 use super::{
-    ANY, ANY_FN, BOX_MSG, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, FnDest, HOST_MSG, Inputs,
-    Layout, NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Verdicts, arg_ty,
+    ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HOST_MSG, Inputs, Layout,
+    NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts, arg_ty,
     capture_slot, closure_allows, intrinsic_ops, local_ref, referent, referent_fn, returned,
     scoped_uses, site, source_arg, w,
 };
-use crate::local_refs::holds_local_ref;
+use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
 
 /// A value's or a place's region variables, one per slot of its type.
@@ -357,55 +358,79 @@ impl Gen<'_, '_> {
     /// callee lifetime and type-parameter slot, each argument slot ⊑ its
     /// variable, equal under a `&mut` (`ref.generic.store`), and the slots
     /// behind a slot ⊑ its variable too, since the callee may return them.
-    /// With `result`, each result slot takes its lifetime's variable. At
-    /// a call that may store through a `&mut` argument, what flows into a
-    /// variable is checked as a store into the caller's place
-    /// (`ref.lifetime.store.call`).
-    fn call(&mut self, sig: &DepSig, me: &View, result: bool) {
+    /// Each result slot takes its variable. At a call that may store
+    /// through a `&mut` argument, what flows into a variable is checked as
+    /// a store into the caller's place (`ref.lifetime.store.call`). A
+    /// capture slot the callee may keep is checked by where it keeps it: a
+    /// type parameter bounded by `'static`, one that only forwards
+    /// parameters' captures, or a function type written inside another type.
+    fn call(&mut self, sig: &CallSig, me: &View) {
         let (b, pool, ls, iu) = (self.s.b, self.s.pool, self.s.ls, self.at as usize);
-        let cat = if self.s.stores.contains_key(&self.at) {
+        let flows = sig.result || sig.store;
+        let cat = if sig.store {
             Category::CallerPlace
         } else {
             Category::Flow
         };
-        let mut vars: HashMap<u32, Region> = HashMap::default();
-        let mut var = |t: &mut RegionTable, id| *vars.entry(id).or_insert_with(|| t.fresh(1).start);
-        let any = result && sig.outs.contains(&Some(ANY));
-        let any_fn = result && sig.outs.contains(&Some(ANY_FN));
-        for (p, (pt, ids)) in sig.params.iter().enumerate() {
+        let mut vars: HashMap<Var, Region> = HashMap::default();
+        let mut var = |t: &mut RegionTable, v| *vars.entry(v).or_insert_with(|| t.fresh(1).start);
+        let any = sig.result && sig.outs.contains(&Some(Var::Life(ANY)));
+        let any_fn = sig.result && sig.outs.contains(&Some(Var::AnyFn));
+        for (p, (pt, slots)) in sig.params.iter().enumerate() {
             let Some((a, at)) = source_arg(b, iu, p).and_then(|a| Some((a, arg_ty(pool, b, a)?)))
             else {
                 continue;
             };
-            if b.tags[a as usize] != Tag::Ref && !ls.holds(at) {
-                let mut ids = ids.clone();
-                ids.extend(any.then_some(ANY));
-                ids.dedup();
+            let mut vs: Vec<Var> = slots.iter().map(|x| x.0).collect();
+            let keeps = ls.holds(at) && slots.iter().any(|x| x.1.is_some());
+            if b.tags[a as usize] != Tag::Ref && !ls.holds(at) && flows {
+                vs.extend(any.then_some(Var::Life(ANY)));
+                vs.dedup();
                 let h = self.t.fresh(1).start;
                 self.lend(a, h);
-                let rs: Vec<Region> = ids.into_iter().map(|id| var(&mut self.t, id)).collect();
+                let rs: Vec<Region> = vs.into_iter().map(|v| var(&mut self.t, v)).collect();
                 self.flow_vars(&[h], &rs, cat);
+                continue;
+            } else if !flows && !keeps {
                 continue;
             }
             let v = self.arg(a, at);
+            if keeps {
+                let node = self.node(a);
+                let hub = (v.0.len() != ls.of(*pt).slots.len()).then(|| {
+                    let h = self.t.fresh(1).start;
+                    v.0.iter().for_each(|&r| self.flow(r, h));
+                    h
+                });
+                for (k, cat) in slots
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(k, x)| Some((k, x.1?)))
+                {
+                    self.checked(hub.unwrap_or(v.0[k]), self.stat, cat, node);
+                }
+            }
+            if !flows {
+                continue;
+            }
             let lay = ls.of(at);
             if any {
-                let r = var(&mut self.t, ANY);
+                let r = var(&mut self.t, Var::Life(ANY));
                 self.each_into(&v.0, &[r]);
             }
             if any_fn {
-                let r = var(&mut self.t, ANY_FN);
+                let r = var(&mut self.t, Var::AnyFn);
                 for (k, _) in lay.slots.iter().enumerate().filter(|(_, x)| x.fun) {
                     self.flow(v.0[k], r);
                 }
             }
-            if v.0.len() != ids.len() || lay.tops != ls.of(*pt).tops {
+            if v.0.len() != vs.len() || lay.tops != ls.of(*pt).tops {
                 // `ref.generic.call.unaligned`: each lifetime takes it all.
-                let rs: Vec<Region> = ids.iter().map(|&id| var(&mut self.t, id)).collect();
+                let rs: Vec<Region> = vs.into_iter().map(|v| var(&mut self.t, v)).collect();
                 self.flow_vars(&v.0, &rs, cat);
                 continue;
             }
-            for (k, &id) in ids.iter().enumerate() {
+            for (k, &id) in vs.iter().enumerate() {
                 let r = var(&mut self.t, id);
                 if under_mut(pool, &lay, k) {
                     self.c.equal(v.0[k], r, self.at);
@@ -417,24 +442,19 @@ impl Gen<'_, '_> {
                 }
             }
         }
-        if !result {
+        if !sig.result {
             return;
         }
-        let (have, want) = (ls.of(me.1), ls.of(sig.ret));
-        if have.tops.len() == want.tops.len() && !have.tops.is_empty() {
-            for (k, &to) in me.0.iter().enumerate() {
-                if let Some(&Some(id)) = sig.outs.get(k) {
-                    let r = var(&mut self.t, id);
-                    self.flow(r, to);
-                }
-            }
-        } else {
-            let rs: Vec<Region> = sig
-                .all_ids()
-                .into_iter()
-                .map(|id| var(&mut self.t, id))
-                .collect();
+        if ls.of(me.1).tops.is_empty() {
+            let rs: Vec<Region> = (sig.elided.iter()).map(|&v| var(&mut self.t, v)).collect();
             self.each_into(&rs, &me.0);
+            return;
+        }
+        for (k, &to) in me.0.iter().enumerate() {
+            if let Some(&Some(v)) = sig.outs.get(k) {
+                let r = var(&mut self.t, v);
+                self.flow(r, to);
+            }
         }
     }
 
@@ -522,8 +542,8 @@ impl Gen<'_, '_> {
 
     /// Each destination that keeps a captured function value
     /// (`fn.capture.local-store`): its top capture slots ⊑ `'static`, by
-    /// the destination's category. A call's parameter that may only use or
-    /// pass on its argument (`FnDest::Scoped`) checks nothing.
+    /// the destination's category. A call checks its arguments' in
+    /// [`Gen::call`].
     fn escapes(&mut self, i: u32) {
         let (b, s, iu) = (self.s.b, self.s, i as usize);
         let mut kept: Vec<(u32, Category)> = Vec::new();
@@ -561,55 +581,33 @@ impl Gen<'_, '_> {
             | Tag::NewTuple
             | Tag::NewList
             | Tag::NewMap => {
-                let outlives = s.outlives_fields(iu);
                 parts(&consume, Category::FieldCapture);
-                kept.retain(|(v, _)| !outlives.contains(v));
+                // A field of a type parameter keeps what it captures in the
+                // struct's slot (`ref.generic.outlives.field`).
+                if let (Tag::NewStruct, TyData::Adt { def, .. }) =
+                    (b.tags[iu], s.pool.get(b.ty[iu]))
+                    && let Some(item) = s.cx.lookup.item(def)
+                    && let ItemData::Data(fields) = &item.data
+                {
+                    let static_bound = s.cx.names.known.static_bound;
+                    let rec = b.record(b.data[iu][1]);
+                    let capturing = |f: &hd_resolve::Field| {
+                        capturing_field(s.pool, static_bound, def, &item.generics, f.ty)
+                    };
+                    kept.retain(|(v, _)| {
+                        !rec.iter().zip(fields).any(|(x, f)| x == v && capturing(f))
+                    });
+                }
             }
             Tag::Intrinsic => parts(&consume, Category::FieldCapture),
             Tag::With | Tag::ContextNew => parts(&|w| w == Word::Provider, Category::Provider),
             Tag::CallHost => parts(&|w| matches!(w, Word::Value(_)), Category::HostCall),
-            Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => self.call_escapes(i),
             _ => {}
         }
         for (v, cat) in kept {
             let at = self.node(v);
             for r in self.val(v).map(|v| self.fun_tops(&v)).unwrap_or_default() {
                 self.checked(r, self.stat, cat, at);
-            }
-        }
-    }
-
-    /// Each capture slot of call `i`'s arguments by where its parameter
-    /// keeps it: a type parameter bounded by `'static`, one that only
-    /// forwards parameters' captures, or a function type written inside
-    /// another type.
-    fn call_escapes(&mut self, i: u32) {
-        let (b, pool, ls) = (self.s.b, self.s.pool, self.s.ls);
-        for (p, (t, dests)) in self.s.call_params(i as usize).into_iter().enumerate() {
-            let Some((a, vt)) =
-                source_arg(b, i as usize, p).and_then(|a| Some((a, arg_ty(pool, b, a)?)))
-            else {
-                continue;
-            };
-            if dests.is_empty() || !ls.holds(vt) {
-                continue;
-            }
-            let v = self.arg(a, vt);
-            let at = self.node(a);
-            let hub = (v.0.len() != ls.of(t).slots.len()).then(|| {
-                let h = self.t.fresh(1).start;
-                v.0.iter().for_each(|&r| self.flow(r, h));
-                h
-            });
-            for (s, dest) in dests {
-                let cat = match dest {
-                    FnDest::Scoped => continue,
-                    FnDest::Static => Category::StaticParam,
-                    FnDest::Forward => Category::Forward,
-                    FnDest::Kept => Category::FieldCapture,
-                };
-                let from = hub.unwrap_or(v.0[s]);
-                self.checked(from, self.stat, cat, at);
             }
         }
     }
@@ -751,8 +749,8 @@ impl Gen<'_, '_> {
             },
             Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => {
                 let s = self.s;
-                if let Some(sig) = s.deps.get(&i).or_else(|| s.stores.get(&i)) {
-                    self.call(sig, &me, s.deps.contains_key(&i));
+                if let Some(sig) = s.calls.get(&i) {
+                    self.call(sig, &me);
                 }
             }
             // `fn.capture.local-origins`: what each captured local holds.

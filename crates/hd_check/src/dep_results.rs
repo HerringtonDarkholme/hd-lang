@@ -38,7 +38,8 @@ use hd_types::{Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
 use crate::call::subst_owner;
-use crate::local_refs::holds_local_ref;
+use crate::local_refs::{holds_local_ref, outlives_field, scoped_param, static_bounded};
+use crate::regions::Category;
 
 mod constraints;
 
@@ -46,20 +47,9 @@ mod constraints;
 /// the slot's index. A written lifetime is its 1-based place in scope.
 const ANON: u32 = 1 << 16;
 
-/// The lifetime of slot `k` of what type parameter `p` stands for at a
-/// call: `TVAR + (p << 8) + k` (`ref.generic.call`), shared by every
-/// position of that parameter.
-const TVAR: u32 = 1 << 20;
-
-/// The end of the [`TVAR`] range.
-const TVAR_END: u32 = TVAR + (1 << 16);
-
-/// A result slot that depends on every argument (`ref.generic.call.unaligned`).
+/// A result slot that depends on every argument (`types.opaque.borrows.source`,
+/// `ref.generic.call.unaligned`).
 const ANY: u32 = u32::MAX;
-
-/// A capture slot that depends on what every argument's capture slots
-/// hold (`ref.generic.call.unaligned`).
-const ANY_FN: u32 = u32::MAX - 2;
 
 /// A declared result slot with no source, while lining up.
 const NO_SOURCE: u32 = u32::MAX - 1;
@@ -251,21 +241,21 @@ impl DepSig {
     /// opaque type's lifetime, and none for an opaque type that does not
     /// borrow (`types.opaque.borrows.body`).
     fn open(self, ls: &Layouts<'_>, hidden: Ty) -> DepSig {
-        let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
-        let mut out = Vec::new();
-        let outs = if line_up(ls, self.ret, hidden, &mut it, &mut Vec::new(), &mut out, 0) {
-            out.into_iter()
-                .map(|id| (id != NO_SOURCE).then_some(id))
-                .collect()
-        } else {
-            vec![None; ls.of(hidden).slots.len()]
-        };
+        let n = ls.of(hidden).slots.len();
+        let outs = line_up(ls, self.ret, hidden)
+            .and_then(|keys| {
+                (keys.into_iter())
+                    .map(|k| match k {
+                        Key::Decl(j) => self.outs.get(j).copied(),
+                        _ => Some(None),
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![None; n]);
         DepSig {
-            params: self.params,
             outs,
             ret: hidden,
-            elided: self.elided,
-            capture_elided: self.capture_elided,
+            ..self
         }
     }
 
@@ -284,65 +274,60 @@ impl DepSig {
         self_lifetimes: &[u16],
         impl_lifetime_count: usize,
     ) -> DepSig {
-        let mut keys = Vec::new();
-        let remap = |id: u32, keys: &[hd_types::ParamRef]| {
-            if (TVAR..TVAR_END).contains(&id) {
-                let key = ((id - TVAR) >> 8) as usize;
-                let slot = ((id - TVAR) & 0xff) as usize;
-                if keys
-                    .get(key)
-                    .is_some_and(|p| p.owner == trait_ && p.index == 0)
-                    && let Some(&l) = self_lifetimes.get(slot)
-                    && l != 0
-                {
-                    return u32::from(l);
-                }
-                return id;
-            }
+        let remap = |id: u32| {
             if id == 0 || id >= ANON {
                 return id;
             }
             let at = id as usize - 1;
-            if let Some(&l) = trait_lifetimes.get(at) {
-                return u32::from(l);
+            match trait_lifetimes.get(at) {
+                Some(&l) => u32::from(l),
+                None => u32::try_from(impl_lifetime_count + at + 1 - trait_lifetimes.len())
+                    .unwrap_or(id),
             }
-            u32::try_from(impl_lifetime_count + at + 1 - trait_lifetimes.len()).unwrap_or(id)
         };
-        let params = self
-            .params
-            .into_iter()
-            .zip(params)
+        // A slot a type parameter adds takes its own lifetime, past the
+        // parameters' own ones, but the trait's `Self` that of the target.
+        let own = ANON + w(self.params.iter().map(|(_, ids)| ids.len()).sum());
+        let mut fresh: Vec<Key> = Vec::new();
+        let mut align = |d: Ty, t: Ty, ids: &[Option<u32>]| -> Option<Vec<Option<u32>>> {
+            let target = |p: hd_types::ParamRef, s: usize| {
+                let l = *self_lifetimes
+                    .get(s)
+                    .filter(|_| p.owner == trait_ && p.index == 0)?;
+                (l != 0).then_some(u32::from(l))
+            };
+            (line_up(ls, d, t)?.into_iter())
+                .map(|k| match k {
+                    Key::Decl(j) => Some(ids.get(j).copied()?.map(remap)),
+                    Key::None => Some(None),
+                    Key::Param(p, s) => Some(Some(target(p, s).unwrap_or_else(|| {
+                        let at = fresh.iter().position(|&x| x == k).unwrap_or_else(|| {
+                            fresh.push(k);
+                            fresh.len() - 1
+                        });
+                        own + w(at)
+                    }))),
+                })
+                .collect()
+        };
+        let params = (self.params.into_iter().zip(params))
             .map(|((decl, ids), &(_, actual))| {
-                let mut it = ids.into_iter();
-                let mut out = Vec::new();
-                if line_up(ls, decl, actual, &mut it, &mut keys, &mut out, 0) {
-                    for id in &mut out {
-                        *id = remap(*id, &keys);
-                    }
-                    (actual, out)
-                } else {
-                    (decl, Vec::new())
+                let ids: Vec<Option<u32>> = ids.into_iter().map(Some).collect();
+                match align(decl, actual, &ids) {
+                    Some(out) => (
+                        actual,
+                        out.into_iter().map(|id| id.unwrap_or(NO_SOURCE)).collect(),
+                    ),
+                    None => (decl, Vec::new()),
                 }
             })
             .collect();
-        let mut it = self.outs.into_iter().map(|o| o.unwrap_or(NO_SOURCE));
-        let mut outs = Vec::new();
-        if line_up(ls, self.ret, ret, &mut it, &mut keys, &mut outs, 0) {
-            for id in &mut outs {
-                *id = remap(*id, &keys);
-            }
-        } else {
-            outs.clear();
-        }
+        let outs = align(self.ret, ret, &self.outs).unwrap_or_default();
         DepSig {
             params,
-            outs: outs
-                .into_iter()
-                .map(|id| (id != NO_SOURCE).then_some(id))
-                .collect(),
+            outs,
             ret,
-            elided: self.elided,
-            capture_elided: self.capture_elided,
+            ..self
         }
     }
 
@@ -379,96 +364,6 @@ impl DepSig {
         vec![self.all_ids(); have.width]
     }
 
-    /// The map at call `i` of `b`, over the types the call instantiates
-    /// (`ref.generic.call`): each argument's type and the result's. A slot
-    /// that a type parameter adds shares that parameter's lifetime. An
-    /// argument whose type does not line up with its parameter's keeps the
-    /// declared type, and then a result slot a type parameter adds depends
-    /// on every argument (`ref.generic.call.unaligned`). With the callee
-    /// and its generics, a parameter of a bare type parameter bounded by a
-    /// lifetime puts its slots in that lifetime (`ref.generic.outlives.argument`).
-    fn instantiate(
-        self,
-        ls: &Layouts<'_>,
-        b: &Body,
-        i: usize,
-        callee: Option<(DefId, &[hd_resolve::Generic])>,
-        self_slots: Option<(hd_types::ParamRef, &[Option<u32>])>,
-    ) -> DepSig {
-        let mut keys = Vec::new();
-        let mut lossy = false;
-        let mut params = Vec::with_capacity(self.params.len());
-        let pool = ls.pool;
-        for (p, (decl, ids)) in self.params.into_iter().enumerate() {
-            let at = source_arg(b, i, p).and_then(|a| arg_ty(pool, b, a));
-            let mut out = Vec::new();
-            let mut it = ids.iter().copied();
-            match at {
-                Some(t) if line_up(ls, decl, t, &mut it, &mut keys, &mut out, 0) => {
-                    if let Some((self_param, slots)) = self_slots {
-                        remap_param_slots(&mut out, &keys, self_param, slots);
-                    }
-                    let outlives = callee.and_then(|(def, generics)| {
-                        crate::local_refs::outlives_field(
-                            pool,
-                            def,
-                            generics,
-                            referent_fn(pool, decl),
-                        )
-                    });
-                    if let Some(l) = outlives {
-                        for id in &mut out {
-                            if (TVAR..TVAR_END).contains(id) {
-                                *id = u32::from(l);
-                            }
-                        }
-                    }
-                    params.push((t, out));
-                }
-                _ => {
-                    lossy |= pool.has_param(decl);
-                    params.push((decl, ids));
-                }
-            }
-        }
-        let ret = b.ty[i];
-        let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
-        let mut out = Vec::new();
-        // A result slot that a type parameter adds with no argument slot of
-        // its own, as the capture of `F < Fn() -> void & 'a` inside
-        // `Button[F, 'a]`, depends on every argument.
-        let unbound = |id: u32| {
-            !params
-                .iter()
-                .any(|(_, ids): &(Ty, Vec<u32>)| ids.contains(&id))
-        };
-        // A capture slot depends only on capture slots.
-        let any = |s: &Slot| if s.fun { ANY_FN } else { ANY };
-        let slots = ls.of(ret);
-        let outs = if line_up(ls, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
-            if let Some((self_param, slots)) = self_slots {
-                remap_param_slots(&mut out, &keys, self_param, slots);
-            }
-            out.into_iter()
-                .zip(&slots.slots)
-                .map(|(id, s)| match id {
-                    NO_SOURCE => None,
-                    id if (lossy || unbound(id)) && (TVAR..TVAR_END).contains(&id) => Some(any(s)),
-                    id => Some(id),
-                })
-                .collect()
-        } else {
-            slots.slots.iter().map(|s| Some(any(s))).collect()
-        };
-        DepSig {
-            params,
-            outs,
-            ret,
-            elided: self.elided,
-            capture_elided: self.capture_elided,
-        }
-    }
-
     /// Whether the result slot of lifetime `id` may depend on `o`: a
     /// parameter slot of that lifetime, or a reference slot behind one,
     /// whose referent outlives it (`ref.dep.return`).
@@ -479,7 +374,7 @@ impl DepSig {
         let Some((t, ids)) = self.params.get(p as usize) else {
             return false;
         };
-        if id == ANY || id == ANY_FN {
+        if id == ANY {
             return true;
         }
         let s = s as usize;
@@ -537,124 +432,96 @@ fn one_id(ids: impl Iterator<Item = u32>) -> Elided {
     }
 }
 
-/// Lines the instantiated type `t` up with the declared `d`, pushing each
-/// slot's lifetime to `out` in [`Layout`] order: a declared slot's from
-/// `ids`, and a slot a type parameter adds its [`TVAR`], a function
-/// type's capture slot included. False where the shapes differ.
-fn line_up(
-    ls: &Layouts<'_>,
-    d: Ty,
-    t: Ty,
-    ids: &mut dyn Iterator<Item = u32>,
-    keys: &mut Vec<hd_types::ParamRef>,
-    out: &mut Vec<u32>,
-    depth: u32,
-) -> bool {
-    if depth > 32 {
-        return false;
-    }
-    let (pool, d1) = (ls.pool, depth + 1);
-    let list = |a: hd_types::TyList,
-                b: hd_types::TyList,
-                ids: &mut dyn Iterator<Item = u32>,
-                keys: &mut Vec<hd_types::ParamRef>,
-                out: &mut Vec<u32>| {
-        let (a, b) = (pool.list_items(a), pool.list_items(b));
-        a.len() == b.len()
-            && a.iter()
-                .zip(b)
-                .all(|(&x, &y)| line_up(ls, x, y, ids, keys, out, d1))
-    };
-    match (pool.get(d), pool.get(t)) {
-        (TyData::Param(p), _) => {
-            let k = keys.iter().position(|x| *x == p).unwrap_or_else(|| {
-                keys.push(p);
-                keys.len() - 1
-            });
-            let n = ls.of(t).slots.len().min(255);
-            out.extend((0..n).map(|s| TVAR + (w(k.min(255)) << 8) + w(s)));
-            true
-        }
-        // A function value's one capture slot (`fn.capture.local-parameter`).
-        (TyData::Fn { .. }, TyData::Fn { .. }) => {
-            let Some(id) = ids.next() else { return false };
-            out.push(id);
-            true
-        }
-        // Each slot of an opaque type's hidden type, or of its instance,
-        // takes the opaque type's lifetime (`types.opaque.borrows`).
-        (TyData::Opaque { borrows, .. }, _) => {
-            let id = if borrows {
-                let Some(id) = ids.next() else { return false };
-                id
-            } else {
-                NO_SOURCE
-            };
-            out.extend(std::iter::repeat_n(id, ls.of(t).slots.len()));
-            true
-        }
-        (TyData::Mut(a), TyData::Mut(b)) => line_up(ls, a, b, ids, keys, out, d1),
-        (TyData::Mut(a), _) => line_up(ls, a, t, ids, keys, out, d1),
-        (_, TyData::Mut(b)) => line_up(ls, d, b, ids, keys, out, d1),
-        (
-            TyData::Ref {
-                counted: false,
-                inner: a,
-                ..
-            },
-            TyData::Ref {
-                counted: false,
-                inner: b,
-                ..
-            },
-        ) => {
-            let Some(id) = ids.next() else { return false };
-            out.push(id);
-            line_up(ls, a, b, ids, keys, out, d1)
-        }
-        (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
-        (TyData::Option(a), TyData::Option(b)) => line_up(ls, a, b, ids, keys, out, d1),
-        (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
-            list(a, b, ids, keys, out)
-                && match (ra, rb) {
-                    (Some(x), Some(y)) => line_up(ls, x, y, ids, keys, out, d1),
-                    (None, None) => true,
-                    _ => false,
-                }
-        }
-        (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
-        | (
-            TyData::TraitValue {
-                def: x, args: a, ..
-            },
-            TyData::TraitValue {
-                def: y, args: b, ..
-            },
-        ) if x == y => list(a, b, ids, keys, out),
-        _ => ls.of(d).slots.is_empty() && ls.of(t).slots.is_empty(),
-    }
+/// Which slot of a declared type a slot of its instance is ([`line_up`]).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+enum Key {
+    /// The declared type's slot `k`.
+    Decl(usize),
+    /// Slot `s` of what type parameter `p` stands for, a function type's
+    /// capture slot included.
+    Param(hd_types::ParamRef, usize),
+    /// A slot of an opaque type that does not borrow.
+    None,
 }
 
-/// Replaces type-variable slots of `param` with the declared lifetime of
-/// each corresponding concrete slot.
-fn remap_param_slots(
-    ids: &mut [u32],
-    keys: &[hd_types::ParamRef],
-    param: hd_types::ParamRef,
-    slots: &[Option<u32>],
-) {
-    for id in ids {
-        if !(TVAR..TVAR_END).contains(id) {
-            continue;
-        }
-        let key = ((id.wrapping_sub(TVAR)) >> 8) as usize;
-        let slot = (id.wrapping_sub(TVAR) & 0xff) as usize;
-        if keys.get(key) == Some(&param)
-            && let Some(Some(mapped)) = slots.get(slot)
-        {
-            *id = *mapped;
+/// Lines the instantiated type `t` up with the declared `d`: the [`Key`]
+/// of each slot of `t`, in [`Layout`] order. `None` where the shapes differ.
+fn line_up(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
+    /// The next declared slot, and the keys so far.
+    type St = (usize, Vec<Key>);
+    fn walk(ls: &Layouts<'_>, d: Ty, t: Ty, st: &mut St, depth: u32) -> bool {
+        let (pool, d1) = (ls.pool, depth + 1);
+        let list = |a: hd_types::TyList, b: hd_types::TyList, st: &mut St| {
+            let (a, b) = (pool.list_items(a), pool.list_items(b));
+            a.len() == b.len() && a.iter().zip(b).all(|(&x, &y)| walk(ls, x, y, st, d1))
+        };
+        let decl = |st: &mut St, n: usize| {
+            st.1.extend(std::iter::repeat_n(Key::Decl(st.0), n));
+            st.0 += 1;
+        };
+        match (pool.get(d), pool.get(t)) {
+            _ if depth > 32 => false,
+            (TyData::Param(p), _) => {
+                st.1.extend((0..ls.of(t).slots.len()).map(|s| Key::Param(p, s)));
+                true
+            }
+            // A function value's one capture slot (`fn.capture.local-parameter`).
+            (TyData::Fn { .. }, TyData::Fn { .. }) => {
+                decl(st, 1);
+                true
+            }
+            // Each slot of an opaque type's hidden type, or of its instance,
+            // takes the opaque type's lifetime (`types.opaque.borrows`).
+            (TyData::Opaque { borrows: true, .. }, _) => {
+                decl(st, ls.of(t).slots.len());
+                true
+            }
+            (TyData::Opaque { .. }, _) => {
+                st.1.extend(std::iter::repeat_n(Key::None, ls.of(t).slots.len()));
+                true
+            }
+            (TyData::Mut(a), TyData::Mut(b)) => walk(ls, a, b, st, d1),
+            (TyData::Mut(a), _) => walk(ls, a, t, st, d1),
+            (_, TyData::Mut(b)) => walk(ls, d, b, st, d1),
+            (
+                TyData::Ref {
+                    counted: false,
+                    inner: a,
+                    ..
+                },
+                TyData::Ref {
+                    counted: false,
+                    inner: b,
+                    ..
+                },
+            ) => {
+                decl(st, 1);
+                walk(ls, a, b, st, d1)
+            }
+            (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
+            (TyData::Option(a), TyData::Option(b)) => walk(ls, a, b, st, d1),
+            (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
+                list(a, b, st)
+                    && match (ra, rb) {
+                        (Some(x), Some(y)) => walk(ls, x, y, st, d1),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
+            | (
+                TyData::TraitValue {
+                    def: x, args: a, ..
+                },
+                TyData::TraitValue {
+                    def: y, args: b, ..
+                },
+            ) if x == y => list(a, b, st),
+            _ => ls.of(d).slots.is_empty() && ls.of(t).slots.is_empty(),
         }
     }
+    let mut st = (0, Vec::new());
+    walk(ls, d, t, &mut st, 0).then_some(st.1)
 }
 
 /// `t` without its `mut`.
@@ -885,8 +752,7 @@ impl<'a> Layouts<'a> {
                     // parameter bounded by a lifetime lies in that
                     // lifetime's position.
                     TyData::Param(_)
-                        if let Some(l) =
-                            crate::local_refs::outlives_field(pool, def, &item.generics, f) =>
+                        if let Some(l) = outlives_field(pool, def, &item.generics, f) =>
                     {
                         lifetime(l).map(|s| vec![s; len(ty)])
                     }
@@ -970,19 +836,34 @@ const HOST_MSG: &str =
     "a local reference captured by this function value never escapes through a host call";
 const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime";
 
-/// Where a call's parameter keeps a capture slot of its argument.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum FnDest {
-    /// A direct `fn(...)` parameter, or a type parameter that may hold
-    /// captured origins: the call may only use it or pass it on.
-    Scoped,
-    /// A type parameter the call keeps under `'static`.
-    Static,
-    /// A type parameter with no position for captured origins, which a
-    /// function value that captures only parameters' origins may reach.
-    Forward,
-    /// A function type written inside another type, which holds none.
-    Kept,
+/// A callee variable of a call (`ref.dep.call`): a callee lifetime, a slot
+/// of what a type parameter stands for (`ref.generic.call`), or what every
+/// argument's capture slots hold (`ref.generic.call.unaligned`).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+enum Var {
+    Life(u32),
+    Param(hd_types::ParamRef, usize),
+    AnyFn,
+}
+
+/// An argument slot's variable, and its check if the callee may keep it.
+type ArgSlot = (Var, Option<Category>);
+
+/// A call's map over the types it instantiates (`ref.generic.call`).
+struct CallSig {
+    /// Each parameter's type, its argument's where the two line up, and
+    /// for each of its slots the variable it takes and, for a capture slot
+    /// the call may keep, the category of its check.
+    params: Vec<(Ty, Vec<ArgSlot>)>,
+    /// Each result slot's variable.
+    outs: Vec<Option<Var>>,
+    /// The elided lifetimes, for a result with no slots.
+    elided: Vec<Var>,
+    /// Whether the result takes the variables.
+    result: bool,
+    /// Whether the call may store through a `&mut` argument
+    /// (`ref.generic.store`, `ref.lifetime.store.call`).
+    store: bool,
 }
 
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
@@ -1013,11 +894,8 @@ struct Inputs<'a> {
     pool: Types<'a>,
     ls: &'a Layouts<'a>,
     cx: &'a BodyCx<'a>,
-    /// The dependent calls' callees.
-    deps: &'a HashMap<u32, DepSig>,
-    /// The generic calls that may store through a `&mut` argument
-    /// (`ref.generic.store`).
-    stores: &'a HashMap<u32, DepSig>,
+    /// The maps of the calls that pass or return origins.
+    calls: &'a HashMap<u32, CallSig>,
     /// Each parameter's type, which `Origin::Param` slots index.
     params: Vec<Ty>,
     /// The function's own map, whose parameters' lifetimes decide what a
@@ -1035,159 +913,6 @@ impl Inputs<'_> {
         (r & hd_tir::ir::Ref::CONST_BIT == 0)
             .then(|| self.b.ty.get(r as usize).copied())
             .flatten()
-    }
-
-    /// The values of struct literal `i` for fields of a type parameter
-    /// (`ref.generic.outlives.field`).
-    fn outlives_fields(&self, i: usize) -> Vec<u32> {
-        let b = self.b;
-        if b.tags[i] != Tag::NewStruct {
-            return Vec::new();
-        }
-        let TyData::Adt { def, .. } = self.pool.get(b.ty[i]) else {
-            return Vec::new();
-        };
-        let Some(item) = self.cx.lookup.item(def) else {
-            return Vec::new();
-        };
-        let ItemData::Data(fields) = &item.data else {
-            return Vec::new();
-        };
-        b.record(b.data[i][1])
-            .iter()
-            .zip(fields)
-            .filter(|(_, f)| {
-                crate::local_refs::capturing_field(
-                    self.pool,
-                    self.cx.names.known.static_bound,
-                    def,
-                    &item.generics,
-                    f.ty,
-                )
-            })
-            .map(|(&v, _)| v)
-            .collect()
-    }
-
-    /// For each parameter of call `i`: its instantiated type, and for each
-    /// capture slot of that type, where a scoped function value there may
-    /// go. `Ok` for a direct `fn(...)` parameter or the referent of a
-    /// reference to one, and for a type parameter that may hold captured
-    /// origins (`ref.generic.outlives.instance`); for a type parameter
-    /// that `'static` does not bound, whether it only forwards a
-    /// parameter's (`Err(true)`). Else the message of the error.
-    fn call_params(&self, i: usize) -> Vec<(Ty, Vec<(usize, FnDest)>)> {
-        let b = self.b;
-        let (pool, ls) = (self.pool, self.ls);
-        let static_bound = self.cx.names.known.static_bound;
-        let instantiated = |def: DefId| {
-            let sig = self.cx.lookup.item(def)?.sig()?;
-            let names = &self.cx.names;
-            let params = DepSig::new(
-                ls,
-                &sig.params,
-                |s| names.text(s) == "self",
-                sig.ret,
-                &sig.lifetimes,
-            )
-            .instantiate(ls, b, i, None, None)
-            .params;
-            let dest = |p: hd_types::ParamRef| {
-                let generics = if p.owner == def {
-                    Some(&sig.generics)
-                } else {
-                    self.cx.lookup.item(p.owner).map(|it| &it.generics)
-                };
-                let g = generics.and_then(|g| g.get(usize::from(p.index)));
-                if g.is_some_and(|g| crate::local_refs::static_bounded(pool, static_bound, g)) {
-                    FnDest::Static
-                } else if crate::local_refs::scoped_param(pool, sig, p) {
-                    FnDest::Scoped
-                } else {
-                    FnDest::Forward
-                }
-            };
-            Some(
-                sig.params
-                    .iter()
-                    .zip(params)
-                    .map(|(&(_, decl), (t, _))| {
-                        let written = ls.of(decl);
-                        let n = written.slots.len();
-                        let mut keys = Vec::new();
-                        let mut out = Vec::new();
-                        let mut it = (0..w(n)).chain(std::iter::repeat(NO_SOURCE));
-                        let aligned = line_up(ls, decl, t, &mut it, &mut keys, &mut out, 0);
-                        let dests = (ls.of(t).slots.iter().enumerate())
-                            .filter(|(_, x)| x.fun)
-                            .map(|(s, _)| {
-                                let d = match out.get(s) {
-                                    _ if !aligned => FnDest::Kept,
-                                    Some(&id) if (TVAR..TVAR_END).contains(&id) => {
-                                        let k = ((id - TVAR) >> 8) as usize;
-                                        keys.get(k).map_or(FnDest::Kept, |&p| dest(p))
-                                    }
-                                    Some(&id) if (id as usize) < n => {
-                                        if written.slots[id as usize].written {
-                                            FnDest::Kept
-                                        } else {
-                                            FnDest::Scoped
-                                        }
-                                    }
-                                    _ => FnDest::Kept,
-                                };
-                                (s, d)
-                            })
-                            .collect();
-                        (t, dests)
-                    })
-                    .collect(),
-            )
-        };
-        match b.tags[i] {
-            Tag::Call | Tag::Await => Callee::from_words(b.record(b.data[i][0]))
-                .map(|callee| match callee {
-                    Callee::Item { def, .. } => def,
-                    Callee::TraitMethod { method, .. } => method,
-                })
-                .and_then(instantiated)
-                .unwrap_or_default(),
-            Tag::CallDyn => b
-                .record(b.data[i][1])
-                .first()
-                .copied()
-                .map(DefId::from_raw)
-                .and_then(instantiated)
-                .unwrap_or_default(),
-            Tag::CallValue => self
-                .ty(b.data[i][0])
-                .and_then(|t| match pool.get(referent_fn(pool, t)) {
-                    TyData::Fn { params, .. } => Some(
-                        pool.list_items(params)
-                            .iter()
-                            .map(|&p| {
-                                let dests = (ls.of(p).slots.iter().enumerate())
-                                    .filter(|(_, x)| x.fun)
-                                    .map(|(s, x)| {
-                                        (
-                                            s,
-                                            if x.written {
-                                                FnDest::Kept
-                                            } else {
-                                                FnDest::Scoped
-                                            },
-                                        )
-                                    })
-                                    .collect();
-                                (p, dests)
-                            })
-                            .collect(),
-                    ),
-                    _ => None,
-                })
-                .unwrap_or_default(),
-            _ => Vec::new(),
-        }
     }
 }
 
@@ -1317,14 +1042,33 @@ impl Ck<'_, '_> {
         .to_fn(ls, 0)
     }
 
-    /// The dependency map of a callee's signature (`ref.dep.call`,
-    /// `ref.dep.trait`): a trait method's from the trait's signature.
-    /// At call `i` of `b`, the map is over the types the call instantiates
-    /// (`ref.generic.call`).
-    fn callee_dep(&self, ls: &Layouts<'_>, b: &Body, i: usize) -> Option<DepSig> {
-        let (def, trait_, self_slots) = match b.tags[i] {
+    /// The map of call `i` of `b` when it passes or returns a value that
+    /// may hold origins ([`CallSig`]): from its callee's signature, a trait
+    /// method's from the trait's (`ref.dep.trait`), or the map a function
+    /// value's type carries (`fn.type.lifetime.call`). A parameter of a
+    /// bare type parameter bounded by a lifetime puts its slots in that
+    /// lifetime (`ref.generic.outlives.argument`). Where an argument does
+    /// not line up with its parameter, a result slot a type parameter adds
+    /// depends on every argument (`ref.generic.call.unaligned`), as one does
+    /// that no argument slot has, as the capture of `F < Fn() -> void & 'a`
+    /// inside `Button[F, 'a]`.
+    fn call_sig(&self, ls: &Layouts<'_>, b: &Body, i: usize) -> Option<CallSig> {
+        let (pool, tag, names) = (ls.pool, b.tags[i], &self.cx.names);
+        let (mut holds, mut held) = (ls.holds(b.ty[i]), false);
+        let receiver = (tag == Tag::CallDyn).then(|| b.data[i][0]);
+        slots(b, i, |_, v, word| {
+            let arg = matches!(word, Word::Value(Role::Arg(_)));
+            if (arg || receiver == Some(v)) && arg_ty(pool, b, v).is_some_and(|t| ls.holds(t)) {
+                holds = true;
+                held |= arg && ls.holds(b.ty[v as usize]);
+            }
+        });
+        if !holds {
+            return None;
+        }
+        let (def, trait_, self_slots) = match tag {
             Tag::Call | Tag::Await => match Callee::from_words(b.record(b.data[i][0]))? {
-                Callee::Item { def, .. } => (def, None, Vec::new()),
+                Callee::Item { def, .. } => (Some(def), None, Vec::new()),
                 Callee::TraitMethod {
                     trait_,
                     method,
@@ -1339,155 +1083,179 @@ impl Ck<'_, '_> {
                         }
                         _ => Vec::new(),
                     };
-                    (method, Some(trait_), slots)
+                    (Some(method), Some(trait_), slots)
                 }
             },
             Tag::CallDyn => {
-                let method = b
-                    .record(b.data[i][1])
-                    .first()
-                    .copied()
-                    .map(DefId::from_raw)?;
-                let trait_ = match self.cx.lookup.item(method).map(|m| &m.data) {
-                    Some(hd_resolve::ItemData::Method { owner, .. }) => *owner,
-                    _ => return None,
+                let method = DefId::from_raw(*b.record(b.data[i][1]).first()?);
+                let Some(ItemData::Method { owner, .. }) =
+                    self.cx.lookup.item(method).map(|m| &m.data)
+                else {
+                    return None;
                 };
-                let t = source_arg(b, i, 0).and_then(|a| arg_ty(ls.pool, b, a))?;
+                let t = source_arg(b, i, 0).and_then(|a| arg_ty(pool, b, a))?;
                 (
-                    method,
-                    Some(trait_),
-                    self.trait_value_self_slots(ls, trait_, t),
+                    Some(method),
+                    Some(*owner),
+                    self.trait_value_self_slots(ls, *owner, t),
                 )
             }
+            Tag::CallValue => (None, None, Vec::new()),
             _ => return None,
         };
-        let sig = self.sig_of(def).ok()?;
-        let names = &self.cx.names;
-        let self_slots = trait_.map(|tr| {
-            (
-                hd_types::ParamRef {
-                    owner: tr,
-                    index: 0,
-                },
-                self_slots.as_slice(),
-            )
+        let sig = match def {
+            Some(def) => Some(self.sig_of(def).ok()?),
+            None => None,
+        };
+        let dep = match &sig {
+            Some(sig) => {
+                let is_self = |s| names.text(s) == "self";
+                DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
+            }
+            None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
+        };
+        // A slot of the trait's `Self` that the implementation target's
+        // lifetime fills (`ref.lifetime.trait`).
+        let target = |p: hd_types::ParamRef, s: usize| {
+            trait_.filter(|&tr| p.owner == tr && p.index == 0)?;
+            self_slots.get(s).copied().flatten()
+        };
+        // Where a capture slot a type parameter adds is kept.
+        let declared = def.and_then(|d| Some((d, self.cx.lookup.item(d)?.sig()?)));
+        let static_bound = names.known.static_bound;
+        let dest = |p: hd_types::ParamRef| {
+            let (def, declared) = declared?;
+            let generics = if p.owner == def {
+                Some(&declared.generics)
+            } else {
+                self.cx.lookup.item(p.owner).map(|it| &it.generics)
+            };
+            let g = generics.and_then(|g| g.get(usize::from(p.index)));
+            if g.is_some_and(|g| static_bounded(pool, static_bound, g)) {
+                Some(Category::StaticParam)
+            } else if scoped_param(pool, declared, p) {
+                None
+            } else {
+                Some(Category::Forward)
+            }
+        };
+        let mut lossy = false;
+        let mut params = Vec::with_capacity(dep.params.len());
+        for (p, (decl, ids)) in dep.params.iter().enumerate() {
+            let at = source_arg(b, i, p).and_then(|a| arg_ty(pool, b, a));
+            let (t, keys) = at
+                .and_then(|t| Some((t, line_up(ls, *decl, t)?)))
+                .unwrap_or_else(|| {
+                    lossy |= pool.has_param(*decl);
+                    (*decl, (0..ids.len()).map(Key::Decl).collect())
+                });
+            let outlives = (def.zip(sig.as_ref())).and_then(|(d, sig)| {
+                outlives_field(pool, d, &sig.generics, referent_fn(pool, *decl))
+            });
+            let written = ls.of(*decl);
+            let slots = (keys.into_iter().zip(&ls.of(t).slots))
+                .map(|(k, s)| {
+                    let var = match k {
+                        Key::Decl(j) => Var::Life(ids.get(j).copied().unwrap_or(NO_SOURCE)),
+                        Key::None => Var::Life(NO_SOURCE),
+                        Key::Param(q, s) => (target(q, s).or(outlives.map(u32::from)))
+                            .map_or(Var::Param(q, s), Var::Life),
+                    };
+                    let cat = match k {
+                        _ if !s.fun => None,
+                        Key::Param(q, _) => dest(q),
+                        Key::Decl(j) if written.slots.get(j).is_some_and(|x| !x.written) => None,
+                        _ => Some(Category::FieldCapture),
+                    };
+                    (var, cat)
+                })
+                .collect();
+            params.push((t, slots));
+        }
+        let bound =
+            |v: Var| (params.iter()).any(|(_, x): &(Ty, Vec<_>)| x.iter().any(|y| y.0 == v));
+        let any = |s: &Slot| if s.fun { Var::AnyFn } else { Var::Life(ANY) };
+        let rl = ls.of(b.ty[i]);
+        let outs: Vec<Option<Var>> = match line_up(ls, dep.ret, b.ty[i]) {
+            Some(keys) => (keys.into_iter().zip(&rl.slots))
+                .map(|(k, s)| match k {
+                    Key::Decl(j) => dep.outs.get(j).copied().flatten().map(Var::Life),
+                    Key::None => None,
+                    Key::Param(q, j) => Some(match target(q, j) {
+                        Some(l) => Var::Life(l),
+                        None if lossy || !bound(Var::Param(q, j)) => any(s),
+                        None => Var::Param(q, j),
+                    }),
+                })
+                .collect(),
+            None => rl.slots.iter().map(|s| Some(any(s))).collect(),
+        };
+        let lifetime = |e: Elided| match e {
+            Elided::Lifetime(l) => Some(Var::Life(l)),
+            _ => None,
+        };
+        let depends = outs.iter().any(Option::is_some) || lifetime(dep.elided).is_some();
+        // A call may store an argument's origins through a `&mut` argument
+        // of a type parameter or of a written lifetime.
+        let writes = sig.as_ref().is_some_and(|sig| {
+            sig.params.iter().any(|&(_, t)| {
+                ls.of(t).slots.iter().any(|x| {
+                    x.top
+                        && matches!(pool.get(x.ty), TyData::Ref { mutable: true, inner, .. }
+                        if pool.has_param(inner) || pool.ref_slots(inner) > 0)
+                })
+            })
         });
-        let dep = DepSig::new(
-            ls,
-            &sig.params,
-            |s| names.text(s) == "self",
-            sig.ret,
-            &sig.lifetimes,
-        )
-        .instantiate(ls, b, i, Some((def, &sig.generics)), self_slots);
-        dep.depends().then_some(dep)
+        let shared = (params.iter().flat_map(|(_, x)| x)).any(|&(v, _)| match v {
+            Var::Life(l) => l < ANON,
+            _ => true,
+        });
+        Some(CallSig {
+            store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
+            result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
+            elided: [dep.elided, dep.capture_elided]
+                .map(lifetime)
+                .into_iter()
+                .flatten()
+                .collect(),
+            params,
+            outs,
+        })
     }
 
     /// For each reference slot an implementation gives the trait's
     /// abstract `Self`, the trait lifetime it instantiates there.
     fn impl_trait_self_slots(&self, imp: DefId) -> Vec<Option<u32>> {
-        let Some(hd_resolve::ItemData::Impl {
-            trait_lifetimes,
+        let Some(ItemData::Impl {
+            trait_lifetimes: t,
             self_lifetimes,
             ..
         }) = self.cx.lookup.item(imp).map(|i| &i.data)
         else {
             return Vec::new();
         };
-        self_lifetimes
-            .iter()
-            .map(|l| {
-                trait_lifetimes
-                    .iter()
-                    .position(|x| x == l && *l != 0)
-                    .map(|k| w(k + 1))
-            })
-            .collect()
+        let at = |l: &u16| t.iter().position(|x| x == l && *l != 0).map(|k| w(k + 1));
+        self_lifetimes.iter().map(at).collect()
     }
 
     /// The hidden lifetime-argument slots of a trait value, numbered as
     /// the trait declares them (`ref.lifetime.trait`).
-    fn trait_value_self_slots(
-        &self,
-        ls: &Layouts<'_>,
-        trait_: DefId,
-        mut t: Ty,
-    ) -> Vec<Option<u32>> {
+    fn trait_value_self_slots(&self, ls: &Layouts<'_>, tr: DefId, mut t: Ty) -> Vec<Option<u32>> {
         let pool = ls.pool;
         while let TyData::Ref { inner, .. } | TyData::Mut(inner) = pool.get(t) {
             t = inner;
         }
-        let TyData::TraitValue { def, args, .. } = pool.get(t) else {
-            return Vec::new();
-        };
-        if def != trait_ {
-            return Vec::new();
-        }
-        let Some(item) = self.cx.lookup.item(trait_) else {
+        let (TyData::TraitValue { def, args, .. }, Some(item)) =
+            (pool.get(t), self.cx.lookup.item(tr))
+        else {
             return Vec::new();
         };
         let mut lifetime = 0_u32;
-        let mut out = Vec::new();
-        for (&arg, generic) in pool.list_items(args).iter().zip(&item.generics) {
-            let n = ls.of(arg).slots.len();
-            if generic.lifetime {
-                lifetime += 1;
-                out.extend(std::iter::repeat_n(Some(lifetime), n));
-            } else {
-                out.extend(std::iter::repeat_n(None, n));
-            }
-        }
-        out
-    }
-
-    /// The map of call `i`, when it passes a local-holding value and may
-    /// store one through a `&mut` argument (`ref.generic.store`,
-    /// `ref.lifetime.store.call`).
-    fn store_dep(&self, ls: &Layouts<'_>, b: &Body, i: usize) -> Option<DepSig> {
-        let pool = ls.pool;
-        let mut holding = false;
-        slots(b, i, |_, v, word| {
-            if matches!(word, Word::Value(Role::Arg(_)))
-                && v & hd_tir::ir::Ref::CONST_BIT == 0
-                && b.ty.get(v as usize).is_some_and(|&t| ls.holds(t))
-            {
-                holding = true;
-            }
+        let slots = (pool.list_items(args).iter().zip(&item.generics)).flat_map(|(&arg, g)| {
+            lifetime += u32::from(g.lifetime);
+            std::iter::repeat_n(g.lifetime.then_some(lifetime), ls.of(arg).slots.len())
         });
-        if !holding {
-            return None;
-        }
-        let def = match Callee::from_words(b.record(b.data[i][0]))? {
-            Callee::Item { def, .. } => def,
-            Callee::TraitMethod { method, .. } => method,
-        };
-        let sig = self.sig_of(def).ok()?;
-        let writes = sig.params.iter().any(|&(_, t)| {
-            ls.of(t).slots.iter().any(|x| {
-                x.top
-                    && matches!(pool.get(x.ty), TyData::Ref { mutable: true, inner, .. }
-                    if pool.has_param(inner) || pool.ref_slots(inner) > 0)
-            })
-        });
-        if !writes {
-            return None;
-        }
-        let names = &self.cx.names;
-        let dep = DepSig::new(
-            ls,
-            &sig.params,
-            |s| names.text(s) == "self",
-            sig.ret,
-            &sig.lifetimes,
-        )
-        .instantiate(ls, b, i, Some((def, &sig.generics)), None);
-        // A slot of a type parameter, or of a written lifetime
-        // (`ref.lifetime.store.call`).
-        let shared = dep.params.iter().any(|(_, ids)| {
-            ids.iter()
-                .any(|&id| (TVAR..TVAR_END).contains(&id) || id < ANON)
-        });
-        shared.then_some(dep)
+        slots.filter(|_| def == tr).collect()
     }
 
     /// The dependent results of the finished body, its result `ret`
@@ -1543,36 +1311,24 @@ impl Ck<'_, '_> {
             let is_self = |s| names.text(s) == "self";
             DepSig::new(ls, &sig.params, is_self, Ty::VOID, &sig.lifetimes)
         });
-        let mut deps: HashMap<u32, DepSig> = HashMap::default();
-        let mut stores: HashMap<u32, DepSig> = HashMap::default();
+        let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
         let mut through = body.local_ty.iter().enumerate().any(|(l, &t)| {
             body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
         });
         for i in 0..body.tags.len() {
-            if matches!(body.tags[i], Tag::Call | Tag::Await)
-                && let Some(sig) = self.store_dep(ls, body, i)
+            if matches!(
+                body.tags[i],
+                Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
+            ) && let Some(sig) = self.call_sig(ls, body, i)
             {
-                stores.insert(w(i), sig);
-                through = true;
+                through |= sig.store;
+                calls.insert(w(i), sig);
             }
             match body.tags[i] {
                 // A block's or a loop's value may leave a local's scope.
                 Tag::Block | Tag::Loop if w(i) != root.0 && holds_local_ref(pool, body.ty[i]) => {
                     through = true;
-                }
-                Tag::Call | Tag::Await | Tag::CallDyn if ls.holds(body.ty[i]) => {
-                    if let Some(dep) = self.callee_dep(ls, body, i) {
-                        deps.insert(w(i), dep);
-                    }
-                }
-                // A function value's call takes the map its type carries
-                // (`fn.type.lifetime.call`).
-                Tag::CallValue if ls.holds(body.ty[i]) => {
-                    let f = body.data[i][0];
-                    if let Some(dep) = body.ty.get(f as usize).and_then(|&t| DepSig::of_fn(ls, t)) {
-                        deps.insert(w(i), dep);
-                    }
                 }
                 // A closure's returned values depend only on its own
                 // parameters (`fn.closure.lifetime.return`); a result slot
@@ -1676,8 +1432,7 @@ impl Ck<'_, '_> {
             pool,
             ls,
             cx: self.cx,
-            deps: &deps,
-            stores: &stores,
+            calls: &calls,
             params,
             own: mine.as_ref(),
             boxes: &self.boxes,
