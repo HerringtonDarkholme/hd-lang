@@ -106,6 +106,9 @@ const handleParam = (args: Dynamic[]): number => {
   return Number.isInteger(h) && h >= 0 && h <= 0xffffffff ? h : 0xffffffff;
 };
 
+const sameBytes = (left: Uint8Array | undefined | null, right: Uint8Array): boolean =>
+  left?.length === right.length && left.every((byte, index) => byte === right[index]);
+
 // One provider serves every input. Completed code retains initialized
 // storage. Checkpoints save memory/globals while archived host results
 // remain available for a historical rebuild.
@@ -573,6 +576,89 @@ class ReplSession {
     }
   };
 
+  startLinked = (info: Dynamic, live: number | null): void => {
+    if (this.linked !== null) {
+      return;
+    }
+    if (live === null) {
+      throw new Error("restoring linked storage needs its original provider session");
+    }
+    if (info.epoch !== 0) {
+      throw new Error("a linked session must start with its base module");
+    }
+    const journal = this.recorder.journal();
+    this.linked = {
+      instances: [],
+      modules: [],
+      texts: new Map(),
+      archives: [],
+      checkpoint: null,
+      execution: journal === null ? this.execution : recorded(journal).execution,
+      cap: this.recorder.cap,
+      cancelled: null,
+    };
+    // The active limit is checked at completed input boundaries. A single
+    // large host reply must remain available to historical reload too.
+    if (journal === null) {
+      this.recorder = new Recorder(Number.MAX_SAFE_INTEGER, this.execution);
+    } else {
+      this.recorder.setCap(Number.MAX_SAFE_INTEGER);
+    }
+  };
+
+  checkLinkedTexts = (texts: Map<number, string>): void => {
+    for (const [number, previous] of this.linked.texts) {
+      if (texts.get(number) !== previous) {
+        throw new Error(`input ${number} needs a session rebuild`);
+      }
+    }
+  };
+
+  reloadLinked = async (
+    wasm: Uint8Array,
+    restoredJournal: Uint8Array | null | undefined,
+  ): Promise<void> => {
+    if (!sameBytes(this.linked.modules.at(-1)?.wasm, wasm)) {
+      throw new Error("changed session code needs a historical rebuild");
+    }
+    if (restoredJournal !== undefined && !sameBytes(restoredJournal, this.historyJournal()!)) {
+      throw new Error("linked restore needs this provider session's current journal");
+    }
+    await this.restoreLinked();
+  };
+
+  runLinkedInput = async ({ module, info, wasm, texts, live, ran }: Dynamic): Promise<void> => {
+    if (this.linked.cancelled !== null) {
+      await this.restoreLinked();
+    }
+    const source = texts.get(live);
+    if (source === undefined) {
+      throw new Error(`input ${live} has no text`);
+    }
+    if (info.epoch !== this.linked.instances.length) {
+      throw new Error("the module is not an extension of this initialized session");
+    }
+    const part = { module, info, wasm: wasm.slice(), number: live, source };
+    const data = await this.instantiateLinked(part, this.linked.instances);
+    ran.live = await this.runInput(this.linked.instances.at(-1), live, source, wasm);
+    if (ran.live.end.kind === "stopped" || ran.live.end.kind === "cancelled") {
+      // Keep its visible cleanup/mutations until the next rebuild, as the
+      // existing replay path does, but never commit its code or bindings.
+      this.linked.cancelled = live;
+      return;
+    }
+    this.linked.modules.push({ ...part, data });
+    this.linked.texts.set(live, source);
+    const journal = this.recorder.journal();
+    if (journal.byteLength > this.linked.cap) {
+      // Historical results stay outside the active journal; only the latest
+      // initialized memory/global snapshot is retained.
+      this.linked.checkpoint = this.captureLinked();
+      this.linked.archives.push(journal.slice());
+      this.recorder = new Recorder(Number.MAX_SAFE_INTEGER, this.linked.execution);
+    }
+  };
+
   runLinked = async ({
     module,
     info,
@@ -589,39 +675,8 @@ class ReplSession {
     restoredJournal: Uint8Array | null | undefined;
   }): Promise<Ran> => {
     const texts = new Map(sources);
-    if (this.linked === null) {
-      if (live === null) {
-        throw new Error("restoring linked storage needs its original provider session");
-      }
-      if (info.epoch !== 0) {
-        throw new Error("a linked session must start with its base module");
-      }
-      this.linked = {
-        instances: [],
-        modules: [],
-        texts: new Map(),
-        archives: [],
-        checkpoint: null,
-        execution:
-          this.recorder.journal() === null
-            ? this.execution
-            : recorded(this.recorder.journal()).execution,
-        cap: this.recorder.cap,
-        cancelled: null,
-      };
-      // The active limit is checked at completed input boundaries. A single
-      // large host reply must remain available to historical reload too.
-      if (this.recorder.journal() === null) {
-        this.recorder = new Recorder(Number.MAX_SAFE_INTEGER, this.execution);
-      } else {
-        this.recorder.setCap(Number.MAX_SAFE_INTEGER);
-      }
-    }
-    for (const [number, previous] of this.linked.texts) {
-      if (texts.get(number) !== previous) {
-        throw new Error(`input ${number} needs a session rebuild`);
-      }
-    }
+    this.startLinked(info, live);
+    this.checkLinkedTexts(texts);
     const ran: Ran = {
       kept: [...this.linked.texts.keys()],
       skipped: [],
@@ -633,57 +688,10 @@ class ReplSession {
       ran.skipped.push(this.linked.cancelled);
     }
     if (live === null) {
-      const previous = this.linked.modules.at(-1)?.wasm;
-      if (
-        !previous ||
-        previous.length !== wasm.length ||
-        !previous.every((b: number, i: number) => b === wasm[i])
-      ) {
-        throw new Error("changed session code needs a historical rebuild");
-      }
-      if (restoredJournal !== undefined) {
-        const current = this.historyJournal();
-        if (
-          !restoredJournal ||
-          restoredJournal.length !== current!.length ||
-          !restoredJournal.every((b: number, i: number) => b === current![i])
-        ) {
-          throw new Error("linked restore needs this provider session's current journal");
-        }
-      }
-      await this.restoreLinked();
+      await this.reloadLinked(wasm, restoredJournal);
       return ran;
     }
-    if (this.linked.cancelled !== null) {
-      await this.restoreLinked();
-    }
-    const source = texts.get(live);
-    if (source === undefined) {
-      throw new Error(`input ${live} has no text`);
-    }
-    if (info.epoch !== this.linked.instances.length) {
-      throw new Error("the module is not an extension of this initialized session");
-    }
-    const part = { module, info, wasm: wasm.slice(), number: live, source };
-    const data = await this.instantiateLinked(part, this.linked.instances);
-    const instance = this.linked.instances.at(-1);
-    ran.live = await this.runInput(instance, live, source, wasm);
-    if (ran.live.end.kind === "stopped" || ran.live.end.kind === "cancelled") {
-      // Keep its visible cleanup/mutations until the next rebuild, as the
-      // existing replay path does, but never commit its code or bindings.
-      this.linked.cancelled = live;
-      return ran;
-    }
-    this.linked.modules.push({ ...part, data });
-    this.linked.texts.set(live, source);
-    const journal = this.recorder.journal();
-    if (journal.byteLength > this.linked.cap) {
-      // Historical results stay outside the active journal; only the latest
-      // initialized memory/global snapshot is retained.
-      this.linked.checkpoint = this.captureLinked();
-      this.linked.archives.push(journal.slice());
-      this.recorder = new Recorder(Number.MAX_SAFE_INTEGER, this.linked.execution);
-    }
+    await this.runLinkedInput({ module, info, wasm, texts, live, ran });
     return ran;
   };
 
