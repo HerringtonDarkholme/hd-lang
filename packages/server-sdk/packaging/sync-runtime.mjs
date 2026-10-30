@@ -2,19 +2,15 @@
 import { readFile, mkdir, open, rename, rm } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { readHostSources } from "../../../scripts/host-emission.mjs";
 import { digest, graphFingerprint, runtimeSources } from "./runtime-model.mjs";
 
 const root = new URL("../../../", import.meta.url);
 const target = new URL("../runtime/runtime-sources.json", import.meta.url);
+const sources = await readHostSources(fileURLToPath(root), runtimeSources);
 const files = {};
-const sources = {};
-for (const name of Object.keys(runtimeSources).sort()) {
-  const text = (await readFile(new URL(runtimeSources[name], root), "utf8")).replaceAll(
-    "\r\n",
-    "\n",
-  );
+for (const [name, text] of Object.entries(sources)) {
   files[name] = { source: text, sha256: digest(text) };
-  sources[name] = text;
 }
 const schema = await readFile(new URL("crates/hd_host_abi/src/schema.rs", root), "utf8");
 const version = schema.match(/^pub const VERSION: u32 = (\d+);$/m);
