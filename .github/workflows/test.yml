@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    # Muse's branches run the full check too, so a branch is merged on a
+    # Agent branches (muse/**, lane/**) run the full check too, so a branch is merged on a
     # green run instead of a local gate.
-    branches: [main, "muse/**"]
+    branches: [main, "muse/**", "lane/**"]
     # Queue and log edits under docs/audit/ change no code, and pushing them often
     # would otherwise cancel every running check (cancel-in-progress below).
     paths-ignore:
