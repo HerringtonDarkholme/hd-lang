@@ -18,7 +18,7 @@ use crate::report::quote;
 
 /// The JS host's platform-neutral core: the import object and the entry
 /// driver.
-const CORE: &str = include_str!("../../../host/core.mjs");
+const CORE: &str = include_str!("../../../host/core.mts");
 /// The initialized REPL session and checkpoint lifecycle imported by the core.
 const SESSION: &str = include_str!("../../../host/session.mjs");
 /// The checked descriptor report imported by the shared core.
@@ -57,9 +57,9 @@ const OUTPUT: &str = include_str!("../../../host/output.mjs");
 const OUTPUT_WORKER: &str = include_str!("../../../host/output-worker.mjs");
 /// Correlated replies shared by the Node control clients and workers.
 const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mjs");
-/// The float text of the host primitives (`core.mjs` imports it).
+/// The float text of the host primitives (`core.mts` imports it).
 const FLOAT: &str = include_str!("../../../host/float.mts");
-/// A REPL session's journal of host calls (`core.mjs` imports it).
+/// A REPL session's journal of host calls (`core.mts` imports it).
 const JOURNAL: &str = include_str!("../../../host/journal.mts");
 /// Dependency-free entry-driver constants and cancellation helpers.
 const RUN_SUPPORT: &str = include_str!("../../../host/run-support.mts");
@@ -254,7 +254,7 @@ impl Scratch {
         let s = Scratch(dir);
         std::fs::create_dir_all(s.0.join("gen")).map_err(|e| format!("{}: {e}", s.0.display()))?;
         for (name, text) in [
-            ("core.mjs", CORE),
+            ("core.mts", CORE),
             ("session.mjs", SESSION),
             ("checked-report.mts", CHECKED_REPORT),
             ("node.mjs", NODE),

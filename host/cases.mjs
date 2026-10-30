@@ -42,7 +42,7 @@
 // reads these records itself (the playground; `hd test` judges them in
 // test_cmd.rs).
 
-import { EndCase } from "./core.mjs";
+import { EndCase } from "./core.mts";
 
 // The wall clock, comparable across threads.
 const now = () => performance.timeOrigin + performance.now();

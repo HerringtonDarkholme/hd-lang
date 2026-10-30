@@ -29,7 +29,7 @@ import {
   httpSettings,
   pendingOperation,
   TimeLimit,
-} from "./core.mjs";
+} from "./core.mts";
 import { Dec, Enc, Err, HostContract, Ok, str } from "./wire.mts";
 import { ConsoleError, METHODS } from "./gen/abi.mts";
 
@@ -1438,7 +1438,7 @@ async function heldLookupHost(t) {
   for (const name of [
     "node.mjs",
     "node-files.mjs",
-    "core.mjs",
+    "core.mts",
     "session.mjs",
     "output.mjs",
     "output-worker.mjs",

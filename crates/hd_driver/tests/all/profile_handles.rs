@@ -443,7 +443,7 @@ pub fn main() -> void $ Vault:
         );
 
         let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../host/core.mjs")
+            .join("../../host/core.mts")
             .canonicalize()
             .expect("core host");
         let script = format!(

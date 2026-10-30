@@ -1,5 +1,5 @@
 // `hd run` on V8 (Node): one instance of the program, `hd.init` then
-// `hd.poll` to completion (core.mjs); its status is the process's.
+// `hd.poll` to completion (core.mts); its status is the process's.
 // `argv[3]`, when it ends in `.json`, is the run's configuration that `hd`
 // writes: the program's `Args.program` (`program`), its capability grant
 // (`grants`), its `--time-limit` in milliseconds (`timeLimitMs`), the file
@@ -25,7 +25,7 @@
 // bound of a Ctrl-C (cli.cancel.ctrl-c, cli.cancel.bound): a Ctrl-C that
 // finds the program waiting on the host cancels its entry, and the run
 // goes on through the entry's cleanup until it ends, the next Ctrl-C, or
-// the bound, which abandon it (core.mjs `entryCancel`). A Ctrl-C while
+// the bound, which abandon it (core.mts `entryCancel`). A Ctrl-C while
 // Wasm runs stops the program at once (cli.cancel.computing). On this
 // thread that is the interrupt signal's default action, since the listener
 // is on only while the host waits, and `hd` reports the signal as

@@ -11,7 +11,7 @@
 //! package, and the inputs it keeps. Each ordinary REPL request builds a
 //! base or an extension importing earlier initialized storage. A historical
 //! rebuild compiles the kept prefix as one base and replays recorded host
-//! results (host/core.mjs `createSession`). The host reports how an input ended: one
+//! results (host/core.mts `createSession`). The host reports how an input ended: one
 //! that ended with status 0 joins the session; one that panicked or ended
 //! with another status stays, hidden from later inputs
 //! (`cli.repl.panic.binding`, `cli.repl.panic.declarations`), so later

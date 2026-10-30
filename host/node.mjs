@@ -1,7 +1,7 @@
 // The Node layer of the JS host: the providers that touch the machine
 // (`FsRead`, `FsWrite`, `Process`, `Net`, `Http`, `Env`, `Sys`,
 // `ConsoleInput`, the test runner's temp-directory hook, and the files of
-// a test run), added to the platform-neutral core (core.mjs) through its
+// a test run), added to the platform-neutral core (core.mts) through its
 // `layer` parameter. `createHost` is what `run.mjs`, `test.mjs` and the
 // conformance worker call. Node-specific helpers shared with its client
 // threads live below it in `node-files.mjs`.
@@ -23,7 +23,7 @@ import {
   reportIn,
   TimeLimit,
   timeLimitReport,
-} from "./core.mjs";
+} from "./core.mts";
 import { METHODS, NetError, Path } from "./gen/abi.mts";
 import {
   beforeDotDot,

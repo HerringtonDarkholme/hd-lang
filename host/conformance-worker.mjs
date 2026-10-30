@@ -38,7 +38,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { entryCancel } from "./core.mjs";
+import { entryCancel } from "./core.mts";
 import { cycleReport } from "./checked-report.mts";
 import { createHost } from "./node.mjs";
 import { providers } from "./profiles.mjs";

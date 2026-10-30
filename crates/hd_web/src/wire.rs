@@ -44,7 +44,7 @@
 //!   kind 1), or no bytes and status 1 when it does not build; such an
 //!   input is dropped at once.
 //! - The host runs an ordinary input against initialized storage, or
-//!   replays history into a rebuilt base (host/core.mjs `createSession`),
+//!   replays history into a rebuilt base (host/core.mts `createSession`),
 //!   then reports
 //!   how input N ended with repl outcome: outcome byte 0 when it ended
 //!   with status 0, so it joins the session; 1 when it did not run or was

@@ -12882,7 +12882,7 @@ try {
 fn run_package_host_javascript(out: &Output, body: &str) {
     use std::io::Write as _;
     use std::process::{Command, Stdio};
-    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mjs");
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mts");
     let glue = &out.host_artifacts.as_ref().unwrap().javascript;
     let script = format!(
         "\

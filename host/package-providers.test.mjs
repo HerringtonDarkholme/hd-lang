@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createPackageRuntime, readPackageContract } from "./package-providers.mts";
 import { Dec, Enc, HostContract } from "./wire.mts";
-import { createCoreHost, pendingOperation, isAsciiUrl, writtenHost } from "./core.mjs";
+import { createCoreHost, pendingOperation, isAsciiUrl, writtenHost } from "./core.mts";
 
 const runtime = () => createPackageRuntime({});
 const encode = (codec, value) => {

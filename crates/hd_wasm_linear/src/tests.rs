@@ -1100,7 +1100,7 @@ fn session_host_restores_checkpoint_and_active_tail_without_effects() {
         .expect("cancelled extension");
     validate(&cancelled.wasm);
     let host = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../host/core.mjs")
+        .join("../../host/core.mts")
         .canonicalize()
         .unwrap();
     let script = format!(

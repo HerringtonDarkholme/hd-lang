@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 // The SDK snapshot contains this exact platform-neutral graph and its ABI model.
 export const runtimeSources = Object.freeze({
-  "core.mjs": "host/core.mjs",
+  "core.mjs": "host/core.mts",
   "session.mjs": "host/session.mjs",
   "checked-report.mjs": "host/checked-report.mts",
   "float.mjs": "host/float.mts",

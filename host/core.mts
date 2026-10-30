@@ -53,6 +53,134 @@ export {
   reportIn,
 } from "./run-support.mts";
 import { CANCEL_STATUS, factHead, PROGRAM_TIME_LIMIT, reportIn } from "./run-support.mts";
+import type { End } from "./journal.mts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
+type ProviderFunction = (...args: Dynamic[]) => Dynamic;
+
+export interface Sink {
+  out(text: string): void;
+  err(text: string): void;
+  fact?(label: string | null): void;
+  write?(fd: number, text: string): Dynamic;
+}
+
+export interface ProviderHttpPolicy {
+  readonly coversHost: (host: string, port: number) => boolean;
+  readonly isAsciiUrl: (text: string) => boolean;
+  readonly writtenHost: (text: string) => string;
+}
+
+export interface ProviderConsolePolicy {
+  readonly allows: () => boolean;
+}
+
+export interface ProviderInterfaceIdentity {
+  readonly package: string;
+  readonly version: string;
+  readonly trait_path: string;
+}
+
+export interface ProviderContext {
+  readonly interfaceIdentity: ProviderInterfaceIdentity;
+  readonly http: ProviderHttpPolicy;
+  readonly console: ProviderConsolePolicy;
+  signal: AbortSignal;
+  instanceSignal: AbortSignal;
+  pending<T>(
+    poll: () => boolean,
+    done: () => T,
+    abort?: (() => void) | null,
+    finish?: (() => T | undefined) | null,
+  ): unknown;
+}
+
+export interface CoreEnv extends DynamicRecord {
+  args?: string[];
+  program?: string;
+  grants?: Record<string, boolean | string[]>;
+  module?: WebAssembly.Module;
+  packageBindings?: ((runtime: unknown) => WebAssembly.Imports) | null;
+  seed?: number | null;
+  runner?: Dynamic;
+  providers?: ((io: DynamicRecord) => DynamicRecord) | null;
+}
+
+export interface Grant {
+  allows(key: string): boolean;
+  limited(key: string): boolean;
+  coversPath(key: string, path: string, cwd?: string): boolean;
+  coversHost(key: string, host: string, port?: number | null): boolean;
+  coversHostName(key: string, host: string): boolean;
+  coversName(key: string, name: string): boolean;
+}
+
+export interface RunResult {
+  status: number;
+  trapped: boolean;
+  ended?: boolean;
+  frames?: [number, number][];
+  panic?: { category: string; message: string } | null;
+  cancelled?: boolean;
+}
+
+export interface StepDriver {
+  step(): { status: number; wakes: number };
+}
+
+export interface Host {
+  imports: WebAssembly.Imports;
+  run(instance: WebAssembly.Instance, init: string, poll: string): Promise<RunResult>;
+  createDriver(instance: WebAssembly.Instance, init?: string, poll?: string): StepDriver;
+  prime(instance: WebAssembly.Instance): void;
+  close(): void;
+  leaks(): [string, number][];
+  args: string[];
+  program: string;
+  grant: Dynamic;
+  seed: number | null;
+  tempDir?: () => string;
+  core: DynamicRecord;
+}
+
+export interface InputOutcome {
+  status: number | null;
+  end: End;
+  joined: boolean;
+  error?: string | null;
+}
+
+export interface Ran {
+  kept: number[];
+  skipped: number[];
+  dropped: number[];
+  reason: string | null;
+  live: InputOutcome | null;
+}
+
+export interface Session {
+  run(
+    wasm: Uint8Array,
+    sources: Iterable<readonly [number, string]>,
+    live?: number | null,
+    journal?: Uint8Array | null,
+  ): Promise<Ran>;
+  clear(): void;
+  journal(): Uint8Array | null;
+  setJournalCap(cap: number): void;
+  takeJournalNotice(): boolean;
+  stop(): void;
+  hostCalls(): number;
+  checkpointStats(): {
+    epochs: number;
+    archivedJournals: number;
+    archivedBytes: number;
+    snapshotBytes: number;
+    activeJournalBytes: number;
+  };
+  close(): void;
+}
 
 export { HostContract };
 
@@ -76,7 +204,7 @@ Error.stackTraceLimit = Infinity;
 // The Wasm frames of a trap's stack, innermost first, as [function index,
 // module byte offset] pairs from V8's `wasm-function[i]:0xOFF`; the test
 // command maps them through the module's line table (crates/hd_wasm_linear/DESIGN.md §15.9).
-const wasmFrames = (e) =>
+const wasmFrames = (e: Dynamic): [number, number][] =>
   Array.from(String(e.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g), (m) => [
     Number(m[1]),
     parseInt(m[2], 16),
@@ -84,7 +212,7 @@ const wasmFrames = (e) =>
 
 // The panic report of a body that overran its timeout of `ms`
 // milliseconds.
-export const timeLimitReport = (ms) =>
+export const timeLimitReport = (ms: number): string =>
   `panic: time-limit: the test case ran longer than its timeout of ${ms}ms\n`;
 
 // What `hd.poll` returns for a root that ended cancelled, its cleanup run
@@ -103,7 +231,7 @@ const CANCELLED_END = -2;
 // `panic: `: `CATEGORY: MESSAGE` and a newline, or `CATEGORY` alone. The
 // category is the compiler's or the host's, never program text, so the
 // first `: ` ends it; the message is the rest, whatever it holds.
-export const panicOfReport = (report) => {
+export const panicOfReport = (report: string): { category: string; message: string } => {
   const text = report.endsWith("\n") ? report.slice(0, -1) : report;
   const colon = text.indexOf(": ");
   return colon < 0
@@ -116,7 +244,7 @@ export const panicOfReport = (report) => {
 // character, and a provider does not percent-decode or IDNA-map a host.
 // `new URL` does both, so a program's URL is checked before it is parsed;
 // a host is written in punycode.
-export const isAsciiUrl = (text) => {
+export const isAsciiUrl = (text: string): boolean => {
   if (!/^[\x21-\x7e]*$/.test(text)) return false;
   const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(text)?.[1] ?? "";
   return !authority.slice(authority.lastIndexOf("@") + 1).includes("%");
@@ -126,11 +254,11 @@ export const isAsciiUrl = (text) => {
 // brackets of an IPv6 literal (std-http.url.grant, .no-normalize): `new URL`
 // rewrites `127.1` to `127.0.0.1` and drops a trailing dot's meaning, which
 // a grant must not see.
-export const writtenHost = (text) => {
+export const writtenHost = (text: string): string => {
   const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(text)?.[1] ?? "";
   const hostport = authority.slice(authority.lastIndexOf("@") + 1);
   const v6 = /^\[([^\]]*)\]/.exec(hostport);
-  return (v6 ? v6[1] : hostport.replace(/:[^:]*$/, "")).toLowerCase();
+  return (v6 ? v6[1]! : hostport.replace(/:[^:]*$/, "")).toLowerCase();
 };
 
 // A program's capability grant as `hd` resolved it (Grant Precedence):
@@ -143,28 +271,34 @@ export const writtenHost = (text) => {
 // (cli.cap.scope.path.resolved); the Node layer resolves `..` and symbolic
 // links, and a host with no file system leaves it out. `sep` is the
 // separator of the paths it returns and of the entries: "\\" on Windows.
-export function createGrant(limits = {}, resolveTarget = (path) => path, sep = "/") {
-  const limit = (key) => (Object.hasOwn(limits, key) ? limits[key] : null);
-  const check = (key, covers) => {
+export function createGrant(
+  limits: Record<string, boolean | string[]> = {},
+  resolveTarget: (path: string, cwd?: string) => string = (path) => path,
+  sep = "/",
+): Grant {
+  const limit = (key: string): boolean | string[] | null =>
+    Object.hasOwn(limits, key) ? limits[key]! : null;
+  const check = (key: string, covers: (entry: string) => boolean): boolean => {
     const l = limit(key);
     return l === null || l === true ? true : l === false ? false : l.some(covers);
   };
   return {
-    allows: (key) => limit(key) !== false,
-    limited: (key) => limit(key) !== null && limit(key) !== true,
+    allows: (key: string) => limit(key) !== false,
+    limited: (key: string) => limit(key) !== null && limit(key) !== true,
     // An entry covers the file it names or every path under the directory
     // it names (cli.cap.scope.path); a relative path is from `cwd`.
-    coversPath: (key, path, cwd) => {
+    coversPath: (key: string, path: string, cwd?: string) => {
       const target = resolveTarget(path, cwd);
       return check(key, (e) => target === e || target.startsWith(e.endsWith(sep) ? e : e + sep));
     },
     // cli.cap.scope.host, .host.forms, cli.cap.scope.net.
-    coversHost: (key, host, port = null) =>
+    coversHost: (key: string, host: string, port: number | null = null) =>
       check(key, (e) => {
-        let [h, p] = [e, null];
+        let h = e;
+        let p: string | null = null;
         const v6 = /^\[([^\]]*)\](?::(\d+))?$/.exec(e);
-        if (v6) [h, p] = [v6[1], v6[2] ?? null];
-        else if (e.split(":").length === 2) [h, p] = e.split(":");
+        if (v6) [h, p] = [v6[1]!, v6[2] ?? null];
+        else if (e.split(":").length === 2) [h, p] = [e.split(":")[0]!, e.split(":")[1]!];
         if (p !== null && !/^\d+$/.test(p)) p = null;
         const hostOk = h.startsWith("*.")
           ? host.endsWith(h.slice(1)) && host.length > h.length - 1
@@ -173,16 +307,16 @@ export function createGrant(limits = {}, resolveTarget = (path) => path, sep = "
       }),
     // cli.cap.scope.net.lookup: the host match alone, whatever port an
     // entry names.
-    coversHostName: (key, host) =>
+    coversHostName: (key: string, host: string) =>
       check(key, (e) => {
         const v6 = /^\[([^\]]*)\]/.exec(e);
-        const h = v6 ? v6[1] : e.split(":").length === 2 ? e.split(":")[0] : e;
+        const h = v6 ? v6[1]! : e.split(":").length === 2 ? e.split(":")[0]! : e;
         return h.startsWith("*.")
           ? host.endsWith(h.slice(1)) && host.length > h.length - 1
           : h.toLowerCase() === host.toLowerCase();
       }),
     // cli.cap.scope.env, .process, .sys.
-    coversName: (key, name) =>
+    coversName: (key: string, name: string) =>
       check(key, (e) =>
         key === "Env" && e.endsWith("*") ? name.startsWith(e.slice(0, -1)) : e === name,
       ),
@@ -193,26 +327,36 @@ export function createGrant(limits = {}, resolveTarget = (path) => path, sep = "
 // exists and the context may block (Node, a worker), it waits with
 // `Atomics.wait`. Elsewhere (a page that is not cross-origin isolated, or a
 // browser's main thread) it spins until the deadline.
-function sleeper() {
+function sleeper(): (ms: number) => void {
   if (typeof SharedArrayBuffer === "function") {
     const cell = new Int32Array(new SharedArrayBuffer(4));
     try {
       Atomics.wait(cell, 0, 0, 0);
-      return (ms) => {
+      return (ms: number) => {
         Atomics.wait(cell, 0, 0, ms);
       };
     } catch {
       // This context may not block.
     }
   }
-  return (ms) => {
+  return (ms: number) => {
     const end = performance.now() + ms;
     while (performance.now() < end);
   };
 }
 
 // `hd:rt`: the runtime imports both hosts share (§17.2, §17.10).
-function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }) {
+function rtImports({
+  sink,
+  flush,
+  view,
+  st,
+  complete,
+  nextDeadline,
+  deadlock,
+  until,
+  overran,
+}: DynamicRecord): Record<string, ProviderFunction> {
   const sleep = sleeper();
   return {
     stderr: (len) => {
@@ -267,7 +411,7 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
 // The host primitives of std (spec/std/README.md#standard-library-
 // primitives): a float arrives as its value, and the text goes back
 // in the exchange buffer as a string.
-function primImports({ put, text, env }) {
+function primImports({ put, text, env }: DynamicRecord): Record<string, ProviderFunction> {
   return {
     format_f64: (value) => put(new Enc().str(shortest(value, 64))),
     format_f32: (value) => put(new Enc().str(shortest(value, 32))),
@@ -292,7 +436,19 @@ function primImports({ put, text, env }) {
 // pending: it completes at `at`, on `performance.now()`'s clock, and
 // `done()`, when given, does it then and returns its result.
 class Later {
-  constructor(at, done, poll = null, abort = null, finish = null) {
+  at: number;
+  done: (() => Dynamic) | null;
+  poll: (() => boolean) | null;
+  abort: (() => void) | null;
+  finish: (() => Dynamic) | null;
+
+  constructor(
+    at: number,
+    done: (() => Dynamic) | null,
+    poll: (() => boolean) | null = null,
+    abort: (() => void) | null = null,
+    finish: (() => Dynamic) | null = null,
+  ) {
     this.at = at;
     this.done = done;
     this.poll = poll;
@@ -300,7 +456,7 @@ class Later {
     this.finish = finish;
   }
 }
-const later = (at, done = null) => new Later(at, done);
+const later = (at: number, done: (() => Dynamic) | null = null): Later => new Later(at, done);
 
 // External I/O supplies a nonblocking readiness probe and a cancellation
 // hook, including when complete() ran but the guest never took .finish.
@@ -308,15 +464,19 @@ const later = (at, done = null) => new Later(at, done);
 // after a short wait, from either the async driver or synchronous rt.block.
 // The optional delivery hook can replace the kept result, such as Closed
 // after a resource closes between readiness and guest delivery.
-export const pendingOperation = (poll, done, abort, finish = null) =>
-  new Later(performance.now(), done, poll, abort, finish);
+export const pendingOperation = <T,>(
+  poll: () => boolean,
+  done: () => T,
+  abort: (() => void) | null = null,
+  finish: (() => T | undefined) | null = null,
+): Later => new Later(performance.now(), done, poll, abort, finish);
 
-function abortOperation(st, h) {
+function abortOperation(st: DynamicRecord, h: number): void {
   const operation = st.ops.get(h);
   st.ops.delete(h);
   operation?.abort?.();
 }
-export function clearOperations(st) {
+export function clearOperations(st: DynamicRecord): void {
   for (const h of st.ops.keys()) abortOperation(st, h);
 }
 
@@ -325,14 +485,18 @@ export function clearOperations(st) {
 // are encoded in the exchange buffer, whose length is the last parameter;
 // a lone `string` crosses as its bytes alone. They are decoded from a copy
 // of the buffer, which the result may overwrite.
-function argsDecoder(m, view, text) {
-  const scalars = m.params.filter((p) => typeof p === "string").length;
+function argsDecoder(
+  m: Dynamic,
+  view: (length: number) => Uint8Array,
+  text: (length: number) => string,
+): (raw: Dynamic[]) => Dynamic[] {
+  const scalars = m.params.filter((p: Dynamic) => typeof p === "string").length;
   if (scalars === m.params.length) return (raw) => raw;
   if (m.params.length === 1 && m.params[0] === str) return (raw) => [text(raw[0])];
   return (raw) => {
     const d = new Dec(Uint8Array.from(view(raw[scalars])));
     let at = 0;
-    return m.params.map((p) => (typeof p === "string" ? raw[at++] : p.dec(d)));
+    return m.params.map((p: Dynamic) => (typeof p === "string" ? raw[at++] : p.dec(d)));
   };
 }
 
@@ -340,16 +504,21 @@ function argsDecoder(m, view, text) {
 // its methods' JS functions by name, as its generated descriptors
 // (gen/abi.mts `METHODS`) shape them. `io` reads and writes the exchange
 // buffer and keeps the pending operations.
-function traitImports(module, provider, { view, text, put, pending, finished }) {
-  const out = {};
+function traitImports(
+  module: string,
+  provider: Record<string, ProviderFunction>,
+  { view, text, put, pending, finished }: DynamicRecord,
+): DynamicRecord {
+  const out: DynamicRecord = {};
+  const methods: DynamicRecord = METHODS;
   for (const [name, f] of Object.entries(provider)) {
-    const m = METHODS[module]?.[name];
+    const m = methods[module]?.[name];
     if (!m) throw new Error(`the host ABI has no \`${module}\` \`${name}\``);
     const decode = argsDecoder(m, view, text);
     const key = `${module} ${name}`;
     // The import's result: a scalar as itself; a structured value written
     // at offset 0 and its length; `void` nothing, or 0 from a `.finish`.
-    const written = (v) => {
+    const written = (v: Dynamic): Dynamic => {
       if (typeof m.result !== "string") {
         const e = new Enc();
         m.result.enc(e, v);
@@ -359,16 +528,16 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
       return m.wait === "may" ? 0 : undefined;
     };
     if (m.wait === "never") {
-      out[name] = (...raw) => written(f(...decode(raw)));
+      out[name] = (...raw: Dynamic[]) => written(f(...decode(raw)));
       continue;
     }
-    out[`${name}.start`] = (...raw) => {
+    out[`${name}.start`] = (...raw: Dynamic[]) => {
       const v = f(...decode(raw));
       return v instanceof Later
         ? pending(v.at, v.done, key, v.poll, v.abort, v.finish)
         : [0, written(v)];
     };
-    out[`${name}.finish`] = (h) => written(finished(h, key));
+    out[`${name}.finish`] = (h: number) => written(finished(h, key));
   }
   return out;
 }
@@ -379,16 +548,21 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
 // is written (module.console.write-sync.never-suspends): a captured sink
 // takes it at once, and a direct sink (output.mjs) blocks until the
 // stream has taken every byte.
-function consoleProvider({ st, sink, flush, grant }) {
-  const denied = (stream) => Err({ tag: "NotGranted", stream: { tag: stream } });
+function consoleProvider({
+  st,
+  sink,
+  flush,
+  grant,
+}: DynamicRecord): Record<string, ProviderFunction> {
+  const denied = (stream: string): Dynamic => Err({ tag: "NotGranted", stream: { tag: stream } });
   return {
-    write_sync: (text) =>
+    write_sync: (text: string) =>
       !grant.allows("Console")
         ? denied("Stdout")
         : sink.write
           ? (flush(), sink.write(1, text))
           : (st.out.push(text), Ok(undefined)),
-    write_error_sync: (text) =>
+    write_error_sync: (text: string) =>
       !grant.allows("Console")
         ? denied("Stderr")
         : sink.write
@@ -398,18 +572,18 @@ function consoleProvider({ st, sink, flush, grant }) {
 }
 
 // `hd:Clock`: the time, and sleeps that complete when due.
-function clockProvider() {
+function clockProvider(): Record<string, ProviderFunction> {
   return {
     now: () => BigInt(Date.now()),
     monotonic: () => BigInt(Math.floor(performance.now())),
-    sleep: (ms) => later(performance.now() + Number(ms)),
+    sleep: (ms: Dynamic) => later(performance.now() + Number(ms)),
   };
 }
 
 // `count` random bytes (`getRandomValues` takes at most 65536 at a time).
 // A platform layer may supply its own (`layer.randomBytes`): on Node the
 // first use of `crypto` loads its module, about 3 ms of a run.
-function randomBytes(count) {
+function randomBytes(count: number): Uint8Array {
   const out = new Uint8Array(count);
   for (let at = 0; at < count; at += 65536) crypto.getRandomValues(out.subarray(at, at + 65536));
   return out;
@@ -418,39 +592,45 @@ function randomBytes(count) {
 // The operating system's random source (cli.host.default-profile).
 // `Random` has no scope entries: a grant of `false` refuses the whole
 // program at startup (cli.cap.total.refuse).
-function randomProvider(random) {
+function randomProvider(random: (count: number) => Uint8Array): Record<string, ProviderFunction> {
   return {
     next_u64: () => new DataView(random(8).buffer).getBigInt64(0, true),
-    fill: (count) => random(count >>> 0),
+    fill: (count: number) => random(count >>> 0),
   };
 }
 
 // `hd:Args`: the program's path and arguments.
-function argsProvider({ program, args }) {
+function argsProvider({
+  program,
+  args,
+}: {
+  program: string;
+  args: string[];
+}): Record<string, ProviderFunction> {
   return { program: () => program, list: () => args };
 }
 
 // `hd:PropertyRunner`: property cases ask the test runner for draws.
-function propertyRunnerProvider({ env }) {
+function propertyRunnerProvider({ env }: { env: CoreEnv }): Record<string, ProviderFunction> {
   return {
     // The property runner's side of a property case
     // (std-testing.runner.start-case, .record, .show): the test runner
     // decides each case and keeps its draws and its input's text.
-    start: (cases, shrink, examples) => {
+    start: (cases: Dynamic, shrink: Dynamic, examples: Dynamic) => {
       if (!env.runner) throw new HostContract("no property runner binds this run");
       return env.runner.start(cases, shrink, examples);
     },
-    record: (value) => env.runner?.record(BigInt(value)),
-    show: (text) => env.runner?.show(text),
+    record: (value: Dynamic) => env.runner?.record(BigInt(value)),
+    show: (text: string) => env.runner?.show(text),
   };
 }
 
 // `hd:TestRunner`: the hooks every host has (a platform layer adds
 // `temp_dir`). Snapshot files are read and written through `files`
 // (cases.mjs describes it): the disk on Node, memory in the playground.
-function testRunnerProvider({ env, st, files }) {
+function testRunnerProvider({ env, st, files }: DynamicRecord): Record<string, ProviderFunction> {
   // Snapshot files of the case (std-testing.snapshot-file.*).
-  const snapshotCheck = (actual) => {
+  const snapshotCheck = (actual: string): string => {
     const s = env.snapshot;
     st.snapshots += 1;
     if (!s || !files) return "no snapshot file: this run names no snapshot directory";
@@ -474,12 +654,12 @@ function testRunnerProvider({ env, st, files }) {
   return {
     // The test runner (`env.runner`, cases.mjs) picks the row an `it_each`
     // case runs; without one, row 0. Timeouts run under no limit here.
-    row: (count) => (env.runner ? env.runner.row(count) : 0),
+    row: (count: Dynamic) => (env.runner ? env.runner.row(count) : 0),
     // The runner fails a body that runs longer than its timeout: here at
     // the end of the run or of a wait, and in test.mjs by stopping an
     // instance that never returns. A program deadline that ends first
     // stays (cli.limit.time).
-    report_timeout: (millis) => {
+    report_timeout: (millis: Dynamic) => {
       const ms = Number(millis);
       const at = performance.now() + ms;
       const base = st.baseDeadline !== null && st.baseDeadline < at;
@@ -495,8 +675,9 @@ function testRunnerProvider({ env, st, files }) {
 // is `null` or the literal addresses, `tlsRoots` the extra PEM roots,
 // `tlsIdentity` `null` or `{ certificateChain, privateKey }`, and each
 // timeout `null` or whole milliseconds.
-export const httpSettings = (r) => {
-  const ms = (duration) => (duration == null ? null : Number(duration.millis));
+export const httpSettings = (r: Dynamic): DynamicRecord => {
+  const ms = (duration: Dynamic): number | null =>
+    duration == null ? null : Number(duration.millis);
   return {
     dnsServers: r.dns_servers ?? null,
     tlsRoots: r.tls_roots ?? [],
@@ -516,23 +697,28 @@ export const httpSettings = (r) => {
 
 // The stable name of each setting a request changes from the host default,
 // in a fixed order (std-http.settings.unsupported-name).
-export const changedSettings = (settings) =>
-  [
-    ["resolver", settings?.dnsServers != null],
-    ["tls.roots", (settings?.tlsRoots?.length ?? 0) > 0],
-    ["tls.identity", settings?.tlsIdentity != null],
-    ["connect_timeout", settings?.connectTimeout != null],
-    ["tls_handshake_timeout", settings?.tlsHandshakeTimeout != null],
-    ["response_header_timeout", settings?.responseHeaderTimeout != null],
-    ["body_read_timeout", settings?.bodyReadTimeout != null],
-  ]
+export const changedSettings = (settings: Dynamic): string[] =>
+  (
+    [
+      ["resolver", settings?.dnsServers != null],
+      ["tls.roots", (settings?.tlsRoots?.length ?? 0) > 0],
+      ["tls.identity", settings?.tlsIdentity != null],
+      ["connect_timeout", settings?.connectTimeout != null],
+      ["tls_handshake_timeout", settings?.tlsHandshakeTimeout != null],
+      ["response_header_timeout", settings?.responseHeaderTimeout != null],
+      ["body_read_timeout", settings?.bodyReadTimeout != null],
+    ] satisfies [string, boolean][]
+  )
     .filter(([, changed]) => changed)
     .map(([name]) => name);
 
 // The preflight refusal of a host that honours only the settings named in
 // `supported`: `{ error: "UnsupportedSetting", text }` for the first other
 // changed setting, or `null` (std-http.settings.preflight).
-export const unsupportedSetting = (settings, supported = []) => {
+export const unsupportedSetting = (
+  settings: Dynamic,
+  supported: string[] = [],
+): { error: string; text: string } | null => {
   const name = changedSettings(settings).find((each) => !supported.includes(each));
   return name === undefined ? null : { error: "UnsupportedSetting", text: name };
 };
@@ -542,9 +728,11 @@ export const unsupportedSetting = (settings, supported = []) => {
 // `{ status, headers, body, url }`, or `{ error, text }` with an `HttpError`
 // variant's name and text: http.mjs's thread on Node, `browserSend` in the
 // browser (std-http.send.*).
-export function httpProvider(send) {
+export function httpProvider(
+  send: (request: DynamicRecord) => Dynamic,
+): Record<string, ProviderFunction> {
   return {
-    send: (r) => {
+    send: (r: Dynamic) => {
       const method = r.method.tag === "Other" ? r.method.name : r.method.tag.toUpperCase();
       const a = send({
         method,
@@ -554,18 +742,18 @@ export function httpProvider(send) {
         redirects: r.redirects,
         settings: httpSettings(r),
       });
-      const result = (answer) =>
+      const result = (answer: Dynamic): Dynamic =>
         answer.error ? Err(variant(HttpError, answer.error, answer.text)) : Ok(answer);
       // Node's worker can keep the request pending; browsers still answer
       // synchronously here. Encode the result only after readiness wins.
       return a instanceof Later
-        ? new Later(a.at, () => result(a.done()), a.poll, a.abort)
+        ? new Later(a.at, () => result(a.done!()), a.poll, a.abort)
         : result(a);
     },
   };
 }
 
-function initialState(env, layer) {
+function initialState(env: CoreEnv, layer: Dynamic): DynamicRecord {
   return {
     memory: null,
     // The operating system's random bytes: the platform's, or webcrypto.
@@ -594,10 +782,15 @@ function initialState(env, layer) {
 
 // Request-scoped callers own their event loop. A turn polls once and
 // publishes ready host completions without retaining a Promise or timer.
-function createStepDriver(instance, init, poll, { st, prime, complete, flush }) {
+function createStepDriver(
+  instance: WebAssembly.Instance,
+  init: string,
+  poll: string,
+  { st, prime, complete, flush }: DynamicRecord,
+): StepDriver {
   if (st.closed) throw new HostContract("instance is closed");
   if (st.drivingMode !== null) throw new HostContract("the host already has a driver");
-  const ex = instance.exports;
+  const ex: DynamicRecord = instance.exports;
   if (![init, poll, "hd.wake"].every((name) => typeof ex[name] === "function"))
     throw new HostContract("the instance is missing root driver exports");
   st.drivingMode = "sync";
@@ -655,7 +848,8 @@ function createStepDriver(instance, init, poll, { st, prime, complete, flush }) 
 // `env.deadline` is when a `--time-limit` ends (cli.limit.time), in
 // milliseconds on `performance.timeOrigin + performance.now()`, a clock
 // that threads share.
-export function createCoreHost(sink, env = {}, layer = null) {
+/* oxlint-disable max-lines-per-function -- one host lifetime owns these closures. */
+export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = null): Host {
   const args = env.args ?? [];
   const program = env.program ?? "";
   const grant = createGrant(env.grants ?? {}, layer?.resolveTarget, layer?.sep);
@@ -664,21 +858,22 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // below: the exchange memory, trap reporting, the test timeout, case
   // files, pending operations, output, and noticed names.
   const st = initialState(env, layer);
+  const module = env.module;
   const reportsCycles =
-    env.module instanceof WebAssembly.Module &&
-    WebAssembly.Module.customSections(env.module, "hd.cycles").length === 1;
-  const writeCycleReport = async (instance) => {
+    module instanceof WebAssembly.Module &&
+    WebAssembly.Module.customSections(module, "hd.cycles").length === 1;
+  const writeCycleReport = async (instance: WebAssembly.Instance): Promise<void> => {
     if (!reportsCycles) return;
     const { cycleReport } = await import("./checked-report.mts");
-    const report = cycleReport(env.module, instance);
+    const report = cycleReport(module!, instance);
     if (report !== null) sink.err(report);
   };
-  const view = (len) => new Uint8Array(st.memory.buffer, 0, len);
-  const text = (len) => decodeUtf8(view(len));
+  const view = (len: number): Uint8Array => new Uint8Array(st.memory.buffer, 0, len);
+  const text = (len: number): string => decodeUtf8(view(len));
   // Writes an encoded result (or its bytes) at offset 0, growing the
   // buffer to fit, and returns its length (§17.3). A session's recorder
   // reads the bytes back as the call's result (`st.payload`).
-  const put = (e) => {
+  const put = (e: Dynamic): number => {
     const bytes = e instanceof Uint8Array ? e : e.done();
     if (bytes.length > st.memory.buffer.byteLength) {
       st.memory.grow(Math.ceil((bytes.length - st.memory.buffer.byteLength) / 65536));
@@ -687,7 +882,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     st.payload = bytes;
     return bytes.length;
   };
-  const flush = () => {
+  const flush = (): void => {
     if (st.out.length) {
       sink.out(st.out.join(""));
       st.out.length = 0;
@@ -696,20 +891,27 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // Pending operations by handle: `at` is when it completes, `done()` what
   // it does then, its result kept as `value`, and `method` the import
   // module and method that started it, whose `.finish` alone takes it.
-  const pending = (at, done, method = null, poll = null, abort = null, finish = null) => {
+  const pending = (
+    at: number,
+    done: (() => Dynamic) | null,
+    method: string | null = null,
+    poll: (() => boolean) | null = null,
+    abort: (() => void) | null = null,
+    finish: (() => Dynamic) | null = null,
+  ): [number, number] => {
     const h = st.nextHandle++;
     st.ops.set(h, { at, done, method, poll, abort, finish, completed: false, value: undefined });
     return [1, h];
   };
-  const nextDeadline = () => {
-    let d = null;
+  const nextDeadline = (): number | null => {
+    let d: number | null = null;
     for (const o of st.ops.values()) {
       if (!o.completed && (d === null || o.at < d)) d = o.at;
     }
     return d;
   };
   // Completes every due operation and writes the handles to the buffer.
-  const complete = () => {
+  const complete = (): number => {
     const now = performance.now();
     const due = [...st.ops]
       .filter(([, o]) => !o.completed && (o.poll || o.at <= now))
@@ -732,23 +934,23 @@ export function createCoreHost(sink, env = {}, layer = null) {
   };
   // Writes the host's own panic report `report`, `panic: CATEGORY:
   // MESSAGE` and a newline, and records it.
-  const hostPanic = (report) => {
+  const hostPanic = (report: string): void => {
     const text = reportIn(st.facts.at(-1), report);
     flush();
     sink.err(text);
     st.reported = true;
     st.panic = text.slice("panic: ".length);
   };
-  const deadlock = () => {
+  const deadlock = (): never => {
     hostPanic("panic: deadlock: the program waits, but no host operation is pending\n");
     throw new Deadlock();
   };
-  const finish = (h) => {
+  const finish = (h: number): void => {
     st.ops.delete(h);
   };
   // The result of the completed operation `h` that `method` started, which
   // its `.finish` takes; any other handle is a broken contract (§17.2).
-  const finished = (h, method) => {
+  const finished = (h: number, method: string): Dynamic => {
     const o = st.ops.get(h);
     if (o?.method !== method || !o.completed) {
       throw new HostContract("a finish of an operation that is not pending");
@@ -761,12 +963,12 @@ export function createCoreHost(sink, env = {}, layer = null) {
   };
   // Waits at most until `d`, and never past the timeout: a pending host
   // wait is cut at the deadline (crates/hd_run_wasmtime/DESIGN.md §17.8).
-  const until = (d) => (st.deadline === null ? d : Math.min(d, st.deadline));
-  const overran = () => st.deadline !== null && performance.now() > st.deadline;
+  const until = (d: number): number => (st.deadline === null ? d : Math.min(d, st.deadline));
+  const overran = (): boolean => st.deadline !== null && performance.now() > st.deadline;
   // The milliseconds left before the deadline. A provider that waits
   // inside its `.start` throws `TimeLimit` when none are left.
-  const left = () => (st.deadline === null ? Infinity : st.deadline - performance.now());
-  const providers = {
+  const left = (): number => (st.deadline === null ? Infinity : st.deadline - performance.now());
+  const providers: Record<string, Record<string, ProviderFunction>> = {
     "hd:Console": consoleProvider({ st, sink, flush, grant }),
     "hd:Clock": clockProvider(),
     "hd:Random": randomProvider(st.random),
@@ -777,22 +979,25 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
   // The platform layer's providers; a module it names extends the core's
   // provider for that module rather than replacing it.
-  const platform = layer?.providers({ env, sink, st, grant, flush, left }) ?? null;
+  const platform: Dynamic = layer?.providers({ env, sink, st, grant, flush, left }) ?? null;
   for (const [module, provider] of Object.entries(platform?.traits ?? {})) {
-    providers[module] = { ...providers[module], ...provider };
+    providers[module] = {
+      ...providers[module],
+      ...(provider as Record<string, ProviderFunction>),
+    };
   }
-  const imports = {
+  const imports: DynamicRecord = {
     "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
     "hd:prim": primImports({ put, text, env }),
   };
-  const io = {
+  const io: DynamicRecord = {
     view,
     text,
     put,
     pending,
     finished,
     prepare: pendingOperation,
-    prepared: (value) => (value instanceof Later ? value : null),
+    prepared: (value: Dynamic) => (value instanceof Later ? value : null),
   };
   for (const [module, provider] of Object.entries(providers)) {
     imports[module] = traitImports(module, provider, io);
@@ -804,12 +1009,12 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
   // Invoker-selected package providers use signature-generated glue. A guest
   // descriptor is data only: it never selects or loads a JavaScript module.
-  let packageRuntime = null;
+  let packageRuntime: Dynamic = null;
   if (env.packageBindings) {
     // A narrow policy view for SDK-owned outgoing Http handles. Reuse the
     // core's resolved grant, never a provider's reconstructed policy table.
     const http = Object.freeze({
-      coversHost: (host, port) => grant.coversHost("Http", host, port),
+      coversHost: (host: string, port: number) => grant.coversHost("Http", host, port),
       isAsciiUrl,
       writtenHost,
     });
@@ -832,7 +1037,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
         if (typeof env.readPackageContract !== "function")
           throw new HostContract("package host contract reader was not supplied");
         const required = env.readPackageContract(new Uint8Array(sections[0]));
-        const i = required.find((i) => !i.handle) ?? required[0];
+        const i = required.find((item: Dynamic) => !item.handle) ?? required[0];
         if (i)
           throw new HostContract(
             `missing package host provider for ${i.identity.package}@${i.identity.version}/${i.identity.trait_path}; register it explicitly`,
@@ -847,14 +1052,17 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // Points the host at `instance`'s memory, for a driver that calls the
   // exports itself instead of `run` (a scenario's drivers): reports and
   // codecs read the exchange buffer through it.
-  const prime = (instance) => {
+  const prime = (instance: WebAssembly.Instance): void => {
     st.memory = instance.exports["hd.x"] ?? null;
     // No facts body runs yet, whatever an earlier input left.
     st.facts = [];
   };
 
-  const createDriver = (instance, init = "hd.init", poll = "hd.poll") =>
-    createStepDriver(instance, init, poll, { st, prime, complete, flush });
+  const createDriver = (
+    instance: WebAssembly.Instance,
+    init = "hd.init",
+    poll = "hd.poll",
+  ): StepDriver => createStepDriver(instance, init, poll, { st, prime, complete, flush });
 
   // Runs `init`, then polls `poll` to completion. Returns the status (3
   // for a trap), whether the instance trapped, and a Wasm trap's frames.
@@ -876,14 +1084,22 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // else waits for it instead of deadlocking. A root that ends cancelled,
   // whoever cancelled it, ends the run with `cancelled` on standard error
   // and status 130 (cli.cancel.end).
-  const continueRun = async (instance, ex, poll, status, driver, cancel, firstError = null) => {
+  const continueRun = async (
+    instance: WebAssembly.Instance,
+    ex: DynamicRecord,
+    poll: string,
+    status: number,
+    driver: Dynamic,
+    cancel: Dynamic,
+    firstError: unknown = null,
+  ): Promise<RunResult> => {
     let trapped = false;
     const ended = false;
     let limited = false;
     let cancelled = false;
-    let frames = [];
-    const wait = (ms) =>
-      driver?.wait(ms) ?? cancel?.wait(ms) ?? new Promise((r) => setTimeout(r, ms));
+    let frames: [number, number][] = [];
+    const wait = (ms: number): Promise<Dynamic> =>
+      driver?.wait(ms) ?? cancel?.wait(ms) ?? new Promise((resolve) => setTimeout(resolve, ms));
     // The requests acted on, the cleanup deadline once the entry is
     // cancelled, and whether it was abandoned.
     let handled = 0;
@@ -917,7 +1133,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
             if (cleanupBy !== null && !abandoned && (d === null || cleanupBy < d)) d = cleanupBy;
             if (d === null) deadlock();
             flush();
-            await wait(Math.max(0, until(d) - performance.now()));
+            await wait(Math.max(0, until(d!) - performance.now()));
             if (overran()) throw new TimeLimit();
             const stop = driver?.stopping(Boolean(ex["hd.cancel"]));
             if (stop) {
@@ -970,7 +1186,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
         throw e;
       }
       // A panic stub wrote its report; any other trap is an internal error.
-      if (!st.reported) sink.err(`internal error: ${e.message}\n`);
+      if (!st.reported) sink.err(`internal error: ${(e as Dynamic).message}\n`);
       status = 3;
       trapped = true;
     }
@@ -992,7 +1208,13 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // Keep the common no-suspension path apart from the full async driver:
   // a fresh Node process can compile this small wrapper without compiling
   // cancellation, waits, traps and wake delivery that it never reaches.
-  const run = (instance, init, poll, driver = null, cancel = null) => {
+  const run = (
+    instance: WebAssembly.Instance,
+    init: string,
+    poll: string,
+    driver: Dynamic = null,
+    cancel: Dynamic = null,
+  ): Promise<RunResult> => {
     if (st.drivingMode === "sync")
       return Promise.reject(new HostContract("the host already has a synchronous driver"));
     st.drivingMode = "async";
@@ -1001,8 +1223,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
     } catch (error) {
       return Promise.reject(error);
     }
-    const ex = instance.exports;
-    let status;
+    const ex: DynamicRecord = instance.exports;
+    let status: number;
     try {
       ex[init]();
       driver?.poll();
@@ -1033,7 +1255,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
   // Releases what the platform layer holds (its client threads, its
   // scratch directory).
-  const close = () => {
+  const close = (): void => {
     st.closed = true;
     try {
       clearOperations(st);
@@ -1048,11 +1270,11 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
   // The host handles the program left open, as `[kind, count]` pairs with
   // a nonzero count, for the leak report of `hd test` (cli.test.leak).
-  const leaks = () => platform?.leaks?.() ?? [];
+  const leaks = (): [string, number][] => platform?.leaks?.() ?? [];
 
   // What a REPL session reaches past the import object: the instance
   // state, the result writer, the deadlock report and the output.
-  const core = { st, put, deadlock, flush };
+  const core: DynamicRecord = { st, put, deadlock, flush };
 
   return {
     imports,
@@ -1069,3 +1291,4 @@ export function createCoreHost(sink, env = {}, layer = null) {
     core,
   };
 }
+/* oxlint-enable max-lines-per-function */

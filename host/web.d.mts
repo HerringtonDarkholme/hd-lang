@@ -2,9 +2,9 @@
 // TypeScript side uses.
 
 import type { TestFiles } from "./cases.mjs";
-import type { CoreEnv, Host, Session, Sink } from "./core.mjs";
+import type { CoreEnv, Host, Session, Sink } from "./core.mts";
 
-export type { Host, Session, Sink } from "./core.mjs";
+export type { Host, Session, Sink } from "./core.mts";
 
 export interface BrowserRequest {
   method: string;

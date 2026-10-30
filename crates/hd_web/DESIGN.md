@@ -161,7 +161,7 @@ exchange buffer; the exports are `hd.init`, `hd.poll` and `hd.wake`, plus
 
 The JS host is split, not forked:
 
-- `host/core.mjs`, the platform-neutral core, holds the import object
+- `host/core.mts`, the platform-neutral core, holds the import object
   built from the generated codecs and method descriptors
   (`host/gen/abi.mjs` over `host/wire.mjs`'s `Enc`/`Dec`), the grant,
   the `rt`, `prim`, `Console`, `Clock`, `Random`, `Args`, `TestRunner`

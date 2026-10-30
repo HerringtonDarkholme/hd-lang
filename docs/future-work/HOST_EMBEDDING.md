@@ -112,10 +112,12 @@ An edge adapter supplies the same plain methods through the generated binding mo
 For this example, copy the platform-neutral runtime from the checkout into `embedding-demo/runtime/`:
 
 ```sh
-mkdir -p ../embedding-demo/runtime/gen
-cp host/core.mjs host/checked-report.mjs host/float.mjs host/journal.mjs \
-   host/wire.mjs host/package-providers.mjs ../embedding-demo/runtime/
-cp host/gen/abi.mjs ../embedding-demo/runtime/gen/
+node --input-type=module <<'JS'
+import { emitHostSources } from "./scripts/host-emission.mjs";
+import { runtimeSources } from "./packages/server-sdk/packaging/runtime-model.mjs";
+
+await emitHostSources("../embedding-demo/runtime", ".", runtimeSources);
+JS
 ```
 
 The following bridge keeps one ordinary `main!` alive across requests.

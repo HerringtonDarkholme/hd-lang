@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, cpSync, rmSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createCoreHost } from "../../../host/core.mjs";
+import { createCoreHost } from "../../../host/core.mts";
 import { createPackageRuntime } from "../../../host/package-providers.mts";
 import { createApplication } from "../adapters/application.mjs";
 

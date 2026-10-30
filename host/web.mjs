@@ -1,5 +1,5 @@
 // The browser layer of the JS host: what the playground binds over the
-// platform-neutral core (core.mjs). The core already answers `Console`,
+// platform-neutral core (core.mts). The core already answers `Console`,
 // `Clock`, `Random`, `Args` and most of `TestRunner`; this layer adds
 // `TestRunner.temp_dir` and `Http`, sent with the browser and granted to
 // the page's own origin alone (spec/std/http.md#playground). Every other platform trait (`FsRead`,
@@ -17,7 +17,7 @@ import {
   isAsciiUrl,
   unsupportedSetting,
   writtenHost,
-} from "./core.mjs";
+} from "./core.mts";
 import { createSession } from "./session.mjs";
 
 // The text of a request the browser refused (std-http.playground.refused).
@@ -131,7 +131,7 @@ const webLayer = {
 // `createCoreHost`'s. A test run passes its `memoryFiles()` as `env.files`.
 export const createWebHost = (sink, env = {}) => createCoreHost(sink, env, webLayer);
 
-// A REPL session in the browser (core.mjs `createSession`), over the same
+// A REPL session in the browser (core.mts `createSession`), over the same
 // providers as a run.
 export const createWebSession = (sink, env = {}, options = {}) =>
   createSession(sink, env, webLayer, options);

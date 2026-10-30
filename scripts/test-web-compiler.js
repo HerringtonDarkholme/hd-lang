@@ -4,7 +4,7 @@
 // playground's own wire module, compiler-wire.ts), runs the
 // program with host/run.mjs as `hd run` on Node does, and checks its
 // stdout. Then a two-input REPL session through the REPL goals, each
-// session program run in the JS host's session (host/core.mjs) before
+// session program run in the JS host's session (host/core.mts) before
 // its outcome goes back to the compiler. Then the size
 // gate: an LTO build that shrinks (a panicking call such as
 // `Instant::now()` deletes everything after it) fails the floor.

@@ -7,7 +7,7 @@
 // the session's journal after them; and `after`, the number of one more
 // input that ran after the journal was taken.
 //
-// 1. Runs the inputs on Node with the JS host's session (host/core.mjs),
+// 1. Runs the inputs on Node with the JS host's session (host/core.mts),
 //    each from its session program after replaying the ones before, and
 //    checks each one's status and output against wasmtime's, then writes
 //    its journal as `node.journal` for the Rust test to replay.

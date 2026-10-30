@@ -1,6 +1,6 @@
 // The worker side of the REPL: the compiler's REPL session (the REPL goals
 // over the compiler wasm) and the JS session that runs its programs
-// (host/core.mjs `createSession`) live in one worker, the playground's
+// (host/core.mts `createSession`) live in one worker, the playground's
 // compiler worker. The page numbers the inputs; each input is built under
 // its number (`encodeReplInput(text, number)`), so diagnostics, `dbg` lines
 // and the journal all name `repl#N` as the page shows it. Each input's
@@ -28,7 +28,7 @@
 // - `repl-quit` ends the session; the next input needs a `repl-start`.
 
 import { recorded, type End } from "../../../host/journal.mts";
-import type { InputOutcome, Ran } from "../../../host/core.mjs";
+import type { InputOutcome, Ran } from "../../../host/core.mts";
 import { createWebSession, type Session } from "../../../host/web.mjs";
 import {
   OUTCOME,

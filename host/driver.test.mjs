@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createCoreHost, pendingOperation, HostContract } from "./core.mjs";
+import { createCoreHost, pendingOperation, HostContract } from "./core.mts";
 import { Enc, Ok } from "./wire.mts";
 import { readFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";

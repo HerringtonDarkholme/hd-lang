@@ -1,6 +1,6 @@
 // Initialized REPL sessions, checkpoint images and historical replay.
-// Kept outside core.mjs so ordinary programs do not load the journal.
-import { clearOperations, createCoreHost } from "./core.mjs";
+// Kept outside core.mts so ordinary programs do not load the journal.
+import { clearOperations, createCoreHost } from "./core.mts";
 import { METHODS } from "./gen/abi.mts";
 import { HostContract } from "./wire.mts";
 import {

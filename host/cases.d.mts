@@ -1,7 +1,7 @@
 // Hand-written declarations for the public exports of cases.mjs that the
 // TypeScript side uses.
 
-import type { Host, Sink } from "./core.mjs";
+import type { Host, Sink } from "./core.mts";
 
 /** The files of a test run: temporary directories, snapshots, regression streams. */
 export interface TestFiles {

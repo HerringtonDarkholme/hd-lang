@@ -7,7 +7,7 @@
 // `io` is the host's view of the exchange buffer: `put(enc)` writes an
 // encoded result and returns its length, `Enc` encodes, `pending(at,
 // value)` registers an operation that completes at `at`, and `finish(h)`
-// drops it (core.mjs).
+// drops it (core.mts).
 // Each trait's methods are imported from `hd:<Trait>` by name; every
 // argument and result crosses in the buffer.
 

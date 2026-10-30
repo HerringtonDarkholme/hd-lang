@@ -1,4 +1,4 @@
-// A REPL session in the JS host (host/core.mjs `createSession`) over the
+// A REPL session in the JS host (host/core.mts `createSession`) over the
 // session programs the playground's compiler builds through the REPL
 // goals: each input runs after the kept ones replay from the journal, a
 // panic resets the runtime state, a stop cancels a waiting input, which

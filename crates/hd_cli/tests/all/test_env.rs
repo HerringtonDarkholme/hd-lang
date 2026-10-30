@@ -228,8 +228,8 @@ console.log(failed.length ? "failed: " + failed.join(", ") : "ok");
 /// Windows' `\` is tried on every platform with paths already resolved.
 #[test]
 fn a_path_grant_covers_by_the_hosts_separator() {
-    let core = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mjs");
-    let core = hd_run::canonicalize(core).expect("core.mjs");
+    let core = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.mts");
+    let core = hd_run::canonicalize(core).expect("core.mts");
     let script = format!(
         r#"
 import {{ pathToFileURL }} from "node:url";

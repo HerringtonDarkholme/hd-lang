@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createGrant } from "./core.mjs";
+import { createGrant } from "./core.mts";
 
 test("explicit true grants are unrestricted across every resource matcher", () => {
   const grant = createGrant({ Http: true, Net: true, Env: true, Process: true, FsRead: true });

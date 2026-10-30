@@ -23,7 +23,7 @@
 //
 // A `--time-limit` (`timeLimitMs`, cli.limit.test) gives each case, and each
 // row of a table, its own deadline, which the host cuts its waits at
-// (core.mjs `env.deadline`). A body still running past it is stopped the
+// (core.mts `env.deadline`). A body still running past it is stopped the
 // same way, with the report of a program that ran past its time limit.
 // A worker stopped while blocked in a system call, such as a read of a FIFO
 // with no writer, keeps running, and Node cannot exit while it does, so

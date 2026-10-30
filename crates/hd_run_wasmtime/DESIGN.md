@@ -457,7 +457,7 @@ cancelled and holds the worker until it ends.
   capabilities spec requires.
 - **On Node,** `hd run` and `hd FILE` write the run's grant and its
   `Args.program` into the run host's configuration; `hd test` writes each
-  case's grant into the test host's. Every provider of `host/core.mjs`
+  case's grant into the test host's. Every provider of `host/core.mts`
   asks `createGrant`'s checks before it touches a resource, and `rename!`
   checks both paths
   ([`cli.cap.scope.rename`](../../spec/cli/command-line.md#r-cli.cap.scope.rename)).
@@ -562,7 +562,7 @@ generated. `host/gen/abi.mjs`, generated from the ABI model (§17.1), holds
 each std type's codec, built on `host/wire.mjs`'s encoding, and `METHODS`:
 each method by import module and name, with its wait flag, its resource
 argument, and its parameters and result (a scalar as its Wasm type, any
-other value as its codec). `host/core.mjs` makes the import object from
+other value as its codec). `host/core.mts` makes the import object from
 them around providers: each method a JS function that takes and returns
 plain values (`traitImports`). It also holds the platform-neutral
 providers and the entry driver; `host/node.mjs` and `host/web.mjs` add

@@ -27,7 +27,7 @@ import { serve } from "./worker-control.mjs";
 import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
-import { createGrant, isAsciiUrl, unsupportedSetting, writtenHost } from "./core.mjs";
+import { createGrant, isAsciiUrl, unsupportedSetting, writtenHost } from "./core.mts";
 import { MAX_DECODED_BYTES, decodedResponse, hasNoBody } from "./http-decode.mjs";
 import { pathSeparator, resolvePath } from "./node-files.mjs";
 import { workerData } from "node:worker_threads";
