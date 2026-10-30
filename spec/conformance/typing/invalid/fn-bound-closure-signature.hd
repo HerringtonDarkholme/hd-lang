@@ -1,0 +1,6 @@
+# test: a closure for an FnMut-bounded parameter has the bound's signature; a wrong result is the argument's type-mismatch
+# Spec 7 Fn Bounds: fn.trait.bound-closure.
+fn large(amounts: List[i32]) -> i32:
+    amounts.iter()
+        .filter(fn(amount: i32) -> i32: amount) # diagnostic: type-mismatch
+        .sum()

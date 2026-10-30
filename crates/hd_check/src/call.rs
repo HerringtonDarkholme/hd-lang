@@ -1093,6 +1093,33 @@ impl Ck<'_, '_> {
     /// Whether the bounds of a type parameter make it a read-only `Fn`
     /// value (`Some(true)`), an `FnMut` value only (`Some(false)`), or
     /// neither.
+    /// `fn.trait.bound-closure`: a closure or concrete function value
+    /// passed for a parameter bounded by `Fn` or `FnMut` has the bound's
+    /// signature. A mismatch is the argument's `type-mismatch`; the
+    /// argument then poisons the type parameter, so the bound and any
+    /// method chained on the result report nothing more. A caller's own
+    /// type parameter is left to the bound check.
+    fn bounded_closure(&mut self, r: Ref, t: Ty, bounded: Option<Ty>, e: NodeRef<'_>) -> (Ref, Ty) {
+        let Some(want) = bounded else {
+            return (r, t);
+        };
+        let pool = self.pool();
+        let concrete = matches!(
+            pool.get(self.strip_mut(self.infer.resolve(pool, t))),
+            TyData::Fn { .. }
+        );
+        if e.kind() != SyntaxKind::ClosureExpr && !concrete {
+            return (r, t);
+        }
+        let before = self.diags.len();
+        let r = self.coerce(r, t, want, e, "argument", ExpectPosition::General);
+        if self.diags.len() > before {
+            (r, Ty::POISON)
+        } else {
+            (r, t)
+        }
+    }
+
     pub(crate) fn fn_bound_read_only(&self, bounds: &[Ty]) -> Option<bool> {
         let pool = self.pool();
         let known = &self.cx.names.known;
@@ -1670,6 +1697,7 @@ impl Ck<'_, '_> {
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
             let (r, t) = self.arg_value(*e, expect, scoped_capture)?;
+            let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
                 && self.infer.resolve(pool, t) == Ty::NEVER
@@ -1794,6 +1822,7 @@ impl Ck<'_, '_> {
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
             let (r, t) = self.arg_value(*e, Some(expect), scoped_capture)?;
+            let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
             }

@@ -8,5 +8,5 @@ fn noisy(value: i32) -> bool $ Logger:
 
 fn scoped(values: List[i32], logger: *dyn Logger) -> List[i32]:
     $.with(Logger=logger):
-        values.iter().filter(fn(value): noisy(value)) # diagnostic: unsatisfied-trait-bound
+        values.iter().filter(fn(value): noisy(value)) # diagnostic: type-mismatch
         []

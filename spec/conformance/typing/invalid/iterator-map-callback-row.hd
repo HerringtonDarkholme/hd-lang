@@ -7,5 +7,5 @@ fn noisy(value: i32) -> i32 $ Logger:
     value + 1
 
 fn bumped(values: List[i32]) -> List[i32] $ Logger:
-    values.iter().map(noisy) # diagnostic: unsatisfied-trait-bound
+    values.iter().map(noisy) # diagnostic: type-mismatch
     []

@@ -2479,7 +2479,7 @@ typing/invalid/num-sealed-impl.hd	type	reject:sealed-trait-implementation	lang/0
 typing/invalid/num-sealed-user-number.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.num.sealed
 typing/valid/iterator-adapters.hd	type	accept	std/iter.md#iterator-adapters
 runtime/valid/iterator-adapters-run.hd	runtime	accept	std/iter.md#r-std-iter.adapter.lazy
-typing/invalid/iterator-filter-callback-row.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.callback-row
+typing/invalid/iterator-filter-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row
 typing/valid/iterator-owned-drain.hd	type	accept	std/iter.md#r-std-iter.adapter.draining-value
 runtime/valid/compound-assignment-value-kind.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.meaning
 typing/invalid/compound-assign-value-no-operator.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.operator
@@ -2531,7 +2531,7 @@ typing/invalid/pipe-suspending-bare-step.hd	type	reject:suspending-pipe-step	lan
 runtime/valid/pipe-suspending-substitution-step.hd	runtime	accept	lang/05-expressions.md#r-expr.pipe.slot.suffix
 typing/invalid/pipe-multi-line-step.hd	type	reject:multi-line-pipe-step	lang/05-expressions.md#r-expr.pipe.single-line
 typing/invalid/placeholder-outside-pipe.hd	type	reject:placeholder-outside-pipe	lang/05-expressions.md#r-expr.pipe.placeholder-outside
-typing/invalid/iterator-map-callback-row.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.callback-row.map
+typing/invalid/iterator-map-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.map
 runtime/valid/iterator-drives-loops.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator.owned-source
 typing/invalid/mut-iterator-iterable-bound.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.iterator.iterable-bound
 typing/valid/impl-iterator-trait.hd	type	accept	lang/06-control-flow.md#r-flow.for.iterator.trait
@@ -2684,7 +2684,7 @@ typing/invalid/arbitrary-with-non-inspectable-member.hd	type	reject:member-not-d
 runtime/valid/provider-scope-dynamic-callback.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.dynamic
 runtime/valid/provider-scope-lexical-capture.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.lexical
 typing/invalid/closure-escapes-provider-scope.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.row.omitted.outer-scope
-typing/invalid/adapter-callback-scope-key.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.callback-row.capture
+typing/invalid/adapter-callback-scope-key.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.capture
 typing/valid/a-callee-that-is-a-call-is-a-place.hd	type	accept	lang/05-expressions.md#callable-values
 typing/valid/a-generic-callee-stores-through-its-bound.hd	type	accept	lang/05-expressions.md#callable-values
 typing/valid/a-requirement-free-default-is-clean.hd	type	accept	lang/07-functions.md#default-values
@@ -2878,7 +2878,7 @@ runtime/valid/tuple-template-instances.hd	runtime	accept	lang/14-annotations.md#
 runtime/valid/tuple-thirteen-elements.hd	runtime	accept	lang/09-traits.md#r-trait.target.tuple.no-limit
 runtime/valid/display-tuple-thirteen-elements.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.std.tuple.template
 runtime/valid/default-tuple-thirteen-elements.hd	runtime	accept	std/ops.md#r-std-ops.default.std.tuple.any-size
-typing/invalid/arbitrary-with-wrong-generator.hd	type	reject:unsatisfied-trait-bound	std/testing.md#r-std-testing.arbitrary.with.checked-bound
+typing/invalid/arbitrary-with-wrong-generator.hd	type	reject:type-mismatch	std/testing.md#r-std-testing.arbitrary.with.checked-bound
 typing/valid/typed-fact-function.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.declared-type
 typing/invalid/typed-fact-function-suspending.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check
 typing/valid/literal-suffix-generic-target.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.monomorphic
@@ -5422,3 +5422,4 @@ typing/invalid/generic-call-method-result-local.hd	type	reject:local-reference-e
 typing/invalid/generic-store-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.generic.store
 typing/invalid/generic-store-caller-place.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
 typing/invalid/generic-local-function-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.local.local-function
+typing/invalid/fn-bound-closure-signature.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.trait.bound-closure

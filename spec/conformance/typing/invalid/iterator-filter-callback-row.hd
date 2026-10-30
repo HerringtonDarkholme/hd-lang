@@ -7,5 +7,5 @@ fn noisy(value: i32) -> bool $ Logger:
     value > 0
 
 fn positives(values: List[i32]) -> List[i32] $ Logger:
-    values.iter().filter(noisy) # diagnostic: unsatisfied-trait-bound
+    values.iter().filter(noisy) # diagnostic: type-mismatch
     []
