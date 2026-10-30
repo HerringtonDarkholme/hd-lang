@@ -50,6 +50,39 @@ const now = () => performance.timeOrigin + performance.now();
 // The message of the discard panic (std-testing.runner.discard-panic).
 const DISCARD = "std.testing: case discarded";
 
+function finishRun({ live, ran, dir, started, updates, files }) {
+  const { host, io } = live;
+  const { trapped, ended, frames, panic } = ran;
+  const leaks = host.leaks?.() ?? [];
+  const leaked = !trapped && ran.status === 0 && leaks.length > 0;
+  const status = leaked ? 1 : ran.status;
+  if (leaked) {
+    io.stderr += leakReport(leaks);
+  }
+  if (dir) {
+    files.remove(dir);
+  }
+  const st = host.core.st;
+  if (st.ownTemp) {
+    files.remove(st.ownTemp);
+    st.ownTemp = null;
+  }
+  return {
+    release: trapped || status !== 0 || ended,
+    result: {
+      status,
+      trapped,
+      ended,
+      stdout: io.stdout,
+      stderr: io.stderr,
+      us: Math.round((performance.now() - started) * 1000),
+      frames,
+      panic: panic ?? null,
+      updates,
+    },
+  };
+}
+
 // What one run of the cases needs from its platform:
 //
 // - `module`: the compiled test program; `config`: the run's
@@ -95,6 +128,72 @@ class Runner {
     this.live = null;
   }
 
+  createLive(c, dir, runner, updates) {
+    const io = { stdout: "", stderr: "" };
+    const env = {
+      args: this.config.args,
+      program: this.config.program,
+      programs: this.config.programs ?? null,
+      processLauncher: this.config.processLauncher,
+      stdin: null,
+      grants: c.grants,
+      tempDir: dir,
+      seed: c.seed,
+      snapshot: c.snapshot ?? null,
+      updates,
+      runner,
+      deadline: this.deadline,
+    };
+    const host = this.createHost(
+      {
+        out: (text) => {
+          io.stdout += text;
+        },
+        err: (text) => {
+          io.stderr += text;
+        },
+        fact: (label) => this.notify({ type: "fact", label }),
+      },
+      env,
+    );
+    return { host, env, io, instance: null, repeated: null };
+  }
+
+  prepareLive(c, dir, runner, updates) {
+    if (!this.live) {
+      this.live = this.createLive(c, dir, runner, updates);
+    }
+    const { host, env, io } = this.live;
+    io.stdout = "";
+    io.stderr = "";
+    Object.assign(env, { runner, tempDir: dir, updates });
+    Object.assign(host.core.st, {
+      reported: false,
+      panic: null,
+      timeoutMs: null,
+      deadline: host.core.st.baseDeadline,
+      snapshots: 0,
+      tempMade: false,
+      payload: null,
+    });
+    return this.live;
+  }
+
+  async execute(live, c) {
+    const fresh = live.instance === null;
+    if (fresh) {
+      live.instance = await WebAssembly.instantiate(this.module, live.host.imports);
+      // The entry driver always calls an init export. A retained instance
+      // has already initialized its modules, so give that driver a no-op.
+      live.repeated = { exports: { ...live.instance.exports, "case.init": () => {} } };
+    }
+    return live.host.run(
+      fresh ? live.instance : live.repeated,
+      fresh ? `hd.init.${c.init}` : "case.init",
+      `hd.test.${c.test}`,
+    );
+  }
+
   // Successful property bodies retain their instance and import object.
   // Rows, failures and every shrink attempt get a fresh instance.
   async runOnce(c, k, runner, reuse = false) {
@@ -103,96 +202,15 @@ class Runner {
     if (!reuse) {
       this.release();
     }
-    if (!this.live) {
-      const io = { stdout: "", stderr: "" };
-      const env = {
-        args: this.config.args,
-        program: this.config.program,
-        programs: this.config.programs ?? null,
-        processLauncher: this.config.processLauncher,
-        stdin: null,
-        grants: c.grants,
-        tempDir: dir,
-        seed: c.seed,
-        snapshot: c.snapshot ?? null,
-        updates,
-        runner,
-        deadline: this.deadline,
-      };
-      const host = this.createHost(
-        {
-          out: (text) => {
-            io.stdout += text;
-          },
-          err: (text) => {
-            io.stderr += text;
-          },
-          fact: (label) => this.notify({ type: "fact", label }),
-        },
-        env,
-      );
-      this.live = { host, env, io, instance: null, repeated: null };
-    }
-    const live = this.live;
-    const { host, env, io } = live;
-    io.stdout = "";
-    io.stderr = "";
-    Object.assign(env, { runner, tempDir: dir, updates });
-    // The providers read this per-body state through their existing cells.
-    const st = host.core.st;
-    Object.assign(st, {
-      reported: false,
-      panic: null,
-      timeoutMs: null,
-      deadline: st.baseDeadline,
-      snapshots: 0,
-      tempMade: false,
-      payload: null,
-    });
-    const t0 = performance.now();
-    const fresh = live.instance === null;
-    if (fresh) {
-      live.instance = await WebAssembly.instantiate(this.module, host.imports);
-      // The entry driver always calls an init export. A retained instance
-      // has already initialized its modules, so give that driver a no-op.
-      live.repeated = { exports: { ...live.instance.exports, "case.init": () => {} } };
-    }
-    const ran = await host.run(
-      fresh ? live.instance : live.repeated,
-      fresh ? `hd.init.${c.init}` : "case.init",
-      `hd.test.${c.test}`,
-    );
-    const { trapped, ended, frames, panic } = ran;
+    const live = this.prepareLive(c, dir, runner, updates);
+    const started = performance.now();
+    const ran = await this.execute(live, c);
     this.notify({ type: "done" });
-    const leaks = host.leaks?.() ?? [];
-    const leaked = !trapped && ran.status === 0 && leaks.length > 0;
-    const status = leaked ? 1 : ran.status;
-    if (leaked) {
-      io.stderr += leakReport(leaks);
-    }
-    if (dir) {
-      this.files.remove(dir);
-    }
-    // A platform-created temporary directory is per body too.
-    if (st.ownTemp) {
-      this.files.remove(st.ownTemp);
-      st.ownTemp = null;
-    }
-    const us = Math.round((performance.now() - t0) * 1000);
-    if (trapped || status !== 0 || ended) {
+    const finished = finishRun({ live, ran, dir, started, updates, files: this.files });
+    if (finished.release) {
       this.release();
     }
-    return {
-      status,
-      trapped,
-      ended,
-      stdout: io.stdout,
-      stderr: io.stderr,
-      us,
-      frames,
-      panic: panic ?? null,
-      updates,
-    };
+    return finished.result;
   }
 }
 
@@ -386,135 +404,156 @@ const simpler = (a, b) => {
 // blocks of draws, zeroes them, and moves each draw toward 0 by halving
 // the distance, keeping each attempt that still fails with a simpler
 // stream. Each attempt is a run of its own; there are at most `budget`.
-async function shrink(failing, attempt, budget) {
-  let best = failing;
-  let left = budget;
-  const tryStream = async (stream) => {
-    if (left <= 0) {
-      return false;
-    }
-    left -= 1;
-    const got = await attempt(stream);
-    if (got !== null && simpler(got.run.draws, best.run.draws)) {
-      best = got;
-      return true;
-    }
+async function tryShrink(state, stream) {
+  if (state.left <= 0) {
     return false;
-  };
-  let improved = true;
-  while (improved && left > 0) {
-    improved = false;
-    for (const k of [8, 4, 2, 1]) {
-      for (let i = 0; i + k <= best.run.draws.length && left > 0;) {
-        const s = best.run.draws;
-        if (await tryStream([...s.slice(0, i), ...s.slice(i + k)])) {
-          improved = true;
-        } else {
-          i += 1;
-        }
-      }
-    }
-    for (const k of [8, 4, 2, 1]) {
-      for (let i = 0; i + k <= best.run.draws.length && left > 0; i++) {
-        const s = best.run.draws;
-        if (s.slice(i, i + k).every((v) => v === 0n)) {
-          continue;
-        }
-        const z = [...s];
-        z.fill(0n, i, i + k);
-        if (await tryStream(z)) {
-          improved = true;
-        }
-      }
-    }
-    for (let i = 0; i < best.run.draws.length && left > 0; i++) {
-      let lo = 0n;
-      while (left > 0) {
-        const s = best.run.draws;
-        if (i >= s.length || s[i] <= lo) {
-          break;
-        }
-        const mid = lo + (s[i] - lo) / 2n;
-        const t = [...s];
-        t[i] = mid;
-        if (await tryStream(t)) {
-          improved = true;
-        } else {
-          lo = mid + 1n;
-        }
+  }
+  state.left -= 1;
+  const got = await state.attempt(stream);
+  if (got !== null && simpler(got.run.draws, state.best.run.draws)) {
+    state.best = got;
+    return true;
+  }
+  return false;
+}
+
+async function deleteDraws(state) {
+  for (const k of [8, 4, 2, 1]) {
+    for (let i = 0; i + k <= state.best.run.draws.length && state.left > 0;) {
+      const s = state.best.run.draws;
+      if (await tryShrink(state, [...s.slice(0, i), ...s.slice(i + k)])) {
+        state.improved = true;
+      } else {
+        i += 1;
       }
     }
   }
-  return best;
+}
+
+async function zeroDraws(state) {
+  for (const k of [8, 4, 2, 1]) {
+    for (let i = 0; i + k <= state.best.run.draws.length && state.left > 0; i++) {
+      const s = state.best.run.draws;
+      if (s.slice(i, i + k).every((v) => v === 0n)) {
+        continue;
+      }
+      const z = [...s];
+      z.fill(0n, i, i + k);
+      if (await tryShrink(state, z)) {
+        state.improved = true;
+      }
+    }
+  }
+}
+
+async function reduceDraws(state) {
+  for (let i = 0; i < state.best.run.draws.length && state.left > 0; i++) {
+    let lo = 0n;
+    while (state.left > 0) {
+      const s = state.best.run.draws;
+      if (i >= s.length || s[i] <= lo) {
+        break;
+      }
+      const mid = lo + (s[i] - lo) / 2n;
+      const t = [...s];
+      t[i] = mid;
+      if (await tryShrink(state, t)) {
+        state.improved = true;
+      } else {
+        lo = mid + 1n;
+      }
+    }
+  }
+}
+
+async function shrink(failing, attempt, budget) {
+  const state = { best: failing, left: budget, attempt, improved: true };
+  while (state.improved && state.left > 0) {
+    state.improved = false;
+    await deleteDraws(state);
+    await zeroDraws(state);
+    await reduceDraws(state);
+  }
+  return state.best;
+}
+
+async function reportPropertyFailure({ runner, c, p, current, again, timing }) {
+  let { run } = current;
+  if (current.reused && run.plan) {
+    p.retry = { ...run.plan, replay: [...run.draws] };
+    const replayed = await again(null);
+    if (replayed.outcome === "pass" || replayed.outcome === "discard") {
+      const ended = replayed.outcome === "pass" ? "passed" : "was discarded";
+      const failure = `input ${run.shown ?? ""} (seed ${run.plan.seed}) failed only after earlier cases ran in the same instance and ${ended} when replayed in a fresh instance; the property depends on state left by earlier cases`;
+      runner.emit(
+        result(
+          c,
+          { ...current.r, status: 1, trapped: false, us: timing.total, failure },
+          { input: run.shown ?? "" },
+        ),
+      );
+      return;
+    }
+    current = replayed;
+    run = current.run;
+  }
+  let failing = current;
+  if (run.plan && run.plan.kind !== "example") {
+    const size = run.plan.size;
+    const attempt = async (stream) => {
+      const got = await again({ replay: stream, size, kind: "shrink" });
+      return got.outcome === "fail" ? got : null;
+    };
+    failing = await shrink(current, attempt, p.shrink);
+    if (p.regression) {
+      runner.files.write(p.regression.file, failing.run.draws.map((v) => `${v}\n`).join(""));
+    }
+  }
+  const r = { ...failing.r, us: timing.total };
+  runner.emit(result(c, r, { input: failing.run.shown ?? "" }));
+}
+
+function reportDiscardLimit(runner, c, p, total) {
+  if (p.discarded <= 10 * p.cases) {
+    return false;
+  }
+  runner.emit(
+    result(c, {
+      status: 1,
+      trapped: false,
+      stdout: "",
+      stderr: `the property discarded ${p.discarded} cases, more than 10 times its ${p.cases} cases\n`,
+      us: total,
+    }),
+  );
+  return true;
 }
 
 // Runs a property case to its end and reports it in one record.
 async function runProperty({ runner, c, ctl, first, firstResult }) {
   const p = ctl.prop;
   let k = 1;
-  let total = firstResult.us;
+  const timing = { total: firstResult.us };
   const again = async (pending, reuse = false) => {
     p.pending = pending;
     const run = new Run();
     const r = await runner.runOnce(c, k++, ctl.hooks(run), reuse);
-    total += r.us;
+    timing.total += r.us;
     return { run, r, outcome: outcome(run, r), reused: reuse };
   };
   let current = { run: first, r: firstResult, outcome: outcome(first, firstResult) };
   for (;;) {
-    let { run, outcome: o } = current;
+    const { run, outcome: o } = current;
     if (o === "ended") {
       break;
     }
     if (o === "fail") {
-      // An example is reported as it is; a generated or saved case is
-      // shrunk first.
-      if (current.reused && run.plan) {
-        p.retry = { ...run.plan, replay: [...run.draws] };
-        const replayed = await again(null);
-        if (replayed.outcome === "pass" || replayed.outcome === "discard") {
-          const ended = replayed.outcome === "pass" ? "passed" : "was discarded";
-          const failure = `input ${run.shown ?? ""} (seed ${run.plan.seed}) failed only after earlier cases ran in the same instance and ${ended} when replayed in a fresh instance; the property depends on state left by earlier cases`;
-          runner.emit(
-            result(
-              c,
-              { ...current.r, status: 1, trapped: false, us: total, failure },
-              { input: run.shown ?? "" },
-            ),
-          );
-          return;
-        }
-        current = replayed;
-        run = current.run;
-      }
-      let failing = current;
-      if (run.plan && run.plan.kind !== "example") {
-        const size = run.plan.size;
-        const attempt = async (stream) => {
-          const got = await again({ replay: stream, size, kind: "shrink" });
-          return got.outcome === "fail" ? got : null;
-        };
-        failing = await shrink(current, attempt, p.shrink);
-        if (p.regression) {
-          runner.files.write(p.regression.file, failing.run.draws.map((v) => `${v}\n`).join(""));
-        }
-      }
-      const r = { ...failing.r, us: total };
-      runner.emit(result(c, r, { input: failing.run.shown ?? "" }));
+      await reportPropertyFailure({ runner, c, p, current, again, timing });
       return;
     }
     if (o === "discard") {
       p.discarded += 1;
-      if (p.discarded > 10 * p.cases) {
-        runner.emit(
-          result(c, {
-            status: 1,
-            trapped: false,
-            stdout: "",
-            stderr: `the property discarded ${p.discarded} cases, more than 10 times its ${p.cases} cases\n`,
-            us: total,
-          }),
-        );
+      if (reportDiscardLimit(runner, c, p, timing.total)) {
         return;
       }
     } else if (o === "pass" && run.plan && run.plan.kind === "fresh") {
@@ -526,7 +565,7 @@ async function runProperty({ runner, c, ctl, first, firstResult }) {
     }
     current = await again(null, o === "pass");
   }
-  runner.emit(result(c, { ...firstResult, status: 0, trapped: false, us: total }));
+  runner.emit(result(c, { ...firstResult, status: 0, trapped: false, us: timing.total }));
 }
 
 // Runs the cases of `options.config` from `start` (a case index, and for a
