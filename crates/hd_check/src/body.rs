@@ -4978,7 +4978,10 @@ impl Ck<'_, '_> {
         }
         // A reported mismatch may leave a value of another type behind
         // (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
-        let errors = self.diags.has_errors();
+        // A poisoned name carries an earlier module diagnostic rather than
+        // adding one to this body's buffer, but recovery may leave the same
+        // mismatched store as a body-local type error.
+        let errors = self.diags.has_errors() || self.read_poison_name;
         let tolerated: &[u8] = if errors { &[4] } else { &[] };
         // The backend sees `&T` as the data type `Ref[T]` and `*T` as
         // `Counted[T]` (`refs.rs`).

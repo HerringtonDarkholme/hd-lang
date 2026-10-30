@@ -12,6 +12,8 @@ use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
+use crate::type_default_written_run::codes_of;
+
 const DECLS: &str = "struct Fixed[T, N < const usize]:
     value: T
 
@@ -119,4 +121,16 @@ fn a_build_stops_before_instances() {
         collect.first_reason.as_deref(),
         Some("const generic parameters")
     );
+}
+
+#[test]
+fn a_failed_use_in_a_type_argument_does_not_reach_tir_verification() {
+    let head = "use std.text.{Nope}\n\nstruct Fixed[T, N < const usize]:\n    value: T\n\nstruct Plain[T]:\n    value: T\n\n";
+    for (ty, value) in [
+        ("Fixed[Nope, 4]", "Fixed { value: 1 }"),
+        ("Plain[Nope]", "Plain { value: 1 }"),
+    ] {
+        let main = format!("{head}fn broken() -> void:\n    let value: {ty} = {value}\n");
+        assert_eq!(codes_of(&main), [Code::UnknownImport], "{ty}");
+    }
 }

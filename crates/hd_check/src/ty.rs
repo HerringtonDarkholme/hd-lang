@@ -236,7 +236,10 @@ impl Ck<'_, '_> {
                         elsewhere = true;
                         ConstName::Poison
                     }
-                    Some(Named::Poison) => ConstName::Poison,
+                    Some(Named::Poison) => {
+                        self.read_poison_name = true;
+                        ConstName::Poison
+                    }
                     _ => ConstName::Unknown,
                 }
             };
@@ -465,6 +468,7 @@ impl Ck<'_, '_> {
             }
         }
         if self.is_poison_name(&segs[0]) {
+            self.read_poison_name = true;
             return Ok(Ty::POISON);
         }
         let Some(def) = self.resolve_path(&segs) else {
