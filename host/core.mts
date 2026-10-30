@@ -43,6 +43,7 @@
 //   at the import call sites, and rebuilds itself from a journal
 //   (journal.mts), as `hd_run_wasmtime`'s session does.
 import { shortest, fixed, lower, upper, parse } from "./float.mts";
+import { bindPackageRuntime } from "./core-package.mts";
 import { WireHttpError as HttpError, METHODS } from "./gen/abi.mts";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mts";
 export {
@@ -924,6 +925,82 @@ function createStepDriver(
   };
 }
 
+function coreState(env: CoreEnv, layer: Dynamic): Dynamic {
+  const module = env.module;
+  return {
+    args: env.args ?? [],
+    program: env.program ?? "",
+    grant: createGrant(env.grants ?? {}, layer?.resolveTarget, layer?.sep),
+    seed: env.seed ?? null,
+    st: initialState(env, layer),
+    module,
+    reportsCycles:
+      module instanceof WebAssembly.Module &&
+      WebAssembly.Module.customSections(module, "hd.cycles").length === 1,
+  };
+}
+
+function buildCoreImports(options: Dynamic): Dynamic {
+  const {
+    env,
+    layer,
+    sink,
+    st,
+    grant,
+    flush,
+    left,
+    program,
+    args,
+    view,
+    text,
+    put,
+    pending,
+    finished,
+    complete,
+    nextDeadline,
+    deadlock,
+    until,
+    overran,
+  } = options;
+  const providers: Record<string, Record<string, ProviderFunction>> = {
+    "hd:Console": consoleProvider({ st, sink, flush, grant }),
+    "hd:Clock": clockProvider(),
+    "hd:Random": randomProvider(st.random),
+    "hd:Args": argsProvider({ program, args }),
+    "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
+    "hd:PropertyRunner": propertyRunnerProvider({ env }),
+  };
+  // The platform layer's providers; a module it names extends the core's
+  // provider for that module rather than replacing it.
+  const platform: Dynamic = layer?.providers({ env, sink, st, grant, flush, left }) ?? null;
+  for (const [module, provider] of Object.entries(platform?.traits ?? {})) {
+    providers[module] = {
+      ...providers[module],
+      ...(provider as Record<string, ProviderFunction>),
+    };
+  }
+  const imports: DynamicRecord = {
+    "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
+    "hd:prim": primImports({ put, text, env }),
+  };
+  const io: DynamicRecord = {
+    view,
+    text,
+    put,
+    pending,
+    finished,
+    prepare: pendingOperation,
+    prepared: (value: Dynamic) => (value instanceof Later ? value : null),
+  };
+  for (const [module, provider] of Object.entries(providers)) {
+    imports[module] = traitImports(module, provider, io);
+  }
+  if (env.providers) {
+    Object.assign(imports, env.providers({ put, Enc, pending, finish: options.finish }));
+  }
+  return { imports, io, platform };
+}
+
 // One host per instance: `sink.out(text)` and `sink.err(text)` receive the
 // program's standard output and standard error. `env` holds what the
 // providers hand out: `args` and `program` for `Args`, `grants` for the
@@ -942,18 +1019,10 @@ function createStepDriver(
 // that threads share.
 /* oxlint-disable max-lines-per-function -- one host lifetime owns these closures. */
 export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = null): Host {
-  const args = env.args ?? [];
-  const program = env.program ?? "";
-  const grant = createGrant(env.grants ?? {}, layer?.resolveTarget, layer?.sep);
-  const seed = env.seed ?? null;
+  const { args, program, grant, seed, st, module, reportsCycles } = coreState(env, layer);
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case
   // files, pending operations, output, and noticed names.
-  const st = initialState(env, layer);
-  const module = env.module;
-  const reportsCycles =
-    module instanceof WebAssembly.Module &&
-    WebAssembly.Module.customSections(module, "hd.cycles").length === 1;
   const writeCycleReport = async (instance: WebAssembly.Instance): Promise<void> => {
     if (!reportsCycles) {
       return;
@@ -1077,93 +1146,40 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // The milliseconds left before the deadline. A provider that waits
   // inside its `.start` throws `TimeLimit` when none are left.
   const left = (): number => (st.deadline === null ? Infinity : st.deadline - performance.now());
-  const providers: Record<string, Record<string, ProviderFunction>> = {
-    "hd:Console": consoleProvider({ st, sink, flush, grant }),
-    "hd:Clock": clockProvider(),
-    "hd:Random": randomProvider(st.random),
-    "hd:Args": argsProvider({ program, args }),
-    "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
-    "hd:PropertyRunner": propertyRunnerProvider({ env }),
-  };
-
-  // The platform layer's providers; a module it names extends the core's
-  // provider for that module rather than replacing it.
-  const platform: Dynamic = layer?.providers({ env, sink, st, grant, flush, left }) ?? null;
-  for (const [module, provider] of Object.entries(platform?.traits ?? {})) {
-    providers[module] = {
-      ...providers[module],
-      ...(provider as Record<string, ProviderFunction>),
-    };
-  }
-  const imports: DynamicRecord = {
-    "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
-    "hd:prim": primImports({ put, text, env }),
-  };
-  const io: DynamicRecord = {
+  const { imports, io, platform } = buildCoreImports({
+    env,
+    layer,
+    sink,
+    st,
+    grant,
+    flush,
+    left,
+    program,
+    args,
     view,
     text,
     put,
     pending,
     finished,
-    prepare: pendingOperation,
-    prepared: (value: Dynamic) => (value instanceof Later ? value : null),
-  };
-  for (const [module, provider] of Object.entries(providers)) {
-    imports[module] = traitImports(module, provider, io);
-  }
-
-  // A runtime profile's own providers (`env.providers`, profiles.mjs):
-  // `pending` registers a wait the driver wakes, `finish` drops one.
-  if (env.providers) {
-    Object.assign(imports, env.providers({ put, Enc, pending, finish }));
-  }
-
+    finish,
+    complete,
+    nextDeadline,
+    deadlock,
+    until,
+    overran,
+  });
   // Invoker-selected package providers use signature-generated glue. A guest
   // descriptor is data only: it never selects or loads a JavaScript module.
-  let packageRuntime: Dynamic = null;
-  if (env.packageBindings) {
-    // A narrow policy view for SDK-owned outgoing Http handles. Reuse the
-    // core's resolved grant, never a provider's reconstructed policy table.
-    const http = Object.freeze({
-      coversHost: (host: string, port: number) => grant.coversHost("Http", host, port),
-      isAsciiUrl,
-      writtenHost,
-    });
-    const console = Object.freeze({ allows: () => grant.allows("Console") });
-    if (typeof env.createPackageRuntime !== "function") {
-      throw new HostContract("package host runtime was not supplied");
-    }
-    packageRuntime = env.createPackageRuntime({ ...io, http, console }, env);
-    try {
-      Object.assign(imports, env.packageBindings(packageRuntime));
-    } catch (error) {
-      packageRuntime.close();
-      platform?.close?.();
-      throw error;
-    }
-  } else if (env.module) {
-    try {
-      const sections = WebAssembly.Module.customSections(env.module, "hd.capabilities");
-      if (sections.length > 1) {
-        throw new HostContract("duplicate package host contracts");
-      }
-      if (sections.length) {
-        if (typeof env.readPackageContract !== "function") {
-          throw new HostContract("package host contract reader was not supplied");
-        }
-        const required = env.readPackageContract(new Uint8Array(sections[0]));
-        const i = required.find((item: Dynamic) => !item.handle) ?? required[0];
-        if (i) {
-          throw new HostContract(
-            `missing package host provider for ${i.identity.package}@${i.identity.version}/${i.identity.trait_path}; register it explicitly`,
-          );
-        }
-      }
-    } catch (error) {
-      platform?.close?.();
-      throw error;
-    }
-  }
+  const packageRuntime = bindPackageRuntime({
+    env,
+    module,
+    io,
+    imports,
+    grant,
+    platform,
+    isAsciiUrl,
+    writtenHost,
+  });
 
   // Points the host at `instance`'s memory, for a driver that calls the
   // exports itself instead of `run` (a scenario's drivers): reports and
