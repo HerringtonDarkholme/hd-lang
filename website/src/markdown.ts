@@ -355,13 +355,15 @@ export function createMarkdown(): MarkdownIt {
     return `<a class="rule-id" id="${anchor}" href="#${anchor}" title="Rule ${escapeHtml(id)}">${escapeHtml(id)}</a>`;
   };
 
-  md.renderer.rules.heading_open = (tokens, index, options, _env, self) => {
+  md.renderer.rules.heading_open = (...args) => {
+    const [tokens, index, options, _env, self] = args;
     const id = String(tokens[index]!.attrGet("id") ?? "");
     const anchor = `<a class="heading-anchor" href="#${escapeHtml(id)}" aria-label="Link to this section">#</a>`;
     return self.renderToken(tokens, index, options) + anchor;
   };
 
-  md.renderer.rules.link_open = (tokens, index, options, env, self) => {
+  md.renderer.rules.link_open = (...args) => {
+    const [tokens, index, options, env, self] = args;
     const token = tokens[index]!;
     const renderEnv = asRenderEnv(env);
     const href = token.attrGet("href");

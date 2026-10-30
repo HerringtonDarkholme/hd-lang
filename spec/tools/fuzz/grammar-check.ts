@@ -61,7 +61,7 @@ try {
     const path = join(work, `${index}.hd`);
     writeFileSync(path, source);
     const outcome = classify(
-      await invoke(compiler, "parse", path, [], 10_000),
+      await invoke({ command: compiler, action: "parse", path, options: [], timeoutMs: 10_000 }),
       "parse",
       path,
       inventory,

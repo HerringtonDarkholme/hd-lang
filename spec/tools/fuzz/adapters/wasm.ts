@@ -79,7 +79,14 @@ export async function validateBuild(
   const copy = join(sources, "main.hd");
   copyFileSync(path, copy);
   path = copy;
-  const built = await invoke(absoluteCommand(command), "build", path, [], timeoutMs, sources);
+  const built = await invoke({
+    command: absoluteCommand(command),
+    action: "build",
+    path,
+    options: [],
+    timeoutMs,
+    cwd: sources,
+  });
   if (built.timedOut || built.signal || built.code !== 0) {
     return {
       detail: messageLabel(`${built.stdout}\n${built.stderr}`, path),

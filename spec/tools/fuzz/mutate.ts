@@ -123,13 +123,19 @@ function cloneLine(line: Line): Line {
  * Applies one mutation in place. Returns false when the mutation had nothing to act on.
  * `vocabulary` supplies insertable tokens (EBNF literals); `donors` supplies spliced lines.
  */
-function applyMutation(
-  lines: Line[],
-  name: MutationName,
-  rng: Rng,
-  vocabulary: readonly string[],
-  donors: readonly Line[],
-): boolean {
+function applyMutation({
+  lines,
+  name,
+  rng,
+  vocabulary,
+  donors,
+}: {
+  lines: Line[];
+  name: MutationName;
+  rng: Rng;
+  vocabulary: readonly string[];
+  donors: readonly Line[];
+}): boolean {
   const slots = tokenSlots(lines);
   const nonEmpty = codeLines(lines);
   if (slots.length === 0 || nonEmpty.length === 0) {
@@ -242,7 +248,7 @@ export function mutate(
   const operators: MutationName[] = [];
   for (let attempt = 0; operators.length < count && attempt < count * 4; attempt += 1) {
     const name = rng.pick(mutationNames);
-    if (applyMutation(lines, name, rng, vocabulary, donors)) {
+    if (applyMutation({ lines, name, rng, vocabulary, donors })) {
       operators.push(name);
     }
   }

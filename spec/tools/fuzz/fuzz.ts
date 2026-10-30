@@ -296,14 +296,14 @@ class Executor {
     let found = this.outcomes.get(key);
     if (!found) {
       const path = this.file(source);
-      found = invoke(
-        this.options.compilers[compiler]!,
+      found = invoke({
+        command: this.options.compilers[compiler]!,
         action,
         path,
         // `check` covers test code only with `--tests` (conformance README, Command Contract).
-        action === "check" ? ["--tests"] : [],
-        this.options.timeoutMs,
-      ).then((result) => {
+        options: action === "check" ? ["--tests"] : [],
+        timeoutMs: this.options.timeoutMs,
+      }).then((result) => {
         this.calls += 1;
         this.callMs += result.ms;
         return classify(result, action, path, this.inventory);
@@ -326,13 +326,13 @@ class Executor {
       mkdirSync(directory, { recursive: true });
       const path = join(directory, "case.hd");
       writeFileSync(path, source);
-      found = invoke(
-        this.options.compilers[compiler]!,
-        "fmt",
+      found = invoke({
+        command: this.options.compilers[compiler]!,
+        action: "fmt",
         path,
-        [],
-        this.options.timeoutMs,
-      ).then((result) => {
+        options: [],
+        timeoutMs: this.options.timeoutMs,
+      }).then((result) => {
         this.calls += 1;
         this.callMs += result.ms;
         const outcome = classify(result, "fmt", path, this.inventory);

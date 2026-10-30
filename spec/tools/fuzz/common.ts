@@ -66,14 +66,21 @@ export function splitCommand(value: string): string[] {
   return parts;
 }
 
-export function invoke(
-  command: readonly string[],
-  action: Action,
-  path: string,
-  options: readonly string[],
-  timeoutMs: number,
-  cwd: string = repoRoot,
-): Promise<CommandResult> {
+export function invoke({
+  command,
+  action,
+  path,
+  options,
+  timeoutMs,
+  cwd = repoRoot,
+}: {
+  command: readonly string[];
+  action: Action;
+  path: string;
+  options: readonly string[];
+  timeoutMs: number;
+  cwd?: string;
+}): Promise<CommandResult> {
   const started = performance.now();
   return new Promise((complete) => {
     const words = action === "run" ? [] : [action];

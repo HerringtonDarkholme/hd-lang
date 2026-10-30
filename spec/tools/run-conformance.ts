@@ -529,13 +529,19 @@ async function adapterImplementation(module: string, jobs: number): Promise<Impl
  * undefined. `runner` goes to the adapter, not to the command line; `flags`
  * are the command's own options.
  */
-function invoke(
-  implementation: Implementation,
-  action: string | undefined,
-  flags: readonly string[],
-  file: string,
-  runner: RunnerOptions = {},
-): Promise<CommandResult> {
+function invoke({
+  implementation,
+  action,
+  flags,
+  file,
+  runner = {},
+}: {
+  implementation: Implementation;
+  action: string | undefined;
+  flags: readonly string[];
+  file: string;
+  runner?: RunnerOptions;
+}): Promise<CommandResult> {
   return implementation.run(
     [...(action === undefined ? [] : [action]), ...flags, file],
     timeoutMs,
@@ -612,13 +618,19 @@ function panicReports(result: CommandResult, panics: Set<string>): string[] {
 // Applies the Command Contract's exit rules. Returns a failure reason or
 // undefined when the result is a well-formed 0, 101 (rejection), or 1 (a
 // failed test case).
-async function contractViolation(
-  result: CommandResult,
-  file: string,
-  panics: Set<string>,
-  tree?: string,
+async function contractViolation({
+  result,
+  file,
+  panics,
+  tree,
   entryRun = false,
-): Promise<string | undefined> {
+}: {
+  result: CommandResult;
+  file: string;
+  panics: Set<string>;
+  tree?: string;
+  entryRun?: boolean;
+}): Promise<string | undefined> {
   if (result.error) {
     return `could not start the implementation: ${result.error}`;
   }
@@ -659,13 +671,19 @@ function describe(entries: readonly Located[]): string {
     .join(", ");
 }
 
-async function judgeRejectOrWarn(
-  result: CommandResult,
-  file: string,
-  row: IndexRow,
-  line: number,
-  tree?: string,
-): Promise<string | undefined> {
+async function judgeRejectOrWarn({
+  result,
+  file,
+  row,
+  line,
+  tree,
+}: {
+  result: CommandResult;
+  file: string;
+  row: IndexRow;
+  line: number;
+  tree?: string;
+}): Promise<string | undefined> {
   const [kind, code] = row.expectation.split(":") as [string, string];
   const located = await locatedDiagnostics(result, file, tree);
   // A package tree case judges the code, not the line (README, Package Trees).
@@ -791,14 +809,14 @@ async function runCase(
 
   if (row.phase !== "runtime") {
     const action = row.phase === "parse" ? "parse" : "check";
-    const result = await invoke(
+    const result = await invoke({
       implementation,
       action,
-      action === "check" ? ["--tests"] : [],
+      flags: action === "check" ? ["--tests"] : [],
       file,
       runner,
-    );
-    const violation = await contractViolation(result, file, panics, tree);
+    });
+    const violation = await contractViolation({ result, file, panics, tree });
     if (violation) {
       return fail(`${action}: ${violation}`, [result]);
     }
@@ -810,15 +828,27 @@ async function runCase(
     if (row.expectation.startsWith("panic:")) {
       return { path: row.path, reason: `${row.phase}-phase case cannot expect a panic` };
     }
-    const problem = await judgeRejectOrWarn(result, file, row, fixture.markerLine!, tree);
+    const problem = await judgeRejectOrWarn({
+      result,
+      file,
+      row,
+      line: fixture.markerLine!,
+      tree,
+    });
     return problem ? fail(`${action}: ${problem}`, [result]) : { path: row.path };
   }
 
   if (row.expectation.startsWith("reject:") || row.expectation.startsWith("warn:")) {
     return { path: row.path, reason: `runtime case cannot expect ${row.expectation}` };
   }
-  const checked = await invoke(implementation, "check", ["--tests"], file, runner);
-  const checkViolation = await contractViolation(checked, file, panics, tree);
+  const checked = await invoke({
+    implementation,
+    action: "check",
+    flags: ["--tests"],
+    file,
+    runner,
+  });
+  const checkViolation = await contractViolation({ result: checked, file, panics, tree });
   if (checkViolation) {
     return fail(`check: ${checkViolation}`, [checked]);
   }
@@ -830,14 +860,20 @@ async function runCase(
   const tests = registersTestCase(source, fixture);
   const ordinary = (options: RunnerOptions): Promise<CommandResult> =>
     tests
-      ? invoke(implementation, "test", [], file, options)
-      : invoke(implementation, undefined, [], file, options);
+      ? invoke({ implementation, action: "test", flags: [], file, runner: options })
+      : invoke({ implementation, action: undefined, flags: [], file, runner: options });
   const step = tests ? "test" : "run";
   // The pending-first-poll scenario must give the ordinary run's result, so
   // the ordinary run comes first (README, Runtime Scenarios).
   if (fixture.scenario === "pending-first-poll") {
     const first = await ordinary(runner);
-    const firstViolation = await contractViolation(first, file, panics, tree, !tests);
+    const firstViolation = await contractViolation({
+      result: first,
+      file,
+      panics,
+      tree,
+      entryRun: !tests,
+    });
     if (firstViolation) {
       return fail(`${step}: ${firstViolation}`, [checked, first]);
     }
@@ -854,10 +890,16 @@ async function runCase(
   // so it runs as `test` whatever the fixture registers.
   const scenarioRun = fixture.scenario !== undefined && fixture.scenario !== "pending-first-poll";
   const tested = scenarioRun
-    ? await invoke(implementation, "test", [], file, testRunner)
+    ? await invoke({ implementation, action: "test", flags: [], file, runner: testRunner })
     : await ordinary(testRunner);
   const entryOnly = !tests && !scenarioRun;
-  const testViolation = await contractViolation(tested, file, panics, tree, entryOnly);
+  const testViolation = await contractViolation({
+    result: tested,
+    file,
+    panics,
+    tree,
+    entryRun: entryOnly,
+  });
   const ran = scenarioRun ? "test" : step;
   if (testViolation) {
     return fail(`${ran}: ${testViolation}`, [checked, tested]);
@@ -871,8 +913,10 @@ async function runCase(
     }
     // `IMPL FILE`: run the fixture as a single file (Command Contract). An
     // entry-only fixture's run is that run.
-    const single = entryOnly ? tested : await invoke(implementation, undefined, [], file);
-    const runViolation = await contractViolation(single, file, panics);
+    const single = entryOnly
+      ? tested
+      : await invoke({ implementation, action: undefined, flags: [], file });
+    const runViolation = await contractViolation({ result: single, file, panics });
     if (runViolation) {
       return fail(`run: ${runViolation}`, [single]);
     }
