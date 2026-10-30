@@ -1,7 +1,7 @@
 // The Node startup selector. Programs whose only host imports are the two
 // panic-reporting leaves run without loading the provider host; every other
 // program gets node.mjs unchanged.
-import { CANCEL_STATUS, HostContract, PROGRAM_TIME_LIMIT } from "./run-support.mjs";
+import { CANCEL_STATUS, HostContract, PROGRAM_TIME_LIMIT } from "./run-support.mts";
 
 const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 const wasmFrames = (error) =>

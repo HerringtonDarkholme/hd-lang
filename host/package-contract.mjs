@@ -1,7 +1,7 @@
 // Decode the compiler's package-host data section without loading provider
 // codecs. Ordinary programs need this validation but never instantiate a
 // package runtime.
-import { HostContract } from "./wire.mjs";
+import { HostContract } from "./wire.mts";
 
 const fail = (message) => {
   throw new HostContract(`package host: ${message}`);

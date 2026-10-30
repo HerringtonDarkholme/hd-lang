@@ -13,7 +13,7 @@
 // write would block.
 import { receiveReply } from "./worker-control.mjs";
 import { failed, full } from "./output-worker.mjs";
-import { Ok } from "./wire.mjs";
+import { Ok } from "./wire.mts";
 
 // Builtins come from `process.getBuiltinModule`, which skips the ESM
 // facade an `import` builds (node.mjs).

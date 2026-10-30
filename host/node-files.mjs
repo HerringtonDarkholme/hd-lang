@@ -1,8 +1,8 @@
 // Node-specific path, host-name and file-operation helpers. This module is
 // deliberately below `node.mjs`: capability workers import it without
 // evaluating the host that starts those workers.
-import { FsError, METHODS, Path } from "./gen/abi.mjs";
-import { Err, Ok, variant } from "./wire.mjs";
+import { FsError, METHODS, Path } from "./gen/abi.mts";
+import { Err, Ok, variant } from "./wire.mts";
 
 const {
   appendFileSync,

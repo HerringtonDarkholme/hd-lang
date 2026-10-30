@@ -7,7 +7,7 @@ import { serve } from "./worker-control.mjs";
 import { fork } from "node:child_process";
 import { parentPort, Worker, workerData } from "node:worker_threads";
 import { fileOperation } from "./node-files.mjs";
-import { Err } from "./wire.mjs";
+import { Err } from "./wire.mts";
 
 if (workerData?.port) {
   const operations = new Map();

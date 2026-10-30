@@ -58,19 +58,19 @@ const OUTPUT_WORKER: &str = include_str!("../../../host/output-worker.mjs");
 /// Correlated replies shared by the Node control clients and workers.
 const WORKER_CONTROL: &str = include_str!("../../../host/worker-control.mjs");
 /// The float text of the host primitives (`core.mjs` imports it).
-const FLOAT: &str = include_str!("../../../host/float.mjs");
+const FLOAT: &str = include_str!("../../../host/float.mts");
 /// A REPL session's journal of host calls (`core.mjs` imports it).
 const JOURNAL: &str = include_str!("../../../host/journal.mjs");
 /// Dependency-free entry-driver constants and cancellation helpers.
-const RUN_SUPPORT: &str = include_str!("../../../host/run-support.mjs");
+const RUN_SUPPORT: &str = include_str!("../../../host/run-support.mts");
 /// The exchange-buffer encoding the hosts' codecs are built on.
-const WIRE: &str = include_str!("../../../host/wire.mjs");
+const WIRE: &str = include_str!("../../../host/wire.mts");
 /// The lightweight decoder for a package-host custom section.
 const PACKAGE_CONTRACT: &str = include_str!("../../../host/package-contract.mjs");
 /// The checked helpers called by generated package host bindings.
 const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.mjs");
 /// The codecs and method descriptors generated from the ABI model.
-const ABI: &str = include_str!("../../../host/gen/abi.mjs");
+const ABI: &str = include_str!("../../../host/gen/abi.mts");
 
 /// Node as the engine. `trace` receives the Wasm frames of a trap the run
 /// ended in, innermost first, which the caller symbolizes
@@ -274,13 +274,13 @@ impl Scratch {
             ("output.mjs", OUTPUT),
             ("output-worker.mjs", OUTPUT_WORKER),
             ("worker-control.mjs", WORKER_CONTROL),
-            ("float.mjs", FLOAT),
+            ("float.mts", FLOAT),
             ("journal.mjs", JOURNAL),
-            ("run-support.mjs", RUN_SUPPORT),
-            ("wire.mjs", WIRE),
+            ("run-support.mts", RUN_SUPPORT),
+            ("wire.mts", WIRE),
             ("package-contract.mjs", PACKAGE_CONTRACT),
             ("package-providers.mjs", PACKAGE_PROVIDERS),
-            ("gen/abi.mjs", ABI),
+            ("gen/abi.mts", ABI),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
         }

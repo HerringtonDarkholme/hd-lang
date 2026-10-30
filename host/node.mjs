@@ -9,7 +9,7 @@
 // module.profile.panic-status).
 
 import { receiveReply } from "./worker-control.mjs";
-export { exitPast } from "./run-support.mjs";
+export { exitPast } from "./run-support.mts";
 import {
   createCoreHost,
   createGrant as createCoreGrant,
@@ -24,7 +24,7 @@ import {
   TimeLimit,
   timeLimitReport,
 } from "./core.mjs";
-import { METHODS, NetError, Path } from "./gen/abi.mjs";
+import { METHODS, NetError, Path } from "./gen/abi.mts";
 import {
   beforeDotDot,
   fileOperation,
@@ -33,7 +33,7 @@ import {
   resolvePath,
   validHost,
 } from "./node-files.mjs";
-import { Err, Ok, variant } from "./wire.mjs";
+import { Err, Ok, variant } from "./wire.mts";
 
 // Builtins come from `process.getBuiltinModule`, not `import`: an ESM
 // import of a builtin builds its module facade, which for `node:fs` loads
@@ -643,7 +643,7 @@ const specialFile = (path) => {
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
 function fsProviders({ grant, flush, fsClient }) {
   // The methods `ops` of `module`, each `run` once the grant covers every
-  // path it names, its `Path` arguments (its resource, gen/abi.mjs). A
+  // path it names, its `Path` arguments (its resource, gen/abi.mts). A
   // special-file call is offloaded after these checks. Output is flushed
   // first (std-console.host.visible-text-sync). A method that
   // creates its directories keeps the OS's own rule for a `..` after a

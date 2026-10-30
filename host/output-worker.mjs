@@ -3,7 +3,7 @@
 // queue/status control requests. It imports only what it needs, so it boots
 // fast when a full pipe first needs it.
 import { postReply } from "./worker-control.mjs";
-import { Err, Ok } from "./wire.mjs";
+import { Err, Ok } from "./wire.mts";
 
 // Builtins come from `process.getBuiltinModule`, which skips the ESM
 // facade an `import` builds (node.mjs).

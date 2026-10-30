@@ -6,6 +6,12 @@ const relativeMts = /(["'])(\.\.?\/[^"'\r\n]*?)\.mts((?:[?#][^"'\r\n]*)?)\1/g;
 
 const fail = (message) => new Error(`host emission: ${message}`);
 
+function rewriteHostSpecifiers(javascript) {
+  return javascript.replace(relativeMts, (_, quote, path, suffix) => {
+    return `${quote}${path}.mjs${suffix}${quote}`;
+  });
+}
+
 function inside(root, path) {
   const rel = relative(root, path);
   return (
@@ -31,9 +37,7 @@ export function emitHostJavaScript(source, sourceName) {
   } catch (error) {
     throw fail(`cannot strip ${sourceName}: ${error.message}`);
   }
-  return javascript.replace(relativeMts, (_, quote, path, suffix) => {
-    return `${quote}${path}.mjs${suffix}${quote}`;
-  });
+  return rewriteHostSpecifiers(javascript);
 }
 
 /** Read a named host graph, emitting `.mts` inputs under their `.mjs` output names. */
@@ -47,10 +51,9 @@ export async function readHostSources(root, sources) {
     if (sourceName.endsWith(".mts")) {
       if (!name.endsWith(".mjs")) throw fail(`typed source output must end in .mjs: ${name}`);
       files[name] = emitHostJavaScript(text, sourceName);
-    } else if (
-      (sourceName.endsWith(".mjs") && name.endsWith(".mjs")) ||
-      (sourceName.endsWith(".json") && name.endsWith(".json"))
-    ) {
+    } else if (sourceName.endsWith(".mjs") && name.endsWith(".mjs")) {
+      files[name] = rewriteHostSpecifiers(text);
+    } else if (sourceName.endsWith(".json") && name.endsWith(".json")) {
       files[name] = text;
     } else {
       throw fail(`unsupported source/output pair: ${sourceName} -> ${name}`);

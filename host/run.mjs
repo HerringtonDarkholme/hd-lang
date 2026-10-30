@@ -46,7 +46,7 @@ import {
   exitPast,
   PROGRAM_TIME_LIMIT,
   reportIn,
-} from "./run-support.mjs";
+} from "./run-support.mts";
 
 // Builtins come from `process.getBuiltinModule`, which skips the ESM
 // facade an `import` builds (node.mjs).

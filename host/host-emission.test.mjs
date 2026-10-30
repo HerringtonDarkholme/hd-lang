@@ -24,16 +24,23 @@ test("typed host sources emit runnable plain .mjs without changing source", asyn
     await writeFile(join(source, "dependency.mts"), dependency);
     await writeFile(join(source, "entry.mts"), entry);
     await writeFile(join(source, "worker.mts"), "export const ready: boolean = true;\n");
+    await writeFile(join(source, "legacy.mjs"), 'export { answer } from "./entry.mts";\n');
     const graph = {
       "worker.mjs": "worker.mts",
       "entry.mjs": "entry.mts",
       "dependency.mjs": "dependency.mts",
+      "legacy.mjs": "legacy.mjs",
     };
 
     const first = await readHostSources(source, graph);
     const second = await readHostSources(source, graph);
     assert.deepEqual(first, second);
-    assert.deepEqual(Object.keys(first), ["dependency.mjs", "entry.mjs", "worker.mjs"]);
+    assert.deepEqual(Object.keys(first), [
+      "dependency.mjs",
+      "entry.mjs",
+      "legacy.mjs",
+      "worker.mjs",
+    ]);
     assert.doesNotMatch(first["entry.mjs"], /\.mts/);
     assert.doesNotMatch(first["entry.mjs"], /: Answer|type Answer/);
 
@@ -43,6 +50,7 @@ test("typed host sources emit runnable plain .mjs without changing source", asyn
     assert.equal(module.answer, 42);
     assert.equal((await module.load()).twice(4), 8);
     assert.equal(module.worker.search, "?kind=test");
+    assert.equal((await import(pathToFileURL(join(output, "legacy.mjs")))).answer, 42);
 
     await assert.rejects(emitHostSources(output, source, graph), { code: "EEXIST" });
     assert.equal(await access(join(output, "entry.mjs")), undefined);

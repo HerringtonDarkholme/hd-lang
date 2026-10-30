@@ -1,4 +1,4 @@
-import { Enc } from "../../../../host/wire.mjs";
+import { Enc } from "../../../../host/wire.mts";
 function value(e, [tag, a, b]) {
   e.leb(tag);
   const fields = (fs) => {

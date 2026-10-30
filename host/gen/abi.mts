@@ -1,7 +1,7 @@
 // The host ABI's JS codecs and method descriptors, generated from the
 // ABI model (host/gen/abi.json) by crates/hd_host_abi/tests/abi_model.rs.
 // Do not edit: `HD_BLESS=1 cargo test -p hd_host_abi --test
-// abi_model` rewrites it. host/wire.mjs says how each value crosses.
+// abi_model` rewrites it. host/wire.mts says how each value crosses.
 import {
   bytes,
   data,
@@ -18,7 +18,7 @@ import {
   unsigned,
   unsigned64,
   variants,
-} from "../wire.mjs";
+} from "../wire.mts";
 
 // Each std type a host method crosses, from its declaration in lib/std.
 export const JsonError = variants({

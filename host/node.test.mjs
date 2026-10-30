@@ -30,8 +30,8 @@ import {
   pendingOperation,
   TimeLimit,
 } from "./core.mjs";
-import { Dec, Enc, Err, HostContract, Ok, str } from "./wire.mjs";
-import { ConsoleError, METHODS } from "./gen/abi.mjs";
+import { Dec, Enc, Err, HostContract, Ok, str } from "./wire.mts";
+import { ConsoleError, METHODS } from "./gen/abi.mts";
 
 import { cgroupCpuCount, createHost, syncClient } from "./node.mjs";
 import { createOutput } from "./output.mjs";
@@ -1444,13 +1444,13 @@ async function heldLookupHost(t) {
     "output-worker.mjs",
     "worker-control.mjs",
     "checked-report.mjs",
-    "float.mjs",
+    "float.mts",
     "journal.mjs",
-    "run-support.mjs",
-    "wire.mjs",
+    "run-support.mts",
+    "wire.mts",
     "package-contract.mjs",
     "package-providers.mjs",
-    "gen/abi.mjs",
+    "gen/abi.mts",
   ]) {
     mkdirSync(dirname(join(root, name)), { recursive: true });
     copyFileSync(new URL(`./${name}`, import.meta.url), join(root, name));

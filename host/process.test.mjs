@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
 import net from "node:net";
-import { Dec, Enc, Err, Ok, str } from "./wire.mjs";
-import { METHODS } from "./gen/abi.mjs";
+import { Dec, Enc, Err, Ok, str } from "./wire.mts";
+import { METHODS } from "./gen/abi.mts";
 import { createHost, syncClient } from "./node.mjs";
 
 // Exercise the Windows worker branch on every OS without changing the

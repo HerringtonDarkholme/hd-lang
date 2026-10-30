@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { HostContract } from "./run-support.mjs";
+import { HostContract } from "./run-support.mts";
 import { createStartupHost } from "./startup.mjs";
-import { Dec } from "./wire.mjs";
+import { Dec } from "./wire.mts";
 
 const module = new WebAssembly.Module(
   Uint8Array.from([

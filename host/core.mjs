@@ -1,7 +1,7 @@
 // The platform-neutral core of the JS host (V8 in Node, and browsers): the
 // import object of the ABI in `hd_host_abi` (crates/hd_run_wasmtime/DESIGN.md §17.2,
 // §17.10), built from the method descriptors and codecs generated from the
-// ABI model (gen/abi.mjs, over wire.mjs's encoding of §17.4); the providers
+// ABI model (gen/abi.mts, over wire.mts's encoding of §17.4); the providers
 // that need nothing from the platform (`Console`, `Clock`, `Random`,
 // `Args`, `rt`, `prim`, and the test and property runners' hooks); and the
 // entry driver of crates/hd_wasm_linear/DESIGN.md §14.4. It uses web-standard APIs
@@ -9,7 +9,7 @@
 // the machine by passing `layer` to `createCoreHost`.
 //
 // - A provider is a host trait's methods as JS functions by name: each
-//   takes its arguments and returns its result as plain values (wire.mjs
+//   takes its arguments and returns its result as plain values (wire.mts
 //   says which), and `traitImports` makes the imports of §17.2 around it.
 //   A method that never waits is one import; one that may wait is
 //   `.start`, which returns `[status, value]`, then `.finish(h)`. Status 0:
@@ -42,17 +42,17 @@
 //   in one growing set of instances, records a journal of its host calls
 //   at the import call sites, and rebuilds itself from a journal
 //   (journal.mjs), as `hd_run_wasmtime`'s session does.
-import { shortest, fixed, lower, upper, parse } from "./float.mjs";
-import { WireHttpError as HttpError, METHODS } from "./gen/abi.mjs";
-import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mjs";
+import { shortest, fixed, lower, upper, parse } from "./float.mts";
+import { WireHttpError as HttpError, METHODS } from "./gen/abi.mts";
+import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mts";
 export {
   CANCEL_STATUS,
   entryCancel,
   factHead,
   PROGRAM_TIME_LIMIT,
   reportIn,
-} from "./run-support.mjs";
-import { CANCEL_STATUS, factHead, PROGRAM_TIME_LIMIT, reportIn } from "./run-support.mjs";
+} from "./run-support.mts";
+import { CANCEL_STATUS, factHead, PROGRAM_TIME_LIMIT, reportIn } from "./run-support.mts";
 
 export { HostContract };
 
@@ -365,7 +365,7 @@ function argsDecoder(m, view, text) {
 
 // The imports of the host trait module `module` (§17.2) around `provider`,
 // its methods' JS functions by name, as its generated descriptors
-// (gen/abi.mjs `METHODS`) shape them. `io` reads and writes the exchange
+// (gen/abi.mts `METHODS`) shape them. `io` reads and writes the exchange
 // buffer and keeps the pending operations.
 function traitImports(module, provider, { view, text, put, pending, finished }) {
   const out = {};

@@ -18,7 +18,17 @@
 // result owes nothing to `Number.prototype.toString` or `toFixed`.
 
 // The two widths: the significand's stored bits and the exponent bias.
-const WIDTH = {
+type FloatWidth = 32 | 64;
+
+interface FloatParts {
+  negative: boolean;
+  f: bigint;
+  e: number;
+  min: number;
+  hidden: bigint;
+}
+
+const WIDTH: Record<FloatWidth, { mantissa: number; bias: number }> = {
   32: { mantissa: 23, bias: 127 },
   64: { mantissa: 52, bias: 1023 },
 };
@@ -26,7 +36,7 @@ const WIDTH = {
 // The sign bit, and the value `f * 2**e` of a finite `value` with the
 // significand `f` (an integer) and the smallest exponent `min` of its
 // width, which the subnormals share.
-function split(value, width) {
+function split(value: number, width: FloatWidth): FloatParts {
   const { mantissa, bias } = WIDTH[width];
   const view = new DataView(new ArrayBuffer(8));
   let bits;
@@ -62,13 +72,13 @@ function split(value, width) {
 // read back as this one reaches halfway to each neighbor, and includes
 // its ends exactly when the significand is even (round-to-nearest-even
 // reading).
-function digits({ f, e, min, hidden }) {
+function digits({ f, e, min, hidden }: FloatParts): { digits: string; k: number } {
   // The value is r / s; `up` and `down` are the distances to the halfway
   // points above and below, in the same unit.
-  let r;
-  let s;
-  let up;
-  let down;
+  let r: bigint;
+  let s: bigint;
+  let up: bigint;
+  let down: bigint;
   const narrow = f === hidden && e !== min; // the gap below is half the gap above
   if (e >= 0) {
     const scale = 1n << BigInt(e);
@@ -133,7 +143,7 @@ function digits({ f, e, min, hidden }) {
 }
 
 // The Display text of a float of the given width (32 or 64).
-export function shortest(value, width) {
+export function shortest(value: number, width: FloatWidth): string {
   if (value !== value) {
     return "NaN";
   }
@@ -166,7 +176,7 @@ export function shortest(value, width) {
 // The Display text of the digits `ds` with the decimal exponent `exponent`
 // of the first digit: fixed notation for an exponent in [-6, 21), lowercase
 // scientific notation otherwise.
-function layout(sign, ds, exponent) {
+function layout(sign: string, ds: string, exponent: number): string {
   if (exponent >= -6 && exponent < 21) {
     if (exponent < 0) {
       return `${sign}0.${"0".repeat(-exponent - 1)}${ds}`;
@@ -181,7 +191,7 @@ function layout(sign, ds, exponent) {
 }
 
 // The `to_fixed` text of an `f64` with `places` digits after the point.
-export function fixed(value, places) {
+export function fixed(value: number, places: number): string {
   if (value !== value) {
     return "NaN";
   }
@@ -221,7 +231,7 @@ const DECIMAL = /^(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))(?:[eE]([+-]?[0-9]+))?$/
 // primitives). `Number` rounds correctly up to twenty significant digits
 // (ECMA-262, StringToNumber); past that the exact rational is rounded
 // by `parseExact`. Text outside the grammar is a bug in std.
-export function parse(text) {
+export function parse(text: string): number {
   const m = DECIMAL.exec(text);
   if (m === null) {
     throw new Error(`parse_f64: text outside the grammar: ${text}`);
@@ -235,13 +245,13 @@ export function parse(text) {
   return parseExact(significant, BigInt(m[4] ?? "0") - BigInt(fraction.length));
 }
 
-function bitLength(n) {
+function bitLength(n: bigint): number {
   return n === 0n ? 0 : n.toString(2).length;
 }
 
 // The value `digits * 10^exponent` (digits non-empty, no leading zero) as
 // the nearest `f64`, computed on the exact rational.
-function parseExact(digits, exponent) {
+function parseExact(digits: string, exponent: bigint): number {
   // The value is in [10^(n-1+exponent), 10^(n+exponent)).
   const magnitude = BigInt(digits.length) + exponent;
   if (magnitude > 310n) {
@@ -288,10 +298,10 @@ function parseExact(digits, exponent) {
 // (spec/std/text.md#r-std-text.string.lower): `toLowerCase` and
 // `toUpperCase` are that conversion with no locale, `ß` giving `SS`, and
 // the final sigma by its context.
-export function lower(text) {
+export function lower(text: string): string {
   return text.toLowerCase();
 }
 
-export function upper(text) {
+export function upper(text: string): string {
   return text.toUpperCase();
 }

@@ -1,8 +1,8 @@
 // Initialized REPL sessions, checkpoint images and historical replay.
 // Kept outside core.mjs so ordinary programs do not load the journal.
 import { clearOperations, createCoreHost } from "./core.mjs";
-import { METHODS } from "./gen/abi.mjs";
-import { HostContract } from "./wire.mjs";
+import { METHODS } from "./gen/abi.mts";
+import { HostContract } from "./wire.mts";
 import {
   Recorder,
   Replay,
@@ -32,7 +32,7 @@ function recordOf(module, name) {
 // The parameter that holds the length of the exchange buffer bytes a call
 // reads, with its scalar parameters the call's request; null for none
 // (`Kind::input`). A host method's is after its scalar parameters, when
-// it takes a structured one (gen/abi.mjs `METHODS`).
+// it takes a structured one (gen/abi.mts `METHODS`).
 function readsArgs(module, name) {
   if (module === "hd:rt") {
     return name === "stderr" || name === "stdout" ? 0 : null;

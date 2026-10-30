@@ -8,18 +8,16 @@ import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readPortableRuntime, emitPortableRuntime } from "../packaging/portable-runtime.mjs";
 import { runtimeSources } from "../packaging/runtime-model.mjs";
+import { readHostSources } from "../../../scripts/host-emission.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const archive = new URL("../runtime/runtime-sources.json", import.meta.url);
 
 test("the SDK snapshot matches the canonical portable host and ABI sources", async () => {
   const snapshot = await readPortableRuntime();
-  for (const [name, source] of Object.entries(runtimeSources)) {
-    assert.equal(
-      snapshot.files[name],
-      (await readFile(join(root, source), "utf8")).replaceAll("\r\n", "\n"),
-      name,
-    );
+  const emitted = await readHostSources(root, runtimeSources);
+  for (const name of Object.keys(runtimeSources)) {
+    assert.equal(snapshot.files[name], emitted[name], name);
   }
   const schema = await readFile(join(root, "crates/hd_host_abi/src/schema.rs"), "utf8");
   assert.equal(

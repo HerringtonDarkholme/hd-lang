@@ -1,7 +1,7 @@
 // Helpers used by signature-generated NAME.host.mjs modules. Providers are
 // trusted JS selected from package manifests after the root grants access.
 // Guest contract data is never interpreted as module code or import paths.
-import { Dec, Enc, HostContract, decodeUtf8 } from "./wire.mjs";
+import { Dec, Enc, HostContract, decodeUtf8 } from "./wire.mts";
 export { readPackageContract } from "./package-contract.mjs";
 import { readPackageContract } from "./package-contract.mjs";
 

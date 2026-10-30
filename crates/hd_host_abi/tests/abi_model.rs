@@ -3,7 +3,7 @@
 //! std data type, enum and newtype those types reach, read from `lib/std`
 //! itself. The model is checked in as `host/gen/abi.json`, and both
 //! hosts' codecs and method descriptors generated from it: the JS host's
-//! as `host/gen/abi.mjs`, the wasmtime host's as
+//! as `host/gen/abi.mts`, the wasmtime host's as
 //! `crates/hd_run_wasmtime/src/abi.rs`. These tests fail when the tables
 //! or std change and the files do not. `HD_BLESS=1` rewrites them.
 //!
@@ -403,7 +403,7 @@ fn parse_ty(t: &str) -> Ty {
     ty
 }
 
-/// The JS codec (host/wire.mjs, or a generated std type's) of `ty`;
+/// The JS codec (host/wire.mts, or a generated std type's) of `ty`;
 /// `scope` holds the generic parameters in scope. `used` collects the
 /// wire codecs it names.
 fn js_codec(
@@ -451,7 +451,7 @@ fn js_codec(
                     .collect();
                 format!("{n}({})", args.join(", "))
             }
-            (n, _) => panic!("no JS codec for `{n}`: add one to host/wire.mjs"),
+            (n, _) => panic!("no JS codec for `{n}`: add one to host/wire.mts"),
         },
     }
 }
@@ -536,7 +536,7 @@ fn js_fields(
     format!("{{ {} }}", fs.join(", "))
 }
 
-/// The text of host/gen/abi.mjs: every std type the model reaches as a
+/// The text of host/gen/abi.mts: every std type the model reaches as a
 /// codec, and every host method's descriptor by import module and name.
 fn glue() -> String {
     let decls = std_decls();
@@ -632,12 +632,12 @@ fn glue() -> String {
     }
     body.push_str("};\n");
     let names: Vec<&str> = used.into_iter().collect();
-    let one_line = format!("import {{ {} }} from \"../wire.mjs\";", names.join(", "));
+    let one_line = format!("import {{ {} }} from \"../wire.mts\";", names.join(", "));
     let import = if one_line.len() <= 100 {
         one_line
     } else {
         format!(
-            "import {{\n{}}} from \"../wire.mjs\";",
+            "import {{\n{}}} from \"../wire.mts\";",
             names.iter().fold(String::new(), |mut s, n| {
                 let _ = writeln!(s, "  {n},");
                 s
@@ -648,7 +648,7 @@ fn glue() -> String {
         "// The host ABI's JS codecs and method descriptors, generated from the\n\
          // ABI model (host/gen/abi.json) by crates/hd_host_abi/tests/abi_model.rs.\n\
          // Do not edit: `HD_BLESS=1 cargo test -p hd_host_abi --test\n\
-         // abi_model` rewrites it. host/wire.mjs says how each value crosses.\n\
+         // abi_model` rewrites it. host/wire.mts says how each value crosses.\n\
          {import}\n\n{body}"
     )
 }
@@ -690,7 +690,7 @@ fn the_checked_in_abi_model_matches_the_tables_and_std() {
 
 #[test]
 fn the_checked_in_js_glue_matches_the_model() {
-    check("host/gen/abi.mjs", &glue());
+    check("host/gen/abi.mts", &glue());
 }
 
 /// The Rust type (`crates/hd_run_wasmtime/src/codec.rs`, or a generated std
