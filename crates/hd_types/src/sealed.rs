@@ -105,6 +105,11 @@ pub trait Declarations {
     /// Whether a declaration is local to a block suite, which is never
     /// inspectable (`trait.inspectable.not.local`).
     fn is_local(&self, def: DefId) -> bool;
+    /// Whether argument `index` of the declaration `def` fills a const
+    /// parameter (`types.generic.const.parameter`): a value, not a type.
+    fn is_const_slot(&self, _def: DefId, _index: usize) -> bool {
+        false
+    }
 }
 
 /// A row's answer: it holds when every subgoal does (each on the same
@@ -246,9 +251,13 @@ pub(crate) fn row(
                 true
             }
             TyData::Adt { def, .. } if decls.is_local(def) => false,
-            TyData::Adt { args, .. } => {
-                for a in pool.list_items(args) {
-                    argument(pool, *a, &mut subs);
+            // A const argument is part of the type's identity, not a type
+            // with a row of its own.
+            TyData::Adt { def, args } => {
+                for (i, a) in pool.list_items(args).iter().enumerate() {
+                    if !decls.is_const_slot(def, i) {
+                        argument(pool, *a, &mut subs);
+                    }
                 }
                 true
             }

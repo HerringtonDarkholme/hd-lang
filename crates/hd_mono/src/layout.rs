@@ -687,10 +687,11 @@ pub fn canon(
             h.u8(14);
             canon_row(pool, path_hash, memo, r, &mut h);
         }
-        // A string's symbol is run-local; hashing its text waits for const
-        // arguments to reach monomorphization.
-        TyData::Const(hd_types::ConstValue::Str(_)) => {
-            unreachable!("a string const argument reached an instance key")
+        // A string is its text's stable path.
+        TyData::Const(hd_types::ConstValue::Str(p)) => {
+            h.u8(19);
+            h.u8(Prim::String as u8);
+            h.hash(path_hash(DefId::from_raw(p.raw())));
         }
         TyData::Const(v) => {
             h.u8(19);

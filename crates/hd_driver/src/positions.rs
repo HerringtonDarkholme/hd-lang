@@ -355,7 +355,7 @@ pub(crate) fn write_frame_names(
         while let Some(q) = p.get() {
             match paths.kind(q) {
                 PathKind::Package | PathKind::Module => break,
-                PathKind::Hidden => {}
+                PathKind::Hidden | PathKind::Text => {}
                 PathKind::Impl => {
                     segs.push(impl_type(DefId::from_raw(q.raw())).unwrap_or_default());
                 }

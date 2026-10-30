@@ -334,7 +334,11 @@ fn const_arguments_display_as_canonical_literals() {
     assert_eq!(shown(ConstValue::Char('\'')), "'\\''");
     assert_eq!(shown(ConstValue::Char('\n')), "'\\n'");
     assert_eq!(
-        shown(ConstValue::Str(syms.intern("say \"$x\"\t"))),
+        shown(ConstValue::Str(paths.intern(
+            hd_base::PathId::NONE,
+            hd_intern::PathKind::Text,
+            "say \"$x\"\t"
+        ))),
         "\"say \\\"\\$x\\\"\\t\""
     );
 }

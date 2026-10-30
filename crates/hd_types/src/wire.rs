@@ -317,10 +317,10 @@ impl<'a> TableWriter<'a> {
                 self.row(tag::ASSOC, &words)
             }
             TyData::Canon(i) => self.row(tag::CANON, &[u32::from(i)]),
-            // `[prim, low, high]`; a string's value is its symbol row.
+            // `[prim, low, high]`; a string's value is its path row.
             TyData::Const(v) => {
                 let bits = match v {
-                    ConstValue::Str(s) => u64::from(self.sym(s)),
+                    ConstValue::Str(p) => u64::from(self.path(p)),
                     v => v.bits(),
                 };
                 let word = |w: u64| u32::try_from(w & 0xFFFF_FFFF).expect("low word");
@@ -454,7 +454,7 @@ impl Tables {
                     let prim = *Prim::ALL.get(*words.first()? as usize)?;
                     let bits = u64::from(*words.get(1)?) | u64::from(*words.get(2)?) << 32;
                     let value = match prim {
-                        Prim::String => ConstValue::Str(*t.syms.get(usize::try_from(bits).ok()?)?),
+                        Prim::String => ConstValue::Str(*t.paths.get(usize::try_from(bits).ok()?)?),
                         Prim::Char => ConstValue::Char(char::from_u32(u32::try_from(bits).ok()?)?),
                         Prim::F32 | Prim::F64 => return None,
                         prim => ConstValue::from_bits(prim, bits),
@@ -639,8 +639,9 @@ mod tests {
 
     use super::{TableWriter, Tables};
     use crate::pool::{InternPool, ParamRef, RowData, Ty, TyData};
+    use hd_base::PathId;
     use hd_base::wire::{Reader, Writer};
-    use hd_intern::{PathTable, ShardedInterner};
+    use hd_intern::{PathKind, PathTable, ShardedInterner};
 
     /// A row of two trait keys, written after interning the traits in the
     /// given order: the bytes depend on content only.
@@ -832,7 +833,7 @@ mod tests {
             int(Prim::U64, u64::MAX),
             ConstValue::Bool(true),
             ConstValue::Char('\u{1F600}'),
-            ConstValue::Str(syms.intern("a \"name\"")),
+            ConstValue::Str(paths.intern(PathId::NONE, PathKind::Text, "a \"name\"")),
         ];
         let tys: Vec<Ty> = values
             .iter()
@@ -853,7 +854,7 @@ mod tests {
             PathTable::new(),
             ShardedInterner::default(),
         );
-        syms2.intern("an earlier symbol");
+        paths2.intern(PathId::NONE, PathKind::Text, "an earlier text");
         let t =
             Tables::read(&mut Reader::new(&out.bytes), &pool2, &paths2, &syms2).expect("tables");
         let read: Vec<ConstValue> = rows
@@ -867,7 +868,7 @@ mod tests {
         let ConstValue::Str(s) = read[6] else {
             panic!("not a string: {:?}", read[6]);
         };
-        assert_eq!(syms2.resolve(s), "a \"name\"");
+        assert_eq!(paths2.segment(s), "a \"name\"");
     }
 
     #[test]

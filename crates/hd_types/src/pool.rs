@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use hd_base::{AppendVec, DefId, InferVar, Symbol};
+use hd_base::{AppendVec, DefId, InferVar, PathId};
 
 /// A type: an `InternPool` index. Bit 31 set: a body-local index (§3.4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -151,7 +151,9 @@ pub enum ConstValue {
     },
     Bool(bool),
     Char(char),
-    Str(Symbol),
+    /// A string, as its root `PathKind::Text` path, which is stable across
+    /// runs.
+    Str(PathId),
 }
 
 impl ConstValue {
@@ -177,6 +179,34 @@ impl ConstValue {
         }
     }
 
+    /// The canonical literal spelling (`types.generic.const.display`): a
+    /// decimal integer, `true` or `false`, or an escaped character or
+    /// string literal. `text` reads a string's text from its path.
+    #[must_use]
+    pub fn literal(self, text: impl FnOnce(PathId) -> String) -> String {
+        let escape = |c: char, quote: char| match c {
+            '\\' => "\\\\".to_owned(),
+            '\n' => "\\n".to_owned(),
+            '\r' => "\\r".to_owned(),
+            '\t' => "\\t".to_owned(),
+            '\0' => "\\0".to_owned(),
+            '$' if quote == '"' => "\\$".to_owned(),
+            c if c == quote => format!("\\{c}"),
+            c if c.is_control() => format!("\\u{{{:x}}}", u32::from(c)),
+            c => c.to_string(),
+        };
+        match self {
+            ConstValue::Int { prim, bits } if prim.is_unsigned() => bits.to_string(),
+            ConstValue::Int { bits, .. } => i64::from_ne_bytes(bits.to_ne_bytes()).to_string(),
+            ConstValue::Bool(b) => b.to_string(),
+            ConstValue::Char(c) => format!("'{}'", escape(c, '\'')),
+            ConstValue::Str(p) => {
+                let body: String = text(p).chars().map(|c| escape(c, '"')).collect();
+                format!("\"{body}\"")
+            }
+        }
+    }
+
     /// The inverse of [`Self::prim`] and [`Self::bits`].
     #[must_use]
     pub fn from_bits(prim: Prim, bits: u64) -> Self {
@@ -189,7 +219,7 @@ impl ConstValue {
                     .expect("const char"),
             ),
             Prim::String => {
-                ConstValue::Str(Symbol::from_raw(u32::try_from(bits).expect("const string")))
+                ConstValue::Str(PathId::from_raw(u32::try_from(bits).expect("const string")))
             }
             prim => ConstValue::Int { prim, bits },
         }
@@ -2029,13 +2059,8 @@ impl<'a> Types<'a> {
             TyData::TraitValue { def, .. } => format!("dyn #{}", def.raw()),
             TyData::Opaque { bound, .. } => format!("impl {}", self.display(bound)),
             TyData::Param(p) => format!("T{}@{}", p.index, p.owner.raw()),
-            TyData::Const(v) => match v {
-                ConstValue::Int { prim, bits } if prim.is_unsigned() => bits.to_string(),
-                ConstValue::Int { bits, .. } => i64::from_ne_bytes(bits.to_ne_bytes()).to_string(),
-                ConstValue::Bool(b) => b.to_string(),
-                ConstValue::Char(c) => format!("{c:?}"),
-                ConstValue::Str(s) => format!("str#{}", s.raw()),
-            },
+            // A string's text is not in the pool: its path id stands in.
+            TyData::Const(v) => v.literal(|p| format!("#{}", p.raw())),
             TyData::Assoc { assoc, self_ty, .. } => {
                 format!("<{}>::#{}", self.display(self_ty), assoc.raw())
             }

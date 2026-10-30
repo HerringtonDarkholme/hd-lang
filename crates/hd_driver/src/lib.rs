@@ -8701,10 +8701,6 @@ impl Run<'_> {
             );
             return;
         };
-        if let Err(e) = hd_check::header::const_generics_gap(p.items.values(), Stage::Collect) {
-            self.stage::<()>(Stage::Collect, Err(e));
-            return;
-        }
         if matches!(self.goal, Goal::Fixture { .. }) {
             self.collect_fixture(sp, p, pkey, &entry_key);
             return;
@@ -11885,6 +11881,9 @@ impl ProgramEnv for Env<'_> {
     fn path_hash(&self, def: DefId) -> Hash128 {
         self.run.names().path_hash(def)
     }
+    fn const_text(&self, p: hd_base::PathId) -> String {
+        self.run.names().paths.segment(p).to_owned()
+    }
     fn type_name(&self, def: DefId) -> String {
         let names = self.run.names();
         let (module, name) = (self.run.item_module_text(def), names.display_name(def));
@@ -12051,6 +12050,13 @@ impl hd_structure::Items for ProgramTables {
 impl Declarations for Env<'_> {
     fn sealed(&self) -> &SealedTraits {
         &self.sealed
+    }
+    fn is_const_slot(&self, def: DefId, index: usize) -> bool {
+        self.p
+            .items
+            .get(def)
+            .and_then(|i| i.generics.get(index))
+            .is_some_and(|g| g.const_type.is_some())
     }
     fn type_decl(&self, def: DefId) -> TypeDecl {
         self.p

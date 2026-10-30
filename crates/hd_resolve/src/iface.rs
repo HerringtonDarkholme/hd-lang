@@ -243,31 +243,10 @@ impl Generic {
 }
 
 /// A const argument's canonical literal spelling
-/// (`types.generic.const.display`): a decimal integer, `true` or `false`,
-/// or an escaped character or string literal.
+/// (`types.generic.const.display`).
 #[must_use]
 pub fn const_literal(names: &Names<'_>, v: ConstValue) -> String {
-    let escape = |c: char, quote: char| match c {
-        '\\' => "\\\\".to_owned(),
-        '\n' => "\\n".to_owned(),
-        '\r' => "\\r".to_owned(),
-        '\t' => "\\t".to_owned(),
-        '\0' => "\\0".to_owned(),
-        '$' if quote == '"' => "\\$".to_owned(),
-        c if c == quote => format!("\\{c}"),
-        c if c.is_control() => format!("\\u{{{:x}}}", u32::from(c)),
-        c => c.to_string(),
-    };
-    match v {
-        ConstValue::Int { prim, bits } if prim.is_unsigned() => bits.to_string(),
-        ConstValue::Int { bits, .. } => i64::from_ne_bytes(bits.to_ne_bytes()).to_string(),
-        ConstValue::Bool(b) => b.to_string(),
-        ConstValue::Char(c) => format!("'{}'", escape(c, '\'')),
-        ConstValue::Str(s) => {
-            let body: String = names.text(s).chars().map(|c| escape(c, '"')).collect();
-            format!("\"{body}\"")
-        }
-    }
+    v.literal(|p| names.paths.segment(p).to_owned())
 }
 
 /// The argument of every struct, enum or trait lifetime parameter: one
@@ -957,6 +936,12 @@ pub fn declares_ref_receiver<'i>(
 impl Declarations for LookupDecls<'_> {
     fn sealed(&self) -> &SealedTraits {
         &self.sealed
+    }
+    fn is_const_slot(&self, def: DefId, index: usize) -> bool {
+        self.lookup
+            .item(def)
+            .and_then(|i| i.generics.get(index))
+            .is_some_and(|g| g.const_type.is_some())
     }
     fn type_decl(&self, def: DefId) -> TypeDecl {
         self.lookup

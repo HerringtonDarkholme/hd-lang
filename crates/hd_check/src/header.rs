@@ -14,7 +14,7 @@
 //! `item-too-complex` on the item (`fn.limit.complexity.error`), and its
 //! remaining goals are not asked. Otherwise only `Fails` is an error.
 
-use hd_base::{DefId, Fuel, NotImplemented, Stage, StageResult, Symbol};
+use hd_base::{DefId, Fuel, StageResult, Symbol};
 use hd_diag::Code;
 use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, LookupDecls, Names};
 use hd_types::solver::{
@@ -105,33 +105,6 @@ fn stage_b_over<'i>(
         hc.item(it)?;
     }
     Ok(out)
-}
-
-/// Const generic arguments are checked, but instances do not carry them
-/// yet (`types.generic.const.runtime`), so `stage` stops at an item that
-/// declares a const parameter rather than build it.
-///
-/// # Errors
-///
-/// When an item declares a const generic parameter.
-pub fn const_generics_gap<'i>(
-    items: impl IntoIterator<Item = &'i Item>,
-    stage: Stage,
-) -> StageResult<()> {
-    let declares = |it: &Item| {
-        let sig = match &it.data {
-            ItemData::Fn(sig) | ItemData::Method { sig, .. } => &sig.generics[..],
-            _ => &[],
-        };
-        it.generics
-            .iter()
-            .chain(sig)
-            .any(|g| g.const_type.is_some())
-    };
-    if items.into_iter().any(declares) {
-        return Err(NotImplemented::new(stage, "const generic parameters"));
-    }
-    Ok(())
 }
 
 /// The supertrait check of a local trait impl, with `cx`'s view of the

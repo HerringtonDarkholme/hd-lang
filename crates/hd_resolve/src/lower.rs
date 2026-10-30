@@ -2051,7 +2051,7 @@ impl Lower<'_, '_, '_> {
                     None => ConstName::Unknown,
                 }
             };
-            crate::const_eval::const_argument(&src, argument, want, syms, &mut lookup)
+            crate::const_eval::const_argument(&src, argument, want, self.names.paths, &mut lookup)
         };
         match result {
             Ok(ConstArg::Value(v)) => pool.intern_ty(&TyData::Const(v)),

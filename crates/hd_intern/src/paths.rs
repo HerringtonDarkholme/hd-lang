@@ -22,10 +22,13 @@ pub enum PathKind {
     Variant,
     Impl,
     Hidden,
+    /// The text of a string const generic argument, as a root path: its
+    /// interned path gives the value a stable hash and wire form.
+    Text,
 }
 
 impl PathKind {
-    pub const ALL: [PathKind; 7] = [
+    pub const ALL: [PathKind; 8] = [
         PathKind::Package,
         PathKind::Module,
         PathKind::Item,
@@ -33,6 +36,7 @@ impl PathKind {
         PathKind::Variant,
         PathKind::Impl,
         PathKind::Hidden,
+        PathKind::Text,
     ];
     #[must_use]
     pub fn from_u8(v: u8) -> Option<PathKind> {

@@ -169,6 +169,8 @@ pub trait ProgramEnv: LayoutEnv {
     fn printed_name(&self, def: DefId) -> String;
     /// The item's stable path, for diagnostics.
     fn describe(&self, def: DefId) -> String;
+    /// The text of a string const argument (`hd_types::ConstValue::Str`).
+    fn const_text(&self, p: hd_base::PathId) -> String;
     /// Where selection reads impls: owner lookup over the whole program's
     /// folders (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §8.3), the program being the impl
     /// universe.
@@ -952,11 +954,9 @@ fn name_into(
             out.push_str(">.");
             out.push_str(n.rsplit('.').next().unwrap_or(&n));
         }
-        TyData::Poison
-        | TyData::Param(_)
-        | TyData::Const(_)
-        | TyData::Infer(_)
-        | TyData::Canon(_) => {
+        // `types.generic.const.display`.
+        TyData::Const(v) => out.push_str(&v.literal(|p| env.const_text(p))),
+        TyData::Poison | TyData::Param(_) | TyData::Infer(_) | TyData::Canon(_) => {
             out.push_str(&pool.display(t));
         }
     }

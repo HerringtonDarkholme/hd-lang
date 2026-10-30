@@ -163,7 +163,7 @@ pub fn const_argument<'a>(
     src: &Src<'a>,
     arg: NodeRef<'a>,
     want: Option<Prim>,
-    syms: &hd_intern::ShardedInterner,
+    paths: &hd_intern::PathTable,
     lookup: &mut dyn FnMut(&str) -> ConstName<'a>,
 ) -> Result<ConstArg, ConstError> {
     let arg = match arg.kind() {
@@ -202,7 +202,9 @@ pub fn const_argument<'a>(
         },
         V::Bool(b) => ConstValue::Bool(b),
         V::Char(c) => ConstValue::Char(c),
-        V::Str(s) => ConstValue::Str(syms.intern(&s)),
+        V::Str(s) => {
+            ConstValue::Str(paths.intern(hd_base::PathId::NONE, hd_intern::PathKind::Text, &s))
+        }
     }))
 }
 

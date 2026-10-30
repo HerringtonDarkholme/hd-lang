@@ -206,6 +206,7 @@ impl Ck<'_, '_> {
         use hd_resolve::const_eval::{ConstArg, ConstName, const_argument};
         let src = self.cx.src;
         let syms = self.cx.names.syms;
+        let paths = self.cx.names.paths;
         let mut elsewhere = false;
         let mut declared = None;
         let result = {
@@ -243,7 +244,7 @@ impl Ck<'_, '_> {
                     _ => ConstName::Unknown,
                 }
             };
-            const_argument(&src, a, want, syms, &mut lookup)
+            const_argument(&src, a, want, paths, &mut lookup)
         };
         let pool = self.pool();
         match result {
