@@ -1,5 +1,7 @@
 # test: a callable stored in a generic list, tuple, map, or data field runs the same as a direct call
 # Spec 04 Generic Representation: types.generic.unobservable; how generic code stores a function value is not observable.
+use std.function.Fn
+
 struct Queue[T]:
     jobs: T
 
@@ -7,8 +9,8 @@ fn first_job[T](jobs: List[fn() -> T]) -> T:
     job := jobs[0]
     job()
 
-fn pending_scores[T](job: fn() -> T) -> List[fn() -> T]:
-    [job]
+fn pending_scores[T, F < Fn() -> T & 'static](job: F) -> List[fn() -> T]:
+    [fn() -> T: job()]
 
 fn score_first[T](scorers: List[fn(T) -> i32], value: T) -> i32:
     scorer := scorers[0]

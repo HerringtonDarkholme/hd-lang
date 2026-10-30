@@ -3756,6 +3756,7 @@ impl Ck<'_, '_> {
         &mut self,
         block: NodeRef<'_>,
         want: Ty,
+        scoped_capture: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let w = self.infer.resolve(pool, want);
@@ -3775,7 +3776,13 @@ impl Ck<'_, '_> {
             upto: None,
             form: None,
         };
-        self.closure_of(block, &parts, Some(want))
+        let saved = self.local_capture_argument;
+        if scoped_capture {
+            self.local_capture_argument = Some(block.index());
+        }
+        let result = self.closure_of(block, &parts, Some(want));
+        self.local_capture_argument = saved;
+        result
     }
 
     /// A closure from its parts; `n` is the node its `Closure` names.
@@ -4057,7 +4064,8 @@ impl Ck<'_, '_> {
             self.set_local(l, Ref(NONE), n.index());
             self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         }
-        self.local_ref_captures(mark, n);
+        let scoped = self.local_capture_argument == Some(n.index());
+        self.local_ref_captures(mark, n, scoped);
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }
 

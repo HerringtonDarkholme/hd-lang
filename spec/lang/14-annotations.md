@@ -377,7 +377,7 @@ Otherwise the code that reads the value checks it.
 
 > **Note.** `arbitrary.with` opts in, so a generator of the wrong type is
 > an error at its decorator, as
-> [`std-testing.arbitrary.with.checked`](../std/testing.md#r-std-testing.arbitrary.with.checked)
+> [`std-testing.arbitrary.with.checked-bound`](../std/testing.md#r-std-testing.arbitrary.with.checked-bound)
 > states in the stdlib tier.
 
 Reusable compositions are ordinary values or lists, not new language syntax:

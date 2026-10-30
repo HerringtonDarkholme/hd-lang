@@ -95,6 +95,7 @@ fn output_of(name: &str, main: &str) -> String {
 }
 
 const FACT: &str = "use std.annotation.annotate
+use std.function.Fn
 use std.num.{Integer, Num}
 use std.structure.{Structure, Field}
 
@@ -134,8 +135,8 @@ fn handler[R]() -> Handler[fn(i64) -> R]:
 struct Fallback[F]:
     make: fn() -> F?
 
-fn fallback[F](make: fn() -> F?) -> Fallback[F]:
-    Fallback::[F] { make: make }
+fn fallback[F, G < Fn() -> F? & 'static](make: G) -> Fallback[F]:
+    Fallback::[F] { make: fn(): make() }
 
 fn missing[T]() -> T?:
     .None
@@ -328,9 +329,9 @@ fn a_generic_reference_that_no_argument_fits_is_one_mismatch() {
     one_error(
         &with(
             "struct Profile:
-    @fallback(missing_list)
+    @fallback::[List[string]](missing_list)
     tags: List[string]
-    @fallback(missing_list)  # here
+    @fallback::[List[string]](missing_list)  # here
     name: string",
         ),
         Code::TypeMismatch,
@@ -345,7 +346,7 @@ fn a_member_line_element_is_checked_against_its_member() {
     name: string
 
 impl Profile by Structure:
-    name = [fallback(missing_list)]  # here",
+    name = [fallback::[List[string]](missing_list)]  # here",
         ),
         Code::TypeMismatch,
     );

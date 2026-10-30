@@ -77,7 +77,10 @@ pub(crate) struct DepSig {
     /// Each result slot's lifetime; `None` when it has no source.
     outs: Vec<Option<u32>>,
     ret: Ty,
+    /// Elision for ordinary local-reference result slots.
     elided: Elided,
+    /// Elision for a direct function result's hidden capture slot.
+    capture_elided: Elided,
 }
 
 impl DepSig {
@@ -90,21 +93,28 @@ impl DepSig {
         ret: Ty,
         written: &[u16],
     ) -> DepSig {
-        let ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
-        let outs_n = pool.ref_slots(ret);
-        let trust_in = written.len() >= ins;
-        let trust_out = written.len() == ins + outs_n;
-        let mut g = 0;
+        let ref_ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
+        let ref_outs = pool.ref_slots(ret);
+        let trust_in = written.len() >= ref_ins;
+        let trust_out = written.len() == ref_ins + ref_outs;
+        let mut written_at = 0;
+        let mut dep_at = 0;
         let mut ps = Vec::with_capacity(params.len());
         for &(_, t) in params {
-            let n = pool.ref_slots(t);
-            let ids: Vec<u32> = (g..g + n)
-                .map(|k| match written.get(k) {
+            let refs = pool.ref_slots(t);
+            let mut ids: Vec<u32> = (written_at..written_at + refs)
+                .enumerate()
+                .map(|(offset, k)| match written.get(k) {
                     Some(&l) if trust_in && l != 0 => u32::from(l),
-                    _ => ANON + w(k),
+                    _ => ANON + w(dep_at + offset),
                 })
                 .collect();
-            g += n;
+            written_at += refs;
+            dep_at += refs;
+            if capture_slot(pool, t) {
+                ids.push(ANON + w(dep_at));
+                dep_at += 1;
+            }
             ps.push((t, ids));
         }
         let receiver = params
@@ -117,7 +127,7 @@ impl DepSig {
                     .iter()
                     .zip(&ps)
                     .filter(|((s, _), _)| !is_self(*s))
-                    .flat_map(|(_, (_, ids))| ids.iter().copied())
+                    .flat_map(|((_, t), (_, ids))| ids.iter().take(pool.ref_slots(*t)).copied())
                     .collect();
                 ids.sort_stable();
                 ids.dedup();
@@ -128,6 +138,22 @@ impl DepSig {
                 }
             }
         };
+        let mut capture_ids: Vec<u32> = params
+            .iter()
+            .zip(&ps)
+            .filter_map(|((_, t), (_, ids))| {
+                capture_slot(pool, *t)
+                    .then(|| ids.get(pool.ref_slots(*t)).copied())
+                    .flatten()
+            })
+            .collect();
+        capture_ids.sort_stable();
+        capture_ids.dedup();
+        let capture_elided = match capture_ids.as_slice() {
+            [one] => Elided::Lifetime(*one),
+            [] => Elided::Missing,
+            _ => Elided::Ambiguous,
+        };
         let opaque: Vec<bool> = if pool.has_opaque(ret) {
             slots_of(pool, ret)
                 .iter()
@@ -136,8 +162,8 @@ impl DepSig {
         } else {
             vec![]
         };
-        let outs = (0..outs_n)
-            .map(|j| match written.get(ins + j) {
+        let mut outs: Vec<Option<u32>> = (0..ref_outs)
+            .map(|j| match written.get(ref_ins + j) {
                 Some(&l) if trust_out && l != 0 => Some(u32::from(l)),
                 _ => match elided {
                     Elided::Lifetime(id) => Some(id),
@@ -148,11 +174,18 @@ impl DepSig {
                 },
             })
             .collect();
+        if capture_slot(pool, ret) {
+            outs.push(match capture_elided {
+                Elided::Lifetime(id) => Some(id),
+                Elided::Missing | Elided::Ambiguous => None,
+            });
+        }
         DepSig {
             params: ps,
             outs,
             ret,
             elided,
+            capture_elided,
         }
     }
 
@@ -162,32 +195,81 @@ impl DepSig {
         let TyData::Fn { params, result, .. } = pool.get(referent_fn(pool, t)) else {
             return None;
         };
-        let (ins, outs) = pool.fn_ty_deps(t)?;
-        let opaque = slots_of(pool, result);
-        let mut at = 0;
+        let deps = pool.fn_ty_deps(t);
+        let ins = deps.as_ref().map_or(&[][..], |(ins, _)| *ins);
+        let written_outs = deps.as_ref().map_or(&[][..], |(_, outs)| *outs);
+        let mut ref_at = 0;
+        let mut dep_at = 0;
         let params = pool
             .list_items(params)
             .iter()
             .map(|&p| {
                 let n = pool.ref_slots(p);
-                at += n;
-                (p, ins[at - n..at].to_vec())
+                let mut ids: Vec<u32> = (0..n)
+                    .map(|offset| {
+                        ins.get(ref_at + offset)
+                            .copied()
+                            .unwrap_or(ANON + w(dep_at + offset))
+                    })
+                    .collect();
+                ref_at += n;
+                dep_at += n;
+                if capture_slot(pool, p) {
+                    ids.push(ANON + w(dep_at));
+                    dep_at += 1;
+                }
+                (p, ids)
+            })
+            .collect::<Vec<_>>();
+        let mut unique: Vec<u32> = params
+            .iter()
+            .flat_map(|(p, ids)| ids.iter().take(pool.ref_slots(*p)).copied())
+            .collect();
+        unique.sort_stable();
+        unique.dedup();
+        let elided = match unique.as_slice() {
+            [id] => Elided::Lifetime(*id),
+            [] => Elided::Missing,
+            _ => Elided::Ambiguous,
+        };
+        let mut capture_ids: Vec<u32> = params
+            .iter()
+            .filter_map(|(p, ids)| {
+                capture_slot(pool, *p)
+                    .then(|| ids.get(pool.ref_slots(*p)).copied())
+                    .flatten()
             })
             .collect();
+        capture_ids.sort_stable();
+        capture_ids.dedup();
+        let capture_elided = match capture_ids.as_slice() {
+            [id] => Elided::Lifetime(*id),
+            [] => Elided::Missing,
+            _ => Elided::Ambiguous,
+        };
+        let opaque = slots_of(pool, result);
+        let mut outs: Vec<Option<u32>> = written_outs
+            .iter()
+            .zip(&opaque)
+            .map(|(&l, &(t, _))| match l {
+                // `types.opaque.borrows.source`
+                0 if matches!(pool.get(t), TyData::Opaque { .. }) => Some(ANY),
+                0 => None,
+                l => Some(l),
+            })
+            .collect();
+        if capture_slot(pool, result) {
+            outs.push(match capture_elided {
+                Elided::Lifetime(id) => Some(id),
+                Elided::Missing | Elided::Ambiguous => None,
+            });
+        }
         Some(DepSig {
             params,
-            outs: outs
-                .iter()
-                .zip(&opaque)
-                .map(|(&l, &(t, _))| match l {
-                    // `types.opaque.borrows.source`
-                    0 if matches!(pool.get(t), TyData::Opaque { .. }) => Some(ANY),
-                    0 => None,
-                    l => Some(l),
-                })
-                .collect(),
+            outs,
             ret: result,
-            elided: Elided::Missing,
+            elided,
+            capture_elided,
         })
     }
 
@@ -198,11 +280,12 @@ impl DepSig {
     fn to_fn(&self, pool: Types<'_>, skip: usize) -> hd_types::FnDeps {
         let ins: Vec<u32> = self.params[skip.min(self.params.len())..]
             .iter()
-            .flat_map(|(_, ids)| ids.iter().copied())
+            .flat_map(|(t, ids)| ids.iter().take(pool.ref_slots(*t)).copied())
             .collect();
         let outs: Option<Vec<u32>> = self
             .outs
             .iter()
+            .take(pool.ref_slots(self.ret))
             .map(|l| l.filter(|l| ins.contains(l)))
             .collect();
         outs.map_or(hd_types::FnDeps::NONE, |outs| pool.fn_deps(&ins, &outs))
@@ -215,7 +298,7 @@ impl DepSig {
     fn open(self, pool: Types<'_>, hidden: Ty) -> DepSig {
         let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
         let mut out = Vec::new();
-        let outs = if line_up(
+        let outs = if line_up_value(
             pool,
             self.ret,
             hidden,
@@ -228,13 +311,14 @@ impl DepSig {
                 .map(|id| (id != NO_SOURCE).then_some(id))
                 .collect()
         } else {
-            vec![None; pool.ref_slots(hidden)]
+            vec![None; dep_slots(pool, hidden)]
         };
         DepSig {
             params: self.params,
             outs,
             ret: hidden,
             elided: self.elided,
+            capture_elided: self.capture_elided,
         }
     }
 
@@ -248,6 +332,9 @@ impl DepSig {
     fn all_ids(&self) -> Vec<u32> {
         let mut ids: Vec<u32> = self.outs.iter().flatten().copied().collect();
         if let Elided::Lifetime(id) = self.elided {
+            ids.push(id);
+        }
+        if let Elided::Lifetime(id) = self.capture_elided {
             ids.push(id);
         }
         ids.sort_stable();
@@ -300,7 +387,7 @@ impl DepSig {
             let mut out = Vec::new();
             let mut it = ids.iter().copied();
             match at {
-                Some(t) if line_up(pool, decl, t, &mut it, &mut keys, &mut out, 0) => {
+                Some(t) if line_up_value(pool, decl, t, &mut it, &mut keys, &mut out, 0) => {
                     params.push((t, out));
                 }
                 _ => {
@@ -312,7 +399,7 @@ impl DepSig {
         let ret = b.ty[i];
         let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
         let mut out = Vec::new();
-        let outs = if line_up(pool, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
+        let outs = if line_up_value(pool, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
             out.into_iter()
                 .map(|id| match id {
                     NO_SOURCE => None,
@@ -321,13 +408,14 @@ impl DepSig {
                 })
                 .collect()
         } else {
-            vec![Some(ANY); pool.ref_slots(ret)]
+            vec![Some(ANY); dep_slots(pool, ret)]
         };
         DepSig {
             params,
             outs,
             ret,
             elided: self.elided,
+            capture_elided: self.capture_elided,
         }
     }
 
@@ -447,6 +535,37 @@ fn line_up(
     }
 }
 
+/// [`line_up`] plus the one hidden origin slot carried by a direct
+/// `fn(...)` value (`fn.capture.local-parameter`). Function types exclude
+/// their parameter and result references from [`Types::ref_slots`], so the
+/// hidden slot is independent of the callable's own dependency map.
+fn line_up_value(
+    pool: Types<'_>,
+    d: Ty,
+    t: Ty,
+    ids: &mut dyn Iterator<Item = u32>,
+    keys: &mut Vec<hd_types::ParamRef>,
+    out: &mut Vec<u32>,
+    depth: u32,
+) -> bool {
+    if capture_slot(pool, d) && capture_slot(pool, t) {
+        let Some(id) = ids.next() else { return false };
+        out.push(id);
+        true
+    } else if capture_slot(pool, t)
+        && let TyData::Param(p) = pool.get(d)
+    {
+        let k = keys.iter().position(|x| *x == p).unwrap_or_else(|| {
+            keys.push(p);
+            keys.len() - 1
+        });
+        out.push(TVAR + (w(k.min(255)) << 8) + w(pool.ref_slots(t).min(255)));
+        true
+    } else {
+        line_up(pool, d, t, ids, keys, out, depth)
+    }
+}
+
 /// `t` without its `mut`.
 fn referent_fn(pool: Types<'_>, t: Ty) -> Ty {
     match pool.get(t) {
@@ -455,12 +574,25 @@ fn referent_fn(pool: Types<'_>, t: Ty) -> Ty {
     }
 }
 
+/// Whether `t` is a direct function value, under `mut`. Such a value has
+/// one checker-only slot for the origins of local references captured by a
+/// scoped closure parameter.
+fn capture_slot(pool: Types<'_>, t: Ty) -> bool {
+    matches!(pool.get(referent_fn(pool, t)), TyData::Fn { .. })
+}
+
+/// The origin slots in a declaration position: ordinary local-reference
+/// slots, plus a direct function value's hidden capture slot.
+fn dep_slots(pool: Types<'_>, t: Ty) -> usize {
+    pool.ref_slots(t) + usize::from(capture_slot(pool, t))
+}
+
 /// Each reference slot of `t` in [`Types::ref_slots`] order: the
 /// reference type, and whether it is at the top, outside another
 /// reference.
 fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
     fn walk(pool: Types<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<(Ty, bool)>) {
-        if depth > 32 || !pool.has_ref(t) {
+        if depth > 32 || !pool.has_ref(t) && !capture_slot(pool, t) {
             return;
         }
         let d = depth + 1;
@@ -488,6 +620,7 @@ fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
                     walk(pool, a, top, d, out);
                 }
             }
+            TyData::Fn { .. } => out.push((t, top)),
             _ => {}
         }
     }
@@ -545,7 +678,7 @@ fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
 /// reference, or it is a trait value, which may hold one
 /// (`trait.dyn.ref.convert`).
 fn may_hold(pool: Types<'_>, t: Ty) -> bool {
-    holds_local_ref(pool, t) || is_dyn(pool, t)
+    holds_local_ref(pool, t) || is_dyn(pool, t) || capture_slot(pool, t)
 }
 
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
@@ -1126,7 +1259,7 @@ impl Solve<'_> {
     /// takes its origins, and one the caller owns only values of its
     /// lifetime (`ref.dep.store`). `holds` is whether the value's type
     /// holds a local reference.
-    fn store(&mut self, i: usize, word: u32, value: &[Set], holds: bool) {
+    fn store(&mut self, i: usize, word: u32, value: &[Set], holds: bool, captures: bool) {
         if value.iter().all(Vec::is_empty) {
             return;
         }
@@ -1145,11 +1278,16 @@ impl Solve<'_> {
         for s in storage {
             match s {
                 Origin::Param(q, k) if through => {
-                    if holds && !self.caller_place_takes(q, k, &flat(value)) {
+                    // A capture-bearing function value never lands in a
+                    // caller's place (`fn.capture.local-store`).
+                    if captures || (holds && !self.caller_place_takes(q, k, &flat(value))) {
                         self.out.insert(w(i));
                     }
                 }
                 Origin::Local(_) | Origin::Hidden(_) => self.hold(s, value, range),
+                Origin::Global(_) if captures => {
+                    self.out.insert(w(i));
+                }
                 _ => {}
             }
         }
@@ -1177,7 +1315,7 @@ impl Solve<'_> {
                 union(&mut value, &flat(self.of(v)));
             }
         }
-        self.store(i, b.data[coll as usize][0], &[value], true);
+        self.store(i, b.data[coll as usize][0], &[value], true, false);
     }
 
     fn step(&mut self, i: usize) {
@@ -1187,7 +1325,13 @@ impl Solve<'_> {
             let [word, v] = b.data[i];
             let value = self.of(v).to_vec();
             let t = b.ty.get(v as usize).copied().unwrap_or(Ty::VOID);
-            self.store(i, word, &value, holds_local_ref(self.pool, t));
+            self.store(
+                i,
+                word,
+                &value,
+                holds_local_ref(self.pool, t),
+                capture_slot(self.pool, t),
+            );
             return;
         }
         if tag == Tag::Intrinsic {
@@ -1223,6 +1367,19 @@ impl Solve<'_> {
                 Some(sig) => self.call(i, sig, n),
                 None => return,
             },
+            Tag::Closure if !b.is_instantiation(i) => {
+                let rec = b.record(b.data[i][1]);
+                let mut captured = Set::new();
+                if let [start, len, ..] = rec {
+                    for c in *start..start.saturating_add(*len) {
+                        let Some(local) = b.cap_local.get(c as usize) else {
+                            continue;
+                        };
+                        union(&mut captured, &flat(&self.held(Origin::Local(local.raw()))));
+                    }
+                }
+                vec![captured]
+            }
             Tag::Coerce => self.of(b.data[i][0]).to_vec(),
             // A collection intrinsic's result, as a map lookup's, holds
             // what its operands hold.
@@ -1248,6 +1405,175 @@ impl Solve<'_> {
         if union_into(&mut self.val[i], &new) {
             self.changed = true;
         }
+    }
+
+    /// Whether value `v` is a scoped function value carrying capture
+    /// origins.
+    fn captured_fn(&self, v: u32) -> bool {
+        self.ty(v).is_some_and(|t| capture_slot(self.pool, t)) && !flat(self.of(v)).is_empty()
+    }
+
+    /// The instantiated parameter types of call `i`. A direct function
+    /// type is the one non-escaping destination for a scoped function
+    /// value, including where a generic parameter is instantiated with
+    /// that function type.
+    fn call_params(&self, i: usize) -> Vec<(Ty, Ty)> {
+        let b = self.b;
+        let instantiated = |def| {
+            let sig = self.cx.lookup.item(def)?.sig()?;
+            let names = &self.cx.names;
+            let params = DepSig::new(
+                self.pool,
+                &sig.params,
+                |s| names.text(s) == "self",
+                sig.ret,
+                &sig.lifetimes,
+            )
+            .instantiate(self.pool, b, i)
+            .params;
+            Some(
+                sig.params
+                    .iter()
+                    .map(|p| p.1)
+                    .zip(params.into_iter().map(|(t, _)| t))
+                    .collect(),
+            )
+        };
+        match b.tags[i] {
+            Tag::Call | Tag::Await => Callee::from_words(b.record(b.data[i][0]))
+                .map(|callee| match callee {
+                    Callee::Item { def, .. } => def,
+                    Callee::TraitMethod { method, .. } => method,
+                })
+                .and_then(instantiated)
+                .unwrap_or_default(),
+            Tag::CallDyn => b
+                .record(b.data[i][1])
+                .first()
+                .copied()
+                .map(DefId::from_raw)
+                .and_then(instantiated)
+                .unwrap_or_default(),
+            Tag::CallValue => self
+                .ty(b.data[i][0])
+                .and_then(|t| match self.pool.get(referent_fn(self.pool, t)) {
+                    TyData::Fn { params, .. } => Some(
+                        self.pool
+                            .list_items(params)
+                            .iter()
+                            .map(|&p| (p, p))
+                            .collect(),
+                    ),
+                    _ => None,
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Uses of scoped function values that keep them somewhere other than
+    /// another direct `fn(...)` parameter (`fn.capture.local-store`).
+    fn captured_fn_escapes(&self) -> Vec<(NodeIdx, &'static str)> {
+        let b = self.b;
+        let mut bad = Vec::new();
+        let at = |v: u32, i: usize| {
+            if v & hd_tir::ir::Ref::CONST_BIT == 0 {
+                b.syn
+                    .get(v as usize)
+                    .copied()
+                    .filter(|n| *n != NodeIdx::NONE)
+                    .unwrap_or(b.syn[i])
+            } else {
+                b.syn[i]
+            }
+        };
+        for i in 0..b.tags.len() {
+            match b.tags[i] {
+                Tag::Store => {
+                    let [place, value] = b.data[i];
+                    if !self.captured_fn(value) {
+                        continue;
+                    }
+                    let local = b.decode_place(place).is_some_and(|p| {
+                        matches!(p.root, PlaceRoot::Local(_)) && p.proj.is_empty()
+                    });
+                    if !local {
+                        bad.push((
+                            at(value, i),
+                            "a local reference captured by this function value never escapes to a field, a top-level binding, or a place the caller owns",
+                        ));
+                    }
+                }
+                Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => {
+                    let params = self.call_params(i);
+                    for (p, &(declared, instantiated)) in params.iter().enumerate() {
+                        let Some(value) = source_arg(b, i, p) else {
+                            continue;
+                        };
+                        if !self.captured_fn(value) {
+                            continue;
+                        }
+                        let forwards_parameter = capture_slot(self.pool, instantiated)
+                            && flat(self.of(value))
+                                .iter()
+                                .all(|origin| matches!(origin, Origin::Param(_, _)));
+                        if !capture_slot(self.pool, declared) && !forwards_parameter {
+                            bad.push((
+                                at(value, i),
+                                "a local reference captured by this function value may be passed only to a `fn(...)` parameter",
+                            ));
+                        }
+                    }
+                }
+                Tag::NewStruct
+                | Tag::CopyStruct
+                | Tag::NewVariant
+                | Tag::NewTuple
+                | Tag::NewList
+                | Tag::NewMap => {
+                    slots(b, i, |_, value, word| {
+                        if matches!(word, Word::Value(Role::Consume)) && self.captured_fn(value) {
+                            bad.push((
+                                at(value, i),
+                                "a local reference captured by this function value never escapes to a field or collection element",
+                            ));
+                        }
+                    });
+                }
+                Tag::Intrinsic => {
+                    slots(b, i, |_, value, word| {
+                        if matches!(word, Word::Value(Role::Consume)) && self.captured_fn(value) {
+                            bad.push((
+                                at(value, i),
+                                "a local reference captured by this function value never escapes to a collection element",
+                            ));
+                        }
+                    });
+                }
+                Tag::With | Tag::ContextNew => {
+                    slots(b, i, |_, value, word| {
+                        if word == Word::Provider && self.captured_fn(value) {
+                            bad.push((
+                                at(value, i),
+                                "a local reference captured by this function value never escapes to a provider",
+                            ));
+                        }
+                    });
+                }
+                Tag::CallHost => {
+                    slots(b, i, |_, value, word| {
+                        if matches!(word, Word::Value(_)) && self.captured_fn(value) {
+                            bad.push((
+                                at(value, i),
+                                "a local reference captured by this function value never escapes through a host call",
+                            ));
+                        }
+                    });
+                }
+                _ => {}
+            }
+        }
+        bad
     }
 }
 
@@ -1413,10 +1739,21 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let body = self.b.body();
         // The body's own map: parameter k is local k.
-        let fn_body = body.kind == BodyKind::Fn && fun.is_some() && holds_local_ref(pool, ret);
+        let fn_body = body.kind == BodyKind::Fn && fun.is_some() && may_hold(pool, ret);
         let mut opaque = false;
-        let own = match fn_body.then(|| self.sig_of(body.item)) {
-            Some(Ok(sig)) => {
+        let own_sig = fn_body
+            .then(|| {
+                if self.result_omitted {
+                    let mut sig = self.cx.lookup.item(body.item)?.sig()?.clone();
+                    sig.ret = ret;
+                    Some(sig)
+                } else {
+                    self.sig_of(body.item).ok()
+                }
+            })
+            .flatten();
+        let own = match own_sig {
+            Some(sig) => {
                 let names = &self.cx.names;
                 // A hidden result is checked against its opaque types'
                 // lifetimes (`types.opaque.borrows.body`).
@@ -1446,7 +1783,9 @@ impl Ck<'_, '_> {
         let mut deps: HashMap<u32, DepSig> = HashMap::default();
         let mut stores: HashMap<u32, DepSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
-        let mut through = false;
+        let mut through = body.local_ty.iter().enumerate().any(|(l, &t)| {
+            body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
+        });
         for i in 0..body.tags.len() {
             if matches!(body.tags[i], Tag::Call | Tag::Await)
                 && let Some(sig) = self.store_dep(body, i)
@@ -1459,7 +1798,7 @@ impl Ck<'_, '_> {
                 Tag::Block | Tag::Loop if w(i) != root.0 && holds_local_ref(pool, body.ty[i]) => {
                     through = true;
                 }
-                Tag::Call | Tag::Await | Tag::CallDyn if holds_local_ref(pool, body.ty[i]) => {
+                Tag::Call | Tag::Await | Tag::CallDyn if may_hold(pool, body.ty[i]) => {
                     let def = match body.tags[i] {
                         Tag::CallDyn => body.record(body.data[i][1]).first().copied(),
                         _ => match Callee::from_words(body.record(body.data[i][0])) {
@@ -1476,7 +1815,7 @@ impl Ck<'_, '_> {
                 }
                 // A function value's call takes the map its type carries
                 // (`fn.type.lifetime.call`).
-                Tag::CallValue if holds_local_ref(pool, body.ty[i]) => {
+                Tag::CallValue if may_hold(pool, body.ty[i]) => {
                     let f = body.data[i][0];
                     if let Some(dep) = body
                         .ty
@@ -1491,6 +1830,14 @@ impl Ck<'_, '_> {
                 // with no source may depend on nothing.
                 Tag::Closure if !body.is_instantiation(i) => {
                     let sub = body.data[i][0] as usize;
+                    let rec = body.record(body.data[i][1]);
+                    if let [start, len, ..] = rec {
+                        through |= (*start..start.saturating_add(*len)).any(|c| {
+                            body.cap_local
+                                .get(c as usize)
+                                .is_some_and(|l| may_hold(pool, body.local_ty[l.idx()]))
+                        });
+                    }
                     let dep = DepSig::of_fn(pool, body.ty[i]);
                     match pool.get(referent_fn(pool, body.ty[i])) {
                         // A local function's hidden result is checked
@@ -1506,6 +1853,7 @@ impl Ck<'_, '_> {
                                 outs: vec![],
                                 ret: result,
                                 elided: Elided::Missing,
+                                capture_elided: Elided::Missing,
                             });
                             let hidden = body.sub_root.get(sub).map_or(result, |&r| {
                                 body.ty.get(r as usize).copied().unwrap_or(result)
@@ -1522,10 +1870,7 @@ impl Ck<'_, '_> {
                 Tag::Store => {
                     let [_, v] = body.data[i];
                     through |= v & hd_tir::ir::Ref::CONST_BIT == 0
-                        && body
-                            .ty
-                            .get(v as usize)
-                            .is_some_and(|&t| holds_local_ref(pool, t));
+                        && body.ty.get(v as usize).is_some_and(|&t| may_hold(pool, t));
                 }
                 // A list push or a map store (`Solve::intrinsic_store`).
                 Tag::Intrinsic => {
@@ -1541,8 +1886,13 @@ impl Ck<'_, '_> {
             }
         }
         let elided = own.as_ref().map(|o| o.elided);
+        // A function value's hidden capture slot may be empty: returning a
+        // capture-free function needs no reference source. Only ordinary
+        // local-reference result slots require an elided source.
+        let needs_source = own.as_ref().is_some_and(|o| pool.ref_slots(o.ret) > 0);
         if let (Some(Elided::Missing | Elided::Ambiguous), Some(f)) = (elided, fun)
             && self.result_omitted
+            && needs_source
         {
             self.source_error(elided == Some(Elided::Missing), f);
         }
@@ -1582,9 +1932,7 @@ impl Ck<'_, '_> {
         };
         for l in 0..body.local_ty.len() {
             let lt = body.local_ty[l];
-            if body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0
-                && holds_local_ref(pool, lt)
-            {
+            if body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && may_hold(pool, lt) {
                 let pt = s.params[l];
                 let tp = tops(pool, pt);
                 let mine: Vec<Set> = tp
@@ -1606,6 +1954,7 @@ impl Ck<'_, '_> {
                 s.step(i);
             }
         }
+        let capture_bad = s.captured_fn_escapes();
         let mut stores: Vec<NodeIdx> = s.out.iter().map(|&i| body.syn[i as usize]).collect();
         stores.sort_stable_by_key(|n| n.raw());
         let mut bad: Vec<(NodeIdx, Origin, u32)> = Vec::new();
@@ -1666,8 +2015,9 @@ impl Ck<'_, '_> {
         }
         skip.insert(root.0);
         let outlives = scoped_uses(&s, &skip, self.cx);
+        let mut seen = HashSet::default();
         for at in stores {
-            if at == NodeIdx::NONE {
+            if at == NodeIdx::NONE || !seen.insert(at) {
                 continue;
             }
             let node = self.cx.src.parse.tree.node(at);
@@ -1677,7 +2027,13 @@ impl Ck<'_, '_> {
                 "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime",
             );
         }
-        let mut seen = HashSet::default();
+        for (at, msg) in capture_bad {
+            if at == NodeIdx::NONE || !seen.insert(at) {
+                continue;
+            }
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::LocalReferenceEscapes, node, msg);
+        }
         if let Some(own) = &own {
             for (at, o, id) in bad {
                 if at == NodeIdx::NONE || !seen.insert(at) {
