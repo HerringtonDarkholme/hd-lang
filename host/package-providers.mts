@@ -76,6 +76,32 @@ const object = (fields: [string, Dynamic][]): DynamicRecord => Object.fromEntrie
 const named = (i: ContractInterface): string =>
   `${i.identity.package}@${i.identity.version}/${i.identity.trait_path}`;
 
+function encodePrimitive(value: Dynamic, tokens: Dynamic[]): boolean {
+  if (value === null) {
+    tokens.push(["n"]);
+  } else if (typeof value === "boolean") {
+    tokens.push(["b", value]);
+  } else if (typeof value === "string") {
+    tokens.push(["s", value]);
+  } else if (typeof value === "bigint") {
+    if (value < -(1n << 63n) || value >= 1n << 64n) {
+      fail("private integer outside 64-bit range");
+    }
+    tokens.push([value < 0n ? "i" : "u", String(value)]);
+  } else if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      tokens.push(["n"]);
+    } else {
+      const bits = new DataView(new ArrayBuffer(8));
+      bits.setFloat64(0, value, true);
+      tokens.push(["f", bits.getBigUint64(0, true).toString(16).padStart(16, "0")]);
+    }
+  } else {
+    return false;
+  }
+  return true;
+}
+
 // Typed Serde transport is internal. Provider methods receive JS values:
 // bigint integers, number floats, and ordinary arrays/objects. Using a flat
 // stream preserves numeric kind and avoids multiplying container depth.
@@ -90,26 +116,10 @@ function encodePrivate(value: Dynamic): string {
       continue;
     }
     const v = job.value;
-    if (v === null) {
-      tokens.push(["n"]);
-    } else if (typeof v === "boolean") {
-      tokens.push(["b", v]);
-    } else if (typeof v === "string") {
-      tokens.push(["s", v]);
-    } else if (typeof v === "bigint") {
-      if (v < -(1n << 63n) || v >= 1n << 64n) {
-        fail("private integer outside 64-bit range");
-      }
-      tokens.push([v < 0n ? "i" : "u", String(v)]);
-    } else if (typeof v === "number") {
-      if (!Number.isFinite(v)) {
-        tokens.push(["n"]);
-      } else {
-        const bits = new DataView(new ArrayBuffer(8));
-        bits.setFloat64(0, v, true);
-        tokens.push(["f", bits.getBigUint64(0, true).toString(16).padStart(16, "0")]);
-      }
-    } else if (typeof v === "object") {
+    if (encodePrimitive(v, tokens)) {
+      continue;
+    }
+    if (typeof v === "object") {
       if (active.has(v)) {
         fail("cyclic private value");
       }
@@ -190,6 +200,29 @@ function decodePrivateContainer(tag: Dynamic, length: Dynamic, values: Dynamic[]
   return Object.fromEntries(entries);
 }
 
+function decodePrivateToken(token: Dynamic, values: Dynamic[]): void {
+  if (!Array.isArray(token)) {
+    fail("invalid private value token");
+  }
+  const [tag, value] = token;
+  if (token.length !== (tag === "n" ? 1 : 2)) {
+    fail("invalid private value token");
+  }
+  if (tag === "n") {
+    values.push(null);
+  } else if (tag === "b" && typeof value === "boolean") {
+    values.push(value);
+  } else if (tag === "s" && typeof value === "string") {
+    values.push(value);
+  } else if (["i", "u", "f"].includes(tag)) {
+    values.push(decodePrivateNumber(tag, value));
+  } else if (tag === "a" || tag === "o") {
+    values.push(decodePrivateContainer(tag, value, values));
+  } else {
+    fail("invalid private value token");
+  }
+}
+
 function decodePrivate(text: string): Dynamic {
   let tokens: Dynamic;
   try {
@@ -202,27 +235,7 @@ function decodePrivate(text: string): Dynamic {
   }
   const values: Dynamic[] = [];
   for (let i = tokens.length - 1; i >= 0; --i) {
-    const token = tokens[i];
-    if (!Array.isArray(token)) {
-      fail("invalid private value token");
-    }
-    const [tag, v] = token;
-    if (token.length !== (tag === "n" ? 1 : 2)) {
-      fail("invalid private value token");
-    }
-    if (tag === "n") {
-      values.push(null);
-    } else if (tag === "b" && typeof v === "boolean") {
-      values.push(v);
-    } else if (tag === "s" && typeof v === "string") {
-      values.push(v);
-    } else if (["i", "u", "f"].includes(tag)) {
-      values.push(decodePrivateNumber(tag, v));
-    } else if (tag === "a" || tag === "o") {
-      values.push(decodePrivateContainer(tag, v, values));
-    } else {
-      fail("invalid private value token");
-    }
+    decodePrivateToken(tokens[i], values);
   }
   if (values.length !== 1) {
     fail("invalid private value framing");
@@ -494,6 +507,133 @@ export function createPackageRuntime(
     result,
     handle,
   };
+  const registrationsFor = (providers: ProviderRegistration[]) => {
+    if (!Array.isArray(providers)) {
+      fail("providers must be explicit registrations");
+    }
+    const registrations = new Map<
+      string,
+      { expected: ContractInterface[]; root: ContractInterface; implementation: DynamicRecord }
+    >();
+    for (const provider of providers) {
+      const expected = readPackageContract(provider.contract);
+      const root =
+        expected.find(
+          (item) =>
+            !item.handle &&
+            item.module === provider.module &&
+            same(item.identity, provider.identity),
+        ) ?? fail("invalid or duplicate provider registration");
+      if (registrations.has(provider.module)) {
+        fail("invalid or duplicate provider registration");
+      }
+      const implementation = provider.implementation;
+      if (
+        implementation === null ||
+        typeof implementation !== "object" ||
+        ![Object.prototype, null].includes(Object.getPrototypeOf(implementation))
+      ) {
+        fail(`provider for ${named(root)} must default-export a plain object of methods`);
+      }
+      registrations.set(provider.module, { expected, root, implementation });
+    }
+    return registrations;
+  };
+  const validateRegistrations = (
+    required: ContractInterface[],
+    registrations: ReturnType<typeof registrationsFor>,
+  ): void => {
+    const checkExpected = (
+      needed: ContractInterface,
+      expected: ContractInterface[],
+      seen = new Set<string>(),
+    ): void => {
+      if (seen.has(needed.module)) {
+        return;
+      }
+      seen.add(needed.module);
+      const item =
+        expected.find(
+          (candidate) =>
+            candidate.module === needed.module &&
+            candidate.handle === needed.handle &&
+            same(candidate.identity, needed.identity),
+        ) ?? fail(`provider identity/schema mismatch for ${named(needed)}`);
+      for (const method of needed.methods) {
+        if (!item.methods.some((other) => same(method, other))) {
+          fail(`provider method/schema mismatch for ${named(needed)}.${method.member}`);
+        }
+      }
+      const visit = (value: ContractValue): void => {
+        if (value[0] === 15) {
+          const nested =
+            required.find((entry) => entry.handle && entry.module === value[1]) ??
+            fail("missing handle interface");
+          checkExpected(nested, expected, seen);
+        }
+        if (value[0] === 8 || value[0] === 9) {
+          visit(value[1]);
+        }
+        if (value[0] === 10) {
+          value[1].forEach(visit);
+        }
+        if (value[0] === 11) {
+          value[1].forEach(([, type]) => visit(type));
+        }
+        if (value[0] === 12) {
+          value[1].forEach(([, fields]) => fields.forEach(([, type]) => visit(type)));
+        }
+        if (value[0] === 13) {
+          visit(value[1]);
+          visit(value[2]);
+        }
+      };
+      for (const method of needed.methods) {
+        method.params.forEach(visit);
+        visit(method.result);
+      }
+    };
+    for (const item of required.filter((entry) => !entry.handle)) {
+      const registration =
+        registrations.get(item.module) ??
+        fail(`missing provider for ${named(item)}; register it explicitly`);
+      checkExpected(item, registration.expected);
+      if (
+        item.selectors.some(
+          (selector) => Object.hasOwn(grants, selector) && grants[selector] === false,
+        )
+      ) {
+        fail(`capability denied: ${named(item)}`);
+      }
+      for (const method of item.methods) {
+        if (
+          !Object.hasOwn(registration.implementation, method.member) ||
+          typeof registration.implementation[method.member] !== "function"
+        ) {
+          fail(`missing provider method ${named(item)}.${method.member}`);
+        }
+      }
+    }
+  };
+  const argumentsFor = (method: RuntimeMethod, isHandle: boolean, raw: Dynamic[]): Dynamic[] => {
+    if (!method.params.length) {
+      return [];
+    }
+    const length = raw.shift();
+    if (!Number.isInteger(length) || (length as number) < 0) {
+      fail("invalid argument buffer length");
+    }
+    const bytes = Uint8Array.from(io.view(length as number));
+    if (!isHandle && method.params.length === 1 && method.params[0] === str) {
+      return [decodeUtf8(bytes)];
+    }
+    const decoder = new Dec(bytes);
+    const args = method.params.map((type) => type.dec(decoder));
+    if (decoder.at !== bytes.length) {
+      fail("trailing argument bytes");
+    }
+    return args;
+  };
   const bind = (
     contract: Uint8Array,
     generated: RuntimeInterface[],
@@ -530,102 +670,8 @@ export function createPackageRuntime(
         i.methods.map((m) => m.member),
       );
     }
-    if (!Array.isArray(providers)) {
-      fail("providers must be explicit registrations");
-    }
-    const registrations = new Map<
-      string,
-      {
-        expected: ContractInterface[];
-        root: ContractInterface;
-        implementation: DynamicRecord;
-      }
-    >();
-    for (const provider of providers) {
-      const expected = readPackageContract(provider.contract);
-      const root =
-        expected.find(
-          (i) => !i.handle && i.module === provider.module && same(i.identity, provider.identity),
-        ) ?? fail("invalid or duplicate provider registration");
-      if (registrations.has(provider.module)) {
-        fail("invalid or duplicate provider registration");
-      }
-      const implementation = provider.implementation;
-      if (
-        implementation === null ||
-        typeof implementation !== "object" ||
-        ![Object.prototype, null].includes(Object.getPrototypeOf(implementation))
-      ) {
-        fail(`provider for ${named(root)} must default-export a plain object of methods`);
-      }
-      registrations.set(provider.module, { expected, root, implementation });
-    }
-    const checkExpected = (
-      needed: ContractInterface,
-      expected: ContractInterface[],
-      seen = new Set<string>(),
-    ): void => {
-      if (seen.has(needed.module)) {
-        return;
-      }
-      seen.add(needed.module);
-      const i =
-        expected.find(
-          (i) =>
-            i.module === needed.module &&
-            i.handle === needed.handle &&
-            same(i.identity, needed.identity),
-        ) ?? fail(`provider identity/schema mismatch for ${named(needed)}`);
-      for (const m of needed.methods) {
-        if (!i.methods.some((other) => same(m, other))) {
-          fail(`provider method/schema mismatch for ${named(needed)}.${m.member}`);
-        }
-      }
-      const visit = (v: ContractValue): void => {
-        if (v[0] === 15) {
-          const nested =
-            required.find((i) => i.handle && i.module === v[1]) ?? fail("missing handle interface");
-          checkExpected(nested, expected, seen);
-        }
-        if (v[0] === 8 || v[0] === 9) {
-          visit(v[1]);
-        }
-        if (v[0] === 10) {
-          v[1].forEach(visit);
-        }
-        if (v[0] === 11) {
-          v[1].forEach(([, t]) => visit(t));
-        }
-        if (v[0] === 12) {
-          v[1].forEach(([, fs]) => fs.forEach(([, t]) => visit(t)));
-        }
-        if (v[0] === 13) {
-          visit(v[1]);
-          visit(v[2]);
-        }
-      };
-      for (const m of needed.methods) {
-        m.params.forEach(visit);
-        visit(m.result);
-      }
-    };
-    for (const i of required.filter((i) => !i.handle)) {
-      const registration =
-        registrations.get(i.module) ??
-        fail(`missing provider for ${named(i)}; register it explicitly`);
-      checkExpected(i, registration.expected);
-      if (i.selectors.some((s) => Object.hasOwn(grants, s) && grants[s] === false)) {
-        fail(`capability denied: ${named(i)}`);
-      }
-      for (const m of i.methods) {
-        if (
-          !Object.hasOwn(registration.implementation, m.member) ||
-          typeof registration.implementation[m.member] !== "function"
-        ) {
-          fail(`missing provider method ${named(i)}.${m.member}`);
-        }
-      }
-    }
+    const registrations = registrationsFor(providers);
+    validateRegistrations(required, registrations);
     const imports: DynamicRecord = Object.create(null);
     for (const i of descriptors) {
       const declared =
@@ -676,23 +722,7 @@ export function createPackageRuntime(
             }
             receiver = h.value;
           }
-          let args = [];
-          if (m.params.length) {
-            const len = raw.shift();
-            if (!Number.isInteger(len) || len < 0) {
-              fail("invalid argument buffer length");
-            }
-            const bytes = Uint8Array.from(io.view(len));
-            if (!i.handle && m.params.length === 1 && m.params[0] === str) {
-              args = [decodeUtf8(bytes)];
-            } else {
-              const d = new Dec(bytes);
-              args = m.params.map((t) => t.dec(d));
-              if (d.at !== bytes.length) {
-                fail("trailing argument bytes");
-              }
-            }
-          }
+          const args = argumentsFor(m, i.handle, raw);
           if (raw.length) {
             fail("wrong import arity");
           }
