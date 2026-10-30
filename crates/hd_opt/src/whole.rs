@@ -164,6 +164,7 @@ impl Scan<'_> {
             | TyData::Never
             | TyData::Poison
             | TyData::Param(_)
+            | TyData::Const(_)
             | TyData::Infer(_)
             | TyData::Canon(_)
             | TyData::Row(_)

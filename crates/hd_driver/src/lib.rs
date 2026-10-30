@@ -5655,7 +5655,13 @@ impl Run<'_> {
                 &mut scratch,
                 collect.then_some(&mut facts),
             )
-            .map(|o| o.map(|o| o.items));
+            .map(|o| o.map(|o| o.items))
+            .and_then(|items| {
+                if let Some(items) = &items {
+                    hd_check::header::const_generics_gap(items, Stage::ModulePrep)?;
+                }
+                Ok(items)
+            });
         let Some(Some(items)) = self.stage(Stage::ModulePrep, items) else {
             self.blocked(Stage::Body);
             self.blocked(Stage::ModuleFinish);

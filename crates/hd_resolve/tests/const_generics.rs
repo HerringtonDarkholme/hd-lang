@@ -1,5 +1,5 @@
-//! Const generic syntax reaches resolution without being encoded as a fake
-//! type argument before the interface slice exists.
+//! Const generic parameters and bare parameter arguments reach interfaces;
+//! expression arguments wait for evaluation at the not-yet boundary.
 
 use std::sync::Arc;
 
@@ -7,9 +7,9 @@ use hd_base::{FileId, Stage};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_project::UseRoots;
-use hd_resolve::{Cx, FolderIface, KnownItems, ModIn, Names, Src, World, build_folder};
+use hd_resolve::{Cx, FolderIface, KnownItems, ModIn, Names, Src, World, build_folder, show_ty};
 use hd_syntax::parse;
-use hd_types::InternPool;
+use hd_types::{ConstValue, InternPool, ParamRef, Prim, TyData};
 
 struct OneFolder;
 
@@ -92,5 +92,127 @@ fn const_declarations_and_arguments_reach_the_not_yet_boundary() {
             Code::GenericKindMismatch,
             Code::GenericKindMismatch,
         ]
+    );
+}
+
+/// The declarations resolved in a fresh session from `text`.
+fn resolve_in(names: Names<'_>, text: &str) -> (Vec<hd_resolve::Item>, Vec<hd_resolve::Export>) {
+    let parsed = parse(text.as_bytes());
+    assert!(parsed.is_ok());
+    let cx = Cx {
+        names,
+        folder: 0,
+        world: &OneFolder,
+    };
+    let input = ModIn {
+        path: "app".to_owned(),
+        roots: UseRoots::default(),
+        src: Src {
+            parse: &parsed,
+            text,
+            file: FileId::from_raw(0),
+        },
+        seeds: Vec::new(),
+        tests: false,
+        session: None,
+    };
+    let mut diags = DiagBuf::default();
+    let out = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
+        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
+    assert_eq!(diags.len(), 0, "{:?}", diags.code);
+    let items = out.modules.into_iter().flat_map(|m| m.items).collect();
+    (items, out.exports)
+}
+
+#[test]
+fn const_parameters_and_parameter_arguments_survive_an_interface() {
+    let text = "pub struct Buffer[T, N < const usize]:\n    value: T\n\npub struct Flag[B < const bool, S < const string]:\n    value: i32\n\npub fn keep[T, N < const usize](value: Buffer[T, N]) -> Buffer[T, N]:\n    value\n";
+    let (pool, paths, syms) = (
+        InternPool::new(),
+        PathTable::new(),
+        ShardedInterner::default(),
+    );
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let (items, exports) = resolve_in(names, text);
+    let bytes = hd_resolve::encode_items(&names, &items, &exports).expect("encode");
+
+    // A fresh session, whose tables number paths and symbols differently.
+    let (pool, paths, syms) = (
+        InternPool::new(),
+        PathTable::new(),
+        ShardedInterner::default(),
+    );
+    paths.item("other", "x", "Y");
+    syms.intern("an earlier symbol");
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let (read, _) = hd_resolve::decode_items(&names, &bytes).expect("decode");
+    let item = |name: &str| {
+        read.iter()
+            .find(|i| names.text(i.name) == name)
+            .unwrap_or_else(|| panic!("no item `{name}`"))
+    };
+    let kinds = |gs: &[hd_resolve::Generic]| gs.iter().map(|g| g.const_type).collect::<Vec<_>>();
+    assert_eq!(kinds(&item("Buffer").generics), [None, Some(Prim::Usize)]);
+    assert_eq!(
+        kinds(&item("Flag").generics),
+        [Some(Prim::Bool), Some(Prim::String)]
+    );
+
+    // `N` in `Buffer[T, N]` is `keep`'s own parameter, by path and position.
+    let keep = item("keep");
+    let hd_resolve::ItemData::Fn(sig) = &keep.data else {
+        panic!("`keep` is not a function");
+    };
+    assert_eq!(kinds(&sig.generics), [None, Some(Prim::Usize)]);
+    let TyData::Adt { args, .. } = pool.get(sig.params[0].1) else {
+        panic!("not a struct type");
+    };
+    assert_eq!(
+        pool.get(pool.list_items(args)[1]),
+        TyData::Param(ParamRef {
+            owner: keep.def,
+            index: 1,
+        })
+    );
+    names.record_params(keep);
+    assert_eq!(show_ty(&names, sig.ret), "Buffer[T, N]");
+}
+
+#[test]
+fn const_arguments_display_as_canonical_literals() {
+    let (pool, paths, syms) = (
+        InternPool::new(),
+        PathTable::new(),
+        ShardedInterner::default(),
+    );
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let shown = |v| show_ty(&names, pool.intern_ty(&TyData::Const(v)));
+    let int = |prim, bits| ConstValue::Int { prim, bits };
+    assert_eq!(shown(int(Prim::I32, u64::MAX - 6)), "-7");
+    assert_eq!(shown(int(Prim::U64, u64::MAX)), "18446744073709551615");
+    assert_eq!(shown(ConstValue::Bool(false)), "false");
+    assert_eq!(shown(ConstValue::Char('\'')), "'\\''");
+    assert_eq!(shown(ConstValue::Char('\n')), "'\\n'");
+    assert_eq!(
+        shown(ConstValue::Str(syms.intern("say \"$x\"\t"))),
+        "\"say \\\"\\$x\\\"\\t\""
     );
 }

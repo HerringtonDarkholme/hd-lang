@@ -16,7 +16,7 @@ use hd_types::solver::{
     Declarations, HeadKey, ImplOrigin, ImplTable, PlanStep, SealedTraits, TypeDecl,
 };
 use hd_types::wire::{TableWriter, Tables};
-use hd_types::{InternPool, ParamRef, RowId, Ty, TyData, TyList};
+use hd_types::{ConstValue, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 /// The segment prefix of a local declaration's hidden scope; `#` is in no
 /// identifier, so no field or parameter default (also `Hidden`) has it.
@@ -213,6 +213,10 @@ pub struct Generic {
     /// A struct's lifetime parameter (`ref.lifetime.struct`): it follows
     /// the type parameters, and its argument is always [`lifetime_arg`].
     pub lifetime: bool,
+    /// A const parameter's declared scalar type
+    /// (`types.generic.const.parameter`). Its argument is a
+    /// [`TyData::Const`] value or a bare const parameter.
+    pub const_type: Option<Prim>,
 }
 
 impl Generic {
@@ -226,6 +230,35 @@ impl Generic {
             row: false,
             variance: 0,
             lifetime: false,
+            const_type: None,
+        }
+    }
+}
+
+/// A const argument's canonical literal spelling
+/// (`types.generic.const.display`): a decimal integer, `true` or `false`,
+/// or an escaped character or string literal.
+#[must_use]
+pub fn const_literal(names: &Names<'_>, v: ConstValue) -> String {
+    let escape = |c: char, quote: char| match c {
+        '\\' => "\\\\".to_owned(),
+        '\n' => "\\n".to_owned(),
+        '\r' => "\\r".to_owned(),
+        '\t' => "\\t".to_owned(),
+        '\0' => "\\0".to_owned(),
+        '$' if quote == '"' => "\\$".to_owned(),
+        c if c == quote => format!("\\{c}"),
+        c if c.is_control() => format!("\\u{{{:x}}}", u32::from(c)),
+        c => c.to_string(),
+    };
+    match v {
+        ConstValue::Int { prim, bits } if prim.is_unsigned() => bits.to_string(),
+        ConstValue::Int { bits, .. } => i64::from_ne_bytes(bits.to_ne_bytes()).to_string(),
+        ConstValue::Bool(b) => b.to_string(),
+        ConstValue::Char(c) => format!("'{}'", escape(c, '\'')),
+        ConstValue::Str(s) => {
+            let body: String = names.text(s).chars().map(|c| escape(c, '"')).collect();
+            format!("\"{body}\"")
         }
     }
 }
@@ -1074,7 +1107,11 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
             -1 => 0b1000,
             _ => 0,
         };
-        w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4));
+        let konst = u8::from(g.const_type.is_some()) << 5;
+        w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst);
+        if let Some(p) = g.const_type {
+            w.u8(p as u8);
+        }
     }
     Ok(())
 }
@@ -1092,6 +1129,11 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
         let d = r.u32();
         let default = if d == u32::MAX { None } else { Some(t.ty(d)?) };
         let flags = r.u8();
+        let const_type = if flags & 0b10_0000 == 0 {
+            None
+        } else {
+            Some(*Prim::ALL.get(usize::from(r.u8()))?)
+        };
         out.push(Generic {
             name,
             bound,
@@ -1104,6 +1146,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
                 _ => 0,
             },
             lifetime: flags & 0b1_0000 != 0,
+            const_type,
         });
     }
     Some(out)
@@ -2240,6 +2283,7 @@ fn show_marked(
         TyData::Prim(p) => p.name().to_owned(),
         TyData::Never => "never".into(),
         TyData::Poison => "_".into(),
+        TyData::Const(v) => const_literal(names, v),
         TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
             if args == TyList::EMPTY =>
         {

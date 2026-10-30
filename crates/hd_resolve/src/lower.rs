@@ -820,7 +820,8 @@ struct Resolver<'a, 'b> {
     /// a row parameter, from their heads.
     row_params: HashMap<DefId, Vec<bool>>,
     /// Whether each non-lifetime generic parameter of a folder declaration
-    /// is const. Interfaces carry this in slice 2; this map covers own heads.
+    /// is const, from their heads. Other folders' come from their
+    /// interfaces' [`Generic::const_type`].
     const_params: HashMap<DefId, Vec<bool>>,
     /// This folder's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
@@ -1873,17 +1874,16 @@ impl Lower<'_, '_, '_> {
                     }
                     SyntaxKind::ConstArgument => {
                         if self.const_slot(def, position) {
-                            self.lower_const_argument(a, gn);
+                            args.push(self.lower_const_argument(a, gn));
                         } else {
                             self.const_kind_mismatch(def, position, a, "a const expression");
+                            args.push(Ty::POISON);
                         }
-                        args.push(Ty::POISON);
                         position += 1;
                     }
                     k if k.is_type() => {
                         if self.const_slot(def, position) {
-                            self.lower_const_argument(a, gn);
-                            args.push(Ty::POISON);
+                            args.push(self.lower_const_argument(a, gn));
                         } else {
                             args.push(self.ty(Some(a), gn));
                         }
@@ -1920,12 +1920,16 @@ impl Lower<'_, '_, '_> {
     }
 
     fn const_slot(&self, def: DefId, position: usize) -> bool {
-        self.r
-            .const_params
-            .get(&def)
-            .and_then(|slots| slots.get(position))
-            .copied()
-            .unwrap_or(false)
+        match self.r.const_params.get(&def) {
+            Some(slots) => slots.get(position).copied().unwrap_or(false),
+            None => self.r.item(def).is_some_and(|i| {
+                i.generics
+                    .iter()
+                    .filter(|g| !g.lifetime)
+                    .nth(position)
+                    .is_some_and(|g| g.const_type.is_some())
+            }),
+        }
     }
 
     fn const_kind_mismatch(
@@ -1956,14 +1960,19 @@ impl Lower<'_, '_, '_> {
             .error(Code::GenericKindMismatch, self.src.span(argument), &msg);
     }
 
-    /// Registers an argument in a const slot without inventing its interface
-    /// representation. A bare type or row parameter is already a resolvable
-    /// kind error; closed expressions and const names continue in slice 2.
-    fn lower_const_argument(&mut self, argument: NodeRef<'_>, gn: &Gen) {
+    /// An argument in a const slot. A bare const parameter is its
+    /// [`TyData::Param`] (`types.generic.const.type-position`); a bare type
+    /// or row parameter is a kind error. Closed expressions and named
+    /// constants are evaluated while checking (`types.generic.const.evaluate`),
+    /// which does not exist yet.
+    fn lower_const_argument(&mut self, argument: NodeRef<'_>, gn: &Gen) -> Ty {
         if argument.kind() == SyntaxKind::NamedType {
             let segs = self.segments(argument);
             if let [(name, _)] = segs.as_slice() {
                 let sym = self.sym(name);
+                if let Some((_, slot, _, _)) = gn.consts.iter().find(|(s, _, _, _)| *s == sym) {
+                    return self.names.pool.intern_ty(&TyData::Param(*slot));
+                }
                 let kind = if gn.tys.iter().any(|(s, _, _)| *s == sym) {
                     Some("type")
                 } else if gn.rows.iter().any(|(s, _)| *s == sym) {
@@ -1977,10 +1986,12 @@ impl Lower<'_, '_, '_> {
                     );
                     self.diags
                         .error(Code::GenericKindMismatch, self.src.span(argument), &msg);
+                    return Ty::POISON;
                 }
             }
         }
         self.gap("const generic arguments");
+        Ty::POISON
     }
 
     /// A trait reference (a bound, a supertrait, an impl's trait, a `dyn`
@@ -3173,27 +3184,15 @@ impl Lower<'_, '_, '_> {
                 .direct_token(&self.src.parse.tokens, TokenKind::Dollar)
                 .is_some();
             let const_parameter = g.kind() == SyntaxKind::ConstParameter;
+            let mut const_type = None;
             if const_parameter {
                 let slot = ParamRef { owner, index };
                 let declared = self.ty(Src::type_child(*g), gn);
-                if !matches!(
-                    self.names.pool.get(declared),
-                    TyData::Poison
-                        | TyData::Prim(
-                            Prim::I8
-                                | Prim::I16
-                                | Prim::I32
-                                | Prim::I64
-                                | Prim::U8
-                                | Prim::U16
-                                | Prim::U32
-                                | Prim::U64
-                                | Prim::Usize
-                                | Prim::Bool
-                                | Prim::Char
-                                | Prim::String
-                        )
-                ) {
+                match self.names.pool.get(declared) {
+                    TyData::Prim(p) if !p.is_float() => const_type = Some(p),
+                    _ => {}
+                }
+                if const_type.is_none() && declared != Ty::POISON {
                     let msg = format!(
                         "const parameter `{}` has type `{}`; expected an integer type, `bool`, `char`, or `string`",
                         self.src.text(t),
@@ -3203,7 +3202,6 @@ impl Lower<'_, '_, '_> {
                         .error(Code::GenericKindMismatch, self.src.span(*g), &msg);
                 }
                 gn.consts.push((name, slot, declared, name_span));
-                self.gap("const generic parameters");
             } else if row {
                 gn.rows.push((name, RowParamRef { owner, index }));
             } else {
@@ -3216,6 +3214,7 @@ impl Lower<'_, '_, '_> {
                 gn.pending.push(t);
             }
             let mut generic = Generic::plain(name);
+            generic.const_type = const_type;
             let toks = &self.src.parse.tokens;
             if g.direct_token(toks, TokenKind::Plus).is_some() {
                 generic.variance = 1;

@@ -327,7 +327,7 @@ read them.
 
 Tags: `Prim`, `Never`, `Poison`, `Adt`, `Tuple`, `TupleRest`, `Option`,
 `Fn`, `TraitValue`, `Param`, `Assoc`, `Mut`, `Infer`, `Canon`, `List`,
-`Row`, `RowTy`, `Context`. Tags with a record keep its first `extra`
+`Row`, `RowTy`, `Context`, `Const`. Tags with a record keep its first `extra`
 word in `data`; the record's length follows from the tag and, for rows
 and trait values, from counts inside it.
 
@@ -336,7 +336,9 @@ and trait values, from counts inside it.
 - `meta` is computed from the children's flags at intern time.
 - **No per-thread copies.** Threads share one pool. Appends serialize on
   the one append lock, which is Zig 0.14's scheme.
-- **Constants are not in the pool.** TIR keeps each body's constants as
+- **Constants are not in the pool**, except an evaluated const generic
+  argument (`Const`: its scalar type and value), which is part of a
+  type's identity. TIR keeps each body's constants as
   `(Ty, u64)` rows and its string literals in the body (§3.18). The
   design pooled them globally; per-body rows are simpler, and a
   constant never needed sharing across bodies.

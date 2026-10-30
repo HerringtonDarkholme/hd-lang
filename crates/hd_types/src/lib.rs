@@ -13,7 +13,7 @@ pub mod unify;
 pub mod wire;
 
 pub use pool::{
-    FnDeps, Inputs, InternPool, LocalPool, ParamRef, Prim, RefCells, RowData, RowId, RowParamRef,
-    Ty, TyData, TyList, Types, with_assoc_args,
+    ConstValue, FnDeps, Inputs, InternPool, LocalPool, ParamRef, Prim, RefCells, RowData, RowId,
+    RowParamRef, Ty, TyData, TyList, Types, with_assoc_args,
 };
 pub use unify::{InferTable, UnifyError, VarKind};

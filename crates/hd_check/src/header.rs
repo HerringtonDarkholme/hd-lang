@@ -14,7 +14,7 @@
 //! `item-too-complex` on the item (`fn.limit.complexity.error`), and its
 //! remaining goals are not asked. Otherwise only `Fails` is an error.
 
-use hd_base::{DefId, Fuel, StageResult, Symbol};
+use hd_base::{DefId, Fuel, NotImplemented, Stage, StageResult, Symbol};
 use hd_diag::Code;
 use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, LookupDecls, Names};
 use hd_types::solver::{
@@ -101,10 +101,35 @@ fn stage_b_over<'i>(
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     for it in items {
+        const_generics_gap(std::slice::from_ref(it), Stage::HeaderCheck)?;
         let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.item(it)?;
     }
     Ok(out)
+}
+
+/// Const generic parameters reach interfaces, but their arguments are not
+/// evaluated or compared yet (`types.generic.const.evaluate`), so `stage`
+/// stops at an item that declares one rather than check it unsoundly.
+///
+/// # Errors
+///
+/// When an item declares a const generic parameter.
+pub fn const_generics_gap(items: &[Item], stage: Stage) -> StageResult<()> {
+    let declares = |it: &Item| {
+        let sig = match &it.data {
+            ItemData::Fn(sig) | ItemData::Method { sig, .. } => &sig.generics[..],
+            _ => &[],
+        };
+        it.generics
+            .iter()
+            .chain(sig)
+            .any(|g| g.const_type.is_some())
+    };
+    if items.iter().any(declares) {
+        return Err(NotImplemented::new(stage, "const generic parameters"));
+    }
+    Ok(())
 }
 
 /// The supertrait check of a local trait impl, with `cx`'s view of the
