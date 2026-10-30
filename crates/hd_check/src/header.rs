@@ -416,7 +416,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 .map(|f| f.ty)
                 .collect(),
             ItemData::Impl { self_ty, .. } => vec![*self_ty],
-            ItemData::Alias(t) | ItemData::Newtype(t) => vec![*t],
+            ItemData::Alias { body, .. } | ItemData::Newtype(body) => vec![*body],
             ItemData::Trait(_) | ItemData::AssocType { .. } => vec![],
         };
         // The positions that other modules can see: every position of a
@@ -435,7 +435,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 | ItemData::Data(_)
                 | ItemData::Enum { .. }
                 | ItemData::Newtype(_)
-                | ItemData::Alias(_)
+                | ItemData::Alias { .. }
         );
         // A method's `self` is the impl's or trait's own target, checked
         // once at the header.

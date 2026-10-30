@@ -826,7 +826,7 @@ struct Resolver<'a, 'b> {
     const_params: HashMap<DefId, Vec<Slot>>,
     /// This folder's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
-    aliases: RefCell<HashMap<DefId, (Vec<bool>, Ty)>>,
+    aliases: RefCell<HashMap<DefId, AliasBody>>,
     seeds: HashMap<DefId, Item>,
     /// The declared parameters of the traits of the modules being lowered,
     /// lowered before any other header, so a trait reference fills its
@@ -1061,7 +1061,8 @@ impl Resolver<'_, '_> {
             .unwrap_or_else(|| (args.to_vec(), None, None))
     }
 
-    /// How many lifetime parameters the struct, enum or trait `def` declares.
+    /// How many lifetime parameters the struct, enum, trait or alias `def`
+    /// declares.
     fn lifetime_count(&self, def: DefId) -> usize {
         self.with_generics(def, |g| g.iter().filter(|g| g.lifetime).count())
             .unwrap_or(0)
@@ -1594,6 +1595,10 @@ type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<Ty>);
 
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
+
+/// A same-folder alias's parameter kinds, expanded body and the declared
+/// lifetime of each body reference slot.
+type AliasBody = (Vec<bool>, Ty, Vec<u16>);
 
 /// Calls `f` on each type in `t` along the paths that hold its reference
 /// slots, in [`Types::ref_slots`] order: through a local reference, `mut`,
@@ -2316,16 +2321,16 @@ impl Lower<'_, '_, '_> {
 
     /// An alias's body, and whether each of its generic parameters is a
     /// row parameter.
-    fn alias_body(&self, def: DefId) -> Option<(Vec<bool>, Ty)> {
+    fn alias_body(&self, def: DefId) -> Option<AliasBody> {
         if let Some(a) = self.r.aliases.borrow().get(&def) {
             return Some(a.clone());
         }
         match self.r.item(def) {
             Some(Item {
-                data: ItemData::Alias(t),
+                data: ItemData::Alias { body, lifetimes },
                 generics,
                 ..
-            }) => Some((generics.iter().map(|g| g.row).collect(), t)),
+            }) => Some((generics.iter().map(|g| g.row).collect(), body, lifetimes)),
             _ => None,
         }
     }
@@ -2335,7 +2340,7 @@ impl Lower<'_, '_, '_> {
     /// (`req.row.alias.generic.kind`, `req.row.slot.dollar`).
     fn expand_alias(&mut self, def: DefId, args: &[Ty], span: Span) -> Ty {
         let pool = self.names.pool;
-        let Some((rows, body)) = self.alias_body(def) else {
+        let Some((rows, body, _)) = self.alias_body(def) else {
             self.gap("an alias used before its declaration in the same folder");
             return Ty::POISON;
         };
@@ -2592,6 +2597,13 @@ impl Lower<'_, '_, '_> {
         if let (Some((o, s, _)), Some(b)) = (self.opaque_result, borrows) {
             self.opaque_result = Some((o, s, b));
         }
+        let alias_arg_slots = (kind == HeadKind::Alias && self.r.lifetime_count(def) != 0)
+            .then(|| {
+                self.slots
+                    .as_ref()
+                    .and_then(|slots| before.map(|from| slots[from..].to_vec()))
+            })
+            .flatten();
         // Only a trait has associated types (trait.binding.non-trait).
         if matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
             && let Some((name, _)) = bindings.first()
@@ -2604,12 +2616,15 @@ impl Lower<'_, '_, '_> {
             self.diags.error(Code::UnknownAssociatedType, span, &msg);
         }
         let t = self.ctor(def, (kind, gn, referent), &args, row, span);
-        self.lifetime_args(n, (def, kind), gn);
+        let lifetime_args = self.lifetime_args(n, (def, kind), gn);
         if let Some(before) = before {
+            let placed_alias = alias_arg_slots.is_some_and(|arg_slots| {
+                self.place_alias_slots(def, &args, &arg_slots, &lifetime_args, before, t)
+            });
             // An alias may move or repeat its arguments, so a lifetime
             // written in one has no known slot, unless the alias keeps
             // them in order, as `Option[T]` does (`ref.lifetime.alias-in-order`).
-            if kind == HeadKind::Alias && !self.alias_in_order(def) {
+            if kind == HeadKind::Alias && !placed_alias && !self.alias_in_order(def) {
                 self.unplaced_slots(n, before);
             }
             self.place_slots(n, before, t, true);
@@ -2621,7 +2636,7 @@ impl Lower<'_, '_, '_> {
     /// where it has reference slots, and adds none of its own, so the
     /// slots of its arguments are the slots of the type it names.
     fn alias_in_order(&self, def: DefId) -> bool {
-        let Some((rows, body)) = self.alias_body(def) else {
+        let Some((rows, body, _)) = self.alias_body(def) else {
             return false;
         };
         let pool = self.names.pool.types();
@@ -2638,12 +2653,81 @@ impl Lower<'_, '_, '_> {
             && seen.iter().enumerate().all(|(i, &p)| p as usize == i)
     }
 
+    /// Reorders and repeats the written slots of a lifetime alias's type
+    /// arguments, and instantiates each slot owned by one of the alias's
+    /// lifetime parameters (`ref.lifetime.alias`).
+    fn place_alias_slots(
+        &mut self,
+        def: DefId,
+        args: &[Ty],
+        written_slots: &[u16],
+        lifetime_args: &[u16],
+        before: usize,
+        expanded: Ty,
+    ) -> bool {
+        let Some((_, body, body_lifetimes)) = self.alias_body(def) else {
+            return false;
+        };
+        let Some(generics) = self.r.with_generics(def, <[Generic]>::to_vec) else {
+            return false;
+        };
+        let filled = self.r.fill_type_args(def, args).0;
+        let pool = self.names.pool.types();
+        let mut at = 0_usize;
+        let mut slots_by_param = Vec::new();
+        for (position, (&arg, generic)) in filled.iter().zip(&generics).enumerate() {
+            if generic.lifetime {
+                continue;
+            }
+            let n = pool.ref_slots(arg);
+            if position < args.len() {
+                let end = at.saturating_add(n).min(written_slots.len());
+                let mut slots = written_slots[at.min(end)..end].to_vec();
+                slots.resize(n, 0);
+                slots_by_param.push(slots);
+                at = end;
+            } else {
+                slots_by_param.push(vec![0; n]);
+            }
+        }
+        let mut declared_at = 0;
+        let mut out = Vec::new();
+        slot_paths(pool, body, &mut |data| match data {
+            TyData::Param(p) if p.owner == def => {
+                if let Some(slots) = slots_by_param.get(usize::from(p.index)) {
+                    out.extend_from_slice(slots);
+                }
+            }
+            TyData::Ref { counted: false, .. } => {
+                let lifetime = body_lifetimes.get(declared_at).copied().unwrap_or(0);
+                declared_at += 1;
+                out.push(
+                    lifetime
+                        .checked_sub(1)
+                        .and_then(|l| lifetime_args.get(usize::from(l)).copied())
+                        .unwrap_or(0),
+                );
+            }
+            _ => {}
+        });
+        if out.len() != pool.ref_slots(expanded) {
+            return false;
+        }
+        let Some(slots) = &mut self.slots else {
+            return false;
+        };
+        slots.truncate(before);
+        slots.extend(out);
+        true
+    }
+
     /// `types.lifetime.declare`: each `'name` of a generic list joins the
     /// scope, in any order beside the list's type parameters
     /// (`types.lifetime.free-order`).
     /// Only a function's, an implementation's, a method's and a top-level
-    /// struct's, enum's or trait's lifetimes are checked; declaring one elsewhere
-    /// is an error until its checks land (`ref.lifetime.not-yet.local-owner`).
+    /// struct's, enum's, trait's or alias's lifetimes are checked; declaring one
+    /// elsewhere is an error until its checks land
+    /// (`ref.lifetime.not-yet.local-or-newtype-owner`).
     fn declare_lifetimes(&mut self, gl: NodeRef<'_>, gn: &mut Gen) {
         let mut checked = None;
         for p in gl.children() {
@@ -2667,7 +2751,7 @@ impl Lower<'_, '_, '_> {
                         .error(Code::DuplicateBinding, self.src.span(p), &msg);
                 } else if !checked {
                     let msg = format!(
-                        "lifetime `{text}` is not checked yet here; so far only functions, implementations, methods, structs, enums and traits take lifetimes"
+                        "lifetime `{text}` is not checked yet here; so far only functions, implementations, methods, structs, enums, traits and type aliases take lifetimes"
                     );
                     self.diags
                         .error(Code::ReferencesNotYetChecked, self.src.span(p), &msg);
@@ -2694,20 +2778,24 @@ impl Lower<'_, '_, '_> {
         path
     }
 
-    /// Whether `gl` is a top-level struct's, enum's or trait's generic list,
-    /// whose lifetimes are generic parameters of the type
-    /// (`ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.trait`).
+    /// Whether `gl` is a top-level struct's, enum's, trait's or alias's generic
+    /// list, whose lifetimes are generic parameters of the type
+    /// (`ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.trait`,
+    /// `ref.lifetime.alias`).
     fn lifetime_generics(&self, gl: NodeRef<'_>) -> bool {
         matches!(self.owner_path(gl).as_slice(),
-            [outer, owner] if matches!(owner.kind(), SyntaxKind::DataDecl | SyntaxKind::EnumDecl | SyntaxKind::TraitDecl)
+            [outer, owner] if (matches!(owner.kind(), SyntaxKind::DataDecl | SyntaxKind::EnumDecl | SyntaxKind::TraitDecl)
+                || (owner.kind() == SyntaxKind::TypeDecl
+                    && owner.direct_token(&self.src.parse.tokens, TokenKind::Eq).is_some()))
                 && outer.kind() == SyntaxKind::Root)
     }
 
     /// Whether the lifetimes the generic list `gl` declares are checked
     /// (`ref.lifetime.declarations`): a top-level function's, an
     /// implementation's, a method's of an implementation or a trait, or
-    /// a top-level struct's, enum's or trait's (`ref.lifetime.struct`,
-    /// `ref.lifetime.enum`, `ref.lifetime.trait`).
+    /// a top-level struct's, enum's, trait's or alias's
+    /// (`ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.trait`,
+    /// `ref.lifetime.alias`).
     fn lifetimes_checked(&self, gl: NodeRef<'_>) -> bool {
         if self.lifetime_generics(gl) {
             return true;
@@ -2732,9 +2820,15 @@ impl Lower<'_, '_, '_> {
     /// The lifetime arguments written in the named type `n` of `def`: one
     /// per lifetime parameter or none. A signature records each one's slot,
     /// after the type arguments' slots, 0 for an elided one
-    /// (`ref.lifetime.struct.elide`, `ref.lifetime.trait.position`); in a
-    /// field an elided one is a local reference escaping to the field.
-    fn lifetime_args(&mut self, n: NodeRef<'_>, (def, kind): (DefId, HeadKind), gn: &Gen) {
+    /// (`ref.lifetime.struct.elide`, `ref.lifetime.trait.position`,
+    /// `ref.lifetime.alias`); in a field an elided one is a local reference
+    /// escaping to the field.
+    fn lifetime_args(
+        &mut self,
+        n: NodeRef<'_>,
+        (def, kind): (DefId, HeadKind),
+        gn: &Gen,
+    ) -> Vec<u16> {
         let toks = &self.src.parse.tokens;
         let written: Vec<hd_base::TokenIdx> = Src::child(n, SyntaxKind::TypeArgumentList)
             .map(|l| {
@@ -2743,14 +2837,17 @@ impl Lower<'_, '_, '_> {
                     .collect()
             })
             .unwrap_or_default();
-        let typed = matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Trait);
+        let typed = matches!(
+            kind,
+            HeadKind::Data | HeadKind::Enum | HeadKind::Trait | HeadKind::Alias
+        );
         let want = if typed { self.r.lifetime_count(def) } else { 0 };
         let ids: Vec<u16> = written.iter().map(|&t| self.lifetime_of(t, gn)).collect();
         if self.r.frozen.is_none() {
             let name = self.names.display_name(def).to_owned();
             let span = self.src.span(n);
             if want == 0 && !written.is_empty() && !typed {
-                let msg = "a lifetime argument is not checked yet here; so far only a struct, enum or trait takes one";
+                let msg = "a lifetime argument is not checked yet here; so far only a struct, enum, trait or type alias takes one";
                 self.diags.error(Code::ReferencesNotYetChecked, span, msg);
             } else if !written.is_empty() && written.len() != want {
                 let s = if want == 1 { "" } else { "s" };
@@ -2769,6 +2866,7 @@ impl Lower<'_, '_, '_> {
         if let Some(slots) = &mut self.slots {
             slots.extend((0..want).map(|k| ids.get(k).copied().unwrap_or(0)));
         }
+        ids
     }
 
     /// The lifetime written directly in `n` (a reference type or a
@@ -3397,9 +3495,10 @@ impl Lower<'_, '_, '_> {
             g.row = row;
             done.push(g);
         }
-        // `ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.trait`:
-        // a type's lifetimes follow its type parameters, in the order written,
-        // each taking the one lifetime argument by default.
+        // `ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.trait`,
+        // `ref.lifetime.alias`:
+        // a type's lifetimes follow its type parameters, in the order
+        // written, each taking the one lifetime argument by default.
         if self.lifetime_generics(gl) {
             let lt = crate::iface::lifetime_arg(self.names.pool.types());
             for &name in &gn.lifetimes[lifetimes_from..] {
@@ -5423,6 +5522,10 @@ impl Lower<'_, '_, '_> {
         let gl = Src::child(n, SyntaxKind::GenericParameterList);
         let generics = self.generics(gl, h.def, 0, &mut gn);
         let body = n.children().find(|c| c.kind().is_type());
+        let saved = std::mem::replace(
+            &mut self.slots,
+            generics.iter().any(|g| g.lifetime).then(Vec::new),
+        );
         let t = match body {
             _ if cyclic => Ty::POISON,
             Some(b) if b.kind() == SyntaxKind::RequirementRow => {
@@ -5444,13 +5547,22 @@ impl Lower<'_, '_, '_> {
             }
             b => self.ty(b, &gn),
         };
+        let lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
         let rows = generics.iter().map(|g| g.row).collect();
-        self.r.aliases.borrow_mut().insert(h.def, (rows, t));
+        self.r
+            .aliases
+            .borrow_mut()
+            .insert(h.def, (rows, t, lifetimes.clone()));
         self.r
             .own_types
             .borrow_mut()
             .insert(h.def, generics.clone());
-        let mut it = Item::new(h.def, h.name, h.public, ItemData::Alias(t));
+        let mut it = Item::new(
+            h.def,
+            h.name,
+            h.public,
+            ItemData::Alias { body: t, lifetimes },
+        );
         it.generics = generics;
         out.push(it);
     }
@@ -6873,9 +6985,11 @@ fn resolver<'a, 'b>(
                     .entry((module, s.name))
                     .or_insert((s.def, k, s.public));
                 r.seeds.insert(s.def, s.clone());
-                if let (ItemData::Alias(t), HeadKind::Alias) = (&s.data, k) {
+                if let (ItemData::Alias { body, lifetimes }, HeadKind::Alias) = (&s.data, k) {
                     let rows = s.generics.iter().map(|g| g.row).collect();
-                    r.aliases.borrow_mut().insert(s.def, (rows, *t));
+                    r.aliases
+                        .borrow_mut()
+                        .insert(s.def, (rows, *body, lifetimes.clone()));
                 }
                 if let ItemData::Trait(t) = &s.data {
                     r.trait_assoc

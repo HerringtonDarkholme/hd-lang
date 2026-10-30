@@ -84,7 +84,7 @@ fn const_declarations_and_arguments_resolve_with_kind_errors() {
         .flat_map(|m| &m.items)
         .find(|i| names.text(i.name) == "Four")
         .expect("Four");
-    let hd_resolve::ItemData::Alias(body) = four.data else {
+    let hd_resolve::ItemData::Alias { body, .. } = four.data else {
         panic!("`Four` is not an alias");
     };
     names.record_params(four);
@@ -180,7 +180,7 @@ type Wide = Big[2 ** 63]
             .iter()
             .find(|i| names.text(i.name) == name)
             .unwrap_or_else(|| panic!("no item `{name}`"));
-        let hd_resolve::ItemData::Alias(body) = item.data else {
+        let hd_resolve::ItemData::Alias { body, .. } = item.data else {
             panic!("`{name}` is not an alias");
         };
         show_ty(&names, body)

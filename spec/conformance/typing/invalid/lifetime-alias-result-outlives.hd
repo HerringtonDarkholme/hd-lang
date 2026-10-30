@@ -1,0 +1,7 @@
+# test: a reference returned through a lifetime alias may not outlive its local
+# Spec 13 Lifetime Aliases: ref.lifetime.alias.
+type Borrowed['src] = &'src string
+
+fn escapes['outer](fallback: &'outer string) -> Borrowed['outer]:
+    local := "local"
+    &local # diagnostic: local-reference-escapes

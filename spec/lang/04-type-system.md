@@ -631,6 +631,8 @@ type AppRow = $ Ledger  # error: unknown-trait
 > **Why.** A transparent alias is replaced by its right side, so a cycle
 > never ends. A recursive type needs a `struct` or `enum` declaration.
 
+See also: [Lifetime Aliases](13-values-and-references.md#lifetime-aliases).
+
 ### Newtypes
 
 A parenthesized type declaration creates a nominal single-field newtype:

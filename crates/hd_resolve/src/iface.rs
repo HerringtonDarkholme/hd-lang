@@ -210,8 +210,10 @@ pub struct Generic {
     pub row: bool,
     /// The declared variance marker: `+T` is 1, `-T` is -1, unmarked 0.
     pub variance: i8,
-    /// A struct's lifetime parameter (`ref.lifetime.struct`): it follows
-    /// the type parameters, and its argument is always [`lifetime_arg`].
+    /// A struct's, enum's or alias's lifetime parameter
+    /// (`ref.lifetime.struct`, `ref.lifetime.enum`, `ref.lifetime.alias`):
+    /// it follows the type parameters, and its argument is always
+    /// [`lifetime_arg`].
     pub lifetime: bool,
     /// A type parameter bounded by a declared lifetime, as `F < Fn() ->
     /// void & 'a` (`ref.generic.outlives`): that lifetime's 1-based place
@@ -516,7 +518,12 @@ pub enum ItemData {
         bounds: Vec<Ty>,
         default: Option<Ty>,
     },
-    Alias(Ty),
+    Alias {
+        body: Ty,
+        /// The declared lifetime of each reference slot of `body`, in
+        /// slot order (`ref.lifetime.alias`).
+        lifetimes: Vec<u16>,
+    },
     Newtype(Ty),
 }
 
@@ -641,7 +648,7 @@ impl Item {
             ItemData::Enum { .. } => HeadKind::Enum,
             ItemData::Trait(_) => HeadKind::Trait,
             ItemData::Impl { .. } => HeadKind::Impl,
-            ItemData::Alias(_) => HeadKind::Alias,
+            ItemData::Alias { .. } => HeadKind::Alias,
             ItemData::Newtype(_) => HeadKind::Newtype,
             ItemData::Method { .. } | ItemData::AssocType { .. } => return None,
         })
@@ -1392,9 +1399,13 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             put_tys(w, t, bounds)?;
             w.u32(opt_ty(t, *default)?);
         }
-        ItemData::Alias(x) => {
+        ItemData::Alias { body, lifetimes } => {
             w.u8(7);
-            w.u32(t.ty(*x)?);
+            w.u32(t.ty(*body)?);
+            w.len_of(lifetimes);
+            for l in lifetimes {
+                w.u32(u32::from(*l));
+            }
         }
         ItemData::Newtype(x) => {
             w.u8(8);
@@ -1501,7 +1512,14 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 default: get_opt_ty(r, t).ok()?,
             }
         }
-        7 => ItemData::Alias(t.ty(r.u32())?),
+        7 => {
+            let body = t.ty(r.u32())?;
+            let mut lifetimes = Vec::new();
+            for _ in 0..r.count() {
+                lifetimes.push(u16::try_from(r.u32()).ok()?);
+            }
+            ItemData::Alias { body, lifetimes }
+        }
         8 => ItemData::Newtype(t.ty(r.u32())?),
         _ => return None,
     };
@@ -1988,7 +2006,7 @@ pub fn mentioned_defs<'a>(
                 tys.extend(bounds.iter().copied());
                 tys.extend(*default);
             }
-            ItemData::Alias(x) | ItemData::Newtype(x) => tys.push(*x),
+            ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
         }
     }
     for e in exports {
@@ -2487,7 +2505,7 @@ mod tests {
         encode_items,
     };
     use hd_intern::{PathTable, ShardedInterner};
-    use hd_types::{InternPool, ParamRef, TyData};
+    use hd_types::{InternPool, ParamRef, Ty, TyData};
 
     fn indexed_item(def: hd_base::DefId, name: u32) -> Item {
         Item::new(
@@ -2742,6 +2760,56 @@ mod tests {
         assert_eq!(encode_items(&n2, &back, &ex).expect("again"), blob);
         // The parameter names come with the index, before any record.
         assert_eq!(n2.param_name(back[0].def, 0), "T");
+    }
+
+    #[test]
+    fn alias_lifetime_slots_round_trip() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let known = crate::KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let def = names.item("app", "Borrowed");
+        let body = pool.intern_ty(&TyData::Ref {
+            inner: Ty::VOID,
+            mutable: false,
+            counted: false,
+        });
+        let item = Item::new(
+            def,
+            syms.intern("Borrowed"),
+            true,
+            ItemData::Alias {
+                body,
+                lifetimes: vec![1],
+            },
+        );
+        let blob = encode_items(&names, &[item], &[]).expect("encode");
+
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let known = crate::KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let (items, _) = decode_items(&names, &blob).expect("decode");
+        let ItemData::Alias { lifetimes, .. } = &items[0].data else {
+            panic!("not an alias");
+        };
+        assert_eq!(lifetimes, &[1]);
     }
 
     /// A lazily read interface decodes only the records asked for

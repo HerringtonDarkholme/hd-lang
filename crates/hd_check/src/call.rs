@@ -930,7 +930,7 @@ impl Ck<'_, '_> {
                                     | ItemData::Data(_)
                                     | ItemData::Enum { .. }
                                     | ItemData::Newtype(_)
-                                    | ItemData::Alias(_)
+                                    | ItemData::Alias { .. }
                             )
                         ) =>
                     {
@@ -2552,7 +2552,7 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[r]);
                 Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
             }
-            ItemData::Data(_) | ItemData::Enum { .. } | ItemData::Alias(_) => {
+            ItemData::Data(_) | ItemData::Enum { .. } | ItemData::Alias { .. } => {
                 let to = self.ctor(def, explicit)?;
                 match pool.get(to) {
                     // An alias calls the type it expands to.

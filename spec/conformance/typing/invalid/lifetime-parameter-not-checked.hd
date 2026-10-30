@@ -1,5 +1,5 @@
 # test: a local function's lifetime parameter is references-not-yet-checked
-# Spec 04 Lifetime Parameters; spec 13 Lifetime Variables: ref.lifetime.not-yet.local-owner.
+# Spec 04 Lifetime Parameters; spec 13 Lifetime Variables: ref.lifetime.not-yet.local-or-newtype-owner.
 fn outer() -> void:
     fn local['a]() -> void: # diagnostic: references-not-yet-checked
         pass

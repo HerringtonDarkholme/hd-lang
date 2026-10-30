@@ -593,7 +593,7 @@ fn view(u: User) -> i32:
 11. r[ref.lifetime.return.message] The diagnostic's message names the root, the lifetime, and the parameters with that lifetime. It has no fix-it.
 12. r[ref.lifetime.call] A call's result position depends on what every argument in a parameter position of its lifetime depends on.
 13. r[ref.lifetime.declarations] A top-level function, an implementation, and a method of an implementation or a trait may declare lifetime parameters.
-14. r[ref.lifetime.not-yet.local-owner] Any other lifetime parameter is not checked yet, so it is an error: a `type` declaration's, a local function's, a local struct's, or a local enum's. A top-level struct's follows [Lifetime Structs](#lifetime-structs), and a top-level enum's [Lifetime Enums](#lifetime-enums). Error: `references-not-yet-checked`.
+14. r[ref.lifetime.not-yet.local-or-newtype-owner] Any other lifetime parameter is not checked yet, so it is an error: a newtype's, a local function's, a local struct's, a local enum's, or a local alias's. A top-level struct's follows [Lifetime Structs](#lifetime-structs), a top-level enum's [Lifetime Enums](#lifetime-enums), a trait's [Lifetime Traits](#lifetime-traits), and a top-level alias's [Lifetime Aliases](#lifetime-aliases). Error: `references-not-yet-checked`.
 15. r[ref.lifetime.alias-in-order] A type alias passes on the lifetimes written in its arguments when its type uses each parameter once, in order, outside function types, and writes no `&` of its own. So `Option[&'a T]` is `&'a T?`.
 16. r[ref.lifetime.not-yet.alias] A lifetime written in the arguments of any other type alias is an error too. Error: `references-not-yet-checked`.
 17. r[ref.lifetime.not-yet.trait-target-unpassed] A lifetime written in a trait implementation's target but not passed to the trait is an error too. Error: `references-not-yet-checked`.
@@ -616,7 +616,8 @@ fn either['a](a: &'a User, b: &'a User, first: bool) -> &User:  # the result tak
 
 See also: [Lifetimes In Function Types](07-functions.md#lifetimes-in-function-types),
 [Method Generic Parameters](09-traits.md#method-generic-parameters),
-[Lifetime Traits](#lifetime-traits), [Lifetime Structs](#lifetime-structs).
+[Lifetime Traits](#lifetime-traits), [Lifetime Aliases](#lifetime-aliases),
+[Lifetime Structs](#lifetime-structs).
 
 ### Lifetime Traits
 
@@ -640,6 +641,20 @@ impl[T, 'src] Source[T, 'src] for Parser[T, 'src]:
 
 See also: [Generic Traits](09-traits.md#generic-traits),
 [Lifetime Parameters](04-type-system.md#lifetime-parameters).
+
+### Lifetime Aliases
+
+A top-level type alias may name and pass its declared lifetimes:
+
+```hd
+type Borrowed[T, 'src] = &'src T
+type OptionalBorrowed[T, 'src] = Option[Borrowed[T, 'src]]
+```
+
+1. r[ref.lifetime.alias] Each lifetime argument of a type alias instantiates that lifetime wherever the alias's body writes or passes it.
+
+See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
+[Transparent Aliases](04-type-system.md#transparent-aliases-and-newtypes).
 
 ### Lifetime Structs
 

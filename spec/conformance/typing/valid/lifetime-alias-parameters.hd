@@ -1,0 +1,23 @@
+# test: alias lifetime arguments instantiate direct references and lifetimes passed to another type
+# Spec 13 Lifetime Aliases: ref.lifetime.alias.
+type Borrowed[T, 'src] = &'src T
+type OptionalBorrowed[T, 'src] = Option[Borrowed[T, 'src]]
+
+struct Holder['src]:
+    value: &'src string
+
+type Held['src] = Holder['src]
+
+fn direct[T, 'src](value: &'src T) -> Borrowed[T, 'src]:
+    value
+
+fn optional[T, 'src](value: &'src T) -> OptionalBorrowed[T, 'src]:
+    .Some(value)
+
+fn held['src](value: &'src string) -> Held['src]:
+    Holder { value: value }
+
+type Reordered['first, 'second] = (&'second string, &'first string)
+
+fn reordered['left, 'right](left: &'left string, right: &'right string) -> Reordered['left, 'right]:
+    (right, left)

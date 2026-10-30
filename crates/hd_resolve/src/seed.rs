@@ -64,10 +64,31 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
     match module {
         "std.core" => {
             for p in Prim::ALL {
-                item(p.name(), vec![], ItemData::Alias(Ty::prim(p)));
+                item(
+                    p.name(),
+                    vec![],
+                    ItemData::Alias {
+                        body: Ty::prim(p),
+                        lifetimes: vec![],
+                    },
+                );
             }
-            item("never", vec![], ItemData::Alias(Ty::NEVER));
-            item("void", vec![], ItemData::Alias(Ty::VOID));
+            item(
+                "never",
+                vec![],
+                ItemData::Alias {
+                    body: Ty::NEVER,
+                    lifetimes: vec![],
+                },
+            );
+            item(
+                "void",
+                vec![],
+                ItemData::Alias {
+                    body: Ty::VOID,
+                    lifetimes: vec![],
+                },
+            );
             item("List", gens(names, &["T"]), ItemData::Data(vec![]));
             // `Map[K < Eq & Hash, V]` (types.map-key.declared-bound).
             let mut map_gens = gens(names, &["K", "V"]);
@@ -88,7 +109,10 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             item(
                 "Option",
                 gens(names, &["T"]),
-                ItemData::Alias(pool.intern_ty(&TyData::Option(t))),
+                ItemData::Alias {
+                    body: pool.intern_ty(&TyData::Option(t)),
+                    lifetimes: vec![],
+                },
             );
             let res = names.item(module, "Result");
             let variants = vec![

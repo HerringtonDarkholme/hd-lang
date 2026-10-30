@@ -169,7 +169,8 @@ impl Ck<'_, '_> {
             // `fn work[T]`.
             let mut reused = false;
             for g in gl.children() {
-                // ref.lifetime.not-yet.local-owner: a local function's lifetime.
+                // ref.lifetime.not-yet.local-or-newtype-owner: a local
+                // function's lifetime.
                 if g.kind() == SyntaxKind::LifetimeParameter {
                     let msg = format!(
                         "lifetime `{}` is not checked yet",

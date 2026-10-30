@@ -1,0 +1,21 @@
+# test: a lifetime alias runs through a direct reference and an alias that passes it to a struct
+# Spec 13 Lifetime Aliases: ref.lifetime.alias.
+# expect-stdout: outer
+# expect-stdout: outer
+type Borrowed['src] = &'src string
+
+struct Holder['src]:
+    value: &'src string
+
+type Held['src] = Holder['src]
+
+fn borrowed['src](value: &'src string) -> Borrowed['src]:
+    value
+
+fn held['src](value: &'src string) -> Held['src]:
+    Holder { value: value }
+
+pub fn main() -> void $ Console:
+    text := "outer"
+    println(*borrowed(&text))
+    println(*held(&text).value)

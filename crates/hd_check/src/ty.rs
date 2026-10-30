@@ -319,7 +319,7 @@ impl Ck<'_, '_> {
             });
         }
         Ok(match &item.data {
-            ItemData::Alias(body) => pool.subst(*body, &|p: ParamRef| {
+            ItemData::Alias { body, .. } => pool.subst(*body, &|p: ParamRef| {
                 (p.owner == def)
                     .then(|| args.get(p.index as usize).copied())
                     .flatten()
