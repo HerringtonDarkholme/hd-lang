@@ -19,10 +19,13 @@
 //! (`ref.dep.origin.element`).
 //!
 //! A value's slots are its reference slots and its function types'
-//! capture slots at the top, outside another reference ([`tops`]); what a
+//! capture slots at the top, outside another reference ([`Layout`]); what a
 //! reference's referent holds comes from its origins' storage. Where a
 //! projection or a construction cannot be lined up with the slots, each
 //! slot takes the union of all of them, which only adds origins.
+
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use hd_base::SliceSort as _;
 use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
@@ -73,7 +76,7 @@ enum Elided {
 }
 
 /// A signature's dependency map (`ref.dep.slot`): the lifetime of each
-/// origin slot of its parameters and of its result, in [`slots_of`] order
+/// origin slot of its parameters and of its result, in [`Layout`] order
 /// over the declared types.
 pub(crate) struct DepSig {
     /// Each parameter's declared type and its slots' lifetimes.
@@ -92,12 +95,13 @@ impl DepSig {
     /// per reference slot of `params` and then of `ret`, 0 where none is
     /// written.
     fn new(
-        pool: Types<'_>,
+        ls: &Layouts<'_>,
         params: &[(Symbol, Ty)],
         is_self: impl Fn(Symbol) -> bool,
         ret: Ty,
         written: &[u16],
     ) -> DepSig {
+        let pool = ls.pool;
         let ref_ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
         let ref_outs = pool.ref_slots(ret);
         let trust_in = written.len() >= ref_ins;
@@ -107,7 +111,7 @@ impl DepSig {
         let ps: Vec<(Ty, Vec<u32>)> = params
             .iter()
             .map(|&(_, t)| {
-                let ids = slot_ids(pool, t, &mut written_at, &mut dep_at, |k| {
+                let ids = slot_ids(ls, t, &mut written_at, &mut dep_at, |k| {
                     written
                         .get(k)
                         .copied()
@@ -121,15 +125,15 @@ impl DepSig {
             .first()
             .is_some_and(|&(s, t)| is_self(s) && local_ref(pool, t).is_some_and(|(c, _)| !c));
         let elided = match ps.first() {
-            Some((t, ids)) if receiver && !ref_ids_of(pool, *t, ids).is_empty() => {
-                Elided::Lifetime(ref_ids_of(pool, *t, ids)[0])
+            Some((t, ids)) if receiver && !ref_ids_of(ls, *t, ids).is_empty() => {
+                Elided::Lifetime(ref_ids_of(ls, *t, ids)[0])
             }
             _ => one_id(
                 params
                     .iter()
                     .zip(&ps)
                     .filter(|((s, _), _)| !is_self(*s))
-                    .flat_map(|(_, (t, ids))| ref_ids_of(pool, *t, ids)),
+                    .flat_map(|(_, (t, ids))| ref_ids_of(ls, *t, ids)),
             ),
         };
         let capture_elided = one_id(
@@ -138,10 +142,9 @@ impl DepSig {
                 .filter_map(|(_, ids)| ids.first().copied()),
         );
         let mut r = 0;
-        let outs = slots_of(pool, ret)
-            .iter()
-            .map(|&(st, _)| {
-                if is_fn(pool, st) {
+        let outs = (ls.of(ret).slots.iter())
+            .map(|&Slot { ty: st, fun, .. }| {
+                if fun {
                     return match capture_elided {
                         Elided::Lifetime(id) => Some(id),
                         Elided::Missing | Elided::Ambiguous => None,
@@ -172,7 +175,8 @@ impl DepSig {
 
     /// The map a function type carries (`fn.type.lifetime`), for a call
     /// through a function value.
-    fn of_fn(pool: Types<'_>, t: Ty) -> Option<DepSig> {
+    fn of_fn(ls: &Layouts<'_>, t: Ty) -> Option<DepSig> {
+        let pool = ls.pool;
         let TyData::Fn { params, result, .. } = pool.get(referent_fn(pool, t)) else {
             return None;
         };
@@ -185,11 +189,11 @@ impl DepSig {
             .list_items(params)
             .iter()
             .map(|&p| {
-                let ids = slot_ids(pool, p, &mut ref_at, &mut dep_at, |k| ins.get(k).copied());
+                let ids = slot_ids(ls, p, &mut ref_at, &mut dep_at, |k| ins.get(k).copied());
                 (p, ids)
             })
             .collect::<Vec<_>>();
-        let elided = one_id(params.iter().flat_map(|(p, ids)| ref_ids_of(pool, *p, ids)));
+        let elided = one_id(params.iter().flat_map(|(p, ids)| ref_ids_of(ls, *p, ids)));
         let capture_elided = one_id(
             params
                 .iter()
@@ -198,10 +202,9 @@ impl DepSig {
         );
         // A type that writes no map has no reference result slots.
         let mut r = 0;
-        let outs = slots_of(pool, result)
-            .iter()
-            .filter_map(|&(st, _)| {
-                if is_fn(pool, st) {
+        let outs = (ls.of(result).slots.iter())
+            .filter_map(|&Slot { ty: st, fun, .. }| {
+                if fun {
                     return Some(match capture_elided {
                         Elided::Lifetime(id) => Some(id),
                         Elided::Missing | Elided::Ambiguous => None,
@@ -230,39 +233,31 @@ impl DepSig {
     /// from `skip` on, then the result's (`fn.type.lifetime.value`).
     /// `NONE` when a result slot depends on none of those, as on a bound
     /// receiver (`ref.local.escape.fn-value-result`).
-    fn to_fn(&self, pool: Types<'_>, skip: usize) -> hd_types::FnDeps {
+    fn to_fn(&self, ls: &Layouts<'_>, skip: usize) -> hd_types::FnDeps {
         let ins: Vec<u32> = self.params[skip.min(self.params.len())..]
             .iter()
-            .flat_map(|(t, ids)| ref_ids_of(pool, *t, ids))
+            .flat_map(|(t, ids)| ref_ids_of(ls, *t, ids))
             .collect();
-        let outs: Option<Vec<u32>> = ref_ids_of(pool, self.ret, &self.outs)
+        let outs: Option<Vec<u32>> = ref_ids_of(ls, self.ret, &self.outs)
             .into_iter()
             .map(|l| l.filter(|l| ins.contains(l)))
             .collect();
-        outs.map_or(hd_types::FnDeps::NONE, |outs| pool.fn_deps(&ins, &outs))
+        outs.map_or(hd_types::FnDeps::NONE, |outs| ls.pool.fn_deps(&ins, &outs))
     }
 
     /// The map of a body whose declared result has opaque types, over
     /// its hidden result `hidden`: each slot of a hidden type takes its
     /// opaque type's lifetime, and none for an opaque type that does not
     /// borrow (`types.opaque.borrows.body`).
-    fn open(self, pool: Types<'_>, hidden: Ty) -> DepSig {
+    fn open(self, ls: &Layouts<'_>, hidden: Ty) -> DepSig {
         let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
         let mut out = Vec::new();
-        let outs = if line_up(
-            pool,
-            self.ret,
-            hidden,
-            &mut it,
-            &mut Vec::new(),
-            &mut out,
-            0,
-        ) {
+        let outs = if line_up(ls, self.ret, hidden, &mut it, &mut Vec::new(), &mut out, 0) {
             out.into_iter()
                 .map(|id| (id != NO_SOURCE).then_some(id))
                 .collect()
         } else {
-            vec![None; dep_slots(pool, hidden)]
+            vec![None; ls.of(hidden).slots.len()]
         };
         DepSig {
             params: self.params,
@@ -293,19 +288,17 @@ impl DepSig {
         ids
     }
 
-    /// The lifetimes of the result's top slots ([`tops`]), each a set:
+    /// The lifetimes of the result's top slots ([`Layout`]), each a set:
     /// one lifetime per slot, or for another shape every lifetime per
     /// slot of `t`.
-    fn result_ids(&self, pool: Types<'_>, t: Ty) -> Vec<Vec<u32>> {
-        let have = tops(pool, t);
-        let want = tops(pool, self.ret);
-        if have.len() == want.len() && !have.is_empty() {
-            return want
-                .iter()
-                .map(|&(r, _)| self.outs.get(r).copied().flatten().into_iter().collect())
+    fn result_ids(&self, ls: &Layouts<'_>, t: Ty) -> Vec<Vec<u32>> {
+        let (have, want) = (ls.of(t), ls.of(self.ret));
+        if have.tops.len() == want.tops.len() && !have.tops.is_empty() {
+            return (want.tops.iter())
+                .map(|&r| self.outs.get(r).copied().flatten().into_iter().collect())
                 .collect();
         }
-        vec![self.all_ids(); width(pool, t)]
+        vec![self.all_ids(); have.width]
     }
 
     /// The input slots `(parameter, slot)` of lifetime `id`.
@@ -331,7 +324,7 @@ impl DepSig {
     /// lifetime puts its slots in that lifetime (`ref.generic.outlives.argument`).
     fn instantiate(
         self,
-        pool: Types<'_>,
+        ls: &Layouts<'_>,
         b: &Body,
         i: usize,
         callee: Option<(DefId, &[hd_resolve::Generic])>,
@@ -339,12 +332,13 @@ impl DepSig {
         let mut keys = Vec::new();
         let mut lossy = false;
         let mut params = Vec::with_capacity(self.params.len());
+        let pool = ls.pool;
         for (p, (decl, ids)) in self.params.into_iter().enumerate() {
             let at = source_arg(b, i, p).and_then(|a| arg_ty(pool, b, a));
             let mut out = Vec::new();
             let mut it = ids.iter().copied();
             match at {
-                Some(t) if line_up(pool, decl, t, &mut it, &mut keys, &mut out, 0) => {
+                Some(t) if line_up(ls, decl, t, &mut it, &mut keys, &mut out, 0) => {
                     let outlives = callee.and_then(|(def, generics)| {
                         crate::local_refs::outlives_field(
                             pool,
@@ -380,19 +374,19 @@ impl DepSig {
                 .any(|(_, ids): &(Ty, Vec<u32>)| ids.contains(&id))
         };
         // A capture slot depends only on capture slots.
-        let any = |st: Ty| if is_fn(pool, st) { ANY_FN } else { ANY };
-        let slots = slots_of(pool, ret);
-        let outs = if line_up(pool, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
+        let any = |s: &Slot| if s.fun { ANY_FN } else { ANY };
+        let slots = ls.of(ret);
+        let outs = if line_up(ls, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
             out.into_iter()
-                .zip(&slots)
-                .map(|(id, &(st, _))| match id {
+                .zip(&slots.slots)
+                .map(|(id, s)| match id {
                     NO_SOURCE => None,
-                    id if (lossy || unbound(id)) && (TVAR..TVAR_END).contains(&id) => Some(any(st)),
+                    id if (lossy || unbound(id)) && (TVAR..TVAR_END).contains(&id) => Some(any(s)),
                     id => Some(id),
                 })
                 .collect()
         } else {
-            slots.iter().map(|&(st, _)| Some(any(st))).collect()
+            slots.slots.iter().map(|s| Some(any(s))).collect()
         };
         DepSig {
             params,
@@ -406,7 +400,7 @@ impl DepSig {
     /// Whether the result slot of lifetime `id` may depend on `o`: a
     /// parameter slot of that lifetime, or a reference slot behind one,
     /// whose referent outlives it (`ref.dep.return`).
-    fn allows(&self, pool: Types<'_>, o: Origin, id: u32) -> bool {
+    fn allows(&self, ls: &Layouts<'_>, o: Origin, id: u32) -> bool {
         let Origin::Param(p, s) = o else {
             return false;
         };
@@ -420,30 +414,26 @@ impl DepSig {
         if ids.get(s) == Some(&id) {
             return true;
         }
-        let all = slots_of(pool, *t);
-        (0..s.min(all.len())).any(|s0| {
-            ids.get(s0) == Some(&id) && s <= s0 + dep_slots(pool, referent(pool, all[s0].0))
-        })
+        let all = ls.of(*t);
+        (0..s.min(all.slots.len())).any(|s0| ids.get(s0) == Some(&id) && s < all.slots[s0].end)
     }
 }
 
 /// The lifetimes of the slots of a declared type `t`
-/// ([`slots_of`]): a reference slot's from `written` by its place among
+/// ([`Layout`]): a reference slot's from `written` by its place among
 /// the reference slots, counted by `ref_at`, or its own `ANON` one by its
 /// place among all slots, counted by `dep_at`; a capture slot's its own.
 fn slot_ids(
-    pool: Types<'_>,
+    ls: &Layouts<'_>,
     t: Ty,
     ref_at: &mut usize,
     dep_at: &mut usize,
     written: impl Fn(usize) -> Option<u32>,
 ) -> Vec<u32> {
-    let ids = slots_of(pool, t)
-        .iter()
-        .enumerate()
-        .map(|(k, &(st, _))| {
+    let ids = (ls.of(t).slots.iter().enumerate())
+        .map(|(k, s)| {
             let own = ANON + w(*dep_at + k);
-            if is_fn(pool, st) {
+            if s.fun {
                 return own;
             }
             *ref_at += 1;
@@ -455,11 +445,10 @@ fn slot_ids(
 }
 
 /// The entries of `ids`, one per slot of `t`, at its reference slots.
-fn ref_ids_of<T: Copy>(pool: Types<'_>, t: Ty, ids: &[T]) -> Vec<T> {
-    slots_of(pool, t)
-        .iter()
+fn ref_ids_of<T: Copy>(ls: &Layouts<'_>, t: Ty, ids: &[T]) -> Vec<T> {
+    (ls.of(t).slots.iter())
         .zip(ids)
-        .filter(|((st, _), _)| !is_fn(pool, *st))
+        .filter(|(s, _)| !s.fun)
         .map(|(_, &id)| id)
         .collect()
 }
@@ -477,11 +466,11 @@ fn one_id(ids: impl Iterator<Item = u32>) -> Elided {
 }
 
 /// Lines the instantiated type `t` up with the declared `d`, pushing each
-/// slot's lifetime to `out` in [`slots_of`] order: a declared slot's from
+/// slot's lifetime to `out` in [`Layout`] order: a declared slot's from
 /// `ids`, and a slot a type parameter adds its [`TVAR`], a function
 /// type's capture slot included. False where the shapes differ.
 fn line_up(
-    pool: Types<'_>,
+    ls: &Layouts<'_>,
     d: Ty,
     t: Ty,
     ids: &mut dyn Iterator<Item = u32>,
@@ -492,7 +481,7 @@ fn line_up(
     if depth > 32 {
         return false;
     }
-    let d1 = depth + 1;
+    let (pool, d1) = (ls.pool, depth + 1);
     let list = |a: hd_types::TyList,
                 b: hd_types::TyList,
                 ids: &mut dyn Iterator<Item = u32>,
@@ -502,7 +491,7 @@ fn line_up(
         a.len() == b.len()
             && a.iter()
                 .zip(b)
-                .all(|(&x, &y)| line_up(pool, x, y, ids, keys, out, d1))
+                .all(|(&x, &y)| line_up(ls, x, y, ids, keys, out, d1))
     };
     match (pool.get(d), pool.get(t)) {
         (TyData::Param(p), _) => {
@@ -510,7 +499,7 @@ fn line_up(
                 keys.push(p);
                 keys.len() - 1
             });
-            let n = dep_slots(pool, t).min(255);
+            let n = ls.of(t).slots.len().min(255);
             out.extend((0..n).map(|s| TVAR + (w(k.min(255)) << 8) + w(s)));
             true
         }
@@ -529,12 +518,12 @@ fn line_up(
             } else {
                 NO_SOURCE
             };
-            out.extend(std::iter::repeat_n(id, dep_slots(pool, t)));
+            out.extend(std::iter::repeat_n(id, ls.of(t).slots.len()));
             true
         }
-        (TyData::Mut(a), TyData::Mut(b)) => line_up(pool, a, b, ids, keys, out, d1),
-        (TyData::Mut(a), _) => line_up(pool, a, t, ids, keys, out, d1),
-        (_, TyData::Mut(b)) => line_up(pool, d, b, ids, keys, out, d1),
+        (TyData::Mut(a), TyData::Mut(b)) => line_up(ls, a, b, ids, keys, out, d1),
+        (TyData::Mut(a), _) => line_up(ls, a, t, ids, keys, out, d1),
+        (_, TyData::Mut(b)) => line_up(ls, d, b, ids, keys, out, d1),
         (
             TyData::Ref {
                 counted: false,
@@ -549,14 +538,14 @@ fn line_up(
         ) => {
             let Some(id) = ids.next() else { return false };
             out.push(id);
-            line_up(pool, a, b, ids, keys, out, d1)
+            line_up(ls, a, b, ids, keys, out, d1)
         }
         (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
-        (TyData::Option(a), TyData::Option(b)) => line_up(pool, a, b, ids, keys, out, d1),
+        (TyData::Option(a), TyData::Option(b)) => line_up(ls, a, b, ids, keys, out, d1),
         (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
             list(a, b, ids, keys, out)
                 && match (ra, rb) {
-                    (Some(x), Some(y)) => line_up(pool, x, y, ids, keys, out, d1),
+                    (Some(x), Some(y)) => line_up(ls, x, y, ids, keys, out, d1),
                     (None, None) => true,
                     _ => false,
                 }
@@ -570,7 +559,7 @@ fn line_up(
                 def: y, args: b, ..
             },
         ) if x == y => list(a, b, ids, keys, out),
-        _ => dep_slots(pool, d) == 0 && dep_slots(pool, t) == 0,
+        _ => ls.of(d).slots.is_empty() && ls.of(t).slots.is_empty(),
     }
 }
 
@@ -589,110 +578,267 @@ fn capture_slot(pool: Types<'_>, t: Ty) -> bool {
     matches!(pool.get(referent_fn(pool, t)), TyData::Fn { .. })
 }
 
-/// Whether slot type `t` is a function type's capture slot.
-fn is_fn(pool: Types<'_>, t: Ty) -> bool {
-    matches!(pool.get(t), TyData::Fn { .. })
+/// One origin slot of a type ([`Layout`]).
+#[derive(Clone, Copy)]
+struct Slot {
+    /// A local reference type, a borrowing opaque type, or a function
+    /// type, whose slot holds what its closure captures.
+    ty: Ty,
+    /// Whether it is a function type's capture slot.
+    fun: bool,
+    /// Whether it is at the top, outside another reference.
+    top: bool,
+    /// One past the last slot behind it.
+    end: usize,
+    /// Whether it is a function type written inside another type, which
+    /// holds no captured origins (`ref.generic.outlives.written`): not the
+    /// type itself nor the referent of one of its references.
+    written: bool,
 }
 
-/// The origin slots of `t` ([`slots_of`]): its local-reference slots and
-/// a capture slot for each function type in it.
-fn dep_slots(pool: Types<'_>, t: Ty) -> usize {
-    if pool.has_fn(t) {
-        slots_of(pool, t).len()
-    } else {
-        pool.ref_slots(t)
-    }
+/// The origin slots of a type in pre-order (`ref.dep.slot`): each
+/// reference type outside function types and counted references, as in
+/// [`Types::ref_slots`], each borrowing opaque type, and each function
+/// type outside another function type. [`Layouts`] makes each once.
+struct Layout {
+    slots: Vec<Slot>,
+    /// The top slots.
+    tops: Vec<usize>,
+    /// How many origin sets a value of the type has: one per top slot, or
+    /// one for a trait value with none; 0 when it may hold no origins.
+    width: usize,
 }
 
-/// Whether `t` has a function type's capture slot (`ref.generic.outlives.instance`).
-fn has_fn_slot(pool: Types<'_>, t: Ty) -> bool {
-    pool.has_fn(t) && slots_of(pool, t).iter().any(|&(s, _)| is_fn(pool, s))
-}
-
-/// Per slot of declared type `t`, whether it is a function type written
-/// inside another type, which holds no captured origins
-/// (`ref.generic.outlives.written`): not `t` itself nor the referent of
-/// one of its references.
-fn written_fns(pool: Types<'_>, t: Ty) -> Vec<bool> {
-    let slots = slots_of(pool, t);
-    (0..slots.len())
-        .map(|k| {
-            is_fn(pool, slots[k].0)
+impl Layout {
+    fn new(pool: Types<'_>, t: Ty) -> Layout {
+        fn walk(pool: Types<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<Slot>) {
+            if depth > 32 || !(pool.has_ref(t) || pool.has_fn(t)) {
+                return;
+            }
+            let d = depth + 1;
+            let fun = matches!(pool.get(t), TyData::Fn { .. });
+            let (end, written) = (out.len() + 1, false);
+            let slot = Slot {
+                ty: t,
+                fun,
+                top,
+                end,
+                written,
+            };
+            match pool.get(t) {
+                TyData::Ref {
+                    counted: false,
+                    inner,
+                    ..
+                } => {
+                    let k = out.len();
+                    out.push(slot);
+                    walk(pool, inner, false, d, out);
+                    out[k].end = out.len();
+                }
+                TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
+                TyData::Mut(i) | TyData::Option(i) => walk(pool, i, top, d, out),
+                TyData::Tuple { elems, rest } => {
+                    for &e in pool.list_items(elems) {
+                        walk(pool, e, top, d, out);
+                    }
+                    if let Some(r) = rest {
+                        walk(pool, r, top, d, out);
+                    }
+                }
+                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                    for &a in pool.list_items(args) {
+                        walk(pool, a, top, d, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut slots = Vec::new();
+        walk(pool, t, true, 0, &mut slots);
+        for k in 0..slots.len() {
+            slots[k].written = slots[k].fun
                 && !(k == 0 && capture_slot(pool, t))
-                && !(k > 0 && capture_slot(pool, referent(pool, slots[k - 1].0)))
-        })
-        .collect()
+                && !(k > 0 && capture_slot(pool, referent(pool, slots[k - 1].ty)));
+        }
+        let tops: Vec<usize> = (0..slots.len()).filter(|&k| slots[k].top).collect();
+        // A trait value may hold a local reference (`trait.dyn.ref.convert`).
+        let holds = holds_local_ref(pool, t) || is_dyn(pool, t);
+        let width = if tops.is_empty() {
+            usize::from(holds)
+        } else {
+            tops.len()
+        };
+        Layout { slots, tops, width }
+    }
+
+    /// Each top slot's run: itself and the slots behind it, `[start, end)`.
+    fn runs(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.tops.iter().map(|&k| (k, self.slots[k].end))
+    }
 }
 
-/// Each origin slot of `t` in pre-order: each reference type outside
-/// function types and counted references, as in [`Types::ref_slots`],
-/// and each function type outside another function type, whose slot
-/// holds what its closure captures. Each comes with whether it is at the
-/// top, outside another reference.
-fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
-    fn walk(pool: Types<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<(Ty, bool)>) {
-        if depth > 32 || !(pool.has_ref(t) || pool.has_fn(t)) {
-            return;
-        }
-        let d = depth + 1;
-        match pool.get(t) {
-            TyData::Ref {
-                counted: false,
-                inner,
-                ..
-            } => {
-                out.push((t, top));
-                walk(pool, inner, false, d, out);
-            }
-            TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push((t, top)),
-            TyData::Mut(i) | TyData::Option(i) => walk(pool, i, top, d, out),
-            TyData::Tuple { elems, rest } => {
-                for &e in pool.list_items(elems) {
-                    walk(pool, e, top, d, out);
-                }
-                if let Some(r) = rest {
-                    walk(pool, r, top, d, out);
-                }
-            }
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                for &a in pool.list_items(args) {
-                    walk(pool, a, top, d, out);
-                }
-            }
-            _ => {}
+/// A field's slot that is no one slot of its instance ([`FieldMap`]).
+const ALL_SLOTS: usize = usize::MAX;
+
+/// Where a field's slots lie in an instance's: its type, and for each of
+/// its slots the instance's slot it is, a type argument's or the one of
+/// the lifetime it names, or [`ALL_SLOTS`]. `None` where its top slots do
+/// not line up with the instance's, and each takes all of them.
+struct FieldMap {
+    ty: Ty,
+    at: Option<Vec<usize>>,
+}
+
+/// The slot layouts of the types one check meets, and the slot maps of
+/// the fields it projects, each made once.
+struct Layouts<'a> {
+    pool: Types<'a>,
+    types: RefCell<HashMap<Ty, Rc<Layout>>>,
+    fields: RefCell<HashMap<(Ty, u32, u32), Option<FieldMap>>>,
+}
+
+impl<'a> Layouts<'a> {
+    fn new(pool: Types<'a>) -> Self {
+        Layouts {
+            pool,
+            types: RefCell::default(),
+            fields: RefCell::default(),
         }
     }
-    let mut out = Vec::new();
-    walk(pool, t, true, 0, &mut out);
-    out
-}
 
-/// The top slots of `t`: each one's index among the reference slots and
-/// its reference type.
-fn tops(pool: Types<'_>, t: Ty) -> Vec<(usize, Ty)> {
-    slots_of(pool, t)
-        .into_iter()
-        .enumerate()
-        .filter(|(_, (_, top))| *top)
-        .map(|(k, (t, _))| (k, t))
-        .collect()
-}
+    fn of(&self, t: Ty) -> Rc<Layout> {
+        if let Some(l) = self.types.borrow().get(&t) {
+            return Rc::clone(l);
+        }
+        let l = Rc::new(Layout::new(self.pool, t));
+        self.types.borrow_mut().insert(t, Rc::clone(&l));
+        l
+    }
 
-/// Each top slot of `t`'s run of reference slots, itself and the slots
-/// behind it, as `[start, end)`.
-fn top_runs(pool: Types<'_>, t: Ty) -> Vec<(usize, usize)> {
-    let tp = tops(pool, t);
-    let n = dep_slots(pool, t);
-    (0..tp.len())
-        .map(|k| (tp[k].0, tp.get(k + 1).map_or(n, |x| x.0)))
-        .collect()
-}
+    /// Whether a value of type `t` may have origins: it holds a local
+    /// reference or a function type's capture slot, or it is a trait value.
+    fn holds(&self, t: Ty) -> bool {
+        self.of(t).width > 0
+    }
 
-/// How many origin sets a value of type `t` has: one per top slot, or one
-/// for a trait value with none.
-fn width(pool: Types<'_>, t: Ty) -> usize {
-    let n = tops(pool, t).len();
-    if n == 0 && may_hold(pool, t) { 1 } else { n }
+    /// Field `j` of type `t`, of variant `variant` for an enum: its type,
+    /// and for each of its top slots the top slot of `t` it lies in, when
+    /// that is known.
+    fn field(
+        &self,
+        cx: &BodyCx<'_>,
+        t: Ty,
+        variant: Option<u32>,
+        j: u32,
+    ) -> Option<(Ty, Option<Vec<usize>>)> {
+        let key = (t, variant.unwrap_or(NONE), j);
+        if !self.fields.borrow().contains_key(&key) {
+            let m = (self.field_map(cx, t, variant, j)).map(|(ty, at)| FieldMap { ty, at });
+            self.fields.borrow_mut().insert(key, m);
+        }
+        let fields = self.fields.borrow();
+        let m = fields.get(&key)?.as_ref()?;
+        let (of, child) = (self.of(t), self.of(m.ty));
+        let pos = m.at.as_ref().and_then(|at| {
+            (child.tops.iter())
+                .map(|&k| of.tops.binary_search(at.get(k)?).ok())
+                .collect()
+        });
+        Some((m.ty, pos))
+    }
+
+    /// The type of field `j` and where its slots lie ([`FieldMap`]).
+    fn field_map(
+        &self,
+        cx: &BodyCx<'_>,
+        t: Ty,
+        variant: Option<u32>,
+        j: u32,
+    ) -> Option<(Ty, Option<Vec<usize>>)> {
+        let pool = self.pool;
+        let len = |t: Ty| self.of(t).slots.len();
+        let run = |start: usize, t: Ty| Some((start..start + len(t)).collect());
+        match (pool.get(t), variant) {
+            (TyData::Mut(i), _) => self.field_map(cx, i, variant, j),
+            (TyData::Tuple { elems, .. }, None) => {
+                let es = pool.list_items(elems);
+                let e = *es.get(j as usize)?;
+                let start = es[..j as usize].iter().map(|&x| len(x)).sum();
+                Some((e, run(start, e)))
+            }
+            (TyData::Option(i), Some(1)) if j == 0 => Some((i, run(0, i))),
+            (TyData::Adt { def, args }, _) => {
+                let item = cx.lookup.item(def)?;
+                let fields = match (&item.data, variant) {
+                    (ItemData::Data(fs), None) => fs,
+                    (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
+                        &variants.get(k as usize)?.fields
+                    }
+                    _ => return None,
+                };
+                let field = fields.get(j as usize)?;
+                let f = field.ty;
+                let argv = pool.list_items(args);
+                let ty = subst_owner(pool, def, argv, f);
+                let start = |a: usize| argv[..a].iter().map(|&x| len(x)).sum::<usize>();
+                let lts: Vec<usize> = (item.generics.iter().enumerate())
+                    .filter(|(_, g)| g.lifetime)
+                    .map(|(g, _)| g)
+                    .collect();
+                // The slot of the `l`th lifetime: its argument's one top slot.
+                let lifetime = |l: u16| {
+                    let g = *lts.get(usize::from(l).checked_sub(1)?)?;
+                    match self.of(*argv.get(g)?).tops.as_slice() {
+                        [one] => Some(start(g) + one),
+                        _ => None,
+                    }
+                };
+                let at = match pool.get(f) {
+                    // `ref.generic.outlives.position`: a field of a type
+                    // parameter bounded by a lifetime lies in that
+                    // lifetime's position.
+                    TyData::Param(_)
+                        if let Some(l) =
+                            crate::local_refs::outlives_field(pool, def, &item.generics, f) =>
+                    {
+                        lifetime(l).map(|s| vec![s; len(ty)])
+                    }
+                    TyData::Param(p) if p.owner == def && (p.index as usize) < argv.len() => {
+                        run(start(p.index as usize), ty)
+                    }
+                    // `ref.lifetime.struct.read`: each slot of a field lies
+                    // in the position of the lifetime it names, so a field
+                    // of several lifetimes, such as a nested `Two['b, 'a]`,
+                    // maps each slot on its own (`ref.lifetime.store.field`).
+                    // A slot a type argument adds behind a reference is
+                    // no one slot.
+                    _ => {
+                        let (decl, inst) = (self.of(f), self.of(ty));
+                        let mut at = vec![ALL_SLOTS; inst.slots.len()];
+                        let aligned = decl.slots.len() == field.lifetimes.len()
+                            && decl.tops.len() == inst.tops.len()
+                            && !decl.tops.is_empty();
+                        if aligned && decl.slots.len() == inst.slots.len() {
+                            for (k, &l) in field.lifetimes.iter().enumerate() {
+                                at[k] = lifetime(l).unwrap_or(ALL_SLOTS);
+                            }
+                        }
+                        let mut known = aligned;
+                        for (&d, &k) in decl.tops.iter().zip(&inst.tops) {
+                            match lifetime(field.lifetimes.get(d).copied().unwrap_or(0)) {
+                                Some(s) => at[k] = s,
+                                None => known = false,
+                            }
+                        }
+                        known.then_some(at)
+                    }
+                };
+                Some((ty, at))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// What reference type `t` refers to.
@@ -720,13 +866,6 @@ fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
         TyData::Mut(i) => is_dyn(pool, i),
         _ => false,
     }
-}
-
-/// Whether a value of type `t` may have origins: it holds a local
-/// reference, or it is a trait value, which may hold one
-/// (`trait.dyn.ref.convert`).
-fn may_hold(pool: Types<'_>, t: Ty) -> bool {
-    holds_local_ref(pool, t) || is_dyn(pool, t) || has_fn_slot(pool, t)
 }
 
 /// Where a call's parameter keeps a capture slot of its argument.
@@ -833,6 +972,7 @@ fn fit(v: &[Set], n: usize) -> Vec<Set> {
 struct Solve<'a> {
     b: &'a Body,
     pool: Types<'a>,
+    ls: &'a Layouts<'a>,
     cx: &'a BodyCx<'a>,
     /// Each instruction's value, one set per slot.
     val: Vec<Vec<Set>>,
@@ -880,23 +1020,19 @@ impl Solve<'_> {
                 let Some(&t) = self.params.get(p as usize) else {
                     return vec![vec![o]];
                 };
-                let Some(&(rt, _)) = slots_of(self.pool, t).get(s as usize) else {
+                let Some(rt) = self.ls.of(t).slots.get(s as usize).map(|x| x.ty) else {
                     return vec![vec![o]];
                 };
                 let inner = referent(self.pool, rt);
-                let ts = tops(self.pool, inner);
-                if ts.is_empty() {
-                    return if may_hold(self.pool, inner) {
-                        vec![vec![o]]
-                    } else {
-                        vec![]
-                    };
+                let il = self.ls.of(inner);
+                if il.tops.is_empty() {
+                    return if il.width > 0 { vec![vec![o]] } else { vec![] };
                 }
                 // `ref.generic.outlives.written`
                 let scoped = capture_slot(self.pool, inner);
-                ts.iter()
-                    .map(|&(r, st)| {
-                        if is_fn(self.pool, st) && !scoped {
+                (il.tops.iter())
+                    .map(|&r| {
+                        if il.slots[r].fun && !scoped {
                             vec![]
                         } else {
                             vec![Origin::Param(p, s + 1 + w(r))]
@@ -916,10 +1052,12 @@ impl Solve<'_> {
             return;
         }
         let n = match o {
-            Origin::Local(l) => width(self.pool, self.b.local_ty[l as usize]),
-            Origin::Hidden(h) => {
-                width(self.pool, referent(self.pool, self.b.ty[h as usize])).max(1)
-            }
+            Origin::Local(l) => self.ls.of(self.b.local_ty[l as usize]).width,
+            Origin::Hidden(h) => self
+                .ls
+                .of(referent(self.pool, self.b.ty[h as usize]))
+                .width
+                .max(1),
             _ => return,
         };
         let e = self.held.entry(o).or_insert_with(|| vec![Set::new(); n]);
@@ -932,114 +1070,27 @@ impl Solve<'_> {
         self.changed |= changed;
     }
 
-    /// Field `j` of type `t`, of variant `variant` for an enum: its type,
-    /// and for each of its top slots the top slot of `t` it lies in, when
-    /// that is known.
-    fn field(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<(Ty, Option<Vec<usize>>)> {
-        let pool = self.pool;
-        // A part's slots inside `t`.
-        let n = |t: Ty| tops(pool, t).len();
-        match (pool.get(t), variant) {
-            (TyData::Mut(i), _) => self.field(i, variant, j),
-            (TyData::Tuple { elems, .. }, None) => {
-                let es = pool.list_items(elems);
-                let e = *es.get(j as usize)?;
-                let start: usize = es[..j as usize].iter().map(|&x| n(x)).sum();
-                Some((e, Some((start..start + n(e)).collect())))
-            }
-            (TyData::Option(i), Some(1)) if j == 0 => Some((i, Some((0..n(i)).collect()))),
-            (TyData::Adt { def, args }, _) => {
-                let item = self.cx.lookup.item(def)?;
-                let fields = match (&item.data, variant) {
-                    (ItemData::Data(fs), None) => fs,
-                    (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
-                        &variants.get(k as usize)?.fields
-                    }
-                    _ => return None,
-                };
-                let field = fields.get(j as usize)?;
-                let f = field.ty;
-                let argv = pool.list_items(args);
-                let child = subst_owner(pool, def, argv, f);
-                let at = |a: usize| {
-                    let start: usize = argv[..a].iter().map(|&x| n(x)).sum();
-                    (start..start + n(argv[a])).collect::<Vec<usize>>()
-                };
-                let range = match pool.get(f) {
-                    // `ref.generic.outlives.position`: a field of a type
-                    // parameter bounded by a lifetime lies in that
-                    // lifetime's position.
-                    TyData::Param(_)
-                        if let Some(l) =
-                            crate::local_refs::outlives_field(pool, def, &item.generics, f) =>
-                    {
-                        let mut lts = item.generics.iter().enumerate().filter(|(_, g)| g.lifetime);
-                        lts.nth(usize::from(l) - 1)
-                            .map(|(g, _)| g)
-                            .filter(|&g| g < argv.len())
-                            .map(at)
-                    }
-                    TyData::Param(p) if p.owner == def && (p.index as usize) < argv.len() => {
-                        Some(at(p.index as usize))
-                    }
-                    // `ref.lifetime.struct.read`: each top slot of a field
-                    // lies in the position of the lifetime it names, so a
-                    // field of several lifetimes, such as a nested
-                    // `Two['b, 'a]`, maps each slot on its own
-                    // (`ref.lifetime.store.field`).
-                    _ => {
-                        let slots = slots_of(pool, f);
-                        let aligned = slots.len() == field.lifetimes.len()
-                            && tops(pool, f).len() == tops(pool, child).len();
-                        let lts: Vec<usize> = item
-                            .generics
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, g)| g.lifetime)
-                            .map(|(g, _)| g)
-                            .collect();
-                        let pos: Option<Vec<usize>> = slots
-                            .iter()
-                            .zip(&field.lifetimes)
-                            .filter(|((_, top), _)| *top)
-                            .map(|(_, &l)| {
-                                let g = *lts.get(usize::from(l).checked_sub(1)?)?;
-                                match at(g).as_slice() {
-                                    [one] if g < argv.len() => Some(*one),
-                                    _ => None,
-                                }
-                            })
-                            .collect();
-                        pos.filter(|p| aligned && !p.is_empty())
-                    }
-                };
-                Some((child, range))
-            }
-            _ => None,
-        }
-    }
-
     /// The slots `proj` reaches from a value `cur` of type `t`, as `want`
     /// slots. A dereference of a local reference reads what its origins'
     /// storage holds.
     fn project(&self, mut cur: Vec<Set>, t: Ty, proj: &[Proj], want: usize) -> Vec<Set> {
-        let pool = self.pool;
+        let (pool, ls) = (self.pool, self.ls);
         let mut ty = Some(t);
         let mut variant = None;
         for p in proj {
             let Some(t) = ty else { break };
             match *p {
                 Proj::Variant(k) => variant = Some(k),
-                Proj::Field(j) => match self.field(t, variant.take(), j) {
+                Proj::Field(j) => match self.ls.field(self.cx, t, variant.take(), j) {
                     Some((child, Some(pos)))
-                        if cur.len() == tops(pool, t).len()
+                        if cur.len() == ls.of(t).tops.len()
                             && pos.iter().all(|&p| p < cur.len()) =>
                     {
                         cur = pos.iter().map(|&p| cur[p].clone()).collect();
                         ty = Some(child);
                     }
                     Some((child, _)) => {
-                        cur = fit(&cur, width(pool, child));
+                        cur = fit(&cur, ls.of(child).width);
                         ty = Some(child);
                     }
                     None => ty = None,
@@ -1047,7 +1098,7 @@ impl Solve<'_> {
                 Proj::Deref => match local_ref(pool, t) {
                     Some((false, false)) => {
                         let inner = referent(pool, t);
-                        let mut h = vec![Set::new(); width(pool, inner)];
+                        let mut h = vec![Set::new(); ls.of(inner).width];
                         for o in flat(&cur) {
                             union_into(&mut h, &self.held(o));
                         }
@@ -1074,13 +1125,13 @@ impl Solve<'_> {
     /// reach from a value of type `t`, the top slot of `t` it lies in, when
     /// that is known.
     fn range(&self, mut t: Ty, proj: &[Proj]) -> Option<Vec<usize>> {
-        let mut cur: Vec<usize> = (0..tops(self.pool, t).len()).collect();
+        let mut cur: Vec<usize> = (0..self.ls.of(t).tops.len()).collect();
         let mut variant = None;
         for p in proj {
             match *p {
                 Proj::Variant(k) => variant = Some(k),
                 Proj::Field(j) => {
-                    let (child, Some(pos)) = self.field(t, variant.take(), j)? else {
+                    let (child, Some(pos)) = self.ls.field(self.cx, t, variant.take(), j)? else {
                         return None;
                     };
                     cur = pos
@@ -1107,7 +1158,7 @@ impl Solve<'_> {
             PlaceRoot::Local(l) => {
                 let o = Origin::Local(l.raw());
                 let t = self.b.local_ty[l.raw() as usize];
-                let h = fit(&self.held(o), width(self.pool, t));
+                let h = fit(&self.held(o), self.ls.of(t).width);
                 (vec![o], self.project(h, t, &p.proj, want))
             }
             // An element's origin is the collection's root place
@@ -1227,25 +1278,25 @@ impl Solve<'_> {
     /// holds references adds what that holds, since the callee may return
     /// it (`ref.dep.call`).
     fn slot_in(&self, cur: &[Set], at: Ty, pt: Ty, s: usize, depth: u32) -> Set {
-        let pool = self.pool;
-        let (ta, tp) = (tops(pool, at), tops(pool, pt));
-        if depth > 32 || ta.len() != tp.len() || cur.len() != tp.len() {
+        let (pool, ls) = (self.pool, self.ls);
+        let (ta, tp) = (ls.of(at), ls.of(pt));
+        if depth > 32 || ta.tops.len() != tp.tops.len() || cur.len() != tp.tops.len() {
             return self.reach(flat(cur));
         }
-        let Some(k) = tp.iter().rposition(|&(f, _)| f <= s) else {
+        let Some(k) = tp.tops.iter().rposition(|&f| f <= s) else {
             return self.reach(flat(cur));
         };
-        let (f, rt) = tp[k];
-        let inner = referent(pool, rt);
+        let f = tp.tops[k];
+        let inner = referent(pool, tp.slots[f].ty);
         if s == f {
-            return if dep_slots(pool, inner) > 0 {
+            return if tp.slots[f].end > f + 1 {
                 self.reach(cur[k].clone())
             } else {
                 cur[k].clone()
             };
         }
-        let inner_a = referent(pool, ta[k].1);
-        let mut h = vec![Set::new(); width(pool, inner_a)];
+        let inner_a = referent(pool, ta.slots[ta.tops[k]].ty);
+        let mut h = vec![Set::new(); ls.of(inner_a).width];
         for &o in &cur[k] {
             union_into(&mut h, &self.held(o));
         }
@@ -1265,7 +1316,7 @@ impl Solve<'_> {
                 let Some(at) = arg_ty(self.pool, b, a) else {
                     continue;
                 };
-                let set = if b.tags[a as usize] == Tag::Ref || may_hold(self.pool, at) {
+                let set = if b.tags[a as usize] == Tag::Ref || self.ls.holds(at) {
                     self.reach(flat(self.of(a)))
                 } else {
                     self.lent(a)
@@ -1286,17 +1337,17 @@ impl Solve<'_> {
                 let (cur, at) = match local_ref(self.pool, at) {
                     Some((true, false)) => {
                         let inner = referent(self.pool, at);
-                        let mut h = vec![Set::new(); width(self.pool, inner)];
+                        let mut h = vec![Set::new(); self.ls.of(inner).width];
                         for o in self.lent(a) {
                             union_into(&mut h, &self.held(o));
                         }
                         (h, inner)
                     }
-                    _ if may_hold(self.pool, at) => (self.of(a).to_vec(), at),
+                    _ if self.ls.holds(at) => (self.of(a).to_vec(), at),
                     _ => continue,
                 };
-                for (s, &(st, _)) in slots_of(self.pool, at).iter().enumerate() {
-                    if is_fn(self.pool, st) {
+                for (s, slot) in self.ls.of(at).slots.iter().enumerate() {
+                    if slot.fun {
                         union(&mut out, &self.slot_in(&cur, at, at, s, 0));
                     }
                 }
@@ -1310,7 +1361,7 @@ impl Solve<'_> {
             let Some(at) = arg_ty(self.pool, b, a) else {
                 continue;
             };
-            let set = if b.tags[a as usize] == Tag::Ref || may_hold(self.pool, at) {
+            let set = if b.tags[a as usize] == Tag::Ref || self.ls.holds(at) {
                 self.slot_in(self.of(a), at, sig.params[p].0, s, 0)
             } else {
                 self.lent(a)
@@ -1334,22 +1385,23 @@ impl Solve<'_> {
         deref: Option<(Ty, &[Proj])>,
         value: &[Set],
     ) -> bool {
-        let pool = self.pool;
+        let (pool, ls) = (self.pool, self.ls);
         let Some(own) = self.own else { return false };
         let Some((t, ids)) = own.params.get(q as usize) else {
             return false;
         };
         let s = s as usize;
-        let Some(&(rt, _)) = slots_of(pool, *t).get(s) else {
+        let Some(rt) = ls.of(*t).slots.get(s).map(|x| x.ty) else {
             return false;
         };
         let inner = referent(pool, rt);
-        let runs = top_runs(pool, inner);
+        let il = ls.of(inner);
+        let runs: Vec<(usize, usize)> = il.runs().collect();
         let takes = |lo: usize, hi: usize, v: &[Origin]| {
-            let Some(ls @ [l, ..]) = ids.get(s + 1 + lo..s + 1 + hi) else {
+            let Some(lts @ [l, ..]) = ids.get(s + 1 + lo..s + 1 + hi) else {
                 return false;
             };
-            ls.iter().all(|x| x == l) && v.iter().all(|&o| own.allows(pool, o, *l))
+            lts.iter().all(|x| x == l) && v.iter().all(|&o| own.allows(ls, o, *l))
         };
         let range = deref
             .filter(|&(t, _)| referent_fn(pool, t) == referent_fn(pool, inner))
@@ -1361,7 +1413,7 @@ impl Solve<'_> {
                     v.is_empty() || takes(lo, hi, v)
                 })
             }
-            _ => takes(0, dep_slots(pool, inner), &flat(value)),
+            _ => takes(0, il.slots.len(), &flat(value)),
         }
     }
 
@@ -1372,29 +1424,22 @@ impl Solve<'_> {
     /// A place the caller owns may take only what it already holds, or
     /// values of its lifetime (`ref.lifetime.store`).
     fn generic_store(&mut self, i: usize, sig: &DepSig) {
-        let pool = self.pool;
+        let (pool, ls) = (self.pool, self.ls);
         for (p, (pt, ids)) in sig.params.iter().enumerate() {
             let Some(a) = source_arg(self.b, i, p) else {
                 continue;
             };
-            let slots = slots_of(pool, *pt);
-            let mut top_k = 0;
-            for (s, &(rt, top)) in slots.iter().enumerate() {
-                if !top {
-                    continue;
-                }
-                let k = top_k;
-                top_k += 1;
+            let lay = ls.of(*pt);
+            for (k, &s) in lay.tops.iter().enumerate() {
+                let rt = lay.slots[s].ty;
                 let mutable = matches!(pool.get(rt), TyData::Ref { mutable: true, .. });
-                let inner = dep_slots(pool, referent(pool, rt));
-                if !mutable || inner == 0 {
+                if !mutable || lay.slots[s].end == s + 1 {
                     continue;
                 }
                 // What each top slot of the referent may take: the
                 // arguments of the lifetimes in its own positions
                 // (`ref.lifetime.store.field`).
-                let per: Vec<Set> = top_runs(pool, referent(pool, rt))
-                    .into_iter()
+                let per: Vec<Set> = (ls.of(referent(pool, rt)).runs())
                     .map(|(lo, hi)| {
                         let mut v = Set::new();
                         let n = ids.len();
@@ -1450,7 +1495,7 @@ impl Solve<'_> {
     /// origins in the slots of its lifetime (`ref.dep.call`).
     fn call(&self, i: usize, sig: &DepSig, n: usize) -> Vec<Set> {
         let v: Vec<Set> = sig
-            .result_ids(self.pool, self.b.ty[i])
+            .result_ids(self.ls, self.b.ty[i])
             .iter()
             .map(|ids| {
                 let mut s = Set::new();
@@ -1505,9 +1550,9 @@ impl Solve<'_> {
         if b.tags[i] == Tag::NewTuple && b.data[i][0] != NONE {
             union_into(&mut out, self.of(b.data[i][0]));
         }
-        let lined = tops(self.pool, t).len() == n;
+        let lined = self.ls.of(t).tops.len() == n;
         for (j, &v) in b.record(b.data[i][1]).iter().enumerate() {
-            match self.field(t, variant, w(j)) {
+            match self.ls.field(self.cx, t, variant, w(j)) {
                 Some((_, Some(pos))) if lined && pos.iter().all(|&p| p < n) => {
                     union_at(&mut out, &pos, self.of(v));
                 }
@@ -1620,7 +1665,7 @@ impl Solve<'_> {
         let n = self.val[i].len();
         let new = match tag {
             Tag::Ref => {
-                let inner = width(self.pool, referent(self.pool, b.ty[i]));
+                let inner = self.ls.of(referent(self.pool, b.ty[i])).width;
                 let (s, v) = self.place(w(i), b.data[i][0], inner);
                 if s == [Origin::Hidden(w(i))] {
                     self.hold(s[0], &v, None);
@@ -1686,17 +1731,15 @@ impl Solve<'_> {
     /// Whether `value`, of type `t`, holds origins in a capture slot at
     /// the top of `t` (`ref.generic.outlives.instance`).
     fn fn_origins(&self, value: &[Set], t: Ty) -> bool {
-        let pool = self.pool;
-        if !pool.has_fn(t) {
+        if !self.pool.has_fn(t) {
             return false;
         }
-        let tp = tops(pool, t);
-        if value.len() == tp.len() {
-            tp.iter()
-                .zip(value)
-                .any(|(&(_, st), set)| is_fn(pool, st) && !set.is_empty())
+        let lay = self.ls.of(t);
+        let fun = |k: &usize| lay.slots[*k].fun;
+        if value.len() == lay.tops.len() {
+            (lay.tops.iter().zip(value)).any(|(k, set)| fun(k) && !set.is_empty())
         } else {
-            tp.iter().any(|&(_, st)| is_fn(pool, st)) && value.iter().any(|s| !s.is_empty())
+            lay.tops.iter().any(fun) && value.iter().any(|s| !s.is_empty())
         }
     }
 
@@ -1709,19 +1752,19 @@ impl Solve<'_> {
     /// parameter's (`Err(true)`). Else the message of the error.
     fn call_params(&self, i: usize) -> Vec<(Ty, Vec<(usize, FnDest)>)> {
         let b = self.b;
-        let pool = self.pool;
+        let (pool, ls) = (self.pool, self.ls);
         let static_bound = self.cx.names.known.static_bound;
         let instantiated = |def: DefId| {
             let sig = self.cx.lookup.item(def)?.sig()?;
             let names = &self.cx.names;
             let params = DepSig::new(
-                pool,
+                ls,
                 &sig.params,
                 |s| names.text(s) == "self",
                 sig.ret,
                 &sig.lifetimes,
             )
-            .instantiate(pool, b, i, None)
+            .instantiate(ls, b, i, None)
             .params;
             let dest = |p: hd_types::ParamRef| {
                 let generics = if p.owner == def {
@@ -1743,17 +1786,14 @@ impl Solve<'_> {
                     .iter()
                     .zip(params)
                     .map(|(&(_, decl), (t, _))| {
-                        let written = written_fns(pool, decl);
-                        let n = dep_slots(pool, decl);
+                        let written = ls.of(decl);
+                        let n = written.slots.len();
                         let mut keys = Vec::new();
                         let mut out = Vec::new();
                         let mut it = (0..w(n)).chain(std::iter::repeat(NO_SOURCE));
-                        let aligned = line_up(pool, decl, t, &mut it, &mut keys, &mut out, 0);
-                        let slots = slots_of(pool, t);
-                        let dests = slots
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, (st, _))| is_fn(pool, *st))
+                        let aligned = line_up(ls, decl, t, &mut it, &mut keys, &mut out, 0);
+                        let dests = (ls.of(t).slots.iter().enumerate())
+                            .filter(|(_, x)| x.fun)
                             .map(|(s, _)| {
                                 let d = match out.get(s) {
                                     _ if !aligned => FnDest::Kept,
@@ -1762,7 +1802,7 @@ impl Solve<'_> {
                                         keys.get(k).map_or(FnDest::Kept, |&p| dest(p))
                                     }
                                     Some(&id) if (id as usize) < n => {
-                                        if written[id as usize] {
+                                        if written.slots[id as usize].written {
                                             FnDest::Kept
                                         } else {
                                             FnDest::Scoped
@@ -1800,15 +1840,12 @@ impl Solve<'_> {
                         pool.list_items(params)
                             .iter()
                             .map(|&p| {
-                                let written = written_fns(pool, p);
-                                let dests = slots_of(pool, p)
-                                    .iter()
-                                    .enumerate()
-                                    .filter(|(_, (st, _))| is_fn(pool, *st))
-                                    .map(|(s, _)| {
+                                let dests = (ls.of(p).slots.iter().enumerate())
+                                    .filter(|(_, x)| x.fun)
+                                    .map(|(s, x)| {
                                         (
                                             s,
-                                            if written[s] {
+                                            if x.written {
                                                 FnDest::Kept
                                             } else {
                                                 FnDest::Scoped
@@ -1851,10 +1888,10 @@ impl Solve<'_> {
                 // address is counted too, and stays in the body.
                 Tag::Ref
                     if matches!(self.pool.get(b.ty[i]), TyData::Ref { counted: true, inner, .. }
-                    if has_fn_slot(self.pool, inner)
+                    if self.ls.of(inner).slots.iter().any(|s| s.fun)
                         && self.boxes.contains(&w(i))
                         && self.fn_origins(
-                            &self.place(w(i), b.data[i][0], width(self.pool, inner)).1,
+                            &self.place(w(i), b.data[i][0], self.ls.of(inner).width).1,
                             inner,
                         )) =>
                 {
@@ -1886,7 +1923,7 @@ impl Solve<'_> {
                         let Some(vt) = arg_ty(self.pool, b, value) else {
                             continue;
                         };
-                        if dests.is_empty() || !may_hold(self.pool, vt) {
+                        if dests.is_empty() || !self.ls.holds(vt) {
                             continue;
                         }
                         for &(s, dest) in dests {
@@ -2053,7 +2090,8 @@ impl Ck<'_, '_> {
         }
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
-        DepSig::new(pool, &sig.params, is_self, sig.ret, &sig.lifetimes).to_fn(pool, skip)
+        let ls = &Layouts::new(pool);
+        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).to_fn(ls, skip)
     }
 
     /// The map a trait implementation's method `sig` must share with the
@@ -2071,40 +2109,40 @@ impl Ck<'_, '_> {
         }
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
-        DepSig::new(pool, &tsig.params, is_self, tsig.ret, &tsig.lifetimes)
-            .open(pool, sig.ret)
-            .to_fn(pool, 0)
+        let ls = &Layouts::new(pool);
+        DepSig::new(ls, &tsig.params, is_self, tsig.ret, &tsig.lifetimes)
+            .open(ls, sig.ret)
+            .to_fn(ls, 0)
     }
 
     /// The dependency map of a callee's signature (`ref.dep.call`,
     /// `ref.dep.trait`): a trait method's from the trait's signature.
     /// At call `i` of `b`, the map is over the types the call instantiates
     /// (`ref.generic.call`).
-    fn callee_dep(&self, def: DefId, b: &Body, i: usize) -> Option<DepSig> {
+    fn callee_dep(&self, ls: &Layouts<'_>, def: DefId, b: &Body, i: usize) -> Option<DepSig> {
         let sig = self.sig_of(def).ok()?;
-        let pool = self.pool();
         let names = &self.cx.names;
         let dep = DepSig::new(
-            pool,
+            ls,
             &sig.params,
             |s| names.text(s) == "self",
             sig.ret,
             &sig.lifetimes,
         )
-        .instantiate(pool, b, i, Some((def, &sig.generics)));
+        .instantiate(ls, b, i, Some((def, &sig.generics)));
         dep.depends().then_some(dep)
     }
 
     /// The map of call `i`, when it passes a local-holding value and may
     /// store one through a `&mut` argument (`ref.generic.store`,
     /// `ref.lifetime.store.call`).
-    fn store_dep(&self, b: &Body, i: usize) -> Option<DepSig> {
-        let pool = self.pool();
+    fn store_dep(&self, ls: &Layouts<'_>, b: &Body, i: usize) -> Option<DepSig> {
+        let pool = ls.pool;
         let mut holding = false;
         slots(b, i, |_, v, word| {
             if matches!(word, Word::Value(Role::Arg(_)))
                 && v & hd_tir::ir::Ref::CONST_BIT == 0
-                && b.ty.get(v as usize).is_some_and(|&t| may_hold(pool, t))
+                && b.ty.get(v as usize).is_some_and(|&t| ls.holds(t))
             {
                 holding = true;
             }
@@ -2118,8 +2156,9 @@ impl Ck<'_, '_> {
         };
         let sig = self.sig_of(def).ok()?;
         let writes = sig.params.iter().any(|&(_, t)| {
-            slots_of(pool, t).iter().any(|&(rt, top)| {
-                top && matches!(pool.get(rt), TyData::Ref { mutable: true, inner, .. }
+            ls.of(t).slots.iter().any(|x| {
+                x.top
+                    && matches!(pool.get(x.ty), TyData::Ref { mutable: true, inner, .. }
                     if pool.has_param(inner) || pool.ref_slots(inner) > 0)
             })
         });
@@ -2128,13 +2167,13 @@ impl Ck<'_, '_> {
         }
         let names = &self.cx.names;
         let dep = DepSig::new(
-            pool,
+            ls,
             &sig.params,
             |s| names.text(s) == "self",
             sig.ret,
             &sig.lifetimes,
         )
-        .instantiate(pool, b, i, Some((def, &sig.generics)));
+        .instantiate(ls, b, i, Some((def, &sig.generics)));
         // A slot of a type parameter, or of a written lifetime
         // (`ref.lifetime.store.call`).
         let shared = dep.params.iter().any(|(_, ids)| {
@@ -2153,9 +2192,10 @@ impl Ck<'_, '_> {
         fun: Option<NodeRef<'_>>,
     ) {
         let pool = self.pool();
+        let ls = &Layouts::new(pool);
         let body = self.b.body();
         // The body's own map: parameter k is local k.
-        let fn_body = body.kind == BodyKind::Fn && fun.is_some() && may_hold(pool, ret);
+        let fn_body = body.kind == BodyKind::Fn && fun.is_some() && ls.holds(ret);
         let mut opaque = false;
         let own_sig = fn_body
             .then(|| {
@@ -2175,13 +2215,13 @@ impl Ck<'_, '_> {
                 // lifetimes (`types.opaque.borrows.body`).
                 opaque = pool.has_opaque(sig.ret);
                 let dep = DepSig::new(
-                    pool,
+                    ls,
                     &sig.params,
                     |s| names.text(s) == "self",
                     if opaque { sig.ret } else { ret },
                     &sig.lifetimes,
                 );
-                Some(if opaque { dep.open(pool, ret) } else { dep })
+                Some(if opaque { dep.open(ls, ret) } else { dep })
             }
             _ => None,
         };
@@ -2194,7 +2234,7 @@ impl Ck<'_, '_> {
         let mine = declared.map(|sig| {
             let names = &self.cx.names;
             let is_self = |s| names.text(s) == "self";
-            DepSig::new(pool, &sig.params, is_self, Ty::VOID, &sig.lifetimes)
+            DepSig::new(ls, &sig.params, is_self, Ty::VOID, &sig.lifetimes)
         });
         let mut deps: HashMap<u32, DepSig> = HashMap::default();
         let mut stores: HashMap<u32, DepSig> = HashMap::default();
@@ -2204,7 +2244,7 @@ impl Ck<'_, '_> {
         });
         for i in 0..body.tags.len() {
             if matches!(body.tags[i], Tag::Call | Tag::Await)
-                && let Some(sig) = self.store_dep(body, i)
+                && let Some(sig) = self.store_dep(ls, body, i)
             {
                 stores.insert(w(i), sig);
                 through = true;
@@ -2214,7 +2254,7 @@ impl Ck<'_, '_> {
                 Tag::Block | Tag::Loop if w(i) != root.0 && holds_local_ref(pool, body.ty[i]) => {
                     through = true;
                 }
-                Tag::Call | Tag::Await | Tag::CallDyn if may_hold(pool, body.ty[i]) => {
+                Tag::Call | Tag::Await | Tag::CallDyn if ls.holds(body.ty[i]) => {
                     let def = match body.tags[i] {
                         Tag::CallDyn => body.record(body.data[i][1]).first().copied(),
                         _ => match Callee::from_words(body.record(body.data[i][0])) {
@@ -2224,20 +2264,16 @@ impl Ck<'_, '_> {
                         },
                     };
                     if let Some(dep) =
-                        def.and_then(|d| self.callee_dep(DefId::from_raw(d), body, i))
+                        def.and_then(|d| self.callee_dep(ls, DefId::from_raw(d), body, i))
                     {
                         deps.insert(w(i), dep);
                     }
                 }
                 // A function value's call takes the map its type carries
                 // (`fn.type.lifetime.call`).
-                Tag::CallValue if may_hold(pool, body.ty[i]) => {
+                Tag::CallValue if ls.holds(body.ty[i]) => {
                     let f = body.data[i][0];
-                    if let Some(dep) = body
-                        .ty
-                        .get(f as usize)
-                        .and_then(|&t| DepSig::of_fn(pool, t))
-                    {
+                    if let Some(dep) = body.ty.get(f as usize).and_then(|&t| DepSig::of_fn(ls, t)) {
                         deps.insert(w(i), dep);
                     }
                 }
@@ -2251,10 +2287,10 @@ impl Ck<'_, '_> {
                         through |= (*start..start.saturating_add(*len)).any(|c| {
                             body.cap_local
                                 .get(c as usize)
-                                .is_some_and(|l| may_hold(pool, body.local_ty[l.idx()]))
+                                .is_some_and(|l| ls.holds(body.local_ty[l.idx()]))
                         });
                     }
-                    let dep = DepSig::of_fn(pool, body.ty[i]);
+                    let dep = DepSig::of_fn(ls, body.ty[i]);
                     match pool.get(referent_fn(pool, body.ty[i])) {
                         // A local function's hidden result is checked
                         // against its opaque types' lifetimes
@@ -2274,7 +2310,7 @@ impl Ck<'_, '_> {
                             let hidden = body.sub_root.get(sub).map_or(result, |&r| {
                                 body.ty.get(r as usize).copied().unwrap_or(result)
                             });
-                            closures.push((sub, dep.open(pool, hidden)));
+                            closures.push((sub, dep.open(ls, hidden)));
                         }
                         _ => {
                             if let Some(dep) = dep.filter(|d| !d.outs.is_empty()) {
@@ -2286,7 +2322,7 @@ impl Ck<'_, '_> {
                 Tag::Store => {
                     let [_, v] = body.data[i];
                     through |= v & hd_tir::ir::Ref::CONST_BIT == 0
-                        && body.ty.get(v as usize).is_some_and(|&t| may_hold(pool, t));
+                        && body.ty.get(v as usize).is_some_and(|&t| ls.holds(t));
                 }
                 // A list push or a map store (`Solve::intrinsic_store`).
                 Tag::Intrinsic => {
@@ -2318,7 +2354,7 @@ impl Ck<'_, '_> {
             opaque
                 || o.depends()
                 || o.capture_elided == Elided::Missing
-                    && tops(pool, o.ret).iter().any(|&(_, t)| is_fn(pool, t))
+                    && ls.of(o.ret).tops.iter().any(|&k| ls.of(o.ret).slots[k].fun)
         });
         if own.is_none() && !through && closures.is_empty() {
             return;
@@ -2335,7 +2371,7 @@ impl Ck<'_, '_> {
                 let n = if body.tags[i] == Tag::Ref {
                     1
                 } else {
-                    width(pool, body.ty[i])
+                    ls.of(body.ty[i]).width
                 };
                 vec![Set::new(); n]
             })
@@ -2343,6 +2379,7 @@ impl Ck<'_, '_> {
         let mut s = Solve {
             b: body,
             pool,
+            ls,
             cx: self.cx,
             val,
             held: HashMap::default(),
@@ -2357,16 +2394,13 @@ impl Ck<'_, '_> {
         };
         for l in 0..body.local_ty.len() {
             let lt = body.local_ty[l];
-            if body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && may_hold(pool, lt) {
-                let pt = s.params[l];
-                let tp = tops(pool, pt);
+            if body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && ls.holds(lt) {
+                let pt = ls.of(s.params[l]);
                 // A function type written inside another type holds no
                 // captures (`ref.generic.outlives.written`).
-                let written = written_fns(pool, pt);
-                let mine: Vec<Set> = tp
-                    .iter()
-                    .map(|&(f, _)| {
-                        if written[f] {
+                let mine: Vec<Set> = (pt.tops.iter())
+                    .map(|&f| {
+                        if pt.slots[f].written {
                             vec![]
                         } else {
                             vec![Origin::Param(w(l), w(f))]
@@ -2379,7 +2413,7 @@ impl Ck<'_, '_> {
                     mine
                 };
                 s.held
-                    .insert(Origin::Local(w(l)), fit(&mine, width(pool, lt)));
+                    .insert(Origin::Local(w(l)), fit(&mine, ls.of(lt).width));
             }
         }
         while s.changed {
@@ -2393,12 +2427,12 @@ impl Ck<'_, '_> {
         stores.sort_stable_by_key(|n| n.raw());
         let mut bad: Vec<(NodeIdx, Origin, u32)> = Vec::new();
         if let Some(own) = &own {
-            let ids = own.result_ids(pool, ret);
+            let ids = own.result_ids(ls, ret);
             // A function value's capture slot with no source, as a
             // capturing closure read from a field (`ref.generic.outlives.read`).
-            let capture: Vec<bool> = tops(pool, ret)
-                .iter()
-                .map(|&(_, t)| own.capture_elided == Elided::Missing && is_fn(pool, t))
+            let rl = ls.of(ret);
+            let capture: Vec<bool> = (rl.tops.iter())
+                .map(|&k| own.capture_elided == Elided::Missing && rl.slots[k].fun)
                 .collect();
             for r in returned(body, root.0) {
                 let v = fit(s.of(r), ids.len());
@@ -2412,7 +2446,7 @@ impl Ck<'_, '_> {
                     };
                     if let Some(&o) = set
                         .iter()
-                        .find(|&&o| !ids.iter().any(|&id| own.allows(pool, o, id)))
+                        .find(|&&o| !ids.iter().any(|&id| own.allows(ls, o, id)))
                     {
                         bad.push((site(&s, r, o, 0), o, id));
                         break;
@@ -2426,13 +2460,13 @@ impl Ck<'_, '_> {
             let locals: Vec<u32> = (0..r.len)
                 .map(|k| body.extra[(r.start + 1 + k) as usize])
                 .collect();
-            let ids = dep.result_ids(pool, dep.ret);
+            let ids = dep.result_ids(ls, dep.ret);
             for v in returned(body, body.sub_root[*sub]) {
                 let set = fit(s.of(v), ids.len());
                 let ok = |o: Origin, ids: &[u32]| match o {
                     Origin::Param(p, k) => locals.iter().position(|&l| l == p).is_some_and(|at| {
                         ids.iter()
-                            .any(|&id| dep.allows(pool, Origin::Param(w(at), k), id))
+                            .any(|&id| dep.allows(ls, Origin::Param(w(at), k), id))
                     }),
                     _ => false,
                 };
