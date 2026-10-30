@@ -299,13 +299,16 @@ impl Ck<'_, '_> {
         self.opaque_rets.truncate(c.opaque_rets);
         self.strict_rets.truncate(c.strict_rets);
         self.recursive_returns.truncate(c.recursive_returns);
+        let clauses_added = self.env.clause_self.len() > c.clauses;
         self.env.clause_self.truncate(c.clauses);
         self.env.clause_trait.truncate(c.clauses);
         self.env.clause_args.truncate(c.clauses);
         self.env.clause_bindings.truncate(c.clauses);
         self.env.clause_mut.truncate(c.clauses);
         self.env.clause_origin.truncate(c.clauses);
-        self.env.key = Some(self.cx.global.env_key(&self.env));
+        if clauses_added {
+            self.env.key = Some(self.cx.global.env_key(&self.env));
+        }
         self.excl.truncate(c.excl[0]);
         self.excl_frames.truncate(c.excl[1]);
         self.conflicts.truncate(c.excl[2]);
