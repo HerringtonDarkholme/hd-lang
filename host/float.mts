@@ -28,7 +28,12 @@ interface FloatParts {
   hidden: bigint;
 }
 
-function interval({ f, e, min, hidden }: FloatParts): [bigint, bigint, bigint, bigint] {
+function interval({
+  f,
+  e,
+  min,
+  hidden,
+}: Omit<FloatParts, "negative">): [bigint, bigint, bigint, bigint] {
   const narrow = f === hidden && e !== min;
   if (e >= 0) {
     const scale = 1n << BigInt(e);

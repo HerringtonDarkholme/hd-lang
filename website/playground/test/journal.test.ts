@@ -81,10 +81,28 @@ const seven = () => {
 function everyRowKind(): Recorder {
   const r = new Recorder(1 << 20, seven());
   r.input(1, "now()\n", text("\0asm"));
-  r.call("hd:Clock", "now", new Uint8Array(), int(1_700_000_000_000n), null);
+  r.call({
+    module: "hd:Clock",
+    name: "now",
+    request: new Uint8Array(),
+    value: int(1_700_000_000_000n),
+    result: null,
+  });
   const line = callArgs([5], ["i32"], text("a line longer than eight bytes"));
-  r.call("hd:Console", "write.start", line, { tag: 3, v: 1, w: 9 }, null);
-  r.call("hd:Clock", "now", new Uint8Array(), int(-1), null);
+  r.call({
+    module: "hd:Console",
+    name: "write.start",
+    request: line,
+    value: { tag: 3, v: 1, w: 9 },
+    result: null,
+  });
+  r.call({
+    module: "hd:Clock",
+    name: "now",
+    request: new Uint8Array(),
+    value: int(-1),
+    result: null,
+  });
   r.block([9]);
   r.poll();
   r.poll();
@@ -96,7 +114,13 @@ function everyRowKind(): Recorder {
   r.input(2, "x\n", text("\0asm"));
   const half = callArgs([2.5], ["f64"], null);
   const bits = new DataView(new Float64Array([0.5]).buffer).getBigUint64(0, true);
-  r.call("hd:prim", "format_f64", half, { tag: 2, v: bits }, text("0.5"));
+  r.call({
+    module: "hd:prim",
+    name: "format_f64",
+    request: half,
+    value: { tag: 2, v: bits },
+    result: text("0.5"),
+  });
   r.end({ kind: "exit", status: 0 });
   return r;
 }
@@ -105,8 +129,20 @@ test("archived chunks join without losing method identities or recorded results"
   const first = everyRowKind().journal()!;
   const second = new Recorder(1 << 20, seven());
   second.input(3, "later()", text("later module"));
-  second.call("hd:prim", "format_f64", new Uint8Array(), int(17), text("retained reply"));
-  second.call("hd:Clock", "now", text("a request longer than eight bytes"), int(18), null);
+  second.call({
+    module: "hd:prim",
+    name: "format_f64",
+    request: new Uint8Array(),
+    value: int(17),
+    result: text("retained reply"),
+  });
+  second.call({
+    module: "hd:Clock",
+    name: "now",
+    request: text("a request longer than eight bytes"),
+    value: int(18),
+    result: null,
+  });
   second.end({ kind: "exit", status: 0 });
   const tail = second.journal()!;
   const empty = new Recorder(1 << 20, seven()).journal()!;
@@ -194,8 +230,20 @@ test("the reader cuts a torn tail and checks each row's checksum", () => {
 function replayed() {
   const r = new Recorder(1 << 20, seven());
   r.input(1, "a := now()\n", text("\0asm1"));
-  r.call("hd:Clock", "now", new Uint8Array(), int(1_700), null);
-  r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69), { tag: 3, v: 1, w: 4 }, null);
+  r.call({
+    module: "hd:Clock",
+    name: "now",
+    request: new Uint8Array(),
+    value: int(1_700),
+    result: null,
+  });
+  r.call({
+    module: "hd:Console",
+    name: "write.start",
+    request: Uint8Array.of(2, 0x68, 0x69),
+    value: { tag: 3, v: 1, w: 4 },
+    result: null,
+  });
   r.poll();
   r.wake([4]);
   r.finish(4, int(1), Uint8Array.of(0));
