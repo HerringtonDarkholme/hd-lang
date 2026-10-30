@@ -1,0 +1,12 @@
+# test: static and Fn bounds form one conjunction in either written order
+# Spec 13 Generic Locality: ref.generic.static.fn-conjunction.
+use std.function.Fn
+
+fn static_first[F < 'static & Fn(i32) -> i32](f: F) -> i32:
+    f(1)
+
+fn fn_first[F < Fn(i32) -> i32 & 'static](f: F) -> i32:
+    f(2)
+
+fn check() -> i32:
+    static_first(fn(x: i32) -> i32: x + 3) + fn_first(fn(x: i32) -> i32: x + 4)

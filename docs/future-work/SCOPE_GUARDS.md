@@ -111,7 +111,7 @@ reference:
 ```text
 fn record(log: &mut List[string]) -> void:
     do_work(log)
-    # Target tier-2 syntax. Current hd reports fn.capture.no-local-reference.
+    # Target tier-2 syntax. Current hd reports fn.capture.no-local-reference-stored.
     using guard = on_exit(fn once() ->{log} void:
         log.push("scope closed")
     )

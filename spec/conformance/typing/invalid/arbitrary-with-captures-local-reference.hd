@@ -1,0 +1,7 @@
+# test: arbitrary.with cannot store a generator that captures a caller's local reference
+# std Testing, Derived Arbitrary: std-testing.arbitrary.with.capture-free.
+use std.testing.Choices
+use std.testing.arbitrary
+
+fn generator(seed: &i32) -> arbitrary.With[i32]:
+    arbitrary.with(fn(_choices: &mut Choices) -> i32: *seed) # diagnostic: local-reference-escapes

@@ -614,7 +614,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             checked = self.normalize_deep(p).and_then(|w| {
-                let (r, t) = self.arg_value(e, Some(w))?;
+                let (r, t) = self.arg_value(e, Some(w), false)?;
                 self.coerce(r, t, w, e, "argument", ExpectPosition::General);
                 Ok(())
             });
@@ -661,11 +661,26 @@ impl Ck<'_, '_> {
 
     /// An argument's value: the one inferred before the trials, or a
     /// check against `want` now.
-    pub(crate) fn arg_value(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
+    pub(crate) fn arg_value(
+        &mut self,
+        e: NodeRef<'_>,
+        want: Option<Ty>,
+        scoped_capture: bool,
+    ) -> StageResult<(Ref, Ty)> {
         if let Some(&(_, r, t)) = self.pre_args.iter().rev().find(|p| p.0 == e.index()) {
             return Ok((r, t));
         }
-        self.expr(e, want)
+        let direct_fn = want.is_some_and(|t| {
+            let pool = self.pool();
+            matches!(pool.get(self.strip_mut(t)), TyData::Fn { .. })
+        });
+        let saved = self.local_capture_argument;
+        if scoped_capture && direct_fn && e.kind() == SyntaxKind::ClosureExpr {
+            self.local_capture_argument = Some(e.index());
+        }
+        let result = self.expr(e, want);
+        self.local_capture_argument = saved;
+        result
     }
 
     // ------------------------------------------------------------ bounds

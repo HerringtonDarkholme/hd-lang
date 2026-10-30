@@ -1,0 +1,14 @@
+# test: returning a function parameter preserves the local origins captured by its argument
+# Spec 13 Dependent Results: ref.dep.capture-position, ref.dep.capture-elide.
+# expect-stdout: 42
+struct Counter:
+    value: i32
+
+fn forward(reader: fn() -> i32) -> fn() -> i32:
+    reader
+
+pub fn main() -> void $ Console:
+    counter := Counter { value: 42 }
+    let local: &Counter = &counter
+    reader := forward(fn() -> i32: local.value)
+    println("${reader()}")

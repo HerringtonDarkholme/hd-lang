@@ -373,6 +373,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// reported, and the types the body and its signature write.
     pub ref_origins: HashMap<LocalId, hd_base::TokenIdx>,
     pub ref_captured: HashSet<LocalId>,
+    /// The closure expression currently checked as a direct argument of a
+    /// `fn(...)` parameter. Only that closure may capture local references
+    /// (`fn.capture.local-parameter`).
+    pub local_capture_argument: Option<hd_base::NodeIdx>,
     /// The initializer of each unannotated binding, where a `box(...)`
     /// fix-it boxes the value at its declaration (`req.ref.install-value.fix`).
     pub local_inits: HashMap<LocalId, hd_base::NodeIdx>,
@@ -622,6 +626,7 @@ pub(crate) fn new_ck<'a, 'c>(
         elem_ok: HashMap::default(),
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
+        local_capture_argument: None,
         local_inits: HashMap::default(),
         declared_tys: HashSet::default(),
         local_ref_call_targs: Vec::new(),

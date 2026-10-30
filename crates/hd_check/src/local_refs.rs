@@ -15,7 +15,9 @@
 //! a local reference where a counted one is expected
 //! ([`Ck::coerce_ref_kind`]), and the body's end reports the inferred
 //! types that hold one ([`Ck::check_local_ref_types`]). Captures report
-//! when their closure closes ([`Ck::local_ref_captures`]).
+//! when their closure closes ([`Ck::local_ref_captures`]), except for a
+//! closure passed directly to a `fn(...)` parameter; dependent-result
+//! solving tracks that closure's capture origins.
 
 use hd_base::{HashSet, LocalId, TokenIdx};
 use hd_diag::{Code, DiagBuf};
@@ -708,10 +710,18 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `ref.local.escape.capture`: the closure `n` captures a local that
-    /// holds a local reference, `self` of a `&self` method included.
-    /// Each local reports once, at the outermost closure that captures it.
-    pub(crate) fn local_ref_captures(&mut self, mark: hd_tir::ir::SubMark, n: NodeRef<'_>) {
+    /// `ref.local.escape.capture-stored`: the closure `n` captures a local
+    /// that holds a local reference, `self` of a `&self` method included.
+    /// A closure passed directly to a `fn(...)` parameter is scoped and
+    /// carries those origins instead (`fn.capture.local-parameter`). Each
+    /// rejected local reports once, at the outermost closure that captures
+    /// it.
+    pub(crate) fn local_ref_captures(
+        &mut self,
+        mark: hd_tir::ir::SubMark,
+        n: NodeRef<'_>,
+        scoped: bool,
+    ) {
         let pool = self.pool();
         for l in self.b.open_captures(mark) {
             if self.ref_captured.contains(&l) {
@@ -719,6 +729,9 @@ impl Ck<'_, '_> {
             }
             let t = self.infer.resolve(pool, self.b.local_ty(l));
             if holds_local_ref(pool, t) {
+                if scoped {
+                    continue;
+                }
                 self.ref_captured.insert(l);
                 self.err(Code::LocalReferenceEscapes, n, &message(Escape::Capture));
             } else if pool.has_param(t) && !self.meets_static(t) {

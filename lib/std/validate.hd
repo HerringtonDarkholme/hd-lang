@@ -1,5 +1,6 @@
 # std.validate: value validation after decoding or construction.
 use std.annotation.annotate
+use std.function.Fn
 use std.hash.Hash
 use std.http.Url as HttpUrl
 use std.inspect.Inspectable
@@ -968,5 +969,8 @@ pub fn unique[F < Eq & Hash & Validate](message: string? = .None) -> Unique[List
     Unique::[List[F]] { message: message }
 
 ## A custom field check; it runs after every built-in fact on the field.
-pub fn check[F](test: fn(&F) -> Result[void, Problem], message: string? = .None) -> Check[F]:
-    Check::[F] { test: test, message: message }
+pub fn check[F, G < 'static & Fn(& F) -> Result[void, Problem]](
+    test: G,
+    message: string? = .None,
+) -> Check[F]:
+    Check::[F] { test: fn(value: &F) -> Result[void, Problem]: test(value), message: message }

@@ -892,7 +892,11 @@ fn demo() -> i32:
 8. r[fn.capture.copies] Copying a closure value copies no cell: the copies share every cell the closure captured.
 9. r[fn.capture.call.any] A closure may be called any number of times, through any copy of it.
 10. r[fn.capture.reference] Capturing a counted reference copies the reference, as [`ref.capture.copy`](13-values-and-references.md#r-ref.capture.copy) states.
-11. r[fn.capture.no-local-reference] A closure must not capture a local reference, `&T` or `&mut T`, as [`ref.local.escape.capture`](13-values-and-references.md#r-ref.local.escape.capture) states. Error: `local-reference-escapes`.
+11. r[fn.capture.local-parameter] A closure supplied directly for a `fn(A) -> R $ Row` parameter may capture local references because that parameter has a fresh lifetime.
+12. r[fn.capture.local-origins] The supplied closure value carries the origins of its captured local references.
+13. r[fn.capture.local-uses] The callee may call that parameter, pass it to another direct function parameter, or return it as a dependent result.
+14. r[fn.capture.local-store] Storing that parameter in a field, a box, a provider, or a top-level binding is an error. Error: `local-reference-escapes`.
+15. r[fn.capture.no-local-reference-stored] A closure in any other function-value position must not capture a local reference, as [`ref.local.escape.capture-stored`](13-values-and-references.md#r-ref.local.escape.capture-stored) states. Error: `local-reference-escapes`.
 
 > **Why.** An immutable binding never changes, so copying it and sharing it
 > look the same. A variable changes, so the closure and its scope must refer
