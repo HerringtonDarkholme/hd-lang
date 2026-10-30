@@ -39,7 +39,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { entryCancel } from "./core.mjs";
-import { cycleReport } from "./checked-report.mjs";
+import { cycleReport } from "./checked-report.mts";
 import { createHost } from "./node.mjs";
 import { providers } from "./profiles.mjs";
 import { configOf, supervise } from "./test-run.mjs";

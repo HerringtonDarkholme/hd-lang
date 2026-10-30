@@ -3,7 +3,7 @@ import { test, after } from "node:test";
 import { rm } from "node:fs/promises";
 import { contractBindings } from "../packaging/contract-bindings.mjs";
 import { checkCompanionPairing, fixedBindingsModule } from "../packaging/companion.mjs";
-import { readPackageContract, createPackageRuntime } from "../../../host/package-providers.mjs";
+import { readPackageContract, createPackageRuntime } from "../../../host/package-providers.mts";
 import { Enc, Dec } from "../../../host/wire.mts";
 import { fixture } from "./helpers/deployment-fixture.mjs";
 const compiled = fixture();

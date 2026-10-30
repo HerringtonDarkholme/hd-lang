@@ -6,7 +6,7 @@ import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync }
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createCoreHost } from "../../../host/core.mjs";
-import { createPackageRuntime } from "../../../host/package-providers.mjs";
+import { createPackageRuntime } from "../../../host/package-providers.mts";
 import { createApplication } from "../adapters/application.mjs";
 import { createSupervisor } from "../adapters/supervisor.mjs";
 
@@ -146,7 +146,7 @@ test(
         module,
         bindingsURL,
         runtimeURL: new URL("../../../host/core.mjs", import.meta.url).href,
-        packageRuntimeURL: new URL("../../../host/package-providers.mjs", import.meta.url).href,
+        packageRuntimeURL: new URL("../../../host/package-providers.mts", import.meta.url).href,
         applicationURL: new URL("../adapters/application.mjs", import.meta.url).href,
         grants: { [source.selectors[0]]: true, Console: true, Clock: true },
       },

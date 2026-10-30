@@ -3,7 +3,7 @@ import { test, after } from "node:test";
 import { readFile, writeFile, mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { Enc } from "../../../host/wire.mts";
-import { readPackageContract } from "../../../host/package-providers.mjs";
+import { readPackageContract } from "../../../host/package-providers.mts";
 import {
   validateServerContract,
   normalizeServerContract,

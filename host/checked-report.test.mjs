@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cycleReport } from "./checked-report.mjs";
+import { cycleReport } from "./checked-report.mts";
 
 function moduleWith(data) {
   const name = [...new TextEncoder().encode("hd.cycles")];

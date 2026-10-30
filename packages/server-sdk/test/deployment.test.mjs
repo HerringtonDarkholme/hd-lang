@@ -12,7 +12,7 @@ import {
 import { rm } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
-import { readPackageContract } from "../../../host/package-providers.mjs";
+import { readPackageContract } from "../../../host/package-providers.mts";
 import { fixture, environment, repository } from "./helpers/deployment-fixture.mjs";
 import {
   encode,

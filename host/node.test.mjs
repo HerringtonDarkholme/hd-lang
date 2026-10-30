@@ -1443,13 +1443,13 @@ async function heldLookupHost(t) {
     "output.mjs",
     "output-worker.mjs",
     "worker-control.mjs",
-    "checked-report.mjs",
+    "checked-report.mts",
     "float.mts",
     "journal.mjs",
     "run-support.mts",
     "wire.mts",
-    "package-contract.mjs",
-    "package-providers.mjs",
+    "package-contract.mts",
+    "package-providers.mts",
     "gen/abi.mts",
   ]) {
     mkdirSync(dirname(join(root, name)), { recursive: true });

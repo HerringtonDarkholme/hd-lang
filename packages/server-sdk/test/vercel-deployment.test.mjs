@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { packageVercelNode, validatePolicy } from "../packaging/vercel.mjs";
-import { readPackageContract } from "../../../host/package-providers.mjs";
+import { readPackageContract } from "../../../host/package-providers.mts";
 import { fixture, environment } from "./helpers/deployment-fixture.mjs";
 import {
   encode,

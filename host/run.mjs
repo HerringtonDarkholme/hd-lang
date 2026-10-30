@@ -114,7 +114,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
     throw new HostContract("duplicate package host contracts");
   }
   const required = sections.length
-    ? (await import("./package-contract.mjs")).readPackageContract(new Uint8Array(sections[0]))
+    ? (await import("./package-contract.mts")).readPackageContract(new Uint8Array(sections[0]))
     : [];
   const registrations = new Map();
   const grants = { ...config.grants };
@@ -149,7 +149,7 @@ async function runHereUnchecked(module, config, args, sink, deadline, cancel) {
     // This module was regenerated from validated data by hd, in its private
     // host directory. It is never JavaScript obtained from a guest section.
     const [{ createPackageRuntime: createRuntime }, generated] = await Promise.all([
-      import("./package-providers.mjs"),
+      import("./package-providers.mts"),
       import("./main.host.mjs"),
     ]);
     createPackageRuntime = createRuntime;

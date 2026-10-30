@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { after, before, test } from "node:test";
 import { createCoreHost } from "../../../host/core.mjs";
-import { createPackageRuntime } from "../../../host/package-providers.mjs";
+import { createPackageRuntime } from "../../../host/package-providers.mts";
 import { createApplication } from "../adapters/application.mjs";
 import { readProductionGrants } from "../packaging/grants.mjs";
 

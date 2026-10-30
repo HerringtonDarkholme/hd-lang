@@ -22,7 +22,7 @@ const CORE: &str = include_str!("../../../host/core.mjs");
 /// The initialized REPL session and checkpoint lifecycle imported by the core.
 const SESSION: &str = include_str!("../../../host/session.mjs");
 /// The checked descriptor report imported by the shared core.
-const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.mjs");
+const CHECKED_REPORT: &str = include_str!("../../../host/checked-report.mts");
 /// The JS host's Node layer: the providers that touch the machine.
 const NODE: &str = include_str!("../../../host/node.mjs");
 /// Node path, host-name and file-operation helpers shared with workers.
@@ -66,9 +66,9 @@ const RUN_SUPPORT: &str = include_str!("../../../host/run-support.mts");
 /// The exchange-buffer encoding the hosts' codecs are built on.
 const WIRE: &str = include_str!("../../../host/wire.mts");
 /// The lightweight decoder for a package-host custom section.
-const PACKAGE_CONTRACT: &str = include_str!("../../../host/package-contract.mjs");
+const PACKAGE_CONTRACT: &str = include_str!("../../../host/package-contract.mts");
 /// The checked helpers called by generated package host bindings.
-const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.mjs");
+const PACKAGE_PROVIDERS: &str = include_str!("../../../host/package-providers.mts");
 /// The codecs and method descriptors generated from the ABI model.
 const ABI: &str = include_str!("../../../host/gen/abi.mts");
 
@@ -256,7 +256,7 @@ impl Scratch {
         for (name, text) in [
             ("core.mjs", CORE),
             ("session.mjs", SESSION),
-            ("checked-report.mjs", CHECKED_REPORT),
+            ("checked-report.mts", CHECKED_REPORT),
             ("node.mjs", NODE),
             ("node-files.mjs", NODE_FILES),
             ("node-session.mjs", NODE_SESSION),
@@ -278,8 +278,8 @@ impl Scratch {
             ("journal.mjs", JOURNAL),
             ("run-support.mts", RUN_SUPPORT),
             ("wire.mts", WIRE),
-            ("package-contract.mjs", PACKAGE_CONTRACT),
-            ("package-providers.mjs", PACKAGE_PROVIDERS),
+            ("package-contract.mts", PACKAGE_CONTRACT),
+            ("package-providers.mts", PACKAGE_PROVIDERS),
             ("gen/abi.mts", ABI),
         ] {
             std::fs::write(s.0.join(name), text).map_err(|e| format!("{}: {e}", s.0.display()))?;
