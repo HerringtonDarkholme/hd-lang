@@ -137,6 +137,59 @@ function encodePrivate(value: Dynamic): string {
   return JSON.stringify(tokens);
 }
 
+function decodePrivateNumber(tag: Dynamic, value: Dynamic): Dynamic {
+  if (
+    typeof value !== "string" ||
+    !(tag === "f" ? /^[0-9a-f]{16}$/ : /^(?:0|-?[1-9][0-9]*)$/).test(value)
+  ) {
+    fail("invalid private numeric token");
+  }
+  const number = BigInt(tag === "f" ? "0x" + value : value);
+  if (tag === "i") {
+    if (number < -(1n << 63n) || number >= 1n << 63n) {
+      fail("private signed integer out of range");
+    }
+    return number;
+  }
+  if (number < 0n || number >= 1n << 64n) {
+    fail("private unsigned integer out of range");
+  }
+  if (tag === "u") {
+    return number;
+  }
+  const bits = new DataView(new ArrayBuffer(8));
+  bits.setBigUint64(0, number, true);
+  const float = bits.getFloat64(0, true);
+  if (!Number.isFinite(float)) {
+    fail("invalid private float");
+  }
+  return float;
+}
+
+function decodePrivateContainer(tag: Dynamic, length: Dynamic, values: Dynamic[]): Dynamic {
+  if (
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > values.length / (tag === "o" ? 2 : 1)
+  ) {
+    fail("invalid private container length");
+  }
+  if (tag === "a") {
+    return Array.from({ length }, () => values.pop());
+  }
+  const entries = [];
+  const keys = new Set();
+  for (let n = 0; n < length; ++n) {
+    const key = values.pop();
+    if (typeof key !== "string" || keys.has(key)) {
+      fail("invalid private object key");
+    }
+    keys.add(key);
+    entries.push([key, values.pop()]);
+  }
+  return Object.fromEntries(entries);
+}
+
 function decodePrivate(text: string): Dynamic {
   let tokens: Dynamic;
   try {
@@ -164,53 +217,9 @@ function decodePrivate(text: string): Dynamic {
     } else if (tag === "s" && typeof v === "string") {
       values.push(v);
     } else if (["i", "u", "f"].includes(tag)) {
-      if (
-        typeof v !== "string" ||
-        !(tag === "f" ? /^[0-9a-f]{16}$/ : /^(?:0|-?[1-9][0-9]*)$/).test(v)
-      ) {
-        fail("invalid private numeric token");
-      }
-      const n = BigInt(tag === "f" ? "0x" + v : v);
-      if (tag === "i") {
-        if (n < -(1n << 63n) || n >= 1n << 63n) {
-          fail("private signed integer out of range");
-        }
-        values.push(n);
-      } else {
-        if (n < 0n || n >= 1n << 64n) {
-          fail("private unsigned integer out of range");
-        }
-        if (tag === "u") {
-          values.push(n);
-        } else {
-          const bits = new DataView(new ArrayBuffer(8));
-          bits.setBigUint64(0, n, true);
-          const number = bits.getFloat64(0, true);
-          if (!Number.isFinite(number)) {
-            fail("invalid private float");
-          }
-          values.push(number);
-        }
-      }
+      values.push(decodePrivateNumber(tag, v));
     } else if (tag === "a" || tag === "o") {
-      if (!Number.isSafeInteger(v) || v < 0 || v > values.length / (tag === "o" ? 2 : 1)) {
-        fail("invalid private container length");
-      }
-      if (tag === "a") {
-        values.push(Array.from({ length: v }, () => values.pop()));
-      } else {
-        const entries = [];
-        const keys = new Set();
-        for (let n = 0; n < v; ++n) {
-          const key = values.pop();
-          if (typeof key !== "string" || keys.has(key)) {
-            fail("invalid private object key");
-          }
-          keys.add(key);
-          entries.push([key, values.pop()]);
-        }
-        values.push(Object.fromEntries(entries));
-      }
+      values.push(decodePrivateContainer(tag, v, values));
     } else {
       fail("invalid private value token");
     }

@@ -125,6 +125,18 @@ const fsFail = (path, err) => {
     : fsErr(path, tag);
 };
 
+const belowFile = (path) => {
+  for (let up = dirname(path); ; up = dirname(up)) {
+    try {
+      return !statSync(up).isDirectory();
+    } catch {
+      if (dirname(up) === up) {
+        return false;
+      }
+    }
+  }
+};
+
 // Windows reports a path below a file as ENOENT, or as ENOTDIR on some
 // libuv paths, so the code is not stable there. A failed open whose nearest
 // existing ancestor is not a directory is `NotADirectory`
@@ -134,22 +146,8 @@ const opening = (path, open) => {
   try {
     return open();
   } catch (err) {
-    if (err?.code === "ENOENT" || err?.code === "ENOTDIR") {
-      for (let up = dirname(path); ; up = dirname(up)) {
-        let st;
-        try {
-          st = statSync(up);
-        } catch {
-          if (dirname(up) === up) {
-            break;
-          }
-          continue;
-        }
-        if (!st.isDirectory()) {
-          throw Object.assign(err, { code: "ENOTDIR" });
-        }
-        break;
-      }
+    if ((err?.code === "ENOENT" || err?.code === "ENOTDIR") && belowFile(path)) {
+      throw Object.assign(err, { code: "ENOTDIR" });
     }
     throw err;
   }

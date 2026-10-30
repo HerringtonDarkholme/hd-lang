@@ -35,6 +35,20 @@ const take = (state: InputState, length: number): void => {
     available[0] = { offset: item.offset + length, bytes: item.bytes.subarray(length) };
   }
 };
+const complete = (state: InputState, newline: boolean): void => {
+  let bytes = Buffer.concat(state.parts.map((part: Available) => part.bytes));
+  if (state.kind === "line") {
+    if (newline) {
+      bytes = bytes.subarray(0, bytes.length - 1);
+      if (bytes.at(-1) === 13) {
+        bytes = bytes.subarray(0, bytes.length - 1);
+      }
+    }
+    state.result = { ok: !newline && !bytes.length ? null : bytes.toString("utf8") };
+  } else {
+    state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
+  }
+};
 const serve = (): void => {
   for (const state of operations.values()) {
     if (state.result !== null) {
@@ -53,18 +67,7 @@ const serve = (): void => {
     if (failure !== null) {
       state.result = { error: failure };
     } else if (newline || ended) {
-      let bytes = Buffer.concat(state.parts.map((part: Available) => part.bytes));
-      if (state.kind === "line") {
-        if (newline) {
-          bytes = bytes.subarray(0, bytes.length - 1);
-          if (bytes.at(-1) === 13) {
-            bytes = bytes.subarray(0, bytes.length - 1);
-          }
-        }
-        state.result = { ok: !newline && !bytes.length ? null : bytes.toString("utf8") };
-      } else {
-        state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
-      }
+      complete(state, newline);
     }
   }
   // Do not read ahead without a pending call; retain already buffered bytes.

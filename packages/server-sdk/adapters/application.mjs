@@ -162,6 +162,15 @@ export function createApplication({
       leases.delete(id.sequence);
     },
   };
+  function announceReady() {
+    if (!accepting || ended || announcedReady) {
+      return;
+    }
+    announcedReady = true;
+    try {
+      onReady();
+    } catch {}
+  }
   function drive() {
     if (ended) {
       return;
@@ -219,12 +228,7 @@ export function createApplication({
           return;
         }
         if (!turn.wakes) {
-          if (accepting && !announcedReady) {
-            announcedReady = true;
-            try {
-              onReady();
-            } catch {}
-          }
+          announceReady();
           return;
         }
       }
@@ -236,12 +240,7 @@ export function createApplication({
   const start = () => {
     try {
       drive();
-      if (accepting && !ended && !announcedReady) {
-        announcedReady = true;
-        try {
-          onReady();
-        } catch {}
-      }
+      announceReady();
     } catch (error) {
       dispatcher.fail(error);
       throw error;

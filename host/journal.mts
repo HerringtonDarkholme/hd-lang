@@ -939,6 +939,33 @@ export function recorded(bytes: Uint8Array): {
   return { execution: header.execution, inputs };
 }
 
+function archivedCall(
+  event: Extract<Event, { kind: "call" }>,
+  methods: Map<string, number>,
+): Uint8Array {
+  const write = new Bytes();
+  const key = `${event.module}\0${event.name}`;
+  const known = methods.get(key);
+  write.uleb(known ?? methods.size);
+  if (known === undefined) {
+    for (const text of [event.module, event.name]) {
+      const encoded = utf8.encode(text);
+      write.uleb(encoded.length);
+      write.raw(encoded);
+    }
+    methods.set(key, methods.size);
+  }
+  if ("args" in event.request) {
+    write.uleb(event.request.args.length);
+    write.raw(event.request.args);
+  } else {
+    write.uleb(event.request.len);
+    write.le(event.request.digest, 8);
+  }
+  putReply(write, event.value, event.result);
+  return write.view();
+}
+
 // Materializes archived, completed epochs as one ordinary journal. Method
 // numbers and row indices are local to each chunk and must be reassigned;
 // stored request digests and reply bytes are copied without running HD.
@@ -977,27 +1004,7 @@ export function joinJournals(chunks: Iterable<Uint8Array>): Uint8Array {
       }
       let payload = row.payload;
       if (event.kind === "call") {
-        const write = new Bytes();
-        const key = `${event.module}\0${event.name}`;
-        const known = methods.get(key);
-        write.uleb(known ?? methods.size);
-        if (known === undefined) {
-          for (const text of [event.module, event.name]) {
-            const encoded = utf8.encode(text);
-            write.uleb(encoded.length);
-            write.raw(encoded);
-          }
-          methods.set(key, methods.size);
-        }
-        if ("args" in event.request) {
-          write.uleb(event.request.args.length);
-          write.raw(event.request.args);
-        } else {
-          write.uleb(event.request.len);
-          write.le(event.request.digest, 8);
-        }
-        putReply(write, event.value, event.result);
-        payload = write.view();
+        payload = archivedCall(event, methods);
       }
       appendRow(out, row.kind, next++, payload);
     }

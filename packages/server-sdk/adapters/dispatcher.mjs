@@ -84,6 +84,21 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
     };
     jobs.set(job.id.sequence, job);
     const check = () => lookup(job.id);
+    const runTask = (task) => {
+      try {
+        task();
+      } catch (error) {
+        poison(error);
+      }
+    };
+    const drainTasks = () => {
+      while (job.tasks.length) {
+        const tasks = job.tasks.splice(0);
+        for (const task of tasks) {
+          runTask(task);
+        }
+      }
+    };
     return Object.freeze({
       id: job.id,
       request,
@@ -192,16 +207,7 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
           turn();
           for (;;) {
             // Disposal can enqueue more disposal, so drain before leaving.
-            while (job.tasks.length) {
-              const tasks = job.tasks.splice(0);
-              for (const task of tasks) {
-                try {
-                  task();
-                } catch (error) {
-                  poison(error);
-                }
-              }
-            }
+            drainTasks();
             if (job.finished) {
               break;
             }

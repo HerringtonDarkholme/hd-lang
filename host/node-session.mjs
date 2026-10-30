@@ -60,9 +60,7 @@ export async function driveNodeSession() {
               request.live,
             );
             const notice = session.takeJournalNotice();
-            if (notice) {
-              recording = false;
-            }
+            recording &&= !notice;
             const live = ran.live;
             send(
               "ran",

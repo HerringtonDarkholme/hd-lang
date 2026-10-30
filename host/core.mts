@@ -1177,6 +1177,61 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     let handled = 0;
     let cleanupBy = null;
     let abandoned = false;
+    const pollCancellation = (): boolean => {
+      if (!cancel) {
+        return false;
+      }
+      const asked = cancel.requests() > handled;
+      if (asked) {
+        handled += 1;
+      }
+      if (asked && cleanupBy === null) {
+        cleanupBy = performance.now() + cancel.boundMs;
+        ex["hd.cancel"]();
+        status = ex[poll](0);
+        return true;
+      }
+      if (cleanupBy !== null && !abandoned && (asked || performance.now() >= cleanupBy)) {
+        abandoned = true;
+        ex["hd.abandon"]();
+        status = ex[poll](0);
+        return true;
+      }
+      return false;
+    };
+    const waitForDeadline = async (): Promise<boolean> => {
+      let deadline = nextDeadline();
+      if (cleanupBy !== null && !abandoned && (deadline === null || cleanupBy < deadline)) {
+        deadline = cleanupBy;
+      }
+      if (deadline === null) {
+        deadlock();
+      }
+      flush();
+      await wait(Math.max(0, until(deadline!) - performance.now()));
+      if (overran()) {
+        throw new TimeLimit();
+      }
+      const stop = driver?.stopping(Boolean(ex["hd.cancel"]));
+      if (!stop) {
+        return false;
+      }
+      if (stop === "cancelled") {
+        ex["hd.cancel"]();
+      }
+      flush();
+      sink.err(`${stop}\n`);
+      st.reported = true;
+      status = 3;
+      trapped = true;
+      return true;
+    };
+    const resumeAfterIdle = async (): Promise<boolean> => {
+      if (pollCancellation()) {
+        return true;
+      }
+      return !(await waitForDeadline());
+    };
     try {
       if (firstError !== null) {
         throw firstError;
@@ -1187,49 +1242,11 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
           n = driver.served();
         } else {
           n = complete();
-          if (n === 0) {
-            if (cancel) {
-              const asked = cancel.requests() > handled;
-              if (asked) {
-                handled += 1;
-              }
-              if (asked && cleanupBy === null) {
-                cleanupBy = performance.now() + cancel.boundMs;
-                ex["hd.cancel"]();
-                status = ex[poll](0);
-                continue;
-              }
-              if (cleanupBy !== null && !abandoned && (asked || performance.now() >= cleanupBy)) {
-                abandoned = true;
-                ex["hd.abandon"]();
-                status = ex[poll](0);
-                continue;
-              }
-            }
-            let d = nextDeadline();
-            if (cleanupBy !== null && !abandoned && (d === null || cleanupBy < d)) {
-              d = cleanupBy;
-            }
-            if (d === null) {
-              deadlock();
-            }
-            flush();
-            await wait(Math.max(0, until(d!) - performance.now()));
-            if (overran()) {
-              throw new TimeLimit();
-            }
-            const stop = driver?.stopping(Boolean(ex["hd.cancel"]));
-            if (stop) {
-              if (stop === "cancelled") {
-                ex["hd.cancel"]();
-              }
-              flush();
-              sink.err(`${stop}\n`);
-              st.reported = true;
-              status = 3;
-              trapped = true;
-              break;
-            }
+          const resume = n === 0 ? await resumeAfterIdle() : null;
+          if (resume === false) {
+            break;
+          }
+          if (resume === true) {
             continue;
           }
         }
