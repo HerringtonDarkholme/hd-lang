@@ -113,6 +113,7 @@ impl Loans {
         self.0[w] |= 1 << (l % 64);
     }
 
+    #[cfg_attr(not(test), expect(dead_code, reason = "the S5 checks read it"))]
     pub(crate) fn contains(&self, l: Loan) -> bool {
         self.0
             .get((l / 64) as usize)

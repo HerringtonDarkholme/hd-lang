@@ -1,9 +1,8 @@
-//! Outlives constraints for places, stores, constructions and control flow
-//! (`docs/future-work/LIFETIME_SOLVER.md`, slice S3), solved beside
-//! [`Solve`] in shadow: with `HD_REGION_SHADOW` set, [`shadow`] prints
-//! each instruction's top slots where the two disagree. Calls and closures
-//! come in S4; until then their values hold [`UNTRACKED`], and the
-//! comparison skips every slot that holds it.
+//! Outlives constraints for places, stores, constructions, control flow,
+//! calls and closures (`docs/future-work/LIFETIME_SOLVER.md`, slices S3
+//! and S4), solved beside [`Solve`] in shadow: with `HD_REGION_SHADOW`
+//! set, [`shadow`] prints each instruction's top slots where the two
+//! disagree.
 
 use std::sync::LazyLock;
 
@@ -12,7 +11,8 @@ use hd_tir::ir::{IntrinsicOp, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData};
 
 use super::{
-    Layout, Origin, Set, Solve, capture_slot, intrinsic_ops, local_ref, referent, source_arg, w,
+    ANY, ANY_FN, DepSig, Layout, Origin, Set, Solve, arg_ty, capture_slot, intrinsic_ops,
+    local_ref, referent, source_arg, w,
 };
 use crate::local_refs::holds_local_ref;
 use crate::regions::{Category, Constraints, Loan, Region, RegionTable};
@@ -20,9 +20,6 @@ use crate::regions::{Category, Constraints, Loan, Region, RegionTable};
 /// Whether `HD_REGION_SHADOW` asks for the shadow comparison.
 pub(super) static SHADOW: LazyLock<bool> =
     LazyLock::new(|| std::env::var_os("HD_REGION_SHADOW").is_some());
-
-/// The loan of a call's or a closure's value, which S4 generates.
-const UNTRACKED: Loan = 0;
 
 /// A value's or a place's region variables, one per slot of its type.
 type View = (Vec<Region>, Ty);
@@ -37,7 +34,7 @@ struct Gen<'s, 'a> {
     s: &'s Solve<'a>,
     t: RegionTable,
     c: Constraints,
-    /// Each loan's origin: loan `l` is `loans[l - 1]`, placeholders first.
+    /// Each loan's origin: loan `l` is `loans[l]`, placeholders first.
     loans: Vec<Origin>,
     ids: HashMap<Origin, Loan>,
     /// The key of instruction `i` is `locals + i`.
@@ -63,17 +60,13 @@ impl Gen<'_, '_> {
     fn loan(&mut self, o: Origin) -> Loan {
         *self.ids.entry(o).or_insert_with(|| {
             self.loans.push(o);
-            w(self.loans.len())
+            w(self.loans.len() - 1)
         })
     }
 
     fn seed(&mut self, r: Region, o: Origin) {
         let l = self.loan(o);
         self.c.seed(r, l);
-    }
-
-    fn untrack(&mut self, v: &View) {
-        v.0.iter().for_each(|&r| self.c.seed(r, UNTRACKED));
     }
 
     fn flow(&mut self, a: Region, b: Region) {
@@ -293,18 +286,144 @@ impl Gen<'_, '_> {
         }
     }
 
+    /// Every region of `from` ⊑ every region of `to`, through one hub.
+    fn each_into(&mut self, from: &[Region], to: &[Region]) {
+        self.hubs(&(from.to_vec(), vec![]), &(to.to_vec(), vec![]));
+    }
+
+    /// Call argument `a` as a value of its source type `at`: an address
+    /// the call takes for a receiver, with its place's slots behind it
+    /// (`fn.method.auto-address`).
+    fn arg(&mut self, a: u32, at: Ty) -> View {
+        let v = self.val(a).expect("an argument");
+        if at == v.1 {
+            return v;
+        }
+        let (_, p) = self.place(a, self.s.b.data[a as usize][0], usize::MAX, (true, false));
+        let behind = p.map(|p| p.0).unwrap_or_default();
+        ([&v.0[..1], &behind].concat(), at)
+    }
+
+    /// Puts what a counted reference argument `a` is lent from into `r`
+    /// (`ref.dep.origin.lend`).
+    fn lend(&mut self, a: u32, r: Region) {
+        let mut v = a as usize;
+        let b = self.s.b;
+        while b.tags[v] == Tag::Coerce && self.s.ty(b.data[v][0]).is_some() {
+            v = b.data[v][0] as usize;
+        }
+        let at = match b.tags[v] {
+            Tag::Read => self.place(w(v), b.data[v][0], 0, (false, false)).0,
+            _ => Some(Ok(Origin::Hidden(w(v)))),
+        };
+        self.lies_in(at, r);
+    }
+
+    /// A call by its map `sig` (`ref.dep.call`): one fresh variable per
+    /// callee lifetime and type-parameter slot, each argument slot ⊑ its
+    /// variable, equal under a `&mut` (`ref.generic.store`), and the slots
+    /// behind a slot ⊑ its variable too, since the callee may return them.
+    /// With `result`, each result slot takes its lifetime's variable.
+    fn call(&mut self, sig: &DepSig, me: &View, result: bool) {
+        let (b, pool, ls, iu) = (self.s.b, self.s.pool, self.s.ls, self.at as usize);
+        let mut vars: HashMap<u32, Region> = HashMap::default();
+        let mut var = |t: &mut RegionTable, id| *vars.entry(id).or_insert_with(|| t.fresh(1).start);
+        let any = result && sig.outs.contains(&Some(ANY));
+        let any_fn = result && sig.outs.contains(&Some(ANY_FN));
+        for (p, (pt, ids)) in sig.params.iter().enumerate() {
+            let Some((a, at)) = source_arg(b, iu, p).and_then(|a| Some((a, arg_ty(pool, b, a)?)))
+            else {
+                continue;
+            };
+            if b.tags[a as usize] != Tag::Ref && !ls.holds(at) {
+                let mut ids = ids.clone();
+                ids.extend(any.then_some(ANY));
+                ids.dedup();
+                for id in ids {
+                    let r = var(&mut self.t, id);
+                    self.lend(a, r);
+                }
+                continue;
+            }
+            let v = self.arg(a, at);
+            let lay = ls.of(at);
+            if any {
+                let r = var(&mut self.t, ANY);
+                self.each_into(&v.0, &[r]);
+            }
+            if any_fn {
+                let r = var(&mut self.t, ANY_FN);
+                for (k, _) in lay.slots.iter().enumerate().filter(|(_, x)| x.fun) {
+                    self.flow(v.0[k], r);
+                }
+            }
+            if v.0.len() != ids.len() || lay.tops != ls.of(*pt).tops {
+                // `ref.generic.call.unaligned`: each lifetime takes it all.
+                let rs: Vec<Region> = ids.iter().map(|&id| var(&mut self.t, id)).collect();
+                self.each_into(&v.0, &rs);
+                continue;
+            }
+            for (k, &id) in ids.iter().enumerate() {
+                let r = var(&mut self.t, id);
+                if under_mut(pool, &lay, k) {
+                    self.c.equal(v.0[k], r, self.at);
+                } else {
+                    self.flow(v.0[k], r);
+                }
+                for j in k + 1..lay.slots[k].end {
+                    self.flow(v.0[j], r);
+                }
+            }
+        }
+        if !result {
+            return;
+        }
+        let (have, want) = (ls.of(me.1), ls.of(sig.ret));
+        if have.tops.len() == want.tops.len() && !have.tops.is_empty() {
+            for (k, &to) in me.0.iter().enumerate() {
+                if let Some(&Some(id)) = sig.outs.get(k) {
+                    let r = var(&mut self.t, id);
+                    self.flow(r, to);
+                }
+            }
+        } else {
+            let rs: Vec<Region> = sig
+                .all_ids()
+                .into_iter()
+                .map(|id| var(&mut self.t, id))
+                .collect();
+            self.each_into(&rs, &me.0);
+        }
+    }
+
+    /// The local reference a trait value reference is made from, through
+    /// its block and the coercion to the trait value: the `&dyn` takes it
+    /// as a coercion would (`trait.dyn.ref.convert`).
+    fn dyn_source(&self, mut v: u32) -> Option<View> {
+        let b = self.s.b;
+        while self.s.ty(v).is_some() {
+            let [x, y] = b.data[v as usize];
+            match b.tags[v as usize] {
+                Tag::Block => v = y,
+                Tag::Coerce if local_ref(self.s.pool, self.s.ty(x)?) == Some((false, false)) => {
+                    return self.val(x);
+                }
+                Tag::Coerce => v = x,
+                _ => return None,
+            }
+        }
+        None
+    }
+
     fn step(&mut self, i: u32) {
         let (b, pool) = (self.s.b, self.s.pool);
         let iu = i as usize;
         let [a, d] = b.data[iu];
         let Some(me) = self.val(i) else { return };
-        let calls = [Tag::Call, Tag::Await, Tag::CallDyn, Tag::CallValue];
-        if calls.contains(&b.tags[iu]) && self.s.stores.contains_key(&i) {
-            for k in 0..self.s.stores[&i].params.len() {
-                if let Some(v) = source_arg(b, iu, k).and_then(|x| self.val(x)) {
-                    self.untrack(&v);
-                }
-            }
+        if b.tags[iu] == Tag::RefDyn
+            && let Some(v) = self.dyn_source(a)
+        {
+            return self.relate(&v, &me, false, false);
         }
         match b.tags[iu] {
             Tag::Store => {
@@ -377,20 +496,33 @@ impl Gen<'_, '_> {
                 }
                 _ => {}
             },
-            Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
-                if self.s.deps.contains_key(&i) =>
-            {
-                self.untrack(&me);
+            Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => {
+                let s = self.s;
+                if let Some(sig) = s.deps.get(&i).or_else(|| s.stores.get(&i)) {
+                    self.call(sig, &me, s.deps.contains_key(&i));
+                }
             }
-            Tag::Closure if !b.is_instantiation(iu) => self.untrack(&me),
+            // `fn.capture.local-origins`: what each captured local holds.
+            Tag::Closure if !b.is_instantiation(iu) => {
+                if let [start, len, ..] = *b.record(d) {
+                    for c in start..start.saturating_add(len) {
+                        let Some(&l) = b.cap_local.get(c as usize) else {
+                            continue;
+                        };
+                        if !self.s.reported.contains(&l) {
+                            let held = self.split(&self.local(l.raw())).0;
+                            self.each_into(&held, &me.0);
+                        }
+                    }
+                }
+            }
             Tag::Coerce => {
                 if let Some(v) = self.val(a) {
                     self.relate(&v, &me, false, false);
                 }
             }
             // A block's, a branch's and a loop's value, and a construction's
-            // parts, each by its field slot map (`ref.dep.origin.parts`);
-            // a call's arguments are S4's.
+            // parts, each by its field slot map (`ref.dep.origin.parts`).
             tag => {
                 let mut parts = Vec::new();
                 slots(b, iu, |_, v, word| {
@@ -449,20 +581,12 @@ pub(super) fn shadow(s: &Solve<'_>) {
         g.step(i);
     }
     let sol = g.c.solve(g.t.len());
-    let (mut same, mut skipped, mut differ) = (0, 0, 0);
+    let (mut same, mut differ) = (0, 0);
     for (i, today) in s.val.iter().enumerate() {
         let tops = g.split(&g.val(w(i)).expect("a value")).0;
         for (k, set) in today.iter().enumerate() {
             let r = tops[k];
-            if sol.value(r).contains(UNTRACKED) {
-                skipped += 1;
-                continue;
-            }
-            let mut new: Set = sol
-                .value(r)
-                .iter()
-                .map(|l| g.loans[l as usize - 1])
-                .collect();
+            let mut new: Set = sol.value(r).iter().map(|l| g.loans[l as usize]).collect();
             new.sort_stable();
             if new == *set {
                 same += 1;
@@ -479,5 +603,5 @@ pub(super) fn shadow(s: &Solve<'_>) {
             }
         }
     }
-    eprintln!("region-shadow-body: {same} same, {skipped} skipped, {differ} differ");
+    eprintln!("region-shadow-body: {same} same, {differ} differ");
 }
