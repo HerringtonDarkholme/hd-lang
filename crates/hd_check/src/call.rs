@@ -2477,7 +2477,9 @@ impl Ck<'_, '_> {
                     && let ([v], [t]) = (&refs[..], &vars[..])
                 {
                     let t = self.infer.resolve(pool, *t);
-                    return Ok(self.new_object_ref(*v, t, true, n));
+                    let (r, rt) = self.new_object_ref(*v, t, true, n);
+                    self.boxes.insert(r.0);
+                    return Ok((r, rt));
                 }
                 // A checked `assert_equal` call runs std's `check_equal`
                 // (lib/std/testing.hd), which has the same signature.

@@ -358,6 +358,8 @@ Applied by #1029 (6e, [FnMut Bounds](../../spec/lang/07-functions.md#fnmut-bound
 
 Applied by #1040 (6d4, [`ref.generic.outlives.argument`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.argument)): a closure written as a call argument for a bare type parameter may capture local references when `'static` does not bound it and the callee's parameters and result name it only bare. The call's result holds the captures in the parameter's positions, and in its lifetime's positions under a lifetime bound. So `require[F < Fn() -> bool]` may take `fn(): self.ok()` in a `&mut self` method (#1042). Still open: a type parameter named inside another type of the signature (`-> Map[I, F]`, `b: &mut Button[F, 'a]`) takes no capturing closure, since a function type there has no capture position; std's iterator adapters stay so.
 
+Applied by #1057 (6d5, [`ref.generic.outlives.instance`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.instance)): a function type is an origin position wherever it appears in a type, so a type argument instantiated with a capturing closure carries its captures inside `MapIter[I, T, U, F]` or `Plain[F]`, and std's iterator adapters take closures that capture locals. A function type written inside another type of a parameter holds no captures ([`ref.generic.outlives.written`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.written)), as Rust's `fn` pointer. Still open: a closure in a struct literal for a field of a type parameter with no lifetime bound (`Plain { on_click: fn(): c.n += 1 }`), which `wrap(...)` now allows.
+
 ### Stage 7: exclusivity
 
 Stage 7 follows Swift's lifetime dependence and Rust: a lifetime names a

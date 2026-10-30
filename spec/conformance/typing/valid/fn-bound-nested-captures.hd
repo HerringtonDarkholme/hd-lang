@@ -1,0 +1,27 @@
+# test: an adapter or a generic struct that holds a capturing closure may be used, looped over, and passed for a type parameter within its captures' scope
+# Spec 13 Lifetime Bounds: ref.generic.outlives.instance.
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+struct Plain[F < FnMut() -> void]:
+    on_click: F
+
+fn wrap[F < FnMut() -> void](f: F) -> Plain[F]:
+    Plain { on_click: f }
+
+fn press[F < FnMut() -> void](mut p: Plain[F]) -> void:
+    (p.on_click)()
+
+fn total(xs: List[i32], c: &Counter) -> i32:
+    let t = +0
+    for x in xs.iter().map(fn(x: i32) -> i32: x + c.n):
+        t = t + x
+    t
+
+fn bump(c: &mut Counter) -> void:
+    press(wrap(fn(): c.n += 1))
+
+fn forward(xs: List[i32], f: fn(i32) -> i32) -> List[i32]:
+    xs.iter().map(f).collect()

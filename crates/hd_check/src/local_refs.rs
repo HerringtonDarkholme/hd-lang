@@ -494,9 +494,7 @@ pub(crate) fn outlives_field(
 
 /// `ref.generic.outlives.argument`: whether a closure written for a
 /// parameter of bare type parameter `index` of `owner` may capture local
-/// references. `'static` must not bound the parameter, and `sig`'s
-/// parameters and result must name it only bare, under at most `mut`: a
-/// function type inside another type has no capture slot to carry them.
+/// references, as [`scoped_param`] decides.
 pub(crate) fn scoped_fn_generic(
     pool: Types<'_>,
     static_bound: hd_base::DefId,
@@ -507,22 +505,67 @@ pub(crate) fn scoped_fn_generic(
     let Some(g) = sig.generics.get(index) else {
         return false;
     };
-    if g.bounds
+    let p = hd_types::ParamRef {
+        owner,
+        index: u16::try_from(index).unwrap_or(u16::MAX),
+    };
+    !static_bounded(pool, static_bound, g) && scoped_param(pool, sig, p)
+}
+
+/// Whether `'static` bounds generic `g` (`ref.generic.static`).
+pub(crate) fn static_bounded(
+    pool: Types<'_>,
+    static_bound: hd_base::DefId,
+    g: &hd_resolve::Generic,
+) -> bool {
+    g.bounds
         .iter()
         .any(|&b| pool.trait_value(b).is_some_and(|(d, _)| d == static_bound))
-    {
-        return false;
-    }
-    let me = |p: hd_types::ParamRef| p.owner == owner && usize::from(p.index) == index;
-    let bare_only = |t: Ty| {
-        let t = match pool.get(t) {
-            TyData::Mut(inner) => inner,
-            _ => t,
+}
+
+/// `ref.generic.outlives.instance`: whether an argument of type parameter
+/// `p` may hold a closure's captured origins at a call of `sig`. Each
+/// type `sig` names `p` in gives it a position, except a function type
+/// and an opaque type, which have none for what `p` holds.
+pub(crate) fn scoped_param(
+    pool: Types<'_>,
+    sig: &hd_resolve::FnSig,
+    p: hd_types::ParamRef,
+) -> bool {
+    fn hidden(pool: Types<'_>, t: Ty, p: hd_types::ParamRef, under: bool, depth: u32) -> bool {
+        if depth > 32 || !pool.has_param(t) {
+            return false;
+        }
+        let d = depth + 1;
+        let list = |l: hd_types::TyList, under: bool| {
+            pool.list_items(l)
+                .iter()
+                .any(|&a| hidden(pool, a, p, under, d))
         };
-        matches!(pool.get(t), TyData::Param(p) if me(p))
-            || pool.subst(t, &|p| me(p).then_some(Ty::NEVER)) == t
-    };
-    sig.params.iter().all(|&(_, t)| bare_only(t)) && bare_only(sig.ret)
+        match pool.get(t) {
+            TyData::Param(q) => under && q == p,
+            TyData::Mut(i) | TyData::Option(i) | TyData::Ref { inner: i, .. } => {
+                hidden(pool, i, p, under, d)
+            }
+            TyData::Tuple { elems, rest } => {
+                list(elems, under) || rest.is_some_and(|r| hidden(pool, r, p, under, d))
+            }
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args, under),
+            TyData::Fn { params, result, .. } => {
+                list(params, true) || hidden(pool, result, p, true, d)
+            }
+            TyData::Opaque { args, bound, .. } => {
+                list(args, true) || hidden(pool, bound, p, true, d)
+            }
+            _ => false,
+        }
+    }
+    !pool.has_opaque(sig.ret)
+        && !sig
+            .params
+            .iter()
+            .any(|&(_, t)| hidden(pool, t, p, false, 0))
+        && !hidden(pool, sig.ret, p, false, 0)
 }
 
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {

@@ -1,0 +1,63 @@
+# test: closures passed for a type parameter inside an adapter's or a struct's type capture local references, and the instance carries them
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument, ref.generic.outlives.instance.
+# expect-stdout: 11 12 13
+# expect-stdout: 9
+# expect-stdout: 0 1
+# expect-stdout: 5
+use std.function.FnMut
+
+struct Shift:
+    offset: i32
+
+struct Counter:
+    n: i32
+
+struct Plain[F < FnMut() -> void]:
+    on_click: F
+
+struct Button[F < FnMut() -> void & 'a, 'a]:
+    on_click: F
+
+fn wrap[F < FnMut() -> void](f: F) -> Plain[F]:
+    Plain { on_click: f }
+
+fn set[F < FnMut() -> void & 'a, 'a](b: &mut Button[F, 'a], f: F) -> void:
+    b.on_click = f
+
+impl Shift:
+    fn apply(&self, xs: List[i32]) -> List[i32]:
+        xs.iter().map(fn(x: i32) -> i32: x + self.offset).collect()
+
+fn count(xs: List[i32], c: &Counter) -> i32:
+    let total: i32 = xs.iter()
+        .filter(fn(x: i32) -> bool: x > c.n)
+        .map(fn(x: i32) -> i32: x * c.n)
+        .sum()
+    let mut it = xs.iter().map(fn(x: i32) -> i32: x + c.n)
+    total + it.next().unwrap_or(+0)
+
+fn clicks(a: &mut Counter, d: &mut Counter) -> void:
+    let mut b = Button { on_click: fn(): a.n += 1 }
+    set(&mut b, fn(): d.n += 1)
+    let mut f = b.on_click
+    f()
+
+fn presses(c: &mut Counter) -> void:
+    let mut p = wrap(fn(): c.n += 2)
+    let mut f = p.on_click
+    f()
+    f()
+
+pub fn main() -> void $ Console:
+    s := Shift { offset: +10 }
+    ys := s.apply([+1, +2, +3])
+    println("${ys[0]} ${ys[1]} ${ys[2]}")
+    c := Counter { n: +2 }
+    println("${count([+1, +2, +3], &c)}")
+    let mut a = Counter { n: +0 }
+    let mut d = Counter { n: +0 }
+    clicks(&mut a, &mut d)
+    println("${a.n} ${d.n}")
+    let mut e = Counter { n: +1 }
+    presses(&mut e)
+    println("${e.n}")

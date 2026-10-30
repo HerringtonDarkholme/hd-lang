@@ -18,11 +18,11 @@
 //! reference takes the origin of its collection's root place
 //! (`ref.dep.origin.element`).
 //!
-//! A value's slots are its reference slots at the top, outside another
-//! reference ([`tops`]); what a reference's referent holds comes from its
-//! origins' storage. Where a projection or a construction cannot be
-//! lined up with the slots, each slot takes the union of all of them,
-//! which only adds origins.
+//! A value's slots are its reference slots and its function types'
+//! capture slots at the top, outside another reference ([`tops`]); what a
+//! reference's referent holds comes from its origins' storage. Where a
+//! projection or a construction cannot be lined up with the slots, each
+//! slot takes the union of all of them, which only adds origins.
 
 use hd_base::SliceSort as _;
 use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
@@ -53,6 +53,10 @@ const TVAR_END: u32 = TVAR + (1 << 16);
 /// A result slot that depends on every argument (`ref.generic.call.unaligned`).
 const ANY: u32 = u32::MAX;
 
+/// A capture slot that depends on what every argument's capture slots
+/// hold (`ref.generic.call.unaligned`).
+const ANY_FN: u32 = u32::MAX - 2;
+
 /// A declared result slot with no source, while lining up.
 const NO_SOURCE: u32 = u32::MAX - 1;
 
@@ -69,8 +73,8 @@ enum Elided {
 }
 
 /// A signature's dependency map (`ref.dep.slot`): the lifetime of each
-/// reference slot of its parameters and of its result, in
-/// [`Types::ref_slots`] order over the declared types.
+/// origin slot of its parameters and of its result, in [`slots_of`] order
+/// over the declared types.
 pub(crate) struct DepSig {
     /// Each parameter's declared type and its slots' lifetimes.
     params: Vec<(Ty, Vec<u32>)>,
@@ -85,7 +89,8 @@ pub(crate) struct DepSig {
 
 impl DepSig {
     /// The map of a signature: `written` is `FnSig::lifetimes`, one entry
-    /// per slot of `params` and then of `ret`, 0 where none is written.
+    /// per reference slot of `params` and then of `ret`, 0 where none is
+    /// written.
     fn new(
         pool: Types<'_>,
         params: &[(Symbol, Ty)],
@@ -99,87 +104,63 @@ impl DepSig {
         let trust_out = written.len() == ref_ins + ref_outs;
         let mut written_at = 0;
         let mut dep_at = 0;
-        let mut ps = Vec::with_capacity(params.len());
-        for &(_, t) in params {
-            let refs = pool.ref_slots(t);
-            let mut ids: Vec<u32> = (written_at..written_at + refs)
-                .enumerate()
-                .map(|(offset, k)| match written.get(k) {
-                    Some(&l) if trust_in && l != 0 => u32::from(l),
-                    _ => ANON + w(dep_at + offset),
-                })
-                .collect();
-            written_at += refs;
-            dep_at += refs;
-            if capture_slot(pool, t) {
-                ids.push(ANON + w(dep_at));
-                dep_at += 1;
-            }
-            ps.push((t, ids));
-        }
+        let ps: Vec<(Ty, Vec<u32>)> = params
+            .iter()
+            .map(|&(_, t)| {
+                let ids = slot_ids(pool, t, &mut written_at, &mut dep_at, |k| {
+                    written
+                        .get(k)
+                        .copied()
+                        .filter(|&l| trust_in && l != 0)
+                        .map(u32::from)
+                });
+                (t, ids)
+            })
+            .collect();
         let receiver = params
             .first()
             .is_some_and(|&(s, t)| is_self(s) && local_ref(pool, t).is_some_and(|(c, _)| !c));
         let elided = match ps.first() {
-            Some((_, ids)) if receiver && !ids.is_empty() => Elided::Lifetime(ids[0]),
-            _ => {
-                let mut ids: Vec<u32> = params
+            Some((t, ids)) if receiver && !ref_ids_of(pool, *t, ids).is_empty() => {
+                Elided::Lifetime(ref_ids_of(pool, *t, ids)[0])
+            }
+            _ => one_id(
+                params
                     .iter()
                     .zip(&ps)
                     .filter(|((s, _), _)| !is_self(*s))
-                    .flat_map(|((_, t), (_, ids))| ids.iter().take(pool.ref_slots(*t)).copied())
-                    .collect();
-                ids.sort_stable();
-                ids.dedup();
-                match ids.as_slice() {
-                    [one] => Elided::Lifetime(*one),
-                    [] => Elided::Missing,
-                    _ => Elided::Ambiguous,
-                }
-            }
+                    .flat_map(|(_, (t, ids))| ref_ids_of(pool, *t, ids)),
+            ),
         };
-        let mut capture_ids: Vec<u32> = params
+        let capture_elided = one_id(
+            ps.iter()
+                .filter(|(t, _)| capture_slot(pool, *t))
+                .filter_map(|(_, ids)| ids.first().copied()),
+        );
+        let mut r = 0;
+        let outs = slots_of(pool, ret)
             .iter()
-            .zip(&ps)
-            .filter_map(|((_, t), (_, ids))| {
-                capture_slot(pool, *t)
-                    .then(|| ids.get(pool.ref_slots(*t)).copied())
-                    .flatten()
+            .map(|&(st, _)| {
+                if is_fn(pool, st) {
+                    return match capture_elided {
+                        Elided::Lifetime(id) => Some(id),
+                        Elided::Missing | Elided::Ambiguous => None,
+                    };
+                }
+                let j = r;
+                r += 1;
+                match written.get(ref_ins + j) {
+                    Some(&l) if trust_out && l != 0 => Some(u32::from(l)),
+                    _ => match elided {
+                        Elided::Lifetime(id) => Some(id),
+                        // An opaque type with no one lifetime to take borrows
+                        // from every parameter (`types.opaque.borrows.source`).
+                        _ if matches!(pool.get(st), TyData::Opaque { .. }) => Some(ANY),
+                        _ => None,
+                    },
+                }
             })
             .collect();
-        capture_ids.sort_stable();
-        capture_ids.dedup();
-        let capture_elided = match capture_ids.as_slice() {
-            [one] => Elided::Lifetime(*one),
-            [] => Elided::Missing,
-            _ => Elided::Ambiguous,
-        };
-        let opaque: Vec<bool> = if pool.has_opaque(ret) {
-            slots_of(pool, ret)
-                .iter()
-                .map(|&(t, _)| matches!(pool.get(t), TyData::Opaque { .. }))
-                .collect()
-        } else {
-            vec![]
-        };
-        let mut outs: Vec<Option<u32>> = (0..ref_outs)
-            .map(|j| match written.get(ref_ins + j) {
-                Some(&l) if trust_out && l != 0 => Some(u32::from(l)),
-                _ => match elided {
-                    Elided::Lifetime(id) => Some(id),
-                    // An opaque type with no one lifetime to take borrows
-                    // from every parameter (`types.opaque.borrows.source`).
-                    _ if opaque.get(j) == Some(&true) => Some(ANY),
-                    _ => None,
-                },
-            })
-            .collect();
-        if capture_slot(pool, ret) {
-            outs.push(match capture_elided {
-                Elided::Lifetime(id) => Some(id),
-                Elided::Missing | Elided::Ambiguous => None,
-            });
-        }
         DepSig {
             params: ps,
             outs,
@@ -204,66 +185,38 @@ impl DepSig {
             .list_items(params)
             .iter()
             .map(|&p| {
-                let n = pool.ref_slots(p);
-                let mut ids: Vec<u32> = (0..n)
-                    .map(|offset| {
-                        ins.get(ref_at + offset)
-                            .copied()
-                            .unwrap_or(ANON + w(dep_at + offset))
-                    })
-                    .collect();
-                ref_at += n;
-                dep_at += n;
-                if capture_slot(pool, p) {
-                    ids.push(ANON + w(dep_at));
-                    dep_at += 1;
-                }
+                let ids = slot_ids(pool, p, &mut ref_at, &mut dep_at, |k| ins.get(k).copied());
                 (p, ids)
             })
             .collect::<Vec<_>>();
-        let mut unique: Vec<u32> = params
+        let elided = one_id(params.iter().flat_map(|(p, ids)| ref_ids_of(pool, *p, ids)));
+        let capture_elided = one_id(
+            params
+                .iter()
+                .filter(|(p, _)| capture_slot(pool, *p))
+                .filter_map(|(_, ids)| ids.first().copied()),
+        );
+        // A type that writes no map has no reference result slots.
+        let mut r = 0;
+        let outs = slots_of(pool, result)
             .iter()
-            .flat_map(|(p, ids)| ids.iter().take(pool.ref_slots(*p)).copied())
-            .collect();
-        unique.sort_stable();
-        unique.dedup();
-        let elided = match unique.as_slice() {
-            [id] => Elided::Lifetime(*id),
-            [] => Elided::Missing,
-            _ => Elided::Ambiguous,
-        };
-        let mut capture_ids: Vec<u32> = params
-            .iter()
-            .filter_map(|(p, ids)| {
-                capture_slot(pool, *p)
-                    .then(|| ids.get(pool.ref_slots(*p)).copied())
-                    .flatten()
+            .filter_map(|&(st, _)| {
+                if is_fn(pool, st) {
+                    return Some(match capture_elided {
+                        Elided::Lifetime(id) => Some(id),
+                        Elided::Missing | Elided::Ambiguous => None,
+                    });
+                }
+                let l = *written_outs.get(r)?;
+                r += 1;
+                Some(match l {
+                    // `types.opaque.borrows.source`
+                    0 if matches!(pool.get(st), TyData::Opaque { .. }) => Some(ANY),
+                    0 => None,
+                    l => Some(l),
+                })
             })
             .collect();
-        capture_ids.sort_stable();
-        capture_ids.dedup();
-        let capture_elided = match capture_ids.as_slice() {
-            [id] => Elided::Lifetime(*id),
-            [] => Elided::Missing,
-            _ => Elided::Ambiguous,
-        };
-        let opaque = slots_of(pool, result);
-        let mut outs: Vec<Option<u32>> = written_outs
-            .iter()
-            .zip(&opaque)
-            .map(|(&l, &(t, _))| match l {
-                // `types.opaque.borrows.source`
-                0 if matches!(pool.get(t), TyData::Opaque { .. }) => Some(ANY),
-                0 => None,
-                l => Some(l),
-            })
-            .collect();
-        if capture_slot(pool, result) {
-            outs.push(match capture_elided {
-                Elided::Lifetime(id) => Some(id),
-                Elided::Missing | Elided::Ambiguous => None,
-            });
-        }
         Some(DepSig {
             params,
             outs,
@@ -280,12 +233,10 @@ impl DepSig {
     fn to_fn(&self, pool: Types<'_>, skip: usize) -> hd_types::FnDeps {
         let ins: Vec<u32> = self.params[skip.min(self.params.len())..]
             .iter()
-            .flat_map(|(t, ids)| ids.iter().take(pool.ref_slots(*t)).copied())
+            .flat_map(|(t, ids)| ref_ids_of(pool, *t, ids))
             .collect();
-        let outs: Option<Vec<u32>> = self
-            .outs
-            .iter()
-            .take(pool.ref_slots(self.ret))
+        let outs: Option<Vec<u32>> = ref_ids_of(pool, self.ret, &self.outs)
+            .into_iter()
             .map(|l| l.filter(|l| ins.contains(l)))
             .collect();
         outs.map_or(hd_types::FnDeps::NONE, |outs| pool.fn_deps(&ins, &outs))
@@ -298,7 +249,7 @@ impl DepSig {
     fn open(self, pool: Types<'_>, hidden: Ty) -> DepSig {
         let mut it = self.outs.iter().map(|o| o.unwrap_or(NO_SOURCE));
         let mut out = Vec::new();
-        let outs = if line_up_value(
+        let outs = if line_up(
             pool,
             self.ret,
             hidden,
@@ -395,7 +346,7 @@ impl DepSig {
             let mut out = Vec::new();
             let mut it = ids.iter().copied();
             match at {
-                Some(t) if line_up_value(pool, decl, t, &mut it, &mut keys, &mut out, 0) => {
+                Some(t) if line_up(pool, decl, t, &mut it, &mut keys, &mut out, 0) => {
                     let outlives = callee.and_then(|(def, generics)| {
                         crate::local_refs::outlives_field(
                             pool,
@@ -430,16 +381,20 @@ impl DepSig {
                 .iter()
                 .any(|(_, ids): &(Ty, Vec<u32>)| ids.contains(&id))
         };
-        let outs = if line_up_value(pool, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
+        // A capture slot depends only on capture slots.
+        let any = |st: Ty| if is_fn(pool, st) { ANY_FN } else { ANY };
+        let slots = slots_of(pool, ret);
+        let outs = if line_up(pool, self.ret, ret, &mut it, &mut keys, &mut out, 0) {
             out.into_iter()
-                .map(|id| match id {
+                .zip(&slots)
+                .map(|(id, &(st, _))| match id {
                     NO_SOURCE => None,
-                    id if (lossy || unbound(id)) && (TVAR..TVAR_END).contains(&id) => Some(ANY),
+                    id if (lossy || unbound(id)) && (TVAR..TVAR_END).contains(&id) => Some(any(st)),
                     id => Some(id),
                 })
                 .collect()
         } else {
-            vec![Some(ANY); dep_slots(pool, ret)]
+            slots.iter().map(|&(st, _)| Some(any(st))).collect()
         };
         DepSig {
             params,
@@ -460,7 +415,7 @@ impl DepSig {
         let Some((t, ids)) = self.params.get(p as usize) else {
             return false;
         };
-        if id == ANY {
+        if id == ANY || id == ANY_FN {
             return true;
         }
         let s = s as usize;
@@ -469,15 +424,64 @@ impl DepSig {
         }
         let all = slots_of(pool, *t);
         (0..s.min(all.len())).any(|s0| {
-            ids.get(s0) == Some(&id) && s <= s0 + pool.ref_slots(referent(pool, all[s0].0))
+            ids.get(s0) == Some(&id) && s <= s0 + dep_slots(pool, referent(pool, all[s0].0))
         })
     }
 }
 
+/// The lifetimes of the slots of a declared type `t`
+/// ([`slots_of`]): a reference slot's from `written` by its place among
+/// the reference slots, counted by `ref_at`, or its own `ANON` one by its
+/// place among all slots, counted by `dep_at`; a capture slot's its own.
+fn slot_ids(
+    pool: Types<'_>,
+    t: Ty,
+    ref_at: &mut usize,
+    dep_at: &mut usize,
+    written: impl Fn(usize) -> Option<u32>,
+) -> Vec<u32> {
+    let ids = slots_of(pool, t)
+        .iter()
+        .enumerate()
+        .map(|(k, &(st, _))| {
+            let own = ANON + w(*dep_at + k);
+            if is_fn(pool, st) {
+                return own;
+            }
+            *ref_at += 1;
+            written(*ref_at - 1).unwrap_or(own)
+        })
+        .collect::<Vec<_>>();
+    *dep_at += ids.len();
+    ids
+}
+
+/// The entries of `ids`, one per slot of `t`, at its reference slots.
+fn ref_ids_of<T: Copy>(pool: Types<'_>, t: Ty, ids: &[T]) -> Vec<T> {
+    slots_of(pool, t)
+        .iter()
+        .zip(ids)
+        .filter(|((st, _), _)| !is_fn(pool, *st))
+        .map(|(_, &id)| id)
+        .collect()
+}
+
+/// The one lifetime of `ids` (`ref.dep.elide`).
+fn one_id(ids: impl Iterator<Item = u32>) -> Elided {
+    let mut ids: Vec<u32> = ids.collect();
+    ids.sort_stable();
+    ids.dedup();
+    match ids.as_slice() {
+        [one] => Elided::Lifetime(*one),
+        [] => Elided::Missing,
+        _ => Elided::Ambiguous,
+    }
+}
+
 /// Lines the instantiated type `t` up with the declared `d`, pushing each
-/// slot's lifetime to `out` in [`Types::ref_slots`] order: a declared
-/// slot's from `ids`, and a slot a type parameter adds its
-/// [`TVAR`]. False where the shapes differ.
+/// slot's lifetime to `out` in [`slots_of`] order: a declared slot's from
+/// `ids`, and a slot a type parameter adds its [`TVAR`], a function
+/// type's capture slot included. False where the shapes differ.
 fn line_up(
     pool: Types<'_>,
     d: Ty,
@@ -508,8 +512,14 @@ fn line_up(
                 keys.push(p);
                 keys.len() - 1
             });
-            let n = pool.ref_slots(t).min(255);
+            let n = dep_slots(pool, t).min(255);
             out.extend((0..n).map(|s| TVAR + (w(k.min(255)) << 8) + w(s)));
+            true
+        }
+        // A function value's one capture slot (`fn.capture.local-parameter`).
+        (TyData::Fn { .. }, TyData::Fn { .. }) => {
+            let Some(id) = ids.next() else { return false };
+            out.push(id);
             true
         }
         // Each slot of an opaque type's hidden type, or of its instance,
@@ -521,7 +531,7 @@ fn line_up(
             } else {
                 NO_SOURCE
             };
-            out.extend(std::iter::repeat_n(id, pool.ref_slots(t)));
+            out.extend(std::iter::repeat_n(id, dep_slots(pool, t)));
             true
         }
         (TyData::Mut(a), TyData::Mut(b)) => line_up(pool, a, b, ids, keys, out, d1),
@@ -562,38 +572,7 @@ fn line_up(
                 def: y, args: b, ..
             },
         ) if x == y => list(a, b, ids, keys, out),
-        _ => pool.ref_slots(d) == 0 && pool.ref_slots(t) == 0,
-    }
-}
-
-/// [`line_up`] plus the one hidden origin slot carried by a direct
-/// `fn(...)` value (`fn.capture.local-parameter`). Function types exclude
-/// their parameter and result references from [`Types::ref_slots`], so the
-/// hidden slot is independent of the callable's own dependency map.
-fn line_up_value(
-    pool: Types<'_>,
-    d: Ty,
-    t: Ty,
-    ids: &mut dyn Iterator<Item = u32>,
-    keys: &mut Vec<hd_types::ParamRef>,
-    out: &mut Vec<u32>,
-    depth: u32,
-) -> bool {
-    if capture_slot(pool, d) && capture_slot(pool, t) {
-        let Some(id) = ids.next() else { return false };
-        out.push(id);
-        true
-    } else if capture_slot(pool, t)
-        && let TyData::Param(p) = pool.get(d)
-    {
-        let k = keys.iter().position(|x| *x == p).unwrap_or_else(|| {
-            keys.push(p);
-            keys.len() - 1
-        });
-        out.push(TVAR + (w(k.min(255)) << 8) + w(pool.ref_slots(t).min(255)));
-        true
-    } else {
-        line_up(pool, d, t, ids, keys, out, depth)
+        _ => dep_slots(pool, d) == 0 && dep_slots(pool, t) == 0,
     }
 }
 
@@ -612,18 +591,49 @@ fn capture_slot(pool: Types<'_>, t: Ty) -> bool {
     matches!(pool.get(referent_fn(pool, t)), TyData::Fn { .. })
 }
 
-/// The origin slots in a declaration position: ordinary local-reference
-/// slots, plus a direct function value's hidden capture slot.
-fn dep_slots(pool: Types<'_>, t: Ty) -> usize {
-    pool.ref_slots(t) + usize::from(capture_slot(pool, t))
+/// Whether slot type `t` is a function type's capture slot.
+fn is_fn(pool: Types<'_>, t: Ty) -> bool {
+    matches!(pool.get(t), TyData::Fn { .. })
 }
 
-/// Each reference slot of `t` in [`Types::ref_slots`] order: the
-/// reference type, and whether it is at the top, outside another
-/// reference.
+/// The origin slots of `t` ([`slots_of`]): its local-reference slots and
+/// a capture slot for each function type in it.
+fn dep_slots(pool: Types<'_>, t: Ty) -> usize {
+    if pool.has_fn(t) {
+        slots_of(pool, t).len()
+    } else {
+        pool.ref_slots(t)
+    }
+}
+
+/// Whether `t` has a function type's capture slot (`ref.generic.outlives.instance`).
+fn has_fn_slot(pool: Types<'_>, t: Ty) -> bool {
+    pool.has_fn(t) && slots_of(pool, t).iter().any(|&(s, _)| is_fn(pool, s))
+}
+
+/// Per slot of declared type `t`, whether it is a function type written
+/// inside another type, which holds no captured origins
+/// (`ref.generic.outlives.written`): not `t` itself nor the referent of
+/// one of its references.
+fn written_fns(pool: Types<'_>, t: Ty) -> Vec<bool> {
+    let slots = slots_of(pool, t);
+    (0..slots.len())
+        .map(|k| {
+            is_fn(pool, slots[k].0)
+                && !(k == 0 && capture_slot(pool, t))
+                && !(k > 0 && capture_slot(pool, referent(pool, slots[k - 1].0)))
+        })
+        .collect()
+}
+
+/// Each origin slot of `t` in pre-order: each reference type outside
+/// function types and counted references, as in [`Types::ref_slots`],
+/// and each function type outside another function type, whose slot
+/// holds what its closure captures. Each comes with whether it is at the
+/// top, outside another reference.
 fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
     fn walk(pool: Types<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<(Ty, bool)>) {
-        if depth > 32 || !pool.has_ref(t) {
+        if depth > 32 || !(pool.has_ref(t) || pool.has_fn(t)) {
             return;
         }
         let d = depth + 1;
@@ -636,7 +646,7 @@ fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
                 out.push((t, top));
                 walk(pool, inner, false, d, out);
             }
-            TyData::Opaque { borrows: true, .. } => out.push((t, top)),
+            TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push((t, top)),
             TyData::Mut(i) | TyData::Option(i) => walk(pool, i, top, d, out),
             TyData::Tuple { elems, rest } => {
                 for &e in pool.list_items(elems) {
@@ -653,11 +663,6 @@ fn slots_of(pool: Types<'_>, t: Ty) -> Vec<(Ty, bool)> {
             }
             _ => {}
         }
-    }
-    // A function value's capture slot is its one slot; a function type
-    // inside another type has none (`dep_slots`).
-    if capture_slot(pool, t) {
-        return vec![(t, true)];
     }
     let mut out = Vec::new();
     walk(pool, t, true, 0, &mut out);
@@ -679,7 +684,7 @@ fn tops(pool: Types<'_>, t: Ty) -> Vec<(usize, Ty)> {
 /// behind it, as `[start, end)`.
 fn top_runs(pool: Types<'_>, t: Ty) -> Vec<(usize, usize)> {
     let tp = tops(pool, t);
-    let n = pool.ref_slots(t);
+    let n = dep_slots(pool, t);
     (0..tp.len())
         .map(|k| (tp[k].0, tp.get(k + 1).map_or(n, |x| x.0)))
         .collect()
@@ -723,7 +728,22 @@ fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
 /// reference, or it is a trait value, which may hold one
 /// (`trait.dyn.ref.convert`).
 fn may_hold(pool: Types<'_>, t: Ty) -> bool {
-    holds_local_ref(pool, t) || is_dyn(pool, t) || capture_slot(pool, t)
+    holds_local_ref(pool, t) || is_dyn(pool, t) || has_fn_slot(pool, t)
+}
+
+/// Where a call's parameter keeps a capture slot of its argument.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum FnDest {
+    /// A direct `fn(...)` parameter, or a type parameter that may hold
+    /// captured origins: the call may only use it or pass it on.
+    Scoped,
+    /// A type parameter the call keeps under `'static`.
+    Static,
+    /// A type parameter with no position for captured origins, which a
+    /// function value that captures only parameters' origins may reach.
+    Forward,
+    /// A function type written inside another type, which holds none.
+    Kept,
 }
 
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
@@ -815,6 +835,8 @@ struct Solve<'a> {
     own: Option<&'a DepSig>,
     /// Stores of a local-holding value into a place the caller owns.
     out: HashSet<u32>,
+    /// The references `box(e)` makes.
+    boxes: &'a HashSet<u32>,
     /// Locals whose closure capture is already `local-reference-escapes`
     /// (`ref.local.escape.capture-stored`): they add no capture origins.
     reported: HashSet<hd_base::LocalId>,
@@ -854,8 +876,16 @@ impl Solve<'_> {
                         vec![]
                     };
                 }
+                // `ref.generic.outlives.written`
+                let scoped = capture_slot(self.pool, inner);
                 ts.iter()
-                    .map(|&(r, _)| vec![Origin::Param(p, s + 1 + w(r))])
+                    .map(|&(r, st)| {
+                        if is_fn(self.pool, st) && !scoped {
+                            vec![]
+                        } else {
+                            vec![Origin::Param(p, s + 1 + w(r))]
+                        }
+                    })
                     .collect()
             }
             Origin::Local(_) | Origin::Hidden(_) => self.held.get(&o).cloned().unwrap_or_default(),
@@ -890,14 +920,8 @@ impl Solve<'_> {
     /// and the run of `t`'s top slots it holds, when that is known.
     fn field(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<(Ty, Option<(usize, usize)>)> {
         let pool = self.pool;
-        // A part's slots inside `t`: a function type there has none.
-        let n = |t: Ty| {
-            if capture_slot(pool, t) {
-                0
-            } else {
-                tops(pool, t).len()
-            }
-        };
+        // A part's slots inside `t`.
+        let n = |t: Ty| tops(pool, t).len();
         match (pool.get(t), variant) {
             (TyData::Mut(i), _) => self.field(i, variant, j),
             (TyData::Tuple { elems, .. }, None) => {
@@ -1180,7 +1204,7 @@ impl Solve<'_> {
         let (f, rt) = tp[k];
         let inner = referent(pool, rt);
         if s == f {
-            return if pool.ref_slots(inner) > 0 {
+            return if dep_slots(pool, inner) > 0 {
                 self.reach(cur[k].clone())
             } else {
                 cur[k].clone()
@@ -1211,6 +1235,33 @@ impl Solve<'_> {
                     self.lent(a)
                 };
                 union(&mut out, &set);
+            }
+            return out;
+        }
+        if id == ANY_FN {
+            for p in 0..sig.params.len() {
+                let Some(a) = source_arg(b, i, p) else {
+                    continue;
+                };
+                let Some(at) = self.ty(a) else { continue };
+                // A counted receiver lends its place's value.
+                let (cur, at) = match local_ref(self.pool, at) {
+                    Some((true, false)) => {
+                        let inner = referent(self.pool, at);
+                        let mut h = vec![Set::new(); width(self.pool, inner)];
+                        for o in self.lent(a) {
+                            union_into(&mut h, &self.held(o));
+                        }
+                        (h, inner)
+                    }
+                    _ if may_hold(self.pool, at) => (self.of(a).to_vec(), at),
+                    _ => continue,
+                };
+                for (s, &(st, _)) in slots_of(self.pool, at).iter().enumerate() {
+                    if is_fn(self.pool, st) {
+                        union(&mut out, &self.slot_in(&cur, at, at, s, 0));
+                    }
+                }
             }
             return out;
         }
@@ -1268,7 +1319,7 @@ impl Solve<'_> {
                 let (lo, hi) = runs[a + j];
                 value[j].is_empty() || takes(lo, hi, &value[j])
             }),
-            _ => takes(0, pool.ref_slots(inner), &flat(value)),
+            _ => takes(0, dep_slots(pool, inner), &flat(value)),
         }
     }
 
@@ -1293,7 +1344,7 @@ impl Solve<'_> {
                 let k = top_k;
                 top_k += 1;
                 let mutable = matches!(pool.get(rt), TyData::Ref { mutable: true, .. });
-                let inner = pool.ref_slots(referent(pool, rt));
+                let inner = dep_slots(pool, referent(pool, rt));
                 if !mutable || inner == 0 {
                     continue;
                 }
@@ -1306,7 +1357,11 @@ impl Solve<'_> {
                         let mut v = Set::new();
                         let n = ids.len();
                         for &id in &ids[(s + 1 + lo).min(n)..(s + 1 + hi).min(n)] {
-                            if (TVAR..TVAR_END).contains(&id) || id == ANY || id < ANON {
+                            if (TVAR..TVAR_END).contains(&id)
+                                || id == ANY
+                                || id == ANY_FN
+                                || id < ANON
+                            {
                                 union(&mut v, &self.lifetime_args(i, sig, id));
                             }
                         }
@@ -1494,13 +1549,8 @@ impl Solve<'_> {
             let [word, v] = b.data[i];
             let value = self.of(v).to_vec();
             let t = b.ty.get(v as usize).copied().unwrap_or(Ty::VOID);
-            self.store(
-                i,
-                word,
-                &value,
-                holds_local_ref(self.pool, t),
-                capture_slot(self.pool, t),
-            );
+            let captures = self.fn_origins(&value, t);
+            self.store(i, word, &value, holds_local_ref(self.pool, t), captures);
             return;
         }
         if tag == Tag::Intrinsic {
@@ -1579,60 +1629,104 @@ impl Solve<'_> {
         }
     }
 
-    /// Whether value `v` is a scoped function value carrying capture
-    /// origins.
+    /// Whether value `v` holds captured origins in a function type's
+    /// capture slot at its top.
     fn captured_fn(&self, v: u32) -> bool {
-        self.ty(v).is_some_and(|t| capture_slot(self.pool, t)) && !flat(self.of(v)).is_empty()
+        self.ty(v).is_some_and(|t| self.fn_origins(self.of(v), t))
     }
 
-    /// The declared and instantiated parameter types of call `i`, whether
-    /// the declared one is a type parameter bounded by `'static`, and
-    /// whether it is one a closure argument may capture for
-    /// (`ref.generic.outlives.argument`). A direct function type is the
-    /// one other non-escaping destination for a scoped function value,
-    /// including where a generic parameter that `'static` does not bound
-    /// is instantiated with that function type (`ref.generic.outlives.box`).
-    fn call_params(&self, i: usize) -> Vec<(Ty, Ty, bool, bool)> {
+    /// Whether `value`, of type `t`, holds origins in a capture slot at
+    /// the top of `t` (`ref.generic.outlives.instance`).
+    fn fn_origins(&self, value: &[Set], t: Ty) -> bool {
+        let pool = self.pool;
+        if !pool.has_fn(t) {
+            return false;
+        }
+        let tp = tops(pool, t);
+        if value.len() == tp.len() {
+            tp.iter()
+                .zip(value)
+                .any(|(&(_, st), set)| is_fn(pool, st) && !set.is_empty())
+        } else {
+            tp.iter().any(|&(_, st)| is_fn(pool, st)) && value.iter().any(|s| !s.is_empty())
+        }
+    }
+
+    /// For each parameter of call `i`: its instantiated type, and for each
+    /// capture slot of that type, where a scoped function value there may
+    /// go. `Ok` for a direct `fn(...)` parameter or the referent of a
+    /// reference to one, and for a type parameter that may hold captured
+    /// origins (`ref.generic.outlives.instance`); for a type parameter
+    /// that `'static` does not bound, whether it only forwards a
+    /// parameter's (`Err(true)`). Else the message of the error.
+    fn call_params(&self, i: usize) -> Vec<(Ty, Vec<(usize, FnDest)>)> {
         let b = self.b;
-        let instantiated = |def| {
+        let pool = self.pool;
+        let static_bound = self.cx.names.known.static_bound;
+        let instantiated = |def: DefId| {
             let sig = self.cx.lookup.item(def)?.sig()?;
-            let kept = |t: Ty| match self.pool.get(t) {
-                TyData::Param(p) if p.owner == def => {
-                    sig.generics.get(p.index as usize).is_some_and(|g| {
-                        g.bounds.iter().any(|&b| {
-                            self.pool
-                                .trait_value(b)
-                                .is_some_and(|(d, _)| d == self.cx.names.known.static_bound)
-                        })
-                    })
-                }
-                _ => false,
-            };
-            let scoped = |t: Ty| match self.pool.get(referent_fn(self.pool, t)) {
-                TyData::Param(p) if p.owner == def => crate::local_refs::scoped_fn_generic(
-                    self.pool,
-                    self.cx.names.known.static_bound,
-                    def,
-                    sig,
-                    usize::from(p.index),
-                ),
-                _ => false,
-            };
             let names = &self.cx.names;
             let params = DepSig::new(
-                self.pool,
+                pool,
                 &sig.params,
                 |s| names.text(s) == "self",
                 sig.ret,
                 &sig.lifetimes,
             )
-            .instantiate(self.pool, b, i, None)
+            .instantiate(pool, b, i, None)
             .params;
+            let dest = |p: hd_types::ParamRef| {
+                let generics = if p.owner == def {
+                    Some(&sig.generics)
+                } else {
+                    self.cx.lookup.item(p.owner).map(|it| &it.generics)
+                };
+                let g = generics.and_then(|g| g.get(usize::from(p.index)));
+                if g.is_some_and(|g| crate::local_refs::static_bounded(pool, static_bound, g)) {
+                    FnDest::Static
+                } else if crate::local_refs::scoped_param(pool, sig, p) {
+                    FnDest::Scoped
+                } else {
+                    FnDest::Forward
+                }
+            };
             Some(
                 sig.params
                     .iter()
                     .zip(params)
-                    .map(|(p, (t, _))| (p.1, t, kept(p.1), scoped(p.1)))
+                    .map(|(&(_, decl), (t, _))| {
+                        let written = written_fns(pool, decl);
+                        let n = dep_slots(pool, decl);
+                        let mut keys = Vec::new();
+                        let mut out = Vec::new();
+                        let mut it = (0..w(n)).chain(std::iter::repeat(NO_SOURCE));
+                        let aligned = line_up(pool, decl, t, &mut it, &mut keys, &mut out, 0);
+                        let slots = slots_of(pool, t);
+                        let dests = slots
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, (st, _))| is_fn(pool, *st))
+                            .map(|(s, _)| {
+                                let d = match out.get(s) {
+                                    _ if !aligned => FnDest::Kept,
+                                    Some(&id) if (TVAR..TVAR_END).contains(&id) => {
+                                        let k = ((id - TVAR) >> 8) as usize;
+                                        keys.get(k).map_or(FnDest::Kept, |&p| dest(p))
+                                    }
+                                    Some(&id) if (id as usize) < n => {
+                                        if written[id as usize] {
+                                            FnDest::Kept
+                                        } else {
+                                            FnDest::Scoped
+                                        }
+                                    }
+                                    _ => FnDest::Kept,
+                                };
+                                (s, d)
+                            })
+                            .collect();
+                        (t, dests)
+                    })
                     .collect(),
             )
         };
@@ -1653,12 +1747,29 @@ impl Solve<'_> {
                 .unwrap_or_default(),
             Tag::CallValue => self
                 .ty(b.data[i][0])
-                .and_then(|t| match self.pool.get(referent_fn(self.pool, t)) {
+                .and_then(|t| match pool.get(referent_fn(pool, t)) {
                     TyData::Fn { params, .. } => Some(
-                        self.pool
-                            .list_items(params)
+                        pool.list_items(params)
                             .iter()
-                            .map(|&p| (p, p, false, false))
+                            .map(|&p| {
+                                let written = written_fns(pool, p);
+                                let dests = slots_of(pool, p)
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, (st, _))| is_fn(pool, *st))
+                                    .map(|(s, _)| {
+                                        (
+                                            s,
+                                            if written[s] {
+                                                FnDest::Kept
+                                            } else {
+                                                FnDest::Scoped
+                                            },
+                                        )
+                                    })
+                                    .collect();
+                                (p, dests)
+                            })
                             .collect(),
                     ),
                     _ => None,
@@ -1687,11 +1798,17 @@ impl Solve<'_> {
         for i in 0..b.tags.len() {
             match b.tags[i] {
                 // `box(f)` (`ref.generic.outlives.box`): a counted
-                // reference to a function value that captures.
+                // reference to a new object, which holds a function value
+                // that captures. A method receiver's or a loop cursor's
+                // address is counted too, and stays in the body.
                 Tag::Ref
                     if matches!(self.pool.get(b.ty[i]), TyData::Ref { counted: true, inner, .. }
-                        if capture_slot(self.pool, inner))
-                        && !flat(&self.place(w(i), b.data[i][0], 1).1).is_empty() =>
+                    if has_fn_slot(self.pool, inner)
+                        && self.boxes.contains(&w(i))
+                        && self.fn_origins(
+                            &self.place(w(i), b.data[i][0], width(self.pool, inner)).1,
+                            inner,
+                        )) =>
                 {
                     bad.push((
                         b.syn[i],
@@ -1714,32 +1831,32 @@ impl Solve<'_> {
                     }
                 }
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => {
-                    let params = self.call_params(i);
-                    for (p, &(declared, instantiated, kept, scoped)) in params.iter().enumerate() {
+                    for (p, (t, dests)) in self.call_params(i).iter().enumerate() {
                         let Some(value) = source_arg(b, i, p) else {
                             continue;
                         };
-                        if !self.captured_fn(value) {
+                        let Some(vt) = self.ty(value) else { continue };
+                        if dests.is_empty() || !may_hold(self.pool, vt) {
                             continue;
                         }
-                        let forwards_parameter = capture_slot(self.pool, instantiated)
-                            && !kept
-                            && flat(self.of(value))
-                                .iter()
-                                .all(|origin| matches!(origin, Origin::Param(_, _)));
-                        if kept {
-                            bad.push((
-                                at(value, i),
-                                "a local reference captured by this function value never escapes to a type parameter bounded by `'static`",
-                            ));
-                        } else if !capture_slot(self.pool, declared)
-                            && !forwards_parameter
-                            && !scoped
-                        {
-                            bad.push((
-                                at(value, i),
-                                "a local reference captured by this function value may be passed only to a `fn(...)` parameter",
-                            ));
+                        for &(s, dest) in dests {
+                            let set = self.slot_in(self.of(value), vt, *t, s, 0);
+                            if set.is_empty() {
+                                continue;
+                            }
+                            let forwards = set.iter().all(|o| matches!(o, Origin::Param(_, _)));
+                            let msg = match dest {
+                                FnDest::Scoped => continue,
+                                FnDest::Forward if forwards => continue,
+                                FnDest::Static => {
+                                    "a local reference captured by this function value never escapes to a type parameter bounded by `'static`"
+                                }
+                                FnDest::Forward | FnDest::Kept => {
+                                    "a local reference captured by this function value may be passed only to a `fn(...)` parameter"
+                                }
+                            };
+                            bad.push((at(value, i), msg));
+                            break;
                         }
                     }
                 }
@@ -2124,9 +2241,7 @@ impl Ck<'_, '_> {
             opaque
                 || o.depends()
                 || o.capture_elided == Elided::Missing
-                    && tops(pool, o.ret)
-                        .iter()
-                        .any(|&(_, t)| capture_slot(pool, t))
+                    && tops(pool, o.ret).iter().any(|&(_, t)| is_fn(pool, t))
         });
         if own.is_none() && !through && closures.is_empty() {
             return;
@@ -2160,6 +2275,7 @@ impl Ck<'_, '_> {
             own: mine.as_ref(),
             out: HashSet::default(),
             reported: self.ref_captured.clone(),
+            boxes: &self.boxes,
             changed: true,
         };
         for l in 0..body.local_ty.len() {
@@ -2167,9 +2283,18 @@ impl Ck<'_, '_> {
             if body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && may_hold(pool, lt) {
                 let pt = s.params[l];
                 let tp = tops(pool, pt);
+                // A function type written inside another type holds no
+                // captures (`ref.generic.outlives.written`).
+                let written = written_fns(pool, pt);
                 let mine: Vec<Set> = tp
                     .iter()
-                    .map(|&(f, _)| vec![Origin::Param(w(l), w(f))])
+                    .map(|&(f, _)| {
+                        if written[f] {
+                            vec![]
+                        } else {
+                            vec![Origin::Param(w(l), w(f))]
+                        }
+                    })
                     .collect();
                 let mine = if mine.is_empty() {
                     vec![vec![Origin::Param(w(l), 0)]]
@@ -2196,7 +2321,7 @@ impl Ck<'_, '_> {
             // capturing closure read from a field (`ref.generic.outlives.read`).
             let capture: Vec<bool> = tops(pool, ret)
                 .iter()
-                .map(|&(_, t)| own.capture_elided == Elided::Missing && capture_slot(pool, t))
+                .map(|&(_, t)| own.capture_elided == Elided::Missing && is_fn(pool, t))
                 .collect();
             for r in returned(body, root.0) {
                 let v = fit(s.of(r), ids.len());

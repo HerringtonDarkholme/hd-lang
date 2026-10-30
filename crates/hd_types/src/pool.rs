@@ -389,6 +389,7 @@ pub mod meta {
     pub const HAS_CANON: u32 = 16;
     pub const HAS_REF: u32 = 32;
     pub const HAS_OPAQUE: u32 = 64;
+    pub const HAS_FN: u32 = 128;
 }
 
 impl PoolTag {
@@ -1186,7 +1187,10 @@ impl<'a> Types<'a> {
             } => (
                 T::Fn,
                 0,
-                self.list_meta(*params) | self.meta_of(*result) | self.row_meta(*row),
+                meta::HAS_FN
+                    | self.list_meta(*params)
+                    | self.meta_of(*result)
+                    | self.row_meta(*row),
             ),
             TyData::TraitValue { args, bindings, .. } => (
                 T::TraitValue,
@@ -1537,6 +1541,12 @@ impl<'a> Types<'a> {
     #[must_use]
     pub fn has_ref(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_REF != 0
+    }
+
+    /// Whether `t` holds a function type.
+    #[must_use]
+    pub fn has_fn(self, t: Ty) -> bool {
+        self.meta_of(t) & meta::HAS_FN != 0
     }
 
     /// The local reference slots of `t`: each `&T` and `&mut T` outside

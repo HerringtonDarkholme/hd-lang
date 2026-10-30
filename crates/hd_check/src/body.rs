@@ -379,6 +379,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// reported, and the types the body and its signature write.
     pub ref_origins: HashMap<LocalId, hd_base::TokenIdx>,
     pub ref_captured: HashSet<LocalId>,
+    /// The references `box(e)` makes, as opposed to the counted address
+    /// of a loop's cursor (`ref.generic.outlives.box`).
+    pub boxes: HashSet<u32>,
     /// The closure expression currently checked as a direct argument of a
     /// `fn(...)` parameter. Only that closure may capture local references
     /// (`fn.capture.local-parameter`).
@@ -636,6 +639,7 @@ pub(crate) fn new_ck<'a, 'c>(
         elem_ok: HashMap::default(),
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
+        boxes: HashSet::default(),
         local_capture_argument: None,
         closure_writes: HashMap::default(),
         local_inits: HashMap::default(),

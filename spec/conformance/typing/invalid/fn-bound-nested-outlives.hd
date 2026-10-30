@@ -1,0 +1,12 @@
+# test: an iterator adapter kept past the block of a local its closure captured is local-reference-outlives-local
+# Spec 13 Lifetime Bounds: ref.generic.outlives.instance.
+struct Counter:
+    n: i32
+
+fn later(xs: List[i32]) -> i32:
+    let mut it = xs.iter().map(fn(x: i32) -> i32: x)
+    if xs.len() > 0:
+        inner := Counter { n: +2 }
+        p := &inner
+        it = xs.iter().map(fn(x: i32) -> i32: x + p.n)
+    it.next().unwrap_or(+0) # diagnostic: local-reference-outlives-local
