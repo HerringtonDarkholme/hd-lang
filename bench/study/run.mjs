@@ -141,38 +141,52 @@ const SMALL = {
   ],
 };
 
+function applyArg(opts, argv, index) {
+  const arg = argv[index];
+  switch (arg) {
+    case "--runs":
+      opts.runs = Number(argv[++index]);
+      break;
+    case "--only":
+      opts.only = argv[++index].split(",");
+      break;
+    case "--engines":
+      opts.engines = argv[++index].split(",");
+      break;
+    case "--hd":
+      opts.hd = resolve(argv[++index]);
+      break;
+    case "--work":
+      opts.work = resolve(argv[++index]);
+      break;
+    case "--checked":
+      opts.checked = resolve(argv[++index]);
+      break;
+    case "--no-refs":
+      opts.refs = false;
+      break;
+    case "--warm-module":
+      opts.warmModule = true;
+      break;
+    case "--backend":
+      opts.backend = argv[++index];
+      break;
+    case "--quick":
+      Object.assign(opts, { quick: true, runs: 3, engines: ["node"], refs: false });
+      break;
+    case "--python-only":
+      opts.pythonOnly = true;
+      break;
+    default:
+      throw new Error(`unknown flag ${arg}`);
+  }
+  return index;
+}
+
 function parseArgs(argv) {
   const opts = { runs: 5, engines: ["node", "wasmtime"], refs: true };
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--runs") {
-      opts.runs = Number(argv[++i]);
-    } else if (a === "--only") {
-      opts.only = argv[++i].split(",");
-    } else if (a === "--engines") {
-      opts.engines = argv[++i].split(",");
-    } else if (a === "--hd") {
-      opts.hd = resolve(argv[++i]);
-    } else if (a === "--work") {
-      opts.work = resolve(argv[++i]);
-    } else if (a === "--checked") {
-      opts.checked = resolve(argv[++i]);
-    } else if (a === "--no-refs") {
-      opts.refs = false;
-    } else if (a === "--warm-module") {
-      opts.warmModule = true;
-    } else if (a === "--backend") {
-      opts.backend = argv[++i];
-    } else if (a === "--quick") {
-      opts.quick = true;
-      opts.runs = 3;
-      opts.engines = ["node"];
-      opts.refs = false;
-    } else if (a === "--python-only") {
-      opts.pythonOnly = true;
-    } else {
-      throw new Error(`unknown flag ${a}`);
-    }
+    i = applyArg(opts, argv, i);
   }
   if (opts.quick && argv.includes("--runs")) {
     opts.runs = Number(argv[argv.indexOf("--runs") + 1]);
@@ -370,6 +384,149 @@ process.argv = [process.argv[0], runner, ...process.argv.slice(2)];
 await import("file://" + runner);
 `;
 
+function pythonAvailable(opts, list) {
+  if (!(opts.refs || opts.pythonOnly) || !list.some((c) => c.py)) {
+    return false;
+  }
+  const available = spawnSync("python3", ["--version"], { encoding: "utf8" }).status === 0;
+  if (!available) {
+    console.error("Note: python3 unavailable; skipping Python references.");
+  }
+  return available;
+}
+
+function expectedOutput(c, opts) {
+  const known = EXPECTED[c.name];
+  if (known !== undefined) {
+    return known;
+  }
+  if (c.js && !opts.pythonOnly) {
+    return execFileSync("node", [c.js], { encoding: "utf8" });
+  }
+  if (c.expected) {
+    return readFileSync(c.expected, "utf8");
+  }
+  return c.emptyExpected ? "" : undefined;
+}
+
+function measureReferences({ row, c, opts, python, expect }) {
+  if (opts.refs && !opts.pythonOnly && c.js) {
+    row.js = measure(["node", c.js], opts.runs, expect);
+  }
+  if (opts.refs && !opts.pythonOnly && c.go) {
+    const bin = join(opts.work, "go", c.name);
+    execFileSync("go", ["build", "-o", bin, c.go]);
+    row.go = measure([bin], opts.runs, expect);
+  }
+  if (python && c.py) {
+    row.py = measure(["python3", c.py], opts.pythonOnly ? 1 : opts.runs, expect, !opts.pythonOnly);
+  }
+}
+
+async function measureEngines({ row, c, opts, expect }) {
+  for (const engine of opts.pythonOnly ? [] : opts.engines) {
+    const wasm = build(
+      opts.hd,
+      opts.work,
+      c.name,
+      c.src ?? readFileSync(c.hd, "utf8"),
+      engine,
+      process.env,
+      opts.backend,
+    );
+    row[`${engine}Bytes`] = statSync(wasm).size;
+    const argv =
+      engine === "node" ? ["node", RUNNER, wasm] : [opts.hd, wasm, "--engine", "wasmtime"];
+    row[engine] = measure(argv, opts.runs, expect);
+    if (engine === "node" && opts.warmModule && !row.node.error) {
+      const module = await WebAssembly.compile(readFileSync(wasm));
+      row.warmModule = await measureWarmModule(module, opts.runs, expect ?? row.node.out);
+    }
+  }
+}
+
+async function measureCase(c, opts, python) {
+  const row = { name: c.name };
+  const expect = expectedOutput(c, opts);
+  measureReferences({ row, c, opts, python, expect });
+  await measureEngines({ row, c, opts, expect });
+  console.error(
+    JSON.stringify(row, (key, value) => (key === "out" || key === "err" ? undefined : value)),
+  );
+  return row;
+}
+
+const resultCell = (measurement) => {
+  if (!measurement) {
+    return "";
+  }
+  return measurement.error ? "fail" : Math.round(measurement.ms).toString();
+};
+const resultRss = (measurement) =>
+  measurement && !measurement.error ? Math.round(measurement.rssMb).toString() : "";
+const ratio = (left, right) =>
+  left && right && !left.error && !right.error ? (left.ms / right.ms).toFixed(1) : "";
+
+function printResults(rows) {
+  console.log(
+    `Node ${process.version}; V8 ${process.versions.v8}. Process-wall samples each start a fresh process; a discarded preflight is not module warm-up.`,
+  );
+  console.log(
+    "| Program | hd, V8 | hd, wasmtime | Node | Go | py | hd/Node | hd/Go | RSS MB: hd V8, wasmtime, Node, Go, py |",
+  );
+  console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
+  for (const row of rows) {
+    console.log(
+      `| ${row.name} | ${resultCell(row.node)} | ${resultCell(row.wasmtime)} | ${resultCell(row.js)} | ${resultCell(row.go)} | ${resultCell(row.py)} | ${ratio(row.node, row.js)} | ${ratio(row.node, row.go)} | ${[row.node, row.wasmtime, row.js, row.go, row.py].map(resultRss).join(", ")} |`,
+    );
+  }
+  for (const row of rows) {
+    for (const engine of ["node", "wasmtime", "js", "go", "py"]) {
+      if (row[engine]?.error) {
+        console.log(`- ${row.name} ${engine}: ${row[engine].error}`);
+      }
+    }
+  }
+}
+
+function printWarmModules(rows) {
+  console.log("\nNode/V8 timings, ms (median):");
+  console.log(
+    "| Program | fresh-process wall | samples | warm-module activation | samples | discarded activations | output validation |",
+  );
+  console.log("| --- | ---: | ---: | ---: | ---: | ---: | --- |");
+  for (const row of rows) {
+    const valid = row.warmModule && !row.warmModule.error;
+    console.log(
+      `| ${row.name} | ${resultCell(row.node)} | ${row.node?.runs ?? ""} | ${resultCell(row.warmModule)} | ${row.warmModule?.runs ?? ""} | ${row.warmModule?.warmups ?? ""} | ${valid ? "exact stdout, every sample" : "failed"} |`,
+    );
+    if (row.warmModule?.error) {
+      console.log(`- ${row.name} warm-module: ${row.warmModule.error}`);
+    }
+  }
+}
+
+function printDynamicIterations(rows) {
+  const dynamic = rows.find((row) => row.name === "dyn_iter");
+  if (!dynamic) {
+    return;
+  }
+  for (const engine of ["node", "wasmtime", "go", "py"]) {
+    if (dynamic[engine] && !dynamic[engine].error) {
+      const times = dynamic[engine].err
+        .split("\n")
+        .filter((line) => /^\S+ \d+ms$/.test(line))
+        .join("; ");
+      console.log(`- dyn_iter ${engine}: ${times}`);
+    }
+  }
+}
+
+const failedRows = (rows) =>
+  rows.some((row) =>
+    ["node", "wasmtime", "js", "go", "py", "warmModule"].some((key) => row[key]?.error),
+  );
+
 async function main() {
   const startedAt = performance.now();
   const opts = parseArgs(process.argv.slice(2));
@@ -384,124 +541,19 @@ async function main() {
   if (opts.pythonOnly) {
     list = list.filter((c) => c.py);
   }
-  let python = false;
-  if ((opts.refs || opts.pythonOnly) && list.some((c) => c.py)) {
-    const probe = spawnSync("python3", ["--version"], { encoding: "utf8" });
-    python = probe.status === 0;
-    if (!python) {
-      console.error("Note: python3 unavailable; skipping Python references.");
-    }
-  }
+  const python = pythonAvailable(opts, list);
   const rows = [];
   for (const c of list) {
-    const row = { name: c.name };
-    rows.push(row);
-    // Known study outputs need no reference process, including --no-refs.
-    let expect = EXPECTED[c.name];
-    if (expect === undefined && c.js && !opts.pythonOnly) {
-      expect = execFileSync("node", [c.js], { encoding: "utf8" });
-    } else if (c.expected) {
-      expect = readFileSync(c.expected, "utf8");
-    } else if (c.emptyExpected) {
-      expect = "";
-    }
-    if (opts.refs && !opts.pythonOnly && c.js) {
-      row.js = measure(["node", c.js], opts.runs, expect);
-    }
-    if (opts.refs && !opts.pythonOnly && c.go) {
-      const bin = join(opts.work, "go", c.name);
-      execFileSync("go", ["build", "-o", bin, c.go]);
-      row.go = measure([bin], opts.runs, expect);
-    }
-    if (python && c.py) {
-      row.py = measure(
-        ["python3", c.py],
-        opts.pythonOnly ? 1 : opts.runs,
-        expect,
-        !opts.pythonOnly,
-      );
-    }
-    for (const engine of opts.pythonOnly ? [] : opts.engines) {
-      const wasm = build(
-        opts.hd,
-        opts.work,
-        c.name,
-        c.src ?? readFileSync(c.hd, "utf8"),
-        engine,
-        process.env,
-        opts.backend,
-      );
-      row[`${engine}Bytes`] = statSync(wasm).size;
-      const argv =
-        engine === "node" ? ["node", RUNNER, wasm] : [opts.hd, wasm, "--engine", "wasmtime"];
-      row[engine] = measure(argv, opts.runs, expect);
-      if (engine === "node" && opts.warmModule && !row.node.error) {
-        const module = await WebAssembly.compile(readFileSync(wasm));
-        row.warmModule = await measureWarmModule(module, opts.runs, expect ?? row.node.out);
-      }
-    }
-    console.error(JSON.stringify(row, (k, v) => (k === "out" || k === "err" ? undefined : v)));
+    rows.push(await measureCase(c, opts, python));
   }
   writeFileSync(join(opts.work, "results.json"), JSON.stringify(rows, null, 1));
-  const cell = (m) => {
-    if (!m) {
-      return "";
-    }
-    return m.error ? "fail" : Math.round(m.ms).toString();
-  };
-  const rss = (m) => (m && !m.error ? Math.round(m.rssMb).toString() : "");
-  console.log(
-    `Node ${process.version}; V8 ${process.versions.v8}. Process-wall samples each start a fresh process; a discarded preflight is not module warm-up.`,
-  );
-  console.log(
-    "| Program | hd, V8 | hd, wasmtime | Node | Go | py | hd/Node | hd/Go | RSS MB: hd V8, wasmtime, Node, Go, py |",
-  );
-  console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
-  for (const r of rows) {
-    const ratio = (a, b) => (a && b && !a.error && !b.error ? (a.ms / b.ms).toFixed(1) : "");
-    console.log(
-      `| ${r.name} | ${cell(r.node)} | ${cell(r.wasmtime)} | ${cell(r.js)} | ${cell(r.go)} | ${cell(r.py)} | ${ratio(r.node, r.js)} | ${ratio(r.node, r.go)} | ${[r.node, r.wasmtime, r.js, r.go, r.py].map(rss).join(", ")} |`,
-    );
-  }
-  for (const r of rows) {
-    for (const k of ["node", "wasmtime", "js", "go", "py"]) {
-      if (r[k]?.error) {
-        console.log(`- ${r.name} ${k}: ${r[k].error}`);
-      }
-    }
-  }
+  printResults(rows);
   if (opts.warmModule) {
-    console.log("\nNode/V8 timings, ms (median):");
-    console.log(
-      "| Program | fresh-process wall | samples | warm-module activation | samples | discarded activations | output validation |",
-    );
-    console.log("| --- | ---: | ---: | ---: | ---: | ---: | --- |");
-    for (const r of rows) {
-      console.log(
-        `| ${r.name} | ${cell(r.node)} | ${r.node?.runs ?? ""} | ${cell(r.warmModule)} | ${r.warmModule?.runs ?? ""} | ${r.warmModule?.warmups ?? ""} | ${r.warmModule && !r.warmModule.error ? "exact stdout, every sample" : "failed"} |`,
-      );
-      if (r.warmModule?.error) {
-        console.log(`- ${r.name} warm-module: ${r.warmModule.error}`);
-      }
-    }
+    printWarmModules(rows);
   }
-  const dyn = rows.find((r) => r.name === "dyn_iter");
-  if (dyn) {
-    for (const k of ["node", "wasmtime", "go", "py"]) {
-      if (dyn[k] && !dyn[k].error) {
-        console.log(
-          `- dyn_iter ${k}: ${dyn[k].err
-            .split("\n")
-            .filter((l) => /^\S+ \d+ms$/.test(l))
-            .join("; ")}`,
-        );
-      }
-    }
-  }
+  printDynamicIterations(rows);
   console.log(`\nTotal ${Math.round((performance.now() - startedAt) / 1000)} s.`);
-  if (
-    rows.some((r) => ["node", "wasmtime", "js", "go", "py", "warmModule"].some((k) => r[k]?.error))
-  ) {
+  if (failedRows(rows)) {
     process.exitCode = 1;
   }
 }
