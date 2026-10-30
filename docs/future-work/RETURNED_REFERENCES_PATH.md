@@ -1,8 +1,8 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 5 and slices 6a1 to 6a4 and 6b1; stage 6's remaining slices are tickets
-#1020 to #1029 and #1035. It reviews
+stages 1 to 5 and slices 6a1 to 6a4, 6b1 and 6b2; stage 6's remaining slices are
+tickets #1023 to #1029 and #1035. It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
@@ -348,6 +348,8 @@ Applied by #1019 (6a3): an elided lifetime argument in a signature is a referenc
 Applied by #1020 (6a4, [Lifetime Enums](../../spec/lang/13-values-and-references.md#lifetime-enums)): a top-level enum declares lifetimes as a struct does; a variant construction puts each payload field in its lifetime's position, and a match binding of the payload takes that position's origins. A variant function value's result takes the payload's lifetime by elision.
 
 Applied by #1021 (6b1, [Lifetime Stores](../../spec/lang/13-values-and-references.md#lifetime-stores)): a store through a parameter's reference into a place the caller owns is valid when every reference position of the referent has one lifetime and the value depends only on that lifetime's sources; a call's `&mut` argument takes what the arguments of the lifetimes under it depend on. A list's or a map's type argument may hold a local reference in a body and in a `&mut` parameter whose inner `&`s all write lifetimes. A single-lifetime struct's field assigned through `&mut Parser['a]` already follows this rule; 6b2 keeps the per-field case of a struct with two lifetimes.
+
+Applied by #1022 (6b2): a store into a field through `&mut Two['a, 'b]` checks the value against that field's one lifetime, and a call's `&mut` argument takes each lifetime's arguments in that lifetime's positions of its place only. A field of two or more lifetimes, and a nested field below one, keep the whole-referent check.
 
 ### Stage 7: exclusivity
 

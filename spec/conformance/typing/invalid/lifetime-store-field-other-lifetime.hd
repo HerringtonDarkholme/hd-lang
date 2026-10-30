@@ -1,0 +1,8 @@
+# test: storing a reference of one lifetime into a field of another lifetime is an error
+# Spec 13 Lifetime Stores: ref.lifetime.store.field.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn bad_x['a, 'b](t: &mut Two['a, 'b], s: &'b string) -> void:
+    t.x = s # diagnostic: local-reference-escapes

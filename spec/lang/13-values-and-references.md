@@ -824,6 +824,13 @@ fn bad['a, 'b](seen: &mut List[&'a User], u: &'b User) -> void:
 fn unnamed(seen: &mut List[&User], u: &User) -> void:  # error: local-reference-escapes
     pass
 
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn bad_x['a, 'b](t: &mut Two['a, 'b], s: &'b string) -> void:
+    t.x = s  # error: local-reference-escapes
+
 fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
     seen.push(u)
 
@@ -835,11 +842,13 @@ fn count(b: bool) -> usize:
     seen.len()  # error: local-reference-outlives-local
 ```
 
-1. r[ref.lifetime.store] A store through a parameter's reference into a place the caller owns is valid when the type that reference refers to has one lifetime in all its reference positions. The stored value must depend only on what a result of that lifetime may depend on ([`ref.lifetime.return`](#r-ref.lifetime.return)). Any other such store of a value that holds a local reference is an error ([`ref.dep.store`](#r-ref.dep.store)). Error: `local-reference-escapes`.
+1. r[ref.lifetime.store] A store through a parameter's reference into a place the caller owns is valid when the type that reference refers to has one lifetime in all its reference positions. A store into a field needs that of the field only ([`ref.lifetime.store.field`](#r-ref.lifetime.store.field)). The stored value must depend only on what a result of that lifetime may depend on ([`ref.lifetime.return`](#r-ref.lifetime.return)). Any other such store of a value that holds a local reference is an error ([`ref.dep.store`](#r-ref.dep.store)). Error: `local-reference-escapes`.
 2. r[ref.lifetime.store.collection] A list's `push` and a map's index assignment store their value into the list's or the map's place, so `seen.push(u)` follows [`ref.lifetime.store`](#r-ref.lifetime.store) when `seen` is such a parameter.
 3. r[ref.lifetime.store.call] A `&mut` parameter whose referent has a reference position of a lifetime variable, as `seen: &mut List[&'a T]`, is a place the call may store into. So the argument's place takes what the call's arguments in that lifetime's positions depend on, as for a type parameter ([`ref.generic.store`](#r-ref.generic.store)).
 4. r[ref.lifetime.store.type] A list's or a map's type argument may hold a local reference in a function body. It may hold one in the type of a `&mut` parameter too, when each other `&` of that type writes a lifetime variable, as in `seen: &mut List[&'a User]`.
 5. r[ref.lifetime.store.element] A value read from a list or a map, as `seen[0]` or the result of `get`, has the origins of the collection's elements.
+6. r[ref.lifetime.store.field] A store into a field through such a reference, as `t.x = s` with `t: &mut Two['a, 'b]`, needs one lifetime only in that field's reference positions, as a field read does ([`ref.lifetime.struct.read.one-lifetime`](#r-ref.lifetime.struct.read.one-lifetime)). The stored value must depend only on what a result of that lifetime may depend on.
+7. r[ref.lifetime.store.field.call] At a call, each position of a `&mut` argument's place takes only what the arguments in that position's lifetime depend on. So after `set_x(&mut t, &s)`, `t`'s `'a` position holds `s`'s origins and its `'b` position does not.
 
 ```hd
 struct User:
@@ -853,6 +862,22 @@ fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
 
 fn set['a](out: &mut (&'a User), u: &'a User) -> void:
     *out = u
+
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn set_x['a, 'b](t: &mut Two['a, 'b], s: &'a string) -> void:
+    t.x = s  # s has 'a, as x does
+
+fn other(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "inner"
+        let mut t = Two { x: &outer, y: &outer }
+        set_x(&mut t, &inner)
+        kept = t.y
+    kept.len()  # valid: t.y never held inner
 
 fn total(a: User, b: User) -> usize:
     let mut seen: List[&User] = []

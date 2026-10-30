@@ -5341,6 +5341,10 @@ typing/invalid/lifetime-store-outlives-local.hd	type	reject:local-reference-outl
 typing/invalid/lifetime-store-unnamed-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.type
 runtime/valid/lifetime-store-list.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.store.collection
 typing/invalid/lifetime-store-element-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.element
+typing/valid/lifetime-store-field.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.store.field
+typing/invalid/lifetime-store-field-other-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.store.field
+typing/invalid/lifetime-store-field-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.store.field.call
+runtime/valid/lifetime-store-field.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.store.field.call
 typing/invalid/lifetime-in-body-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.body
 typing/valid/lifetime-shared-either-source.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.shared
 typing/invalid/lifetime-return-unshared-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.return

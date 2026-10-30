@@ -640,6 +640,16 @@ fn tops(pool: Types<'_>, t: Ty) -> Vec<(usize, Ty)> {
         .collect()
 }
 
+/// Each top slot of `t`'s run of reference slots, itself and the slots
+/// behind it, as `[start, end)`.
+fn top_runs(pool: Types<'_>, t: Ty) -> Vec<(usize, usize)> {
+    let tp = tops(pool, t);
+    let n = pool.ref_slots(t);
+    (0..tp.len())
+        .map(|k| (tp[k].0, tp.get(k + 1).map_or(n, |x| x.0)))
+        .collect()
+}
+
 /// How many origin sets a value of type `t` has: one per top slot, or one
 /// for a trait value with none.
 fn width(pool: Types<'_>, t: Ty) -> usize {
@@ -943,7 +953,12 @@ impl Solve<'_> {
     /// The run of local `l`'s slots that the field projections `proj`
     /// reach, when that is known.
     fn local_range(&self, l: u32, proj: &[Proj]) -> Option<(usize, usize)> {
-        let mut t = self.b.local_ty[l as usize];
+        self.range(self.b.local_ty[l as usize], proj)
+    }
+
+    /// The run of the top slots of a value of type `t` that the field
+    /// projections `proj` reach, when that is known.
+    fn range(&self, mut t: Ty, proj: &[Proj]) -> Option<(usize, usize)> {
         let (mut start, mut len) = (0, tops(self.pool, t).len());
         let mut variant = None;
         for p in proj {
@@ -1055,6 +1070,25 @@ impl Solve<'_> {
         }
     }
 
+    /// The local and the run of its slots that the argument `a` refers
+    /// to, when it is a reference to a local's place reached by field
+    /// projections.
+    fn arg_range(&self, a: u32) -> Option<(u32, (usize, usize))> {
+        let b = self.b;
+        let mut v = a;
+        while v & hd_tir::ir::Ref::CONST_BIT == 0 && b.tags[v as usize] == Tag::Coerce {
+            v = b.data[v as usize][0];
+        }
+        if v & hd_tir::ir::Ref::CONST_BIT != 0 || b.tags[v as usize] != Tag::Ref {
+            return None;
+        }
+        let p = b.decode_place(b.data[v as usize][0])?;
+        let PlaceRoot::Local(l) = p.root else {
+            return None;
+        };
+        Some((l.raw(), self.local_range(l.raw(), &p.proj)?))
+    }
+
     /// Every origin `set` reaches through the storage of its origins.
     fn reach(&self, set: Set) -> Set {
         let mut out = set.clone();
@@ -1137,11 +1171,20 @@ impl Solve<'_> {
         out
     }
 
-    /// `ref.lifetime.store`: whether `value` may land in what slot `s`
-    /// of parameter `q` refers to, a place the caller owns: the reference
+    /// `ref.lifetime.store`: whether `value` may land in what slot `s` of
+    /// parameter `q` refers to, a place the caller owns: the reference
     /// positions of that place's type all have one lifetime, and each
     /// origin of `value` is one a result of that lifetime may depend on.
-    fn caller_place_takes(&self, q: u32, s: u32, value: &[Origin]) -> bool {
+    /// A place that the field projections of `deref` reach from a referent
+    /// of that type checks each top slot of `value` against its own
+    /// positions only (`ref.lifetime.store.field`).
+    fn caller_place_takes(
+        &self,
+        q: u32,
+        s: u32,
+        deref: Option<(Ty, &[Proj])>,
+        value: &[Set],
+    ) -> bool {
         let pool = self.pool;
         let Some(own) = self.own else { return false };
         let Some((t, ids)) = own.params.get(q as usize) else {
@@ -1151,11 +1194,24 @@ impl Solve<'_> {
         let Some(&(rt, _)) = slots_of(pool, *t).get(s) else {
             return false;
         };
-        let n = pool.ref_slots(referent(pool, rt));
-        let Some(inner @ [l, ..]) = ids.get(s + 1..s + 1 + n) else {
-            return false;
+        let inner = referent(pool, rt);
+        let runs = top_runs(pool, inner);
+        let takes = |lo: usize, hi: usize, v: &[Origin]| {
+            let Some(ls @ [l, ..]) = ids.get(s + 1 + lo..s + 1 + hi) else {
+                return false;
+            };
+            ls.iter().all(|x| x == l) && v.iter().all(|&o| own.allows(pool, o, *l))
         };
-        inner.iter().all(|x| x == l) && value.iter().all(|&o| own.allows(pool, o, *l))
+        let range = deref
+            .filter(|&(t, _)| referent_fn(pool, t) == referent_fn(pool, inner))
+            .and_then(|(_, proj)| self.range(inner, proj));
+        match range {
+            Some((a, k)) if value.len() == k && a + k <= runs.len() => (0..k).all(|j| {
+                let (lo, hi) = runs[a + j];
+                value[j].is_empty() || takes(lo, hi, &value[j])
+            }),
+            _ => takes(0, pool.ref_slots(inner), &flat(value)),
+        }
     }
 
     /// `ref.generic.store`: call `i` may store, through each `&mut`
@@ -1183,26 +1239,47 @@ impl Solve<'_> {
                 if !mutable || inner == 0 {
                     continue;
                 }
-                let mut value = Set::new();
-                for &id in &ids[(s + 1).min(ids.len())..(s + 1 + inner).min(ids.len())] {
-                    if (TVAR..TVAR_END).contains(&id) || id == ANY || id < ANON {
-                        union(&mut value, &self.lifetime_args(i, sig, id));
-                    }
-                }
+                // What each top slot of the referent may take: the
+                // arguments of the lifetimes in its own positions
+                // (`ref.lifetime.store.field`).
+                let per: Vec<Set> = top_runs(pool, referent(pool, rt))
+                    .into_iter()
+                    .map(|(lo, hi)| {
+                        let mut v = Set::new();
+                        let n = ids.len();
+                        for &id in &ids[(s + 1 + lo).min(n)..(s + 1 + hi).min(n)] {
+                            if (TVAR..TVAR_END).contains(&id) || id == ANY || id < ANON {
+                                union(&mut v, &self.lifetime_args(i, sig, id));
+                            }
+                        }
+                        v
+                    })
+                    .collect();
+                let value = flat(&per);
                 if value.is_empty() {
                     continue;
                 }
+                let place = self.arg_range(a).filter(|&(_, (_, n))| n == per.len());
                 let roots = self.of(a).get(k).cloned().unwrap_or_default();
                 for o in roots {
                     match o {
+                        // Each position of the argument's own place.
+                        Origin::Local(l) if place.is_some_and(|(x, _)| x == l) => {
+                            self.hold(o, &per, place.map(|(_, r)| r));
+                        }
                         Origin::Local(_) | Origin::Hidden(_) => {
-                            self.hold(o, &[value.clone()], None);
+                            self.hold(o, std::slice::from_ref(&value), None);
                         }
                         Origin::Param(q, s0) => {
                             if value
                                 .iter()
                                 .any(|x| !matches!(x, Origin::Param(r, _) if *r == q))
-                                && !self.caller_place_takes(q, s0, &value)
+                                && !self.caller_place_takes(
+                                    q,
+                                    s0,
+                                    Some((referent(pool, rt), &[])),
+                                    &per,
+                                )
                             {
                                 self.out.insert(w(i));
                             }
@@ -1274,13 +1351,21 @@ impl Solve<'_> {
             },
             _ => None,
         };
+        // The referent's type and the projections past the dereference.
+        let deref = match &p {
+            Some(p) if through => match p.root {
+                PlaceRoot::Value(v) => self.ty(v.0).map(|t| (referent(self.pool, t), &p.proj[1..])),
+                _ => None,
+            },
+            _ => None,
+        };
         let (storage, _) = self.place(w(i), word, 0);
         for s in storage {
             match s {
                 Origin::Param(q, k) if through => {
                     // A capture-bearing function value never lands in a
                     // caller's place (`fn.capture.local-store`).
-                    if captures || (holds && !self.caller_place_takes(q, k, &flat(value))) {
+                    if captures || (holds && !self.caller_place_takes(q, k, deref, value)) {
                         self.out.insert(w(i));
                     }
                 }

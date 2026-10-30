@@ -1,0 +1,21 @@
+# test: a store through `&mut` into one field of a struct with two lifetimes changes that field only
+# Spec 13 Lifetime Stores: ref.lifetime.store.field, ref.lifetime.store.field.call.
+# expect-stdout: inner outer
+# expect-stdout: 5
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn set_x['a, 'b](t: &mut Two['a, 'b], s: &'a string) -> void:
+    t.x = s
+
+pub fn main() -> void $ Console:
+    outer := "outer"
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "inner"
+        let mut t = Two { x: &outer, y: &outer }
+        set_x(&mut t, &inner)
+        println("${*t.x} ${*t.y}")
+        kept = t.y
+    println("${kept.len()}")

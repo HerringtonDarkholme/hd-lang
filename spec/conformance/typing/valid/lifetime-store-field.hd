@@ -1,0 +1,23 @@
+# test: a store into a field of a struct with two lifetimes checks that field's lifetime, and the caller's value takes it in that position only
+# Spec 13 Lifetime Stores: ref.lifetime.store.field, ref.lifetime.store.field.call.
+struct Two['a, 'b]:
+    x: &'a string
+    y: &'b string
+
+fn set_x['a, 'b](t: &mut Two['a, 'b], s: &'a string) -> void:
+    t.x = s
+
+fn set_y['a, 'b](t: &mut Two['a, 'b], s: &'b string) -> void:
+    t.y = s
+
+fn forward['a, 'b](t: &mut Two['a, 'b], s: &'a string) -> void:
+    set_x(t, s)
+
+fn demo(outer: string) -> usize:
+    let mut kept = &outer
+    if outer.len() > 0:
+        inner := "hello"
+        let mut t = Two { x: &outer, y: &inner }
+        set_x(&mut t, &outer)
+        kept = t.x
+    kept.len()
