@@ -492,6 +492,39 @@ pub(crate) fn outlives_field(
     }
 }
 
+/// `ref.generic.outlives.argument`: whether a closure written for a
+/// parameter of bare type parameter `index` of `owner` may capture local
+/// references. `'static` must not bound the parameter, and `sig`'s
+/// parameters and result must name it only bare, under at most `mut`: a
+/// function type inside another type has no capture slot to carry them.
+pub(crate) fn scoped_fn_generic(
+    pool: Types<'_>,
+    static_bound: hd_base::DefId,
+    owner: hd_base::DefId,
+    sig: &hd_resolve::FnSig,
+    index: usize,
+) -> bool {
+    let Some(g) = sig.generics.get(index) else {
+        return false;
+    };
+    if g.bounds
+        .iter()
+        .any(|&b| pool.trait_value(b).is_some_and(|(d, _)| d == static_bound))
+    {
+        return false;
+    }
+    let me = |p: hd_types::ParamRef| p.owner == owner && usize::from(p.index) == index;
+    let bare_only = |t: Ty| {
+        let t = match pool.get(t) {
+            TyData::Mut(inner) => inner,
+            _ => t,
+        };
+        matches!(pool.get(t), TyData::Param(p) if me(p))
+            || pool.subst(t, &|p| me(p).then_some(Ty::NEVER)) == t
+    };
+    sig.params.iter().all(|&(_, t)| bare_only(t)) && bare_only(sig.ret)
+}
+
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Ref { counted, .. } => !counted,

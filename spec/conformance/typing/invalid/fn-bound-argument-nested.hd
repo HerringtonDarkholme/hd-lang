@@ -1,0 +1,15 @@
+# test: a closure for a type parameter that the callee's result names inside another type captures no local reference
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument.
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+struct Plain[F < FnMut() -> void]:
+    on_click: F
+
+fn wrap[F < FnMut() -> void](f: F) -> Plain[F]:
+    Plain { on_click: f }
+
+fn nested(c: &mut Counter) -> void:
+    p := wrap(fn(): c.n += 1) # diagnostic: local-reference-escapes

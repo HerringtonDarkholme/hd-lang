@@ -1,0 +1,48 @@
+# test: a closure passed straight to a generic Fn or FnMut parameter captures local references for the call
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument, ref.generic.outlives.argument-origins.
+# expect-stdout: 3
+# expect-stdout: 5
+# expect-stdout: small
+use std.function.{Fn, FnMut}
+
+struct Counter:
+    n: i32
+
+struct Shelf:
+    items: List[i32]
+
+fn twice[F < FnMut() -> void](mut f: F) -> void:
+    f()
+    f()
+
+fn on[F < FnMut() -> void & 'a, 'a](mut f: F) -> void:
+    f()
+
+fn same[F < FnMut() -> void](f: F) -> F:
+    f
+
+fn check[F < Fn() -> bool](name: string, cond: F) -> void $ Console:
+    if cond():
+        println(name)
+
+impl Shelf:
+    fn add(&mut self, x: i32) -> void $ Console:
+        check("small", fn(): self.items.len() < 10)
+        self.items.push(x)
+
+fn bump(c: &mut Counter) -> void:
+    twice(fn(): c.n += 1)
+    on(fn(): c.n += 1)
+    let mut g = same(fn(): c.n += 1)
+    g()
+
+pub fn main() -> void $ Console:
+    let clicks = +0
+    twice(fn(): clicks += 1)
+    on(fn(): clicks += 1)
+    println("$clicks")
+    let mut c = Counter { n: +1 }
+    bump(&mut c)
+    println("${c.n}")
+    let mut s = Shelf { items: [] }
+    s.add(+1)

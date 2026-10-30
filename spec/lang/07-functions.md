@@ -968,7 +968,8 @@ fn demo() -> i32:
 13. r[fn.capture.local-uses] The callee may call that parameter, pass it to another direct function parameter, or return it as a dependent result.
 14. r[fn.capture.local-store] Storing that parameter in a field, a box, a provider, or a top-level binding is an error. Error: `local-reference-escapes`.
 15. r[fn.capture.local-field] A closure written for a struct field of a lifetime-bounded type parameter may capture local references, as [`ref.generic.outlives.field`](13-values-and-references.md#r-ref.generic.outlives.field) states.
-16. r[fn.capture.no-local-reference-stored] A closure in any other function-value position must not capture a local reference, as [`ref.local.escape.capture-stored`](13-values-and-references.md#r-ref.local.escape.capture-stored) states. Error: `local-reference-escapes`.
+16. r[fn.capture.local-generic] A closure written as a call argument for a bare type parameter may capture local references, as [`ref.generic.outlives.argument`](13-values-and-references.md#r-ref.generic.outlives.argument) states.
+17. r[fn.capture.no-local-reference-stored] A closure in any other function-value position must not capture a local reference, as [`ref.local.escape.capture-stored`](13-values-and-references.md#r-ref.local.escape.capture-stored) states. Error: `local-reference-escapes`.
 
 > **Why.** An immutable binding never changes, so copying it and sharing it
 > look the same. A variable changes, so the closure and its scope must refer

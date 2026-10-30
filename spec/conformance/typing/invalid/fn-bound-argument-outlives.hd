@@ -1,0 +1,17 @@
+# test: a call result in a lifetime that bounds a closure argument's type parameter outlives that closure's captured local
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument-origins.
+use std.function.Fn
+
+struct Counter:
+    n: i32
+
+fn first[F < Fn() -> i32 & 'a, 'a](c: &'a Counter, f: F) -> &'a Counter:
+    c
+
+fn pick(outer: &Counter) -> i32:
+    let mut r: &Counter = outer
+    if outer.n > 0:
+        inner := Counter { n: +2 }
+        p := &inner
+        r = first(outer, fn() -> i32: p.n)
+    r.n # diagnostic: local-reference-outlives-local

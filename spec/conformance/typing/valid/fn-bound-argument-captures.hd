@@ -1,0 +1,30 @@
+# test: closures passed by position, by name, and to a method's generic Fn parameter capture local references for the call
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument, ref.generic.outlives.argument-origins.
+use std.function.{Fn, FnMut}
+
+struct Counter:
+    n: i32
+
+struct Shelf:
+    items: List[i32]
+
+fn twice[F < FnMut() -> void](mut f: F) -> void:
+    f()
+    f()
+
+fn first[F < Fn() -> i32 & 'a, 'a](c: &'a Counter, f: F) -> &'a Counter:
+    c
+
+impl Shelf:
+    fn each[F < FnMut(i32) -> void](&self, mut f: F) -> void:
+        for x in self.items:
+            f(x)
+
+fn total(s: &Shelf, c: &mut Counter) -> i32:
+    s.each(fn(x): c.n += x)
+    twice(f=fn(): c.n += 1)
+    c.n
+
+fn pick(outer: &Counter, other: &Counter) -> i32:
+    r := first(outer, fn() -> i32: other.n)
+    r.n

@@ -1,0 +1,15 @@
+# test: storing a generic call's result that holds a closure argument's captured local reference in a field is local-reference-escapes
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument-origins.
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+struct Holder:
+    cb: fn() -> void
+
+fn same[F < FnMut() -> void](f: F) -> F:
+    f
+
+fn keep(c: &mut Counter) -> Holder:
+    Holder { cb: same(fn(): c.n += 1) } # diagnostic: local-reference-escapes

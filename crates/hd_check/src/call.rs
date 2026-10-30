@@ -232,6 +232,9 @@ pub(crate) struct FnWant {
     /// The bound is `Fn`, so the value may not change its captures
     /// (`fn.trait.read-only`).
     pub read_only: bool,
+    /// A closure written for the parameter may capture local references
+    /// for the call (`ref.generic.outlives.argument`).
+    pub scoped: bool,
 }
 
 /// Whether a pre-instantiation formal type is a bare occurrence of type
@@ -320,6 +323,13 @@ fn fn_bound_formals(
                     deps: hd_types::FnDeps::NONE,
                 }),
                 read_only,
+                scoped: crate::local_refs::scoped_fn_generic(
+                    pool,
+                    ck.cx.names.known.static_bound,
+                    owner,
+                    sig,
+                    index,
+                ),
             })
         })
         .collect()
@@ -1657,8 +1667,8 @@ impl Ck<'_, '_> {
                 _ => w,
             };
             let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
-                && bounded.is_none()
-                && formals.inferred.get(skip + i).is_none_or(Vec::is_empty);
+                && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
+                    || fn_want.is_some_and(|f| f.scoped));
             let (r, t) = self.arg_value(*e, expect, scoped_capture)?;
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
@@ -1781,8 +1791,8 @@ impl Ck<'_, '_> {
                 w
             };
             let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
-                && bounded.is_none()
-                && formals.inferred.get(skip + i).is_none_or(Vec::is_empty);
+                && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
+                    || fn_want.is_some_and(|f| f.scoped));
             let (r, t) = self.arg_value(*e, Some(expect), scoped_capture)?;
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);

@@ -375,8 +375,16 @@ impl DepSig {
     /// that a type parameter adds shares that parameter's lifetime. An
     /// argument whose type does not line up with its parameter's keeps the
     /// declared type, and then a result slot a type parameter adds depends
-    /// on every argument (`ref.generic.call.unaligned`).
-    fn instantiate(self, pool: Types<'_>, b: &Body, i: usize) -> DepSig {
+    /// on every argument (`ref.generic.call.unaligned`). With the callee
+    /// and its generics, a parameter of a bare type parameter bounded by a
+    /// lifetime puts its slots in that lifetime (`ref.generic.outlives.argument`).
+    fn instantiate(
+        self,
+        pool: Types<'_>,
+        b: &Body,
+        i: usize,
+        callee: Option<(DefId, &[hd_resolve::Generic])>,
+    ) -> DepSig {
         let mut keys = Vec::new();
         let mut lossy = false;
         let mut params = Vec::with_capacity(self.params.len());
@@ -388,6 +396,21 @@ impl DepSig {
             let mut it = ids.iter().copied();
             match at {
                 Some(t) if line_up_value(pool, decl, t, &mut it, &mut keys, &mut out, 0) => {
+                    let outlives = callee.and_then(|(def, generics)| {
+                        crate::local_refs::outlives_field(
+                            pool,
+                            def,
+                            generics,
+                            referent_fn(pool, decl),
+                        )
+                    });
+                    if let Some(l) = outlives {
+                        for id in &mut out {
+                            if (TVAR..TVAR_END).contains(id) {
+                                *id = u32::from(l);
+                            }
+                        }
+                    }
                     params.push((t, out));
                 }
                 _ => {
@@ -1562,13 +1585,14 @@ impl Solve<'_> {
         self.ty(v).is_some_and(|t| capture_slot(self.pool, t)) && !flat(self.of(v)).is_empty()
     }
 
-    /// The declared and instantiated parameter types of call `i`, and
-    /// whether the declared one is a type parameter bounded by `'static`.
-    /// A direct function type is the one non-escaping destination for a
-    /// scoped function value, including where a generic parameter that
-    /// `'static` does not bound is instantiated with that function type
-    /// (`ref.generic.outlives.box`).
-    fn call_params(&self, i: usize) -> Vec<(Ty, Ty, bool)> {
+    /// The declared and instantiated parameter types of call `i`, whether
+    /// the declared one is a type parameter bounded by `'static`, and
+    /// whether it is one a closure argument may capture for
+    /// (`ref.generic.outlives.argument`). A direct function type is the
+    /// one other non-escaping destination for a scoped function value,
+    /// including where a generic parameter that `'static` does not bound
+    /// is instantiated with that function type (`ref.generic.outlives.box`).
+    fn call_params(&self, i: usize) -> Vec<(Ty, Ty, bool, bool)> {
         let b = self.b;
         let instantiated = |def| {
             let sig = self.cx.lookup.item(def)?.sig()?;
@@ -1584,6 +1608,16 @@ impl Solve<'_> {
                 }
                 _ => false,
             };
+            let scoped = |t: Ty| match self.pool.get(referent_fn(self.pool, t)) {
+                TyData::Param(p) if p.owner == def => crate::local_refs::scoped_fn_generic(
+                    self.pool,
+                    self.cx.names.known.static_bound,
+                    def,
+                    sig,
+                    usize::from(p.index),
+                ),
+                _ => false,
+            };
             let names = &self.cx.names;
             let params = DepSig::new(
                 self.pool,
@@ -1592,13 +1626,13 @@ impl Solve<'_> {
                 sig.ret,
                 &sig.lifetimes,
             )
-            .instantiate(self.pool, b, i)
+            .instantiate(self.pool, b, i, None)
             .params;
             Some(
                 sig.params
                     .iter()
                     .zip(params)
-                    .map(|(p, (t, _))| (p.1, t, kept(p.1)))
+                    .map(|(p, (t, _))| (p.1, t, kept(p.1), scoped(p.1)))
                     .collect(),
             )
         };
@@ -1624,7 +1658,7 @@ impl Solve<'_> {
                         self.pool
                             .list_items(params)
                             .iter()
-                            .map(|&p| (p, p, false))
+                            .map(|&p| (p, p, false, false))
                             .collect(),
                     ),
                     _ => None,
@@ -1681,7 +1715,7 @@ impl Solve<'_> {
                 }
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => {
                     let params = self.call_params(i);
-                    for (p, &(declared, instantiated, kept)) in params.iter().enumerate() {
+                    for (p, &(declared, instantiated, kept, scoped)) in params.iter().enumerate() {
                         let Some(value) = source_arg(b, i, p) else {
                             continue;
                         };
@@ -1698,7 +1732,10 @@ impl Solve<'_> {
                                 at(value, i),
                                 "a local reference captured by this function value never escapes to a type parameter bounded by `'static`",
                             ));
-                        } else if !capture_slot(self.pool, declared) && !forwards_parameter {
+                        } else if !capture_slot(self.pool, declared)
+                            && !forwards_parameter
+                            && !scoped
+                        {
                             bad.push((
                                 at(value, i),
                                 "a local reference captured by this function value may be passed only to a `fn(...)` parameter",
@@ -1860,7 +1897,7 @@ impl Ck<'_, '_> {
             sig.ret,
             &sig.lifetimes,
         )
-        .instantiate(pool, b, i);
+        .instantiate(pool, b, i, Some((def, &sig.generics)));
         dep.depends().then_some(dep)
     }
 
@@ -1903,7 +1940,7 @@ impl Ck<'_, '_> {
             sig.ret,
             &sig.lifetimes,
         )
-        .instantiate(pool, b, i);
+        .instantiate(pool, b, i, Some((def, &sig.generics)));
         // A slot of a type parameter, or of a written lifetime
         // (`ref.lifetime.store.call`).
         let shared = dep.params.iter().any(|(_, ids)| {

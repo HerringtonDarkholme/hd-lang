@@ -1,0 +1,14 @@
+# test: returning a generic call's result that holds a closure argument's captured local reference is local-reference-escapes
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument-origins.
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+fn same[F < FnMut() -> void](f: F) -> F:
+    f
+
+fn make() -> fn() -> void:
+    let mut x = Counter { n: +0 }
+    r := &mut x
+    same(fn(): r.n += 1) # diagnostic: local-reference-escapes

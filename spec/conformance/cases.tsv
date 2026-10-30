@@ -5401,6 +5401,13 @@ typing/invalid/fn-bound-lifetime-outlives.hd	type	reject:local-reference-outlive
 typing/invalid/fn-bound-lifetime-box.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.box
 typing/invalid/fn-bound-lifetime-return.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.read
 typing/invalid/fn-bound-lifetime-unbounded-field.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.field
+runtime/valid/fn-bound-argument-captures.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.outlives.argument
+typing/valid/fn-bound-argument-captures.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.outlives.argument
+typing/invalid/fn-bound-argument-outlives.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.generic.outlives.argument-origins
+typing/invalid/fn-bound-argument-return.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.argument-origins
+typing/invalid/fn-bound-argument-stored.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.argument-origins
+typing/invalid/fn-bound-argument-nested.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.argument
+typing/invalid/fn-bound-argument-static.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.argument
 typing/invalid/function-parameter-capture-boxed.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.box
 typing/invalid/function-parameter-capture-static-bound.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.outlives.box
 typing/valid/static-fn-bound-conjunction-order.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.static.fn-conjunction
