@@ -2022,10 +2022,34 @@ impl Lower<'_, '_, '_> {
                 if Prim::ALL.iter().any(|p| p.name() == name) {
                     return ConstName::Type;
                 }
-                top_level_binding(&src, name).unwrap_or_else(|| {
-                    other_module = true;
-                    ConstName::Poison
-                })
+                if let Some(binding) = top_level_binding(&src, name) {
+                    return binding;
+                }
+                let kind = local_at(self.locals, sym, self.at)
+                    .map(|local| local.kind)
+                    .or_else(|| {
+                        let binding = self.scope.lookup(sym)?;
+                        if binding.kind == BindingKind::Poison {
+                            return None;
+                        }
+                        (binding.kind == BindingKind::Item).then(|| {
+                            let def = DefId::from_raw(binding.value);
+                            self.kinds
+                                .get(&def)
+                                .copied()
+                                .or_else(|| self.r.item(def).and_then(|item| item.kind()))
+                        })?
+                    });
+                match kind {
+                    Some(HeadKind::Fn) => ConstName::Runtime,
+                    Some(kind) if kind.is_type() => ConstName::Type,
+                    Some(_) => {
+                        other_module = true;
+                        ConstName::Poison
+                    }
+                    None if self.is_poisoned(sym) => ConstName::Poison,
+                    None => ConstName::Unknown,
+                }
             };
             crate::const_eval::const_argument(&src, argument, want, syms, &mut lookup)
         };

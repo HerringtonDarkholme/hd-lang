@@ -192,6 +192,61 @@ type Wide = Big[2 ** 63]
 }
 
 #[test]
+fn header_const_arguments_classify_bad_names() {
+    let text = "struct Fixed[N < const usize]: pass\nstruct NotValue: pass\nfn make() -> usize: 4\ntype BadType = Fixed[NotValue]\ntype BadFunction = Fixed[make]\ntype BadUnknown = Fixed[Missing]\n";
+    let (pool, paths, syms) = (
+        InternPool::new(),
+        PathTable::new(),
+        ShardedInterner::default(),
+    );
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let parsed = parse(text.as_bytes());
+    assert!(parsed.is_ok());
+    let cx = Cx {
+        names,
+        folder: 0,
+        world: &OneFolder,
+    };
+    let input = ModIn {
+        path: "app".to_owned(),
+        roots: UseRoots::default(),
+        src: Src {
+            parse: &parsed,
+            text,
+            file: FileId::from_raw(0),
+        },
+        seeds: Vec::new(),
+        tests: false,
+        session: None,
+    };
+    let mut diags = DiagBuf::default();
+    build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
+        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
+    let order = diags.content_order();
+    assert_eq!(
+        order
+            .iter()
+            .map(|index| diags.code[*index])
+            .collect::<Vec<_>>(),
+        [
+            Code::GenericKindMismatch,
+            Code::NonconstantGenericArgument,
+            Code::UnknownName,
+        ]
+    );
+    assert!(order.iter().all(|index| {
+        let span = diags.primary[*index];
+        span.file == FileId::from_raw(0) && span.lo < span.hi
+    }));
+}
+
+#[test]
 fn const_parameters_and_parameter_arguments_survive_an_interface() {
     let text = "pub struct Buffer[T, N < const usize]:\n    value: T\n\npub struct Flag[B < const bool, S < const string]:\n    value: i32\n\npub fn keep[T, N < const usize](value: Buffer[T, N]) -> Buffer[T, N]:\n    value\n";
     let (pool, paths, syms) = (
