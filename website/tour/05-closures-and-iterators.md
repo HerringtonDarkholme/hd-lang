@@ -62,7 +62,7 @@ println("map calls before sum: $before; after: $after; fees: $total cents")
 ```edit
 replace:         .filter(fn(amount: i32) -> bool: amount >= threshold)
 with:         .filter(fn(amount: i32) -> i32: amount)
-error: type-mismatch: in argument: expected fn(i32) -> bool, found fn(i32) -> i32
+error: unsatisfied-trait-bound: fn(i32) -> i32 does not implement FnMut[(i32), bool, $()]
 ```
 
 ```output

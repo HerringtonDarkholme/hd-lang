@@ -1,8 +1,8 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 5 and slices 6a1 to 6a4, 6b1 and 6b2; stage 6's remaining slices are
-tickets #1023 to #1029 and #1035. It reviews
+stages 1 to 5, 6a1 to 6a4, 6b1 to 6b2, 6d1 to 6d4, and 6e1 to 6e3.
+Slices 6c1 to 6c3 are #1023 to #1025; 6e's `require` switch is #1042. It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
@@ -18,7 +18,9 @@ Stage 2's error is [Local Scope](../../spec/lang/13-values-and-references.md#loc
 calls and inlined getters, is `crates/hd_wasm_linear/DESIGN.md` §23.38
 (#1006). Stage 5 is
 [Generic Locality](../../spec/lang/13-values-and-references.md#generic-locality)
-and its Generic Calls (#1016).
+and its Generic Calls (#1016). Stage 6 has built lifetime data positions,
+stores through those positions, capturing function values, static `Fn` bounds,
+and `FnMut` closures.
 
 ## Context
 
