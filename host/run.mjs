@@ -105,10 +105,7 @@ async function runHere({ module, config, args, sink, deadline = null, cancel = n
   }
 }
 
-async function runHereUnchecked({ module, config, args, sink, deadline, cancel }) {
-  // The unsupervised path may receive bytes; retain the compiled module
-  // so checked reports can read its custom metadata too.
-  module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
+async function packageHost(module, config) {
   const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
   if (sections.length > 1) {
     throw new HostContract("duplicate package host contracts");
@@ -119,23 +116,21 @@ async function runHereUnchecked({ module, config, args, sink, deadline, cancel }
   const registrations = new Map();
   const grants = { ...config.grants };
   for (const registration of config.hostProviders ?? []) {
-    const i = required.find((i) => !i.handle && i.module === registration.module);
-    if (!i || !i.selectors.includes(registration.grantPath)) {
+    const item = required.find((entry) => !entry.handle && entry.module === registration.module);
+    if (!item || !item.selectors.includes(registration.grantPath)) {
       throw new HostContract("provider mapping names no required package capability");
     }
-    if (registrations.has(i.module)) {
-      throw new HostContract(`duplicate provider for ${i.identity.trait_path}`);
+    if (registrations.has(item.module)) {
+      throw new HostContract(`duplicate provider for ${item.identity.trait_path}`);
     }
-    registrations.set(i.module, registration);
+    registrations.set(item.module, registration);
   }
-  // Preflight every grant before importing any provider: initialization can
-  // already touch the machine. Mappings come from the CLI's manifest check.
-  for (const i of required.filter((i) => !i.handle)) {
-    const name = `${i.identity.package}@${i.identity.version}/${i.identity.trait_path}`;
-    if (i.selectors.some((s) => grants[s] === false)) {
+  for (const item of required.filter((entry) => !entry.handle)) {
+    const name = `${item.identity.package}@${item.identity.version}/${item.identity.trait_path}`;
+    if (item.selectors.some((selector) => grants[selector] === false)) {
       throw new HostContract(`package capability denied: ${name}`);
     }
-    const registration = registrations.get(i.module);
+    const registration = registrations.get(item.module);
     if (!registration) {
       throw new HostContract(
         `package capability ${name} is not granted; add its trait path to the app's [capabilities] table`,
@@ -143,22 +138,29 @@ async function runHereUnchecked({ module, config, args, sink, deadline, cancel }
     }
     grants[registration.grantPath] = true;
   }
-  let packageBindings = null;
-  let createPackageRuntime = null;
-  if (required.length) {
-    // This module was regenerated from validated data by hd, in its private
-    // host directory. It is never JavaScript obtained from a guest section.
-    const [{ createPackageRuntime: createRuntime }, generated] = await Promise.all([
-      import("./package-providers.mts"),
-      import("./main.host.mjs"),
-    ]);
-    createPackageRuntime = createRuntime;
-    const providers = new Map();
-    for (const [module, registration] of registrations) {
-      providers.set(module, (await import(pathToFileURL(registration.path).href)).default);
-    }
-    packageBindings = (runtime) => generated.bind(runtime, providers);
+  if (!required.length) {
+    return { grants, packageBindings: null, createPackageRuntime: null };
   }
+  const [{ createPackageRuntime }, generated] = await Promise.all([
+    import("./package-providers.mts"),
+    import("./main.host.mjs"),
+  ]);
+  const providers = new Map();
+  for (const [name, registration] of registrations) {
+    providers.set(name, (await import(pathToFileURL(registration.path).href)).default);
+  }
+  return {
+    grants,
+    createPackageRuntime,
+    packageBindings: (runtime) => generated.bind(runtime, providers),
+  };
+}
+
+async function runHereUnchecked({ module, config, args, sink, deadline, cancel }) {
+  // The unsupervised path may receive bytes; retain the compiled module
+  // so checked reports can read its custom metadata too.
+  module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
+  const { grants, packageBindings, createPackageRuntime } = await packageHost(module, config);
   const profile = config.profile ? await import("./profiles.mjs") : null;
   const host = await createStartupHost(module, sink, {
     processLauncher: config.processLauncher,

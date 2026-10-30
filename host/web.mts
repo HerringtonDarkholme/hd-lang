@@ -68,6 +68,68 @@ const headerPairs = (text: string): [string, string][] =>
       return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
     });
 
+function browserUrl(url: string): URL | undefined {
+  try {
+    if (!isAsciiUrl(url)) {
+      return undefined;
+    }
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function grantedOrigin(parsed: URL, url: string): boolean {
+  const origin = globalThis.location?.origin;
+  const own = origin ? new URL(origin) : undefined;
+  const ownHost = own?.hostname.replace(/^\[(.*)\]$/, "$1").toLowerCase();
+  return (
+    writtenHost(url) === ownHost && parsed.protocol === own?.protocol && parsed.port === own?.port
+  );
+}
+
+function xhrResponse(
+  parsed: URL,
+  { method, headers, body, timeout }: BrowserRequest,
+): BrowserAnswer {
+  const xhr = new XMLHttpRequest();
+  try {
+    xhr.open(method, parsed.href, false);
+    xhr.responseType = "arraybuffer";
+    if (timeout !== null) {
+      xhr.timeout = timeout;
+    }
+    for (const [name, value] of headers) {
+      xhr.setRequestHeader(name, value);
+    }
+    xhr.send(method === "GET" || method === "HEAD" ? null : (body as XMLHttpRequestBodyInit));
+  } catch (error) {
+    return (error as Dynamic)?.name === "TimeoutError"
+      ? { error: "Timeout", text: "" }
+      : { error: "Connect", text: REFUSED };
+  }
+  if (xhr.status === 0) {
+    return { error: "Connect", text: REFUSED };
+  }
+  const decodedBody = new Uint8Array(xhr.response);
+  if (decodedBody.length > MAX_DECODED_BYTES) {
+    return { error: "OutputTooLarge", text: null };
+  }
+  const responseHeaders = headerPairs(xhr.getAllResponseHeaders());
+  const staleEncoding = responseHeaders.some(([name]) => name.toLowerCase() === "content-encoding");
+  return {
+    status: xhr.status,
+    headers: staleEncoding
+      ? responseHeaders.filter(
+          ([name]) => !["content-encoding", "content-length"].includes(name.toLowerCase()),
+        )
+      : responseHeaders,
+    body: decodedBody,
+    url: xhr.responseURL || parsed.href,
+  };
+}
+
 // Sends one request with the browser: `{ method, url, headers, body,
 // redirects, timeout, settings }`, with `body` a `Uint8Array` and `timeout` milliseconds or
 // `null`. The answer is the Node client's shape (http.mjs): `{ status,
@@ -90,16 +152,8 @@ export function browserSend({
   if (refused) {
     return refused;
   }
-  let parsed: URL;
-  try {
-    if (!isAsciiUrl(url)) {
-      return { error: "InvalidUrl", text: url };
-    }
-    parsed = new URL(url);
-  } catch {
-    return { error: "InvalidUrl", text: url };
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  const parsed = browserUrl(url);
+  if (!parsed) {
     return { error: "InvalidUrl", text: url };
   }
   // The grant covers the page's own origin alone (std-http.playground.origin).
@@ -107,55 +161,15 @@ export function browserSend({
   // not WHATWG's rewrite of it; the scheme and port are the origin's.
   // The page's origin is the worker's; only its `origin` string is relied
   // on, as every location has one.
-  const host = writtenHost(url);
-  const origin = globalThis.location?.origin;
-  const own = origin ? new URL(origin) : undefined;
-  const ownHost = own?.hostname.replace(/^\[(.*)\]$/, "$1").toLowerCase();
-  if (host !== ownHost || parsed.protocol !== own?.protocol || parsed.port !== own?.port) {
-    return { error: "NotGranted", text: host };
+  if (!grantedOrigin(parsed, url)) {
+    return { error: "NotGranted", text: writtenHost(url) };
   }
   // XMLHttpRequest follows redirects automatically; do not silently turn a
   // caller's raw-response request into a followed response.
   if (redirects === 0) {
     return { error: "Other", text: "the browser host cannot stop redirects" };
   }
-  const xhr = new XMLHttpRequest();
-  try {
-    xhr.open(method, parsed.href, false);
-    xhr.responseType = "arraybuffer";
-    if (timeout !== null) {
-      xhr.timeout = timeout;
-    }
-    // The browser drops a forbidden header, such as Cookie or Host.
-    for (const [name, value] of headers) {
-      xhr.setRequestHeader(name, value);
-    }
-    xhr.send(method === "GET" || method === "HEAD" ? null : (body as XMLHttpRequestBodyInit));
-  } catch (error) {
-    if ((error as Dynamic)?.name === "TimeoutError") {
-      return { error: "Timeout", text: "" };
-    }
-    return { error: "Connect", text: REFUSED };
-  }
-  if (xhr.status === 0) {
-    return { error: "Connect", text: REFUSED };
-  }
-  const decodedBody = new Uint8Array(xhr.response);
-  if (decodedBody.length > MAX_DECODED_BYTES) {
-    return { error: "OutputTooLarge", text: null };
-  }
-  const responseHeaders = headerPairs(xhr.getAllResponseHeaders());
-  const staleEncoding = responseHeaders.some(([name]) => name.toLowerCase() === "content-encoding");
-  return {
-    status: xhr.status,
-    headers: staleEncoding
-      ? responseHeaders.filter(
-          ([name]) => !["content-encoding", "content-length"].includes(name.toLowerCase()),
-        )
-      : responseHeaders,
-    body: decodedBody,
-    url: xhr.responseURL || parsed.href,
-  };
+  return xhrResponse(parsed, { method, url, headers, body, redirects, timeout, settings });
 }
 
 const webLayer: Dynamic = {

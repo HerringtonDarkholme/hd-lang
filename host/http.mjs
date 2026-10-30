@@ -80,6 +80,32 @@ const TLS_CODES = new Set([
 ]);
 const REQUEST_VALIDATION_CODES = new Set(["ERR_INVALID_CHAR", "ERR_INVALID_HTTP_TOKEN"]);
 
+function requestUrl(url) {
+  try {
+    if (!isAsciiUrl(url)) {
+      return null;
+    }
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function requestPort(url) {
+  if (url.port) {
+    return Number(url.port);
+  }
+  return url.protocol === "https:" ? 443 : 80;
+}
+const finalResponse = (request, got, location) =>
+  got.error ||
+  request.redirects === 0 ||
+  ![301, 302, 303, 307, 308].includes(got.status) ||
+  location === undefined;
+const redirectsToGet = (status, method) =>
+  status === 303 || ((status === 301 || status === 302) && method === "POST");
+
 // The `HttpError` of a failed connection to `host`.
 const failure = (e, host) => {
   const code = e?.code ?? "";
@@ -99,6 +125,31 @@ const failure = (e, host) => {
   }
   return err("Connect", String(e?.message ?? e));
 };
+
+function transportHeaders(headers, body, url, host) {
+  const encoded = headers.some(([name]) => /^accept-encoding$/i.test(name))
+    ? headers
+    : [
+        ...headers,
+        [
+          "Accept-Encoding",
+          headers.some(([name]) => /^range$/i.test(name)) ? "identity" : "gzip, deflate",
+        ],
+      ];
+  const framed = encoded.some(([name]) => /^(content-length|transfer-encoding)$/i.test(name));
+  const sized =
+    body.length && !framed ? [...encoded, ["Content-Length", String(body.length)]] : encoded;
+  const shown = host.includes(":") ? `[${host}]` : host;
+  const authority = url.port ? `${shown}:${url.port}` : shown;
+  return sized.some(([name]) => /^host$/i.test(name)) ? sized : [["Host", authority], ...sized];
+}
+
+function requestFailure(error, secure, host) {
+  if (REQUEST_VALIDATION_CODES.has(error?.code)) {
+    return err("Other", String(error?.message ?? error));
+  }
+  return secure ? err("Tls", String(error?.message ?? error)) : failure(error, host);
+}
 
 // One request without redirects, within `ms` milliseconds, each of its
 // phases within the provider's phase timeouts (std-http.settings.phase-timeouts).
@@ -156,27 +207,13 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
     // Compression negotiation is raw-transport policy. Providers and
     // caller-visible request values keep exactly the headers the caller
     // wrote; only the bytes sent on this transport gain the default.
-    const encoded = headers.some(([n]) => /^accept-encoding$/i.test(n))
-      ? headers
-      : [
-          ...headers,
-          [
-            "Accept-Encoding",
-            headers.some(([n]) => /^range$/i.test(n)) ? "identity" : "gzip, deflate",
-          ],
-        ];
-    const framed = encoded.some(([n]) => /^(content-length|transfer-encoding)$/i.test(n));
-    const sized =
-      body.length && !framed ? [...encoded, ["Content-Length", String(body.length)]] : encoded;
     // Headers go to Node as a raw list, which keeps repeated names in
     // order but makes Node skip its own `Host`; an HTTP/1.1 request
     // needs one (RFC 9112 3.2), so the URL's authority supplies it unless
     // the request names its own. The host is the one as written, not
     // WHATWG's rewrite of it (std-http.url.no-normalize); a name such as
     // `127.1` is the resolver's to resolve.
-    const shown = host.includes(":") ? `[${host}]` : host;
-    const authority = url.port ? `${shown}:${url.port}` : shown;
-    const all = sized.some(([n]) => /^host$/i.test(n)) ? sized : [["Host", authority], ...sized];
+    const all = transportHeaders(headers, body, url, host);
     try {
       req = lib.request({
         protocol: url.protocol,
@@ -193,15 +230,7 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
       // Node builds the TLS context here: a root or identity it cannot
       // load is a TLS failure. Request syntax keeps its exact portable
       // validation error on both HTTP and HTTPS.
-      let result;
-      if (REQUEST_VALIDATION_CODES.has(e?.code)) {
-        result = err("Other", String(e?.message ?? e));
-      } else if (secure) {
-        result = err("Tls", String(e?.message ?? e));
-      } else {
-        result = failure(e, host);
-      }
-      settle(result);
+      settle(requestFailure(e, secure, host));
       return;
     }
     // Connect ends at the TCP connection, the TLS handshake then runs to a
@@ -285,25 +314,12 @@ async function send(r, signal) {
     if (signal.aborted) {
       return err("Other", "request cancelled");
     }
-    let u;
-    try {
-      if (!isAsciiUrl(url)) {
-        return err("InvalidUrl", url);
-      }
-      u = new URL(url);
-    } catch {
-      return err("InvalidUrl", url);
-    }
-    if (u.protocol !== "http:" && u.protocol !== "https:") {
+    const u = requestUrl(url);
+    if (!u) {
       return err("InvalidUrl", url);
     }
     const host = writtenHost(written);
-    let port = 80;
-    if (u.port) {
-      port = Number(u.port);
-    } else if (u.protocol === "https:") {
-      port = 443;
-    }
+    const port = requestPort(u);
     if (!grant.coversHost("Http", host, port)) {
       return err("NotGranted", host);
     }
@@ -318,12 +334,7 @@ async function send(r, signal) {
       settings: r.settings,
     });
     const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
-    if (
-      got.error ||
-      r.redirects === 0 ||
-      ![301, 302, 303, 307, 308].includes(got.status) ||
-      location === undefined
-    ) {
+    if (finalResponse(r, got, location)) {
       return got.error ? got : { ...got, url };
     }
     // A Location outside printable ASCII is no RFC 3986 URL.
@@ -339,7 +350,7 @@ async function send(r, signal) {
     if (redirects === r.redirects) {
       return err("TooManyRedirects", url);
     }
-    if (got.status === 303 || ((got.status === 301 || got.status === 302) && method === "POST")) {
+    if (redirectsToGet(got.status, method)) {
       method = "GET";
       body = new Uint8Array(0);
     }
