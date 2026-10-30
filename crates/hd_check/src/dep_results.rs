@@ -31,7 +31,7 @@ use std::rc::Rc;
 use hd_base::SliceSort as _;
 use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
 use hd_diag::Code;
-use hd_resolve::ItemData;
+use hd_resolve::{ItemData, Src};
 use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Body, BodyKind, Callee, ChoiceKind, NONE, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData, Types};
@@ -1645,6 +1645,14 @@ impl Ck<'_, '_> {
         {
             self.source_error(elided == Some(Elided::Missing), f);
         }
+        // A direct function result with two or more `fn(...)` parameters
+        // has no one capture source (`ref.dep.capture-elide.ambiguous`).
+        if let (Some(o), Some(f)) = (&own, fun)
+            && o.capture_elided == Elided::Ambiguous
+            && ls.of(o.ret).slots.iter().any(|s| s.fun && !s.written)
+        {
+            self.capture_source_error(self.b.body().item, f);
+        }
         // A function value in the result may carry captures with no source
         // (`ref.generic.outlives.read`) when no `fn(...)` parameter gives one.
         let own = own.filter(|o| {
@@ -1752,6 +1760,31 @@ impl Ck<'_, '_> {
                 "the result may borrow from more than one reference parameter; write the result type with a lifetime",
             );
         }
+    }
+
+    /// `ambiguous-reference-source` at the result type of `f`, or at `f`
+    /// when it omits one, naming the first two `fn(...)` parameters.
+    fn capture_source_error(&mut self, item: DefId, f: NodeRef<'_>) {
+        let pool = self.pool();
+        let sig = self.cx.lookup.item(item).and_then(|i| i.sig());
+        let names: Vec<&str> = sig
+            .map_or(&[][..], |s| &s.params[..])
+            .iter()
+            .filter(|&&(_, t)| capture_slot(pool, t))
+            .map(|&(s, _)| self.cx.names.text(s))
+            .take(2)
+            .collect();
+        let msg = match names.as_slice() {
+            [a, b] => format!(
+                "the result may hold what `{a}` or `{b}` captures; take them as type parameters bounded by `'static`"
+            ),
+            _ => "the result may hold what more than one function parameter captures; take them as type parameters bounded by `'static`".to_owned(),
+        };
+        self.err(
+            Code::AmbiguousReferenceSource,
+            Src::type_child(f).unwrap_or(f),
+            &msg,
+        );
     }
 
     /// The lifetimes in scope at the function `fun`, an enclosing

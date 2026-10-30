@@ -1,0 +1,4 @@
+# test: a function result with two function parameters to capture is ambiguous
+# Spec 13 Dependent Results: ref.dep.capture-elide.ambiguous.
+fn compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32: # diagnostic: ambiguous-reference-source
+    fn(x: i32) -> i32: g(f(x))

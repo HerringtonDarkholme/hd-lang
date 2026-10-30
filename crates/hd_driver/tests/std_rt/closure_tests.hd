@@ -6,6 +6,7 @@
 # conformance runner adds this file to std as `std.rt.closure_tests`.
 use std.rt.memory.pages
 use std.rt.checked.released
+use std.function.FnMut
 
 trait Shape:
     fn area(self) -> i32
@@ -57,7 +58,12 @@ fn counter(mut start: i32) -> fn() -> i32:
         start = start + 1
         start
 
-fn compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32:
+# Two function parameters give the result no one capture source, so
+# `'static` names the lifetime of what each may capture.
+fn compose[F < FnMut(i32) -> i32 & 'static, G < FnMut(i32) -> i32 & 'static](
+    mut f: F,
+    mut g: G,
+) -> fn(i32) -> i32:
     fn(x: i32) -> i32: g(f(x))
 
 fn widen(s: *dyn Solid) -> *dyn Shape:

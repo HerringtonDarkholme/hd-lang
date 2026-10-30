@@ -424,17 +424,18 @@ fn demo(u: &mut User) -> void:
 3. r[ref.dep.position] Each `&` or `&mut` in a parameter's type is one **reference position**: in `&self`, in `p: &T`, in `opt: &T?`, and in each element of `pair: (&A, &B)`. A `&` inside a function type is none.
 4. r[ref.dep.capture-position] A direct `fn(...)` parameter is one **capture position** with a fresh lifetime, and a direct function result has one capture position too.
 5. r[ref.dep.capture-elide] An elided direct function result depends on the one direct function parameter's capture position.
-6. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
-7. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
-8. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
-9. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
-10. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
-11. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
-12. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
-13. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
-14. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
-15. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
-16. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
+6. r[ref.dep.capture-elide.ambiguous] A direct function result with two or more direct function parameters is an error, since it has no one capture position to depend on. Error: `ambiguous-reference-source`.
+7. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
+8. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
+9. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
+10. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
+11. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
+12. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
+13. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
+14. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
+15. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
+16. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
+17. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
 
 ```text
 struct User:
@@ -446,6 +447,9 @@ fn bad_local() -> &string:  # error: reference-result-without-source
 
 fn bad_pick(a: &User, b: &User) -> &User:  # error: ambiguous-reference-source
     a
+
+fn bad_compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32:  # error: ambiguous-reference-source
+    fn(x: i32) -> i32: g(f(x))
 
 fn bad_value(u: User, other: &User) -> &string:
     &u.name  # error: local-reference-escapes

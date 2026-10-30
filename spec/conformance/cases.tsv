@@ -5191,6 +5191,7 @@ typing/valid/dependent-result-generic-enum.hd	type	accept	lang/13-values-and-ref
 typing/valid/dependent-result-try.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.try
 typing/valid/dependent-result-call.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.call
 runtime/valid/function-parameter-capture-dependent-return.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.capture-elide
+runtime/valid/dependent-result-capture-static.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.capture-elide.ambiguous
 typing/valid/dependent-result-trait.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.trait
 typing/valid/dependent-result-counted-crossing.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.counted
 typing/valid/dependent-result-auto-address-receiver.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.origin.place
@@ -5199,6 +5200,7 @@ typing/valid/dependent-result-local-store.hd	type	accept	lang/13-values-and-refe
 typing/invalid/dependent-result-without-source.hd	type	reject:reference-result-without-source	lang/13-values-and-references.md#r-ref.dep.elide.none
 typing/invalid/dependent-result-function-type-position.hd	type	reject:reference-result-without-source	lang/13-values-and-references.md#r-ref.dep.position
 typing/invalid/dependent-result-ambiguous.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.elide.ambiguous
+typing/invalid/dependent-result-capture-ambiguous.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.capture-elide.ambiguous
 typing/invalid/dependent-result-ambiguous-unused.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.elide.ambiguous
 typing/invalid/dependent-result-ambiguous-tuple.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.position
 typing/invalid/dependent-result-ambiguous-trait-method.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.elide.ambiguous

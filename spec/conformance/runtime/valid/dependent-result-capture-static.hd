@@ -1,0 +1,19 @@
+# test: type parameters bounded by 'static give a composed function result its lifetime
+# Spec 13 Dependent Results: ref.dep.capture-elide.ambiguous.
+# expect-stdout: 10
+use std.function.FnMut
+
+fn compose[F < FnMut(i32) -> i32 & 'static, G < FnMut(i32) -> i32 & 'static](
+    mut f: F,
+    mut g: G,
+) -> fn(i32) -> i32:
+    fn(x: i32) -> i32: g(f(x))
+
+fn adder(n: i32) -> fn(i32) -> i32:
+    fn(x: i32) -> i32: x + n
+
+fn double(x: i32) -> i32:
+    x * 2
+
+pub fn main() -> void $ Console:
+    println("${compose(adder(1), double)(4)}")
