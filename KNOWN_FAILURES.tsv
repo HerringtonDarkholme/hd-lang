@@ -1,13 +1,1 @@
 path	issue	engine	reason
-typing/invalid/const-generic-cast.hd	#875		checker has no const generic argument evaluator
-typing/invalid/const-generic-evaluation-division-by-zero.hd	#875		checker has no const generic argument evaluator
-typing/invalid/const-generic-evaluation-invalid-shift.hd	#875		checker has no const generic argument evaluator
-typing/invalid/const-generic-evaluation-overflow.hd	#875		checker has no const generic argument evaluator
-typing/invalid/const-generic-identity-mismatch.hd	#875		checker has no const generic identity
-typing/invalid/const-generic-impl-value-mismatch.hd	#875		checker has no const generic implementation matching
-typing/invalid/const-generic-no-runtime-inference.hd	#875		checker has no const generic inference
-typing/invalid/const-generic-runtime-dependent-argument.hd	#875		checker has no const generic argument evaluator
-typing/invalid/const-generic-symbolic-arithmetic.hd	#875		checker has no const generic argument evaluator
-typing/valid/const-generic-inference-and-exact-impl.hd	#875		checker has no const generic inference or implementation matching
-typing/valid/const-generic-operators-and-short-circuit.hd	#875		checker has no const generic argument evaluator
-typing/valid/const-generic-scalar-types-and-identity.hd	#875		checker has no const generic parameter kinds or identity

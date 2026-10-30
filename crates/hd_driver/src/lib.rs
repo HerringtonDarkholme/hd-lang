@@ -5655,13 +5655,7 @@ impl Run<'_> {
                 &mut scratch,
                 collect.then_some(&mut facts),
             )
-            .map(|o| o.map(|o| o.items))
-            .and_then(|items| {
-                if let Some(items) = &items {
-                    hd_check::header::const_generics_gap(items, Stage::ModulePrep)?;
-                }
-                Ok(items)
-            });
+            .map(|o| o.map(|o| o.items));
         let Some(Some(items)) = self.stage(Stage::ModulePrep, items) else {
             self.blocked(Stage::Body);
             self.blocked(Stage::ModuleFinish);
@@ -8707,6 +8701,10 @@ impl Run<'_> {
             );
             return;
         };
+        if let Err(e) = hd_check::header::const_generics_gap(p.items.values(), Stage::Collect) {
+            self.stage::<()>(Stage::Collect, Err(e));
+            return;
+        }
         if matches!(self.goal, Goal::Fixture { .. }) {
             self.collect_fixture(sp, p, pkey, &entry_key);
             return;

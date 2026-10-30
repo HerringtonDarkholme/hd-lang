@@ -189,6 +189,81 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// For a const slot of `def` at `position` among its non-lifetime
+    /// parameters, its declared scalar type.
+    fn const_slot_type(&self, def: DefId, position: usize) -> Option<Prim> {
+        let item = self.cx.lookup.item(def)?;
+        item.generics
+            .iter()
+            .filter(|g| !g.lifetime)
+            .nth(position)
+            .and_then(|g| g.const_type)
+    }
+
+    /// A const argument of declared type `want`: its evaluated value or a
+    /// bare const parameter (`types.generic.const.argument`).
+    fn const_arg(&mut self, a: NodeRef<'_>, want: Option<Prim>) -> StageResult<Ty> {
+        use hd_resolve::const_eval::{ConstArg, ConstName, const_argument};
+        let src = self.cx.src;
+        let syms = self.cx.names.syms;
+        let mut elsewhere = false;
+        let mut declared = None;
+        let result = {
+            let mut lookup = |name: &str| {
+                let sym = syms.intern(name);
+                if let Some((_, p, prim)) = self.const_gens.iter().rev().find(|(s, _, _)| *s == sym)
+                {
+                    declared = Some(*prim);
+                    return ConstName::Param(*p);
+                }
+                if self.find_local(sym).is_some() {
+                    return ConstName::Runtime;
+                }
+                if let Some(b) = hd_resolve::lower::top_level_binding(&src, name) {
+                    return b;
+                }
+                match self.scope_name(name) {
+                    Some(Named::Item(d)) if self.kind_of_item(d) == Some(HeadKind::Fn) => {
+                        ConstName::Runtime
+                    }
+                    Some(Named::Item(_)) => {
+                        elsewhere = true;
+                        ConstName::Poison
+                    }
+                    Some(Named::Poison) => ConstName::Poison,
+                    _ => ConstName::Unknown,
+                }
+            };
+            const_argument(&src, a, want, syms, &mut lookup)
+        };
+        let pool = self.pool();
+        match result {
+            Ok(ConstArg::Value(v)) => Ok(pool.intern_ty(&TyData::Const(v))),
+            Ok(ConstArg::Param(p)) => {
+                if let (Some(want), Some(have)) = (want, declared)
+                    && want != have
+                {
+                    let msg = format!(
+                        "this const argument has type `{}`, but `{}` is expected",
+                        have.name(),
+                        want.name()
+                    );
+                    self.err(Code::TypeMismatch, a, &msg);
+                    return Ok(Ty::POISON);
+                }
+                Ok(pool.intern_ty(&TyData::Param(p)))
+            }
+            Ok(ConstArg::Poison) if elsewhere => {
+                unsupported("a const generic argument that names another module's value")
+            }
+            Ok(ConstArg::Poison) => Ok(Ty::POISON),
+            Err(e) => {
+                self.err(e.code, a, &e.message);
+                Ok(Ty::POISON)
+            }
+        }
+    }
+
     /// A type parameter or `Self` in scope by name.
     pub(crate) fn type_param(&self, name: &str) -> Option<Ty> {
         if name == "Self" {
@@ -275,6 +350,9 @@ impl Ck<'_, '_> {
                 self.opaque_annotation = self.opaque_annotation.map(|(s, _)| (s, false));
             }
         }
+        // The constructor, for its const slots (`types.generic.const.argument`).
+        let ctor = self.resolve_path(&segs);
+        let mut position = 0_usize;
         if let Some(al) = Src::child(n, SyntaxKind::TypeArgumentList) {
             // ref.lifetime.not-yet.body: a lifetime argument in a body.
             let toks = &self.cx.src.parse.tokens;
@@ -294,6 +372,23 @@ impl Ck<'_, '_> {
                     row = Some(r);
                     args.push(pool.intern_ty(&TyData::Row(r)));
                     arg_nodes.push(a);
+                    position += 1;
+                } else if let Some(want) = ctor
+                    .filter(|_| a.kind() == SyntaxKind::ConstArgument || a.kind().is_type())
+                    .and_then(|d| self.const_slot_type(d, position))
+                {
+                    args.push(self.const_arg(a, Some(want))?);
+                    arg_nodes.push(a);
+                    position += 1;
+                } else if a.kind() == SyntaxKind::ConstArgument {
+                    let msg = format!(
+                        "argument {} fills a type parameter, not a const parameter",
+                        position + 1
+                    );
+                    self.err(Code::GenericKindMismatch, a, &msg);
+                    args.push(Ty::POISON);
+                    arg_nodes.push(a);
+                    position += 1;
                 } else if a.kind() == SyntaxKind::AssociatedTypeBinding {
                     if let (Some(t), Some(ty)) =
                         (a.name(&self.cx.src.parse.tokens), Src::type_child(a))
@@ -304,6 +399,7 @@ impl Ck<'_, '_> {
                 } else if a.kind().is_type() {
                     args.push(self.ty_node(a)?);
                     arg_nodes.push(a);
+                    position += 1;
                 }
             }
         }
@@ -336,6 +432,18 @@ impl Ck<'_, '_> {
         }
         if segs.len() == 1 {
             let name = segs[0].as_str();
+            if self
+                .const_gens
+                .iter()
+                .any(|(s, _, _)| self.cx.names.text(*s) == name)
+            {
+                // `types.generic.const.type-position`: only a const slot.
+                let msg = format!(
+                    "`{name}` is a const parameter, not a type: write it in a const generic argument"
+                );
+                self.err(Code::GenericKindMismatch, n, &msg);
+                return Ok(Ty::POISON);
+            }
             if let Some(t) = self.type_param(name) {
                 return Ok(t);
             }
