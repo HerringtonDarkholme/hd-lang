@@ -705,6 +705,111 @@ class ReplSession {
     return joinJournals([...this.linked.archives, tail]);
   };
 
+  startsLinkedRebuild = ({ info, live, sameCode, sources, module }: Dynamic): boolean => {
+    if (info?.epoch !== 0 || live !== null || sameCode) {
+      return false;
+    }
+    const exports = new Set(WebAssembly.Module.exports(module).map(({ name }) => name));
+    return sources.every(([number]: [number]) => exports.has(`hd.init.${number}`));
+  };
+
+  startReplay = async ({
+    module,
+    wasm,
+    rebuilding,
+    cap,
+    execution,
+  }: {
+    module: WebAssembly.Module;
+    wasm: Uint8Array;
+    rebuilding: boolean;
+    cap: number;
+    execution: Uint8Array;
+  }): Promise<WebAssembly.Instance> => {
+    // Refusing an import or failing instantiation must not replace the
+    // last good journal. HD modules have no Wasm start function; their
+    // effects begin only when runInput invokes the numbered entry.
+    const instance = await WebAssembly.instantiate(module, this.link(module, wasm));
+    this.restart(new Recorder(rebuilding ? Number.MAX_SAFE_INTEGER : cap, execution));
+    this.linked = null;
+    return instance;
+  };
+
+  replayHistory = async ({ instance, record, texts, wasm }: Dynamic): Promise<Dynamic> => {
+    const ran: Ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };
+    const kept: [Dynamic, string][] = [];
+    for (const [at, input] of record.inputs.entries()) {
+      if (input.end?.kind === "stopped" || input.end?.kind === "cancelled") {
+        ran.skipped.push(input.number);
+        continue;
+      }
+      const source = texts.get(input.number);
+      try {
+        if (source === undefined) {
+          throw new Error(`input ${input.number} is not in the session`);
+        }
+        if (!ranText(input, source)) {
+          throw new Error(`input ${input.number} is not the text the session ran`);
+        }
+        await this.replayInput(instance, input, source, wasm);
+      } catch (error) {
+        ran.dropped = record.inputs.slice(at).map((later: Dynamic) => later.number);
+        ran.reason = String((error as Dynamic)?.message ?? error);
+        break;
+      }
+      ran.kept.push(input.number);
+      kept.push([input, source]);
+    }
+    return { ran, kept };
+  };
+
+  repeatKept = async (
+    instance: WebAssembly.Instance,
+    kept: [Dynamic, string][],
+    wasm: Uint8Array,
+  ) => {
+    for (const [input, source] of kept) {
+      try {
+        await this.replayInput(instance, input, source, wasm);
+      } catch (error) {
+        throw new Error(`the rebuild did not repeat itself: ${(error as Dynamic).message}`);
+      }
+    }
+  };
+
+  runNextInput = async ({ ran, live, texts, instance, wasm }: Dynamic): Promise<void> => {
+    if (live === null) {
+      return;
+    }
+    const source = texts.get(live);
+    if (source === undefined) {
+      throw new Error(`input ${live} has no text`);
+    }
+    ran.live = await this.runInput(instance, live, source, wasm);
+  };
+
+  activateLinked = ({ instance, module, info, wasm, texts, ran, record, cap }: Dynamic): void => {
+    const number = ran.kept.at(-1);
+    this.linked = {
+      instances: [instance],
+      modules: [{ module, info, wasm: wasm.slice(), number, source: texts.get(number), data: 16 }],
+      texts: new Map(ran.kept.map((kept: number) => [kept, texts.get(kept)])),
+      archives: [this.recorder.journal().slice()],
+      checkpoint: null,
+      execution: record.execution,
+      cap,
+      cancelled: null,
+    };
+    this.linked.checkpoint = this.captureLinked();
+    this.recorder = new Recorder(Number.MAX_SAFE_INTEGER, this.linked.execution);
+  };
+
+  finishLinkedRebuild = (rebuilding: boolean, state: Dynamic): void => {
+    if (rebuilding && state.ran.dropped.length === 0 && state.ran.kept.length > 0) {
+      this.activateLinked(state);
+    }
+  };
+
   run = async (
     wasm: Uint8Array,
     sources: Iterable<readonly [number, string]>,
@@ -716,15 +821,14 @@ class ReplSession {
     const sourceRows = [...sources];
     const module = await WebAssembly.compile(wasm as BufferSource);
     const info = this.sessionInfo(module);
-    const previous = this.linked?.modules.at(-1)?.wasm;
-    const sameCode =
-      previous?.length === wasm.length && previous.every((b: number, i: number) => b === wasm[i]);
-    const exports = new Set(WebAssembly.Module.exports(module).map(({ name }) => name));
-    const rebuilding =
-      info?.epoch === 0 &&
-      live === null &&
-      !sameCode &&
-      sourceRows.every(([number]) => exports.has(`hd.init.${number}`));
+    const sameCode = sameBytes(this.linked?.modules.at(-1)?.wasm, wasm);
+    const rebuilding = this.startsLinkedRebuild({
+      info,
+      live,
+      sameCode,
+      sources: sourceRows,
+      module,
+    });
     if (info && !rebuilding) {
       return this.runLinked({
         module,
@@ -746,49 +850,12 @@ class ReplSession {
     // A stop that came while no input ran is dropped; one that comes
     // while the inputs replay is for the new input.
     const cap = this.linked?.cap ?? this.recorder.cap;
-    const start = async () => {
-      // Refusing an import or failing instantiation must not replace the
-      // last good journal. HD modules have no Wasm start function; their
-      // effects begin only when runInput invokes the numbered entry.
-      const instance = await WebAssembly.instantiate(module, this.link(module, wasm));
-      this.restart(new Recorder(rebuilding ? Number.MAX_SAFE_INTEGER : cap, record.execution));
-      this.linked = null;
-      return instance;
-    };
-    let instance = await start();
-    const ran: Ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };
-    const kept: [Dynamic, string][] = [];
-    for (const [at, input] of record.inputs.entries()) {
-      if (input.end?.kind === "stopped" || input.end?.kind === "cancelled") {
-        ran.skipped.push(input.number);
-        continue;
-      }
-      const source = texts.get(input.number);
-      try {
-        if (source === undefined) {
-          throw new Error(`input ${input.number} is not in the session`);
-        }
-        if (!ranText(input, source)) {
-          throw new Error(`input ${input.number} is not the text the session ran`);
-        }
-        await this.replayInput(instance, input, source, wasm);
-      } catch (e) {
-        ran.dropped = record.inputs.slice(at).map((input: Dynamic) => input.number);
-        ran.reason = String((e as Dynamic)?.message ?? e);
-        break;
-      }
-      ran.kept.push(input.number);
-      kept.push([input, source]);
-    }
+    const start = { module, wasm, rebuilding, cap, execution: record.execution };
+    let instance = await this.startReplay(start);
+    const { ran, kept } = await this.replayHistory({ instance, record, texts, wasm });
     if (ran.dropped.length > 0) {
-      instance = await start();
-      for (const [input, source] of kept) {
-        try {
-          await this.replayInput(instance, input, source, wasm);
-        } catch (e) {
-          throw new Error(`the rebuild did not repeat itself: ${(e as Dynamic).message}`);
-        }
-      }
+      instance = await this.startReplay(start);
+      await this.repeatKept(instance, kept, wasm);
       // An input left out of `sources` is one the caller forgot: the
       // program does not hold it, so the new input still runs. One that
       // diverged may have declared what the new input uses.
@@ -796,30 +863,8 @@ class ReplSession {
         return ran;
       }
     }
-    if (live !== null) {
-      const source = texts.get(live);
-      if (source === undefined) {
-        throw new Error(`input ${live} has no text`);
-      }
-      ran.live = await this.runInput(instance, live, source, wasm);
-    }
-    if (rebuilding && ran.dropped.length === 0 && ran.kept.length > 0) {
-      const number = ran.kept.at(-1)!;
-      this.linked = {
-        instances: [instance],
-        modules: [
-          { module, info, wasm: wasm.slice(), number, source: texts.get(number), data: 16 },
-        ],
-        texts: new Map(ran.kept.map((n: number) => [n, texts.get(n)])),
-        archives: [this.recorder.journal().slice()],
-        checkpoint: null,
-        execution: record.execution,
-        cap,
-        cancelled: null,
-      };
-      this.linked.checkpoint = this.captureLinked();
-      this.recorder = new Recorder(Number.MAX_SAFE_INTEGER, this.linked.execution);
-    }
+    await this.runNextInput({ ran, live, texts, instance, wasm });
+    this.finishLinkedRebuild(rebuilding, { instance, module, info, wasm, texts, ran, record, cap });
     return ran;
   };
 
