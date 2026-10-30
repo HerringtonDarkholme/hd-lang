@@ -1,0 +1,17 @@
+# test: a struct literal kept past the block of a local reference its closure captured, for a field of a type parameter with no lifetime bound, is local-reference-outlives-local
+# Spec 13 Lifetime Bounds: ref.generic.outlives.field.
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+struct Plain[F < FnMut() -> void]:
+    on_click: F
+
+fn later(flag: bool) -> void:
+    let mut p = Plain { on_click: fn(): pass }
+    if flag:
+        let mut inner = Counter { n: +2 }
+        r := &mut inner
+        p = Plain { on_click: fn(): r.n += 1 }
+    (p.on_click)() # diagnostic: local-reference-outlives-local

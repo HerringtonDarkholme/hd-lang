@@ -1422,7 +1422,7 @@ impl Solve<'_> {
     }
 
     /// The values of struct literal `i` for fields of a type parameter
-    /// bounded by a lifetime (`ref.generic.outlives.field`).
+    /// (`ref.generic.outlives.field`).
     fn outlives_fields(&self, i: usize) -> Vec<u32> {
         let b = self.b;
         if b.tags[i] != Tag::NewStruct {
@@ -1441,7 +1441,13 @@ impl Solve<'_> {
             .iter()
             .zip(fields)
             .filter(|(_, f)| {
-                crate::local_refs::outlives_field(self.pool, def, &item.generics, f.ty).is_some()
+                crate::local_refs::capturing_field(
+                    self.pool,
+                    self.cx.names.known.static_bound,
+                    def,
+                    &item.generics,
+                    f.ty,
+                )
             })
             .map(|(&v, _)| v)
             .collect()

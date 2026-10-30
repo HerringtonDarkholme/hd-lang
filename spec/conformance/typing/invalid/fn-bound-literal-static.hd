@@ -1,0 +1,13 @@
+# test: a closure that captures a local reference, written in a struct literal for a field of a type parameter bounded by 'static, is local-reference-escapes
+# Spec 13 Lifetime Bounds: ref.generic.outlives.field; Local References: ref.local.escape.capture-stored.
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+struct Fixed[F < FnMut() -> void & 'static]:
+    on_click: F
+
+fn keep(c: &mut Counter) -> void:
+    let mut f = Fixed { on_click: fn(): c.n += 1 } # diagnostic: local-reference-escapes
+    (f.on_click)()

@@ -1,0 +1,34 @@
+# test: a struct literal holds a closure that captures local references in a field of a type parameter with no lifetime bound, and calls through it change the captured place
+# Spec 13 Lifetime Bounds: ref.generic.outlives.field.
+# expect-stdout: 12
+# expect-stdout: 17
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+struct Plain[F < FnMut() -> void]:
+    on_click: F
+
+struct Pair[T, U]:
+    first: T
+    second: U
+
+fn press[F < FnMut() -> void](mut p: Plain[F]) -> void:
+    (p.on_click)()
+
+fn bump(c: &mut Counter) -> void:
+    let mut p = Plain { on_click: fn(): c.n += 1 }
+    (p.on_click)()
+    press(p)
+    press(Plain { on_click: fn(): c.n += 10 })
+
+fn sum(c: &Counter) -> i32:
+    pair := Pair { first: fn() -> i32: c.n, second: +5 }
+    (pair.first)() + pair.second
+
+pub fn main() -> void $ Console:
+    let mut c = Counter { n: +0 }
+    bump(&mut c)
+    println(c.n.to_string())
+    println(sum(&c).to_string())

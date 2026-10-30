@@ -361,6 +361,8 @@ Applied by #1040 (6d4, [`ref.generic.outlives.argument`](../../spec/lang/13-valu
 
 Applied by #1057 (6d5, [`ref.generic.outlives.instance`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.instance)): a function type is an origin position wherever it appears in a type, so a type argument instantiated with a capturing closure carries its captures inside `MapIter[I, T, U, F]` or `Plain[F]`, and std's iterator adapters take closures that capture locals. A function type written inside another type of a parameter holds no captures ([`ref.generic.outlives.written`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.written)), as Rust's `fn` pointer. Still open: a closure in a struct literal for a field of a type parameter with no lifetime bound (`Plain { on_click: fn(): c.n += 1 }`), which `wrap(...)` now allows (#1058).
 
+Applied by #1058 (6d6, [`ref.generic.outlives.field`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.field)): a closure written in a struct literal for a field of a type parameter that `'static` does not bound may capture local references, with or without a lifetime bound, and the struct value carries the captures in that parameter's positions, as `wrap(...)`'s result does.
+
 ### Stage 7: exclusivity
 
 Stage 7 follows Swift's lifetime dependence and Rust: a lifetime names a

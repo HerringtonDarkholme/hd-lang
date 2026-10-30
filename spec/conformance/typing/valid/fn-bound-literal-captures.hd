@@ -1,0 +1,30 @@
+# test: a closure written in a struct literal for a field of a type parameter with no lifetime bound may capture local references, as may a fn parameter given there, and the struct may be called and passed within their scope
+# Spec 13 Lifetime Bounds: ref.generic.outlives.field.
+use std.function.FnMut
+
+struct Counter:
+    n: i32
+
+struct Plain[F < FnMut() -> void]:
+    on_click: F
+
+struct Pair[T, U]:
+    first: T
+    second: U
+
+fn press[F < FnMut() -> void](mut p: Plain[F]) -> void:
+    (p.on_click)()
+
+fn bump(c: &mut Counter) -> void:
+    let mut p = Plain { on_click: fn(): c.n += 1 }
+    (p.on_click)()
+    press(p)
+    press(Plain { on_click: fn(): c.n += 10 })
+
+fn sum(c: &Counter) -> i32:
+    pair := Pair { first: fn() -> i32: c.n, second: +5 }
+    (pair.first)() + pair.second
+
+fn hold(f: fn() -> void) -> void:
+    let mut p = Plain { on_click: f }
+    (p.on_click)()
