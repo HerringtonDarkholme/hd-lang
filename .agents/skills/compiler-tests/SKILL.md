@@ -115,18 +115,21 @@ special-casing the pattern in the emitter; fix the cause.
 
 ## Gates For A Compiler Change
 
-Run these in the background, and grep each whole log for
-`FAILED|panicked`; the count must be 0. Use `nice` and `-j 4`, with the
-dev profile for tests.
+Tiered checks only, for the paths the change touches. **Never run the
+full suite locally**: CI runs it after the merge, and the orchestrator
+fixes forward. Grep each whole log for `FAILED|panicked`; the count must
+be 0. Use `nice` and `-j 4`, with the dev profile.
 
-- `cargo fmt --check`, and `cargo clippy --all-targets -- -D warnings`.
-- Driver conformance in three modes: `cargo test -p hd_driver --test
-  conformance`, again with `HD_CONFORMANCE_PIPELINE=optimized`, and again
-  with `HD_CONFORMANCE_CHECKED=1`.
-- `cargo test -p hd_driver`, the touched crates' tests, `cargo test -p
-  hd_check --test stages`, and `bash spec/check.sh`.
-- Add the rest of shared-rules.md "Git And Safety" for other touched
-  paths: `hd_cli` tests, the web compiler, UI.
+- `cargo fmt --check`, and `cargo clippy -p <touched crate> --all-targets
+  -- -D warnings`.
+- The touched crates' tests, and default-mode driver conformance: `cargo
+  test -p hd_driver --test conformance`.
+- `bash spec/check.sh` only when spec files change; `cargo test -p
+  hd_check --test stages` only when stage baselines can change.
+- Bench byte-identity only when codegen could change.
+- No workspace-wide `cargo test`, no `--all-features`, no optimized or
+  checked conformance modes, no `hd_cli`/web/UI runs unless the change
+  touches those paths.
 - Bless a baseline only for an intended change, and list each blessed
   file in the report.
 
@@ -208,7 +211,6 @@ Every perf change reports the same table, so results compare across jobs.
 - **Goal:** beat hand-written JS on every program except
   `progs/string-build` (the deliberately naive `out + s` loop). Then beat
   MoonBit's linear backend clearly on every program at every tier (#866).
-  Then MoonBit's wasm-gc backend: a 0.57 geomean at the default tier
-  (#913, closed); only `binary_trees` loses, pending regions (#932).
+  Then MoonBit's wasm-gc backend (#913).
 - Report integer milliseconds. Release builds wrap integer overflow, as
   Rust does.
