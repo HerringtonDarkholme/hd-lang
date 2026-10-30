@@ -950,7 +950,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // and status 130 (cli.cancel.end).
   const continueRun = async (instance, ex, poll, status, driver, cancel, firstError = null) => {
     let trapped = false;
-    let ended = false;
+    const ended = false;
     let limited = false;
     let cancelled = false;
     let frames = [];

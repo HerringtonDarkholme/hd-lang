@@ -15,19 +15,23 @@
         "skipComments": true
       }
     ],
-    "curly": [
-      "error",
-      "all"
-    ],
+    "curly": ["error", "all"],
     "promise/no-callback-in-promise": "error",
     "promise/no-new-statics": "error",
-    "promise/valid-params": "error"
+    "promise/valid-params": "error",
+    "prefer-const": [
+      "error",
+      {
+        "destructuring": "all",
+        "ignoreReadBeforeAssign": true
+      }
+    ],
+    "no-implicit-coercion": "error",
+    "no-labels": "error",
+    "no-multi-assign": "error",
+    "no-lone-blocks": "error",
+    "no-return-assign": "error"
   },
-  "plugins": [
-    "eslint",
-    "typescript",
-    "unicorn",
-    "oxc",
-    "promise"
-  ]
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "promise"],
+  "ignorePatterns": ["packages/server-sdk/packaging/vendor/**"]
 }

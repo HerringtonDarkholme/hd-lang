@@ -11,8 +11,7 @@ const nativeSetTimeout = globalThis.setTimeout,
 const activeCleanupTimers = new Set();
 let cleanupBackstops = 0;
 globalThis.setTimeout = (callback, delay, ...args) => {
-  let timer;
-  timer = nativeSetTimeout(function () {
+  const timer = nativeSetTimeout(function () {
     if (delay === 200) {
       activeCleanupTimers.delete(timer);
       cleanupBackstops++;

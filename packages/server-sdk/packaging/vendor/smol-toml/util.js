@@ -30,9 +30,7 @@ import { TomlError } from "./error.js";
 export function skipComment(ctx) {
   for (; ctx.p < ctx.s.length; ctx.p++) {
     let c = ctx.s.charCodeAt(ctx.p);
-    if (c === 0xa) {
-      break;
-    }
+    if (c === 0xa) break;
     if (c === 0xd && ctx.s.charCodeAt(ctx.p + 1) === 0xa) {
       ctx.p++;
       break;
@@ -51,12 +49,9 @@ export function skipVoid(ctx, banNewLines, banComments) {
       ((c = ctx.s.charCodeAt(ctx.p)) === 0x20 ||
         c === 0x9 ||
         (!banNewLines && (c === 0xa || (c === 0xd && ctx.s.charCodeAt(ctx.p + 1) === 0xa))))
-    ) {
+    )
       ctx.p++;
-    }
-    if (banComments || c !== 0x23) {
-      break;
-    }
+    if (banComments || c !== 0x23) break;
     skipComment(ctx);
   }
 }

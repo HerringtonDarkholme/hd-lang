@@ -2061,59 +2061,57 @@ for (const method of ["write_sync", "write_error_sync"]) {
 
 // The queue keeps preceding writes in order, and control requests stay
 // live while a chunk waits on a full socket.
-{
-  test("Output full socket keeps control live", async (t) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1");
-    await once(server, "listening");
-    t.after(() => server.close());
-    const accepted = once(server, "connection");
-    const writer = net.connect(server.address().port, "127.0.0.1");
-    await once(writer, "connect");
-    const [reader] = await accepted;
-    reader.pause();
-    t.after(() => {
-      writer.destroy();
-      reader.destroy();
-    });
-    const call = netWorker(t, {
-      url: new URL("./output-worker.mjs", import.meta.url),
-      data: { output: true },
-    });
-    const { port1, port2 } = new MessageChannel();
-    const flag = new Int32Array(new SharedArrayBuffer(4));
-    call({ op: "attach", port: port2, flag }, [port2]);
-    t.after(() => port1.close());
-    const fd = writer._handle.fd;
-    const before = "earlier-output\n";
-    call({ op: "enqueue", fd, text: before });
-    const text = "abcdefg".repeat(2400000);
-    const id = 1;
-    Atomics.store(flag, 0, 0);
-    port1.postMessage({ id, request: { op: "wait_start", fd, text } });
-    await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: false }));
-    for (let i = 0; i < 5; i++) {
-      assert.deepEqual(call({ op: "idle" }), { ok: false });
-    }
-    const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
-    call({ op: "enqueue", fd, text: suffix });
-    const chunks = [];
-    reader.on("data", (bytes) => chunks.push(bytes));
-    const ended = once(reader, "end");
-    reader.resume();
-    await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: true }), { timeout: 10000 });
-    writer.end();
-    await ended;
-    const received = Buffer.concat(chunks).toString();
-    assert(received.startsWith(before));
-    assert(received.endsWith(suffix));
-    const body = received.slice(before.length, -suffix.length);
-    assert.equal(body, text);
-    const deadline = performance.now() + 5000;
-    const reply = receiveReply(port1, flag, id, () => deadline - performance.now());
-    assert.deepEqual(reply?.result, Ok(undefined));
+test("Output full socket keeps control live", async (t) => {
+  const server = net.createServer();
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const accepted = once(server, "connection");
+  const writer = net.connect(server.address().port, "127.0.0.1");
+  await once(writer, "connect");
+  const [reader] = await accepted;
+  reader.pause();
+  t.after(() => {
+    writer.destroy();
+    reader.destroy();
   });
-}
+  const call = netWorker(t, {
+    url: new URL("./output-worker.mjs", import.meta.url),
+    data: { output: true },
+  });
+  const { port1, port2 } = new MessageChannel();
+  const flag = new Int32Array(new SharedArrayBuffer(4));
+  call({ op: "attach", port: port2, flag }, [port2]);
+  t.after(() => port1.close());
+  const fd = writer._handle.fd;
+  const before = "earlier-output\n";
+  call({ op: "enqueue", fd, text: before });
+  const text = "abcdefg".repeat(2400000);
+  const id = 1;
+  Atomics.store(flag, 0, 0);
+  port1.postMessage({ id, request: { op: "wait_start", fd, text } });
+  await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: false }));
+  for (let i = 0; i < 5; i++) {
+    assert.deepEqual(call({ op: "idle" }), { ok: false });
+  }
+  const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
+  call({ op: "enqueue", fd, text: suffix });
+  const chunks = [];
+  reader.on("data", (bytes) => chunks.push(bytes));
+  const ended = once(reader, "end");
+  reader.resume();
+  await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: true }), { timeout: 10000 });
+  writer.end();
+  await ended;
+  const received = Buffer.concat(chunks).toString();
+  assert(received.startsWith(before));
+  assert(received.endsWith(suffix));
+  const body = received.slice(before.length, -suffix.length);
+  assert.equal(body, text);
+  const deadline = performance.now() + 5000;
+  const reply = receiveReply(port1, flag, id, () => deadline - performance.now());
+  assert.deepEqual(reply?.result, Ok(undefined));
+});
 
 test(
   "Output pinned writes finish 2000 calls without per-write sleeps",

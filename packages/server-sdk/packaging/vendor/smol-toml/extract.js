@@ -53,9 +53,7 @@ export function extractValue(ctx, end) {
   let c = ctx.s.charCodeAt(ctx.p);
   // Structs
   if (c === 0x5b /* [ */ || c === 0x7b /* { */) {
-    if (!ctx.d--) {
-      TomlError.x("document contains excessively nested structures. aborting.", ctx);
-    }
+    if (!ctx.d--) TomlError.x("document contains excessively nested structures. aborting.", ctx);
     let value = c === 0x5b /* [ */ ? parseArray(ctx) : parseInlineTable(ctx);
     ctx.d++;
     return value;
@@ -72,9 +70,8 @@ export function extractValue(ctx, end) {
       ctx.s.charCodeAt(++ctx.p) !== 0x72 ||
       ctx.s.charCodeAt(++ctx.p) !== 0x75 ||
       ctx.s.charCodeAt(++ctx.p) !== 0x65
-    ) {
+    )
       TomlError.x("invalid value", ctx, errPtr);
-    }
     return (ctx.p++, true);
   }
   if (c === 0x66 /* f */) {
@@ -84,9 +81,8 @@ export function extractValue(ctx, end) {
       ctx.s.charCodeAt(++ctx.p) !== 0x6c ||
       ctx.s.charCodeAt(++ctx.p) !== 0x73 ||
       ctx.s.charCodeAt(++ctx.p) !== 0x65
-    ) {
+    )
       TomlError.x("invalid value", ctx, errPtr);
-    }
     return (ctx.p++, false);
   }
   if (c === 0x2b /* + */ || c === 0x2d /* - */) {
@@ -126,81 +122,55 @@ function parseNumber(ctx, startPtr, startChr, sign, endChr) {
   let hasUnderscores = false;
   // (+/-)inf
   if (c === 0x69 /* i */) {
-    if (ctx.s.charCodeAt(++ctx.p) !== 0x6e || ctx.s.charCodeAt(++ctx.p) !== 0x66) {
+    if (ctx.s.charCodeAt(++ctx.p) !== 0x6e || ctx.s.charCodeAt(++ctx.p) !== 0x66)
       TomlError.x("invalid value", ctx, startPtr);
-    }
     return (ctx.p++, (sign || 1) / 0);
   }
   // (+/-)nan
   if (c === 0x6e /* n */) {
-    if (ctx.s.charCodeAt(++ctx.p) !== 0x61 || ctx.s.charCodeAt(++ctx.p) !== 0x6e) {
+    if (ctx.s.charCodeAt(++ctx.p) !== 0x61 || ctx.s.charCodeAt(++ctx.p) !== 0x6e)
       TomlError.x("invalid value", ctx, startPtr);
-    }
     return (ctx.p++, NaN);
   }
   // Leading zero
   // Only allowed cases: `0<EOV>`, `0.(...)`, `0e(...)`, `0x(...)`, `0b(...)`, `0o(...)`
   // FWIW, `0e(...)` is a stupid case, but it's not banned per-se so we have to parse it
   if (c === 0x30 /* 0 */) {
-    if (++ctx.p >= ctx.s.length || isEndOfValue((c = ctx.s.charCodeAt(ctx.p)), endChr)) {
-      return ctx.bi === true ? 0n : 0;
-    } // note: conveniently deals with `-0`
+    if (++ctx.p >= ctx.s.length || isEndOfValue((c = ctx.s.charCodeAt(ctx.p)), endChr))
+      return ctx.bi === true ? 0n : 0; // note: conveniently deals with `-0`
     if (!sign) {
-      if (c === 0x78 /* x */) {
-        return parseIntegerBaseN(ctx, startPtr, 16, endChr);
-      } else if (c === 0x62 /* b */) {
-        return parseIntegerBaseN(ctx, startPtr, 2, endChr);
-      } else if (c === 0x6f /* o */) {
-        return parseIntegerBaseN(ctx, startPtr, 8, endChr);
-      }
+      if (c === 0x78 /* x */) return parseIntegerBaseN(ctx, startPtr, 16, endChr);
+      else if (c === 0x62 /* b */) return parseIntegerBaseN(ctx, startPtr, 2, endChr);
+      else if (c === 0x6f /* o */) return parseIntegerBaseN(ctx, startPtr, 8, endChr);
     }
-    if (c === 0x2e /* . */) {
-      state = 2;
-    } else if (c === 0x65 /* e */ || c === 0x45 /* E */) {
-      state = 4;
-    } else {
-      TomlError.x("illegal leading zero", ctx, startPtr);
-    }
+    if (c === 0x2e /* . */) state = 2;
+    else if (c === 0x65 /* e */ || c === 0x45 /* E */) state = 4;
+    else TomlError.x("illegal leading zero", ctx, startPtr);
   }
   // If the 1st char is not a digit by now, then it's not a valid TOML value at all
-  else if (!isDigit(c)) {
-    TomlError.x("invalid value", ctx, startPtr);
-  }
+  else if (!isDigit(c)) TomlError.x("invalid value", ctx, startPtr);
   while (++ctx.p < ctx.s.length && ((c = ctx.s.charCodeAt(ctx.p)), !isEndOfValue(c, endChr))) {
-    if (!state) {
-      state = 1;
-    } // Detects single-digit numbers we can use a fast parse path for
+    if (!state) state = 1; // Detects single-digit numbers we can use a fast parse path for
     // The way the states are numbered is not random: underscores are always permitted in odd-numbered states and
     // never permitted in even-numbered ones.
     if (c === 0x5f /* _ */) {
-      if (!(state & 1)) {
-        TomlError.x("illegal underscore", ctx);
-      }
+      if (!(state & 1)) TomlError.x("illegal underscore", ctx);
       state += 11; // 11 is a marker that makes the state even and greater than 9; see the numbering + rationale above
       hasUnderscores = true;
     }
     // Transition to fractional part.
-    else if (state === 1 && c === 0x2e /* . */) {
-      state = 2;
-    }
+    else if (state === 1 && c === 0x2e /* . */) state = 2;
     // Transition to exponent part.
-    else if ((state === 1 || state === 3) && (c === 0x65 /* e */ || c === 0x45) /* E */) {
-      state = 4;
-    }
+    else if ((state === 1 || state === 3) && (c === 0x65 /* e */ || c === 0x45) /* E */) state = 4;
     // + and - are permitted in state 4 only (handled before entering the function for state 0)
     else if (state === 4 && (c === 0x2b /* + */ || c === 0x2d) /* - */) {
       state = 6;
     }
     // All special cases have been handled; only digits are allowed here
-    else if (!isDigit(c)) {
-      TomlError.x(`illegal character in numeric literal`, ctx);
-    }
+    else if (!isDigit(c)) TomlError.x(`illegal character in numeric literal`, ctx);
     // Clear state flags
-    else if (state > 9) {
-      state -= 11;
-    } else if (!(state & 1)) {
-      state++;
-    }
+    else if (state > 9) state -= 11;
+    else if (!(state & 1)) state++;
   }
   // Single-char number; we can fast-path these very easily.
   if (!state) {
@@ -208,13 +178,9 @@ function parseNumber(ctx, startPtr, startChr, sign, endChr) {
     return ctx.bi === true ? BigInt(val) : val;
   }
   // Even-numbered states absolutely require a digit next; not even end of value is permitted
-  if (!(state & 1)) {
-    TomlError.x("unfinished numeric value", ctx, startPtr);
-  }
+  if (!(state & 1)) TomlError.x("unfinished numeric value", ctx, startPtr);
   let str = ctx.s.slice(startPtr, ctx.p);
-  if (hasUnderscores) {
-    str = str.replaceAll("_", "");
-  } // perf: replaceAll 1.25x faster than replace with a regex
+  if (hasUnderscores) str = str.replaceAll("_", ""); // perf: replaceAll 1.25x faster than replace with a regex
   return state > 1 ? parseFloat(str) : parseInteger(ctx, str, 10, startPtr);
 }
 function parseIntegerBaseN(ctx, startPtr, base, endChr) {
@@ -222,43 +188,30 @@ function parseIntegerBaseN(ctx, startPtr, base, endChr) {
     underscore = 1;
   while (++ctx.p < ctx.s.length && ((c = ctx.s.charCodeAt(ctx.p)), !isEndOfValue(c, endChr))) {
     if (c === 0x5f /* _ */) {
-      if (underscore & 1) {
-        TomlError.x("illegal underscore", ctx);
-      }
+      if (underscore & 1) TomlError.x("illegal underscore", ctx);
       underscore = 3;
     }
     // We only need to check if the number is a valid digit, nothing else is permitted
-    else if (!isDigit(c, base)) {
-      TomlError.x(`illegal character in numeric literal`, ctx);
-    }
+    else if (!isDigit(c, base)) TomlError.x(`illegal character in numeric literal`, ctx);
     // Clear underscore flag
-    else if (underscore & 1) {
-      underscore--;
-    }
+    else if (underscore & 1) underscore--;
   }
   // Trailing underscore is not allowed
-  if (underscore & 1) {
-    TomlError.x("unfinished numeric value", ctx);
-  }
+  if (underscore & 1) TomlError.x("unfinished numeric value", ctx);
   let str = ctx.s.slice(startPtr + 2, ctx.p);
-  if (underscore) {
-    str = str.replaceAll("_", "");
-  } // perf: replaceAll 1.25x faster than replace with a regex
+  if (underscore) str = str.replaceAll("_", ""); // perf: replaceAll 1.25x faster than replace with a regex
   return parseInteger(ctx, str, base, startPtr);
 }
 function parseInteger(ctx, str, base, startPtr) {
-  if (ctx.bi !== true) {
+  if (ctx.bi !== true)
     int: {
       let val = parseInt(str, base);
       if (!Number.isSafeInteger(val)) {
-        if (ctx.bi) {
-          break int;
-        }
+        if (ctx.bi) break int;
         TomlError.x("integer value cannot be represented losslessly", ctx, startPtr);
       }
       return val;
     }
-  }
   return base === 10 ? BigInt(str) : BigInt((base === 2 ? "0b" : base === 8 ? "0o" : "0x") + str);
 }
 function parseDate(ctx, c, endChr) {
@@ -273,9 +226,8 @@ function parseDate(ctx, c, endChr) {
     return parseNumber(ctx, (ctx.p = startPtr), c, 0, endChr);
   }
   ctx.p += 5;
-  if (!isDigit(ctx.s.charCodeAt(ctx.p++))) {
+  if (!isDigit(ctx.s.charCodeAt(ctx.p++)))
     TomlError.x("invalid date-time: date part is malformed", ctx, startPtr);
-  }
   if (
     ctx.p >= ctx.s.length ||
     (((c = ctx.s.charCodeAt(ctx.p)) !== 0x20 ||
@@ -286,15 +238,10 @@ function parseDate(ctx, c, endChr) {
     let t = ctx.s.slice(startPtr, ctx.p);
     return readDate(ctx, t, 3, false, startPtr);
   }
-  if (ctx.s.charCodeAt((ctx.p += 3)) !== 0x3a /* : */) {
+  if (ctx.s.charCodeAt((ctx.p += 3)) !== 0x3a /* : */)
     TomlError.x("invalid date-time: time part is malformed", ctx, startPtr);
-  }
-  if (ctx.s.charCodeAt((ctx.p += 3)) === 0x3a /* : */) {
-    ctx.p += 3;
-  }
-  if (ctx.s.charCodeAt(ctx.p) === 0x2e /* . */) {
-    while (isDigit(ctx.s.charCodeAt(++ctx.p))) {}
-  }
+  if (ctx.s.charCodeAt((ctx.p += 3)) === 0x3a /* : */) ctx.p += 3;
+  if (ctx.s.charCodeAt(ctx.p) === 0x2e /* . */) while (isDigit(ctx.s.charCodeAt(++ctx.p)));
   if ((c = ctx.s.charCodeAt(ctx.p))) {
     if (c === 0x5a /* Z */ || c === 0x7a /* z */) {
       let t = ctx.s.slice(startPtr, ++ctx.p);
@@ -322,27 +269,19 @@ function parseTime(ctx, c, endChr) {
   if (!isDigit(c) || !isDigit(ctx.s.charCodeAt(++ctx.p))) {
     return parseNumber(ctx, --ctx.p, c, 0, endChr);
   }
-  if (ctx.s.charCodeAt((ctx.p += 4)) === 0x3a /* : */) {
-    ctx.p += 3;
-  }
-  if (ctx.s.charCodeAt(ctx.p) === 0x2e /* . */) {
-    while (isDigit(ctx.s.charCodeAt(++ctx.p))) {}
-  }
+  if (ctx.s.charCodeAt((ctx.p += 4)) === 0x3a /* : */) ctx.p += 3;
+  if (ctx.s.charCodeAt(ctx.p) === 0x2e /* . */) while (isDigit(ctx.s.charCodeAt(++ctx.p)));
   let t = ctx.s.slice(start, ctx.p);
   return readDate(ctx, t, 4, false, start);
 }
 function readDate(ctx, str, type, unsafeDelim, errPtr, temporalSuffix) {
   if (ctx.ld) {
     let date = new TomlDate(str, type, unsafeDelim);
-    if (!date.isValid()) {
-      TomlError.x("invalid date", ctx, errPtr);
-    }
+    if (!date.isValid()) TomlError.x("invalid date", ctx, errPtr);
     return date;
   }
   try {
-    if (temporalSuffix) {
-      str += temporalSuffix;
-    }
+    if (temporalSuffix) str += temporalSuffix;
     switch (type) {
       case 1:
         return Temporal.ZonedDateTime.from(str);

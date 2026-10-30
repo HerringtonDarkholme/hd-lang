@@ -35,11 +35,8 @@ export function parseString(ctx) {
   let isMultiline = c === ctx.s.charCodeAt(ctx.p) && c === ctx.s.charCodeAt(ctx.p + 1);
   if (isMultiline) {
     // Trim initial newline
-    if ((c = ctx.s.charCodeAt((ctx.p += 2))) === 0xa /* \n */) {
-      ctx.p++;
-    } else if (c === 0xd /* \r */ && ctx.s.charCodeAt(ctx.p + 1) === 0xa /* \n */) {
-      ctx.p += 2;
-    }
+    if ((c = ctx.s.charCodeAt((ctx.p += 2))) === 0xa /* \n */) ctx.p++;
+    else if (c === 0xd /* \r */ && ctx.s.charCodeAt(ctx.p + 1) === 0xa /* \n */) ctx.p += 2;
   }
   // For the record: it is not worth it to use a fast-path for literal strings using `indexOf`.
   // Doing a char-by-char iteration ends up dispatching less instructions, for the same wall-clock runtime.
@@ -74,12 +71,8 @@ export function parseString(ctx) {
     ) {
       if (isMultiline) {
         // If the string ends with 4-5 quotes, then the first 1-2 are part of the string
-        if (ctx.s.charCodeAt(ctx.p + 3) === first) {
-          ctx.p++;
-        }
-        if (ctx.s.charCodeAt(ctx.p + 3) === first) {
-          ctx.p++;
-        }
+        if (ctx.s.charCodeAt(ctx.p + 3) === first) ctx.p++;
+        if (ctx.s.charCodeAt(ctx.p + 3) === first) ctx.p++;
       }
       // If we're in a newline escape still, then there's nothing to add.
       if (!state) {
@@ -112,9 +105,7 @@ export function parseString(ctx) {
                 : /* a-f */ hex >= 0x61 && hex <= 0x66
                   ? hex - 0x61 + 10
                   : -1;
-          if (digit < 0) {
-            TomlError.x("invalid non-hex character in unicode escape", ctx);
-          }
+          if (digit < 0) TomlError.x("invalid non-hex character in unicode escape", ctx);
           value = (value << 4) | digit;
         }
         // Because JS does bitwise on signed 32bit integers, all 0xfzzzzzzz values are actually seen as negative
@@ -131,34 +122,23 @@ export function parseString(ctx) {
       }
       // Basic escape sequence
       else {
-        if (c === 0x62 /* b */) {
-          parsed += "\b";
-        } else if (c === 0x74 /* t */) {
-          parsed += "\t";
-        } else if (c === 0x6e /* n */) {
-          parsed += "\n";
-        } else if (c === 0x66 /* f */) {
-          parsed += "\f";
-        } else if (c === 0x72 /* r */) {
-          parsed += "\r";
-        } else if (c === 0x65 /* e */) {
-          parsed += "\x1b";
-        } else if (c === 0x22 /* " */) {
-          parsed += '"';
-        } else if (c === 0x5c /* \ */) {
-          parsed += "\\";
-        } else {
-          TomlError.x("unrecognised escape sequence", ctx);
-        }
+        if (c === 0x62 /* b */) parsed += "\b";
+        else if (c === 0x74 /* t */) parsed += "\t";
+        else if (c === 0x6e /* n */) parsed += "\n";
+        else if (c === 0x66 /* f */) parsed += "\f";
+        else if (c === 0x72 /* r */) parsed += "\r";
+        else if (c === 0x65 /* e */) parsed += "\x1b";
+        else if (c === 0x22 /* " */) parsed += '"';
+        else if (c === 0x5c /* \ */) parsed += "\\";
+        else TomlError.x("unrecognised escape sequence", ctx);
         sliceStart = ctx.p + 1;
         state = 0;
       }
     }
     // Newline escape continuation: keep moving forward until the first non-whitespace char
     else if (c !== 0x20 && c !== 0x9 /* \t */) {
-      if (state === 2) {
+      if (state === 2)
         TomlError.x("invalid escape: only line-ending whitespace may be escaped", ctx, sliceStart);
-      }
       // State cannot be zero, or we'd have branched earlier already.
       // If it's a backslash, immediately transition to the escape state so it can be processed.
       state = !isLiteral && c === 0x5c /* \ */ ? 1 : 0;

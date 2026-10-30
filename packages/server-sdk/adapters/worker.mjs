@@ -73,7 +73,8 @@ parentPort.on("message", (message) => {
       return fail();
     }
     const controller = new AbortController();
-    const job = (active = { id: message.id, controller });
+    active = { id: message.id, controller };
+    const job = active;
     // The plain copied result is posted only after dispatch has joined guest
     // cleanup or explicitly abandoned it. Physical response ownership stays
     // in the supervisor's thread, outside this interruptible isolate.

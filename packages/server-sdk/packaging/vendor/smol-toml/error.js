@@ -35,9 +35,7 @@ function makeCodeBlock(string, line, column) {
   let numberLen = (Math.log10(line + 1) | 0) + 1;
   for (let i = line - 1; i <= line + 1; i++) {
     let l = lines[i - 1];
-    if (!l) {
-      continue;
-    }
+    if (!l) continue;
     codeblock += i.toString().padEnd(numberLen, " ");
     codeblock += ":  ";
     codeblock += l;

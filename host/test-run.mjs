@@ -127,11 +127,13 @@ export async function supervise(module, config, writeOut) {
           // left to stop until the next one begins. A stop between this
           // result and the worker's next message, or its exit, would
           // report the same case or row a second time.
-          limitAt = timeout = null;
+          limitAt = null;
+          timeout = null;
           clear();
           writeOut(m.text);
         } else if (m.type === "case") {
-          limitAt = timeout = null;
+          limitAt = null;
+          timeout = null;
           arm();
           at = { ci: m.ci, row: null, rows: null };
         } else if (m.type === "rows") {
@@ -140,7 +142,8 @@ export async function supervise(module, config, writeOut) {
             at.row = 0;
           }
         } else if (m.type === "row") {
-          limitAt = timeout = null;
+          limitAt = null;
+          timeout = null;
           arm();
           at.row = m.row;
         } else if (m.type === "limit") {
