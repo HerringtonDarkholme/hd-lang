@@ -51,6 +51,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint and format JS/TS
+        run: |
+          pnpm exec oxlint .
+          pnpm run -s format:check
+
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
 
