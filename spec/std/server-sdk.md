@@ -112,7 +112,7 @@ the retained guest shares synchronous driver turns.
 
 ## JavaScript Application Adapter
 
-`adapters/application.mjs` connects the dispatcher to an ordinary compiled
+`adapters/application.ts` connects the dispatcher to an ordinary compiled
 SDK application through public runtime and generated binding modules.
 
 1. r[std-server-sdk.application.inputs-with-logs] `createApplication` takes a Wasm module, generated bindings, `createCoreHost`, explicit grants, and an output sink or private log observer.
@@ -163,7 +163,7 @@ The embedding caller chooses the private log destination.
 
 ## JavaScript Fetch Transport
 
-`adapters/http.mjs` supplies a native-fetch transport for a lease-owned
+`adapters/http.ts` supplies a native-fetch transport for a lease-owned
 `std.http.Http` handle.
 
 1. r[std-server-sdk.http.factory] `createHttpClient(lease, options)` returns a JavaScript implementation of `Http.send` for that lease.
@@ -189,7 +189,7 @@ The embedding caller chooses the private log destination.
 
 ## Fetch Request Adapter
 
-`adapters/fetch.mjs` maps standard Fetch requests to the ordinary application.
+`adapters/fetch.ts` maps standard Fetch requests to the ordinary application.
 Its optional timer service supports deterministic hosts and tests without
 changing the profile's limits.
 
@@ -228,7 +228,7 @@ changing the profile's limits.
 
 ## Node Worker Supervisor
 
-`adapters/supervisor.mjs` runs each retained application in a separate
+`adapters/supervisor.ts` runs each retained application in a separate
 Node worker. Runtime, generated-binding, and application module URLs are
 explicit public inputs; packaging supplies them independently.
 
@@ -272,7 +272,7 @@ explicit public inputs; packaging supplies them independently.
 
 The SDK JavaScript conformance inputs are in
 [deployment-grants.json](../../packages/server-sdk/test/fixtures/deployment-grants.json);
-its maintained [test runner](../../packages/server-sdk/test/grants.test.mjs)
+its maintained [test runner](../../packages/server-sdk/test/grants.test.ts)
 also checks root selection, fresh reads, invalid UTF-8 and the SDK task bridge.
 
 ## Portable Runtime Packaging
@@ -288,7 +288,7 @@ also checks root selection, fresh reads, invalid UTF-8 and the SDK task bridge.
 > need while the compiler's build output stays platform-neutral and policy-free.
 > Each platform task owns its final bundle and build validation.
 
-The maintained [runtime conformance controls](../../packages/server-sdk/test/runtime.test.mjs)
+The maintained [runtime conformance controls](../../packages/server-sdk/test/runtime.test.ts)
 check invalid snapshots, source fidelity, output ownership and a compiled
 application running from a relocated SDK after source and provider removal.
 
@@ -370,11 +370,11 @@ uses this API through its package-declared provider.
 > The SDK owns reserved output paths, rather than replacing a nonempty
 > directory containing files managed by other tools.
 
-The maintained [deployment controls](../../packages/server-sdk/test/deployment.test.mjs)
+The maintained [deployment controls](../../packages/server-sdk/test/deployment.test.ts)
 exercise ordinary tasks, artifact validation, production policy and relocated
-output. [Output controls](../../packages/server-sdk/test/output.test.mjs)
-cover ownership and publication; [binding controls](../../packages/server-sdk/test/contract-bindings.test.mjs)
-and [schema controls](../../packages/server-sdk/test/server-schema.test.mjs)
+output. [Output controls](../../packages/server-sdk/test/output.test.ts)
+cover ownership and publication; [binding controls](../../packages/server-sdk/test/contract-bindings.test.ts)
+and [schema controls](../../packages/server-sdk/test/server-schema.test.ts)
 cover companion pairing, value codecs and the SDK's expected ABI data.
 
 ## Vercel Node Deployment
@@ -471,8 +471,8 @@ uses the existing Deployment capability.
 > **Note.** Local official builder and launcher checks do not establish
 > remote build or hosted deployment acceptance.
 
-The maintained [Vercel deployment controls](../../packages/server-sdk/test/vercel-deployment.test.mjs)
+The maintained [Vercel deployment controls](../../packages/server-sdk/test/vercel-deployment.test.ts)
 cover ordinary tasks, artifact and policy checks, relocation, and emitted
-Node HTTP behavior. [Vercel output controls](../../packages/server-sdk/test/vercel-output.test.mjs)
+Node HTTP behavior. [Vercel output controls](../../packages/server-sdk/test/vercel-output.test.ts)
 cover ownership, immutable function generations, selector publication and
 cancellation.

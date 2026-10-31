@@ -1,16 +1,8 @@
 import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
-import { stripTypeScriptTypes } from "node:module";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-
-const relativeTs = /(["'])(\.\.?\/[^"'\r\n]*?)\.ts((?:[?#][^"'\r\n]*)?)\1/g;
+import { emitTypeScriptJavaScript } from "../packages/server-sdk/packaging/typescript-emission.ts";
 
 const fail = (message) => new Error(`host emission: ${message}`);
-
-function rewriteHostSpecifiers(javascript) {
-  return javascript.replace(relativeTs, (_, quote, path, suffix) => {
-    return `${quote}${path}.js${suffix}${quote}`;
-  });
-}
 
 function inside(root, path) {
   const rel = relative(root, path);
@@ -32,22 +24,16 @@ function checkedPath(root, name, kind) {
   return path;
 }
 
-/** Turn one erasable `.ts` module into runnable ESM with `.js` dependencies. */
 export function emitHostJavaScript(source, sourceName) {
-  if (!sourceName.endsWith(".ts")) {
-    throw fail(`typed source must end in .ts: ${sourceName}`);
-  }
-  let javascript;
   try {
-    javascript = stripTypeScriptTypes(source, { mode: "strip" });
+    return emitTypeScriptJavaScript(source, sourceName);
   } catch (error) {
-    throw fail(`cannot strip ${sourceName}: ${error.message}`);
+    throw fail(error.message.replace(/^TypeScript emission: /, ""));
   }
-  return rewriteHostSpecifiers(javascript);
 }
 
 /** Read a named host graph, emitting `.ts` inputs under their `.js` output names. */
-export async function readHostSources(root, sources) {
+export async function readTypeScriptSources(root, sources) {
   const sourceRoot = resolve(root);
   const files = {};
   for (const name of Object.keys(sources).sort()) {
@@ -68,10 +54,12 @@ export async function readHostSources(root, sources) {
   return files;
 }
 
+export const readHostSources = readTypeScriptSources;
+
 /** Emit a host graph into a fresh directory, leaving both sources and existing output untouched. */
 export async function emitHostSources(directory, root, sources) {
   const destination = resolve(directory);
-  const files = await readHostSources(root, sources);
+  const files = await readTypeScriptSources(root, sources);
   await mkdir(destination);
   try {
     for (const [name, text] of Object.entries(files)) {

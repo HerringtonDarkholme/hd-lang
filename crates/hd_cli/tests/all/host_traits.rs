@@ -876,15 +876,15 @@ pub fn main!() -> void $ Console + Http + Args:
 #[test]
 fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
     server_sdk_node_tests(&[
-        "packages/server-sdk/test/node.test.mjs",
-        "packages/server-sdk/test/provider.test.mjs",
-        "packages/server-sdk/test/dispatcher.test.mjs",
-        "packages/server-sdk/test/application.test.mjs",
-        "packages/server-sdk/test/application-client.test.mjs",
-        "packages/server-sdk/test/application-logs.test.mjs",
-        "packages/server-sdk/test/console.test.mjs",
-        "packages/server-sdk/test/node-client.test.mjs",
-        "packages/server-sdk/test/http.test.mjs",
+        "packages/server-sdk/test/node.test.ts",
+        "packages/server-sdk/test/provider.test.ts",
+        "packages/server-sdk/test/dispatcher.test.ts",
+        "packages/server-sdk/test/application.test.ts",
+        "packages/server-sdk/test/application-client.test.ts",
+        "packages/server-sdk/test/application-logs.test.ts",
+        "packages/server-sdk/test/console.test.ts",
+        "packages/server-sdk/test/node-client.test.ts",
+        "packages/server-sdk/test/http.test.ts",
     ]);
 }
 
@@ -892,32 +892,32 @@ fn server_sdk_main_keeps_state_and_serves_concurrent_requests() {
 #[test]
 fn server_sdk_fetch_and_supervised_application_cleanup() {
     server_sdk_node_tests(&[
-        "packages/server-sdk/test/fetch.test.mjs",
-        "packages/server-sdk/test/supervisor.test.mjs",
-        "packages/server-sdk/test/supervised-application.test.mjs",
+        "packages/server-sdk/test/fetch.test.ts",
+        "packages/server-sdk/test/supervisor.test.ts",
+        "packages/server-sdk/test/supervised-application.test.ts",
     ]);
 }
 
 /// Deployment policy is read by SDK tasks from the root production table.
 #[test]
 fn server_sdk_deployment_grants_are_production_only() {
-    server_sdk_node_tests(&["packages/server-sdk/test/grants.test.mjs"]);
+    server_sdk_node_tests(&["packages/server-sdk/test/grants.test.ts"]);
 }
 
 /// The SDK's portable host graph is self-contained after installation.
 #[test]
 fn server_sdk_portable_runtime_survives_relocation() {
-    server_sdk_node_tests(&["packages/server-sdk/test/runtime.test.mjs"]);
+    server_sdk_node_tests(&["packages/server-sdk/test/runtime.test.ts"]);
 }
 
 /// Installed SDK tasks publish data-validated, owned Cloudflare bundles.
 #[test]
 fn server_sdk_cloudflare_deployment_is_relocatable() {
     server_sdk_node_tests(&[
-        "packages/server-sdk/test/deployment.test.mjs",
-        "packages/server-sdk/test/output.test.mjs",
-        "packages/server-sdk/test/contract-bindings.test.mjs",
-        "packages/server-sdk/test/server-schema.test.mjs",
+        "packages/server-sdk/test/deployment.test.ts",
+        "packages/server-sdk/test/output.test.ts",
+        "packages/server-sdk/test/contract-bindings.test.ts",
+        "packages/server-sdk/test/server-schema.test.ts",
     ]);
 }
 
@@ -925,9 +925,9 @@ fn server_sdk_cloudflare_deployment_is_relocatable() {
 #[test]
 fn server_sdk_vercel_deployment_is_relocatable() {
     server_sdk_node_tests(&[
-        "packages/server-sdk/test/vercel-deployment.test.mjs",
-        "packages/server-sdk/test/vercel-node.test.mjs",
-        "packages/server-sdk/test/vercel-output.test.mjs",
+        "packages/server-sdk/test/vercel-deployment.test.ts",
+        "packages/server-sdk/test/vercel-node.test.ts",
+        "packages/server-sdk/test/vercel-output.test.ts",
     ]);
 }
 

@@ -36,15 +36,19 @@ The library tests bind an ordinary HD provider. The live Node check uses
 the actual sample and package-provider boundary:
 
 ```sh
-node --test packages/server-sdk/test/*.test.mjs
+node --test packages/server-sdk/test/*.test.ts
 ```
 
 `HD_SDK_TEST_HD` can name a different compiled CLI. No test needs a public
 listener, external network service or deployment credentials.
 
+SDK adapters, providers, packaging tools and tests are plain `.ts` sources.
+Deployment packaging strips their erasable types and publishes runnable `.js` modules;
+published bundles never contain TypeScript source.
+
 ## Adapter Boundary
 
-`adapters/application.mjs` exports `createApplication({ module, bindings,
+`adapters/application.ts` exports `createApplication({ module, bindings,
 createCoreHost, grants, sink, log })`. The caller supplies the built Wasm module,
 its signature-generated `.host.mjs` exports, the public core host factory,
 an explicit capability map and an output sink or private log observer. No compiler-cache
@@ -58,7 +62,7 @@ constructs its native Response afterward.
 `stop()` closes admission and joins the retained main after admitted jobs;
 `fail(error)` closes the poisoned host and rejects all active dispatches.
 
-`adapters/dispatcher.mjs` provides the lower-level lease scheduler. A native
+`adapters/dispatcher.ts` provides the lower-level lease scheduler. A native
 operation's start receives resolve/reject callbacks and returns optional
 disposal. Both run in its lease's `run()` coroutine, even when another
 request caused the guest poll. Late callbacks are ignored after disposal.
@@ -68,7 +72,7 @@ platform adapters; it does not yet supply their complete policies.
 
 ## Outgoing Fetch Transport
 
-`adapters/http.mjs` exports `createHttpClient(lease, options)`. It takes a
+`adapters/http.ts` exports `createHttpClient(lease, options)`. It takes a
 resolved core grant plus the public `isAsciiUrl` and `writtenHost` helpers;
 its returned `send(request, context)` method uses `lease.operation` to
 schedule native I/O. The optional fetch implementation supports platform
@@ -88,7 +92,7 @@ Admission limits and deployment packaging remain separate adapter layers.
 
 ## Fetch Mapping And Cleanup Backstop
 
-`adapters/fetch.mjs` exports `createFetchAdapter(options)` for one retained
+`adapters/fetch.ts` exports `createFetchAdapter(options)` for one retained
 Application, or `createFetchHandler(application, options)` for an existing
 Application or Node supervisor. Both consume standard Fetch requests and
 return standard Fetch responses. Runtime and generated bindings remain
@@ -107,7 +111,7 @@ limits remain independent; a blocked isolate needs an external supervisor.
 
 ## Node Worker Supervision
 
-`adapters/supervisor.mjs` exports `createSupervisor({ program, policy, event,
+`adapters/supervisor.ts` exports `createSupervisor({ program, policy, event,
 log, exhausted })`. `program` supplies a compiled WebAssembly.Module, explicit
 runtime/bindings/Application module URLs, and resolved grants. Each worker
 retains its own application state and accepts one active request at a time.
@@ -156,15 +160,15 @@ guarantee or select deployment budgets.
 
 ## Deploy-Time Production Grants
 
-`packaging/grants.mjs` is the shared manifest reader for the SDK deployment tasks. `readProductionGrants(rootDirectory)` reads exactly that root's `hd.toml` on each call. `parseProductionGrants(text)` provides the same validation for an already-read manifest. Both preserve explicit true, false and scope lists, including package-capability consent; neither imports development grants or supplies missing grants.
+`packaging/grants.ts` is the shared manifest reader for the SDK deployment tasks. `readProductionGrants(rootDirectory)` reads exactly that root's `hd.toml` on each call. `parseProductionGrants(text)` provides the same validation for an already-read manifest. Both preserve explicit true, false and scope lists, including package-capability consent; neither imports development grants or supplies missing grants.
 
 The reader accepts TOML quoted keys, multiline arrays and ordinary escaping through a pinned, vendored parser. It rejects malformed TOML, invalid grant shapes and non-UTF-8 input. Error text omits source excerpts and grant values. Scope paths keep their manifest spelling for the consuming platform adapter to resolve; this helper does not invent a platform filesystem.
 
-The policy conformance inputs are in `test/fixtures/deployment-grants.json`, executed by `node --test packages/server-sdk/test/grants.test.mjs` from the repository root and by the CLI's maintained SDK test wrapper. `hd build` remains policy-free: there is no `NAME.host.json`, and deployment grants are not read from compiler caches or build artifacts. The Cloudflare task uses this reader before preparing its output.
+The policy conformance inputs are in `test/fixtures/deployment-grants.json`, executed by `node --test packages/server-sdk/test/grants.test.ts` from the repository root and by the CLI's maintained SDK test wrapper. `hd build` remains policy-free: there is no `NAME.host.json`, and deployment grants are not read from compiler caches or build artifacts. The Cloudflare task uses this reader before preparing its output.
 
 ## Portable Runtime Snapshot
 
-The SDK carries the platform-neutral host graph and its ABI model in `runtime/runtime-sources.json`. Deployment tools use `packaging/portable-runtime.mjs` to validate this snapshot and emit it into a fresh task-owned staging directory. `readPortableRuntime()` returns the file texts and identity metadata; `emitPortableRuntime(directory)` also returns public module URLs for the emitted core and package-contract reader. Existing output is refused.
+The SDK carries the platform-neutral host graph and its ABI model in `runtime/runtime-sources.json`. Deployment tools use `packaging/portable-runtime.ts` to validate this snapshot and emit it into a fresh task-owned staging directory. `readPortableRuntime()` returns the file texts and identity metadata; `emitPortableRuntime(directory)` also returns public module URLs for the emitted core and package-contract reader. Existing output is refused.
 
 Snapshot source text uses LF independently of checkout line endings. Emitted files match those archived bytes.
 
@@ -172,7 +176,7 @@ The fingerprint covers emitted names and bytes, the package-host ABI version and
 
 The installed SDK needs no compiler checkout, build companion or compiler cache to emit its runtime. The relocation control builds the sample, removes its HD source and SDK development provider, then uses the installed snapshot and production grants to serve counters 1, 2 and 3 and stop normally in a fresh Node process. Platform build validation remains part of each deploy task's acceptance.
 
-Repository maintainers refresh the generated snapshot with `node packages/server-sdk/packaging/sync-runtime.mjs` when the portable host graph changes. The maintained SDK tests reject a snapshot that differs from the current host sources. Application deploy tasks consume the snapshot and never run this repository-maintenance command.
+Repository maintainers refresh the generated snapshot with `node packages/server-sdk/packaging/sync-runtime.ts` when the portable host graph changes. The maintained SDK tests reject a snapshot that differs from the current host sources. Application deploy tasks consume the snapshot and never run this repository-maintenance command.
 
 ## Cloudflare Deployment Task
 

@@ -114,7 +114,7 @@ For this example, copy the platform-neutral runtime from the checkout into `embe
 ```sh
 node --input-type=module <<'JS'
 import { emitHostSources } from "./scripts/host-emission.mjs";
-import { runtimeSources } from "./packages/server-sdk/packaging/runtime-model.mjs";
+import { runtimeSources } from "./packages/server-sdk/packaging/runtime-model.ts";
 
 await emitHostSources("../embedding-demo/runtime", ".", runtimeSources);
 JS
