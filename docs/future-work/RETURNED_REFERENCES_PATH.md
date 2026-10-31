@@ -5,7 +5,7 @@ stages 1 to 9 (stage 7: #1098, #1106 to #1108, #1111 to #1115, #1129;
 stage 8: #1118, no borrow flags; stage 9: #1119, #1126, #1127). Open: copying
 a `&mut` (#1130, waits on `~Copyable`), the run-time loans 7e leaves unchecked
 (#1131 to #1136, P3), and the same paths for `&mut` parameters (Rust's view
-types, below), not scheduled; 6i is not planned for now (see its
+types, below): not now (owner, 2026-10-31); 6i is not planned for now (see its
 row). It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
@@ -488,8 +488,8 @@ u.name = "x"        # error: n is live
   `t.lead.name`, and an unseen alias is caught per place at run time
   (stage 7).
 - **Not inferred:** a caller's validity never depends on a callee's body.
-- **Later, separately:** the same for `&mut` parameters (Rust's view types,
-  `fn bump(&mut self.count)`).
+- **Not now (owner, 2026-10-31):** the same for `&mut` parameters (Rust's
+  view types, `fn bump(&mut self.count)`).
 
 Cost: path-aware conflicts across calls, about 900 to 1,500 checker lines
 against 500 to 800 for stage 7's whole-source and local-path checks (#1005).
