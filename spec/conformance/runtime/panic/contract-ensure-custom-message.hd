@@ -1,0 +1,6 @@
+# test: a failing ensure panics with its custom postcondition message
+use std.contract.ensure
+
+pub fn main() -> void:
+    ensure("result must be positive"): # panic: explicit-panic
+        false

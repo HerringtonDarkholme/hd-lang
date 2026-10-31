@@ -570,14 +570,14 @@ See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 
 ## Keywords And Reserved Words
 
-r[lex.keyword.reserved-words] The grammar uses these reserved words:
+r[lex.keyword.reserved-words.v2] The grammar uses these reserved words:
 
 ```text
-Self      break     continue  data      defer     dyn
-else      enum      false     fn        for       if
-impl      in        is        let       match     mut
-pass      pub       return    self      struct    tests
-trait     true      type      while
+Self      break     continue  data      dyn       else
+enum      false     fn        for       if        impl
+in        is        let       match     mut       pass
+pub       return    self      struct    tests     trait
+true      type      while
 ```
 
 1. r[lex.keyword.tests] `tests` begins a module's `tests:` block ([Test Blocks](02-grammar.md#test-blocks)).
@@ -586,7 +586,7 @@ trait     true      type      while
 
 ### Contextual Words
 
-r[lex.contextual.fixed.const-generic] The following contextual words have special meaning
+r[lex.contextual.fixed.defer] The following contextual words have special meaning
 only in fixed positions:
 
 | Rule | Words | Position |
@@ -599,6 +599,7 @@ only in fixed positions:
 | r[lex.contextual.by-header] Delegation and derivation | `by` | after the target type of an implementation header, as in `impl Describe for Service by Logger` or `impl User by Structure`, without a trait |
 | r[lex.contextual.using-split] Using binding | `using` | at the start of a statement, before an optional glued `!` and a name on the same line, as [`grammar.stmt.using-split`](02-grammar.md#r-grammar.stmt.using-split) specifies |
 | r[lex.contextual.const-generic] Const generic parameter | `const` | after `<` in a generic parameter, before its declared scalar type |
+| r[lex.contextual.defer] Deferred cleanup | `defer` | at the start of a suite statement before `:`, including missing-colon recovery; before `(` or `:=` it is an ordinary name |
 
 1. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn with() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
 2. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.

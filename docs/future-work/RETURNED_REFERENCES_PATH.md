@@ -1,10 +1,9 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 5, stage 6 except 6g, and stages 7a (#1098)
-7b (#1106) and 7c (#1107). Open: 6g1 `@auto_closing` (#1099) and 6g2 library
-`defer`/`ensure` (#1101), the `for` cursor gap (#1105), and stages 7d and 7e;
-6i is not planned for now (see its row). It reviews
+stages 1 to 5, stage 6g (#1099, #1101), stage 6h (#1097, #1104), and stages
+7a (#1098), 7b (#1106) and 7c (#1107). Open: the `for` cursor gap (#1105)
+and stages 7d and 7e; 6i is not planned for now (see its row). It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
@@ -353,6 +352,11 @@ Applied by #1099 (6g1): `AutoClosing` and `@auto_closing` register a direct
 statement call on the shared cleanup stack; marker values cannot remain
 unregistered. See [Auto-Closing Calls](../../spec/lang/06-control-flow.md#auto-closing-calls)
 and [Auto-Closing Functions](../../spec/lang/14-annotations.md#auto-closing-functions).
+
+Applied by #1101 (6g2): [`std.ops.defer`](../../spec/std/ops.md#library-defer)
+registers a callback for every cleanup exit, and
+[`std.contract.ensure`](../../spec/std/contract.md#ensure) registers a read-only
+postcondition for normal exits. Both share the auto-closing cleanup stack.
 
 Applied by #1019 (6a3): an elided lifetime argument in a signature is a reference position that writes no lifetime, so `p: &Parser[string]` has two and `-> Parser[string]` elides as `-> &T` does; the resolver decides elision over a signature's typed positions. A lifetime written inside a generic argument (`Option[&'a T]`, `Wrap[&'a T]`) and in an implementation's target (`impl[T, 'a] Parser[T, 'a]`) is placed; an elided target lifetime stays not-yet (6c3).
 

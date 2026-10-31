@@ -297,6 +297,14 @@ fn impl_types_are_scoped_to_named_function_annotations() {
 }
 
 #[test]
+fn defer_is_a_name_for_a_call_and_a_word_before_a_suite() {
+    let source = "fn defer(action: fn() -> void) -> void: action()\nfn use(action: fn() -> void) -> void:\n    defer(action)\n    defer:\n        action()\nfn bind(action: fn() -> void) -> void:\n    defer := action\n    defer()\n";
+    let parsed = parse(source.as_bytes());
+    assert!(parsed.is_ok(), "{:?}", parsed.diagnostic_codes());
+    assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
+}
+
+#[test]
 fn opaque_result_occurrences_nest_in_return_types() {
     for (source, occurrences) in [
         ("fn f() -> Result[impl Iterator[i32], E]: +1\n", 1),

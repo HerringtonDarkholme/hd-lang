@@ -1,5 +1,5 @@
 # test: const generic parameters and arguments parse in every generic declaration position, while const stays an identifier elsewhere
-# Spec 01 Contextual Words: lex.contextual.fixed.const-generic, lex.contextual.const-generic, lex.contextual.elsewhere.
+# Spec 01 Contextual Words: lex.contextual.fixed.defer, lex.contextual.const-generic, lex.contextual.elsewhere.
 # Spec 02 Const Generic Parameter Syntax: grammar.generic.const.declaration, grammar.generic.const.positions, grammar.generic.const.argument.
 
 struct Fixed[T, N < const usize]:

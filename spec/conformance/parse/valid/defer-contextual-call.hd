@@ -1,0 +1,11 @@
+fn defer(action: fn() -> void) -> void:
+    action()
+
+fn run(action: fn() -> void) -> void:
+    defer(action)
+    defer:
+        action()
+
+fn bind(action: fn() -> void) -> void:
+    defer := action
+    defer()

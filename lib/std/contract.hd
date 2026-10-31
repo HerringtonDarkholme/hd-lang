@@ -1,5 +1,26 @@
 # std.contract.
 use std.function.Fn
+use std.ops.{AutoClosing, Disposable}
+
+## A postcondition guard registered by `ensure`.
+## See [std-contract.ensure.guard](../../spec/std/contract.md#r-std-contract.ensure.guard).
+pub struct EnsureGuard[F < Fn() -> bool & 'a, 'a]:
+    message: string
+    condition: F
+
+impl['a, F < Fn() -> bool & 'a] Disposable for EnsureGuard[F, 'a]:
+    fn dispose(&mut self) -> void:
+        if !(self.condition)():
+            panic(self.message)
+
+impl['a, F < Fn() -> bool & 'a] AutoClosing for EnsureGuard[F, 'a]:
+    pass
+
+## Registers a postcondition checked at every normal exit of the calling scope.
+## See [std-contract.ensure.decl](../../spec/std/contract.md#r-std-contract.ensure.decl).
+@auto_closing
+pub fn ensure[F < Fn() -> bool & 'a, 'a](message: string, condition: F) -> EnsureGuard[F, 'a]:
+    EnsureGuard { message: message, condition: condition }
 
 ## Panics unless `condition` returns true.
 ## See [std-contract.require.decl](../../spec/std/contract.md#r-std-contract.require.decl).

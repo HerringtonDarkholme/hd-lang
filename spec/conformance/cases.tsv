@@ -1120,6 +1120,7 @@ runtime/valid/using-race-loser-disposes.hd	runtime	accept	lang/06-control-flow.m
 runtime/valid/using-reference-disposes.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.reference.v2
 runtime/valid/using-sync-and-async-order.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.order.v2
 runtime/valid/scope-guard-row.hd	runtime	accept	std/ops.md#scope-guards
+runtime/valid/library-defer-lifo.hd	runtime	accept	std/ops.md#r-std-ops.defer.order
 runtime/panic/defer-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/06-control-flow.md#r-flow.defer.block-on.indirect
 runtime/panic/default-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect
 runtime/valid/defer-order.hd	runtime	accept	lang/06-control-flow.md#deferred-cleanup
@@ -2226,7 +2227,7 @@ typing/invalid/derive-before-function.hd	type	reject:decorator-not-annotator	lan
 typing/invalid/duplicate-declaration-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.metadata.duplicate
 runtime/valid/data-variant-facts-empty.hd	runtime	accept	lang/14-annotations.md#r-annot.variant.data-facts
 parse/valid/trait-less-derivation-block.hd	parse	accept	lang/02-grammar.md#r-grammar.impl.by-no-trait
-typing/valid/annotate-identifier.hd	type	accept	lang/01-lexical-structure.md#r-lex.keyword.reserved-words
+typing/valid/annotate-identifier.hd	type	accept	lang/01-lexical-structure.md#r-lex.keyword.reserved-words.v2
 typing/valid/trait-less-derivation-block.hd	type	accept	lang/14-annotations.md#r-annot.no-trait.form
 runtime/valid/trait-less-block-facts.hd	runtime	accept	lang/14-annotations.md#r-annot.no-trait.after-decorators
 typing/invalid/trait-less-block-omit.hd	type	reject:invalid-member-line	lang/14-annotations.md#r-annot.no-trait.no-omit
@@ -3111,6 +3112,9 @@ runtime/panic/contract-require-default-message.hd	runtime	panic:explicit-panic	s
 runtime/valid/contract-require-pass.hd	runtime	accept	std/contract.md#r-std-contract.require.debug-pass
 runtime/valid/contract-require-trailing-block.hd	runtime	accept	std/contract.md#r-std-contract.require.decl
 runtime/valid/contract-require-reads-self.hd	runtime	accept	std/contract.md#r-std-contract.require.read-refs
+runtime/valid/contract-ensure-pass.hd	runtime	accept	std/contract.md#r-std-contract.ensure.result
+runtime/panic/contract-ensure-custom-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.ensure.fail
+typing/invalid/contract-ensure-changes-capture.hd	type	reject:not-writable	std/contract.md#r-std-contract.ensure.read-only
 typing/invalid/contract-require-changes-capture.hd	type	reject:not-writable	std/contract.md#r-std-contract.require.read-only
 runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
 runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
@@ -5487,6 +5491,7 @@ typing/invalid/lifetime-store-through-reference-other-lifetime.hd	type	reject:lo
 runtime/valid/scope-guard-captures.hd	runtime	accept	std/ops.md#r-std-ops.scope-guard.captures
 typing/invalid/scope-guard-capture-escapes.hd	type	reject:local-reference-escapes	std/ops.md#r-std-ops.scope-guard.captures
 typing/invalid/scope-guard-capture-outlives.hd	type	reject:local-reference-outlives-local	std/ops.md#r-std-ops.scope-guard.captures
+parse/valid/defer-contextual-call.hd	parse	accept	lang/01-lexical-structure.md#r-lex.contextual.defer
 typing/invalid/shared-reference-write-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.shared
 typing/invalid/shared-reference-mut-method-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.write
 typing/invalid/shared-reference-write-in-loop.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.live

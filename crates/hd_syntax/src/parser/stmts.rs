@@ -139,7 +139,11 @@ impl Parser<'_> {
             Some(TokenKind::KwContinue) => {
                 self.token_node(SyntaxKind::ContinueStmt);
             }
-            Some(TokenKind::KwDefer) => {
+            Some(TokenKind::KwDefer | TokenKind::Ident)
+                if self.at(TokenKind::KwDefer)
+                    || self.nth_text(0) == "defer"
+                        && !matches!(self.nth(1), Some(TokenKind::LParen | TokenKind::ColonEq)) =>
+            {
                 let marker = self.start();
                 let (_, end) = self.token_span(self.pos());
                 self.bump();

@@ -1,0 +1,8 @@
+# test: ensure takes a read-only Fn condition that cannot change a capture
+use std.contract.ensure
+
+fn invalid() -> void:
+    let mut value = +0
+    ensure("value must stay unchanged"):
+        value += 1 # diagnostic: not-writable
+        true

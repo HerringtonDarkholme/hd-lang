@@ -181,6 +181,26 @@ pub trait AsyncDisposable[$ R = $ ()]:
 pub trait AutoClosing:
     pass
 
+# An auto-closing defer guard is created only by `defer` and registered at
+# that call statement.
+## A guard registered by `defer`; its action runs when the calling scope exits.
+## See [std-ops.defer.guard](../../spec/std/ops.md#r-std-ops.defer.guard).
+pub struct DeferGuard[F < FnMut() -> void $ R & 'a, $ R, 'a]:
+    action: F
+
+impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a]:
+    fn dispose(&mut self) -> void $ R:
+        (self.action)()
+
+impl[$ R, 'a, F < FnMut() -> void $ R & 'a] AutoClosing for DeferGuard[F, $ R, 'a]:
+    pass
+
+## Registers `action` to run when the calling scope exits.
+## See [std-ops.defer.decl](../../spec/std/ops.md#r-std-ops.defer.decl).
+@auto_closing
+pub fn defer[F < FnMut() -> void $ R & 'a, $ R, 'a](action: F) -> DeferGuard[F, $ R, 'a]:
+    DeferGuard { action: action }
+
 # A scope guard turns a synchronous callback into explicit `using` cleanup.
 # It is ordinary standard-library code over `Disposable`.
 ## A guard that runs `action` when a `using` binding of it ends. The action may require `R` and may capture references of lifetime `'a`.

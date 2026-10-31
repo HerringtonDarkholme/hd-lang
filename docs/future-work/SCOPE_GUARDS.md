@@ -3,7 +3,7 @@
 **Status:** design accepted 2026-10-28; protocol split merged (#962), and the
 row-polymorphic std guard is specified and built (#991). Auto-closing
 registration is specified and built (#1099); the library `defer` and `ensure`
-helpers remain future work (#1101). The checked package that modeled the
+helpers are specified and built (#1101). The checked package that modeled the
 earlier guard is in git history at 628a7f92e,
 `docs/future-work/scope-guards/`. See [Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)
 and [Auto-Closing Calls](../../spec/lang/06-control-flow.md#auto-closing-calls).
@@ -18,7 +18,7 @@ The first build ships what current hd can express:
   `AsyncDisposable` in a suspending one; today's `using` sites become `using!`;
 - the `unbound-disposable` lint at error level.
 
-Later work: `defer(action)` and `ensure(message, condition)` in #1101.
+The library `defer(action)` and `ensure(message, condition)` helpers are built in #1101.
 
 ## Accepted Design
 
@@ -80,8 +80,8 @@ the binding, exactly as a direct `dispose` call does.
 The marker trait and decorator are applied by #1099 in
 [Auto-Closing Calls](../../spec/lang/06-control-flow.md#auto-closing-calls) and
 [Auto-Closing Functions](../../spec/lang/14-annotations.md#auto-closing-functions).
-The library `defer(action)` / `ensure(message, condition)` helpers below remain
-future work in #1101.
+The library `defer(action)` / `ensure(message, condition)` helpers below are
+specified and built in #1101.
 
 The matched working names are marker trait `AutoClosing` and decorator
 `@auto_closing`. An `AutoClosing` type exists only to register cleanup; its

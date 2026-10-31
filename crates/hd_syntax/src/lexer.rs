@@ -1223,7 +1223,6 @@ fn keyword(text: &str) -> Option<TokenKind> {
         "break" => TokenKind::KwBreak,
         "continue" => TokenKind::KwContinue,
         "data" => TokenKind::KwData,
-        "defer" => TokenKind::KwDefer,
         "dyn" => TokenKind::KwDyn,
         "else" => TokenKind::KwElse,
         "enum" => TokenKind::KwEnum,
@@ -1464,6 +1463,13 @@ mod tests {
         assert_eq!(lexed.tokens.kind, [TokenKind::RawIdent; 4]);
         let first = TokenIdx::from_raw(0);
         assert_eq!(lexed.tokens.text(first, source), "`type`");
+    }
+
+    #[test]
+    fn defer_is_a_contextual_word() {
+        let lexed = lex(b"defer");
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        assert_eq!(lexed.tokens.kind, [TokenKind::Ident]);
     }
 
     #[test]

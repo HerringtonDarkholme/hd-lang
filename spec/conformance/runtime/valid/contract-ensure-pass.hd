@@ -1,0 +1,12 @@
+# test: a passing ensure is silent and may check a local that holds the result
+# expect-stdout: 9
+use std.contract.ensure
+
+fn square(value: i32) -> i32:
+    result := value * value
+    ensure("square must be nonnegative"):
+        result >= 0
+    result
+
+pub fn main() -> void $ Console:
+    println(square(+3).to_string())

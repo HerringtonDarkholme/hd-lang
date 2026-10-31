@@ -1,0 +1,18 @@
+# test: library defer shares one LIFO cleanup stack with defer suites and using guards
+# expect-stdout: library defer
+# expect-stdout: using guard
+# expect-stdout: defer suite
+use std.ops.{defer, on_exit}
+
+fn run(log: &mut List[string]) -> void:
+    defer:
+        log.push("defer suite")
+    using guard = on_exit(fn() -> void: log.push("using guard"))
+    defer(fn() -> void: log.push("library defer"))
+    return
+
+pub fn main() -> void $ Console:
+    let mut log: List[string] = []
+    run(&mut log)
+    for line in log:
+        println(line)
