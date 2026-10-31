@@ -496,7 +496,7 @@ Slice 9a applied by #1119 ([Result Paths](../../spec/lang/13-values-and-referenc
 
 Slice 9b applied by #1126 (`ref.result.path.caller`): a call's result in a path position holds the argument's place followed by the path's fields, for `&` and `&mut` results and for chained places (`t.lead.name()` locks `t.lead.name`). The parameter's whole place stays locked when its lifetime is also on a result reference without a path or on another parameter; several paths of one parameter lock the fields they share.
 
-Slice 9c applied by #1127 (`ref.result.path.counted`): a path may cross a `*mut` field (`&'t.lead.name string` with `lead: *mut User`), and the callee check and the caller's lock take the crossing as one more step of the place, as a written `&t.lead.name` does. A step through `*T` or `&T` stays not-yet. Next: 9d, the run-time loan of a path through `*mut` (after #1115).
+Slice 9c applied by #1127 (`ref.result.path.counted`): a path may cross a `*mut` field (`&'t.lead.name string` with `lead: *mut User`), and the callee check and the caller's lock take the crossing as one more step of the place, as a written `&t.lead.name` does; so may a `*T` field. A step through a local `&T` stays not-yet. Next: 9d, the run-time loan of a path through `*mut` (after #1115).
 
 ## Stage 1 In Full
 

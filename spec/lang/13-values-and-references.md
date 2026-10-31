@@ -807,8 +807,8 @@ fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
 2. r[ref.result.path.position] A result path is written only in a function's result type. Anywhere else it is an error. Error: `unknown-lifetime`.
 3. r[ref.result.path.param] The name is a `&` or `&mut` parameter's, `self` included. Any other name is an error. Error: `unknown-lifetime`.
 4. r[ref.result.path.fields] Each step names a field of the struct the previous step reaches, starting from the parameter's referent. Any other step is an error. Error: `unknown-field`.
-5. r[ref.result.path.counted] A step may cross a `*mut` field: the next step names a field of its referent, as `'c.lead.name` with `lead: *mut User`. The path's place goes through the counted reference, as a written `&c.lead.name` does. The callee and caller rules treat the crossing as one more step of that place.
-6. r[ref.result.path.not-yet] A step through any other reference, and a result path on a reference inside another reference of the result, are not checked yet, so they are errors. Error: `references-not-yet-checked`.
+5. r[ref.result.path.counted] A step may cross a `*T` or `*mut T` field: the next step names a field of its referent, as `'c.lead.name` with `lead: *mut User`. The path's place goes through the counted reference, as a written `&c.lead.name` does. The callee and caller rules treat the crossing as one more step of that place.
+6. r[ref.result.path.not-yet] A step through a local reference (`&T` or `&mut T`), and a result path on a reference inside another reference of the result, are not checked yet, so they are errors. Error: `references-not-yet-checked`.
 7. r[ref.result.path.visible] Each field must be visible where the signature is written. Error: `private-member`.
 8. r[ref.result.path.public] A `pub` signature names only public fields, so private layout never enters an API. Error: `private-type-leak`.
 9. r[ref.result.path.lifetime] The result position has the parameter's lifetime, as if the signature wrote one variable on both.

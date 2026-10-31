@@ -1,0 +1,15 @@
+# test: replacing the `*T` a live result path crosses
+# Spec 13 Result Paths: ref.result.path.counted.
+struct User:
+    name: string
+
+struct Team:
+    lead: *User
+
+fn lead_name(t: &Team) -> &'t.lead.name string:
+    &t.lead.name
+
+fn swap(t: &mut Team) -> void $ Console:
+    n := lead_name(t)
+    t.lead = box(User { name: "Kay" }) # diagnostic: conflicting-access
+    println(*n)
