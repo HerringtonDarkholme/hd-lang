@@ -10,7 +10,7 @@ type checking, then syntax. The parts the owner approved are marked
 - [1. Context And Goal](#1-context-and-goal)
 - [2. Six Programs That Cross](#2-six-programs-that-cross)
 - [3. The Model](#3-the-model)
-- [4. Outcomes: An Open Question](#4-outcomes-an-open-question)
+- [4. Outcomes](#4-outcomes-approved-question-1)
 - [5. Type Checking](#5-type-checking)
 - [6. Syntax](#6-syntax)
 - [7. Questions For The Owner](#7-questions-for-the-owner)
@@ -270,29 +270,25 @@ A sketch of how each fits the model, for discussion:
   in the runtime: Spark and Dask preferred locations, Ray's locality-aware
   scheduling, Orleans placement, NUMA and Kubernetes affinity rules.
 
-## 4. Outcomes: An Open Question
+## 4. Outcomes (**approved**: question 1)
 
 A domain that can lose contact may leave a crossing with no answer. In
-example 2 the charge may or may not have happened. The owner asked for
-more thought, so this section lays out both options and decides nothing.
-
-**Option 1: unknown is a first-class outcome.** A crossing into a remote
-or later domain ends done, failed, or unknown. A worker or device reports
-unknown only on a crash or reset. The type system makes callers handle
-unknown, and local domains pay nothing. Unknown never returns transfers
-and never ends a borrow early (L1, L2).
+example 2 the charge may or may not have happened. The owner decided
+(2026-10-31): there is no new outcome type. A crossing returns an ordinary
+`Result[T, E]`, and unknown is one case of its error type: a std crossing
+error with an `Unknown` case beside the domain's own errors. The caller
+handles it with an ordinary `match`. A worker or device reports unknown
+only on a crash or reset, and a scoped thread never does.
 
 ```text
-match $.use(Server).call!(place_order, cart):  # hypothetical syntax
-    .Done(receipt) => show(receipt)
-    .Failed(error) => show_error(error)
-    .Unknown => check_order_status!(cart.id)
+match place_order!(cart):  # hypothetical syntax: placed on the server by the deployment configuration
+    .Ok(receipt) => show(receipt)
+    .Err(.Unknown) => check_order_status!(cart.id)
+    .Err(error) => show_error(error)
 ```
 
-**Option 2: only done and failed.** A crossing returns `Result[T, E]`,
-and each library folds timeouts into its error type. The checker then
-cannot tell a timeout from a failure. Under L2 it must treat every error
-from a contact-losing domain as "transfers not returned".
+L1 and L2 hold by construction, so the checker needs no rule for unknown
+(section 5, Outcomes And Cancellation).
 
 | Prior art | What the caller sees | How "unknown" is handled |
 | --- | --- | --- |
@@ -303,44 +299,315 @@ from a contact-losing domain as "transfers not returned".
 | Swift distributed actors | Every remote call is implicitly `async throws` | Transport failures are errors, forced on remote calls only |
 | Stripe idempotency keys | A retry with the same key returns the first result | The client resolves unknown by retrying safely |
 
-gRPC and Swift are option 2, with docs or types forcing attention.
-Erlang is option 1 at the process level. Temporal, Durable Functions and
-Stripe turn unknown into "retry until known", which needs idempotent work.
+hd follows gRPC, Erlang and Temporal: unknown is a case the caller
+matches, not a separate type. Temporal, Durable Functions and Stripe then
+turn unknown into "retry until known", which needs idempotent work; a
+library can build that on the `Unknown` case.
 
 ## 5. Type Checking
 
-The checker verifies each crossing against the model. It reuses hd's
-rules where they exist, and the last column marks each gap.
+The checker sees a crossing as a call with three inputs: a destination,
+code, and an environment. It checks them at four constructs: the
+crossing, each capture, each use of a handle, and the code's body. Each
+check names what it enforces from section 3, the hd rules it reuses, and
+what is new. A table at the end sums up.
 
-| Check | Rule it reuses | Gap |
-| --- | --- | --- |
-| The code exists at the destination: a name, or a content hash for another build | [`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program) | No content identity yet ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md#r-fn.capture.serializable-deferred)) |
-| The destination's capabilities meet the code's row | [`req.row.set.call`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.set.call), [`module.register.row`](../../spec/lang/10-modules.md#r-module.register.row); providers are never captured ([`fn.capture.no-providers`](../../spec/lang/07-functions.md#r-fn.capture.no-providers)) | Domains do not declare capabilities yet |
-| Each capture's mode is allowed for the domain kind | The domain-by-mode table | A new rule |
-| Copy: the type is boundary-safe in separate memory | [`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed), [`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe) | None for plain values |
-| Transfer: the source owns the value; the crossing ends the binding as an M1 move does | [Moves](https://github.com/HerringtonDarkholme/hd-lang/blob/cc862252e/spec/lang/13-values-and-references.md#moves): `ref.move.use` gives `use-of-moved-value`; `ref.move.reassign` restores the binding | Only `&mut` moves; other values copy until `~Copyable` ([#535](https://github.com/HerringtonDarkholme/hd-lang/issues/535), [#1138](https://github.com/HerringtonDarkholme/hd-lang/issues/1138)) |
-| Lend: only to a scoped shared-memory domain, joined before the scope ends | A closure argument has a fresh lifetime ([`fn.capture.local-parameter`](../../spec/lang/07-functions.md#r-fn.capture.local-parameter)) | No threads, no shared heap, no `Send` or `Sync` |
-| Lend `&`: the source does not write while lent | [`ref.excl.shared`](../../spec/lang/13-values-and-references.md#r-ref.excl.shared) | Run-time loans are per instance ([`ref.excl.alias.conflict`](../../spec/lang/13-values-and-references.md#r-ref.excl.alias.conflict)) |
-| Lend `&mut`: the source is excluded; disjoint parts lend separately | [`ref.excl.mut`](../../spec/lang/13-values-and-references.md#r-ref.excl.mut); [Result Paths](../../spec/lang/13-values-and-references.md#result-paths) for fields | Disjoint list halves need a slice type |
-| A lending scope does not suspend | A borrowing suspension never reaches a host call ([`ref.dep.suspension.store`](../../spec/lang/13-values-and-references.md#r-ref.dep.suspension.store)); `abandon` unwinds synchronously ([`req.abandon.unwind`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.unwind)) | None: L1 matches today's strictest rule |
-| A stored or later job is `Fn` and captures no `&` or `&mut` | [`fn.trait.read-only`](../../spec/lang/07-functions.md#r-fn.trait.read-only), [`ref.local.escape.capture-stored`](../../spec/lang/13-values-and-references.md#r-ref.local.escape.capture-stored) | None |
-| A handle's type carries its domain instance | Type parameters, as `Texture[D]` | Static instances only; a run-time instance needs a check |
-| A handle is released at scope exit | `using` and `@auto_closing` ([`flow.auto-closing.statement`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.statement)) | L3 needs counting across domains |
-| An abandoned crossing aborts the host operation | [`req.abandon.host`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.host) | After a transfer, the outcome is unknown (section 4) |
-
-What the checker would reject, in the model's terms:
+The destination comes from code or from the deployment (question 3).
+Workers and devices are provider values from the source's row, so a test
+swaps them with `$.with`. A remote service is named by the deployment
+configuration. A crossing may also target a handle's home, read from the
+handle's type (question 6). The sketches assume these std traits:
 
 ```text
-on_worker(transfer(photo), fn() -> Image: thumbnail(photo, 256))  # hypothetical syntax
-show(photo)                     # hypothetical syntax; error: use-of-moved-value, photo is in the worker
-on_worker(lend(&lines), count)  # hypothetical syntax; error: lend needs a scoped shared-memory domain
-later(copy(conn), mark_sent)    # hypothetical syntax; error: a &mut is not boundary-safe
-gpu1.run!(blur, &mut tex)       # hypothetical syntax; error: a Texture[Gpu0] used on Gpu1
+# hypothetical syntax throughout this section
+trait Workers[$Cap]:    # $Cap: the capabilities a worker offers
+    fn call![T, F < Fn() -> T $Cap](&mut self, code: F) -> Result[T, CrossingError]
+
+trait Gpu:
+    type Device         # one type per device, as Gpu0
+    fn upload!(&mut self, image: Image) -> Result[Texture[Self::Device], CrossingError]
+    fn run!(&mut self, kernel: fn(Texture[Self::Device]) -> void, texture: Texture[Self::Device]) -> Result[void, CrossingError]
 ```
 
-Four gaps block whole modes: no `Send` or `Sync`, no threads in one heap,
-no shared heap on Wasm, and no ownership for plain values. Copy and handle
-need none of them.
+### The Row Against The Destination
+
+- **Checked at the crossing:** every key in the code's row is a capability
+  of the destination. The source's row need not hold them (example 2).
+- **Enforces:** the capabilities property; the row is checked at the
+  destination, not the source (A Crossing).
+- **Reuses:** a domain trait carries its capabilities as a row parameter,
+  as `Fn[I, O, $R]` does ([`fn.trait.decl`](../../spec/lang/07-functions.md#r-fn.trait.decl)). Code whose row lists a key
+  the destination lacks does not fit, `type-mismatch`
+  ([`req.row.subsume.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.subsume.missing)); a narrower row fits
+  ([`req.row.subsume.closure`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.subsume.closure)). A closure captures no provider from
+  `$.with`, so its row lists every key its body uses
+  ([`fn.capture.no-providers`](../../spec/lang/07-functions.md#r-fn.capture.no-providers)). Two devices are two keys,
+  `Gpu[Device = Gpu0]` and `Gpu[Device = Gpu1]`
+  ([`req.key.binding.identity`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.binding.identity)). A service's registered bindable set
+  stands for its capabilities ([`module.register.row`](../../spec/lang/10-modules.md#r-module.register.row)).
+- **New:** each domain trait declares its capabilities, and the checker
+  reads a service's set from the deployment configuration. A call that the
+  configuration places on a service is checked against that set, not
+  against the source's row ([`req.row.set.call`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.set.call)).
+
+```text
+# hypothetical syntax
+workers.call!(fn() -> void $ Db: save(doc))?                # error: type-mismatch, Db is not a worker capability
+gpu.run!(fn(t: Texture[Gpu0]) -> void: println("x"), tex)?  # error: type-mismatch, a kernel's row is empty
+workers.call!(fn() -> void $ Log: log_size(doc))?           # valid: the worker offers Log
+```
+
+### Each Capture's Mode
+
+- **Checked at each capture, argument and result:** the value crosses in a
+  mode the domain kind allows. This is the domain-by-mode table, with L4
+  as its last row.
+- **Reuses:** capture analysis finds the captures ([`fn.capture.locals`](../../spec/lang/07-functions.md#r-fn.capture.locals)).
+  The move checker's copy test sorts them: a `&mut` and a type holding one
+  are not copied ([`ref.move.mut`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.mut), [`ref.move.holds`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.holds)).
+- **New:** the table as a rule. The mode follows from the value's type and
+  the domain kind. A copyable value copies, a non-copyable one transfers, a
+  `&` or `&mut` lends, and a handle type crosses as a handle. So the
+  checker infers every mode, and a written mode is a claim it verifies.
+
+The four modes add these checks.
+
+**Copy**, at each copied capture, argument and result. In separate
+memory, the value must be boundary-safe. In shared memory, any copyable
+value copies, as a capture does today ([`fn.capture.copy.value`](../../spec/lang/07-functions.md#r-fn.capture.copy.value)).
+
+- **Enforces:** the destination gets its own value; the source is
+  unchanged.
+- **Reuses:** boundary-safe values ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed)): closures,
+  trait values, handles and references fail
+  ([`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe)). Values cross as trees
+  ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)), and private fields need `Serialize`
+  ([`module.boundary.out`](../../spec/lang/10-modules.md#r-module.boundary.out), [`module.boundary.error`](../../spec/lang/10-modules.md#r-module.boundary.error)).
+- **New:** the boundary check runs on a crossing's captures, not only on a
+  registered signature. Code for separate memory is bounded `Fn`, so a
+  closure that writes a capture is `not-writable`
+  ([`fn.trait.read-only`](../../spec/lang/07-functions.md#r-fn.trait.read-only)). Today a captured variable shares a cell with
+  its scope ([`fn.capture.cell.writes`](../../spec/lang/07-functions.md#r-fn.capture.cell.writes)); across memories the write would
+  change only the destination's copy.
+
+```text
+# hypothetical syntax
+workers.call!(fn() -> Image: shrink(photo, edits))?  # error: edits is a *mut Edits, not boundary-safe
+workers.call!(fn() -> void: done += 1)?              # error: not-writable, the write would change only the worker's copy
+workers.call!(fn() -> Image: shrink(photo, 256))?    # valid: Image is boundary-safe, so it is copied
+```
+
+**Transfer**, at the capture and at each later use of the source binding.
+The value's type is not copyable, and the crossing ends the source binding
+as a move.
+
+- **Enforces:** the destination gets ownership; the source loses the value
+  until it is handed back. Transfer is for non-copyable types only
+  (question 5).
+- **Reuses:** the moves of M1 and M2 ([`ref.move.mut`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.mut),
+  [`ref.move.holds`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.holds)). A later use is `use-of-moved-value`
+  ([`ref.move.use`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.use)); assigning the returned value makes the binding
+  usable again ([`ref.move.reassign`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.reassign)).
+- **New:** a crossing's capture is a move site, one more row of the
+  [`ref.move.sites`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.sites) table. Transfer of a copyable type is an error; the
+  value crosses as a copy. In separate memory the value must also hold no
+  reference into the source's memory. Every non-copyable type today holds
+  a `&mut`, so transfer into a worker, a service or a device has no valid
+  case before `~Copyable`
+  ([#535](https://github.com/HerringtonDarkholme/hd-lang/issues/535)).
+  Until then transfer is the scoped thread's ordinary move.
+
+```text
+# hypothetical syntax
+workers.call!(fn() -> (Image, Image): thumbnail(transfer(photo), 256))?  # error: Image is copyable, so photo is copied
+scope(fn(s: &mut Scope) -> void:
+    s.spawn(fn() -> void: lowercase_all(left))  # left, a SpanMut, moves into the thread
+    lowercase_all(left)                          # error: use-of-moved-value
+    lowercase_all(right)                         # valid: right never moved
+)
+```
+
+**Lend**, at the capture and at the scope call that joins. A `&` or
+`&mut` capture goes only to a scoped shared-memory domain, and the loan
+stays live until that domain's access ends (L1).
+
+- **Enforces:** the source is frozen or excluded until the borrow ends,
+  and the borrow ends at quiescence.
+- **Reuses:** a closure given directly for a `fn` parameter may capture
+  local references ([`fn.capture.local-parameter`](../../spec/lang/07-functions.md#r-fn.capture.local-parameter)); storing that
+  parameter is an error ([`fn.capture.local-store`](../../spec/lang/07-functions.md#r-fn.capture.local-store)). The scope keeps its
+  spawned closures under a lifetime bound, `F < FnMut() -> T & 's`
+  ([`ref.generic.outlives`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives)). The loan lasts for the scope call
+  ([`ref.excl.call`](../../spec/lang/13-values-and-references.md#r-ref.excl.call), [`ref.excl.live`](../../spec/lang/13-values-and-references.md#r-ref.excl.live)). While `&p` is lent the source
+  does not write `p` ([`ref.excl.shared`](../../spec/lang/13-values-and-references.md#r-ref.excl.shared)); while `&mut p` is lent it does
+  not use `p` ([`ref.excl.mut`](../../spec/lang/13-values-and-references.md#r-ref.excl.mut)). Disjoint fields lend separately
+  ([`ref.excl.place`](../../spec/lang/13-values-and-references.md#r-ref.excl.place); through a call, [`ref.result.path.caller`](../../spec/lang/13-values-and-references.md#r-ref.result.path.caller)).
+  Separate-memory code is bounded `'static`, so a local-reference capture
+  there is `local-reference-escapes` ([`ref.generic.outlives.box`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.box),
+  [`ref.local.escape.capture-stored`](../../spec/lang/13-values-and-references.md#r-ref.local.escape.capture-stored)). A suspension that holds a local
+  reference never reaches a host call ([`ref.dep.suspension.store`](../../spec/lang/13-values-and-references.md#r-ref.dep.suspension.store)). So
+  a lending scope is an ordinary call that returns after the join, and
+  nothing abandons it midway: L1 needs no new rule.
+- **New:** the scope itself, which needs threads. The run-time loans that
+  guard counted references are per instance
+  ([`ref.excl.alias.conflict`](../../spec/lang/13-values-and-references.md#r-ref.excl.alias.conflict)) and would have to see other threads. A
+  shared lend is not deep: a read through `&T` may write through a `*mut`
+  field ([`ref.read.shallow`](../../spec/lang/13-values-and-references.md#r-ref.read.shallow)), and a captured variable is a shared cell
+  ([`fn.capture.cell`](../../spec/lang/07-functions.md#r-fn.capture.cell)). Both race across threads; that is the missing
+  `Sync`.
+
+```text
+# hypothetical syntax; lines: &mut List[string]
+workers.call!(fn() -> usize: count_words(lines))?  # error: local-reference-escapes, a worker has separate memory
+counts := scope(fn(s: &mut Scope) -> List[Map[string, usize]]:
+    tasks := [for i in 0..4 => s.spawn(fn() -> Map[string, usize]: count_quarter(lines, i))]
+    lines.push("")                  # error: conflicting-access, lines is lent until the scope joins
+    [for t in tasks => t.join()]
+)
+lines.push("")                      # valid: the scope has joined
+```
+
+**Handle**, at each call that takes the handle. A handle's type names its
+home domain, so using it in another domain is a type error, with no
+run-time check (question 4).
+
+- **Enforces:** the handle row of the mode table, and L3.
+- **Reuses:** the device trait's associated type, bound in its key:
+  `$.use(Gpu[Device = Gpu0])` has type `&dyn Gpu[Device = Gpu0]`
+  ([`req.key.binding.value.reference-values`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.binding.value.reference-values)). Its `upload!` returns a
+  `Texture[Gpu0]`, and its `run!` takes only that, so a `Texture[Gpu0]`
+  given to Gpu1 is an ordinary `type-mismatch`. Handles are not
+  boundary-safe ([`module.boundary.not-safe`](../../spec/lang/10-modules.md#r-module.boundary.not-safe)), so a copy never takes one.
+  Within a domain a handle keeps its data alive as a counted reference
+  does ([`ref.box.lifetime`](../../spec/lang/13-values-and-references.md#r-ref.box.lifetime)). `using` or an `@auto_closing` constructor
+  releases it at scope exit ([`flow.auto-closing.statement`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.statement)).
+- **New:** a compiler-known marker for handle types, as `AutoClosing` is
+  one ([`flow.auto-closing.marker`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.marker)). The checker needs it to pick the
+  handle mode and to find handles for affinity. Counting a handle across
+  domains (L3) is run-time work. Domains are static: one picked at run
+  time would need a fresh type (question 4).
+
+```text
+# hypothetical syntax
+let tex = $.use(Gpu[Device = Gpu0]).upload!(photo)?  # tex: Texture[Gpu0]
+$.use(Gpu[Device = Gpu1]).run!(blur, tex)?           # error: type-mismatch, a Texture[Gpu0] on Gpu1
+$.use(Gpu[Device = Gpu0]).run!(blur, tex)?           # valid
+```
+
+### Handle Agreement And The Affinity Target
+
+- **Checked at the crossing's target and each handle the code uses:** a
+  crossing aimed at a handle runs in the domain the handle's type names,
+  and every handle the code captures or takes names that same domain.
+- **Enforces:** required affinity (question 6), as Chapel's `on x do`.
+  Preferred affinity is a run-time hint to a pool such as `Workers`; the
+  checker never sees it.
+- **Reuses:** the home is a type argument, so "the same domain" is type
+  equality. The target's capabilities come from its key, checked as in the
+  row check; a row without that key is `missing-requirement`
+  ([`req.use.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.use.missing)).
+- **New:** a target read from a type: `at(tex)` with `tex: Texture[D]`
+  resolves to the provider for `Gpu[Device = D]`. Then a walk compares
+  every handle in the code with `D`.
+
+```text
+# hypothetical syntax
+at(tex).call!(fn() -> void: blend(tex, mask))?  # error: mask is a Texture[Gpu1], the target is Gpu0
+at(tex).call!(fn() -> void: blur(tex))?         # valid: runs on Gpu0, where tex lives
+```
+
+### The Later Domain (L4)
+
+- **Checked at each capture of a job and at its code:** a job for later
+  takes only copies and handles, and its code has an identity that
+  survives a deploy.
+- **Enforces:** L4, and the code property: a newer build may run the job.
+- **Reuses:** the copy check rejects a reference, which is not
+  boundary-safe, and the `'static` bound rejects a lend
+  ([`ref.generic.outlives.box`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.box)). The table's L4 row rejects a
+  non-copyable value. The job's row is checked against the resuming host's
+  capabilities, as in the row check.
+- **New:** no check beyond the table row. Code identity across builds is a
+  gap: a named function is the same only within one compiled program
+  ([`req.determinism.same-program`](../../spec/lang/11-requirements-and-suspension.md#r-req.determinism.same-program)), and content hashes are deferred
+  ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md#r-fn.capture.serializable-deferred)).
+
+```text
+# hypothetical syntax
+jobs.after!(minutes(10), fn() -> Result[void, DbError] $ Db: mark_sent(conn, user.id))?  # error: conn is a &mut; later takes only copies and handles
+jobs.after!(minutes(10), fn() -> Result[void, MailError] $ Mailer: send_welcome(user.email, user.name))?  # valid: two strings are copied
+```
+
+### The Body Against The Destination's Environment
+
+- **Checked at the body of the crossing's code:** it runs with what the
+  destination gives it: its parameters, its captures as they crossed, and
+  the destination's providers for its row. It sees no provider and no
+  memory of the source.
+- **Enforces:** the capabilities and memory properties.
+- **Reuses:** a body's available keys are its row plus lexical keys
+  ([`req.row.entail.available`](../../spec/lang/11-requirements-and-suspension.md#r-req.row.entail.available)). A closure's keys resolve at each call
+  ([`req.with.dynamic`](../../spec/lang/11-requirements-and-suspension.md#r-req.with.dynamic)), so here they resolve at the destination. A
+  provider value captured from `$.use` would fix the source's provider
+  ([`req.with.lexical`](../../spec/lang/11-requirements-and-suspension.md#r-req.with.lexical), [`fn.capture.provider-value`](../../spec/lang/07-functions.md#r-fn.capture.provider-value)). It is a counted
+  value, not boundary-safe, so the copy check rejects it.
+- **New:** nothing for the row. A device body must be device code, a
+  restricted subset with no allocation and no host calls. That subset is
+  a new check, not specified here.
+
+```text
+# hypothetical syntax
+log := $.use(Log)
+workers.call!(fn() -> void: log.info("done"))?               # error: the source's Log provider is not boundary-safe
+workers.call!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker's own Log
+```
+
+### Outcomes And Cancellation
+
+- **Checked:** nothing specific to unknown. A crossing returns
+  `Result[T, E]`, and unknown is one case of `E`, handled with `match`
+  (section 4). The checker treats `.Unknown` as any other error case, so
+  section 4's `match` is the only sketch.
+- **Why L1 needs no rule:** a lend goes only to a scoped shared-memory
+  domain, which always joins and never reports unknown.
+- **Why L2 needs no rule:** a transfer is a move, so the source binding is
+  gone already ([`ref.move.use`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.use)). A transferred value comes back only
+  inside `Ok`. A handle creation with an unknown outcome returns no
+  handle.
+- **Cancellation reuses:** abandoning a crossing aborts the host operation
+  as that operation's rule says ([`req.abandon.host`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.host)) and unwinds once,
+  synchronously ([`req.abandon.unwind`](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.unwind)). A moved value stays moved, and
+  abandoning closes no handle.
+
+### What Is New
+
+| Check | At | Reused | New |
+| --- | --- | --- | --- |
+| Row against the destination | crossing | row subsumption, bound keys, no captured providers, bindable sets | capabilities on domain traits; a service's set from the configuration |
+| Mode per capture | capture | capture analysis; the copy test of M1 and M2 | the kind-by-mode rule; modes inferred from types |
+| Copy | capture, result | boundary-safe values, `Fn` bounds | the boundary check at captures; `Fn` for separate memory |
+| Transfer | capture, later uses | M1 and M2 moves | a capture as a move site; no separate-memory case before `~Copyable` |
+| Lend | capture, scope call | closure-parameter lifetimes, lifetime bounds, exclusivity, the suspension store rule | the scope; run-time loans across threads |
+| Handle | handle use | bound keys, type equality | a handle marker; counts across domains |
+| Affinity target | crossing | type equality, `missing-requirement` | a target read from a type; the handle walk |
+| Later (L4) | capture, code | the copy check, the `'static` bound | none |
+| Body | body | row resolution at each call, the copy check | the device-code subset |
+| Outcomes | none | `Result`, `match`, moves, `abandon` | none |
+
+The gaps:
+
+- **No `Send` or `Sync`.** A shallow `&` and a shared cell race across
+  threads.
+- **No threads and no shared heap.** One instance runs on one thread
+  ([`module.instance.thread`](../../spec/lang/10-modules.md#r-module.instance.thread)), and instances' heaps are disjoint
+  ([`module.instance.disjoint`](../../spec/lang/10-modules.md#r-module.instance.disjoint)). Lend waits for both.
+- **No content identity.** A job that a newer build runs, or a service on
+  another build, needs it
+  ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md#r-fn.capture.serializable-deferred)).
+- **No owned non-copyable type.** Transfer into separate memory waits for
+  `~Copyable` ([#535](https://github.com/HerringtonDarkholme/hd-lang/issues/535)).
+- **No device-code subset.** A kernel's body is checked only by its row.
+- **The outcome type is not a gap.** Unknown is an error case (section 4).
 
 ## 6. Syntax
 
@@ -357,9 +624,9 @@ owner's note's block, which names every capture and its mode.
 
 ## 7. Questions For The Owner
 
-1. **Is "unknown" a first-class outcome?** Option 1: done, failed or
-   unknown from remote and later domains, enforced by types. Option 2: only
-   done and failed; libraries fold timeouts into errors. No recommendation
+1. **Is "unknown" a first-class outcome?** Answered (owner, 2026-10-31):
+   no new type. A crossing returns `Result[T, E]`, and unknown is an
+   `Unknown` case of a std crossing error, matched like any other error
    (section 4).
 2. **Do L1 to L4 hold?** Answered: yes, all four (owner, 2026-10-31).
 3. **Does code name the destination?** Answered (owner, 2026-10-31): a
@@ -477,7 +744,7 @@ is the copy-mode slice of this model.
 | Captures must be boundary-safe | The copy mode's check |
 | Placement by requirement rows and `[places]` | The row is checked against a domain's capabilities |
 | `Opaque[T]` for server state | A handle |
-| `RemoteError` with `OutcomeUnknown` | Option 1 of section 4, inside an error type |
+| `RemoteError` with `OutcomeUnknown` | The `Unknown` case of the crossing error (section 4) |
 | Workers, servers, services; GPUs deferred | All five domain kinds; lend and transfer added |
 
 ## Sources
@@ -500,14 +767,15 @@ is the copy-mode slice of this model.
 
 ## Parse Log
 
-All 10 `text` blocks were parsed on 2026-10-31 with
+All 18 `text` blocks were parsed on 2026-10-31 with
 `scripts/hd-conformance.sh parse`, which checks syntax only; nothing was
 type-checked. Std names (`Workers`, `Jobs`, `Gpu`, `scope`) are sketches.
 
 | Block | Where | Result |
 | --- | --- | --- |
 | 1 to 6 | Examples 1 to 6 | parse |
-| 7 | Section 4, option 1 | parses; the `.Done`/`.Unknown` outcome is hypothetical |
-| 8 | Section 5, rejected crossings | parses; every line is `# hypothetical syntax` in meaning |
-| 9 | Section 6, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
-| 10 | Question 4 | parses |
+| 7 | Section 4, the `match` on a crossing's result | parses; the placement and the `.Unknown` case are hypothetical |
+| 8 | Section 5, the assumed `Workers` and `Gpu` traits | parses; `# hypothetical syntax` |
+| 9 to 16 | Section 5, one invalid and one valid sketch per check | parse; every block is `# hypothetical syntax` |
+| 17 | Section 6, syntax | fails as expected at `at workers`: both lines `# hypothetical syntax` |
+| 18 | Question 4 | parses |
