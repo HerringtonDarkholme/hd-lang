@@ -1357,6 +1357,7 @@ fn binary(kind: S) -> bool {
             | S::LogicalAndExpr
             | S::ComparisonExpr
             | S::PipeExpr
+            | S::UnionType
             | S::BitwiseOrExpr
             | S::BitwiseXorExpr
             | S::BitwiseAndExpr

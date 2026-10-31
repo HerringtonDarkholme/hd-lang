@@ -207,7 +207,7 @@ lang/04-type-system.md	74	mixed	typing/valid/lct-drops-never.hd|runtime/valid/lc
 lang/04-type-system.md	75	mixed	typing/invalid/none-beside-values-needs-expected-type.hd|typing/invalid/none-branch-needs-expected-type.hd
 lang/04-type-system.md	76	mixed	typing/invalid/least-common-type-supertrait-widening.hd
 lang/04-type-system.md	77	mixed	typing/invalid/ambiguous-requirement-key-solution.hd|typing/valid/ambiguous-requirement-key-annotated.hd
-lang/04-type-system.md	78	mixed	parse/invalid/reserved-word-suffix.hd
+lang/04-type-system.md	78	mixed	parse/valid/union-type-syntax.hd
 lang/04-type-system.md	79	mixed	typing/invalid/impl-trait-recursive.hd
 lang/04-type-system.md	80	mixed	typing/invalid/impl-trait-borrows-nothing.hd|typing/invalid/impl-trait-borrow-outlives-local.hd|typing/invalid/impl-trait-borrow-box.hd
 lang/05-expressions.md	1	mixed	typing/invalid/tuple-element-assignment.hd

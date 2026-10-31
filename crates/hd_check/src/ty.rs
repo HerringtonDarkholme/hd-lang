@@ -949,6 +949,14 @@ impl Ck<'_, '_> {
                 let t = first(self, n)?;
                 pool.intern_ty(&TyData::Option(t))
             }
+            SyntaxKind::UnionType => {
+                self.err(
+                    Code::SyntaxError,
+                    n,
+                    "anonymous union types are not supported yet",
+                );
+                Ty::POISON
+            }
             SyntaxKind::MutType => {
                 let t = first(self, n)?;
                 if matches!(pool.get(t), TyData::Prim(_)) {

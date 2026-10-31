@@ -1,0 +1,11 @@
+# Spec 02 (grammar.type.union, grammar.type.union.only-type) and 04
+# (types.union.syntax, types.union.application-precedence,
+# types.union.flat-syntax, types.union.parenthesized-syntax).
+type Flat = A | B | C
+type NestedLeft = (A | B) | C
+type NestedRight = A | (B | C)
+type Applied = Box[A] | B
+type FunctionResult = fn() -> A | B
+
+fn pick(flag: bool) -> i32 | string:
+    if flag: +1 else: "a"

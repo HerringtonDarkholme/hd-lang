@@ -858,9 +858,11 @@ See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-res
 ## Types
 
 ```ebnf
-type = reference_access_type, { "?" }
-     | function_type
-     ;
+type = union_type ;
+union_type = type_member, { "|", type_member } ;
+type_member = reference_access_type, { "?" }
+            | function_type
+            ;
 
 reference_access_type = [ "mut" ], reference_type
                       | ref_type
@@ -904,9 +906,11 @@ type_list = type, { ",", type }, [ ",", rest_type ], [ "," ]
           | rest_type, [ "," ]
           ;
 
-result_type = reference_access_type, { "?" }
-            | result_function_type
-            ;
+result_type = result_union_type ;
+result_union_type = result_type_member, { "|", result_type_member } ;
+result_type_member = reference_access_type, { "?" }
+                   | result_function_type
+                   ;
 result_function_type = "fn", [ "!" ], "(", [ type_list ], ")",
                        "->", result_type ;
 
@@ -921,6 +925,11 @@ requirement_row = requirement_list
 requirement_list = requirement_key, { "+", requirement_key } ;
 requirement_key = bound_trait_type ;
 ```
+
+### Union Type Syntax
+
+1. r[grammar.type.union] A type may join two or more member types with `|`.
+2. r[grammar.type.union.only-type] This use of `|` belongs to the type grammar; expression `|` remains the bitwise-or operator.
 
 ### Requirement Clauses
 

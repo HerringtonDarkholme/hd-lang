@@ -5552,3 +5552,4 @@ runtime/panic/alias-write-under-shared-loan-panics.hd	runtime	panic:borrow-confl
 runtime/valid/alias-write-after-loan-last-use-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/valid/alias-write-to-disjoint-field-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.access
 parse/valid/defer-ordinary-name.hd	parse	accept	lang/01-lexical-structure.md#r-lex.defer.identifier
+parse/valid/union-type-syntax.hd	parse	accept	lang/02-grammar.md#r-grammar.type.union

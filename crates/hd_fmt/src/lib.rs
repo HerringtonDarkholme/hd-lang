@@ -72,4 +72,18 @@ mod tests {
         assert_eq!(round_trip(src), src);
         assert_eq!(format(src).expect("parses"), src);
     }
+
+    #[test]
+    fn union_types_space_pipes_and_keep_nesting_parentheses() {
+        let src = "type Flat = A|B|C\ntype Nested = (A|B)|C\ntype Applied = Box[A]|B\n";
+        let expected =
+            "type Flat = A | B | C\ntype Nested = (A | B) | C\ntype Applied = Box[A] | B\n";
+        assert_eq!(round_trip(src), src);
+        let formatted = format(src).expect("union types parse");
+        assert_eq!(formatted, expected);
+        assert_eq!(
+            format(&formatted).expect("formatted union types parse"),
+            formatted
+        );
+    }
 }

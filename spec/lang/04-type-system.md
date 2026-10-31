@@ -2465,13 +2465,23 @@ Permission weakening `&mut U -> &U` preserves representation. Conversion to a
 trait value or `Any`, supertrait widening of a dynamic value, and optional
 injection do not, which is why [Variance](#variance) excludes them.
 
+## Union Type Syntax
+
+1. r[types.union.syntax] `A | B` writes an anonymous union type syntax with the members in source order.
+2. r[types.union.application-precedence] Type application binds more tightly than `|`, so `Box[A] | B` has `Box[A]` as its first member.
+3. r[types.union.flat-syntax] An unparenthesized chain such as `A | B | C` is one flat union syntax node with three members.
+4. r[types.union.parenthesized-syntax] Parentheses preserve a nested union syntax node, so `(A | B) | C` and `A | (B | C)` each differ from the flat chain.
+
+> **Why.** A flat syntax node preserves the decided ordered cases without
+> choosing a binary associativity, while explicit parentheses preserve nesting.
+
 ## Unsupported Type-System Extensions
 
 This section lists type-system features that hd-lang does not have.
 
 1. r[types.unsupported.type-test] The only runtime type test is exact-type recovery from an `Inspectable` value.
 2. r[types.unsupported.no-assertions] There are no trait-to-trait assertions, no tests on `Any` or on trait values whose trait does not extend `Inspectable`, and no type patterns in `match`.
-3. r[types.unsupported.no-unions] hd-lang has no anonymous union types, including error unions such as `FsError | HttpError`.
+3. r[types.unsupported.no-unions] hd-lang has no anonymous union types, including error unions such as `FsError | HttpError`. The parser accepts their syntax, but checking one reports `syntax-error`.
 4. r[types.unsupported.error-type] An error type is a nominal type or a dynamic trait value such as `std.error.Error`.
 5. r[types.unsupported.panic-abi] The exact host representation of a checked runtime panic is an ABI concern; its language-level control-flow semantics are defined in [Control Flow](06-control-flow.md#runtime-panics).
 
