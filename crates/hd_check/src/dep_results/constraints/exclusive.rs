@@ -1,4 +1,4 @@
-//! Exclusivity (`ref.excl`, stages 7a to 7c of
+//! Exclusivity (`ref.excl`, stages 7a to 7c2 of
 //! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each written `Ref` of
 //! a place a local's path reaches is a loan of its own, [`Origin::Site`],
 //! which the solver carries with the local's: shared for `&`, exclusive
@@ -354,6 +354,94 @@ impl Gen<'_, '_> {
                         out.push((node, self.conflict_message(root, h, *excl)));
                         break 'site;
                     }
+                }
+            }
+        }
+        out
+    }
+
+    /// `ref.excl.args`: a `&mut` a call takes against the call's other
+    /// arguments and receiver. One that holds a loan of an overlapping
+    /// place conflicts, and so does a use of one after a written `&mut`.
+    /// A call that holds an error of `found` already gets no other.
+    pub(super) fn call_conflicts(
+        &self,
+        sol: &Solution,
+        found: &[(NodeIdx, String)],
+    ) -> Vec<(NodeIdx, String)> {
+        let b = self.s.b;
+        let range = |n: NodeIdx| super::super::range(self.s.cx.src.parse.tree.node(n));
+        // Each site loan: its id, its `Ref`, and its place.
+        let sites: Vec<(u32, u32, Path)> = (self.loans.iter().enumerate())
+            .filter_map(|(loan, o)| match *o {
+                Origin::Site(i) => loan_path(self.s, i).map(|(p, _)| (w(loan), i, p)),
+                _ => None,
+            })
+            .collect();
+        let mut uses = None;
+        let mut out: Vec<(NodeIdx, String)> = Vec::new();
+        for c in 0..b.tags.len() {
+            if !matches!(
+                b.tags[c],
+                Tag::Call | Tag::CallDyn | Tag::CallValue | Tag::Await
+            ) || b.syn[c] == NodeIdx::NONE
+            {
+                continue;
+            }
+            let (lo, hi) = range(b.syn[c]);
+            if found.iter().any(|x| (lo..hi).contains(&range(x.0).0)) {
+                continue;
+            }
+            let mut args = Vec::new();
+            slots(b, c, |_, v, word| {
+                if matches!(word, Word::Value(_)) && (v as usize) < c {
+                    args.push(v);
+                }
+            });
+            for &v in &args {
+                let Some(((root, path), true)) = loan_path(self.s, v) else {
+                    continue;
+                };
+                let hit = |q: &Path| q.0 == root && overlap(&path, &q.1);
+                let mut hits = Vec::new();
+                for &u in args.iter().filter(|&&u| u != v) {
+                    let held = self.val(u).map(|x| x.0).unwrap_or_default();
+                    if sites.iter().any(|(loan, i, q)| {
+                        *i != v && hit(q) && held.iter().any(|&g| sol.value(g).contains(*loan))
+                    }) {
+                        hits.push(u);
+                    }
+                }
+                if site(self.s, v) {
+                    let uses = uses.get_or_insert_with(|| self.accesses());
+                    // An element reference keeps `ref.elem.conflict`.
+                    let elem = |j: u32, q: &Path| {
+                        b.tags[j as usize] == Tag::Ref
+                            && q.1.iter().any(|s| matches!(s, Proj::Elem(_)))
+                    };
+                    let after = |j: u32, q: &Path| v < j && (j as usize) < c && !elem(j, q);
+                    hits.extend(
+                        uses.iter()
+                            .filter(|(j, q)| after(*j, q) && hit(q))
+                            .map(|x| x.0),
+                    );
+                }
+                // One error for a call.
+                let node = hits
+                    .iter()
+                    .map(|&u| b.syn[u as usize])
+                    .find(|&n| n != NodeIdx::NONE);
+                if let Some(node) = node.filter(|n| !out.iter().any(|x| x.0 == *n)) {
+                    let n = self.s.cx.names.text(b.local_name[root as usize]);
+                    let place = if n.starts_with('$') {
+                        "a temporary".to_owned()
+                    } else {
+                        format!("`{n}`")
+                    };
+                    out.push((node, format!(
+                        "this uses {place} while the same call takes `&mut` of it; copy what this argument needs into a local before the call"
+                    )));
+                    break;
                 }
             }
         }

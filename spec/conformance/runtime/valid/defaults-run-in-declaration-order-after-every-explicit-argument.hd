@@ -21,8 +21,9 @@ fn join(
     "$first $second $third"
 
 pub fn main() -> void $ Console:
-    let mut log: List[string] = []
-    println(join(&mut log, note(&mut log, "first")))
-    println(join(&mut log, third=note(&mut log, "named"), first=note(&mut log, "last")))
+    log := box::[List[string]]([])
+    alias := log
+    println(join(log, note(alias, "first")))
+    println(join(log, third=note(alias, "named"), first=note(alias, "last")))
     for line in log:
         println(line)

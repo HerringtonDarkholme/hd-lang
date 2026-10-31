@@ -1,0 +1,12 @@
+# test: a call may not take `&mut` of one place twice
+# Spec 13 Writes While Borrowed: ref.excl.args.
+struct Holder:
+    text: string
+
+fn replace(target: &mut Holder, alias: &mut Holder, n: i32) -> void:
+    target.text = "after $n"
+    alias.text = "again $n"
+
+fn across_call(n: i32) -> void:
+    let mut shared = Holder { text: "before" }
+    replace(&mut shared, &mut shared, n) # diagnostic: conflicting-access

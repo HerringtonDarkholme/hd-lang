@@ -1,0 +1,9 @@
+# test: a call may not take `&mut` of a place and `&` of it in another argument
+# Spec 13 Writes While Borrowed: ref.excl.args.
+fn push_twice(xs: &mut List[i32], ys: &List[i32]) -> void:
+    xs.push(ys[0])
+    xs.push(ys[0])
+
+fn grow() -> void:
+    let mut xs = [+1]
+    push_twice(&mut xs, &xs) # diagnostic: conflicting-access

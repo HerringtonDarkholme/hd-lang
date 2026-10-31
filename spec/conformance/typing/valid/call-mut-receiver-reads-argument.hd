@@ -1,0 +1,15 @@
+# test: a `&mut self` call's arguments may read the receiver's place
+# Spec 13 Writes While Borrowed: ref.excl.args.after.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn set_x(&mut self, v: i32) -> void:
+        self.x = v
+
+fn grow() -> void:
+    let mut p = Point { x: +1, y: +2 }
+    p.set_x(p.x + p.y)
+    let mut xs: List[usize] = []
+    xs.push(xs.len())

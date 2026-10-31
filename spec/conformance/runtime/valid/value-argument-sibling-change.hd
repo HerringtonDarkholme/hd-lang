@@ -100,8 +100,9 @@ tests:
         )
 
     it("legacy and reference parameters retain sharing"):
-        let mut xs = [+1, 2]
-        assert_equal(shared(&mut xs, xs.pop()), 1, reason="a legacy view deliberately shares")
+        xs := box::[List[i32]]([+1, 2])
+        alias := xs
+        assert_equal(shared(xs, alias.pop()), 1, reason="a legacy view deliberately shares")
         let mut ys = [+1, 2]
         assert_equal(
             referred(&ys, ys.pop()),

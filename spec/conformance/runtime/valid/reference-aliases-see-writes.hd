@@ -16,6 +16,7 @@ pub fn main() -> void $ Console:
     s := r
     s.x = 7
     println("${r.x} ${s.x}")
-    let mut p = Point { x: 0, y: 0 }
-    set_x(&mut p, &mut p)
+    p := box(Point { x: 0, y: 0 })
+    q := p
+    set_x(p, q)
     println(p.x)

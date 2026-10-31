@@ -60,7 +60,7 @@ pub(super) struct Returns<'x> {
 }
 
 /// Whether reference type `t`, under any `mut`, is `&mut`.
-fn is_mut(pool: hd_types::Types<'_>, t: Ty) -> bool {
+pub(super) fn is_mut(pool: hd_types::Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Ref { mutable, .. } => mutable,
         TyData::Mut(i) => is_mut(pool, i),
@@ -1108,6 +1108,8 @@ impl Gen<'_, '_> {
         }
         v.scope = scoped_uses(b, self.s.cx, r.skip, &|i| self.uses(sol, i));
         v.conflicts = self.conflicts(sol);
+        let calls = self.call_conflicts(sol, &v.conflicts);
+        v.conflicts.extend(calls);
         v
     }
 }

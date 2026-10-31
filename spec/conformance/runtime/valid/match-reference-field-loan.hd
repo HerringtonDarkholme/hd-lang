@@ -76,12 +76,14 @@ tests:
 
     it("a call replacing the field keeps its former payload alive"):
         node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
-        assert_equal(across_call(node, node), 42, reason="the arm owns the replaced payload")
+        alias := node
+        assert_equal(across_call(node, alias), 42, reason="the arm owns the replaced payload")
         assert_equal(value(node), 0, reason="the call reached the aliased field")
 
     it("a store through another reference keeps the former payload alive"):
         node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
-        assert_equal(across_store(node, node), 42, reason="the arm owns the replaced payload")
+        alias := node
+        assert_equal(across_store(node, alias), 42, reason="the arm owns the replaced payload")
         assert_equal(value(node), 0, reason="the other reference aliases the field")
 
     it("a returned payload receives its own count"):
@@ -92,8 +94,9 @@ tests:
 
     it("a guard call is included in the scrutinee span"):
         node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
+        alias := node
         assert_equal(
-            across_guard(node, node),
+            across_guard(node, alias),
             42,
             reason="guard evaluation cannot free the payload",
         )

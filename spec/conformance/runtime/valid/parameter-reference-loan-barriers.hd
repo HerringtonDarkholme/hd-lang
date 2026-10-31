@@ -27,10 +27,10 @@ impl Holder:
 tests:
     it("a call cannot invalidate a previously read field"):
         for n in +0..+20:
-            let mut holder = Holder { text: "before $n" }
-            shared := &mut holder
+            holder := box(Holder { text: "before $n" })
+            shared := holder
             assert_equal(
-                across_call(shared, shared, n),
+                across_call(holder, shared, n),
                 "before $n",
                 reason="the earlier field owns its value across the call",
             )
@@ -41,9 +41,9 @@ tests:
                 "written $n",
                 reason="a borrowed field address remains writable through the callee",
             )
-            again := &mut holder
+            again := holder
             assert_equal(
-                again.read_then_call(again, n),
+                again.read_then_call(holder, n),
                 "written $n",
                 reason="the receiver read stays alive across alias mutation",
             )

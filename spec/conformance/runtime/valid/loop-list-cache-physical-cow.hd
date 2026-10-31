@@ -50,17 +50,20 @@ pub fn main() -> void $ Console:
     negative_range(&mut counted)
     if counted[0] != 37 || counted[1] != 38 || counted[2] != 39:
         panic("the first loop test lost its negative start")
-    let resized = &mut [+1, +2, +3]
-    if read_after_other_resize(resized, resized) != 33:
+    resized := box([+1, +2, +3])
+    other := resized
+    if read_after_other_resize(other, resized) != 33:
         panic("another parameter may resize the same list")
-    let written = &mut [+1, +2, +3]
+    written := box([+1, +2, +3])
     let old: List[i32] = *written
-    if read_before_other_write(written, written) != 22:
+    view := written
+    if read_before_other_write(view, written) != 22:
         panic("another parameter may replace the cached buffer")
     if old[0] != 1:
         panic("the independent value copy was changed")
-    let copied = &mut [+8, +8, +8]
-    last := copy_from_other(copied, copied)
+    copied := box([+8, +8, +8])
+    source := copied
+    last := copy_from_other(source, copied)
     if last[2] != 8 || copied[2] != 2:
         panic("a copy through another parameter must still trigger COW")
     println("${xs[0]} ${xs[1]} ${xs[2]}; copy ${copy[0]} ${copy[1]} ${copy[2]}; empty ${empty[0]}")

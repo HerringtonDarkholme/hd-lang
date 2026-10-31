@@ -1,0 +1,12 @@
+# test: an argument after a written `&mut p` may not read `p`
+# Spec 13 Writes While Borrowed: ref.excl.args.after.
+struct Point:
+    x: i32
+    y: i32
+
+fn add_to(target: &mut i32, n: i32) -> void:
+    *target += n
+
+fn double() -> void:
+    let mut p = Point { x: +1, y: +2 }
+    add_to(&mut p.x, p.x) # diagnostic: conflicting-access

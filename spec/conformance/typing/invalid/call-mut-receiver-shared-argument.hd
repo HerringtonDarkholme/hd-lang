@@ -1,0 +1,14 @@
+# test: a `&mut self` call may not take `&` of its receiver's place in an argument
+# Spec 13 Writes While Borrowed: ref.excl.args.
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn add(&mut self, other: &Point) -> void:
+        self.x += other.x
+        self.y += other.y
+
+fn double() -> void:
+    let mut p = Point { x: +1, y: +2 }
+    p.add(&p) # diagnostic: conflicting-access

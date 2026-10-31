@@ -1515,6 +1515,21 @@ impl Ck<'_, '_> {
                 through |= sig.store || held;
                 calls.insert(w(i), sig);
             }
+            // A call that takes a `&mut` beside another argument
+            // (`ref.excl.args`).
+            if matches!(
+                body.tags[i],
+                Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
+            ) {
+                let (mut n, mut m) = (0, false);
+                slots(body, i, |_, v, word| {
+                    if matches!(word, Word::Value(_)) && (v as usize) < i {
+                        n += 1;
+                        m |= constraints::is_mut(pool, body.ty[v as usize]);
+                    }
+                });
+                through |= m && n > 1;
+            }
             match body.tags[i] {
                 // A block's or a loop's value may leave a local's scope.
                 Tag::Block | Tag::Loop if w(i) != root.0 && holds_local_ref(pool, body.ty[i]) => {

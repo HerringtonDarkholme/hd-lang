@@ -622,6 +622,13 @@ fn tag(u: &mut User) -> void $ Console:
     println(u.age)   # error: conflicting-access
     *a += 1          # valid: through a, its last use
     println(u.age)   # valid
+
+fn set_name(to: &mut string, from: &string) -> void:
+    *to = *from
+
+fn copy_name(u: &mut User, v: &User) -> void:
+    set_name(&mut u.name, &u.name) # error: conflicting-access
+    set_name(&mut u.name, &v.name) # valid: another place
 ```
 
 1. r[ref.excl.shared] While a shared reference `&p` is live, a write to `p` or to a place that overlaps it is an error. Error: `conflicting-access`.
@@ -632,6 +639,8 @@ fn tag(u: &mut User) -> void $ Console:
 6. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
 7. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
 8. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field.
+9. r[ref.excl.args] While a call takes a `&mut` of a place, its other arguments and its receiver may not hold a reference to an overlapping place. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
+10. r[ref.excl.args.after] An argument after a written `&mut p` argument may not use `p` or an overlapping place. The arguments of a `&mut self` method call may read the receiver's place, as in `xs.push(xs.len())`. Error: `conflicting-access`.
 
 > **Why.** This is Rust's E0506, E0503 and E0499 with non-lexical
 > lifetimes. A write while a shared reference is live would change what the

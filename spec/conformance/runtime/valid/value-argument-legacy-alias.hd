@@ -30,9 +30,10 @@ tests:
         assert_equal(view.len(), 2, reason="the referenced list grew")
 
     it("a &mut parameter passed on by value is copied"):
-        let mut items = [+1]
+        items := box::[List[i32]]([+1])
+        alias := items
         assert_equal(
-            view_len_after(&mut items, fn(): items.push(2)),
+            view_len_after(items, fn(): alias.push(2)),
             1,
             reason="the parameter is the list as passed",
         )

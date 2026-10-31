@@ -436,6 +436,8 @@ Slice 7b applied by #1106 (`ref.excl.call`): the `&` a call takes for a `&self` 
 
 Slice 7c applied by #1107 (`ref.excl.mut`): a written `&mut` and the `&mut` a call takes are exclusive loans, so while a binding that holds one is still used, any other use of an overlapping place is `conflicting-access`; a `&mut` a binding keeps is a write against live shared loans (`ref.excl.write`).
 
+Slice 7c2 applied by #1108 (`ref.excl.args`): a call's `&mut` argument or receiver excludes a reference to an overlapping place in its other arguments, and after a written `&mut p` argument the later arguments may not use `p`; a `&mut self` call's arguments may still read the receiver, Rust's two-phase rule.
+
 ### Stage 9: field paths on results
 
 A result may name the field of its source it points into (owner,

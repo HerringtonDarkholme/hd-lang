@@ -126,7 +126,8 @@ pub fn main() -> void $ Console:
     let mut rng = Rng { state: 7 }
     for round in 0..3000:
         alphabet := alphabets[round % alphabets.len()]
-        text := word(&mut rng, alphabet, rng.below(40))
+        size := rng.below(40)
+        text := word(&mut rng, alphabet, size)
         needle := if rng.below(2) == 0 && text.len() > 0:
             # Cut at scalar boundaries.
             chars := text.chars().collect::[List[char]]()
@@ -134,7 +135,8 @@ pub fn main() -> void $ Console:
             to := from + rng.below(chars.len() - from + 1)
             [for c in chars[from..to] => "$c"].join("")
         else:
-            word(&mut rng, alphabet, rng.below(8))
+            size := rng.below(8)
+            word(&mut rng, alphabet, size)
         agree(text, needle, &mut failures)
         checked = checked + 1
     for failure in failures:

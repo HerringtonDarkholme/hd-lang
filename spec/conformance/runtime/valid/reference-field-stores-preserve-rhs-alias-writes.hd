@@ -55,14 +55,16 @@ tests:
     use std.testing.assert_equal
 
     it("self.a = f() preserves a write to self.b through an alias"):
-        pair := &mut Pair { a: +1, b: +2 }
-        pair.assign(pair)
+        pair := box(Pair { a: +1, b: +2 })
+        alias := pair
+        pair.assign(alias)
         assert_equal(pair.a, +42, reason="the assigned result")
         assert_equal(pair.b, +9, reason="the RHS changed the neighboring field")
 
     it("compound assignment reads its old field before the RHS"):
-        pair := &mut Pair { a: +1, b: +2 }
-        pair.compound(pair)
+        pair := box(Pair { a: +1, b: +2 })
+        alias := pair
+        pair.compound(alias)
         assert_equal(pair.a, +4, reason="the original field plus the RHS result")
         assert_equal(pair.b, +9, reason="the RHS changed the neighboring field")
 

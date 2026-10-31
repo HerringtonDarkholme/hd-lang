@@ -1,0 +1,18 @@
+# test: a call may take `&mut` of two different fields of one local
+# Spec 13 Writes While Borrowed: ref.excl.args, ref.excl.place.
+struct Point:
+    x: i32
+    y: i32
+
+fn swap(a: &mut i32, b: &mut i32) -> void:
+    t := *a
+    *a = *b
+    *b = t
+
+fn add_to(target: &mut i32, n: i32) -> void:
+    *target += n
+
+fn flip() -> void:
+    let mut p = Point { x: +1, y: +2 }
+    swap(&mut p.x, &mut p.y)
+    add_to(&mut p.x, p.y)

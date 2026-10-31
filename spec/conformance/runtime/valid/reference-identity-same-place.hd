@@ -25,7 +25,7 @@ pub fn main() -> void $ Console:
     r := p
     s := p
     copy := r
-    println("${r is s} ${r is copy} ${same(p, p)}")
+    println("${r is s} ${r is copy} ${same(s, p)}")
     println("${p is q} ${same(q, p)}")
     println("${keep(r) is s} ${&*r is &*p}")
     made := &Point { x: +1, y: +2 }
