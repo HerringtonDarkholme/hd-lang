@@ -183,7 +183,8 @@ impl Gen<'_, '_> {
 
     /// The place `proj` reaches from `v`: a field by its field slot map, a
     /// dereference the reference's slots after its first. An element, a
-    /// trait value or a counted reference stops at what it is reached from.
+    /// trait value with no slots or a counted reference stops at what it
+    /// is reached from.
     fn project(&mut self, mut v: View, proj: &[Proj], dir: (bool, bool)) -> View {
         let (pool, mut variant) = (self.s.pool, None);
         for p in proj {
@@ -193,7 +194,12 @@ impl Gen<'_, '_> {
                     Some((child, at)) => v = self.field(&v, child, at, dir),
                     None => break,
                 },
-                Proj::Deref if local_ref(pool, v.1) == Some((false, false)) => {
+                // A trait value's slots are its lifetime arguments; one with
+                // none has one set, for what it refers to (`ref.dep.trait`).
+                Proj::Deref
+                    if matches!(local_ref(pool, v.1), Some((false, d))
+                        if !d || !self.s.ls.of(referent(pool, v.1)).slots.is_empty()) =>
+                {
                     v = (v.0[1.min(v.0.len())..].to_vec(), referent(pool, v.1));
                 }
                 _ => break,
@@ -326,15 +332,46 @@ impl Gen<'_, '_> {
 
     /// Call argument `a` as a value of its source type `at`: an address
     /// the call takes for a receiver, with its place's slots behind it
-    /// (`fn.method.auto-address`).
+    /// (`fn.method.auto-address`), or a trait value as a reference to it.
     fn arg(&mut self, a: u32, at: Ty) -> View {
         let v = self.val(a).expect("an argument");
         if at == v.1 {
             return v;
         }
+        if super::is_dyn(self.s.pool, v.1) && referent(self.s.pool, at) == v.1 {
+            return self.dyn_arg(a, &v.0, at);
+        }
         let (_, p) = self.place(a, self.s.b.data[a as usize][0], usize::MAX, (true, false));
         let behind = p.map(|p| p.0).unwrap_or_default();
         ([&v.0[..1], &behind].concat(), at)
+    }
+
+    /// Trait value argument `a`, whose regions are `held`, lent as the
+    /// reference `at` to it (`ref.dep.trait`): the slots of the local
+    /// reference it was read through, so a call through `&'p dyn Tr['s]`
+    /// keeps what `'p` and `'s` hold apart. Otherwise the reference's own
+    /// slot holds what `held` holds, and its lifetime arguments nothing.
+    fn dyn_arg(&mut self, a: u32, held: &[Region], at: Ty) -> View {
+        let (b, pool, n) = (self.s.b, self.s.pool, self.width(at) as usize);
+        let word = b.data[a as usize][0];
+        let through = (b.tags[a as usize] == Tag::Read)
+            .then(|| b.decode_place(word))
+            .flatten()
+            .filter(|p| p.proj.last() == Some(&Proj::Deref))
+            .map(|p| p.proj.len() - 1);
+        if let Some(limit) = through
+            && let (_, Some(r)) = self.place(a, word, limit, (true, false))
+            && local_ref(pool, r.1) == Some((false, true))
+            && r.0.len() == n
+        {
+            return (r.0, at);
+        }
+        let own = self.t.fresh(1).start;
+        for &r in held {
+            self.flow(r, own);
+        }
+        let rest = self.t.fresh(w(n.saturating_sub(1)));
+        (std::iter::once(own).chain(rest).collect(), at)
     }
 
     /// Puts what a counted reference argument `a` is lent from into `r`
@@ -374,7 +411,7 @@ impl Gen<'_, '_> {
         let mut var = |t: &mut RegionTable, v| *vars.entry(v).or_insert_with(|| t.fresh(1).start);
         let has = |v: Var| sig.result && sig.outs.iter().any(|o| o.contains(&v));
         let (any, any_fn) = (has(Var::Life(ANY)), has(Var::AnyFn));
-        for (p, (pt, slots, borrow)) in sig.params.iter().enumerate() {
+        for (p, (pt, slots)) in sig.params.iter().enumerate() {
             let arg = |a| Some((a, call_arg_ty(pool, b, a, *pt)?));
             let Some((a, at)) = source_arg(b, iu, p).and_then(arg) else {
                 continue;
@@ -422,12 +459,6 @@ impl Gen<'_, '_> {
                     self.flow(v.0[k], r);
                 }
             }
-            if let Some(id) = *borrow {
-                let r = var(&mut self.t, id);
-                self.flow_vars(&v.0, &[r], cat);
-            }
-            // A lined-up argument has a set per slot; a trait value with
-            // none has one more, which `borrow` takes.
             for (k, &id) in vs.iter().enumerate().take(v.0.len()) {
                 let r = var(&mut self.t, id);
                 if under_mut(pool, &lay, k) {

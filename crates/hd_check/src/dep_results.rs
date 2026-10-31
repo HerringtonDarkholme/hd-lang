@@ -454,8 +454,6 @@ fn line_up(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
 }
 
 /// [`line_up`] for a call's argument or result (`ref.generic.call`): a
-/// trait value also lines up with `&T` or `&Self`, each of its slots that
-/// reference's, as each of its sets holds what it refers to; and a
 /// projection of `T`, as `T::Out`, takes [`Key::AllOf`].
 fn line_up_call(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
     line_up_in(ls, d, t, true)
@@ -507,17 +505,6 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
             (TyData::Mut(a), TyData::Mut(b)) => walk(ls, a, b, st, d1),
             (TyData::Mut(a), _) => walk(ls, a, t, st, d1),
             (_, TyData::Mut(b)) => walk(ls, d, b, st, d1),
-            (
-                TyData::Ref {
-                    counted: false,
-                    inner,
-                    ..
-                },
-                TyData::TraitValue { .. },
-            ) if st.2 && param(inner).is_some() => {
-                decl(st, ls.of(t).slots.len());
-                true
-            }
             (
                 TyData::Ref {
                     counted: false,
@@ -889,9 +876,7 @@ struct CallSig {
     /// Each parameter's type, its argument's where the two line up, and
     /// for each of its slots the variable it takes and, for a capture slot
     /// the call may keep, the category of its check.
-    /// A trait value given for `&Self` or `&T` names, last, the variable
-    /// of that reference's own slot, which each of its sets takes.
-    params: Vec<(Ty, Vec<ArgSlot>, Option<Var>)>,
+    params: Vec<(Ty, Vec<ArgSlot>)>,
     /// Each result slot's variables.
     outs: Vec<Vec<Var>>,
     /// The elided lifetimes, for a result with no slots.
@@ -982,9 +967,24 @@ fn arg_ty(pool: Types<'_>, b: &Body, a: u32) -> Option<Ty> {
 
 /// The type of argument `a` for a parameter of type `decl`: its source
 /// type, but the counted address a `&self` call takes of a temporary is
-/// the local reference `decl` names, as a place's is (`ref.dep.temporary`).
+/// the local reference `decl` names, as a place's is (`ref.dep.temporary`),
+/// and a trait value given for `&Self` or `&T` is lent as a reference to
+/// it, its own slot and its lifetime arguments' apart (`ref.dep.trait`).
 fn call_arg_ty(pool: Types<'_>, b: &Body, a: u32, decl: Ty) -> Option<Ty> {
     let t = arg_ty(pool, b, a)?;
+    if let TyData::Ref {
+        counted: false,
+        mutable,
+        ..
+    } = pool.get(referent_fn(pool, decl))
+        && is_dyn(pool, t)
+    {
+        return Some(pool.intern_ty(&TyData::Ref {
+            inner: t,
+            mutable,
+            counted: false,
+        }));
+    }
     if b.tags[a as usize] == Tag::Ref
         && let TyData::Ref {
             inner,
@@ -1229,15 +1229,7 @@ impl Ck<'_, '_> {
                     (var, cat)
                 })
                 .collect();
-            // A trait value for `&Self` or `&T`: each of its sets holds what
-            // it refers to, the reference's own position.
-            let by_ref = matches!(
-                pool.get(referent_fn(pool, *decl)),
-                TyData::Ref { counted: false, .. }
-            );
-            let borrow = (by_ref && is_dyn(pool, t))
-                .then(|| Var::Life(ids.first().copied().unwrap_or(NO_SOURCE)));
-            params.push((t, slots, borrow));
+            params.push((t, slots));
         }
         // A result slot a type parameter adds takes what that parameter's
         // argument slots took, and a projection of it all of them.
@@ -1288,7 +1280,7 @@ impl Ck<'_, '_> {
                 })
             })
         });
-        let shared = (params.iter().flat_map(|(_, x, _)| x)).any(|&(v, _)| match v {
+        let shared = (params.iter().flat_map(|(_, x)| x)).any(|&(v, _)| match v {
             Var::Life(l) => l < ANON,
             _ => true,
         });

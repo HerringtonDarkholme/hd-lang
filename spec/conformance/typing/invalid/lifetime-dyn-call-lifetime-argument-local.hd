@@ -1,0 +1,20 @@
+# test: a call through a trait value depends on what its lifetime argument holds in the value it was made from
+# Spec 13 Dependent Results: ref.dep.trait; Spec 13 Lifetime Variables: ref.lifetime.call.
+struct Parser[T, 'src]:
+    src: &'src T
+
+trait Source[T, 'src]:
+    fn source(&self) -> &'src T
+
+impl[T, 'src] Source[T, 'src] for Parser[T, 'src]:
+    fn source(&self) -> &'src T:
+        self.src
+
+fn as_dyn['p, 's](p: &'p Parser[string, 's]) -> &'p dyn Source[string, 's]:
+    p
+
+fn escape(v: &string) -> &string:
+    local := "x"
+    parser := Parser { src: &local }
+    d := as_dyn(&parser)
+    d.source() # diagnostic: local-reference-escapes
