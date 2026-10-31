@@ -128,6 +128,7 @@ pub enum SyntaxKind {
     MutType,
     RefType,
     OptionalType,
+    UnionType,
     TupleType,
     ParenType,
     FunctionType,
@@ -486,6 +487,7 @@ ast_nodes! {
     MutType => MutType,
     RefType => RefType,
     OptionalType => OptionalType,
+    UnionType => UnionType,
     TupleType => TupleType,
     ParenType => ParenType,
     FunctionType => FunctionType,
@@ -607,6 +609,7 @@ impl SyntaxKind {
                 | Self::MutType
                 | Self::RefType
                 | Self::OptionalType
+                | Self::UnionType
                 | Self::TupleType
                 | Self::ParenType
                 | Self::FunctionType

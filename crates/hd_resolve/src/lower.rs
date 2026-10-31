@@ -3074,6 +3074,14 @@ impl Lower<'_, '_, '_> {
                 let t = first_ty(self, n);
                 pool.intern_ty(&TyData::Option(t))
             }
+            SyntaxKind::UnionType => {
+                self.diags.error(
+                    Code::SyntaxError,
+                    self.src.span(n),
+                    "anonymous union types are not supported yet",
+                );
+                Ty::POISON
+            }
             SyntaxKind::MutType => {
                 let t = first_ty(self, n);
                 // A primitive has no `mut` form (types.prim.no-mut.error),

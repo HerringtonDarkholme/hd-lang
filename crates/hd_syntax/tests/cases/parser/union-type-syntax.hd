@@ -1,0 +1,7 @@
+# @dump: tree
+# Union type syntax is flat unless parentheses preserve a nested union.
+type Flat = A | B | C
+type NestedLeft = (A | B) | C
+type NestedRight = A | (B | C)
+type Applied = Box[A] | B
+type FunctionResult = fn() -> A | B

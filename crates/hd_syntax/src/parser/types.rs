@@ -55,9 +55,23 @@ impl Parser<'_> {
             self.skip_balanced();
             return self.complete(marker, SyntaxKind::Error);
         }
-        let done = self.ty_inner(rows);
+        let done = self.ty_union(rows);
         self.leave();
         done
+    }
+
+    /// `union_type`: `|` is the loosest type operator, and one node owns an
+    /// unparenthesized chain. A parenthesized member starts its own node.
+    fn ty_union(&mut self, rows: bool) -> Done {
+        let first = self.ty_inner(rows);
+        if !self.at(TokenKind::Pipe) {
+            return first;
+        }
+        let marker = self.precede(first);
+        while self.eat(TokenKind::Pipe) {
+            self.ty_inner(rows);
+        }
+        self.complete(marker, SyntaxKind::UnionType)
     }
 
     fn ty_inner(&mut self, rows: bool) -> Done {
