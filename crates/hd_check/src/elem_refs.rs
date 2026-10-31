@@ -289,7 +289,8 @@ impl Ck<'_, '_> {
     /// unaliased: a closure that captures the collection's binding may
     /// change it where the checker cannot see, and the pin catches that
     /// (`ref.elem.unaliased`, `ref.elem.access.pin`). Any closure counts
-    /// as escaping here, which only leaves more to the pin.
+    /// as escaping here, which only leaves more to the pin. The reported
+    /// ones stay, so the exclusivity check skips their nodes.
     pub(crate) fn report_conflicts(&mut self) {
         let mut found = std::mem::take(&mut self.conflicts);
         if found.is_empty() {
@@ -298,7 +299,7 @@ impl Ck<'_, '_> {
         let captured: HashSet<LocalId> = self.b.body_mut().cap_local.iter().copied().collect();
         let mut seen = HashSet::default();
         found.retain(|&(l, at)| !captured.contains(&l) && seen.insert(at));
-        for (_, at) in found {
+        for &(_, at) in &found {
             let node = self.cx.src.parse.tree.node(at);
             self.err(
                 Code::ConflictingAccess,
@@ -306,6 +307,7 @@ impl Ck<'_, '_> {
                 "this may change the length of a collection while an element reference into it is in use; make the change before or after that use",
             );
         }
+        self.conflicts = found;
     }
 
     /// The place `&e[k]` names when `e` is a list (`ref.elem.place`), the

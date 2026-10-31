@@ -1660,8 +1660,21 @@ impl Ck<'_, '_> {
             skip: &skip,
         };
         let verdicts = constraints::solve(&s, &returns);
+        // One error for a conflict `ref.elem.conflict` reported.
+        let tree = &self.cx.src.parse.tree;
+        let elem: Vec<_> = (self.conflicts.iter())
+            .map(|c| range(tree.node(c.1)))
+            .collect();
         for (at, code, msg) in self.verdict_list(verdicts, own.as_ref(), fun) {
             let node = self.cx.src.parse.tree.node(at);
+            let (lo, hi) = range(node);
+            if code == Code::ConflictingAccess
+                && elem
+                    .iter()
+                    .any(|&(a, b)| a <= lo && hi <= b || lo <= a && b <= hi)
+            {
+                continue;
+            }
             self.err(code, node, &msg);
         }
     }

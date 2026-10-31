@@ -369,7 +369,7 @@ fn raised(prices: List[i32]) -> List[i32]:
 2. r[flow.for.ref.slots] `xs` is evaluated once. The loop visits the slots from 0 up to the list's length when the loop began.
 3. r[flow.for.ref.access] The loop is one access to `xs`, as an element reference holds ([`ref.elem.access.live`](13-values-and-references.md#r-ref.elem.access.live)). It begins when the loop begins and ends when the loop ends or is left.
 4. r[flow.for.ref.conflict] When `xs` is [unaliased](13-values-and-references.md#r-ref.elem.unaliased), the body may read `xs` and write its elements, but an expression in it that may change the length of `xs`, as the table under [`ref.elem.conflict`](13-values-and-references.md#r-ref.elem.conflict) lists, is an error. Error: `conflicting-access`.
-5. r[flow.for.ref.pinned] The loop pins `xs` while it runs, as an access does, so any other change of the list's length, through a reference or a call, panics. Panic: `collection-pinned`.
+5. r[flow.for.ref.pinned] The loop pins `xs` while it runs, as an access does, so a change of the list's length that no compile-time rule sees, through a `*mut` alias or inside a call, panics. Panic: `collection-pinned`.
 6. r[flow.for.ref.binding.local] The loop binding is an element reference to its slot for one step. It is a local reference value, so the body may bind, assign, read and write through it, and pass it or use it as a dependent source; every local-reference and dependent-result rule applies.
 7. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
 8. r[flow.for.ref.map] A loop over element references takes a list, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.

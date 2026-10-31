@@ -1,0 +1,8 @@
+# test: a map store of another key while a binding that holds a reference to a map value is live conflicts
+# Spec 13 Call-Scoped Access: ref.elem.access.length.
+fn restock() -> i32:
+    let mut stock: Map[string, i32] = { "apple": 3 }
+    apples := &mut stock["apple"]
+    stock["pear"] = 1 # diagnostic: conflicting-access
+    *apples += 1
+    *apples

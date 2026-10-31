@@ -1,0 +1,20 @@
+# test: element writes, a store of the referenced map key and a whole replacement keep an element reference valid, and a length change after its last use is valid
+# Spec 13 Call-Scoped Access: ref.elem.access.length.
+fn scores() -> i32:
+    let mut xs = [+1, 2]
+    first := &mut xs[0]
+    xs[1] = 5
+    n := xs.len()
+    *first += i32(n)
+    xs.push(3)
+    old := &xs[0]
+    xs = [+7]
+    *old
+
+fn stock() -> i32:
+    let mut m: Map[string, i32] = { "apple": 3 }
+    apples := &mut m["apple"]
+    m["apple"] = 4
+    *apples += 1
+    m["pear"] = 1
+    m["apple"]

@@ -1,0 +1,13 @@
+# test: a push while a dependent result of an element reference is live conflicts
+# Spec 13 Call-Scoped Access: ref.elem.access.length.
+struct Player:
+    name: string
+    score: i32
+
+fn name_of(p: &Player) -> &string:
+    &p.name
+
+fn join(players: &mut List[Player]) -> string:
+    name := name_of(&players[0])
+    players.push(Player { name: "new", score: 0 }) # diagnostic: conflicting-access
+    *name

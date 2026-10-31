@@ -1584,20 +1584,27 @@ fn demo() -> void:
     bump(&mut scores[0])                 # valid: the access ends after this use
     record(&mut scores, &mut scores[0])  # error: conflicting-access
     best := &mut scores[1]
+    scores.push(3)                       # error: conflicting-access
     *best += 1
+    scores.push(4)                       # valid: after best's last use
 ```
 
 1. r[ref.elem.local-value] An element reference is a local reference value. It may be bound, assigned, passed, and used as the source or result of a dependent call, subject to every rule of [Local References](#local-references) and [Dependent Results](#dependent-results).
 2. r[ref.elem.access.live] The reference's **access** to its collection begins when the reference is taken and ends after its last use.
 3. r[ref.elem.access.live-length] While an access lasts, nothing may change the collection's length. Reads of the collection, and writes to its elements, the referenced one included, stay valid.
-4. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
-5. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
-6. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length is an error. Error: `conflicting-access`.
-7. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
-8. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
-9. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics. Panic: `collection-pinned`.
-10. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
-11. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
+4. r[ref.elem.access.length] While a binding that holds an element reference is live ([`ref.excl.live`](#r-ref.excl.live)), a change that may move its collection's length is an error. Error: `conflicting-access`.
+   - The collection is a place that [`ref.excl.place`](#r-ref.excl.place) covers, so it may be reached through a `&mut` parameter.
+   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove_at`, `pop` and `clear` do.
+   - A map's `remove` is one, and so is a map store of a key other than the referenced one.
+   - Two keys are one key when both are one constant or reads of one `:=` binding.
+5. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
+6. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
+7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length is an error. Error: `conflicting-access`.
+8. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
+9. r[ref.elem.pinned] While a list is pinned, an operation that changes its length where no compile-time rule sees it, through another `*mut` alias or inside a callee, is a checked runtime panic. The operations are `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
+10. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics where no compile-time rule sees them. Panic: `collection-pinned`.
+11. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
+12. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
 
 An argument may change the collection's length when it does one of the
 following to the collection, or to a place that holds it:

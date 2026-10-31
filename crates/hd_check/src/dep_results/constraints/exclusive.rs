@@ -1,4 +1,4 @@
-//! Exclusivity (`ref.excl`, stages 7a to 7c3 of
+//! Exclusivity (`ref.excl`, stages 7a to 7d of
 //! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each written `Ref` of
 //! a place a local's path reaches is a loan of its own, [`Origin::Site`],
 //! which the solver carries with the local's: shared for `&`, exclusive
@@ -10,11 +10,13 @@
 //! the block structure: an instruction runs after the earlier ones of its
 //! block's statements, and a loop's body runs again, so a read earlier in
 //! a loop follows a write later in it when the binding outlives one
-//! iteration.
+//! iteration. An element reference is a loan of its whole collection,
+//! which only a change of the collection's length conflicts with
+//! (`ref.elem.access.length`).
 
 use hd_base::NodeIdx;
 use hd_tir::ir::{
-    Body, IntrinsicOp, NONE, PlaceRoot, Proj, Tag, Topology, Word, local_flags, slots,
+    Body, IntrinsicOp, NONE, PlaceRoot, Proj, Ref, Tag, Topology, Word, local_flags, slots,
 };
 use hd_types::Ty;
 
@@ -47,14 +49,26 @@ fn path_of(b: &Body, word: u32) -> Option<Path> {
     }
 }
 
-/// The place loan `i` covers, without an element, which the pin covers
-/// (`ref.elem.access.pin`), and whether the loan is exclusive: a `Ref`'s
-/// place, or what a `&mut` binding refers to where a call reads it as `&`
-/// or as `&mut` (`ref.excl.call`).
-fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, bool)> {
+/// What a site loan excludes (`ref.excl.shared`, `ref.excl.mut`,
+/// `ref.elem.access.length`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Shared,
+    Excl,
+    /// An element reference: a loan of its whole collection, which only a
+    /// change of the collection's length conflicts with.
+    Elem,
+}
+
+/// The place loan `i` covers and its kind: a `Ref`'s place, or what a
+/// `&mut` binding refers to where a call reads it as `&` or as `&mut`
+/// (`ref.excl.call`). An element reference covers the collection its last
+/// element step indexes, when only fields follow that step; any other
+/// path with an element is left to the pin (`ref.elem.access.pin`).
+fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
     let (b, i) = (s.b, i as usize);
     let excl = is_mut(s.pool, b.ty[i]);
-    let path = match b.tags[i] {
+    let (l, mut path) = match b.tags[i] {
         Tag::Ref => path_of(b, b.data[i][0]),
         Tag::Read if excl => path_of(b, b.data[i][0]).map(|(l, mut p)| {
             p.push(Proj::Deref);
@@ -72,7 +86,14 @@ fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, bool)> {
         }
         _ => None,
     }?;
-    (!path.1.iter().any(|s| matches!(s, Proj::Elem(_)))).then_some((path, excl))
+    let Some(k) = path.iter().rposition(|s| matches!(s, Proj::Elem(_))) else {
+        return Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }));
+    };
+    if b.tags[i] != Tag::Ref || !path[k + 1..].iter().all(|s| matches!(s, Proj::Field(_))) {
+        return None;
+    }
+    path.truncate(k);
+    Some(((l, path), Kind::Elem))
 }
 
 /// Whether `Ref` `i` is a written `&` or `&mut` that takes a site loan
@@ -83,6 +104,44 @@ pub(super) fn site(s: &Inputs<'_>, i: u32) -> bool {
         && s.cx.src.parse.tree.node(at).kind() == SyntaxKind::RefExpr
         && s.b.tags[i as usize] == Tag::Ref
         && loan_path(s, i).is_some()
+}
+
+/// Whether two key values are one key: one constant, or reads of one
+/// `:=` binding, which nothing reassigns.
+fn same_key(b: &Body, x: u32, y: u32) -> bool {
+    let strip = |mut v: u32| {
+        while (v as usize) < b.tags.len() && b.tags[v as usize] == Tag::Coerce {
+            v = b.data[v as usize][0];
+        }
+        v
+    };
+    let (x, y) = (strip(x), strip(y));
+    let short = |v: u32| {
+        let at = b.data.get(v as usize)?[0];
+        let p = b
+            .decode_place(at)
+            .filter(|_| b.tags[v as usize] == Tag::Read)?;
+        match p.root {
+            PlaceRoot::Local(l) if p.proj.is_empty() => {
+                (b.local_flags[l.idx()] & local_flags::SHORT != 0).then_some(l)
+            }
+            _ => None,
+        }
+    };
+    // A constant, with a string's text in place of its number.
+    let value = |v: u32| {
+        let (t, bits) = *b.consts.get((v & !Ref::CONST_BIT) as usize)?;
+        let text = (t == Ty::STRING).then(|| b.strings.get(usize::try_from(bits).ok()?));
+        Some(match text {
+            Some(s) => (t, 0, Some(s?)),
+            None => (t, bits, None),
+        })
+    };
+    match (Ref(x).as_inst(), Ref(y).as_inst()) {
+        (None, None) => value(x).is_some() && value(x) == value(y),
+        (Some(_), Some(_)) => short(x).is_some_and(|l| short(y) == Some(l)),
+        _ => false,
+    }
 }
 
 /// Whether two paths of one local overlap: no step of the one is a field
@@ -305,7 +364,7 @@ impl Gen<'_, '_> {
         let mut sites = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
             let Origin::Site(i) = *o else { continue };
-            let Some((place, excl)) = loan_path(self.s, i) else {
+            let Some((place, kind)) = loan_path(self.s, i) else {
                 continue;
             };
             let holders: Vec<(u32, Vec<u32>)> = (0..self.locals)
@@ -321,7 +380,7 @@ impl Gen<'_, '_> {
                     (h, other)
                 })
                 .collect();
-            sites.push((i, place, excl, holders));
+            sites.push((i, place, kind, holders));
         }
         if sites.iter().all(|s| s.3.is_empty()) {
             return Vec::new();
@@ -346,8 +405,15 @@ impl Gen<'_, '_> {
             if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
-            'site: for (i, (r, sp), excl, holders) in &sites {
-                if *r != root || !overlap(sp, &path) || *i == wi || !write && !excl {
+            'site: for (i, (r, sp), kind, holders) in &sites {
+                if *r != root || !overlap(sp, &path) || *i == wi || !write && *kind != Kind::Excl {
+                    continue;
+                }
+                // `ref.elem.access.length`: only a change that may move the
+                // collection's length, of it or of a place that holds it.
+                if *kind == Kind::Elem
+                    && !(path.len() <= sp.len() && self.resizes(wi, path.len() == sp.len(), *i))
+                {
                     continue;
                 }
                 for (h, other) in holders {
@@ -358,7 +424,9 @@ impl Gen<'_, '_> {
                     let live =
                         |u: u32| order.hop(at, u, h) && !order.kills(&sets[h as usize], at, u);
                     if reads[h as usize].iter().any(|&u| live(u)) {
-                        out.push((node, self.conflict_message(root, h, *excl)));
+                        let inner =
+                            *kind == Kind::Elem && sp.iter().any(|s| matches!(s, Proj::Field(_)));
+                        out.push((node, self.conflict_message(root, h, *kind, inner)));
                         break 'site;
                     }
                 }
@@ -383,7 +451,10 @@ impl Gen<'_, '_> {
         // Each site loan: its id, its `Ref`, and its place.
         let sites: Vec<(u32, u32, Path)> = (self.loans.iter().enumerate())
             .filter_map(|(loan, o)| match *o {
-                Origin::Site(i) => loan_path(self.s, i).map(|(p, _)| (w(loan), i, p)),
+                Origin::Site(i) => match loan_path(self.s, i) {
+                    Some((p, Kind::Shared | Kind::Excl)) => Some((w(loan), i, p)),
+                    _ => None,
+                },
                 _ => None,
             })
             .collect();
@@ -412,8 +483,11 @@ impl Gen<'_, '_> {
                 b.tags[j as usize] == Tag::Ref && q.1.iter().any(|s| matches!(s, Proj::Elem(_)))
             };
             for &v in &args {
-                let Some(((root, path), excl)) = loan_path(self.s, v) else {
-                    continue;
+                // An element reference keeps `ref.elem.conflict`.
+                let ((root, path), excl) = match loan_path(self.s, v) {
+                    Some((p, Kind::Shared)) => (p, false),
+                    Some((p, Kind::Excl)) => (p, true),
+                    _ => continue,
                 };
                 let hit = |q: &Path| q.0 == root && overlap(&path, &q.1);
                 let mut hits = Vec::new();
@@ -467,24 +541,62 @@ impl Gen<'_, '_> {
         out
     }
 
-    fn conflict_message(&self, root: u32, holder: u32, excl: bool) -> String {
+    /// Whether write `i` may change the length of the collection element
+    /// reference `site` indexes, `own` when it writes that collection: no
+    /// store, which replaces a value (`ref.elem.pinned.allowed`,
+    /// `ref.elem.replace`), no `reserve`, and no map store of the key
+    /// `site` refers to, which writes that element.
+    fn resizes(&self, i: u32, own: bool, site: u32) -> bool {
+        let b = self.s.b;
+        let [op, rec] = b.data[i as usize];
+        match (b.tags[i as usize], IntrinsicOp::from_u32(op)) {
+            (Tag::Store, _) | (Tag::Intrinsic, Some(IntrinsicOp::ListReserve)) => false,
+            (Tag::Intrinsic, Some(IntrinsicOp::MapSet)) if own => {
+                let entry = b.decode_place(b.data[site as usize][0]).and_then(|p| {
+                    p.proj.iter().rev().find_map(|s| match s {
+                        Proj::Elem(e) => Some(e.as_inst().map(|e| e.0 as usize)),
+                        _ => None,
+                    })?
+                });
+                let key = entry
+                    .filter(|&e| b.tags.get(e) == Some(&Tag::Intrinsic))
+                    .filter(|&e| IntrinsicOp::from_u32(b.data[e][0]) == Some(IntrinsicOp::MapEntry))
+                    .and_then(|e| b.record(b.data[e][1]).get(1).copied());
+                !matches!((key, b.record(rec).get(1)), (Some(k), Some(&s)) if same_key(b, k, s))
+            }
+            _ => true,
+        }
+    }
+
+    /// The message of a conflict on local `root`, `inner` when the
+    /// collection is a part of it.
+    fn conflict_message(&self, root: u32, holder: u32, kind: Kind, inner: bool) -> String {
         let (b, names) = (self.s.b, &self.s.cx.names);
         let name = |l: u32| {
             let n = names.text(b.local_name[l as usize]);
             (!n.starts_with('$')).then(|| format!("`{n}`"))
         };
-        let place = name(root).unwrap_or_else(|| "a temporary".to_owned());
-        match (name(holder), excl) {
-            (Some(h), true) => format!(
+        let mut place = name(root).unwrap_or_else(|| "a temporary".to_owned());
+        if inner {
+            place = format!("a collection in {place}");
+        }
+        match (name(holder), kind) {
+            (Some(h), Kind::Elem) => format!(
+                "this may change the length of {place} while {h} refers to an element of it and is used later; make the change after {h}'s last use"
+            ),
+            (None, Kind::Elem) => format!(
+                "this may change the length of {place} while a reference to an element of it is used later; make the change after that use"
+            ),
+            (Some(h), Kind::Excl) => format!(
                 "this uses {place} while {h} refers to it as `&mut` and is used later; use {place} after {h}'s last use, or through {h}"
             ),
-            (None, true) => format!(
+            (None, Kind::Excl) => format!(
                 "this uses {place} while a `&mut` reference to it is used later; use {place} after that use"
             ),
-            (Some(h), false) => format!(
+            (Some(h), Kind::Shared) => format!(
                 "this changes {place} while {h} refers to it and is used later; make the change after {h}'s last use"
             ),
-            (None, false) => format!(
+            (None, Kind::Shared) => format!(
                 "this changes {place} while a reference to it is used later; make the change after that use"
             ),
         }

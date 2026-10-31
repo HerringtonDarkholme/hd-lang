@@ -5534,3 +5534,14 @@ typing/valid/call-mut-receiver-reads-argument.hd	type	accept	lang/13-values-and-
 typing/invalid/call-shared-argument-write-after.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.shared
 typing/invalid/call-shared-receiver-write-after.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.shared
 typing/valid/call-shared-argument-read-after.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.args.shared
+typing/invalid/element-binding-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-binding-insert-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-binding-remove-at-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-binding-pop-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-binding-clear-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-binding-map-store-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-binding-map-remove-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-binding-call-takes-list-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/invalid/element-argument-result-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
+typing/valid/element-binding-length-kept.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.access.length
+runtime/panic/element-binding-box-alias-push-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
