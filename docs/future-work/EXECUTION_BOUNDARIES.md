@@ -247,7 +247,7 @@ destination's representation (example 4's upload).
 - **L3.** A handle keeps its data alive until the last handle is dropped.
 - **L4.** The later/resume domain allows only copy and handle.
 
-### Affinity (Open)
+### Affinity (**approved**: question 6)
 
 Some work belongs near some data (owner, 2026-10-31). Two kinds behave
 differently:
@@ -375,12 +375,11 @@ owner's note's block, which names every capture and its mode.
 5. **When does transfer apply to plain values?** Only `&mut` moves today.
    Options: (a) transfer waits for `~Copyable` (#535); (b) transfer now for
    `&mut` and handle types only. Recommended: (a).
-6. **How is affinity expressed?** Required affinity: (a) a crossing may
-   target a handle's home domain, and the checker requires every handle in
-   the code to share it; (b) code always names the domain, and a handle
-   from another domain is a type error. Preferred affinity: a run-time hint
-   to a domain pool, or left to deployment. Decide with question 4, since
-   required affinity reads the handle's domain.
+6. **How is affinity expressed?** Answered (owner, 2026-10-31): required
+   affinity, (a): a crossing may target a handle's home domain, read from
+   its type, and the checker requires every handle the code uses to share
+   it, as Chapel's `on x do`. Preferred affinity is a run-time hint to a
+   domain pool (`Workers`), outside the checker.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
