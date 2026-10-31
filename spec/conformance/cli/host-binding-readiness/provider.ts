@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 
 interface PendingContext {
   signal: AbortSignal;
-  pending<T>(ready: () => boolean, done: () => T, abort: () => void, finish: () => T): unknown;
+  pending<Result>(
+    ready: () => boolean,
+    done: () => Result,
+    abort: () => void,
+    finish: () => Result,
+  ): unknown;
 }
 
 let aborted = 0;

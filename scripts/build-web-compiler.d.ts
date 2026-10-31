@@ -6,4 +6,4 @@ export const WAT_WASM: string;
 /** Raw and gzip (level 9) byte counts of a file. */
 export function sizes(path: PathLike | number): { raw: number; gzip: number };
 /** Format a byte count with its decimal megabyte equivalent. */
-export function formatBytes(n: number): string;
+export function formatBytes(bytes: number): string;

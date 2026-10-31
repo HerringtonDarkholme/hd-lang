@@ -40,8 +40,8 @@ export function sizes(path) {
 }
 
 /** `1234567` as `1234567 B (1.23 MB)`. */
-export function formatBytes(n) {
-  return `${n} B (${(n / 1e6).toFixed(2)} MB)`;
+export function formatBytes(bytes) {
+  return `${bytes} B (${(bytes / 1e6).toFixed(2)} MB)`;
 }
 
 function report(label, { raw, gzip }) {

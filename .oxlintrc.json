@@ -31,6 +31,7 @@
     "no-multi-assign": "error",
     "no-lone-blocks": "error",
     "no-return-assign": "error",
+    "id-length": ["error", { "min": 2, "exceptions": ["i", "j", "k", "_"], "properties": "never" }],
     "max-params": ["error", 4],
     "max-depth": ["error", 4],
     "complexity": ["error", 15],

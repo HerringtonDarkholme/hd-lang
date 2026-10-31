@@ -97,23 +97,23 @@ function digits({ f, e, min, hidden }) {
     r *= 10n;
     up *= 10n;
     down *= 10n;
-    let d = r / s;
+    let digit = r / s;
     r %= s;
     const low = closed ? r <= down : r < down;
     const high = closed ? r + up >= s : r + up > s;
     if (!low && !high) {
-      out += d;
+      out += digit;
       continue;
     }
     if (low && high) {
       const twice = r * 2n;
-      if (twice > s || (twice === s && (d & 1n) === 1n)) {
-        d += 1n;
+      if (twice > s || (twice === s && (digit & 1n) === 1n)) {
+        digit += 1n;
       }
     } else if (high) {
-      d += 1n;
+      digit += 1n;
     }
-    out += d;
+    out += digit;
     return { digits: out, k };
   }
 }
@@ -154,8 +154,8 @@ export function shortest(value, width) {
 // but not both), then an optional exponent.
 const DECIMAL = /^(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))(?:[eE]([+-]?[0-9]+))?$/;
 
-function bitLength(n) {
-  return n === 0n ? 0 : n.toString(2).length;
+function bitLength(value) {
+  return value === 0n ? 0 : value.toString(2).length;
 }
 
 function roundsUp(low, half, rest, significand) {
@@ -169,17 +169,17 @@ function roundsUp(low, half, rest, significand) {
 // the result owes nothing to `Number` or `parseFloat`, which may round
 // after the twentieth digit. Text outside the grammar is a bug in std.
 export function parse(text) {
-  const m = DECIMAL.exec(text);
-  if (m === null) {
+  const match = DECIMAL.exec(text);
+  if (match === null) {
     throw new Error(`parse_f64: text outside the grammar: ${text}`);
   }
-  const whole = m[1] ?? "";
-  const fraction = m[2] ?? m[3] ?? "";
+  const whole = match[1] ?? "";
+  const fraction = match[2] ?? match[3] ?? "";
   const digits = (whole + fraction).replace(/^0+/, "");
   if (digits === "") {
     return 0;
   }
-  const exponent = BigInt(m[4] ?? "0") - BigInt(fraction.length);
+  const exponent = BigInt(match[4] ?? "0") - BigInt(fraction.length);
   // The value is in [10^(n-1+exponent), 10^(n+exponent)).
   const magnitude = BigInt(digits.length) + exponent;
   if (magnitude > 310n) {
@@ -188,14 +188,14 @@ export function parse(text) {
   if (magnitude < -330n) {
     return 0;
   }
-  const d = BigInt(digits);
-  const e = Number(exponent);
-  let num = d;
+  const integer = BigInt(digits);
+  const decimalExponent = Number(exponent);
+  let num = integer;
   let den = 1n;
-  if (e >= 0) {
-    num = d * 10n ** BigInt(e);
+  if (decimalExponent >= 0) {
+    num = integer * 10n ** BigInt(decimalExponent);
   } else {
-    den = 10n ** BigInt(-e);
+    den = 10n ** BigInt(-decimalExponent);
   }
   // Scale so the quotient has 54 to 56 bits, then round it to the width
   // of the result.
@@ -205,19 +205,19 @@ export function parse(text) {
   } else {
     den <<= BigInt(-shift);
   }
-  const q = num / den;
+  const quotient = num / den;
   const rest = num % den;
-  const top = bitLength(q) - 1 - shift;
+  const top = bitLength(quotient) - 1 - shift;
   // The exponent of the last place: 52 below the top bit, or -1074 for a
   // subnormal.
   const unit = Math.max(top - 52, -1074);
   const drop = BigInt(unit + shift);
-  let significand = q >> drop;
-  const low = q & ((1n << drop) - 1n);
+  let significand = quotient >> drop;
+  const low = quotient & ((1n << drop) - 1n);
   const half = 1n << (drop - 1n);
   if (roundsUp(low, half, rest, significand)) {
     significand += 1n;
   }
-  const x = Number(significand);
-  return unit >= -1000 ? x * 2 ** unit : x * 2 ** -1000 * 2 ** (unit + 1000);
+  const rounded = Number(significand);
+  return unit >= -1000 ? rounded * 2 ** unit : rounded * 2 ** -1000 * 2 ** (unit + 1000);
 }

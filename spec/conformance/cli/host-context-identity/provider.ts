@@ -8,7 +8,7 @@ interface Identity {
 
 interface IdentityContext {
   interfaceIdentity: Identity;
-  pending?<T>(ready: () => boolean, done: () => T): unknown;
+  pending?<Result>(ready: () => boolean, done: () => Result): unknown;
 }
 
 let sourceIdentity: Identity | undefined;

@@ -215,7 +215,9 @@ async function main(args: readonly string[]): Promise<number> {
     );
   }
   if (failures.length > 0) {
-    console.error(`specification style failures:\n${failures.map((f) => `- ${f}`).join("\n")}`);
+    console.error(
+      `specification style failures:\n${failures.map((failure) => `- ${failure}`).join("\n")}`,
+    );
     return 1;
   }
   console.log(`specification style passed (${seen.size} rule IDs)`);

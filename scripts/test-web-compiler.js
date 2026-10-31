@@ -75,7 +75,9 @@ writeFileSync(program, cold.wasm);
 const stdout = execFileSync(process.execPath, [join(root, "host", "run.ts"), program], {
   encoding: "utf8",
 });
-const expected = [...text.matchAll(/^# expect-stdout: (.*)$/gm)].map((m) => `${m[1]}\n`).join("");
+const expected = [...text.matchAll(/^# expect-stdout: (.*)$/gm)]
+  .map((item) => `${item[1]}\n`)
+  .join("");
 assert.equal(stdout, expected);
 console.log(`run: ${JSON.stringify(stdout)}`);
 
@@ -162,21 +164,21 @@ assert.equal(start.wasm.length, 0);
 const sources = [];
 let built = 0;
 let firstMs = 0;
-for (const [n, text] of [
+for (const [number, text] of [
   [1, "n := base() + 2\n"],
   [2, "n * 2\n"],
 ]) {
   const input = compile(exports, encodeReplInput(text));
   assert.equal(input.status, STATUS.ok, JSON.stringify(input.json));
-  assert.equal(input.json.input, n);
+  assert.equal(input.json.input, number);
   assert.deepEqual([...input.wasm.subarray(0, 4)], wasmMagic);
   built = input.wasm.length;
   firstMs ||= input.ms;
-  sources.push([n, text]);
-  const ran = await session.run(input.wasm, sources, n);
+  sources.push([number, text]);
+  const ran = await session.run(input.wasm, sources, number);
   assert.equal(ran.live.joined, true, replOut);
-  const outcome = compile(exports, encodeReplOutcome(n, OUTCOME.joined));
-  assert.deepEqual(outcome.json, { diagnostics: [], input: n, outcome: "joined" });
+  const outcome = compile(exports, encodeReplOutcome(number, OUTCOME.joined));
+  assert.deepEqual(outcome.json, { diagnostics: [], input: number, outcome: "joined" });
 }
 assert.equal(replOut, "84 : i32\n");
 session.close();
