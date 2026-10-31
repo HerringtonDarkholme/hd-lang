@@ -741,6 +741,62 @@ See also: [Lifetimes In Function Types](07-functions.md#lifetimes-in-function-ty
 [Lifetime Implementation Targets](#lifetime-implementation-targets),
 [Lifetime Structs](#lifetime-structs).
 
+### Result Paths
+
+A result reference may name the field of a reference parameter it points into, written after the `&` where a lifetime goes: `&'self.name string`. The result still has that parameter's lifetime. The body may return only a reference into that field.
+
+```text
+struct Name:
+    first: string
+    last: string
+
+struct User:
+    name: Name
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn first(&self) -> &'self.name string:
+        &self.name.first           # valid: inside self.name
+    fn tags_mut(&mut self) -> &'self.tags mut List[string]:
+        &mut self.tags             # valid
+    fn wrong(&self) -> &'self.name List[string]:
+        &self.tags                 # error: local-reference-escapes
+    fn whole(&self) -> &'self.name User:
+        self                       # error: local-reference-escapes
+
+fn lead(a: &User, b: &User) -> &'b.name Name:
+    &b.name                        # valid: the result depends only on b
+
+fn copy(u: User) -> &'u.name Name:  # error: unknown-lifetime
+    &u.name
+
+trait Named:
+    fn first(&self) -> &'self.name string  # error: trait-method-signature
+
+fn birthday(u: &mut User) -> void $ Console:
+    n := u.first()  # n borrows all of u
+    u.age += 1      # error: conflicting-access
+    println(*n)
+```
+
+1. r[ref.result.path.form] A **result path** is a tick, a parameter's name, and one or more `.field` steps, written in the lifetime position of a local reference type: `&'p.f T` and `&'p.f mut T`. Without a step, `'p` is a lifetime variable ([`ref.lifetime.declared`](#r-ref.lifetime.declared)).
+2. r[ref.result.path.position] A result path is written only in a function's result type. Anywhere else it is an error. Error: `unknown-lifetime`.
+3. r[ref.result.path.param] The name is a `&` or `&mut` parameter's, `self` included. Any other name is an error. Error: `unknown-lifetime`.
+4. r[ref.result.path.fields] Each step names a field of the struct the previous step reaches, starting from the parameter's referent. Any other step is an error. Error: `unknown-field`.
+5. r[ref.result.path.not-yet] A step through a reference, and a result path on a reference inside another reference of the result, are not checked yet, so they are errors. Error: `references-not-yet-checked`.
+6. r[ref.result.path.visible] Each field must be visible where the signature is written. Error: `private-member`.
+7. r[ref.result.path.public] A `pub` signature names only public fields, so private layout never enters an API. Error: `private-type-leak`.
+8. r[ref.result.path.lifetime] The result position has the parameter's lifetime, as if the signature wrote one variable on both.
+9. r[ref.result.path.callee] A returned value in that position must point into the path's place. It is a `&` or `&mut` of a place that starts with the parameter and the path's fields, returned directly or through a binding. A value that may point elsewhere in the parameter's referent is an error. A call's result counts as pointing anywhere in its source. Error: `local-reference-escapes`.
+10. r[ref.result.path.trait] A trait's method names the whole `self`, so its signature writes no result path. An implementation's method of a trait writes none either, since a bound or `&dyn` caller sees only the trait. Error: `trait-method-signature`.
+11. r[ref.result.path.caller] A call's result with a result path still holds the whole place its argument was taken from ([`ref.excl.call`](#r-ref.excl.call)).
+
+> **Why.** A signature that says which field a result points into lets a
+> caller lock only that field. Private fields stay out of public signatures,
+> so a layout change never breaks a caller. Only the body is checked against
+> the path; a caller never depends on a callee's body.
+
 ### Lifetime Traits
 
 A **lifetime trait** declares lifetimes which its methods may write:

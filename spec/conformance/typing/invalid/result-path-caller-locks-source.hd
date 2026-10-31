@@ -1,0 +1,14 @@
+# test: a call's result with a result path still locks its whole source
+# Spec 13 Result Paths: ref.result.path.caller.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &'self.name string:
+        &self.name
+
+fn birthday(u: &mut User) -> void $ Console:
+    n := u.name()
+    u.age += 1 # diagnostic: conflicting-access
+    println(*n)

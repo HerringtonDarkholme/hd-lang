@@ -1,0 +1,9 @@
+# test: a result path's body may not return a reference to another field
+# Spec 13 Result Paths: ref.result.path.callee.
+struct User:
+    name: string
+    tags: List[string]
+
+impl User:
+    fn wrong(&self) -> &'self.name List[string]:
+        &self.tags # diagnostic: local-reference-escapes

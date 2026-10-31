@@ -26,7 +26,7 @@ use hd_types::{
 use crate::const_eval::{ConstArg, ConstName};
 use crate::iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup, Names,
-    TraitData, Variant, fill_trait_args, fill_type_args, show_ty,
+    ResultPath, TraitData, Variant, fill_trait_args, fill_type_args, show_ty,
 };
 use crate::known::KnownItems;
 use crate::variance::{self, Seen};
@@ -1685,6 +1685,10 @@ impl Gen {
     }
 }
 
+/// A result being lowered: the parameters, their reference slot count,
+/// and the field paths written so far (`ref.result.path.form`).
+type ResultPaths = (Vec<(Symbol, Ty)>, usize, Vec<ResultPath>);
+
 struct Lower<'a, 'r, 'x> {
     r: &'a Resolver<'r, 'x>,
     names: Names<'r>,
@@ -1699,6 +1703,8 @@ struct Lower<'a, 'r, 'x> {
     /// opaque results borrow from a local reference parameter
     /// (`types.opaque.borrows`).
     opaque_result: Option<(DefId, u32, bool)>,
+    /// While a result type is lowered (`ref.result.path.form`).
+    result_paths: Option<ResultPaths>,
     /// Type parameters already reported as used in a row: one error per
     /// parameter, at its first use.
     kind_reported: HashSet<u32>,
@@ -2915,7 +2921,56 @@ impl Lower<'_, '_, '_> {
         let Some(t) = n.direct_token(&self.src.parse.tokens, TokenKind::Lifetime) else {
             return 0;
         };
+        if n.direct_token(&self.src.parse.tokens, TokenKind::Dot)
+            .is_some()
+        {
+            self.result_path(n, t);
+            return 0;
+        }
         self.lifetime_of(t, gn)
+    }
+
+    /// `ref.result.path.form`: `&'p.f T` in a result names reference parameter
+    /// `p` and its fields, which the checker resolves; its slot elides.
+    fn result_path(&mut self, n: NodeRef<'_>, t: hd_base::TokenIdx) {
+        let toks = &self.src.parse.tokens;
+        let fields: Vec<Symbol> = (n.direct_tokens())
+            .filter(|&k| matches!(toks.kind(k), TokenKind::Ident | TokenKind::RawIdent))
+            .map(|k| self.sym_token(k))
+            .collect();
+        let report = self.r.frozen.is_none();
+        // A path that names no reference parameter still writes its slot.
+        let mut path = ResultPath {
+            slot: 0,
+            param: u16::MAX,
+            fields,
+        };
+        let slot = self.slots.as_ref().map_or(0, Vec::len);
+        let (span, name) = (self.src.token_span(t), &self.src.text(t)[1..]);
+        let Some((params, ins, out)) = &mut self.result_paths else {
+            if report {
+                let msg =
+                    "a field path names a result's source only, as in `-> &'self.name string`";
+                self.diags.error(Code::UnknownLifetime, span, msg);
+            }
+            return;
+        };
+        let pool = self.names.pool;
+        let param = params.iter().position(|&(s, t)| {
+            self.names.text(s) == name && matches!(pool.get(t), TyData::Ref { counted: false, .. })
+        });
+        let Some(param) = param else {
+            if report {
+                let msg = format!(
+                    "`'{name}` names no `&` or `&mut` parameter, where a field path starts"
+                );
+                self.diags.error(Code::UnknownLifetime, span, &msg);
+            }
+            return out.push(path);
+        };
+        path.slot = u16::try_from(slot.saturating_sub(*ins)).unwrap_or(u16::MAX);
+        path.param = u16::try_from(param).unwrap_or(u16::MAX);
+        out.push(path);
     }
 
     /// [`Self::lifetime`] of the lifetime token `t`.
@@ -3948,14 +4003,37 @@ impl Lower<'_, '_, '_> {
             .iter()
             .any(|&(_, t)| self.names.pool.types().ref_slots(t) > 0);
         let before = self.opaque_result.replace((owner, 0, borrows));
+        let ins = self.slots.as_ref().map_or(0, Vec::len);
+        self.result_paths = Some((params.clone(), ins, Vec::new()));
         let ret = self.ty(Src::type_child(f), gn);
+        let mut paths = self.result_paths.take().map(|p| p.2).unwrap_or_default();
+        let written_paths = paths.len();
+        paths.retain(|p| p.param != u16::MAX);
         self.opaque_result = before;
+        // `ref.result.path.trait`: a trait's method names the whole `self`,
+        // and an implementation's is no more precise.
+        if let (Some(p), [.., decl, _]) = (paths.first(), self.owner_path(f).as_slice())
+            && (decl.kind() == SyntaxKind::TraitDecl
+                || decl.kind() == SyntaxKind::ImplDecl
+                    && decl.children().filter(|c| c.kind().is_type()).count() > 1)
+        {
+            if self.r.frozen.is_none() {
+                let msg = format!(
+                    "a trait's method names the whole `{}`, so neither it nor an implementation names a field path",
+                    self.names.text(params[usize::from(p.param)].0)
+                );
+                let at = Src::type_child(f).unwrap_or(f);
+                self.diags
+                    .error(Code::TraitMethodSignature, self.src.span(at), &msg);
+            }
+            paths.clear();
+        }
         let mut lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
         let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
         if let Some(rn) = Src::type_child(f)
             && self.r.frozen.is_none()
         {
-            self.elided_source(rn, &params, ret, &lifetimes);
+            self.elided_source(rn, &params, ret, &lifetimes, written_paths);
         }
         let pool = self.names.pool.types();
         with_held(
@@ -3980,6 +4058,7 @@ impl Lower<'_, '_, '_> {
             suspends,
             variadic,
             lifetimes,
+            paths,
         }
     }
 
@@ -3991,7 +4070,14 @@ impl Lower<'_, '_, '_> {
     /// None is `reference-result-without-source`, two or more are
     /// `ambiguous-reference-source`. An opaque type borrows from every
     /// parameter instead (`types.opaque.borrows.source`).
-    fn elided_source(&mut self, rn: NodeRef<'_>, params: &[(Symbol, Ty)], ret: Ty, slots: &[u16]) {
+    fn elided_source(
+        &mut self,
+        rn: NodeRef<'_>,
+        params: &[(Symbol, Ty)],
+        ret: Ty,
+        slots: &[u16],
+        paths: usize,
+    ) {
         let pool = self.names.pool.types();
         let ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
         let mut opaque = 0;
@@ -3999,7 +4085,8 @@ impl Lower<'_, '_, '_> {
             opaque += usize::from(matches!(d, TyData::Opaque { borrows: true, .. }));
         });
         let out = slots.get(ins..).unwrap_or_default();
-        if out.iter().filter(|l| **l == 0).count() <= opaque {
+        // A field path's slot names its source (`ref.result.path.lifetime`).
+        if out.iter().filter(|l| **l == 0).count() <= opaque + paths {
             return;
         }
         // Each parameter slot's parameter, and its lifetime or its own.
@@ -5847,6 +5934,7 @@ fn lower_aliases(
                 diags: &mut scratch,
                 unsupported: None,
                 opaque_result: None,
+                result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
                 held: None,
@@ -5913,6 +6001,7 @@ fn lower_aliases(
                 diags: if alias { diags } else { &mut dropped },
                 unsupported: None,
                 opaque_result: None,
+                result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
                 held: None,
@@ -7278,6 +7367,7 @@ pub fn build_folder_with_facts(
                     diags,
                     unsupported: None,
                     opaque_result: None,
+                    result_paths: None,
                     kind_reported: HashSet::default(),
                     slots: None,
                     held: None,
@@ -7390,6 +7480,7 @@ pub fn build_folder_with_facts(
                 diags,
                 unsupported: None,
                 opaque_result: None,
+                result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
                 held: None,
@@ -7529,6 +7620,7 @@ fn own_trait_generics(
                 diags: &mut scratch,
                 unsupported: None,
                 opaque_result: None,
+                result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
                 held: None,
@@ -7737,6 +7829,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                     suspends: sig.suspends,
                     variadic: sig.variadic,
                     lifetimes: sig.lifetimes.clone(),
+                    paths: sig.paths.clone(),
                 };
                 fwd.push(Item::new(
                     def,
@@ -7801,6 +7894,7 @@ fn own_trait_supers(
                 diags: &mut scratch,
                 unsupported: None,
                 opaque_result: None,
+                result_paths: None,
                 kind_reported: HashSet::default(),
                 slots: None,
                 held: None,

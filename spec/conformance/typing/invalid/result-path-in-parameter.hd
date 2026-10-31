@@ -1,0 +1,7 @@
+# test: a result path is written only in a result type
+# Spec 13 Result Paths: ref.result.path.position.
+struct User:
+    name: string
+
+fn name(u: &'u.name User) -> void: # diagnostic: unknown-lifetime
+    pass

@@ -1,0 +1,8 @@
+# test: a result path's body may not return the whole parameter
+# Spec 13 Result Paths: ref.result.path.callee.
+struct User:
+    name: string
+
+impl User:
+    fn whole(&self) -> &'self.name User:
+        self # diagnostic: local-reference-escapes

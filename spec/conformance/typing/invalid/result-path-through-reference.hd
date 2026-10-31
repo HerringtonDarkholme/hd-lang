@@ -1,0 +1,10 @@
+# test: a result path through a counted reference is not checked yet
+# Spec 13 Result Paths: ref.result.path.not-yet.
+struct User:
+    name: string
+
+struct Team:
+    lead: *mut User
+
+fn lead_name(t: &Team) -> &'t.lead.name string: # diagnostic: references-not-yet-checked
+    &t.lead.name

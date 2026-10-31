@@ -379,6 +379,20 @@ pub struct FnSig {
     /// When a `Suspend` writes one, each `Suspend`'s follows, in order
     /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
+    /// The result reference slots that name a parameter's field path
+    /// (`ref.result.path.form`), in source order. Such a slot's lifetime is 0.
+    pub paths: Vec<ResultPath>,
+}
+
+/// A result reference slot written `&'param.field T` (`ref.result.path.form`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResultPath {
+    /// The slot's place among the result's reference slots.
+    pub slot: u16,
+    /// The parameter it borrows from.
+    pub param: u16,
+    /// The field names, from the parameter's referent on.
+    pub fields: Vec<Symbol>,
 }
 
 impl FnSig {
@@ -394,6 +408,7 @@ impl FnSig {
             suspends: false,
             variadic: false,
             lifetimes: Vec::new(),
+            paths: Vec::new(),
         }
     }
 }
@@ -1189,6 +1204,15 @@ fn put_sig(w: &mut Writer, t: &mut TableWriter<'_>, s: &FnSig) -> StageResult<()
     for l in &s.lifetimes {
         w.u32(u32::from(*l));
     }
+    w.len_of(&s.paths);
+    for p in &s.paths {
+        w.u32(u32::from(p.slot));
+        w.u32(u32::from(p.param));
+        w.len_of(&p.fields);
+        for f in &p.fields {
+            w.u32(t.sym(*f));
+        }
+    }
     Ok(())
 }
 
@@ -1208,6 +1232,19 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
     for _ in 0..r.count() {
         lifetimes.push(u16::try_from(r.u32()).ok()?);
     }
+    let mut paths = Vec::new();
+    for _ in 0..r.count() {
+        let slot = u16::try_from(r.u32()).ok()?;
+        let param = u16::try_from(r.u32()).ok()?;
+        let fields = (0..r.count())
+            .map(|_| t.sym(r.u32()))
+            .collect::<Option<_>>()?;
+        paths.push(ResultPath {
+            slot,
+            param,
+            fields,
+        });
+    }
     Some(FnSig {
         generics,
         params,
@@ -1217,6 +1254,7 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
         suspends: flags & 1 != 0,
         variadic: flags & 2 != 0,
         lifetimes,
+        paths,
     })
 }
 

@@ -10,9 +10,9 @@ use hd_types::{Ty, TyData};
 
 use super::{
     ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
-    Layout, Layouts, NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts,
-    call_arg_ty, capture_slot, closure_allows, intrinsic_ops, local_ref, referent, referent_fn,
-    returned, scoped_uses, site, source_arg, w,
+    Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var,
+    Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops, local_ref, referent,
+    referent_fn, returned, scoped_uses, site, source_arg, w,
 };
 use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
@@ -298,6 +298,40 @@ impl Gen<'_, '_> {
             }
             None => {}
         }
+    }
+
+    /// `ref.result.path.callee`: a `Ref` `i` reborrowed from a read `at` of
+    /// a result path's parameter, never assigned, holds that parameter's
+    /// origin and the outside mark of each of its paths the place does not
+    /// lie in, in place of what the parameter holds.
+    fn path_ref(&mut self, i: u32, at: Option<Result<Origin, u32>>, r: Region) -> bool {
+        let (b, paths) = (self.s.b, self.s.paths);
+        let Some(Err(v)) = at else { return false };
+        let read = (b.tags[v as usize] == Tag::Read)
+            .then(|| b.decode_place(b.data[v as usize][0]))
+            .flatten();
+        let Some(PlaceRoot::Local(l)) = read.filter(|p| p.proj.is_empty()).map(|p| p.root) else {
+            return false;
+        };
+        let l = l.raw();
+        let flags = hd_tir::ir::local_flags::ASSIGNED | hd_tir::ir::local_flags::CAPTURED_ASSIGNED;
+        let Some((_, proj)) = exclusive::path_of(b, b.data[i as usize][0]) else {
+            return false;
+        };
+        if paths.iter().all(|p| p.param != l) || b.local_flags[l as usize] & flags != 0 {
+            return false;
+        }
+        self.seed(r, Origin::Param(l, 0));
+        for (k, p) in paths.iter().enumerate().filter(|x| x.1.param == l) {
+            let steps = p.fields.iter().map(|&f| Proj::Field(f));
+            let inside = proj.first() == Some(&Proj::Deref)
+                && proj.len() > p.fields.len()
+                && proj[1..].iter().copied().zip(steps).all(|(x, y)| x == y);
+            if !inside {
+                self.seed(r, Origin::Outside(w(k)));
+            }
+        }
+        true
     }
 
     /// Stores `value` into the place `word`, each slot into its own
@@ -802,7 +836,9 @@ impl Gen<'_, '_> {
             Tag::Ref if !me.0.is_empty() => {
                 let inv = is_mut(pool, me.1);
                 let (at, place) = self.place(i, a, usize::MAX, (true, inv));
-                self.lies_in(at, me.0[0]);
+                if !self.path_ref(i, at, me.0[0]) {
+                    self.lies_in(at, me.0[0]);
+                }
                 if exclusive::site(self.s, i) {
                     self.seed(me.0[0], Origin::Site(i));
                 }
@@ -935,6 +971,12 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
             g.param(l);
         }
     }
+    // A result path's parameter may point anywhere in its referent.
+    for (k, p) in s.paths.iter().enumerate() {
+        if let Some(&r) = g.local(p.param).0.first() {
+            g.seed(r, Origin::Outside(w(k)));
+        }
+    }
     for i in 0..w(b.tags.len()) {
         g.at = i;
         g.step(i);
@@ -962,7 +1004,7 @@ impl Gen<'_, '_> {
         let tops = self.split(v).0;
         let loans = tops.iter().flat_map(|&r| sol.value(r).iter());
         let mut set: Set = (loans.map(|l| self.loans[l as usize]))
-            .filter(|o| !matches!(o, Origin::Site(_)))
+            .filter(|o| !matches!(o, Origin::Site(_) | Origin::Outside(_)))
             .collect();
         set.sort_stable();
         set.dedup();
@@ -1072,6 +1114,10 @@ impl Gen<'_, '_> {
             match e.cat {
                 // A site loan only marks what a shared `Ref` reaches.
                 _ if matches!(o, Origin::Site(_)) => true,
+                // An outside mark leaves only a returned slot of its path.
+                _ if let Origin::Outside(k) = o => {
+                    e.cat != Category::Result || !results[&e.to].1.contains(&(PATH + k))
+                }
                 Category::Flow => true,
                 Category::Result => match (results[&e.to], r.own) {
                     ((None, ids), Some((own, _))) => ids.iter().any(|&id| own.allows(ls, o, id)),

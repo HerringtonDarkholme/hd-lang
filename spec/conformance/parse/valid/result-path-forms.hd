@@ -1,0 +1,15 @@
+# test: a result path parses in the lifetime position, before `mut`
+# Spec 13 Result Paths: ref.result.path.form.
+struct Name:
+    first: string
+
+struct User:
+    name: Name
+    tags: List[string]
+
+impl User:
+    fn first(&self) -> &'self.name.first string:
+        &self.name.first
+
+    fn tags_mut(&mut self) -> &'self.tags mut List[string]:
+        &mut self.tags

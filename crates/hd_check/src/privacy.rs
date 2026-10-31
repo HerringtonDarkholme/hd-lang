@@ -13,7 +13,7 @@ use crate::body::Ck;
 
 impl<'a> Ck<'a, '_> {
     /// The data declaration of `t` and its fields.
-    fn data_decl(&self, t: Ty) -> Option<(DefId, &'a [Field])> {
+    pub(crate) fn data_decl(&self, t: Ty) -> Option<(DefId, &'a [Field])> {
         let pool = self.pool();
         let TyData::Adt { def, .. } = pool.get(self.strip_mut(t)) else {
             return None;
@@ -37,7 +37,7 @@ impl<'a> Ck<'a, '_> {
 
     /// Whether the body's module may use a member of `owner`: the member
     /// is `pub` or `owner` is declared there (`names.visible.field-method`).
-    fn member_visible(&self, owner: DefId, public: bool) -> bool {
+    pub(crate) fn member_visible(&self, owner: DefId, public: bool) -> bool {
         public || self.declared_here(owner)
     }
 
