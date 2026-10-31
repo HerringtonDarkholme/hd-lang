@@ -548,6 +548,18 @@ impl Ck<'_, '_> {
         mutable: bool,
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
+        self.object_ref(v, t, (mutable, true), n)
+    }
+
+    /// A new local holding `v` of type `t`, and a counted or a local
+    /// reference to it.
+    pub(crate) fn object_ref(
+        &mut self,
+        v: Ref,
+        t: Ty,
+        (mutable, counted): (bool, bool),
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
         let (l, d) = self.hold(v, t, n);
         self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         let place = Place {
@@ -556,7 +568,7 @@ impl Ck<'_, '_> {
             ty: t,
         };
         let inner = self.strip_mut(t);
-        let rt = self.ref_ty(inner, mutable, true);
+        let rt = self.ref_ty(inner, mutable, counted);
         (self.make_ref(&place, mutable, rt, n), rt)
     }
 

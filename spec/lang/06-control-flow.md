@@ -211,6 +211,7 @@ trait Iterable[T]:
 24. r[flow.for.iterator.evaluate-once] A loop evaluates its source expression once before iteration starts.
 25. r[flow.for.iterator.copy-preserves-source] Advancing the loop's owned cursor value does not change the original value.
 26. r[flow.for.iterator.reference-progress] Iterating a mutable cursor reference advances the referenced cursor's progress.
+27. r[flow.for.iterator.item-origins] Each item is the result of a `next` call on the loop's cursor, so it depends on what the cursor holds, as [`ref.dep.call`](13-values-and-references.md#r-ref.dep.call) states. An item that borrows a local cannot outlive it. Error: `local-reference-outlives-local`.
 
 > **Why.** The cursor type is the implementation's own, as Rust's
 > `IntoIterator::IntoIter` is. So a loop or an adapter chain over a list

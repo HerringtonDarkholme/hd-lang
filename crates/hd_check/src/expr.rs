@@ -2894,7 +2894,7 @@ impl Ck<'_, '_> {
                     }
                     sr
                 } else {
-                    self.new_object_ref(sr, st_i, true, src).0
+                    self.cursor_ref(sr, st_i, src)
                 };
                 (cursor, referent, direct.unwrap_or(Ty::POISON))
             }
@@ -2946,7 +2946,7 @@ impl Ck<'_, '_> {
                 let r = self
                     .b
                     .call(&c, &[sr], hd_tir::ir::Providers::None, it_t, src.index());
-                (self.new_object_ref(r, it_t, true, src).0, it_t, et)
+                (self.cursor_ref(r, it_t, src), it_t, et)
             }
             // `flow.for.iterable.cursor`: `iter` gives the type's own
             // cursor, `Self::IntoIter`, which the loop owns as a writable
@@ -2964,7 +2964,7 @@ impl Ck<'_, '_> {
                 let Some(item) = self.iterator_item(t)? else {
                     return unsupported("an `iter` result that does not implement `Iterator`");
                 };
-                (self.new_object_ref(r, t, true, src).0, t, item)
+                (self.cursor_ref(r, t, src), t, item)
             }
         };
         let it_ref = self.b.ty_of(it);
@@ -3018,6 +3018,13 @@ impl Ck<'_, '_> {
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
         let ty = result.unwrap_or(Ty::VOID);
         Ok((self.b.close_loop(lp, lbody, ty, e.index()), ty))
+    }
+
+    /// The loop's own writable copy of cursor `v` of type `t`, and a local
+    /// `&mut` to it, as `for p in &mut it` advances `it`: its `next`
+    /// results keep the origins the cursor holds (`ref.dep.call`).
+    fn cursor_ref(&mut self, v: Ref, t: Ty, n: NodeRef<'_>) -> Ref {
+        self.object_ref(v, t, (true, false), n).0
     }
 
     /// Gives each open literal variable in `t` its default type; whether

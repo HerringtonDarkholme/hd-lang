@@ -54,7 +54,7 @@ fn counted(n: usize) -> List[usize]:
 >   local $0 n: usize [param read]
 >   local $1 $acc: mut List[usize] [assigned]
 >   local $2 $ref: RangeIter[usize] [read assigned captured captured-assigned]
->   local $3 $iter: Counted[mut RangeIter[usize]] [assigned]
+>   local $3 $iter: Ref[mut RangeIter[usize]] [assigned]
 >   local $4 i: usize [read assigned]
 >   %0 = NewList - [] : mut List[usize]
 >   %1 = Store [$1] %0 : ()
@@ -62,9 +62,9 @@ fn counted(n: usize) -> List[usize]:
 >   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
 >   %4 = Call std/iter/Iterable.iter for Range[usize] [usize] via Impl (%3) : RangeIter[usize]
 >   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : Counted[mut RangeIter[usize]]
+>   %6 = Ref mut local frame [$2] : Ref[mut RangeIter[usize]]
 >   %7 = Store [$3] %6 : ()
->   %8 = Read borrow [$3] : Counted[mut RangeIter[usize]]
+>   %8 = Read borrow [$3] : Ref[mut RangeIter[usize]]
 >   %9 = Call std/iter/Iterator.next for RangeIter[usize] [usize] via Impl (%8) : usize?
 >   %10 = Read copy [$4] : usize
 >   %11 = IsUnique [$1] : ()
@@ -80,7 +80,9 @@ fn counted(n: usize) -> List[usize]:
 >   %26 = Block - : ()
 >   %27 = Loop %26 - : ()
 >   %28 = Drop [$3] : ()
->   %29 = Read move [$1] : mut List[usize]
->   %30 = Coerce %29 [Weaken -] : List[usize]
->   %31 = Block %30 : List[usize]
+>   %29 = Drop [$2] : ()
+>   %30 = Read move [$1] : mut List[usize]
+>   %31 = Coerce %30 [Weaken -] : List[usize]
+>   %32 = Block %31 : List[usize]
 >   %6 finds [$2] full
+>   %27 finds [$2] full

@@ -1,0 +1,10 @@
+# test: an item of a loop over a cursor value outlives the local the cursor borrows
+# Spec 06 Iteration Protocols: flow.for.iterator.item-origins; Spec 13 Local Scope: ref.dep.scope.
+fn read(fallback: &i32) -> i32:
+    let mut kept = fallback
+    if *fallback > 0:
+        value := +7
+        it := [&value].iter()
+        for x in it:
+            kept = x
+    *kept # diagnostic: local-reference-outlives-local

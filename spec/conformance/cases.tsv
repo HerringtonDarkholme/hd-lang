@@ -4850,6 +4850,8 @@ typing/invalid/element-reference-field-store.hd	type	reject:local-reference-esca
 typing/invalid/element-reference-return.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.counted
 typing/invalid/for-element-references-store.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.element
 typing/invalid/for-element-references-capture.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
+typing/invalid/for-cursor-item-outlives-local.hd	type	reject:local-reference-outlives-local	lang/06-control-flow.md#r-flow.for.iterator.item-origins
+typing/invalid/for-mut-cursor-item-outlives-local.hd	type	reject:local-reference-outlives-local	lang/06-control-flow.md#r-flow.for.iterator.item-origins
 typing/valid/for-element-references-field-reference.hd	type	accept	lang/06-control-flow.md#r-flow.for.ref.binding.local
 typing/invalid/for-element-references-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
 runtime/valid/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
