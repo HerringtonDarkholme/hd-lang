@@ -1240,12 +1240,12 @@ async function runCliCase(
   return { path: row.path };
 }
 
-async function mapParallel<T, U>(
-  values: readonly T[],
+async function mapParallel<Input, Output>(
+  values: readonly Input[],
   jobs: number,
-  operation: (value: T) => Promise<U>,
-): Promise<U[]> {
-  const results: U[] = [];
+  operation: (value: Input) => Promise<Output>,
+): Promise<Output[]> {
+  const results: Output[] = [];
   let next = 0;
   async function worker(): Promise<void> {
     while (next < values.length) {

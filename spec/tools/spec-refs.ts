@@ -138,7 +138,7 @@ export function citationsIn(
       }
       out.push({ file, line, id: match[2]!, form: "anchor", target, area, history, text });
     }
-    const anchored = new Set(out.filter((c) => c.line === line).map((c) => c.id));
+    const anchored = new Set(out.filter((item) => item.line === line).map((item) => item.id));
     for (const match of content.matchAll(BARE)) {
       if (taken.some(([start, end]) => match.index >= start && match.index < end)) {
         continue;
@@ -333,9 +333,11 @@ export function refsReport(index: RefIndex, id: string): string {
       `${citation.file}:${citation.line}: ${citation.area}, ${citation.form}${citation.history ? ", history" : ""}: ${citation.text.slice(0, 120)}`,
     );
   }
-  const byArea = AREAS.map((area) => [area, found.filter((c) => c.area === area).length] as const)
-    .filter(([, n]) => n > 0)
-    .map(([area, n]) => `${area} ${n}`);
+  const byArea = AREAS.map(
+    (area) => [area, found.filter((item) => item.area === area).length] as const,
+  )
+    .filter(([, count]) => count > 0)
+    .map(([area, count]) => `${area} ${count}`);
   out.push(
     `${found.length} citation${found.length === 1 ? "" : "s"}${byArea.length ? ` (${byArea.join(", ")})` : ""}`,
   );
@@ -364,17 +366,17 @@ export function deadReport(
       `${citation.file}:${citation.line}: ${severity}: dead ${citation.form} ${citation.id}: ${citation.reason}`,
     );
   }
-  const count = (area: Area, test: (c: DeadCitation) => boolean): number =>
-    dead.filter((c) => c.area === area && test(c)).length;
-  const summary = (test: (c: DeadCitation) => boolean): string =>
+  const count = (area: Area, test: (context: DeadCitation) => boolean): number =>
+    dead.filter((item) => item.area === area && test(item)).length;
+  const summary = (test: (context: DeadCitation) => boolean): string =>
     AREAS.map((area) => `${area} ${count(area, test)}`).join(", ");
-  const failing = dead.filter((c) => c.failing).length;
-  const warnings = dead.filter((c) => !c.failing && !c.history).length;
-  const history = dead.filter((c) => c.history).length;
+  const failing = dead.filter((item) => item.failing).length;
+  const warnings = dead.filter((item) => !item.failing && !item.history).length;
+  const history = dead.filter((item) => item.history).length;
   out.push(
-    `dead citations: ${failing} failing (${summary((c) => c.failing)})`,
-    `dead citations: ${warnings} warnings (${summary((c) => !c.failing && !c.history)})`,
-    `dead citations: ${history} allowed as history (${summary((c) => c.history)})`,
+    `dead citations: ${failing} failing (${summary((context) => context.failing)})`,
+    `dead citations: ${warnings} warnings (${summary((context) => !context.failing && !context.history)})`,
+    `dead citations: ${history} allowed as history (${summary((context) => context.history)})`,
   );
   return `${out.join("\n")}\n`;
 }

@@ -252,8 +252,9 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
   return out;
 }
 
-const byTerm = (a: GlossaryTerm, b: GlossaryTerm): number =>
-  a.term.toLowerCase().localeCompare(b.term.toLowerCase()) || a.chapter.localeCompare(b.chapter);
+const byTerm = (left: GlossaryTerm, right: GlossaryTerm): number =>
+  left.term.toLowerCase().localeCompare(right.term.toLowerCase()) ||
+  left.chapter.localeCompare(right.chapter);
 
 /** The lookup key of a term for duplicate detection: lowercase, without
  * code marks or extra spaces, and without a leading article, so `same

@@ -137,7 +137,7 @@ export function countsReport(result: Counts, view: CountsView = "chapter"): stri
   const out: string[] = [];
   if (view === "prefix" || view === "topic") {
     const source = view === "prefix" ? result.prefixes : result.topics;
-    const rows = Object.entries(source).sort(([a], [b]) => a.localeCompare(b));
+    const rows = Object.entries(source).sort(([left], [right]) => left.localeCompare(right));
     out.push(...table([view === "prefix" ? "Prefix" : "Topic", "Rules"], rows));
   } else if (view === "kind") {
     out.push(

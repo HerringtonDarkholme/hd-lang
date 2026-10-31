@@ -123,12 +123,12 @@ export function invoke({
   });
 }
 
-export async function mapParallel<T, U>(
-  values: readonly T[],
+export async function mapParallel<Input, Output>(
+  values: readonly Input[],
   jobs: number,
-  operation: (value: T, index: number) => Promise<U>,
-): Promise<U[]> {
-  const results: U[] = [];
+  operation: (value: Input, index: number) => Promise<Output>,
+): Promise<Output[]> {
+  const results: Output[] = [];
   let next = 0;
   async function worker(): Promise<void> {
     while (next < values.length) {
@@ -162,7 +162,7 @@ export class Rng {
     return Math.floor(this.next() * limit);
   }
 
-  pick<T>(values: readonly T[]): T {
+  pick<Value>(values: readonly Value[]): Value {
     return values[this.int(values.length)]!;
   }
 

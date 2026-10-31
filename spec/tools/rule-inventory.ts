@@ -204,15 +204,18 @@ export function inventory(source: string, markdown: string, known: ReadonlySet<s
   const stats: Stats = {
     words,
     paragraphs: counted.length,
-    averageParagraphWords: round(counted.reduce((a, b) => a + b, 0) / Math.max(1, counted.length)),
+    averageParagraphWords: round(
+      counted.reduce((accumulator, value) => accumulator + value, 0) / Math.max(1, counted.length),
+    ),
     longestParagraphWords: Math.max(0, ...counted),
-    paragraphsOver90: counted.filter((n) => n > 90).length,
+    paragraphsOver90: counted.filter((item) => item > 90).length,
     sentences: sentenceWords.length,
     averageSentenceWords: round(
-      sentenceWords.reduce((a, b) => a + b, 0) / Math.max(1, sentenceWords.length),
+      sentenceWords.reduce((accumulator, value) => accumulator + value, 0) /
+        Math.max(1, sentenceWords.length),
     ),
-    sentencesOver25: sentenceWords.filter((n) => n > 25).length,
-    sentencesOver35: sentenceWords.filter((n) => n > 35).length,
+    sentencesOver25: sentenceWords.filter((item) => item > 25).length,
+    sentencesOver35: sentenceWords.filter((item) => item > 35).length,
   };
   return { source, stats, codes, normative, sentences: all, examples, rules };
 }
@@ -273,13 +276,15 @@ function matchExample(old: Example, next: readonly Example[]): ExampleMatch {
   const missing: string[] = [];
   let edited = false;
   for (const line of lines(old.code)) {
-    const hit = next.find((example) => lines(example.code).some((l) => l.trim() === line.trim()));
+    const hit = next.find((example) =>
+      lines(example.code).some((item) => item.trim() === line.trim()),
+    );
     if (hit) {
       into.add(hit.index);
       continue;
     }
     const loose = next.find((example) =>
-      lines(example.code).some((l) => withoutComment(l) === withoutComment(line)),
+      lines(example.code).some((item) => withoutComment(item) === withoutComment(line)),
     );
     if (loose) {
       into.add(loose.index);
@@ -296,7 +301,7 @@ function matchExample(old: Example, next: readonly Example[]): ExampleMatch {
   } else if (into.size > 1) {
     status = "split";
   }
-  return { old: old.index, status, into: [...into].sort((a, b) => a - b), missing };
+  return { old: old.index, status, into: [...into].sort((left, right) => left - right), missing };
 }
 
 const STOP = new Set(
@@ -317,21 +322,21 @@ function tokens(text: string): Set<string> {
 }
 
 /** How alike two sentences are, from 0 to 1, by the words they share. */
-export function textSimilarity(a: string, b: string): number {
-  return similarity(tokens(a), tokens(b));
+export function textSimilarity(left: string, right: string): number {
+  return similarity(tokens(left), tokens(right));
 }
 
-function similarity(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) {
+function similarity(left: Set<string>, right: Set<string>): number {
+  if (left.size === 0 || right.size === 0) {
     return 0;
   }
   let shared = 0;
-  for (const token of a) {
-    if (b.has(token)) {
+  for (const token of left) {
+    if (right.has(token)) {
       shared += 1;
     }
   }
-  return (2 * shared) / (a.size + b.size);
+  return (2 * shared) / (left.size + right.size);
 }
 
 export function diff(
@@ -416,14 +421,16 @@ function statsTable(entries: readonly [string, Stats][]): string[] {
   return [
     `| Measure | ${entries.map(([name]) => name).join(" | ")} |`,
     `| --- |${entries.map(() => " ---: |").join("")}`,
-    ...rows.map(([label, key]) => `| ${label} | ${entries.map(([, s]) => s[key]).join(" | ")} |`),
+    ...rows.map(
+      ([label, key]) => `| ${label} | ${entries.map(([, source]) => source[key]).join(" | ")} |`,
+    ),
   ];
 }
 
 const codeList = (codes: Record<string, number>): string =>
   Object.entries(codes)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([code, n]) => `\`${code}\` (${n})`)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([code, count]) => `\`${code}\` (${count})`)
     .join(", ") || "none";
 
 const quote = (text: string): string => display(text).replaceAll("|", "\\|");
@@ -434,7 +441,7 @@ function inventoryReport(inv: Inventory): string {
   out.push(`## Rule IDs (${inv.rules.length})`, "");
   for (const rule of inv.rules) {
     out.push(
-      `- \`${rule.id}\` (line ${rule.line})${rule.codes.length ? ` → ${rule.codes.map((c) => `\`${c}\``).join(", ")}` : ""}`,
+      `- \`${rule.id}\` (line ${rule.line})${rule.codes.length ? ` → ${rule.codes.map((code) => `\`${code}\``).join(", ")}` : ""}`,
     );
   }
   out.push("", `## Examples (${inv.examples.length})`, "");
@@ -471,26 +478,28 @@ function diffReport(result: Diff): string {
     "",
     `Old: ${Object.keys(old.codes).length} codes. New: ${Object.keys(next.codes).length} codes.`,
     "",
-    `- Lost: ${result.lostCodes.map((c) => `\`${c}\``).join(", ") || "none"}`,
-    `- Added: ${result.addedCodes.map((c) => `\`${c}\``).join(", ") || "none"}`,
+    `- Lost: ${result.lostCodes.map((item) => `\`${item}\``).join(", ") || "none"}`,
+    `- Added: ${result.addedCodes.map((item) => `\`${item}\``).join(", ") || "none"}`,
     `- Old counts: ${codeList(old.codes)}`,
     `- New counts: ${codeList(next.codes)}`,
     "",
     "## Examples",
     "",
     `Old: ${old.examples.length}. New: ${next.examples.length}` +
-      ` (${next.examples.filter((e) => e.error).length} error examples).`,
+      ` (${next.examples.filter((item) => item.error).length} error examples).`,
     "",
     "| Old | Status | New | Missing lines |",
     "| ---: | --- | --- | --- |",
     ...result.examples.map(
-      (m) =>
-        `| ${m.old} | ${m.status} | ${m.into.join(", ") || "-"} | ${m.missing.map((l) => `\`${l.trim().replaceAll("|", "\\|")}\``).join("<br>") || "-"} |`,
+      (item) =>
+        `| ${item.old} | ${item.status} | ${item.into.join(", ") || "-"} | ${item.missing.map((item) => `\`${item.trim().replaceAll("|", "\\|")}\``).join("<br>") || "-"} |`,
     ),
     "",
     `Added examples: ${
       result.addedExamples
-        .map((e) => `${e.index}${e.error ? " (error example)" : " (NOT an error example)"}`)
+        .map(
+          (item) => `${item.index}${item.error ? " (error example)" : " (NOT an error example)"}`,
+        )
         .join(", ") || "none"
     }`,
     "",
@@ -514,13 +523,13 @@ function diffReport(result: Diff): string {
     "| Score | Old (line) | Closest new (line) |",
     "| ---: | --- | --- |",
     ...result.sentences.map(
-      (m) =>
-        `| ${m.score < WEAK ? `**${m.score}**` : m.score} | ${m.old.line}: ${quote(m.old.text)} | ${m.best ? `${m.best.line}: ${quote(m.best.text)}` : "-"} |`,
+      (item) =>
+        `| ${item.score < WEAK ? `**${item.score}**` : item.score} | ${item.old.line}: ${quote(item.old.text)} | ${item.best ? `${item.best.line}: ${quote(item.best.text)}` : "-"} |`,
     ),
     "",
     `New sentences that are no old sentence's closest match (${result.unmatchedNew.length}):`,
     "",
-    ...result.unmatchedNew.map((s) => `- ${s.line}: ${quote(s.text)}`),
+    ...result.unmatchedNew.map((item) => `- ${item.line}: ${quote(item.text)}`),
   ];
   return `${out.join("\n")}\n`;
 }

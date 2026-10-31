@@ -5,12 +5,12 @@ import { joinLines, splitLines } from "./mutate.ts";
 
 type Predicate = (source: string) => Promise<boolean>;
 
-async function ddmin<T>(
-  items: readonly T[],
-  build: (kept: readonly T[]) => string,
+async function ddmin<Value>(
+  items: readonly Value[],
+  build: (kept: readonly Value[]) => string,
   keeps: Predicate,
   budget: { remaining: number },
-): Promise<T[]> {
+): Promise<Value[]> {
   let current = [...items];
   let chunks = 2;
   while (current.length >= 2 && budget.remaining > 0) {

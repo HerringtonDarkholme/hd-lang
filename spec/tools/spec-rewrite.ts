@@ -108,7 +108,8 @@ function namedCodes(corpus: Corpus): Set<string> {
   return new Set(corpus.chapters.flatMap((chapter) => Object.keys(chapter.inventory.codes)));
 }
 
-const minus = <T>(a: Iterable<T>, b: ReadonlySet<T>): T[] => [...a].filter((x) => !b.has(x));
+const minus = <Value>(left: Iterable<Value>, right: ReadonlySet<Value>): Value[] =>
+  [...left].filter((item) => !right.has(item));
 
 interface RewriteOptions {
   readonly base: Corpus;
@@ -145,7 +146,7 @@ export function rewrite(options: RewriteOptions): Rewrite {
   const after = counts(head);
   const names = [
     ...new Set([...before.chapters, ...after.chapters].map((entry) => entry.chapter)),
-  ].sort((a, b) => tierOrder(a) - tierOrder(b) || a.localeCompare(b));
+  ].sort((left, right) => tierOrder(left) - tierOrder(right) || left.localeCompare(right));
   const chapters = names.map((chapter) => {
     const old = before.chapters.find((entry) => entry.chapter === chapter);
     const next = after.chapters.find((entry) => entry.chapter === chapter);
@@ -186,7 +187,9 @@ export function rewrite(options: RewriteOptions): Rewrite {
       });
     }
   }
-  changed.sort((a, b) => a.similarity - b.similarity || a.id.localeCompare(b.id));
+  changed.sort(
+    (left, right) => left.similarity - right.similarity || left.id.localeCompare(right.id),
+  );
   const revived = revivedRules(options.earlierIds, added);
 
   const namedBefore = namedCodes(base);
@@ -281,8 +284,8 @@ export function rewrite(options: RewriteOptions): Rewrite {
     lostTableCodes: minus(base.known, head.known).sort(),
     addedTableCodes: minus(head.known, base.known).sort(),
     examples: {
-      before: base.chapters.reduce((sum, c) => sum + c.inventory.examples.length, 0),
-      after: head.chapters.reduce((sum, c) => sum + c.inventory.examples.length, 0),
+      before: base.chapters.reduce((sum, value) => sum + value.inventory.examples.length, 0),
+      after: head.chapters.reduce((sum, value) => sum + value.inventory.examples.length, 0),
       statuses,
       lost,
     },
@@ -312,7 +315,7 @@ const ids = (list: readonly string[]): string =>
 
 /** The one-line summary a batch report quotes. */
 export function rewriteSummary(result: Rewrite): string {
-  const cited = result.citedRetired.filter((c) => c.severity !== "history").length;
+  const cited = result.citedRetired.filter((item) => item.severity !== "history").length;
   return [
     `rules: language ${change(result.tiers.language)}, stdlib ${change(result.tiers.std)}, cli ${change(result.tiers.cli)}`,
     `IDs: ${result.retired.length} retired, ${result.added.length} added, ${result.moved.length} moved, ${result.changed.length} changed text, ${result.revived.length} reused`,
@@ -344,7 +347,7 @@ export function rewriteReport(result: Rewrite): string {
   );
   if (result.moved.length > 0) {
     out.push(
-      `Moved IDs (${result.moved.length}): ${result.moved.map((m) => `\`${m.id}\` (${m.from} -> ${m.to})`).join(", ")}`,
+      `Moved IDs (${result.moved.length}): ${result.moved.map((item) => `\`${item.id}\` (${item.from} -> ${item.to})`).join(", ")}`,
     );
   }
   out.push(
@@ -366,7 +369,7 @@ export function rewriteReport(result: Rewrite): string {
     `Examples: ${number(result.examples.before)} -> ${number(result.examples.after)}; ${Object.entries(
       result.examples.statuses,
     )
-      .map(([status, n]) => `${status} ${n}`)
+      .map(([status, count]) => `${status} ${count}`)
       .join(", ")}`,
   );
   for (const entry of result.examples.lost) {
@@ -375,12 +378,12 @@ export function rewriteReport(result: Rewrite): string {
       ...entry.missing.map((line) => `    ${line.trim()}`),
     );
   }
-  const live = result.citedRetired.filter((c) => c.severity !== "history");
+  const live = result.citedRetired.filter((item) => item.severity !== "history");
   out.push(
     "",
     `Retired IDs still cited in the working tree: ${live.length}` +
       ` (${result.citedRetired.length - live.length} more allowed as history)`,
-    ...live.map((c) => `  ${c.file}:${c.line}: ${c.severity}: ${c.id}`),
+    ...live.map((item) => `  ${item.file}:${item.line}: ${item.severity}: ${item.id}`),
     "",
     `Summary: ${rewriteSummary(result)}`,
   );

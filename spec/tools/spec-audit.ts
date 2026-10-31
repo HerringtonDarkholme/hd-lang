@@ -281,7 +281,7 @@ export function auditReport(warnings: readonly AuditWarning[], listAll: boolean)
     return [
       file,
       ...AUDIT_KINDS.map((kind) => totals[kind]),
-      Object.values(totals).reduce((a, b) => a + b, 0),
+      Object.values(totals).reduce((accumulator, value) => accumulator + value, 0),
     ];
   });
   const totals = auditTotals(warnings);

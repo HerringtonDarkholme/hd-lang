@@ -170,10 +170,12 @@ test("audit reports each STYLE.md target as a warning kind", async () => {
     assert.equal(totals["unknown-code"], 1);
     assert.equal(totals["bad-rule-id"], 0);
     assert.deepEqual(
-      warnings.filter((w) => w.kind === "unused-code").map((w) => w.message.split(" ")[0]),
+      warnings
+        .filter((item) => item.kind === "unused-code")
+        .map((item) => item.message.split(" ")[0]),
       ["`never-named`", "`syntax-error`"],
     );
-    const duplicate = warnings.find((w) => w.kind === "duplicate-rule")!;
+    const duplicate = warnings.find((item) => item.kind === "duplicate-rule")!;
     assert.match(duplicate.message, /lex\.gadget\.one repeats a sentence of lex\.widget\.two/);
   });
 });
@@ -198,7 +200,7 @@ test("refs finds anchors and bare IDs in prose and comments, not code", () => {
   ].join("\n");
   const found = citationsIn("website/guide/X.md", markdown, "guide", isRuleId);
   assert.deepEqual(
-    found.map((c) => [c.line, c.form, c.target, c.history]),
+    found.map((item) => [item.line, item.form, item.target, item.history]),
     [
       [1, "anchor", "08-data-and-enums.md", false],
       [5, "id", "", true],
@@ -210,7 +212,7 @@ test("refs finds anchors and bare IDs in prose and comments, not code", () => {
     'const url = "#r-data.embed.width";',
   ].join("\n");
   assert.deepEqual(
-    citationsIn("crates/x.rs", source, "crates", isRuleId).map((c) => [c.line, c.form]),
+    citationsIn("crates/x.rs", source, "crates", isRuleId).map((item) => [item.line, item.form]),
     [
       [1, "id"],
       [2, "anchor"],
@@ -225,7 +227,7 @@ test("refs reads retired IDs and the commit that removed each from git history",
   try {
     const config = ["user.name=t", "user.email=t@example.com", "commit.gpgsign=false"];
     const git = (...args: string[]): string =>
-      execFileSync("git", ["-C", repo, ...config.flatMap((c) => ["-c", c]), ...args], {
+      execFileSync("git", ["-C", repo, ...config.flatMap((item) => ["-c", item]), ...args], {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
       });
@@ -274,7 +276,7 @@ test("refs --dead fails only gated areas and allows history", () => {
   };
   const dead = deadCitations(index);
   assert.deepEqual(
-    dead.map((c) => [c.file, c.failing, c.history]),
+    dead.map((item) => [item.file, item.failing, item.history]),
     [
       ["spec/lang/02-grammar.md", true, false],
       ["website/guide/TOUR.md", true, false],
@@ -595,7 +597,7 @@ test("coverage counts rules cited by fixtures and cases.tsv, not by the README",
   const result = coverage(corpus, index);
   assert.equal(result.cited, 1);
   assert.equal(result.rules, rules.length);
-  const own = result.chapters.find((c) => c.chapter === first.chapter)!;
+  const own = result.chapters.find((item) => item.chapter === first.chapter)!;
   assert.equal(own.cited, 1);
   assert.ok(!own.uncovered.includes(first.id));
   assert.ok(own.uncovered.includes(second.id));
@@ -649,7 +651,7 @@ test("compiler coverage counts rules cited by passing new-compiler fixtures", ()
 
 test("the spec tools import only Node built-ins and spec/", async () => {
   const tools = resolve(SPEC_ROOT, "tools");
-  for (const name of (await readdir(tools)).filter((n) => /^spec.*\.ts$/.test(n))) {
+  for (const name of (await readdir(tools)).filter((item) => /^spec.*\.ts$/.test(item))) {
     const text = await readFile(resolve(tools, name), "utf8");
     for (const match of text.matchAll(/^import [^"]*"([^"]+)"/gm)) {
       const specifier = match[1]!;

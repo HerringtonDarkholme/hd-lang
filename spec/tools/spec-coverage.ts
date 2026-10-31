@@ -77,7 +77,9 @@ export function coverage(
   index: RefIndex,
   compilerPasses?: ReadonlySet<string>,
 ): Coverage {
-  const cited = new Set(index.citations.filter((c) => isFixtureCitation(c.file)).map((c) => c.id));
+  const cited = new Set(
+    index.citations.filter((item) => isFixtureCitation(item.file)).map((item) => item.id),
+  );
   const compilerCited =
     compilerPasses === undefined
       ? undefined
@@ -105,8 +107,8 @@ export function coverage(
   });
   return {
     chapters,
-    rules: chapters.reduce((sum, c) => sum + c.rules, 0),
-    cited: chapters.reduce((sum, c) => sum + c.cited, 0),
+    rules: chapters.reduce((sum, value) => sum + value.rules, 0),
+    cited: chapters.reduce((sum, value) => sum + value.cited, 0),
     ...(compilerCited === undefined
       ? {}
       : { compiler: chapters.reduce((sum, chapter) => sum + chapter.compiler!, 0) }),
@@ -120,14 +122,14 @@ const share = (cited: number, rules: number): string =>
 export function coverageReport(result: Coverage, uncovered?: string): string {
   if (uncovered !== undefined) {
     const found = result.chapters.filter(
-      (c) =>
-        c.chapter === uncovered ||
-        c.chapter.replace(/^(?:lang|std|cli)\//, "").startsWith(uncovered),
+      (item) =>
+        item.chapter === uncovered ||
+        item.chapter.replace(/^(?:lang|std|cli)\//, "").startsWith(uncovered),
     );
     if (found.length === 0) {
       throw new Error(`no chapter matches ${uncovered}`);
     }
-    return found.flatMap((c) => c.compilerUncovered ?? c.uncovered).join("\n") + "\n";
+    return found.flatMap((item) => item.compilerUncovered ?? item.uncovered).join("\n") + "\n";
   }
   if (result.compiler !== undefined) {
     const rows = [
@@ -166,20 +168,22 @@ export function coverageReport(result: Coverage, uncovered?: string): string {
     return `${[line(headers), ...rows.map(line)].join("\n")}\n`;
   }
   const rows = [
-    ...result.chapters.map((c) => [c.chapter, c.rules, c.cited, share(c.cited, c.rules)] as const),
+    ...result.chapters.map(
+      (item) => [item.chapter, item.rules, item.cited, share(item.cited, item.rules)] as const,
+    ),
     ["total", result.rules, result.cited, share(result.cited, result.rules)] as const,
   ];
   const widths = [
-    Math.max("Chapter".length, ...rows.map((r) => r[0].length)),
-    Math.max("Rules".length, ...rows.map((r) => String(r[1]).length)),
-    Math.max("Cited".length, ...rows.map((r) => String(r[2]).length)),
-    Math.max("Share".length, ...rows.map((r) => r[3].length)),
+    Math.max("Chapter".length, ...rows.map((item) => item[0].length)),
+    Math.max("Rules".length, ...rows.map((item) => String(item[1]).length)),
+    Math.max("Cited".length, ...rows.map((item) => String(item[2]).length)),
+    Math.max("Share".length, ...rows.map((item) => item[3].length)),
   ];
-  const line = (a: string, b: string, c: string, d: string): string =>
-    `${a.padEnd(widths[0]!)}  ${b.padStart(widths[1]!)}  ${c.padStart(widths[2]!)}  ${d.padStart(widths[3]!)}`;
+  const line = (chapter: string, rules: string, cited: string, shareText: string): string =>
+    `${chapter.padEnd(widths[0]!)}  ${rules.padStart(widths[1]!)}  ${cited.padStart(widths[2]!)}  ${shareText.padStart(widths[3]!)}`;
   const lines = [
     line("Chapter", "Rules", "Cited", "Share"),
-    ...rows.map((r) => line(r[0], String(r[1]), String(r[2]), r[3])),
+    ...rows.map((item) => line(item[0], String(item[1]), String(item[2]), item[3])),
   ];
   return `${lines.join("\n")}\n`;
 }

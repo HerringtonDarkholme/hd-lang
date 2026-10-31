@@ -164,7 +164,7 @@ export function run(
         ? json({
             id,
             defined: index.live.get(id) ?? null,
-            citations: index.citations.filter((c) => c.id === id),
+            citations: index.citations.filter((item) => item.id === id),
           })
         : refsReport(index, id);
       return { status: 0, stdout };
