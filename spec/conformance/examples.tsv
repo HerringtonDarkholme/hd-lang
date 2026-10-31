@@ -679,7 +679,7 @@ lang/13-values-and-references.md	21	mixed	typing/invalid/reference-deref-write-s
 lang/13-values-and-references.md	22	mixed	typing/invalid/reference-identity-different-types.hd|typing/invalid/reference-identity-value-operand.hd
 lang/13-values-and-references.md	23	mixed	typing/invalid/reference-equality.hd|typing/invalid/reference-inequality.hd
 lang/13-values-and-references.md	24	mixed	typing/invalid/element-reference-mut-short-binding.hd
-lang/13-values-and-references.md	25	mixed	typing/invalid/element-access-conflict-reference.hd|typing/valid/element-reference-binding.hd
+lang/13-values-and-references.md	25	mixed	typing/invalid/element-access-conflict-reference.hd|typing/invalid/element-binding-push-while-live.hd|typing/valid/element-reference-binding.hd
 lang/13-values-and-references.md	26	mixed	typing/invalid/reference-slice-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd

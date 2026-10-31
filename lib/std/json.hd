@@ -2600,6 +2600,15 @@ struct TextReader:
     # The facts of a list or a map frame, made once per reader.
     pub no_facts: Facts
 
+# Record `key` as the path step at `slot`.
+fn step_key_in(steps: &mut List[i64], names: &mut List[string], slot: usize, key: string) -> void:
+    if slot < steps.len():
+        steps[slot] = -1
+        names[slot] = key
+    else:
+        steps.push(-1)
+        names.push(key)
+
 impl TextReader:
     fn new(parser: Parser, root: usize) -> TextReader:
         let mut source = parser
@@ -2645,12 +2654,7 @@ impl TextReader:
             self.names.push("")
 
     fn step_key(&mut self, slot: usize, key: string) -> void:
-        if slot < self.steps.len():
-            self.steps[slot] = -1
-            self.names[slot] = key
-        else:
-            self.steps.push(-1)
-            self.names.push(key)
+        step_key_in(&mut self.steps, &mut self.names, slot, key)
 
     fn byte(&mut self) -> u8:
         self.parser.at = self.at
@@ -2904,8 +2908,9 @@ impl Deserializer for TextReader:
         if found:
             frame.next = next_index
             self.present = true
-            self.step_index(frame.base, index)
-            self.depth = frame.base + 1
+            base := frame.base
+            self.step_index(base, index)
+            self.depth = base + 1
             return .Ok(true)
         self.leave()
         .Ok(false)
@@ -2951,8 +2956,9 @@ impl Deserializer for TextReader:
                     self.entry = frame.children[found]
                     self.present = true
                     frame.next = found + 1
-                    self.step_key(frame.base, key)
-                    self.depth = frame.base + 1
+                    base := frame.base
+                    self.step_key(base, key)
+                    self.depth = base + 1
                     return .Ok(.Some(key))
             .Items =>
                 if self.parser.list_item(frame.cursor) != 93:
@@ -3209,6 +3215,7 @@ impl Deserializer for TextReader:
 
     fn member(&mut self, m: &Member) -> Result[void, JsonError]:
         frame := &mut self.frames[self.top()]
+        base := frame.base
         name := member_name(m, frame.facts)
         let found = false
         let record = true
@@ -3221,9 +3228,10 @@ impl Deserializer for TextReader:
                         .Some(.Internal(_)) => internal = true
                         _ => pass
                 if !internal:
-                    self.step_key(frame.base - 1, frame.name)
+                    # The steps only: a call on `self` would change `frames`.
+                    step_key_in(&mut self.steps, &mut self.names, base - 1, frame.name)
                     if bytes_at(self.parser.text, frame.at) != 123:
-                        return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
+                        return .Err(JsonError.WrongType(self.path_to(base), "object"))
             _ => record = false
         if record:
             if frame.count <= 16:
@@ -3249,9 +3257,9 @@ impl Deserializer for TextReader:
                                 break
                         probe = probe + 1
                 if hit:
+                    frame.next = slot + 1
                     self.at_slot(frame.entry, frame.count, slot)
                     found = true
-                    frame.next = slot + 1
             else:
                 let slot = frame.next
                 if slot >= frame.key_count || frame.keys[slot] != name:
@@ -3270,8 +3278,8 @@ impl Deserializer for TextReader:
         if !found:
             self.at = 0
             self.entry = 0
-        self.step_key(frame.base, name)
-        self.depth = frame.base + 1
+        self.step_key(base, name)
+        self.depth = base + 1
         .Ok(())
 
     fn end_data(&mut self) -> Result[void, JsonError]:
@@ -3283,8 +3291,9 @@ impl Deserializer for TextReader:
         match frame.kind:
             .Tagged =>
                 if bytes_at(self.parser.text, frame.at) != 123:
-                    self.step_key(frame.base - 1, frame.name)
-                    return .Err(JsonError.WrongType(self.path_to(frame.base), "object"))
+                    base := frame.base
+                    self.step_key(base - 1, frame.name)
+                    return .Err(JsonError.WrongType(self.path_to(base), "object"))
             _ => pass
         self.leave()
         .Ok(())

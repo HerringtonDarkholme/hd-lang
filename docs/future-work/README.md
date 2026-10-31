@@ -44,7 +44,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834); step 2 is not adopted (#704 shipped as a release-only fact instead), and later steps need approval.
-- [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29: Rust lifetime variables and elision over counted references, in stages; stages 1 to 6 (6i not planned for now) and stages 7a-7c3 built; stage 7d-7e open.
+- [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29: Rust lifetime variables and elision over counted references, in stages; stages 1 to 6 (6i not planned for now) and stages 7a-7d built; stage 7e open.
 - [One Lifetime Solver](LIFETIME_SOLVER.md): accepted 2026-10-30: region variables per reference slot, outlives constraints per TIR instruction and one SCC solver in place of the per-shape paths; S1 to S12 built, and every spec union is dropped; stage 7a built.
 - [Returned References, Stage 3: Source Sets Or Lifetimes](RETURNED_REFERENCE_SOURCE_SETS.md): decided 2026-10-29: single lifetime variables spelled `'name` (#1005).
 - [Stage 3 Source Sets: Stress Test](RETURNED_REFERENCE_SOURCE_SETS_STRESS_TEST.md): design review 2026-10-29: 18 real-code shapes compare lifetime variables, public paths and root sets; paths add no annotation reduction and hit eight abstraction boundaries (#1005).

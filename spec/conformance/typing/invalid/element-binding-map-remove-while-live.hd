@@ -1,0 +1,7 @@
+# test: a map remove while a binding that holds a reference to a map value is live conflicts
+# Spec 13 Call-Scoped Access: ref.elem.access.length.
+fn sell() -> i32:
+    let mut stock: Map[string, i32] = { "apple": 3, "pear": 1 }
+    apples := &stock["apple"]
+    _ := stock.remove("pear") # diagnostic: conflicting-access
+    *apples

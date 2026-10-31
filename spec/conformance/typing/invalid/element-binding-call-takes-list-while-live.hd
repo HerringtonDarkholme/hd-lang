@@ -1,0 +1,9 @@
+# test: a call that takes `&mut` of a list reached through a `&mut` parameter while an element reference of it is live conflicts
+# Spec 13 Call-Scoped Access: ref.elem.access.length.
+fn grow(xs: &mut List[i32]) -> void:
+    xs.push(0)
+
+fn bump_after(xs: &mut List[i32]) -> void:
+    first := &mut xs[0]
+    grow(xs) # diagnostic: conflicting-access
+    *first += 1

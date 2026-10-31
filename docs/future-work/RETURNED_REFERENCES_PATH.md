@@ -448,6 +448,8 @@ Slice 7c2 applied by #1108 (`ref.excl.args`): a call's `&mut` argument or receiv
 
 Slice 7c3 applied by #1111 (`ref.excl.args.shared`): a `&` a call takes, written or for a `&self` receiver, excludes a write to an overlapping place in a later argument, as `referred(&ys, ys.pop())`; a read stays valid.
 
+Slice 7d applied by #1112 (`ref.elem.access.length`): an element reference is a loan of its whole collection, so while a binding that holds one is live, a `&mut` call on the collection, a map `remove` or a map store of another key is `conflicting-access`; only a change the checker cannot see panics `collection-pinned`.
+
 ### Stage 9: field paths on results
 
 A result may name the field of its source it points into (owner,

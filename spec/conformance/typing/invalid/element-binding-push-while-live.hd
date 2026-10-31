@@ -1,0 +1,7 @@
+# test: a push while a binding that holds an element reference of the list is live conflicts
+# Spec 13 Call-Scoped Access: ref.elem.access.length.
+fn grow() -> i32:
+    let mut xs = [+1, 2]
+    first := &xs[0]
+    xs.push(3) # diagnostic: conflicting-access
+    *first
