@@ -318,8 +318,8 @@ error:
 ```text
 match rename.call!(text):  # Result[void, TodoError | CrossError]; hypothetical syntax
     .Ok(()) => pass
-    .Err(.Unknown) => println("saving; refresh to check")  # a CrossError case
-    .Err(error) => println("could not rename: $error")     # either side, through Display
+    .Err(._1(.Unknown)) => println("saving; refresh to check")  # case _1 is the CrossError
+    .Err(error) => println("could not rename: $error")          # either side, through Display
 ```
 
 L1 and L2 hold by construction, so the checker needs no rule for unknown
