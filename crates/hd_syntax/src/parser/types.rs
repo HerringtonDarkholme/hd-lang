@@ -30,6 +30,25 @@ impl Parser<'_> {
         done
     }
 
+    /// A named function's parameter annotation. `impl Trait` is accepted
+    /// only as the complete annotation, never recursively inside another
+    /// parameter type.
+    pub(crate) fn ty_parameter(&mut self) -> Done {
+        if !self.at(TokenKind::KwImpl) {
+            return self.ty();
+        }
+        let marker = self.start();
+        self.bump();
+        let before = self.opaque_bound;
+        self.opaque_bound = true;
+        self.ty_bound_trait(true);
+        self.opaque_bound = before;
+        if self.eat(TokenKind::Amp) {
+            self.expect(TokenKind::Lifetime, "a lifetime after '&'");
+        }
+        self.complete(marker, SyntaxKind::ImplType)
+    }
+
     fn ty_with(&mut self, rows: bool) -> Done {
         if !self.enter() {
             let marker = self.start();

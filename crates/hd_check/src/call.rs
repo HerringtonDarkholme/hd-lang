@@ -652,11 +652,12 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> Vec<Ty> {
         let pool = self.pool();
-        if explicit.len() > sig.generics.len() {
+        let explicit_slots = sig.generics.iter().filter(|g| !g.anonymous).count();
+        if explicit.len() > explicit_slots {
             let msg = format!(
                 "{} type arguments are written, but the function takes {}",
                 explicit.len(),
-                sig.generics.len()
+                explicit_slots
             );
             self.err(Code::ArgumentCount, n, &msg);
         }
@@ -664,10 +665,7 @@ impl Ck<'_, '_> {
         // takes a row type argument written after `$`. A bare key or row
         // alias there is a kind error; an inferred or poisoned slot stays
         // to inference or its own error.
-        for (i, g) in sig.generics.iter().enumerate() {
-            let Some(t) = explicit.get(i) else {
-                continue;
-            };
+        for (g, t) in sig.generics.iter().filter(|g| !g.anonymous).zip(explicit) {
             if !g.row {
                 continue;
             }
@@ -686,12 +684,15 @@ impl Ck<'_, '_> {
         let vars: Vec<Ty> = sig
             .generics
             .iter()
-            .enumerate()
-            .map(|(i, _)| {
-                explicit
-                    .get(i)
-                    .copied()
-                    .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
+            .scan(explicit.iter(), |written, g| {
+                Some(if g.anonymous {
+                    self.infer.fresh(pool, VarKind::General)
+                } else {
+                    written
+                        .next()
+                        .copied()
+                        .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
+                })
             })
             .collect();
         vars

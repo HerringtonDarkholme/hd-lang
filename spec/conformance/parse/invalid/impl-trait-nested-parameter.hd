@@ -1,0 +1,1 @@
+fn take(values: List[impl Display]) -> void: ()  # diagnostic: syntax-error

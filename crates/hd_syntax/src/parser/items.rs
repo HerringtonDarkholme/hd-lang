@@ -565,7 +565,7 @@ impl Parser<'_> {
                     self.expect_name("a parameter name");
                     let vararg = self.eat(TokenKind::Ellipsis);
                     if self.expect(TokenKind::Colon, "':'") {
-                        self.ty();
+                        self.ty_parameter();
                     }
                     if self.at(TokenKind::Ellipsis) {
                         // grammar.type.rest.elsewhere

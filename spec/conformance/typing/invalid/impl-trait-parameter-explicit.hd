@@ -1,0 +1,5 @@
+fn show(value: impl Display) -> string:
+    value.to_string()
+
+fn invalid() -> string:
+    show::[i32](+1) # diagnostic: argument-count

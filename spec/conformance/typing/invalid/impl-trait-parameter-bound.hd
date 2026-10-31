@@ -1,0 +1,8 @@
+trait Named:
+    fn name(&self) -> string
+
+fn name(value: impl Named) -> string:
+    value.name()
+
+fn invalid() -> string:
+    name(+1) # diagnostic: unsatisfied-trait-bound

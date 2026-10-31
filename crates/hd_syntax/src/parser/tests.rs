@@ -255,7 +255,7 @@ fn an_if_nested_in_each_else_suite_still_nests_too_deep() {
 }
 
 #[test]
-fn opaque_results_are_scoped_to_named_return_annotations() {
+fn impl_types_are_scoped_to_named_function_annotations() {
     let source = "fn values[T](value: T) -> impl Iterator[T]:\n    value\n";
     let parsed = parse(source.as_bytes());
     assert!(parsed.is_ok(), "{:?}", parsed.diagnostic_codes());
@@ -268,12 +268,29 @@ fn opaque_results_are_scoped_to_named_return_annotations() {
     assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
     for source in [
         "fn f(value: impl Display) -> void: ()\n",
+        "fn f['a](value: impl FnMut() -> void & 'a) -> void: ()\n",
+    ] {
+        let parsed = parse(source.as_bytes());
+        assert!(parsed.is_ok(), "{source}: {:?}", parsed.diagnostic_codes());
+        assert_eq!(
+            parsed
+                .tree
+                .root()
+                .descendants()
+                .filter(|node| node.kind() == SyntaxKind::ImplType)
+                .count(),
+            1,
+            "{source}"
+        );
+        assert_eq!(parsed.tree.reconstruct(&parsed.tokens, source), source);
+    }
+    for source in [
         "struct S:\n    value: impl Display\n",
         "fn f() -> void:\n    let value: impl Display = +1\n",
         "fn f() -> fn() -> impl Display: +1\n",
         "fn f() -> Result[fn(impl Display) -> void, string]: +1\n",
+        "fn f(value: List[impl Display]) -> void: ()\n",
         "fn f() -> Wrapper[$ Key[impl Display]]: +1\n",
-        "fn f() -> impl Display: +1\nfn g(value: impl Display) -> void: ()\n",
     ] {
         assert!(!parse(source.as_bytes()).is_ok(), "{source}");
     }

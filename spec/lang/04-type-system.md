@@ -18,7 +18,7 @@ See also: [Type Inference Boundaries](#type-inference-boundaries).
 
 ## Type Forms
 
-1. r[types.forms.with-opaque-results] The type forms are:
+1. r[types.forms.with-impl-types] The type forms are:
 
 | Form | Spelling |
 | --- | --- |
@@ -35,6 +35,7 @@ See also: [Type Inference Boundaries](#type-inference-boundaries).
 | Trait value types | |
 | Transparent aliases and nominal newtypes | |
 | Reference types | `*T`, `*mut T`, `&T`, `&mut T` |
+| Anonymous function parameter types | `impl Trait[Args]` |
 | Opaque function result types | `impl Trait[Args]` |
 
 1. r[types.suspend] `Suspend[T]` is the dynamic one-shot computation protocol.
@@ -2482,6 +2483,19 @@ fn pick(flag: bool) -> i32 | string:   # error: syntax-error
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity),
 [Error Trait](09-traits.md#error-trait).
 
+
+## Anonymous Parameter Types
+
+An `impl Trait[Args]` parameter lets a function accept any statically known type that meets the written bound without giving that type parameter a source name.
+
+1. r[types.impl-parameter.anonymous] Each argument-position `impl Trait[Args]` occurrence introduces a fresh anonymous type parameter with the written trait bound.
+2. r[types.impl-parameter.checking] A call's argument type must satisfy that bound, and the function body may use only behavior supplied by the bound. Error: `unsatisfied-trait-bound`.
+3. r[types.impl-parameter.distinct] Two occurrences introduce two distinct parameters, so their arguments may have different concrete types.
+4. r[types.impl-parameter.explicit] An anonymous parameter is absent from the function's explicit type-argument list and cannot be supplied there. Written generic parameters keep their written order. Error: `argument-count`.
+5. r[types.impl-parameter.lifetime] In `impl Trait[Args] & 'a`, the anonymous parameter outlives the declared lifetime according to [Lifetime Bounds](13-values-and-references.md#lifetime-bounds).
+6. r[types.impl-parameter.dispatch] An anonymous parameter is ordinary generic static dispatch: it creates neither a trait value nor dynamic dispatch.
+
+> **Why.** This is the same static abstraction as a named bounded parameter while keeping a one-use type out of the function's public generic list.
 
 ## Opaque Result Types
 

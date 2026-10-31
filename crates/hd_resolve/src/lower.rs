@@ -3735,8 +3735,89 @@ impl Lower<'_, '_, '_> {
         gn.with_scope(|gn| self.sig_in_scope(f, owner, gn))
     }
 
+    /// Lowers one argument-position `impl Trait` as a fresh anonymous type
+    /// parameter appended to the function's written generic parameters.
+    fn anonymous_parameter(
+        &mut self,
+        n: NodeRef<'_>,
+        owner: DefId,
+        index: u16,
+        gn: &mut Gen,
+    ) -> (Ty, Generic) {
+        let label = format!("<impl:{index}>");
+        let name = self.sym(&label);
+        self.names.paths.set_param_name(
+            hd_base::PathId::from_raw(owner.raw()),
+            index,
+            "impl Trait",
+        );
+        let ty = self
+            .names
+            .pool
+            .intern_ty(&TyData::Param(ParamRef { owner, index }));
+        gn.tys.push((name, ty, Vec::new()));
+        gn.decls.push((name, self.src.span(n)));
+
+        let mut bounds = Vec::new();
+        if let Some(bound_node) = n.children().find(|c| c.kind() == SyntaxKind::NamedType) {
+            let bound = self
+                .trait_value(bound_node, gn, Some(ty))
+                .unwrap_or(Ty::POISON);
+            if self.r.frozen.is_none()
+                && self
+                    .names
+                    .pool
+                    .trait_value(bound)
+                    .is_some_and(|(def, _)| def == self.names.known.structure)
+            {
+                self.diags.error(
+                    Code::StructureOutsideTemplate,
+                    self.src.span(bound_node),
+                    "`Structure` may be named only inside a template",
+                );
+            }
+            bounds.push(bound);
+        }
+
+        let mut generic = Generic::plain(name);
+        generic.anonymous = true;
+        if let Some(token) = n.direct_token(&self.src.parse.tokens, TokenKind::Lifetime) {
+            if self.src.text(token) == "'static" {
+                bounds.push(self.names.pool.intern_ty(&TyData::TraitValue {
+                    def: self.names.known.static_bound,
+                    args: TyList::EMPTY,
+                    bindings: vec![],
+                }));
+            } else {
+                generic.outlives = self.lifetime_of(token, gn);
+            }
+        }
+        let resolved: Vec<Ty> = bounds
+            .iter()
+            .copied()
+            .filter(|bound| *bound != Ty::POISON)
+            .collect();
+        self.bound_clashes(ty, &resolved, self.src.span(n));
+        generic.bound = bounds
+            .iter()
+            .find(|bound| **bound != Ty::POISON)
+            .and_then(|bound| self.trait_of(*bound))
+            .filter(|def| *def != self.names.known.static_bound);
+        generic.bounds = bounds;
+        gn.tys
+            .last_mut()
+            .expect("anonymous parameter was just inserted")
+            .2 = generic
+            .bounds
+            .iter()
+            .filter_map(|bound| self.names.pool.trait_value(*bound))
+            .collect();
+        gn.bounded.push(ty);
+        (ty, generic)
+    }
+
     fn sig_in_scope(&mut self, f: NodeRef<'_>, owner: DefId, gn: &mut Gen) -> FnSig {
-        let generics = self.generics(
+        let mut generics = self.generics(
             Src::child(f, SyntaxKind::GenericParameterList),
             owner,
             0,
@@ -3827,7 +3908,20 @@ impl Lower<'_, '_, '_> {
                             .error(Code::DuplicateBinding, self.src.span(p), &msg);
                     }
                 }
-                let ty = self.ty(Src::type_child(p), gn);
+                let type_node = Src::type_child(p);
+                let ty = if type_node.is_some_and(|node| node.kind() == SyntaxKind::ImplType) {
+                    let index = u16::try_from(generics.len()).unwrap_or(u16::MAX);
+                    let (ty, generic) = self.anonymous_parameter(
+                        type_node.expect("checked above"),
+                        owner,
+                        index,
+                        gn,
+                    );
+                    generics.push(generic);
+                    ty
+                } else {
+                    self.ty(type_node, gn)
+                };
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
                 // tuple type, or a type parameter bounded by `Tuple`,
                 // under `mut` as elsewhere.

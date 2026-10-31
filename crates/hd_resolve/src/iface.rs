@@ -223,6 +223,10 @@ pub struct Generic {
     /// (`types.generic.const.parameter`). Its argument is a
     /// [`TyData::Const`] value or a bare const parameter.
     pub const_type: Option<Prim>,
+    /// An argument-position `impl Trait` parameter. It participates in
+    /// inference like an ordinary type parameter but has no explicit type-
+    /// argument slot.
+    pub anonymous: bool,
 }
 
 impl Generic {
@@ -238,6 +242,7 @@ impl Generic {
             lifetime: false,
             outlives: 0,
             const_type: None,
+            anonymous: false,
         }
     }
 }
@@ -1120,7 +1125,8 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
             _ => 0,
         };
         let konst = u8::from(g.const_type.is_some()) << 5;
-        w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst);
+        let anonymous = u8::from(g.anonymous) << 6;
+        w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst | anonymous);
         w.u32(u32::from(g.outlives));
         if let Some(p) = g.const_type {
             w.u8(p as u8);
@@ -1162,6 +1168,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
             lifetime: flags & 0b1_0000 != 0,
             outlives,
             const_type,
+            anonymous: flags & 0b100_0000 != 0,
         });
     }
     Some(out)
@@ -2725,11 +2732,9 @@ mod tests {
         };
         let f = n.item("app.geo", "first");
         let t = pool.intern_ty(&TyData::Param(ParamRef { owner: f, index: 0 }));
-        let sig = FnSig::simple(
-            vec![Generic::plain(syms.intern("T"))],
-            vec![(syms.intern("a"), t)],
-            t,
-        );
+        let mut anonymous = Generic::plain(syms.intern("T"));
+        anonymous.anonymous = true;
+        let sig = FnSig::simple(vec![anonymous], vec![(syms.intern("a"), t)], t);
         let mut item = Item::new(f, syms.intern("first"), true, ItemData::Fn(sig));
         item.auto_closing = true;
         let items = vec![item];
@@ -2755,6 +2760,11 @@ mod tests {
         let (back, ex) = decode_items(&n2, &blob).expect("decode");
         assert_eq!(back[0].def, n2.item("app.geo", "first"));
         assert_eq!(ex[0].def, n2.item("app.geo", "first"));
+        assert!(back[0].auto_closing);
+        let ItemData::Fn(sig) = &back[0].data else {
+            panic!("not a function");
+        };
+        assert!(sig.generics[0].anonymous);
         assert_eq!(encode_items(&n2, &back, &ex).expect("again"), blob);
         // The parameter names come with the index, before any record.
         assert_eq!(n2.param_name(back[0].def, 0), "T");

@@ -1,0 +1,16 @@
+# test: a closure passed to a lifetime-bounded anonymous parameter cannot capture a shorter local reference
+use std.function.Fn
+
+struct Counter:
+    n: i32
+
+fn first['a](counter: &'a Counter, action: impl Fn() -> i32&'a) -> &'a Counter:
+    counter
+
+fn invalid(outer: &Counter) -> i32:
+    let mut result: &Counter = outer
+    if outer.n > 0:
+        inner := Counter { n: +1 }
+        captured := &inner
+        result = first(outer, fn() -> i32: captured.n)
+    result.n # diagnostic: local-reference-outlives-local

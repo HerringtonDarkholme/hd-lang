@@ -1,0 +1,7 @@
+use std.function.FnMut
+
+fn show(value: impl Display) -> string:
+    value.to_string()
+
+fn invoke['a](mut action: impl FnMut() -> void&'a) -> void:
+    action()

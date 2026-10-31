@@ -484,9 +484,12 @@ parameter = receiver_parameter
           ;
 
 parameter_decorator = "@", continued_expression ;
-value_parameter = [ "mut" ], identifier, ":", type, [ "=", expression ]
+value_parameter = [ "mut" ], identifier, ":", parameter_type, [ "=", expression ]
                 | [ "mut" ], identifier, "...", ":", type
                 ;
+
+parameter_type = type | anonymous_parameter_type ;
+anonymous_parameter_type = "impl", bound_trait_type, [ "&", lifetime ] ;
 
 receiver_parameter = "self" | "mut", "self"
                    | "&", [ lifetime ], "self" | "&", [ lifetime ], "mut", "self"
@@ -502,8 +505,9 @@ receiver_parameter = "self" | "mut", "self"
 7. r[grammar.fn.vararg-name] A [vararg](07-functions.md#varargs) parameter writes `...` after its name, as in `values...: List[i32]`; it takes no default and must be the final positional parameter.
 8. r[grammar.fn.semantic] Default-argument ordering and the requirement-free rule are semantic constraints defined in [Functions](07-functions.md).
 9. r[grammar.fn.opaque-result-nested] `impl` may occur in a named-function result annotation, including nested ordinary type arguments, tuples and optional types.
-10. r[grammar.fn.opaque-result.positions] `impl` is invalid in parameters, fields, bindings, closure annotations, function types and requirement rows. Error: `syntax-error`.
-11. r[grammar.fn.opaque-bound.no-nesting] An `impl` type must not appear inside another `impl` bound. Error: `syntax-error`.
+10. r[grammar.fn.impl-parameter] A named function's complete value-parameter annotation may be `impl` followed by one bound trait type and, optionally, `&` followed by one lifetime.
+11. r[grammar.fn.impl-type.positions] Outside a named-function result annotation or the complete annotation of one of its value parameters, `impl` is invalid. In particular, it is invalid in fields, bindings, closure annotations, function types, requirement rows and nested parameter types. Error: `syntax-error`.
+12. r[grammar.fn.opaque-bound.no-nesting] An `impl` type must not appear inside another `impl` bound. Error: `syntax-error`.
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
