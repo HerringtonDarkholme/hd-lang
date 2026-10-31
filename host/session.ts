@@ -45,24 +45,24 @@ function readsArgs(module: string, name: string): number | null {
   }
   const starts = name.endsWith(".start");
   const methods: DynamicRecord = METHODS;
-  const m = methods[module]?.[starts ? name.slice(0, -".start".length) : name];
-  if (!m || (m.wait === "may") !== starts) {
+  const message = methods[module]?.[starts ? name.slice(0, -".start".length) : name];
+  if (!message || (message.wait === "may") !== starts) {
     return null;
   }
-  const scalars = m.params.filter((p: Dynamic) => typeof p === "string").length;
-  return scalars < m.params.length ? scalars : null;
+  const scalars = message.params.filter((item: Dynamic) => typeof item === "string").length;
+  return scalars < message.params.length ? scalars : null;
 }
 
 // A reply value as a Wasm result of type `type`: a narrower integer keeps
 // its low bits.
-function resultOf(v: Dynamic, type: string): Dynamic {
+function resultOf(value: Dynamic, type: string): Dynamic {
   if (type === "i64") {
-    return BigInt.asIntN(64, BigInt(v));
+    return BigInt.asIntN(64, BigInt(value));
   }
   if (type === "f64" || type === "f32") {
-    return Number(v);
+    return Number(value);
   }
-  return Number(BigInt.asIntN(32, BigInt(v)));
+  return Number(BigInt.asIntN(32, BigInt(value)));
 }
 
 // A host import's reply as the journal holds it, from the JS value it
@@ -102,8 +102,8 @@ function servedValue(value: Dynamic, results: string[]): Dynamic {
 
 // The handle a `.finish` or `abort` names; no live one is negative.
 const handleParam = (args: Dynamic[]): number => {
-  const h = Number(args[0]);
-  return Number.isInteger(h) && h >= 0 && h <= 0xffffffff ? h : 0xffffffff;
+  const number = Number(args[0]);
+  return Number.isInteger(number) && number >= 0 && number <= 0xffffffff ? number : 0xffffffff;
 };
 
 const sameBytes = (left: Uint8Array | undefined | null, right: Uint8Array): boolean =>
@@ -174,7 +174,7 @@ class ReplSession {
         }
         return handles.length;
       },
-      woke: (n: number) => this.recorder.wake(this.handlesAt(n)),
+      woke: (value: number) => this.recorder.wake(this.handlesAt(value)),
       wait: (ms: number) =>
         new Promise<void>((resolve) => {
           if (this.stopped) {
@@ -207,14 +207,16 @@ class ReplSession {
     this.linked = null;
   }
 
-  handlesAt = (n: number): number[] => {
+  handlesAt = (value: number): number[] => {
     const words = new DataView(this.st.memory.buffer);
-    return Array.from({ length: n }, (_, i) => words.getUint32(4 * i, true));
+    return Array.from({ length: value }, (_, i) => words.getUint32(4 * i, true));
   };
 
   handleBytes = (handles: number[]): Uint8Array => {
     const out = new Uint8Array(4 * handles.length);
-    handles.forEach((h: number, i: number) => new DataView(out.buffer).setUint32(4 * i, h, true));
+    handles.forEach((item: number, i: number) =>
+      new DataView(out.buffer).setUint32(4 * i, item, true),
+    );
     return out;
   };
   // A call's arguments as the journal holds them: its scalar parameters,
@@ -265,10 +267,10 @@ class ReplSession {
   };
   // The import `module` `name` of type `type`, as a session calls it: the
   // recorder and the replayer sit here, where every host call is made.
-  site = (module: string, name: string, f: DynamicFunction, type: Dynamic): DynamicFunction => {
+  site = (module: string, name: string, file: DynamicFunction, type: Dynamic): DynamicFunction => {
     const record = recordOf(module, name);
     if (record === "skip") {
-      return f;
+      return file;
     }
     const reads = readsArgs(module, name);
     const params = type?.params ?? [];
@@ -297,7 +299,7 @@ class ReplSession {
       }
       this.calls += 1;
       this.st.payload = null;
-      const ret = f(...args);
+      const ret = file(...args);
       const value = replyOf(ret, results);
       write(args, request, value, this.st.payload);
       return ret;
@@ -320,25 +322,25 @@ class ReplSession {
   ): DynamicRecord => {
     const types = importTypes(wasm);
     const object: DynamicRecord = {};
-    for (const { module: m, name, kind } of WebAssembly.Module.imports(module)) {
-      if (sessionImports && Object.hasOwn(sessionImports, m)) {
-        const value = sessionImports[m][name];
+    for (const { module: moduleName, name, kind } of WebAssembly.Module.imports(module)) {
+      if (sessionImports && Object.hasOwn(sessionImports, moduleName)) {
+        const value = sessionImports[moduleName][name];
         if (value === undefined) {
-          throw new Error(`the session import ${m} ${name} is missing`);
+          throw new Error(`the session import ${moduleName} ${name} is missing`);
         }
-        (object[m] ??= {})[name] = value;
+        (object[moduleName] ??= {})[name] = value;
         continue;
       }
-      const f = this.host.imports[m]?.[name];
-      if (kind !== "function" || typeof f !== "function") {
-        throw new Error(`the import \`${m}\` \`${name}\` is not in this host`);
+      const file = this.host.imports[moduleName]?.[name];
+      if (kind !== "function" || typeof file !== "function") {
+        throw new Error(`the import \`${moduleName}\` \`${name}\` is not in this host`);
       }
-      const key = `${m}\0${name}`;
+      const key = `${moduleName}\0${name}`;
       if (!this.sites.has(key)) {
-        this.sites.set(key, this.site(m, name, f, types.get(key)));
+        this.sites.set(key, this.site(moduleName, name, file, types.get(key)));
       }
-      object[m] ??= {};
-      object[m][name] = this.sites.get(key);
+      object[moduleName] ??= {};
+      object[moduleName][name] = this.sites.get(key);
     }
     return object;
   };
@@ -367,10 +369,10 @@ class ReplSession {
       );
       const end = this.halt ?? (trapped ? { kind: "trapped" } : { kind: "exit", status });
       outcome = { status, end, joined: status === 0 && !trapped, error: null };
-    } catch (e) {
+    } catch (error) {
       this.flush();
       outcome = { status: null, end: { kind: "failed" }, joined: false };
-      outcome.error = String((e as Dynamic)?.message ?? e);
+      outcome.error = String((error as Dynamic)?.message ?? error);
     }
     if (!outcome.joined) {
       this.reset(instance);
@@ -859,7 +861,7 @@ class ReplSession {
       // An input left out of `sources` is one the caller forgot: the
       // program does not hold it, so the new input still runs. One that
       // diverged may have declared what the new input uses.
-      if (ran.dropped.some((n: number) => texts.has(n))) {
+      if (ran.dropped.some((item: number) => texts.has(item))) {
         return ran;
       }
     }

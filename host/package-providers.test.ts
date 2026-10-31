@@ -8,49 +8,49 @@ type Dynamic = ReturnType<typeof JSON.parse>;
 
 const runtime = (): Dynamic => createPackageRuntime({});
 const encode = (codec: Dynamic, value: Dynamic): Uint8Array => {
-  const e = new Enc();
-  codec.enc(e, value, []);
-  return e.done();
+  const error = new Enc();
+  codec.enc(error, value, []);
+  return error.done();
 };
 const roundTrip = (codec: Dynamic, value: Dynamic): Dynamic => {
-  const d = new Dec(encode(codec, value));
-  const result = codec.dec(d);
-  assert.equal(d.at, d.b.length);
+  const data = new Dec(encode(codec, value));
+  const result = codec.dec(data);
+  assert.equal(data.at, data.input.length);
   return result;
 };
 
 test("package codecs retain exact integer ranges, float widths and void", () => {
-  const r = runtime();
+  const codecs = runtime();
   for (const bits of [8, 16, 32, 64]) {
     for (const signed of [false, true]) {
-      const t = r.int(bits, signed);
+      const integerCodec = codecs.int(bits, signed);
       const low = signed ? -(1n << BigInt(bits - 1)) : 0n;
       const high = (1n << BigInt(bits - (signed ? 1 : 0))) - 1n;
-      for (const n of [low, 0n, high]) {
-        assert.equal(roundTrip(t, n), bits === 64 ? n : Number(n));
+      for (const count of [low, 0n, high]) {
+        assert.equal(roundTrip(integerCodec, count), bits === 64 ? count : Number(count));
       }
       for (const bad of [low - 1n, high + 1n, 1.1, NaN, Infinity, "1", null]) {
-        assert.throws(() => encode(t, bad), HostContract);
+        assert.throws(() => encode(integerCodec, bad), HostContract);
       }
     }
   }
-  assert.equal(encode(r.f32, 1.25).length, 4);
-  assert.equal(encode(r.f64, 1.25).length, 8);
-  assert.equal(roundTrip(r.f32, 1 / 3), Math.fround(1 / 3));
-  assert.ok(Object.is(roundTrip(r.f64, -0), -0));
-  assert.ok(Number.isNaN(roundTrip(r.f32, NaN)));
-  assert.equal(roundTrip(r.unit, undefined), undefined);
-  assert.throws(() => encode(r.unit, null), HostContract);
-  assert.throws(() => r.f64.dec(new Dec(new Uint8Array(7))), HostContract);
-  assert.throws(() => encode(r.bool, 1), HostContract);
-  assert.equal(roundTrip(r.bool, false), false);
+  assert.equal(encode(codecs.f32, 1.25).length, 4);
+  assert.equal(encode(codecs.f64, 1.25).length, 8);
+  assert.equal(roundTrip(codecs.f32, 1 / 3), Math.fround(1 / 3));
+  assert.ok(Object.is(roundTrip(codecs.f64, -0), -0));
+  assert.ok(Number.isNaN(roundTrip(codecs.f32, NaN)));
+  assert.equal(roundTrip(codecs.unit, undefined), undefined);
+  assert.throws(() => encode(codecs.unit, null), HostContract);
+  assert.throws(() => codecs.f64.dec(new Dec(new Uint8Array(7))), HostContract);
+  assert.throws(() => encode(codecs.bool, 1), HostContract);
+  assert.equal(roundTrip(codecs.bool, false), false);
 });
 
 test("package codecs own their data and preserve names including __proto__", () => {
-  const r = runtime();
-  const record = r.record([
-    ["__proto__", r.str],
-    ["number", r.int(64, false)],
+  const codecs = runtime();
+  const record = codecs.record([
+    ["__proto__", codecs.str],
+    ["number", codecs.int(64, false)],
   ]);
   const input = Object.fromEntries([
     ["__proto__", "literal data"],
@@ -60,27 +60,33 @@ test("package codecs own their data and preserve names including __proto__", () 
   assert.deepEqual(result, input);
   assert.equal(Object.getPrototypeOf(result), Object.prototype);
   assert.throws(() => encode(record, { number: 1n }), HostContract);
-  assert.deepEqual(roundTrip(r.bytes, new Uint8Array([0, 255])), new Uint8Array([0, 255]));
-  assert.throws(() => encode(r.bytes, [1]), HostContract);
-  assert.deepEqual(roundTrip(r.tuple([r.char, r.option(r.str)]), ["🦉", null]), ["🦉", null]);
-  assert.throws(() => encode(r.char, "two"), HostContract);
-  assert.throws(() => encode(r.char, "\ud800"), HostContract);
-  assert.deepEqual(roundTrip(r.list(r.unit), [undefined, undefined]), [undefined, undefined]);
-  const enumeration = r.enumeration([
+  assert.deepEqual(roundTrip(codecs.bytes, new Uint8Array([0, 255])), new Uint8Array([0, 255]));
+  assert.throws(() => encode(codecs.bytes, [1]), HostContract);
+  assert.deepEqual(
+    roundTrip(codecs.tuple([codecs.char, codecs.option(codecs.str)]), ["🦉", null]),
+    ["🦉", null],
+  );
+  assert.throws(() => encode(codecs.char, "two"), HostContract);
+  assert.throws(() => encode(codecs.char, "\ud800"), HostContract);
+  assert.deepEqual(roundTrip(codecs.list(codecs.unit), [undefined, undefined]), [
+    undefined,
+    undefined,
+  ]);
+  const enumeration = codecs.enumeration([
     ["Empty", []],
-    ["Broken", [["reason", r.str]]],
+    ["Broken", [["reason", codecs.str]]],
   ]);
   assert.deepEqual(roundTrip(enumeration, { tag: "Broken", fields: { reason: "why" } }), {
     tag: "Broken",
     fields: { reason: "why" },
   });
   assert.throws(() => encode(enumeration, { tag: "Other" }), HostContract);
-  const res = r.result(r.str, enumeration);
+  const res = codecs.result(codecs.str, enumeration);
   assert.deepEqual(roundTrip(res, { ok: false, error: { tag: "Empty", fields: {} } }), {
     ok: false,
     error: { tag: "Empty", fields: {} },
   });
-  const withTag = r.enumeration([["Event", [["tag", r.int(32, false)]]]]);
+  const withTag = codecs.enumeration([["Event", [["tag", codecs.int(32, false)]]]]);
   assert.deepEqual(roundTrip(withTag, { tag: "Event", fields: { tag: 7 } }), {
     tag: "Event",
     fields: { tag: 7 },
@@ -93,19 +99,19 @@ test("package codecs own their data and preserve names including __proto__", () 
     nested: [null, false, "🦉", { empty: [] }],
     __proto__: null,
   };
-  assert.deepEqual(roundTrip(r.json, privateValue), { ...privateValue });
+  assert.deepEqual(roundTrip(codecs.json, privateValue), { ...privateValue });
   assert.equal(
-    roundTrip(r.json, "a custom string representation"),
+    roundTrip(codecs.json, "a custom string representation"),
     "a custom string representation",
   );
-  assert.ok(Object.is(roundTrip(r.json, -0), -0));
+  assert.ok(Object.is(roundTrip(codecs.json, -0), -0));
 });
 
 test("package contract reader rejects truncated, noncanonical and unknown versions", () => {
   const empty = new Uint8Array([1, 0, 0, 0, 0]);
   assert.deepEqual(readPackageContract(empty), []);
-  for (let n = 0; n < empty.length; n++) {
-    assert.throws(() => readPackageContract(empty.subarray(0, n)), HostContract);
+  for (let count = 0; count < empty.length; count++) {
+    assert.throws(() => readPackageContract(empty.subarray(0, count)), HostContract);
   }
   for (const bytes of [
     [2, 0, 0, 0, 0],
@@ -118,19 +124,19 @@ test("package contract reader rejects truncated, noncanonical and unknown versio
 });
 
 test("private Serde values retain numeric kind, deep containers and literal object keys", () => {
-  const r = runtime();
+  const codecs = runtime();
   const input = Object.fromEntries([
     ["__proto__", { count: 9007199254740993n }],
     ["f", 1.0],
   ]);
-  assert.deepEqual(roundTrip(r.json, input), input);
+  assert.deepEqual(roundTrip(codecs.json, input), input);
   const wire = (tokens: Dynamic): Dec => {
-    const e = new Enc();
-    e.str(JSON.stringify(tokens));
-    return new Dec(e.done());
+    const error = new Enc();
+    error.str(JSON.stringify(tokens));
+    return new Dec(error.done());
   };
-  assert.equal(r.json.dec(wire([["f", "3ff0000000000000"]])), 1);
-  assert.equal(r.json.dec(wire([["u", "1"]])), 1n);
+  assert.equal(codecs.json.dec(wire([["f", "3ff0000000000000"]])), 1);
+  assert.equal(codecs.json.dec(wire([["u", "1"]])), 1n);
   for (const tokens of [
     [],
     [["u", "18446744073709551616"]],
@@ -140,21 +146,21 @@ test("private Serde values retain numeric kind, deep containers and literal obje
     [["o", 1], ["b", true], ["n"]],
     [["n"], ["n"]],
   ]) {
-    assert.throws(() => r.json.dec(wire(tokens)), HostContract);
+    assert.throws(() => codecs.json.dec(wire(tokens)), HostContract);
   }
   for (const bad of [undefined, () => {}, 1n << 64n, -(1n << 63n) - 1n, new Date(), [undefined]]) {
-    assert.throws(() => encode(r.json, bad), HostContract);
+    assert.throws(() => encode(codecs.json, bad), HostContract);
   }
   const cyclic: Dynamic = {};
   cyclic.self = cyclic;
-  assert.throws(() => encode(r.json, cyclic), /cyclic/);
+  assert.throws(() => encode(codecs.json, cyclic), /cyclic/);
   const shared = { value: 7n };
-  assert.deepEqual(roundTrip(r.json, [shared, shared]), [shared, shared]);
+  assert.deepEqual(roundTrip(codecs.json, [shared, shared]), [shared, shared]);
   let deep = null;
   for (let i = 0; i < 128; ++i) {
     deep = [deep];
   }
-  let decoded = roundTrip(r.json, deep);
+  let decoded = roundTrip(codecs.json, deep);
   for (let i = 0; i < 128; ++i) {
     assert.equal(decoded.length, 1);
     decoded = decoded[0];
@@ -170,16 +176,17 @@ function operationHost(
 ): Dynamic {
   const identity = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   const moduleName = "hd:pkg:readiness-test";
-  const e = new Enc();
-  e.leb(1);
-  e.str(identity.package).str(identity.version).str(identity.trait_path).str(moduleName);
-  e.leb(1).str("pkg.Source").leb(0).leb(1);
-  e.str("wait")
+  const error = new Enc();
+  error.leb(1);
+  error.str(identity.package).str(identity.version).str(identity.trait_path).str(moduleName);
+  error.leb(1).str("pkg.Source").leb(0).leb(1);
+  error
+    .str("wait")
     .str("wait")
     .leb(suspends ? 1 : 0)
     .leb(0)
     .leb(6);
-  const contract = new Uint8Array([1, 0, 0, 0, ...e.done()]);
+  const contract = new Uint8Array([1, 0, 0, 0, ...error.done()]);
   const custom = new Uint8Array([...new Enc().str("hd.capabilities").done(), ...contract]);
   const memory = new Enc().leb(1).leb(0).leb(1).done();
   const exported = new Enc().leb(1).str("hd.x").leb(2).leb(0).done();
@@ -248,7 +255,7 @@ function operationHost(
 test("provider interface identity stays checked and immutable after metadata changes", () => {
   const expected = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   let calls = 0;
-  const h = operationHost(
+  const operation = operationHost(
     (context: Dynamic) => {
       calls++;
       const identity = context.interfaceIdentity;
@@ -265,17 +272,17 @@ test("provider interface identity stays checked and immutable after metadata cha
     { suspends: false },
   );
   try {
-    h.target.wait();
-    h.descriptor.module = "hd:pkg:forged";
-    h.descriptor.handle = true;
-    h.descriptor.methods[0].member = "forged";
-    h.descriptor.methods[0].params.push({});
-    h.identity.package = "forged";
-    h.contract.fill(0);
-    h.target.wait();
+    operation.target.wait();
+    operation.descriptor.module = "hd:pkg:forged";
+    operation.descriptor.handle = true;
+    operation.descriptor.methods[0].member = "forged";
+    operation.descriptor.methods[0].params.push({});
+    operation.identity.package = "forged";
+    operation.contract.fill(0);
+    operation.target.wait();
     assert.equal(calls, 2);
   } finally {
-    h.host.close();
+    operation.host.close();
   }
 });
 
@@ -306,7 +313,7 @@ test("pollable package operations retain results until checked delivery", () => 
     computed = 0,
     delivered = 0,
     aborted = 0;
-  const h = operationHost((context: Dynamic) =>
+  const operation = operationHost((context: Dynamic) =>
     context.pending(
       () => ready,
       () => {
@@ -323,20 +330,20 @@ test("pollable package operations retain results until checked delivery", () => 
     ),
   );
   try {
-    const [state, id] = h.target["wait.start"]();
+    const [state, id] = operation.target["wait.start"]();
     assert.equal(state, 1);
-    assert.equal(h.host.core.st.ops.get(id).poll(), false);
-    assert.throws(() => h.finish(id), /not pending/);
+    assert.equal(operation.host.core.st.ops.get(id).poll(), false);
+    assert.throws(() => operation.finish(id), /not pending/);
     ready = true;
-    assert.equal(h.host.imports["hd:rt"].block(), 1);
+    assert.equal(operation.host.imports["hd:rt"].block(), 1);
     assert.equal(computed, 1);
     assert.equal(delivered, 0);
-    assert.equal(h.finish(id), "delivered");
+    assert.equal(operation.finish(id), "delivered");
     assert.equal(delivered, 1);
-    assert.equal(h.host.core.st.ops.size, 0);
-    assert.throws(() => h.finish(id), /not pending/);
+    assert.equal(operation.host.core.st.ops.size, 0);
+    assert.throws(() => operation.finish(id), /not pending/);
   } finally {
-    h.host.close();
+    operation.host.close();
   }
   assert.equal(aborted, 0);
 });
@@ -346,7 +353,7 @@ test("aborting a ready package operation cancels its undelivered resource once",
     delivered = 0,
     aborted = 0,
     signal: AbortSignal;
-  const h = operationHost((context: Dynamic) => {
+  const operation = operationHost((context: Dynamic) => {
     signal = context.signal;
     return context.pending(
       () => true,
@@ -365,16 +372,16 @@ test("aborting a ready package operation cancels its undelivered resource once",
     );
   });
   try {
-    const [, id] = h.target["wait.start"]();
-    assert.equal(h.host.imports["hd:rt"].block(), 1);
+    const [, id] = operation.target["wait.start"]();
+    assert.equal(operation.host.imports["hd:rt"].block(), 1);
     assert.equal(computed, 1);
-    h.host.imports["hd:rt"].abort(id);
+    operation.host.imports["hd:rt"].abort(id);
     assert.equal(aborted, 1);
     assert.equal(delivered, 0);
-    assert.throws(() => h.finish(id), /not pending/);
-    assert.equal(h.host.core.st.ops.size, 0);
+    assert.throws(() => operation.finish(id), /not pending/);
+    assert.equal(operation.host.core.st.ops.size, 0);
   } finally {
-    h.host.close();
+    operation.host.close();
   }
   assert.equal(aborted, 1);
 });
@@ -382,7 +389,7 @@ test("aborting a ready package operation cancels its undelivered resource once",
 test("package close cancels pollable work and preserves the original core factory", () => {
   let aborted = 0,
     instanceSignal!: AbortSignal;
-  const h = operationHost((context: Dynamic) => {
+  const operation = operationHost((context: Dynamic) => {
     instanceSignal = context.instanceSignal;
     return context.pending(
       () => false,
@@ -395,12 +402,12 @@ test("package close cancels pollable work and preserves the original core factor
       },
     );
   });
-  h.target["wait.start"]();
-  h.host.close();
-  h.host.close();
+  operation.target["wait.start"]();
+  operation.host.close();
+  operation.host.close();
   assert.equal(aborted, 1);
   assert.equal(instanceSignal.aborted, true);
-  assert.equal(h.host.core.st.ops.size, 0);
+  assert.equal(operation.host.core.st.ops.size, 0);
   const shared = operationHost(() =>
     pendingOperation(
       () => true,
@@ -419,7 +426,7 @@ test("package close cancels pollable work and preserves the original core factor
 
 test("a failed pollable delivery is a contract failure with cleanup still owned", () => {
   let aborted = 0;
-  const h = operationHost((context: Dynamic) =>
+  const operation = operationHost((context: Dynamic) =>
     context.pending(
       () => true,
       () => "held",
@@ -432,12 +439,12 @@ test("a failed pollable delivery is a contract failure with cleanup still owned"
     ),
   );
   try {
-    const [, id] = h.target["wait.start"]();
-    h.host.imports["hd:rt"].block();
-    assert.throws(() => h.finish(id), /provider callback threw.*delivery failed/);
-    assert.equal(h.host.core.st.ops.size, 1);
+    const [, id] = operation.target["wait.start"]();
+    operation.host.imports["hd:rt"].block();
+    assert.throws(() => operation.finish(id), /provider callback threw.*delivery failed/);
+    assert.equal(operation.host.core.st.ops.size, 1);
   } finally {
-    h.host.close();
+    operation.host.close();
   }
   assert.equal(aborted, 1);
 });
@@ -479,7 +486,7 @@ test("synchronous package methods cannot create or retain pending work", () => {
 test("pollable callback failures preserve cancellation ownership", () => {
   for (const stage of ["poll", "done", "invalid readiness"]) {
     let aborted = 0;
-    const h = operationHost((context: Dynamic) =>
+    const operation = operationHost((context: Dynamic) =>
       context.pending(
         () => {
           if (stage === "poll") {
@@ -497,11 +504,11 @@ test("pollable callback failures preserve cancellation ownership", () => {
       ),
     );
     try {
-      h.target["wait.start"]();
-      assert.throws(() => h.host.imports["hd:rt"].block(), HostContract);
-      assert.equal(h.host.core.st.ops.size, 1);
+      operation.target["wait.start"]();
+      assert.throws(() => operation.host.imports["hd:rt"].block(), HostContract);
+      assert.equal(operation.host.core.st.ops.size, 1);
     } finally {
-      h.host.close();
+      operation.host.close();
     }
     assert.equal(aborted, 1);
   }
@@ -515,12 +522,12 @@ test("pollable factories validate callbacks before registering work", () => {
     [() => true, () => "value", 1],
     [() => true, () => "value", null, 1],
   ]) {
-    const h = operationHost((context: Dynamic) => context.pending(...args));
+    const operation = operationHost((context: Dynamic) => context.pending(...args));
     try {
-      assert.throws(() => h.target["wait.start"](), HostContract);
-      assert.equal(h.host.core.st.ops.size, 0);
+      assert.throws(() => operation.target["wait.start"](), HostContract);
+      assert.equal(operation.host.core.st.ops.size, 0);
     } finally {
-      h.host.close();
+      operation.host.close();
     }
   }
 });
@@ -529,15 +536,15 @@ test("pollable factories validate callbacks before registering work", () => {
 // none of these controls reads private host state or a compiler cache path.
 function httpContext(grants: Dynamic): Dynamic {
   let policy: Dynamic;
-  const h = operationHost(
+  const operation = operationHost(
     (context: Dynamic) => {
       policy = context.http;
       return "policy observed";
     },
     { suspends: false, grants },
   );
-  h.target.wait();
-  return { ...h, policy };
+  operation.target.wait();
+  return { ...operation, policy };
 }
 
 test("package context Http coverage preserves the runtime's deny, true and scoped policy", () => {
@@ -611,18 +618,20 @@ test("package context Http policy is frozen and supplies the public raw URL help
 
 test("package contexts cannot silently create a missing Http policy service", () => {
   const original = operationHost(() => "unused", { suspends: false });
-  const r = createPackageRuntime(
+  const packageRuntime = createPackageRuntime(
     { put: () => 0 },
     { module: original.module, grants: { "pkg.Source": true } },
   );
   try {
-    const imports = r.bind(
+    const imports = packageRuntime.bind(
       original.contract,
       [
         {
           module: original.moduleName,
           handle: false,
-          methods: [{ name: "wait", member: "wait", wait: "never", params: [], result: r.str }],
+          methods: [
+            { name: "wait", member: "wait", wait: "never", params: [], result: packageRuntime.str },
+          ],
         },
       ],
       [
@@ -643,25 +652,27 @@ test("package contexts cannot silently create a missing Http policy service", ()
       /the host does not provide HTTP policy services/,
     );
   } finally {
-    r.close();
+    packageRuntime.close();
     original.host.close();
   }
 });
 
 test("package contexts cannot silently create a missing Console policy service", () => {
   const original = operationHost(() => "unused", { suspends: false });
-  const r = createPackageRuntime(
+  const packageRuntime = createPackageRuntime(
     { put: () => 0 },
     { module: original.module, grants: { "pkg.Source": true } },
   );
   try {
-    const imports = r.bind(
+    const imports = packageRuntime.bind(
       original.contract,
       [
         {
           module: original.moduleName,
           handle: false,
-          methods: [{ name: "wait", member: "wait", wait: "never", params: [], result: r.str }],
+          methods: [
+            { name: "wait", member: "wait", wait: "never", params: [], result: packageRuntime.str },
+          ],
         },
       ],
       [
@@ -682,14 +693,14 @@ test("package contexts cannot silently create a missing Console policy service",
       /the host does not provide Console policy services/,
     );
   } finally {
-    r.close();
+    packageRuntime.close();
     original.host.close();
   }
 });
 
 test("one runtime shares its immutable Http view between provider contexts", () => {
   const views: Dynamic[] = [];
-  const h = operationHost(
+  const operation = operationHost(
     (context: Dynamic) => {
       views.push(context.http);
       assert.equal(Reflect.set(context, "http", {}), false);
@@ -704,12 +715,12 @@ test("one runtime shares its immutable Http view between provider contexts", () 
     { suspends: false, grants: { Http: false } },
   );
   try {
-    h.target.wait();
-    h.target.wait();
+    operation.target.wait();
+    operation.target.wait();
     assert.equal(views.length, 2);
     assert.equal(views[0], views[1]);
   } finally {
-    h.host.close();
+    operation.host.close();
   }
 });
 
@@ -720,7 +731,7 @@ test("a caller cannot override the context policy with an unrelated env service"
     isAsciiUrl: () => true,
     writtenHost: () => "allowed.test",
   };
-  const h = operationHost(
+  const operation = operationHost(
     (context: Dynamic) => {
       policy = context.http;
       return "fixed policy";
@@ -728,10 +739,10 @@ test("a caller cannot override the context policy with an unrelated env service"
     { suspends: false, grants: { Http: false }, extraEnv: { http: forged } },
   );
   try {
-    h.target.wait();
+    operation.target.wait();
     assert.notEqual(policy, forged);
     assert.equal(policy.coversHost("denied.test", 443), false);
   } finally {
-    h.host.close();
+    operation.host.close();
   }
 });

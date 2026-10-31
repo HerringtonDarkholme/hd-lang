@@ -102,12 +102,14 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
   // rest, then what waits behind it. Writes go there from now on.
   const handOff = (): void => {
     remote = true;
-    for (const e of local.splice(0)) {
-      const bytes = new Uint8Array(e.bytes.subarray(e.offset));
-      if (e.wait) {
-        e.result = call({ op: "wait_start", fd: e.fd, bytes }, [bytes.buffer as ArrayBuffer]);
+    for (const error of local.splice(0)) {
+      const bytes = new Uint8Array(error.bytes.subarray(error.offset));
+      if (error.wait) {
+        error.result = call({ op: "wait_start", fd: error.fd, bytes }, [
+          bytes.buffer as ArrayBuffer,
+        ]);
       } else {
-        call({ op: "enqueue", fd: e.fd, bytes }, [bytes.buffer as ArrayBuffer]);
+        call({ op: "enqueue", fd: error.fd, bytes }, [bytes.buffer as ArrayBuffer]);
       }
     }
   };
@@ -115,21 +117,26 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
   // descriptor is full.
   const pump = (): void => {
     while (local.length) {
-      const e = local[0];
+      const pendingWrite = local[0];
       try {
-        while (e.offset < e.bytes.length) {
-          const count = writeSync(e.fd, e.bytes, e.offset, e.bytes.length - e.offset);
+        while (pendingWrite.offset < pendingWrite.bytes.length) {
+          const count = writeSync(
+            pendingWrite.fd,
+            pendingWrite.bytes,
+            pendingWrite.offset,
+            pendingWrite.bytes.length - pendingWrite.offset,
+          );
           if (count === 0) {
             return handOff();
           }
-          e.offset += count;
+          pendingWrite.offset += count;
         }
-        e.result = Ok(undefined);
+        pendingWrite.result = Ok(undefined);
       } catch (error) {
         if (full(error as NodeJS.ErrnoException)) {
           return handOff();
         }
-        e.result = failed(error as NodeJS.ErrnoException);
+        pendingWrite.result = failed(error as NodeJS.ErrnoException);
       }
       local.shift();
     }
@@ -148,10 +155,10 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
   };
   const queue = (fd: number, text: string, wait: boolean): LocalEntry => {
     prepare();
-    const e: LocalEntry = { fd, bytes: Buffer.from(text), offset: 0, wait, result: null };
-    local.push(e);
+    const error: LocalEntry = { fd, bytes: Buffer.from(text), offset: 0, wait, result: null };
+    local.push(error);
     pump();
-    return e;
+    return error;
   };
   const send = (fd: number, text: string): void => {
     if (direct()) {
@@ -171,8 +178,8 @@ export function createOutput(connection: OutputConnection | null = null): Dynami
     // writer thread has the rest, and this blocks until it has written it.
     write: (fd: number, text: string) => {
       if (direct()) {
-        const e = queue(fd, text, true);
-        return e.result;
+        const pendingWrite = queue(fd, text, true);
+        return pendingWrite.result;
       }
       return call({ op: "wait_start", fd, text });
     },

@@ -127,9 +127,9 @@ const errorLike = (error: unknown): ErrorLike =>
 const handles = new Map<number, Handle>();
 let nextHandle = 1;
 const open = (handle: Handle): number => {
-  const n = nextHandle++;
-  handles.set(n, handle);
-  return n;
+  const count = nextHandle++;
+  handles.set(count, handle);
+  return count;
 };
 
 const fail = (variant: string, text?: string): NetFailure => ({ error: [variant, text] });
@@ -276,7 +276,7 @@ const stream = (socket: net.Socket): number => {
     }
   });
   socket.on("end", () => inbox.finish({ end: true }));
-  socket.on("error", (e) => inbox.finish({ error: e }));
+  socket.on("error", (error) => inbox.finish({ error }));
   socket.on("close", () => inbox.finish({ end: true }));
   return open({ kind: "stream", socket, inbox, closed: false, timeout: null });
 };
@@ -305,7 +305,7 @@ const beginConnect = (
     done(outcome);
   };
   socket = net.connect({ host, port });
-  socket.once("error", (e) => finish(failure(e, address, host)));
+  socket.once("error", (error) => finish(failure(error, address, host)));
   socket.once("connect", () => {
     if (stopped || result !== null) {
       return socket.destroy();
@@ -396,17 +396,17 @@ const ops: Record<string, (request: NetRequest) => unknown | Promise<unknown>> =
   lookup: async ({ host }) => {
     try {
       const found = await dns.lookup(host, { all: true, verbatim: true });
-      return { ok: found.map((a) => a.address) };
-    } catch (e) {
-      return failure(e, host, host);
+      return { ok: found.map((item) => item.address) };
+    } catch (error) {
+      return failure(error, host, host);
     }
   },
-  connect_start: (r) => {
+  connect_start: (request) => {
     const id = nextConnect++;
     const operation: ConnectState = { result: null, abort: null };
     connects.set(id, operation);
     try {
-      operation.abort = beginConnect(r, (result: NetResult) => {
+      operation.abort = beginConnect(request, (result: NetResult) => {
         operation.result = result;
       });
       return { ok: id };
@@ -765,9 +765,9 @@ const ops: Record<string, (request: NetRequest) => unknown | Promise<unknown>> =
   // (cli.test.leak).
   open: () => {
     const counts = { stream: 0, listener: 0, udp: 0 };
-    for (const h of handles.values()) {
-      if (!h.closed) {
-        counts[h.kind] += 1;
+    for (const host of handles.values()) {
+      if (!host.closed) {
+        counts[host.kind] += 1;
       }
     }
     return { ok: counts };
@@ -780,15 +780,15 @@ export const run = async (request: NetRequest): Promise<unknown> => {
   if (request.handle === undefined) {
     return ops[request.op]!(request);
   }
-  const h = handles.get(request.handle);
-  if (h === undefined) {
+  const host = handles.get(request.handle);
+  if (host === undefined) {
     return { unknown: true };
   }
   // Disposing a closed handle does nothing (std-net.dispose).
-  if (h.closed) {
+  if (host.closed) {
     return request.op === "dispose" ? { ok: null } : { disposed: true };
   }
-  return ops[request.op]!({ ...request, h });
+  return ops[request.op]!({ ...request, h: host });
 };
 
 const { port, flag } = workerData as NetWorkerData;

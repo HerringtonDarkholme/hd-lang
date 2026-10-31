@@ -147,7 +147,7 @@ const run = (request: Dynamic): Dynamic => {
       if (state) {
         operations.delete(request.operation);
         available = available.concat(state.parts);
-        available.sort((a, b) => a.offset - b.offset);
+        available.sort((left, right) => left.offset - right.offset);
         serve();
       }
       return { ok: null };

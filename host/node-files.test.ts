@@ -14,14 +14,14 @@ type Dynamic = ReturnType<typeof JSON.parse>;
 
 // #815: the peer is not started until the polling thread ran its clocks.
 const fifoTest = { skip: process.platform === "win32", timeout: 15000 };
-function makeFifo(t: TestContext, name = "pipe"): string {
-  const root = fixture(t, {});
+function makeFifo(testContext: TestContext, name = "pipe"): string {
+  const root = fixture(testContext, {});
   const path = join(root, name);
   execFileSync("mkfifo", [path]);
   return path;
 }
 function fifoPeer(
-  t: TestContext,
+  testContext: TestContext,
   path: string,
   bytes: string | Uint8Array | number[] | null = null,
 ): Promise<Buffer> {
@@ -37,7 +37,7 @@ function fifoPeer(
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
-  t.after(() => child.kill("SIGKILL"));
+  testContext.after(() => child.kill("SIGKILL"));
   const output: Buffer[] = [],
     errors: Buffer[] = [];
   child.stdout.on("data", (bytes: Buffer) => output.push(bytes));
@@ -65,9 +65,9 @@ function finishFile(api: Dynamic, name: string, pending: Dynamic): Dynamic {
   return api.take(name, pending);
 }
 
-test("Fs regular files and path/grant errors stay inline", (t) => {
-  const root = fixture(t, { regular: "plain", "not-dir": "file" });
-  const api = netHost(t, "hd:FsRead");
+test("Fs regular files and path/grant errors stay inline", (testContext) => {
+  const root = fixture(testContext, { regular: "plain", "not-dir": "file" });
+  const api = netHost(testContext, "hd:FsRead");
   assert.deepEqual(api.call("read_text", join(root, "regular")), { result: Ok("plain") });
   for (const [path, tag] of [
     [join(root, "absent"), "NotFound"],
@@ -76,143 +76,177 @@ test("Fs regular files and path/grant errors stay inline", (t) => {
   ] as [string, string][]) {
     assert.deepEqual(api.call("read_text", path), { result: Err({ tag, path }) });
   }
-  const denied = netHost(t, "hd:FsRead", { grants: { FsRead: false } });
+  const denied = netHost(testContext, "hd:FsRead", { grants: { FsRead: false } });
   const path = join(root, "absent");
   assert.deepEqual(denied.call("read_text", path), {
     result: Err({ tag: "NotGranted", path }),
   });
 });
 
-test("Fs FIFO refusals and invalid path prefixes return before offloading", fifoTest, (t) => {
-  const path = makeFifo(t);
-  const denied = netHost(t, "hd:FsRead", { grants: { FsRead: false } });
-  assert.deepEqual(denied.call("read_text", path), {
-    result: Err({ tag: "NotGranted", path }),
-  });
-  const api = netHost(t, "hd:FsRead");
-  const invalid = `${path}/../pipe`;
-  assert.deepEqual(api.call("read_bytes", invalid), {
-    result: Err({ tag: "NotADirectory", path: invalid }),
-  });
-  const copy = netHost(t, "hd:FsWrite", { grants: { FsRead: false, FsWrite: true } });
-  assert.deepEqual(copy.call("copy", path, `${path}-copy`), {
-    result: Err({ tag: "NotGranted", path }),
-  });
-});
+test(
+  "Fs FIFO refusals and invalid path prefixes return before offloading",
+  fifoTest,
+  (testContext) => {
+    const path = makeFifo(testContext);
+    const denied = netHost(testContext, "hd:FsRead", { grants: { FsRead: false } });
+    assert.deepEqual(denied.call("read_text", path), {
+      result: Err({ tag: "NotGranted", path }),
+    });
+    const api = netHost(testContext, "hd:FsRead");
+    const invalid = `${path}/../pipe`;
+    assert.deepEqual(api.call("read_bytes", invalid), {
+      result: Err({ tag: "NotADirectory", path: invalid }),
+    });
+    const copy = netHost(testContext, "hd:FsWrite", { grants: { FsRead: false, FsWrite: true } });
+    assert.deepEqual(copy.call("copy", path, `${path}-copy`), {
+      result: Err({ tag: "NotGranted", path }),
+    });
+  },
+);
 
 for (const name of ["read_bytes", "read_text"]) {
-  test(`Fs ${name} waits for a FIFO while sibling clocks advance`, fifoTest, async (t) => {
-    const path = makeFifo(t);
-    const api = netHost(t, "hd:FsRead");
-    const pending = api.call(name, path);
-    assert.ok(pending.operation);
-    siblingClocks(api, [pending.operation]);
-    const bytes = Buffer.from("hé\0llo\n");
-    const peer = fifoPeer(t, path, bytes);
-    const result = finishFile(api, name, pending);
-    assert.deepEqual(result, Ok(name === "read_text" ? bytes.toString() : new Uint8Array(bytes)));
-    await peer;
-  });
+  test(
+    `Fs ${name} waits for a FIFO while sibling clocks advance`,
+    fifoTest,
+    async (testContext) => {
+      const path = makeFifo(testContext);
+      const api = netHost(testContext, "hd:FsRead");
+      const pending = api.call(name, path);
+      assert.ok(pending.operation);
+      siblingClocks(api, [pending.operation]);
+      const bytes = Buffer.from("hé\0llo\n");
+      const peer = fifoPeer(testContext, path, bytes);
+      const result = finishFile(api, name, pending);
+      assert.deepEqual(result, Ok(name === "read_text" ? bytes.toString() : new Uint8Array(bytes)));
+      await peer;
+    },
+  );
 }
 
-test("Fs FIFO symlinks go pending and invalid UTF-8 keeps the guest path", fifoTest, async (t) => {
-  const path = makeFifo(t);
-  const link = `${path}-link`;
-  symlinkSync(path, link);
-  const api = netHost(t, "hd:FsRead");
-  const pending = api.call("read_text", link);
-  assert.ok(pending.operation);
-  siblingClocks(api, [pending.operation]);
-  const peer = fifoPeer(t, path, [0xff, 0xfe]);
-  assert.deepEqual(finishFile(api, "read_text", pending), Err({ tag: "InvalidUtf8", path: link }));
-  await peer;
-});
+test(
+  "Fs FIFO symlinks go pending and invalid UTF-8 keeps the guest path",
+  fifoTest,
+  async (testContext) => {
+    const path = makeFifo(testContext);
+    const link = `${path}-link`;
+    symlinkSync(path, link);
+    const api = netHost(testContext, "hd:FsRead");
+    const pending = api.call("read_text", link);
+    assert.ok(pending.operation);
+    siblingClocks(api, [pending.operation]);
+    const peer = fifoPeer(testContext, path, [0xff, 0xfe]);
+    assert.deepEqual(
+      finishFile(api, "read_text", pending),
+      Err({ tag: "InvalidUtf8", path: link }),
+    );
+    await peer;
+  },
+);
 
 for (const name of ["write_bytes", "write_text", "append_text"]) {
-  test(`Fs ${name} waits for a FIFO reader while sibling clocks advance`, fifoTest, async (t) => {
-    const path = makeFifo(t);
-    const api = netHost(t, "hd:FsWrite");
-    const bytes = Buffer.from("hé\0llo\n");
-    const pending = api.call(name, path, name === "write_bytes" ? bytes : bytes.toString());
-    assert.ok(pending.operation);
-    siblingClocks(api, [pending.operation]);
-    const peer = fifoPeer(t, path);
-    assert.deepEqual(finishFile(api, name, pending), Ok(undefined));
-    assert.deepEqual(await peer, bytes);
-  });
+  test(
+    `Fs ${name} waits for a FIFO reader while sibling clocks advance`,
+    fifoTest,
+    async (testContext) => {
+      const path = makeFifo(testContext);
+      const api = netHost(testContext, "hd:FsWrite");
+      const bytes = Buffer.from("hé\0llo\n");
+      const pending = api.call(name, path, name === "write_bytes" ? bytes : bytes.toString());
+      assert.ok(pending.operation);
+      siblingClocks(api, [pending.operation]);
+      const peer = fifoPeer(testContext, path);
+      assert.deepEqual(finishFile(api, name, pending), Ok(undefined));
+      assert.deepEqual(await peer, bytes);
+    },
+  );
 }
 
-test("Fs independent FIFOs do not exhaust a shared blocking pool", fifoTest, async (t) => {
-  const api = netHost(t, "hd:FsRead");
-  const paths = Array.from({ length: 6 }, (_, i) => makeFifo(t, `pipe-${i}`));
-  const pending = paths.map((path) => api.call("read_bytes", path));
-  siblingClocks(
-    api,
-    pending.map((p) => p.operation),
-  );
-  const peers = paths.map((path, i) => fifoPeer(t, path, [i, 255]));
-  pending.forEach((p, i) => {
-    assert.deepEqual(finishFile(api, "read_bytes", p), Ok(new Uint8Array([i, 255])));
-  });
-  await Promise.all(peers);
-});
+test(
+  "Fs independent FIFOs do not exhaust a shared blocking pool",
+  fifoTest,
+  async (testContext) => {
+    const api = netHost(testContext, "hd:FsRead");
+    const paths = Array.from({ length: 6 }, (_, i) => makeFifo(testContext, `pipe-${i}`));
+    const pending = paths.map((path) => api.call("read_bytes", path));
+    siblingClocks(
+      api,
+      pending.map((item) => item.operation),
+    );
+    const peers = paths.map((path, i) => fifoPeer(testContext, path, [i, 255]));
+    pending.forEach((item, i) => {
+      assert.deepEqual(finishFile(api, "read_bytes", item), Ok(new Uint8Array([i, 255])));
+    });
+    await Promise.all(peers);
+  },
+);
 
-test("Fs cancelled FIFO reads and copy do not block later calls or close", fifoTest, async (t) => {
-  const path = makeFifo(t);
-  const api = netHost(t, "hd:FsRead");
-  const pending = api.call("read_text", path);
-  siblingClocks(api, [pending.operation]);
-  api.host.imports["hd:rt"].abort(pending.operation);
-  assert.equal(api.host.core.st.ops.has(pending.operation), false);
-  assert.throws(() => api.host.imports["hd:FsRead"]["read_text.finish"](pending.operation));
-  const write = netHost(t, "hd:FsWrite");
-  const copy = write.call("copy", path, `${path}-copy`);
-  assert.ok(copy.operation);
-  siblingClocks(write, [copy.operation]);
-  write.host.imports["hd:rt"].abort(copy.operation);
-  const next = makeFifo(t, "next");
-  const started = api.call("read_text", next);
-  const peer = fifoPeer(t, next, "successor");
-  assert.deepEqual(finishFile(api, "read_text", started), Ok("successor"));
-  await peer;
-});
+test(
+  "Fs cancelled FIFO reads and copy do not block later calls or close",
+  fifoTest,
+  async (testContext) => {
+    const path = makeFifo(testContext);
+    const api = netHost(testContext, "hd:FsRead");
+    const pending = api.call("read_text", path);
+    siblingClocks(api, [pending.operation]);
+    api.host.imports["hd:rt"].abort(pending.operation);
+    assert.equal(api.host.core.st.ops.has(pending.operation), false);
+    assert.throws(() => api.host.imports["hd:FsRead"]["read_text.finish"](pending.operation));
+    const write = netHost(testContext, "hd:FsWrite");
+    const copy = write.call("copy", path, `${path}-copy`);
+    assert.ok(copy.operation);
+    siblingClocks(write, [copy.operation]);
+    write.host.imports["hd:rt"].abort(copy.operation);
+    const next = makeFifo(testContext, "next");
+    const started = api.call("read_text", next);
+    const peer = fifoPeer(testContext, next, "successor");
+    assert.deepEqual(finishFile(api, "read_text", started), Ok("successor"));
+    await peer;
+  },
+);
 
-test("Fs copy also offloads a special destination", fifoTest, (t) => {
-  const path = makeFifo(t);
+test("Fs copy also offloads a special destination", fifoTest, (testContext) => {
+  const path = makeFifo(testContext);
   const from = `${path}-source`;
   writeFileSync(from, "copied");
-  const api = netHost(t, "hd:FsWrite");
+  const api = netHost(testContext, "hd:FsWrite");
   const pending = api.call("copy", from, path);
   assert.ok(pending.operation);
   api.host.imports["hd:rt"].abort(pending.operation);
 });
 
-test("Fs metadata and namespace calls on FIFOs stay inline", fifoTest, (t) => {
-  const path = makeFifo(t);
-  const api = netHost(t, "hd:FsRead");
+test("Fs metadata and namespace calls on FIFOs stay inline", fifoTest, (testContext) => {
+  const path = makeFifo(testContext);
+  const api = netHost(testContext, "hd:FsRead");
   assert.equal(api.call("stat", path).result.ok, true);
-  const write = netHost(t, "hd:FsWrite");
+  const write = netHost(testContext, "hd:FsWrite");
   const moved = `${path}-moved`;
   assert.deepEqual(write.call("rename", path, moved), { result: Ok(undefined) });
   assert.deepEqual(write.call("remove", moved), { result: Ok(undefined) });
 });
 
-test("Fs finished special-file results can be discarded before guest finish", fifoTest, (t) => {
-  const api = netHost(t, "hd:FsRead");
-  const pending = api.call("read_bytes", "/dev/null");
-  assert.ok(pending.operation);
-  while (!api.host.core.st.ops.get(pending.operation).completed) {
-    api.host.imports["hd:rt"].block();
-  }
-  api.host.imports["hd:rt"].abort(pending.operation);
-  assert.throws(() => api.host.imports["hd:FsRead"]["read_bytes.finish"](pending.operation));
-  const next = api.call("read_bytes", "/dev/null");
-  assert.deepEqual(finishFile(api, "read_bytes", next), Ok(new Uint8Array()));
-});
+test(
+  "Fs finished special-file results can be discarded before guest finish",
+  fifoTest,
+  (testContext) => {
+    const api = netHost(testContext, "hd:FsRead");
+    const pending = api.call("read_bytes", "/dev/null");
+    assert.ok(pending.operation);
+    while (!api.host.core.st.ops.get(pending.operation).completed) {
+      api.host.imports["hd:rt"].block();
+    }
+    api.host.imports["hd:rt"].abort(pending.operation);
+    assert.throws(() => api.host.imports["hd:FsRead"]["read_bytes.finish"](pending.operation));
+    const next = api.call("read_bytes", "/dev/null");
+    assert.deepEqual(finishFile(api, "read_bytes", next), Ok(new Uint8Array()));
+  },
+);
 
-test("Fs blocked helper exits if its control worker is terminated", fifoTest, async (t) => {
-  const path = makeFifo(t);
-  const source = `
+test(
+  "Fs blocked helper exits if its control worker is terminated",
+  fifoTest,
+  async (testContext) => {
+    const path = makeFifo(testContext);
+    const source = `
     const { execFileSync } = require('node:child_process');
     const { Worker, MessageChannel, receiveMessageOnPort } = require('node:worker_threads');
     const { port1, port2 } = new MessageChannel();
@@ -238,41 +272,42 @@ test("Fs blocked helper exits if its control worker is terminated", fifoTest, as
       await worker.terminate();
     }, 200);
   `;
-  const child = spawn(
-    process.execPath,
-    ["-e", source, fileURLToPath(new URL("./fs.ts", import.meta.url)), path],
-    {
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  t.after(() => child.kill("SIGKILL"));
-  const bytes: Buffer[] = [],
-    errors: Buffer[] = [];
-  child.stdout.on("data", (chunk: Buffer) => bytes.push(chunk));
-  child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
-  const [code] = await once(child, "close");
-  assert.equal(code, 0, Buffer.concat(errors).toString());
-  const pids: number[] = JSON.parse(Buffer.concat(bytes).toString());
-  assert.equal(pids.length, 1, "one blocked file helper was started");
-  // The old helper orphaned its synchronous FIFO open here. Clean up on
-  // failure too, so a regression cannot leave a blocked process behind.
-  const alive = () =>
-    pids.filter((pid) => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
+    const child = spawn(
+      process.execPath,
+      ["-e", source, fileURLToPath(new URL("./fs.ts", import.meta.url)), path],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    testContext.after(() => child.kill("SIGKILL"));
+    const bytes: Buffer[] = [],
+      errors: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => bytes.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
+    const [code] = await once(child, "close");
+    assert.equal(code, 0, Buffer.concat(errors).toString());
+    const pids: number[] = JSON.parse(Buffer.concat(bytes).toString());
+    assert.equal(pids.length, 1, "one blocked file helper was started");
+    // The old helper orphaned its synchronous FIFO open here. Clean up on
+    // failure too, so a regression cannot leave a blocked process behind.
+    const alive = () =>
+      pids.filter((pid) => {
+        try {
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+    testContext.after(() => {
+      for (const pid of alive()) {
+        process.kill(pid, "SIGKILL");
       }
     });
-  t.after(() => {
-    for (const pid of alive()) {
-      process.kill(pid, "SIGKILL");
+    const until = performance.now() + 3000;
+    while (alive().length && performance.now() < until) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 10));
     }
-  });
-  const until = performance.now() + 3000;
-  while (alive().length && performance.now() < until) {
-    await new Promise<void>((resolve) => setTimeout(resolve, 10));
-  }
-  assert.deepEqual(alive(), [], "abrupt worker termination leaves no file helper process");
-});
+    assert.deepEqual(alive(), [], "abrupt worker termination leaves no file helper process");
+  },
+);

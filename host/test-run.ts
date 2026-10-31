@@ -102,11 +102,11 @@ export async function supervise(
         stopped = true;
         worker.terminate();
         stoppedWorkers.push(worker);
-        const c = config.cases[at.ci];
+        const context = config.cases[at.ci];
         const shown = ms ?? config.timeLimitMs;
         const report = reportIn(fact, ms === null ? PROGRAM_TIME_LIMIT : timeLimitReport(ms));
         const line = {
-          test: c.test,
+          test: context.test,
           status: 3,
           trapped: true,
           stdout: "",
@@ -126,11 +126,11 @@ export async function supervise(
           next({ case: at.ci + 1, row: 0, rows: 0 });
         }
       };
-      worker.on("message", (m: Dynamic) => {
+      worker.on("message", (message: Dynamic) => {
         if (stopped) {
           return;
         }
-        if (m.type === "line") {
+        if (message.type === "line") {
           // A result ends the case or row being watched, so nothing is
           // left to stop until the next one begins. A stop between this
           // result and the worker's next message, or its exit, would
@@ -138,34 +138,34 @@ export async function supervise(
           limitAt = null;
           timeout = null;
           clear();
-          writeOut(m.text);
-        } else if (m.type === "case") {
+          writeOut(message.text);
+        } else if (message.type === "case") {
           limitAt = null;
           timeout = null;
           arm();
-          at = { ci: m.ci, row: null, rows: null };
-        } else if (m.type === "rows") {
-          at.rows = m.rows;
+          at = { ci: message.ci, row: null, rows: null };
+        } else if (message.type === "rows") {
+          at.rows = message.rows;
           if (at.row === null) {
             at.row = 0;
           }
-        } else if (m.type === "row") {
+        } else if (message.type === "row") {
           limitAt = null;
           timeout = null;
           arm();
-          at.row = m.row;
-        } else if (m.type === "limit") {
-          limitAt = m.at;
+          at.row = message.row;
+        } else if (message.type === "limit") {
+          limitAt = message.at;
           arm();
-        } else if (m.type === "deadline") {
-          timeout = { at: m.at, ms: m.ms };
+        } else if (message.type === "deadline") {
+          timeout = { at: message.at, ms: message.ms };
           arm();
-        } else if (m.type === "done") {
+        } else if (message.type === "done") {
           timeout = null;
           fact = null;
           arm();
-        } else if (m.type === "fact") {
-          fact = m.label;
+        } else if (message.type === "fact") {
+          fact = message.label;
         }
       });
       worker.on("error", fail);

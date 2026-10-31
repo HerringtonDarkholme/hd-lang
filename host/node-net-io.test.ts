@@ -15,8 +15,8 @@ type Dynamic = ReturnType<typeof JSON.parse>;
 
 // #814: a held resolver lives only in the test worker; the provider and
 // transport are unmodified production sources copied beside that wrapper.
-async function heldLookupHost(t: TestContext): Promise<Dynamic> {
-  const root = fixture(t, {});
+async function heldLookupHost(testContext: TestContext): Promise<Dynamic> {
+  const root = fixture(testContext, {});
   for (const name of [
     "node.ts",
     "node-files.ts",
@@ -59,12 +59,12 @@ async function heldLookupHost(t: TestContext): Promise<Dynamic> {
   `,
   );
   const module = await import(pathToFileURL(join(root, "node.ts")).href);
-  return { ...netHost(t, "hd:Net", {}, module.createHost), entered, release, finished };
+  return { ...netHost(testContext, "hd:Net", {}, module.createHost), entered, release, finished };
 }
 
 for (const abort of [false, true]) {
-  test(`Net slow lookup lets a sibling clock run (${abort ? "abort" : "finish"})`, async (t) => {
-    const { host, call, take, entered, release, finished } = await heldLookupHost(t);
+  test(`Net slow lookup lets a sibling clock run (${abort ? "abort" : "finish"})`, async (testContext) => {
+    const { host, call, take, entered, release, finished } = await heldLookupHost(testContext);
     const lookup = call("lookup", "slow.example");
     assert.equal(typeof lookup.operation, "number");
     assert.ok(existsSync(entered));
@@ -79,7 +79,7 @@ for (const abort of [false, true]) {
     }
     writeFileSync(release, "");
     if (abort) {
-      await t.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
+      await testContext.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
       assert.deepEqual(take("lookup", call("lookup", "127.0.0.1")), Ok(["127.0.0.1"]));
     } else {
       assert.deepEqual(take("lookup", lookup), Ok(["127.0.0.1"]));
@@ -87,11 +87,15 @@ for (const abort of [false, true]) {
   });
 }
 
-async function finishWrite(t: TestContext, api: Dynamic, started: Dynamic): Promise<Dynamic> {
+async function finishWrite(
+  testContext: TestContext,
+  api: Dynamic,
+  started: Dynamic,
+): Promise<Dynamic> {
   if (started.result) {
     return started.result;
   }
-  await t.waitFor(
+  await testContext.waitFor(
     () => {
       const [, clock] = api.host.imports["hd:Clock"]["sleep.start"](0n);
       api.host.imports["hd:rt"].block();
@@ -107,8 +111,8 @@ for (const abort of [false, true]) {
   test(
     `Net backpressured write keeps siblings running (${abort ? "abort" : "finish"})`,
     { timeout: 10000 },
-    async (t) => {
-      const api = await tcpHost(t);
+    async (testContext) => {
+      const api = await tcpHost(testContext);
       const { host, call, handle, peer } = api;
       peer.pause();
       host.core.st.memory.grow(256);
@@ -137,10 +141,10 @@ for (const abort of [false, true]) {
       if (abort) {
         const tail = Buffer.from("after-abort");
         assert.deepEqual(
-          await finishWrite(t, api, call("TcpStream.write", handle, tail)),
+          await finishWrite(testContext, api, call("TcpStream.write", handle, tail)),
           Ok(undefined),
         );
-        await t.waitFor(
+        await testContext.waitFor(
           () => assert.ok(Buffer.concat(chunks).subarray(-tail.length).equals(tail)),
           { timeout: 5000 },
         );
@@ -149,8 +153,8 @@ for (const abort of [false, true]) {
           "abort stops submitting the rest and keeps the stream usable",
         );
       } else {
-        assert.deepEqual(await finishWrite(t, api, started), Ok(undefined));
-        await t.waitFor(() => assert.equal(size, bytes.length), { timeout: 5000 });
+        assert.deepEqual(await finishWrite(testContext, api, started), Ok(undefined));
+        await testContext.waitFor(() => assert.equal(size, bytes.length), { timeout: 5000 });
         assert.ok(Buffer.concat(chunks).equals(bytes), "all bytes arrive in order");
       }
     },
@@ -158,8 +162,8 @@ for (const abort of [false, true]) {
 }
 
 for (const kind of ["listen", "bind_udp"]) {
-  test(`Net ${kind} abort releases a ready undelivered handle`, async (t) => {
-    const call = netWorker(t);
+  test(`Net ${kind} abort releases a ready undelivered handle`, async (testContext) => {
+    const call = netWorker(testContext);
     const operation = call({
       op: "wait_start",
       kind,
@@ -168,7 +172,7 @@ for (const kind of ["listen", "bind_udp"]) {
       address: "127.0.0.1:0",
     }).ok;
     let result: Dynamic;
-    await t.waitFor(
+    await testContext.waitFor(
       () => {
         result = call({ op: "wait_poll", operation });
         assert.equal(typeof result.ok, "number");
@@ -187,8 +191,8 @@ for (const kind of ["listen", "bind_udp"]) {
 }
 
 for (const kind of ["listen", "bind_udp"]) {
-  test(`Net ${kind} abort before its callback leaves no late handle`, async (t) => {
-    const root = fixture(t, {}),
+  test(`Net ${kind} abort before its callback leaves no late handle`, async (testContext) => {
+    const root = fixture(testContext, {}),
       ready = join(root, "ready"),
       release = join(root, "release"),
       finished = join(root, "finished");
@@ -212,7 +216,7 @@ for (const kind of ["listen", "bind_udp"]) {
       await import(${JSON.stringify(new URL("./net.ts", import.meta.url).href)});
     `,
     );
-    const call = netWorker(t, { url: pathToFileURL(url) });
+    const call = netWorker(testContext, { url: pathToFileURL(url) });
     const operation = call({
       op: "wait_start",
       kind,
@@ -220,7 +224,7 @@ for (const kind of ["listen", "bind_udp"]) {
       port: 0,
       address: "127.0.0.1:0",
     }).ok;
-    await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+    await testContext.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
     assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
     call({ op: "wait_abort", operation });
     const port = Number(readFileSync(ready, "utf8"));
@@ -240,19 +244,19 @@ for (const kind of ["listen", "bind_udp"]) {
       await new Promise<void>((resolve) => replacement.close(() => resolve()));
     }
     writeFileSync(release, "");
-    await t.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
+    await testContext.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
     assert.deepEqual(call({ op: "open" }), { ok: { stream: 0, listener: 0, udp: 0 } });
   });
 }
 
-test("Net UDP abort while DNS is held sends no late datagram", async (t) => {
-  const api = await heldLookupHost(t);
+test("Net UDP abort while DNS is held sends no late datagram", async (testContext) => {
+  const api = await heldLookupHost(testContext);
   const { host, call, take, entered, release, finished } = api;
   const bound = take("bind_udp", call("bind_udp", "127.0.0.1", 0));
   assert.ok(bound.ok);
   const target = dgram.createSocket("udp4");
   await new Promise<void>((resolve) => target.bind(0, "127.0.0.1", () => resolve()));
-  t.after(() => target.close());
+  testContext.after(() => target.close());
   let arrivals = 0;
   target.on("message", () => {
     arrivals++;
@@ -268,7 +272,7 @@ test("Net UDP abort while DNS is held sends no late datagram", async (t) => {
   assert.ok(existsSync(entered));
   host.imports["hd:rt"].abort(send.operation);
   writeFileSync(release, "");
-  await t.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
+  await testContext.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
   // A successor datagram proves the original socket remains usable and
   // all already queued receive events have an observation barrier.
   const received = once(target, "message");

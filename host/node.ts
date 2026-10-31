@@ -227,9 +227,9 @@ export function lineReader(fd: number | null): LineReader {
   const waiter = new Int32Array(new SharedArrayBuffer(4));
   // Fills `pending` from the descriptor: `false` when it cannot be read.
   const fill = () => {
-    let n;
+    let count;
     try {
-      n = readSync(fd, chunk, 0, chunk.length, null);
+      count = readSync(fd, chunk, 0, chunk.length, null);
     } catch (err) {
       const code = (err as ErrorWithCode).code;
       if (code === "EAGAIN") {
@@ -239,12 +239,12 @@ export function lineReader(fd: number | null): LineReader {
       if (code !== "EOF") {
         return false;
       }
-      n = 0;
+      count = 0;
     }
-    if (n === 0) {
+    if (count === 0) {
       ended = true;
     } else {
-      pending = Buffer.concat([pending, chunk.subarray(0, n)]);
+      pending = Buffer.concat([pending, chunk.subarray(0, count)]);
     }
     return true;
   };
@@ -475,17 +475,18 @@ function netProvider({ grant, netClient }: DynamicRecord): DynamicRecord {
     return variant(NetError, tag, ...values);
   };
   // `Result[T, NetError]` of a `Net` method from a client outcome.
-  const netResult = (r: Dynamic): Dynamic => (r.error ? Err(netError(r.error)) : Ok(r.ok));
+  const netResult = (result: Dynamic): Dynamic =>
+    result.error ? Err(netError(result.error)) : Ok(result.ok);
   // `Result[T, NetError]` of a handle's method: an operation on a closed
   // handle is `Closed` (std-net.handles.closed).
-  const handleResult = (r: Dynamic): Dynamic => {
-    if (r.unknown) {
+  const handleResult = (result: Dynamic): Dynamic => {
+    if (result.unknown) {
       throw new HostContract("an operation on a handle the host never made");
     }
-    if (r.disposed) {
+    if (result.disposed) {
       return Err(variant(NetError, "Closed"));
     }
-    return r.error ? Err(netError(r.error)) : Ok(r.ok);
+    return result.error ? Err(netError(result.error)) : Ok(result.ok);
   };
   // A call names its address `host:port` (std-net.error.address): one
   // whose host is no host is `InvalidAddress`, and one the grant does not
@@ -536,28 +537,29 @@ function netProvider({ grant, netClient }: DynamicRecord): DynamicRecord {
       waitFor(netAt("wait_start", host, port, { kind }), netResult);
   const handleOp =
     (op: string) =>
-    (h: Dynamic, more: DynamicRecord): Dynamic =>
-      handleResult(netClient.call({ op, handle: h, ...more }));
+    (host: Dynamic, more: DynamicRecord): Dynamic =>
+      handleResult(netClient.call({ op, handle: host, ...more }));
   const waitOn =
     (kind: string) =>
-    (h: Dynamic, more: DynamicRecord = {}): Dynamic =>
-      waitFor(netClient.call({ op: "wait_start", handle: h, kind, ...more }), handleResult);
+    (host: Dynamic, more: DynamicRecord = {}): Dynamic =>
+      waitFor(netClient.call({ op: "wait_start", handle: host, kind, ...more }), handleResult);
   // std-net.timeout.set: the `Duration?` crosses to the client thread as
   // milliseconds, or `null` for no bound.
-  const setBound = (h: Dynamic, timeout: Dynamic): Dynamic =>
-    handleOp("set_timeout")(h, { timeout: timeout === null ? null : Number(timeout.millis) });
+  const setBound = (host: Dynamic, timeout: Dynamic): Dynamic =>
+    handleOp("set_timeout")(host, { timeout: timeout === null ? null : Number(timeout.millis) });
   // std-net.option.nodelay and std-net.option.keepalive: the flag crosses
   // as a number, and the idle `Duration?` as milliseconds, or `null` for off.
-  const setNoDelay = (h: Dynamic, enabled: Dynamic): Dynamic =>
-    handleOp("set_nodelay")(h, { enabled: enabled !== 0 });
-  const setKeepAlive = (h: Dynamic, idle: Dynamic): Dynamic =>
-    handleOp("set_keepalive")(h, { idle: idle === null ? null : Number(idle.millis) });
+  const setNoDelay = (host: Dynamic, enabled: Dynamic): Dynamic =>
+    handleOp("set_nodelay")(host, { enabled: enabled !== 0 });
+  const setKeepAlive = (host: Dynamic, idle: Dynamic): Dynamic =>
+    handleOp("set_keepalive")(host, { idle: idle === null ? null : Number(idle.millis) });
   // A second `close` is `Closed` (std-net.handles.closed).
-  const close = (h: Dynamic): Dynamic => handleResult(netClient.call({ op: "close", handle: h }));
+  const close = (host: Dynamic): Dynamic =>
+    handleResult(netClient.call({ op: "close", handle: host }));
   // `dispose!` closes an open handle and reports nothing (std-net.dispose).
-  const dispose = (h: Dynamic): void => {
-    const r = netClient.call({ op: "dispose", handle: h });
-    if (r.unknown) {
+  const dispose = (host: Dynamic): void => {
+    const disposed = netClient.call({ op: "dispose", handle: host });
+    if (disposed.unknown) {
       throw new HostContract("an operation on a handle the host never made");
     }
   };
@@ -609,8 +611,8 @@ function netProvider({ grant, netClient }: DynamicRecord): DynamicRecord {
     },
     listen: opened("listen"),
     bind_udp: opened("bind_udp"),
-    "TcpStream.read": (h: Dynamic, max: number) => waitOn("read")(h, { max }),
-    "TcpStream.write": (h: Dynamic, bytes: Uint8Array) => waitOn("write")(h, { bytes }),
+    "TcpStream.read": (host: Dynamic, max: number) => waitOn("read")(host, { max }),
+    "TcpStream.write": (host: Dynamic, bytes: Uint8Array) => waitOn("write")(host, { bytes }),
     "TcpStream.set_timeout": setBound,
     "TcpStream.set_nodelay": setNoDelay,
     "TcpStream.set_keepalive": setKeepAlive,
@@ -618,26 +620,26 @@ function netProvider({ grant, netClient }: DynamicRecord): DynamicRecord {
     "TcpStream.dispose": dispose,
     "TcpListener.accept": waitOn("accept"),
     "TcpListener.set_timeout": setBound,
-    "TcpListener.local_address": (h: Dynamic) => handleOp("local_address")(h, {}),
+    "TcpListener.local_address": (host: Dynamic) => handleOp("local_address")(host, {}),
     "TcpListener.close": close,
     "TcpListener.dispose": dispose,
     // std-net.send-to.grant: each datagram's own address.
-    "UdpSocket.send_to": (h: Dynamic, host: string, port: number, bytes: Uint8Array) => {
+    "UdpSocket.send_to": (handle: Dynamic, host: string, port: number, bytes: Uint8Array) => {
       // Reject closed and unknown handles before destination validation.
       // This checks metadata only.
-      const checked = netClient.call({ op: "check", handle: h });
+      const checked = netClient.call({ op: "check", handle });
       if (checked.unknown || checked.disposed) {
         return handleResult(checked);
       }
       // Each live send still checks its destination grant.
       return waitFor(
-        netAt("wait_start", host, port, { kind: "send_to", handle: h, bytes }),
+        netAt("wait_start", host, port, { kind: "send_to", handle, bytes }),
         handleResult,
       );
     },
-    "UdpSocket.receive": (h: Dynamic, max: number) => waitOn("receive")(h, { max }),
+    "UdpSocket.receive": (host: Dynamic, max: number) => waitOn("receive")(host, { max }),
     "UdpSocket.set_timeout": setBound,
-    "UdpSocket.local_address": (h: Dynamic) => handleOp("local_address")(h, {}),
+    "UdpSocket.local_address": (host: Dynamic) => handleOp("local_address")(host, {}),
     "UdpSocket.close": close,
     "UdpSocket.dispose": dispose,
   };
@@ -661,7 +663,7 @@ function envProvider({ grant, sink, st, flush }: DynamicRecord): DynamicRecord {
       }
       return value ?? null;
     },
-    names: () => Object.keys(process.env).filter((n) => grant.coversName("Env", n)),
+    names: () => Object.keys(process.env).filter((item) => grant.coversName("Env", item)),
   };
 }
 
@@ -708,24 +710,26 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
   const fsOps = (module: string, ops: DynamicRecord): DynamicRecord =>
     Object.fromEntries(
       Object.entries(ops).map(([name, op]) => {
-        const m = (METHODS as DynamicRecord)[module][name];
+        const message = (METHODS as DynamicRecord)[module][name];
         const { create = false } = typeof op === "function" ? {} : (op as DynamicRecord);
         const provider = (...args: Dynamic[]) => {
-          const ps = args.filter((_, i) => m.resource === "path" && m.params[i] === Path);
+          const ps = args.filter(
+            (_, i) => message.resource === "path" && message.params[i] === Path,
+          );
           const refused = ps.find(
-            (p, i) =>
+            (item, i) =>
               !grant.coversPath(
                 name === "copy" && i === 0 ? "FsRead" : module.slice("hd:".length),
-                p,
+                item,
               ),
           );
           if (refused !== undefined) {
             return fsErr(refusedPath(refused), "NotGranted");
           }
-          for (const p of create ? [] : ps) {
-            const missing = beforeDotDot(p);
+          for (const path of create ? [] : ps) {
+            const missing = beforeDotDot(path);
             if (missing !== undefined) {
-              return fsErr(p, missing);
+              return fsErr(path, missing);
             }
           }
           flush();
@@ -774,7 +778,7 @@ const refusal = (
   if (name.includes("\0")) {
     return other("program name contains a NUL byte");
   }
-  const arg = argv.findIndex((a) => a.includes("\0"));
+  const arg = argv.findIndex((item) => item.includes("\0"));
   if (arg >= 0) {
     return other(`process argument ${arg} contains a NUL byte`);
   }
@@ -1028,7 +1032,7 @@ export const nodeLayer = {
             ["TcpListener", counts.listener ?? 0],
             ["UdpSocket", counts.udp ?? 0],
           ] as [string, number][]
-        ).filter(([, n]) => n > 0);
+        ).filter(([, count]) => count > 0);
       },
       // Removes a directory the host made for itself, and closes its
       // sockets.

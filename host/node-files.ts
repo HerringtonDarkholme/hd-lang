@@ -233,9 +233,9 @@ export const fileOperations = {
       );
       const under = path.endsWith("/") ? path : `${path}/`;
       const found = [];
-      for (const n of names) {
+      for (const count of names) {
         try {
-          found.push(entry(under + n, lstatSync(under + n, { bigint: true })));
+          found.push(entry(under + count, lstatSync(under + count, { bigint: true })));
         } catch {
           // Gone since the listing.
         }

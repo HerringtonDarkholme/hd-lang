@@ -22,10 +22,12 @@ import { HostContract } from "./run-support.ts";
 export { HostContract };
 
 export type Integer = number | bigint;
-export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
-export interface Codec<T> {
-  enc(encoder: Enc, value: T): void;
-  dec(decoder: Dec): T;
+export type Result<OkValue, ErrorValue> =
+  | { ok: true; value: OkValue }
+  | { ok: false; error: ErrorValue };
+export interface Codec<Value> {
+  enc(encoder: Enc, value: Value): void;
+  dec(decoder: Dec): Value;
 }
 export interface TaggedValue extends Record<string, unknown> {
   tag: string;
@@ -52,30 +54,30 @@ export class Enc {
     this.buf = new Uint8Array(64);
     this.len = 0;
   }
-  room(n: number): void {
-    if (this.len + n <= this.buf.length) {
+  room(value: number): void {
+    if (this.len + value <= this.buf.length) {
       return;
     }
-    const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + n));
+    const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + value));
     next.set(this.buf.subarray(0, this.len));
     this.buf = next;
   }
-  leb(v: Integer): this {
-    let x = BigInt(v);
+  leb(value: Integer): this {
+    let bigInt = BigInt(value);
     this.room(10);
     do {
-      let b = Number(x & 0x7fn);
-      x >>= 7n;
-      if (x) {
-        b |= 0x80;
+      let number = Number(bigInt & 0x7fn);
+      bigInt >>= 7n;
+      if (bigInt) {
+        number |= 0x80;
       }
-      this.buf[this.len++] = b;
-    } while (x);
+      this.buf[this.len++] = number;
+    } while (bigInt);
     return this;
   }
-  zz(v: Integer): this {
-    const x = BigInt(v);
-    return this.leb(x >= 0n ? x << 1n : (-x << 1n) - 1n);
+  zz(value: Integer): this {
+    const bigInt = BigInt(value);
+    return this.leb(bigInt >= 0n ? bigInt << 1n : (-bigInt << 1n) - 1n);
   }
   bytes(u8: Uint8Array): this {
     this.leb(u8.length);
@@ -84,13 +86,13 @@ export class Enc {
     this.len += u8.length;
     return this;
   }
-  str(s: string): this {
-    return this.bytes(utf8.encode(s));
+  str(text: string): this {
+    return this.bytes(utf8.encode(text));
   }
   // An `f64` as its raw IEEE 754 bits, little-endian.
-  f64(v: number): this {
+  f64(value: number): this {
     this.room(8);
-    new DataView(this.buf.buffer, this.buf.byteOffset).setFloat64(this.len, v, true);
+    new DataView(this.buf.buffer, this.buf.byteOffset).setFloat64(this.len, value, true);
     this.len += 8;
     return this;
   }
@@ -102,41 +104,41 @@ export class Enc {
 // The decoder of §17.4, over a copy of the argument bytes. A byte past the
 // end, or a tag no value has, is the `host-contract` panic.
 export class Dec {
-  b: Uint8Array;
+  input: Uint8Array;
   at: number;
 
   constructor(bytes: Uint8Array) {
-    this.b = bytes;
+    this.input = bytes;
     this.at = 0;
   }
   leb(): bigint {
-    let r = 0n;
-    let s = 0n;
-    let b: number | undefined;
+    let result = 0n;
+    let shift = 0n;
+    let byte: number | undefined;
     do {
-      b = this.b[this.at++];
-      if (b === undefined) {
+      byte = this.input[this.at++];
+      if (byte === undefined) {
         throw new HostContract("an argument does not decode");
       }
-      r |= BigInt(b & 0x7f) << s;
-      s += 7n;
-    } while (b & 0x80);
-    return r;
+      result |= BigInt(byte & 0x7f) << shift;
+      shift += 7n;
+    } while (byte & 0x80);
+    return result;
   }
   num(): number {
     return Number(this.leb());
   }
   zz(): bigint {
-    const x = this.leb();
-    return (x >> 1n) ^ -(x & 1n);
+    const encoded = this.leb();
+    return (encoded >> 1n) ^ -(encoded & 1n);
   }
   bytes(): Uint8Array {
-    const n = this.num();
-    if (this.at + n > this.b.length) {
+    const length = this.num();
+    if (this.at + length > this.input.length) {
       throw new HostContract("an argument does not decode");
     }
-    const out = this.b.subarray(this.at, this.at + n);
-    this.at += n;
+    const out = this.input.subarray(this.at, this.at + length);
+    this.at += length;
     return out;
   }
   str(): string {
@@ -144,83 +146,117 @@ export class Dec {
   }
   // A tag below `count`: an option's, a result's or an enum's.
   tag(count: number): number {
-    const t = this.num();
-    if (t >= count) {
+    const tag = this.num();
+    if (tag >= count) {
       throw new HostContract("an argument does not decode");
     }
-    return t;
+    return tag;
   }
 }
 
-export const Ok = <T>(value: T): Result<T, never> => ({ ok: true, value });
-export const Err = <E>(error: E): Result<never, E> => ({ ok: false, error });
+export const Ok = <Value>(value: Value): Result<Value, never> => ({
+  ok: true,
+  value,
+});
+export const Err = <ErrorValue>(error: ErrorValue): Result<never, ErrorValue> => ({
+  ok: false,
+  error,
+});
 
 // `void`, as a result's `T`: no bytes.
 export const unit: Codec<void> = { enc: () => {}, dec: () => undefined };
-export const str: Codec<string> = { enc: (e, v) => e.str(v), dec: (d) => d.str() };
+export const str: Codec<string> = {
+  enc: (encoder, value) => encoder.str(value),
+  dec: (decoder) => decoder.str(),
+};
 // `List[u8]`: its length, then its bytes; decoded as a copy.
 export const bytes: Codec<Uint8Array> = {
-  enc: (e, v) => e.bytes(v),
-  dec: (d) => d.bytes().slice(),
+  enc: (encoder, value) => encoder.bytes(value),
+  dec: (decoder) => decoder.bytes().slice(),
 };
 // `u8` to `u32` and `usize`; `u64`, a `BigInt`.
-export const unsigned: Codec<number> = { enc: (e, v) => e.leb(v), dec: (d) => d.num() };
-export const unsigned64: Codec<bigint> = { enc: (e, v) => e.leb(v), dec: (d) => d.leb() };
+export const unsigned: Codec<number> = {
+  enc: (encoder, value) => encoder.leb(value),
+  dec: (decoder) => decoder.num(),
+};
+export const unsigned64: Codec<bigint> = {
+  enc: (encoder, value) => encoder.leb(value),
+  dec: (decoder) => decoder.leb(),
+};
 // `i8` to `i32` and `isize`; `i64`, a `BigInt`.
-export const signed: Codec<number> = { enc: (e, v) => e.zz(v), dec: (d) => Number(d.zz()) };
-export const signed64: Codec<bigint> = { enc: (e, v) => e.zz(v), dec: (d) => d.zz() };
+export const signed: Codec<number> = {
+  enc: (encoder, value) => encoder.zz(value),
+  dec: (decoder) => Number(decoder.zz()),
+};
+export const signed64: Codec<bigint> = {
+  enc: (encoder, value) => encoder.zz(value),
+  dec: (decoder) => decoder.zz(),
+};
 // A host handle: its number.
-export const handle: Codec<number> = { enc: (e, v) => e.leb(v), dec: (d) => d.num() };
+export const handle: Codec<number> = {
+  enc: (encoder, value) => encoder.leb(value),
+  dec: (decoder) => decoder.num(),
+};
 
-export const list = <T>(t: Codec<T>): Codec<T[]> => ({
-  enc: (e, xs) => {
-    e.leb(xs.length);
-    for (const x of xs) {
-      t.enc(e, x);
+export const list = <Item>(codec: Codec<Item>): Codec<Item[]> => ({
+  enc: (encoder, xs) => {
+    encoder.leb(xs.length);
+    for (const item of xs) {
+      codec.enc(encoder, item);
     }
   },
-  dec: (d) => {
-    const n = d.num();
-    const out: T[] = [];
-    for (let i = 0; i < n; i++) {
-      out.push(t.dec(d));
+  dec: (decoder) => {
+    const length = decoder.num();
+    const out: Item[] = [];
+    for (let i = 0; i < length; i++) {
+      out.push(codec.dec(decoder));
     }
     return out;
   },
 });
 
-export const option = <T>(t: Codec<T>): Codec<T | null> => ({
-  enc: (e, v) => {
-    if (v === null) {
-      e.leb(0);
+export const option = <Value>(codec: Codec<Value>): Codec<Value | null> => ({
+  enc: (encoder, value) => {
+    if (value === null) {
+      encoder.leb(0);
     } else {
-      t.enc(e.leb(1), v);
+      codec.enc(encoder.leb(1), value);
     }
   },
-  dec: (d) => (d.tag(2) === 0 ? null : t.dec(d)),
+  dec: (decoder) => (decoder.tag(2) === 0 ? null : codec.dec(decoder)),
 });
 
-export const result = <T, E>(ok: Codec<T>, err: Codec<E>): Codec<Result<T, E>> => ({
-  enc: (e, r) => (r.ok ? ok.enc(e.leb(0), r.value) : err.enc(e.leb(1), r.error)),
-  dec: (d) => (d.tag(2) === 0 ? Ok(ok.dec(d)) : Err(err.dec(d))),
+export const result = <OkValue, ErrorValue>(
+  ok: Codec<OkValue>,
+  err: Codec<ErrorValue>,
+): Codec<Result<OkValue, ErrorValue>> => ({
+  enc: (encoder, result) =>
+    result.ok ? ok.enc(encoder.leb(0), result.value) : err.enc(encoder.leb(1), result.error),
+  dec: (decoder) => (decoder.tag(2) === 0 ? Ok(ok.dec(decoder)) : Err(err.dec(decoder))),
 });
 
-export const tuple = <T extends unknown[]>(...ts: { [K in keyof T]: Codec<T[K]> }): Codec<T> => ({
-  enc: (e, v) => ts.forEach((t, i) => t.enc(e, v[i])),
-  dec: (d) => ts.map((t) => t.dec(d)) as T,
+export const tuple = <Values extends unknown[]>(
+  ...ts: { [Key in keyof Values]: Codec<Values[Key]> }
+): Codec<Values> => ({
+  enc: (encoder, value) => ts.forEach((item, index) => item.enc(encoder, value[index])),
+  dec: (decoder) => ts.map((item) => item.dec(decoder)) as Values,
 });
 
 // A newtype crosses as its field: the same bytes, a codec of its own.
-export const newtype = <T>(t: Codec<T>): Codec<T> => ({ enc: t.enc, dec: t.dec });
+export const newtype = <Value>(codec: Codec<Value>): Codec<Value> => ({
+  enc: codec.enc,
+  dec: codec.dec,
+});
 
 // A data type of `fields`, its field codecs by name in declaration order.
-export const data = <T extends Record<string, unknown>>(fields: {
-  [K in keyof T]: Codec<T[K]>;
-}): Codec<T> => {
+export const data = <Value extends Record<string, unknown>>(fields: {
+  [Key in keyof Value]: Codec<Value[Key]>;
+}): Codec<Value> => {
   const all = Object.entries(fields);
   return {
-    enc: (e, v) => all.forEach(([name, t]) => t.enc(e, v[name])),
-    dec: (d) => Object.fromEntries(all.map(([name, t]) => [name, t.dec(d)])) as T,
+    enc: (encoder, value) => all.forEach(([name, codec]) => codec.enc(encoder, value[name])),
+    dec: (decoder) =>
+      Object.fromEntries(all.map(([name, codec]) => [name, codec.dec(decoder)])) as Value,
   };
 };
 
@@ -235,21 +271,21 @@ export const variants = (cases: Record<string, Record<string, Codec<unknown>>>):
   return {
     // The payload field names of each variant, for `variant`.
     fields: new Map(all.map(([tag, fs]) => [tag, fs.map(([name]) => name)])),
-    enc: (e, v) => {
-      const i = index.get(v.tag);
+    enc: (encoder, value) => {
+      const i = index.get(value.tag);
       if (i === undefined) {
-        throw new Error(`no variant \`${v.tag}\``);
+        throw new Error(`no variant \`${value.tag}\``);
       }
-      e.leb(i);
-      for (const [name, t] of all[i][1]) {
-        t.enc(e, v[name]);
+      encoder.leb(i);
+      for (const [name, codec] of all[i][1]) {
+        codec.enc(encoder, value[name]);
       }
     },
-    dec: (d) => {
-      const [tag, fs] = all[d.tag(all.length)];
+    dec: (decoder) => {
+      const [tag, fs] = all[decoder.tag(all.length)];
       return Object.fromEntries([
         ["tag", tag],
-        ...fs.map(([name, t]) => [name, t.dec(d)]),
+        ...fs.map(([name, codec]) => [name, codec.dec(decoder)]),
       ]) as TaggedValue;
     },
   };

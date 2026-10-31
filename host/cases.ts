@@ -212,7 +212,7 @@ class Runner {
     this.live = null;
   }
 
-  createLive(c: Dynamic, dir: string | null, runner: Dynamic, updates: Dynamic): Dynamic {
+  createLive(context: Dynamic, dir: string | null, runner: Dynamic, updates: Dynamic): Dynamic {
     const io = { stdout: "", stderr: "" };
     const env = {
       args: this.config.args,
@@ -220,10 +220,10 @@ class Runner {
       programs: this.config.programs ?? null,
       processLauncher: this.config.processLauncher,
       stdin: null,
-      grants: c.grants,
+      grants: context.grants,
       tempDir: dir,
-      seed: c.seed,
-      snapshot: c.snapshot ?? null,
+      seed: context.seed,
+      snapshot: context.snapshot ?? null,
       updates,
       runner,
       deadline: this.deadline,
@@ -243,9 +243,9 @@ class Runner {
     return { host, env, io, instance: null, repeated: null };
   }
 
-  prepareLive(c: Dynamic, dir: string | null, runner: Dynamic, updates: Dynamic): Dynamic {
+  prepareLive(context: Dynamic, dir: string | null, runner: Dynamic, updates: Dynamic): Dynamic {
     if (!this.live) {
-      this.live = this.createLive(c, dir, runner, updates);
+      this.live = this.createLive(context, dir, runner, updates);
     }
     const { host, env, io } = this.live;
     io.stdout = "";
@@ -263,7 +263,7 @@ class Runner {
     return this.live;
   }
 
-  async execute(live: Dynamic, c: Dynamic): Promise<Dynamic> {
+  async execute(live: Dynamic, context: Dynamic): Promise<Dynamic> {
     const fresh = live.instance === null;
     if (fresh) {
       live.instance = await WebAssembly.instantiate(this.module, live.host.imports);
@@ -273,22 +273,23 @@ class Runner {
     }
     return live.host.run(
       fresh ? live.instance : live.repeated,
-      fresh ? `hd.init.${c.init}` : "case.init",
-      `hd.test.${c.test}`,
+      fresh ? `hd.init.${context.init}` : "case.init",
+      `hd.test.${context.test}`,
     );
   }
 
   // Successful property bodies retain their instance and import object.
   // Rows, failures and every shrink attempt get a fresh instance.
-  async runOnce(c: Dynamic, k: number, runner: Dynamic, reuse = false): Promise<Dynamic> {
-    const dir = c.tempDir && k > 0 ? this.files.join(c.tempDir, String(k)) : c.tempDir;
-    const updates = c.snapshot?.update && c.kind === "it" ? [] : null;
+  async runOnce(context: Dynamic, k: number, runner: Dynamic, reuse = false): Promise<Dynamic> {
+    const dir =
+      context.tempDir && k > 0 ? this.files.join(context.tempDir, String(k)) : context.tempDir;
+    const updates = context.snapshot?.update && context.kind === "it" ? [] : null;
     if (!reuse) {
       this.release();
     }
-    const live = this.prepareLive(c, dir, runner, updates);
+    const live = this.prepareLive(context, dir, runner, updates);
     const started = performance.now();
-    const ran = await this.execute(live, c);
+    const ran = await this.execute(live, context);
     this.notify({ type: "done" });
     const finished = finishRun({ live, ran, dir, started, updates, files: this.files });
     if (finished.release) {
@@ -301,22 +302,24 @@ class Runner {
 // The failure message of a run that left host handles open: each kind
 // with its count (cli.test.leak.message).
 export const leakReport = (leaks: [string, number][]): string =>
-  `the test case ended with open handles: ${leaks.map(([kind, n]) => `${n} ${kind}`).join(", ")}\n`;
+  `the test case ended with open handles: ${leaks.map(([kind, count]) => `${count} ${kind}`).join(", ")}\n`;
 
 // A trapped run's record adds its Wasm frames, [function, offset] pairs
 // innermost first, when the trap had any.
-const result = (c: Dynamic, r: Dynamic, extra: DynamicRecord = {}): CaseRecord => ({
-  test: c.test,
+const result = (context: Dynamic, result: Dynamic, extra: DynamicRecord = {}): CaseRecord => ({
+  test: context.test,
   ...extra,
-  status: r.status,
-  trapped: r.trapped,
-  stdout: r.stdout,
-  stderr: r.stderr,
-  us: r.us,
-  ...(r.trapped && r.panic ? { category: r.panic.category, message: r.panic.message } : {}),
-  ...(r.trapped && r.frames?.length ? { frames: r.frames } : {}),
-  ...(r.failure === undefined ? {} : { failure: r.failure }),
-  ...(r.updates?.length ? { updates: encodeUpdates(r.updates) } : {}),
+  status: result.status,
+  trapped: result.trapped,
+  stdout: result.stdout,
+  stderr: result.stderr,
+  us: result.us,
+  ...(result.trapped && result.panic
+    ? { category: result.panic.category, message: result.panic.message }
+    : {}),
+  ...(result.trapped && result.frames?.length ? { frames: result.frames } : {}),
+  ...(result.failure === undefined ? {} : { failure: result.failure }),
+  ...(result.updates?.length ? { updates: encodeUpdates(result.updates) } : {}),
 });
 
 // The snapshots an update run recorded, as one string: a record per line,
@@ -348,15 +351,15 @@ class Run {
 // instances calls.
 class Case {
   runner: Runner;
-  c: Dynamic;
+  context: Dynamic;
   kind: string | null;
   row: number;
   rows: number;
   prop: Property | null;
 
-  constructor(runner: Runner, c: Dynamic) {
+  constructor(runner: Runner, context: Dynamic) {
     this.runner = runner;
-    this.c = c;
+    this.context = context;
     this.kind = null;
     this.row = 0;
     this.rows = 0;
@@ -368,7 +371,7 @@ class Case {
     return {
       // Only an `it_each` case runs rows; any other case runs row 0.
       row: (count: number) => {
-        if (this.kind === null && this.c.kind === "it_each") {
+        if (this.kind === null && this.context.kind === "it_each") {
           this.kind = "rows";
           this.rows = count;
           notify({ type: "rows", rows: count });
@@ -382,7 +385,7 @@ class Case {
         if (this.kind === null) {
           this.kind = "prop";
           this.prop = new Property({
-            c: this.c,
+            c: this.context,
             files: this.runner.files,
             cases,
             shrink,
@@ -458,9 +461,15 @@ class Property {
     const seed = this.seed;
     this.seed += 1n;
     if (this.pending !== null) {
-      const p = this.pending;
+      const pendingCase = this.pending;
       this.pending = null;
-      return { example: null, seed, size: p.size, replay: p.replay, kind: p.kind };
+      return {
+        example: null,
+        seed,
+        size: pendingCase.size,
+        replay: pendingCase.replay,
+        kind: pendingCase.kind,
+      };
     }
     if (this.example < this.examples) {
       return { example: this.example++, seed, size: 0, replay: [], kind: "example" };
@@ -482,30 +491,30 @@ class Property {
 
 // Whether a run's recorded panic is the discard panic; never its
 // standard error text, which a program's own message could imitate.
-const isDiscard = (r: Dynamic): boolean =>
-  r.trapped && r.panic?.category === "explicit-panic" && r.panic.message === DISCARD;
+const isDiscard = (result: Dynamic): boolean =>
+  result.trapped && result.panic?.category === "explicit-panic" && result.panic.message === DISCARD;
 
 // What a run of a property case came to: a discard is the discard panic
 // before `show` (std-testing.runner.discard-read); the same panic after it
 // is a failure (std-testing.runner.discard-after-show).
-const outcome = (run: Run, r: Dynamic): string => {
-  if (r.ended) {
+const outcome = (run: Run, result: Dynamic): string => {
+  if (result.ended) {
     return "ended";
   }
-  if (r.trapped) {
-    return run.shown === null && isDiscard(r) ? "discard" : "fail";
+  if (result.trapped) {
+    return run.shown === null && isDiscard(result) ? "discard" : "fail";
   }
-  return r.status === 0 ? "pass" : "fail";
+  return result.status === 0 ? "pass" : "fail";
 };
 
 // `a` is simpler than `b`: shorter, or as long and smaller draw by draw.
-const simpler = (a: bigint[], b: bigint[]): boolean => {
-  if (a.length !== b.length) {
-    return a.length < b.length;
+const simpler = (left: bigint[], right: bigint[]): boolean => {
+  if (left.length !== right.length) {
+    return left.length < right.length;
   }
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) {
-      return a[i] < b[i];
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) {
+      return left[i] < right[i];
     }
   }
   return false;
@@ -531,8 +540,8 @@ async function tryShrink(state: Dynamic, stream: bigint[]): Promise<boolean> {
 async function deleteDraws(state: Dynamic): Promise<void> {
   for (const k of [8, 4, 2, 1]) {
     for (let i = 0; i + k <= state.best.run.draws.length && state.left > 0;) {
-      const s = state.best.run.draws;
-      if (await tryShrink(state, [...s.slice(0, i), ...s.slice(i + k)])) {
+      const draws = state.best.run.draws;
+      if (await tryShrink(state, [...draws.slice(0, i), ...draws.slice(i + k)])) {
         state.improved = true;
       } else {
         i += 1;
@@ -544,13 +553,13 @@ async function deleteDraws(state: Dynamic): Promise<void> {
 async function zeroDraws(state: Dynamic): Promise<void> {
   for (const k of [8, 4, 2, 1]) {
     for (let i = 0; i + k <= state.best.run.draws.length && state.left > 0; i++) {
-      const s = state.best.run.draws;
-      if (s.slice(i, i + k).every((value: bigint) => value === 0n)) {
+      const draws = state.best.run.draws;
+      if (draws.slice(i, i + k).every((value: bigint) => value === 0n)) {
         continue;
       }
-      const z = [...s];
-      z.fill(0n, i, i + k);
-      if (await tryShrink(state, z)) {
+      const candidate = [...draws];
+      candidate.fill(0n, i, i + k);
+      if (await tryShrink(state, candidate)) {
         state.improved = true;
       }
     }
@@ -561,14 +570,14 @@ async function reduceDraws(state: Dynamic): Promise<void> {
   for (let i = 0; i < state.best.run.draws.length && state.left > 0; i++) {
     let lo = 0n;
     while (state.left > 0) {
-      const s = state.best.run.draws;
-      if (i >= s.length || s[i] <= lo) {
+      const draws = state.best.run.draws;
+      if (i >= draws.length || draws[i] <= lo) {
         break;
       }
-      const mid = lo + (s[i] - lo) / 2n;
-      const t = [...s];
-      t[i] = mid;
-      if (await tryShrink(state, t)) {
+      const mid = lo + (draws[i] - lo) / 2n;
+      const candidate = [...draws];
+      candidate[i] = mid;
+      if (await tryShrink(state, candidate)) {
         state.improved = true;
       } else {
         lo = mid + 1n;
@@ -634,20 +643,25 @@ async function reportPropertyFailure({
       );
     }
   }
-  const r = { ...failing.r, us: timing.total };
-  runner.emit(result(c, r, { input: failing.run.shown ?? "" }));
+  const caseResult = { ...failing.r, us: timing.total };
+  runner.emit(result(c, caseResult, { input: failing.run.shown ?? "" }));
 }
 
-function reportDiscardLimit(runner: Runner, c: Dynamic, p: Property, total: number): boolean {
-  if (p.discarded <= 10 * p.cases) {
+function reportDiscardLimit(
+  runner: Runner,
+  context: Dynamic,
+  path: Property,
+  total: number,
+): boolean {
+  if (path.discarded <= 10 * path.cases) {
     return false;
   }
   runner.emit(
-    result(c, {
+    result(context, {
       status: 1,
       trapped: false,
       stdout: "",
-      stderr: `the property discarded ${p.discarded} cases, more than 10 times its ${p.cases} cases\n`,
+      stderr: `the property discarded ${path.discarded} cases, more than 10 times its ${path.cases} cases\n`,
       us: total,
     }),
   );
@@ -656,39 +670,39 @@ function reportDiscardLimit(runner: Runner, c: Dynamic, p: Property, total: numb
 
 // Runs a property case to its end and reports it in one record.
 async function runProperty({ runner, c, ctl, first, firstResult }: DynamicRecord): Promise<void> {
-  const p = ctl.prop;
+  const property = ctl.prop;
   let k = 1;
   const timing = { total: firstResult.us };
   const again = async (pending: Dynamic, reuse = false): Promise<Dynamic> => {
-    p.pending = pending;
+    property.pending = pending;
     const run = new Run();
-    const r = await runner.runOnce(c, k++, ctl.hooks(run), reuse);
-    timing.total += r.us;
-    return { run, r, outcome: outcome(run, r), reused: reuse };
+    const result = await runner.runOnce(c, k++, ctl.hooks(run), reuse);
+    timing.total += result.us;
+    return { run, r: result, outcome: outcome(run, result), reused: reuse };
   };
   let current = { run: first, r: firstResult, outcome: outcome(first, firstResult) };
   for (;;) {
-    const { run, outcome: o } = current;
-    if (o === "ended") {
+    const { run, outcome: caseOutcome } = current;
+    if (caseOutcome === "ended") {
       break;
     }
-    if (o === "fail") {
-      await reportPropertyFailure({ runner, c, p, current, again, timing });
+    if (caseOutcome === "fail") {
+      await reportPropertyFailure({ runner, c, p: property, current, again, timing });
       return;
     }
-    if (o === "discard") {
-      p.discarded += 1;
-      if (reportDiscardLimit(runner, c, p, timing.total)) {
+    if (caseOutcome === "discard") {
+      property.discarded += 1;
+      if (reportDiscardLimit(runner, c, property, timing.total)) {
         return;
       }
-    } else if (o === "pass" && run.plan && run.plan.kind === "fresh") {
-      p.passed += 1;
-      p.size += 1;
+    } else if (caseOutcome === "pass" && run.plan && run.plan.kind === "fresh") {
+      property.passed += 1;
+      property.size += 1;
     }
-    if (!p.more()) {
+    if (!property.more()) {
       break;
     }
-    current = await again(null, o === "pass");
+    current = await again(null, caseOutcome === "pass");
   }
   runner.emit(result(c, { ...firstResult, status: 0, trapped: false, us: timing.total }));
 }
@@ -704,18 +718,23 @@ export async function runCases(
   const { cases } = runner.config;
   try {
     for (let ci = start.case; ci < cases.length; ci++) {
-      const c = cases[ci];
+      const context = cases[ci];
       runner.notify({ type: "case", ci });
       runner.release();
       runner.begin();
-      const ctl = new Case(runner, c);
+      const ctl = new Case(runner, context);
       // Every row runs; one failing row hides no other.
       const rowsFrom = async (from: number, rows: number): Promise<void> => {
         for (let row = from; row < rows; row++) {
           ctl.row = row;
           runner.notify({ type: "row", row });
           runner.begin();
-          runner.emit(result(c, await runner.runOnce(c, row, ctl.hooks(new Run())), { row, rows }));
+          runner.emit(
+            result(context, await runner.runOnce(context, row, ctl.hooks(new Run())), {
+              row,
+              rows,
+            }),
+          );
         }
       };
       // A table resumed after a row its supervisor stopped.
@@ -726,19 +745,19 @@ export async function runCases(
         continue;
       }
       const first = new Run();
-      const r = await runner.runOnce(c, 0, ctl.hooks(first));
+      const caseResult = await runner.runOnce(context, 0, ctl.hooks(first));
       if (ctl.kind === "rows") {
         const rows = ctl.rows;
         if (rows === 0) {
-          runner.emit({ test: c.test, row: 0, rows: 0 });
+          runner.emit({ test: context.test, row: 0, rows: 0 });
           continue;
         }
-        runner.emit(result(c, r, { row: 0, rows }));
+        runner.emit(result(context, caseResult, { row: 0, rows }));
         await rowsFrom(1, rows);
       } else if (ctl.kind === "prop") {
-        await runProperty({ runner, c, ctl, first, firstResult: r });
+        await runProperty({ runner, c: context, ctl, first, firstResult: caseResult });
       } else {
-        runner.emit(result(c, r));
+        runner.emit(result(context, caseResult));
       }
     }
   } finally {

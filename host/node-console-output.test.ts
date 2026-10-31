@@ -18,19 +18,19 @@ import { receiveReply } from "./worker-control.ts";
 type Dynamic = ReturnType<typeof JSON.parse>;
 
 // #813: the worker reserves original bytes until guest finish.
-function inputWorker(t: TestContext, content: string | Uint8Array): Dynamic {
+function inputWorker(testContext: TestContext, content: string | Uint8Array): Dynamic {
   const root = mkdtempSync(join(tmpdir(), "hd-input-"));
   writeFileSync(join(root, "input"), content);
   const fd = openSync(join(root, "input"), "r");
-  const call = netWorker(t, { url: new URL("./input.ts", import.meta.url) });
-  t.after(() => {
+  const call = netWorker(testContext, { url: new URL("./input.ts", import.meta.url) });
+  testContext.after(() => {
     closeSync(fd);
     rmSync(root, { recursive: true, force: true });
   });
   const start = (kind = "line") => call({ op: "wait_start", kind, fd }).ok;
   const ready = async (operation: number): Promise<Dynamic> => {
     let result: Dynamic;
-    await t.waitFor(
+    await testContext.waitFor(
       () => {
         result = call({ op: "wait_poll", operation });
         assert.notEqual(result.pending, true);
@@ -48,9 +48,9 @@ function inputWorker(t: TestContext, content: string | Uint8Array): Dynamic {
   return { call, start, ready, read };
 }
 
-test("Console input preserves UTF-8, CRLF and the final unterminated line", async (t) => {
+test("Console input preserves UTF-8, CRLF and the final unterminated line", async (testContext) => {
   const input = inputWorker(
-    t,
+    testContext,
     Buffer.concat([Buffer.from("A\r\né\nbad"), Buffer.from([255]), Buffer.from("\r\nlast\r")]),
   );
   assert.deepEqual(await input.read(), { ok: "A" });
@@ -60,8 +60,8 @@ test("Console input preserves UTF-8, CRLF and the final unterminated line", asyn
 });
 
 for (const reverse of [false, true]) {
-  test(`Console input restores concurrent reservations (${reverse ? "reverse" : "forward"} abort order)`, async (t) => {
-    const input = inputWorker(t, "first\r\nsecond\nthird\n");
+  test(`Console input restores concurrent reservations (${reverse ? "reverse" : "forward"} abort order)`, async (testContext) => {
+    const input = inputWorker(testContext, "first\r\nsecond\nthird\n");
     const first = input.start(),
       second = input.start();
     assert.deepEqual(await input.ready(first), { ok: "first" });
@@ -74,8 +74,8 @@ for (const reverse of [false, true]) {
   });
 }
 
-test("Console read_all abort restores bytes after readiness", async (t) => {
-  const input = inputWorker(t, "one\r\ntwo");
+test("Console read_all abort restores bytes after readiness", async (testContext) => {
+  const input = inputWorker(testContext, "one\r\ntwo");
   const operation = input.start("all");
   assert.deepEqual(await input.ready(operation), { ok: "one\ntwo" });
   input.call({ op: "wait_abort", operation });
@@ -85,8 +85,8 @@ test("Console read_all abort restores bytes after readiness", async (t) => {
   assert.deepEqual(await input.read(), { ok: null });
 });
 
-test("Console unreadable input reports a numeric host code", async (t) => {
-  const call = netWorker(t, { url: new URL("./input.ts", import.meta.url) });
+test("Console unreadable input reports a numeric host code", async (testContext) => {
+  const call = netWorker(testContext, { url: new URL("./input.ts", import.meta.url) });
   const operation = call({ op: "wait_start", kind: "line", fd: -1 }).ok;
   const result = call({ op: "wait_poll", operation });
   assert.equal(typeof result.error, "number");
@@ -96,14 +96,14 @@ test("Console unreadable input reports a numeric host code", async (t) => {
 // A Console write is one call: it returns its result once the stream has
 // taken every byte (module.console.write-sync.never-suspends).
 for (const method of ["write_sync", "write_error_sync"]) {
-  test(`Console ${method} returns once every byte is written`, async (t) => {
-    const root = fixture(t, { output: "" });
+  test(`Console ${method} returns once every byte is written`, async (testContext) => {
+    const root = fixture(testContext, { output: "" });
     const fd = openSync(join(root, "output"), "w");
-    t.after(() => closeSync(fd));
+    testContext.after(() => closeSync(fd));
     const output = createOutput();
-    t.after(() => output.close());
+    testContext.after(() => output.close());
     const host = createHost({ out() {}, err() {}, write: (_, text) => output.write(fd, text) });
-    t.after(() => host.close());
+    testContext.after(() => host.close());
     const memory = new WebAssembly.Memory({ initial: 1 });
     host.prime({ exports: { "hd.x": memory } });
     new Uint8Array(memory.buffer).set(new TextEncoder().encode("written-at-once"));
@@ -115,11 +115,11 @@ for (const method of ["write_sync", "write_error_sync"]) {
 
 // The queue keeps preceding writes in order, and control requests stay
 // live while a chunk waits on a full socket.
-test("Output full socket keeps control live", async (t) => {
+test("Output full socket keeps control live", async (testContext) => {
   const server = net.createServer();
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
-  t.after(() => server.close());
+  testContext.after(() => server.close());
   const accepted = once(server, "connection");
   const address = server.address();
   assert(address && typeof address !== "string");
@@ -127,18 +127,18 @@ test("Output full socket keeps control live", async (t) => {
   await once(writer, "connect");
   const [reader] = await accepted;
   reader.pause();
-  t.after(() => {
+  testContext.after(() => {
     writer.destroy();
     reader.destroy();
   });
-  const call = netWorker(t, {
+  const call = netWorker(testContext, {
     url: new URL("./output-worker.ts", import.meta.url),
     data: { output: true },
   });
   const { port1, port2 } = new MessageChannel();
   const flag = new Int32Array(new SharedArrayBuffer(4));
   call({ op: "attach", port: port2, flag }, [port2]);
-  t.after(() => port1.close());
+  testContext.after(() => port1.close());
   const fd = (writer as Dynamic)._handle.fd;
   const before = "earlier-output\n";
   call({ op: "enqueue", fd, text: before });
@@ -146,7 +146,7 @@ test("Output full socket keeps control live", async (t) => {
   const id = 1;
   Atomics.store(flag, 0, 0);
   port1.postMessage({ id, request: { op: "wait_start", fd, text } });
-  await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: false }));
+  await testContext.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: false }));
   for (let i = 0; i < 5; i++) {
     assert.deepEqual(call({ op: "idle" }), { ok: false });
   }
@@ -156,7 +156,9 @@ test("Output full socket keeps control live", async (t) => {
   reader.on("data", (bytes: Buffer) => chunks.push(bytes));
   const ended = once(reader, "end");
   reader.resume();
-  await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: true }), { timeout: 10000 });
+  await testContext.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: true }), {
+    timeout: 10000,
+  });
   writer.end();
   await ended;
   const received = Buffer.concat(chunks).toString();
@@ -172,7 +174,7 @@ test("Output full socket keeps control live", async (t) => {
 test(
   "Output pinned writes finish 2000 calls without per-write sleeps",
   { timeout: 5000 },
-  async (t) => {
+  async (testContext) => {
     const reader = spawn(
       process.execPath,
       [
@@ -182,7 +184,7 @@ test(
       { stdio: ["pipe", "pipe", "inherit"] },
     );
     const closed = once(reader, "close");
-    t.after(() => {
+    testContext.after(() => {
       if (reader.exitCode === null && reader.signalCode === null) {
         reader.kill("SIGKILL");
       }
@@ -192,7 +194,7 @@ test(
     reader.stdout.on("data", (text) => (received += text));
     const output = createOutput();
     const pinned = output.connection();
-    t.after(() => pinned.port.close());
+    testContext.after(() => pinned.port.close());
     const started = performance.now();
     for (let i = 0; i < 2000; i++) {
       assert.deepEqual(output.write((reader.stdin as Dynamic)._handle.fd, "x"), Ok(undefined));
@@ -215,7 +217,7 @@ test(
 test(
   "Output to a held stdout pipe blocks, hands off to the thread, and keeps order",
   { skip: process.platform === "win32", timeout: 15000 },
-  async (t) => {
+  async (testContext) => {
     const url = new URL("./output.ts", import.meta.url).href;
     const script = `
       import { writeSync } from "node:fs";
@@ -240,7 +242,7 @@ test(
     const child = spawn(process.execPath, ["--input-type=module", "-e", script], {
       stdio: ["ignore", "pipe", "pipe"],
     });
-    t.after(() => child.kill());
+    testContext.after(() => child.kill());
     child.stdout.pause();
     let errors = "";
     const closed = once(child, "close");

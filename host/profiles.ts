@@ -60,8 +60,8 @@ export function providers(name: string, io: DynamicRecord): DynamicRecord {
       return {
         "hd:Files": {
           "open.start": () => io.pending({ at: performance.now(), done: null }),
-          "open.finish": (h: number) => {
-            io.finish(h);
+          "open.finish": (value: number) => {
+            io.finish(value);
             const file = files.size + 1;
             files.set(file, true);
             return io.put(new io.Enc().leb(file));
@@ -69,14 +69,14 @@ export function providers(name: string, io: DynamicRecord): DynamicRecord {
         },
         "hd:FileHandle": {
           "read.start": (file: number) => {
-            const [status, h] = io.pending({ at: performance.now(), done: null });
-            reads.set(h, file);
-            return [status, h];
+            const [status, host] = io.pending({ at: performance.now(), done: null });
+            reads.set(host, file);
+            return [status, host];
           },
-          "read.finish": (h: number) => {
-            io.finish(h);
-            const file = reads.get(h)!;
-            reads.delete(h);
+          "read.finish": (value: number) => {
+            io.finish(value);
+            const file = reads.get(value)!;
+            reads.delete(value);
             return io.put(known(file) ? new io.Enc().leb(0).str("") : disposed());
           },
           close: (file: number) => {
@@ -98,8 +98,8 @@ export function providers(name: string, io: DynamicRecord): DynamicRecord {
       return {
         "hd:Tick": {
           "tick.start": () => io.pending({ at: performance.now(), done: null }),
-          "tick.finish": (h: number) => {
-            io.finish(h);
+          "tick.finish": (value: number) => {
+            io.finish(value);
             return 0;
           },
         },
@@ -110,8 +110,8 @@ export function providers(name: string, io: DynamicRecord): DynamicRecord {
       return {
         "hd:Gate": {
           "wait.start": () => io.pending({ at: Infinity, done: null }),
-          "wait.finish": (h: number) => {
-            io.finish(h);
+          "wait.finish": (value: number) => {
+            io.finish(value);
             return 0;
           },
         },

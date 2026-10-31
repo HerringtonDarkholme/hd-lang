@@ -91,53 +91,53 @@ function split(value: number, width: FloatWidth): FloatParts {
 function digits({ f, e, min, hidden }: FloatParts): { digits: string; k: number } {
   // The value is r / s; `up` and `down` are the distances to the halfway
   // points above and below, in the same unit.
-  let [r, s, up, down] = interval({ f, e, min, hidden });
+  let [result, source, up, down] = interval({ f, e, min, hidden });
   const closed = (f & 1n) === 0n;
   // `k` is the least exponent with the high end of the interval below
   // 10**k (at most 10**k when the ends are inside).
-  const reaches = () => (closed ? r + up >= s : r + up > s);
-  const fits = () => (closed ? (r + up) * 10n < s : (r + up) * 10n <= s);
+  const reaches = () => (closed ? result + up >= source : result + up > source);
+  const fits = () => (closed ? (result + up) * 10n < source : (result + up) * 10n <= source);
   let k = Math.ceil(Math.log10(Number(f) * 2 ** e) - 1e-9);
   if (k >= 0) {
-    s *= 10n ** BigInt(k);
+    source *= 10n ** BigInt(k);
   } else {
     const scale = 10n ** BigInt(-k);
-    r *= scale;
+    result *= scale;
     up *= scale;
     down *= scale;
   }
   while (reaches()) {
-    s *= 10n;
+    source *= 10n;
     k += 1;
   }
   while (fits()) {
-    r *= 10n;
+    result *= 10n;
     up *= 10n;
     down *= 10n;
     k -= 1;
   }
   let out = "";
   for (;;) {
-    r *= 10n;
+    result *= 10n;
     up *= 10n;
     down *= 10n;
-    let d = r / s;
-    r %= s;
-    const low = closed ? r <= down : r < down;
-    const high = closed ? r + up >= s : r + up > s;
+    let data = result / source;
+    result %= source;
+    const low = closed ? result <= down : result < down;
+    const high = closed ? result + up >= source : result + up > source;
     if (!low && !high) {
-      out += d;
+      out += data;
       continue;
     }
     if (low && high) {
-      const twice = r * 2n;
-      if (twice > s || (twice === s && (d & 1n) === 1n)) {
-        d += 1n;
+      const twice = result * 2n;
+      if (twice > source || (twice === source && (data & 1n) === 1n)) {
+        data += 1n;
       }
     } else if (high) {
-      d += 1n;
+      data += 1n;
     }
-    out += d;
+    out += data;
     return { digits: out, k };
   }
 }
@@ -163,10 +163,10 @@ export function shortest(value: number, width: FloatWidth): string {
     // read back as the same `f64`, closest to the value, an exact tie going
     // to the even digit: `d.ddde+N`.
     const text = Math.abs(value).toExponential();
-    const e = text.indexOf("e");
-    const mantissa = text.slice(0, e);
+    const exponentAt = text.indexOf("e");
+    const mantissa = text.slice(0, exponentAt);
     const ds = mantissa.length > 1 ? mantissa[0] + mantissa.slice(2) : mantissa;
-    const exponent = Number(text.slice(e + 1));
+    const exponent = Number(text.slice(exponentAt + 1));
     return layout(sign, ds, exponent);
   }
   const { digits: ds, k } = digits(split(value, width));
@@ -202,12 +202,12 @@ export function fixed(value: number, places: number): string {
     return "-inf";
   }
   const { negative, f, e } = split(value, 64);
-  const n = BigInt(places);
+  const bigInt = BigInt(places);
   let scaled;
   if (e >= 0) {
-    scaled = f * (1n << BigInt(e)) * 10n ** n;
+    scaled = f * (1n << BigInt(e)) * 10n ** bigInt;
   } else {
-    const numerator = f * 10n ** n;
+    const numerator = f * 10n ** bigInt;
     const denominator = 1n << BigInt(-e);
     scaled = numerator / denominator;
     const twice = (numerator % denominator) * 2n;
@@ -232,21 +232,21 @@ const DECIMAL = /^(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))(?:[eE]([+-]?[0-9]+))?$/
 // (ECMA-262, StringToNumber); past that the exact rational is rounded
 // by `parseExact`. Text outside the grammar is a bug in std.
 export function parse(text: string): number {
-  const m = DECIMAL.exec(text);
-  if (m === null) {
+  const match = DECIMAL.exec(text);
+  if (match === null) {
     throw new Error(`parse_f64: text outside the grammar: ${text}`);
   }
-  const whole = m[1] ?? "";
-  const fraction = m[2] ?? m[3] ?? "";
+  const whole = match[1] ?? "";
+  const fraction = match[2] ?? match[3] ?? "";
   const significant = (whole + fraction).replace(/^0+/, "");
   if (significant.length <= 20) {
     return Number(text);
   }
-  return parseExact(significant, BigInt(m[4] ?? "0") - BigInt(fraction.length));
+  return parseExact(significant, BigInt(match[4] ?? "0") - BigInt(fraction.length));
 }
 
-function bitLength(n: bigint): number {
-  return n === 0n ? 0 : n.toString(2).length;
+function bitLength(count: bigint): number {
+  return count === 0n ? 0 : count.toString(2).length;
 }
 
 // The value `digits * 10^exponent` (digits non-empty, no leading zero) as
@@ -260,14 +260,14 @@ function parseExact(digits: string, exponent: bigint): number {
   if (magnitude < -330n) {
     return 0;
   }
-  const d = BigInt(digits);
-  const e = Number(exponent);
-  let num = d;
+  const bigInt = BigInt(digits);
+  const number = Number(exponent);
+  let num = bigInt;
   let den = 1n;
-  if (e >= 0) {
-    num = d * 10n ** BigInt(e);
+  if (number >= 0) {
+    num = bigInt * 10n ** BigInt(number);
   } else {
-    den = 10n ** BigInt(-e);
+    den = 10n ** BigInt(-number);
   }
   // Scale so the quotient has 54 to 56 bits, then round it to the width
   // of the result.
@@ -277,21 +277,23 @@ function parseExact(digits: string, exponent: bigint): number {
   } else {
     den <<= BigInt(-shift);
   }
-  const q = num / den;
+  const queue = num / den;
   const rest = num % den;
-  const top = bitLength(q) - 1 - shift;
+  const top = bitLength(queue) - 1 - shift;
   // The exponent of the last place: 52 below the top bit, or -1074 for a
   // subnormal.
   const unit = Math.max(top - 52, -1074);
   const drop = BigInt(unit + shift);
-  let significand = q >> drop;
-  const low = q & ((1n << drop) - 1n);
+  let significand = queue >> drop;
+  const low = queue & ((1n << drop) - 1n);
   const half = 1n << (drop - 1n);
   if (low > half || (low === half && (rest > 0n || (significand & 1n) === 1n))) {
     significand += 1n;
   }
-  const x = Number(significand);
-  return unit >= -1000 ? x * 2 ** unit : x * 2 ** -1000 * 2 ** (unit + 1000);
+  const significandNumber = Number(significand);
+  return unit >= -1000
+    ? significandNumber * 2 ** unit
+    : significandNumber * 2 ** -1000 * 2 ** (unit + 1000);
 }
 
 // Unicode Default Case Conversion with full mappings

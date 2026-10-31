@@ -274,19 +274,19 @@ function supervise({
     let fact: string | null = null;
     // A message is output (`fd`, `text`), the facts body (`fact`),
     // or the program's status.
-    const take = (m: Dynamic): void => {
-      if (m.fact !== undefined) {
-        fact = m.fact;
-      } else if (m.fd === undefined) {
-        status = m.status;
+    const take = (message: Dynamic): void => {
+      if (message.fact !== undefined) {
+        fact = message.fact;
+      } else if (message.fd === undefined) {
+        status = message.status;
       } else {
         // The guest already queued these bytes through its writer connection.
-        if (m.fd === 2 && m.text === reportIn(fact, PROGRAM_TIME_LIMIT)) {
+        if (message.fd === 2 && message.text === reportIn(fact, PROGRAM_TIME_LIMIT)) {
           reported = true;
         }
       }
     };
-    const end = (s: number): void => {
+    const end = (value: number): void => {
       if (ended) {
         return;
       }
@@ -297,8 +297,8 @@ function supervise({
       }
       port.close();
       output.drain().then(() => {
-        exitPast([worker], s, config.statusFile);
-        resolve(s);
+        exitPast([worker], value, config.statusFile);
+        resolve(value);
       }, fail);
     };
     // A Ctrl-C reaches a worker whose host waits, which cancels or
@@ -313,8 +313,8 @@ function supervise({
         Atomics.notify(cell!, 0);
         return;
       }
-      for (let m; status === null && (m = receiveMessageOnPort(port));) {
-        take(m.message);
+      for (let received; status === null && (received = receiveMessageOnPort(port));) {
+        take(received.message);
       }
       if (status !== null) {
         return end(status);
@@ -329,8 +329,8 @@ function supervise({
     // What the worker sent before the deadline is written first; a worker
     // that ended the run itself is not stopped.
     const timer = setTimeout(() => {
-      for (let m; status === null && (m = receiveMessageOnPort(port));) {
-        take(m.message);
+      for (let received; status === null && (received = receiveMessageOnPort(port));) {
+        take(received.message);
       }
       if (status !== null) {
         return end(status);
@@ -341,12 +341,12 @@ function supervise({
       }
       end(3);
     }, limit + GRACE_MS);
-    port.on("message", (m) => {
+    port.on("message", (message) => {
       if (!ended) {
-        take(m);
+        take(message);
       }
     });
-    worker.on("error", (e: Error) => {
+    worker.on("error", (error: Error) => {
       if (ended) {
         return;
       }
@@ -356,11 +356,11 @@ function supervise({
         process.off(signal, interrupt);
       }
       port.close();
-      fail(e);
+      fail(error);
     });
     worker.on("exit", () => {
-      for (let m; !ended && (m = receiveMessageOnPort(port));) {
-        take(m.message);
+      for (let received; !ended && (received = receiveMessageOnPort(port));) {
+        take(received.message);
       }
       end(status ?? 1);
     });

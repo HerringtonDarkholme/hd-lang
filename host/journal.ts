@@ -101,39 +101,40 @@ const SECRET = Uint8Array.of(
 );
 const SV = new DataView(SECRET.buffer);
 
-const add = (a: bigint, b: bigint): bigint => (a + b) & M64;
-const mul = (a: bigint, b: bigint): bigint => (a * b) & M64;
-const neg = (a: bigint): bigint => -a & M64;
-const xorshift = (v: bigint, s: bigint): bigint => v ^ (v >> s);
-const mul128 = (a: bigint, b: bigint): [bigint, bigint] => {
-  const p = a * b;
-  return [p & M64, p >> 64n];
+const add = (left: bigint, right: bigint): bigint => (left + right) & M64;
+const mul = (left: bigint, right: bigint): bigint => (left * right) & M64;
+const neg = (left: bigint): bigint => -left & M64;
+const xorshift = (value: bigint, shift: bigint): bigint => value ^ (value >> shift);
+const mul128 = (left: bigint, right: bigint): [bigint, bigint] => {
+  const product = left * right;
+  return [product & M64, product >> 64n];
 };
-const fold = (a: bigint, b: bigint): bigint => {
-  const p = a * b;
-  return (p & M64) ^ (p >> 64n);
+const fold = (left: bigint, right: bigint): bigint => {
+  const product = left * right;
+  return (product & M64) ^ (product >> 64n);
 };
-const bswap64 = (v: bigint): bigint => {
-  let r = 0n;
+const bswap64 = (value: bigint): bigint => {
+  let result = 0n;
   for (let i = 0; i < 8; i++) {
-    r = (r << 8n) | ((v >> BigInt(8 * i)) & 0xffn);
+    result = (result << 8n) | ((value >> BigInt(8 * i)) & 0xffn);
   }
-  return r;
+  return result;
 };
-const bswap32 = (v: number): number =>
-  ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v >>> 8) & 0xff00) | (v >>> 24);
-const avalanche = (v: bigint): bigint => xorshift(mul(xorshift(v, 37n), 0x165667919e3779f9n), 32n);
-const avalanche64 = (v: bigint): bigint => {
-  v = mul(xorshift(v, 33n), P64_2);
-  v = mul(xorshift(v, 29n), P64_3);
-  return xorshift(v, 32n);
+const bswap32 = (value: number): number =>
+  ((value & 0xff) << 24) | ((value & 0xff00) << 8) | ((value >>> 8) & 0xff00) | (value >>> 24);
+const avalanche = (value: bigint): bigint =>
+  xorshift(mul(xorshift(value, 37n), 0x165667919e3779f9n), 32n);
+const avalanche64 = (value: bigint): bigint => {
+  value = mul(xorshift(value, 33n), P64_2);
+  value = mul(xorshift(value, 29n), P64_3);
+  return xorshift(value, 32n);
 };
 const s64 = (at: number): bigint => SV.getBigUint64(at, true);
 const s32 = (at: number): bigint => BigInt(SV.getUint32(at, true));
 const join128 = (lo: bigint, hi: bigint): bigint => lo | (hi << 64n);
 
-function short128(b: Uint8Array, dv: DataView): bigint {
-  const len = b.length;
+function short128(bytes: Uint8Array, dv: DataView): bigint {
+  const len = bytes.length;
   const r64 = (at: number): bigint => dv.getBigUint64(at, true);
   if (len > 8) {
     const lo = r64(0);
@@ -155,7 +156,8 @@ function short128(b: Uint8Array, dv: DataView): bigint {
     return join128(lo, avalanche(hi));
   }
   if (len > 0) {
-    const lo32 = ((b[0]! << 16) | (b[len >> 1]! << 24) | b[len - 1]! | (len << 8)) >>> 0;
+    const lo32 =
+      ((bytes[0]! << 16) | (bytes[len >> 1]! << 24) | bytes[len - 1]! | (len << 8)) >>> 0;
     const swapped = bswap32(lo32) >>> 0;
     const hi32 = ((swapped << 13) | (swapped >>> 19)) >>> 0;
     const lo = avalanche64(BigInt(lo32) ^ (s32(0) ^ s32(4)));
@@ -165,8 +167,8 @@ function short128(b: Uint8Array, dv: DataView): bigint {
   return join128(avalanche64(s64(64) ^ s64(72)), avalanche64(s64(80) ^ s64(88)));
 }
 
-function mid128(b: Uint8Array, dv: DataView): bigint {
-  const len = b.length;
+function mid128(bytes: Uint8Array, dv: DataView): bigint {
+  const len = bytes.length;
   const r64 = (at: number): bigint => dv.getBigUint64(at, true);
   const mix16 = (at: number, sat: number): bigint =>
     fold(r64(at) ^ s64(sat), r64(at + 8) ^ s64(sat + 8));
@@ -204,8 +206,8 @@ function mid128(b: Uint8Array, dv: DataView): bigint {
   return join128(avalanche(lo), neg(avalanche(hi)));
 }
 
-function long128(b: Uint8Array, dv: DataView): bigint {
-  const len = b.length;
+function long128(bytes: Uint8Array, dv: DataView): bigint {
+  const len = bytes.length;
   const acc = [P32_3, P64_1, P64_2, P64_3, P64_4, P32_2, P64_5, P32_1];
   const stripe = (at: number, sat: number): void => {
     for (let i = 0; i < 8; i++) {
@@ -217,25 +219,28 @@ function long128(b: Uint8Array, dv: DataView): bigint {
   };
   const blockLen = 64 * 16;
   const blocks = Math.floor((len - 1) / blockLen);
-  for (let n = 0; n < blocks; n++) {
-    for (let s = 0; s < 16; s++) {
-      stripe(n * blockLen + 64 * s, 8 * s);
+  for (let blockIndex = 0; blockIndex < blocks; blockIndex++) {
+    for (let stripeIndex = 0; stripeIndex < 16; stripeIndex++) {
+      stripe(blockIndex * blockLen + 64 * stripeIndex, 8 * stripeIndex);
     }
     for (let i = 0; i < 8; i++) {
       acc[i] = mul(xorshift(acc[i]!, 47n) ^ s64(128 + 8 * i), P32_1);
     }
   }
   const stripes = Math.floor((len - 1 - blockLen * blocks) / 64);
-  for (let s = 0; s < stripes; s++) {
-    stripe(blocks * blockLen + 64 * s, 8 * s);
+  for (let stripeIndex = 0; stripeIndex < stripes; stripeIndex++) {
+    stripe(blocks * blockLen + 64 * stripeIndex, 8 * stripeIndex);
   }
   stripe(len - 64, 192 - 64 - 7);
   const merge = (sat: number, start: bigint): bigint => {
-    let r = start;
+    let hash = start;
     for (let i = 0; i < 4; i++) {
-      r = add(r, fold(acc[2 * i]! ^ s64(sat + 16 * i), acc[2 * i + 1]! ^ s64(sat + 16 * i + 8)));
+      hash = add(
+        hash,
+        fold(acc[2 * i]! ^ s64(sat + 16 * i), acc[2 * i + 1]! ^ s64(sat + 16 * i + 8)),
+      );
     }
-    return avalanche(r);
+    return avalanche(hash);
   };
   return join128(merge(11, mul(BigInt(len), P64_1)), merge(117, ~mul(BigInt(len), P64_2) & M64));
 }
@@ -255,20 +260,20 @@ export function xxh3_128(bytes: Uint8Array): bigint {
 // --- framing ---------------------------------------------------------------
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, i) => {
-  let c = i;
+  let crc = i;
   for (let bit = 0; bit < 8; bit++) {
-    c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+    crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
   }
-  return c >>> 0;
+  return crc >>> 0;
 });
 
 // CRC-32 (IEEE), the journal checksum.
 export function crc32(bytes: Uint8Array): number {
-  let c = 0xffffffff;
-  for (const b of bytes) {
-    c = CRC_TABLE[(c ^ b) & 0xff]! ^ (c >>> 8);
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = CRC_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
   }
-  return ~c >>> 0;
+  return ~crc >>> 0;
 }
 
 // A growable byte string that rows and payloads are written into.
@@ -280,39 +285,39 @@ class Bytes {
     this.buf = new Uint8Array(256);
     this.len = 0;
   }
-  room(n: number): void {
-    if (this.len + n <= this.buf.length) {
+  room(value: number): void {
+    if (this.len + value <= this.buf.length) {
       return;
     }
-    const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + n));
+    const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + value));
     next.set(this.buf.subarray(0, this.len));
     this.buf = next;
   }
-  byte(b: number): void {
+  byte(value: number): void {
     this.room(1);
-    this.buf[this.len++] = b;
+    this.buf[this.len++] = value;
   }
   raw(bytes: Uint8Array): void {
     this.room(bytes.length);
     this.buf.set(bytes, this.len);
     this.len += bytes.length;
   }
-  uleb(v: number | bigint): void {
-    let x = BigInt(v);
+  uleb(value: number | bigint): void {
+    let bigInt = BigInt(value);
     this.room(10);
     do {
-      let b = Number(x & 0x7fn);
-      x >>= 7n;
-      if (x) {
-        b |= 0x80;
+      let number = Number(bigInt & 0x7fn);
+      bigInt >>= 7n;
+      if (bigInt) {
+        number |= 0x80;
       }
-      this.buf[this.len++] = b;
-    } while (x);
+      this.buf[this.len++] = number;
+    } while (bigInt);
   }
   // A u64 or u128 as `bytes` little-endian bytes.
-  le(v: number | bigint, bytes: number): void {
+  le(value: number | bigint, bytes: number): void {
     for (let i = 0; i < bytes; i++) {
-      this.byte(Number((BigInt(v) >> BigInt(8 * i)) & 0xffn));
+      this.byte(Number((BigInt(value) >> BigInt(8 * i)) & 0xffn));
     }
   }
   view(): Uint8Array {
@@ -323,12 +328,12 @@ class Bytes {
   }
 }
 
-const ulebLen = (v: number | bigint): number => {
-  let n = 1;
-  for (let x = BigInt(v) >> 7n; x; x >>= 7n) {
-    n++;
+const ulebLen = (value: number | bigint): number => {
+  let count = 1;
+  for (let remaining = BigInt(value) >> 7n; remaining; remaining >>= 7n) {
+    count++;
   }
-  return n;
+  return count;
 };
 
 // Row kinds, as journal.rs numbers them.
@@ -361,74 +366,74 @@ function appendRow(out: Bytes, kind: number, index: number, payload: Uint8Array)
 
 // A reader over a payload; every read answers `undefined` past its end.
 class Reader {
-  b: Uint8Array;
+  input: Uint8Array;
   at: number;
 
-  constructor(b: Uint8Array) {
-    this.b = b;
+  constructor(input: Uint8Array) {
+    this.input = input;
     this.at = 0;
   }
   uleb(): bigint | undefined {
-    let v = 0n;
+    let value = 0n;
     for (let shift = 0n; shift < 64n; shift += 7n) {
-      const byte = this.b[this.at];
+      const byte = this.input[this.at];
       if (byte === undefined) {
         return undefined;
       }
       this.at++;
-      v |= BigInt(byte & 0x7f) << shift;
+      value |= BigInt(byte & 0x7f) << shift;
       if (!(byte & 0x80)) {
-        return v;
+        return value;
       }
     }
     return undefined;
   }
   num(): number | undefined {
-    const v = this.uleb();
-    return v === undefined || v > 0xffffffffn ? undefined : Number(v);
+    const encoded = this.uleb();
+    return encoded === undefined || encoded > 0xffffffffn ? undefined : Number(encoded);
   }
-  bytes(n: number | undefined): Uint8Array | undefined {
-    if (n === undefined || this.at + n > this.b.length) {
+  bytes(value: number | undefined): Uint8Array | undefined {
+    if (value === undefined || this.at + value > this.input.length) {
       return undefined;
     }
-    const out = this.b.slice(this.at, this.at + n);
-    this.at += n;
+    const out = this.input.slice(this.at, this.at + value);
+    this.at += value;
     return out;
   }
-  le(n: number): bigint | undefined {
-    const b = this.bytes(n);
-    if (b === undefined) {
+  le(value: number): bigint | undefined {
+    const bytes = this.bytes(value);
+    if (bytes === undefined) {
       return undefined;
     }
-    let v = 0n;
-    for (let i = n - 1; i >= 0; i--) {
-      v = (v << 8n) | BigInt(b[i]!);
+    let decoded = 0n;
+    for (let i = value - 1; i >= 0; i--) {
+      decoded = (decoded << 8n) | BigInt(bytes[i]!);
     }
-    return v;
+    return decoded;
   }
   text(): string | undefined {
-    const b = this.bytes(this.num());
-    if (b === undefined) {
+    const bytes = this.bytes(this.num());
+    if (bytes === undefined) {
       return undefined;
     }
     try {
-      return new TextDecoder("utf-8", { fatal: true }).decode(b);
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     } catch {
       return undefined;
     }
   }
   handles(): number[] | undefined {
-    const n = this.num();
-    if (n === undefined) {
+    const count = this.num();
+    if (count === undefined) {
       return undefined;
     }
     const out: number[] = [];
-    for (let i = 0; i < n; i++) {
-      const h = this.num();
-      if (h === undefined) {
+    for (let i = 0; i < count; i++) {
+      const item = this.num();
+      if (item === undefined) {
         return undefined;
       }
-      out.push(h);
+      out.push(item);
     }
     return out;
   }
@@ -436,32 +441,32 @@ class Reader {
 
 // Reads rows until the end or the first torn or corrupt row: the rows,
 // `{ kind, index, payload }`, and the length of the valid prefix.
-export function readRows(b: Uint8Array): { rows: Row[]; valid: number } {
+export function readRows(bytes: Uint8Array): { rows: Row[]; valid: number } {
   const rows: Row[] = [];
   let at = 0;
   for (;;) {
     const start = at;
-    if (at >= b.length) {
+    if (at >= bytes.length) {
       return { rows, valid: start };
     }
-    const r = new Reader(b);
-    r.at = at + 1;
-    const kind = b[at]!;
-    const index = r.uleb();
-    const len = r.num();
-    const payload = r.bytes(len);
-    const crc = r.le(4);
+    const result = new Reader(bytes);
+    result.at = at + 1;
+    const kind = bytes[at]!;
+    const index = result.uleb();
+    const len = result.num();
+    const payload = result.bytes(len);
+    const crc = result.le(4);
     if (
       kind >= KIND_NAMES.length ||
       payload === undefined ||
       crc === undefined ||
-      Number(crc) !== crc32(b.subarray(start, r.at - 4)) ||
+      Number(crc) !== crc32(bytes.subarray(start, result.at - 4)) ||
       index !== BigInt(rows.length)
     ) {
       return { rows, valid: start };
     }
     rows.push({ kind, index: Number(index), payload });
-    at = r.at;
+    at = result.at;
   }
 }
 
@@ -479,14 +484,18 @@ export const requestOf = (args: Uint8Array): Request =>
     ? { args: Uint8Array.from(args) }
     : { len: args.length, digest: requestDigest(args) };
 
-const sameRequest = (a: Request, b: Request): boolean =>
-  "args" in a && "args" in b
-    ? a.args.length === b.args.length && a.args.every((x, i) => x === b.args[i])
-    : "len" in a && "len" in b && a.len === b.len && a.digest === b.digest;
+const sameRequest = (request: Request, expected: Request): boolean =>
+  "args" in request && "args" in expected
+    ? request.args.length === expected.args.length &&
+      request.args.every((item, i) => item === expected.args[i])
+    : "len" in request &&
+      "len" in expected &&
+      request.len === expected.len &&
+      request.digest === expected.digest;
 
 // Appends an integer parameter to a call's arguments.
-export function putIntArg(out: Bytes, v: number | bigint): void {
-  out.uleb(BigInt.asUintN(64, BigInt(v)));
+export function putIntArg(out: Bytes, value: number | bigint): void {
+  out.uleb(BigInt.asUintN(64, BigInt(value)));
 }
 
 // A host call's arguments as a journal holds them: each scalar parameter
@@ -500,15 +509,15 @@ export function callArgs(
 ): Uint8Array {
   const out = new Bytes();
   const dv = new DataView(new ArrayBuffer(8));
-  values.forEach((v, i) => {
+  values.forEach((item, i) => {
     const type = types[i];
     if (type === "i32" || type === "i64") {
-      putIntArg(out, v);
+      putIntArg(out, item);
     } else if (type === "f64") {
-      dv.setFloat64(0, Number(v), true);
+      dv.setFloat64(0, Number(item), true);
       out.raw(new Uint8Array(dv.buffer));
     } else if (type === "f32") {
-      dv.setFloat32(0, Number(v), true);
+      dv.setFloat32(0, Number(item), true);
       out.le(BigInt(dv.getUint32(0, true)), 8);
     }
   });
@@ -534,46 +543,46 @@ function putReply(out: Bytes, value: Value, result: Uint8Array | null): void {
   }
 }
 
-function getReply(r: Reader): { value: Value; result: Uint8Array | null } | undefined {
-  const tag = r.bytes(1)?.[0];
+function getReply(reader: Reader): { value: Value; result: Uint8Array | null } | undefined {
+  const tag = reader.bytes(1)?.[0];
   if (tag === undefined) {
     return undefined;
   }
-  const low = (v: bigint | undefined): number | undefined =>
-    v === undefined ? undefined : Number(BigInt.asIntN(32, v));
+  const low = (value: bigint | undefined): number | undefined =>
+    value === undefined ? undefined : Number(BigInt.asIntN(32, value));
   let value: Value;
   switch (tag & 3) {
     case 0:
       value = { tag: 0 };
       break;
     case 1: {
-      const v = r.uleb();
-      if (v === undefined) {
+      const encoded = reader.uleb();
+      if (encoded === undefined) {
         return undefined;
       }
-      value = { tag: 1, v: BigInt.asIntN(64, v) };
+      value = { tag: 1, v: BigInt.asIntN(64, encoded) };
       break;
     }
     case 2: {
-      const v = r.le(8);
-      if (v === undefined) {
+      const bits = reader.le(8);
+      if (bits === undefined) {
         return undefined;
       }
-      value = { tag: 2, v };
+      value = { tag: 2, v: bits };
       break;
     }
     default: {
-      const v = low(r.uleb());
-      const w = low(r.uleb());
-      if (v === undefined || w === undefined) {
+      const lowWord = low(reader.uleb());
+      const highWord = low(reader.uleb());
+      if (lowWord === undefined || highWord === undefined) {
         return undefined;
       }
-      value = { tag: 3, v, w };
+      value = { tag: 3, v: lowWord, w: highWord };
     }
   }
   let result: Uint8Array | null = null;
   if (tag >> 2 === 1) {
-    const bytes = r.bytes(r.num());
+    const bytes = reader.bytes(reader.num());
     if (bytes === undefined) {
       return undefined;
     }
@@ -586,22 +595,22 @@ function getReply(r: Reader): { value: Value; result: Uint8Array | null } | unde
 
 const END_KINDS: End["kind"][] = ["exit", "trapped", "stopped", "cancelled", "failed"];
 
-function getRequest(r: Reader, len: bigint): Request | undefined {
+function getRequest(result: Reader, len: bigint): Request | undefined {
   if (len <= 8n) {
-    const args = r.bytes(Number(len));
+    const args = result.bytes(Number(len));
     return args === undefined ? undefined : { args };
   }
-  const digest = r.le(8);
+  const digest = result.le(8);
   return digest === undefined ? undefined : { len: Number(len), digest };
 }
 
 function decodeCall(
-  r: Reader,
+  result: Reader,
   methods: (string | undefined)[][],
 ): Record<string, unknown> | undefined {
-  const method = r.num();
+  const method = result.num();
   if (method === methods.length) {
-    methods.push([r.text(), r.text()]);
+    methods.push([result.text(), result.text()]);
   }
   if (method === undefined) {
     return undefined;
@@ -610,31 +619,31 @@ function decodeCall(
   if (!named || named.includes(undefined)) {
     return undefined;
   }
-  const len = r.uleb();
+  const len = result.uleb();
   if (len === undefined) {
     return undefined;
   }
-  const request = getRequest(r, len);
-  const reply = getReply(r);
+  const request = getRequest(result, len);
+  const reply = getReply(result);
   if (!request || !reply) {
     return undefined;
   }
   return { kind: "call", module: named[0]!, name: named[1]!, request, ...reply };
 }
 
-function decodeFinish(r: Reader): Record<string, unknown> | undefined {
-  const handle = r.num();
-  const reply = getReply(r);
+function decodeFinish(result: Reader): Record<string, unknown> | undefined {
+  const handle = result.num();
+  const reply = getReply(result);
   return reply ? { kind: "finish", handle, ...reply } : undefined;
 }
 
-function decodeEnd(r: Reader): Record<string, unknown> | undefined {
-  const tag = r.bytes(1)?.[0];
+function decodeEnd(result: Reader): Record<string, unknown> | undefined {
+  const tag = result.bytes(1)?.[0];
   if (tag === undefined || tag >= END_KINDS.length) {
     return undefined;
   }
   if (tag === 0) {
-    const status = r.bytes(1)?.[0];
+    const status = result.bytes(1)?.[0];
     return status === undefined ? undefined : { kind: "end", end: { kind: "exit", status } };
   }
   return {
@@ -644,37 +653,37 @@ function decodeEnd(r: Reader): Record<string, unknown> | undefined {
 }
 
 function decodeRow(row: Row, methods: (string | undefined)[][]): Event | undefined {
-  const r = new Reader(row.payload);
+  const result = new Reader(row.payload);
   let event: Record<string, unknown> | undefined;
   switch (row.kind) {
     case KIND.header:
-      event = { kind: "header", format: r.uleb(), execution: r.bytes(16) };
+      event = { kind: "header", format: result.uleb(), execution: result.bytes(16) };
       break;
     case KIND.input:
-      event = { kind: "input", number: r.num(), source: r.le(16), module: r.le(16) };
+      event = { kind: "input", number: result.num(), source: result.le(16), module: result.le(16) };
       break;
     case KIND.call:
-      event = decodeCall(r, methods);
+      event = decodeCall(result, methods);
       break;
     case KIND.finish:
-      event = decodeFinish(r);
+      event = decodeFinish(result);
       break;
     case KIND.wake:
-      event = { kind: "wake", poll: r.uleb(), handles: r.handles() };
+      event = { kind: "wake", poll: result.uleb(), handles: result.handles() };
       break;
     case KIND.block:
-      event = { kind: "block", handles: r.handles() };
+      event = { kind: "block", handles: result.handles() };
       break;
     case KIND.abort:
-      event = { kind: "abort", handle: r.num() };
+      event = { kind: "abort", handle: result.num() };
       break;
     case KIND.cancel:
-      event = { kind: "cancel", poll: r.uleb() };
+      event = { kind: "cancel", poll: result.uleb() };
       break;
     default:
-      event = decodeEnd(r);
+      event = decodeEnd(result);
   }
-  if (!event || Object.values(event).includes(undefined) || r.at !== row.payload.length) {
+  if (!event || Object.values(event).includes(undefined) || result.at !== row.payload.length) {
     return undefined;
   }
   return event as unknown as Event;
@@ -765,9 +774,9 @@ export class Recorder {
     if (known === undefined) {
       this.row.uleb(this.methods.size);
       for (const text of [module, name]) {
-        const b = utf8.encode(text);
-        this.row.uleb(b.length);
-        this.row.raw(b);
+        const encoded = utf8.encode(text);
+        this.row.uleb(encoded.length);
+        this.row.raw(encoded);
       }
       this.methods.set(key, this.methods.size);
     } else {
@@ -846,8 +855,8 @@ export class Recorder {
   }
   private handles(handles: readonly number[]): void {
     this.row.uleb(handles.length);
-    for (const h of handles) {
-      this.row.uleb(h);
+    for (const handle of handles) {
+      this.row.uleb(handle);
     }
   }
   private push(kind: number): void {
@@ -910,7 +919,8 @@ export function ended(end: End): string {
   }
 }
 
-const sameEnd = (a: End, b: End): boolean => a.kind === b.kind && a.status === b.status;
+const sameEnd = (left: End, right: End): boolean =>
+  left.kind === right.kind && left.status === right.status;
 
 // Reads a session's journal into its execution id (16 bytes) and its
 // inputs, `{ number, source, module, events, end }` with `end` null when
@@ -992,7 +1002,7 @@ export function joinJournals(chunks: Iterable<Uint8Array>): Uint8Array {
     if (record.inputs.some((input) => input.end === null)) {
       throw new Error("an archived journal has an unfinished input");
     }
-    if (execution && !execution.every((b, i) => b === record.execution[i])) {
+    if (execution && !execution.every((item, i) => item === record.execution[i])) {
       throw new Error("archived journals belong to different executions");
     }
     const events = decodeRows(read.rows);
@@ -1141,9 +1151,9 @@ export class Replay {
 // `module\0name`: "i32", "i64", "f32", "f64" or "ref". A recorder encodes
 // parameters by them and a replay converts served values to them.
 export function importTypes(bytes: Uint8Array | ArrayBuffer): Map<string, ImportType | null> {
-  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const r = new Reader(b);
-  r.at = 8;
+  const moduleBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const result = new Reader(moduleBytes);
+  result.at = 8;
   const types: ImportType[] = [];
   const out = new Map<string, ImportType | null>();
   const NUM: Record<number, string> = {
@@ -1157,66 +1167,66 @@ export function importTypes(bytes: Uint8Array | ArrayBuffer): Map<string, Import
     let shift = 0;
     let byte: number;
     do {
-      byte = b[r.at++]!;
+      byte = moduleBytes[result.at++]!;
       shift += 7;
     } while (byte & 0x80);
     return shift;
   };
   const valtype = (): string => {
-    const t = b[r.at++]!;
-    if (NUM[t]) {
-      return NUM[t];
+    const typeByte = moduleBytes[result.at++]!;
+    if (NUM[typeByte]) {
+      return NUM[typeByte];
     }
-    if (t === 0x63 || t === 0x64) {
+    if (typeByte === 0x63 || typeByte === 0x64) {
       sleb();
     }
     return "ref";
   };
-  const vec = <T>(each: () => T): T[] => Array.from({ length: r.num() ?? 0 }, each);
+  const vec = <Item>(each: () => Item): Item[] => Array.from({ length: result.num() ?? 0 }, each);
   // A memory's or table's limits: flags, the minimum, and the maximum
   // when flag bit 0 is set.
   const limits = (): void => {
-    const flags = r.num() ?? 0;
-    r.num();
+    const flags = result.num() ?? 0;
+    result.num();
     if (flags & 1) {
-      r.num();
+      result.num();
     }
   };
   const functionType = (): void => {
-    if (b[r.at++] !== 0x60) {
+    if (moduleBytes[result.at++] !== 0x60) {
       throw new Error("a module type is not a function");
     }
     types.push({ params: vec(valtype), results: vec(valtype) });
   };
-  while (r.at < b.length) {
-    const id = b[r.at++]!;
-    const size = r.num() ?? 0;
-    const end = r.at + size;
-    if (id === 1) {
+  while (result.at < moduleBytes.length) {
+    const sectionId = moduleBytes[result.at++]!;
+    const size = result.num() ?? 0;
+    const end = result.at + size;
+    if (sectionId === 1) {
       vec(functionType);
-    } else if (id === 2) {
+    } else if (sectionId === 2) {
       vec(() => {
-        const module = r.text()!;
-        const name = r.text()!;
-        const kind = b[r.at++]!;
-        if (kind === 0x00) {
-          out.set(`${module}\0${name}`, types[r.num()!] ?? null);
-        } else if (kind === 0x02) {
+        const module = result.text()!;
+        const name = result.text()!;
+        const importKind = moduleBytes[result.at++]!;
+        if (importKind === 0x00) {
+          out.set(`${module}\0${name}`, types[result.num()!] ?? null);
+        } else if (importKind === 0x02) {
           limits();
-        } else if (kind === 0x01) {
+        } else if (importKind === 0x01) {
           valtype();
           limits();
-        } else if (kind === 0x03) {
+        } else if (importKind === 0x03) {
           valtype();
-          r.at++;
+          result.at++;
         } else {
-          r.at++;
-          r.num();
+          result.at++;
+          result.num();
         }
       });
       return out;
     }
-    r.at = end;
+    result.at = end;
   }
   return out;
 }

@@ -1,3 +1,4 @@
+/* oxlint-disable max-lines -- descriptive ABI identifiers push this legacy host past the limit. */
 // The platform-neutral core of the JS host (V8 in Node, and browsers): the
 // import object of the ABI in `hd_host_abi` (crates/hd_run_wasmtime/DESIGN.md §17.2,
 // §17.10), built from the method descriptors and codecs generated from the
@@ -93,11 +94,11 @@ export interface ProviderContext {
   readonly console: ProviderConsolePolicy;
   signal: AbortSignal;
   instanceSignal: AbortSignal;
-  pending<T>(
+  pending<ResultValue>(
     poll: () => boolean,
-    done: () => T,
+    done: () => ResultValue,
     abort?: (() => void) | null,
-    finish?: (() => T | undefined) | null,
+    finish?: (() => ResultValue | undefined) | null,
   ): unknown;
 }
 
@@ -214,11 +215,11 @@ Error.stackTraceLimit = Infinity;
 // The Wasm frames of a trap's stack, innermost first, as [function index,
 // module byte offset] pairs from V8's `wasm-function[i]:0xOFF`; the test
 // command maps them through the module's line table (crates/hd_wasm_linear/DESIGN.md §15.9).
-const wasmFrames = (e: Dynamic): [number, number][] =>
-  Array.from(String(e.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g), (m) => [
-    Number(m[1]),
-    parseInt(m[2], 16),
-  ]);
+const wasmFrames = (error: Dynamic): [number, number][] =>
+  Array.from(
+    String(error.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g),
+    (message) => [Number(message[1]), parseInt(message[2], 16)],
+  );
 
 // The panic report of a body that overran its timeout of `ms`
 // milliseconds.
@@ -291,11 +292,11 @@ export function createGrant(
   const limit = (key: string): boolean | string[] | null =>
     Object.hasOwn(limits, key) ? limits[key]! : null;
   const check = (key: string, covers: (entry: string) => boolean): boolean => {
-    const l = limit(key);
-    if (l === null || l === true) {
+    const scope = limit(key);
+    if (scope === null || scope === true) {
       return true;
     }
-    return l === false ? false : l.some(covers);
+    return scope === false ? false : scope.some(covers);
   };
   return {
     allows: (key: string) => limit(key) !== false,
@@ -304,46 +305,49 @@ export function createGrant(
     // it names (cli.cap.scope.path); a relative path is from `cwd`.
     coversPath: (key: string, path: string, cwd?: string) => {
       const target = resolveTarget(path, cwd);
-      return check(key, (e) => target === e || target.startsWith(e.endsWith(sep) ? e : e + sep));
+      return check(
+        key,
+        (entry) => target === entry || target.startsWith(entry.endsWith(sep) ? entry : entry + sep),
+      );
     },
     // cli.cap.scope.host, .host.forms, cli.cap.scope.net.
     coversHost: (key: string, host: string, port: number | null = null) =>
-      check(key, (e) => {
-        let h = e;
-        let p: string | null = null;
-        const v6 = /^\[([^\]]*)\](?::(\d+))?$/.exec(e);
+      check(key, (entry) => {
+        let offeredHost = entry;
+        let text: string | null = null;
+        const v6 = /^\[([^\]]*)\](?::(\d+))?$/.exec(entry);
         if (v6) {
-          [h, p] = [v6[1]!, v6[2] ?? null];
-        } else if (e.split(":").length === 2) {
-          [h, p] = [e.split(":")[0]!, e.split(":")[1]!];
+          [offeredHost, text] = [v6[1]!, v6[2] ?? null];
+        } else if (entry.split(":").length === 2) {
+          [offeredHost, text] = [entry.split(":")[0]!, entry.split(":")[1]!];
         }
-        if (p !== null && !/^\d+$/.test(p)) {
-          p = null;
+        if (text !== null && !/^\d+$/.test(text)) {
+          text = null;
         }
-        const hostOk = h.startsWith("*.")
-          ? host.endsWith(h.slice(1)) && host.length > h.length - 1
-          : h.toLowerCase() === host.toLowerCase();
-        return hostOk && (p === null || Number(p) === port);
+        const hostOk = offeredHost.startsWith("*.")
+          ? host.endsWith(offeredHost.slice(1)) && host.length > offeredHost.length - 1
+          : offeredHost.toLowerCase() === host.toLowerCase();
+        return hostOk && (text === null || Number(text) === port);
       }),
     // cli.cap.scope.net.lookup: the host match alone, whatever port an
     // entry names.
     coversHostName: (key: string, host: string) =>
-      check(key, (e) => {
-        const v6 = /^\[([^\]]*)\]/.exec(e);
-        let h = e;
+      check(key, (entry) => {
+        const v6 = /^\[([^\]]*)\]/.exec(entry);
+        let offeredHost = entry;
         if (v6) {
-          h = v6[1]!;
-        } else if (e.split(":").length === 2) {
-          h = e.split(":")[0]!;
+          offeredHost = v6[1]!;
+        } else if (entry.split(":").length === 2) {
+          offeredHost = entry.split(":")[0]!;
         }
-        return h.startsWith("*.")
-          ? host.endsWith(h.slice(1)) && host.length > h.length - 1
-          : h.toLowerCase() === host.toLowerCase();
+        return offeredHost.startsWith("*.")
+          ? host.endsWith(offeredHost.slice(1)) && host.length > offeredHost.length - 1
+          : offeredHost.toLowerCase() === host.toLowerCase();
       }),
     // cli.cap.scope.env, .process, .sys.
     coversName: (key: string, name: string) =>
-      check(key, (e) =>
-        key === "Env" && e.endsWith("*") ? name.startsWith(e.slice(0, -1)) : e === name,
+      check(key, (error) =>
+        key === "Env" && error.endsWith("*") ? name.startsWith(error.slice(0, -1)) : error === name,
       ),
   };
 }
@@ -416,19 +420,19 @@ function rtImports({
     },
     block: () => {
       for (;;) {
-        const n = complete();
-        if (n) {
-          return n;
+        const completion = complete();
+        if (completion) {
+          return completion;
         }
         if (st.readyOnly) {
           throw new HostContract("a synchronous host wait is pending in a synchronous step driver");
         }
-        const d = nextDeadline();
-        if (d === null) {
+        const deadline = nextDeadline();
+        if (deadline === null) {
           deadlock();
         }
         flush();
-        sleep(Math.max(0, until(d) - performance.now()));
+        sleep(Math.max(0, until(deadline) - performance.now()));
         if (overran()) {
           throw new TimeLimit();
         }
@@ -437,7 +441,7 @@ function rtImports({
     stdout: (len) => {
       st.out.push(decodeUtf8(view(len)));
     },
-    abort: (h) => abortOperation(st, h),
+    abort: (host) => abortOperation(st, host),
     // The run's map hash key: 64 random bits. The instance asks once and
     // keeps it in a runtime global; a session's journal records the call,
     // so a rebuild hashes with the same key.
@@ -510,21 +514,21 @@ const later = (at: number, done: (() => Dynamic) | null = null): Later => new La
 // after a short wait, from either the async driver or synchronous rt.block.
 // The optional delivery hook can replace the kept result, such as Closed
 // after a resource closes between readiness and guest delivery.
-export const pendingOperation = <T>(
+export const pendingOperation = <ResultValue>(
   poll: () => boolean,
-  done: () => T,
+  done: () => ResultValue,
   abort: (() => void) | null = null,
-  finish: (() => T | undefined) | null = null,
+  finish: (() => ResultValue | undefined) | null = null,
 ): Later => new Later(performance.now(), { done, poll, abort, finish });
 
-function abortOperation(st: DynamicRecord, h: number): void {
-  const operation = st.ops.get(h);
-  st.ops.delete(h);
+function abortOperation(st: DynamicRecord, handle: number): void {
+  const operation = st.ops.get(handle);
+  st.ops.delete(handle);
   operation?.abort?.();
 }
 export function clearOperations(st: DynamicRecord): void {
-  for (const h of st.ops.keys()) {
-    abortOperation(st, h);
+  for (const handle of st.ops.keys()) {
+    abortOperation(st, handle);
   }
 }
 
@@ -534,21 +538,23 @@ export function clearOperations(st: DynamicRecord): void {
 // a lone `string` crosses as its bytes alone. They are decoded from a copy
 // of the buffer, which the result may overwrite.
 function argsDecoder(
-  m: Dynamic,
+  message: Dynamic,
   view: (length: number) => Uint8Array,
   text: (length: number) => string,
 ): (raw: Dynamic[]) => Dynamic[] {
-  const scalars = m.params.filter((p: Dynamic) => typeof p === "string").length;
-  if (scalars === m.params.length) {
+  const scalars = message.params.filter((item: Dynamic) => typeof item === "string").length;
+  if (scalars === message.params.length) {
     return (raw) => raw;
   }
-  if (m.params.length === 1 && m.params[0] === str) {
+  if (message.params.length === 1 && message.params[0] === str) {
     return (raw) => [text(raw[0])];
   }
   return (raw) => {
-    const d = new Dec(Uint8Array.from(view(raw[scalars])));
+    const data = new Dec(Uint8Array.from(view(raw[scalars])));
     let at = 0;
-    return m.params.map((p: Dynamic) => (typeof p === "string" ? raw[at++] : p.dec(d)));
+    return message.params.map((item: Dynamic) =>
+      typeof item === "string" ? raw[at++] : item.dec(data),
+    );
   };
 }
 
@@ -563,44 +569,44 @@ function traitImports(
 ): DynamicRecord {
   const out: DynamicRecord = {};
   const methods: DynamicRecord = METHODS;
-  for (const [name, f] of Object.entries(provider)) {
-    const m = methods[module]?.[name];
-    if (!m) {
+  for (const [name, providerFunction] of Object.entries(provider)) {
+    const message = methods[module]?.[name];
+    if (!message) {
       throw new Error(`the host ABI has no \`${module}\` \`${name}\``);
     }
-    const decode = argsDecoder(m, view, text);
+    const decode = argsDecoder(message, view, text);
     const key = `${module} ${name}`;
     // The import's result: a scalar as itself; a structured value written
     // at offset 0 and its length; `void` nothing, or 0 from a `.finish`.
-    const written = (v: Dynamic): Dynamic => {
-      if (typeof m.result !== "string") {
-        const e = new Enc();
-        m.result.enc(e, v);
-        return put(e);
+    const written = (value: Dynamic): Dynamic => {
+      if (typeof message.result !== "string") {
+        const encoder = new Enc();
+        message.result.enc(encoder, value);
+        return put(encoder);
       }
-      if (m.result !== "void") {
-        return v;
+      if (message.result !== "void") {
+        return value;
       }
-      return m.wait === "may" ? 0 : undefined;
+      return message.wait === "may" ? 0 : undefined;
     };
-    if (m.wait === "never") {
-      out[name] = (...raw: Dynamic[]) => written(f(...decode(raw)));
+    if (message.wait === "never") {
+      out[name] = (...raw: Dynamic[]) => written(providerFunction(...decode(raw)));
       continue;
     }
     out[`${name}.start`] = (...raw: Dynamic[]) => {
-      const v = f(...decode(raw));
-      return v instanceof Later
+      const value = providerFunction(...decode(raw));
+      return value instanceof Later
         ? pending({
-            at: v.at,
-            done: v.done,
+            at: value.at,
+            done: value.done,
             method: key,
-            poll: v.poll,
-            abort: v.abort,
-            finish: v.finish,
+            poll: value.poll,
+            abort: value.abort,
+            finish: value.finish,
           })
-        : [0, written(v)];
+        : [0, written(value)];
     };
-    out[`${name}.finish`] = (h: number) => written(finished(h, key));
+    out[`${name}.finish`] = (value: number) => written(finished(value, key));
   }
   return out;
 }
@@ -708,25 +714,25 @@ function propertyRunnerProvider({ env }: { env: CoreEnv }): Record<string, Provi
 function testRunnerProvider({ env, st, files }: DynamicRecord): Record<string, ProviderFunction> {
   // Snapshot files of the case (std-testing.snapshot-file.*).
   const snapshotCheck = (actual: string): string => {
-    const s = env.snapshot;
+    const snapshot = env.snapshot;
     st.snapshots += 1;
-    if (!s || !files) {
+    if (!snapshot || !files) {
       return "no snapshot file: this run names no snapshot directory";
     }
     // An `it_each` row's slug adds the row's index
     // (std-testing.snapshot-file.row).
-    const slug = s.slug + (env.runner?.slugSuffix() ?? "");
-    const file = files.join(s.dir, `${slug}-${st.snapshots}.snap`);
-    const shown = s.shown ? `${s.shown}/${slug}-${st.snapshots}.snap` : file;
+    const slug = snapshot.slug + (env.runner?.slugSuffix() ?? "");
+    const file = files.join(snapshot.dir, `${slug}-${st.snapshots}.snap`);
+    const shown = snapshot.shown ? `${snapshot.shown}/${slug}-${st.snapshots}.snap` : file;
     const expected = files.read(file);
     if (expected !== null) {
       if (expected === actual) {
         return "";
       }
-      if (!s.update) {
+      if (!snapshot.update) {
         return `the text differs from the snapshot file ${shown}: expected ${JSON.stringify(expected)}, actual ${JSON.stringify(actual)}; run \`hd test --update\` to record it`;
       }
-    } else if (!s.update) {
+    } else if (!snapshot.update) {
       return `the snapshot file ${shown} is missing; run \`hd test --update\` to record it`;
     }
     files.write(file, actual);
@@ -756,23 +762,23 @@ function testRunnerProvider({ env, st, files }: DynamicRecord): Record<string, P
 // is `null` or the literal addresses, `tlsRoots` the extra PEM roots,
 // `tlsIdentity` `null` or `{ certificateChain, privateKey }`, and each
 // timeout `null` or whole milliseconds.
-export const httpSettings = (r: Dynamic): DynamicRecord => {
+export const httpSettings = (result: Dynamic): DynamicRecord => {
   const ms = (duration: Dynamic): number | null =>
     duration == null ? null : Number(duration.millis);
   return {
-    dnsServers: r.dns_servers ?? null,
-    tlsRoots: r.tls_roots ?? [],
+    dnsServers: result.dns_servers ?? null,
+    tlsRoots: result.tls_roots ?? [],
     tlsIdentity:
-      r.tls_identity == null
+      result.tls_identity == null
         ? null
         : {
-            certificateChain: r.tls_identity.certificate_chain,
-            privateKey: r.tls_identity.private_key,
+            certificateChain: result.tls_identity.certificate_chain,
+            privateKey: result.tls_identity.private_key,
           },
-    connectTimeout: ms(r.connect_timeout),
-    tlsHandshakeTimeout: ms(r.tls_handshake_timeout),
-    responseHeaderTimeout: ms(r.response_header_timeout),
-    bodyReadTimeout: ms(r.body_read_timeout),
+    connectTimeout: ms(result.connect_timeout),
+    tlsHandshakeTimeout: ms(result.tls_handshake_timeout),
+    responseHeaderTimeout: ms(result.response_header_timeout),
+    bodyReadTimeout: ms(result.body_read_timeout),
   };
 };
 
@@ -813,23 +819,28 @@ export function httpProvider(
   send: (request: Dynamic) => Dynamic,
 ): Record<string, ProviderFunction> {
   return {
-    send: (r: Dynamic) => {
-      const method = r.method.tag === "Other" ? r.method.name : r.method.tag.toUpperCase();
-      const a = send({
+    send: (request: Dynamic) => {
+      const method =
+        request.method.tag === "Other" ? request.method.name : request.method.tag.toUpperCase();
+      const sent = send({
         method,
-        url: r.url,
-        headers: r.headers,
-        body: r.body,
-        redirects: r.redirects,
-        settings: httpSettings(r),
+        url: request.url,
+        headers: request.headers,
+        body: request.body,
+        redirects: request.redirects,
+        settings: httpSettings(request),
       });
       const result = (answer: Dynamic): Dynamic =>
         answer.error ? Err(variant(HttpError, answer.error, answer.text)) : Ok(answer);
       // Node's worker can keep the request pending; browsers still answer
       // synchronously here. Encode the result only after readiness wins.
-      return a instanceof Later
-        ? new Later(a.at, { done: () => result(a.done!()), poll: a.poll, abort: a.abort })
-        : result(a);
+      return sent instanceof Later
+        ? new Later(sent.at, {
+            done: () => result(sent.done!()),
+            poll: sent.poll,
+            abort: sent.abort,
+          })
+        : result(sent);
     },
   };
 }
@@ -1042,8 +1053,8 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // Writes an encoded result (or its bytes) at offset 0, growing the
   // buffer to fit, and returns its length (§17.3). A session's recorder
   // reads the bytes back as the call's result (`st.payload`).
-  const put = (e: Dynamic): number => {
-    const bytes = e instanceof Uint8Array ? e : e.done();
+  const put = (encoder: Dynamic): number => {
+    const bytes = encoder instanceof Uint8Array ? encoder : encoder.done();
     if (bytes.length > st.memory.buffer.byteLength) {
       st.memory.grow(Math.ceil((bytes.length - st.memory.buffer.byteLength) / 65536));
     }
@@ -1075,42 +1086,51 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     abort?: (() => void) | null;
     finish?: (() => Dynamic) | null;
   }): [number, number] => {
-    const h = st.nextHandle++;
-    st.ops.set(h, { at, done, method, poll, abort, finish, completed: false, value: undefined });
-    return [1, h];
+    const handle = st.nextHandle++;
+    st.ops.set(handle, {
+      at,
+      done,
+      method,
+      poll,
+      abort,
+      finish,
+      completed: false,
+      value: undefined,
+    });
+    return [1, handle];
   };
   const nextDeadline = (): number | null => {
-    let d: number | null = null;
-    for (const o of st.ops.values()) {
-      if (!o.completed && (d === null || o.at < d)) {
-        d = o.at;
+    let value: number | null = null;
+    for (const options of st.ops.values()) {
+      if (!options.completed && (value === null || options.at < value)) {
+        value = options.at;
       }
     }
-    return d;
+    return value;
   };
   // Completes every due operation and writes the handles to the buffer.
   const complete = (): number => {
     const now = performance.now();
     const due = [...st.ops]
-      .filter(([, o]) => !o.completed && (o.poll || o.at <= now))
-      .sort((a, b) => a[1].at - b[1].at || a[0] - b[0])
-      .filter(([, o]) => {
-        if (!o.poll || o.poll()) {
+      .filter(([, options]) => !options.completed && (options.poll || options.at <= now))
+      .sort((left, right) => left[1].at - right[1].at || left[0] - right[0])
+      .filter(([, options]) => {
+        if (!options.poll || options.poll()) {
           return true;
         }
-        o.at = performance.now() + 1;
+        options.at = performance.now() + 1;
         return false;
       });
     if (due.length * 4 > st.memory.buffer.byteLength) {
       st.memory.grow(Math.ceil((due.length * 4) / 65536));
     }
     const words = new DataView(st.memory.buffer);
-    due.forEach(([h, o], i) => {
-      o.completed = true;
-      if (o.done) {
-        o.value = o.done();
+    due.forEach(([handle, options], i) => {
+      options.completed = true;
+      if (options.done) {
+        options.value = options.done();
       }
-      words.setInt32(4 * i, h, true);
+      words.setInt32(4 * i, handle, true);
     });
     return due.length;
   };
@@ -1127,25 +1147,25 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     hostPanic("panic: deadlock: the program waits, but no host operation is pending\n");
     throw new Deadlock();
   };
-  const finish = (h: number): void => {
-    st.ops.delete(h);
+  const finish = (handle: number): void => {
+    st.ops.delete(handle);
   };
   // The result of the completed operation `h` that `method` started, which
   // its `.finish` takes; any other handle is a broken contract (§17.2).
-  const finished = (h: number, method: string): Dynamic => {
-    const o = st.ops.get(h);
-    if (o?.method !== method || !o.completed) {
+  const finished = (handle: number, method: string): Dynamic => {
+    const options = st.ops.get(handle);
+    if (options?.method !== method || !options.completed) {
       throw new HostContract("a finish of an operation that is not pending");
     }
     // Ownership transfers only at the validated guest .finish, not when
     // complete() computes the value. Abort still owns an undelivered result.
-    const delivered = o.finish?.();
-    st.ops.delete(h);
-    return delivered === undefined ? o.value : delivered;
+    const delivered = options.finish?.();
+    st.ops.delete(handle);
+    return delivered === undefined ? options.value : delivered;
   };
   // Waits at most until `d`, and never past the timeout: a pending host
   // wait is cut at the deadline (crates/hd_run_wasmtime/DESIGN.md §17.8).
-  const until = (d: number): number => (st.deadline === null ? d : Math.min(d, st.deadline));
+  const until = (ms: number): number => (st.deadline === null ? ms : Math.min(ms, st.deadline));
   const overran = (): boolean => st.deadline !== null && performance.now() > st.deadline;
   // The milliseconds left before the deadline. A provider that waits
   // inside its `.start` throws `TimeLimit` when none are left.
@@ -1306,12 +1326,12 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     };
     const drive = async (): Promise<void> => {
       while (status === -1) {
-        let n;
+        let count;
         if (driver?.replaying()) {
-          n = driver.served();
+          count = driver.served();
         } else {
-          n = complete();
-          const resume = n === 0 ? await resumeAfterIdle() : null;
+          count = complete();
+          const resume = count === 0 ? await resumeAfterIdle() : null;
           if (resume === false) {
             break;
           }
@@ -1319,8 +1339,8 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
             continue;
           }
         }
-        driver?.woke(n);
-        ex["hd.wake"](n);
+        driver?.woke(count);
+        ex["hd.wake"](count);
         driver?.poll();
         status = ex[poll](0);
       }

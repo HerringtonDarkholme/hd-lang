@@ -323,11 +323,11 @@ const once = ({
         ...(secure ? tlsOptions(settings) : {}),
       });
       req = request;
-    } catch (e) {
+    } catch (error) {
       // Node builds the TLS context here: a root or identity it cannot
       // load is a TLS failure. Request syntax keeps its exact portable
       // validation error on both HTTP and HTTPS.
-      settle(requestFailure(e, secure, host));
+      settle(requestFailure(error, secure, host));
       return;
     }
     // Connect ends at the TCP connection, the TLS handshake then runs to a
@@ -355,7 +355,7 @@ const once = ({
       req.destroy();
     }, ms);
     signal.addEventListener("abort", aborted, { once: true });
-    req.on("error", (e) => settle(failure(e, host)));
+    req.on("error", (error) => settle(failure(error, host)));
     req.on("response", (res) => {
       responded = true;
       phase(settings?.bodyReadTimeout);
@@ -389,7 +389,7 @@ const once = ({
         }
         chunks.push(chunk);
       });
-      res.on("error", (e) => settle(failure(e, host)));
+      res.on("error", (error) => settle(failure(error, host)));
       res.on("end", () => {
         settle(decodedResponse(method, res.statusCode!, pairs, Buffer.concat(chunks)));
       });
@@ -413,17 +413,17 @@ async function send(request: HttpRequest, signal: AbortSignal): Promise<HttpResu
     if (signal.aborted) {
       return err("Other", "request cancelled");
     }
-    const u = requestUrl(url);
-    if (!u) {
+    const parsedUrl = requestUrl(url);
+    if (!parsedUrl) {
       return err("InvalidUrl", url);
     }
     const host = writtenHost(written);
-    const port = requestPort(u);
+    const port = requestPort(parsedUrl);
     if (!grant.coversHost("Http", host, port)) {
       return err("NotGranted", host);
     }
     const got = await once({
-      url: u,
+      url: parsedUrl,
       host,
       method,
       headers: request.headers,
@@ -432,7 +432,7 @@ async function send(request: HttpRequest, signal: AbortSignal): Promise<HttpResu
       signal,
       settings: request.settings,
     });
-    const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
+    const location = got.headers?.find(([count]) => count.toLowerCase() === "location")?.[1];
     if (finalResponse(request, got, location)) {
       return got.error !== undefined ? got : { ...got, url };
     }
@@ -442,12 +442,12 @@ async function send(request: HttpRequest, signal: AbortSignal): Promise<HttpResu
     if (!isAsciiUrl(redirectLocation)) {
       return err("InvalidUrl", redirectLocation);
     }
-    url = new URL(redirectLocation, u).href;
+    url = new URL(redirectLocation, parsedUrl).href;
     // A relative Location keeps the host as written; an absolute one
     // brings its own.
     if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(redirectLocation)) {
       written = redirectLocation.startsWith("//")
-        ? `${u.protocol}${redirectLocation}`
+        ? `${parsedUrl.protocol}${redirectLocation}`
         : redirectLocation;
     }
     if (redirects === request.redirects) {

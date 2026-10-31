@@ -53,14 +53,14 @@ const OUT = 1;
 
 // Reads exactly `n` bytes from `fd`, or null on clean EOF before any
 // byte. Throws on a truncated message.
-function readExact(fd: number, n: number): Buffer | null {
-  if (n === 0) {
+function readExact(fd: number, value: number): Buffer | null {
+  if (value === 0) {
     return Buffer.alloc(0);
   }
-  const out = Buffer.alloc(n);
+  const out = Buffer.alloc(value);
   let at = 0;
-  while (at < n) {
-    const got = readSync(fd, out, at, n - at, null);
+  while (at < value) {
+    const got = readSync(fd, out, at, value - at, null);
     if (got === 0) {
       if (at === 0) {
         return null;
@@ -153,11 +153,11 @@ async function runScenario(
     }
     try {
       (ex["hd.poll"] as CallableFunction)(1);
-    } catch (e) {
-      if (e instanceof WebAssembly.RuntimeError) {
+    } catch (error) {
+      if (error instanceof WebAssembly.RuntimeError) {
         return 3;
       }
-      throw e;
+      throw error;
     }
     return 1;
   }
@@ -167,11 +167,11 @@ async function runScenario(
     }
     try {
       (ex["hd.poll"] as CallableFunction)(0);
-    } catch (e) {
-      if (e instanceof WebAssembly.RuntimeError) {
+    } catch (error) {
+      if (error instanceof WebAssembly.RuntimeError) {
         return 3;
       }
-      throw e;
+      throw error;
     }
     return 1;
   }

@@ -62,29 +62,29 @@ function validateContract(interfaces: ContractInterface[]): void {
     }
   };
   const checkValue = (value: ContractValue): void => {
-    const [tag, a, b] = value;
-    if (tag === 15 && !interfaces.some((item) => item.handle && item.module === a)) {
+    const [tag, left, right] = value;
+    if (tag === 15 && !interfaces.some((item) => item.handle && item.module === left)) {
       fail("missing handle interface");
     }
     if (tag === 8 || tag === 9) {
-      checkValue(a);
+      checkValue(left);
     }
     if (tag === 10) {
-      a.forEach(checkValue);
+      left.forEach(checkValue);
     }
     if (tag === 11) {
-      checkFields(a);
+      checkFields(left);
     }
     if (tag === 12) {
       const names = new Set<string>();
-      for (const [name, fields] of a) {
+      for (const [name, fields] of left) {
         unique(names, name);
         checkFields(fields);
       }
     }
     if (tag === 13) {
-      checkValue(a);
-      checkValue(b);
+      checkValue(left);
+      checkValue(right);
     }
   };
   for (const item of interfaces) {
@@ -134,40 +134,40 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
     return bytes[at++]!;
   };
   const boolean = (): boolean => {
-    const v = byte();
-    if (v > 1) {
+    const byteValue = byte();
+    if (byteValue > 1) {
       fail("invalid contract boolean");
     }
-    return v === 1;
+    return byteValue === 1;
   };
   const count = (): number => {
-    let n = 0;
+    let count = 0;
     for (let shift = 0; shift < 35; shift += 7) {
-      const b = byte();
-      if (shift === 28 && b > 15) {
+      const byteValue = byte();
+      if (shift === 28 && byteValue > 15) {
         fail("oversized contract length");
       }
-      n += (b & 127) * 2 ** shift;
-      if (b < 128) {
-        if ((shift && b === 0) || n > bytes.length - at) {
+      count += (byteValue & 127) * 2 ** shift;
+      if (byteValue < 128) {
+        if ((shift && byteValue === 0) || count > bytes.length - at) {
           fail("invalid contract length");
         }
-        return n;
+        return count;
       }
     }
     return fail("invalid contract length");
   };
   const string = (): string => {
-    const n = count();
-    const b = bytes.subarray(at, at + n);
-    at += n;
+    const length = count();
+    const chunk = bytes.subarray(at, at + length);
+    at += length;
     try {
-      return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(b);
+      return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(chunk);
     } catch {
       return fail("invalid contract UTF-8");
     }
   };
-  const vector = <T>(read: () => T): T[] => Array.from({ length: count() }, read);
+  const vector = <Item>(read: () => Item): Item[] => Array.from({ length: count() }, read);
   const fields = (depth: number): ContractField[] =>
     vector<ContractField>(() => [string(), value(depth + 1)]);
   const value = (depth = 0): ContractValue => {

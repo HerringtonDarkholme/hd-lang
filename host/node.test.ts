@@ -44,8 +44,8 @@ test("Console errors carry only stream tags and numeric host codes", () => {
 
 // Deliberately violate notification timing in a worker, while using the
 // production client. Queue publication and the wake hint must be independent.
-function controlClient(t: TestContext): Dynamic {
-  const root = fixture(t, {
+function controlClient(testContext: TestContext): Dynamic {
+  const root = fixture(testContext, {
     "control.ts": `
       import {workerData} from 'node:worker_threads';
       const {port,flag}=workerData;
@@ -63,7 +63,7 @@ function controlClient(t: TestContext): Dynamic {
     `,
   });
   const client = syncClient(pathToFileURL(join(root, "control.ts")));
-  t.after(() => client.stop());
+  testContext.after(() => client.stop());
   return {
     ...client,
     call: (request: Dynamic, left: (() => number) | null = null) => {
@@ -73,14 +73,14 @@ function controlClient(t: TestContext): Dynamic {
   };
 }
 
-test("worker control waits for a message after an empty notification", (t) => {
-  const client = controlClient(t);
+test("worker control waits for a message after an empty notification", (testContext) => {
+  const client = controlClient(testContext);
   const deadline = performance.now() + 5000;
   assert.equal(client.call({ op: "empty" }, () => deadline - performance.now()).value, "empty");
 });
 
-test("worker control ignores an old call ID before the current reply", (t) => {
-  const client = controlClient(t);
+test("worker control ignores an old call ID before the current reply", (testContext) => {
+  const client = controlClient(testContext);
   const first = client.call({ op: "first" });
   const next = client.call({ op: "old" });
   assert.equal(next.value, "old");
@@ -88,8 +88,8 @@ test("worker control ignores an old call ID before the current reply", (t) => {
 });
 
 for (const op of ["late", "never"]) {
-  test(`worker control times out and restarts after ${op} replies`, (t) => {
-    const client = controlClient(t);
+  test(`worker control times out and restarts after ${op} replies`, (testContext) => {
+    const client = controlClient(testContext);
     const first = client.call({ op: "first" });
     const deadline = performance.now() + 30;
     assert.throws(() => client.call({ op }, () => deadline - performance.now()), TimeLimit);
@@ -105,9 +105,9 @@ test("worker control publishes a reply before setting its wake hint", () => {
   let message;
   postReply(
     {
-      postMessage: (m) => {
+      postMessage: (postedMessage) => {
         assert.equal(Atomics.load(flag, 0), 0);
-        message = m;
+        message = postedMessage;
       },
     },
     flag,
@@ -122,9 +122,9 @@ for (const [name, file, request, close, message] of [
   ["HTTP", "http.ts", { op: "poll", operation: 0 }, null, "unknown HTTP operation"],
   ["Process", "process.ts", { op: "wait_poll", operation: 0 }, "close", "unknown process wait"],
 ] as [string, string, Dynamic, string | null, string][]) {
-  test(`${name} worker protocol faults are host contracts`, (t) => {
+  test(`${name} worker protocol faults are host contracts`, (testContext) => {
     const client = syncClient(new URL(`./${file}`, import.meta.url), close);
-    t.after(() => client.stop());
+    testContext.after(() => client.stop());
     assert.throws(
       () => client.call(request),
       (error) => error instanceof HostContract && error.message === message,
@@ -134,8 +134,8 @@ for (const [name, file, request, close, message] of [
 }
 
 // #408: libuv's last finite ancestor must not override a stricter child.
-test("v2: one-CPU child inside a four-CPU parent offers one CPU", (t) => {
-  const root = fixture(t, {
+test("v2: one-CPU child inside a four-CPU parent offers one CPU", (testContext) => {
+  const root = fixture(testContext, {
     "cpu.max": "max 100000\n",
     "parent/cpu.max": "400000 100000\n",
     "parent/child/cpu.max": "100000 100000\n",
@@ -143,32 +143,32 @@ test("v2: one-CPU child inside a four-CPU parent offers one CPU", (t) => {
   assert.equal(cgroupCpuCount(root, "/parent/child", 4), 1);
 });
 
-test("v2: the tightest ancestor can be the parent", (t) => {
-  const root = fixture(t, {
+test("v2: the tightest ancestor can be the parent", (testContext) => {
+  const root = fixture(testContext, {
     "parent/cpu.max": "100000 100000\n",
     "parent/child/cpu.max": "400000 100000\n",
   });
   assert.equal(cgroupCpuCount(root, "/parent/child", 8), 1);
 });
 
-test("v2: an unlimited parent preserves its child's limit", (t) => {
-  const root = fixture(t, {
+test("v2: an unlimited parent preserves its child's limit", (testContext) => {
+  const root = fixture(testContext, {
     "parent/cpu.max": "max 100000\n",
     "parent/child/cpu.max": "100000 100000\n",
   });
   assert.equal(cgroupCpuCount(root, "/parent/child", 4), 1);
 });
 
-test("v2: an unlimited child inherits its parent's limit", (t) => {
-  const root = fixture(t, {
+test("v2: an unlimited child inherits its parent's limit", (testContext) => {
+  const root = fixture(testContext, {
     "parent/cpu.max": "400000 100000\n",
     "parent/child/cpu.max": "max 100000\n",
   });
   assert.equal(cgroupCpuCount(root, "/parent/child", 8), 4);
 });
 
-test("v1: each quota uses its own period and ancestors take the minimum", (t) => {
-  const root = fixture(t, {
+test("v1: each quota uses its own period and ancestors take the minimum", (testContext) => {
+  const root = fixture(testContext, {
     "parent/cpu.cfs_quota_us": "800000\n",
     "parent/cpu.cfs_period_us": "200000\n",
     "parent/child/cpu.cfs_quota_us": "100000\n",
@@ -177,8 +177,8 @@ test("v1: each quota uses its own period and ancestors take the minimum", (t) =>
   assert.equal(cgroupCpuCount(root, "/parent/child", 4), 1);
 });
 
-test("v1: negative unlimited quota does not erase a finite child", (t) => {
-  const root = fixture(t, {
+test("v1: negative unlimited quota does not erase a finite child", (testContext) => {
+  const root = fixture(testContext, {
     "parent/cpu.cfs_quota_us": "-1\n",
     "parent/cpu.cfs_period_us": "100000\n",
     "parent/child/cpu.cfs_quota_us": "100000\n",
@@ -187,25 +187,25 @@ test("v1: negative unlimited quota does not erase a finite child", (t) => {
   assert.equal(cgroupCpuCount(root, "/parent/child", 4), 1);
 });
 
-test("the OS affinity count can be stricter than any quota", (t) => {
-  const root = fixture(t, { "cpu.max": "400000 100000\n" });
+test("the OS affinity count can be stricter than any quota", (testContext) => {
+  const root = fixture(testContext, { "cpu.max": "400000 100000\n" });
   assert.equal(cgroupCpuCount(root, "/", 2), 2);
 });
 
-test("fractional quotas round down like Rust, with at least one CPU", (t) => {
+test("fractional quotas round down like Rust, with at least one CPU", (testContext) => {
   for (const quota of [150000, 50000]) {
-    const root = fixture(t, { "cpu.max": `${quota} 100000\n` });
+    const root = fixture(testContext, { "cpu.max": `${quota} 100000\n` });
     assert.equal(cgroupCpuCount(root, "/", 8), 1);
   }
 });
 
-test("missing cgroup filesystem leaves the OS count intact", (t) => {
-  const root = fixture(t, {});
+test("missing cgroup filesystem leaves the OS count intact", (testContext) => {
+  const root = fixture(testContext, {});
   assert.equal(cgroupCpuCount(join(root, "absent"), "/parent/child", 4), 4);
 });
 
-test("malformed, zero-period and missing limits do not hide an ancestor", (t) => {
-  const root = fixture(t, {
+test("malformed, zero-period and missing limits do not hide an ancestor", (testContext) => {
+  const root = fixture(testContext, {
     "cpu.max": "200000 100000\n",
     "parent/cpu.max": "400000 0\n",
     "parent/child/cpu.max": "not-a-quota\n",
@@ -213,8 +213,8 @@ test("malformed, zero-period and missing limits do not hide an ancestor", (t) =>
   assert.equal(cgroupCpuCount(root, "/parent/child/missing", 8), 2);
 });
 
-test("the walk stops at its cgroup mount", (t) => {
-  const root = fixture(t, {
+test("the walk stops at its cgroup mount", (testContext) => {
+  const root = fixture(testContext, {
     "cpu.max": "100000 100000\n",
     "mount/cpu.max": "400000 100000\n",
   });
@@ -444,7 +444,7 @@ test("the async entry driver polls external readiness before waking the guest", 
   }
 });
 
-async function loopback(t: TestContext): Promise<Dynamic> {
+async function loopback(testContext: TestContext): Promise<Dynamic> {
   const sockets = new Set<net.Socket>();
   const server = net.createServer((socket) => {
     sockets.add(socket);
@@ -455,7 +455,7 @@ async function loopback(t: TestContext): Promise<Dynamic> {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => resolve());
   });
-  t.after(() => {
+  testContext.after(() => {
     for (const socket of sockets) {
       socket.destroy();
     }
@@ -465,39 +465,43 @@ async function loopback(t: TestContext): Promise<Dynamic> {
 }
 
 for (const phase of ["pending", "completed before finish", "completed past deadline"]) {
-  test(`TCP abort ${phase} preserves input and byte order`, { timeout: 10000 }, async (t) => {
-    const { host, call, take, handle, peer } = await tcpHost(t);
-    const first = call("TcpStream.read", handle, 1);
-    assert.notEqual(first.operation, undefined);
-    if (phase !== "pending") {
-      peer.write("abc");
-      host.imports["hd:rt"].block();
-      assert(host.core.st.ops.get(first.operation).completed);
-      assert.throws(() => host.imports["hd:Net"]["TcpListener.accept.finish"](first.operation));
-    }
-    const deadline = host.core.st.deadline;
-    if (phase === "completed past deadline") {
-      host.core.st.deadline = performance.now() - 1;
-    }
-    host.imports["hd:rt"].abort(first.operation);
-    host.core.st.deadline = deadline;
-    if (phase === "pending") {
-      peer.write("abc");
-    }
-    for (const byte of ["a", "b", "c"]) {
-      const result = take("TcpStream.read", call("TcpStream.read", handle, 1));
-      assert(result.ok);
-      assert.equal(Buffer.from(result.value).toString(), byte);
-    }
-  });
+  test(
+    `TCP abort ${phase} preserves input and byte order`,
+    { timeout: 10000 },
+    async (testContext) => {
+      const { host, call, take, handle, peer } = await tcpHost(testContext);
+      const first = call("TcpStream.read", handle, 1);
+      assert.notEqual(first.operation, undefined);
+      if (phase !== "pending") {
+        peer.write("abc");
+        host.imports["hd:rt"].block();
+        assert(host.core.st.ops.get(first.operation).completed);
+        assert.throws(() => host.imports["hd:Net"]["TcpListener.accept.finish"](first.operation));
+      }
+      const deadline = host.core.st.deadline;
+      if (phase === "completed past deadline") {
+        host.core.st.deadline = performance.now() - 1;
+      }
+      host.imports["hd:rt"].abort(first.operation);
+      host.core.st.deadline = deadline;
+      if (phase === "pending") {
+        peer.write("abc");
+      }
+      for (const byte of ["a", "b", "c"]) {
+        const result = take("TcpStream.read", call("TcpStream.read", handle, 1));
+        assert(result.ok);
+        assert.equal(Buffer.from(result.value).toString(), byte);
+      }
+    },
+  );
 }
 
 for (const reversed of [false, true]) {
   test(
     `concurrent TCP aborts preserve arrival order (reverse=${reversed})`,
     { timeout: 10000 },
-    async (t) => {
-      const { host, call, take, handle, peer } = await tcpHost(t);
+    async (testContext) => {
+      const { host, call, take, handle, peer } = await tcpHost(testContext);
       const first = call("TcpStream.read", handle, 1);
       const second = call("TcpStream.read", handle, 1);
       peer.write("abc");
@@ -524,20 +528,24 @@ for (const reversed of [false, true]) {
   );
 }
 
-test("closing a stream completes a pending read as Closed", { timeout: 10000 }, async (t) => {
-  const { call, take, handle } = await tcpHost(t);
-  const read = call("TcpStream.read", handle, 1);
-  assert(call("TcpStream.close", handle).result.ok);
-  const result = take("TcpStream.read", read);
-  assert.equal(result.ok, false);
-  assert.equal(result.error.tag, "Closed");
-});
+test(
+  "closing a stream completes a pending read as Closed",
+  { timeout: 10000 },
+  async (testContext) => {
+    const { call, take, handle } = await tcpHost(testContext);
+    const read = call("TcpStream.read", handle, 1);
+    assert(call("TcpStream.close", handle).result.ok);
+    const result = take("TcpStream.read", read);
+    assert.equal(result.ok, false);
+    assert.equal(result.error.tag, "Closed");
+  },
+);
 
 test(
   "a completed read closed before guest finish returns Closed",
   { timeout: 10000 },
-  async (t) => {
-    const { host, call, take, handle, peer } = await tcpHost(t);
+  async (testContext) => {
+    const { host, call, take, handle, peer } = await tcpHost(testContext);
     const read = call("TcpStream.read", handle, 1);
     peer.write("a");
     host.imports["hd:rt"].block();
@@ -552,17 +560,19 @@ test(
 test(
   "aborting a completed truncated UDP receive restores the whole datagram",
   { timeout: 10000 },
-  async (t) => {
-    const { host, call, take } = netHost(t);
+  async (testContext) => {
+    const { host, call, take } = netHost(testContext);
     const bound = take("bind_udp", call("bind_udp", "127.0.0.1", 0));
     assert(bound.ok);
     const [, port] = call("UdpSocket.local_address", bound.value).result.value;
     const receive = call("UdpSocket.receive", bound.value, 1);
     assert.notEqual(receive.operation, undefined);
     const peer = dgram.createSocket("udp4");
-    t.after(() => peer.close());
+    testContext.after(() => peer.close());
     await new Promise<void>((resolve, reject) =>
-      peer.send(Buffer.from("abc"), port, "127.0.0.1", (e) => (e ? reject(e) : resolve())),
+      peer.send(Buffer.from("abc"), port, "127.0.0.1", (error) =>
+        error ? reject(error) : resolve(),
+      ),
     );
     host.imports["hd:rt"].block();
     host.imports["hd:rt"].abort(receive.operation);
@@ -572,27 +582,31 @@ test(
   },
 );
 
-test("aborting a completed accept closes its undelivered stream", { timeout: 10000 }, async (t) => {
-  const { host, call, take } = netHost(t);
-  const bound = take("listen", call("listen", "127.0.0.1", 0));
-  assert(bound.ok);
-  const [, port] = call("TcpListener.local_address", bound.value).result.value;
-  const accept = call("TcpListener.accept", bound.value);
-  assert.notEqual(accept.operation, undefined);
-  const peer = net.connect({ host: "127.0.0.1", port });
-  t.after(() => peer.destroy());
-  await once(peer, "connect");
-  host.imports["hd:rt"].block();
-  const closed = once(peer, "close");
-  host.imports["hd:rt"].abort(accept.operation);
-  await closed;
-});
+test(
+  "aborting a completed accept closes its undelivered stream",
+  { timeout: 10000 },
+  async (testContext) => {
+    const { host, call, take } = netHost(testContext);
+    const bound = take("listen", call("listen", "127.0.0.1", 0));
+    assert(bound.ok);
+    const [, port] = call("TcpListener.local_address", bound.value).result.value;
+    const accept = call("TcpListener.accept", bound.value);
+    assert.notEqual(accept.operation, undefined);
+    const peer = net.connect({ host: "127.0.0.1", port });
+    testContext.after(() => peer.destroy());
+    await once(peer, "connect");
+    host.imports["hd:rt"].block();
+    const closed = once(peer, "close");
+    host.imports["hd:rt"].abort(accept.operation);
+    await closed;
+  },
+);
 
 test(
   "aborting a pending accept leaves the next connection for its successor",
   { timeout: 10000 },
-  async (t) => {
-    const { host, call, take } = netHost(t);
+  async (testContext) => {
+    const { host, call, take } = netHost(testContext);
     const bound = take("listen", call("listen", "127.0.0.1", 0));
     assert(bound.ok);
     const [, port] = call("TcpListener.local_address", bound.value).result.value;
@@ -601,7 +615,7 @@ test(
     host.imports["hd:rt"].abort(abandoned.operation);
     const next = call("TcpListener.accept", bound.value);
     const peer = net.connect({ host: "127.0.0.1", port });
-    t.after(() => peer.destroy());
+    testContext.after(() => peer.destroy());
     await once(peer, "connect");
     const accepted = take("TcpListener.accept", next);
     assert(accepted.ok);
@@ -609,9 +623,9 @@ test(
   },
 );
 
-test("worker abort immediately releases the connect operation", async (t) => {
-  const address = await loopback(t),
-    call = netWorker(t);
+test("worker abort immediately releases the connect operation", async (testContext) => {
+  const address = await loopback(testContext),
+    call = netWorker(testContext);
   for (let i = 0; i < 8; i++) {
     const { ok: operation } = call({ op: "connect_start", ...address });
     assert.equal(typeof operation, "number");
@@ -620,11 +634,11 @@ test("worker abort immediately releases the connect operation", async (t) => {
   }
 });
 
-test("worker abort releases a completed stream that was never delivered", async (t) => {
-  const address = await loopback(t),
-    call = netWorker(t);
+test("worker abort releases a completed stream that was never delivered", async (testContext) => {
+  const address = await loopback(testContext),
+    call = netWorker(testContext);
   const { ok: operation } = call({ op: "connect_start", ...address });
-  await t.waitFor(() => assert.equal(call({ op: "open" }).ok.stream, 1), {
+  await testContext.waitFor(() => assert.equal(call({ op: "open" }).ok.stream, 1), {
     interval: 1,
     timeout: 5000,
   });
@@ -633,11 +647,11 @@ test("worker abort releases a completed stream that was never delivered", async 
   assert.equal(call({ op: "open" }).ok.stream, 0);
 });
 
-test("worker result transfers one ready stream and close releases it", async (t) => {
-  const address = await loopback(t),
-    call = netWorker(t);
+test("worker result transfers one ready stream and close releases it", async (testContext) => {
+  const address = await loopback(testContext),
+    call = netWorker(testContext);
   const { ok: operation } = call({ op: "connect_start", ...address });
-  await t.waitFor(() => assert.equal(call({ op: "open" }).ok.stream, 1), {
+  await testContext.waitFor(() => assert.equal(call({ op: "open" }).ok.stream, 1), {
     interval: 1,
     timeout: 5000,
   });
@@ -654,7 +668,7 @@ test("worker result transfers one ready stream and close releases it", async (t)
 test(
   "zero-bound accept sees a kernel-queued peer before its JS callback",
   { timeout: 10000 },
-  async (t) => {
+  async (testContext) => {
     const barrier = new Int32Array(new SharedArrayBuffer(8));
     const script = `
     import { parentPort, workerData } from "node:worker_threads";
@@ -667,7 +681,7 @@ test(
       parentPort.postMessage(await run({ op: "accept", handle }));
     });
   `;
-    const call = netWorker(t, {
+    const call = netWorker(testContext, {
       url: new URL("data:text/javascript," + encodeURIComponent(script)),
       data: { barrier },
     });
@@ -689,7 +703,7 @@ test(
       "worker entered the callback barrier",
     );
     const peer = net.connect({ host: "127.0.0.1", port });
-    t.after(() => peer.destroy());
+    testContext.after(() => peer.destroy());
     await once(peer, "connect");
     Atomics.store(barrier, 1, 1);
     Atomics.notify(barrier, 1);
@@ -701,7 +715,10 @@ test(
 );
 
 // #726: the HTTP worker owns a request until its final body or abort.
-async function httpLoopback(t: TestContext, handler: http.RequestListener): Promise<string> {
+async function httpLoopback(
+  testContext: TestContext,
+  handler: http.RequestListener,
+): Promise<string> {
   const sockets = new Set<net.Socket>();
   const server = http.createServer(handler);
   server.on("connection", (socket) => {
@@ -713,7 +730,7 @@ async function httpLoopback(t: TestContext, handler: http.RequestListener): Prom
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => resolve());
   });
-  t.after(() => {
+  testContext.after(() => {
     for (const socket of sockets) {
       socket.destroy();
     }
@@ -722,8 +739,8 @@ async function httpLoopback(t: TestContext, handler: http.RequestListener): Prom
   return `http://127.0.0.1:${portOf(server)}`;
 }
 
-function httpWorker(t: TestContext): Dynamic {
-  const call = netWorker(t, { url: new URL("./http.ts", import.meta.url) });
+function httpWorker(testContext: TestContext): Dynamic {
+  const call = netWorker(testContext, { url: new URL("./http.ts", import.meta.url) });
   const start = (url: string, options: Dynamic = {}) => {
     const result = call({
       op: "start",
@@ -740,7 +757,7 @@ function httpWorker(t: TestContext): Dynamic {
   };
   const result = async (operation: number): Promise<Dynamic> => {
     let answer: Dynamic;
-    await t.waitFor(
+    await testContext.waitFor(
       () => {
         answer = call({ op: "poll", operation });
         assert.notEqual(answer.pending, true, "the HTTP operation is ready");
@@ -753,47 +770,51 @@ function httpWorker(t: TestContext): Dynamic {
 }
 
 for (const phase of ["headers", "body", "redirect"]) {
-  test(`HTTP abort closes a request waiting for ${phase}`, { timeout: 10000 }, async (t) => {
-    let seen!: (request: http.IncomingMessage) => void;
-    const received = new Promise<http.IncomingMessage>((resolve) => {
-      seen = resolve;
-    });
-    const paths: (string | undefined)[] = [];
-    const url = await httpLoopback(t, (request, response) => {
-      paths.push(request.url);
-      if (phase === "redirect" && request.url === "/") {
-        response.writeHead(302, { Location: "/slow" });
-        response.end();
-        return;
-      }
-      if (phase === "body") {
-        response.writeHead(200, { "Content-Type": "text/plain" });
-        response.write("unfinished body");
-      }
-      seen(request);
-    });
-    const { call, start } = httpWorker(t);
-    const operation = start(url);
-    const request = await received;
-    assert.deepEqual(call({ op: "poll", operation }), { pending: true });
-    const closed = once(request.socket, "close");
-    assert.deepEqual(call({ op: "abort", operation }), { ok: null });
-    await closed;
-    assert.deepEqual(call({ op: "open" }), { ok: 0 });
-    assert.deepEqual(call({ op: "abort", operation }), { ok: null }, "abort is idempotent");
-    assert.deepEqual(paths, phase === "redirect" ? ["/", "/slow"] : ["/"]);
-  });
+  test(
+    `HTTP abort closes a request waiting for ${phase}`,
+    { timeout: 10000 },
+    async (testContext) => {
+      let seen!: (request: http.IncomingMessage) => void;
+      const received = new Promise<http.IncomingMessage>((resolve) => {
+        seen = resolve;
+      });
+      const paths: (string | undefined)[] = [];
+      const url = await httpLoopback(testContext, (request, response) => {
+        paths.push(request.url);
+        if (phase === "redirect" && request.url === "/") {
+          response.writeHead(302, { Location: "/slow" });
+          response.end();
+          return;
+        }
+        if (phase === "body") {
+          response.writeHead(200, { "Content-Type": "text/plain" });
+          response.write("unfinished body");
+        }
+        seen(request);
+      });
+      const { call, start } = httpWorker(testContext);
+      const operation = start(url);
+      const request = await received;
+      assert.deepEqual(call({ op: "poll", operation }), { pending: true });
+      const closed = once(request.socket, "close");
+      assert.deepEqual(call({ op: "abort", operation }), { ok: null });
+      await closed;
+      assert.deepEqual(call({ op: "open" }), { ok: 0 });
+      assert.deepEqual(call({ op: "abort", operation }), { ok: null }, "abort is idempotent");
+      assert.deepEqual(paths, phase === "redirect" ? ["/", "/slow"] : ["/"]);
+    },
+  );
 }
 
 test(
   "HTTP operations complete independently and abort never posts a stray reply",
   { timeout: 10000 },
-  async (t) => {
+  async (testContext) => {
     let slow!: (request: http.IncomingMessage) => void;
     const received = new Promise<http.IncomingMessage>((resolve) => {
       slow = resolve;
     });
-    const url = await httpLoopback(t, (request, response) => {
+    const url = await httpLoopback(testContext, (request, response) => {
       if (request.url === "/slow") {
         slow(request);
         return;
@@ -801,7 +822,7 @@ test(
       response.writeHead(201, ["X-Repeat", "one", "X-Repeat", "two"]);
       response.end(request.url);
     });
-    const { call, start, result } = httpWorker(t);
+    const { call, start, result } = httpWorker(testContext);
     const pending = start(`${url}/slow`);
     const request = await received;
     const fast = start(`${url}/fast`);
@@ -830,8 +851,8 @@ test(
   },
 );
 
-test("HTTP grant and URL errors finish before any network wait", async (t) => {
-  const { call, start } = httpWorker(t);
+test("HTTP grant and URL errors finish before any network wait", async (testContext) => {
+  const { call, start } = httpWorker(testContext);
   const invalid = start("not a URL");
   assert.deepEqual(call({ op: "poll", operation: invalid }), {
     error: "InvalidUrl",
@@ -862,7 +883,7 @@ const settings = (changes: Dynamic = {}): Dynamic => ({
 });
 
 async function httpsLoopback(
-  t: TestContext,
+  testContext: TestContext,
   options: https.ServerOptions,
   handler: http.RequestListener,
 ): Promise<string> {
@@ -872,15 +893,15 @@ async function httpsLoopback(
   );
   server.on("tlsClientError", () => {});
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
-  t.after(() => {
+  testContext.after(() => {
     server.closeAllConnections?.();
     server.close();
   });
   return `https://127.0.0.1:${portOf(server)}`;
 }
 
-test("an HTTP setting the Node host does not honour is refused before any work", (t) => {
-  const { call, start } = httpWorker(t);
+test("an HTTP setting the Node host does not honour is refused before any work", (testContext) => {
+  const { call, start } = httpWorker(testContext);
   const refused = start("http://127.0.0.1:1/", {
     grants: { Http: false },
     settings: settings({ dnsServers: ["10.0.0.2"], connectTimeout: 1000 }),
@@ -894,14 +915,14 @@ test("an HTTP setting the Node host does not honour is refused before any work",
 test(
   "HTTP phase timeouts bound the header wait and the body read",
   { timeout: 10000 },
-  async (t) => {
-    const url = await httpLoopback(t, (request, response) => {
+  async (testContext) => {
+    const url = await httpLoopback(testContext, (request, response) => {
       if (request.url === "/body") {
         response.writeHead(200, { "Content-Length": "10" });
         response.write("part");
       }
     });
-    const { start, result } = httpWorker(t);
+    const { start, result } = httpWorker(testContext);
     for (const [path, change] of [
       ["/headers", { responseHeaderTimeout: 100 }],
       ["/body", { bodyReadTimeout: 100 }],
@@ -914,15 +935,15 @@ test(
   },
 );
 
-test("a zero connect timeout expires before any connection", async (t) => {
+test("a zero connect timeout expires before any connection", async (testContext) => {
   let connections = 0;
   const server = net.createServer((socket) => {
     connections += 1;
     socket.destroy();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
-  t.after(() => server.close());
-  const { start, result } = httpWorker(t);
+  testContext.after(() => server.close());
+  const { start, result } = httpWorker(testContext);
   const url = `http://127.0.0.1:${portOf(server)}/`;
   const answer = await result(start(url, { settings: settings({ connectTimeout: 0 }) }));
   assert.deepEqual(answer, { error: "Timeout", text: null });
@@ -930,8 +951,8 @@ test("a zero connect timeout expires before any connection", async (t) => {
   assert.equal(connections, 0);
 });
 
-test("each redirect hop restarts the phase timers", { timeout: 10000 }, async (t) => {
-  const url = await httpLoopback(t, (request, response) => {
+test("each redirect hop restarts the phase timers", { timeout: 10000 }, async (testContext) => {
+  const url = await httpLoopback(testContext, (request, response) => {
     setTimeout(() => {
       if (request.url === "/end") {
         response.end("done");
@@ -941,7 +962,7 @@ test("each redirect hop restarts the phase timers", { timeout: 10000 }, async (t
       }
     }, 150);
   });
-  const { start, result } = httpWorker(t);
+  const { start, result } = httpWorker(testContext);
   // Three hops of 150 ms each outlast one 250 ms header timer; the connect
   // timer ends at each connection.
   const answer = await result(
@@ -951,11 +972,11 @@ test("each redirect hop restarts the phase timers", { timeout: 10000 }, async (t
   assert.equal(new TextDecoder().decode(answer.body), "done");
 });
 
-test("a TLS handshake timeout stops a peer that never answers the hello", async (t) => {
+test("a TLS handshake timeout stops a peer that never answers the hello", async (testContext) => {
   const server = net.createServer((socket) => socket.on("error", () => {}));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
-  t.after(() => server.close());
-  const { start, result } = httpWorker(t);
+  testContext.after(() => server.close());
+  const { start, result } = httpWorker(testContext);
   const answer = await result(
     start(`https://127.0.0.1:${portOf(server)}/`, {
       settings: settings({ tlsHandshakeTimeout: 100 }),
@@ -964,9 +985,9 @@ test("a TLS handshake timeout stops a peer that never answers the hello", async 
   assert.deepEqual(answer, { error: "Timeout", text: null });
 });
 
-test("extra TLS roots extend the store and an identity reaches the server", async (t) => {
+test("extra TLS roots extend the store and an identity reaches the server", async (testContext) => {
   const url = await httpsLoopback(
-    t,
+    testContext,
     { ca: tlsFixture("ca"), requestCert: true, rejectUnauthorized: false },
     (request, response) => {
       const socket = request.socket as TLSSocket;
@@ -974,7 +995,7 @@ test("extra TLS roots extend the store and an identity reaches the server", asyn
       response.end(socket.authorized ? `client ${peer.subject.CN}` : "anonymous");
     },
   );
-  const { start, result } = httpWorker(t);
+  const { start, result } = httpWorker(testContext);
   const untrusted = await result(start(url));
   assert.equal(untrusted.error, "Tls", JSON.stringify(untrusted));
   const trusted = await result(
@@ -991,9 +1012,9 @@ test("extra TLS roots extend the store and an identity reaches the server", asyn
   assert.equal(new TextDecoder().decode(mutual.body), "client hd test client");
 });
 
-test("a TLS key Node cannot load is a TLS failure", async (t) => {
-  const url = await httpsLoopback(t, {}, (request, response) => response.end());
-  const { start, result } = httpWorker(t);
+test("a TLS key Node cannot load is a TLS failure", async (testContext) => {
+  const url = await httpsLoopback(testContext, {}, (request, response) => response.end());
+  const { start, result } = httpWorker(testContext);
   const answer = await result(
     start(url, {
       settings: settings({
@@ -1006,47 +1027,51 @@ test("a TLS key Node cannot load is a TLS failure", async (t) => {
 });
 
 for (const mode of ["expired deadline", "host close"]) {
-  test(`the real Node host aborts pending HTTP after ${mode}`, { timeout: 10000 }, async (t) => {
-    let seen!: (request: http.IncomingMessage) => void;
-    const received = new Promise<http.IncomingMessage>((resolve) => {
-      seen = resolve;
-    });
-    const url = await httpLoopback(t, (request) => {
-      seen(request);
-    });
-    const host = createHost({ out() {}, err() {} });
-    t.after(() => host.close());
-    const memory = new WebAssembly.Memory({ initial: 1 });
-    host.prime({ exports: { "hd.x": memory } });
-    const encoded = new Enc();
-    METHODS["hd:Http"].send.params[0].enc(encoded, {
-      method: { tag: "Get" },
-      url,
-      headers: [],
-      body: new Uint8Array(),
-      redirects: 5,
-      dns_servers: null,
-      tls_roots: [],
-      tls_identity: null,
-      connect_timeout: null,
-      tls_handshake_timeout: null,
-      response_header_timeout: null,
-      body_read_timeout: null,
-    });
-    new Uint8Array(memory.buffer).set(encoded.done());
-    const [status, operation] = host.imports["hd:Http"]["send.start"](encoded.len);
-    assert.equal(status, 1, "send stays pending while the server has not replied");
-    const request = await received;
-    const closed = once(request.socket, "close");
-    if (mode === "expired deadline") {
-      host.core.st.deadline = performance.now() - 1;
-      host.imports["hd:rt"].abort(operation);
-    } else {
-      host.close();
-    }
-    await closed;
-    assert.equal(host.core.st.ops.size, 0);
-  });
+  test(
+    `the real Node host aborts pending HTTP after ${mode}`,
+    { timeout: 10000 },
+    async (testContext) => {
+      let seen!: (request: http.IncomingMessage) => void;
+      const received = new Promise<http.IncomingMessage>((resolve) => {
+        seen = resolve;
+      });
+      const url = await httpLoopback(testContext, (request) => {
+        seen(request);
+      });
+      const host = createHost({ out() {}, err() {} });
+      testContext.after(() => host.close());
+      const memory = new WebAssembly.Memory({ initial: 1 });
+      host.prime({ exports: { "hd.x": memory } });
+      const encoded = new Enc();
+      METHODS["hd:Http"].send.params[0].enc(encoded, {
+        method: { tag: "Get" },
+        url,
+        headers: [],
+        body: new Uint8Array(),
+        redirects: 5,
+        dns_servers: null,
+        tls_roots: [],
+        tls_identity: null,
+        connect_timeout: null,
+        tls_handshake_timeout: null,
+        response_header_timeout: null,
+        body_read_timeout: null,
+      });
+      new Uint8Array(memory.buffer).set(encoded.done());
+      const [status, operation] = host.imports["hd:Http"]["send.start"](encoded.len);
+      assert.equal(status, 1, "send stays pending while the server has not replied");
+      const request = await received;
+      const closed = once(request.socket, "close");
+      if (mode === "expired deadline") {
+        host.core.st.deadline = performance.now() - 1;
+        host.imports["hd:rt"].abort(operation);
+      } else {
+        host.close();
+      }
+      await closed;
+      assert.equal(host.core.st.ops.size, 0);
+    },
+  );
 }
 
 test("the shared HTTP adapter preserves synchronous browser-style answers", () => {
@@ -1084,8 +1109,8 @@ test("the browser host refuses every transport setting before any request", () =
 });
 
 // #812: real children live on a worker even when the guest uses rt.block.
-function processHost(t: TestContext, env: Dynamic = {}): Dynamic {
-  const api = netHost(t, "hd:Process", {
+function processHost(testContext: TestContext, env: Dynamic = {}): Dynamic {
+  const api = netHost(testContext, "hd:Process", {
     processLauncher: process.env.HD_PROCESS_LAUNCHER,
     ...env,
   });
@@ -1101,16 +1126,16 @@ function processHost(t: TestContext, env: Dynamic = {}): Dynamic {
   return { ...api, run };
 }
 
-test("Process pending child lets sibling clocks advance before release", async (t) => {
-  const root = fixture(t, {});
+test("Process pending child lets sibling clocks advance before release", async (testContext) => {
+  const root = fixture(testContext, {});
   const ready = join(root, "ready"),
     release = join(root, "release");
-  const { host, run, take } = processHost(t);
+  const { host, run, take } = processHost(testContext);
   const child = run(`const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(ready)},'');
     const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)})){
       clearInterval(timer);process.stdout.write('released');}},5);`);
   assert.equal(typeof child.operation, "number");
-  await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+  await testContext.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
   for (let tick = 0; tick < 3; tick++) {
     const [, clock] = host.imports["hd:Clock"]["sleep.start"](0n);
     assert.ok(host.imports["hd:rt"].block() > 0);
@@ -1124,8 +1149,8 @@ test("Process pending child lets sibling clocks advance before release", async (
   );
 });
 
-test("Process drains both pipes while feeding input and keeps nonzero status", (t) => {
-  const { run, take } = processHost(t);
+test("Process drains both pipes while feeding input and keeps nonzero status", (testContext) => {
+  const { run, take } = processHost(testContext);
   // The exchange buffer belongs to the guest; this larger command needs more.
   const input = "A".repeat(50_000);
   const result = take(
@@ -1146,8 +1171,8 @@ test("Process drains both pipes while feeding input and keeps nonzero status", (
   assert.ok(result.value.stderr === "y".repeat(70_000));
 });
 
-test("Process child closing stdin preserves output and status", (t) => {
-  const { run, take } = processHost(t);
+test("Process child closing stdin preserves output and status", (testContext) => {
+  const { run, take } = processHost(testContext);
   // Input exceeds a pipe buffer; the child closes without reading it.
   assert.deepEqual(
     take(
@@ -1163,13 +1188,13 @@ test("Process child closing stdin preserves output and status", (t) => {
   );
 });
 
-test("Process missing program, grant and malformed commands keep typed errors", (t) => {
-  const api = processHost(t);
+test("Process missing program, grant and malformed commands keep typed errors", (testContext) => {
+  const api = processHost(testContext);
   assert.deepEqual(
     api.take("run", api.run("", { program: "hd-missing-muse-812" })),
     Err({ tag: "NotFound", program: "hd-missing-muse-812" }),
   );
-  const denied = processHost(t, { grants: { Process: false } });
+  const denied = processHost(testContext, { grants: { Process: false } });
   const refused = denied.run("", { program: "hd-missing-muse-812" });
   assert.equal(refused.operation, undefined);
   assert.deepEqual(refused.result, Err({ tag: "NotGranted" }));
@@ -1179,8 +1204,11 @@ test("Process missing program, grant and malformed commands keep typed errors", 
   assert.equal(bad.result.error.tag, "Other");
 });
 
-function processWorker(t: TestContext): Dynamic {
-  const call = netWorker(t, { url: new URL("./process.ts", import.meta.url), close: "close" });
+function processWorker(testContext: TestContext): Dynamic {
+  const call = netWorker(testContext, {
+    url: new URL("./process.ts", import.meta.url),
+    close: "close",
+  });
   const start = (script: string, more: Dynamic = {}) =>
     call({
       op: "wait_start",
@@ -1202,24 +1230,26 @@ for (const phase of ["running", "leader-exited"]) {
   test(
     `Process abort kills its process group (${phase})`,
     { skip: process.platform === "win32" },
-    async (t) => {
-      const root = fixture(t, {}),
+    async (testContext) => {
+      const root = fixture(testContext, {}),
         ready = join(root, "ready"),
         parent = join(root, "parent");
-      const { call, start } = processWorker(t);
+      const { call, start } = processWorker(testContext);
       const descendant = `require('node:fs').writeFileSync(${JSON.stringify(ready)},String(process.pid));setInterval(()=>{},1000)`;
       const script = `require('node:fs').writeFileSync(${JSON.stringify(parent)},String(process.pid));const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:['ignore','inherit','inherit']});
       ${phase === "leader-exited" ? "child.unref();" : "setInterval(()=>{},1000);"}`;
       const operation = start(script);
-      await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+      await testContext.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
       const pid = Number(readFileSync(ready, "utf8"));
       const parentPid = Number(readFileSync(parent, "utf8"));
       if (phase === "leader-exited") {
-        await t.waitFor(() => assert.throws(() => process.kill(parentPid, 0)), { timeout: 5000 });
+        await testContext.waitFor(() => assert.throws(() => process.kill(parentPid, 0)), {
+          timeout: 5000,
+        });
       } else {
         process.kill(parentPid, 0);
       }
-      t.after(() => {
+      testContext.after(() => {
         try {
           process.kill(pid, "SIGKILL");
         } catch {}
@@ -1227,16 +1257,16 @@ for (const phase of ["running", "leader-exited"]) {
       assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
       assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
       assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
-      await t.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
+      await testContext.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
     },
   );
 }
 
-test("Process ready result stays owned until finish or abort", async (t) => {
-  const { call, start } = processWorker(t);
+test("Process ready result stays owned until finish or abort", async (testContext) => {
+  const { call, start } = processWorker(testContext);
   const operation = start("process.stdout.write('ready')");
   let result;
-  await t.waitFor(
+  await testContext.waitFor(
     () => {
       result = call({ op: "wait_poll", operation });
       assert.ok(result.ok);
@@ -1246,17 +1276,17 @@ test("Process ready result stays owned until finish or abort", async (t) => {
   assert.deepEqual(call({ op: "wait_poll", operation }), result);
   assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
   const second = start("process.stdout.write('next')");
-  await t.waitFor(() => assert.ok(call({ op: "wait_poll", operation: second }).ok), {
+  await testContext.waitFor(() => assert.ok(call({ op: "wait_poll", operation: second }).ok), {
     timeout: 5000,
   });
   assert.deepEqual(call({ op: "wait_finish", operation: second }), { ok: null });
 });
 
-test("Process prepared child uses its configured launcher, directory and environment", (t) => {
-  const root = fixture(t, {
+test("Process prepared child uses its configured launcher, directory and environment", (testContext) => {
+  const root = fixture(testContext, {
     "child.ts": `process.stdout.write(JSON.stringify([process.argv.slice(2),process.cwd(),process.env.MUSE_CHILD]));`,
   });
-  const api = processHost(t, {
+  const api = processHost(testContext, {
     programs: {
       prepared: {
         host: join(root, "child.ts"),
@@ -1286,40 +1316,43 @@ test("Process prepared child uses its configured launcher, directory and environ
   ]);
 });
 
-test("Process worker deadline kills the child and reports timeout", async (t) => {
-  const { call, start } = processWorker(t);
+test("Process worker deadline kills the child and reports timeout", async (testContext) => {
+  const { call, start } = processWorker(testContext);
   const operation = start("setInterval(()=>{},1000)", { timeout: 50 });
-  await t.waitFor(() => assert.deepEqual(call({ op: "wait_poll", operation }), { timeout: true }), {
-    timeout: 5000,
-  });
+  await testContext.waitFor(
+    () => assert.deepEqual(call({ op: "wait_poll", operation }), { timeout: true }),
+    {
+      timeout: 5000,
+    },
+  );
   assert.deepEqual(call({ op: "wait_finish", operation }), { ok: null });
 });
 
-test("Process host close cancels a child with unread output", async (t) => {
-  const root = fixture(t, {}),
+test("Process host close cancels a child with unread output", async (testContext) => {
+  const root = fixture(testContext, {}),
     ready = join(root, "ready");
-  const { host, run } = processHost(t);
+  const { host, run } = processHost(testContext);
   run(
     `require('node:fs').writeFileSync(${JSON.stringify(ready)},String(process.pid));setInterval(()=>{},1000)`,
   );
-  await t.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+  await testContext.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
   const pid = Number(readFileSync(ready, "utf8"));
-  t.after(() => {
+  testContext.after(() => {
     try {
       process.kill(pid, "SIGKILL");
     } catch {}
   });
   host.close();
-  await t.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
+  await testContext.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
 });
 
 // A host timeout longer than Node's timer range must not turn into 1 ms.
-test("Process long deadline does not overflow the worker timer", async (t) => {
-  const { call, start } = processWorker(t);
+test("Process long deadline does not overflow the worker timer", async (testContext) => {
+  const { call, start } = processWorker(testContext);
   const operation = start("setTimeout(()=>process.stdout.write('ok'),20)", {
     timeout: 2_147_483_648,
   });
-  await t.waitFor(
+  await testContext.waitFor(
     () => {
       const result = call({ op: "wait_poll", operation });
       assert.equal(result.ok?.stdout, "ok");
