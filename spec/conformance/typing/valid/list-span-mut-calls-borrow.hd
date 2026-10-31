@@ -1,0 +1,11 @@
+# test: several calls on one mutable span check, because each borrows the span instead of using it up
+# std Collections, Spans: std-collections.span-mut.receivers.
+fn edit(items: &mut List[i32]) -> usize:
+    let mut span = items.span_mut()
+    first := *span.get(0).expect("index 0")
+    span.swap(0, 1)
+    *span.get_mut(2).expect("index 2") = first
+    let mut part = span.slice_mut(1..3)
+    part.fill(0)
+    span.fill(first)
+    span.len()

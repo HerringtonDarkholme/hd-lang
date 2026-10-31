@@ -1,0 +1,8 @@
+# test: a mutable slice borrows its span, so the span cannot be used while the slice is live
+# std Collections, Spans: std-collections.span-mut.slice-borrow.
+fn conflict(items: &mut List[i32]) -> usize:
+    let mut span = items.span_mut()
+    let mut part = span.slice_mut(1..3)
+    span.fill(0) # diagnostic: conflicting-access
+    part.fill(1)
+    part.len()

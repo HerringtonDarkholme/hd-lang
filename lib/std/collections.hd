@@ -677,17 +677,17 @@ impl[T, 'a] SpanMut[T, 'a]:
 
     ## Returns a shared reference to the indexed element, or `.None` outside the span.
     ## See [std-collections.span-mut.get](../../spec/std/collections.md#r-std-collections.span-mut.get).
-    pub fn get(self, index: usize) -> (&'a T)?:
+    pub fn get['b](&'b self, index: usize) -> (&'b T)?:
         if index >= self.len(): .None else: .Some(&self.items[self.start + index])
 
     ## Returns a mutable reference to the indexed element, or `.None` outside the span.
     ## See [std-collections.span-mut.get-mut](../../spec/std/collections.md#r-std-collections.span-mut.get-mut).
-    pub fn get_mut(self, index: usize) -> (&'a mut T)?:
+    pub fn get_mut['b](&'b mut self, index: usize) -> (&'b mut T)?:
         if index >= self.len(): .None else: .Some(&mut self.items[self.start + index])
 
     ## Returns the part of this span selected by `range`, without copying elements.
     ## See [std-collections.span-mut.slice](../../spec/std/collections.md#r-std-collections.span-mut.slice).
-    pub fn slice_mut(self, range: Range[usize]) -> SpanMut[T, 'a]:
+    pub fn slice_mut['b](&'b mut self, range: Range[usize]) -> SpanMut[T, 'b]:
         let stop = range.end
         if range.inclusive:
             if range.end >= self.len():
@@ -695,7 +695,7 @@ impl[T, 'a] SpanMut[T, 'a]:
             stop = stop + 1
         if stop > self.len() || range.start > stop:
             panic_with("index-out-of-bounds", "mutable span slice out of bounds")
-        SpanMut { items: self.items, start: self.start + range.start, end: self.start + stop }
+        SpanMut { items: &mut *self.items, start: self.start + range.start, end: self.start + stop }
 
     ## Exchanges the elements at `left` and `right`.
     ## See [std-collections.span-mut.swap](../../spec/std/collections.md#r-std-collections.span-mut.swap).
