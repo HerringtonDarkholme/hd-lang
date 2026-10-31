@@ -132,15 +132,16 @@ function loadSeries(dir: string): { series: Series[]; latest: string } {
 
 const STATUS_LABEL: Record<Status, string> = { pass: "✓ met", fail: "✗ missed", "n/a": "– n/a" };
 
-interface Pillar {
+export interface Pillar {
   readonly key: string;
   readonly title: string;
   readonly question: string;
   readonly explain: string;
 }
 
-// The Agentic Programming Language Arena (docs/compiler/goals.md).
-const PILLARS: readonly Pillar[] = [
+// The Agentic Programming Language Arena (docs/compiler/goals.md). The home
+// page shows the three pillars, without the gate.
+export const PILLARS: readonly Pillar[] = [
   {
     key: "1",
     title: "Single-agent development cost",

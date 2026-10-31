@@ -1451,6 +1451,255 @@ pre.ebnf .eb-definition:target {
   text-wrap: pretty;
 }
 
+/* Why hd: the three agentic pillars, a title row over three cards. */
+.agents-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.agents-head h2 {
+  margin: 0;
+  color: var(--heading);
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 3.4vw, 2.75rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.agents-head .eyebrow {
+  margin: 0;
+  color: var(--text-soft);
+  text-decoration: none;
+}
+
+.agents-head .eyebrow:hover {
+  color: var(--accent);
+}
+
+/*
+ * The cards stay short: a label, the pillar's question, and what it measures,
+ * with "How hd gets there" on the Measures row. Choosing it widens that card
+ * and squeezes the others (site.js sets data-open on the grid); the Measures
+ * label and the button then head two columns of text. A squeezed card keeps
+ * only its label, question and button. site.js holds the grid at its tallest state,
+ * so the section never changes height, and runs the change as a view
+ * transition where the browser has one. Without scripts every text shows.
+ */
+.agent-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  transition: grid-template-columns 0.35s ease;
+}
+
+@media (min-width: 1001px) {
+  .agent-grid[data-open="1"] {
+    grid-template-columns: 2.4fr 1fr 1fr;
+  }
+
+  .agent-grid[data-open="2"] {
+    grid-template-columns: 1fr 2.4fr 1fr;
+  }
+
+  .agent-grid[data-open="3"] {
+    grid-template-columns: 1fr 1fr 2.4fr;
+  }
+
+  .agent-grid.is-ready .agent-pillar.is-squeezed .agent-pillar-measures,
+  .agent-grid.is-ready .agent-pillar.is-squeezed .agent-pillar-label {
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  .agent-grid.is-ready .agent-pillar.is-squeezed .agent-pillar-measures {
+    height: 0;
+  }
+
+  /* Open, the two labels head two columns, each text under its own. */
+  .agent-grid.is-ready .agent-pillar.is-open .agent-pillar-body {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "label more"
+      "measures how";
+  }
+
+  .agent-grid.is-ready .agent-pillar.is-open .agent-pillar-more {
+    justify-self: start;
+  }
+}
+
+/* A view transition animates instead; the CSS transitions would fight it. */
+.agent-grid.is-measuring,
+.agent-grid.is-measuring *,
+.agent-grid.has-view-transitions,
+.agent-grid.has-view-transitions * {
+  transition: none !important;
+}
+
+.agent-pillar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  padding: 28px 28px 28px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.agent-pillar.is-open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 20px 50px -34px var(--glow);
+}
+
+.agent-pillar-name {
+  margin: 0 0 14px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-pillar h3 {
+  margin: 0 0 14px;
+  color: var(--heading);
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/*
+ * The Measures label and the button share the first row; the texts follow.
+ * Without scripts the "how" text takes a row of its own.
+ */
+.agent-pillar-body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "label more"
+    "measures measures"
+    "how how";
+  gap: 6px 28px;
+  align-items: baseline;
+}
+
+.agent-pillar-label {
+  grid-area: label;
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.agent-pillar-measures,
+.agent-pillar-how {
+  align-self: start;
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 15px;
+  transition: opacity 0.3s ease 0.15s;
+}
+
+.agent-pillar-measures {
+  grid-area: measures;
+}
+
+.agent-pillar-how {
+  grid-area: how;
+  color: var(--text);
+}
+
+.agent-pillar-how code {
+  padding: 0.05em 0.3em;
+  color: var(--inline-code);
+  background: var(--bg-inline-code);
+  border-radius: 4px;
+  font-size: 0.86em;
+}
+
+/* Without scripts the "how" text keeps a plain title instead of the button. */
+.agent-pillar-how-title {
+  margin-right: 6px;
+  color: var(--rose);
+  font-weight: 600;
+}
+
+.agent-grid.is-ready .agent-pillar-how-title {
+  display: none;
+}
+
+.agent-grid.is-ready .agent-pillar:not(.is-open) .agent-pillar-how {
+  display: none;
+}
+
+.agent-pillar-more {
+  display: none;
+  grid-area: more;
+  justify-self: end;
+  padding: 0;
+  white-space: nowrap;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.agent-grid.is-ready .agent-pillar-more {
+  display: inline;
+}
+
+/* Heading the "how" text, the button is pink and points nowhere. */
+.agent-pillar.is-open .agent-pillar-more {
+  color: var(--rose);
+}
+
+.agent-pillar.is-open .agent-pillar-arrow {
+  display: none;
+}
+
+/*
+ * The view transition: each card and each button glides to its new place.
+ * A card's old and new pictures keep their size and are clipped to the
+ * moving box, so text never stretches.
+ */
+::view-transition-group(pillar-card-1),
+::view-transition-group(pillar-card-2),
+::view-transition-group(pillar-card-3) {
+  overflow: clip;
+  border-radius: 18px;
+}
+
+::view-transition-old(pillar-card-1),
+::view-transition-old(pillar-card-2),
+::view-transition-old(pillar-card-3),
+::view-transition-new(pillar-card-1),
+::view-transition-new(pillar-card-2),
+::view-transition-new(pillar-card-3) {
+  width: auto;
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+
+::view-transition-group(*) {
+  animation-duration: 0.35s;
+}
+
 .section-note {
   margin: 20px 0 0;
   color: var(--text-soft);
@@ -2659,6 +2908,7 @@ body.repl-open .repl-toggle {
   }
 
   .showcase,
+  .agent-grid,
   .install-card {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -1,7 +1,7 @@
 // Client behavior for the hd-lang site: the mobile navigation toggle, the
 // theme toggle, heading search, copy buttons on code blocks, passing
 // `#code=` from the playground page to the playground, and the home page's
-// claims explorers and linked lines.
+// claims explorers, linked lines, and widening cards.
 
 const base = document.body.dataset.base ?? "/";
 
@@ -390,6 +390,124 @@ function setupLinks() {
   }
 }
 
+/**
+ * Widening cards: in a `[data-widen]` grid, pointing at, focusing, or
+ * clicking a card's `.agent-pillar-more` button widens that card (the grid's
+ * `data-open` names it, from 1) and marks the others squeezed; the style sheet
+ * then sets the card's texts in two columns under their labels.
+ * Leaving the grid restores it. Where the browser has view transitions, the
+ * cards and buttons glide between the two layouts. Side by side, the grid is
+ * held at the height of its tallest state, so nothing below moves; stacked
+ * on a narrow screen, it grows instead.
+ */
+function setupWiden() {
+  for (const grid of document.querySelectorAll("[data-widen]")) {
+    const items = [...grid.querySelectorAll("[data-widen-item]")];
+    let current = 0;
+    let busy = false;
+    const show = (open) => {
+      if (open > 0) {
+        grid.dataset.open = String(open);
+      } else {
+        delete grid.dataset.open;
+      }
+      items.forEach((item, index) => {
+        item.classList.toggle("is-open", index + 1 === open);
+        item.classList.toggle("is-squeezed", open > 0 && index + 1 !== open);
+        item
+          .querySelector(".agent-pillar-more")
+          ?.setAttribute("aria-expanded", String(index + 1 === open));
+      });
+    };
+    // Where the pointer last was; null until it moves, as with a keyboard.
+    // Pointer events stop during a view transition, so a move afterwards
+    // also closes a card the pointer left meanwhile.
+    let pointer = null;
+    document.addEventListener(
+      "pointermove",
+      (event) => {
+        pointer = { x: event.clientX, y: event.clientY };
+        if (!busy && current > 0 && event.target instanceof Node && !grid.contains(event.target)) {
+          change(0);
+        }
+      },
+      { passive: true },
+    );
+    // Whether the pointer is over the grid; an unknown answer (no pointer
+    // yet, or the root while a transition's pictures still cover the page)
+    // counts as yes, and the next move settles it.
+    const pointerInside = () => {
+      if (!pointer) {
+        return false;
+      }
+      const under = document.elementFromPoint(pointer.x, pointer.y);
+      return !under || under === document.documentElement || grid.contains(under);
+    };
+    const stacked = window.matchMedia("(max-width: 1000px)");
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const glide = Boolean(document.startViewTransition);
+    grid.classList.toggle("has-view-transitions", glide);
+    const change = (open) => {
+      if (open === current) {
+        return;
+      }
+      current = open;
+      if (!glide || stacked.matches || still.matches) {
+        show(open);
+        return;
+      }
+      busy = true;
+      const transition = document.startViewTransition(() => show(open));
+      transition.finished.finally(() => {
+        busy = false;
+        // Pointer events stopped during the transition: close if it left.
+        if (current > 0 && !pointerInside() && !grid.contains(document.activeElement)) {
+          change(0);
+        }
+      });
+    };
+    const reserve = () => {
+      grid.style.height = "";
+      if (stacked.matches) {
+        return;
+      }
+      grid.classList.add("is-measuring");
+      let tallest = 0;
+      for (let open = 0; open <= items.length; open += 1) {
+        show(open);
+        tallest = Math.max(tallest, grid.offsetHeight);
+      }
+      show(current);
+      grid.style.height = `${tallest}px`;
+      // Lay out the final state before transitions return, so nothing animates.
+      void grid.offsetHeight;
+      grid.classList.remove("is-measuring");
+    };
+    items.forEach((item, index) => {
+      const button = item.querySelector(".agent-pillar-more");
+      button?.addEventListener("pointerenter", () => change(index + 1));
+      button?.addEventListener("focus", () => change(index + 1));
+      button?.addEventListener("click", () => change(current === index + 1 ? 0 : index + 1));
+    });
+    grid.addEventListener("pointerleave", () => {
+      if (!busy) {
+        change(0);
+      }
+    });
+    grid.addEventListener("focusout", (event) => {
+      if (!(event.relatedTarget instanceof Node) || !grid.contains(event.relatedTarget)) {
+        if (!pointerInside()) {
+          change(0);
+        }
+      }
+    });
+    grid.classList.add("is-ready");
+    reserve();
+    window.addEventListener("resize", reserve);
+    document.fonts?.ready.then(reserve);
+  }
+}
+
 setupMenu();
 setupTheme();
 setupCopy();
@@ -398,3 +516,4 @@ setupPlayground();
 setupOutline();
 setupExplorer();
 setupLinks();
+setupWiden();

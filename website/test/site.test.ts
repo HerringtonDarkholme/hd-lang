@@ -160,6 +160,12 @@ describe("website build", () => {
     assert.match(home, /<a class="button button-primary" href="\/hd-lang\/tour\/">Take the tour/);
     assert.match(home, /<a class="button" href="\/hd-lang\/playground\.html">/);
     assert.match(home, /href="\/hd-lang\/guide\/learn-in-10-minutes\.html">Learn in 10 minutes/);
+    // The agentic pillars are the metrics page's, without the correctness gate.
+    assert.equal([...home.matchAll(/<article class="agent-pillar" data-widen-item /g)].length, 3);
+    assert.match(home, /· Agent scalability<\/p>/);
+    assert.doesNotMatch(home, /Correctness gate/);
+    // Each card's "How hd gets there" button opens its own text.
+    assert.equal([...home.matchAll(/aria-controls="pillar-how-\d"/g)].length, 3);
     // The effect steps are headed by the README's pillars, under their marks.
     assert.match(home, /<code class="explorer-glyph">\$\.with<\/code><span>Provide<\/span>/);
     assert.match(home, /<h3 class="claim-title">Requirements declare<\/h3>/);

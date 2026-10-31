@@ -1,4 +1,5 @@
-// The landing page shows only what sets hd apart: the hero, a walk through
+// The landing page shows only what sets hd apart: the hero, the three
+// agentic pillars, a walk through
 // the three features that emulate algebraic effects, typed derivation, the
 // standard library's testing support, and how to install it. Each claim is a
 // few lines that run in the playground. The README is the source of the
@@ -11,6 +12,7 @@ import { type Claim, claimCard } from "./claim.ts";
 import { DERIVATION, EFFECT_STEPS, featureClaims, STD_FEATURES } from "./features.ts";
 import { logoSvg } from "./logo.ts";
 import { escapeHtml, highlightHd, type RenderEnv } from "./markdown.ts";
+import { PILLARS } from "./metrics.ts";
 import { REPOSITORY_URL } from "./pages.ts";
 
 interface HomeInput {
@@ -35,6 +37,16 @@ const PILLARS_HEADING = "Algebraic effects, emulated by three pillars";
 
 /** Each pillar's mark, in the README's order. */
 const PILLAR_GLYPHS = ["$", "$.with", "!"];
+
+/**
+ * How hd meets each pillar, by the metrics page's pillar key: the README's
+ * pillar list and the goals doc's per-pillar features, in short.
+ */
+const PILLAR_HOW: Readonly<Record<string, string>> = {
+  "1": "Explicit signatures let the checker skip dependency bodies, and checking is incremental per module. Diagnostics are compact, with JSON fix-its. Tests, property tests, and `require`/`ensure` contracts are built in.",
+  "2": "Check results and compiled code are cached by content and shared across processes, and std is checked once, inside the binary. A program reaches the host only through the capabilities it is granted.",
+  "3": "Code is generated per value layout, suspension compiles to state machines, and only reachable code goes into the Wasm module. Time, randomness, and I/O sit behind capabilities, so a test can fix them.",
+};
 
 /** One explorer tab: its label, an optional mark before it, and its claim. */
 interface ExplorerItem {
@@ -175,6 +187,36 @@ ${logoSvg({ id: "hero-logo", variant: "full", className: "hero-logo" })}
 </div>
 </section>`;
 
+  // Why hd: the three pillars of the Agentic Programming Language Arena, as
+  // the metrics page defines them (correctness is a gate, not a pillar):
+  // what each measures, and how hd meets it.
+  const agentCards = PILLARS.filter((pillar) => pillar.key !== "gate")
+    .map(
+      (
+        pillar,
+        index,
+      ) => `<article class="agent-pillar" data-widen-item style="view-transition-name: pillar-card-${index + 1}">
+<p class="agent-pillar-name">${String(index + 1).padStart(2, "0")} · ${escapeHtml(pillar.title)}</p>
+<h3>${escapeHtml(pillar.question)}</h3>
+<div class="agent-pillar-body">
+<span class="agent-pillar-label">Measures</span>
+<button class="agent-pillar-more" type="button" aria-controls="pillar-how-${index + 1}" aria-expanded="false" style="view-transition-name: pillar-more-${index + 1}">How hd gets there<span class="agent-pillar-arrow" aria-hidden="true"> →</span></button>
+<p class="agent-pillar-measures">${escapeHtml(pillar.explain)}</p>
+<p class="agent-pillar-how" id="pillar-how-${index + 1}"><span class="agent-pillar-how-title">How hd gets there</span> ${inline(PILLAR_HOW[pillar.key] ?? "")}</p>
+</div>
+</article>`,
+    )
+    .join("\n");
+  const agentSection = `<section class="home-section agents" aria-labelledby="agents-title">
+<header class="agents-head">
+<h2 id="agents-title">Cheap · Scalable · Fast</h2>
+<a class="eyebrow" href="${pageUrl("metrics.html")}">Built for agents · daily metrics →</a>
+</header>
+<div class="agent-grid" data-widen>
+${agentCards}
+</div>
+</section>`;
+
   // Algebraic effects: one step per pillar. The README names each step; the
   // playground example shows it at work.
   const pillarsBody = section(sections, PILLARS_HEADING);
@@ -250,5 +292,7 @@ ${md.render(installBlock, env)}
 <nav aria-label="Footer"><a href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn</a><a href="${pageUrl("tour/index.html")}">Tour</a><a href="${pageUrl("playground.html")}">Playground</a><a href="${pageUrl("spec/index.html")}">Spec</a><a href="${REPOSITORY_URL}">GitHub</a></nav>
 </footer>`;
 
-  return [hero, effectsSection, derivationSection, stdSection, install, footer].join("\n");
+  return [hero, agentSection, effectsSection, derivationSection, stdSection, install, footer].join(
+    "\n",
+  );
 }
