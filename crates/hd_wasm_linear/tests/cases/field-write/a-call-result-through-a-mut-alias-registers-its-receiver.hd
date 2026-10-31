@@ -1,0 +1,17 @@
+# @dump: wat
+# expected: the receiver's address is kept before the call; the binding of the call's result registers the whole object at its store and ends it at its last use; the write through the alias checks the loan table
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn label(&self) -> &string:
+        &self.name
+
+struct Team:
+    lead: *mut User
+
+fn older(t: &Team, alias: *mut User) -> string:
+    n := t.lead.label()
+    alias.age += 1
+    *n

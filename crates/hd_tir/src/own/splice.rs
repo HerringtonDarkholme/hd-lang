@@ -387,6 +387,11 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     for row in &mut b.regions {
         row.0 = map(t, row.0);
     }
+    // A row whose call or argument an edit deletes goes with it.
+    b.held_args = (b.held_args.iter())
+        .map(|&(c, a)| (map(t, c), map(t, a)))
+        .filter(|&(c, a)| c != NONE && a != NONE)
+        .collect();
     // Both words name instructions no edit deletes (a suspension point and
     // a value), and the splice keeps their order.
     for row in &mut b.unwind_drops {

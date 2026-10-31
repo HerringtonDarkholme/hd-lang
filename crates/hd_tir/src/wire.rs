@@ -322,6 +322,8 @@ pub fn write_body(
         w.str(st);
     }
     w.str(&b.label);
+    let held: Vec<u32> = b.held_args.iter().flat_map(|&(c, a)| [c, a]).collect();
+    u32s(&mut w, held.into_iter());
     // Locations last, outside the hashed prefix: moving a body in its file
     // changes node indices, not the body (`crates/hd_cache/DESIGN.md` §5.3).
     let hashed = u32::try_from(w.bytes.len()).expect("body over 4 GiB");
@@ -413,6 +415,7 @@ pub fn read_body(
         b.strings.push(r.str().into());
     }
     b.label = r.str().into();
+    b.held_args = col(&mut r).chunks_exact(2).map(|c| (c[0], c[1])).collect();
     b.syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.local_syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.fallback = col(&mut r).chunks_exact(2).map(|c| [c[0], c[1]]).collect();

@@ -278,6 +278,8 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
     }
     out.susp.retain(|s| live[s.inst as usize]);
     out.fallback.retain(|f| live[f[0] as usize]);
+    out.held_args
+        .retain(|r| live[r.0 as usize] && live[r.1 as usize]);
     out.unwind_drops
         .retain(|r| live[r.0 as usize] && live[r.1 as usize]);
     out.stable_lists.retain(|r| live[r.0 as usize]);

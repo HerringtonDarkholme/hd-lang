@@ -147,7 +147,7 @@ fn body_func<'a>(
     }
     em.own_consumers();
     if erased.is_none() && own.cold.is_none() {
-        em.find_holders();
+        em.find_holders(suspending);
     }
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
@@ -1007,6 +1007,11 @@ struct Em<'i, 'a, 'm> {
     holders: HashMap<usize, excl::Holder>,
     /// How each `Store` into a holder binding registers its loan.
     binds: HashMap<u32, excl::Bind>,
+    /// The argument of each call whose result a holder binds, with the
+    /// local its address is kept in once emitted.
+    held_srcs: HashMap<u32, Option<u32>>,
+    /// Each keyed holder's local of its loan's address.
+    loan_keys: HashMap<usize, u32>,
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
     projs: Vec<shape::Projected>,
@@ -1162,6 +1167,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             loan_locals: HashMap::default(),
             holders: HashMap::default(),
             binds: HashMap::default(),
+            held_srcs: HashMap::default(),
+            loan_keys: HashMap::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
             unowned_params: Vec::new(),
@@ -1684,8 +1691,7 @@ impl Em<'_, '_, '_> {
         self.loan_access(i)?;
         self.loan_before_store(i);
         self.inst_tag(i, a, bw)?;
-        self.loan_after_store(i);
-        Ok(())
+        self.loan_after_store(i)
     }
 
     fn inst_tag(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {

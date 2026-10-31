@@ -35,7 +35,7 @@ use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
 use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Body, BodyKind, Callee, ChoiceKind, NONE, Role, Tag, Word, slots};
+use hd_tir::ir::{Body, BodyKind, Callee, ChoiceKind, NONE, PlaceRoot, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
@@ -1033,6 +1033,9 @@ struct CallSig {
     /// Whether the call may store through a `&mut` argument
     /// (`ref.generic.store`, `ref.lifetime.store.call`).
     store: bool,
+    /// The arguments for `&` or `&mut` parameters whose reference the
+    /// result holds (`ref.excl.call`).
+    held: Vec<u32>,
 }
 
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
@@ -1333,6 +1336,15 @@ impl Ck<'_, '_> {
             }
             None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
         };
+        let ids = dep.all_ids();
+        let held_args = (dep.params.iter().enumerate())
+            .filter(|(_, (t, s))| {
+                local_ref(pool, *t).is_some_and(|(c, _)| !c)
+                    && (ref_ids_of(ls, *t, s).first())
+                        .is_some_and(|id| ids.contains(id) || ids.contains(&ANY))
+            })
+            .filter_map(|(p, _)| source_arg(b, i, p))
+            .collect();
         let is_trait_self =
             |p: hd_types::ParamRef| trait_.is_some_and(|tr| p.owner == tr && p.index == 0);
         // A slot of the trait's `Self` that the implementation target's
@@ -1463,6 +1475,7 @@ impl Ck<'_, '_> {
                 .collect(),
             params,
             outs,
+            held: held_args,
         })
     }
 
@@ -1656,6 +1669,25 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
+        // The arguments a bare reference binding holds through a call's
+        // result, for the backend's run-time loans (`ref.excl.alias.loan`).
+        let mut held_args = Vec::new();
+        for i in (0..body.tags.len()).filter(|&i| body.tags[i] == Tag::Store) {
+            let mut v = body.data[i][1];
+            while body.ty.get(v as usize).is_some() && body.same_value_coercion(v as usize) {
+                v = body.data[v as usize][0];
+            }
+            let bare = body.decode_place(body.data[i][0]).is_some_and(|p| {
+                matches!(p.root, PlaceRoot::Local(l) if p.proj.is_empty()
+                    && local_ref(pool, body.local_ty[l.idx()]).is_some_and(|(c, _)| !c))
+            });
+            if let (true, Some(sig)) = (bare, calls.get(&v)) {
+                held_args.extend(sig.held.iter().map(|&a| (v, a)));
+            }
+        }
+        held_args.sort_stable();
+        held_args.dedup();
+        self.b.body_mut().held_args = held_args;
         let elided = own.as_ref().map(|o| o.elided);
         // A function value's hidden capture slot may be empty: returning a
         // capture-free function needs no reference source. Only ordinary

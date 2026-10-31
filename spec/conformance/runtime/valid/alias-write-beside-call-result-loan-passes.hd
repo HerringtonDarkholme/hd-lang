@@ -1,0 +1,30 @@
+# test: a call's result through a `*mut` holds only the place its receiver refers to, until its last use, so writes through an alias beside it or after it pass
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+# expect-stdout: c a 2
+# expect-stdout: d
+struct Addr:
+    city: string
+
+impl Addr:
+    fn place(&self) -> &string:
+        &self.city
+
+struct User:
+    name: string
+    age: i32
+    addr: Addr
+
+struct Team:
+    lead: *mut User
+
+fn moved(t: &Team, alias: *mut User) -> void $ Console:
+    c := t.lead.addr.place()
+    alias.age += 1
+    println("${*c} ${alias.name} ${alias.age}")
+    alias.addr.city = "d"
+    println(*t.lead.addr.place())
+
+pub fn main() -> void $ Console:
+    t := Team { lead: box(User { name: "a", age: +1, addr: Addr { city: "c" } }) }
+    alias := t.lead
+    moved(&t, alias)
