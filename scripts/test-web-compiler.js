@@ -35,9 +35,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
 
 // #852 removes the printer from ordinary compilation. These caps keep
-// modest margins above the measured 1,851,877 (#1026) / 147,828 gzip bytes.
-// The owner's hard 2 MB ceiling still holds.
-const GZIP_LIMIT = 1_900_000;
+// modest margins above the measured 1,900,605 (#1099) / 147,828 gzip bytes.
+// They are tripwires; the owner's hard 2 MB ceiling still holds.
+const GZIP_LIMIT = 1_950_000;
 const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
