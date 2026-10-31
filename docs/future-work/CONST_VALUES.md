@@ -1,6 +1,6 @@
 # Compile-Time Values
 
-Status: direction accepted 2026-10-28; stage 1 specified 2026-10-29 and not implemented; stages 2 and 3 are not specified or implemented.
+Status: direction accepted 2026-10-28; stage 1 specified 2026-10-29 and built (const generic slices 1 to 6, through #1110); stages 2 and 3 are not specified or implemented, and wait for the owner to schedule them.
 
 This record explores [issue #875](https://github.com/HerringtonDarkholme/hd-lang/issues/875).
 It reviews const generic parameters, compile-time-only value parameters, and validation of static inputs.

@@ -1,8 +1,8 @@
 # One Lifetime Solver
 
 **Status:** accepted 2026-10-30; S1 to S12 built (#1060 to #1064, #1082,
-#1083, #1063, #1041, #1090 to #1093) and every spec union dropped; stage 7's
-first slice (7a, #1098) built beside it; domain: the tier-2 lifetime
+#1083, #1063, #1041, #1090 to #1093) and every spec union dropped; stage 7
+(7a to 7e) built on it; domain: the tier-2 lifetime
 checker (compiler internals). It reviews `crates/hd_check/src/dep_results.rs`
 and `local_refs.rs` at e77e0c2d3, the stages in
 [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md), the
