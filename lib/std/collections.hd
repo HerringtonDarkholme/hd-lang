@@ -648,7 +648,7 @@ impl[T, 'a] Index[usize] for Span[T, 'a]:
     type Out = &'a T
     fn index(self, key: usize) -> &'a T:
         if key >= self.len():
-            return &self.items[self.items.len()]
+            panic_with("index-out-of-bounds", "span index out of bounds")
         &self.items[self.start + key]
 
 # A double-ended queue (spec/std/collections.md#deque): a ring buffer.
