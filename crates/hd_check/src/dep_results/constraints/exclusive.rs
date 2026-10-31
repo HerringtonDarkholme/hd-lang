@@ -29,7 +29,7 @@ use super::{Gen, Inputs, Origin, Region, Solution, is_mut, w};
 type Path = (u32, Vec<Proj>);
 
 /// The path of place `word`, through the reads its value root is made of.
-fn path_of(b: &Body, word: u32) -> Option<Path> {
+pub(super) fn path_of(b: &Body, word: u32) -> Option<Path> {
     let p = b.decode_place(word)?;
     match p.root {
         PlaceRoot::Local(l) => Some((l.raw(), p.proj)),

@@ -438,6 +438,7 @@ fn too_complex_case(
         suspends: true,
         variadic: false,
         lifetimes: Vec::new(),
+        paths: Vec::new(),
     };
     let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
     Ok((body, item))
@@ -543,6 +544,7 @@ fn check_case(
         suspends: true,
         variadic: false,
         lifetimes: Vec::new(),
+        paths: Vec::new(),
     };
     let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
     Ok((body, item))
@@ -740,6 +742,7 @@ fn check_registration(
         suspends: true,
         variadic: false,
         lifetimes: Vec::new(),
+        paths: Vec::new(),
     };
     let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
     Ok((body, item))

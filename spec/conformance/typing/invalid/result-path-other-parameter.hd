@@ -1,0 +1,7 @@
+# test: a result path's position has its parameter's lifetime only
+# Spec 13 Result Paths: ref.result.path.lifetime.
+struct User:
+    name: string
+
+fn lead(a: &User, b: &User) -> &'b.name string:
+    &a.name # diagnostic: local-reference-escapes

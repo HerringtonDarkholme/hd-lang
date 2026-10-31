@@ -1,0 +1,34 @@
+# test: a result path's body returns a reference into the path, directly, through a binding, or an element of it
+# Spec 13 Result Paths: ref.result.path.callee, ref.result.path.lifetime.
+struct Name:
+    first: string
+    last: string
+
+struct User:
+    name: Name
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn name(&self) -> &'self.name Name:
+        &self.name
+
+    fn first(&self) -> &'self.name string:
+        &self.name.first
+
+    fn last(&self, short: bool) -> &'self.name string:
+        r := &self.name.last
+        if short: &self.name.first else: r
+
+    fn tags_mut(&mut self) -> &'self.tags mut List[string]:
+        &mut self.tags
+
+    fn first_tag(&self) -> &'self.tags string:
+        &self.tags[0]
+
+fn lead(a: &User, b: &User) -> &'b.name Name:
+    &b.name
+
+fn pick(b: &User) -> &Name:
+    a := User { name: Name { first: "a", last: "b" }, age: 1, tags: [] }
+    lead(&a, b)

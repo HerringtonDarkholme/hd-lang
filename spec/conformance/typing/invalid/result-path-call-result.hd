@@ -1,0 +1,11 @@
+# test: a call's result counts as pointing anywhere in its source
+# Spec 13 Result Paths: ref.result.path.callee.
+struct User:
+    name: string
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+    fn name_again(&self) -> &'self.name string:
+        self.name() # diagnostic: local-reference-escapes

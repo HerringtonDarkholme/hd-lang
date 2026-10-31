@@ -868,7 +868,7 @@ reference_access_type = [ "mut" ], reference_type
                       | ref_type
                       ;
 
-ref_type = "&", [ lifetime ], [ "mut" ], reference_type
+ref_type = "&", [ lifetime, { ".", identifier } ], [ "mut" ], reference_type
          | "*", [ "mut" ], reference_type
          ;
 

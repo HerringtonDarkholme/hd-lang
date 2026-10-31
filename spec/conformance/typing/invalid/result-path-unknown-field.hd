@@ -1,0 +1,8 @@
+# test: each step of a result path names a field of the struct it reaches
+# Spec 13 Result Paths: ref.result.path.fields.
+struct User:
+    name: string
+
+impl User:
+    fn nick(&self) -> &'self.nick string: # diagnostic: unknown-field
+        &self.name

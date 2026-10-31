@@ -56,6 +56,37 @@ const ANY: u32 = u32::MAX;
 /// A declared result slot with no source, while lining up.
 const NO_SOURCE: u32 = u32::MAX - 1;
 
+/// The mark of a returned slot that names result path `k`: `PATH + k`
+/// beside its lifetime (`ref.result.path.callee`).
+const PATH: u32 = 1 << 30;
+
+/// A result path of the body's own signature, resolved
+/// (`ref.result.path.form`): its parameter, its fields' indices, the result's
+/// layout slot, and its text as written.
+pub(super) struct OwnPath {
+    param: u32,
+    fields: Vec<u32>,
+    slot: usize,
+    text: String,
+}
+
+/// The layout slot of each result reference slot of `ret` that names a
+/// field path, and its parameter (`ref.result.path.form`).
+fn path_slots(ls: &Layouts<'_>, ret: Ty, paths: &[hd_resolve::ResultPath]) -> Vec<(usize, u32)> {
+    let mut j = 0;
+    let mut out = Vec::new();
+    for (r, s) in ls.of(ret).slots.iter().enumerate() {
+        if s.hold || s.fun {
+            continue;
+        }
+        if let Some(p) = paths.iter().find(|p| usize::from(p.slot) == j) {
+            out.push((r, u32::from(p.param)));
+        }
+        j += 1;
+    }
+    out
+}
+
 /// What a result slot that writes no lifetime depends on (`ref.dep.elide`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Elided {
@@ -181,6 +212,21 @@ impl DepSig {
             elided,
             capture_elided,
         }
+    }
+
+    /// `ref.result.path.lifetime`: a result slot that names a field path
+    /// takes its parameter's lifetime.
+    fn with_paths(mut self, ls: &Layouts<'_>, paths: &[hd_resolve::ResultPath]) -> DepSig {
+        for (r, p) in path_slots(ls, self.ret, paths) {
+            let id = self
+                .params
+                .get(p as usize)
+                .and_then(|x| x.1.first().copied());
+            if let (Some(o), Some(id)) = (self.outs.get_mut(r), id) {
+                *o = Some(id);
+            }
+        }
+        self
     }
 
     /// The map a function type carries (`fn.type.lifetime`), for a call
@@ -1001,6 +1047,9 @@ enum Origin {
     Hidden(u32),
     /// A top-level binding.
     Global(u32),
+    /// A mark that the value may point into result path `k`'s parameter
+    /// outside that path (`ref.result.path.callee`).
+    Outside(u32),
     /// The shared `Ref` at an instruction of a place a local's path
     /// reaches, or a `&mut` binding a call reads as `&`, for the conflict
     /// check only (`ref.excl.shared`, `ref.excl.call`).
@@ -1033,6 +1082,8 @@ struct Inputs<'a> {
     /// Locals whose closure capture is already `local-reference-escapes`
     /// (`ref.local.escape.capture-stored`): they add no capture origins.
     reported: &'a HashSet<hd_base::LocalId>,
+    /// The body's own result paths (`ref.result.path.callee`).
+    paths: &'a [OwnPath],
 }
 
 impl Inputs<'_> {
@@ -1168,7 +1219,9 @@ impl Ck<'_, '_> {
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
         let ls = &Layouts::new(pool, self.cx.names.known.suspend);
-        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).to_fn(ls, skip)
+        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
+            .with_paths(ls, &sig.paths)
+            .to_fn(ls, skip)
     }
 
     /// The map a trait implementation's method `sig` must share with the
@@ -1194,7 +1247,9 @@ impl Ck<'_, '_> {
         } else {
             dep
         };
-        let impl_outs = DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).outs;
+        let impl_outs = DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
+            .with_paths(ls, &sig.paths)
+            .outs;
         dep.align_trait_impl(
             ls,
             &sig.params,
@@ -1274,6 +1329,7 @@ impl Ck<'_, '_> {
             Some(sig) => {
                 let is_self = |s| names.text(s) == "self";
                 DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
+                    .with_paths(ls, &sig.paths)
             }
             None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
         };
@@ -1470,8 +1526,12 @@ impl Ck<'_, '_> {
                 }
             })
             .flatten();
+        let (mut paths, mut errs) = (Vec::new(), Vec::new());
         let own = match own_sig {
             Some(sig) => {
+                if let Some(f) = fun {
+                    paths = self.own_paths(ls, &sig, f, &mut errs);
+                }
                 let names = &self.cx.names;
                 // A hidden result is checked against its opaque types'
                 // lifetimes (`types.opaque.borrows.body`).
@@ -1482,7 +1542,8 @@ impl Ck<'_, '_> {
                     |s| names.text(s) == "self",
                     if opaque { sig.ret } else { ret },
                     &sig.lifetimes,
-                );
+                )
+                .with_paths(ls, &sig.paths);
                 Some(if opaque { dep.open(ls, ret) } else { dep })
             }
             _ => None,
@@ -1616,6 +1677,9 @@ impl Ck<'_, '_> {
         }
         // A function value in the result may carry captures with no source
         // (`ref.generic.outlives.read`) when no `fn(...)` parameter gives one.
+        for (at, code, msg) in errs {
+            self.err(code, self.cx.src.parse.tree.node(at), &msg);
+        }
         let own = own.filter(|o| {
             opaque
                 || o.depends()
@@ -1642,8 +1706,11 @@ impl Ck<'_, '_> {
             own: mine.as_ref(),
             boxes: &self.boxes,
             reported: &self.ref_captured,
+            paths: &paths,
         };
-        let slots = own.as_ref().map(|o| result_slots(ls, o, ret, opaque));
+        let slots = own
+            .as_ref()
+            .map(|o| result_slots(ls, o, ret, opaque, &paths));
         // A returned value's origins are `ref.dep.return`'s.
         let mut skip: HashSet<u32> = HashSet::default();
         if own.is_some() {
@@ -1665,7 +1732,7 @@ impl Ck<'_, '_> {
         let elem: Vec<_> = (self.conflicts.iter())
             .map(|c| range(tree.node(c.1)))
             .collect();
-        for (at, code, msg) in self.verdict_list(verdicts, own.as_ref(), fun) {
+        for (at, code, msg) in self.verdict_list(verdicts, own.as_ref(), fun, &paths) {
             let node = self.cx.src.parse.tree.node(at);
             let (lo, hi) = range(node);
             if code == Code::ConflictingAccess
@@ -1679,6 +1746,114 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `ref.result.path.fields`: the body's result paths, each step a field
+    /// of the struct reached, visible here, and public in a `pub`
+    /// signature, and each on an outer reference of the result. Any other
+    /// is an error, which `errs` takes, and is dropped.
+    fn own_paths(
+        &self,
+        ls: &Layouts<'_>,
+        sig: &hd_resolve::FnSig,
+        f: NodeRef<'_>,
+        errs: &mut Vec<(NodeIdx, Code, String)>,
+    ) -> Vec<OwnPath> {
+        let (pool, src) = (self.pool(), self.cx.src);
+        let toks = &src.parse.tokens;
+        let public = self
+            .cx
+            .lookup
+            .item(self.b.body().item)
+            .is_some_and(|i| i.public);
+        let spelled = |n: NodeRef<'_>| -> String {
+            (n.direct_tokens())
+                .filter(|&t| !matches!(toks.kind(t), TokenKind::Amp | TokenKind::KwMut))
+                .map(|t| src.text(t))
+                .collect()
+        };
+        let nodes: Vec<NodeRef<'_>> = (f.descendants())
+            .filter(|n| {
+                n.kind() == SyntaxKind::RefType && n.direct_token(toks, TokenKind::Dot).is_some()
+            })
+            .collect();
+        let slots = path_slots(ls, sig.ret, &sig.paths);
+        let mut out = Vec::new();
+        for (p, &(slot, param)) in sig.paths.iter().zip(&slots) {
+            let names = &self.cx.names;
+            let Some(&(pname, pty)) = sig.params.get(param as usize) else {
+                continue;
+            };
+            let text = (std::iter::once(pname).chain(p.fields.iter().copied()))
+                .map(|x| names.text(x))
+                .collect::<Vec<_>>()
+                .join(".");
+            let Some(&node) = nodes.iter().find(|&&n| spelled(n) == format!("'{text}")) else {
+                continue;
+            };
+            let walk = || {
+                let (mut t, mut fields) = (referent(pool, pty), Vec::new());
+                for &name in &p.fields {
+                    let (j, next) = self.path_step(t, name, public)?;
+                    fields.push(j);
+                    t = next;
+                }
+                if !ls.of(sig.ret).tops.contains(&slot) {
+                    let msg =
+                        "a field path is checked only on an outer reference of the result so far";
+                    return Err((Code::ReferencesNotYetChecked, msg.to_owned()));
+                }
+                Ok(fields)
+            };
+            match walk() {
+                Err((code, msg)) => errs.push((node.index(), code, msg)),
+                Ok(fields) => out.push(OwnPath {
+                    param,
+                    fields,
+                    slot,
+                    text,
+                }),
+            }
+        }
+        out
+    }
+
+    /// One step of a result path from `t`: the field's index and type
+    /// (`ref.result.path.fields`).
+    fn path_step(&self, t: Ty, name: Symbol, public: bool) -> Result<(u32, Ty), (Code, String)> {
+        let pool = self.pool();
+        let (field, shown) = (self.cx.names.text(name), self.show(t));
+        if matches!(pool.get(t), TyData::Ref { .. }) {
+            let msg = format!("a field path through the reference `{shown}` is not checked yet");
+            return Err((Code::ReferencesNotYetChecked, msg));
+        }
+        let no_field = || {
+            (
+                Code::UnknownField,
+                format!("`{shown}` has no field `{field}`"),
+            )
+        };
+        let (def, fs) = self.data_decl(t).ok_or_else(no_field)?;
+        let j = fs
+            .iter()
+            .position(|x| x.name == name)
+            .ok_or_else(no_field)?;
+        let open = fs[j].public || fs[j].embedded;
+        if !self.member_visible(def, open) {
+            let msg = format!("the field `{field}` of `{shown}` is private to its module");
+            return Err((Code::PrivateMember, msg));
+        }
+        if public && !open {
+            let msg = format!(
+                "the field `{field}` of `{shown}` is private, so a public signature cannot name it"
+            );
+            return Err((Code::PrivateTypeLeak, msg));
+        }
+        let args = match pool.get(self.strip_mut(t)) {
+            TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
+            _ => Vec::new(),
+        };
+        Ok((w(j), subst_owner(pool, def, &args, fs[j].ty)))
+    }
+
     /// The diagnostics of `v`, one per node, in today's order: stores into
     /// a place the caller owns, captured function values, returned values,
     /// closures' returned values, then the scope check.
@@ -1687,6 +1862,7 @@ impl Ck<'_, '_> {
         v: Verdicts,
         own: Option<&DepSig>,
         fun: Option<NodeRef<'_>>,
+        paths: &[OwnPath],
     ) -> Vec<(NodeIdx, Code, String)> {
         let body = self.b.body();
         let mut stores = v.stores;
@@ -1706,7 +1882,13 @@ impl Ck<'_, '_> {
         }
         if let Some(own) = own {
             for (at, o, id) in v.results {
-                push(at, &|| self.origin_message(own, o, id, fun));
+                push(at, &|| match o {
+                    Origin::Outside(k) => format!(
+                        "the value may point outside `{}`, the only part of it the result may borrow",
+                        paths[k as usize].text
+                    ),
+                    _ => self.origin_message(own, o, id, fun),
+                });
             }
         }
         for (at, o) in v.closures {
@@ -1837,7 +2019,7 @@ impl Ck<'_, '_> {
                     None => format!("`{}` is another parameter", name(p)),
                 }
             }
-            Origin::Hidden(_) | Origin::Site(_) => {
+            Origin::Hidden(_) | Origin::Site(_) | Origin::Outside(_) => {
                 format!("the value refers to a temporary of {f}")
             }
             Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
@@ -1900,13 +2082,30 @@ struct Verdicts {
 /// (`ref.dep.return`): its result slot's lifetimes, none for a slot of an
 /// opaque type that does not borrow or a capture slot with no source
 /// (`ref.generic.outlives.read`), and `None` for a slot that is not checked.
-fn result_slots(ls: &Layouts<'_>, own: &DepSig, ret: Ty, opaque: bool) -> Vec<Option<Vec<u32>>> {
+/// A slot that names result path `k` is marked `PATH + k`, every slot
+/// where the shapes do not line up (`ref.result.path.callee`).
+fn result_slots(
+    ls: &Layouts<'_>,
+    own: &DepSig,
+    ret: Ty,
+    opaque: bool,
+    paths: &[OwnPath],
+) -> Vec<Option<Vec<u32>>> {
     let rl = ls.of(ret);
     let capture = |k: usize| {
         own.capture_elided == Elided::Missing && rl.tops.get(k).is_some_and(|&t| rl.slots[t].fun)
     };
+    let tops = &ls.of(own.ret).tops;
+    let lined = tops.len() == rl.tops.len();
     (own.result_ids(ls, ret).into_iter().enumerate())
-        .map(|(k, ids)| (!ids.is_empty() || opaque || capture(k)).then_some(ids))
+        .map(|(k, mut ids)| {
+            for (i, p) in paths.iter().enumerate() {
+                if !ids.is_empty() && (!lined || tops.get(k) == Some(&p.slot)) {
+                    ids.push(PATH + w(i));
+                }
+            }
+            (!ids.is_empty() || opaque || capture(k)).then_some(ids)
+        })
         .collect()
 }
 

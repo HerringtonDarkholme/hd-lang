@@ -1,0 +1,7 @@
+# test: a result path starts at a `&` or `&mut` parameter
+# Spec 13 Result Paths: ref.result.path.param.
+struct User:
+    name: string
+
+fn name(u: User) -> &'u.name string: # diagnostic: unknown-lifetime
+    &u.name

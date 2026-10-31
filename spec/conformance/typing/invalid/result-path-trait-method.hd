@@ -1,0 +1,4 @@
+# test: a trait's method names the whole `self`, never a result path
+# Spec 13 Result Paths: ref.result.path.trait.
+trait Named:
+    fn name(&self) -> &'self.name string # diagnostic: trait-method-signature

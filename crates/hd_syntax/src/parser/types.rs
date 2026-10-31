@@ -85,8 +85,11 @@ impl Parser<'_> {
             let sigil = if self.at(TokenKind::Amp) { '&' } else { '*' };
             self.bump();
             // ref.lifetime.form: `&'a T`, `&'a mut T`.
-            if sigil == '&' {
-                self.eat(TokenKind::Lifetime);
+            // ref.result.path.form: `&'self.name T` adds field steps.
+            if sigil == '&' && self.eat(TokenKind::Lifetime) {
+                while self.eat(TokenKind::Dot) {
+                    self.expect_name("a field name");
+                }
             }
             self.eat(TokenKind::KwMut);
             if self.at(TokenKind::KwFn) {

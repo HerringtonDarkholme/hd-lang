@@ -1,0 +1,15 @@
+# test: a public signature names only public fields in a result path
+# Spec 13 Result Paths: ref.result.path.public.
+pub struct User:
+    pub name: string
+    secret: string
+
+impl User:
+    pub fn name(&self) -> &'self.name string:
+        &self.name
+
+    fn secret_here(&self) -> &'self.secret string:
+        &self.secret
+
+    pub fn secret(&self) -> &'self.secret string: # diagnostic: private-type-leak
+        &self.secret

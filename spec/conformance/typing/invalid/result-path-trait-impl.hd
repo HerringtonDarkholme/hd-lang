@@ -1,0 +1,11 @@
+# test: a trait implementation's method is no more precise than its trait
+# Spec 13 Result Paths: ref.result.path.trait.
+struct User:
+    name: string
+
+trait Named:
+    fn name(&self) -> &string
+
+impl Named for User:
+    fn name(&self) -> &'self.name string: # diagnostic: trait-method-signature
+        &self.name
