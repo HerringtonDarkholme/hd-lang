@@ -35,7 +35,9 @@ use hd_base::{DefId, HashMap, HashSet, NodeIdx, Symbol};
 use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Body, BodyKind, Callee, ChoiceKind, NONE, PlaceRoot, Role, Tag, Word, slots};
+use hd_tir::ir::{
+    Body, BodyKind, Callee, ChoiceKind, NONE, PlaceRoot, Proj, Role, Tag, Word, slots,
+};
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
@@ -65,7 +67,9 @@ const PATH: u32 = 1 << 30;
 /// layout slot, and its text as written.
 pub(super) struct OwnPath {
     param: u32,
-    fields: Vec<u32>,
+    /// The place steps from the parameter's referent: each field, and a
+    /// dereference after a `*mut` field (`ref.result.path.counted`).
+    steps: Vec<Proj>,
     slot: usize,
     text: String,
 }
@@ -1037,8 +1041,8 @@ struct CallSig {
     /// result holds (`ref.excl.call`).
     held: Vec<u32>,
     /// Each argument the result borrows only through result paths, and the
-    /// field indices those paths share (`ref.result.path.caller`).
-    paths: Vec<(u32, Vec<u32>)>,
+    /// place steps those paths share (`ref.result.path.caller`).
+    paths: Vec<(u32, Vec<Proj>)>,
 }
 
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
@@ -1498,7 +1502,7 @@ impl Ck<'_, '_> {
         i: usize,
         sig: &hd_resolve::FnSig,
         dep: &DepSig,
-    ) -> Vec<(u32, Vec<u32>)> {
+    ) -> Vec<(u32, Vec<Proj>)> {
         let slots = path_slots(ls, sig.ret, &sig.paths);
         let mut out = Vec::new();
         for (p, (_, ids)) in dep.params.iter().enumerate() {
@@ -1515,18 +1519,11 @@ impl Ck<'_, '_> {
             if mine.is_empty() || elsewhere {
                 continue;
             }
-            // The fields every path of the parameter starts with.
-            let mut shared: Option<Vec<u32>> = None;
+            // The steps every path of the parameter starts with.
+            let mut shared: Option<Vec<Proj>> = None;
             for (_, path) in &mine {
-                let mut t = referent(ls.pool, pty);
-                let mut fields = Vec::new();
-                for &name in &path.fields {
-                    let Ok((j, next)) = self.path_step(t, name, false) else {
-                        break;
-                    };
-                    fields.push(j);
-                    t = next;
-                }
+                let steps = self.path_steps(pty, &path.fields, false);
+                let fields = steps.unwrap_or_default();
                 let s = shared.get_or_insert_with(|| fields.clone());
                 let n = s.iter().zip(&fields).take_while(|(a, b)| a == b).count();
                 s.truncate(n);
@@ -1849,7 +1846,7 @@ impl Ck<'_, '_> {
         f: NodeRef<'_>,
         errs: &mut Vec<(NodeIdx, Code, String)>,
     ) -> Vec<OwnPath> {
-        let (pool, src) = (self.pool(), self.cx.src);
+        let src = self.cx.src;
         let toks = &src.parse.tokens;
         let public = self
             .cx
@@ -1882,30 +1879,53 @@ impl Ck<'_, '_> {
                 continue;
             };
             let walk = || {
-                let (mut t, mut fields) = (referent(pool, pty), Vec::new());
-                for &name in &p.fields {
-                    let (j, next) = self.path_step(t, name, public)?;
-                    fields.push(j);
-                    t = next;
-                }
+                let steps = self.path_steps(pty, &p.fields, public)?;
                 if !ls.of(sig.ret).tops.contains(&slot) {
                     let msg =
                         "a field path is checked only on an outer reference of the result so far";
                     return Err((Code::ReferencesNotYetChecked, msg.to_owned()));
                 }
-                Ok(fields)
+                Ok(steps)
             };
             match walk() {
                 Err((code, msg)) => errs.push((node.index(), code, msg)),
-                Ok(fields) => out.push(OwnPath {
+                Ok(steps) => out.push(OwnPath {
                     param,
-                    fields,
+                    steps,
                     slot,
                     text,
                 }),
             }
         }
         out
+    }
+
+    /// The place steps of result path `fields` from parameter type `pty`:
+    /// each field, and a dereference where the next field is reached
+    /// through a `*mut` (`ref.result.path.fields`, `ref.result.path.counted`).
+    fn path_steps(
+        &self,
+        pty: Ty,
+        fields: &[Symbol],
+        public: bool,
+    ) -> Result<Vec<Proj>, (Code, String)> {
+        let pool = self.pool();
+        let (mut t, mut steps) = (referent(pool, pty), Vec::new());
+        for &name in fields {
+            if let TyData::Ref {
+                inner,
+                mutable: true,
+                counted: true,
+            } = pool.get(self.strip_mut(t))
+            {
+                steps.push(Proj::Deref);
+                t = inner;
+            }
+            let (j, next) = self.path_step(t, name, public)?;
+            steps.push(Proj::Field(j));
+            t = next;
+        }
+        Ok(steps)
     }
 
     /// One step of a result path from `t`: the field's index and type

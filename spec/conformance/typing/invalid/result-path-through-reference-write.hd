@@ -1,0 +1,17 @@
+# test: a write to the place a result path crosses a `*mut` into while the result is live
+# Spec 13 Result Paths: ref.result.path.counted.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+    size: i32
+
+fn lead_name(t: &Team) -> &'t.lead.name string:
+    &t.lead.name
+
+fn rename(t: &mut Team) -> void $ Console:
+    n := lead_name(t)
+    t.lead.name = "x" # diagnostic: conflicting-access
+    println(*n)

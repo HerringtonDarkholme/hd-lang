@@ -781,6 +781,13 @@ struct Team:
     lead: User
     size: i32
 
+struct Crew:
+    lead: *mut User
+    size: i32
+
+fn lead_name(c: &Crew) -> &'c.lead.name Name:
+    &c.lead.name                   # valid: the path crosses the `*mut`
+
 fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
     n := u.first()     # n borrows only u.name
     u.age += 1         # valid: another field
@@ -800,14 +807,15 @@ fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
 2. r[ref.result.path.position] A result path is written only in a function's result type. Anywhere else it is an error. Error: `unknown-lifetime`.
 3. r[ref.result.path.param] The name is a `&` or `&mut` parameter's, `self` included. Any other name is an error. Error: `unknown-lifetime`.
 4. r[ref.result.path.fields] Each step names a field of the struct the previous step reaches, starting from the parameter's referent. Any other step is an error. Error: `unknown-field`.
-5. r[ref.result.path.not-yet] A step through a reference, and a result path on a reference inside another reference of the result, are not checked yet, so they are errors. Error: `references-not-yet-checked`.
-6. r[ref.result.path.visible] Each field must be visible where the signature is written. Error: `private-member`.
-7. r[ref.result.path.public] A `pub` signature names only public fields, so private layout never enters an API. Error: `private-type-leak`.
-8. r[ref.result.path.lifetime] The result position has the parameter's lifetime, as if the signature wrote one variable on both.
-9. r[ref.result.path.callee] A returned value in that position must point into the path's place. It is a `&` or `&mut` of a place that starts with the parameter and the path's fields, returned directly or through a binding. A value that may point elsewhere in the parameter's referent is an error. A call's result counts as pointing anywhere in its source. Error: `local-reference-escapes`.
-10. r[ref.result.path.trait] A trait's method names the whole `self`, so its signature writes no result path. An implementation's method of a trait writes none either, since a bound or `&dyn` caller sees only the trait. Error: `trait-method-signature`.
-11. r[ref.result.path.caller] A call's result in a result path's position holds only that part of the place its argument was taken from: the place followed by the path's fields ([`ref.excl.call`](#r-ref.excl.call)). For `u.first()` the result holds `u.name`, and for `t.lead.first()` it holds `t.lead.name`. A `&mut` result holds its part as `&mut`.
-12. r[ref.result.path.caller.whole] The result holds the whole place, as without a path, when the parameter's lifetime is also on a result reference that names no path of it, or on another parameter. When several result references name paths of one parameter, the result holds the fields those paths share.
+5. r[ref.result.path.counted] A step may cross a `*mut` field: the next step names a field of its referent, as `'c.lead.name` with `lead: *mut User`. The path's place goes through the counted reference, as a written `&c.lead.name` does. The callee and caller rules treat the crossing as one more step of that place.
+6. r[ref.result.path.not-yet] A step through any other reference, and a result path on a reference inside another reference of the result, are not checked yet, so they are errors. Error: `references-not-yet-checked`.
+7. r[ref.result.path.visible] Each field must be visible where the signature is written. Error: `private-member`.
+8. r[ref.result.path.public] A `pub` signature names only public fields, so private layout never enters an API. Error: `private-type-leak`.
+9. r[ref.result.path.lifetime] The result position has the parameter's lifetime, as if the signature wrote one variable on both.
+10. r[ref.result.path.callee] A returned value in that position must point into the path's place. It is a `&` or `&mut` of a place that starts with the parameter and the path's fields, returned directly or through a binding. A value that may point elsewhere in the parameter's referent is an error. A call's result counts as pointing anywhere in its source. Error: `local-reference-escapes`.
+11. r[ref.result.path.trait] A trait's method names the whole `self`, so its signature writes no result path. An implementation's method of a trait writes none either, since a bound or `&dyn` caller sees only the trait. Error: `trait-method-signature`.
+12. r[ref.result.path.caller] A call's result in a result path's position holds only that part of the place its argument was taken from: the place followed by the path's fields ([`ref.excl.call`](#r-ref.excl.call)). For `u.first()` the result holds `u.name`, and for `t.lead.first()` it holds `t.lead.name`. A `&mut` result holds its part as `&mut`.
+13. r[ref.result.path.caller.whole] The result holds the whole place, as without a path, when the parameter's lifetime is also on a result reference that names no path of it, or on another parameter. When several result references name paths of one parameter, the result holds the fields those paths share.
 
 > **Why.** A signature that says which field a result points into lets a
 > caller lock only that field, as a written `&u.name` does. Private fields stay out of public signatures,

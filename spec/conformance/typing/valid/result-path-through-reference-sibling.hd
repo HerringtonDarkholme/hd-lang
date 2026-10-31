@@ -1,0 +1,17 @@
+# test: a write to a sibling field through the same `*mut` while the result is live
+# Spec 13 Result Paths: ref.result.path.counted.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+    size: i32
+
+fn lead_name(t: &Team) -> &'t.lead.name string:
+    &t.lead.name
+
+fn birthday(t: &mut Team) -> void $ Console:
+    n := lead_name(t)
+    t.lead.age += 1
+    println(*n)
