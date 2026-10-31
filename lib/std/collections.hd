@@ -9,6 +9,7 @@ use std.iter.MapEntries
 use std.num.Num
 use std.iter.FromIterator
 use std.ops.Index
+use std.ops.IndexSet
 use std.ops.Range
 use std.format.DebugWriter
 
@@ -76,6 +77,11 @@ impl[T] List[T]:
     ## See [std-collections.span.list](../../spec/std/collections.md#r-std-collections.span.list).
     pub fn span['a](&'a self) -> Span[T, 'a]:
         Span { items: self, start: 0, end: self.len() }
+
+    ## Returns a mutable live view of this list. The span cannot outlive the list.
+    ## See [std-collections.span-mut.list](../../spec/std/collections.md#r-std-collections.span-mut.list).
+    pub fn span_mut['a](&'a mut self) -> SpanMut[T, 'a]:
+        SpanMut { items: self, start: 0, end: self.len() }
 
     # A read-only window on the elements from `start` up to `end`, with no
     # copy (spec/std/collections.md#views).
@@ -655,6 +661,71 @@ impl[T, 'a] Index[usize] for Span[T, 'a]:
         if key >= self.len():
             panic_with("index-out-of-bounds", "span index out of bounds")
         &self.items[self.start + key]
+
+## A mutable live view of a list. It borrows the list exclusively, so it cannot outlive it.
+## See [std-collections.span-mut.type](../../spec/std/collections.md#r-std-collections.span-mut.type).
+pub struct SpanMut[T, 'a]:
+    items: &'a mut List[T]
+    start: usize
+    end: usize
+
+impl[T, 'a] SpanMut[T, 'a]:
+    ## Returns the number of elements in the span.
+    ## See [std-collections.span-mut.len](../../spec/std/collections.md#r-std-collections.span-mut.len).
+    pub fn len(self) -> usize:
+        self.end - self.start
+
+    ## Returns a shared reference to the indexed element, or `.None` outside the span.
+    ## See [std-collections.span-mut.get](../../spec/std/collections.md#r-std-collections.span-mut.get).
+    pub fn get(self, index: usize) -> (&'a T)?:
+        if index >= self.len(): .None else: .Some(&self.items[self.start + index])
+
+    ## Returns a mutable reference to the indexed element, or `.None` outside the span.
+    ## See [std-collections.span-mut.get-mut](../../spec/std/collections.md#r-std-collections.span-mut.get-mut).
+    pub fn get_mut(self, index: usize) -> (&'a mut T)?:
+        if index >= self.len(): .None else: .Some(&mut self.items[self.start + index])
+
+    ## Returns the part of this span selected by `range`, without copying elements.
+    ## See [std-collections.span-mut.slice](../../spec/std/collections.md#r-std-collections.span-mut.slice).
+    pub fn slice_mut(self, range: Range[usize]) -> SpanMut[T, 'a]:
+        let stop = range.end
+        if range.inclusive:
+            if range.end >= self.len():
+                panic_with("index-out-of-bounds", "mutable span slice out of bounds")
+            stop = stop + 1
+        if stop > self.len() || range.start > stop:
+            panic_with("index-out-of-bounds", "mutable span slice out of bounds")
+        SpanMut { items: self.items, start: self.start + range.start, end: self.start + stop }
+
+    ## Exchanges the elements at `left` and `right`.
+    ## See [std-collections.span-mut.swap](../../spec/std/collections.md#r-std-collections.span-mut.swap).
+    pub fn swap(&mut self, left: usize, right: usize) -> void:
+        if left >= self.len() || right >= self.len():
+            panic_with("index-out-of-bounds", "mutable span swap index out of bounds")
+        value := self.items[self.start + left]
+        self.items[self.start + left] = self.items[self.start + right]
+        self.items[self.start + right] = value
+
+    ## Replaces every element in the span with `value`.
+    ## See [std-collections.span-mut.fill](../../spec/std/collections.md#r-std-collections.span-mut.fill).
+    pub fn fill(&mut self, value: T) -> void:
+        let index: usize = 0
+        while index < self.len():
+            self.items[self.start + index] = value
+            index = index + 1
+
+impl[T, 'a] Index[usize] for SpanMut[T, 'a]:
+    type Out = &'a T
+    fn index(self, key: usize) -> &'a T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "mutable span index out of bounds")
+        &self.items[self.start + key]
+
+impl[T, 'a] IndexSet[usize, T] for SpanMut[T, 'a]:
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "mutable span index out of bounds")
+        self.items[self.start + key] = value
 
 ## The cursor of a span's `iter`: the span's elements in order, each borrowed from its list.
 ## See [std-collections.span.cursor](../../spec/std/collections.md#r-std-collections.span.cursor).

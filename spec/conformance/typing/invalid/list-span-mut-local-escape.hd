@@ -1,0 +1,7 @@
+# test: a mutable span of a local list cannot be returned past that list
+# std Collections, Spans: std-collections.span-mut.lifetime.
+use std.collections.SpanMut
+
+fn escaped['a]() -> SpanMut[i32, 'a]:
+    let mut items = [+1, 2, 3]
+    items.span_mut() # diagnostic: local-reference-escapes

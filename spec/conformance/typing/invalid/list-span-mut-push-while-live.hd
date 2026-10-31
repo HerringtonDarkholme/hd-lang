@@ -1,0 +1,7 @@
+# test: a list cannot change while a mutable span still uses its exclusive borrow
+# std Collections, Spans: std-collections.span-mut.exclusive.
+fn conflict() -> usize:
+    let mut items = [+1, 2, 3]
+    span := items.span_mut()
+    items.push(4) # diagnostic: conflicting-access
+    span.len()

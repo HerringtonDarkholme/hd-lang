@@ -2972,6 +2972,9 @@ typing/invalid/list-view-assignment.hd	type	reject:invalid-assignment-target	std
 runtime/valid/list-span.hd	runtime	accept	std/collections.md#spans
 typing/invalid/list-span-local-escape.hd	type	reject:local-reference-escapes	std/collections.md#r-std-collections.span.lifetime
 typing/invalid/list-span-iter-outlives-local.hd	type	reject:local-reference-outlives-local	std/collections.md#r-std-collections.span.iter-lifetime
+runtime/valid/list-span-mut.hd	runtime	accept	std/collections.md#mutable-spans
+typing/invalid/list-span-mut-push-while-live.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.span-mut.exclusive
+typing/invalid/list-span-mut-local-escape.hd	type	reject:local-reference-escapes	std/collections.md#r-std-collections.span-mut.lifetime
 typing/invalid/unknown-std-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-std-module-grouped.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-pkg-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms

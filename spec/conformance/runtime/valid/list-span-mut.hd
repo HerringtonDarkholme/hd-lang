@@ -1,0 +1,22 @@
+# test: a SpanMut writes through a list and a mutable slice without changing its length
+# std Collections, Spans: std-collections.span-mut.list, std-collections.span-mut.get-mut, std-collections.span-mut.index-set, std-collections.span-mut.slice, std-collections.span-mut.swap, std-collections.span-mut.fill, std-collections.span-mut.exclusive.
+use std.collections.SpanMut
+
+fn middle['a](items: &'a mut List[i32]) -> SpanMut[i32, 'a]:
+    items.span_mut().slice_mut(1..4)
+
+tests:
+    use std.testing.assert_equal
+
+    it("writes through a mutable span and its slice"):
+        let mut items = [+1, 2, 3, 4, 5]
+        let mut span = items.span_mut()
+        span[0] = 10
+        second := span.get_mut(1).expect("index 1")
+        *second = 20
+        assert_equal(*span.get(0).expect("index 0"), 10, reason="get reads a write")
+        let mut part = span.slice_mut(1..4)
+        part.swap(0, 2)
+        part.fill(7)
+        assert_equal(*part[1], 7, reason="the slice remains readable")
+        assert_equal(items, [+10, 7, 7, 7, 5], reason="the list sees mutable-span writes")

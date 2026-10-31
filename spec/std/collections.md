@@ -183,6 +183,46 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 > **Why.** `Span` supports borrowed reads without a snapshot allocation.
 > Its explicit lifetime makes retention beyond the source list a compile-time error.
 
+#### Mutable Spans
+
+`span_mut` gives an exclusive mutable view of a list. Its indices remain
+relative to the view, and every mutation preserves the list's length.
+
+| Operation | Signature or trait |
+| --- | --- |
+| whole-list view | `span_mut['a](&'a mut self) -> SpanMut[T, 'a]` |
+| `len` | `len(self) -> usize` |
+| `get` | `get(self, index: usize) -> (&'a T)?` |
+| `get_mut` | `get_mut(self, index: usize) -> (&'a mut T)?` |
+| `slice_mut` | `slice_mut(self, range: Range[usize]) -> SpanMut[T, 'a]` |
+| index read | `Index[usize]` with `Out = &'a T` |
+| index write | `IndexSet[usize, T]` |
+| `swap` | `swap(&mut self, left: usize, right: usize) -> void` |
+| `fill` | `fill(&mut self, value: T) -> void` |
+
+1. r[std-collections.span-mut.type] `std.collections` declares `SpanMut[T, 'a]` with private fields and the surface above.
+2. r[std-collections.span-mut.list] `list.span_mut()` borrows the list mutably for `'a` and returns a mutable span covering every element.
+3. r[std-collections.span-mut.no-copy] Creating or slicing a mutable span copies no element.
+4. r[std-collections.span-mut.import] `SpanMut` is not a prelude name, so code that names it imports `std.collections.SpanMut`.
+5. r[std-collections.span-mut.len] `len` returns the number of elements in the mutable span.
+6. r[std-collections.span-mut.get] `get(index)` returns the indexed element as `&'a T` in `.Some`, or `.None` outside the span.
+7. r[std-collections.span-mut.get-mut] `get_mut(index)` returns the indexed element as `&'a mut T` in `.Some`, or `.None` outside the span.
+8. r[std-collections.span-mut.index] `span[index]` returns the indexed element as `&'a T`.
+9. r[std-collections.span-mut.index-set] `span[index] = value` replaces the indexed element without changing the list's length.
+10. r[std-collections.span-mut.index-range] An index read or write outside the span is a checked runtime panic. Panic: `index-out-of-bounds`.
+11. r[std-collections.span-mut.slice] `slice_mut(start..end)` returns the elements at relative indices `start` up to, not including, `end`.
+12. r[std-collections.span-mut.slice-inclusive] `slice_mut(start..=end)` includes the element at relative index `end`.
+13. r[std-collections.span-mut.slice-range] An invalid mutable slice range is a checked runtime panic. Panic: `index-out-of-bounds`.
+14. r[std-collections.span-mut.slice-borrow] Mutable slicing returns another span borrowing the same list for `'a`.
+15. r[std-collections.span-mut.swap] `swap(left, right)` exchanges two indexed elements without changing the list's length.
+16. r[std-collections.span-mut.swap-range] An out-of-range `swap` index is a checked runtime panic. Panic: `index-out-of-bounds`.
+17. r[std-collections.span-mut.fill] `fill(value)` replaces every element in the mutable span with `value`.
+18. r[std-collections.span-mut.lifetime] A mutable span cannot outlive its list. Error: `local-reference-escapes`.
+19. r[std-collections.span-mut.exclusive] While a mutable span is live, its source list may be used only through that span. Error: `conflicting-access`.
+
+> **Why.** `SpanMut` exposes in-place element updates while the existing
+> exclusive-borrow rules prevent changing the source list behind the view.
+
 ## List Helpers
 
 `std` also gives `List[T]` helpers that sort, group, split, and search a

@@ -23,6 +23,7 @@ and its Generic Calls (#1016).
 Slice 6h's `Span` construction, reads, indexing and slicing are
 [Spans](../../spec/std/collections.md#spans) (#1097); reference-yielding
 iteration is specified there too (#1104).
+Its mutable counterpart `SpanMut` is specified there as well (#1109).
 
 ## Context
 
@@ -357,6 +358,9 @@ Applied by #1101 (6g2): [`std.ops.defer`](../../spec/std/ops.md#library-defer)
 registers a callback for every cleanup exit, and
 [`std.contract.ensure`](../../spec/std/contract.md#ensure) registers a read-only
 postcondition for normal exits. Both share the auto-closing cleanup stack.
+
+Applied by #1109 (6h): [`SpanMut`](../../spec/std/collections.md#mutable-spans)
+provides an exclusive mutable list view whose writes preserve the list length.
 
 Applied by #1019 (6a3): an elided lifetime argument in a signature is a reference position that writes no lifetime, so `p: &Parser[string]` has two and `-> Parser[string]` elides as `-> &T` does; the resolver decides elision over a signature's typed positions. A lifetime written inside a generic argument (`Option[&'a T]`, `Wrap[&'a T]`) and in an implementation's target (`impl[T, 'a] Parser[T, 'a]`) is placed; an elided target lifetime stays not-yet (6c3).
 
