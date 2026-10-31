@@ -2,14 +2,35 @@
 // panic-reporting leaves run without loading the provider host; every other
 // program gets node.ts unchanged.
 import { CANCEL_STATUS, HostContract, PROGRAM_TIME_LIMIT } from "./run-support.ts";
+import type { RunResult, Sink } from "./core.ts";
+import type { HostEnv } from "./node.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+
+export interface StartupEnv extends HostEnv {
+  deadline?: number | null;
+}
+
+interface StartupHost {
+  imports: WebAssembly.Imports;
+  run(
+    instance: WebAssembly.Instance,
+    init: string,
+    poll: string,
+    options?: Dynamic,
+  ): Promise<RunResult>;
+  prime(instance: WebAssembly.Instance): void;
+  close(): void;
+  leaks(): [string, number][];
+}
 
 const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
-const wasmFrames = (error) =>
+const wasmFrames = (error: Error): [number, number][] =>
   Array.from(
     String(error.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g),
-    (match) => [Number(match[1]), parseInt(match[2], 16)],
+    (match) => [Number(match[1]), parseInt(match[2], 16)] as [number, number],
   );
-const panicOfReport = (report) => {
+const panicOfReport = (report: string): { category: string; message: string } => {
   const text = report.endsWith("\n") ? report.slice(0, -1) : report;
   const colon = text.indexOf(": ");
   return colon < 0
@@ -17,13 +38,17 @@ const panicOfReport = (report) => {
     : { category: text.slice(0, colon), message: text.slice(colon + 2) };
 };
 
-const startupImports = (module) =>
+const startupImports = (module: WebAssembly.Module): boolean =>
   WebAssembly.Module.imports(module).every(
     ({ module, name, kind }) =>
       kind === "function" && module === "hd:rt" && (name === "panic" || name === "stderr"),
   );
 
-function startupFailure(error, sink, reported) {
+function startupFailure(
+  error: unknown,
+  sink: Sink,
+  reported: boolean,
+): { panic: string | null; frames: [number, number][] } {
   if (error instanceof HostContract) {
     sink.err(`panic: host-contract: ${error.message}\n`);
     return { panic: `host-contract: ${error.message}\n`, frames: [] };
@@ -46,15 +71,15 @@ function startupFailure(error, sink, reported) {
   return { panic: null, frames: wasmFrames(error) };
 }
 
-function createStartupOnlyHost(sink, deadline) {
-  let memory = null;
+function createStartupOnlyHost(sink: Sink, deadline: number | null): StartupHost {
+  let memory: WebAssembly.Memory | null = null;
   let reported = false;
-  let panic = null;
-  const imports = {
+  let panic: string | null = null;
+  const imports: WebAssembly.Imports = {
     "hd:rt": {
-      stderr(len) {
+      stderr(len: number) {
         reported = true;
-        const text = decoder.decode(new Uint8Array(memory.buffer, 0, len));
+        const text = decoder.decode(new Uint8Array(memory!.buffer, 0, len));
         sink.err(text);
         if (panic !== null) {
           panic += text;
@@ -67,18 +92,23 @@ function createStartupOnlyHost(sink, deadline) {
       },
     },
   };
-  const prime = (instance) => {
-    memory = instance.exports["hd.x"] ?? null;
+  const prime = (instance: WebAssembly.Instance): void => {
+    const exported = instance.exports["hd.x"];
+    memory = exported instanceof WebAssembly.Memory ? exported : null;
   };
-  const run = async (instance, init, poll) => {
+  const run = async (
+    instance: WebAssembly.Instance,
+    init: string,
+    poll: string,
+  ): Promise<RunResult> => {
     prime(instance);
     let status = 0;
     let trapped = false;
     let cancelled = false;
-    let frames = [];
+    let frames: [number, number][] = [];
     try {
-      instance.exports[init]();
-      status = instance.exports[poll](0);
+      (instance.exports[init] as CallableFunction)();
+      status = (instance.exports[poll] as CallableFunction)(0) as number;
       if (typeof status !== "number" || (status | 0) !== status) {
         throw new HostContract("root poll returned an invalid status");
       }
@@ -116,7 +146,11 @@ function createStartupOnlyHost(sink, deadline) {
   return { imports, run, prime, close() {}, leaks: () => [] };
 }
 
-export async function createStartupHost(module, sink, env = {}) {
+export async function createStartupHost(
+  module: WebAssembly.Module,
+  sink: Sink,
+  env: StartupEnv = {},
+): Promise<StartupHost> {
   const cycles = WebAssembly.Module.customSections(module, "hd.cycles").length;
   if (
     startupImports(module) &&

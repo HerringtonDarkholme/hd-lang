@@ -47,6 +47,41 @@ import {
   PROGRAM_TIME_LIMIT,
   reportIn,
 } from "./run-support.ts";
+import type { Sink } from "./core.ts";
+import type { EntryCancel } from "./run-support.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
+
+interface HostProviderConfig {
+  module: string;
+  grantPath: string;
+  path: string;
+}
+
+interface RunConfig extends DynamicRecord {
+  cleanupMs?: number | null;
+  framesFile?: string;
+  grants?: Record<string, boolean | string[]>;
+  hostProviders?: HostProviderConfig[];
+  interruptSignal?: NodeJS.Signals;
+  processLauncher?: string;
+  profile?: string;
+  program?: string;
+  statusFile?: string;
+  timeLimitMs?: number | null;
+}
+
+interface RunRequest {
+  module: BufferSource | WebAssembly.Module;
+  config: RunConfig;
+  args: string[];
+  sink: Sink;
+  deadline?: number | null;
+  cancel?: CancelControl | null;
+}
+
+type CancelControl = Pick<EntryCancel, "boundMs" | "requests" | "wait">;
 
 // Builtins come from `process.getBuiltinModule`, which skips the ESM
 // facade an `import` builds (node.ts).
@@ -60,7 +95,7 @@ const { isMainThread, MessageChannel, receiveMessageOnPort, Worker, workerData }
 const GRACE_MS = 50;
 
 // The signal that is a Ctrl-C to this process (see the header).
-const interruptOf = (config) => config.interruptSignal ?? "SIGINT";
+const interruptOf = (config: RunConfig): NodeJS.Signals => config.interruptSignal ?? "SIGINT";
 
 // The wall clock, comparable across threads.
 const now = () => performance.timeOrigin + performance.now();
@@ -68,11 +103,11 @@ const now = () => performance.timeOrigin + performance.now();
 // The worker's side of a Ctrl-C under `supervise`, as an `entryCancel`:
 // `cell[0]` counts the requests the main thread passed on, and `cell[1]`
 // is 1 while the host waits, when a request ends the wait at once.
-function sharedCancel(boundMs, cell) {
+function sharedCancel(boundMs: number, cell: Int32Array<SharedArrayBuffer>): CancelControl {
   return {
     boundMs,
     requests: () => Atomics.load(cell, 0),
-    wait: async (ms) => {
+    wait: async (ms: number) => {
       const seen = Atomics.load(cell, 0);
       Atomics.store(cell, 1, 1);
       // A pending `waitAsync` does not keep the worker's event loop alive,
@@ -93,7 +128,14 @@ function sharedCancel(boundMs, cell) {
 // Runs `module` (bytes or a compiled module) in this thread under
 // `config`, writing through `sink`, and returns the status. `cancel`,
 // when given, is how a Ctrl-C reaches the run.
-async function runHere({ module, config, args, sink, deadline = null, cancel = null }) {
+async function runHere({
+  module,
+  config,
+  args,
+  sink,
+  deadline = null,
+  cancel = null,
+}: RunRequest): Promise<number> {
   try {
     return await runHereUnchecked({ module, config, args, sink, deadline, cancel });
   } catch (error) {
@@ -105,7 +147,7 @@ async function runHere({ module, config, args, sink, deadline = null, cancel = n
   }
 }
 
-async function packageHost(module, config) {
+async function packageHost(module: WebAssembly.Module, config: RunConfig): Promise<DynamicRecord> {
   const sections = WebAssembly.Module.customSections(module, "hd.capabilities");
   if (sections.length > 1) {
     throw new HostContract("duplicate package host contracts");
@@ -143,6 +185,7 @@ async function packageHost(module, config) {
   }
   const [{ createPackageRuntime }, generated] = await Promise.all([
     import("./package-providers.ts"),
+    // @ts-expect-error -- generated beside the runner when a package host is present.
     import("./main.host.mjs"),
   ]);
   const providers = new Map();
@@ -152,11 +195,18 @@ async function packageHost(module, config) {
   return {
     grants,
     createPackageRuntime,
-    packageBindings: (runtime) => generated.bind(runtime, providers),
+    packageBindings: (runtime: Dynamic) => generated.bind(runtime, providers),
   };
 }
 
-async function runHereUnchecked({ module, config, args, sink, deadline, cancel }) {
+async function runHereUnchecked({
+  module,
+  config,
+  args,
+  sink,
+  deadline = null,
+  cancel = null,
+}: RunRequest): Promise<number> {
   // The unsupervised path may receive bytes; retain the compiled module
   // so checked reports can read its custom metadata too.
   module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
@@ -168,14 +218,14 @@ async function runHereUnchecked({ module, config, args, sink, deadline, cancel }
     args,
     program: config.program ?? "",
     grants,
-    providers: profile ? (io) => profile.providers(config.profile, io) : null,
+    providers: profile ? (io: DynamicRecord) => profile.providers(config.profile!, io) : null,
     packageBindings,
     createPackageRuntime,
     deadline,
   });
   try {
     const instance = await WebAssembly.instantiate(module, host.imports);
-    const { status, frames } = await host.run(instance.instance ?? instance, "hd.init", "hd.poll", {
+    const { status, frames } = await host.run(instance, "hd.init", "hd.poll", {
       cancel,
     });
     // The frames of a trap, for `hd` to name (`flow.panic.report`).
@@ -190,7 +240,19 @@ async function runHereUnchecked({ module, config, args, sink, deadline, cancel }
 
 // Runs `module` in a worker until its deadline, `limit` milliseconds from
 // now, and returns the status: the program's, or 3 for a worker it stopped.
-function supervise({ module, config, args, limit, output }) {
+function supervise({
+  module,
+  config,
+  args,
+  limit,
+  output,
+}: {
+  module: WebAssembly.Module;
+  config: RunConfig;
+  args: string[];
+  limit: number;
+  output: DynamicRecord;
+}): Promise<number> {
   return new Promise((resolve, fail) => {
     const deadline = now() + limit;
     const { port1: port, port2 } = new MessageChannel();
@@ -203,16 +265,16 @@ function supervise({ module, config, args, limit, output }) {
       workerData: { module, config, args, deadline, port: port2, cell, outputConnection },
       transferList: [port2, outputConnection.port],
     });
-    let status = null;
+    let status: number | null = null;
     let ended = false;
     // Whether the host already reported the panic.
     let reported = false;
     // The label of the facts body the worker runs, or null: a time limit
     // that stops it names its facts (annot.fact.eval.panic-runtime).
-    let fact = null;
+    let fact: string | null = null;
     // A message is output (`fd`, `text`), the facts body (`fact`),
     // or the program's status.
-    const take = (m) => {
+    const take = (m: Dynamic): void => {
       if (m.fact !== undefined) {
         fact = m.fact;
       } else if (m.fd === undefined) {
@@ -224,7 +286,7 @@ function supervise({ module, config, args, limit, output }) {
         }
       }
     };
-    const end = (s) => {
+    const end = (s: number): void => {
       if (ended) {
         return;
       }
@@ -246,9 +308,9 @@ function supervise({ module, config, args, limit, output }) {
       if (ended) {
         return;
       }
-      if (Atomics.load(cell, 1) === 1) {
-        Atomics.add(cell, 0, 1);
-        Atomics.notify(cell, 0);
+      if (Atomics.load(cell!, 1) === 1) {
+        Atomics.add(cell!, 0, 1);
+        Atomics.notify(cell!, 0);
         return;
       }
       for (let m; status === null && (m = receiveMessageOnPort(port));) {
@@ -284,7 +346,7 @@ function supervise({ module, config, args, limit, output }) {
         take(m);
       }
     });
-    worker.on("error", (e) => {
+    worker.on("error", (e: Error) => {
       if (ended) {
         return;
       }
@@ -308,7 +370,7 @@ function supervise({ module, config, args, limit, output }) {
 if (isMainThread) {
   const bytes = readFileSync(process.argv[2]);
   const spec = process.argv[3] ?? "";
-  const config = spec.endsWith(".json") ? JSON.parse(readFileSync(spec, "utf8")) : {};
+  const config: RunConfig = spec.endsWith(".json") ? JSON.parse(readFileSync(spec, "utf8")) : {};
   const args = process.argv.slice(spec.endsWith(".json") ? 4 : 3);
   const limit = config.timeLimitMs ?? null;
   // A Ctrl-C is heard only while the host waits (`entryCancel`'s `onWait`).
@@ -318,16 +380,16 @@ if (isMainThread) {
   if (config.cleanupMs != null && signal !== "SIGINT") {
     process.on("SIGINT", () => {});
   }
-  const cancel =
-    config.cleanupMs == null
-      ? null
-      : entryCancel(config.cleanupMs, (waiting) => {
-          if (waiting) {
-            process.on(signal, cancel.request);
-          } else {
-            process.off(signal, cancel.request);
-          }
-        });
+  let cancel: EntryCancel | null = null;
+  if (config.cleanupMs != null) {
+    cancel = entryCancel(config.cleanupMs, (waiting) => {
+      if (waiting) {
+        process.on(signal, cancel!.request);
+      } else {
+        process.off(signal, cancel!.request);
+      }
+    });
+  }
   const output = createOutput();
   // A supervised run shares the writer thread with its worker, and on
   // Windows every write uses it, so there it boots while the module
@@ -338,7 +400,7 @@ if (isMainThread) {
   try {
     process.exitCode =
       limit === null
-        ? await runHere({ module: bytes, config, args, sink: output, cancel })
+        ? await runHere({ module: bytes, config, args, sink: output as Sink, cancel })
         : await supervise({
             module: await WebAssembly.compile(bytes),
             config,
@@ -359,11 +421,11 @@ if (isMainThread) {
     sink: {
       out: output.out,
       write: output.write,
-      err: (text) => {
+      err: (text: string) => {
         output.err(text);
         port.postMessage({ fd: 2, text });
       },
-      fact: (label) => port.postMessage({ fact: label }),
+      fact: (label: string | null) => port.postMessage({ fact: label }),
     },
     deadline,
     cancel: cell ? sharedCancel(config.cleanupMs, cell) : null,

@@ -11,7 +11,10 @@
 // Each trait's methods are imported from `hd:<Trait>` by name; every
 // argument and result crosses in the buffer.
 
-export function providers(name, io) {
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
+
+export function providers(name: string, io: DynamicRecord): DynamicRecord {
   switch (name) {
     // `trait Gauge: fn level(self) -> u8`, broken: every call returns 300,
     // which no `u8` holds (module.profile.host-result.contract-panic).
@@ -32,7 +35,7 @@ export function providers(name, io) {
     // `trait Vault: fn keep(self, token: Token) -> Token`: returns its
     // argument's boundary value unchanged, the bytes already at offset 0.
     case "serde-vault":
-      return { "hd:Vault": { keep: (len) => len } };
+      return { "hd:Vault": { keep: (len: number) => len } };
     // `trait Files: fn open!(self) -> mut FileHandle` and the handle's
     // `trait FileHandle`: `read!(mut self)` and `close(mut self)`, each
     // returning `Result[_, E]`, where `E` is the fixture's error enum with
@@ -43,21 +46,21 @@ export function providers(name, io) {
     // (module.resource.closed.after).
     case "disposed-file": {
       // Whether each handle number is still open; numbers are never reused.
-      const files = new Map();
+      const files = new Map<number, boolean>();
       // The handle number each pending `read!` reads.
-      const reads = new Map();
+      const reads = new Map<number, number>();
       // `.Err(E.Closed)`: `Err` is variant 1, `Closed` variant 1.
       const disposed = () => new io.Enc().leb(1).leb(1);
-      const known = (file) => {
+      const known = (file: number): boolean => {
         if (!files.has(file)) {
           throw new Error(`no disposed-file handle numbered ${file}`);
         }
-        return files.get(file);
+        return files.get(file)!;
       };
       return {
         "hd:Files": {
           "open.start": () => io.pending({ at: performance.now(), done: null }),
-          "open.finish": (h) => {
+          "open.finish": (h: number) => {
             io.finish(h);
             const file = files.size + 1;
             files.set(file, true);
@@ -65,18 +68,18 @@ export function providers(name, io) {
           },
         },
         "hd:FileHandle": {
-          "read.start": (file) => {
+          "read.start": (file: number) => {
             const [status, h] = io.pending({ at: performance.now(), done: null });
             reads.set(h, file);
             return [status, h];
           },
-          "read.finish": (h) => {
+          "read.finish": (h: number) => {
             io.finish(h);
-            const file = reads.get(h);
+            const file = reads.get(h)!;
             reads.delete(h);
             return io.put(known(file) ? new io.Enc().leb(0).str("") : disposed());
           },
-          close: (file) => {
+          close: (file: number) => {
             if (!known(file)) {
               return io.put(disposed());
             }
@@ -95,7 +98,7 @@ export function providers(name, io) {
       return {
         "hd:Tick": {
           "tick.start": () => io.pending({ at: performance.now(), done: null }),
-          "tick.finish": (h) => {
+          "tick.finish": (h: number) => {
             io.finish(h);
             return 0;
           },
@@ -107,7 +110,7 @@ export function providers(name, io) {
       return {
         "hd:Gate": {
           "wait.start": () => io.pending({ at: Infinity, done: null }),
-          "wait.finish": (h) => {
+          "wait.finish": (h: number) => {
             io.finish(h);
             return 0;
           },
