@@ -180,6 +180,16 @@ describe("website build", () => {
       /<span class="line-mark"><span class="hl-keyword">fn<\/span> <span class="hl-function">welcome!<\/span>/,
     );
     assert.match(home, /<figure class="claim-output claim-output-error">/);
+    // Each derivation item shares a key with its code and output lines.
+    assert.match(
+      home,
+      /<li data-link="schema" tabindex="0"><p class="showcase-line"><code class="hd"><span class="hl-operator">@<\/span><span class="hl-function">fact<\/span>/,
+    );
+    assert.match(home, /<span class="line-link" data-link="json schema">/);
+    assert.match(
+      home,
+      /<span class="line-link" data-link="schema">SELECT user_id, email FROM users/,
+    );
     // Each claim but the derivation showcase has a tab, and the page renders
     // no other README section.
     assert.equal(

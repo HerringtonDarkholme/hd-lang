@@ -7,11 +7,11 @@ struct Money:
 # same per-type member metadata instead of rebuilding or copying it per value.
 
 tests:
-    it_prop(
-        "parse undoes print",
-        prop=fn!(m: Money): assert_equal(parse(print(m)), .Some(m), reason="round trip")
-        ,
-    )
+    it_prop("parse undoes print", prop=round_trips) # ← 100 generated Money values
+
+# The property: printing then parsing gives the value back.
+fn round_trips!(m: Money) -> void:
+    assert_equal(parse(print(m)), .Some(m), reason="round trip")
 
 # The first `print` wrote 5 cents as "0.5", which `parse` rejects.
 # Two hand-picked examples (150 and 1200) passed. `hd test` then reported:

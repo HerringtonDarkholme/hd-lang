@@ -159,6 +159,13 @@ test("the highlighter's keywords are the Rust lexer's reserved words", async () 
   assert.deepEqual([...KEYWORDS].sort(), words.sort());
 });
 
+test("by is a keyword after an impl header's target, with or without a trait", () => {
+  for (const line of ["impl Show for Point by Structure:", "impl User by Structure:"]) {
+    assert.equal(classify(line).find(({ text }) => text === "by")?.kind, "keyword", line);
+  }
+  assert.equal(classify("by := 1")[0]?.kind, "plain");
+});
+
 test("defer is a keyword only where it opens a defer: statement", () => {
   assert.equal(classify("    defer: save()")[1]?.kind, "keyword");
   assert.equal(classify("    defer(save)").find(({ text }) => text === "defer")?.kind, "function");

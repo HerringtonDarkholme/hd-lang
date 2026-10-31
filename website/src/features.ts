@@ -7,12 +7,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { Claim, ClaimOutput } from "./claim.ts";
+import type { Claim, ClaimLink, ClaimOutput } from "./claim.ts";
 
 /** A run of lines in an example: the first line's trimmed text and the count. */
 interface Range {
   readonly from: string;
   readonly lines: number;
+}
+
+/** An item listed beside a claim card, tinted together with its lines. */
+export interface FeatureLink extends ClaimLink {
+  /** The language feature the item names, as hd code. */
+  readonly label: string;
+  /** What the feature is, in one line. Backticks mark code. */
+  readonly summary: string;
+  /** How the card's example uses it, shown while the item is lit. */
+  readonly detail: string;
 }
 
 export interface Feature {
@@ -26,6 +36,7 @@ export interface Feature {
   /** The snippet's parts, joined by a blank line. */
   readonly ranges: readonly Range[];
   readonly marks: readonly string[];
+  readonly links?: readonly FeatureLink[];
   /**
    * The output pane. `comment`: each line is quoted in the example. `check`:
    * `hd check` prints each line for the variant saved as main.hd.
@@ -73,7 +84,10 @@ export const EFFECT_STEPS: readonly Feature[] = [
   },
 ];
 
-/** Typed derivation: one type gives JSON, validation, and a table schema. */
+/**
+ * Typed derivation: one type gives JSON, validation, and a table schema. Its
+ * links are the list beside the card, each tied to its code and output.
+ */
 export const DERIVATION: Feature = {
   title: "One type, three derivations",
   blurb: "`@derive` and a `by Structure` block read the type's fields. No macros, no codegen.",
@@ -82,7 +96,39 @@ export const DERIVATION: Feature = {
     { from: "@derive(Serialize, Deserialize, Table)", lines: 5 },
     { from: "impl Validate for User by Structure:", lines: 2 },
   ],
-  marks: ["@derive(Serialize, Deserialize, Table)", "email = [email()]"],
+  marks: [],
+  links: [
+    {
+      key: "json",
+      label: "@derive(Trait)",
+      summary: "a trait implemented from the fields",
+      detail:
+        "Each derivable trait has a template: an ordinary `impl` in plain hd over the compiler's typed walk of a type's fields, written once by its library. Here std's `Serialize` and `Deserialize` let JSON and the host boundary read and write `User`.",
+      code: ["@derive(Serialize, Deserialize, Table)"],
+      output: ['{"id":7,"email":"ada@example.com"}'],
+    },
+    {
+      key: "validate",
+      label: "impl Trait by Structure",
+      summary: "a derive written out, with settings",
+      detail:
+        "`@derive(X)` means this block with an empty body. Write the block when the derive needs settings: here `Validate` takes a rule for each field, `email = [email()]`, and a failure names its path, `$.email`.",
+      code: ["impl Validate for User by Structure:", "email = [email()]"],
+      output: ["$.email: must be a valid email address"],
+    },
+    {
+      key: "schema",
+      label: "@fact(...)",
+      summary: "a typed value on a type or a field",
+      detail:
+        "A fact is checked like any other value, and only a template that looks for it reads it. Here a `Table` trait, ordinary library code, reads `@column` to name the first column `user_id`.",
+      code: [
+        "@derive(Serialize, Deserialize, Table)",
+        '@column("user_id") # ← a typed fact that only Table reads',
+      ],
+      output: ["SELECT user_id, email FROM users"],
+    },
+  ],
   output: {
     caption: "hd run",
     lines: [
@@ -100,7 +146,9 @@ export const STD_FEATURES: readonly Feature[] = [
   {
     title: "Effects in every signature",
     blurb:
-      "`read_text!`, `write_text!`, and `now()` each carry a requirement, so `stamp!` must list them.",
+      "`read_text!`, `write_text!`, and `now()` each carry a requirement, so `stamp!` must list them. Drop `Clock` from the row and `hd check` stops at `now()` with `missing-requirement`.",
+    contrast:
+      "Python: `open()` and `time.time()` appear in no signature, so only the body tells you what a function touches.",
     example: "capabilities",
     ranges: [
       {
@@ -123,22 +171,22 @@ export const STD_FEATURES: readonly Feature[] = [
   },
   {
     title: "Property tests from a derive",
-    blurb: "`@derive(Arbitrary)` feeds the test; it found the bug two hand-picked cases missed.",
+    blurb: "`@derive(Arbitrary)` makes the inputs. It caught a bug two hand-picked cases missed.",
     example: "derive",
     ranges: [
       { from: "@derive(Arbitrary, Debug, Eq)", lines: 3 },
-      { from: "it_prop(", lines: 4 },
+      {
+        from: 'it_prop("parse undoes print", prop=round_trips) # ← 100 generated Money values',
+        lines: 1,
+      },
     ],
     marks: [
       "@derive(Arbitrary, Debug, Eq)",
-      'prop=fn!(m: Money): assert_equal(parse(print(m)), .Some(m), reason="round trip")',
+      'it_prop("parse undoes print", prop=round_trips) # ← 100 generated Money values',
     ],
     output: {
       caption: "hd test, on the first version of print",
-      lines: [
-        'property test "parse undoes print" shrunk input Money { cents: -1000 };',
-        "assertion-failed: round trip: actual Option.None, expected Option.Some(Money { cents: -1000 })",
-      ],
+      lines: ['property test "parse undoes print" shrunk input Money { cents: -1000 };'],
       kind: "error",
       source: "comment",
     },
@@ -194,6 +242,7 @@ export function featureClaims(
       contrast: feature.contrast,
       code: feature.ranges.map((range) => excerpt(source, range, file)).join("\n\n"),
       marks: feature.marks,
+      links: feature.links,
       output: feature.output,
       href: playgroundUrl(original),
     };

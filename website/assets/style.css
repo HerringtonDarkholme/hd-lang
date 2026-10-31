@@ -1128,6 +1128,25 @@ pre.code code {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+/*
+ * A line tied to an item beside its block (website/src/claim.ts); site.js
+ * marks it as a punchline line while that item is lit.
+ */
+.line-link {
+  display: inline-block;
+  min-width: calc(100% + 2 * var(--code-pad-x));
+  margin: 0 calc(-1 * var(--code-pad-x));
+  padding: 0 var(--code-pad-x);
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.line-link.is-linked {
+  background: var(--mark-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 /* EBNF grammar blocks: rule names link to their definitions. */
 
 .eb-definition {
@@ -1467,42 +1486,80 @@ pre.ebnf .eb-definition:target {
 }
 
 .showcase-list li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  align-items: baseline;
-  padding: 10px 0;
+  display: grid;
+  padding: 12px 14px;
   border-top: 1px solid var(--border);
+  outline-offset: -2px;
+  cursor: default;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+/*
+ * An item's explanation shows while it is lit. site.js marks the group
+ * ready and holds the list at its tallest, so opening an item moves nothing
+ * outside it; without scripts every explanation shows.
+ */
+.showcase-more {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s;
+}
+
+.showcase-more > span {
+  min-height: 0;
+  padding-top: 4px;
+  overflow: hidden;
+}
+
+.is-ready .showcase-list li:not(.is-linked) .showcase-more {
+  grid-template-rows: 0fr;
+}
+
+/* site.js opens each item in turn to find the list's tallest height. */
+.is-measuring .showcase-list li,
+.is-measuring .showcase-more {
+  transition: none;
+}
+
+.showcase-list li.is-linked {
+  background: var(--mark-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .showcase-list li:last-child {
   border-bottom: 1px solid var(--border);
 }
 
-.showcase-list li > code {
-  color: var(--accent);
+/* An item's code, highlighted as hd, and its summary share one line. */
+.showcase-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  align-items: baseline;
+  margin: 0;
+}
+
+.showcase-line > code {
+  color: var(--heading);
   font-size: 14px;
   font-weight: 600;
 }
 
-.showcase-list span {
+.showcase-line > span,
+.showcase-more {
   color: var(--text-soft);
   font-size: 15px;
 }
 
-.showcase-list span::before {
-  content: "· ";
-}
-
-.showcase-link {
-  margin: 16px 0 0;
-  font-weight: 600;
-}
-
-.showcase-link a {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
+.showcase-line > span code,
+.showcase-more code {
+  padding: 0.05em 0.3em;
+  color: var(--inline-code);
+  background: var(--bg-inline-code);
+  border-radius: 4px;
+  font-size: 0.88em;
 }
 
 .showcase-card {
@@ -1569,6 +1626,10 @@ pre.ebnf .eb-definition:target {
   font-weight: 500;
   text-align: left;
   cursor: pointer;
+  transition:
+    color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
 }
 
 .explorer-tab:hover {
@@ -1611,6 +1672,28 @@ pre.ebnf .eb-definition:target {
 
 .is-ready .explorer-panel + .explorer-panel {
   border-top: 0;
+}
+
+/*
+ * Once ready, the panels share one grid cell, so the box keeps the tallest
+ * panel's height whichever tab is chosen, and the chosen one fades in.
+ */
+.is-ready .explorer-panels {
+  display: grid;
+}
+
+.is-ready .explorer-panel {
+  grid-area: 1 / 1;
+  transition:
+    opacity 0.25s,
+    transform 0.25s,
+    visibility 0.25s;
+}
+
+.is-ready .explorer-panel:not(.is-current) {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 /* One claim (website/src/claim.ts): its headline and blurb, then the code. */
@@ -1671,8 +1754,9 @@ pre.ebnf .eb-definition:target {
 }
 
 .claim-output pre {
+  --code-pad-x: 12px;
   margin: 0;
-  padding: 8px 12px;
+  padding: 8px var(--code-pad-x);
   overflow-x: auto;
   font-size: 12.5px;
   line-height: 1.6;

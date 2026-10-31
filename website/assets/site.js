@@ -1,7 +1,7 @@
 // Client behavior for the hd-lang site: the mobile navigation toggle, the
 // theme toggle, heading search, copy buttons on code blocks, passing
 // `#code=` from the playground page to the playground, and the home page's
-// claims explorer.
+// claims explorers and linked lines.
 
 const base = document.body.dataset.base ?? "/";
 
@@ -292,8 +292,9 @@ function setupOutline() {
 }
 
 /**
- * The home page's claims explorer: one claim shows at a time, chosen by its
- * tab. Arrow keys, Home, and End move between tabs.
+ * The home page's claims explorers: one claim shows at a time, chosen by its
+ * tab, in a box as tall as the tallest claim. Arrow keys, Home, and End move
+ * between tabs.
  */
 function setupExplorer() {
   for (const explorer of document.querySelectorAll("[data-explorer]")) {
@@ -303,10 +304,10 @@ function setupExplorer() {
         const selected = other === tab;
         other.setAttribute("aria-selected", String(selected));
         other.tabIndex = selected ? 0 : -1;
-        const panel = document.getElementById(other.getAttribute("aria-controls"));
-        if (panel) {
-          panel.hidden = !selected;
-        }
+        // The style sheet hides the other panels but keeps their height.
+        document
+          .getElementById(other.getAttribute("aria-controls"))
+          ?.classList.toggle("is-current", selected);
       }
       if (focus) {
         tab.focus();
@@ -338,6 +339,57 @@ function setupExplorer() {
   }
 }
 
+/**
+ * Linked parts: in a `[data-links]` group, pointing at or focusing a list
+ * item, or pointing at a code or output line, lights every part that shares
+ * its key. A line may carry several keys. The first item starts lit, and the
+ * last one chosen stays lit. A lit item may grow, so its list
+ * (`[data-link-items]`) is held at the height of its tallest lit state.
+ */
+function setupLinks() {
+  for (const group of document.querySelectorAll("[data-links]")) {
+    const parts = [...group.querySelectorAll("[data-link]")];
+    const keys = [...new Set(parts.flatMap((part) => part.dataset.link.split(" ")))];
+    let current = keys[0];
+    const light = (key) => {
+      for (const part of parts) {
+        part.classList.toggle("is-linked", part.dataset.link.split(" ").includes(key));
+      }
+    };
+    const items = group.querySelector("[data-link-items]");
+    const reserve = () => {
+      if (!items) {
+        return;
+      }
+      group.classList.add("is-measuring");
+      items.style.minHeight = "";
+      let tallest = 0;
+      for (const key of keys) {
+        light(key);
+        tallest = Math.max(tallest, items.offsetHeight);
+      }
+      light(current);
+      items.style.minHeight = `${tallest}px`;
+      // Lay out the final state before transitions return, so nothing animates.
+      void items.offsetHeight;
+      group.classList.remove("is-measuring");
+    };
+    for (const part of parts) {
+      const choose = () => {
+        current = part.dataset.link.split(" ")[0];
+        light(current);
+      };
+      part.addEventListener("pointerenter", choose);
+      part.addEventListener("focus", choose);
+    }
+    group.classList.add("is-ready");
+    light(current);
+    reserve();
+    window.addEventListener("resize", reserve);
+    document.fonts?.ready.then(reserve);
+  }
+}
+
 setupMenu();
 setupTheme();
 setupCopy();
@@ -345,3 +397,4 @@ setupSearch();
 setupPlayground();
 setupOutline();
 setupExplorer();
+setupLinks();

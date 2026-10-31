@@ -10,7 +10,7 @@ import type { MarkdownIt } from "markdown-it";
 import { type Claim, claimCard } from "./claim.ts";
 import { DERIVATION, EFFECT_STEPS, featureClaims, STD_FEATURES } from "./features.ts";
 import { logoSvg } from "./logo.ts";
-import { escapeHtml, type RenderEnv } from "./markdown.ts";
+import { escapeHtml, highlightHd, type RenderEnv } from "./markdown.ts";
 import { REPOSITORY_URL } from "./pages.ts";
 
 interface HomeInput {
@@ -198,15 +198,17 @@ ${errorsNote ? `<p class="section-note">${inline(errorsNote)}</p>` : ""}
 
   const [derivation] = featureClaims([DERIVATION], input.examplesDir, env.playgroundUrl);
   const derivationSection = `<section class="home-section derivation" aria-labelledby="derivation-title">
-<div class="showcase">
+<div class="showcase" data-links>
 <div class="showcase-text">
-${sectionHead("derivation-title", "Typed derivation", "Behavior derived from your types", "A derive reads a type's fields and their typed facts, in plain hd. No macros, no codegen.")}
-<ul class="showcase-list">
-<li><code>Serialize</code> <code>Deserialize</code><span>JSON and the host boundary</span></li>
-<li><code>Validate</code><span>field rules; failures name their path</span></li>
-<li><code>@column</code><span>read by a schema trait of your own</span></li>
+${sectionHead("derivation-title", "Typed derivation", "Behavior derived from your types", "Declare serialization, validation, and schemas on the type. Libraries derive them in plain hd from its fields.")}
+<ul class="showcase-list" data-link-items>
+${(DERIVATION.links ?? [])
+  .map(
+    (link) =>
+      `<li data-link="${link.key}" tabindex="0"><p class="showcase-line"><code class="hd">${highlightHd(link.label)}</code><span>${inline(link.summary)}</span></p><div class="showcase-more"><span>${inline(link.detail)}</span></div></li>`,
+  )
+  .join("\n")}
 </ul>
-<p class="showcase-link"><a href="${pageUrl("spec/14-annotations.html")}">Read about annotations and derivation ${ARROW_ICON}</a></p>
 </div>
 <div class="showcase-card">
 ${claimCard(derivation!)}
