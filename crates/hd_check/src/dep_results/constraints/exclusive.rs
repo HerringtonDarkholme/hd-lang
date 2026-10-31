@@ -97,7 +97,7 @@ fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
 }
 
 /// The place a call's result holds for loan `i`, a site of `loan_path`:
-/// the call that takes `i` and the place extended by the fields the
+/// the call that takes `i` and the place extended by the steps the
 /// callee's result paths name for that argument (`ref.result.path.caller`).
 /// While the call runs, `i` still covers its whole place.
 fn held_path(s: &Inputs<'_>, i: u32, (l, path): &Path, kind: Kind) -> Option<(usize, Path)> {
@@ -105,9 +105,9 @@ fn held_path(s: &Inputs<'_>, i: u32, (l, path): &Path, kind: Kind) -> Option<(us
         return None;
     }
     s.calls.iter().find_map(|(&c, sig)| {
-        let (_, fields) = sig.paths.iter().find(|x| x.0 == i)?;
+        let (_, steps) = sig.paths.iter().find(|x| x.0 == i)?;
         let mut path = path.clone();
-        path.extend(fields.iter().map(|&f| Proj::Field(f)));
+        path.extend(steps.iter().copied());
         Some((c as usize, (*l, path)))
     })
 }

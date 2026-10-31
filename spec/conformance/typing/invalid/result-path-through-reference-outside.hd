@@ -1,0 +1,11 @@
+# test: a body returns a field beside the path through a `*mut`
+# Spec 13 Result Paths: ref.result.path.counted.
+struct User:
+    name: string
+    title: string
+
+struct Team:
+    lead: *mut User
+
+fn lead_name(t: &Team) -> &'t.lead.name string:
+    &t.lead.title # diagnostic: local-reference-escapes

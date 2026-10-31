@@ -323,10 +323,9 @@ impl Gen<'_, '_> {
         }
         self.seed(r, Origin::Param(l, 0));
         for (k, p) in paths.iter().enumerate().filter(|x| x.1.param == l) {
-            let steps = p.fields.iter().map(|&f| Proj::Field(f));
             let inside = proj.first() == Some(&Proj::Deref)
-                && proj.len() > p.fields.len()
-                && proj[1..].iter().copied().zip(steps).all(|(x, y)| x == y);
+                && proj.len() > p.steps.len()
+                && proj[1..].iter().zip(&p.steps).all(|(x, y)| x == y);
             if !inside {
                 self.seed(r, Origin::Outside(w(k)));
             }
