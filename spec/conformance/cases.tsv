@@ -5365,7 +5365,15 @@ typing/invalid/result-path-through-reference.hd	type	reject:references-not-yet-c
 typing/invalid/result-path-private-field.hd	type	reject:private-type-leak	lang/13-values-and-references.md#r-ref.result.path.public
 typing/invalid/result-path-trait-method.hd	type	reject:trait-method-signature	lang/13-values-and-references.md#r-ref.result.path.trait
 typing/invalid/result-path-trait-impl.hd	type	reject:trait-method-signature	lang/13-values-and-references.md#r-ref.result.path.trait
-typing/invalid/result-path-caller-locks-source.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.caller
+typing/valid/result-path-caller-locks-path.hd	type	accept	lang/13-values-and-references.md#r-ref.result.path.caller
+typing/invalid/result-path-caller-path-write.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.caller
+typing/valid/result-path-caller-mut.hd	type	accept	lang/13-values-and-references.md#r-ref.result.path.caller
+typing/invalid/result-path-caller-mut-use.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.caller
+typing/valid/result-path-caller-chained.hd	type	accept	lang/13-values-and-references.md#r-ref.result.path.caller
+typing/invalid/result-path-caller-chained.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.caller
+typing/invalid/result-path-caller-other-slot.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.caller.whole
+typing/valid/result-path-caller-shared-prefix.hd	type	accept	lang/13-values-and-references.md#r-ref.result.path.caller.whole
+typing/invalid/result-path-caller-shared-prefix.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.caller.whole
 typing/valid/lifetime-struct-in-scope.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.field
 typing/invalid/lifetime-struct-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.struct.holds
 typing/invalid/lifetime-struct-box.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.lifetime.struct.holds

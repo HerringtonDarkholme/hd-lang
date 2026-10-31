@@ -492,7 +492,9 @@ u.name = "x"        # error: n is live
 Cost: path-aware conflicts across calls, about 900 to 1,500 checker lines
 against 500 to 800 for stage 7's whole-source and local-path checks (#1005).
 
-Slice 9a applied by #1119 ([Result Paths](../../spec/lang/13-values-and-references.md#result-paths)): the syntax in the lifetime position (`&'self.tags mut List[string]`, as `&'a mut T`), the parameter and field checks, the parameter's lifetime, the callee check and the trait rule. Interfaces carry each path's parameter and field names. Callers still lock the whole source until 9b.
+Slice 9a applied by #1119 ([Result Paths](../../spec/lang/13-values-and-references.md#result-paths)): the syntax in the lifetime position (`&'self.tags mut List[string]`, as `&'a mut T`), the parameter and field checks, the parameter's lifetime, the callee check and the trait rule. Interfaces carry each path's parameter and field names.
+
+Slice 9b applied by #1126 (`ref.result.path.caller`): a call's result in a path position holds the argument's place followed by the path's fields, for `&` and `&mut` results and for chained places (`t.lead.name()` locks `t.lead.name`). The parameter's whole place stays locked when its lifetime is also on a result reference without a path or on another parameter; several paths of one parameter lock the fields they share. Next: 9c, paths through `*mut` and their run-time loans.
 
 ## Stage 1 In Full
 

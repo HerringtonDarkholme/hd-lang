@@ -1,0 +1,19 @@
+# test: a result path follows the argument's own place, so `t.lead.name()` locks `t.lead.name`
+# Spec 13 Result Paths: ref.result.path.caller.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: User
+    size: i32
+
+impl User:
+    fn name(&self) -> &'self.name string:
+        &self.name
+
+fn grow(t: &mut Team) -> void $ Console:
+    n := t.lead.name()
+    t.size += 1
+    t.lead.age += 1
+    println(*n)

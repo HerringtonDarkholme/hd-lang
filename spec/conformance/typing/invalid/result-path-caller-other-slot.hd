@@ -1,0 +1,15 @@
+# test: a result reference without a path on the same lifetime keeps the whole-source lock
+# Spec 13 Result Paths: ref.result.path.caller.whole.
+struct User:
+    name: string
+    nick: string
+    age: i32
+
+impl User:
+    fn names(&self) -> (&'self.name string, &string):
+        (&self.name, &self.nick)
+
+fn birthday(u: &mut User) -> void $ Console:
+    p := u.names()
+    u.age += 1 # diagnostic: conflicting-access
+    println(*p._1)
