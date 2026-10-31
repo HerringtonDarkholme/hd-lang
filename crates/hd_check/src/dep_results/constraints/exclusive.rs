@@ -1,4 +1,4 @@
-//! Exclusivity (`ref.excl`, stages 7a to 7c2 of
+//! Exclusivity (`ref.excl`, stages 7a to 7c3 of
 //! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each written `Ref` of
 //! a place a local's path reaches is a loan of its own, [`Origin::Site`],
 //! which the solver carries with the local's: shared for `&`, exclusive
@@ -146,6 +146,20 @@ impl Gen<'_, '_> {
             }
         }
         out
+    }
+
+    /// The instruction that first takes each value as an operand.
+    fn users(&self) -> Vec<u32> {
+        let b = self.s.b;
+        let mut users = vec![NONE; b.tags.len()];
+        for j in 0..b.tags.len() {
+            slots(b, j, |_, v, word| {
+                if matches!(word, Word::Value(_)) && (v as usize) < j && users[v as usize] == NONE {
+                    users[v as usize] = w(j);
+                }
+            });
+        }
+        users
     }
 
     /// Whether store `i` declares the local it stores: a new place, which
@@ -312,14 +326,7 @@ impl Gen<'_, '_> {
         if sites.iter().all(|s| s.3.is_empty()) {
             return Vec::new();
         }
-        let mut users = vec![NONE; b.tags.len()];
-        for j in 0..b.tags.len() {
-            slots(b, j, |_, v, word| {
-                if matches!(word, Word::Value(_)) && (v as usize) < j && users[v as usize] == NONE {
-                    users[v as usize] = w(j);
-                }
-            });
-        }
+        let users = self.users();
         let order = Order {
             b,
             t: &topo,
@@ -363,7 +370,9 @@ impl Gen<'_, '_> {
     /// `ref.excl.args`: a `&mut` a call takes against the call's other
     /// arguments and receiver. One that holds a loan of an overlapping
     /// place conflicts, and so does a use of one after a written `&mut`.
-    /// A call that holds an error of `found` already gets no other.
+    /// `ref.excl.args.shared`: a `&` a call takes against a write of an
+    /// overlapping place in a later argument. A call that holds an error
+    /// of `found` already gets no other.
     pub(super) fn call_conflicts(
         &self,
         sol: &Solution,
@@ -378,7 +387,7 @@ impl Gen<'_, '_> {
                 _ => None,
             })
             .collect();
-        let mut uses = None;
+        let (mut uses, mut writes) = (None, None);
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
         for c in 0..b.tags.len() {
             if !matches!(
@@ -398,13 +407,26 @@ impl Gen<'_, '_> {
                     args.push(v);
                 }
             });
+            // An element reference keeps `ref.elem.conflict`.
+            let elem = |j: u32, q: &Path| {
+                b.tags[j as usize] == Tag::Ref && q.1.iter().any(|s| matches!(s, Proj::Elem(_)))
+            };
             for &v in &args {
-                let Some(((root, path), true)) = loan_path(self.s, v) else {
+                let Some(((root, path), excl)) = loan_path(self.s, v) else {
                     continue;
                 };
                 let hit = |q: &Path| q.0 == root && overlap(&path, &q.1);
                 let mut hits = Vec::new();
-                for &u in args.iter().filter(|&&u| u != v) {
+                // A `&`: a write in a later argument.
+                if !excl {
+                    let writes = writes.get_or_insert_with(|| self.writes(&self.users()));
+                    for (i, q, at) in writes.iter() {
+                        if v < *at && (*at as usize) < c && !elem(*i, q) && hit(q) {
+                            hits.extend([*i, *at]);
+                        }
+                    }
+                }
+                for &u in args.iter().filter(|&&u| excl && u != v) {
                     let held = self.val(u).map(|x| x.0).unwrap_or_default();
                     if sites.iter().any(|(loan, i, q)| {
                         *i != v && hit(q) && held.iter().any(|&g| sol.value(g).contains(*loan))
@@ -412,13 +434,8 @@ impl Gen<'_, '_> {
                         hits.push(u);
                     }
                 }
-                if site(self.s, v) {
+                if excl && site(self.s, v) {
                     let uses = uses.get_or_insert_with(|| self.accesses());
-                    // An element reference keeps `ref.elem.conflict`.
-                    let elem = |j: u32, q: &Path| {
-                        b.tags[j as usize] == Tag::Ref
-                            && q.1.iter().any(|s| matches!(s, Proj::Elem(_)))
-                    };
                     let after = |j: u32, q: &Path| v < j && (j as usize) < c && !elem(j, q);
                     hits.extend(
                         uses.iter()
@@ -438,9 +455,11 @@ impl Gen<'_, '_> {
                     } else {
                         format!("`{n}`")
                     };
-                    out.push((node, format!(
-                        "this uses {place} while the same call takes `&mut` of it; copy what this argument needs into a local before the call"
-                    )));
+                    out.push((node, if excl {
+                        format!("this uses {place} while the same call takes `&mut` of it; copy what this argument needs into a local before the call")
+                    } else {
+                        format!("this writes {place} while the same call takes `&` of it; compute this argument into a local before the call")
+                    }));
                     break;
                 }
             }

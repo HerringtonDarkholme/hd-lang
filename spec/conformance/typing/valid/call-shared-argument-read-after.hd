@@ -1,0 +1,17 @@
+# test: an argument after a `&` of a place may read it, or write another field
+# Spec 13 Writes While Borrowed: ref.excl.args.shared.
+struct Pair:
+    a: List[i32]
+    b: List[i32]
+
+fn referred(xs: &List[i32], n: usize) -> usize:
+    xs.len() + n
+
+fn take(xs: &List[i32], last: Option[i32]) -> usize:
+    xs.len()
+
+fn count() -> usize:
+    let mut ys = [+1, 2]
+    n := referred(&ys, ys.len())
+    let mut p = Pair { a: [+1], b: [+2] }
+    n + take(&p.a, p.b.pop())

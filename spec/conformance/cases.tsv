@@ -5528,3 +5528,6 @@ typing/invalid/call-mut-receiver-shared-argument.hd	type	reject:conflicting-acce
 typing/invalid/call-mut-argument-read-after.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.after
 typing/valid/call-mut-argument-disjoint-fields.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.args
 typing/valid/call-mut-receiver-reads-argument.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.args.after
+typing/invalid/call-shared-argument-write-after.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.shared
+typing/invalid/call-shared-receiver-write-after.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.shared
+typing/valid/call-shared-argument-read-after.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.args.shared

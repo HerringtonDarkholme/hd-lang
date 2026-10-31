@@ -103,9 +103,10 @@ tests:
         xs := box::[List[i32]]([+1, 2])
         alias := xs
         assert_equal(shared(xs, alias.pop()), 1, reason="a legacy view deliberately shares")
-        let mut ys = [+1, 2]
+        ys := box::[List[i32]]([+1, 2])
+        other := ys
         assert_equal(
-            referred(&ys, ys.pop()),
+            referred(ys, other.pop()),
             1,
             reason="a reference deliberately reads the changed source",
         )

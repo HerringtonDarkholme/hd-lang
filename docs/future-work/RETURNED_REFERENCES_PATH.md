@@ -442,6 +442,8 @@ Slice 7c applied by #1107 (`ref.excl.mut`): a written `&mut` and the `&mut` a ca
 
 Slice 7c2 applied by #1108 (`ref.excl.args`): a call's `&mut` argument or receiver excludes a reference to an overlapping place in its other arguments, and after a written `&mut p` argument the later arguments may not use `p`; a `&mut self` call's arguments may still read the receiver, Rust's two-phase rule.
 
+Slice 7c3 applied by #1111 (`ref.excl.args.shared`): a `&` a call takes, written or for a `&self` receiver, excludes a write to an overlapping place in a later argument, as `referred(&ys, ys.pop())`; a read stays valid.
+
 ### Stage 9: field paths on results
 
 A result may name the field of its source it points into (owner,

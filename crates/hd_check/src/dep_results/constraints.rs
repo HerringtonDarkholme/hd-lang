@@ -59,6 +59,15 @@ pub(super) struct Returns<'x> {
     pub(super) skip: &'x HashSet<u32>,
 }
 
+/// Whether `t`, under any `mut`, is a reference type.
+pub(super) fn is_ref(pool: hd_types::Types<'_>, t: Ty) -> bool {
+    match pool.get(t) {
+        TyData::Ref { .. } => true,
+        TyData::Mut(i) => is_ref(pool, i),
+        _ => false,
+    }
+}
+
 /// Whether reference type `t`, under any `mut`, is `&mut`.
 pub(super) fn is_mut(pool: hd_types::Types<'_>, t: Ty) -> bool {
     match pool.get(t) {

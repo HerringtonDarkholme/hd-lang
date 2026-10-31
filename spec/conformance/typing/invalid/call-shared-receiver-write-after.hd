@@ -1,0 +1,16 @@
+# test: a `&self` call's arguments may not write its receiver's place
+# Spec 13 Writes While Borrowed: ref.excl.args.shared.
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn plus(&self, k: i32) -> i32:
+        self.n + k
+
+    fn bump(&mut self) -> i32:
+        self.n += 1
+        self.n
+
+fn twice() -> i32:
+    let mut c = Counter { n: +1 }
+    c.plus(c.bump()) # diagnostic: conflicting-access

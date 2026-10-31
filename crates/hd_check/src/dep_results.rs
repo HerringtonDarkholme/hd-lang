@@ -1515,8 +1515,8 @@ impl Ck<'_, '_> {
                 through |= sig.store || held;
                 calls.insert(w(i), sig);
             }
-            // A call that takes a `&mut` beside another argument
-            // (`ref.excl.args`).
+            // A call that takes a reference beside another argument
+            // (`ref.excl.args`, `ref.excl.args.shared`).
             if matches!(
                 body.tags[i],
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
@@ -1525,7 +1525,7 @@ impl Ck<'_, '_> {
                 slots(body, i, |_, v, word| {
                     if matches!(word, Word::Value(_)) && (v as usize) < i {
                         n += 1;
-                        m |= constraints::is_mut(pool, body.ty[v as usize]);
+                        m |= constraints::is_ref(pool, body.ty[v as usize]);
                     }
                 });
                 through |= m && n > 1;
