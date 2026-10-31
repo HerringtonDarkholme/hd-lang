@@ -466,7 +466,7 @@ locks only that field, across the call:
 
 ```text
 fn name(&self) -> &'self.name string
-fn tags_mut(&mut self) -> &mut 'self.tags List[string]
+fn tags_mut(&mut self) -> &'self.tags mut List[string]
 
 n := u.name()
 u.age += 1          # valid: n locks only u.name
