@@ -480,7 +480,8 @@ run-time check (question 4).
   Within a domain a handle keeps its data alive as a counted reference
   does ([`ref.box.lifetime`](../../spec/lang/13-values-and-references.md#r-ref.box.lifetime)). `using` or an `@auto_closing` constructor
   releases it at scope exit ([`flow.auto-closing.statement`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.statement)).
-- **New:** a compiler-known marker for handle types, as `AutoClosing` is
+- **New** (**approved**: question 9): a std marker trait for handle
+  types that the compiler knows, as `AutoClosing` is
   one ([`flow.auto-closing.marker`](../../spec/lang/06-control-flow.md#r-flow.auto-closing.marker)). The checker needs it to pick the
   handle mode and to find handles for affinity. Counting a handle across
   domains (L3) is run-time work. Domains are static: one picked at run
@@ -660,6 +661,10 @@ decides it (question 7).
    `Workers[$ Clock + Console]`, checked by row subsumption, so each pool
    offers its own set and tests swap it with `$.with`. Not a fixed set per
    domain kind.
+9. **How does the checker know a type is a handle?** Answered (owner,
+   2026-10-31): a std marker trait the compiler knows, implemented by each
+   handle type (`impl Handle for Texture[D]`), as `AutoClosing` is for
+   `using`. A domain type argument alone does not make a type a handle.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
