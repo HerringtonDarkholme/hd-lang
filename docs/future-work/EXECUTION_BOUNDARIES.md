@@ -367,10 +367,11 @@ owner's note's block, which names every capture and its mode.
    or `Workers` from the requirement row (swappable with `$.with` in
    tests); services stay named by the deployment configuration, as the
    2026-10-17 #166 decision says.
-4. **How does a handle name its domain instance?** Options: (a) in the
-   type, as `Texture[Gpu0]`, for static instances only; (b) a run-time
-   instance id checked on use, panicking on a mismatch. Recommended: (a),
-   adding (b) when instances are dynamic.
+4. **How does a handle name its domain instance?** Answered (owner,
+   2026-10-31): in the type, as `Texture[Gpu0]`; using a handle in another
+   domain is a type error, with no run-time check. Dynamic instances (a
+   worker picked at run time) would need a fresh type per domain value, as
+   Rust's generativity does; not planned now.
 5. **When does transfer apply to plain values?** Only `&mut` moves today.
    Options: (a) transfer waits for `~Copyable` (#535); (b) transfer now for
    `&mut` and handle types only. Recommended: (a).
