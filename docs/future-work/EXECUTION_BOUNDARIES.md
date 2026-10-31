@@ -372,9 +372,11 @@ owner's note's block, which names every capture and its mode.
    domain is a type error, with no run-time check. Dynamic instances (a
    worker picked at run time) would need a fresh type per domain value, as
    Rust's generativity does; not planned now.
-5. **When does transfer apply to plain values?** Only `&mut` moves today.
-   Options: (a) transfer waits for `~Copyable` (#535); (b) transfer now for
-   `&mut` and handle types only. Recommended: (a).
+5. **When does transfer apply to plain values?** Answered (owner,
+   2026-10-31): transfer is for non-copyable types only: today a `&mut` and
+   types holding one (M1 #1137, M2 #1138), later any `~Copyable` type
+   (#535). A plain value crosses as a copy until its type opts out of
+   copying.
 6. **How is affinity expressed?** Answered (owner, 2026-10-31): required
    affinity, (a): a crossing may target a handle's home domain, read from
    its type, and the checker requires every handle the code uses to share
