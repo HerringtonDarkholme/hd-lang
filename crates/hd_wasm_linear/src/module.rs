@@ -1014,8 +1014,8 @@ pub struct Module {
     pub drain_glues: Vec<Sym>,
     /// Reachable all! nodes use generation-checked weak waker targets.
     pub wakers: bool,
-    /// The loans the program's bindings may register through `*mut`
-    /// aliases (`ref.excl.alias`); empty, no access checks any.
+    /// The loans the program's bindings may register through counted aliases
+    /// (`ref.excl.alias`); empty, no access checks any.
     pub loans: Vec<crate::emit::Loan>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.

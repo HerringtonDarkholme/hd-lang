@@ -1,4 +1,4 @@
-//! Run-time exclusivity through unseen `*mut` aliases (`ref.excl.alias`,
+//! Run-time exclusivity through unseen counted aliases (`ref.excl.alias`,
 //! stage 7e of `docs/future-work/RETURNED_REFERENCES_PATH.md`). A `&` or
 //! `&mut` binding of a place inside a counted object registers the
 //! place's address range in the runtime's loan table
@@ -95,7 +95,7 @@ fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty
 
 /// The place of loan-taking `Ref` `word`, rooted at a value of type
 /// `root`, as a counted object's field: the object's type and the field
-/// path, when the place's last dereference reads a `*mut`,
+/// path, when the place's last dereference reads a thin counted reference,
 /// only fields follow it, and no element or variant step is on the path
 /// (an element reference's loan is its collection's pin).
 fn loan_place(
@@ -131,7 +131,7 @@ fn loan_place(
             target,
             fat: false,
             whole: true,
-        } if ref_mutable(pool, env, ty) => Some((target, path)),
+        } => Some((target, path)),
         _ => None,
     }
 }
@@ -154,7 +154,7 @@ fn overlap(a: &[u32], b: &[u32]) -> bool {
 }
 
 /// The loan argument `a` of a call takes: a `Ref`'s place inside a
-/// counted object, or the whole object a `*mut` refers to.
+/// counted object, or the whole object a counted reference refers to.
 fn arg_loan(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -183,7 +183,7 @@ fn arg_loan(
             target,
             fat: false,
             whole: true,
-        } if ref_mutable(pool, env, t) => Some(Loan {
+        } => Some(Loan {
             object: target,
             path: Vec::new(),
             excl,

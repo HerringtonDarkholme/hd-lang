@@ -5613,6 +5613,8 @@ runtime/valid/alias-write-beside-call-result-loan-across-sleep-passes.hd	runtime
 runtime/panic/bang-call-mut-argument-under-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 runtime/valid/bang-call-disjoint-argument-checks-once.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 runtime/valid/alias-write-after-abandoned-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/panic/shared-counted-reference-loan-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-counted-loan
+runtime/valid/shared-counted-reference-loan-disjoint-write-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.shared-counted-loan
 typing/valid/mut-reference-reborrow-call.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow
 typing/valid/mut-reference-explicit-reborrow.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.explicit
 typing/valid/mut-reference-shared-reborrow.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.shared
