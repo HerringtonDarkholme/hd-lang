@@ -43,13 +43,17 @@ import { cycleReport } from "./checked-report.ts";
 import { createHost } from "./node.ts";
 import { providers } from "./profiles.ts";
 import { configOf, supervise } from "./test-run.ts";
+import type { Host } from "./core.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
 
 const IN = 0;
 const OUT = 1;
 
 // Reads exactly `n` bytes from `fd`, or null on clean EOF before any
 // byte. Throws on a truncated message.
-function readExact(fd, n) {
+function readExact(fd: number, n: number): Buffer | null {
   if (n === 0) {
     return Buffer.alloc(0);
   }
@@ -68,14 +72,14 @@ function readExact(fd, n) {
   return out;
 }
 
-function writeAll(fd, buf) {
+function writeAll(fd: number, buf: Uint8Array): void {
   let at = 0;
   while (at < buf.length) {
     at += writeSync(fd, buf, at, buf.length - at, null);
   }
 }
 
-function readFrame() {
+function readFrame(): Dynamic {
   const lenBuf = readExact(IN, 4);
   if (lenBuf === null) {
     return null;
@@ -97,7 +101,7 @@ function readFrame() {
   return { header, wasm, stdinText };
 }
 
-function writeFrame(id, status, stdout, stderr) {
+function writeFrame(id: Dynamic, status: number, stdout: Uint8Array, stderr: Uint8Array): void {
   const header = JSON.stringify({
     id,
     status,
@@ -123,7 +127,11 @@ const SCENARIO_CLEANUP_MS = 500;
 // the verdict reads: 0 for a cleanup that ran, 3 for a competing or
 // reentrant poll's trap (as a trapped run reports), 1 for any other
 // failure.
-async function runScenario(header, host, instance) {
+async function runScenario(
+  header: Dynamic,
+  host: Host,
+  instance: WebAssembly.Instance,
+): Promise<number> {
   const ex = instance.exports;
   if (header.scenario === "cancellation-cleanup") {
     // The host cancels the entry as a Ctrl-C does once its first poll is
@@ -135,16 +143,16 @@ async function runScenario(header, host, instance) {
     if (!cancelled) {
       return 1;
     }
-    return ex["hd.scenario.cleanup"]() === 1 ? 0 : 1;
+    return (ex["hd.scenario.cleanup"] as CallableFunction)() === 1 ? 0 : 1;
   }
   host.prime(instance);
-  ex["hd.init"]();
+  (ex["hd.init"] as CallableFunction)();
   if (header.scenario === "competing-drivers") {
-    if (ex["hd.poll"](0) !== -1) {
+    if ((ex["hd.poll"] as CallableFunction)(0) !== -1) {
       return 1;
     }
     try {
-      ex["hd.poll"](1);
+      (ex["hd.poll"] as CallableFunction)(1);
     } catch (e) {
       if (e instanceof WebAssembly.RuntimeError) {
         return 3;
@@ -154,11 +162,11 @@ async function runScenario(header, host, instance) {
     return 1;
   }
   if (header.scenario === "reentrant-poll") {
-    if (ex["hd.poll"](0) !== -1) {
+    if ((ex["hd.poll"] as CallableFunction)(0) !== -1) {
       return 1;
     }
     try {
-      ex["hd.poll"](0);
+      (ex["hd.poll"] as CallableFunction)(0);
     } catch (e) {
       if (e instanceof WebAssembly.RuntimeError) {
         return 3;
@@ -172,7 +180,11 @@ async function runScenario(header, host, instance) {
 
 // Runs one entry case with a fresh host and returns its status and its
 // captured standard output and error, as `run.ts` would write them.
-async function executeEntry(header, host, module) {
+async function executeEntry(
+  header: Dynamic,
+  host: Host,
+  module: WebAssembly.Module,
+): Promise<Dynamic> {
   const instance = await WebAssembly.instantiate(module, host.imports);
   if (!header.scenario) {
     return (await host.run(instance, "hd.init", "hd.poll")).status;
@@ -184,12 +196,16 @@ async function executeEntry(header, host, module) {
   return { status, report: null };
 }
 
-async function runEntry(header, wasm, stdinText) {
+async function runEntry(
+  header: Dynamic,
+  wasm: BufferSource,
+  stdinText: Uint8Array,
+): Promise<Dynamic> {
   let stdoutStr = "";
   let stderrStr = "";
   let stdinFd = null;
   let stdinTmp = null;
-  let host = null;
+  let host: Host | null = null;
   try {
     if (header.stdinLen > 0) {
       stdinTmp = mkdtempSync(join(tmpdir(), "hd-conformance-stdin-"));
@@ -200,10 +216,10 @@ async function runEntry(header, wasm, stdinText) {
     const module = await WebAssembly.compile(wasm);
     host = createHost(
       {
-        out: (text) => {
+        out: (text: string) => {
           stdoutStr += text;
         },
-        err: (text) => {
+        err: (text: string) => {
           stderrStr += text;
         },
       },
@@ -212,7 +228,7 @@ async function runEntry(header, wasm, stdinText) {
         args: header.args ?? [],
         program: "",
         grants: {},
-        providers: header.profile ? (io) => providers(header.profile, io) : null,
+        providers: header.profile ? (io: DynamicRecord) => providers(header.profile, io) : null,
         stdin: stdinFd,
       },
     );
@@ -222,8 +238,8 @@ async function runEntry(header, wasm, stdinText) {
     }
     stderrStr += executed.report ?? "";
     return { status: executed.status, stdoutStr, stderrStr };
-  } catch (e) {
-    stderrStr += (e?.stack ?? String(e)) + "\n";
+  } catch (error) {
+    stderrStr += (error instanceof Error ? (error.stack ?? error.message) : String(error)) + "\n";
     return { status: 1, stdoutStr, stderrStr };
   } finally {
     try {
@@ -250,7 +266,7 @@ async function runEntry(header, wasm, stdinText) {
 
 // Runs the listed test cases of a test program, each in a fresh instance
 // in a supervised worker thread, and returns their result lines.
-async function runTests(header, wasm) {
+async function runTests(header: Dynamic, wasm: BufferSource): Promise<Dynamic> {
   let stdoutStr = "";
   try {
     const module = await WebAssembly.compile(wasm);
@@ -258,8 +274,12 @@ async function runTests(header, wasm) {
       stdoutStr += text;
     });
     return { status: 0, stdoutStr, stderrStr: "" };
-  } catch (e) {
-    return { status: 1, stdoutStr, stderrStr: (e?.stack ?? String(e)) + "\n" };
+  } catch (error) {
+    return {
+      status: 1,
+      stdoutStr,
+      stderrStr: (error instanceof Error ? (error.stack ?? error.message) : String(error)) + "\n",
+    };
   }
 }
 

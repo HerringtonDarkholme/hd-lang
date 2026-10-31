@@ -38,15 +38,15 @@ import { configOf, supervise } from "./test-run.ts";
 // Writes all of `text` to standard output. A pipe takes a long line, such
 // as one with many frames, in several writes, and refuses a write while
 // it is full.
-function writeOut(text) {
+function writeOut(text: string): void {
   const buf = Buffer.from(text);
   let at = 0;
   while (at < buf.length) {
     try {
       at += writeSync(1, buf, at, buf.length - at);
-    } catch (e) {
-      if (e.code !== "EAGAIN") {
-        throw e;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EAGAIN") {
+        throw error;
       }
     }
   }

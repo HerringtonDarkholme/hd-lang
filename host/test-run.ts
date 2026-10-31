@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { parentPort, Worker, workerData } from "node:worker_threads";
 import { runCases } from "./cases.ts";
+import type { Worker as WorkerType } from "node:worker_threads";
 import {
   createHost,
   nodeFiles,
@@ -13,6 +14,9 @@ import {
   reportIn,
   timeLimitReport,
 } from "./node.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
 
 // How long past a deadline the supervisor waits for a body to end on its
 // own before it stops the worker.
@@ -24,14 +28,14 @@ const now = () => performance.timeOrigin + performance.now();
 // `test:init:kind` (export indices and the registration function)
 // separated by commas, which run with no arguments, no temporary
 // directory and no grant limit.
-const plain = (list) => ({
+const plain = (list: string): DynamicRecord => ({
   program: "",
   args: [],
   cases: list
     .split(",")
-    .filter((c) => c !== "")
-    .map((c) => {
-      const [test, init, kind] = c.split(":");
+    .filter((item) => item !== "")
+    .map((item) => {
+      const [test, init, kind] = item.split(":");
       return {
         test: Number(test),
         init: Number(init),
@@ -42,7 +46,7 @@ const plain = (list) => ({
       };
     }),
 });
-export function configOf(spec) {
+export function configOf(spec: string): Dynamic {
   return spec.endsWith(".json") ? JSON.parse(readFileSync(spec, "utf8")) : plain(spec);
 }
 
@@ -50,9 +54,13 @@ export function configOf(spec) {
 // resumed after a stopped row, its next row and its row count), restarting
 // it after each run it stops for overrunning its timeout. Each result
 // line goes to `writeOut`. Returns the workers it stopped.
-export async function supervise(module, config, writeOut) {
+export async function supervise(
+  module: WebAssembly.Module,
+  config: Dynamic,
+  writeOut: (text: string) => void,
+): Promise<WorkerType[]> {
   let start = { case: 0, row: 0, rows: 0 };
-  const stoppedWorkers = [];
+  const stoppedWorkers: WorkerType[] = [];
   while (start.case < config.cases.length) {
     start = await new Promise((next, fail) => {
       const worker = new Worker(new URL(import.meta.url), {
@@ -61,15 +69,15 @@ export async function supervise(module, config, writeOut) {
       // What the worker runs: its case, the row of a table and its count,
       // and the current run's timeout.
       let at = { ci: start.case, row: start.row > 0 ? start.row : null, rows: start.rows || null };
-      let timer = null;
+      let timer: NodeJS.Timeout | null = null;
       let stopped = false;
       // When the case's or row's `--time-limit` ends, and the current
       // run's timeout (`at`, `ms`); the earlier of the two stops the run.
-      let limitAt = null;
-      let timeout = null;
+      let limitAt: number | null = null;
+      let timeout: { at: number; ms: number } | null = null;
       // The label of the facts body the run is in, or null: a stop names
       // its facts (annot.fact.eval.panic-runtime).
-      let fact = null;
+      let fact: string | null = null;
       const clear = () => {
         if (timer !== null) {
           clearTimeout(timer);
@@ -84,13 +92,13 @@ export async function supervise(module, config, writeOut) {
           return;
         }
         timer = setTimeout(
-          () => stop(program ? null : timeout.ms),
+          () => stop(program ? null : timeout!.ms),
           Math.max(0, target - now()) + GRACE_MS,
         );
       };
       // `ms` is the timeout that ran out, or null for the program's
       // `--time-limit`.
-      const stop = (ms) => {
+      const stop = (ms: number | null) => {
         stopped = true;
         worker.terminate();
         stoppedWorkers.push(worker);
@@ -107,7 +115,7 @@ export async function supervise(module, config, writeOut) {
           us: Math.round((shown + GRACE_MS) * 1000),
         };
         if (at.row !== null && at.rows !== null) {
-          writeOut(JSON.stringify({ test: c.test, row: at.row, rows: at.rows, ...line }) + "\n");
+          writeOut(JSON.stringify({ ...line, row: at.row, rows: at.rows }) + "\n");
           next(
             at.row + 1 < at.rows
               ? { case: at.ci, row: at.row + 1, rows: at.rows }
@@ -118,7 +126,7 @@ export async function supervise(module, config, writeOut) {
           next({ case: at.ci + 1, row: 0, rows: 0 });
         }
       };
-      worker.on("message", (m) => {
+      worker.on("message", (m: Dynamic) => {
         if (stopped) {
           return;
         }
@@ -182,9 +190,9 @@ if (workerData?.hdTestRun === true) {
         return createHost(sink, env);
       },
       files: nodeFiles,
-      notify: (message) => parentPort.postMessage(message),
+      notify: (message) => parentPort!.postMessage(message),
       emit: (record) =>
-        parentPort.postMessage({ type: "line", text: JSON.stringify(record) + "\n" }),
+        parentPort!.postMessage({ type: "line", text: JSON.stringify(record) + "\n" }),
     },
     workerData.start,
   );
