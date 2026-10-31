@@ -31,6 +31,7 @@ std.weak.WeakMut	std/weak.md#weak-types-and-construction
 std.weak.weak	std/weak.md#weak-types-and-construction
 std.weak.weak_mut	std/weak.md#weak-types-and-construction
 std.collections.ListView	std/collections.md#views
+std.collections.Span	std/collections.md#spans
 std.collections.Deque	std/collections.md#deque
 std.collections.DequeIter	std/collections.md#deque
 std.collections.SetIter	std/collections.md#set

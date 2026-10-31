@@ -1,0 +1,7 @@
+# test: a span of a local list cannot be returned past that list
+# std Collections, Spans: std-collections.span.lifetime.
+use std.collections.Span
+
+fn escaped['a]() -> Span[i32, 'a]:
+    items := [+1, 2, 3]
+    items.span() # diagnostic: local-reference-escapes

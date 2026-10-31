@@ -8,6 +8,7 @@ in ordinary hd over the language tier:
 - the `List` methods `view` and `chunks`, and the access and building
   methods such as `get`, `take`, and `extend`;
 - the `ListView[T]` type returned by `view`, `chunks`, and `windows`;
+- the borrowed `Span[T, 'a]` type returned by `span` and `slice`;
 - the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
   and the function `counts`;
 - the `Map` methods `get_mut`, `get_or_insert`, `contains_key`, `keys`,
@@ -137,6 +138,46 @@ fn snapshot() -> i32:
 
 See also: [List Indexing](../lang/05-expressions.md#list-indexing),
 [List And Optional Map](iter.md#list-and-optional-map).
+
+### Spans
+
+`span` gives a read-only live view of a list. Unlike `ListView`, a span
+borrows the caller's list instead of holding a snapshot value:
+
+```text
+use std.collections.Span
+
+fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
+    items.span().slice(1..3)
+```
+
+`Span[T, 'a]` has this surface:
+
+| Item | Signature |
+| --- | --- |
+| construction | `span['a](&'a self) -> Span[T, 'a]` on `List[T]` |
+| `len` | `len(self) -> usize` |
+| `get` | `get(self, index: usize) -> (&'a T)?` |
+| `slice` | `slice(self, range: Range[usize]) -> Span[T, 'a]` |
+| index read | `Index[usize]` with `Out = &'a T` |
+
+1. r[std-collections.span.type] `std.collections` declares `Span[T, 'a]` with private fields and the surface above.
+2. r[std-collections.span.list] `list.span()` borrows the list for `'a` and returns a span covering every element.
+3. r[std-collections.span.no-copy] Creating a span copies no element.
+4. r[std-collections.span.import] `Span` is not a prelude name, so code that names it imports `std.collections.Span`.
+5. r[std-collections.span.len] `len` returns the number of elements in the span.
+6. r[std-collections.span.get] `get(index)` returns the indexed element as `&'a T` in `.Some`, or `.None` when the index is outside the span.
+7. r[std-collections.span.index] `span[index]` returns the indexed element as `&'a T`.
+8. r[std-collections.span.index-range] An index outside the span is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
+9. r[std-collections.span.slice] `slice(start..end)` returns the elements at relative indices `start` up to, not including, `end`.
+10. r[std-collections.span.slice-inclusive] `slice(start..=end)` includes the element at relative index `end`.
+11. r[std-collections.span.slice-range] A slice bound outside the span, or a start after its exclusive end, is a checked runtime panic. Panic: `index-out-of-bounds`.
+12. r[std-collections.span.slice-borrow] Slicing copies no element and returns another span that borrows the same list for `'a`.
+13. r[std-collections.span.lifetime] A span cannot outlive its list; returning a span of a local list is an error. Error: `local-reference-escapes`.
+14. r[std-collections.span.read-only] A span has no `IndexSet` implementation, so assigning through `span[index]` is an error. Error: `invalid-assignment-target`.
+
+> **Why.** `Span` supports borrowed reads without a snapshot allocation.
+> Its explicit lifetime makes retention beyond the source list a compile-time error.
 
 ## List Helpers
 

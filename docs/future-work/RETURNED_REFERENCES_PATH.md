@@ -20,6 +20,9 @@ calls and inlined getters, is `crates/hd_wasm_linear/DESIGN.md` §23.38
 (#1006). Stage 5 is
 [Generic Locality](../../spec/lang/13-values-and-references.md#generic-locality)
 and its Generic Calls (#1016).
+Slice 6h's `Span` construction, reads, indexing and slicing are
+[Spans](../../spec/std/collections.md#spans) (#1097); reference-yielding
+iteration remains #1104.
 
 ## Context
 

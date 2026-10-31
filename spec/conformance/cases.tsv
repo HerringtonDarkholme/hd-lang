@@ -2962,6 +2962,8 @@ runtime/panic/list-view-reversed.hd	runtime	panic:index-out-of-bounds	std/collec
 runtime/panic/list-view-index-out-of-bounds.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.view.index.range
 runtime/valid/list-view-snapshot.hd	runtime	accept	std/collections.md#r-std-collections.view.snapshot
 typing/invalid/list-view-assignment.hd	type	reject:invalid-assignment-target	std/collections.md#r-std-collections.view.read-only
+runtime/valid/list-span.hd	runtime	accept	std/collections.md#spans
+typing/invalid/list-span-local-escape.hd	type	reject:local-reference-escapes	std/collections.md#r-std-collections.span.lifetime
 typing/invalid/unknown-std-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-std-module-grouped.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-pkg-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
