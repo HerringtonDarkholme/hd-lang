@@ -34,29 +34,29 @@ function paired(interfaces) {
   return readPackageContract(section);
 }
 const rootOf = (interfaces) => interfaces.find((i) => !i.handle);
-const method = (interfaces, name) => rootOf(interfaces).methods.find((m) => m.name === name);
+const method = (interfaces, name) => rootOf(interfaces).methods.find((item) => item.name === name);
 test("maintenance asset covers every source and returned-handle method", () => {
   checkCoverage(reference, asset.coverage);
   assert.equal(reference.length, 4);
   assert.equal(
-    reference.reduce((n, i) => n + i.methods.length, 0),
+    reference.reduce((accumulator, i) => accumulator + i.methods.length, 0),
     13,
   );
   assert.deepEqual(
     reference
       .find((i) => i.identity.trait_path === "console.Console")
-      .methods.map((m) => m.name)
+      .methods.map((item) => item.name)
       .sort(),
     ["write_error_sync", "write_sync"],
   );
   assert.deepEqual(
-    reference.find((i) => i.identity.trait_path === "http.Http").methods.map((m) => m.name),
+    reference.find((i) => i.identity.trait_path === "http.Http").methods.map((item) => item.name),
     ["send"],
   );
   assert.deepEqual(
     reference
       .find((i) => i.identity.trait_path === "time.Clock")
-      .methods.map((m) => m.name)
+      .methods.map((item) => item.name)
       .sort(),
     ["monotonic", "now", "sleep"],
   );
@@ -75,36 +75,36 @@ test("actual application with fewer linked handle methods remains accepted", asy
 });
 test("needed source method subsets and absent unused handles are accepted", () => {
   const needed = clone(reference);
-  rootOf(needed).methods = rootOf(needed).methods.filter((m) =>
-    ["accept", "respond", "finish"].includes(m.name),
+  rootOf(needed).methods = rootOf(needed).methods.filter((item) =>
+    ["accept", "respond", "finish"].includes(item.name),
   );
   validateServerContract(paired(needed.filter((i) => !i.handle)), sdk, asset.schema);
 });
 test("compiler module-ID changes preserve schema only when references follow the same nominal handles", () => {
   const needed = clone(reference),
-    changes = new Map(needed.map((i, n) => [i.module, "hd:pkg:opaque-renamed-" + n]));
-  function change(v) {
-    const [tag, a, b] = v;
+    changes = new Map(needed.map((i, index) => [i.module, "hd:pkg:opaque-renamed-" + index]));
+  function change(value) {
+    const [tag, left, right] = value;
     if (tag === 15) {
-      v[1] = changes.get(a);
+      value[1] = changes.get(left);
     } else if (tag === 8 || tag === 9) {
-      change(a);
+      change(left);
     } else if (tag === 10) {
-      a.forEach(change);
+      left.forEach(change);
     } else if (tag === 11) {
-      a.forEach(([, t]) => change(t));
+      left.forEach(([, text]) => change(text));
     } else if (tag === 12) {
-      a.forEach(([, fs]) => fs.forEach(([, t]) => change(t)));
+      left.forEach(([, fs]) => fs.forEach(([, text]) => change(text)));
     } else if (tag === 13) {
-      change(a);
-      change(b);
+      change(left);
+      change(right);
     }
   }
   for (const i of needed) {
     i.module = changes.get(i.module);
-    for (const m of i.methods) {
-      m.params.forEach(change);
-      change(m.result);
+    for (const message of i.methods) {
+      message.params.forEach(change);
+      change(message.result);
     }
   }
   validateServerContract(paired(needed), sdk, asset.schema);
@@ -157,51 +157,52 @@ for (const [name, mutate] of [
     (i) => {
       method(i, "clock").result = [
         15,
-        i.find((x) => x.identity.trait_path === "console.Console").module,
+        i.find((item) => item.identity.trait_path === "console.Console").module,
       ];
     },
   ],
   [
     "returned handle nominal package",
     (i) => {
-      i.find((x) => x.identity.trait_path === "console.Console").identity.package = "foreign/sdk";
+      i.find((item) => item.identity.trait_path === "console.Console").identity.package =
+        "foreign/sdk";
     },
   ],
   [
     "returned handle nominal version",
     (i) => {
-      i.find((x) => x.identity.trait_path === "http.Http").identity.version = "abi:999";
+      i.find((item) => item.identity.trait_path === "http.Http").identity.version = "abi:999";
     },
   ],
   [
     "returned handle nominal trait",
     (i) => {
-      i.find((x) => x.identity.trait_path === "http.Http").identity.trait_path = "http.Fake";
+      i.find((item) => item.identity.trait_path === "http.Http").identity.trait_path = "http.Fake";
     },
   ],
   [
     "returned handle method codec",
     (i) => {
-      i.find((x) => x.identity.trait_path === "console.Console").methods[0].params[0] = [7];
+      i.find((item) => item.identity.trait_path === "console.Console").methods[0].params[0] = [7];
     },
   ],
   [
     "returned handle member",
     (i) => {
-      const [method] = i.find((x) => x.identity.trait_path === "console.Console").methods;
+      const [method] = i.find((item) => item.identity.trait_path === "console.Console").methods;
       method.member = method.member === "write_sync" ? "write_error_sync" : "write_sync";
     },
   ],
   [
     "returned handle suspension",
     (i) => {
-      i.find((x) => x.identity.trait_path === "console.Console").methods[0].wait = "may";
+      i.find((item) => item.identity.trait_path === "console.Console").methods[0].wait = "may";
     },
   ],
   [
     "returned handle unknown method",
     (i) => {
-      i.find((x) => x.identity.trait_path === "time.Clock").methods.push({
+      i.find((item) => item.identity.trait_path === "time.Clock").methods.push({
         name: "steal",
         member: "now",
         wait: "never",
@@ -263,10 +264,10 @@ test("snapshot metadata and all payload data are immutable and checksummed", () 
   assert.equal(Object.isFrozen(asset.schema.interfaces[0].methods), true);
   assert.throws(() => (asset.schema.interfaces[0].identity.package = "forged"), TypeError);
   for (const edit of [
-    (s) => (s.format = 2),
-    (s) => (s.packageHostABI = 2),
-    (s) => (s.schema.interfaces[0].methods[0].wait = "never"),
-    (s) => (s.provenance.compilerSha256 = "0".repeat(64)),
+    (source) => (source.format = 2),
+    (source) => (source.packageHostABI = 2),
+    (source) => (source.schema.interfaces[0].methods[0].wait = "never"),
+    (source) => (source.provenance.compilerSha256 = "0".repeat(64)),
   ]) {
     const changed = clone(asset);
     edit(changed);
@@ -277,22 +278,22 @@ test("source hashes match current declaration sources with canonical LF", async 
   const current = await sourceInventory(repository);
   assert.deepEqual(current.sourceHashes, asset.provenance.sourceHashes);
   assert.deepEqual(current.coverage, asset.coverage);
-  const d = await mkdtemp(join(directory, "sources-"));
+  const data = await mkdtemp(join(directory, "sources-"));
   try {
     for (const file of Object.keys(current.sourceHashes)) {
-      await mkdir(join(d, file, ".."), { recursive: true });
+      await mkdir(join(data, file, ".."), { recursive: true });
       await writeFile(
-        join(d, file),
+        join(data, file),
         (await readFile(join(repository, file), "utf8"))
           .replaceAll("\r\n", "\n")
           .replaceAll("\n", "\r\n"),
       );
     }
-    assert.deepEqual(await sourceInventory(d), current);
-    const file = join(d, "packages/server-sdk/src/server.hd");
+    assert.deepEqual(await sourceInventory(data), current);
+    const file = join(data, "packages/server-sdk/src/server.hd");
     await writeFile(file, (await readFile(file, "utf8")) + "\n# changed source\n");
-    assert.notDeepEqual((await sourceInventory(d)).sourceHashes, current.sourceHashes);
+    assert.notDeepEqual((await sourceInventory(data)).sourceHashes, current.sourceHashes);
   } finally {
-    await rm(d, { recursive: true, force: true });
+    await rm(data, { recursive: true, force: true });
   }
 });

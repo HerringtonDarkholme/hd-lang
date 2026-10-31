@@ -9,8 +9,8 @@ export function schemaFingerprint(snapshot) {
 }
 function freeze(value) {
   if (value && typeof value === "object") {
-    for (const v of Object.values(value)) {
-      freeze(v);
+    for (const nested of Object.values(value)) {
+      freeze(nested);
     }
     Object.freeze(value);
   }

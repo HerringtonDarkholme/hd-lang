@@ -36,7 +36,7 @@ before(async () => {
   bindingsURL = pathToFileURL(
     join(
       build,
-      readdirSync(build).find((f) => f.endsWith(".host.mjs")),
+      readdirSync(build).find((item) => item.endsWith(".host.mjs")),
     ),
   ).href;
   bindings = await import(bindingsURL);
@@ -181,7 +181,9 @@ test(
         ? Promise.resolve(events.find(predicate))
         : new Promise((resolve) => waiting.push({ predicate, resolve }));
     try {
-      await Promise.all([0, 1].map((slot) => wait((e) => e.kind === "ready" && e.slot === slot)));
+      await Promise.all(
+        [0, 1].map((slot) => wait((error) => error.kind === "ready" && error.slot === slot)),
+      );
       const results = await Promise.all([
         supervisor.dispatch(request("slow")),
         supervisor.dispatch(request("fast")),
@@ -207,7 +209,7 @@ test(
       const failed = await supervisor.dispatch(request("panic"));
       assert.equal(failed.response.status, 500);
       assert.equal(failed.response.body.length, 0);
-      await wait((e) => e.kind === "ready" && e.slot === 0 && e.generation === 2);
+      await wait((error) => error.kind === "ready" && error.slot === 0 && error.generation === 2);
       assert.equal(JSON.stringify(events).includes("private guest diagnostic"), false);
       assert.ok(logs.some((record) => record.text.includes("private guest diagnostic")));
       assert.equal((await supervisor.dispatch(request("fast"))).response.status, 200);

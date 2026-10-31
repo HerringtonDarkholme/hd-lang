@@ -20,8 +20,8 @@ test(
   async () => {
     const owner = new AsyncLocalStorage();
     const events = [];
-    let a,
-      b,
+    let left,
+      right,
       first,
       second,
       completeFirst,
@@ -36,7 +36,7 @@ test(
       drive() {
         if (phase === 0) {
           phase = 1;
-          first = a.operation(
+          first = left.operation(
             context,
             operation("first", (resolve) => {
               completeFirst = resolve;
@@ -46,27 +46,27 @@ test(
           assert.equal(first.done(), "one");
           first.finish();
           phase = 2;
-          second = a.operation(
+          second = left.operation(
             context,
             operation("second", (resolve) => {
               completeSecond = resolve;
             }),
           );
-          b.respond(response("B finished"));
-          b.finish();
+          right.respond(response("B finished"));
+          right.finish();
         } else if (phase === 2 && second.poll()) {
           assert.equal(second.done(), "two");
           second.finish();
-          a.respond(response("A finished"));
-          a.finish();
+          left.respond(response("A finished"));
+          left.finish();
           phase = 3;
         }
       },
     });
-    a = dispatcher.open("A");
-    b = dispatcher.open("B");
-    const resultA = owner.run("A", () => a.run());
-    const resultB = owner.run("B", () => b.run());
+    left = dispatcher.open("A");
+    right = dispatcher.open("B");
+    const resultA = owner.run("A", () => left.run());
+    const resultB = owner.run("B", () => right.run());
     // A's completion is made ready in B's turn, the adversarial ordering.
     owner.run("B", () => completeFirst("one"));
     await resultB;
@@ -146,13 +146,13 @@ test("a trap drains native aborts in every owner before failing their requests",
       failed = error;
     },
   });
-  const a = dispatcher.open("A"),
-    b = dispatcher.open("B");
-  for (const lease of [a, b]) {
+  const firstLease = dispatcher.open("A"),
+    secondLease = dispatcher.open("B");
+  for (const lease of [firstLease, secondLease]) {
     lease.operation(context, () => () => disposed.push(owner.getStore()));
   }
-  const ra = owner.run("A", () => a.run());
-  const rb = owner.run("B", () => b.run());
+  const ra = owner.run("A", () => firstLease.run());
+  const rb = owner.run("B", () => secondLease.run());
   const trap = new Error("private trap detail");
   owner.run("B", () => dispatcher.fail(trap));
   const results = await Promise.allSettled([ra, rb]);
@@ -165,19 +165,19 @@ test("a trap drains native aborts in every owner before failing their requests",
 
 test("cancellation is local, exactly once, and cleanup disposal stays with its owner", async () => {
   const dispatcher = createLeaseDispatcher({ drive() {} });
-  const a = dispatcher.open("A"),
-    b = dispatcher.open("B");
-  const cancelled = a.cancelled(context);
-  a.cancel("Disconnected");
-  a.cancel("Deadline");
+  const firstLease = dispatcher.open("A"),
+    secondLease = dispatcher.open("B");
+  const cancelled = firstLease.cancelled(context);
+  firstLease.cancel("Disconnected");
+  firstLease.cancel("Deadline");
   assert.ok(cancelled.poll());
   assert.equal(cancelled.done().tag, "Disconnected");
-  assert.equal(b.cancelled(context).poll(), false);
-  assert.equal(a.respond(response("too late")), false);
-  a.finish(true);
-  b.respond(response("fine"));
-  b.finish();
-  const [ra, rb] = await Promise.all([a.run(), b.run()]);
+  assert.equal(secondLease.cancelled(context).poll(), false);
+  assert.equal(firstLease.respond(response("too late")), false);
+  firstLease.finish(true);
+  secondLease.respond(response("fine"));
+  secondLease.finish();
+  const [ra, rb] = await Promise.all([firstLease.run(), secondLease.run()]);
   assert.equal(ra.cancelled, "Disconnected");
   assert.equal(ra.abandoned, true);
   assert.equal(rb.response.status, 200);

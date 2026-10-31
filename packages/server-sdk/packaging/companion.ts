@@ -20,9 +20,9 @@ export function checkCompanionPairing(source, bytes) {
   if (
     !(bytes instanceof Uint8Array) ||
     bytes.length < 4 ||
-    !values.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) ||
+    !values.every((item) => Number.isInteger(item) && item >= 0 && item <= 255) ||
     values.length !== bytes.length ||
-    values.some((n, i) => n !== bytes[i]) ||
+    values.some((item, i) => item !== bytes[i]) ||
     Number(match[1]) !==
       new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true)
   ) {

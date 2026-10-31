@@ -139,7 +139,7 @@ async function setup({
     if (ready) {
       await Promise.all(
         Array.from({ length: workers }, (_, slot) =>
-          wait((e) => e.kind === "ready" && e.slot === slot),
+          wait((error) => error.kind === "ready" && error.slot === slot),
         ),
       );
     }
@@ -185,12 +185,12 @@ test(
       await gate;
       res.end("cleanup acknowledged");
     });
-    const f = await setup({ deadline: 3000 });
+    const file = await setup({ deadline: 3000 });
     try {
-      assert.equal(await (await f.request("/count")).text(), "1");
-      assert.equal(await (await f.request("/count")).text(), "2");
+      assert.equal(await (await file.request("/count")).text(), "1");
+      assert.equal(await (await file.request("/count")).text(), "2");
       let delivered = false;
-      const response = f
+      const response = file
         .request("/ack", { method: "POST", body: up.url + "/cleanup" })
         .then((value) => {
           delivered = true;
@@ -201,18 +201,18 @@ test(
       await tick();
       assert.equal(delivered, false);
       assert.equal(
-        f.listener.acknowledgements.some((e) => e.path === "/ack"),
+        file.listener.acknowledgements.some((item) => item.path === "/ack"),
         false,
       );
       releaseCleanup();
       assert.equal(await (await response).text(), "after cleanup");
-      assert.equal(await (await f.request("/count")).text(), "4");
-      f.fetcher.stop();
-      await f.supervisor.stop();
-      assert.equal(f.supervisor.state(), "Stopped");
+      assert.equal(await (await file.request("/count")).text(), "4");
+      file.fetcher.stop();
+      await file.supervisor.stop();
+      assert.equal(file.supervisor.state(), "Stopped");
     } finally {
       releaseCleanup();
-      await f.close();
+      await file.close();
       await up.close();
     }
   },
@@ -273,15 +273,15 @@ test(
   "actual CPU-bound HD main never opens readiness and exhausts explicit test restart bound",
   { timeout: 10000 },
   async () => {
-    const f = await setup({ program: "main-cpu", ready: false, startupMs: 160 });
+    const file = await setup({ program: "main-cpu", ready: false, startupMs: 160 });
     try {
-      assert.equal((await f.request("/not-ready")).status, 503);
-      await f.wait((e) => e.kind === "restart-exhausted");
-      assert.equal(f.supervisor.ready(), false);
-      assert.equal(f.events.filter((e) => e.kind === "ready").length, 0);
-      assert.equal(f.events.filter((e) => e.kind === "starting").length, 2);
+      assert.equal((await file.request("/not-ready")).status, 503);
+      await file.wait((error) => error.kind === "restart-exhausted");
+      assert.equal(file.supervisor.ready(), false);
+      assert.equal(file.events.filter((item) => item.kind === "ready").length, 0);
+      assert.equal(file.events.filter((item) => item.kind === "starting").length, 2);
     } finally {
-      await f.close();
+      await file.close();
     }
   },
 );
@@ -290,20 +290,22 @@ test(
   "actual CPU-bound HD handler is killed while sibling and replacement keep serving",
   { timeout: 10000 },
   async () => {
-    const f = await setup({ workers: 2, deadline: 250 });
+    const file = await setup({ workers: 2, deadline: 250 });
     try {
-      const loop = f.request("/cpu");
-      await f.wait((e) => e.kind === "admitted" && e.id === 1);
-      assert.equal(await (await f.request("/count")).text(), "1");
+      const loop = file.request("/cpu");
+      await file.wait((error) => error.kind === "admitted" && error.id === 1);
+      assert.equal(await (await file.request("/count")).text(), "1");
       assert.equal((await loop).status, 504);
-      await f.wait((e) => e.kind === "ready" && e.slot === 0 && e.generation === 2);
-      assert.equal(await (await f.request("/count")).text(), "1");
+      await file.wait(
+        (error) => error.kind === "ready" && error.slot === 0 && error.generation === 2,
+      );
+      assert.equal(await (await file.request("/count")).text(), "1");
       assert.equal(
-        f.logs.some((text) => text.includes("http.cleanup-timeout")),
+        file.logs.some((text) => text.includes("http.cleanup-timeout")),
         false,
       );
     } finally {
-      await f.close();
+      await file.close();
     }
   },
 );
@@ -320,10 +322,10 @@ test(
       markEntered();
       res.end("entered");
     });
-    const f = await setup({ workers: 2, deadline: 3000 });
+    const file = await setup({ workers: 2, deadline: 3000 });
     try {
       const controller = new AbortController();
-      const closing = f.request("/cleanup-cpu", {
+      const closing = file.request("/cleanup-cpu", {
         method: "POST",
         body: up.url + "/entered",
         signal: controller.signal,
@@ -331,19 +333,22 @@ test(
       closing.catch(() => {});
       await bounded(entered);
       controller.abort();
-      assert.equal(await (await f.request("/count")).text(), "1");
-      await f.wait((e) => e.kind === "ready" && e.slot === 0 && e.generation === 2);
+      assert.equal(await (await file.request("/count")).text(), "1");
+      await file.wait(
+        (error) => error.kind === "ready" && error.slot === 0 && error.generation === 2,
+      );
       assert.equal(
-        f.events.filter((e) => e.kind === "cancel" && e.reason === "Disconnected").length,
+        file.events.filter((item) => item.kind === "cancel" && item.reason === "Disconnected")
+          .length,
         1,
       );
-      assert.equal(await (await f.request("/count")).text(), "1");
+      assert.equal(await (await file.request("/count")).text(), "1");
       assert.equal(
-        f.logs.some((text) => text.includes("http.cleanup-timeout")),
+        file.logs.some((text) => text.includes("http.cleanup-timeout")),
         false,
       );
     } finally {
-      await f.close();
+      await file.close();
       await up.close();
     }
   },
@@ -353,27 +358,27 @@ test(
   "native oversized body is rejected before HD dispatch and first stop drains admitted work",
   { timeout: 10000 },
   async () => {
-    const f = await setup({ deadline: 3000 });
+    const file = await setup({ deadline: 3000 });
     try {
-      const tooBig = await f.request("/count", {
+      const tooBig = await file.request("/count", {
         method: "POST",
         body: new Uint8Array(1024 * 1024 + 1),
       });
       assert.equal(tooBig.status, 413);
-      assert.equal(f.events.filter((e) => e.kind === "admitted").length, 0);
-      const slow = f.request("/slow");
-      await f.wait((e) => e.kind === "admitted" && e.id === 1);
-      f.fetcher.stop();
-      assert.equal((await f.request("/closed")).status, 503);
+      assert.equal(file.events.filter((item) => item.kind === "admitted").length, 0);
+      const slow = file.request("/slow");
+      await file.wait((error) => error.kind === "admitted" && error.id === 1);
+      file.fetcher.stop();
+      assert.equal((await file.request("/closed")).status, 503);
       assert.equal((await slow).status, 200);
-      await f.supervisor.stop();
-      assert.equal(f.supervisor.state(), "Stopped");
+      await file.supervisor.stop();
+      assert.equal(file.supervisor.state(), "Stopped");
       assert.equal(
-        f.events.some((e) => e.kind === "cancel"),
+        file.events.some((item) => item.kind === "cancel"),
         false,
       );
     } finally {
-      await f.close();
+      await file.close();
     }
   },
 );
@@ -387,9 +392,9 @@ test(
       effects++;
       res.end("unexpected");
     });
-    const f = await setup({ deadline: 3000 });
+    const file = await setup({ deadline: 3000 });
     try {
-      const response = await f.request("/block-pending", {
+      const response = await file.request("/block-pending", {
         method: "POST",
         body: up.url + "/never",
       });
@@ -397,13 +402,13 @@ test(
       assert.equal(await response.text(), "");
       assert.equal(effects, 0);
       assert.equal(
-        f.events.some((e) => e.kind === "terminated" && e.cause === "host-contract"),
+        file.events.some((item) => item.kind === "terminated" && item.cause === "host-contract"),
         true,
       );
-      await f.wait((e) => e.kind === "ready" && e.generation === 2);
-      assert.equal(await (await f.request("/count")).text(), "1");
+      await file.wait((error) => error.kind === "ready" && error.generation === 2);
+      assert.equal(await (await file.request("/count")).text(), "1");
     } finally {
-      await f.close();
+      await file.close();
       await up.close();
     }
   },
@@ -425,23 +430,25 @@ test(
       await gate;
       res.end("healthy sibling");
     });
-    const f = await setup({ workers: 2, deadline: 3000 });
+    const file = await setup({ workers: 2, deadline: 3000 });
     try {
-      const sibling = f.request("/proxy", { method: "POST", body: up.url + "/held" });
+      const sibling = file.request("/proxy", { method: "POST", body: up.url + "/held" });
       await bounded(entered);
-      const failed = await f.request("/trap");
+      const failed = await file.request("/trap");
       assert.equal(failed.status, 500);
       assert.equal(await failed.text(), "");
       release();
       assert.equal(await (await sibling).text(), "healthy sibling");
-      await f.wait((e) => e.kind === "ready" && e.slot === 1 && e.generation === 2);
-      assert.equal(f.events.filter((e) => e.kind === "terminated").length, 1);
-      assert.equal(f.events.find((e) => e.kind === "terminated").slot, 1);
-      assert.equal(JSON.stringify(f.events).includes("private HD panic"), false);
-      assert.equal(await (await f.request("/count")).text(), "2");
+      await file.wait(
+        (error) => error.kind === "ready" && error.slot === 1 && error.generation === 2,
+      );
+      assert.equal(file.events.filter((item) => item.kind === "terminated").length, 1);
+      assert.equal(file.events.find((item) => item.kind === "terminated").slot, 1);
+      assert.equal(JSON.stringify(file.events).includes("private HD panic"), false);
+      assert.equal(await (await file.request("/count")).text(), "2");
     } finally {
       release();
-      await f.close();
+      await file.close();
       await up.close();
     }
   },
@@ -451,7 +458,7 @@ test(
   "a still-open chunked upload over one MiB receives413 before HD dispatch",
   { timeout: 10000 },
   async () => {
-    const f = await setup({ deadline: 3000 });
+    const file = await setup({ deadline: 3000 });
     let controller;
     try {
       const body = new ReadableStream({
@@ -461,15 +468,15 @@ test(
           value.enqueue(new Uint8Array(1));
         },
       });
-      const response = await f.request("/count", { method: "POST", body, duplex: "half" });
+      const response = await file.request("/count", { method: "POST", body, duplex: "half" });
       assert.equal(response.status, 413);
       await response.arrayBuffer();
-      assert.equal(f.events.filter((e) => e.kind === "admitted").length, 0);
+      assert.equal(file.events.filter((item) => item.kind === "admitted").length, 0);
     } finally {
       try {
         controller?.close();
       } catch {}
-      await f.close();
+      await file.close();
     }
   },
 );
@@ -477,7 +484,7 @@ test(
 test(
   "ten actual HD cleanups use a 100ms logical Clock and retain their worker",
   { timeout: 20000 },
-  async (t) => {
+  async (testContext) => {
     // Like DeadlineClock in tests/serve.hd, advance the SDK cleanup in logical
     // time. Freeze the supervisor and mapper watchdogs while that logical
     // cleanup runs: a loaded worker need not receive another thread's
@@ -498,10 +505,10 @@ test(
         res.end("entered");
       });
       const observation = new Int32Array(new SharedArrayBuffer(12));
-      const f = await setup({ deadline: 3000, cleanupClock: { observation } });
+      const file = await setup({ deadline: 3000, cleanupClock: { observation } });
       try {
         const controller = new AbortController();
-        const request = f.request("/cleanup-wait", {
+        const request = file.request("/cleanup-wait", {
           method: "POST",
           body: up.url + "/entered",
           signal: controller.signal,
@@ -509,11 +516,11 @@ test(
         request.catch(() => {});
         await bounded(entered);
         const start = performance.now();
-        t.mock.timers.enable({ apis: ["setTimeout"] });
+        testContext.mock.timers.enable({ apis: ["setTimeout"] });
         timersMocked = true;
         controller.abort();
         const terminal = await Promise.race([
-          f.wait((e) => e.kind === "released" || e.kind === "terminated"),
+          file.wait((error) => error.kind === "released" || error.kind === "terminated"),
           new Promise((_, reject) => {
             observationTimer = realSetTimeout(
               () => reject(new Error("logical cleanup did not complete")),
@@ -527,14 +534,14 @@ test(
         // cleanup timer before restoring the real timer implementation.
         await tick();
         await tick();
-        t.mock.timers.reset();
+        testContext.mock.timers.reset();
         timersMocked = false;
         const elapsedAfterDisconnectMs = performance.now() - start;
-        const healthyResponse = await f.request("/count");
+        const healthyResponse = await file.request("/count");
         const healthy = healthyResponse.status;
         const healthyCount = await healthyResponse.text();
-        const backstops = f.events.filter(
-          (e) => e.kind === "terminated" && e.cause === "cleanup-deadline",
+        const backstops = file.events.filter(
+          (item) => item.kind === "terminated" && item.cause === "cleanup-deadline",
         ).length;
         trials.push({
           trial,
@@ -543,8 +550,8 @@ test(
           healthy,
           healthyCount,
           backstops,
-          events: f.events.slice(),
-          logs: f.logs.slice(),
+          events: file.events.slice(),
+          logs: file.logs.slice(),
         });
 
         const detail = JSON.stringify(trials.at(-1));
@@ -560,118 +567,122 @@ test(
         assert.equal(healthyCount, "2", "the cancelled handler and healthy request share state");
         assert.equal(backstops, 0);
         assert.equal(
-          f.logs.some((x) => x.includes("http.cleanup-timeout")),
+          file.logs.some((item) => item.includes("http.cleanup-timeout")),
           false,
         );
       } finally {
         realClearTimeout(observationTimer);
         if (timersMocked) {
-          t.mock.timers.reset();
+          testContext.mock.timers.reset();
         }
-        await f.close();
+        await file.close();
         await up.close();
       }
     }
     assert.equal(trials.length, 10);
-    t.diagnostic(
+    testContext.diagnostic(
       JSON.stringify({
         platform: "node-worker",
         clock: "logical-cleanup",
         trials: trials.length,
-        backstops: trials.reduce((n, value) => n + value.backstops, 0),
+        backstops: trials.reduce((accumulator, value) => accumulator + value.backstops, 0),
         acknowledgementMs: trials.map((value) => value.elapsedAfterDisconnectMs),
       }),
     );
   },
 );
 
-test("a withheld actual HD cleanup triggers at exactly 200ms", { timeout: 10000 }, async (t) => {
-  let markEntered;
-  const entered = new Promise((resolve) => {
-    markEntered = resolve;
-  });
-  const up = await upstream((_req, res) => {
-    markEntered();
-    res.end("entered");
-  });
-  const observation = new Int32Array(new SharedArrayBuffer(12));
-  const f = await setup({ deadline: 3000, cleanupClock: { observation, hold: true } });
-  const plainRequest = (path, body = "") => ({
-    method: { tag: "Post", fields: {} },
-    url: "https://in.test" + path,
-    headers: [],
-    redirects: 10,
-    body: new TextEncoder().encode(body),
-  });
-  const realSetTimeout = setTimeout,
-    realClearTimeout = clearTimeout;
-  let observationTimer;
-  try {
-    const controller = new AbortController();
-    // Keep both supervisor timers in the same controlled clock. The worker
-    // and this native observation watchdog keep their own real clocks.
-    t.mock.timers.enable({ apis: ["setTimeout"] });
-    const request = f.supervisor.dispatch(
-      plainRequest("/cleanup-wait", up.url + "/entered"),
-      controller.signal,
-    );
+test(
+  "a withheld actual HD cleanup triggers at exactly 200ms",
+  { timeout: 10000 },
+  async (testContext) => {
+    let markEntered;
+    const entered = new Promise((resolve) => {
+      markEntered = resolve;
+    });
+    const up = await upstream((_req, res) => {
+      markEntered();
+      res.end("entered");
+    });
+    const observation = new Int32Array(new SharedArrayBuffer(12));
+    const file = await setup({ deadline: 3000, cleanupClock: { observation, hold: true } });
+    const plainRequest = (path, body = "") => ({
+      method: { tag: "Post", fields: {} },
+      url: "https://in.test" + path,
+      headers: [],
+      redirects: 10,
+      body: new TextEncoder().encode(body),
+    });
+    const realSetTimeout = setTimeout,
+      realClearTimeout = clearTimeout;
+    let observationTimer;
     try {
-      await Promise.race([
-        entered,
-        new Promise((_, reject) => {
-          observationTimer = realSetTimeout(
-            () => reject(new Error("handler did not call upstream")),
-            4000,
-          );
+      const controller = new AbortController();
+      // Keep both supervisor timers in the same controlled clock. The worker
+      // and this native observation watchdog keep their own real clocks.
+      testContext.mock.timers.enable({ apis: ["setTimeout"] });
+      const request = file.supervisor.dispatch(
+        plainRequest("/cleanup-wait", up.url + "/entered"),
+        controller.signal,
+      );
+      try {
+        await Promise.race([
+          entered,
+          new Promise((_, reject) => {
+            observationTimer = realSetTimeout(
+              () => reject(new Error("handler did not call upstream")),
+              4000,
+            );
+          }),
+        ]);
+      } finally {
+        realClearTimeout(observationTimer);
+      }
+      controller.abort();
+      try {
+        await Promise.race([
+          Atomics.waitAsync(observation, 0, 0).value,
+          new Promise((_, reject) => {
+            observationTimer = realSetTimeout(
+              () => reject(new Error("cleanup Clock was not called")),
+              4000,
+            );
+          }),
+        ]);
+      } finally {
+        realClearTimeout(observationTimer);
+      }
+      assert.deepEqual(Array.from(observation), [1, 100, 0]);
+      testContext.mock.timers.tick(199);
+      assert.equal(
+        file.events.some((item) => item.kind === "released" || item.kind === "terminated"),
+        false,
+      );
+      testContext.mock.timers.tick(1);
+      const terminal = file.events.find((item) => item.kind === "terminated");
+      assert.equal(terminal?.cause, "cleanup-deadline");
+      assert.equal(terminal.generation, 1);
+      const result = await request;
+      assert.equal(result.cancelled, "Disconnected");
+      assert.equal(result.abandoned, true);
+      testContext.mock.timers.reset();
+      await file.wait((error) => error.kind === "ready" && error.generation === 2);
+      const healthy = await file.supervisor.dispatch(plainRequest("/count"));
+      assert.equal(healthy.response.status, 200);
+      assert.equal(new TextDecoder().decode(healthy.response.body), "1");
+      testContext.diagnostic(
+        JSON.stringify({
+          terminal,
+          observations: Array.from(observation),
+          events: file.events,
+          logs: file.logs,
         }),
-      ]);
+      );
     } finally {
       realClearTimeout(observationTimer);
+      testContext.mock.timers.reset();
+      await file.close();
+      await up.close();
     }
-    controller.abort();
-    try {
-      await Promise.race([
-        Atomics.waitAsync(observation, 0, 0).value,
-        new Promise((_, reject) => {
-          observationTimer = realSetTimeout(
-            () => reject(new Error("cleanup Clock was not called")),
-            4000,
-          );
-        }),
-      ]);
-    } finally {
-      realClearTimeout(observationTimer);
-    }
-    assert.deepEqual(Array.from(observation), [1, 100, 0]);
-    t.mock.timers.tick(199);
-    assert.equal(
-      f.events.some((e) => e.kind === "released" || e.kind === "terminated"),
-      false,
-    );
-    t.mock.timers.tick(1);
-    const terminal = f.events.find((e) => e.kind === "terminated");
-    assert.equal(terminal?.cause, "cleanup-deadline");
-    assert.equal(terminal.generation, 1);
-    const result = await request;
-    assert.equal(result.cancelled, "Disconnected");
-    assert.equal(result.abandoned, true);
-    t.mock.timers.reset();
-    await f.wait((e) => e.kind === "ready" && e.generation === 2);
-    const healthy = await f.supervisor.dispatch(plainRequest("/count"));
-    assert.equal(healthy.response.status, 200);
-    assert.equal(new TextDecoder().decode(healthy.response.body), "1");
-    t.diagnostic(
-      JSON.stringify({
-        terminal,
-        observations: Array.from(observation),
-        events: f.events,
-        logs: f.logs,
-      }),
-    );
-  } finally {
-    realClearTimeout(observationTimer);
-    t.mock.timers.reset();
-    await f.close();
-    await up.close();
-  }
-});
+  },
+);

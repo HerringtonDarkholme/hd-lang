@@ -1,6 +1,6 @@
 // Private SDK schema validation. readPackageContract must run before this helper.
 // Module spellings are compiler details; nominal identities and value shapes are not.
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 const bad = (message) => new Error(`SDK server schema: ${message}`);
 const identityKey = (i) => JSON.stringify([i.package, i.version, i.trait_path]);
 const normalizedIdentity = (identity, sdk) =>
@@ -16,32 +16,32 @@ const validSDKIdentity = (identity) =>
 export function normalizeServerContract(interfaces, sdk) {
   const modules = new Map(interfaces.map((i) => [i.module, i]));
   const key = (i) => identityKey(normalizedIdentity(i.identity, sdk));
-  function value(v) {
-    const [tag, a, b] = v;
-    const fields = (fs) => fs.map(([name, type]) => [name, value(type)]);
+  function normalizeValue(encoded) {
+    const [tag, left, right] = encoded;
+    const fields = (fs) => fs.map(([name, type]) => [name, normalizeValue(type)]);
     if (tag === 15) {
-      const target = modules.get(a);
+      const target = modules.get(left);
       if (!target?.handle) {
         throw bad("invalid returned-handle reference");
       }
       return [tag, key(target)];
     }
     if (tag === 8 || tag === 9) {
-      return [tag, value(a)];
+      return [tag, normalizeValue(left)];
     }
     if (tag === 10) {
-      return [tag, a.map(value)];
+      return [tag, left.map(normalizeValue)];
     }
     if (tag === 11) {
-      return [tag, fields(a)];
+      return [tag, fields(left)];
     }
     if (tag === 12) {
-      return [tag, a.map(([name, fs]) => [name, fields(fs)])];
+      return [tag, left.map(([name, fs]) => [name, fields(fs)])];
     }
     if (tag === 13) {
-      return [tag, value(a), value(b)];
+      return [tag, normalizeValue(left), normalizeValue(right)];
     }
-    return [...v];
+    return [...encoded];
   }
   return interfaces
     .map((i) => ({
@@ -49,16 +49,16 @@ export function normalizeServerContract(interfaces, sdk) {
       identity: normalizedIdentity(i.identity, sdk),
       handle: i.handle,
       methods: i.methods
-        .map((m) => ({
-          name: m.name,
-          member: m.member,
-          wait: m.wait,
-          params: m.params.map(value),
-          result: value(m.result),
+        .map((item) => ({
+          name: item.name,
+          member: item.member,
+          wait: item.wait,
+          params: item.params.map(normalizeValue),
+          result: normalizeValue(item.result),
         }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+        .sort((left, right) => left.name.localeCompare(right.name)),
     }))
-    .sort((a, b) => a.key.localeCompare(b.key));
+    .sort((left, right) => left.key.localeCompare(right.key));
 }
 export function validateServerContract(interfaces, expectedSDKIdentity, schema) {
   if (!validSDKIdentity(expectedSDKIdentity)) {
@@ -85,10 +85,10 @@ export function validateServerContract(interfaces, expectedSDKIdentity, schema) 
     if (!target || target.handle !== i.handle || !same(target.identity, i.identity)) {
       throw bad("unknown interface or returned-handle identity");
     }
-    const methods = new Map(target.methods.map((m) => [m.name, m]));
-    for (const m of i.methods) {
-      if (!same(methods.get(m.name), m)) {
-        throw bad(`method shape differs: ${i.identity.trait_path}.${m.name}`);
+    const methods = new Map(target.methods.map((item) => [item.name, item]));
+    for (const method of i.methods) {
+      if (!same(methods.get(method.name), method)) {
+        throw bad(`method shape differs: ${i.identity.trait_path}.${method.name}`);
       }
     }
   }
@@ -97,7 +97,7 @@ export function validateServerContract(interfaces, expectedSDKIdentity, schema) 
 export function checkCoverage(interfaces, coverage) {
   for (const [name, names] of Object.entries(coverage)) {
     const actual = interfaces.find((i) => i.identity.trait_path === name);
-    if (!actual || !same(actual.methods.map((m) => m.name).sort(), [...names].sort())) {
+    if (!actual || !same(actual.methods.map((item) => item.name).sort(), [...names].sort())) {
       throw bad(`reference probe does not cover every declared method of ${name}`);
     }
   }

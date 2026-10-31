@@ -92,7 +92,7 @@ async function fixture(Http = true, Console = true) {
     },
     async close() {
       instance.abort();
-      await Promise.allSettled(downstreams.map(async (p) => (await p).arrayBuffer()));
+      await Promise.allSettled(downstreams.map(async (item) => (await item).arrayBuffer()));
       console.log = log;
       if (port === undefined) {
         delete process.env.HD_SERVER_PORT;
@@ -123,12 +123,12 @@ test(
     }
     try {
       for (const allowed of [true, false]) {
-        const f = await fixture(true, allowed);
+        const file = await fixture(true, allowed);
         try {
-          const { id, response } = await f.accept();
-          const console = provider.console(id, f.context);
+          const { id, response } = await file.accept();
+          const console = provider.console(id, file.context);
           assert.throws(
-            () => provider.console(id, { ...f.context, console: undefined }),
+            () => provider.console(id, { ...file.context, console: undefined }),
             /Console policy service/,
           );
           const start = records.length;
@@ -140,7 +140,7 @@ test(
             assert.equal(out.error.fields.stream.tag, "Stdout");
             assert.equal(err.error.fields.stream.tag, "Stderr");
           }
-          provider.finish(id, false, f.context);
+          provider.finish(id, false, file.context);
           assert.equal((await response).status, 503);
           await tick();
           const own = records.slice(start);
@@ -154,9 +154,9 @@ test(
             assert.ok(own.every(({ record }) => record.lease.sequence === String(id.sequence)));
           }
           assert.throws(() => console.write_sync("late"), /expired request lease/);
-          assert.throws(() => provider.console(id, f.context), /expired request lease/);
+          assert.throws(() => provider.console(id, file.context), /expired request lease/);
         } finally {
-          await f.close();
+          await file.close();
         }
       }
     } finally {
@@ -179,22 +179,24 @@ test(
     };
     try {
       for (const policy of [false, ["allowed.test"]]) {
-        const f = await fixture(policy);
+        const file = await fixture(policy);
         try {
-          const { id, response } = await f.accept();
-          const client = provider.client(id, f.context);
-          const result = await ready(client.send(request("https://denied.test/path"), f.context));
+          const { id, response } = await file.accept();
+          const client = provider.client(id, file.context);
+          const result = await ready(
+            client.send(request("https://denied.test/path"), file.context),
+          );
           assert.equal(result.ok, false);
           assert.equal(result.error.tag, "NotGranted");
           assert.equal(effects, 0);
           assert.throws(
-            () => provider.client(id, { ...f.context, http: undefined }),
+            () => provider.client(id, { ...file.context, http: undefined }),
             /compiler HTTP policy service/,
           );
-          provider.finish(id, false, f.context);
+          provider.finish(id, false, file.context);
           assert.equal((await response).status, 503);
         } finally {
-          await f.close();
+          await file.close();
         }
       }
     } finally {
@@ -223,13 +225,13 @@ test(
       });
       return new Promise((resolve) => resolvers.push(resolve));
     };
-    const f = await fixture(true);
+    const file = await fixture(true);
     try {
-      const a = await f.accept("A"),
-        b = await f.accept("B");
-      const client = provider.client(a.id, f.context);
+      const left = await file.accept("A"),
+        right = await file.accept("B");
+      const client = provider.client(left.id, file.context);
       const first = owners.run("B", () =>
-        client.send(request("https://upstream.test/first"), f.context),
+        client.send(request("https://upstream.test/first"), file.context),
       );
       assert.equal(resolvers.length, 0, "the foreign poll only registers the operation");
       await tick();
@@ -237,18 +239,18 @@ test(
       owners.run("B", () => resolvers[0](new Response("one")));
       assert.equal(new TextDecoder().decode((await ready(first)).value.body), "one");
       const second = owners.run("B", () =>
-        client.send(request("https://upstream.test/second"), f.context),
+        client.send(request("https://upstream.test/second"), file.context),
       );
-      const acknowledged = provider.respond(b.id, reply("B done"), f.context);
+      const acknowledged = provider.respond(right.id, reply("B done"), file.context);
       assert.equal((await ready(acknowledged)).ok, true);
-      provider.finish(b.id, false, f.context);
-      assert.equal(await (await b.response).text(), "B done");
+      provider.finish(right.id, false, file.context);
+      assert.equal(await (await right.response).text(), "B done");
       await tick();
       assert.equal(resolvers.length, 2);
       owners.run("B", () => resolvers[1](new Response("two")));
       assert.equal(new TextDecoder().decode((await ready(second)).value.body), "two");
-      provider.finish(a.id, false, f.context);
-      await a.response;
+      provider.finish(left.id, false, file.context);
+      await left.response;
       await tick();
       assert.deepEqual(events, [
         ["start", "A"],
@@ -257,7 +259,7 @@ test(
         ["dispose", "A"],
       ]);
     } finally {
-      await f.close();
+      await file.close();
       http.createServer = createServer;
       globalThis.fetch = original;
     }
@@ -274,32 +276,32 @@ test(
       effects++;
       return new Response("unexpected");
     };
-    const f = await fixture(true);
+    const file = await fixture(true);
     try {
-      const { id, response } = await f.accept();
-      const client = provider.client(id, f.context),
-        clock = provider.clock(id, f.context);
-      const operation = client.send(request("https://upstream.test/"), f.context);
+      const { id, response } = await file.accept();
+      const client = provider.client(id, file.context),
+        clock = provider.clock(id, file.context);
+      const operation = client.send(request("https://upstream.test/"), file.context);
       operation.abort();
-      const sleeping = clock.sleep(2147483648n, f.context);
-      provider.finish(id, false, f.context);
-      provider.finish(id, false, f.context);
+      const sleeping = clock.sleep(2147483648n, file.context);
+      provider.finish(id, false, file.context);
+      provider.finish(id, false, file.context);
       await tick();
       assert.equal(effects, 0);
       assert.equal(sleeping.poll(), false);
       assert.throws(
-        () => client.send(request("https://upstream.test/"), f.context),
+        () => client.send(request("https://upstream.test/"), file.context),
         /expired request lease/,
       );
       assert.throws(() => clock.now(), /expired request lease/);
-      assert.throws(() => clock.sleep(0n, f.context), /expired request lease/);
+      assert.throws(() => clock.sleep(0n, file.context), /expired request lease/);
       assert.throws(
-        () => provider.client({ ...id, generation: id.generation + 1n }, f.context),
+        () => provider.client({ ...id, generation: id.generation + 1n }, file.context),
         /expired request lease/,
       );
       assert.equal((await response).status, 503);
     } finally {
-      await f.close();
+      await file.close();
       globalThis.fetch = original;
     }
   },
@@ -309,18 +311,18 @@ test(
   "response delivery is acknowledged before finish and duplicate responses cause no second write",
   { timeout: 10000 },
   async () => {
-    const f = await fixture();
+    const file = await fixture();
     try {
-      const { id, response } = await f.accept();
-      const operation = provider.respond(id, reply("delivered"), f.context);
-      assert.equal(provider.respond(id, reply("duplicate"), f.context).ok, false);
+      const { id, response } = await file.accept();
+      const operation = provider.respond(id, reply("delivered"), file.context);
+      assert.equal(provider.respond(id, reply("duplicate"), file.context).ok, false);
       assert.equal((await ready(operation)).ok, true);
       assert.equal(await (await response).text(), "delivered");
-      provider.finish(id, false, f.context);
-      provider.finish(id, false, f.context);
-      assert.equal(provider.respond(id, reply("late"), f.context).error.tag, "Expired");
+      provider.finish(id, false, file.context);
+      provider.finish(id, false, file.context);
+      assert.equal(provider.respond(id, reply("late"), file.context).error.tag, "Expired");
     } finally {
-      await f.close();
+      await file.close();
     }
   },
 );
@@ -337,27 +339,27 @@ test(
         resolveUpstream = resolve;
         options.signal.addEventListener("abort", () => aborted++, { once: true });
       });
-    const f = await fixture();
+    const file = await fixture();
     try {
-      const a = await f.accept("A"),
-        b = await f.accept("B");
-      const client = provider.client(a.id, f.context);
-      const operation = client.send(request("https://upstream.test/"), f.context);
+      const left = await file.accept("A"),
+        right = await file.accept("B");
+      const client = provider.client(left.id, file.context);
+      const operation = client.send(request("https://upstream.test/"), file.context);
       await tick();
       assert.equal(typeof resolveUpstream, "function");
-      f.instance.abort();
+      file.instance.abort();
       await tick();
       assert.equal(aborted, 1);
       resolveUpstream(new Response("late"));
       await tick();
       assert.equal(operation.poll(), false);
       assert.throws(
-        () => client.send(request("https://upstream.test/"), f.context),
+        () => client.send(request("https://upstream.test/"), file.context),
         /expired request lease/,
       );
-      await Promise.allSettled([a.response, b.response]);
+      await Promise.allSettled([left.response, right.response]);
     } finally {
-      await f.close();
+      await file.close();
       globalThis.fetch = original;
     }
   },
@@ -379,36 +381,36 @@ test(
       }
       return Promise.resolve(new Response("B upstream"));
     };
-    const f = await fixture();
+    const file = await fixture();
     try {
       const disconnected = new AbortController();
-      const a = await f.accept("A", disconnected.signal),
-        b = await f.accept("B");
-      const ca = provider.client(a.id, f.context),
-        cb = provider.client(b.id, f.context);
-      const activeA = ca.send(request("https://upstream.test/A"), f.context);
-      const cancelledA = provider.cancelled(a.id, f.context),
-        cancelledB = provider.cancelled(b.id, f.context);
+      const left = await file.accept("A", disconnected.signal),
+        right = await file.accept("B");
+      const ca = provider.client(left.id, file.context),
+        cb = provider.client(right.id, file.context);
+      const activeA = ca.send(request("https://upstream.test/A"), file.context);
+      const cancelledA = provider.cancelled(left.id, file.context),
+        cancelledB = provider.cancelled(right.id, file.context);
       await tick();
       disconnected.abort();
       assert.equal((await ready(cancelledA)).tag, "Disconnected");
       assert.equal(cancelledB.poll(), false);
-      provider.finish(a.id, false, f.context);
+      provider.finish(left.id, false, file.context);
       await tick();
       assert.equal(abortedA, 1);
-      const resultB = await ready(cb.send(request("https://upstream.test/B"), f.context));
+      const resultB = await ready(cb.send(request("https://upstream.test/B"), file.context));
       assert.equal(new TextDecoder().decode(resultB.value.body), "B upstream");
       assert.equal(
-        (await ready(provider.respond(b.id, reply("B stayed alive"), f.context))).ok,
+        (await ready(provider.respond(right.id, reply("B stayed alive"), file.context))).ok,
         true,
       );
-      provider.finish(b.id, false, f.context);
-      assert.equal(await (await b.response).text(), "B stayed alive");
+      provider.finish(right.id, false, file.context);
+      assert.equal(await (await right.response).text(), "B stayed alive");
       resolveA(new Response("late A"));
       await tick();
       assert.equal(activeA.poll(), false);
     } finally {
-      await f.close();
+      await file.close();
       globalThis.fetch = original;
     }
   },
@@ -420,23 +422,28 @@ test(
   async () => {
     const original = globalThis.fetch;
     globalThis.fetch = async () => new Response("drained upstream");
-    const f = await fixture();
+    const file = await fixture();
     try {
-      const a = await f.accept();
-      const cancelled = provider.cancelled(a.id, f.context);
+      const left = await file.accept();
+      const cancelled = provider.cancelled(left.id, file.context);
       process.emit("SIGTERM");
-      assert.equal(provider.accept(f.context).value, null);
+      assert.equal(provider.accept(file.context).value, null);
       assert.equal(cancelled.poll(), false, "soft stop must not cancel active handlers");
       const result = await ready(
-        provider.client(a.id, f.context).send(request("https://upstream.test/drain"), f.context),
+        provider
+          .client(left.id, file.context)
+          .send(request("https://upstream.test/drain"), file.context),
       );
       assert.equal(new TextDecoder().decode(result.value.body), "drained upstream");
-      assert.equal((await ready(provider.respond(a.id, reply("drained"), f.context))).ok, true);
-      provider.finish(a.id, false, f.context);
-      assert.equal(await (await a.response).text(), "drained");
-      assert.equal(f.events.filter((event) => event.event === "stopped").length, 1);
+      assert.equal(
+        (await ready(provider.respond(left.id, reply("drained"), file.context))).ok,
+        true,
+      );
+      provider.finish(left.id, false, file.context);
+      assert.equal(await (await left.response).text(), "drained");
+      assert.equal(file.events.filter((event) => event.event === "stopped").length, 1);
     } finally {
-      await f.close();
+      await file.close();
       globalThis.fetch = original;
     }
   },
@@ -457,16 +464,16 @@ test(
         entered();
         return result;
       });
-    const f = await fixture();
+    const file = await fixture();
     let native;
     try {
       const abort = new AbortController();
-      const context = { ...f.context, signal: abort.signal };
+      const context = { ...file.context, signal: abort.signal };
       const incoming = provider.accept(context);
-      while (!f.events.some((event) => event.event === "listening")) {
+      while (!file.events.some((event) => event.event === "listening")) {
         await tick();
       }
-      const address = f.events.find((event) => event.event === "listening");
+      const address = file.events.find((event) => event.event === "listening");
       const response = new Promise((resolve, reject) => {
         native = http.request(`http://127.0.0.1:${address.port}`, { method: "POST" }, (res) => {
           res.resume();
@@ -492,16 +499,16 @@ test(
         clearTimeout(watchdog);
       }
       // The orphan must not consume the next worker's request or poison its lease.
-      const next = await f.accept("next");
+      const next = await file.accept("next");
       assert.equal(
-        (await ready(provider.respond(next.id, reply("next request"), f.context))).ok,
+        (await ready(provider.respond(next.id, reply("next request"), file.context))).ok,
         true,
       );
-      provider.finish(next.id, false, f.context);
+      provider.finish(next.id, false, file.context);
       assert.equal(await (await next.response).text(), "next request");
     } finally {
       native?.destroy();
-      await f.close();
+      await file.close();
       http.createServer = createServer;
     }
   },

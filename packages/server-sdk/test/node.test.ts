@@ -79,7 +79,7 @@ test(
       }
       assert.equal((await request("/", "{bad JSON")).status, 400);
       const responses = await Promise.all(
-        [0, 1, 2].map((n) => request("/slow", JSON.stringify({ message: `slow ${n}` }))),
+        [0, 1, 2].map((item) => request("/slow", JSON.stringify({ message: `slow ${item}` }))),
       );
       assert.ok(responses.every((response) => response.status === 200));
       assert.deepEqual(

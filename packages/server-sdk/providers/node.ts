@@ -41,8 +41,8 @@ async function requestBody(request, response, waiter) {
 
 function requestHeaders(request) {
   const headers = [];
-  for (let n = 0; n < request.rawHeaders.length; n += 2) {
-    headers.push([request.rawHeaders[n], request.rawHeaders[n + 1]]);
+  for (let count = 0; count < request.rawHeaders.length; count += 2) {
+    headers.push([request.rawHeaders[count], request.rawHeaders[count + 1]]);
   }
   return headers;
 }

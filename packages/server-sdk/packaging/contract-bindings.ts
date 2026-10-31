@@ -47,12 +47,12 @@ export function contractBindings(bytes, readPackageContract) {
         });
       });
       const fields = (fs) => fs.map(([name, type]) => [name, codec(type)]);
-      const codec = ([tag, a, b]) => {
+      const codec = ([tag, left, right]) => {
         const scalar = [
           () => runtime.unit,
           () => runtime.bool,
           () => runtime.char,
-          () => runtime.int(a, b),
+          () => runtime.int(left, right),
           () => runtime.f32,
           () => runtime.f64,
           () => runtime.str,
@@ -64,21 +64,21 @@ export function contractBindings(bytes, readPackageContract) {
         }
         switch (tag) {
           case 8:
-            return runtime.list(codec(a));
+            return runtime.list(codec(left));
           case 9:
-            return runtime.option(codec(a));
+            return runtime.option(codec(left));
           case 10:
-            return runtime.tuple(a.map(codec));
+            return runtime.tuple(left.map(codec));
           case 11:
-            return runtime.record(fields(a));
+            return runtime.record(fields(left));
           case 12:
-            return runtime.enumeration(a.map(([name, fs]) => [name, fields(fs)]));
+            return runtime.enumeration(left.map(([name, fs]) => [name, fields(fs)]));
           case 13:
-            return runtime.result(codec(a), codec(b));
+            return runtime.result(codec(left), codec(right));
           case 14:
             return runtime.json;
           case 15:
-            return runtime.handle(a);
+            return runtime.handle(left);
           default:
             throw new Error("unknown validated contract codec tag");
         }

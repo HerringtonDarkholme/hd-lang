@@ -45,21 +45,21 @@ const result = async (operation) => {
 
 export default {
   vercel(options, context) {
-    const p = options.supervisor;
+    const supervisorOptions = options.supervisor;
     return result(() =>
       packageVercelNode({
         ...paths(options, context),
         envBindings: [...options.env_bindings],
         signal: context.signal,
         policy: {
-          workers: p.workers,
-          startupMs: p.startup_ms,
+          workers: supervisorOptions.workers,
+          startupMs: supervisorOptions.startup_ms,
           requestMs: 20000,
-          drainMs: p.drain_ms,
-          stopKillMs: p.stop_kill_ms,
-          restartLimit: p.restart_limit,
-          restartWindowMs: p.restart_window_ms,
-          retryAfter: p.retry_after,
+          drainMs: supervisorOptions.drain_ms,
+          stopKillMs: supervisorOptions.stop_kill_ms,
+          restartLimit: supervisorOptions.restart_limit,
+          restartWindowMs: supervisorOptions.restart_window_ms,
+          retryAfter: supervisorOptions.retry_after,
         },
       }),
     );

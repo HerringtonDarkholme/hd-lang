@@ -91,8 +91,8 @@ test(
   async () => {
     const { app, errors, output } = application();
     try {
-      for (let n = 1; n <= 3; n++) {
-        assert.equal(body(await app.dispatch(request("/", "hello"))).count, n);
+      for (let requestCount = 1; requestCount <= 3; requestCount++) {
+        assert.equal(body(await app.dispatch(request("/", "hello"))).count, requestCount);
       }
       const results = await Promise.all(
         ["a", "b", "c"].map((text) => app.dispatch(request("/slow", text))),
@@ -146,11 +146,11 @@ test(
   { timeout: 10000 },
   async () => {
     const { app } = application();
-    const a = app.dispatch(request("/slow", "a"));
-    const b = app.dispatch(request("/slow", "b"));
+    const firstDispatch = app.dispatch(request("/slow", "a"));
+    const secondDispatch = app.dispatch(request("/slow", "b"));
     const failure = new Error("private trap");
     app.fail(failure);
-    const results = await Promise.allSettled([a, b]);
+    const results = await Promise.allSettled([firstDispatch, secondDispatch]);
     assert.ok(results.every((value) => value.status === "rejected" && value.reason === failure));
     assert.equal(app.active(), 0);
     await assert.rejects(app.dispatch(request("/", "late")), /instance failed/);
@@ -162,10 +162,10 @@ test(
   { timeout: 10000 },
   async () => {
     const { app, errors } = application();
-    const a = app.dispatch(request("/slow", "a"));
+    const firstDispatch = app.dispatch(request("/slow", "a"));
     assert.equal(app.active(), 1, "the other request is actually admitted before the trap");
-    const b = app.dispatch(request("/trap", "b"));
-    const results = await Promise.allSettled([a, b]);
+    const secondDispatch = app.dispatch(request("/trap", "b"));
+    const results = await Promise.allSettled([firstDispatch, secondDispatch]);
     assert.ok(results.every((value) => value.status === "rejected"));
     assert.match(errors.join(""), /private handler failure/);
     assert.equal(app.active(), 0);

@@ -219,7 +219,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   console.log(
     JSON.stringify({
       interfaces: snapshot.schema.interfaces.length,
-      methods: snapshot.schema.interfaces.reduce((n, i) => n + i.methods.length, 0),
+      methods: snapshot.schema.interfaces.reduce(
+        (accumulator, i) => accumulator + i.methods.length,
+        0,
+      ),
       fingerprint: snapshot.fingerprint,
     }),
   );

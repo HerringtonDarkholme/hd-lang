@@ -129,8 +129,8 @@ export async function deploymentInputs({
   validateModules(module, interfaces, grants);
   const bindings = contractBindings(contract, readPackageContract);
   const implementation = Object.fromEntries(
-    source.methods.map((m) => [
-      m.member,
+    source.methods.map((item) => [
+      item.member,
       () => {
         throw bad("preflight must not invoke an application provider");
       },

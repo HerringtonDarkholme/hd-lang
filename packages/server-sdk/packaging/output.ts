@@ -9,7 +9,7 @@ function publisher(profile) {
   const owner = { format: 1, platform: profile.platform };
   const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
   const json = (value) => JSON.stringify(value, null, 2) + "\n";
-  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
   const regular = async (file) => {
     const stat = await lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink()) {
@@ -43,7 +43,9 @@ function publisher(profile) {
         throw fail("output contains a non-file");
       }
     }
-    return Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b, "en")));
+    return Object.fromEntries(
+      Object.entries(files).sort(([left], [right]) => left.localeCompare(right, "en")),
+    );
   }
   function generationId(configuration, files) {
     return hash(JSON.stringify({ configuration, files }));
@@ -52,8 +54,8 @@ function publisher(profile) {
     const directories = new Set();
     for (const name of Object.keys(files ?? {})) {
       const parts = name.split("/");
-      for (let n = 1; n < parts.length; n++) {
-        directories.add(parts.slice(0, n).join("/"));
+      for (let count = 1; count < parts.length; count++) {
+        directories.add(parts.slice(0, count).join("/"));
       }
     }
     return directories;
@@ -90,7 +92,9 @@ function publisher(profile) {
       throw fail("platform entry is required");
     }
     const captured = new Map();
-    for (const [name, value] of [...files].sort(([a], [b]) => a.localeCompare(b, "en"))) {
+    for (const [name, value] of [...files].sort(([left], [right]) =>
+      left.localeCompare(right, "en"),
+    )) {
       if (
         typeof name !== "string" ||
         name

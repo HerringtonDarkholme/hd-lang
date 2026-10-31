@@ -50,10 +50,10 @@ function normalizeDescriptors([bytes, shapes, registrations]) {
     bytes,
     shapes: shapes.map((i) => ({
       ...i,
-      methods: i.methods.map((m) => ({
-        ...m,
-        params: m.params.map((c) => c.shape),
-        result: m.result.shape,
+      methods: i.methods.map((item) => ({
+        ...item,
+        params: item.params.map((item) => item.shape),
+        result: item.result.shape,
       })),
     })),
     registrations,
@@ -64,10 +64,10 @@ test("the real compiler companion and data-derived bindings have identical signa
   const derived = contractBindings(actual, readPackageContract),
     providers = new Map([[derived.interfaces[0].module, {}]]);
   assert.deepEqual(derived.interfaces, generated.interfaces);
-  const r = createPackageRuntime({});
+  const packageRuntime = createPackageRuntime({});
   assert.deepEqual(
-    normalizeDescriptors(descriptors(r, derived, providers)),
-    normalizeDescriptors(descriptors(r, generated, providers)),
+    normalizeDescriptors(descriptors(packageRuntime, derived, providers)),
+    normalizeDescriptors(descriptors(packageRuntime, generated, providers)),
   );
 });
 test("all 16 codec tags, integer widths and nested value shapes retain canonical descriptors", () => {
@@ -124,12 +124,12 @@ test("all 16 codec tags, integer widths and nested value shapes retain canonical
     new Map([[root.module, {}]]),
   );
   assert.deepEqual(
-    shapes[0].methods.map((m) => m.result.shape),
+    shapes[0].methods.map((item) => item.result.shape),
     types,
   );
   assert.deepEqual(
-    shapes[0].methods.map((m) => m.wait),
-    source.methods.map((m) => m.wait),
+    shapes[0].methods.map((item) => item.wait),
+    source.methods.map((item) => item.wait),
   );
   assert.deepEqual(registrations[0].identity, root.identity);
   assert.deepEqual(registrations[0].contract, bytes);
@@ -151,10 +151,10 @@ test("input and exported contract mutation cannot change the checked bind contra
 });
 test("root provider map requirements match generated bindings", () => {
   const binding = contractBindings(actual, readPackageContract),
-    r = createPackageRuntime({});
-  assert.throws(() => binding.bind(r, {}), /must be a map/);
-  assert.throws(() => binding.bind(r, new Map([["foreign", {}]])), /no required/);
-  assert.throws(() => binding.bind(r, new Map()), /missing package/);
+    packageRuntime = createPackageRuntime({});
+  assert.throws(() => binding.bind(packageRuntime, {}), /must be a map/);
+  assert.throws(() => binding.bind(packageRuntime, new Map([["foreign", {}]])), /no required/);
+  assert.throws(() => binding.bind(packageRuntime, new Map()), /missing package/);
 });
 test("opaque returned handles invoke only their declared namespace and release without leaking", () => {
   const source = {
@@ -168,8 +168,8 @@ test("opaque returned handles invoke only their declared namespace and release w
   let output;
   const runtime = createPackageRuntime(
     {
-      put(e) {
-        output = e.done();
+      put(error) {
+        output = error.done();
         return output.length;
       },
     },
@@ -214,8 +214,8 @@ test("a malformed returned handle rolls back allocation", () => {
     binding = contractBindings(bytes, readPackageContract);
   const runtime = createPackageRuntime(
     {
-      put(e) {
-        return e.done().length;
+      put(error) {
+        return error.done().length;
       },
     },
     { module: wasmContract(bytes), grants: { "pkg.Source": true } },

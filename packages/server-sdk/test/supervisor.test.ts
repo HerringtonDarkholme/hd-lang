@@ -57,7 +57,7 @@ function harness(policy = {}, fixture, log = () => {}) {
     async ready() {
       await Promise.all(
         Array.from({ length: policy.workers ?? 2 }, (_, slot) =>
-          this.wait((e) => e.kind === "ready" && e.slot === slot),
+          this.wait((error) => error.kind === "ready" && error.slot === slot),
         ),
       );
     },
@@ -74,22 +74,22 @@ test(
   "one active request per worker, no queue, retained state and owned copied results",
   { timeout: 10000 },
   async () => {
-    const f = harness({ requestMs: 3000 });
+    const testHarness = harness({ requestMs: 3000 });
     try {
-      await f.ready();
-      assert.equal(f.supervisor.ready(), true);
-      const a = f.supervisor.dispatch(request("/ok", 20)),
-        b = f.supervisor.dispatch(request("/ok", 20));
-      const overload = await f.supervisor.dispatch(request("/never"));
+      await testHarness.ready();
+      assert.equal(testHarness.supervisor.ready(), true);
+      const firstDispatch = testHarness.supervisor.dispatch(request("/ok", 20)),
+        secondDispatch = testHarness.supervisor.dispatch(request("/ok", 20));
+      const overload = await testHarness.supervisor.dispatch(request("/never"));
       assert.equal(overload.response.status, 503);
       assert.deepEqual(overload.response.headers, [["Retry-After", "1"]]);
-      assert.deepEqual((await Promise.all([a, b])).map(body), ["1", "1"]);
-      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "2");
-      await f.supervisor.stop();
-      assert.equal(f.supervisor.state(), "Stopped");
-      assert.equal(f.events.filter((e) => e.kind === "drained").length, 2);
+      assert.deepEqual((await Promise.all([firstDispatch, secondDispatch])).map(body), ["1", "1"]);
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/ok"))), "2");
+      await testHarness.supervisor.stop();
+      assert.equal(testHarness.supervisor.state(), "Stopped");
+      assert.equal(testHarness.events.filter((item) => item.kind === "drained").length, 2);
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
@@ -98,20 +98,22 @@ test(
   "trap poisons only its instance, replies generic500 and starts a fresh generation",
   { timeout: 10000 },
   async () => {
-    const f = harness({ requestMs: 3000 });
+    const testHarness = harness({ requestMs: 3000 });
     try {
-      await f.ready();
-      const failed = f.supervisor.dispatch(request("/trap")),
-        sibling = f.supervisor.dispatch(request("/ok", 30));
+      await testHarness.ready();
+      const failed = testHarness.supervisor.dispatch(request("/trap")),
+        sibling = testHarness.supervisor.dispatch(request("/ok", 30));
       const result = await failed;
       assert.equal(result.response.status, 500);
       assert.equal(body(result), "");
       assert.equal(body(await sibling), "1");
-      await f.wait((e) => e.kind === "ready" && e.slot === 0 && e.generation === 2);
-      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "1");
-      assert.equal(JSON.stringify(f.events).includes("private-error"), false);
+      await testHarness.wait(
+        (error) => error.kind === "ready" && error.slot === 0 && error.generation === 2,
+      );
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/ok"))), "1");
+      assert.equal(JSON.stringify(testHarness.events).includes("private-error"), false);
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
@@ -120,23 +122,27 @@ test(
   "CPU-bound Wasm handler cannot prevent outer deadline or sibling response",
   { timeout: 10000 },
   async () => {
-    const f = harness();
+    const testHarness = harness();
     try {
-      await f.ready();
-      const loop = f.supervisor.dispatch(request("/cpu")),
-        sibling = f.supervisor.dispatch(request("/ok", 15));
+      await testHarness.ready();
+      const loop = testHarness.supervisor.dispatch(request("/cpu")),
+        sibling = testHarness.supervisor.dispatch(request("/ok", 15));
       assert.equal(body(await sibling), "1");
       const result = await loop;
       assert.equal(result.cancelled, "Deadline");
       assert.equal(result.abandoned, true);
       assert.equal(
-        f.events.some((e) => e.kind === "terminated" && e.cause === "cleanup-deadline"),
+        testHarness.events.some(
+          (item) => item.kind === "terminated" && item.cause === "cleanup-deadline",
+        ),
         true,
       );
-      await f.wait((e) => e.kind === "ready" && e.slot === 0 && e.generation === 2);
-      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "1");
+      await testHarness.wait(
+        (error) => error.kind === "ready" && error.slot === 0 && error.generation === 2,
+      );
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/ok"))), "1");
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
@@ -145,16 +151,19 @@ test(
   "CPU-bound main is never ready and bounded restart exhaustion is reported",
   { timeout: 10000 },
   async () => {
-    const f = harness({ workers: 1, startupMs: 180, restartLimit: 1 }, "main-cpu");
+    const testHarness = harness({ workers: 1, startupMs: 180, restartLimit: 1 }, "main-cpu");
     try {
-      assert.equal((await f.supervisor.dispatch(request("/not-admitted"))).response.status, 503);
-      await f.wait((e) => e.kind === "restart-exhausted");
-      assert.equal(f.supervisor.ready(), false);
-      assert.equal(f.supervisor.active(), 0);
-      assert.equal(f.events.filter((e) => e.kind === "starting").length, 2);
-      assert.equal(f.events.filter((e) => e.kind === "ready").length, 0);
+      assert.equal(
+        (await testHarness.supervisor.dispatch(request("/not-admitted"))).response.status,
+        503,
+      );
+      await testHarness.wait((error) => error.kind === "restart-exhausted");
+      assert.equal(testHarness.supervisor.ready(), false);
+      assert.equal(testHarness.supervisor.active(), 0);
+      assert.equal(testHarness.events.filter((item) => item.kind === "starting").length, 2);
+      assert.equal(testHarness.events.filter((item) => item.kind === "ready").length, 0);
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
@@ -163,27 +172,31 @@ test(
   "disconnect cancels once; nonreturning cleanup is killed without affecting sibling",
   { timeout: 10000 },
   async () => {
-    const f = harness({ requestMs: 3000 });
+    const testHarness = harness({ requestMs: 3000 });
     try {
-      await f.ready();
+      await testHarness.ready();
       const signal = new AbortController();
-      const a = f.supervisor.dispatch(request("/cleanup-cpu"), signal.signal);
+      const firstDispatch = testHarness.supervisor.dispatch(request("/cleanup-cpu"), signal.signal);
       // Cross-thread FIFO guarantees request precedes cancellation, even before its handler yields.
       signal.abort();
       signal.abort();
-      const b = f.supervisor.dispatch(request("/ok"));
-      assert.equal(body(await b), "1");
-      const result = await a;
+      const secondDispatch = testHarness.supervisor.dispatch(request("/ok"));
+      assert.equal(body(await secondDispatch), "1");
+      const result = await firstDispatch;
       assert.equal(result.cancelled, "Disconnected");
       assert.equal(result.abandoned, true);
       assert.equal(
-        f.events.filter((e) => e.kind === "cancel" && e.reason === "Disconnected").length,
+        testHarness.events.filter(
+          (item) => item.kind === "cancel" && item.reason === "Disconnected",
+        ).length,
         1,
       );
-      await f.wait((e) => e.kind === "ready" && e.slot === 0 && e.generation === 2);
-      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "1");
+      await testHarness.wait(
+        (error) => error.kind === "ready" && error.slot === 0 && error.generation === 2,
+      );
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/ok"))), "1");
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
@@ -192,23 +205,26 @@ test(
   "first stop drains without cancellation; second stop escalates and joins termination",
   { timeout: 10000 },
   async () => {
-    const f = harness({ requestMs: 3000, drainMs: 3000 });
+    const testHarness = harness({ requestMs: 3000, drainMs: 3000 });
     try {
-      await f.ready();
-      const completed = f.supervisor.dispatch(request("/ok", 30));
-      const pending = f.supervisor.dispatch(request("/wait"));
-      const draining = f.supervisor.stop();
-      assert.equal(f.supervisor.ready(), false);
-      assert.equal((await f.supervisor.dispatch(request("/not-admitted"))).response.status, 503);
+      await testHarness.ready();
+      const completed = testHarness.supervisor.dispatch(request("/ok", 30));
+      const pending = testHarness.supervisor.dispatch(request("/wait"));
+      const draining = testHarness.supervisor.stop();
+      assert.equal(testHarness.supervisor.ready(), false);
+      assert.equal(
+        (await testHarness.supervisor.dispatch(request("/not-admitted"))).response.status,
+        503,
+      );
       assert.equal(body(await completed), "1");
-      assert.equal(f.events.filter((e) => e.kind === "cancel").length, 0);
-      const escalated = f.supervisor.stop();
+      assert.equal(testHarness.events.filter((item) => item.kind === "cancel").length, 0);
+      const escalated = testHarness.supervisor.stop();
       assert.equal((await pending).cancelled, "Stopping");
       await Promise.all([draining, escalated]);
-      assert.equal(f.supervisor.state(), "Stopped");
-      assert.equal(f.supervisor.active(), 0);
+      assert.equal(testHarness.supervisor.state(), "Stopped");
+      assert.equal(testHarness.supervisor.active(), 0);
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
@@ -217,15 +233,15 @@ test(
   "wrong-generation and out-of-order replies cannot release a later physical response",
   { timeout: 10000 },
   async () => {
-    const f = harness({ workers: 1, requestMs: 3000 });
+    const testHarness = harness({ workers: 1, requestMs: 3000 });
     try {
-      await f.ready();
-      assert.equal(body(await f.supervisor.dispatch(request("/stale-messages"))), "1");
-      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "2");
-      assert.equal(f.events.filter((e) => e.kind === "terminated").length, 0);
-      assert.equal(f.events.filter((e) => e.kind === "released").length, 2);
+      await testHarness.ready();
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/stale-messages"))), "1");
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/ok"))), "2");
+      assert.equal(testHarness.events.filter((item) => item.kind === "terminated").length, 0);
+      assert.equal(testHarness.events.filter((item) => item.kind === "released").length, 2);
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
@@ -237,14 +253,14 @@ test(
   },
   async () => {
     const records = [];
-    const f = harness({ workers: 1, requestMs: 3000 }, undefined, (record) => {
+    const testHarness = harness({ workers: 1, requestMs: 3000 }, undefined, (record) => {
       records.push(record);
       throw new Error("private observer failed");
     });
     try {
-      await f.ready();
-      assert.equal(body(await f.supervisor.dispatch(request("/log-messages"))), "1");
-      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "2");
+      await testHarness.ready();
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/log-messages"))), "1");
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/ok"))), "2");
       assert.equal(records.length, 1);
       assert.equal(records[0].text, "valid log");
       assert.equal(records[0].request, 1);
@@ -253,31 +269,34 @@ test(
       assert.ok(Object.isFrozen(records[0].lease));
       assert.deepEqual(records[0].worker, { slot: 0, generation: 1 });
       assert.ok(Object.isFrozen(records[0]) && Object.isFrozen(records[0].worker));
-      assert.equal(f.events.filter((e) => e.kind === "terminated").length, 0);
+      assert.equal(testHarness.events.filter((item) => item.kind === "terminated").length, 0);
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
     }
   },
 );
 
 test("body-reading time consumes the original admission budget", { timeout: 10000 }, async () => {
-  const f = harness({ workers: 1, requestMs: 1000 });
+  const testHarness = harness({ workers: 1, requestMs: 1000 });
   try {
-    await f.ready();
-    const result = await f.supervisor.dispatch(request("/wait"), undefined, {
+    await testHarness.ready();
+    const result = await testHarness.supervisor.dispatch(request("/wait"), undefined, {
       admittedAt: performance.now() - 1001,
     });
     assert.equal(result.cancelled, "Deadline");
     assert.equal(result.abandoned, false);
-    assert.equal(f.events.filter((e) => e.kind === "deadline-before-dispatch").length, 1);
-    assert.equal(f.events.filter((e) => e.kind === "admitted").length, 0);
+    assert.equal(
+      testHarness.events.filter((item) => item.kind === "deadline-before-dispatch").length,
+      1,
+    );
+    assert.equal(testHarness.events.filter((item) => item.kind === "admitted").length, 0);
   } finally {
-    await f.supervisor.close();
+    await testHarness.supervisor.close();
   }
 });
 
 // Test scaffold only: Fetch/Node adapters own production body/header mapping.
-async function physicalListener(f) {
+async function physicalListener(file) {
   const outcomes = [];
   const server = http.createServer(async (request, response) => {
     const controller = new AbortController();
@@ -287,7 +306,7 @@ async function physicalListener(f) {
       }
     });
     const url = new URL(request.url, "http://listener.invalid");
-    const result = await f.supervisor.dispatch(
+    const result = await file.supervisor.dispatch(
       { url: url.pathname, delay: Number(url.searchParams.get("delay")) },
       controller.signal,
     );
@@ -322,17 +341,17 @@ test(
   "physical responses remain outside the hung isolate with concurrent/disconnected requests",
   { timeout: 10000 },
   async () => {
-    const f = harness();
+    const testHarness = harness();
     let listener;
     try {
-      await f.ready();
-      listener = await physicalListener(f);
+      await testHarness.ready();
+      listener = await physicalListener(testHarness);
       const cpu = fetch(listener.url + "/cpu");
-      await f.wait((e) => e.kind === "admitted" && e.id === 1);
+      await testHarness.wait((error) => error.kind === "admitted" && error.id === 1);
       const disconnected = new AbortController();
       const pending = fetch(listener.url + "/cleanup-cpu", { signal: disconnected.signal });
       pending.catch(() => {});
-      await f.wait((e) => e.kind === "admitted" && e.id === 2);
+      await testHarness.wait((error) => error.kind === "admitted" && error.id === 2);
       const overloaded = await fetch(listener.url + "/never");
       assert.equal(overloaded.status, 503);
       assert.equal(overloaded.headers.get("Retry-After"), "1");
@@ -341,7 +360,9 @@ test(
       const timedOut = await cpu;
       assert.equal(timedOut.status, 504);
       await timedOut.arrayBuffer();
-      await f.wait((e) => e.kind === "ready" && e.slot === 0 && e.generation === 2);
+      await testHarness.wait(
+        (error) => error.kind === "ready" && error.slot === 0 && error.generation === 2,
+      );
       const later = await fetch(listener.url + "/ok");
       assert.equal(later.status, 200);
       await later.arrayBuffer();
@@ -354,7 +375,7 @@ test(
         true,
       );
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
       if (listener) {
         await listener.close();
       }
@@ -378,7 +399,7 @@ test(
     const warnings = [];
     const warned = (warning) => warnings.push(warning);
     process.on("warning", warned);
-    const f = harness({
+    const testHarness = harness({
       workers: 1,
       startupMs: 2147483647,
       requestMs: 2147483647,
@@ -388,24 +409,24 @@ test(
       restartLimit: 0,
     });
     try {
-      await f.ready();
-      assert.equal(body(await f.supervisor.dispatch(request("/ok"))), "1");
-      const pending = f.supervisor.dispatch(request("/wait"));
-      const draining = f.supervisor.stop();
-      const stopping = f.supervisor.stop();
+      await testHarness.ready();
+      assert.equal(body(await testHarness.supervisor.dispatch(request("/ok"))), "1");
+      const pending = testHarness.supervisor.dispatch(request("/wait"));
+      const draining = testHarness.supervisor.stop();
+      const stopping = testHarness.supervisor.stop();
       assert.equal((await pending).cancelled, "Stopping");
       await Promise.all([draining, stopping]);
-      assert.equal(f.supervisor.state(), "Stopped");
+      assert.equal(testHarness.supervisor.state(), "Stopped");
       assert.equal(
-        f.events.some((e) => e.kind === "terminated"),
+        testHarness.events.some((item) => item.kind === "terminated"),
         false,
       );
       assert.equal(
-        warnings.some((w) => w.name === "TimeoutOverflowWarning"),
+        warnings.some((item) => item.name === "TimeoutOverflowWarning"),
         false,
       );
     } finally {
-      await f.supervisor.close();
+      await testHarness.supervisor.close();
       process.off("warning", warned);
     }
   },

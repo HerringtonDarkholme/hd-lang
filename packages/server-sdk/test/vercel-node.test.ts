@@ -119,7 +119,7 @@ test("cold native requests return immediate 503 without dispatch or queued owner
     },
     { isReady: () => false, retryAfter: "2" },
   );
-  for (let n = 0; n < 100; n++) {
+  for (let count = 0; count < 100; count++) {
     const { request, response } = await invoke(handler);
     assert.equal(response.status, 503);
     assert.equal(response.headers["retry-after"], "2");

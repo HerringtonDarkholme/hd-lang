@@ -2,7 +2,7 @@ export function environmentNames(grants, names) {
   if (names === undefined) {
     if (
       grants.Env === true ||
-      (Array.isArray(grants.Env) && grants.Env.some((x) => x.endsWith("*")))
+      (Array.isArray(grants.Env) && grants.Env.some((item) => item.endsWith("*")))
     ) {
       throw new Error("Env=true or prefix scopes require explicit envBindings names");
     }
@@ -10,7 +10,7 @@ export function environmentNames(grants, names) {
   }
   if (
     !Array.isArray(names) ||
-    !names.every((x) => typeof x === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(x)) ||
+    !names.every((item) => typeof item === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(item)) ||
     new Set(names).size !== names.length
   ) {
     throw new Error("envBindings needs distinct binding names");
@@ -18,7 +18,9 @@ export function environmentNames(grants, names) {
   const covered = (name) =>
     grants.Env === true ||
     (Array.isArray(grants.Env) &&
-      grants.Env.some((x) => (x.endsWith("*") ? name.startsWith(x.slice(0, -1)) : name === x)));
+      grants.Env.some((item) =>
+        item.endsWith("*") ? name.startsWith(item.slice(0, -1)) : name === item,
+      ));
   if (!names.every(covered)) {
     throw new Error("an Env binding name is outside production grants");
   }

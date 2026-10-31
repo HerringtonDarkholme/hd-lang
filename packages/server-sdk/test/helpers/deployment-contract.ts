@@ -1,59 +1,60 @@
 import { Enc } from "../../../../host/wire.ts";
-function value(e, [tag, a, b]) {
-  e.leb(tag);
+function value(error, [tag, left, right]) {
+  error.leb(tag);
   const fields = (fs) => {
-    e.leb(fs.length);
-    for (const [n, t] of fs) {
-      e.str(n);
-      value(e, t);
+    error.leb(fs.length);
+    for (const [count, text] of fs) {
+      error.str(count);
+      value(error, text);
     }
   };
   if (tag === 3) {
-    e.leb(a).leb(b ? 1 : 0);
+    error.leb(left).leb(right ? 1 : 0);
   } else if (tag === 8 || tag === 9) {
-    value(e, a);
+    value(error, left);
   } else if (tag === 10) {
-    e.leb(a.length);
-    for (const t of a) {
-      value(e, t);
+    error.leb(left.length);
+    for (const text of left) {
+      value(error, text);
     }
   } else if (tag === 11) {
-    fields(a);
+    fields(left);
   } else if (tag === 12) {
-    e.leb(a.length);
-    for (const [n, fs] of a) {
-      e.str(n);
+    error.leb(left.length);
+    for (const [count, fs] of left) {
+      error.str(count);
       fields(fs);
     }
   } else if (tag === 13) {
-    value(e, a);
-    value(e, b);
+    value(error, left);
+    value(error, right);
   } else if (tag === 15) {
-    e.str(a);
+    error.str(left);
   }
 }
 export function encode(interfaces) {
-  const e = new Enc();
-  e.leb(interfaces.length);
+  const error = new Enc();
+  error.leb(interfaces.length);
   for (const i of interfaces) {
-    e.str(i.identity.package).str(i.identity.version).str(i.identity.trait_path).str(i.module);
-    e.leb(i.selectors.length);
-    for (const s of i.selectors) {
-      e.str(s);
+    error.str(i.identity.package).str(i.identity.version).str(i.identity.trait_path).str(i.module);
+    error.leb(i.selectors.length);
+    for (const source of i.selectors) {
+      error.str(source);
     }
-    e.leb(i.handle ? 1 : 0).leb(i.methods.length);
-    for (const m of i.methods) {
-      e.str(m.name)
-        .str(m.member)
-        .leb(m.wait === "may" ? 1 : 0)
-        .leb(m.params.length);
-      for (const p of m.params) {
-        value(e, p);
+    error.leb(i.handle ? 1 : 0).leb(i.methods.length);
+    for (const message of i.methods) {
+      error
+        .str(message.name)
+        .str(message.member)
+        .leb(message.wait === "may" ? 1 : 0)
+        .leb(message.params.length);
+      for (const path of message.params) {
+        value(error, path);
       }
-      value(e, m.result);
+      value(error, message.result);
     }
   }
-  return new Uint8Array([1, 0, 0, 0, ...e.done()]);
+  return new Uint8Array([1, 0, 0, 0, ...error.done()]);
 }
 
 export function contractSection(wasm) {

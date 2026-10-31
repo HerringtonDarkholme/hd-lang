@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createFetchHandler } from "../adapters/fetch.ts";
 
 const tick = async () => {
-  for (let n = 0; n < 12; n++) {
+  for (let count = 0; count < 12; count++) {
     await Promise.resolve();
   }
 };
@@ -61,7 +61,7 @@ function clock() {
       for (;;) {
         const next = [...pending]
           .filter(([, value]) => value.at <= end)
-          .sort((a, b) => a[1].at - b[1].at)[0];
+          .sort((left, right) => left[1].at - right[1].at)[0];
         if (!next) {
           break;
         }

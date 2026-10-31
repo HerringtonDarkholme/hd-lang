@@ -230,8 +230,8 @@ test("caller mutation and overlapping SDK writers cannot publish mixed functions
       publishVercelNode(input(output, "left")),
       publishVercelNode(input(output, "right")),
     ]);
-    const winners = results.filter((r) => r.status === "fulfilled"),
-      losers = results.filter((r) => r.status === "rejected");
+    const winners = results.filter((item) => item.status === "fulfilled"),
+      losers = results.filter((item) => item.status === "rejected");
     assert.equal(winners.length, 1);
     assert.equal(losers.length, 1);
     assert.equal(losers[0].reason.code, "EEXIST");

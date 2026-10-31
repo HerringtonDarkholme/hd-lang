@@ -100,7 +100,7 @@ test("ordinary Vercel facade task prepares complete Build Output v3 from nested 
   const config = selected();
   assert.equal(config.version, 3);
   assert.deepEqual(
-    config.routes.map((r) => r.src),
+    config.routes.map((item) => item.src),
     ["/(.*)"],
   );
   assert.match(config.routes[0].dest, /^\/server-api-[a-f0-9]{48}$/);

@@ -57,7 +57,7 @@ export function parseProductionGrants(text) {
   if (!isTable(table)) {
     throw invalid("`capabilities` must be a table");
   }
-  const entries = Object.entries(table).sort(([a], [b]) => a.localeCompare(b));
+  const entries = Object.entries(table).sort(([left], [right]) => left.localeCompare(right));
   for (const entry of entries) {
     const [key, value] = entry;
     entry[1] = checkedGrant(key, value);

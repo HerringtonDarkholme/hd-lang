@@ -211,7 +211,7 @@ test(
       setTimeout(() => response.end(request.url), 25);
     });
     try {
-      const jobs = [0, 1, 2, 3].map((n) => state.app.dispatch(incoming(state.url + "/" + n)));
+      const jobs = [0, 1, 2, 3].map((item) => state.app.dispatch(incoming(state.url + "/" + item)));
       assert.equal(state.app.active(), 4);
       const results = await Promise.all(jobs);
       assert.deepEqual(
