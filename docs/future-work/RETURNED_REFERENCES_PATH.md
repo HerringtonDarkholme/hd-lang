@@ -336,9 +336,9 @@ easy to iterate). One checkable rule per slice, in order:
 | 6d4 | a closure argument for a bare generic `F < Fn...` or `F < FnMut...` parameter may capture local references for the call; the call's result carries them | 6d3 |
 | 6e | `FnMut[I, O, $R]` for closures that mutate captures; `Fn` captures shared, so `require`'s condition `F < Fn() -> bool` is read-only (#978) | 6d2 |
 | 6f | `on_exit[F < FnMut() -> void & 'a, 'a](action: F) -> ScopeGuard[F, 'a]` under `using` (#978); the exclusive capture is enforced at stage 7 | 6d3, 6e |
-| 6g | library `defer` and `ensure` under `@auto_closing` (#978); `ensure` has no access to the result (owner, 2026-10-30): a postcondition on the result is written at the call site or with a local; named return values aren't planned | 6f |
-| 6h | read-only live list views, `Span[T, 'a]` (#978), with a minimal API like Rust's `&[T]`: `xs.span()`, `len`, `get(i)`, `[i]`, `iter()` and `slice(range)` returning a smaller `Span` (owner, 2026-10-30); `SpanMut` after | 6a3 |
-| 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`, #978) | 6a1; owner: whether hd needs drop checking yet |
+| 6g | library `defer` and `ensure` under `@auto_closing` (#978): `defer(action)` runs `action` at every exit; `ensure(message, condition)` is a postcondition, the counterpart of `require`: it checks a `Fn() -> bool` at every normal exit and panics with `message` when it is false (owner, 2026-10-30). `ensure` has no access to the result: a postcondition on the result is written with a local; named return values aren't planned | 6f, 6g1 (`@auto_closing`) |
+| 6h | read-only live list views, `Span[T, 'a]` (#978), with a minimal API like Rust's `&[T]`: `xs.span()`, `len`, `get(i)`, `[i]`, `iter()` and `slice(range)` returning a smaller `Span` (owner, 2026-10-30); `SpanMut` follows stage 7c, so its conflicts are compile errors from the start (owner, 2026-10-30) | 6a3 |
+| 6i | phantom markers (`Phantom[T]`, Rust's `PhantomData`): not now (owner, 2026-10-30). hd has no implicit destructor, its cleanup is explicit and LIFO, and variance is declared, so drop checking has nothing to protect. Reopens when hd gets an implicit destructor or a std type needs a lifetime its fields don't name | — |
 
 Applied by #1017 (6a1, [Lifetime Structs](../../spec/lang/13-values-and-references.md#lifetime-structs)): each struct lifetime is one reference position of the struct's type, after its type arguments, so its values hold a local reference.
 

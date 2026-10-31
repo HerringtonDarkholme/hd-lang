@@ -17,7 +17,7 @@ The first build ships what current hd can express:
 - the `unbound-disposable` lint at error level.
 
 Later work: the tier-2 captures, `AutoClosing`, `@auto_closing`,
-`defer(action)` and `ensure(action)` in #978.
+`defer(action)` and `ensure(message, condition)` in #978.
 
 ## Accepted Design
 
@@ -77,7 +77,7 @@ the binding, exactly as a direct `dispose` call does.
 ### Auto-closing guard calls
 
 **Deferred to tier 2 (#978).** The marker trait, decorator, and the library
-`defer(action)` / `ensure(action)` helpers below are accepted design only; the
+`defer(action)` / `ensure(message, condition)` helpers below are accepted design only; the
 current #962 build does not implement them.
 
 The matched working names are marker trait `AutoClosing` and decorator
@@ -96,9 +96,11 @@ A marker-typed result can never sit unregistered. Binding it with `:=` or
 compile error. Ordinary disposable values keep explicit `using` / `using!` and
 the lint rule below; only the marker opts into this stricter convention.
 
-The standard library can express `defer(action)` and `ensure(action)` as
-ordinary functions with `@auto_closing` once the accepted dependencies are
-implemented. The decorator and marker have the same `auto_closing` stem so the
+The standard library can express `defer(action)` and `ensure(message, condition)`
+as ordinary functions with `@auto_closing` once the accepted dependencies are
+implemented. `defer` runs its action at every exit. `ensure` is a postcondition,
+the counterpart of `require`: at every normal exit it checks its condition and
+panics with its message when the condition is false (owner, 2026-10-30). The decorator and marker have the same `auto_closing` stem so the
 registration rule is searchable at both the producer and call.
 
 ## The Three Gaps
@@ -218,7 +220,7 @@ the current `using` transfer rules.
 This is one syntax extension (`using!`), one semantic split of the existing
 `using` rule, one renamed plus one new protocol, one marker/decorator
 convention, and one lint. It adds no intrinsic: guard storage, once-only
-callbacks, `on_exit`, `defer(action)`, and `ensure(action)` remain library code.
+callbacks, `on_exit`, `defer(action)`, and `ensure(message, condition)` remain library code.
 The compiler already has lexical cleanup entries and asynchronous disposal; it
 adds an inline synchronous entry and the auto-closing registration checks.
 
