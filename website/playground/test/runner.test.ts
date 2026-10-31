@@ -27,7 +27,7 @@ let directory: string;
 let rust: RustRunnerModule.RustRunner;
 
 /** Bundles `entry` (under src/) as the playground build does and imports it. */
-async function bundled<T>(entry: string): Promise<T> {
+async function bundled<Module>(entry: string): Promise<Module> {
   const outfile = join(directory, entry.replace(/\.ts$/, ".mjs"));
   await esbuild.build(
     buildOptions({
@@ -41,7 +41,7 @@ async function bundled<T>(entry: string): Promise<T> {
   );
   const bundle = await readFile(outfile, "utf8");
   assert.doesNotMatch(bundle, /from\s*"node:/, `${entry}: the bundle needs no Node API`);
-  return (await import(pathToFileURL(outfile).href)) as T;
+  return (await import(pathToFileURL(outfile).href)) as Module;
 }
 
 before(async () => {

@@ -22,9 +22,9 @@ import {
   type Value,
 } from "../../../host/journal.ts";
 
-const hex = (b: Uint8Array) => Buffer.from(b).toString("hex");
-const text = (s: string) => new TextEncoder().encode(s);
-const int = (v: bigint | number): Value => ({ tag: 1, v: BigInt(v) });
+const hex = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
+const text = (text: string) => new TextEncoder().encode(text);
+const int = (value: bigint | number): Value => ({ tag: 1, v: BigInt(value) });
 
 // journal_tests.rs `SHARED_JOURNAL`.
 const SHARED_JOURNAL = [
@@ -79,9 +79,9 @@ const seven = () => {
 
 /** journal_tests.rs `every_row_kind`, through the JS recorder. */
 function everyRowKind(): Recorder {
-  const r = new Recorder(1 << 20, seven());
-  r.input(1, "now()\n", text("\0asm"));
-  r.call({
+  const recorder = new Recorder(1 << 20, seven());
+  recorder.input(1, "now()\n", text("\0asm"));
+  recorder.call({
     module: "hd:Clock",
     name: "now",
     request: new Uint8Array(),
@@ -89,40 +89,40 @@ function everyRowKind(): Recorder {
     result: null,
   });
   const line = callArgs([5], ["i32"], text("a line longer than eight bytes"));
-  r.call({
+  recorder.call({
     module: "hd:Console",
     name: "write.start",
     request: line,
     value: { tag: 3, v: 1, w: 9 },
     result: null,
   });
-  r.call({
+  recorder.call({
     module: "hd:Clock",
     name: "now",
     request: new Uint8Array(),
     value: int(-1),
     result: null,
   });
-  r.block([9]);
-  r.poll();
-  r.poll();
-  r.wake([9, 1 << 20]);
-  r.finish(9, int(1), Uint8Array.of(0));
-  r.abort(4);
-  r.cancel();
-  r.end({ kind: "cancelled" });
-  r.input(2, "x\n", text("\0asm"));
+  recorder.block([9]);
+  recorder.poll();
+  recorder.poll();
+  recorder.wake([9, 1 << 20]);
+  recorder.finish(9, int(1), Uint8Array.of(0));
+  recorder.abort(4);
+  recorder.cancel();
+  recorder.end({ kind: "cancelled" });
+  recorder.input(2, "x\n", text("\0asm"));
   const half = callArgs([2.5], ["f64"], null);
   const bits = new DataView(new Float64Array([0.5]).buffer).getBigUint64(0, true);
-  r.call({
+  recorder.call({
     module: "hd:prim",
     name: "format_f64",
     request: half,
     value: { tag: 2, v: bits },
     result: text("0.5"),
   });
-  r.end({ kind: "exit", status: 0 });
-  return r;
+  recorder.end({ kind: "exit", status: 0 });
+  return recorder;
 }
 
 test("archived chunks join without losing method identities or recorded results", () => {
@@ -186,7 +186,7 @@ test("the recorder writes the bytes hd_run's recorder writes", () => {
   const events = decodeRows(readRows(journal).rows);
   const kinds = "header input call call call block wake finish abort cancel end input call end";
   assert.deepEqual(
-    events.map((e) => e.kind),
+    events.map((item) => item.kind),
     kinds.split(" "),
   );
   const long = text("a line longer than eight bytes");
@@ -228,29 +228,29 @@ test("the reader cuts a torn tail and checks each row's checksum", () => {
 /** replay_tests.rs `journal`: a clock reading and a written line, then a
  * stopped input. */
 function replayed() {
-  const r = new Recorder(1 << 20, seven());
-  r.input(1, "a := now()\n", text("\0asm1"));
-  r.call({
+  const recorder = new Recorder(1 << 20, seven());
+  recorder.input(1, "a := now()\n", text("\0asm1"));
+  recorder.call({
     module: "hd:Clock",
     name: "now",
     request: new Uint8Array(),
     value: int(1_700),
     result: null,
   });
-  r.call({
+  recorder.call({
     module: "hd:Console",
     name: "write.start",
     request: Uint8Array.of(2, 0x68, 0x69),
     value: { tag: 3, v: 1, w: 4 },
     result: null,
   });
-  r.poll();
-  r.wake([4]);
-  r.finish(4, int(1), Uint8Array.of(0));
-  r.end({ kind: "exit", status: 0 });
-  r.input(2, "while true: pass\n", text("\0asm2"));
-  r.end({ kind: "stopped" });
-  return recorded(r.journal()!);
+  recorder.poll();
+  recorder.wake([4]);
+  recorder.finish(4, int(1), Uint8Array.of(0));
+  recorder.end({ kind: "exit", status: 0 });
+  recorder.input(2, "while true: pass\n", text("\0asm2"));
+  recorder.end({ kind: "stopped" });
+  return recorded(recorder.journal()!);
 }
 
 test("a replay serves the recorded replies in order", () => {
@@ -276,38 +276,38 @@ test("a replay serves the recorded replies in order", () => {
 
 test("a request that does not match diverges with replay.rs's message", () => {
   const input = replayed().inputs[0]!;
-  const diverges = (run: (r: Replay) => unknown, message: string) => {
+  const diverges = (run: (replay: Replay) => unknown, message: string) => {
     const replay = new Replay(input);
     assert.throws(
       () => run(replay),
-      (e: unknown) => e instanceof Diverged && e.message === message,
+      (error: unknown) => error instanceof Diverged && error.message === message,
     );
     // The first divergence is the one kept.
     assert.throws(() => replay.end({ kind: "exit", status: 0 }, input.end), { message });
   };
   diverges(
-    (r) => r.call("hd:Clock", "monotonic", new Uint8Array()),
+    (replay) => replay.call("hd:Clock", "monotonic", new Uint8Array()),
     "input 1 called hd:Clock monotonic, but the record has a call of hd:Clock now",
   );
-  diverges((r) => {
-    r.call("hd:Clock", "now", new Uint8Array());
-    r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x6f));
+  diverges((replay) => {
+    replay.call("hd:Clock", "now", new Uint8Array());
+    replay.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x6f));
   }, "input 1 called hd:Console write.start with other arguments than before");
-  diverges((r) => {
-    r.call("hd:Clock", "now", new Uint8Array());
-    r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69));
-    r.wake();
+  diverges((replay) => {
+    replay.call("hd:Clock", "now", new Uint8Array());
+    replay.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69));
+    replay.wake();
   }, "input 1 waited on the host after 0 polls, but the record has a wake after 1 polls");
   diverges(
-    (r) => r.end({ kind: "trapped" }, input.end),
+    (replay) => replay.end({ kind: "trapped" }, input.end),
     "input 1 panicked early, but the record has a call of hd:Clock now",
   );
-  diverges((r) => {
-    r.call("hd:Clock", "now", new Uint8Array());
-    r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69));
-    r.poll();
-    r.wake();
-    r.finish(4);
-    r.end({ kind: "exit", status: 2 }, input.end);
+  diverges((replay) => {
+    replay.call("hd:Clock", "now", new Uint8Array());
+    replay.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69));
+    replay.poll();
+    replay.wake();
+    replay.finish(4);
+    replay.end({ kind: "exit", status: 2 }, input.end);
   }, "input 1 ended with status 2, but before it ended");
 });

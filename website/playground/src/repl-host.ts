@@ -125,12 +125,15 @@ export type ReplMessage =
 export type ReplPost = (message: ReplMessage, transfer?: Transferable[]) => void;
 
 /** One diagnostic as `hd` prints it: `error: repl#3:1:5: unknown-name: ...`. */
-export function diagnosticLine(d: WireDiagnostic): string {
+export function diagnosticLine(diagnostic: WireDiagnostic): string {
   let where = "";
-  if (d.path !== null) {
-    where = d.line === null ? `${d.path}: ` : `${d.path}:${d.line}:${d.column}: `;
+  if (diagnostic.path !== null) {
+    where =
+      diagnostic.line === null
+        ? `${diagnostic.path}: `
+        : `${diagnostic.path}:${diagnostic.line}:${diagnostic.column}: `;
   }
-  return `${d.severity}: ${where}${d.code === null ? "" : `${d.code}: `}${d.message}`;
+  return `${diagnostic.severity}: ${where}${diagnostic.code === null ? "" : `${diagnostic.code}: `}${diagnostic.message}`;
 }
 
 const lines = (compiled: Compiled): string[] =>
@@ -218,8 +221,8 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       ...fields,
     });
     const completed = (result: Awaited<ReturnType<Session["run"]>>): ReplRan => {
-      for (const n of [...result.skipped, ...result.dropped]) {
-        texts.delete(n);
+      for (const number of [...result.skipped, ...result.dropped]) {
+        texts.delete(number);
       }
       const live = result.live;
       const value = outcomeOf(live);
@@ -367,7 +370,7 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
         next.clear();
       }
     }
-    texts = new Map([...built].filter(([n]) => rebuilt.kept.includes(n)));
+    texts = new Map([...built].filter(([number]) => rebuilt.kept.includes(number)));
     session = next;
     return done({
       kept: rebuilt.kept,

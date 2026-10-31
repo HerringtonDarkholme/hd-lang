@@ -117,12 +117,12 @@ export function programBytes(compiled: Compiled): Uint8Array[] {
   });
 }
 
-function leb(out: number[], n: number): void {
+function leb(out: number[], value: number): void {
   do {
-    const low = n & 0x7f;
-    n >>>= 7;
-    out.push(n === 0 ? low : low | 0x80);
-  } while (n !== 0);
+    const low = value & 0x7f;
+    value >>>= 7;
+    out.push(value === 0 ? low : low | 0x80);
+  } while (value !== 0);
 }
 
 function string(out: number[], text: string): void {
@@ -204,8 +204,8 @@ export function compileRequest(exports: CompilerExports, request: Uint8Array): C
   // next call reuses it.
   const output = (kind: number): Uint8Array => {
     const at = exports.hd_output(kind) >>> 0;
-    const n = exports.hd_output_len(kind) >>> 0;
-    return new Uint8Array(exports.memory.buffer, at, n).slice();
+    const count = exports.hd_output_len(kind) >>> 0;
+    return new Uint8Array(exports.memory.buffer, at, count).slice();
   };
   return {
     status,

@@ -33,8 +33,8 @@ function scan(text: string, from: Scan = { depth: 0, inTriple: false }): Scan {
       i = end + 3;
       continue;
     }
-    const c = text[i]!;
-    if (c === "#") {
+    const character = text[i]!;
+    if (character === "#") {
       const end = text.indexOf("\n", i);
       if (end < 0) {
         break;
@@ -44,15 +44,15 @@ function scan(text: string, from: Scan = { depth: 0, inTriple: false }): Scan {
       inTriple = true;
       i += 3;
       continue;
-    } else if (c === '"') {
+    } else if (character === '"') {
       // A one-line string: up to its closing quote or the line's end.
       i += 1;
       while (i < text.length && text[i] !== '"' && text[i] !== "\n") {
         i += text[i] === "\\" ? 2 : 1;
       }
-    } else if ("([{".includes(c)) {
+    } else if ("([{".includes(character)) {
       depth += 1;
-    } else if (")]}".includes(c)) {
+    } else if (")]}".includes(character)) {
       depth = Math.max(0, depth - 1);
     }
     i += 1;
@@ -64,11 +64,11 @@ function scan(text: string, from: Scan = { depth: 0, inTriple: false }): Scan {
 function codeOf(line: string): string {
   let i = 0;
   while (i < line.length) {
-    const c = line[i]!;
-    if (c === "#") {
+    const character = line[i]!;
+    if (character === "#") {
       return line.slice(0, i).trimEnd();
     }
-    if (c === '"') {
+    if (character === '"') {
       i += 1;
       while (i < line.length && line[i] !== '"') {
         i += line[i] === "\\" ? 2 : 1;

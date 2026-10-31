@@ -20,7 +20,8 @@ import { WatPanel } from "./wat-view.ts";
 
 const STORAGE_KEY = "hd-playground-project";
 
-const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+const byId = <Element extends HTMLElement>(id: string): Element =>
+  document.getElementById(id) as Element;
 const runButton = byId<HTMLButtonElement>("run");
 const checkButton = byId<HTMLButtonElement>("check");
 const testButton = byId<HTMLButtonElement>("test");

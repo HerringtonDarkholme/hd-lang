@@ -47,9 +47,9 @@ interface ReplClientOptions {
   readonly onReady?: () => void;
 }
 
-type Sent = ReplRequest extends infer R
-  ? R extends { id: number }
-    ? Omit<R, "id">
+type Sent = ReplRequest extends infer Request
+  ? Request extends { id: number }
+    ? Omit<Request, "id">
     : never
   : never;
 

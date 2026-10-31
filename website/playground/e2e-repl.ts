@@ -80,7 +80,10 @@ async function saved(page: Page, count: number): Promise<void> {
             all.onsuccess = () => {
               db.close();
               resolve(
-                Math.max(0, ...(all.result as { inputs: unknown[] }[]).map((s) => s.inputs.length)),
+                Math.max(
+                  0,
+                  ...(all.result as { inputs: unknown[] }[]).map((item) => item.inputs.length),
+                ),
               );
             };
           };

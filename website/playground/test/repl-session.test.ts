@@ -89,8 +89,8 @@ class Repl {
     const running = this.session.run(compiled.wasm, [...this.texts, [number, source]], number);
     during?.(this.session);
     const ran = await running;
-    for (const n of [...ran.skipped, ...ran.dropped]) {
-      this.texts.delete(n);
+    for (const count of [...ran.skipped, ...ran.dropped]) {
+      this.texts.delete(count);
     }
     const live = ran.live!;
     assert.equal(live.error ?? null, null);
@@ -308,11 +308,11 @@ alias := counter
 `),
       0,
     );
-    for (let n = 1; n <= 24; n++) {
+    for (let count = 1; count <= 24; count++) {
       assert.equal(
         await repl.input(`_ := fill(4096).len()
 alias.value += 1
-if counter.value != ${n}:
+if counter.value != ${count}:
     panic("checkpoint lost a counter update")
 pass
 `),

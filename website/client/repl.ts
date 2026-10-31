@@ -11,11 +11,11 @@
 import { ReplPanel } from "../playground/src/repl-panel.ts";
 import { isShareHash } from "../playground/src/repl-state.ts";
 
-function element<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
+function element<Tag extends keyof HTMLElementTagNameMap>(
+  tag: Tag,
   className = "",
   text = "",
-): HTMLElementTagNameMap[K] {
+): HTMLElementTagNameMap[Tag] {
   const node = document.createElement(tag);
   if (className) {
     node.className = className;

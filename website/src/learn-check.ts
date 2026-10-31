@@ -24,7 +24,9 @@ const HD_BINARY = join(REPO_DIR, "target", "debug", process.platform === "win32"
 export function compilerCommand(): string[] {
   const text = process.env.HD_TEST_COMMAND;
   if (text !== undefined) {
-    return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!);
+    return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map(
+      (item) => item[1] ?? item[2] ?? item[3]!,
+    );
   }
   if (!existsSync(HD_BINARY)) {
     execFileSync("cargo", ["build", "-p", "hd_cli"], { cwd: REPO_DIR, stdio: "inherit" });
@@ -77,8 +79,8 @@ function compilerErrors(action: readonly string[], file: string, tree?: string):
 }
 
 /** Runs `jobs` on at most eight workers at a time; the results keep the jobs' order. */
-async function inParallel<T>(jobs: readonly (() => Promise<T>)[]): Promise<T[]> {
-  const results: T[] = [];
+async function inParallel<Result>(jobs: readonly (() => Promise<Result>)[]): Promise<Result[]> {
+  const results: Result[] = [];
   let next = 0;
   const worker = async (): Promise<void> => {
     while (next < jobs.length) {

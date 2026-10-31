@@ -162,7 +162,7 @@ const factory = (): IDBFactory | undefined => {
   }
 };
 
-function request<T>(req: IDBRequest<T>): Promise<T> {
+function request<Result>(req: IDBRequest<Result>): Promise<Result> {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error ?? new Error("storage failed"));
@@ -170,11 +170,11 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
 }
 
 /** Runs `body` on the sessions store; the database is open only for the call. */
-async function withStore<T>(
+async function withStore<Result>(
   idb: IDBFactory,
   mode: IDBTransactionMode,
-  body: (store: IDBObjectStore) => Promise<T>,
-): Promise<T> {
+  body: (store: IDBObjectStore) => Promise<Result>,
+): Promise<Result> {
   const opening = idb.open(DATABASE, 1);
   opening.onupgradeneeded = () => {
     if (!opening.result.objectStoreNames.contains(STORE)) {
@@ -315,7 +315,7 @@ export interface SharedLink {
  */
 export async function shareLink(state: SessionState): Promise<SharedLink> {
   const kept = trimmed(state);
-  const inputs = kept.inputs.map(([n, text]): [number, string] => [n, text]);
+  const inputs = kept.inputs.map(([number, text]): [number, string] => [number, text]);
   if (kept.journal !== null) {
     const full = await encodePayload({
       v: 1,
@@ -323,7 +323,7 @@ export async function shareLink(state: SessionState): Promise<SharedLink> {
       inputs,
       next: kept.next,
       journal: bytesToBase64Url(kept.journal),
-      transcript: kept.transcript.map((e) => ({ ...e })),
+      transcript: kept.transcript.map((item) => ({ ...item })),
     });
     if (full.length <= MAX_SHARE_HASH) {
       return { hash: full, outputs: true, long: false };

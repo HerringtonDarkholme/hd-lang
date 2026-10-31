@@ -5,11 +5,11 @@ import type { RunDiagnostic, RunMode, RunResult } from "./runner.ts";
 
 type Outcome = RunResult | "stopped" | "timeout";
 
-export function element<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
+export function element<Tag extends keyof HTMLElementTagNameMap>(
+  tag: Tag,
   className: string,
   text = "",
-): HTMLElementTagNameMap[K] {
+): HTMLElementTagNameMap[Tag] {
   const node = document.createElement(tag);
   node.className = className;
   node.textContent = text;

@@ -71,7 +71,9 @@ function parseHistory(text: string): { header: string[]; rows: string[][] } {
 function loadSeries(dir: string): { series: Series[]; latest: string } {
   const { header, rows } = parseHistory(readFileSync(join(dir, "history.tsv"), "utf8"));
   const col = (key: string): number => header.indexOf(key);
-  rows.sort((a, b) => (a[col("finished")] ?? "").localeCompare(b[col("finished")] ?? ""));
+  rows.sort((left, right) =>
+    (left[col("finished")] ?? "").localeCompare(right[col("finished")] ?? ""),
+  );
   // Goals live in the run files; the newest one names the current targets.
   const daily = join(dir, "daily");
   const newest = existsSync(daily)
@@ -196,11 +198,11 @@ interface Group {
 /** One row per metric script: missed if any target missed, its worst target's ratio. */
 function groups(series: readonly Series[]): Group[] {
   const by = new Map<string, Series[]>();
-  for (const s of series) {
-    by.set(s.metric, [...(by.get(s.metric) ?? []), s]);
+  for (const target of series) {
+    by.set(target.metric, [...(by.get(target.metric) ?? []), target]);
   }
   return [...by.entries()].map(([metric, targets]) => {
-    const statuses = targets.map((t) => t.points.at(-1)?.status ?? "n/a");
+    const statuses = targets.map((item) => item.points.at(-1)?.status ?? "n/a");
     let status: Status = "n/a";
     if (statuses.includes("fail")) {
       status = "fail";
@@ -209,15 +211,15 @@ function groups(series: readonly Series[]): Group[] {
     }
     let worst = targets[0]!;
     let ratio: number | null = null;
-    for (const t of targets) {
-      const r = goalRatio(t);
-      if (r !== null && (ratio === null || r > ratio)) {
-        ratio = r;
-        worst = t;
+    for (const target of targets) {
+      const targetRatio = goalRatio(target);
+      if (targetRatio !== null && (ratio === null || targetRatio > ratio)) {
+        ratio = targetRatio;
+        worst = target;
       }
     }
     if (ratio === null) {
-      worst = targets.find((t) => t.points.at(-1)?.status === "fail") ?? worst;
+      worst = targets.find((item) => item.points.at(-1)?.status === "fail") ?? worst;
     }
     return { metric, targets, status, ratio, worst };
   });
@@ -227,11 +229,11 @@ function groups(series: readonly Series[]): Group[] {
 function metShare(series: readonly Series[], runs: readonly string[]): (number | null)[] {
   return runs.map((run) => {
     const statuses = series
-      .map((s) => s.points.find((p) => p.finished === run)?.status)
-      .filter((s): s is Status => s === "pass" || s === "fail");
+      .map((item) => item.points.find((item) => item.finished === run)?.status)
+      .filter((item): item is Status => item === "pass" || item === "fail");
     return statuses.length === 0
       ? null
-      : (100 * statuses.filter((s) => s === "pass").length) / statuses.length;
+      : (100 * statuses.filter((item) => item === "pass").length) / statuses.length;
   });
 }
 
@@ -247,43 +249,46 @@ function trendChart(
   const width = 720;
   const height = 220;
   const pad = { left: 40, right: 150, top: 12, bottom: 28 };
-  const n = runs.length;
-  const x = (i: number): number =>
-    n === 1
+  const runCount = runs.length;
+  const xPosition = (i: number): number =>
+    runCount === 1
       ? pad.left + (width - pad.left - pad.right) / 2
-      : pad.left + (i * (width - pad.left - pad.right)) / (n - 1);
-  const y = (v: number): number => pad.top + ((100 - v) * (height - pad.top - pad.bottom)) / 100;
+      : pad.left + (i * (width - pad.left - pad.right)) / (runCount - 1);
+  const yPosition = (percent: number): number =>
+    pad.top + ((100 - percent) * (height - pad.top - pad.bottom)) / 100;
   const grid = [0, 50, 100]
     .map(
-      (v) =>
-        `<line class="metric-grid-line" x1="${pad.left}" x2="${width - pad.right}" y1="${y(v)}" y2="${y(v)}"/><text class="metric-tick" x="${pad.left - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`,
+      (percent) =>
+        `<line class="metric-grid-line" x1="${pad.left}" x2="${width - pad.right}" y1="${yPosition(percent)}" y2="${yPosition(percent)}"/><text class="metric-tick" x="${pad.left - 6}" y="${yPosition(percent) + 4}" text-anchor="end">${percent}%</text>`,
     )
     .join("");
-  const axis = n
-    ? `<text class="metric-tick" x="${x(0)}" y="${height - 8}" text-anchor="${n === 1 ? "middle" : "start"}">${escapeHtml(shortDate(runs[0]!))}</text>${n > 1 ? `<text class="metric-tick" x="${x(n - 1)}" y="${height - 8}" text-anchor="end">${escapeHtml(shortDate(runs[n - 1]!))}</text>` : ""}`
+  const axis = runCount
+    ? `<text class="metric-tick" x="${xPosition(0)}" y="${height - 8}" text-anchor="${runCount === 1 ? "middle" : "start"}">${escapeHtml(shortDate(runs[0]!))}</text>${runCount > 1 ? `<text class="metric-tick" x="${xPosition(runCount - 1)}" y="${height - 8}" text-anchor="end">${escapeHtml(shortDate(runs[runCount - 1]!))}</text>` : ""}`
     : "";
   const labels: { x: number; y: number; text: string }[] = [];
   const marks = lines
     .map(({ pillar, colour, values }) => {
       const pts = values
-        .map((v, i) => (v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`))
-        .filter((p): p is string => p !== null);
-      const last = values.findLastIndex((v) => v !== null);
+        .map((percent, i) =>
+          percent === null ? null : `${xPosition(i).toFixed(1)},${yPosition(percent).toFixed(1)}`,
+        )
+        .filter((item): item is string => item !== null);
+      const last = values.findLastIndex((value) => value !== null);
       const line =
         pts.length > 1
           ? `<polyline class="metric-series ${colour}" points="${pts.join(" ")}"/>`
           : "";
       const dots = values
-        .map((v, i) =>
-          v === null
+        .map((percent, i) =>
+          percent === null
             ? ""
-            : `<g class="metric-point ${colour}"><circle class="metric-hit" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="9"/><circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4"/><title>${escapeHtml(`${pillar.title}, ${shortDate(runs[i]!)}: ${Math.round(v)}% of targets met`)}</title></g>`,
+            : `<g class="metric-point ${colour}"><circle class="metric-hit" cx="${xPosition(i).toFixed(1)}" cy="${yPosition(percent).toFixed(1)}" r="9"/><circle cx="${xPosition(i).toFixed(1)}" cy="${yPosition(percent).toFixed(1)}" r="4"/><title>${escapeHtml(`${pillar.title}, ${shortDate(runs[i]!)}: ${Math.round(percent)}% of targets met`)}</title></g>`,
         )
         .join("");
       if (last >= 0) {
         labels.push({
-          x: x(last) + 10,
-          y: y(values[last]!) + 4,
+          x: xPosition(last) + 10,
+          y: yPosition(values[last]!) + 4,
           text: `${pillar.title} ${Math.round(values[last]!)}%`,
         });
       }
@@ -291,14 +296,14 @@ function trendChart(
     })
     .join("");
   // Direct labels at the line ends, pushed apart so they never overlap.
-  labels.sort((a, b) => a.y - b.y);
+  labels.sort((left, right) => left.y - right.y);
   for (let i = 1; i < labels.length; i++) {
     labels[i]!.y = Math.max(labels[i]!.y, labels[i - 1]!.y + 15);
   }
   const text = labels
     .map(
-      (l) =>
-        `<text class="metric-label" x="${l.x.toFixed(1)}" y="${l.y.toFixed(1)}">${escapeHtml(l.text)}</text>`,
+      (item) =>
+        `<text class="metric-label" x="${item.x.toFixed(1)}" y="${item.y.toFixed(1)}">${escapeHtml(item.text)}</text>`,
     )
     .join("");
   return `<svg class="metric-trend" viewBox="0 0 ${width} ${height}" role="img" aria-label="Share of targets met per pillar, per run">${grid}${axis}${marks}${text}</svg>`;
@@ -313,8 +318,8 @@ function goalChart(rows: readonly Group[]): string {
   const valueWidth = 230;
   const plot = width - labelWidth - valueWidth;
   const height = rows.length * rowHeight + 24;
-  const x = (r: number): number => labelWidth + (Math.min(r, cap) / cap) * plot;
-  const goalX = x(1);
+  const xPosition = (ratio: number): number => labelWidth + (Math.min(ratio, cap) / cap) * plot;
+  const goalX = xPosition(1);
   const bars = rows
     .map((row, i) => {
       const top = 8 + i * rowHeight;
@@ -332,7 +337,7 @@ function goalChart(rows: readonly Group[]): string {
       const bar =
         row.ratio === null
           ? ""
-          : `<rect class="metric-bar is-${row.status === "n/a" ? "na" : row.status}" x="${labelWidth}" y="${top + 4}" width="${Math.max(2, x(row.ratio) - labelWidth).toFixed(1)}" height="${rowHeight - 10}" rx="4"/>`;
+          : `<rect class="metric-bar is-${row.status === "n/a" ? "na" : row.status}" x="${labelWidth}" y="${top + 4}" width="${Math.max(2, xPosition(row.ratio) - labelWidth).toFixed(1)}" height="${rowHeight - 10}" rx="4"/>`;
       let icon = "–";
       if (row.status === "pass") {
         icon = "✓";
@@ -342,18 +347,18 @@ function goalChart(rows: readonly Group[]): string {
       return `<g class="metric-row"><title>${escapeHtml(`${row.metric}: ${row.targets.length} target(s); worst ${row.worst.name}: ${note}`)}</title><text class="metric-row-label" x="${labelWidth - 10}" y="${top + rowHeight / 2 + 3}" text-anchor="end">${escapeHtml(row.metric)}</text>${bar}<text class="metric-row-note is-${row.status === "n/a" ? "na" : row.status}" x="${labelWidth + plot + 10}" y="${top + rowHeight / 2 + 3}">${icon} ${escapeHtml(note)}</text></g>`;
     })
     .join("");
-  const goal = `<line class="metric-goal" x1="${goalX}" x2="${goalX}" y1="2" y2="${height - 18}"/><text class="metric-tick" x="${goalX}" y="${height - 4}" text-anchor="middle">goal</text><text class="metric-tick" x="${x(cap)}" y="${height - 4}" text-anchor="end">${cap}× or worse</text>`;
+  const goal = `<line class="metric-goal" x1="${goalX}" x2="${goalX}" y1="2" y2="${height - 18}"/><text class="metric-tick" x="${goalX}" y="${height - 4}" text-anchor="middle">goal</text><text class="metric-tick" x="${xPosition(cap)}" y="${height - 4}" text-anchor="end">${cap}× or worse</text>`;
   return `<svg class="metric-goals" viewBox="0 0 ${width} ${height}" role="img" aria-label="Each metric's worst target as a multiple of its goal">${goal}${bars}</svg>`;
 }
 
 /** The page body and its headings. */
 export function metricsPage(dir: string | undefined): { body: string; headings: Heading[] } {
   const headings: Heading[] = [];
-  const h = (level: number, id: string, text: string): string => {
+  const heading = (level: number, id: string, text: string): string => {
     headings.push({ level, id, text });
     return `<h${level} id="${id}">${escapeHtml(text)}</h${level}>`;
   };
-  const intro = `${h(1, "daily-goal-metrics", "Daily goal metrics")}
+  const intro = `${heading(1, "daily-goal-metrics", "Daily goal metrics")}
 <p>hd is built for programs written by coding agents, so we judge it with the <a href="https://x.com/hd_nvim/status/2107634125083451468"><em>Agentic Programming Language Arena</em></a>: three pillars that ask what agent-driven development actually costs and produces. Each pillar is kept on its own and compared on a Pareto frontier rather than folded into one score, because a faster compiler that makes agents retry more is not a win. Compiler correctness is a gate in front of all three. Every metric is a script with a fixed target; no AI or agent run is involved, and the same scripts run against any <code>hd</code> binary. They run twice a day, at 00:00 and 12:00 UTC.</p>`;
   if (!dir || !existsSync(join(dir, "history.tsv"))) {
     return {
@@ -364,25 +369,27 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
   const { series, latest } = loadSeries(dir);
   const pillarOf = new Map(METRICS.map((metric) => [metric.name, String(metric.pillar)]));
   const inPillar = (key: string): Series[] =>
-    series.filter((s) => (pillarOf.get(s.metric) ?? "") === key);
-  const runs = [...new Set(series.flatMap((s) => s.points.map((p) => p.finished)))].sort();
+    series.filter((item) => (pillarOf.get(item.metric) ?? "") === key);
+  const runs = [
+    ...new Set(series.flatMap((item) => item.points.map((item) => item.finished))),
+  ].sort();
   const parts = [intro];
 
-  const card = (p: Pillar, i: number): string => {
-    const targets = inPillar(p.key);
-    const met = targets.filter((s) => s.points.at(-1)?.status === "pass").length;
-    return `<div class="metric-pillar"><dt><span class="metric-swatch ${PILLAR_COLOUR[i]}"></span>${escapeHtml(p.title)}<span class="metric-count">${met} of ${targets.length} met</span></dt><dd><strong>${escapeHtml(p.question)}</strong> ${escapeHtml(p.explain)}</dd></div>`;
+  const card = (pillar: Pillar, i: number): string => {
+    const targets = inPillar(pillar.key);
+    const met = targets.filter((item) => item.points.at(-1)?.status === "pass").length;
+    return `<div class="metric-pillar"><dt><span class="metric-swatch ${PILLAR_COLOUR[i]}"></span>${escapeHtml(pillar.title)}<span class="metric-count">${met} of ${targets.length} met</span></dt><dd><strong>${escapeHtml(pillar.question)}</strong> ${escapeHtml(pillar.explain)}</dd></div>`;
   };
-  const gate = PILLARS.findIndex((p) => p.key === "gate");
+  const gate = PILLARS.findIndex((item) => item.key === "gate");
   parts.push(
-    h(2, "correctness-first", "First: correctness"),
+    heading(2, "correctness-first", "First: correctness"),
     `<dl class="metric-pillars">${card(PILLARS[gate]!, gate)}</dl>`,
-    h(2, "the-pillars", "The three pillars"),
-    `<dl class="metric-pillars">${PILLARS.map((p, i) => (p.key === "gate" ? "" : card(p, i))).join("")}</dl>`,
+    heading(2, "the-pillars", "The three pillars"),
+    `<dl class="metric-pillars">${PILLARS.map((item, i) => (item.key === "gate" ? "" : card(item, i))).join("")}</dl>`,
   );
 
   parts.push(
-    h(2, "trend", "Trend"),
+    heading(2, "trend", "Trend"),
     `<p class="metric-explain">The share of each pillar's targets that the run met. A line going up is progress; a drop after a commit is a regression worth reading. Hover a point for its run.</p>`,
     trendChart(
       PILLARS.map((pillar, i) => ({
@@ -395,12 +402,14 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
   );
 
   PILLARS.forEach((pillar) => {
-    const rows = groups(inPillar(pillar.key)).sort((a, b) => (b.ratio ?? -1) - (a.ratio ?? -1));
+    const rows = groups(inPillar(pillar.key)).sort(
+      (left, right) => (right.ratio ?? -1) - (left.ratio ?? -1),
+    );
     if (rows.length === 0) {
       return;
     }
     parts.push(
-      h(2, `pillar-${pillar.key}`, pillar.title),
+      heading(2, `pillar-${pillar.key}`, pillar.title),
       `<p class="metric-explain">${escapeHtml(pillar.question)} Each bar is one metric, drawn at its worst target's distance from the goal: left of the dashed line meets it, right of it misses by that multiple. Metrics without a numeric goal show only met or missed. The full list of targets is in the table below.</p>`,
       goalChart(rows),
     );
@@ -408,11 +417,11 @@ export function metricsPage(dir: string | undefined): { body: string; headings: 
 
   headings.push({ level: 2, id: "all-targets", text: "All targets" });
   const rows = series
-    .map((s) => {
-      const last = s.points.at(-1);
+    .map((target) => {
+      const last = target.points.at(-1);
       const pillar =
-        PILLARS.find((p) => p.key === (pillarOf.get(s.metric) ?? ""))?.title ?? "Other";
-      return `<tr><td>${escapeHtml(pillar)}</td><td>${escapeHtml(s.metric)}</td><td>${escapeHtml(s.name)}</td><td>${escapeHtml(last?.value ?? "-")}</td><td>${escapeHtml(s.target)}</td><td>${STATUS_LABEL[last?.status ?? "n/a"]}</td></tr>`;
+        PILLARS.find((item) => item.key === (pillarOf.get(target.metric) ?? ""))?.title ?? "Other";
+      return `<tr><td>${escapeHtml(pillar)}</td><td>${escapeHtml(target.metric)}</td><td>${escapeHtml(target.name)}</td><td>${escapeHtml(last?.value ?? "-")}</td><td>${escapeHtml(target.target)}</td><td>${STATUS_LABEL[last?.status ?? "n/a"]}</td></tr>`;
     })
     .join("");
   parts.push(

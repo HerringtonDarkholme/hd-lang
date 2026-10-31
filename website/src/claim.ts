@@ -68,7 +68,7 @@ export function claimCard(claim: Claim, headingLevel: 2 | 3 = 3): string {
   if (claim.marks.length === 0 || claim.marks.length > CLAIM_MAX_MARKS) {
     throw new Error(`${claim.title}: mark 1 to ${CLAIM_MAX_MARKS} punchline lines`);
   }
-  const h = `h${headingLevel}`;
+  const headingTag = `h${headingLevel}`;
   const contrast = claim.contrast
     ? `<p class="claim-contrast">${inlineCode(claim.contrast)}</p>`
     : "";
@@ -79,7 +79,7 @@ export function claimCard(claim: Claim, headingLevel: 2 | 3 = 3): string {
 </figure>`
     : "";
   return `<article class="claim">
-<${h} class="claim-title">${escapeHtml(claim.title)}</${h}>
+<${headingTag} class="claim-title">${escapeHtml(claim.title)}</${headingTag}>
 <p class="claim-blurb">${inlineCode(claim.blurb)}</p>
 ${markedCode(claim.code, claim.marks, "claim-code")}
 ${output}${contrast}

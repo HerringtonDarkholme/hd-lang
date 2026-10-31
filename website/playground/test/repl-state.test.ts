@@ -36,8 +36,8 @@ const KEPT = [
 /** A just-enough IDBFactory: one database with one object store, in memory. */
 function fakeIndexedDb(): IDBFactory {
   const data = new Map<string, unknown>();
-  const done = <T>(result: T): IDBRequest<T> => {
-    const req = {} as IDBRequest<T>;
+  const done = <Result>(result: Result): IDBRequest<Result> => {
+    const req = {} as IDBRequest<Result>;
     Object.defineProperty(req, "result", { get: () => result });
     setTimeout(() => (req as unknown as { onsuccess?: () => void }).onsuccess?.(), 0);
     return req;
@@ -63,7 +63,7 @@ test("a saved session loads back, and forgetting removes it", async () => {
   const idb = fakeIndexedDb();
   assert.equal(await saveState("k", state(), idb), "saved");
   const loaded = await loadState("k", idb);
-  assert.deepEqual(loaded, { ...state(), transcript: KEPT.map((e) => ({ ...e })) });
+  assert.deepEqual(loaded, { ...state(), transcript: KEPT.map((item) => ({ ...item })) });
   assert.equal(await loadState("other", idb), undefined);
   await forgetState("k", idb);
   assert.equal(await loadState("k", idb), undefined);
@@ -110,7 +110,7 @@ test("a share link round-trips inputs, journal and transcript", async () => {
   assert.equal(link.outputs, true);
   assert.match(link.hash, /^#repl=[zj]\.[A-Za-z0-9_-]+$/);
   const back = await sessionFromHash(link.hash);
-  assert.deepEqual(back, { ...state(), transcript: KEPT.map((e) => ({ ...e })) });
+  assert.deepEqual(back, { ...state(), transcript: KEPT.map((item) => ({ ...item })) });
   assert.deepEqual(await sessionFromHash(link.hash.slice(1)), back);
 });
 

@@ -56,11 +56,11 @@ const WELCOME =
 const counted = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? "" : "s"}`;
 
-function element<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
+function element<Tag extends keyof HTMLElementTagNameMap>(
+  tag: Tag,
   className = "",
   text = "",
-): HTMLElementTagNameMap[K] {
+): HTMLElementTagNameMap[Tag] {
   const node = document.createElement(tag);
   if (className) {
     node.className = className;
@@ -238,7 +238,7 @@ export class ReplPanel {
         this.line("repl-error", `error: ${started.error ?? "the session did not start"}`);
         return;
       }
-      for (const [, text] of [...state.inputs].sort((a, b) => a[0] - b[0])) {
+      for (const [, text] of [...state.inputs].sort((left, right) => left[0] - right[0])) {
         this.remember(text);
         await this.evaluate(text);
       }
@@ -676,9 +676,9 @@ export class ReplPanel {
 
   /** Reports a rebuild as `hd` reports `:reload`. */
   private rebuilt(rebuilt: ReplRebuilt, done: string): void {
-    for (const n of rebuilt.skipped) {
+    for (const count of rebuilt.skipped) {
       this.note(
-        `note: repl#${n} was stopped, so the rebuild skipped it; its changes are not restored`,
+        `note: repl#${count} was stopped, so the rebuild skipped it; its changes are not restored`,
       );
     }
     const [first] = rebuilt.dropped;
@@ -705,7 +705,7 @@ export class ReplPanel {
       this.note("note: the session starts again empty with the next input");
       return;
     }
-    const kept = rebuilt.kept.filter((n) => n !== 0).length;
+    const kept = rebuilt.kept.filter((item) => item !== 0).length;
     this.note(`${done}: ${counted(kept, "input")} replayed`);
   }
 }

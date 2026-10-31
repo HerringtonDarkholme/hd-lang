@@ -56,7 +56,7 @@ class Worker {
   async send(request: { kind: string; [field: string]: unknown }): Promise<ReplAnswer> {
     const id = this.nextId++;
     await this.host.handle({ ...request, id } as ReplRequest);
-    const found = this.messages.find((m) => m.kind === "repl" && m.id === id);
+    const found = this.messages.find((item) => item.kind === "repl" && item.id === id);
     assert.ok(found?.kind === "repl", `no answer to ${request.kind}`);
     if ("journal" in found.answer && found.answer.journal) {
       this.journal = found.answer.journal;
@@ -68,14 +68,14 @@ class Worker {
   printed(): [string, string] {
     let out = "";
     let err = "";
-    for (const m of this.messages) {
-      if (m.kind !== "repl-out") {
+    for (const message of this.messages) {
+      if (message.kind !== "repl-out") {
         continue;
       }
-      if (m.stream === "out") {
-        out += m.text;
+      if (message.stream === "out") {
+        out += message.text;
       } else {
-        err += m.text;
+        err += message.text;
       }
     }
     this.messages = [];
@@ -130,62 +130,65 @@ test("a diagnostic prints as hd prints it", () => {
 });
 
 test("inputs run under the page's numbers; a panic leaves the session going", async () => {
-  const w = new Worker();
-  const started = await w.start();
+  const worker = new Worker();
+  const started = await worker.start();
   assert.equal(started.ok, true, JSON.stringify(started));
   assert.ok(started.journal, "the start answers the journal");
-  const value = await w.input(1, "[3, 6]\n");
+  const value = await worker.input(1, "[3, 6]\n");
   assert.deepEqual([value.joined, value.end], [true, { kind: "exit", status: 0 }]);
-  assert.deepEqual(w.printed(), ["[3, 6] : List[usize]\n", ""]);
-  assert.equal((await w.input(2, "let total = 40\n")).joined, true);
-  assert.equal((await w.input(3, "total + 2\n")).joined, true);
-  assert.deepEqual(w.printed(), ["42 : usize\n", ""]);
-  const panic = await w.input(4, "[1][3]\n");
+  assert.deepEqual(worker.printed(), ["[3, 6] : List[usize]\n", ""]);
+  assert.equal((await worker.input(2, "let total = 40\n")).joined, true);
+  assert.equal((await worker.input(3, "total + 2\n")).joined, true);
+  assert.deepEqual(worker.printed(), ["42 : usize\n", ""]);
+  const panic = await worker.input(4, "[1][3]\n");
   assert.deepEqual([panic.joined, panic.end], [false, { kind: "trapped" }]);
-  assert.deepEqual(w.printed(), ["", "panic: index-out-of-bounds: list index out of bounds\n"]);
+  assert.deepEqual(worker.printed(), [
+    "",
+    "panic: index-out-of-bounds: list index out of bounds\n",
+  ]);
   // A number the page skipped is fine: numbers only go up.
-  const unknown = await w.input(7, "nope + total\n");
+  const unknown = await worker.input(7, "nope + total\n");
   assert.equal(unknown.end, null);
   assert.deepEqual(unknown.diagnostics, ["error: repl#7:1:1: unknown-name: `nope` is not defined"]);
-  const again = await w.input(8, "let total = 1\n");
+  const again = await worker.input(8, "let total = 1\n");
   assert.match(again.diagnostics[0]!, /^error: repl#8:1:5: duplicate-binding: .*repl#2/);
-  assert.equal((await w.input(9, "dbg(total)\n")).joined, true);
-  assert.deepEqual(w.printed(), ["", "repl#9:1:1: total = 40\n"]);
+  assert.equal((await worker.input(9, "dbg(total)\n")).joined, true);
+  assert.deepEqual(worker.printed(), ["", "repl#9:1:1: total = 40\n"]);
   // A trait the browser lacks stops the input before it runs, as Run does.
-  const fs = await w.input(
+  const fs = await worker.input(
     10,
     'use std.fs.{read_text}\nuse std.path.Path\n_ := read_text!(Path("a.txt"))\n',
   );
   assert.deepEqual([fs.diagnostics, fs.end], [[], null]);
   assert.equal(fs.error, "repl#10 needs FsRead, which the playground does not provide");
-  assert.equal((await w.input(11, "total\n")).joined, true);
-  assert.deepEqual(w.printed(), ["40 : usize\n", ""]);
+  assert.equal((await worker.input(11, "total\n")).joined, true);
+  assert.deepEqual(worker.printed(), ["40 : usize\n", ""]);
 });
 
 test("a stop cancels an input that waits; its defer suite runs", async () => {
-  const w = new Worker();
-  await w.start();
-  await w.input(1, "use std.time.{sleep, Duration}\n");
-  await w.input(2, "let woke = 0\n");
-  await w.input(
+  const worker = new Worker();
+  await worker.start();
+  await worker.input(1, "use std.time.{sleep, Duration}\n");
+  await worker.input(2, "let woke = 0\n");
+  await worker.input(
     3,
     'fn nap!() -> void:\n    defer:\n        woke = 1\n        dbg("woke")\n    sleep!(Duration.seconds(+30))\n',
   );
-  w.printed();
+  worker.printed();
   const begun = performance.now();
-  const nap = await w.input(4, "nap!()\n", () => setTimeout(() => w.stop(), 50));
+  const nap = await worker.input(4, "nap!()\n", () => setTimeout(() => worker.stop(), 50));
   assert.ok(performance.now() - begun < 10_000, "the stop did not cancel the sleep");
   assert.deepEqual([nap.joined, nap.end], [false, { kind: "cancelled" }]);
-  assert.deepEqual(w.printed(), [
+  assert.deepEqual(worker.printed(), [
     "",
     'repl#3:4:9: "woke" = "woke"\ncancelled\nnote: repl#4 was cancelled, so the next rebuild skips it; its changes are not restored\n',
   ]);
-  await w.input(5, "woke\n");
-  assert.deepEqual(w.printed(), ["0 : usize\n", ""]);
+  await worker.input(5, "woke\n");
+  assert.deepEqual(worker.printed(), ["0 : usize\n", ""]);
   // The next input already rebuilt without the cancelled input. A fresh
   // worker replays that same kept prefix without losing more inputs.
   const fresh = new Worker();
-  const rebuilt = await w.rebuildIn(fresh);
+  const rebuilt = await worker.rebuildIn(fresh);
   assert.deepEqual(
     [rebuilt.ok, rebuilt.kept, rebuilt.skipped, rebuilt.dropped],
     [true, [1, 2, 3, 5], [], []],
@@ -197,13 +200,13 @@ test("a stop cancels an input that waits; its defer suite runs", async () => {
 });
 
 test("a module use of an earlier input survives a rebuild", async () => {
-  const w = new Worker();
-  await w.start();
-  await w.input(1, "use std.path\n");
-  await w.input(2, "use std.cmp as c\n");
-  await w.input(3, 'println(path.Path("a").join("b").parent().is_some())\n');
+  const worker = new Worker();
+  await worker.start();
+  await worker.input(1, "use std.path\n");
+  await worker.input(2, "use std.cmp as c\n");
+  await worker.input(3, 'println(path.Path("a").join("b").parent().is_some())\n');
   const fresh = new Worker();
-  const rebuilt = await w.rebuildIn(fresh);
+  const rebuilt = await worker.rebuildIn(fresh);
   assert.deepEqual([rebuilt.ok, rebuilt.dropped, rebuilt.error], [true, [], null]);
   assert.deepEqual(fresh.printed(), ["", ""], "a rebuild prints nothing");
   await fresh.input(4, 'println(path.Path("a").join("b").parent().is_some())\n');
@@ -215,22 +218,22 @@ test("a module use of an earlier input survives a rebuild", async () => {
 });
 
 test("a terminated worker's session comes back in a fresh one under the same numbers", async () => {
-  const w = new Worker();
-  await w.start();
-  await w.input(1, "use std.time.{now}\n");
-  await w.input(2, "let total = 40\n");
-  await w.input(3, "started := now().unix_milliseconds()\n");
-  await w.input(4, "total = total + 1\n");
-  await w.input(5, "missing\n");
-  await w.input(6, "fn twice(n: usize) -> usize: n * 2\n");
-  const [, before] = [w.printed(), await w.input(7, "started\n")];
+  const worker = new Worker();
+  await worker.start();
+  await worker.input(1, "use std.time.{now}\n");
+  await worker.input(2, "let total = 40\n");
+  await worker.input(3, "started := now().unix_milliseconds()\n");
+  await worker.input(4, "total = total + 1\n");
+  await worker.input(5, "missing\n");
+  await worker.input(6, "fn twice(n: usize) -> usize: n * 2\n");
+  const [, before] = [worker.printed(), await worker.input(7, "started\n")];
   assert.equal(before.joined, true);
-  const [shown] = w.printed();
+  const [shown] = worker.printed();
   // Input 8, `while true: pass`, computes; the page terminates the worker
   // with the journal it held after input 7, and input 8 is not in it.
-  w.sources.set(8, "while true:\n    pass\n");
+  worker.sources.set(8, "while true:\n    pass\n");
   const fresh = new Worker();
-  const rebuilt = await w.rebuildIn(fresh);
+  const rebuilt = await worker.rebuildIn(fresh);
   assert.deepEqual(
     [rebuilt.ok, rebuilt.kept, rebuilt.skipped, rebuilt.dropped, rebuilt.error],
     [true, [1, 2, 3, 4, 6, 7], [], [], null],
@@ -245,27 +248,27 @@ test("a terminated worker's session comes back in a fresh one under the same num
 });
 
 test("a rebuild over edited files drops the first input that no longer builds", async () => {
-  const w = new Worker();
-  const started = await w.start({ "src/lib.hd": "fn rate() -> usize: 3\n" });
+  const worker = new Worker();
+  const started = await worker.start({ "src/lib.hd": "fn rate() -> usize: 3\n" });
   assert.equal(started.ok, true, JSON.stringify(started));
-  await w.input(1, "let base = 10\n");
-  await w.input(2, "base * rate()\n");
-  await w.input(3, "base + 1\n");
-  assert.deepEqual(w.printed(), ["30 : usize\n11 : usize\n", ""]);
-  const rebuilt = await w.rebuildIn(w, { "src/lib.hd": "fn ratio() -> usize: 3\n" });
+  await worker.input(1, "let base = 10\n");
+  await worker.input(2, "base * rate()\n");
+  await worker.input(3, "base + 1\n");
+  assert.deepEqual(worker.printed(), ["30 : usize\n11 : usize\n", ""]);
+  const rebuilt = await worker.rebuildIn(worker, { "src/lib.hd": "fn ratio() -> usize: 3\n" });
   assert.deepEqual([rebuilt.ok, rebuilt.kept, rebuilt.dropped], [true, [1], [2, 3]]);
   assert.equal(rebuilt.reason, "repl#2 no longer builds");
   assert.match(rebuilt.diagnostics[0]!, /^error: repl#2:1:8: unknown-name: /);
-  await w.input(4, "base * ratio()\n");
-  assert.deepEqual(w.printed(), ["30 : usize\n", ""]);
+  await worker.input(4, "base * ratio()\n");
+  assert.deepEqual(worker.printed(), ["30 : usize\n", ""]);
   // A library that does not parse fails only the inputs that name it
   // (lib.hd loads lazily, #159): input 1 stays, input 4 is dropped.
-  const broken = await w.rebuildIn(w, { "src/lib.hd": "fn ratio( -> usize: 3\n" });
+  const broken = await worker.rebuildIn(worker, { "src/lib.hd": "fn ratio( -> usize: 3\n" });
   assert.deepEqual([broken.ok, broken.kept, broken.dropped], [true, [1], [4]]);
   assert.match(broken.diagnostics[0]!, /^error: src\/lib\.hd:1:/);
   // Quit ends a session; a start begins a new one.
-  assert.deepEqual(await w.send({ kind: "repl-quit" }), { type: "ended" });
-  assert.equal((await w.start()).ok, true);
-  await w.input(1, "1 + 1\n");
-  assert.deepEqual(w.printed(), ["2 : usize\n", ""]);
+  assert.deepEqual(await worker.send({ kind: "repl-quit" }), { type: "ended" });
+  assert.equal((await worker.start()).ok, true);
+  await worker.input(1, "1 + 1\n");
+  assert.deepEqual(worker.printed(), ["2 : usize\n", ""]);
 });
