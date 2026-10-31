@@ -6,8 +6,11 @@
 //! ownership passes put there; a copy of the binding shares the entry.
 //! An access through a counted reference that a registered loan of the
 //! program could overlap checks the table ([`Helper::LoanCheck`]) and
-//! panics `borrow-conflict` on a conflicting overlap. A program with no
-//! such binding emits none of this.
+//! panics `borrow-conflict` on a conflicting overlap. A call's result
+//! that such a binding stores takes the loan of the argument the checker
+//! found it holds ([`Body::held_args`]), keyed by that argument's address,
+//! which a local of its own keeps. A program with no such binding emits
+//! none of this.
 
 use hd_base::StageResult;
 use hd_mono::{ProgramEnv, Sub, subst};
@@ -18,7 +21,7 @@ use wasm_encoder::BlockType;
 use super::Em;
 use crate::Input;
 use crate::layout::{Kind, kind, mem as mem_of, ref_mutable};
-use crate::module::{Global, Module};
+use crate::module::{Global, Module, Val};
 use crate::op::Op as I;
 use crate::rt::Helper;
 
@@ -37,18 +40,22 @@ pub struct Loan {
 pub(super) enum Bind {
     /// A new loan of the stored reference's place.
     Begin,
-    /// A copy of another holder: one more count of its entry.
-    Share,
-    /// A move from another holder: the entry passes over.
-    Move,
+    /// A new loan of what a call's argument `.0` refers to.
+    Call(u32),
+    /// A copy of holder `.0`: one more count of its entry.
+    Share(usize),
+    /// A move from holder `.0`: the entry passes over.
+    Move(usize),
 }
 
-/// A binding that holds a registered loan: its referent's size and
-/// whether it is `&mut`, which with its value key the loan's entry.
-#[derive(Clone, Copy)]
+/// A binding that holds a registered loan: its loan's size and whether it
+/// is `&mut`, which with its value, or for a call's result the address in
+/// its key local (`keyed`), key the loan's entry.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct Holder {
     size: u32,
     excl: bool,
+    keyed: bool,
 }
 
 /// The type at the end of the struct field `f` of type `t`.
@@ -129,10 +136,50 @@ fn overlap(a: &[u32], b: &[u32]) -> bool {
     a.iter().zip(b).all(|(x, y)| x == y)
 }
 
+/// The loan argument `a` of a call takes: a `Ref`'s place inside a
+/// counted object, or the whole object a `*mut` refers to.
+fn arg_loan(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    a: u32,
+) -> Option<Loan> {
+    let excl = ref_mutable(pool, env, sub(*b.ty.get(a as usize)?));
+    if b.tags[a as usize] == Tag::Ref {
+        let p = b.decode_place(b.data[a as usize][0])?;
+        let root = match p.root {
+            PlaceRoot::Local(r) => sub(b.local_ty[r.idx()]),
+            PlaceRoot::Global(_, t) => sub(t),
+            _ => return None,
+        };
+        let (object, path) = loan_place(pool, env, root, &p)?;
+        return Some(Loan { object, path, excl });
+    }
+    let mut v = a as usize;
+    while b.same_value_coercion(v) {
+        v = b.data[v][0] as usize;
+    }
+    let t = sub(*b.ty.get(v)?);
+    match kind(pool, env, t) {
+        Kind::Ref {
+            target,
+            fat: false,
+            whole: true,
+        } if ref_mutable(pool, env, t) => Some(Loan {
+            object: target,
+            path: Vec::new(),
+            excl,
+        }),
+        _ => None,
+    }
+}
+
 /// Each `Store` of a body into a bare local binding that registers a
 /// loan, by the binding: a loan-taking `Ref` of a place inside a counted
-/// object, or a copy or a move of another such binding. `ty` gives a
-/// local's or an instruction's type at this instance.
+/// object, a call's result that holds one ([`Body::held_args`]), or a
+/// copy or a move of another such binding. `ty` gives a local's or an
+/// instruction's type at this instance.
 fn binds(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -161,24 +208,23 @@ fn binds(
             if out.iter().any(|x| x.0 == i) || !bare(l) || v >= b.tags.len() {
                 continue;
             }
+            let mut c = v;
+            while b.same_value_coercion(c) {
+                c = b.data[c][0] as usize;
+            }
+            let held = b.held_args.iter().find(|r| r.0 as usize == c);
             let found = match b.tags[v] {
-                Tag::Ref => b.decode_place(b.data[v][0]).and_then(|p| {
-                    let root = match p.root {
-                        PlaceRoot::Local(r) => sub(b.local_ty[r.idx()]),
-                        PlaceRoot::Global(_, t) => sub(t),
-                        _ => return None,
-                    };
-                    let (object, path) = loan_place(pool, env, root, &p)?;
-                    let excl = ref_mutable(pool, env, sub(b.ty[v]));
-                    Some((Bind::Begin, Some(Loan { object, path, excl })))
-                }),
-                Tag::Read => b.local_read(v).and_then(|m| {
-                    out.iter().any(|x| x.1 == m.idx()).then(|| {
+                Tag::Ref => arg_loan(pool, env, b, sub, u32::try_from(v).expect("insts"))
+                    .map(|loan| (Bind::Begin, Some(loan))),
+                Tag::Read => b.local_read(v).map(hd_base::LocalId::idx).and_then(|m| {
+                    out.iter().any(|x| x.1 == m).then(|| {
                         let copy = b.data[v][1] == ReadMode::Copy as u32;
-                        (if copy { Bind::Share } else { Bind::Move }, None)
+                        (if copy { Bind::Share(m) } else { Bind::Move(m) }, None)
                     })
                 }),
-                _ => None,
+                _ => held.and_then(|&(_, a)| {
+                    Some((Bind::Call(a), Some(arg_loan(pool, env, b, sub, a)?)))
+                }),
             };
             if let Some((bind, loan)) = found {
                 out.push((i, l, bind, loan));
@@ -215,25 +261,74 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
 
 impl Em<'_, '_, '_> {
     /// Finds the body's holder bindings and the stores that bind them,
-    /// when the program registers loans at all.
-    pub(super) fn find_holders(&mut self) {
+    /// when the program registers loans at all. A suspending body, whose
+    /// frame keeps no key local, registers no call's result. A binding
+    /// keeps its first holder's key.
+    pub(super) fn find_holders(&mut self, suspending: bool) {
         if self.m.loans.is_empty() {
             return;
         }
         let sub = |t| self.sub(t);
         let found = binds(self.pool(), self.env(), self.b, &sub);
-        for (i, l, bind, _) in found {
-            let ty = self.sub(self.b.local_ty[l]);
-            let Kind::Ref { target, .. } = self.kind(ty) else {
-                continue;
+        for (i, l, bind, loan) in found {
+            let keyed = match bind {
+                Bind::Share(m) | Bind::Move(m) => self.holders.get(&m).filter(|h| h.keyed),
+                _ => None,
             };
-            let Ok(m) = mem_of(self.pool(), self.env(), target) else {
-                continue;
+            let h = if let Some(&h) = keyed {
+                h
+            } else {
+                let ty = self.sub(self.b.local_ty[l]);
+                let (target, excl, keyed) = match (bind, loan) {
+                    (Bind::Call(_), Some(loan)) if !suspending => {
+                        let t = self.fold_path(loan.object, &loan.path).ok();
+                        (t.map(|x| x.0), loan.excl, true)
+                    }
+                    (Bind::Call(_), _) => continue,
+                    _ => match self.kind(ty) {
+                        Kind::Ref { target, .. } => (
+                            Some(target),
+                            ref_mutable(self.pool(), self.env(), ty),
+                            false,
+                        ),
+                        _ => continue,
+                    },
+                };
+                let Some(Ok(m)) = target.map(|t| mem_of(self.pool(), self.env(), t)) else {
+                    continue;
+                };
+                Holder {
+                    size: m.size,
+                    excl,
+                    keyed,
+                }
             };
-            let excl = ref_mutable(self.pool(), self.env(), ty);
-            self.holders.insert(l, Holder { size: m.size, excl });
+            if self.holders.get(&l).is_some_and(|o| *o != h) {
+                continue;
+            }
+            self.holders.insert(l, h);
             self.binds.insert(u32::try_from(i).expect("insts"), bind);
+            if let Bind::Call(a) = bind {
+                self.held_srcs.insert(a, None);
+            }
         }
+    }
+
+    /// The Wasm local that keeps the address keying the loan of keyed
+    /// holder `l`.
+    fn loan_key(&mut self, l: usize) -> u32 {
+        if let Some(&k) = self.loan_keys.get(&l) {
+            return k;
+        }
+        let k = self.f.local(Val::I32);
+        self.loan_keys.insert(l, k);
+        k
+    }
+
+    /// Pushes the address keying holder `l`'s loan, `x` its value's local.
+    fn push_key(&mut self, l: usize, h: Holder, x: u32) {
+        let k = if h.keyed { self.loan_key(l) } else { x };
+        self.f.get(k);
     }
 
     /// Whether local `l` holds a registered loan: a holder binding with a
@@ -256,7 +351,7 @@ impl Em<'_, '_, '_> {
     /// its release: one count less of its entry.
     pub(super) fn loan_release(&mut self, l: usize, ls: &[u32]) {
         if let (Some(h), Some(&x)) = (self.holder(l), ls.first()) {
-            self.f.get(x);
+            self.push_key(l, h, x);
             self.loan_count(h, -1);
         }
     }
@@ -276,30 +371,60 @@ impl Em<'_, '_, '_> {
     }
 
     /// After `Store` `i` into a holder binding: its new loan's entry, or
-    /// one more count of the entry of the binding it copied.
-    pub(super) fn loan_after_store(&mut self, i: u32) {
+    /// one more count of the entry of the binding it copied. After the
+    /// argument of a call whose result a holder binds: the address that
+    /// keys the loan, kept before the call or an inlined copy moves it.
+    pub(super) fn loan_after_store(&mut self, i: u32) -> StageResult<()> {
+        if let Some(None) = self.held_srcs.get(&i)
+            && self.vals.contains_key(&i)
+        {
+            let k = self.f.local(Val::I32);
+            self.comp(i, 0)?;
+            self.f.set(k);
+            self.held_srcs.insert(i, Some(k));
+        }
         let Some(&bind) = self.binds.get(&i) else {
-            return;
+            return Ok(());
         };
         let Some((l, true)) = self.b.stored_local(i as usize) else {
-            return;
+            return Ok(());
         };
+        let l = l.idx();
         let (Some(h), Some(&x)) = (
-            self.holder(l.idx()),
-            self.locals.get(&l.idx()).and_then(|ls| ls.first()),
+            self.holder(l),
+            self.locals.get(&l).and_then(|ls| ls.first()),
         ) else {
-            return;
+            return Ok(());
         };
-        self.f.get(x);
+        // A keyed holder's key: the address its call's argument held, or
+        // the key of the holder it copies.
+        let from = match bind {
+            Bind::Call(a) => self.held_srcs.get(&a).copied().flatten(),
+            Bind::Share(m) | Bind::Move(m) if h.keyed => Some(self.loan_key(m)),
+            _ => None,
+        };
+        if h.keyed {
+            let k = self.loan_key(l);
+            match from {
+                Some(f) => self.f.get(f),
+                None => self.f.i32(0),
+            }
+            self.f.set(k);
+            if matches!(bind, Bind::Move(_)) || from.is_none() {
+                return Ok(());
+            }
+        }
+        self.push_key(l, h, x);
         match bind {
-            Bind::Begin => {
+            Bind::Begin | Bind::Call(..) => {
                 self.f.u32(h.size);
                 self.f.i32(i32::from(h.excl));
                 self.f.helper(Helper::LoanBegin);
             }
-            Bind::Share => self.loan_count(h, 1),
-            Bind::Move => self.f.op(I::Drop),
+            Bind::Share(_) => self.loan_count(h, 1),
+            Bind::Move(_) => self.f.op(I::Drop),
         }
+        Ok(())
     }
 
     /// Whether an access of `path` in a `object`, a write or a read, may

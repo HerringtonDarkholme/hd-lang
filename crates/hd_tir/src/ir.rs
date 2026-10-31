@@ -850,6 +850,11 @@ pub struct Body {
     /// none (`flow.panic.report.fallback`). Sorted by instruction. A
     /// location-like column, outside the hash: it changes no code.
     pub fallback: Vec<[u32; 2]>,
+    /// The calls whose result a bare `&T` or `&mut T` binding stores: per
+    /// row, the call and the argument whose reference the result holds
+    /// (`ref.excl.call`), which the backend may register as a run-time
+    /// loan (`ref.excl.alias.loan`). The checker's output, hashed.
+    pub held_args: Vec<(u32, u32)>,
     /// The ownership passes' exit set (`docs/compiler/tir-v2.md`,
     /// "Ownership statements"): per row, a sub-body and an owned local of
     /// it that may still hold a value at the sub-body's one exit, which
@@ -931,6 +936,7 @@ impl Body {
             strings: vec![],
             label: "".into(),
             fallback: vec![],
+            held_args: vec![],
             exit_drops: vec![],
             unwind_drops: vec![],
             full_cells: vec![],
@@ -2510,6 +2516,9 @@ pub fn print(b: &Body) -> String {
     for [inst, local] in &b.fallback {
         let _ = writeln!(o, "fallback {inst} {local}");
     }
+    for (call, arg) in &b.held_args {
+        let _ = writeln!(o, "heldarg {call} {arg}");
+    }
     for (sub, local) in &b.exit_drops {
         let _ = writeln!(o, "exitdrop {} {}", sub.raw(), local.raw());
     }
@@ -2664,6 +2673,10 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
                 b.fallback.push([v[0], v[1]]);
             }
+            "heldarg" => match nums(1)?[..] {
+                [c, a] => b.held_args.push((c, a)),
+                _ => return Err(e("heldarg needs 2 fields".into())),
+            },
             "exitdrop" => {
                 let v = nums(1)?;
                 if v.len() != 2 {

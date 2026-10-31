@@ -371,6 +371,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(), String> {
     for &[i, l] in &k.fallback {
         out.fallback.push([i, if l == 0 { 0 } else { l + lbase }]);
     }
+    out.held_args.append(&mut k.held_args);
     Ok(())
 }
 

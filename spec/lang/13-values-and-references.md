@@ -665,12 +665,15 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
     alias.name = "b"   # panics borrow-conflict when alias is t.lead
     println(*n)        # the last use of n
     alias.name = "c"   # valid
+    m := t.lead.name() # a result of `fn name(&self) -> &string`
+    alias.age += 1     # panics borrow-conflict: m holds all of t.lead
+    println(*m)
 ```
 
-1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, directly or as a copy of another such binding. The last dereference in `p`'s path reads a `*mut`, and only fields follow it. The loan covers the address range of `p`'s value and is live until the last use of every binding that holds it ([`ref.excl.live`](#r-ref.excl.live)).
+1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, directly, through a call's result that depends on it ([`ref.excl.call`](#r-ref.excl.call)), or as a copy of another such binding. The last dereference in `p`'s path reads a `*mut`, and only fields follow it. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan covers the address range of `p`'s value and is live until the last use of every binding that holds it ([`ref.excl.live`](#r-ref.excl.live)).
 2. r[ref.excl.alias.access] An **access through a counted reference** is a use of a place whose last dereference reads a `*mut` or a `*T`, with only fields after it. An assignment, a `&mut` and a built-in change of the place write it; a read and a `&` read it. A call that takes a `*mut` writes the whole object it refers to, and a call that takes a `*T` reads it. The arguments of a bang call are not accesses.
 3. r[ref.excl.alias.conflict] An access through a counted reference whose address range overlaps a live run-time loan's panics when it writes, or when the loan is a `&mut`. Panic: `borrow-conflict`.
-4. r[ref.excl.alias.unchecked] Other references take no run-time loan, so an alias reads or writes their place in place. These are a call's result, the reference a call takes for one call, a reference inside an optional, a tuple or a struct, and a reference through a `*T`. Nor does replacing a `*mut` on a loan's path conflict with the loan; the reference keeps the old object alive.
+4. r[ref.excl.alias.unchecked] Other references take no run-time loan, so an alias reads or writes their place in place. These are the reference a call takes for one call, a reference inside an optional, a tuple or a struct, and a reference through a `*T`. Nor does replacing a `*mut` on a loan's path conflict with the loan; the reference keeps the old object alive.
 
 ### Lifetime Variables
 

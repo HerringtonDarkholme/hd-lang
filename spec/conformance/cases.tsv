@@ -5558,3 +5558,5 @@ runtime/panic/alias-write-under-copied-loan-panics.hd	runtime	panic:borrow-confl
 runtime/panic/alias-write-under-shared-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/alias-write-after-loan-last-use-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/valid/alias-write-to-disjoint-field-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.access
+runtime/panic/alias-write-under-call-result-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/valid/alias-write-beside-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
