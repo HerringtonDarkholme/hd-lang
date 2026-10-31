@@ -1311,6 +1311,27 @@ pre.ebnf .eb-definition:target {
   mask-image: linear-gradient(to bottom, #000 70%, transparent);
 }
 
+/*
+ * With WebGL, site.js draws the sky into a canvas (stars, silk, glow and
+ * horizon), so the style sheet's own stars and horizon step aside.
+ */
+.hero-sky-gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-sky.has-gl {
+  bottom: -72px;
+  background: none;
+  mask-image: linear-gradient(to bottom, #000 82%, transparent);
+}
+
+.hero-sky.has-gl::after {
+  display: none;
+}
+
 /* The horizon: a vast planet's rim, lit mint from behind. */
 .hero-sky::after {
   content: "";

@@ -1,7 +1,7 @@
 // Client behavior for the hd-lang site: the mobile navigation toggle, the
 // theme toggle, heading search, copy buttons on code blocks, passing
 // `#code=` from the playground page to the playground, and the home page's
-// claims explorers, linked lines, and widening cards.
+// claims explorers, linked lines, widening cards, and the hero's animated sky.
 
 const base = document.body.dataset.base ?? "/";
 
@@ -508,6 +508,496 @@ function setupWiden() {
   }
 }
 
+/**
+ * The hero logo's satellite rests at the top of its orbit. Now and then, or
+ * when the logo is hovered or clicked, it makes one eased lap round the ring
+ * and settles home. On the far side it passes behind the letters: the logo
+ * draws the ball twice, under the letters and over them, and the two
+ * cross-fade where the orbit turns. With reduced motion it stays at rest.
+ */
+// Where the ball is, in the logo's own units; the sky's rose glow follows it.
+const satellite = { x: 1162, y: 318 };
+
+function setupOrbit() {
+  const logo = document.querySelector(".hero-logo");
+  const front = logo?.querySelector(".logo-ball-front");
+  const back = logo?.querySelector(".logo-ball-back");
+  if (!front || !back) {
+    return;
+  }
+  const balls = [...logo.querySelectorAll(".logo-ball, .logo-ball-glow")];
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+  // The orbit's centre line as traced with the logo: an ellipse about
+  // (cx, cy) with radii rx and ry, tilted, and a little wider on its near side.
+  const [cx, cy, rx, ry, tilt, swell] = [621.4, 627.8, 630.2, 146.6, -0.508, 0.185];
+  const along = (deg) => {
+    const angle = (deg * Math.PI) / 180;
+    const major = rx * Math.cos(angle);
+    const minor = ry * Math.sin(angle) * (1 + swell * Math.cos(angle));
+    return [
+      cx + major * Math.cos(tilt) - minor * Math.sin(tilt),
+      cy + major * Math.sin(tilt) + minor * Math.cos(tilt),
+    ];
+  };
+  const home = [satellite.x, satellite.y];
+  const start = along(0);
+  const clamp = (value) => Math.min(1, Math.max(0, value));
+  const place = (deg) => {
+    const [atX, atY] = along(deg);
+    satellite.x = atX + home[0] - start[0];
+    satellite.y = atY + home[1] - start[1];
+    // Nearer the viewer on the front of the orbit, so a little larger.
+    const size = 1 + 0.16 * Math.sin((deg * Math.PI) / 180);
+    const transform = `translate(${satellite.x} ${satellite.y}) scale(${size}) translate(${-home[0]} ${-home[1]})`;
+    for (const ball of balls) {
+      ball.setAttribute("transform", transform);
+    }
+    // In front from just before home round the near side, fading over ten
+    // degrees at each turn.
+    const turn = deg > 270 ? deg - 360 : deg;
+    const shown = clamp((turn + 18) / 10) * clamp((198 - turn) / 10);
+    front.setAttribute("opacity", String(shown));
+    back.setAttribute("opacity", String((1 - shown) * 0.9));
+  };
+
+  const LAP = 5200;
+  const REST = 12000;
+  const ease = (part) => (part < 0.5 ? 4 * part ** 3 : 1 - (2 - 2 * part) ** 3 / 2);
+  let visible = true;
+  let started = -1;
+  let timer = 0;
+  const schedule = (delay) => {
+    clearTimeout(timer);
+    timer = setTimeout(lap, delay);
+  };
+  const step = (now) => {
+    const done = Math.min(1, (now - started) / LAP);
+    place((360 * ease(done)) % 360);
+    if (done < 1) {
+      requestAnimationFrame(step);
+      return;
+    }
+    started = -1;
+    place(0);
+    schedule(REST);
+  };
+  function lap() {
+    if (started >= 0) {
+      return;
+    }
+    if (still.matches || document.hidden || !visible) {
+      schedule(REST);
+      return;
+    }
+    clearTimeout(timer);
+    started = performance.now();
+    requestAnimationFrame(step);
+  }
+  new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+  }).observe(logo);
+  logo.addEventListener("pointerenter", lap);
+  logo.addEventListener("click", lap);
+  schedule(3500);
+}
+
+/**
+ * The hero's sky, drawn by a WebGL fragment shader behind the hero: a veil
+ * of silk sweeping in from the lower left with a bright crest, rings about
+ * the logo, stars, and a planet's horizon over a glossy floor. It drifts slowly and leans with the pointer, or with the
+ * device's tilt where the browser gives it without asking. It draws only
+ * while the hero is on screen, draws one still frame for reduced motion,
+ * and leaves the style sheet's sky in place where WebGL is missing.
+ */
+const SKY_SHADER = `
+precision highp float;
+uniform vec2 u_res;
+uniform float u_time;
+uniform vec2 u_pointer;
+uniform float u_light;
+uniform vec3 u_logo;
+uniform float u_floor;
+uniform vec4 u_text;
+uniform vec2 u_sat;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = p * 2.03 + vec2(1.7, 9.2);
+    a *= 0.5;
+  }
+  return v;
+}
+
+// Broken filaments running along a sheet: thin lines at whole numbers of x,
+// each lit in patches that drift along the sheet.
+float filaments(float x, float along, float t, float seed) {
+  float id = floor(x + 0.5);
+  float d = abs(x - id);
+  float lit = noise(vec2(along * 4.0 - t * 1.5 + hash(vec2(id, seed)) * 20.0, id * 0.7 + seed));
+  return exp(-d * d * 60.0) * smoothstep(0.45, 0.85, lit) * hash(vec2(seed, id));
+}
+
+// The distance from p to the curve y = a x^2 + b x + c, measured across it.
+float across(vec2 p, vec3 k) {
+  float slope = 2.0 * k.x * p.x + k.y;
+  return (p.y - (k.x * p.x * p.x + k.y * p.x + k.z)) / sqrt(1.0 + slope * slope);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  float t = u_time * 0.05;
+  // Positions measured from the logo's centre, in widths of its orbit.
+  vec2 q = (gl_FragCoord.xy - u_logo.xy) / u_logo.z;
+  float px = u_logo.z;
+
+  // The veil: sheets of silk sweeping in from the lower left and meeting
+  // by the logo, mostly dark and see-through, their edges lit. The lower
+  // sheet runs from a faint edge up to the bright crest; the upper one from
+  // the crest up to the swoosh.
+  // Drawn a little narrower than measured, so the crest's hot stretch sits
+  // between the headline and the logo.
+  vec2 qv = vec2((q.x + 0.25) * 1.25 - 0.25, q.y) + u_pointer * vec2(0.018, 0.012);
+  float sway = 0.012 * sin(t * 1.3);
+  vec3 lowCurve = vec3(-0.304, -0.02, 0.159 + sway * 0.6);
+  vec3 crestCurve = vec3(-0.219, 0.029, 0.181 + sway);
+  vec3 swooshCurve = vec3(-0.599, -0.319, 0.287 + 0.015 * sin(t * 1.1 + 2.0));
+  // The edges waver a little, like cloth.
+  float waver = fbm(vec2(qv.x * 6.0 - t * 0.5, t * 0.2)) - 0.5;
+  float dl = across(qv, lowCurve) + waver * 0.025;
+  float dc = across(qv, crestCurve) + waver * 0.012;
+  float ds = across(qv, swooshCurve) + (fbm(vec2(qv.x * 5.0 + 4.0, t * 0.2)) - 0.5) * 0.03;
+  float span = smoothstep(-1.5, -1.05, qv.x) * (1.0 - smoothstep(-0.38, -0.2, qv.x));
+
+  // The crest: a white-hot core, brightest a little left of the logo.
+  float hotC = exp(-pow((qv.x + 0.72) * 3.2, 2.0));
+  float crest = (exp(-pow(dc * px / (1.4 + 1.6 * hotC), 2.0)) * (0.35 + 1.8 * hotC)
+    + exp(-abs(dc) * px / 7.0) * (0.10 + 0.6 * hotC)
+    + exp(-abs(dc) * px / 40.0) * (0.04 + 0.3 * hotC)) * span;
+  // A bloom about the hot stretch of the crest.
+  float bloom = exp(-length((qv - vec2(-0.72, 0.018)) * vec2(1.6, 5.0)) * 2.2) * 0.32 * span;
+  float lowEdge = (exp(-pow(dl * px / 1.2, 2.0)) * 0.3 + exp(-abs(dl) * px / 10.0) * 0.06)
+    * span * (0.4 + 0.9 * fbm(vec2(qv.x * 5.0 - t * 0.5, 1.0)));
+  float rimS = (exp(-pow(ds * px / 1.2, 2.0)) * 0.3 + exp(-abs(ds) * px / 12.0) * 0.05)
+    * span * (0.3 + 0.9 * fbm(vec2(qv.x * 5.0 - t * 0.6, 3.0)));
+
+  // Each sheet's fill: a faint fabric, lit toward the crest, with filaments
+  // running along it.
+  float sA = clamp(dl / max(dl - dc, 0.001), 0.0, 1.0);
+  float inA = smoothstep(-0.003, 0.004, dl) * smoothstep(0.004, -0.003, dc);
+  float fabricA = fbm(vec2(qv.x * 4.0 - t * 0.4, sA * 5.0)) ;
+  float fA = filaments(sA * 26.0 + (fabricA - 0.5) * 2.0, qv.x, t, 1.0)
+    + filaments(sA * 61.0 + (fabricA - 0.5) * 3.0, qv.x, t, 2.0) * 0.6;
+  float sheetA = inA * span * ((0.06 + 0.42 * pow(sA, 2.0)) * (0.3 + fabricA)
+    + fA * (0.1 + 0.45 * sA));
+
+  float sB = clamp(dc / max(dc - ds, 0.001), 0.0, 1.0);
+  float inB = smoothstep(-0.003, 0.004, dc) * smoothstep(0.004, -0.003, ds);
+  float fabricB = fbm(vec2(qv.x * 3.0 + t * 0.3, sB * 4.0 + 7.0));
+  float fB = filaments(sB * 18.0 + (fabricB - 0.5) * 2.5, qv.x, t, 5.0);
+  float sheetB = inB * span * ((0.04 + 0.2 * pow(1.0 - sB, 3.0)) * (0.3 + fabricB)
+    + fB * 0.18 * (1.0 - sB * 0.6));
+  // Below the lower edge, a dimmer fold curls toward the floor.
+  float fold = smoothstep(0.004, -0.01, dl) * exp(dl * 9.0) * span
+    * (0.04 + 0.25 * filaments(dl * 40.0 + fbm(qv * 3.0) * 3.0, qv.x, t, 9.0));
+
+  float sheetC = sheetA + fold + bloom;
+  float sheetS = sheetB;
+
+  // Glitter caught along the crest and the sheets' edges.
+  vec2 cell = floor(gl_FragCoord.xy / 5.0);
+  vec2 inCell = fract(gl_FragCoord.xy / 5.0) - 0.5;
+  float g = hash(cell);
+  float near = (exp(-abs(dc) * 16.0) + exp(-abs(dl) * 22.0) * 0.5 + inA * 0.25) * span;
+  float glitter = step(0.965, g) * near
+    * (0.5 + 0.5 * sin(u_time * (1.0 + g * 3.0) + g * 50.0))
+    * exp(-dot(inCell, inCell) * 30.0);
+
+  // Rings: wide ellipses about the logo, beyond its orbit, seen on the
+  // right. Teal above, rose below, brightest at the far right.
+  vec2 qr = q - vec2(0.04, -0.05) + u_pointer * vec2(0.006, 0.004);
+  float tilt = 0.17;
+  vec2 rr = vec2(cos(tilt) * qr.x + sin(tilt) * qr.y, -sin(tilt) * qr.x + cos(tilt) * qr.y);
+  float r = length(rr * vec2(1.0, 3.1));
+  float angle = atan(rr.y * 3.1, rr.x);
+  float rings = 0.0;
+  for (int i = 0; i < 5; i++) {
+    float fi = float(i);
+    float radius = 0.64 + fi * 0.035 + 0.004 * sin(t * 2.0 + fi);
+    float line = exp(-pow((r - radius) * px / (1.0 + fi * 0.3), 2.0));
+    float dust = 0.4 + 0.6 * noise(vec2(angle * 9.0 - t * (1.0 + fi * 0.3), fi * 5.0));
+    rings += line * dust * (0.95 - fi * 0.14);
+  }
+  rings += exp(-pow((r - 0.7) * 9.0, 2.0)) * 0.05;
+  float rosy = smoothstep(0.0, -0.08, rr.y);
+  // The upper arcs show right of the logo; the rose lower arc sweeps on
+  // under it, toward the floor.
+  float ringSide = mix(smoothstep(0.05, 0.45, rr.x), smoothstep(-0.45, 0.1, rr.x), rosy)
+    * (0.35 + 0.65 * exp(-abs(angle) * 1.6));
+  float sweep = exp(-pow((r - 0.79) * px / 1.4, 2.0)) * rosy * smoothstep(-0.5, -0.1, rr.x)
+    * (1.0 - smoothstep(0.2, 0.7, rr.x)) * 0.9;
+  rings = rings * ringSide + sweep;
+
+  // The horizon: a planet's rim, highest left of centre, falling away to
+  // the right, over a glossy floor.
+  float hx = uv.x + u_pointer.x * 0.004;
+  float horizon = (u_floor - 0.07 * px * pow((q.x + 1.0) / 1.3, 2.0)) / u_res.y
+    + u_pointer.y * 0.003;
+  float hpx = (uv.y - horizon) * u_res.y;
+  float above = smoothstep(-1.0, 1.0, hpx);
+  float depth = max(horizon - uv.y, 0.0);
+  float rimLit = 0.25 + 0.5 * exp(-pow((hx - 0.36) * 4.5, 2.0)) + 0.9 * smoothstep(0.75, 1.0, hx);
+  float rim = (exp(-abs(hpx) / 1.3) * 0.7 + exp(-abs(hpx) / 10.0) * 0.12) * rimLit;
+  // Glossy curves in the floor, and the crest's reflection near the rim.
+  float qf = depth * 22.0 + (fbm(vec2(hx * 2.2 + t * 0.15, depth * 5.0 - t * 0.2)) - 0.5) * 2.6;
+  float gloss = exp(-pow((fract(qf) - 0.5) * 8.0, 2.0))
+    * pow(noise(vec2(hx * 5.0 - t * 0.2, floor(qf) * 3.1)), 2.0) * exp(-depth * 6.0);
+  float reflection = exp(-pow((q.x + 0.95) * 2.6, 2.0)) * exp(-depth * u_res.y / 30.0)
+    * (0.6 + 0.8 * noise(vec2(q.x * 14.0, depth * 60.0 - t * 2.0)));
+  float corner = exp(-length((uv - vec2(1.0, 0.0)) * vec2(1.6, 3.4)) * 5.0);
+  float floorLight = (1.0 - above) * (gloss * 0.6 * rimLit + reflection * 0.6) + corner * 0.9;
+
+  // A faint teal haze behind it all, thickest around the veil.
+  float haze = fbm(q * 1.6 + vec2(t * 0.15, 0.0))
+    * exp(-length((q - vec2(-0.6, 0.05)) * vec2(0.9, 1.6)) * 1.6) * 0.22
+    + exp(-length((q - vec2(0.0, -0.05)) * vec2(1.0, 1.3)) * 2.6) * 0.12
+    + fbm(q * 2.2 - vec2(t * 0.1, 0.0)) * exp(-length((q - vec2(0.75, 0.05)) * vec2(1.0, 1.8)) * 2.4) * 0.2;
+  float roseGlow = exp(-length(q - u_sat) * 6.0) * 0.3;
+
+  // Stars, sparse, a few twinkling.
+  vec2 sg = (gl_FragCoord.xy + u_pointer * 5.0) / 48.0;
+  vec2 sc = floor(sg);
+  float h = hash(sc);
+  float star = 0.0;
+  if (h > 0.9) {
+    vec2 sp = vec2(hash(sc + 3.1), hash(sc + 7.7)) * 0.8 + 0.1;
+    float dist = length(fract(sg) - sp) * 48.0;
+    float tw = 0.6 + 0.4 * sin(u_time * (0.5 + h * 1.4) + h * 40.0);
+    star = exp(-dist * dist / 1.1) * tw * (h - 0.9) * 7.0 * above;
+  }
+
+  vec3 mint = mix(vec3(0.36, 0.95, 0.90), vec3(0.05, 0.58, 0.54), u_light);
+  vec3 teal = mix(vec3(0.06, 0.30, 0.32), vec3(0.45, 0.80, 0.78), u_light);
+  vec3 rose = mix(vec3(1.0, 0.42, 0.72), vec3(0.85, 0.41, 0.60), u_light);
+  vec3 white = mix(vec3(0.92, 1.0, 1.0), vec3(0.20, 0.62, 0.58), u_light);
+
+  // The veil dims behind the hero's text, so the words stay clear.
+  vec2 fromText = max(u_text.xy - gl_FragCoord.xy, gl_FragCoord.xy - u_text.zw);
+  float behindText = smoothstep(0.12, -0.08, max(fromText.x, fromText.y) / px);
+  float clear = 1.0 - 0.7 * behindText;
+  float veil = (crest + rimS + lowEdge) * above * clear;
+  float hot = smoothstep(0.7, 1.6, crest);
+  vec3 col = mint * veil + white * hot
+    + mint * (sheetC + sheetS) * above * clear
+    + white * glitter * above * clear
+    + mix(mint, rose, rosy) * rings * above
+    + mint * (rim + floorLight) + white * rim * 0.3
+    + teal * haze * mix(1.0, 0.3, u_light)
+    + rose * roseGlow * mix(1.0, 0.5, u_light) + white * star;
+  float a = clamp(max(max(col.r, col.g), col.b), 0.0, 1.0);
+  // On a light page the light reads as ink: deeper teal, with more cover.
+  float ink = clamp(a * 1.1, 0.0, 0.7);
+  col = mix(col, col / max(a, 0.001) * 0.8 * ink, u_light);
+  a = mix(a, ink, u_light);
+
+  // The floor itself: a dark glossy plane.
+  float floorShade = (1.0 - above) * mix(0.8, 0.08, u_light) * smoothstep(0.0, 0.02, depth);
+  vec3 floorColor = mix(vec3(0.012, 0.028, 0.034), vec3(0.85, 0.93, 0.92), u_light);
+  col += floorColor * floorShade * (1.0 - a);
+  a = clamp(a + floorShade * (1.0 - a), 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
+}
+`;
+
+function setupSky() {
+  const sky = document.querySelector(".hero-sky");
+  const canvas = document.createElement("canvas");
+  const gl = sky && canvas.getContext("webgl", { premultipliedAlpha: true, alpha: true });
+  if (!gl) {
+    return;
+  }
+  const compile = (type, source) => {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
+  };
+  const vertex = compile(
+    gl.VERTEX_SHADER,
+    "attribute vec2 a; void main() { gl_Position = vec4(a, 0.0, 1.0); }",
+  );
+  const fragment = compile(gl.FRAGMENT_SHADER, SKY_SHADER);
+  if (!vertex || !fragment) {
+    return;
+  }
+  const program = gl.createProgram();
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    return;
+  }
+  gl.useProgram(program);
+  // One triangle that covers the canvas.
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const position = gl.getAttribLocation(program, "a");
+  gl.enableVertexAttribArray(position);
+  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+  const uniform = (name) => gl.getUniformLocation(program, name);
+  const uniforms = {
+    res: uniform("u_res"),
+    time: uniform("u_time"),
+    pointer: uniform("u_pointer"),
+    light: uniform("u_light"),
+    logo: uniform("u_logo"),
+    floor: uniform("u_floor"),
+    text: uniform("u_text"),
+    sat: uniform("u_sat"),
+  };
+  canvas.className = "hero-sky-gl";
+  sky.prepend(canvas);
+  sky.classList.add("has-gl");
+
+  const root = document.documentElement;
+  const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const isLight = () =>
+    root.dataset.theme === "light" || (root.dataset.theme !== "dark" && !darkScheme.matches);
+  const logo = document.querySelector(".hero-logo");
+  // The logo's centre and the width of its orbit, in canvas pixels; the
+  // shader lays the sky out around them.
+  let logoAt = [0, 0, 1];
+  // The horizon sits just below the hero's text and logo.
+  let floorAt = 0;
+  const content = [...document.querySelectorAll(".hero-text, .hero-art")];
+  // The text's box, left, bottom, right and top, where the veil dims.
+  const words = document.querySelector(".hero-text");
+  let textAt = [0, 0, 0, 0];
+  // How the logo's own units map to canvas pixels, for the satellite.
+  let logoUnits = [0, 0, 0];
+  const resize = () => {
+    const scale = Math.min(window.devicePixelRatio || 1, 1.5);
+    const box = sky.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.round(box.width * scale));
+    canvas.height = Math.max(1, Math.round(box.height * scale));
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    const below = Math.max(...content.map((part) => part.getBoundingClientRect().bottom), box.top);
+    floorAt = (box.bottom - below - 28) * scale;
+    if (words) {
+      const text = words.getBoundingClientRect();
+      textAt = [
+        (text.left - box.left) * scale,
+        (box.bottom - text.bottom) * scale,
+        (text.right - box.left) * scale,
+        (box.bottom - text.top) * scale,
+      ];
+    }
+    if (logo) {
+      const art = logo.getBoundingClientRect();
+      logoAt = [
+        (art.left + art.width / 2 - box.left) * scale,
+        (box.bottom - art.top - art.height / 2) * scale,
+        Math.max(1, art.width * 0.94 * scale),
+      ];
+      const view = logo.viewBox.baseVal;
+      const unit = Math.min(art.width / view.width, art.height / view.height);
+      logoUnits = [
+        (art.left + (art.width - view.width * unit) / 2 - view.x * unit - box.left) * scale,
+        (box.bottom - art.top - (art.height - view.height * unit) / 2 + view.y * unit) * scale,
+        unit * scale,
+      ];
+    }
+  };
+  // The pointer, from -1 to 1 across the window, eased toward its target.
+  const target = [0, 0];
+  const pointer = [0, 0];
+  window.addEventListener(
+    "pointermove",
+    (event) => {
+      target[0] = (event.clientX / window.innerWidth) * 2 - 1;
+      target[1] = 1 - (event.clientY / window.innerHeight) * 2;
+    },
+    { passive: true },
+  );
+  window.addEventListener("deviceorientation", (event) => {
+    if (event.gamma === null || event.beta === null) {
+      return;
+    }
+    target[0] = Math.max(-1, Math.min(1, event.gamma / 30));
+    target[1] = Math.max(-1, Math.min(1, (45 - event.beta) / 30));
+  });
+
+  const start = performance.now();
+  const draw = (now) => {
+    pointer[0] += (target[0] - pointer[0]) * 0.04;
+    pointer[1] += (target[1] - pointer[1]) * 0.04;
+    gl.uniform2f(uniforms.res, canvas.width, canvas.height);
+    // Twenty seconds in, the slow drift has found a pleasant shape.
+    gl.uniform1f(uniforms.time, 20 + (still.matches ? 0 : (now - start) / 1000));
+    gl.uniform2f(uniforms.pointer, pointer[0], pointer[1]);
+    gl.uniform1f(uniforms.light, isLight() ? 1 : 0);
+    gl.uniform3f(uniforms.logo, logoAt[0], logoAt[1], logoAt[2]);
+    gl.uniform1f(uniforms.floor, floorAt);
+    gl.uniform4f(uniforms.text, textAt[0], textAt[1], textAt[2], textAt[3]);
+    gl.uniform2f(
+      uniforms.sat,
+      (logoUnits[0] + satellite.x * logoUnits[2] - logoAt[0]) / logoAt[2],
+      (logoUnits[1] - satellite.y * logoUnits[2] - logoAt[1]) / logoAt[2],
+    );
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  };
+  let visible = true;
+  let frame = 0;
+  const loop = (now) => {
+    draw(now);
+    frame = visible && !still.matches && !document.hidden ? requestAnimationFrame(loop) : 0;
+  };
+  const wake = () => {
+    if (!frame) {
+      frame = requestAnimationFrame(loop);
+    }
+  };
+  new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    if (visible) {
+      wake();
+    }
+  }).observe(sky);
+  document.addEventListener("visibilitychange", wake);
+  still.addEventListener("change", wake);
+  // A theme switch redraws a still sky too.
+  new MutationObserver(wake).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  darkScheme.addEventListener("change", wake);
+  // The sky follows the hero's size, and the text and logo it is laid out
+  // around, which move when the fonts arrive.
+  const sizes = new ResizeObserver(() => {
+    resize();
+    wake();
+  });
+  for (const part of [sky, ...content]) {
+    sizes.observe(part);
+  }
+  resize();
+  wake();
+}
+
 setupMenu();
 setupTheme();
 setupCopy();
@@ -517,3 +1007,5 @@ setupOutline();
 setupExplorer();
 setupLinks();
 setupWiden();
+setupOrbit();
+setupSky();
