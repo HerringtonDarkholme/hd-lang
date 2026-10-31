@@ -1,0 +1,63 @@
+# Spec 04 Union Construction And Matching: types.union.representation,
+# types.union.representation.nested, types.union.ownership.
+type Flat = i32 | string
+type Inner = i32 | string
+type Nested = Inner | bool
+type Duplicate = string | string
+
+fn flat_label(value: Flat) -> string:
+    match value:
+        ._0(number) => "$number"
+        ._1(text) => text
+
+fn nested_label(value: Nested) -> string:
+    match value:
+        ._0(inner) => flat_label(inner)
+        ._1(flag) => "$flag"
+
+fn duplicate_index(value: Duplicate) -> i32:
+    match value:
+        ._0(_) => 0
+        ._1(_) => 1
+
+fn generic_first[T](value: T) -> T | i32:
+    ._0(value)
+
+fn generic_second[T](value: i32) -> T | i32:
+    ._1(value)
+
+fn generic_label(value: string | i32) -> string:
+    match value:
+        ._0(text) => text
+        ._1(number) => "$number"
+
+fn is_first(value: &Flat) -> bool:
+    match value:
+        ._0(_) => true
+        ._1(_) => false
+
+tests:
+    use std.testing.assert_equal
+
+    it("flat cases copy and move their active payload"):
+        let value: Flat = ._1("text")
+        assert_equal(flat_label(value), "text", reason="the copied string payload")
+        assert_equal(flat_label(value), "text", reason="the moved string payload")
+
+    it("nested unions keep both discriminants"):
+        let inner: Inner = ._1("nested")
+        let outer: Nested = ._0(inner)
+        assert_equal(nested_label(outer), "nested", reason="outer and inner case zero")
+        assert_equal(nested_label(._1(true)), "true", reason="the outer second case")
+
+    it("duplicate members remain different cases"):
+        assert_equal(duplicate_index(._0("same")), 0, reason="the first duplicate")
+        assert_equal(duplicate_index(._1("same")), 1, reason="the second duplicate")
+
+    it("a generic member lowers after substitution"):
+        assert_equal(generic_label(generic_first("generic")), "generic", reason="generic case")
+        assert_equal(generic_label(generic_second::[string](7)), "7", reason="concrete case")
+
+    it("a union can be borrowed like an enum"):
+        let value: Flat = ._0(3)
+        assert_equal(is_first(&value), true, reason="the borrowed tag")

@@ -20,7 +20,7 @@
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, strip_newtype};
 use hd_mono::{ProgramEnv, subst};
-use hd_types::{InternPool, Prim, Ty, TyData};
+use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 use crate::module::{HEAP, Val, mem as memarg};
 use crate::op::Op as I;
@@ -229,6 +229,13 @@ pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {
     }
 }
 
+fn union_variants(pool: &InternPool, members: TyList) -> Vec<Vec<Ty>> {
+    pool.list_items(members)
+        .iter()
+        .map(|member| vec![*member])
+        .collect()
+}
+
 /// The values of a `t` value that are collections a copy of it copies
 /// (`hd_mono::holds_coll`): a list's own, and each such value of a struct
 /// field, at any depth of structs. A legacy `mut` view shares its list
@@ -335,6 +342,7 @@ pub fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
         TyData::Tuple { .. } => tuple_members(pool, t),
         TyData::Option(inner) => vec![inner],
+        TyData::Union(members) => pool.list_items(members).to_vec(),
         TyData::Adt { def, args }
             if env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value) =>
         {
@@ -493,6 +501,10 @@ fn mem_one(
             let variants = [vec![], vec![inner]];
             enum_mem_by(&variants, nullable(pool, env, &variants), part)?.0
         }
+        TyData::Union(members) => {
+            let variants = union_variants(pool, members);
+            enum_mem_by(&variants, false, part)?.0
+        }
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map | StdKind::Buffer => Mem::address(),
@@ -628,6 +640,7 @@ fn walk_one(
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
         TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
+        TyData::Union(members) => switch_walk_by(pool, env, &union_variants(pool, members), part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed => Some(Walk::Known(0)),
@@ -986,6 +999,7 @@ pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Vec<Ve
     match pool.get(t) {
         // `None` is variant 0 and `Some` variant 1, as the tag says.
         TyData::Option(inner) => Some(vec![vec![], vec![inner]]),
+        TyData::Union(members) => Some(union_variants(pool, members)),
         TyData::Adt { def, args } => env.enum_variants(def, args),
         _ => None,
     }

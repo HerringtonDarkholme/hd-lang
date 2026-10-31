@@ -1,7 +1,7 @@
 # Positional Union Types
 
-Status: syntax, ordered type identity, construction, and matching specified and
-implemented 2026-10-31; lowering, traits, and parity remain in #1123-#1125.
+Status: syntax, ordered type identity, construction, matching, and runtime lowering
+specified and implemented 2026-10-31; traits and parity remain in #1124-#1125.
 This record turns the decisions in [#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)
 into an implementation-sized design. It changes no specification or compiler
 behavior beyond the slices named in the status line. A prior [twelve-case stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/UNION_TYPES.md)
@@ -246,8 +246,9 @@ injection or error-specific algebra.
 The specification admits [union syntax](../../spec/lang/04-type-system.md#union-type-syntax),
 [ordered identity](../../spec/lang/04-type-system.md#union-type-identity), and
 [positional construction and matching](../../spec/lang/04-type-system.md#union-construction-and-matching).
-The checker lowers constructors and patterns through ordinary enum operations.
-Runtime layout and ownership remain in #1123.
+The checker lowers constructors and patterns through ordinary enum operations,
+and unions reuse enum layout and active-payload ownership. Conditional traits
+remain in #1124.
 
 `Union._0` works when an expected constructor result supplies its union type.
 Without that context it reports `cannot-infer-type`. Contextual `._0` is not a

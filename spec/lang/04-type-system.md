@@ -2504,6 +2504,9 @@ fn relay(value: SameChoice) -> Choice:
 5. r[types.union.constructor-value] With an expected `fn(A) -> U` type, where `U` is a union and case `_k` has payload `A`, `Union._k` is that one-argument constructor function value.
 6. r[types.union.match] A union is matched with `._k(payload)` patterns under the ordinary enum payload, reachability, and exhaustiveness rules. Every positional case must be covered unless a catch-all covers it. Error: `nonexhaustive-match`.
 7. r[types.union.no-type-pattern] Union matching selects positional cases only; it adds no type-test pattern or type-directed arm.
+8. r[types.union.representation] A union has the same runtime representation as a nominal enum with one single-payload variant per union member in order.
+9. r[types.union.representation.nested] A nested union member keeps its own discriminant and payload, so nested and flat unions remain different at runtime.
+10. r[types.union.ownership] Copying, moving, borrowing, and dropping a union acts on its active payload exactly as for an enum variant payload.
 
 ```text
 type Choice = i32 | string
