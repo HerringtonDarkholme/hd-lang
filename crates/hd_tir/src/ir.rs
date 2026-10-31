@@ -801,6 +801,12 @@ pub mod sub_flags {
     /// function's first own type parameter and its type arguments; that
     /// value's code is the body's instance at those arguments.
     pub const GENERIC: u8 = 1;
+    /// On the root sub-body: the ownership passes run in exclusive mode
+    /// (stage 8, #1118). A read through a `&T` or `&mut T` parameter may
+    /// borrow across a call that may write, since the callers of such a
+    /// body pass only places that stage 7 lets nothing else reach for the
+    /// call. The checker never sets it.
+    pub const EXCLUSIVE: u8 = 2;
 }
 
 /// A suspension point's side record (16 bytes).

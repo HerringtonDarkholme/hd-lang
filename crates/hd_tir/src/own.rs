@@ -106,6 +106,13 @@ pub trait OwnCx {
     /// false only for the few std functions known pure. The borrow pass
     /// and hoisting read it.
     fn may_write(&self, callee: &Callee) -> bool;
+    /// Whether parameter `k` of `n` of `item` is declared `&T` or `&mut T`,
+    /// no counted reference: the reads behind it that exclusive mode may
+    /// borrow across a call ([`crate::ir::sub_flags::EXCLUSIVE`]).
+    fn local_ref_param(&self, item: hd_base::DefId, k: usize, n: usize) -> bool {
+        let _ = (item, k, n);
+        false
+    }
     /// The parts of a value of `ty` that is laid out in place in every
     /// instance, into `out`: the field types of a struct, a tuple or a
     /// newtype (`variant` `None`), or of variant `variant` of an enum that
@@ -427,6 +434,15 @@ pub struct OwnScratch {
     pub(crate) splice: splice::Tables,
 }
 
+impl OwnScratch {
+    /// Bit k: exclusive mode borrowed a read through reference parameter k
+    /// across a call that may write, in the body the passes ran over last.
+    #[must_use]
+    pub fn relies(&self) -> u64 {
+        self.borrow.relies
+    }
+}
+
 /// Runs the ownership passes over every sub-body of `b`, in order: late
 /// operand reads, insertion, borrow, move, pair cancellation, known-null,
 /// then hoisting. The last five record their deletions and insertions in
@@ -670,6 +686,9 @@ pub(crate) mod tests {
         }
         fn holds_coll(&self, ty: Ty) -> bool {
             ty == LIST
+        }
+        fn local_ref_param(&self, _: DefId, _: usize, _: usize) -> bool {
+            true
         }
     }
 
@@ -1057,6 +1076,57 @@ pub(crate) mod tests {
             "%0 Call\n%1 Read move [%0 .0]\n%2 Call %1\n%3 Read move [%0 .1]\n%4 Drop [%0]\n\
              %5 Call %3\n%6 Block [%0 %1 %2 %3 %4 %5]\n"
         );
+    }
+
+    /// Exclusive mode (#1118): a read through a `&T` parameter borrows across
+    /// a call that may write, and the body reports that it relies on it,
+    /// unless the call receives the reference itself. The verifier accepts
+    /// that borrow only in an exclusive body. Without the flag nothing
+    /// changes.
+    #[test]
+    fn exclusive_mode_borrows_through_a_reference_parameter_across_a_call() {
+        use crate::ir::sub_flags::EXCLUSIVE;
+        let n = NodeIdx::from_raw(1);
+        let build = |receive: bool| {
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let blk = b.open_block();
+            let p = local(&mut b, local_flags::PARAM);
+            let word = b.place(&"[*$0 .0]".parse().expect("place"));
+            let r = b.emit(Tag::Read, word, ReadMode::Use as u32, Ty::STRING, n);
+            let args = if receive {
+                vec![b.get(p, Ty::STRING, n)]
+            } else {
+                vec![]
+            };
+            call(&mut b, 8, &args, Ty::VOID);
+            call(&mut b, 8, &[r], Ty::VOID);
+            // Keeps the owned parameter, and so its referent, past the span.
+            let whole = b.get(p, Ty::STRING, n);
+            call(&mut b, 8, &[whole], Ty::VOID);
+            let root = b.close_block(blk, None, Ty::VOID, n);
+            b.finish(root, &[]).expect("verifies")
+        };
+        let passes = |mut body: Body, excl: bool| {
+            if excl {
+                body.sub_flags[0] |= EXCLUSIVE;
+            }
+            let mut scratch = OwnScratch::default();
+            run(&mut body, &Cx, &mut scratch).expect("passes");
+            let errs = verify_owned(&body, &Cx);
+            assert!(errs.is_empty(), "{errs:?}\n{}", show(&body));
+            (show(&body), scratch.relies(), body)
+        };
+        let (text, relies, _) = passes(build(false), false);
+        assert!(text.contains("Read copy [*$0 .0]") && relies == 0, "{text}");
+        let (text, relies, _) = passes(build(true), true);
+        assert!(text.contains("Read copy [*$0 .0]") && relies == 0, "{text}");
+        let (text, relies, mut body) = passes(build(false), true);
+        assert!(
+            text.contains("Read borrow [*$0 .0]") && relies == 1,
+            "{text}"
+        );
+        body.sub_flags[0] &= !EXCLUSIVE;
+        assert!(!verify_owned(&body, &Cx).is_empty(), "{text}");
     }
 
     /// The verifier rejects a borrow whose place a store replaces while the

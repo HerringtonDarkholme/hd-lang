@@ -263,6 +263,18 @@ impl OwnCx for Env<'_> {
         ProgramEnv::suspends(self, item)
     }
 
+    fn local_ref_param(&self, item: DefId, k: usize, n: usize) -> bool {
+        let Some(sig) = self.sig(item).filter(|s| s.params.len() == n) else {
+            return false;
+        };
+        let pool = &self.run.pool;
+        let mut t = sig.params[k].1;
+        while let TyData::Mut(inner) = pool.get(t) {
+            t = inner;
+        }
+        matches!(pool.get(t), TyData::Ref { counted: false, .. })
+    }
+
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
         if self.is_open(ty) {
             out.clear();

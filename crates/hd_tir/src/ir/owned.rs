@@ -19,7 +19,10 @@
 //! - no `borrow` value is live across a write to an overlapping place (a
 //!   `Store`, a `Drop`, a `move` read, an `IsUnique` or a mutable `Ref`)
 //!   or a suspension point, where a borrow is live while anything that
-//!   lives on it is ([`borrow_spans`]);
+//!   lives on it is ([`borrow_spans`]); nor one of a place behind a
+//!   parameter's reference across a call that may write, unless the body
+//!   is exclusive (`sub_flags::EXCLUSIVE`), the parameter is declared `&T`
+//!   or `&mut T` and the call does not receive the reference itself;
 //! - a local the body does not own holds no count: a binding local, which
 //!   a `borrow` value is stored into, takes only borrows and is never
 //!   moved out of or addressed, nor dropped unless such a borrow keeps
@@ -114,7 +117,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
     Empties::new(&cx).walk(&mut errs);
-    borrow_spans(&cx, &mut errs);
+    borrow_spans(&cx, own, &mut errs);
     binding_locals(&cx, own, &mut errs);
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
@@ -941,7 +944,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
 /// the binding local that holds it only where that local was never stored,
 /// which definite initialization rules out, so the walk keeps such a borrow
 /// live from no point before the instruction.
-fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
+fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let n = b.len();
     let mut bit = vec![NONE; n];
@@ -954,6 +957,29 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
     }
     if at.is_empty() {
         return;
+    }
+    // Calls that may write, and the parameters exclusive mode reads behind.
+    let may: Vec<bool> = (0..n)
+        .map(|i| match b.tags[i] {
+            Tag::Call => {
+                super::Callee::from_words(b.record(b.data[i][0])).is_none_or(|c| own.may_write(&c))
+            }
+            Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall | Tag::Hook => true,
+            Tag::Intrinsic => {
+                super::IntrinsicOp::from_u32(b.data[i][0]) == Some(super::IntrinsicOp::Item)
+            }
+            _ => false,
+        })
+        .collect();
+    let mut excl = vec![false; b.local_ty.len()];
+    if b.sub_flags
+        .first()
+        .is_some_and(|f| f & super::sub_flags::EXCLUSIVE != 0)
+    {
+        let params = crate::own::params(b);
+        for (k, &l) in params.iter().enumerate() {
+            excl[l as usize] = own.local_ref_param(b.item, k, params.len());
+        }
     }
     // The borrow each binding local holds.
     let mut holds = vec![NONE; b.local_ty.len()];
@@ -984,6 +1010,8 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
     }
     let mut walk = Live {
         cx,
+        may,
+        excl,
         bit,
         at,
         holds,
@@ -1000,6 +1028,10 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
 /// The borrow walk's state ([`borrow_spans`]).
 struct Live<'a> {
     cx: &'a Cx<'a>,
+    /// Per instruction: a call that may write. Per local: a parameter
+    /// whose referent exclusive mode lets a borrow live across such calls.
+    may: Vec<bool>,
+    excl: Vec<bool>,
     /// Each borrow's bit, or `NONE`, and each bit's borrow.
     bit: Vec<u32>,
     at: Vec<u32>,
@@ -1008,6 +1040,29 @@ struct Live<'a> {
     inside: Vec<Vec<u32>>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
+}
+
+/// The parameter whose referent place `p` lies in: `[*$p ...]`, or
+/// through a whole read of `$p`.
+fn behind_param(cx: &Cx<'_>, p: &Place) -> Option<u32> {
+    let b = cx.b;
+    if p.proj.first() != Some(&Proj::Deref) {
+        return None;
+    }
+    let l = match p.root {
+        PlaceRoot::Local(l) => l,
+        PlaceRoot::Value(v) if b.tags.get(v.0 as usize) == Some(&Tag::Read) => {
+            match &cx.places[v.0 as usize] {
+                Some(Place {
+                    root: PlaceRoot::Local(l),
+                    proj,
+                }) if proj.is_empty() => *l,
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+    (b.local_flags[l.idx()] & local_flags::PARAM != 0).then(|| l.raw())
 }
 
 impl Live<'_> {
@@ -1056,6 +1111,25 @@ impl Backward for Live<'_> {
             self.check(x, s, live, |r, p| {
                 q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
             });
+        }
+        if self.may[i] {
+            let mut ops = Vec::new();
+            operands(b, i, &mut ops);
+            let received: Vec<u32> = ops
+                .iter()
+                .filter_map(|o| match &self.cx.places[o.value as usize] {
+                    Some(Place {
+                        root: PlaceRoot::Local(l),
+                        proj,
+                    }) if b.tags[o.value as usize] == Tag::Read && proj.is_empty() => Some(l.raw()),
+                    _ => None,
+                })
+                .collect();
+            let (cx, excl) = (self.cx, std::mem::take(&mut self.excl));
+            self.check(x, s, live, |_, p| {
+                behind_param(cx, p).is_some_and(|l| !excl[l as usize] || received.contains(&l))
+            });
+            self.excl = excl;
         }
     }
 

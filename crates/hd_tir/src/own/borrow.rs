@@ -109,7 +109,7 @@
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, Proj, ReadMode, Ref, Root, Tag,
-    Topology, is_suspension, local_flags, place, u32_of,
+    Topology, is_suspension, local_flags, place, sub_flags, u32_of,
 };
 
 /// The longest chain of roots a read is resolved through.
@@ -170,6 +170,10 @@ struct Chain {
     /// rule 2 keeps from being stored or dropped there), read whole: calls
     /// that may not write leave it alone.
     param: bool,
+    /// In exclusive mode, when that reference is parameter k declared
+    /// `&T` or `&mut T`: its local and k. A call that may write leaves the
+    /// place alone unless it receives the reference itself.
+    excl: Option<(u32, u32)>,
 }
 
 /// The borrow pass's dense tables, reused across bodies.
@@ -232,6 +236,16 @@ pub(crate) struct Tables {
     cpath: Vec<u32>,
     wpaths: Vec<u32>,
     ops: Vec<super::Operand>,
+    /// Exclusive mode (`sub_flags::EXCLUSIVE`): per local, its parameter
+    /// index when it is a `&T` or `&mut T` parameter whose reference only
+    /// calls take, else `NONE`; whether anything else takes it; the calls
+    /// that receive a local's reference, in instruction order
+    /// ([`receivers`]); and the parameters a borrow relied on.
+    excl: bool,
+    excl_param: Vec<u32>,
+    whole_other: Vec<bool>,
+    receives: Vec<(u32, u32)>,
+    pub(crate) relies: u64,
 }
 
 impl Tables {
@@ -261,6 +275,10 @@ impl Tables {
         self.links.clear();
         self.cpath.clear();
         self.wpaths.clear();
+        fill(&mut self.excl_param, locals, NONE);
+        fill(&mut self.whole_other, locals, false);
+        self.receives.clear();
+        self.relies = 0;
     }
 
     /// Resolves the place at `word` into `self.links`: its root, then
@@ -331,6 +349,8 @@ impl Tables {
                     // stores and drops rule 2 keeps out of the span.
                     chain.param =
                         derefs == 1 && first_deref && !above && (!param || self.stores[li] == 0);
+                    chain.excl = (chain.param && self.excl_param[li] != NONE)
+                        .then(|| (l, self.excl_param[li]));
                     return chain;
                 }
                 Root::Value(v) => {
@@ -383,6 +403,7 @@ impl Tables {
             ok: true,
             heap: true,
             param: false,
+            excl: None,
         }
     }
 
@@ -466,6 +487,15 @@ pub(crate) fn run(
         }
     }
     index_writes(b, cx, t);
+    t.excl = b
+        .sub_flags
+        .first()
+        .is_some_and(|f| f & sub_flags::EXCLUSIVE != 0)
+        && matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
+        && !b.tags.iter().any(|&tag| is_suspension(tag));
+    if t.excl {
+        receivers(b, t);
+    }
     lent_params(b, cx, t, edits);
     // Source bindings such as a match arm precede what binds their value;
     // bottom-up inlining puts an outer parameter binding before the
@@ -841,9 +871,11 @@ fn decide(
         return;
     }
     let chain = t.walk(b, b.data[r][0], true);
-    if !chain.ok || conflicts(t, chain, x, lo, end) {
+    let mut relied = 0;
+    if !chain.ok || conflicts(t, chain, x, lo, end, &mut relied) {
         return;
     }
+    t.relies |= relied;
     b.data[r][1] = ReadMode::Borrow as u32;
     let locals = u32_of(b.local_ty.len());
     if alias != NONE {
@@ -931,6 +963,9 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
         }
         let at = k;
         k += 1;
+        if t.excl && at < 64 && !t.whole_other[l] && cx.local_ref_param(b.item, at, n) {
+            t.excl_param[l] = u32_of(at);
+        }
         // A parameter changed in place is owned: the change gives up a
         // count of the buffer it replaces, which must be the body's.
         if t.stores[l] != 0
@@ -1029,6 +1064,63 @@ fn lent_refs(b: &mut Body, t: &Tables) {
     }
 }
 
+/// Exclusive mode: the calls that receive a parameter's reference (a
+/// whole read of its local, or a mutable `Ref` through it), and the
+/// locals whose reference something else takes (a store, a construction,
+/// a coercion, a tail), which may pass it on where no call shows it. A
+/// place's root, a `Drop` and a comparison take nothing.
+fn receivers(b: &Body, t: &mut Tables) {
+    let whole = |v: usize| {
+        let p = (b.tags[v] == Tag::Read).then(|| b.view(b.data[v][0]))?;
+        match p.root {
+            Root::Local(l) if p.whole() => Some(l),
+            _ => None,
+        }
+    };
+    for i in 0..b.len() {
+        let call = match b.tags[i] {
+            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall => true,
+            Tag::Hook | Tag::Await => true,
+            Tag::Intrinsic => IntrinsicOp::from_u32(b.data[i][0]) == Some(IntrinsicOp::Item),
+            _ => false,
+        };
+        let harmless = matches!(
+            b.tags[i],
+            Tag::Read | Tag::Ref | Tag::Store | Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::Prim
+        );
+        operands(b, i, &mut t.ops);
+        for o in &t.ops {
+            let v = o.value as usize;
+            let l = match b.tags[v] {
+                Tag::Read => whole(v),
+                Tag::Ref if b.data[v][1] & crate::ir::ref_word::MUT != 0 => {
+                    match b.view(b.data[v][0]).root {
+                        Root::Local(l) => Some(l),
+                        Root::Value(u) => whole(u as usize),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            let Some(l) = l else { continue };
+            if call {
+                t.receives.push((u32_of(i), l));
+            } else if !(harmless && matches!(o.role, Role::Lend | Role::Dropped)) {
+                t.whole_other[l as usize] = true;
+            }
+        }
+    }
+}
+
+/// Whether call `x` receives local `l`'s reference ([`receivers`]).
+fn receives(t: &Tables, x: u32, l: u32) -> bool {
+    let k = t.receives.partition_point(|&(c, _)| c < x);
+    t.receives[k..]
+        .iter()
+        .take_while(|&&(c, _)| c == x)
+        .any(|&(_, m)| m == l)
+}
+
 /// Whether read `r` is of a local's place that a read after `end` reads
 /// again, so that `r` cannot move.
 fn read_after(b: &Body, t: &Tables, r: usize, end: u32) -> bool {
@@ -1108,7 +1200,7 @@ pub(crate) fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
 
 /// Whether anything in read `r`'s span, the instructions `lo..=end`, may
 /// change or release what its resolved chain reads (rules 2 to 4).
-fn conflicts(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32) -> bool {
+fn conflicts(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32, relied: &mut u64) -> bool {
     for link in &t.links {
         if link.key == NONE {
             continue;
@@ -1159,6 +1251,15 @@ fn conflicts(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32) -> bool {
         for &(x, may) in &t.calls[k..] {
             if x > end {
                 break;
+            }
+            // Exclusive mode: the call reaches the place only through
+            // the reference, so only when it receives the reference itself.
+            if may
+                && let Some((l, k)) = chain.excl
+                && !receives(t, x, l)
+            {
+                *relied |= 1 << k;
+                continue;
             }
             if may || !chain.param {
                 return true;
