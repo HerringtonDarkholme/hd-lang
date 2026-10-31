@@ -665,6 +665,7 @@ fn link(
     );
     address_globals(input, &mut m, session.is_some(), previous)?;
     drive::collect(input, &mut m);
+    emit::collect_loans(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);

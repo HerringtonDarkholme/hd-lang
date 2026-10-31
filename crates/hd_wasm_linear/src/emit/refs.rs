@@ -166,7 +166,7 @@ impl Em<'_, '_, '_> {
     /// The type a struct field path reads from type `t`, and where it lies
     /// in `t`'s values and memory ([`Em::path_step`], folded). No path is
     /// all of `t`.
-    fn fold_path(&self, t: Ty, path: &[u32]) -> StageResult<(Ty, Part)> {
+    pub(super) fn fold_path(&self, t: Ty, path: &[u32]) -> StageResult<(Ty, Part)> {
         let (mut ty, mut first, mut offset, mut count) = (t, 0, 0, None);
         for &f in path {
             let (ft, part) = self.path_step(ty, f)?;
@@ -1496,7 +1496,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// The type steps `steps` reach from type `ty`.
-    fn walk_ty(&self, mut ty: Ty, steps: &[Proj]) -> StageResult<Ty> {
+    pub(super) fn walk_ty(&self, mut ty: Ty, steps: &[Proj]) -> StageResult<Ty> {
         let mut k = 0;
         while k < steps.len() {
             match steps[k] {

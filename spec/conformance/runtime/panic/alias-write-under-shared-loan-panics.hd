@@ -1,0 +1,19 @@
+# test: a write through an unseen `*mut` alias to a field a live `&` binding borrows panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.access, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn rename(t: &Team, alias: *mut User) -> string:
+    n := &t.lead.name
+    alias.name = "b" # panic: borrow-conflict
+    *n
+
+tests:
+    it("a write to a borrowed field through an alias panics"):
+        t := Team { lead: box(User { name: "a", age: +1 }) }
+        alias := t.lead
+        _ := rename(&t, alias)

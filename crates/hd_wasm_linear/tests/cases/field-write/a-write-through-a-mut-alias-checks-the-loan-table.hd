@@ -1,0 +1,14 @@
+# @dump: wat
+# expected: the borrowed field's write checks the loan table while it is non-empty; the other field's write has no check; the binding registers its loan at the store and ends it at its last use
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn rename(t: &Team, alias: *mut User) -> string:
+    n := &t.lead.name
+    alias.age += 1
+    alias.name = "b"
+    *n

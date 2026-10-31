@@ -1,0 +1,20 @@
+# test: a read through an unseen `*mut` alias of a field a live `&mut` binding borrows panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.access, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn bump(t: &Team, alias: *mut User) -> i32:
+    m := &mut t.lead.age
+    seen := alias.age # panic: borrow-conflict
+    *m += 1
+    seen
+
+tests:
+    it("a read of an exclusively borrowed field through an alias panics"):
+        t := Team { lead: box(User { name: "a", age: +1 }) }
+        alias := t.lead
+        _ := bump(&t, alias)

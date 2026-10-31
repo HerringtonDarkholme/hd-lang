@@ -1,0 +1,24 @@
+# test: while a `&` binding borrows one field of a `*mut` object, a write through an alias to another field passes, and a `&self` call reads
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.access, ref.excl.alias.conflict.
+# expect-stdout: a 3
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn years(&self) -> i32:
+        self.age
+
+struct Team:
+    lead: *mut User
+
+fn older(t: &Team, alias: *mut User) -> string:
+    n := &t.lead.name
+    alias.age += 1
+    alias.age += alias.years() - 1
+    "${*n} ${alias.age}"
+
+pub fn main() -> void $ Console:
+    t := Team { lead: box(User { name: "a", age: +1 }) }
+    alias := t.lead
+    println(older(&t, alias))

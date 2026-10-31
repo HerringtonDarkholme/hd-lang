@@ -26,8 +26,9 @@ use crate::expr::literal_text;
 
 /// The stable panic categories (`flow.panic.known-categories`), which an
 /// `expect_panic` option must name.
-pub const PANIC_CATEGORIES: [&str; 19] = [
+pub const PANIC_CATEGORIES: [&str; 20] = [
     "assertion-failed",
+    "borrow-conflict",
     "collection-pinned",
     "explicit-panic",
     "fact-evaluation-failed",

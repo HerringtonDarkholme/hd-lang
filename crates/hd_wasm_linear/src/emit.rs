@@ -38,6 +38,8 @@ pub(crate) use ctx::ctx_lookup;
 pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod erased;
+mod excl;
+pub(crate) use excl::{Loan, collect_loans};
 mod iter;
 mod list;
 mod map;
@@ -144,6 +146,9 @@ fn body_func<'a>(
         em.lends = own.lends;
     }
     em.own_consumers();
+    if erased.is_none() && own.cold.is_none() {
+        em.find_holders();
+    }
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
     if suspending {
@@ -998,6 +1003,10 @@ struct Em<'i, 'a, 'm> {
     /// The locals the passes store a borrow into, with the stored value
     /// ([`Em::prepare_own_loans`]): they hold no count.
     loan_locals: HashMap<usize, u32>,
+    /// The bindings that hold a registered loan (`excl.rs`).
+    holders: HashMap<usize, excl::Holder>,
+    /// How each `Store` into a holder binding registers its loan.
+    binds: HashMap<u32, excl::Bind>,
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
     projs: Vec<shape::Projected>,
@@ -1151,6 +1160,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             defer_flags: HashMap::default(),
             loans: hd_base::HashSet::default(),
             loan_locals: HashMap::default(),
+            holders: HashMap::default(),
+            binds: HashMap::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
             unowned_params: Vec::new(),
@@ -1670,6 +1681,14 @@ impl Em<'_, '_, '_> {
         {
             return self.open_inst(i, k);
         }
+        self.loan_access(i)?;
+        self.loan_before_store(i);
+        self.inst_tag(i, a, bw)?;
+        self.loan_after_store(i);
+        Ok(())
+    }
+
+    fn inst_tag(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         match self.b.tags[i as usize] {
             Tag::Read | Tag::Store if let Some(p) = self.b.ptr_target(i as usize) => {
                 self.ptr_place(i, p)?;

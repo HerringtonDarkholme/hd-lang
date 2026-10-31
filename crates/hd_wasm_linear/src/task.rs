@@ -575,7 +575,7 @@ fn node_address(f: &mut Func, id: u32) {
 /// never allocate or read freed node memory.
 fn waker_slot(m: &Module) -> Func {
     let mut f = m.func("rt:waker_slot", vec![Val::I32], vec![Val::I32]);
-    let (cap, fresh) = (f.local(Val::I32), f.local(Val::I32));
+    let cap = f.local(Val::I32);
     f.get(0);
     f.global_get(Global::NodeCap);
     f.op(Instruction::I32GtU);
@@ -586,40 +586,13 @@ fn waker_slot(m: &Module) -> Func {
     f.i32(16);
     f.op(Instruction::I32Add);
     f.set(cap);
-    f.get(cap);
-    f.i32(NODE_STRIDE);
-    f.op(Instruction::I32Mul);
-    match m.runtime {
-        Some(r) => f.call(Sym::Inst(r.alloc)),
-        None => f.helper(Helper::Alloc),
-    }
-    f.set(fresh);
-    f.get(fresh);
-    f.i32(0);
-    f.get(cap);
-    f.i32(NODE_STRIDE);
-    f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryFill(HEAP));
-    f.global_get(Global::NodeTab);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(fresh);
-    f.global_get(Global::NodeTab);
-    f.global_get(Global::NodeCap);
-    f.i32(NODE_STRIDE);
-    f.op(Instruction::I32Mul);
-    f.op(Instruction::MemoryCopy {
-        src_mem: HEAP,
-        dst_mem: HEAP,
-    });
-    if let Some(r) = m.runtime {
-        f.global_get(Global::NodeTab);
-        f.call(Sym::Inst(r.acyclic.free));
-    }
-    f.op(Instruction::End);
-    f.get(fresh);
-    f.global_set(Global::NodeTab);
-    f.get(cap);
-    f.global_set(Global::NodeCap);
+    crate::rt::grow_table(
+        m,
+        &mut f,
+        [Global::NodeTab, Global::NodeCap],
+        cap,
+        NODE_STRIDE,
+    );
     f.op(Instruction::End);
     node_address(&mut f, 0);
     f

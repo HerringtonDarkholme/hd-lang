@@ -1,0 +1,21 @@
+# test: a copy of a `&` binding keeps its run-time loan until the copy's last use, so a write through an alias before then panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn rename(t: &Team, alias: *mut User) -> string:
+    n := &t.lead.name
+    k := n
+    first := *n
+    alias.name = "b" # panic: borrow-conflict
+    first + *k
+
+tests:
+    it("a write panics while a copy of the binding is live"):
+        t := Team { lead: box(User { name: "a", age: +1 }) }
+        alias := t.lead
+        _ := rename(&t, alias)

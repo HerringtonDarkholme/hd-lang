@@ -5552,3 +5552,9 @@ typing/invalid/element-argument-method-beside-mut-parameter-list.hd	type	reject:
 typing/invalid/element-binding-argument-beside-mut-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
 typing/invalid/element-argument-receiver-holds-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
 typing/valid/element-argument-beside-length-kept.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.conflict
+runtime/panic/alias-mut-self-call-under-shared-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/panic/alias-read-under-mut-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/panic/alias-write-under-copied-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/panic/alias-write-under-shared-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/valid/alias-write-after-loan-last-use-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/valid/alias-write-to-disjoint-field-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.access

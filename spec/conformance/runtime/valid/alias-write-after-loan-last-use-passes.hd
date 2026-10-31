@@ -1,0 +1,24 @@
+# test: a run-time loan ends at its binding's last use, so a write through an alias after it passes, in each iteration of a loop
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict; Writes While Borrowed: ref.excl.live.
+# expect-stdout: a
+# expect-stdout: b0
+# expect-stdout: b01
+# expect-stdout: b012
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn rename(t: &Team, alias: *mut User) -> void $ Console:
+    for i in 0..3:
+        n := &t.lead.name
+        println(*n)
+        alias.name = if i == 0: "b0" else: "${alias.name}$i"
+    println(alias.name)
+
+pub fn main() -> void $ Console:
+    t := Team { lead: box(User { name: "a", age: +1 }) }
+    alias := t.lead
+    rename(&t, alias)
