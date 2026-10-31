@@ -8,7 +8,7 @@ type checking, then syntax. The parts the owner approved are marked
 **approved**; everything else is a proposal.
 
 - [1. Context And Goal](#1-context-and-goal)
-- [2. Six Programs That Cross](#2-six-programs-that-cross)
+- [2. Seven Programs That Cross](#2-seven-programs-that-cross)
 - [3. The Model](#3-the-model)
 - [4. Outcomes](#4-outcomes-approved-question-1)
 - [5. Type Checking](#5-type-checking)
@@ -35,7 +35,7 @@ So each program below copies too much, cannot say what it needs, or cannot
 be written. The design builds one model of a crossing first. The type
 checks follow from the model, and syntax comes last.
 
-## 2. Six Programs That Cross
+## 2. Seven Programs That Cross
 
 Each sketch is hd as it is written today, with the crossing it needs in a
 comment. Std names such as `Workers`, `Jobs` and `Gpu` are illustrations.
@@ -163,9 +163,30 @@ pub fn top_sales!(f: Filter) -> Result[List[Sale], ApiError] $ SalesApi:
     .Ok([for s in rows if matches(f, s) => s])     # to keep 200
 ```
 
-Together they cover space (1, 2, 4, 5, 6) and time (3), the modes copy,
-transfer and lend (1, 5), a change of representation (4), an unknown
-outcome (2), code identity across builds (3), and code sent to data (6).
+**7. Todo app: a server action, as React's.** The server renders a row
+and, with it, the code that renames that todo. The browser keeps the
+action and calls it later, when the user submits. Today the server
+exposes an endpoint and the page sends the id back by hand, so a page can
+send any id, and the endpoint must re-check the user owns it.
+
+```text
+pub fn todo_row(todo: Todo) -> Html $ Render:
+    # Today: the id rides in the page as plain data, and the client posts it back.
+    # Wanted: a closure over `todo.id` that runs on the server; the browser holds
+    # only a sealed reference to it and cannot read or change the captured id.
+    row([text_input(value=todo.title, on_submit_url="/todos/rename?id=${todo.id}")])
+
+pub fn rename_endpoint!(req: Request) -> Result[Response, TodoError] $ Db:
+    id := todo_id(req.query("id"))?                # untrusted: any id can arrive
+    title := req.form("title")?
+    rename_todo!(id, title)?
+    .Ok(ok())
+```
+
+Together they cover space (1, 2, 4, 5, 6, 7) and time (3, 7), the modes
+copy, transfer and lend (1, 5), a change of representation (4), an
+unknown outcome (2), code identity across builds (3, 7), code sent to
+data (6), and code that stays home while a reference to it travels (7).
 
 ## 3. The Model
 
@@ -238,6 +259,7 @@ destination's representation (example 4's upload).
 | 4 | host to device | five kernels | `photo`: copy rebuilt as a texture; the host keeps a handle | one image copied back |
 | 5 | thread to scoped threads | closures, same build | `lines`: shared lend; halves: exclusive lends | counts returned; threads joined before the scope ends |
 | 6 | browser to remote service | `matches`, by name | `f`: copy; the rows never move | 200 rows copied back |
+| 7 | server to browser, then back | the action's closure stays on the server; the browser holds a handle, `Action[Server, string, T]` | `todo.id`: copy, sealed in the handle; `title`: copy, untrusted | rename done or failed, or an unknown outcome |
 
 ### Lifecycle Rules (**approved**)
 
@@ -285,6 +307,19 @@ match place_order!(cart):  # hypothetical syntax: placed on the server by the de
     .Ok(receipt) => show(receipt)
     .Err(.Unknown) => check_order_status!(cart.id)
     .Err(error) => show_error(error)
+```
+
+The domain's errors and the crossing's errors join with a union type
+([#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)), never
+a nested `Result`. Code whose own result is `Result[T, E]` crosses as
+`Result[T, E | CrossError]`, so example 7's action matches one flat
+error:
+
+```text
+match rename.call!(text):  # Result[void, TodoError | CrossError]; hypothetical syntax
+    .Ok(()) => pass
+    .Err(.Unknown) => println("saving; refresh to check")  # a CrossError case
+    .Err(error) => println("could not rename: $error")     # either side, through Display
 ```
 
 L1 and L2 hold by construction, so the checker needs no rule for unknown
