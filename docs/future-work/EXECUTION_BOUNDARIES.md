@@ -226,7 +226,7 @@ destination's representation (example 4's upload).
 | Worker | yes | yes | no | yes |
 | Remote service | yes | yes | no | yes |
 | Device | yes, often rebuilt | yes | no | yes |
-| Later / resume | yes | no (proposed L4) | no | yes |
+| Later / resume | yes | no (L4) | no | yes |
 
 ### The Examples In The Model
 
@@ -239,7 +239,7 @@ destination's representation (example 4's upload).
 | 5 | thread to scoped threads | closures, same build | `lines`: shared lend; halves: exclusive lends | counts returned; threads joined before the scope ends |
 | 6 | browser to remote service | `matches`, by name | `f`: copy; the rows never move | 200 rows copied back |
 
-### Lifecycle Rules (Proposed, Not Decided)
+### Lifecycle Rules (**approved**)
 
 - **L1.** A borrow ends when the destination's access ends (quiescence),
   not when the result arrives.
@@ -338,9 +338,7 @@ owner's note's block, which names every capture and its mode.
    unknown from remote and later domains, enforced by types. Option 2: only
    done and failed; libraries fold timeouts into errors. No recommendation
    (section 4).
-2. **Do L1 to L4 hold?** They decide when a borrow ends, what an unknown
-   outcome returns, how long handled data lives, and what may wait for
-   later. Recommended: accept all four.
+2. **Do L1 to L4 hold?** Answered: yes, all four (owner, 2026-10-31).
 3. **Does code name the destination?** A handle tied to one GPU needs that
    GPU in code. The 2026-10-17 #166 decision says the deployment
    configuration names places. Options: (a) configuration only; (b) a
