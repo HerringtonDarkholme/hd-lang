@@ -189,6 +189,14 @@ pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
                     stack.extend(vs.into_iter().flatten().map(|f| (f, false)));
                 }
             }
+            TyData::Union(members) if seen.insert(t) => {
+                stack.push((t, true));
+                stack.extend(
+                    pool.list_items(members)
+                        .iter()
+                        .map(|member| (*member, false)),
+                );
+            }
             TyData::Tuple { elems, rest } => {
                 stack.extend(pool.list_items(elems).iter().map(|e| (*e, false)));
                 stack.extend(rest.map(|r| (r, false)));
@@ -200,6 +208,54 @@ pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
         }
     }
     out
+}
+
+/// The in-place layout shared by a nonrecursive nominal enum and a union.
+fn enum_layout_in(
+    pool: &InternPool,
+    env: &dyn LayoutEnv,
+    variants: &[Vec<Ty>],
+    memo: &HashMap<Ty, Layout>,
+) -> StageResult<Layout> {
+    if variants.iter().all(Vec::is_empty) {
+        return Ok(one(LayoutClass::I32, ValType::I32));
+    }
+    let mut slots: Vec<(ValType, usize)> = Vec::new();
+    for variant in variants {
+        let mut here: Vec<(ValType, usize)> = Vec::new();
+        for field in variant {
+            for value in layout_in(pool, env, *field, memo)?.values {
+                let value = if matches!(value, ValType::Ref { .. }) {
+                    ValType::EqRef
+                } else {
+                    value
+                };
+                match here.iter_mut().find(|slot| slot.0 == value) {
+                    Some(slot) => slot.1 += 1,
+                    None => here.push((value, 1)),
+                }
+            }
+        }
+        for (value, count) in here {
+            match slots.iter_mut().find(|slot| slot.0 == value) {
+                Some(slot) => slot.1 = slot.1.max(count),
+                None => slots.push((value, count)),
+            }
+        }
+    }
+    let mut values = vec![ValType::I32];
+    for (value, count) in slots {
+        values.extend(std::iter::repeat_n(value, count));
+    }
+    Ok(if values.len() > VALUE_BOUND {
+        one(LayoutClass::Ref, ValType::Ref { nullable: false })
+    } else {
+        Layout {
+            class: LayoutClass::Multi,
+            values,
+            packed_bits: None,
+        }
+    })
 }
 
 /// `layout_of`, with the enums `memo` holds already laid out.
@@ -241,49 +297,10 @@ fn layout_in(
         },
         TyData::Adt { def, args } => match env.enum_variants(def, args) {
             None => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-            Some(vs) if vs.iter().all(Vec::is_empty) => one(LayoutClass::I32, ValType::I32),
             Some(_) if env.recursive_enum(def) => {
                 one(LayoutClass::Ref, ValType::Ref { nullable: false })
             }
-            Some(vs) => {
-                // Slot sharing: a tag, then per value type the max count over variants.
-                let mut slots: Vec<(ValType, usize)> = Vec::new();
-                for v in &vs {
-                    let mut here: Vec<(ValType, usize)> = Vec::new();
-                    for f in v {
-                        for val in layout_in(pool, env, *f, memo)?.values {
-                            let val = if matches!(val, ValType::Ref { .. }) {
-                                ValType::EqRef
-                            } else {
-                                val
-                            };
-                            match here.iter_mut().find(|s| s.0 == val) {
-                                Some(s) => s.1 += 1,
-                                None => here.push((val, 1)),
-                            }
-                        }
-                    }
-                    for (val, n) in here {
-                        match slots.iter_mut().find(|s| s.0 == val) {
-                            Some(s) => s.1 = s.1.max(n),
-                            None => slots.push((val, n)),
-                        }
-                    }
-                }
-                let mut values = vec![ValType::I32];
-                for (val, n) in slots {
-                    values.extend(std::iter::repeat_n(val, n));
-                }
-                if values.len() > VALUE_BOUND {
-                    one(LayoutClass::Ref, ValType::Ref { nullable: false })
-                } else {
-                    Layout {
-                        class: LayoutClass::Multi,
-                        values,
-                        packed_bits: None,
-                    }
-                }
-            }
+            Some(variants) => enum_layout_in(pool, env, &variants, memo)?,
         },
         // A rest element is the tuple's last member, a `List`.
         TyData::Tuple { elems, rest } => {
@@ -305,8 +322,13 @@ fn layout_in(
                 _ => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             }
         }
-        TyData::Union(_) => {
-            return Err(NotImplemented::new(Stage::Emit, "union type layout"));
+        TyData::Union(members) => {
+            let variants: Vec<Vec<Ty>> = pool
+                .list_items(members)
+                .iter()
+                .map(|member| vec![*member])
+                .collect();
+            enum_layout_in(pool, env, &variants, memo)?
         }
         TyData::Option(inner) => {
             let li = layout_in(pool, env, inner, memo)?;
@@ -1416,6 +1438,13 @@ mod tests {
         assert_eq!(
             value_enum.values,
             [ValType::I32, ValType::I32, ValType::EqRef, ValType::I64]
+        );
+        let union = p.intern_ty(&TyData::Union(p.list(&[Ty::I32, Ty::STRING])));
+        assert_eq!(layout_of(&p, &Env, union).expect("union"), value_enum);
+        let nested = p.intern_ty(&TyData::Union(p.list(&[union, Ty::BOOL])));
+        assert_eq!(
+            layout_of(&p, &Env, nested).expect("nested").class,
+            LayoutClass::Ref
         );
         let opt_data = p.intern_ty(&TyData::Option(data));
         assert_eq!(

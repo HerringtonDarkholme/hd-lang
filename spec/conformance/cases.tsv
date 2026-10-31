@@ -5588,3 +5588,4 @@ typing/invalid/union-constructor-payload-mismatch.hd	type	reject:type-mismatch	l
 typing/invalid/union-match-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/04-type-system.md#r-types.union.match
 runtime/panic/alias-write-under-call-result-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/valid/alias-write-beside-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/valid/union-runtime-layout-and-ownership.hd	runtime	accept	lang/04-type-system.md#r-types.union.representation

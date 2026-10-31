@@ -2142,6 +2142,7 @@ impl Cx<'_> {
                 elems: list(elems),
                 rest: rest.map(|t| self.shared_permission_type(t)),
             },
+            TyData::Union(members) => TyData::Union(list(members)),
             // A function, trait value or projection carries a signature or
             // dictionary whose selection can distinguish the permissions.
             _ => return ty,
@@ -3805,6 +3806,11 @@ fn pinned(
         TyData::Tuple { elems, rest } => {
             for e in pool.list_items(elems).iter().copied().chain(rest) {
                 pinned(pool, env, def, e, true, out);
+            }
+        }
+        TyData::Union(members) => {
+            for member in pool.list_items(members) {
+                pinned(pool, env, def, *member, inside, out);
             }
         }
         TyData::Fn {

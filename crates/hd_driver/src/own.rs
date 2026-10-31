@@ -342,6 +342,7 @@ fn holds_ref(pool: &hd_types::InternPool, cells: hd_types::RefCells, t: Ty, dept
         TyData::Tuple { elems, rest } => {
             any(elems) || rest.is_some_and(|r| holds_ref(pool, cells, r, depth + 1))
         }
+        TyData::Union(members) => any(members),
         TyData::Option(i) | TyData::Mut(i) => holds_ref(pool, cells, i, depth + 1),
         _ => false,
     }

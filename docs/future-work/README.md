@@ -27,7 +27,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 ### Language and library
 
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
-- [Positional Union Types](UNION_TYPES.md): syntax, ordered identity, construction, and matching built; lowering, traits, and parity remain (#1123-#1125).
+- [Positional Union Types](UNION_TYPES.md): syntax, ordered identity, construction, matching, and runtime lowering built; traits and parity remain (#1124-#1125).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
 - [Scope Guards](SCOPE_GUARDS.md): accepted: sync `using`, `using!` and error-level `unbound-disposable` built (#962); `on_exit` with tier-2 capture lifetimes, `@auto_closing` (#1099) and library `defer`/`ensure` (#1101) built; the `defer:` statement is being removed (#1117).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
