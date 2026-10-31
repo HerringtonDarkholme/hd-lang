@@ -1,0 +1,19 @@
+# test: a `&mut` binding passed for a `&mut` parameter or a `&mut self` receiver is reborrowed for the call, so it stays usable
+# Spec 13 Moves: ref.move.reborrow.
+struct Counter:
+    count: i32
+
+impl Counter:
+    fn add(&mut self, n: i32) -> void:
+        self.count += n
+
+fn bump(c: &mut Counter) -> void:
+    c.count += 1
+
+fn twice(c: &mut Counter, xs: &mut List[i32]) -> void:
+    bump(c)
+    bump(c)
+    c.add(1)
+    c.add(2)
+    xs.push(1)
+    xs.push(2)

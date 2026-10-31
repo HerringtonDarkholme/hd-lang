@@ -1,0 +1,13 @@
+# test: assigning a moved `&mut` binding a new value makes it usable again
+# Spec 13 Moves: ref.move.reassign.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn demo(a: &mut Counter, b: &mut Counter) -> void:
+    let c = a
+    keep(c)
+    c = b
+    c.count += 1

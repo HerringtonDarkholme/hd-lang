@@ -34,5 +34,5 @@ tests:
     it("mutable dispatch and a supertrait bound"):
         let mut counter = Counter { value: 4 }
         let value: &mut dyn Write = &mut counter
-        change(value)
+        change(&mut *value)
         assert_equal(read(value), 5, reason="the same original place changed")

@@ -10,13 +10,14 @@ use crate::ir::{Body, NONE, Ref, Tag, Topology, u32_of};
 /// Bitset states of `words` words each in one growable arena, by start
 /// offset, allocated and freed last in, first out.
 #[derive(Default)]
-pub(crate) struct BitArena {
+pub struct BitArena {
     pub words: usize,
     cells: Vec<u64>,
 }
 
 impl BitArena {
     /// Where the next state goes.
+    #[must_use]
     pub fn top(&self) -> usize {
         self.cells.len()
     }
@@ -84,11 +85,13 @@ impl BitArena {
         }
     }
 
+    #[must_use]
     pub fn get(&self, at: usize, bit: u32) -> bool {
         self.cells[at + (bit / 64) as usize] & (1 << (bit % 64)) != 0
     }
 
     /// State `at`'s words.
+    #[must_use]
     pub fn row(&self, at: usize) -> &[u64] {
         &self.cells[at..at + self.words]
     }
@@ -117,7 +120,7 @@ type Jumps = [(u32, bool); 2];
 /// A walk's states: the arena, and the states a jump to each open target
 /// carries.
 #[derive(Default)]
-pub(crate) struct Flow {
+pub struct Flow {
     pub arena: BitArena,
     /// Per label, while its target is walked, the offsets of the states a
     /// `Break` and a `Continue` to it carry, or `NONE`, each with whether
@@ -356,7 +359,7 @@ fn cases(b: &Body, w: u32) -> impl Iterator<Item = u32> + '_ {
 }
 
 /// Where a forward walk starts the cleanup suites of a `Scope`.
-pub(crate) enum Suites {
+pub enum Suites {
     /// From the body's end, where a path reaches it. The scope's value is
     /// the union of the body's end and every suite's end (`union`), or the
     /// last suite's end that a path falls out of.
@@ -371,7 +374,7 @@ pub(crate) enum Suites {
 /// one bit per fact in state `st` of `s`, joins are unions ("on any
 /// path"). The analysis gives each instruction's transfer; the walk gives
 /// the paths.
-pub(crate) trait Forward {
+pub trait Forward {
     const SUITES: Suites;
     /// What a loop's `Break`s carry joins over every round, not only the
     /// last round's.
@@ -415,7 +418,7 @@ pub(crate) trait Forward {
 
 /// Walks block `blk` of `b` forward from state `st` of `s`; false when no
 /// path falls out of its end.
-pub(crate) fn forward<A: Forward>(
+pub fn forward<A: Forward>(
     b: &Body,
     topo: &Topology,
     s: &mut Flow,

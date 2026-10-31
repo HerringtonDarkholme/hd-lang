@@ -13,9 +13,10 @@ fn set_x(a: &mut Point, b: &mut Point) -> void:
 
 pub fn main() -> void $ Console:
     r := &mut Point { x: 1, y: 2 }
-    s := r
+    s := &mut *r
     s.x = 7
-    println("${r.x} ${s.x}")
+    seen := s.x
+    println("${r.x} ${seen}")
     p := box(Point { x: 0, y: 0 })
     q := p
     set_x(p, q)

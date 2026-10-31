@@ -1,0 +1,12 @@
+# test: a reborrow of a moved `&mut` binding is a use of it
+# Spec 13 Moves: ref.move.use.forms.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn after_move(c: &mut Counter) -> void:
+    d := c
+    keep(&mut *c) # diagnostic: use-of-moved-value
+    d.count += 1

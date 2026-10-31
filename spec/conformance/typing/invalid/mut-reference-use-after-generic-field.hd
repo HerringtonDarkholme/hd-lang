@@ -1,0 +1,11 @@
+# test: a `&mut` binding's value moves into a field whose declared type is a type parameter
+# Spec 13 Moves: ref.move.sites, ref.move.use.
+struct Counter:
+    count: i32
+
+struct Wrap[T]:
+    value: T
+
+fn after_field(c: &mut Counter) -> void:
+    w := Wrap { value: c }
+    c.count += 1 # diagnostic: use-of-moved-value

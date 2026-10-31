@@ -18,7 +18,7 @@ fn read(p: &Point) -> i32:
     p.x
 
 fn forward(p: &mut Point) -> i32:
-    q := p
+    q := &mut *p
     nudge(q)
     p.shift(2)
     read(p) + p.total()

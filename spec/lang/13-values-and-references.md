@@ -670,7 +670,7 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
     println(*m)
 ```
 
-1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or as a copy of another such binding. The last dereference in `p`'s path reads a `*mut`, and only fields follow it. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan covers the address range of `p`'s value and is live until the last use of every binding that holds it ([`ref.excl.live`](#r-ref.excl.live)).
+1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds. It holds it directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or from another such binding. The last dereference in `p`'s path reads a `*mut`, and only fields follow it. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan covers the address range of `p`'s value and is live until the last use of every binding that holds it ([`ref.excl.live`](#r-ref.excl.live)).
 2. r[ref.excl.alias.access] An **access through a counted reference** is a use of a place whose last dereference reads a `*mut` or a `*T`, with only fields after it. An assignment, a `&mut` and a built-in change of the place write it; a read and a `&` read it. A call that takes a `*mut` writes the whole object it refers to, and a call that takes a `*T` reads it. The arguments of a bang call are not accesses.
 3. r[ref.excl.alias.conflict] An access through a counted reference whose address range overlaps a live run-time loan's panics when it writes, or when the loan is a `&mut`. Panic: `borrow-conflict`.
 4. r[ref.excl.alias.unchecked] Other references take no run-time loan, so an alias reads or writes their place in place. These are the reference a call takes for one call, a reference inside an optional, a tuple or a struct, and a reference through a `*T`. Nor does replacing a `*mut` on a loan's path conflict with the loan; the reference keeps the old object alive.
@@ -1764,6 +1764,83 @@ fn demo() -> i32:
 
 See also: [Copied And Shared Captures](07-functions.md#copied-and-shared-captures),
 [`ref.read.shallow`](#r-ref.read.shallow).
+
+## Moves
+
+A `&mut T` value is never copied. A binding that gives its value away **moves** it, and the binding may not be used again until it is assigned. A call that expects `&mut` **reborrows** the binding instead: it lends what the binding refers to for the call.
+
+```hd
+struct Counter:
+    count: i32
+
+fn bump(c: &mut Counter) -> void:
+    c.count += 1
+
+fn keep[T](x: T) -> void: pass
+
+fn demo(c: &mut Counter) -> void:
+    bump(c)        # a reborrow: c stays usable
+    bump(c)
+    keep(&mut *c)  # an explicit reborrow
+    d := c         # c moves into d
+    bump(d)
+```
+
+1. r[ref.move.mut] A `&mut T` value is moved, not copied. A `*mut T` or `&T` value is copied.
+2. r[ref.move.sites] A read of a whole `&mut` binding moves its value at each site in the table below. No `&mut` type is expected at these sites.
+3. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
+4. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
+5. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`.
+6. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
+7. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
+8. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it.
+9. r[ref.move.reassign] Assigning the binding a new value makes it usable again.
+
+| Site | Example |
+| --- | --- |
+| A `:=` binding, or a `let` without a written type | `d := c`, `let d = c` |
+| An argument for a parameter not declared `&mut`, such as a generic `T` | `keep(c)` |
+| A tuple element, a list element, or an optional's payload | `(c, 1)`, `.Some(c)` |
+| A struct field or variant payload whose declared type is a type parameter | `Wrap { value: c }` |
+| A returned value, or the value of a `break` | `return c` |
+
+```text
+struct Counter:
+    count: i32
+
+fn bump(c: &mut Counter) -> void:
+    c.count += 1
+
+fn keep[T](x: T) -> void: pass
+
+fn after_let(c: &mut Counter) -> void:
+    d := c
+    bump(c)  # error: use-of-moved-value
+
+fn after_generic(c: &mut Counter) -> void:
+    keep(c)
+    c.count = 1  # error: use-of-moved-value
+
+fn after_branch(c: &mut Counter, early: bool) -> void:
+    if early:
+        keep(c)
+    bump(c)  # error: use-of-moved-value
+
+fn in_loop(c: &mut Counter) -> void:
+    for i in 0..3:
+        keep(c)  # error: use-of-moved-value
+```
+
+> **Why.** This is Rust's rule (E0382) for `&mut`. Two copies of one
+> `&mut` would both write the same place, which the exclusivity rules
+> forbid. The implicit reborrow keeps the common case, `bump(c); bump(c)`,
+> valid.
+
+> **Note.** A struct, tuple, or enum value that holds a `&mut` is still
+> copied; [#1138](https://github.com/HerringtonDarkholme/hd-lang/issues/1138)
+> makes it move too.
+
+See also: [Writes While Borrowed](#writes-while-borrowed).
 
 ## Not Yet Checked
 

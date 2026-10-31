@@ -1,0 +1,13 @@
+# test: `&mut *c` reborrows explicitly, so passing it to a generic parameter leaves `c` usable
+# Spec 13 Moves: ref.move.reborrow.explicit.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn demo(c: &mut Counter) -> void:
+    keep(&mut *c)
+    d := &mut *c
+    d.count += 1
+    c.count += 1

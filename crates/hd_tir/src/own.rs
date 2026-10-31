@@ -49,7 +49,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
 mod borrow;
 pub(crate) use borrow::keeps_drops;
-pub(crate) mod flow;
+pub mod flow;
 mod frame;
 pub(crate) mod hoist;
 mod insert;

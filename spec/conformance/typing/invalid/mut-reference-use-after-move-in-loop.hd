@@ -1,0 +1,11 @@
+# test: a `&mut` binding moved in a loop's body is moved on the next iteration
+# Spec 13 Moves: ref.move.use.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn in_loop(c: &mut Counter) -> void:
+    for i in 0..3:
+        keep(c) # diagnostic: use-of-moved-value

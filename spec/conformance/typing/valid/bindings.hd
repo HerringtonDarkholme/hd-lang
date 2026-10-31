@@ -10,8 +10,8 @@ fn rename(user: &mut User, name: string) -> void:
 
 fn example() -> string:
     let mut user = &mut User { name: "Ada" }
-    readonly := user
     rename(user, "Grace")
+    readonly := user
     short := &mut User { name: "Lin" }
     let mut names: List[string] = []
     names.push(short.name)

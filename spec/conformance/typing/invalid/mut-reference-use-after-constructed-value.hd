@@ -1,0 +1,8 @@
+# test: a `&mut` binding's value moves into a constructed value, so a later use of the binding is an error
+# Spec 13 Moves: ref.move.sites, ref.move.use.
+struct Counter:
+    count: i32
+
+fn after_payload(c: &mut Counter) -> void:
+    let held: Option[&mut Counter] = .Some(c)
+    c.count += 1 # diagnostic: use-of-moved-value

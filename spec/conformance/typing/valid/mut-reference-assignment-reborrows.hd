@@ -1,0 +1,11 @@
+# test: an assignment to a `&mut` binding reborrows the assigned value, so its source stays usable after the binding's last use
+# Spec 13 Moves: ref.move.reborrow.typed.
+struct Counter:
+    count: i32
+
+fn demo(a: &mut Counter, b: &mut Counter) -> void:
+    let mut d: &mut Counter = a
+    d.count += 1
+    d = b
+    d.count += 1
+    b.count += 1

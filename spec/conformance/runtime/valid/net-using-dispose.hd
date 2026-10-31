@@ -13,7 +13,7 @@ fn greet!(host: string) -> Result[List[u8], NetError] $ Net:
     stream.read!(16)
 
 fn twice!(stream: &mut dyn TcpStream) -> void:
-    using! first = stream
+    using! first = &mut *stream
     using! second = stream
     pass
 

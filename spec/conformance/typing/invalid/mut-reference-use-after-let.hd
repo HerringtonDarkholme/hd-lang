@@ -1,0 +1,12 @@
+# test: `:=` moves a `&mut` binding's value, so a later use of the binding is an error
+# Spec 13 Moves: ref.move.sites, ref.move.use.
+struct Counter:
+    count: i32
+
+fn bump(c: &mut Counter) -> void:
+    c.count += 1
+
+fn after_let(c: &mut Counter) -> void:
+    d := c
+    bump(c) # diagnostic: use-of-moved-value
+    bump(d)

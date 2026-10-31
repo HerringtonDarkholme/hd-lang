@@ -1,0 +1,14 @@
+# test: a closure that captures a moved `&mut` binding uses it
+# Spec 13 Moves: ref.move.use.forms.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn run(f: fn() -> i32) -> i32:
+    f()
+
+fn after_capture(c: &mut Counter) -> i32:
+    keep(c)
+    run(fn() -> i32: c.count) # diagnostic: use-of-moved-value

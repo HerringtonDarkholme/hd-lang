@@ -1,0 +1,23 @@
+# test: a struct field or a variant payload declared `&mut` reborrows the value it is given
+# Spec 13 Moves: ref.move.reborrow.typed.
+struct Counter:
+    count: i32
+
+struct Lease['a]:
+    held: &'a mut Counter
+
+enum Slot['a]:
+    Taken(&'a mut Counter)
+    Free
+
+fn lease(c: &mut Counter) -> void:
+    l := Lease { held: c }
+    l.held.count += 1
+    c.count += 1
+
+fn slot(c: &mut Counter) -> void:
+    s := Slot.Taken(c)
+    match s:
+        Slot.Taken(h) => h.count += 1
+        Slot.Free => pass
+    c.count += 1

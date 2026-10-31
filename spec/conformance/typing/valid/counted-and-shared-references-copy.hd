@@ -1,0 +1,18 @@
+# test: a `*mut T` value and a `&T` value are copied, so a binding stays usable after giving its value away
+# Spec 13 Moves: ref.move.mut.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn counted(c: *mut Counter) -> i32:
+    d := c
+    keep(c)
+    d.count += 1
+    c.count
+
+fn shared(c: &Counter) -> i32:
+    d := c
+    keep(c)
+    d.count + c.count

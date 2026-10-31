@@ -1,0 +1,15 @@
+# test: a `&mut` binding moved on one path of a branch may not be used after the branch
+# Spec 13 Moves: ref.move.use.
+struct Counter:
+    count: i32
+
+fn bump(c: &mut Counter) -> void:
+    c.count += 1
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn after_branch(c: &mut Counter, early: bool) -> void:
+    if early:
+        keep(c)
+    bump(c) # diagnostic: use-of-moved-value

@@ -11,5 +11,5 @@ tests:
 
     it("a mut element of a tuple can be mutated"):
         let mut user = &mut User { name: "Ada" }
-        rename((user, 1))
+        rename((&mut *user, 1))
         assert_equal(user.name, "Grace", reason="the element shares the user")

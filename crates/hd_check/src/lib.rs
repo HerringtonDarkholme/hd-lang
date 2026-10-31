@@ -43,6 +43,7 @@ mod join;
 mod literals;
 mod local;
 mod local_refs;
+mod moves;
 mod opaque;
 mod pat;
 mod privacy;

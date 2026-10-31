@@ -1,0 +1,11 @@
+# test: an argument for a generic parameter moves a `&mut` binding's value, so a later use of the binding is an error
+# Spec 13 Moves: ref.move.sites, ref.move.use.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn after_generic(c: &mut Counter) -> void:
+    keep(c)
+    c.count = 1 # diagnostic: use-of-moved-value

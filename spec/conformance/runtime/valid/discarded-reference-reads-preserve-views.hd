@@ -29,7 +29,7 @@ tests:
     use std.testing.assert_equal
 
     it("discarded physical reads leave aliases and neighboring fields intact"):
-        state := &mut State { text: "before", values: ["kept"], writes: 0 }
+        state := box(State { text: "before", values: ["kept"], writes: 0 })
         alias := state
         for i in 0..100:
             write(state, "value $i")

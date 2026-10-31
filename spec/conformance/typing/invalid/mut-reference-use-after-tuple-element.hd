@@ -1,0 +1,8 @@
+# test: a `&mut` binding's value moves into a tuple element, which declares no `&mut` type
+# Spec 13 Moves: ref.move.sites, ref.move.use.
+struct Counter:
+    count: i32
+
+fn after_tuple(c: &mut Counter) -> void:
+    pair := (c, 1)
+    c.count += 1 # diagnostic: use-of-moved-value

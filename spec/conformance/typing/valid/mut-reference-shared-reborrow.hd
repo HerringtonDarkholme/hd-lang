@@ -1,0 +1,13 @@
+# test: converting a `&mut` binding to `&` reborrows it as a shared reference and does not move it
+# Spec 13 Moves: ref.move.reborrow.shared.
+struct Counter:
+    count: i32
+
+fn read(c: &Counter) -> i32:
+    c.count
+
+fn demo(c: &mut Counter) -> i32:
+    let t: &Counter = c
+    n := read(t)
+    c.count += n
+    read(c)

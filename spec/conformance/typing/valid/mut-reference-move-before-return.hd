@@ -1,0 +1,10 @@
+# test: a `return` ends its path, so a `&mut` returned in one branch is still usable on the other
+# Spec 13 Moves: ref.move.sites, ref.move.use.
+struct Counter:
+    count: i32
+
+fn pick(c: &mut Counter, early: bool) -> &mut Counter:
+    if early:
+        return c
+    c.count += 1
+    c
