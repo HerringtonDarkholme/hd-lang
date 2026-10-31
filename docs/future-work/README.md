@@ -29,7 +29,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Positional Union Types](UNION_TYPES.md): ordered anonymous enums with explicit positional construction; design complete 2026-10-28, not scheduled (#804).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
-- [Scope Guards](SCOPE_GUARDS.md): accepted: sync `using`, `using!` and error-level `unbound-disposable` built (#962); `on_exit` built; `@auto_closing` and tier-2 guard lifetimes in #978.
+- [Scope Guards](SCOPE_GUARDS.md): accepted: sync `using`, `using!` and error-level `unbound-disposable` built (#962); `on_exit` built with tier-2 capture lifetimes (6f); `@auto_closing` is #1099 and library `defer`/`ensure` #1101.
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Design By Contract](DESIGN_BY_CONTRACT.md): `require(message, condition)` as ordinary std code, checked in every profile until `@cfg` splits it; `ensure` deferred to tier 2 (#978); design accepted 2026-10-28 (#880).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
@@ -44,8 +44,8 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [Object Model, Tier 2](OBJECT_MODEL_TIER2.md): opt-in lifetimes on tier 1. Part 3 is its first cut, local references: step 1 is applied (#834); step 2 is not adopted (#704 shipped as a release-only fact instead), and later steps need approval.
-- [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29: Rust lifetime variables and elision over counted references, in stages; stages 1 to 5 and slices 6a, 6b1-6b2, 6d1-6d5, 6e and 6f built; 6b3, 6c, 6d6 and 6g-6i open.
-- [One Lifetime Solver](LIFETIME_SOLVER.md): accepted 2026-10-30: region variables per reference slot, outlives constraints per TIR instruction and one SCC solver in place of the per-shape paths; S1 to S12 built, and every spec union is dropped; location-insensitive until stage 7.
+- [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29: Rust lifetime variables and elision over counted references, in stages; stages 1 to 5, stage 6 except 6g and `Span.iter()`, and stage 7a built; 6g, `Span.iter()` and stage 7b-7e open; 6i not planned for now.
+- [One Lifetime Solver](LIFETIME_SOLVER.md): accepted 2026-10-30: region variables per reference slot, outlives constraints per TIR instruction and one SCC solver in place of the per-shape paths; S1 to S12 built, and every spec union is dropped; stage 7a built.
 - [Returned References, Stage 3: Source Sets Or Lifetimes](RETURNED_REFERENCE_SOURCE_SETS.md): decided 2026-10-29: single lifetime variables spelled `'name` (#1005).
 - [Stage 3 Source Sets: Stress Test](RETURNED_REFERENCE_SOURCE_SETS_STRESS_TEST.md): design review 2026-10-29: 18 real-code shapes compare lifetime variables, public paths and root sets; paths add no annotation reduction and hit eight abstraction boundaries (#1005).
 - [Refcount Runtime](REFCOUNT_RUNTIME.md): the linear-memory runtime of reference counting with cycle detection, priced on Wasm; it is the only backend (#426).

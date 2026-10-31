@@ -101,7 +101,7 @@ Drop rows whose issue is closed. Each remaining row cites an open issue.
 ## 8. Issue sweep
 
 For every open issue, one of these is true. Fix those that aren't.
-- **Running or queued:** it is in a lane or in Muse's queue (#58).
+- **Running or queued:** it is in a lane or in chat's queue (#1065).
 - **Blocked:** each blocker has its own ticket, linked from the issue.
   The blockers are queued as work.
 - **Waiting on the owner:** labelled `owner-decision`, with the question

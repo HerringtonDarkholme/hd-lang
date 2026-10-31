@@ -1,9 +1,10 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 5 and slices 6a1 to 6a4, 6b1, 6b2, 6d1 to 6d5 and 6e1 to 6e4; stage
-6's remaining slices are #1023 to #1025 (6c), #1039 (6b3), #1058 (6d6), #1041,
-and 6f to 6i. It reviews
+stages 1 to 5, stage 6 except 6g and `Span.iter()`, and stage 7a (#1098).
+Open: 6g1 `@auto_closing` (#1099) and 6g2 library `defer`/`ensure` (#1101),
+`Span.iter()` (#1104, after #1103), the `for` cursor gap (#1105), and stage 7b
+to 7e; 6i is not planned for now (see its row). It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
@@ -368,7 +369,7 @@ Applied by #1029 (6e, [FnMut Bounds](../../spec/lang/07-functions.md#fnmut-bound
 
 Applied by #1040 (6d4, [`ref.generic.outlives.argument`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.argument)): a closure written as a call argument for a bare type parameter may capture local references when `'static` does not bound it and the callee's parameters and result name it only bare. The call's result holds the captures in the parameter's positions, and in its lifetime's positions under a lifetime bound. So `require[F < Fn() -> bool]` may take `fn(): self.ok()` in a `&mut self` method (#1042). A type parameter named inside another type of the signature (`-> Map[I, F]`, `b: &mut Button[F, 'a]`) came with #1057.
 
-Applied by #1057 (6d5, [`ref.generic.outlives.instance`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.instance)): a function type is an origin position wherever it appears in a type, so a type argument instantiated with a capturing closure carries its captures inside `MapIter[I, T, U, F]` or `Plain[F]`, and std's iterator adapters take closures that capture locals. A function type written inside another type of a parameter holds no captures ([`ref.generic.outlives.written`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.written)), as Rust's `fn` pointer. Still open: a closure in a struct literal for a field of a type parameter with no lifetime bound (`Plain { on_click: fn(): c.n += 1 }`), which `wrap(...)` now allows (#1058).
+Applied by #1057 (6d5, [`ref.generic.outlives.instance`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.instance)): a function type is an origin position wherever it appears in a type, so a type argument instantiated with a capturing closure carries its captures inside `MapIter[I, T, U, F]` or `Plain[F]`, and std's iterator adapters take closures that capture locals. A function type written inside another type of a parameter holds no captures ([`ref.generic.outlives.written`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.written)), as Rust's `fn` pointer. A closure in a struct literal for a field of a type parameter with no lifetime bound (`Plain { on_click: fn(): c.n += 1 }`) followed in #1058 (6d6).
 
 Applied by #1058 (6d6, [`ref.generic.outlives.field`](../../spec/lang/13-values-and-references.md#r-ref.generic.outlives.field)): a closure written in a struct literal for a field of a type parameter that `'static` does not bound may capture local references, with or without a lifetime bound, and the struct value carries the captures in that parameter's positions, as `wrap(...)`'s result does.
 
