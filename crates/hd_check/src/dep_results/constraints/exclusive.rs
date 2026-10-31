@@ -1,4 +1,4 @@
-//! Exclusivity (`ref.excl`, stages 7a to 7d of
+//! Exclusivity (`ref.excl`, stages 7a to 7d2 of
 //! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each written `Ref` of
 //! a place a local's path reaches is a loan of its own, [`Origin::Site`],
 //! which the solver carries with the local's: shared for `&`, exclusive
@@ -439,8 +439,10 @@ impl Gen<'_, '_> {
     /// arguments and receiver. One that holds a loan of an overlapping
     /// place conflicts, and so does a use of one after a written `&mut`.
     /// `ref.excl.args.shared`: a `&` a call takes against a write of an
-    /// overlapping place in a later argument. A call that holds an error
-    /// of `found` already gets no other.
+    /// overlapping place in a later argument. `ref.elem.conflict`: an
+    /// element reference argument against a length change of its
+    /// collection. A call that holds an error of `found` already gets no
+    /// other.
     pub(super) fn call_conflicts(
         &self,
         sol: &Solution,
@@ -448,16 +450,18 @@ impl Gen<'_, '_> {
     ) -> Vec<(NodeIdx, String)> {
         let b = self.s.b;
         let range = |n: NodeIdx| super::super::range(self.s.cx.src.parse.tree.node(n));
-        // Each site loan: its id, its `Ref`, and its place.
-        let sites: Vec<(u32, u32, Path)> = (self.loans.iter().enumerate())
+        // Each site loan: its id, its `Ref`, its place, and whether it is
+        // an element reference's.
+        let (elems, sites): (Vec<_>, Vec<_>) = (self.loans.iter().enumerate())
             .filter_map(|(loan, o)| match *o {
-                Origin::Site(i) => match loan_path(self.s, i) {
-                    Some((p, Kind::Shared | Kind::Excl)) => Some((w(loan), i, p)),
-                    _ => None,
-                },
+                Origin::Site(i) => loan_path(self.s, i).map(|(p, k)| (w(loan), i, p, k)),
                 _ => None,
             })
-            .collect();
+            .partition(|x| x.3 == Kind::Elem);
+        let drop_kind = |v: Vec<(u32, u32, Path, Kind)>| -> Vec<(u32, u32, Path)> {
+            v.into_iter().map(|x| (x.0, x.1, x.2)).collect()
+        };
+        let (elems, sites) = (drop_kind(elems), drop_kind(sites));
         let (mut uses, mut writes) = (None, None);
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
         for c in 0..b.tags.len() {
@@ -478,12 +482,19 @@ impl Gen<'_, '_> {
                     args.push(v);
                 }
             });
-            // An element reference keeps `ref.elem.conflict`.
+            // An element reference falls under `ref.elem.conflict`.
             let elem = |j: u32, q: &Path| {
                 b.tags[j as usize] == Tag::Ref && q.1.iter().any(|s| matches!(s, Proj::Elem(_)))
             };
             for &v in &args {
-                // An element reference keeps `ref.elem.conflict`.
+                let writes = writes.get_or_insert_with(|| self.writes(&self.users()));
+                if let Some(e) = self.elem_arg_conflict(sol, c, v, &elems, writes) {
+                    if !out.iter().any(|x| x.0 == e.0) {
+                        out.push(e);
+                    }
+                    break;
+                }
+                // An element reference falls under `ref.elem.conflict`.
                 let ((root, path), excl) = match loan_path(self.s, v) {
                     Some((p, Kind::Shared)) => (p, false),
                     Some((p, Kind::Excl)) => (p, true),
@@ -493,7 +504,6 @@ impl Gen<'_, '_> {
                 let mut hits = Vec::new();
                 // A `&`: a write in a later argument.
                 if !excl {
-                    let writes = writes.get_or_insert_with(|| self.writes(&self.users()));
                     for (i, q, at) in writes.iter() {
                         if v < *at && (*at as usize) < c && !elem(*i, q) && hit(q) {
                             hits.extend([*i, *at]);
@@ -539,6 +549,58 @@ impl Gen<'_, '_> {
             }
         }
         out
+    }
+
+    /// `ref.elem.conflict`: argument `v` of call `c` holds an element
+    /// reference of `elems`, and the call takes `&mut` of its collection or
+    /// of a place that holds it in another argument, or a later argument
+    /// changes the collection's length (`ref.elem.access.length`).
+    fn elem_arg_conflict(
+        &self,
+        sol: &Solution,
+        c: usize,
+        v: u32,
+        elems: &[(u32, u32, Path)],
+        writes: &[(u32, Path, u32)],
+    ) -> Option<(NodeIdx, String)> {
+        let b = self.s.b;
+        let held = self.val(v).map(|x| x.0).unwrap_or_default();
+        for (loan, i, (root, sp)) in elems {
+            if !held.iter().any(|&g| sol.value(g).contains(*loan)) {
+                continue;
+            }
+            for &(wi, (r, ref q), at) in writes {
+                let during = at as usize == c && wi != v || v < at && (at as usize) < c;
+                if !during
+                    || r != *root
+                    || q.len() > sp.len()
+                    || !overlap(sp, q)
+                    || !self.resizes(wi, q.len() == sp.len(), *i)
+                {
+                    continue;
+                }
+                let node = [wi, at].map(|x| b.syn[x as usize]);
+                let Some(node) = node.into_iter().find(|&n| n != NodeIdx::NONE) else {
+                    continue;
+                };
+                let n = self.s.cx.names.text(b.local_name[r as usize]);
+                let mut place = if n.starts_with('$') {
+                    "a temporary".to_owned()
+                } else {
+                    format!("`{n}`")
+                };
+                if sp.iter().any(|s| matches!(s, Proj::Field(_))) {
+                    place = format!("a collection in {place}");
+                }
+                return Some((
+                    node,
+                    format!(
+                        "this may change the length of {place} while another argument of the same call refers to an element of it; pass the element's index instead, or make the change outside the call"
+                    ),
+                ));
+            }
+        }
+        None
     }
 
     /// Whether write `i` may change the length of the collection element

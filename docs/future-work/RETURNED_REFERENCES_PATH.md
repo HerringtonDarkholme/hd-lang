@@ -450,6 +450,8 @@ Slice 7c3 applied by #1111 (`ref.excl.args.shared`): a `&` a call takes, written
 
 Slice 7d applied by #1112 (`ref.elem.access.length`): an element reference is a loan of its whole collection, so while a binding that holds one is live, a `&mut` call on the collection, a map `remove` or a map store of another key is `conflicting-access`; only a change the checker cannot see panics `collection-pinned`.
 
+Slice 7d2 applied by #1113 (`ref.elem.conflict`): a call that takes `&mut` of a collection, or whose later argument changes its length, beside an argument that holds an element reference of it is `conflicting-access` where `ref.excl.place` covers the collection, as through a `&mut` parameter, and for a bound element reference as well as a written one.
+
 ### Stage 9: field paths on results
 
 A result may name the field of its source it points into (owner,

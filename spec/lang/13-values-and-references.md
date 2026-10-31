@@ -1600,6 +1600,8 @@ fn demo() -> void:
 5. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
 6. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
 7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length is an error. Error: `conflicting-access`.
+   - The collection may also be a place that [`ref.excl.place`](#r-ref.excl.place) covers, so one reached through a `&mut` parameter, as in `change(list, &mut list[2])`.
+   - An argument that holds an element reference is an access, whether the call takes the reference or a binding holds it, as in `grow(&mut xs, first)` after `first := &xs[0]`.
 8. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
 9. r[ref.elem.pinned] While a list is pinned, an operation that changes its length where no compile-time rule sees it, through another `*mut` alias or inside a callee, is a checked runtime panic. The operations are `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
 10. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics where no compile-time rule sees them. Panic: `collection-pinned`.

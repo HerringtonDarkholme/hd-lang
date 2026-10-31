@@ -1,0 +1,19 @@
+# test: an element reference argument beside a read of its list, a &mut of another field, or a length change finished in an earlier argument is valid
+# Spec 13 Call-Scoped Access: ref.elem.conflict.
+struct Board:
+    scores: List[i32]
+    log: List[i32]
+
+fn note(log: &mut List[i32], score: &i32) -> void:
+    log.push(*score)
+
+fn read(scores: &List[i32], score: &i32) -> i32:
+    if scores.len() > 1: *score else: 0
+
+fn place(value: i32, target: &mut i32) -> void:
+    *target = value
+
+fn demo(board: &mut Board) -> i32:
+    note(&mut board.log, &board.scores[0])
+    place(board.scores.remove_at(1), &mut board.scores[0])
+    read(&board.scores, &board.scores[0])

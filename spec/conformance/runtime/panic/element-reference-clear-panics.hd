@@ -1,13 +1,11 @@
-# test: a clear through a &mut parameter during an element reference's call panics with collection-pinned
+# test: a clear through a box alias the checker cannot see during an element reference's call panics with collection-pinned
 # Spec 13 Call-Scoped Access: ref.elem.access.pin, ref.elem.pinned.
 fn change(list: &mut List[i32], first: &mut i32) -> void:
     list.clear() # panic: collection-pinned
     *first = 5
 
-fn through(list: &mut List[i32]) -> void:
-    change(list, &mut list[2])
-
 tests:
     it("clear empties a pinned list"):
-        let mut xs = [+1, 2, 3]
-        through(&mut xs)
+        xs := box([+1, 2, 3])
+        alias := xs
+        change(alias, &mut xs[2])

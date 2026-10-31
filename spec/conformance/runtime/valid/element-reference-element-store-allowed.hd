@@ -6,17 +6,19 @@ fn store_then_read(list: &mut List[i32], seen: &mut i32, other: &mut i32) -> i32
     *other = 300
     first + *seen
 
-fn stored(list: &mut List[i32]) -> i32:
-    store_then_read(list, &mut list[2], &mut list[2])
+# The list comes through a box alias, which the checker does not see.
+fn stored(list: *mut List[i32]) -> i32:
+    alias := list
+    store_then_read(alias, &mut list[2], &mut list[2])
 
 tests:
     use std.testing.assert_equal
 
     it("element stores keep the length"):
-        let mut xs = [+1, 2, 3]
+        xs := box([+1, 2, 3])
         assert_equal(
-            stored(&mut xs),
+            stored(xs),
             330,
             reason="the store and the other reference's write are both seen",
         )
-        assert_equal(xs, [+1, 2, 300], reason="the length never changed")
+        assert_equal(*xs, [+1, 2, 300], reason="the length never changed")

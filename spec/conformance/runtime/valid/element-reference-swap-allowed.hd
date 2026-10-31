@@ -6,12 +6,14 @@ fn swap_then_read(names: &mut List[string], left: &string, right: &string) -> st
     names[1] = held
     "${*left} ${*right}"
 
-fn swapped(names: &mut List[string]) -> string:
-    swap_then_read(names, &names[0], &names[1])
+# The list comes through a box alias, which the checker does not see.
+fn swapped(names: *mut List[string]) -> string:
+    alias := names
+    swap_then_read(alias, &names[0], &names[1])
 
 tests:
     use std.testing.assert_equal
 
     it("a swap moves elements between slots, not references"):
-        let mut names = ["ada", "lin"]
-        assert_equal(swapped(&mut names), "lin ada", reason="each slot holds the other element")
+        names := box(["ada", "lin"])
+        assert_equal(swapped(names), "lin ada", reason="each slot holds the other element")
