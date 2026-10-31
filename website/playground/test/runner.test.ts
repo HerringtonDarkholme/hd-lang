@@ -817,6 +817,15 @@ const EXAMPLE_RUNS: Readonly<Record<string, readonly string[]>> = {
   "missing-provider": ["compile-error", "compilation failed"],
   "least-authority": ["ok", "exited normally", "ada@example.com|Welcome at 1970-01-01T00:00:00Z"],
   derive: ["ok", "exited normally", "0.05", "1.50", "-10.00"],
+  "derive-data": [
+    "ok",
+    "exited normally",
+    "SELECT user_id, email FROM users",
+    '{"id":7,"email":"ada@example.com"}',
+    "$.email: must be a valid email address",
+  ],
+  capabilities: ["ok", "exited normally"],
+  contracts: ["ok", "exited normally"],
   errors: [
     "ok",
     "exited normally",
@@ -878,6 +887,8 @@ test("the bundled examples run and check", async () => {
   assert.equal(await tested("tests"), "5 tests passed");
   assert.equal(await tested("effects-in-signature"), "1 test passed");
   assert.equal(await tested("derive"), "1 test passed");
+  assert.equal(await tested("capabilities"), "1 test passed");
+  assert.equal(await tested("contracts"), "2 tests passed");
   assert.equal(await tested("exhaustive"), "1 test passed");
   for (const id of ["closures", "numbers", "suffixes", "std", "inventory", "concurrency"]) {
     assert.match(await tested(id), /^\d+ tests? passed$/, id);

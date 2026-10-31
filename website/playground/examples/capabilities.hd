@@ -1,0 +1,22 @@
+# The standard library names its effects, and every capability has a fake.
+fn stamp!(path: Path) -> Result[void, FsError] $ FsRead + FsWrite + Clock: # ← files and the clock
+    text := read_text!(path)?
+    write_text!(path, "${now()} $text")
+
+tests:
+    use std.testing.assert_equal
+
+    it("stamps a note in memory at a fixed time"):
+        files := MemoryFs::new()
+        _ := files.write_text!(Path("note.txt"), "tea")
+        $.with(FsRead=files, FsWrite=files, Clock=epoch()): # ← no disk, no wall clock
+            assert(stamp!(Path("note.txt")).is_ok(), reason="stamped")
+        assert_equal(files.read_text!(Path("note.txt")).unwrap_or(""), "1970-01-01T00:00:00Z tea")
+
+# ── plumbing ──────────
+use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, write_text}
+use std.path.Path
+use std.time.{Clock, ManualClock, Timestamp, now}
+
+fn epoch() -> *mut ManualClock:
+    ManualClock::new(Timestamp::from_unix_milliseconds(0))

@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { buildSite, PAGES_BASE } from "../build.ts";
 import { claimCard } from "../src/claim.ts";
 import type { GrammarIndex } from "../src/ebnf.ts";
-import { FEATURES, featureSource } from "../src/features.ts";
+import { EFFECT_STEPS, FEATURES, featureSource, STD_FEATURES } from "../src/features.ts";
 import { checkHdBlocksParse, compilerCommand, LEARN_PAGE } from "../src/learn-check.ts";
 import { renderLayout } from "../src/layout.ts";
 import { checkLinks } from "../src/links.ts";
@@ -160,9 +160,9 @@ describe("website build", () => {
     assert.match(home, /<a class="button button-primary" href="\/hd-lang\/tour\/">Take the tour/);
     assert.match(home, /<a class="button" href="\/hd-lang\/playground\.html">/);
     assert.match(home, /href="\/hd-lang\/guide\/learn-in-10-minutes\.html">Learn in 10 minutes/);
-    // The three pillars come from the README's list, under their marks.
-    assert.equal([...home.matchAll(/<article class="pillar">/g)].length, 3);
-    assert.match(home, /<h3>Requirements declare<\/h3>/);
+    // The effect steps are headed by the README's pillars, under their marks.
+    assert.match(home, /<code class="explorer-glyph">\$\.with<\/code><span>Provide<\/span>/);
+    assert.match(home, /<h3 class="claim-title">Requirements declare<\/h3>/);
     // Each claim card opens its whole example in the playground.
     const examples = [
       ...home.matchAll(/<a href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)">Run the full/g),
@@ -180,8 +180,12 @@ describe("website build", () => {
       /<span class="line-mark"><span class="hl-keyword">fn<\/span> <span class="hl-function">welcome!<\/span>/,
     );
     assert.match(home, /<figure class="claim-output claim-output-error">/);
-    // Each claim has a tab, and the page renders no other README section.
-    assert.equal([...home.matchAll(/role="tab"/g)].length, FEATURES.length);
+    // Each claim but the derivation showcase has a tab, and the page renders
+    // no other README section.
+    assert.equal(
+      [...home.matchAll(/role="tab"/g)].length,
+      EFFECT_STEPS.length + STD_FEATURES.length,
+    );
     assert.doesNotMatch(home, /<h2 id="why-hd">/);
   });
 

@@ -41,12 +41,12 @@ impl Team:
 pub fn main() -> void $ Console:
     ada := box(User { name: "Ada", completed: 0 })
     let mut team = Team { name: "Shipping", owner: ada }
+    editor := &mut team
+    editor.lead_mut().complete_task()
     view := &team
     view.owner.complete_task()
     copied := view.owner
     copied.complete_task()
-    editor := &mut team
-    editor.lead_mut().complete_task()
     reader := view.lead()
     println("${view.name}: ${reader.name}, ${reader.completed} jobs")
 ```

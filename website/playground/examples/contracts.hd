@@ -1,0 +1,20 @@
+# require and ensure state a function's contract next to its code.
+fn withdraw(balance: i64, amount: i64) -> i64:
+    require("the amount must be positive"):
+        amount > 0
+    rest := balance - amount
+    ensure("an account is never overdrawn"): # ← checked at every return
+        rest >= 0
+    rest
+
+tests:
+    use std.testing.assert_equal
+
+    it("withdraws within the balance"):
+        assert_equal(withdraw(100, 30), 70)
+
+    it("an overdraft breaks the contract", expect_panic="explicit-panic"):
+        _ := withdraw(10, 30)
+
+# ── plumbing ──────────
+use std.contract.{ensure, require}

@@ -159,6 +159,11 @@ test("the highlighter's keywords are the Rust lexer's reserved words", async () 
   assert.deepEqual([...KEYWORDS].sort(), words.sort());
 });
 
+test("defer is a keyword only where it opens a defer: statement", () => {
+  assert.equal(classify("    defer: save()")[1]?.kind, "keyword");
+  assert.equal(classify("    defer(save)").find(({ text }) => text === "defer")?.kind, "function");
+});
+
 test("using and using-bang are contextual keywords only in binding position", () => {
   assert.equal(
     classify("    using guard = open()").find(({ text }) => text === "using")?.kind,

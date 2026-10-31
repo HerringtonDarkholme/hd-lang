@@ -21,7 +21,7 @@ export interface ClaimOutput {
 }
 
 export interface Claim {
-  /** The benefit headline. */
+  /** The benefit headline. Backticks mark code. */
   readonly title: string;
   /** One sentence that says what the snippet proves. Backticks mark code. */
   readonly blurb: string;
@@ -79,7 +79,7 @@ export function claimCard(claim: Claim, headingLevel: 2 | 3 = 3): string {
 </figure>`
     : "";
   return `<article class="claim">
-<${headingTag} class="claim-title">${escapeHtml(claim.title)}</${headingTag}>
+<${headingTag} class="claim-title">${inlineCode(claim.title)}</${headingTag}>
 <p class="claim-blurb">${inlineCode(claim.blurb)}</p>
 ${markedCode(claim.code, claim.marks, "claim-code")}
 ${output}${contrast}

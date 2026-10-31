@@ -1266,7 +1266,11 @@ pre.ebnf .eb-definition:target {
   overflow: hidden;
   pointer-events: none;
   background:
-    radial-gradient(ellipse var(--sky-glow-size) at var(--sky-glow-at), var(--glow), transparent 70%),
+    radial-gradient(
+      ellipse var(--sky-glow-size) at var(--sky-glow-at),
+      var(--glow),
+      transparent 70%
+    ),
     radial-gradient(ellipse 22% 30% at 86% 18%, var(--rose-soft), transparent 70%),
     radial-gradient(1px 1px at 12% 22%, var(--text-soft), transparent),
     radial-gradient(1px 1px at 28% 68%, var(--text-soft), transparent),
@@ -1308,7 +1312,12 @@ pre.ebnf .eb-definition:target {
 }
 
 .hero-glow {
-  background: linear-gradient(100deg, var(--accent) 10%, var(--logo-ring-mid) 55%, var(--logo-rose) 95%);
+  background: linear-gradient(
+    100deg,
+    var(--accent) 10%,
+    var(--logo-ring-mid) 55%,
+    var(--logo-rose) 95%
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -1423,62 +1432,12 @@ pre.ebnf .eb-definition:target {
   text-wrap: pretty;
 }
 
-/* The three pillars: one card each, under its mark. */
-.pillar-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.pillar {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 28px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
-}
-
-.pillar:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  box-shadow: 0 20px 50px -34px var(--glow);
-}
-
-.pillar-glyph {
-  margin: 0 0 8px;
-}
-
-.pillar-glyph code {
-  color: var(--accent);
-  font-size: 2rem;
-  font-weight: 700;
-  text-shadow: 0 0 22px var(--glow);
-}
-
-.pillar:last-child .pillar-glyph code {
-  color: var(--rose);
-}
-
-.pillar h3 {
-  margin: 0;
-  color: var(--heading);
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
-.pillar p {
-  margin: 0;
+.section-note {
+  margin: 20px 0 0;
   color: var(--text-soft);
-  font-size: 15px;
 }
 
-.pillar code,
-.pillars-note code {
+.section-note code {
   padding: 0.05em 0.3em;
   color: var(--inline-code);
   background: var(--bg-inline-code);
@@ -1486,15 +1445,85 @@ pre.ebnf .eb-definition:target {
   font-size: 0.86em;
 }
 
-.pillar-glyph code {
-  padding: 0;
-  background: none;
-  font-size: 2rem;
+/*
+ * Typed derivation: the text and a compact list beside one claim card. The
+ * text already says what the card shows, so the card keeps only its code.
+ */
+.showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(24px, 4vw, 48px);
+  align-items: center;
 }
 
-.pillars-note {
-  margin: 20px 0 0;
+.showcase .home-head {
+  margin-bottom: 20px;
+}
+
+.showcase-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.showcase-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.showcase-list li:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.showcase-list li > code {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.showcase-list span {
   color: var(--text-soft);
+  font-size: 15px;
+}
+
+.showcase-list span::before {
+  content: "· ";
+}
+
+.showcase-link {
+  margin: 16px 0 0;
+  font-weight: 600;
+}
+
+.showcase-link a {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.showcase-card {
+  overflow: hidden;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 30px 70px -50px var(--glow);
+}
+
+.showcase-card .claim {
+  padding: 20px 22px 22px;
+}
+
+.showcase-card .claim-title,
+.showcase-card .claim-blurb {
+  display: none;
+}
+
+.showcase-card .claim-run {
+  margin-top: 14px;
 }
 
 /*
@@ -1558,6 +1587,18 @@ pre.ebnf .eb-definition:target {
   color: var(--accent);
   font-family: var(--font-mono);
   font-size: 12px;
+}
+
+/* An effect step's mark, such as `$.with`, in front of its label. */
+.explorer-glyph {
+  min-width: 3.4em;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.explorer-tab:last-child .explorer-glyph {
+  color: var(--rose);
 }
 
 .explorer-panels {
@@ -1683,9 +1724,7 @@ pre.ebnf .eb-definition:target {
   gap: 32px;
   align-items: center;
   padding: clamp(28px, 5vw, 56px);
-  background:
-    radial-gradient(120% 140% at 90% 0%, var(--glow), transparent 55%),
-    var(--bg-raised);
+  background: radial-gradient(120% 140% at 90% 0%, var(--glow), transparent 55%), var(--bg-raised);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
   border-radius: 24px;
 }
@@ -2535,7 +2574,7 @@ body.repl-open .repl-toggle {
     width: min(100%, 440px);
   }
 
-  .pillar-grid,
+  .showcase,
   .install-card {
     grid-template-columns: minmax(0, 1fr);
   }

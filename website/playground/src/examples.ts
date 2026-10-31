@@ -2,8 +2,11 @@
 // text: programs the conformance suite runs, and the playground's own
 // examples/, which test/runner.test.ts runs.
 
+import capabilities from "../examples/capabilities.hd";
 import closures from "../examples/closures.hd";
+import contracts from "../examples/contracts.hd";
 import derive from "../examples/derive.hd";
+import deriveData from "../examples/derive-data.hd";
 import exitCode from "../examples/exit-code.hd";
 import effectsInSignature from "../examples/effects-in-signature.hd";
 import leastAuthority from "../examples/least-authority.hd";
@@ -46,6 +49,9 @@ export const EXAMPLES: readonly Example[] = [
   single("missing-provider", "Forget a provider and it won't compile", missingProvider),
   single("least-authority", "Least authority: main limits what is reachable", leastAuthority),
   single("derive", "@derive(Arbitrary): a property test that finds a bug", derive),
+  single("derive-data", "@derive: JSON, validation, and a table schema from one type", deriveData),
+  single("capabilities", "Fakes for files and the clock: std names its effects", capabilities),
+  single("contracts", "require and ensure: a contract next to the code", contracts),
   single("errors", "Errors are values: ?, .context, and a report", errors),
   single("exhaustive", "Exhaustive match: a new variant lists every place to update", exhaustive),
   single("concurrency", "all!: two calls at once", concurrency),

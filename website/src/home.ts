@@ -1,13 +1,14 @@
-// The landing page shows only what sets hd apart: the hero, the three
-// pillars of its effect system, a claims explorer (each claim a few lines
-// that run in the playground), and how to install it. The README is the
-// source of the slogan, pitch, pillars, and install commands, so the two
-// cannot drift; the page renders no other README text.
+// The landing page shows only what sets hd apart: the hero, a walk through
+// the three features that emulate algebraic effects, typed derivation, the
+// standard library's testing support, and how to install it. Each claim is a
+// few lines that run in the playground. The README is the source of the
+// slogan, pitch, pillars, and install commands, so the two cannot drift; the
+// page renders no other README text.
 
 import type { MarkdownIt } from "markdown-it";
 
-import { claimCard } from "./claim.ts";
-import { featureClaims } from "./features.ts";
+import { type Claim, claimCard } from "./claim.ts";
+import { DERIVATION, EFFECT_STEPS, featureClaims, STD_FEATURES } from "./features.ts";
 import { logoSvg } from "./logo.ts";
 import { escapeHtml, type RenderEnv } from "./markdown.ts";
 import { REPOSITORY_URL } from "./pages.ts";
@@ -34,6 +35,13 @@ const PILLARS_HEADING = "Algebraic effects, emulated by three pillars";
 
 /** Each pillar's mark, in the README's order. */
 const PILLAR_GLYPHS = ["$", "$.with", "!"];
+
+/** One explorer tab: its label, an optional mark before it, and its claim. */
+interface ExplorerItem {
+  readonly label: string;
+  readonly glyph?: string;
+  readonly claim: Claim;
+}
 
 /**
  * Splits the README into the hero's parts and its `##` sections. The slogan
@@ -116,6 +124,35 @@ ${lead ? `<p class="section-lead">${escapeHtml(lead)}</p>` : ""}
 </header>`;
 }
 
+/**
+ * Claims beside their tabs, one shown at a time. Without scripts, every
+ * panel shows. `id` prefixes the tab and panel ids.
+ */
+function explorer(id: string, label: string, items: readonly ExplorerItem[]): string {
+  const tabs = items
+    .map(
+      (item, index) =>
+        `<button class="explorer-tab" type="button" role="tab" id="${id}-tab-${index}" aria-controls="${id}-${index}" aria-selected="${index === 0}"${index === 0 ? "" : ' tabindex="-1"'}><span class="explorer-index">${String(index + 1).padStart(2, "0")}</span>${item.glyph ? `<code class="explorer-glyph">${escapeHtml(item.glyph)}</code>` : ""}<span>${escapeHtml(item.label)}</span></button>`,
+    )
+    .join("\n");
+  const panels = items
+    .map(
+      (item, index) =>
+        `<div class="explorer-panel" role="tabpanel" id="${id}-${index}" aria-labelledby="${id}-tab-${index}">
+${claimCard(item.claim)}
+</div>`,
+    )
+    .join("\n");
+  return `<div class="explorer-body" data-explorer>
+<div class="explorer-tabs" role="tablist" aria-label="${escapeHtml(label)}">
+${tabs}
+</div>
+<div class="explorer-panels">
+${panels}
+</div>
+</div>`;
+}
+
 export function renderHome(input: HomeInput): string {
   const { md, env, pageUrl } = input;
   const { slogan, pitch, sections } = readmeParts(input.readme);
@@ -138,55 +175,51 @@ ${logoSvg({ id: "hero-logo", variant: "full", className: "hero-logo" })}
 </div>
 </section>`;
 
+  // Algebraic effects: one step per pillar. The README names each step; the
+  // playground example shows it at work.
   const pillarsBody = section(sections, PILLARS_HEADING);
   const pillars = labeledItems(pillarsBody, /^\d+\.\s+/);
-  if (pillars.length !== PILLAR_GLYPHS.length) {
+  if (pillars.length !== PILLAR_GLYPHS.length || pillars.length !== EFFECT_STEPS.length) {
     throw new Error(`landing page: the README must list ${PILLAR_GLYPHS.length} pillars`);
   }
   const errorsNote = /^Errors stay plain values.*$/m.exec(pillarsBody)?.[0];
-  const pillarCards = pillars
-    .map(
-      (pillar, index) => `<article class="pillar">
-<p class="pillar-glyph" aria-hidden="true"><code>${escapeHtml(PILLAR_GLYPHS[index]!)}</code></p>
-<h3>${inline(pillar.label)}</h3>
-<p>${inline(pillar.text)}</p>
-</article>`,
-    )
-    .join("\n");
-  const pillarsSection = `<section class="home-section pillars" aria-labelledby="pillars-title">
-${sectionHead("pillars-title", "The core", PILLARS_HEADING)}
-<div class="pillar-grid">
-${pillarCards}
-</div>
-${errorsNote ? `<p class="pillars-note">${inline(errorsNote)}</p>` : ""}
+  const steps = featureClaims(EFFECT_STEPS, input.examplesDir, env.playgroundUrl).map(
+    (claim, index): ExplorerItem => ({
+      label: claim.title,
+      glyph: PILLAR_GLYPHS[index]!,
+      claim: { ...claim, title: pillars[index]!.label },
+    }),
+  );
+  const effectsSection = `<section class="home-section effects" aria-labelledby="effects-title">
+${sectionHead("effects-title", "The core", PILLARS_HEADING, "Three plain features stand in for an effect handler runtime. Walk through them in order.")}
+${explorer("effect", "Steps", steps)}
+${errorsNote ? `<p class="section-note">${inline(errorsNote)}</p>` : ""}
 </section>`;
 
-  // The claims explorer: one tab per claim. Without scripts, every panel shows.
-  const claims = featureClaims(input.examplesDir, env.playgroundUrl);
-  const tabs = claims
-    .map(
-      (claim, index) =>
-        `<button class="explorer-tab" type="button" role="tab" id="claim-tab-${index}" aria-controls="claim-${index}" aria-selected="${index === 0}"${index === 0 ? "" : ' tabindex="-1"'}><span class="explorer-index">${String(index + 1).padStart(2, "0")}</span>${escapeHtml(claim.title)}</button>`,
-    )
-    .join("\n");
-  const panels = claims
-    .map(
-      (claim, index) =>
-        `<div class="explorer-panel" role="tabpanel" id="claim-${index}" aria-labelledby="claim-tab-${index}">
-${claimCard(claim)}
-</div>`,
-    )
-    .join("\n");
-  const explorer = `<section class="home-section explorer" aria-labelledby="features-title">
-${sectionHead("features-title", "See it run", "Every claim, shown in a few lines", "Each is a few lines from a playground example, with the compiler's own output. Open one and change it.")}
-<div class="explorer-body" data-explorer>
-<div class="explorer-tabs" role="tablist" aria-label="Claims">
-${tabs}
+  const [derivation] = featureClaims([DERIVATION], input.examplesDir, env.playgroundUrl);
+  const derivationSection = `<section class="home-section derivation" aria-labelledby="derivation-title">
+<div class="showcase">
+<div class="showcase-text">
+${sectionHead("derivation-title", "Typed derivation", "Behavior derived from your types", "A derive reads a type's fields and their typed facts, in plain hd. No macros, no codegen.")}
+<ul class="showcase-list">
+<li><code>Serialize</code> <code>Deserialize</code><span>JSON and the host boundary</span></li>
+<li><code>Validate</code><span>field rules; failures name their path</span></li>
+<li><code>@column</code><span>read by a schema trait of your own</span></li>
+</ul>
+<p class="showcase-link"><a href="${pageUrl("spec/14-annotations.html")}">Read about annotations and derivation ${ARROW_ICON}</a></p>
 </div>
-<div class="explorer-panels">
-${panels}
+<div class="showcase-card">
+${claimCard(derivation!)}
 </div>
 </div>
+</section>`;
+
+  const stdItems = featureClaims(STD_FEATURES, input.examplesDir, env.playgroundUrl).map(
+    (claim): ExplorerItem => ({ label: claim.title, claim }),
+  );
+  const stdSection = `<section class="home-section std" aria-labelledby="std-title">
+${sectionHead("std-title", "Standard library", "A standard library for getting it right", "Its effects show in your signatures, and it ships a fake for each one. Property tests and contracts check the cases you would not think to write.")}
+${explorer("std", "Standard library", stdItems)}
 </section>`;
 
   const installBlock = /^```sh\n[\s\S]*?^```/m.exec(section(sections, "Install"))?.[0];
@@ -215,5 +248,5 @@ ${md.render(installBlock, env)}
 <nav aria-label="Footer"><a href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn</a><a href="${pageUrl("tour/index.html")}">Tour</a><a href="${pageUrl("playground.html")}">Playground</a><a href="${pageUrl("spec/index.html")}">Spec</a><a href="${REPOSITORY_URL}">GitHub</a></nav>
 </footer>`;
 
-  return [hero, pillarsSection, explorer, install, footer].join("\n");
+  return [hero, effectsSection, derivationSection, stdSection, install, footer].join("\n");
 }
