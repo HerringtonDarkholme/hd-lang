@@ -142,6 +142,7 @@ variance; elsewhere it is covariant:
 | `Coerce` | slot by slot; to `&dyn` or a shape that does not line up, every slot ⊑ each target slot |
 | block, `if`, `match`, loop, `break` | each arm's value ⊑ the result |
 | call | fresh variables per callee lifetime and per type-parameter slot; argument ⊑ parameter; a `&mut` parameter's inner slots equal the argument's; the result takes its lifetime's variable |
+| suspension (bang call without `!`) | each argument's slots, but a lent counted reference's, ⊑ its own slot; the result's slots as the call's with `!` |
 | closure | each captured local's slots ⊑ the capture slot |
 | return, body value | value ⊑ the result's universal regions (checked) |
 | `box`, provider, host call, `'static` type parameter | value ⊑ `'static` (checked) |

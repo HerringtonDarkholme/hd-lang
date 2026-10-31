@@ -18,6 +18,8 @@
 //! reference lands in a place of the body (`ref.dep.store`). An element
 //! reference takes the origin of its collection's root place
 //! (`ref.dep.origin.element`).
+//! A suspension holds what its call's arguments hold in a slot of its own
+//! (`ref.dep.suspension`).
 //!
 //! A value's slots are its reference slots and its function types'
 //! capture slots at the top, outside another reference ([`Layout`]), and
@@ -47,8 +49,8 @@ mod constraints;
 /// the slot's index. A written lifetime is its 1-based place in scope.
 const ANON: u32 = 1 << 16;
 
-/// A result slot that depends on every argument (`types.opaque.borrows.source`,
-/// a suspension's).
+/// A result slot that depends on every parameter (`types.opaque.borrows.source`,
+/// `ref.dep.suspension.result`).
 const ANY: u32 = u32::MAX;
 
 /// A declared result slot with no source, while lining up.
@@ -132,9 +134,16 @@ impl DepSig {
                 .filter(|(t, _)| capture_slot(pool, *t))
                 .filter_map(|(_, ids)| ids.first().copied()),
         );
+        let held = hold_id(&ps);
         let mut r = 0;
         let outs = (ls.of(ret).slots.iter())
-            .map(|&Slot { ty: st, fun, .. }| {
+            .map(|s| {
+                let &Slot {
+                    ty: st, fun, hold, ..
+                } = s;
+                if hold {
+                    return held;
+                }
                 if fun {
                     return match capture_elided {
                         Elided::Lifetime(id) => Some(id),
@@ -192,9 +201,16 @@ impl DepSig {
                 .filter_map(|(_, ids)| ids.first().copied()),
         );
         // A type that writes no map has no reference result slots.
+        let held = hold_id(&params);
         let mut r = 0;
         let outs = (ls.of(result).slots.iter())
-            .filter_map(|&Slot { ty: st, fun, .. }| {
+            .filter_map(|s| {
+                let &Slot {
+                    ty: st, fun, hold, ..
+                } = s;
+                if hold {
+                    return Some(held);
+                }
                 if fun {
                     return Some(match capture_elided {
                         Elided::Lifetime(id) => Some(id),
@@ -433,6 +449,16 @@ fn ref_ids_of<T: Copy>(ls: &Layouts<'_>, t: Ty, ids: &[T]) -> Vec<T> {
         .collect()
 }
 
+/// What a suspension in a result depends on (`ref.dep.suspension.result`):
+/// the parameters' one lifetime, or every parameter under two or more.
+fn hold_id(params: &[(Ty, Vec<u32>)]) -> Option<u32> {
+    match one_id(params.iter().flat_map(|(_, ids)| ids.iter().copied())) {
+        Elided::Lifetime(id) => Some(id),
+        Elided::Missing => None,
+        Elided::Ambiguous => Some(ANY),
+    }
+}
+
 /// The one lifetime of `ids` (`ref.dep.elide`).
 fn one_id(ids: impl Iterator<Item = u32>) -> Elided {
     let mut ids: Vec<u32> = ids.collect();
@@ -580,8 +606,11 @@ struct Slot {
     /// A local reference type, a borrowing opaque type, or a function
     /// type, whose slot holds what its closure captures.
     ty: Ty,
-    /// Whether it is a function type's capture slot.
+    /// Whether it is a function type's capture slot, or a suspension's.
     fun: bool,
+    /// Whether it is a suspension's slot, which holds what its call's
+    /// arguments hold (`ref.dep.suspension`).
+    hold: bool,
     /// Whether it is at the top, outside another reference.
     top: bool,
     /// One past the last slot behind it.
@@ -594,8 +623,9 @@ struct Slot {
 
 /// The origin slots of a type in pre-order (`ref.dep.slot`): each
 /// reference type outside function types and counted references, as in
-/// [`Types::ref_slots`], each borrowing opaque type, and each function
-/// type outside another function type. [`Layouts`] makes each once.
+/// [`Types::ref_slots`], each borrowing opaque type, each function type
+/// outside another function type, and each suspension ahead of its
+/// result's slots. [`Layouts`] makes each once.
 struct Layout {
     slots: Vec<Slot>,
     /// The top slots.
@@ -606,54 +636,12 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(pool: Types<'_>, t: Ty) -> Layout {
-        fn walk(pool: Types<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<Slot>) {
-            if depth > 32 || !(pool.has_ref(t) || pool.has_fn(t)) {
-                return;
-            }
-            let d = depth + 1;
-            let fun = matches!(pool.get(t), TyData::Fn { .. });
-            let (end, written) = (out.len() + 1, false);
-            let slot = Slot {
-                ty: t,
-                fun,
-                top,
-                end,
-                written,
-            };
-            match pool.get(t) {
-                TyData::Ref {
-                    counted: false,
-                    inner,
-                    ..
-                } => {
-                    let k = out.len();
-                    out.push(slot);
-                    walk(pool, inner, false, d, out);
-                    out[k].end = out.len();
-                }
-                TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
-                TyData::Mut(i) | TyData::Option(i) => walk(pool, i, top, d, out),
-                TyData::Tuple { elems, rest } => {
-                    for &e in pool.list_items(elems) {
-                        walk(pool, e, top, d, out);
-                    }
-                    if let Some(r) = rest {
-                        walk(pool, r, top, d, out);
-                    }
-                }
-                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                    for &a in pool.list_items(args) {
-                        walk(pool, a, top, d, out);
-                    }
-                }
-                _ => {}
-            }
-        }
+    fn new(pool: Types<'_>, suspend: DefId, t: Ty) -> Layout {
         let mut slots = Vec::new();
-        walk(pool, t, true, 0, &mut slots);
+        Self::walk(pool, suspend, t, true, 0, &mut slots);
         for k in 0..slots.len() {
-            slots[k].written = slots[k].fun
+            let fun = slots[k].fun && !slots[k].hold;
+            slots[k].written = fun
                 && !(k == 0 && capture_slot(pool, t))
                 && !(k > 0 && capture_slot(pool, referent(pool, slots[k - 1].ty)));
         }
@@ -666,6 +654,58 @@ impl Layout {
             tops.len()
         };
         Layout { slots, tops, width }
+    }
+
+    /// Pushes the slots of `t` onto `out`. Any type may hold a suspension,
+    /// so only depth stops the walk.
+    fn walk(pool: Types<'_>, suspend: DefId, t: Ty, top: bool, depth: u32, out: &mut Vec<Slot>) {
+        if depth > 32 {
+            return;
+        }
+        let d = depth + 1;
+        let walk = |t: Ty, top: bool, out: &mut Vec<Slot>| {
+            Self::walk(pool, suspend, t, top, d, out);
+        };
+        let hold = matches!(pool.get(t), TyData::Adt { def, .. } if def == suspend);
+        let slot = Slot {
+            ty: t,
+            fun: hold || matches!(pool.get(t), TyData::Fn { .. }),
+            hold,
+            top,
+            end: out.len() + 1,
+            written: false,
+        };
+        match pool.get(t) {
+            TyData::Ref {
+                counted: false,
+                inner,
+                ..
+            } => {
+                let k = out.len();
+                out.push(slot);
+                walk(inner, false, out);
+                out[k].end = out.len();
+            }
+            TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
+            TyData::Mut(i) | TyData::Option(i) => walk(i, top, out),
+            TyData::Tuple { elems, rest } => {
+                for &e in pool.list_items(elems) {
+                    walk(e, top, out);
+                }
+                if let Some(r) = rest {
+                    walk(r, top, out);
+                }
+            }
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                if hold {
+                    out.push(slot);
+                }
+                for &a in pool.list_items(args) {
+                    walk(a, top, out);
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Each top slot's run: itself and the slots behind it, `[start, end)`.
@@ -690,14 +730,17 @@ struct FieldMap {
 /// the fields it projects, each made once.
 struct Layouts<'a> {
     pool: Types<'a>,
+    /// `Suspend`'s definition.
+    suspend: DefId,
     types: RefCell<HashMap<Ty, Rc<Layout>>>,
     fields: RefCell<HashMap<(Ty, u32, u32), Option<FieldMap>>>,
 }
 
 impl<'a> Layouts<'a> {
-    fn new(pool: Types<'a>) -> Self {
+    fn new(pool: Types<'a>, suspend: DefId) -> Self {
         Layouts {
             pool,
+            suspend,
             types: RefCell::default(),
             fields: RefCell::default(),
         }
@@ -707,7 +750,7 @@ impl<'a> Layouts<'a> {
         if let Some(l) = self.types.borrow().get(&t) {
             return Rc::clone(l);
         }
-        let l = Rc::new(Layout::new(self.pool, t));
+        let l = Rc::new(Layout::new(self.pool, self.suspend, t));
         self.types.borrow_mut().insert(t, Rc::clone(&l));
         l
     }
@@ -872,13 +915,14 @@ const HOST_MSG: &str =
 const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime";
 
 /// A callee variable of a call (`ref.dep.call`): a callee lifetime, a slot
-/// of what a type parameter stands for (`ref.generic.call`), or what every
-/// argument's capture slots hold, for a suspension's capture slot.
+/// of what a type parameter stands for (`ref.generic.call`), or what a
+/// suspension holds: every argument but a counted reference the call
+/// lends (`ref.dep.suspension`).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Var {
     Life(u32),
     Param(hd_types::ParamRef, usize),
-    AnyFn,
+    Held,
 }
 
 /// An argument slot's variable, and its check if the callee may keep it.
@@ -1078,7 +1122,7 @@ impl Ck<'_, '_> {
         }
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
-        let ls = &Layouts::new(pool);
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend);
         DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).to_fn(ls, skip)
     }
 
@@ -1098,7 +1142,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
-        let ls = &Layouts::new(pool);
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend);
         let dep = DepSig::new(ls, &tsig.params, is_self, tsig.ret, &tsig.lifetimes);
         let dep = if pool.has_opaque(tsig.ret) && pool.ref_slots(tsig.ret) != 0 {
             dep.open(ls, sig.ret)
@@ -1238,7 +1282,7 @@ impl Ck<'_, '_> {
                         took.push((k, var));
                     }
                     let cat = match k {
-                        _ if !s.fun => None,
+                        _ if !s.fun || s.hold => None,
                         Key::Param(q, _) => dest(q),
                         Key::Decl(j) if written.slots.get(j).is_some_and(|x| !x.written) => None,
                         _ => Some(Category::FieldCapture),
@@ -1255,31 +1299,32 @@ impl Ck<'_, '_> {
             vs.dedup();
             vs
         };
-        let rl = ls.of(b.ty[i]);
-        let outs: Vec<Vec<Var>> = match line_up_call(ls, dep.ret, b.ty[i]) {
-            Some(keys) => (keys.into_iter())
-                .map(|k| match k {
-                    Key::Decl(j) => dep
-                        .outs
-                        .get(j)
-                        .copied()
-                        .flatten()
-                        .map(Var::Life)
-                        .into_iter()
-                        .collect(),
-                    Key::None => Vec::new(),
-                    Key::Param(q, j) => match target(q, j) {
-                        Some(l) => vec![Var::Life(l)],
-                        None => from(&|x| x == k),
-                    },
-                    Key::AllOf(q) => from(&|x| matches!(x, Key::Param(p, _) if p == q)),
-                })
+        let out = |k: Key| match k {
+            Key::Decl(j) => (dep.outs.get(j).copied().flatten())
+                .map(Var::Life)
+                .into_iter()
                 .collect(),
-            // A suspension, the result of a bang call made without `!`,
-            // holds every argument.
-            None => (rl.slots.iter())
-                .map(|s| vec![if s.fun { Var::AnyFn } else { Var::Life(ANY) }])
-                .collect(),
+            Key::None => Vec::new(),
+            Key::Param(q, j) => match target(q, j) {
+                Some(l) => vec![Var::Life(l)],
+                None => from(&|x| x == k),
+            },
+            Key::AllOf(q) => from(&|x| matches!(x, Key::Param(p, _) if p == q)),
+        };
+        // A suspension, the result of a bang call made without `!`, holds
+        // what its arguments hold in a slot of its own, and its result's
+        // slots depend as the call's with `!` would (`ref.dep.suspension`).
+        let output = match pool.get(referent_fn(pool, b.ty[i])) {
+            TyData::Adt { def, args } if def == ls.suspend => {
+                pool.list_items(args).first().copied()
+            }
+            _ => None,
+        };
+        let lined = (line_up_call(ls, dep.ret, b.ty[i]).map(|keys| (None, keys)))
+            .or_else(|| Some((Some(vec![Var::Held]), line_up_call(ls, dep.ret, output?)?)));
+        let outs: Vec<Vec<Var>> = match lined {
+            Some((held, keys)) => held.into_iter().chain(keys.into_iter().map(out)).collect(),
+            None => vec![vec![Var::Held]; ls.of(b.ty[i]).slots.len()],
         };
         let lifetime = |e: Elided| match e {
             Elided::Lifetime(l) => Some(Var::Life(l)),
@@ -1358,7 +1403,7 @@ impl Ck<'_, '_> {
         fun: Option<NodeRef<'_>>,
     ) {
         let pool = self.pool();
-        let ls = &Layouts::new(pool);
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend);
         let body = self.b.body();
         // The body's own map: parameter k is local k.
         let fn_body = body.kind == BodyKind::Fn && fun.is_some() && ls.holds(ret);
@@ -1496,7 +1541,7 @@ impl Ck<'_, '_> {
         // has no one capture source (`ref.dep.capture-elide.ambiguous`).
         if let (Some(o), Some(f)) = (&own, fun)
             && o.capture_elided == Elided::Ambiguous
-            && ls.of(o.ret).slots.iter().any(|s| s.fun && !s.written)
+            && (ls.of(o.ret).slots.iter()).any(|s| s.fun && !s.hold && !s.written)
         {
             self.capture_source_error(self.b.body().item, f);
         }

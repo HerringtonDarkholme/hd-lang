@@ -319,7 +319,7 @@ impl Gen<'_, '_> {
             let s = pt.slots[k];
             let hidden = match (0..k).rev().find(|&j| pt.slots[j].end > k) {
                 None => s.written,
-                Some(j) => s.fun && !capture_slot(pool, referent(pool, pt.slots[j].ty)),
+                Some(j) => s.fun && !s.hold && !capture_slot(pool, referent(pool, pt.slots[j].ty)),
             };
             if !hidden {
                 self.seed(r, Origin::Param(l, w(k)));
@@ -335,17 +335,18 @@ impl Gen<'_, '_> {
     /// Call argument `a` as a value of its source type `at`: an address
     /// the call takes for a receiver, with its place's slots behind it
     /// (`fn.method.auto-address`), or a trait value as a reference to it.
-    fn arg(&mut self, a: u32, at: Ty) -> View {
+    /// Also whether it is a trait value lent through a counted reference.
+    fn arg(&mut self, a: u32, at: Ty) -> (View, bool) {
         let v = self.val(a).expect("an argument");
         if at == v.1 {
-            return v;
+            return (v, false);
         }
         if super::is_dyn(self.s.pool, v.1) && referent(self.s.pool, at) == v.1 {
             return self.dyn_arg(a, &v.0, at);
         }
         let (_, p) = self.place(a, self.s.b.data[a as usize][0], usize::MAX, (true, false));
         let behind = p.map(|p| p.0).unwrap_or_default();
-        ([&v.0[..1], &behind].concat(), at)
+        (([&v.0[..1], &behind].concat(), at), false)
     }
 
     /// Trait value argument `a`, whose regions are `held`, lent as the
@@ -353,7 +354,8 @@ impl Gen<'_, '_> {
     /// reference it was read through, so a call through `&'p dyn Tr['s]`
     /// keeps what `'p` and `'s` hold apart. Otherwise the reference's own
     /// slot holds what `held` holds, and its lifetime arguments nothing.
-    fn dyn_arg(&mut self, a: u32, held: &[Region], at: Ty) -> View {
+    /// Also whether that reference is a counted one.
+    fn dyn_arg(&mut self, a: u32, held: &[Region], at: Ty) -> (View, bool) {
         let (b, pool, n) = (self.s.b, self.s.pool, self.width(at) as usize);
         let word = b.data[a as usize][0];
         let through = (b.tags[a as usize] == Tag::Read)
@@ -361,19 +363,26 @@ impl Gen<'_, '_> {
             .flatten()
             .filter(|p| p.proj.last() == Some(&Proj::Deref))
             .map(|p| p.proj.len() - 1);
-        if let Some(limit) = through
-            && let (_, Some(r)) = self.place(a, word, limit, (true, false))
-            && local_ref(pool, r.1) == Some((false, true))
-            && r.0.len() == n
-        {
-            return (r.0, at);
+        let counted = |t: Option<Ty>| t.and_then(|t| local_ref(pool, t)).is_some_and(|x| x.0);
+        let mut lent = false;
+        if let Some(limit) = through {
+            match self.place(a, word, limit, (true, false)) {
+                (_, Some(r)) if local_ref(pool, r.1) == Some((false, true)) && r.0.len() == n => {
+                    return ((r.0, at), false);
+                }
+                (_, Some(r)) => lent = counted(Some(r.1)),
+                (_, None) => {
+                    lent = matches!(b.decode_place(word).map(|p| p.root),
+                        Some(PlaceRoot::Value(v)) if counted(self.s.ty(v.0)));
+                }
+            }
         }
         let own = self.t.fresh(1).start;
         for &r in held {
             self.flow(r, own);
         }
         let rest = self.t.fresh(w(n.saturating_sub(1)));
-        (std::iter::once(own).chain(rest).collect(), at)
+        ((std::iter::once(own).chain(rest).collect(), at), lent)
     }
 
     /// Puts what a counted reference argument `a` is lent from into `r`
@@ -412,7 +421,7 @@ impl Gen<'_, '_> {
         let mut vars: HashMap<Var, Region> = HashMap::default();
         let mut var = |t: &mut RegionTable, v| *vars.entry(v).or_insert_with(|| t.fresh(1).start);
         let has = |v: Var| sig.result && sig.outs.iter().any(|o| o.contains(&v));
-        let (any, any_fn) = (has(Var::Life(ANY)), has(Var::AnyFn));
+        let (any, held) = (has(Var::Life(ANY)), has(Var::Held));
         for (p, (pt, slots)) in sig.params.iter().enumerate() {
             let arg = |a| Some((a, call_arg_ty(pool, b, a, *pt)?));
             let Some((a, at)) = source_arg(b, iu, p).and_then(arg) else {
@@ -431,7 +440,7 @@ impl Gen<'_, '_> {
             } else if !flows && !keeps {
                 continue;
             }
-            let v = self.arg(a, at);
+            let (v, lent) = self.arg(a, at);
             if keeps {
                 let node = self.node(a);
                 let hub = (v.0.len() != ls.of(*pt).slots.len()).then(|| {
@@ -455,11 +464,11 @@ impl Gen<'_, '_> {
                 let r = var(&mut self.t, Var::Life(ANY));
                 self.each_into(&v.0, &[r]);
             }
-            if any_fn {
-                let r = var(&mut self.t, Var::AnyFn);
-                for (k, _) in lay.slots.iter().enumerate().filter(|(_, x)| x.fun) {
-                    self.flow(v.0[k], r);
-                }
+            // A suspension retains a counted reference the call lends
+            // (`ref.dep.suspension.counted`).
+            if held && !lent {
+                let r = var(&mut self.t, Var::Held);
+                self.each_into(&v.0, &[r]);
             }
             for (k, &id) in vs.iter().enumerate().take(v.0.len()) {
                 let r = var(&mut self.t, id);
@@ -528,10 +537,11 @@ impl Gen<'_, '_> {
         at.flatten().filter(|n| *n != NodeIdx::NONE).unwrap_or(here)
     }
 
-    /// The capture slots at the top of view `v`.
+    /// The capture slots at the top of view `v`, but a suspension's, which
+    /// may be kept wherever its type may (`ref.dep.suspension`).
     fn fun_tops(&self, v: &View) -> Vec<Region> {
         let l = self.s.ls.of(v.1);
-        let fun = |k: usize| l.slots.get(k).is_some_and(|s| s.top && s.fun);
+        let fun = |k: usize| l.slots.get(k).is_some_and(|s| s.top && s.fun && !s.hold);
         (v.0.iter().enumerate())
             .filter(|&(k, _)| fun(k))
             .map(|(_, &r)| r)

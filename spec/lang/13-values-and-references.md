@@ -436,6 +436,23 @@ fn demo(u: &mut User) -> void:
 15. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
 16. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
 17. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
+18. r[ref.dep.suspension] A suspension, the `mut Suspend[R]` of a bang call made without `!`, holds every reference that its call's arguments hold, the receiver's included. It holds them in one position of its own, ahead of the positions of `R`.
+19. r[ref.dep.suspension.local] A suspension that holds a local reference is a local reference value of the caller, so every rule of [Local References](#local-references) and [`ref.dep.return`](#r-ref.dep.return) applies to it. Error: `local-reference-escapes`.
+20. r[ref.dep.suspension.output] Each position of `R` depends on what the call's result would depend on with `!`, by [`ref.dep.call`](#r-ref.dep.call).
+21. r[ref.dep.suspension.counted] A suspension retains a counted reference that its call lends, by itself or as the trait value behind it, by [`ref.box.lifetime`](#r-ref.box.lifetime). So it holds no origin for that argument.
+22. r[ref.dep.suspension.result] A `mut Suspend[R]` in a declared result type has that position too. It depends on the one lifetime of the parameters' positions, or on every parameter under two or more. With no parameter position, it depends on nothing.
+
+```hd
+fn count!(s: &string) -> usize:
+    s.len()
+
+fn later(s: &string) -> mut Suspend[usize]:  # holds what s refers to
+    count(s)
+
+fn now!() -> usize:
+    local := "x"
+    count!(&local)
+```
 
 ```text
 struct User:
@@ -456,12 +473,21 @@ fn bad_value(u: User, other: &User) -> &string:
 
 fn bad_store(out: &mut (&User), u: &User) -> void:
     *out = u  # error: local-reference-escapes
+
+fn hold!(r: &string) -> usize:
+    r.len()
+
+fn bad_suspension() -> mut Suspend[usize]:
+    local := "x"
+    hold(&local)  # error: local-reference-escapes
 ```
 
 > **Why.** These are Rust's elision rules for a result's lifetime, with no
 > lifetime written. [Lifetime Variables](#lifetime-variables) gives the
 > rules for a signature that writes one. A write to the source replaces the value in its place,
 > and the place stays where it is, so the caller needs no exclusive access.
+> A suspension holds its arguments as a Rust `async fn` future captures
+> every input lifetime.
 
 ### Origins
 

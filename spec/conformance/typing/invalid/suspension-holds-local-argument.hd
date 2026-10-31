@@ -1,0 +1,8 @@
+# test: a suspension holds what its call's arguments hold, so a function may not return one that borrows its local
+# Spec 13 Dependent Results: ref.dep.suspension, ref.dep.suspension.local, ref.dep.suspension.result.
+fn hold!(r: &string) -> usize:
+    r.len()
+
+fn bad_suspension() -> mut Suspend[usize]:
+    local := "x"
+    hold(&local) # diagnostic: local-reference-escapes

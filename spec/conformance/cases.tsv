@@ -5212,6 +5212,8 @@ typing/invalid/dependent-result-local-source.hd	type	reject:local-reference-esca
 typing/invalid/dependent-result-captured.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.call.local
 typing/invalid/dependent-result-store-caller-place.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.store
 typing/invalid/dependent-result-counted-lend.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
+typing/invalid/suspension-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local
+typing/valid/suspension-holds-arguments.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension
 typing/invalid/dependent-result-auto-address-receiver-own-storage.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.origin.place
 typing/invalid/dependent-result-temporary.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.temporary
 typing/invalid/dependent-result-trait-value-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.trait

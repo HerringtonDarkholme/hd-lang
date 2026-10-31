@@ -1,0 +1,42 @@
+# test: a suspension of caller-owned or 'static arguments may be returned, and one that borrows a local may be awaited in its body
+# Spec 13 Dependent Results: ref.dep.suspension, ref.dep.suspension.output, ref.dep.suspension.counted, ref.dep.suspension.result.
+struct User:
+    name: string
+
+impl User:
+    fn size!(&self) -> usize:
+        self.name.len()
+
+fn hold!(r: &string) -> usize:
+    r.len()
+
+fn pair!(a: &string, b: &string) -> usize:
+    a.len() + b.len()
+
+fn first!(r: &string) -> &string:
+    r
+
+fn greet!(name: string, u: *User) -> usize:
+    name.len() + u.name.len()
+
+fn caller_owned(s: &string) -> mut Suspend[usize]:
+    hold(s)
+
+fn both(a: &string, b: &string) -> mut Suspend[usize]:
+    pair(a, b)
+
+fn output(s: &string) -> mut Suspend[&string]:
+    first(s)
+
+fn owned() -> mut Suspend[usize]:
+    name := "ada"
+    greet(name, box(User { name: "ada" }))
+
+fn counted_receiver() -> mut Suspend[usize]:
+    let u: *User = box(User { name: "ada" })
+    u.size()
+
+fn awaited!() -> usize:
+    local := "x"
+    let pending: mut Suspend[usize] = hold(&local)
+    pending!() + hold!(&local)
