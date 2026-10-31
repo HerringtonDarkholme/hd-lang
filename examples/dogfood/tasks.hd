@@ -2,6 +2,7 @@
 # Shows topological sort by depth-first search, cycle detection that returns
 # the cycle path as an error, a requirement trait for running tasks, `defer`,
 # and `all!` to run independent tasks of one wave together.
+use std.ops.defer
 use std.cmp.max
 use std.task.all
 
@@ -112,8 +113,7 @@ fn execute!(graph: Graph) -> Result[List[string], PlanError] $ Runner:
     order := plan(graph)?
     let mut finished: List[string] = []
     for wave in waves(graph, order):
-        defer:
-            finished.push("wave of ${wave.len()}")
+        defer(fn() -> void: finished.push("wave of ${wave.len()}"))
         _ := run_wave!(wave)
     .Ok(finished)
 

@@ -1,6 +1,7 @@
 # fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: result propagation after a pending host call completes the frame and runs defer
+use std.ops.defer
 use std.testing.assert_equal
 
 pub trait Tick:
@@ -19,8 +20,7 @@ fn child!(ok: bool) -> Result[i32, Failure] $ Console + Tick:
     if ok: .Ok(40) else: .Err(Failure { code: 7 })
 
 fn run!(state: &mut State, ok: bool) -> Result[i32, Failure] $ Console + Tick:
-    defer:
-        state.count = state.count + 1
+    defer(fn() -> void: state.count = state.count + 1)
     answer := child!(ok)
     value := answer?
     .Ok(value + 2)

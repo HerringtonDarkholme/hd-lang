@@ -1,13 +1,14 @@
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
+use std.ops.defer
+
 let cleaned: bool = false
 
 fn wait!() -> void:
     pass
 
 fn pending!() -> void:
-    defer:
-        cleaned = true
+    defer(fn() -> void: cleaned = true)
     wait!()
 
 pub fn main!() -> void:

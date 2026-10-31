@@ -1,3 +1,4 @@
+use std.ops.defer
 use pkg.open_listener
 use std.net.{Net, TcpListener}
 use std.ops.AsyncDisposable
@@ -14,9 +15,12 @@ struct Conn:
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
-        defer:
-            if self.fallback:
-                self.listener.close().expect("closed")
+        defer(
+            fn() -> void:
+                if self.fallback:
+                    self.listener.close().expect("closed")
+            ,
+        )
         let mut wait = self.closing
         wait!()
         self.listener.close().expect("closed")

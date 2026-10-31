@@ -4,6 +4,7 @@
 # expect-stdout: done
 # test: timeout! returns .Ok when the work finishes first and .Err(TimedOut) when the limit passes first
 # Spec std/task: std-task.timeout.fields-value, std-task.timeout.display, std-task.policy.timeout.builder, std-task.policy.time-limit.race, std-task.policy.time-limit.completed, std-task.policy.time-limit.expired, std-task.timeout.tie, std-task.policy.time-limit.cancel-loser.
+use std.ops.defer
 use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, ms, s, sleep}
 
@@ -20,8 +21,7 @@ struct Trace:
     lines: *mut List[string]
 
 fn guarded!(trace: &mut Trace) -> string $ Clock:
-    defer:
-        trace.lines.push("cleanup")
+    defer(fn() -> void: trace.lines.push("cleanup"))
     sleep!(5s)
     trace.lines.push("finished")
     "late"

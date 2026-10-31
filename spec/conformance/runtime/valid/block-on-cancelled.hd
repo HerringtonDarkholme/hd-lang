@@ -3,6 +3,7 @@
 # expect-stdout: work defer, stop finished, closing, closed, both defer
 # test: block_on of a suspension that is cancelled, before the call or by code inside its own drive, drives its cleanup to its end and gives .Cancelled instead of panicking
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.cancelled; Runtime Checks: req.check.driver-cancelled.await.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{all, block_on}
 use std.time.{Clock, ms, s, sleep}
@@ -22,8 +23,7 @@ fn ready!() -> i32:
     42
 
 fn work!(log: &mut List[string]) -> string $ Clock:
-    defer:
-        log.push("work defer")
+    defer(fn() -> void: log.push("work defer"))
     sleep!(s(60))
     "late"
 
@@ -37,8 +37,7 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 # cancelled, and so is `both`, the suspension that block_on drives. Its
 # cleanup waits in the dispose of `conn`, and block_on drives it to its end.
 fn both!(job: mut Suspend[string], log: *mut List[string]) -> string $ Clock:
-    defer:
-        log.push("both defer")
+    defer(fn() -> void: log.push("both defer"))
     using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     let (worked, stopped) = all!(job, stop(job, log))
     "${worked} ${stopped}"

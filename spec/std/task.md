@@ -237,7 +237,7 @@ A `cleanup` argument bounds how long a `TimeLimit` execution waits for the clean
 `work` once `work` is cancelled:
 
 ```text
-use std.ops.AsyncDisposable
+use std.ops.{AsyncDisposable, defer}
 use std.task.{TimedOut, apply, timeout}
 use std.time.{Clock, s}
 
@@ -247,7 +247,7 @@ struct Upload:
 
 impl AsyncDisposable for Upload:
     fn dispose!(&mut self) -> void:
-        defer: self.log.push("upload closed")
+        defer(fn() -> void: self.log.push("upload closed"))
         let mut ack = self.ack
         ack!()                          # waits for the peer
         self.log.push("upload acknowledged")

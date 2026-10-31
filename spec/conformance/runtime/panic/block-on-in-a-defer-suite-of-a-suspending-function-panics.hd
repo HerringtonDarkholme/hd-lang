@@ -1,5 +1,6 @@
-# test: block on in a defer suite of a suspending function panics
+# test: block_on reached from a deferred callback in a suspending function panics
 # Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
+use std.ops.defer
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -24,8 +25,7 @@ fn print_now() -> i32:
     1
 
 fn work!() -> void:
-    defer:
-        _ := wait_now()
+    defer(fn() -> void: _ := wait_now())
     pass
 
 pub fn main!() -> void:

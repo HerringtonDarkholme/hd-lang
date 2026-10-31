@@ -1,13 +1,14 @@
 # fixture-runtime-profile: pending-gate
 # fixture-runtime-scenario: cancellation-cleanup
+use std.ops.defer
+
 let cleaned: bool = false
 
 pub trait Gate:
     fn wait!(self) -> void
 
 fn pending!() -> void $ Gate:
-    defer:
-        cleaned = true
+    defer(fn() -> void: cleaned = true)
     $.use(Gate).wait!()
 
 pub fn main!() -> void $ Gate:

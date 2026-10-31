@@ -2,6 +2,7 @@
 # Spec 11 Cancellation: req.check.cancel-idempotent, req.combinator.race-losers-disposed.using-split.
 # fixture-runtime-profile: pending-gate
 # expect-empty-stdout: true
+use std.ops.defer
 use std.task.{CleanupEnd, race}
 use std.testing.assert_equal
 
@@ -13,8 +14,7 @@ struct Log:
 
 fn slow!(log: &mut Log) -> i32 $ Gate:
     log.text = log.text + "start;"
-    defer:
-        log.text = log.text + "cleanup;"
+    defer(fn() -> void: log.text = log.text + "cleanup;")
     $.use(Gate).wait!()
     log.text = log.text + "done;"
     7

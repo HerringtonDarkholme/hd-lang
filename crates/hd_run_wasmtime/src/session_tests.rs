@@ -283,16 +283,17 @@ fn a_panicking_input_keeps_its_changes_to_earlier_values() {
     });
 }
 
-/// `cli.repl.panic`: a panic inside `defer` leaves the forbidden-context
+/// `cli.repl.panic`: a panic inside deferred cleanup leaves the forbidden-context
 /// counter set; the session resets it, so the next input's `println`
 /// works.
 #[test]
 fn an_input_after_a_panic_inside_defer_prints() {
     let in1 = "println(\"ready\")\n";
     let in2 = "\
+use std.ops.defer
+
 fn cleanup(xs: List[i32]) -> void:
-    defer:
-        _ := xs[3]
+    defer(fn() -> void: _ := xs[3])
     pass
 
 cleanup([+1])
@@ -481,13 +482,14 @@ fn an_input_makes_bang_calls_at_top_level() {
 }
 
 /// Inputs show values of many types, and the session still resets the
-/// runtime state after a panic inside `defer` (`cli.repl.panic`).
+/// runtime state after a panic inside deferred cleanup (`cli.repl.panic`).
 #[test]
 fn inputs_show_values_and_go_on_after_a_panic_inside_defer() {
     let panics = "\
+use std.ops.defer
+
 fn cleanup(xs: List[i32]) -> void:
-    defer:
-        _ := xs[3]
+    defer(fn() -> void: _ := xs[3])
     pass
 
 cleanup([+1])
@@ -544,16 +546,17 @@ fn a_stopped_loop_input_ends_and_the_session_goes_on() {
 }
 
 /// `cli.repl.cancel`: an input that waits on the host is cancelled at
-/// once by `req.cancel.steps`, so its `defer` runs; it ends as a
+/// once by `req.cancel.steps`, so its deferred callback runs; it ends as a
 /// panicking input does: it adds no declaration, and the next input runs.
 /// The next input's rebuild skips it (`cli.repl.rebuild.stopped`), so its
-/// `defer`'s change to an earlier binding is not restored.
+/// callback's change to an earlier binding is not restored.
 #[test]
 fn a_waiting_input_is_cancelled_and_its_defer_runs() {
     let nap = "\
+use std.ops.defer
+
 fn nap!() -> void:
-    defer:
-        log.push(\"cleanup\")
+    defer(fn() -> void: log.push(\"cleanup\"))
     sleep!(Duration.seconds(+30))
 
 nap!()
@@ -1901,7 +1904,7 @@ fn linked_cancelled_input_rolls_back_before_the_next_extension() {
             let store = hd_cache::MemoryStore::default();
             let mut files = hd_project::MemorySources::default();
             let mut metadata = hd_driver::Session::linked();
-            let first = "use std.time.{sleep, Duration}\nlet mut values: List[usize] = []\n";
+            let first = "use std.time.{sleep, Duration}\nuse std.ops.defer\nlet mut values: List[usize] = []\n";
             files.insert(&hd_project::repl_file(1), first);
             let mut out = build_linked_input(&files, &store, &metadata, &[], 1);
             assert!(!out.diags.has_errors(), "{}", out.render());
@@ -1913,7 +1916,7 @@ fn linked_cancelled_input_rolls_back_before_the_next_extension() {
                 Some((Outcome::Exit(0), End::Exit(0)))
             );
             metadata.add(out.session_added.take().unwrap());
-            let cancelled = "fn nap!() -> void:\n    defer:\n        values.push(2)\n    values.push(1)\n    sleep!(Duration.seconds(+30))\nnap!()\n";
+            let cancelled = "fn nap!() -> void:\n    defer(fn() -> void: values.push(2))\n    values.push(1)\n    sleep!(Duration.seconds(+30))\nnap!()\n";
             files.insert(&hd_project::repl_file(2), cancelled);
             let out = build_linked_input(&files, &store, &metadata, &[], 2);
             assert!(!out.diags.has_errors(), "{}", out.render());

@@ -4,6 +4,7 @@
 # expect-stdout: 42
 # expect-stdout: 7
 # expect-stdout: 42
+use std.ops.defer
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -31,8 +32,7 @@ fn quiet() -> void:
     pass
 
 fn cleanup() -> void:
-    defer:
-        quiet()
+    defer(fn() -> void: quiet())
     pass
 
 fn count(start: i32 = 7) -> i32:

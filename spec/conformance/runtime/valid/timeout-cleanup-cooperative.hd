@@ -3,6 +3,7 @@
 # expect-stdout: bound 1s, quick peer: flushed at 5200, acknowledged, closed at 5200
 # test: the cleanup deadline counts from the first cancel, never interrupts a flush that is computing, and abandons only a cleanup that still waits
 # Spec std/task: std-task.timeout.cleanup-cooperative, std-task.policy.time-limit.cleanup-deadline.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, Duration, ManualClock, Timestamp, ms, s, sleep}
@@ -16,8 +17,7 @@ struct Flush['a]:
 
 impl['a] AsyncDisposable for Flush['a]:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("closed at ${self.clock.now().unix_milliseconds()}")
+        defer(fn() -> void: self.log.push("closed at ${self.clock.now().unix_milliseconds()}"))
         self.clock.sleep!(ms(200))
         self.log.push("flushed at ${self.clock.now().unix_milliseconds()}")
         let mut ack = self.ack

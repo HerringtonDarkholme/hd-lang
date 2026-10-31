@@ -1,22 +1,20 @@
 # test: defer is LIFO and runs on loop continue and break
 
+use std.ops.defer
+
 fn main() -> i32:
     let value = +0
     if true:
-        defer:
-            value = value * 10 + 1
-        defer:
-            value = value * 10 + 2
+        defer(fn() -> void: value = value * 10 + 1)
+        defer(fn() -> void: value = value * 10 + 2)
         pass
     let iterations = +0
     while iterations < 2:
-        defer:
-            value = value + 100
+        defer(fn() -> void: value = value + 100)
         iterations = iterations + 1
         continue
     while true:
-        defer:
-            value = value + 1000
+        defer(fn() -> void: value = value + 1000)
         break
     value
 

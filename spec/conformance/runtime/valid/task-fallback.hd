@@ -1,6 +1,7 @@
 # test: fallback composes per-attempt deadlines and retries and cancels only the active child
 # Spec std/task: std-task.policy.fallback.builder, .completed, .backup, .cancel, .requirement-free.
 # expect-empty-stdout: true
+use std.ops.defer
 use std.task.{Backoff, TimedOut, apply, fallback, race, retry, timeout}
 use std.time.{Clock, ManualClock, Timestamp, sleep}
 use std.convert.From
@@ -43,8 +44,7 @@ impl Http for DelayedHttp:
         self.urls.push(url)
         if url == "http://primary/item":
             self.started += 1
-            defer:
-                self.closed += 1
+            defer(fn() -> void: self.closed += 1)
             let wait: mut Suspend[void] = if self.started == 1:
                 self.first_wait
             else:
@@ -66,15 +66,13 @@ struct Activity:
 
 fn wait_primary!(activity: *mut Activity, wait: mut Suspend[void]) -> Result[usize, string]:
     activity.primary += 1
-    defer:
-        activity.closed += 1
+    defer(fn() -> void: activity.closed += 1)
     wait!()
     .Ok(1)
 
 fn wait_backup!(activity: *mut Activity, wait: mut Suspend[void]) -> Result[usize, string]:
     activity.backup += 1
-    defer:
-        activity.closed += 1
+    defer(fn() -> void: activity.closed += 1)
     wait!()
     .Ok(2)
 
@@ -142,15 +140,17 @@ pub fn main!() -> void $ Clock:
     let second_wait: mut Suspend[void] = sleep(60s)
     let primary_wait: mut Suspend[void] = sleep(60s)
     let backup_wait: mut Suspend[void] = sleep(60s)
-    http := box(DelayedHttp {
-        first_wait: first_wait,
-        second_wait: second_wait,
-        urls: [],
-        started: 0,
-        finished: 0,
-        closed: 0,
-        closed_before_backup: 0,
-    })
+    http := box(
+        DelayedHttp {
+            first_wait: first_wait,
+            second_wait: second_wait,
+            urls: [],
+            started: 0,
+            finished: 0,
+            closed: 0,
+            closed_before_backup: 0,
+        },
+    )
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock, Http=http):
         backup_request := fn!() -> Result[string, RequestFailure] $ Http:

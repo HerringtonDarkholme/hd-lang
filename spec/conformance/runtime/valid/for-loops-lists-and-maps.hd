@@ -7,6 +7,8 @@
 # flow.loop.else.exhaustion, flow.loop.else.plain-break,
 # flow.loop.else.continue.
 
+use std.ops.defer
+
 fn load!() -> List[i32]:
     [1, 2, 3]
 
@@ -30,8 +32,7 @@ fn main!() -> i32:
         total = total + entry._1
     let cleanup = +0
     for value in [+1, 2]:
-        defer:
-            cleanup = cleanup + 10
+        defer(fn() -> void: cleanup = cleanup + 10)
         if value == 1:
             continue
         break

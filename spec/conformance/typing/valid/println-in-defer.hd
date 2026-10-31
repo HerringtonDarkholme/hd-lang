@@ -1,7 +1,8 @@
-# test: println drives no suspension, so a defer suite may call it
+# test: a deferred callback may call println through its requirement row
 # Spec 10 Console: module.console.println-no-drive.
 
+use std.ops.defer
+
 fn report() -> void $ Console:
-    defer:
-        println("done")
+    defer(fn() -> void $ Console: println("done"))
     pass

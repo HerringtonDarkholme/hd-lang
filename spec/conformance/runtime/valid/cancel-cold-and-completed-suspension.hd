@@ -1,11 +1,12 @@
 # test: cancelling a cold or completed suspension performs no cleanup
 # expect: test
+use std.ops.defer
+
 struct Log:
     text: string
 
 fn work!(log: &mut Log) -> i32:
-    defer:
-        log.text = log.text + "cleanup;"
+    defer(fn() -> void: log.text = log.text + "cleanup;")
     log.text = log.text + "body;"
     7
 

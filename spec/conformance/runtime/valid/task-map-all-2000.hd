@@ -1,6 +1,7 @@
 # expect-stdout: 2000 results; 2000 started and cleaned
 # test: map_all handles 2000 workers and cancels every pending worker
 # Spec std/task Map All: std-task.map-all.order, .empty, and .like-all.
+use std.ops.defer
 use std.task.{TimedOut, map_all, timeout, apply}
 use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, sleep}
@@ -11,8 +12,7 @@ struct Gauge:
 
 fn work!(gauge: &mut Gauge, item: usize) -> usize $ Clock:
     gauge.started += 1
-    defer:
-        gauge.cleaned += 1
+    defer(fn() -> void: gauge.cleaned += 1)
     sleep!(60s)
     item
 

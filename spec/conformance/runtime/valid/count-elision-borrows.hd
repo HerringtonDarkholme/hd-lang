@@ -1,6 +1,7 @@
 # fixture-runtime-profile: pending-tick
 # test: count elision preserves field, loop, escape, mutation and saved-frame ownership
 # Spec 04 Value Types: types.value.copy; Spec 06 For Loops: flow.for.snapshot.
+use std.ops.defer
 use std.testing.assert_equal
 
 pub trait Tick:
@@ -58,8 +59,7 @@ fn map_elements(n: i32) -> void:
 fn deferred_fields(n: i32, log: &mut List[string]) -> void:
     p := pair(n)
     before := p.left
-    defer:
-        log.push(before)
+    defer(fn() -> void: log.push(before))
     assert_equal(p.right, "right $n", reason="the source may end before deferred use")
 
 fn saved_fields!(p: Pair) -> void $ Console + Tick:

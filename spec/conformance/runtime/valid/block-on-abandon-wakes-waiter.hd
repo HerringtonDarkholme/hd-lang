@@ -4,6 +4,7 @@
 # Spec lang/11 Abandoning: req.abandon.result; Driving A Stored Suspension: req.drive.block-on.deadlock.
 # The waiter registered no wake, and abandon() aborted the only host
 # operation, so block_on polls again instead of waiting in the host.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{all, block_on, race}
 use std.time.{Clock, s, sleep}
@@ -14,16 +15,14 @@ struct Conn:
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("conn defer")
+        defer(fn() -> void: self.log.push("conn defer"))
         self.log.push("closing")
         let mut wait = self.closing
         wait!()
         self.log.push("closed")
 
 fn session!(log: *mut List[string]) -> string $ Clock:
-    defer:
-        log.push("session defer")
+    defer(fn() -> void: log.push("session defer"))
     using! conn = &mut Conn { log: log, closing: sleep(s(60)) }
     sleep!(s(60))
     "late"

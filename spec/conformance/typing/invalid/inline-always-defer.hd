@@ -1,9 +1,9 @@
 # test: inline Always cannot copy defer
 # Spec 14 Inline And Cold: annot.inline.always-copyable.
+use std.ops.defer
 use std.annotation.inline
 
 @inline(.Always) # diagnostic: inline-always-uncopyable
 fn finish() -> i32:
-    defer:
-        pass
+    defer(fn() -> void: pass)
     +1

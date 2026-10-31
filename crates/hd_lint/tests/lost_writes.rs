@@ -82,6 +82,8 @@ fn call_mut_receiver(mut value: Box) -> void:
 #[test]
 fn a_later_use_or_capture_observes_the_changed_copy() {
     let source = r"
+use std.ops.defer
+
 fn consume(values: List[i32]) -> usize:
     values.len()
 
@@ -102,8 +104,7 @@ fn capture_after(mut values: List[i32]) -> fn() -> usize:
     fn() -> usize: values.len()
 
 fn defer_read(mut values: List[i32]) -> void:
-    defer:
-        _ := values.len()
+    defer(fn() -> void: _ := values.len())
     values.push(+1)
 
 fn countdown(mut n: i32) -> i32:

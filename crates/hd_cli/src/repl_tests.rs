@@ -651,9 +651,9 @@ fn a_stopped_input_ends_and_the_session_goes_on() {
 }
 
 /// `cli.repl.cancel`: Ctrl-C while an input waits on the host cancels it
-/// at once; its `defer` runs, and it ends as a panicking input does. The
-/// next input's rebuild skips it (`cli.repl.rebuild.stopped`), so what
-/// the `defer` changed is not restored, which the REPL says.
+/// at once; its deferred callback runs, and it ends as a panicking input does.
+/// The next input's rebuild skips it (`cli.repl.rebuild.stopped`), so what
+/// the callback changed is not restored, which the REPL says.
 #[test]
 fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     use std::sync::atomic::{AtomicU8, Ordering};
@@ -661,11 +661,10 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     // 1 once the waiting input is sent, 2 once the next input is read.
     let phase = Arc::new(AtomicU8::new(0));
     let mut script = Script::of(&[
-        "use std.time.{sleep, Duration}",
+        "use std.time.{sleep, Duration}\nuse std.ops.defer",
         "let mut log: List[string] = []",
         "fn nap!() -> void:",
-        "    defer:",
-        "        log.push(\"cleanup\")",
+        "    defer(fn() -> void: log.push(\"cleanup\"))",
         "    sleep!(Duration.seconds(+30))",
         "",
         "nap!()",

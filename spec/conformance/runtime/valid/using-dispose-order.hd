@@ -3,8 +3,9 @@
 # expect-stdout: open r0, step 0, dispose r0, open r1, dispose r1, open r2, dispose r2
 # expect-stdout: open f, dispose f
 # expect-stdout: 2 1 bad
-# test: a synchronous using binding disposes its value at every scope exit, last in first out with defer suites, in ordinary functions
+# test: a synchronous using binding disposes at every scope exit, LIFO with deferred callbacks, in ordinary functions
 # Spec lang/06 Using Bindings: flow.using.register.split, flow.using.dispose.v2, flow.using.order.v2, flow.using.loop.v2.
+use std.ops.defer
 use std.ops.Disposable
 
 struct Res:
@@ -21,8 +22,7 @@ fn open(name: string, log: *mut List[string]) -> *mut Res:
 
 fn early(log: *mut List[string], stop: bool) -> i32:
     using a = open("a", log)
-    defer:
-        log.push("defer")
+    defer(fn() -> void: log.push("defer"))
     using b = open("b", log)
     if stop:
         return 1

@@ -2,6 +2,8 @@
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
 
+use std.ops.defer
+
 let cleaned: bool = false
 
 trait Job:
@@ -15,8 +17,7 @@ fn wait!() -> void:
 
 impl Job for Worker:
     fn run!(self) -> void:
-        defer:
-            cleaned = self.value == 42
+        defer(fn() -> void: cleaned = self.value == 42)
         wait!()
 
 pub fn main!() -> void:

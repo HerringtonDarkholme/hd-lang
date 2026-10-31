@@ -1,6 +1,7 @@
 # fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: suspending calls in loops resume after a pending host call, with continue, break values, and cleanup
+use std.ops.defer
 use std.testing.assert_equal
 
 pub trait Tick:
@@ -16,8 +17,7 @@ pub fn main!() -> void $ Console + Tick:
     let index = +0
     let total = +0
     value := while index < 5:
-        defer:
-            total = total + 10
+        defer(fn() -> void: total = total + 10)
         index = step!(index + 1)
         if index == 2:
             continue

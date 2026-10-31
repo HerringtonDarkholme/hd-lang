@@ -1,3 +1,4 @@
+use std.ops.defer
 use std.time.{Clock, Duration, sleep}
 use std.task.{all, race}
 
@@ -5,8 +6,7 @@ use std.task.{all, race}
 # cleanup runs on completion and on cancellation alike.
 fn work!(n: i32, ms: i64, log: &mut List[string]) -> i32 $ Clock:
     log.push("start $n")
-    defer:
-        log.push("cleanup $n")
+    defer(fn() -> void: log.push("cleanup $n"))
     sleep!(Duration::milliseconds(ms))
     log.push("done $n")
     n * 10

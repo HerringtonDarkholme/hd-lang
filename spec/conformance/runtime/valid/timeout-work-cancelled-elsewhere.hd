@@ -3,6 +3,7 @@
 # test: when another task cancels the job that timeout!'s work awaits, the timeout! is cancelled at once and never returns .Err(TimedOut)
 # Spec std/task: std-task.policy.time-limit.work-cancelled.
 # Also covers lang/11 Standard Combinators: req.combinator.race-child-cancelled; Cancellation: req.cancel.await.propagate, req.cancel.await.dispose.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{TimedOut, all, timeout, apply}
 use std.time.{Clock, ms, s, sleep}
@@ -14,16 +15,14 @@ struct Runner['a]:
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("runner defer")
+        defer(fn() -> void: self.log.push("runner defer"))
         let (result, _) = all!(self.timed, self.stop)
         match result:
             .Ok(value) => self.log.push("work gave ${value}")
             .Err(_) => self.log.push("timed out")
 
 fn target!(log: &mut List[string]) -> string $ Clock:
-    defer:
-        log.push("target defer")
+    defer(fn() -> void: log.push("target defer"))
     sleep!(s(60))
     "late"
 

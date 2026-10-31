@@ -1,21 +1,19 @@
+use std.ops.defer
+
 fn normal(log: &mut List[string]) -> void:
-    defer:
-        log.push("normal: first registered")
-    defer:
-        log.push("normal: second registered")
+    defer(fn() -> void: log.push("normal: first registered"))
+    defer(fn() -> void: log.push("normal: second registered"))
     log.push("normal: body")
 
 fn early(log: &mut List[string], x: i32) -> i32:
-    defer:
-        log.push("return: cleanup $x")
+    defer(fn() -> void: log.push("return: cleanup $x"))
     if x > 0:
         return x
     0
 
 fn loops(log: &mut List[string]) -> void:
     for i in [1, 2, 3]:
-        defer:
-            log.push("loop: cleanup $i")
+        defer(fn() -> void: log.push("loop: cleanup $i"))
         if i == 1:
             continue
         if i == 2:
@@ -29,17 +27,14 @@ fn parse(s: string) -> Result[i32, string]:
     .Ok(1)
 
 fn try_it(log: &mut List[string], s: string) -> Result[i32, string]:
-    defer:
-        log.push("try: cleanup $s")
+    defer(fn() -> void: log.push("try: cleanup $s"))
     v := parse(s)?
     .Ok(v + 1)
 
 fn nested(log: &mut List[string]) -> i32:
-    defer:
-        log.push("nested: outer")
+    defer(fn() -> void: log.push("nested: outer"))
     if log.len() > 0:
-        defer:
-            log.push("nested: inner")
+        defer(fn() -> void: log.push("nested: inner"))
         return 7
     0
 

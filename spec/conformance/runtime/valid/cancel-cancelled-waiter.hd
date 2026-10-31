@@ -2,6 +2,7 @@
 # expect-stdout: closing, closed, stopper defer
 # test: cancelling a task that waits in cancel!() stops only its wait: the cleanup goes on inside that task's own cleanup, which ends after it
 # Spec lang/11 Cancellation: req.cancel.nested.using-split.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
@@ -26,8 +27,7 @@ fn ready!() -> string:
     "won"
 
 fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
-    defer:
-        log.push("stopper defer")
+    defer(fn() -> void: log.push("stopper defer"))
     _ := job.cancel!()
     log.push("stopper resumed")
     "stopper"

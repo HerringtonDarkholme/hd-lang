@@ -1,8 +1,9 @@
 # test: explicit panic skips defer
 
+use std.ops.defer
+
 fn main() -> i32:
-    defer:
-        panic("cleanup must not run")
+    defer(fn() -> void: panic("cleanup must not run"))
     panic("boom") # panic: explicit-panic
 
 tests:

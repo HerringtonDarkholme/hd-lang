@@ -1,14 +1,18 @@
-# test: a bang call in a defer suite is rejected; constructing a cold suspension is not
+# test: a bang call in a deferred callback is rejected; constructing a cold suspension is not
+use std.ops.defer
+
 fn ready!() -> i32:
     1
 
 fn bang_cleanup!() -> i32:
-    defer:
-        _ := ready!() # diagnostic: suspension-forbidden-context
+    defer(fn() -> void: _ := ready!()) # diagnostic: bang-call-outside-suspension
     2
 
 fn cold_cleanup!() -> i32:
-    defer:
-        let pending: mut Suspend[i32] = ready()
-        _ := pending.cancel()
+    defer(
+        fn() -> void:
+            let pending: mut Suspend[i32] = ready()
+            _ := pending.cancel()
+        ,
+    )
     2

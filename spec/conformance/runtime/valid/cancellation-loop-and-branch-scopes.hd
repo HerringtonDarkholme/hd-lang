@@ -1,20 +1,19 @@
 # test: cancellation unwinds if, loop-body, and function cleanup scopes in order
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
+use std.ops.defer
+
 let trace: string = ""
 
 fn wait!() -> void:
     pass
 
 fn run!() -> void:
-    defer:
-        trace = trace + "fn;"
+    defer(fn() -> void: trace = trace + "fn;")
     for index in [0, 1, 2]:
-        defer:
-            trace = trace + "body$index;"
+        defer(fn() -> void: trace = trace + "body$index;")
         if index == 1:
-            defer:
-                trace = trace + "if;"
+            defer(fn() -> void: trace = trace + "if;")
             wait!()
             trace = trace + "if-after;"
     trace = trace + "after-loop;"

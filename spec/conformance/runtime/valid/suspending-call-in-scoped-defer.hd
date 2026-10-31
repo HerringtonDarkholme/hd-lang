@@ -1,12 +1,13 @@
 # test: suspending call in scoped defer
 
+use std.ops.defer
+
 fn child!() -> i32:
     2
 
 fn main!() -> i32:
     if true:
-        defer:
-            pass
+        defer(fn() -> void: pass)
         child!() + 40
     else:
         0

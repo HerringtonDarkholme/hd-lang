@@ -2,6 +2,7 @@
 # expect-stdout: both async, both sync
 # test: synchronous and asynchronous using bindings share one LIFO cleanup order with defer, and their spelling selects the protocol when a type implements both
 # Spec lang/06 Using Bindings: flow.using.order.v2, flow.using.register.split, flow.using.protocol.required-row.
+use std.ops.defer
 use std.ops.{AsyncDisposable, Disposable}
 use std.time.{Clock, ms, sleep}
 
@@ -37,9 +38,7 @@ impl AsyncDisposable for BothGuard:
 fn work!(log: *mut List[string]) -> void $ Clock:
     using sync = SyncGuard { log: log }
     using! async = AsyncGuard { log: log, closing: sleep(ms(1)) }
-    defer:
-        log.push("defer")
-
+    defer(fn() -> void: log.push("defer"))
 fn select_protocol!(log: *mut List[string]) -> void:
     using sync = BothGuard { log: log }
     using! async = BothGuard { log: log }

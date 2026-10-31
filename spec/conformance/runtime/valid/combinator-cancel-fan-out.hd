@@ -2,6 +2,7 @@
 # expect-stdout: connections draining, acceptor stops accepting, connections drained, serve defer
 # test: a cancelled all! starts every unfinished child's cleanup in argument order before it waits for any, so the connections' dispose that waits for the acceptor's defer does not deadlock, and the parent's own cleanup runs last
 # Spec lang/11 Standard Combinators: req.combinator.cancel-order, req.combinator.cancel-fold, req.combinator.cancel-parent-last.using-split.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
@@ -27,14 +28,16 @@ fn connections!(server: *mut Server) -> void $ Clock:
     sleep!(s(60))
 
 fn acceptor!(server: &mut Server) -> void $ Clock:
-    defer:
-        server.accepting = false
-        server.log.push("acceptor stops accepting")
+    defer(
+        fn() -> void:
+            server.accepting = false
+            server.log.push("acceptor stops accepting")
+        ,
+    )
     sleep!(s(60))
 
 fn serve!(server: *mut Server) -> string $ Clock:
-    defer:
-        server.log.push("serve defer")
+    defer(fn() -> void: server.log.push("serve defer"))
     _ := all!(connections(server), acceptor(server))
     "served"
 

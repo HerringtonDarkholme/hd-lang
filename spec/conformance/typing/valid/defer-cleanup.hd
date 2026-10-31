@@ -1,3 +1,5 @@
+use std.ops.defer
+
 enum FileError:
     Failed(message: string)
     Closed
@@ -11,6 +13,5 @@ trait Files:
 
 fn read_first!(path: string) -> Result[string, FileError] $ Files:
     let handle: &mut dyn FileHandle = $.use(Files).open!(path)?
-    defer:
-        _ := handle.close()
+    defer(fn() -> void: _ := handle.close())
     handle.read!()

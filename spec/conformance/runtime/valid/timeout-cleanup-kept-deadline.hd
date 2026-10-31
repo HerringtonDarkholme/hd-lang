@@ -2,6 +2,7 @@
 # expect-stdout: closing, caller cancels, still closing, closed, after deadline
 # test: a cancel of timeout! that arrives after the limit keeps the deadline the limit set
 # Spec std/task Cleanup Bound: std-task.policy.time-limit.cleanup-fixed, .cleanup-outlives, .cleanup-deadline.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{TimedOut, all, race, timeout, apply}
 use std.time.{Clock, Duration, ms, s, sleep}
@@ -12,8 +13,7 @@ struct Close:
 
 impl AsyncDisposable for Close:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("closed")
+        defer(fn() -> void: self.log.push("closed"))
         self.log.push("closing")
         let mut ack = self.ack
         ack!()

@@ -1,6 +1,7 @@
 # test: hedges start a delayed fresh copy, return the first Result and join loser defers
 # Spec std/task: std-task.policy.hedge.race, .first-result, .unneeded-copy, .tie, .cleanup, .cancel.
 # expect-empty-stdout: true
+use std.ops.defer
 use std.task.{Hedge, apply, hedged, race}
 use std.time.{Clock, ManualClock, Timestamp, sleep}
 use std.testing.assert_equal
@@ -23,8 +24,7 @@ fn replica!(
 ) -> Result[string, string]:
     copies.started += 1
     number := copies.started
-    defer:
-        copies.closed += 1
+    defer(fn() -> void: copies.closed += 1)
     if number == 1 || all_pending:
         let wait: mut Suspend[void] = if number == 1: first_wait else: second_wait
         wait!()
@@ -66,8 +66,7 @@ pub fn main!() -> void $ Clock:
     $.with(Clock=ready_clock):
         first_error := apply!(hedged(10ms)):
             ready_copies.started += 1
-            defer:
-                ready_copies.closed += 1
+            defer(fn() -> void: ready_copies.closed += 1)
             let failed: Result[string, string] = .Err("first-error")
             failed
         assert_equal(
@@ -77,8 +76,7 @@ pub fn main!() -> void $ Clock:
         )
         first_zero := apply!(hedged(0ms)):
             ready_copies.started += 1
-            defer:
-                ready_copies.closed += 1
+            defer(fn() -> void: ready_copies.closed += 1)
             let ready: Result[usize, string] = .Ok(7)
             ready
         assert_equal(first_zero, .Ok(7), reason="immediate work wins a zero-delay tie")

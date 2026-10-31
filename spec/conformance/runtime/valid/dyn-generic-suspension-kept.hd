@@ -4,6 +4,7 @@
 # expect-stdout: body;cleanup;body;cleanup;body;cleanup;body;cleanup;
 # expect-stdout: cold: []
 # expect-stdout: fast: body;body;cleanup;cleanup;
+use std.ops.defer
 use std.task.race
 use std.time.{Clock, Duration, ms, s, sleep}
 
@@ -15,8 +16,7 @@ struct Slow:
 
 impl Source for Slow:
     fn fetch![T](self, x: T, log: &mut List[string]) -> T $ Clock:
-        defer:
-            log.push("cleanup;")
+        defer(fn() -> void: log.push("cleanup;"))
         log.push("body;")
         sleep!(self.wait)
         x

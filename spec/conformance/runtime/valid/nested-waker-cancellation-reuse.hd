@@ -2,6 +2,7 @@
 # Spec 11 Standard Combinators: req.combinator.all-typing, req.combinator.race-losers-disposed.using-split.
 # fixture-runtime-profile: pending-gate
 # expect-empty-stdout: true
+use std.ops.defer
 use std.task.{all, race}
 use std.testing.assert_equal
 
@@ -9,8 +10,7 @@ pub trait Gate:
     fn wait!(self) -> void
 
 fn blocked!(calls: &mut i32) -> i32 $ Gate:
-    defer:
-        *calls += 1
+    defer(fn() -> void: *calls += 1)
     $.use(Gate).wait!()
     -1
 

@@ -1,6 +1,7 @@
 # test: copied guards share counted breaker state and update failure streaks only on completed work
 # Spec std/task: std-task.policy.guard.refuse, .calls, .success, .failure, .result, .shared, .cancel.
 # expect-empty-stdout: true
+use std.ops.defer
 use std.convert.From
 use std.task.{Breaker, CircuitOpen, Guard, apply, guarded, race}
 use std.time.{Clock, sleep}
@@ -35,8 +36,7 @@ fn pending!(
 ) -> Result[string, Failure]:
     assert_equal(state.calls, 1, reason="calls increments before work starts")
     activity.starts += 1
-    defer:
-        activity.closed += 1
+    defer(fn() -> void: activity.closed += 1)
     wait!()
     .Err(.Offline)
 
@@ -55,8 +55,7 @@ pub fn main!() -> void $ Clock:
     for i in 0..4:
         outcome := apply!(endpoint_guard):
             endpoint.starts += 1
-            defer:
-                endpoint.closed += 1
+            defer(fn() -> void: endpoint.closed += 1)
             let failed: Result[string, Failure] = .Err(.Offline)
             failed
         assert_equal(

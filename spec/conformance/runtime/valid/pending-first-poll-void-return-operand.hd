@@ -1,6 +1,7 @@
 # fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: a void return operand runs once before cleanup when the earlier host call was pending
+use std.ops.defer
 use std.testing.assert_equal
 
 pub trait Tick:
@@ -19,8 +20,7 @@ fn tick(state: &mut State):
     state.count = state.count + 1
 
 fn run!(state: &mut State) -> void $ Console + Tick:
-    defer:
-        state.count = state.count * 10
+    defer(fn() -> void: state.count = state.count * 10)
     _ := child!()
     return tick(state)
 

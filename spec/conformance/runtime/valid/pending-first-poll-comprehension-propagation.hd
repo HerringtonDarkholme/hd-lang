@@ -1,6 +1,7 @@
 # fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: non-suspending comprehensions propagate through a frame resumed after a pending host call
+use std.ops.defer
 use std.testing.assert_equal
 
 pub trait Tick:
@@ -22,20 +23,17 @@ fn parse(ok: bool) -> Result[i32, Failure]:
     if ok: .Ok(40) else: .Err(Failure { code: 7 })
 
 fn list_run!(state: &mut State, ok: bool) -> Result[List[i32], Failure] $ Console + Tick:
-    defer:
-        state.count = state.count + 1
+    defer(fn() -> void: state.count = state.count + 1)
     _ := child!()
     .Ok([for item in [ok] => parse(item)?])
 
 fn map_value_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console + Tick:
-    defer:
-        state.count = state.count + 1
+    defer(fn() -> void: state.count = state.count + 1)
     _ := child!()
     .Ok({for item in [ok] => 0: parse(item)?})
 
 fn map_key_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console + Tick:
-    defer:
-        state.count = state.count + 1
+    defer(fn() -> void: state.count = state.count + 1)
     _ := child!()
     .Ok({for item in [ok] => parse(item)?: 1})
 

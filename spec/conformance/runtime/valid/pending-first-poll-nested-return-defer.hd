@@ -1,6 +1,7 @@
 # fixture-runtime-profile: tick
 # fixture-runtime-scenario: pending-first-poll
 # test: a nested return after a pending host call completes the frame and runs defer once
+use std.ops.defer
 use std.testing.assert_equal
 
 pub trait Tick:
@@ -16,8 +17,7 @@ fn child!() -> i32 $ Console + Tick:
     40
 
 fn run!(state: &mut State) -> i32 $ Console + Tick:
-    defer:
-        state.count = state.count + 1
+    defer(fn() -> void: state.count = state.count + 1)
     value := child!()
     if value == 40:
         return value + 2

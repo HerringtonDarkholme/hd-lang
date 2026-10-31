@@ -4,6 +4,7 @@
 # expect-stdout: kept abandoned
 # test: block_on of a suspension that completes gives .Completed with its value, also when its dispose was cut short after an ordinary return
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.completed; Abandoning: req.abandon.dependency.completed.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.block_on
 use std.time.{Clock, s, sleep}
@@ -14,8 +15,7 @@ struct Channel['a]:
 
 impl['a] AsyncDisposable for Channel['a]:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("channel defer")
+        defer(fn() -> void: self.log.push("channel defer"))
         self.log.push("send close")
         let mut wait = self.ack
         wait!()

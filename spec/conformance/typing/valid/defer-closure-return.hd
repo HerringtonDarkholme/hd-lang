@@ -1,10 +1,15 @@
-# test: a return inside a closure defined in a defer suite leaves only the closure
+# test: a return inside a closure defined in deferred cleanup leaves only that closure
+
+use std.ops.defer
 
 fn run() -> i32:
-    defer:
-        pick := fn(flag: bool) -> i32:
-            if flag:
-                return 1
-            2
-        _ := pick(true)
+    defer(
+        fn() -> void:
+            pick := fn(flag: bool) -> i32:
+                if flag:
+                    return 1
+                2
+            _ := pick(true)
+        ,
+    )
     0

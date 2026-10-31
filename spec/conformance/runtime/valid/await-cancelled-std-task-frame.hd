@@ -4,6 +4,7 @@
 # expect-stdout: abandoned
 # test: awaiting a stored std.task race that another task cancelled cancels the awaiter, as an all! child and through a bang call
 # Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.kinds, req.cancel.await.dispose.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
@@ -14,8 +15,7 @@ struct Runner['a]:
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("runner defer")
+        defer(fn() -> void: self.log.push("runner defer"))
         let mut job = self.job
         value := job!()
         self.log.push("runner got ${value}")
@@ -30,8 +30,7 @@ fn ended!(job: mut Suspend[void]) -> string:
         .Abandoned => "abandoned"
 
 fn slow!(name: string, log: &mut List[string]) -> void $ Clock:
-    defer:
-        log.push("${name} defer")
+    defer(fn() -> void: log.push("${name} defer"))
     sleep!(s(60))
 
 fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
@@ -41,29 +40,23 @@ fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
         .Abandoned => log.push("stopper abandoned")
 
 fn waiter!(job: mut Suspend[void], log: &mut List[string]) -> void:
-    defer:
-        log.push("waiter defer")
+    defer(fn() -> void: log.push("waiter defer"))
     job!()
     log.push("waiter never")
 
 fn supervise!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
-    defer:
-        log.push("supervise defer")
+    defer(fn() -> void: log.push("supervise defer"))
     _ := all!(job, stop_later(job, log))
     "supervise never"
 
 fn supervise_waiter!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
-    defer:
-        log.push("supervise defer")
+    defer(fn() -> void: log.push("supervise defer"))
     _ := all!(waiter(job, log), stop_later(job, log))
     "supervise never"
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let runner: mut Suspend[void] = run(
-        log,
-        supervise(race(slow("a", log), slow("b", log)), log),
-    )
+    let runner: mut Suspend[void] = run(log, supervise(race(slow("a", log), slow("b", log)), log))
     runner!()
     println(log.join(", "))
     println(ended!(runner))

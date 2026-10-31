@@ -1,8 +1,9 @@
-# test: defer suites cannot suspend
+# test: deferred callbacks cannot suspend
+
+use std.ops.defer
 
 fn ready!() -> void:
     pass
 fn main!() -> void:
-    defer:
-        ready!() # diagnostic: suspension-forbidden-context
+    defer(fn() -> void: ready!()) # diagnostic: bang-call-outside-suspension
     pass

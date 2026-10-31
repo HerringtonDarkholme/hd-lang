@@ -3,6 +3,7 @@
 # expect-stdout: third
 # expect-stdout: second
 # expect-stdout: first
+use std.ops.defer
 use std.ops.{AutoClosing, Disposable}
 
 struct Guard:
@@ -21,12 +22,9 @@ fn closing(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
 
 fn run(log: *mut List[string]) -> void:
-    defer:
-        log.push("first")
+    defer(fn() -> void: log.push("first"))
     closing(log, "second")
-    defer:
-        log.push("third")
-
+    defer(fn() -> void: log.push("third"))
 pub fn main() -> void $ Console:
     let log: *mut List[string] = box([])
     run(log)

@@ -3,6 +3,7 @@
 # expect-stdout: clock 5000
 # test: with cleanup=0s, timeout! cancels the work at the limit and abandons its cleanup at the first wait, after the synchronous part ran
 # Spec std/task Result Timeouts: std-task.policy.time-limit.cleanup-deadline.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.http.HttpError
 use std.task.{timeout, apply}
@@ -14,8 +15,7 @@ struct Close['a]:
 
 impl['a] AsyncDisposable for Close['a]:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("closed")
+        defer(fn() -> void: self.log.push("closed"))
         self.log.push("closing")
         let mut ack = self.ack
         ack!()

@@ -1,7 +1,8 @@
-# test: the count is balanced after a defer suite and a default expression
+# test: the count is balanced after deferred cleanup and a default expression
 # Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
 # expect-stdout: 5
 # expect-stdout: 42
+use std.ops.defer
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -32,8 +33,7 @@ fn count(start: i32 = plain()) -> i32:
     start
 
 fn cleanup() -> void:
-    defer:
-        _ := count()
+    defer(fn() -> void: _ := count())
     pass
 
 pub fn main() -> void $ Console:

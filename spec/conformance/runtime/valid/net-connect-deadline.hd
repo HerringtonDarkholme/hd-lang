@@ -2,6 +2,7 @@
 # test: a ready scripted connect wins and a never-completing connect times out under ManualClock
 # Spec std/net Net Trait: std-net.trait.decl-composed, std-net.connect.policy-deadline, std-net.connect.cancel.
 # Also covers std-task.policy.time-limit.completed, std-task.policy.time-limit.expired.
+use std.ops.defer
 use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpListener, TcpStream, UdpSocket, connect}
 use std.task.{timeout, apply}
 use std.testing.assert_equal
@@ -22,8 +23,7 @@ impl Net for PendingNet:
         .Err(.Dns(host))
 
     fn connect!(&mut self, host: string, port: u16) -> Result[*mut dyn TcpStream, NetError]:
-        defer:
-            self.log.push("cancelled")
+        defer(fn() -> void: self.log.push("cancelled"))
         self.log.push("started")
         let mut pending = self.wait
         pending!()

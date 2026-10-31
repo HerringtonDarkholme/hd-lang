@@ -1,7 +1,8 @@
+use std.ops.defer
+
 fn cleanup!() -> void:
     pass
 
 fn invalid!() -> void:
-    defer:
-        cleanup!() # diagnostic: suspension-forbidden-context
+    defer(fn() -> void: cleanup!()) # diagnostic: bang-call-outside-suspension
     pass

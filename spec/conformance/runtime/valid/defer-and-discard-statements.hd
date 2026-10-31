@@ -3,14 +3,15 @@
 # expect-stdout: open ledger
 # expect-stdout: posting 3
 # expect-stdout: close ledger
+use std.ops.defer
+
 fn post(amount: i32, log: &mut List[string]) -> i32:
     log.push("posting $amount")
     amount
 
 fn run_ledger(log: &mut List[string]) -> void:
     log.push("open ledger")
-    defer:
-        log.push("close ledger")
+    defer(fn() -> void: log.push("close ledger"))
     _ := post(+3, log)
 
 pub fn main() -> void $ Console:

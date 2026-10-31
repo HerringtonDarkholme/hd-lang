@@ -1,28 +1,26 @@
-# test: cancellation runs defer suites innermost frame first, LIFO within a frame
+# test: cancellation runs deferred callbacks innermost frame first, LIFO within a frame
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
+use std.ops.defer
+
 let trace: string = ""
 
 fn wait!() -> void:
     pass
 
 fn inner!() -> void:
-    defer:
-        trace = trace + "i1;"
-    defer:
-        trace = trace + "i2;"
+    defer(fn() -> void: trace = trace + "i1;")
+    defer(fn() -> void: trace = trace + "i2;")
     wait!()
     trace = trace + "inner-after;"
 
 fn middle!() -> void:
-    defer:
-        trace = trace + "m;"
+    defer(fn() -> void: trace = trace + "m;")
     inner!()
     trace = trace + "middle-after;"
 
 fn outer!() -> void:
-    defer:
-        trace = trace + "o;"
+    defer(fn() -> void: trace = trace + "o;")
     middle!()
     trace = trace + "outer-after;"
 

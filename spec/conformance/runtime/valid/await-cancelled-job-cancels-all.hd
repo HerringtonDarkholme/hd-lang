@@ -2,6 +2,7 @@
 # expect-stdout: abandoned
 # test: an all! whose child another task cancelled is cancelled instead of panicking, and so is each task that awaits it in turn, up to the dispose! that awaits the chain
 # Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate, req.cancel.await.dispose; Standard Combinators: req.combinator.all-cancelled.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.all
 use std.time.{Clock, ms, s, sleep}
@@ -26,8 +27,7 @@ struct Runner['a]:
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("runner defer")
+        defer(fn() -> void: self.log.push("runner defer"))
         let mut job = self.job
         value := job!()
         self.log.push("runner got ${value}")
@@ -49,8 +49,7 @@ fn supervise!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
     "supervise never"
 
 fn outer!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
-    defer:
-        log.push("outer defer")
+    defer(fn() -> void: log.push("outer defer"))
     supervise!(job, log)
 
 fn run!(log: *mut List[string], job: mut Suspend[string]) -> void:

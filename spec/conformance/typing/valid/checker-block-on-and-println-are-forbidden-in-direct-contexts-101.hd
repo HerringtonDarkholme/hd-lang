@@ -1,4 +1,5 @@
 # test: checker block on and println are forbidden in direct contexts
+use std.ops.defer
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -13,9 +14,12 @@ fn text!() -> string:
     "t"
 
 fn f() -> void $ Console:
-    defer:
-        let g = fn() -> void $ Console: println("x")
-        g()
+    defer(
+        fn() -> void:
+            let g = fn() -> void $ Console: println("x")
+            g()
+        ,
+    )
     pass
 
 pub fn main() -> void:

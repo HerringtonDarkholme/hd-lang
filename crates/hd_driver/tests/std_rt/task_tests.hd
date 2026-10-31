@@ -4,6 +4,7 @@
 # a `block_on` drives are freed once their last holder lets go, and making
 # them in a loop runs in bounded memory. Only std may read the heap's size,
 # so the conformance runner adds this file to std as `std.rt.task_tests`.
+use std.ops.defer
 use std.rt.memory.pages
 use std.rt.checked.released
 use std.task.{BlockOn, all, block_on, race}
@@ -20,8 +21,7 @@ fn twice!(n: i32) -> string:
     a + b
 
 fn guarded!(log: &mut List[string], n: i32) -> string:
-    defer:
-        log.push(label(n))
+    defer(fn() -> void: log.push(label(n)))
     step!(n)
 
 fn number!(n: i32) -> i32:

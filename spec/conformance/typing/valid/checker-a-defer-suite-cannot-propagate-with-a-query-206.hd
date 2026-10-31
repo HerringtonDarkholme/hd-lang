@@ -1,4 +1,4 @@
-# test: checker a defer suite cannot propagate with a query
+# test: an ordinary function may propagate with a query
 fn f() -> Result[i32, string]:
     let r: Result[i32, string] = .Ok(1)
     v := r?

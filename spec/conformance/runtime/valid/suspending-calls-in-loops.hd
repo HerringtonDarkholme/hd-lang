@@ -1,5 +1,7 @@
 # test: suspending calls in loops
 
+use std.ops.defer
+
 fn step!(value: i32) -> i32:
     value
 
@@ -7,8 +9,7 @@ fn main!() -> i32:
     let index = +0
     let total = +0
     value := while index < 5:
-        defer:
-            total = total + 10
+        defer(fn() -> void: total = total + 10)
         index = step!(index + 1)
         if index == 2:
             continue

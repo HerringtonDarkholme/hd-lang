@@ -4,9 +4,10 @@
 # test: abandoning a completed job, or one whose cleanup ended, does nothing, even twice; abandoning a cold job marks it without running its body, and later cancels return .Abandoned
 # Spec lang/11 Abandoning: req.abandon.ended, req.abandon.cold, req.abandon.result.
 
+use std.ops.defer
+
 fn record!(log: &mut List[string]) -> string:
-    defer:
-        log.push("cleanup")
+    defer(fn() -> void: log.push("cleanup"))
     log.push("body")
     "done"
 

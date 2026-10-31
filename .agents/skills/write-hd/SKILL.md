@@ -184,6 +184,7 @@ no `not`/`and`/`or` (write `!`, `&&`, `||`).
 
 ```hd
 use std.cmp.max
+use std.ops.defer
 
 fn discounted(cents: i32, percent: i32) -> i32:
     cents - cents * percent / 100
@@ -194,8 +195,7 @@ fn first_or[T](items: List[T], fallback: T) -> T:
         .None => fallback
 
 fn audited(log: &mut List[string]) -> i32:
-    defer:
-        log.push("closed")
+    defer(fn() -> void: log.push("closed"))
     log.push("opened")
     +42
 
@@ -219,10 +219,11 @@ pub fn main() -> void $ Console:
     println("$value ${log.join(",")} $label ${high.len()} $price $empty $found")
 ```
 
-`defer:` takes a suite (`defer: save()` on one line, or an indented body).
-It runs when the block exits, and it cannot make bang calls or use `?`;
-`println` is fine there. `dbg(x)` prints `x` with its location to stderr and returns `void`,
-so it is a statement, not a wrapper.
+`defer(action)` from `std.ops` registers a synchronous callback that runs
+when the block exits. Write a requirement row on the callback when cleanup
+needs one, as in `defer(fn() -> void $ Console: println("done"))`.
+`dbg(x)` prints `x` with its location to stderr and returns `void`, so it
+is a statement, not a wrapper.
 
 ## Structs, Enums, Match, Errors
 
@@ -519,7 +520,7 @@ the code `hd check` reports today.
 | `data Item:` | `syntax-error` | `struct Item:` |
 | `xs.append(x)` | `unknown-method` | `xs.push(x)` |
 | `pair.0` | `syntax-error` | `pair._0` |
-| `defer save()` | `syntax-error` | `defer: save()` |
+| `defer(fn() -> void: save())` without an import | `unknown-name` | add `use std.ops.defer` |
 | `List[Shape]` for a trait | `trait-used-as-type` | `List[*dyn Shape]`, filled with `box(Circle { ... })` |
 | `impl Add for Money` with no import | `unknown-trait` | `use std.ops.Add` |
 | `type Output = Money` | `extra-trait-member` | `type Out = Money` |

@@ -6,6 +6,7 @@
 # expect-stdout: [1, 2]
 # test: abandon() aborts the wait of a dispose! that borrows a socket and closes nothing, so the socket stays open and usable
 # Spec lang/11 Abandoning: req.abandon.host, req.abandon.dispose.
+use std.ops.defer
 use std.net.{ScriptedStream, TcpStream}
 use std.ops.AsyncDisposable
 use std.task.{all, race}
@@ -18,8 +19,7 @@ struct Channel:
 
 impl AsyncDisposable for Channel:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("channel defer")
+        defer(fn() -> void: self.log.push("channel defer"))
         _ := self.socket.write!([1])
         self.log.push("close sent")
         let mut wait = self.acked

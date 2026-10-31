@@ -3,6 +3,7 @@
 # expect-stdout: start 1
 # expect-stdout: done 1
 # expect-stdout: cleanup 1
+use std.ops.defer
 use std.time.{Clock, Duration, sleep}
 use std.task.{all, race}
 
@@ -13,8 +14,7 @@ pub fn main!() -> void $ Console + Clock:
     let mut log: List[string] = []
     guarded := fn!(n: i32) -> i32 $ Clock:
         log.push("start $n")
-        defer:
-            log.push("cleanup $n")
+        defer(fn() -> void: log.push("cleanup $n"))
         nap!(1)
         log.push("done $n")
         n

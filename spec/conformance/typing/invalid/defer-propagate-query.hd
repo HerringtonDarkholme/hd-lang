@@ -1,7 +1,9 @@
-# test: propagation with ? cannot leave a defer suite in an ordinary function
-# Spec 06 Control Flow: r-flow.defer.control (propagation with ? that would leave the suite is an error).
+# test: propagation with ? cannot leave a deferred callback in an ordinary function
+use std.ops.defer
+
+fn answer() -> Result[i32, string]:
+    .Err("failure")
+
 fn run() -> Result[i32, string]:
-    defer:
-        let answer: Result[i32, string] = .Err("failure")
-        _ := answer? # diagnostic: defer-control-flow
+    defer(fn() -> void: _ := answer()?) # diagnostic: invalid-result-propagation
     .Ok(42)

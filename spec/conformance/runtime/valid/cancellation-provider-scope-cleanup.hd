@@ -1,6 +1,8 @@
-# test: cancellation runs defer suites registered inside a provider scope
+# test: cancellation runs deferred callbacks registered inside a provider scope
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
+use std.ops.defer
+
 let trace: string = ""
 
 trait Tag:
@@ -18,16 +20,13 @@ fn wait!() -> void:
 
 fn tagged!() -> void $ Tag:
     label := $.use(Tag).name()
-    defer:
-        trace = trace + label + ";"
+    defer(fn() -> void: trace = trace + label + ";")
     wait!()
 
 fn run!() -> void:
-    defer:
-        trace = trace + "fn;"
+    defer(fn() -> void: trace = trace + "fn;")
     $.with(Tag=FixedTag { value: "tag" }):
-        defer:
-            trace = trace + "with;"
+        defer(fn() -> void: trace = trace + "with;")
         tagged!()
         trace = trace + "with-after;"
 

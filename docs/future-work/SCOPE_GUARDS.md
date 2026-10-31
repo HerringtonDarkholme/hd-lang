@@ -3,8 +3,10 @@
 **Status:** design accepted 2026-10-28; protocol split merged (#962), and the
 row-polymorphic std guard is specified and built (#991). Auto-closing
 registration is specified and built (#1099); the library `defer` and `ensure`
-helpers are specified and built (#1101). The checked package that modeled the
-earlier guard is in git history at 628a7f92e,
+helpers are specified and built (#1101). On 2026-10-31, the owner chose
+`defer(action)` as the one direct registration form; #1116 and #1117 apply
+that removal. The checked package that modeled the earlier guard is in git
+history at 628a7f92e,
 `docs/future-work/scope-guards/`. See [Using Bindings](../../spec/lang/06-control-flow.md#using-bindings)
 and [Auto-Closing Calls](../../spec/lang/06-control-flow.md#auto-closing-calls).
 
@@ -22,8 +24,8 @@ The library `defer(action)` and `ensure(message, condition)` helpers are built i
 
 ## Accepted Design
 
-Keep `defer:`. Add a synchronous disposal protocol and make the cleanup effect
-visible in the binding:
+Use library `defer(action)` for direct cleanup registration. Add a synchronous
+disposal protocol and make the cleanup effect visible in the binding:
 
 ```text
 pub trait Disposable[$R = $()]:
@@ -48,13 +50,14 @@ C#'s second effect word, `await`. The current suspending `Disposable` becomes
 
 An ordinary `let` or `:=` binding never disposes an ordinary `Disposable` or
 `AsyncDisposable` implicitly. A reader can find every end-of-scope action by
-looking for `defer:`, `using`, `using!`, or the accepted auto-closing call
-convention below.
+looking for library `defer(action)`, `using`, `using!`, or the accepted
+auto-closing call convention below.
 
-Both forms register on the existing lexical cleanup stack. `defer:` and
-synchronous disposal run inline; asynchronous disposal is awaited. All three
-run in reverse registration order and otherwise keep the accepted cleanup
-semantics. This design changes neither panic cleanup nor cancellation.
+All forms register on the existing lexical cleanup stack. Library
+`defer(action)` and synchronous disposal run inline; asynchronous disposal is
+awaited. All three run in reverse registration order and otherwise keep the
+accepted cleanup semantics. This design changes neither panic cleanup nor
+cancellation.
 
 The standard library provides an ordinary guard in `std.ops`:
 
@@ -91,8 +94,8 @@ marker implementation refines its synchronous `Disposable` or suspending
 `@auto_closing` is valid only on a function whose return type implements
 `AutoClosing`. Any other return type is an error at the declaration. Calling an
 auto-closing function as a statement registers its result on the same cleanup
-stack as `defer:`, `using`, and `using!`. The entries keep one LIFO order. Using
-the call as a value is an error.
+stack as library `defer(action)`, `using`, and `using!`. The entries keep one
+LIFO order. Using the call as a value is an error.
 
 A marker-typed result can never sit unregistered. Binding it with `:=` or
 `let`, storing it, or returning it from a function without `@auto_closing` is a
@@ -141,9 +144,9 @@ There is one important soundness boundary. A normal tier-2 closure that writes
 through `&mut log` holds an exclusive borrow. The example above cannot both
 keep that borrow in `guard` and call `do_work(log)` directly. A library guard
 can instead own `&mut log` and expose access through itself, as Rust's
-`scopeguard::ScopeGuard` exposes its protected value. Giving `defer:`-like late
-capture to a stored closure would be a new tier-2 mechanism; this design does
-not smuggle it in.
+`scopeguard::ScopeGuard` exposes its protected value. Giving a stored closure
+late lexical capture would be a new tier-2 mechanism; this design does not
+smuggle it in.
 
 ### 2. Synchronous code
 
@@ -210,7 +213,7 @@ Mixed cleanup has one order:
 ```text
 using first = sync_guard()
 using! second = async_handle!()
-defer: mark("third")
+defer(fn() -> void: mark("third"))
 # exit: third, await second, first
 ```
 
@@ -238,7 +241,7 @@ cleanup may suspend.
 | One `using`, two protocols | an explicit priority or an error resolves types implementing both | one semantic exception and one protocol addition; effect stays hidden |
 | Scoped combinator | callback is non-escaping and always invoked exactly once | core-library addition, but nested control flow and no stored guard |
 | Automatic drop | compiler proves exactly-once destruction after captured locals remain live | semantic rule plus compiler-known destruction; cleanup is invisible |
-| Keep only `defer:` | existing lexical capture rules remain the sole cleanup path | no change, but reusable guards remain weaker |
+| Keep only library `defer(action)` | callback capture lifetimes remain visible in its guard | core-library addition only |
 
 The accepted option has the most expensive change in the project's design
 cost order: syntax. It wins despite that cost because the cheaper one-spelling
@@ -259,13 +262,13 @@ alternative needs an ambiguity rule and conceals suspension at scope exit.
 | Ordinary statement/binding of a disposable | `unbound-disposable`, error level by default | allow is available; transfer, return and storage stay quiet |
 | Auto-closing call statement | its marker-typed result registers cleanup | using the call as a value is an error |
 | Unregistered marker-typed value | rejected | plain binding, storage and undecorated return are errors |
-| Mixed `defer`, `using`, `using!` | one reverse-order stack | async entries are awaited in place |
+| Mixed library `defer`, `using`, `using!` | one reverse-order stack | async entries are awaited in place |
 
 The accepted design cannot express a stored closure that mutably captures a
 local while unrelated code keeps accessing that local directly. That is the
 deliberate anti-case: accepting it as an ordinary `&mut` capture would violate
-tier 2's exclusivity rule. `defer:` remains the direct spelling for late
-lexical access.
+tier 2's exclusivity rule. Library `defer(action)` keeps that capture visible
+in an ordinary closure.
 
 ## Appendix B: Prior Art
 
@@ -312,10 +315,9 @@ suppression are not part of this design.
 
 Go [`defer`](https://go.dev/ref/spec#Defer_statements) registers a call for
 function return. Zig [`defer`](https://ziglang.org/documentation/master/#defer)
-runs at lexical scope exit and in reverse order. Hd already keeps its more
-capable lexical `defer:`. These languages support keeping that statement, but
-do not solve the requested guard convention or synchronous/asynchronous
-protocol split.
+runs at lexical scope exit and in reverse order. Hd instead registers an
+ordinary closure through library `defer(action)`. The language cleanup stack
+still supplies lexical scope exit and reverse order.
 
 ## Appendix C: Alternatives
 
@@ -347,11 +349,12 @@ Make every guard run when an ordinary binding dies. This matches Rust and
 needs no `using` syntax, but violates the requested visible end-of-scope
 convention. Construction would hide later code execution. Rejected.
 
-### Only `defer:`
+### Only The Dedicated Statement
 
-Keep directing users to the statement. It already captures lexical locals and
-works synchronously, but a library cannot package a reusable cleanup policy as
-a guard. That is the under-built state this issue asks to address.
+Keep directing users to dedicated cleanup syntax. It captured lexical locals
+and worked synchronously, but a library could not package a reusable cleanup
+policy as a guard. The owner removed that syntax in favor of the built library
+form on 2026-10-31.
 
 ## Appendix D: Earlier State
 

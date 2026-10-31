@@ -4,6 +4,7 @@
 # expect-stdout: child abandoned
 # test: a parent whose cleanup folds a child's waiting cleanup ends .Abandoned when that child is abandoned directly, though its own part ran to its end
 # Spec lang/11 Abandoning: req.abandon.carry, req.abandon.result.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, s, sleep}
@@ -25,8 +26,7 @@ fn child!(log: *mut List[string]) -> string $ Clock:
     "child"
 
 fn parent!(kid: mut Suspend[string], log: &mut List[string]) -> string:
-    defer:
-        log.push("parent defer")
+    defer(fn() -> void: log.push("parent defer"))
     kid!()
 
 fn ready!() -> string:

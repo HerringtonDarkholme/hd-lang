@@ -1,4 +1,5 @@
-# test: block_on reached through a helper while a defer suite runs panics; the check accepts it
+# test: block_on reached through a helper while a deferred callback runs panics; the check accepts it
+use std.ops.defer
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -11,8 +12,7 @@ fn wait_now() -> i32:
         _ => 0
 
 fn cleanup() -> void:
-    defer:
-        _ := wait_now()
+    defer(fn() -> void: _ := wait_now())
     pass
 
 pub fn main() -> void:

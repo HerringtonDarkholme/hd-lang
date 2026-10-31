@@ -57,6 +57,7 @@ fn program(body: &str) -> String {
         "\
 use std.time.{{Clock, Duration, sleep}}
 use std.task.{{all, race}}
+use std.ops.defer
 
 fn nap!(ms: i64) -> void $ Clock:
     sleep!(Duration::milliseconds(ms))
@@ -73,8 +74,7 @@ fn race_cancels_a_losing_closure_and_runs_its_defer() {
     let mut log: List[string] = []
     guarded := fn!(n: i32, ms: i64) -> i32 $ Clock:
         log.push(\"start $n\")
-        defer:
-            log.push(\"cleanup $n\")
+        defer(fn() -> void: log.push(\"cleanup $n\"))
         nap!(ms)
         log.push(\"done $n\")
         n

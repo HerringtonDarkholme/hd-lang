@@ -2,6 +2,7 @@
 # expect-stdout: loser closing, loser closed, racer defer, cancel finished
 # test: a cancel that reaches a race! while a loser's dispose! waits continues that dispose inside the cleanup of the race's task, and a cancel!() of that task waits for it
 # Spec lang/11 Standard Combinators: req.combinator.race-outer-cancel.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
@@ -26,8 +27,7 @@ fn ready!() -> string:
     "won"
 
 fn racer!(log: *mut List[string]) -> string $ Clock:
-    defer:
-        log.push("racer defer")
+    defer(fn() -> void: log.push("racer defer"))
     winner := race!(slow(log), ready())
     log.push("racer got ${winner}")
     winner

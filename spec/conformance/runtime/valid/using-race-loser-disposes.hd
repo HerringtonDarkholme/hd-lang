@@ -3,6 +3,7 @@
 # expect-stdout: done
 # test: a race! loser holding using! bindings whose dispose! suspends still disposes each, innermost frame first, and the race result is the winner's
 # Spec lang/06 Using Bindings: flow.using.cancel.v2, flow.using.async.cancel.shielded, flow.using.async.cancel.wait; lang/11 req.combinator.race-losers-disposed.using-split.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
@@ -24,11 +25,9 @@ fn connect(name: string, log: *mut List[string]) -> *mut Conn $ Clock:
     box(Conn { name: name, log: log, closing: sleep(ms(2)) })
 
 fn fetch!(log: *mut List[string]) -> string $ Clock:
-    defer:
-        log.push("defer outer")
+    defer(fn() -> void: log.push("defer outer"))
     using! a = connect("a", log)
-    defer:
-        log.push("defer inner")
+    defer(fn() -> void: log.push("defer inner"))
     sleep!(s(60))
     log.push("fetched")
     "late"

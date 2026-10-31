@@ -4,6 +4,7 @@
 # expect-stdout: abandoned
 # test: awaiting a pending host call that another task cancelled cancels the awaiter, as an all! child and through a bang call of the stored call
 # Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.kinds, req.cancel.await.dispose.
+use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.all
 use std.time.{Clock, ms, s, sleep}
@@ -14,8 +15,7 @@ struct Runner['a]:
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
-        defer:
-            self.log.push("runner defer")
+        defer(fn() -> void: self.log.push("runner defer"))
         let mut job = self.job
         value := job!()
         self.log.push("runner got ${value}")
@@ -36,20 +36,17 @@ fn stop_later!(call: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
         .Abandoned => log.push("stopper abandoned")
 
 fn waiter!(call: mut Suspend[void], log: &mut List[string]) -> void:
-    defer:
-        log.push("waiter defer")
+    defer(fn() -> void: log.push("waiter defer"))
     call!()
     log.push("waiter never")
 
 fn supervise!(call: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
-    defer:
-        log.push("supervise defer")
+    defer(fn() -> void: log.push("supervise defer"))
     _ := all!(call, stop_later(call, log))
     "supervise never"
 
 fn supervise_waiter!(call: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
-    defer:
-        log.push("supervise defer")
+    defer(fn() -> void: log.push("supervise defer"))
     _ := all!(waiter(call, log), stop_later(call, log))
     "supervise never"
 
@@ -61,10 +58,7 @@ pub fn main!() -> void $ Console + Clock:
     println(log.join(", "))
     println(ended!(runner))
     other := box::[List[string]]([])
-    let second: mut Suspend[void] = run(
-        other,
-        supervise_waiter(clock.sleep(s(60)), other),
-    )
+    let second: mut Suspend[void] = run(other, supervise_waiter(clock.sleep(s(60)), other))
     second!()
     println(other.join(", "))
     println(ended!(second))

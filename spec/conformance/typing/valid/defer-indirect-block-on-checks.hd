@@ -1,4 +1,5 @@
-# test: the check rejects only a direct block_on in a defer suite; a call that reaches one through a helper type-checks
+# test: a deferred callback may reach block_on indirectly, and the call type-checks
+use std.ops.defer
 use std.task.block_on
 
 fn ready!() -> i32:
@@ -14,11 +15,9 @@ fn plain() -> i32:
     1
 
 fn cleanup_indirect() -> void:
-    defer:
-        _ := drive()
+    defer(fn() -> void: _ := drive())
     pass
 
 fn cleanup_plain() -> void:
-    defer:
-        _ := plain()
+    defer(fn() -> void: _ := plain())
     pass

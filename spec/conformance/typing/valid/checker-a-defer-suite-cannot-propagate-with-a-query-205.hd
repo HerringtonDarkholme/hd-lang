@@ -1,11 +1,16 @@
-# test: checker a defer suite cannot propagate with a query
+# test: a nested closure inside deferred cleanup may propagate within itself
+use std.ops.defer
+
 fn f() -> Result[i32, string]:
     let r: Result[i32, string] = .Ok(1)
-    defer:
-        let g = fn() -> Result[i32, string]:
-            v := r?
-            .Ok(v)
-        _ := g()
+    defer(
+        fn() -> void:
+            let g = fn() -> Result[i32, string]:
+                v := r?
+                .Ok(v)
+            _ := g()
+        ,
+    )
     .Ok(42)
 pub fn main() -> void:
     pass

@@ -1,5 +1,7 @@
 # test: postfix ? evaluates its operand once and propagates before cleanup runs
 # expect: test
+use std.ops.defer
+
 struct Log:
     text: string
 
@@ -8,8 +10,7 @@ fn lookup(log: &mut Log, value: i32?) -> i32?:
     value
 
 fn chain(log: &mut Log, value: i32?) -> i32?:
-    defer:
-        log.text = log.text + "d"
+    defer(fn() -> void: log.text = log.text + "d")
     found := lookup(log, value)?
     log.text = log.text + "c"
     found + 1

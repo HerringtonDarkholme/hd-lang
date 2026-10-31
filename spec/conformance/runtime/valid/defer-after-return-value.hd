@@ -1,12 +1,12 @@
 # test: defer runs after a return value is evaluated
-# Spec 06 Return And Defer: flow.return.value, flow.return.type,
-# flow.defer.register, flow.defer.run, flow.defer.result-saved,
-# flow.defer.operands.
+# Spec 06 Return and std Operations, Library Defer:
+# flow.return.value, flow.return.type, std-ops.defer.cleanup.
+
+use std.ops.defer
 
 fn main() -> i32:
     let value = +1
-    defer:
-        value = value + 10
+    defer(fn() -> void: value = value + 10)
     return value
 
 tests:
