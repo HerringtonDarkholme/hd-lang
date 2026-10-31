@@ -85,6 +85,9 @@ pub(crate) enum Category {
     HostCall,
     /// A captured local into a struct field's capture slot.
     FieldCapture,
+    /// What a suspension holds into a destination with no position for it,
+    /// into `'static` (`ref.dep.suspension.local`).
+    Held,
     /// An argument of a `'static` type parameter.
     StaticParam,
     /// A captured function value passed for a type parameter with no

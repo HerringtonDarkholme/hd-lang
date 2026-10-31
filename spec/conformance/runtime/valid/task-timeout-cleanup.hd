@@ -11,11 +11,11 @@ use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, s}
 use std.time.{ManualClock, Timestamp, sleep}
 
-struct Upload:
+struct Upload['a]:
     log: *mut List[string]
-    ack: mut Suspend[void]
+    ack: mut Suspend[void, 'a]
 
-impl AsyncDisposable for Upload:
+impl['a] AsyncDisposable for Upload['a]:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("upload closed")

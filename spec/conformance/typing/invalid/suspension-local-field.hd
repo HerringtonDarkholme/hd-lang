@@ -1,0 +1,11 @@
+# test: a struct field that names no lifetime for its suspension may not hold one that borrows a local
+# Spec 13 Dependent Results: ref.dep.suspension.store, ref.dep.suspension.lifetime.field.
+fn hold!(r: &string) -> usize:
+    r.len()
+
+struct Holder:
+    s: mut Suspend[usize]
+
+fn field() -> Holder:
+    local := "x"
+    Holder { s: hold(&local) } # diagnostic: local-reference-escapes

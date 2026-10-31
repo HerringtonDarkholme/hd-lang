@@ -948,6 +948,7 @@ const PROVIDER_MSG: &str =
     "a local reference captured by this function value never escapes to a provider";
 const HOST_MSG: &str =
     "a local reference captured by this function value never escapes through a host call";
+const HELD_MSG: &str = "a suspension that holds a local reference never escapes to a box, a provider, a host call, a top-level binding, or a field that names no lifetime for it, as `Suspend[R, 'a]` does";
 const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime";
 
 /// A callee variable of a call (`ref.dep.call`): a callee lifetime, a slot
@@ -1494,7 +1495,10 @@ impl Ck<'_, '_> {
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
             ) && let Some(sig) = self.call_sig(ls, body, i)
             {
-                through |= sig.store;
+                // A suspension that holds an argument may be kept
+                // (`ref.dep.suspension.local`).
+                let held = sig.result && ls.of(body.ty[i]).slots.iter().any(|s| s.hold);
+                through |= sig.store || held;
                 calls.insert(w(i), sig);
             }
             match body.tags[i] {

@@ -7,12 +7,12 @@ use std.ops.AsyncDisposable
 use std.task.{TimedOut, all, timeout, apply}
 use std.time.{Clock, ms, s, sleep}
 
-struct Runner:
+struct Runner['a]:
     log: *mut List[string]
-    timed: mut Suspend[Result[string, TimedOut]]
-    stop: mut Suspend[void]
+    timed: mut Suspend[Result[string, TimedOut], 'a]
+    stop: mut Suspend[void, 'a]
 
-impl AsyncDisposable for Runner:
+impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("runner defer")

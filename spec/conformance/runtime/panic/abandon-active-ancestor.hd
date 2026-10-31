@@ -16,7 +16,8 @@ fn outer!(slot: &mut Slot) -> i32:
     inner!(slot)
 
 pub fn main!() -> void:
-    let mut slot = Slot { task: .None }
-    let pending: mut Suspend[i32] = outer(&mut slot)
+    # A counted slot: the suspension keeps it, and borrows no local.
+    slot := box(Slot { task: .None })
+    let pending: mut Suspend[i32] = outer(slot)
     slot.task = pending
     _ := pending!() # panic: suspension-reentrant-poll

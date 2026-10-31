@@ -10,11 +10,11 @@ use std.ops.AsyncDisposable
 use std.task.race
 use std.time.{Clock, s, sleep}
 
-struct Channel:
+struct Channel['a]:
     log: *mut List[string]
-    ack: mut Suspend[void]
+    ack: mut Suspend[void, 'a]
 
-impl AsyncDisposable for Channel:
+impl['a] AsyncDisposable for Channel['a]:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("channel defer")

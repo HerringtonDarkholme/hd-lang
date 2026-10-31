@@ -443,6 +443,7 @@ fn demo(u: &mut User) -> void:
 22. r[ref.dep.suspension.result] A `mut Suspend[R]` in a declared result type has that position too. It depends on the one lifetime of the parameters' positions, or on every parameter under two or more. With no parameter position, it depends on nothing.
 23. r[ref.dep.suspension.lifetime] `Suspend` takes one optional lifetime argument after its result type, as in `mut Suspend[R, 'a]`. It names the suspension's own position, as a lifetime struct's argument names one of the struct's positions ([`ref.lifetime.struct.position`](#r-ref.lifetime.struct.position)). More than one is an error. Error: `argument-count`.
 24. r[ref.dep.suspension.lifetime.field] A field typed `mut Suspend[R, 'a]` in a lifetime struct may hold a suspension that holds `'a` data. A field that writes no lifetime for its suspension holds one that holds no local reference.
+25. r[ref.dep.suspension.store] A suspension that holds a local reference never reaches a box, a provider, a host call, a top-level binding, or a struct field that is neither of a type parameter nor written with a lifetime. A list, a map, a tuple, or an optional keeps it in its own positions. Error: `local-reference-escapes`.
 
 ```hd
 fn count!(s: &string) -> usize:

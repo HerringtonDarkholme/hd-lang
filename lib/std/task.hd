@@ -391,8 +391,8 @@ fn timeout_bound![T](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ 
 
 # The cleanup bound of `timeout!`: the work, the bound, and the clock that
 # measures it.
-struct CleanupBound[T]:
-    job: mut Suspend[T]
+struct CleanupBound[T, 'a]:
+    job: mut Suspend[T, 'a]
     cleanup: Duration
     clock: *mut dyn Clock
 
@@ -402,7 +402,7 @@ struct CleanupBound[T]:
 # cooperative: a cleanup that is computing is never interrupted
 # (r-std-task.timeout.cleanup-cooperative). A finished work's cleanup has
 # ended, so its `cancel!()` wins at once.
-impl[T] AsyncDisposable for CleanupBound[T]:
+impl[T, 'a] AsyncDisposable for CleanupBound[T, 'a]:
     fn dispose!(&mut self) -> void:
         started := self.clock.monotonic()
         _ := race!(self.job.cancel(), cleanup_deadline(self.job, self.clock, self.cleanup, started))

@@ -1,0 +1,8 @@
+# test: a suspension that borrows a local may not be boxed
+# Spec 13 Dependent Results: ref.dep.suspension.store.
+fn hold!(r: &string) -> usize:
+    r.len()
+
+fn boxed() -> *mut Suspend[usize]:
+    local := "x"
+    box(hold(&local)) # diagnostic: local-reference-escapes

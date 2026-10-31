@@ -8,11 +8,11 @@ use std.ops.AsyncDisposable
 use std.task.{all, block_on}
 use std.time.{Clock, s, sleep}
 
-struct Conn:
-    closing: mut Suspend[void]
-    ack: mut Suspend[void]
+struct Conn['a]:
+    closing: mut Suspend[void, 'a]
+    ack: mut Suspend[void, 'a]
 
-impl AsyncDisposable for Conn:
+impl['a] AsyncDisposable for Conn['a]:
     fn dispose!(&mut self) -> void:
         let mut wait = self.closing
         wait!()

@@ -9,12 +9,12 @@ use std.time.{Clock, Duration, ManualClock, Timestamp, ms, s, sleep}
 
 # The flush spends 200 ms of the manual clock without waiting, then waits
 # for an acknowledgement.
-struct Flush:
+struct Flush['a]:
     log: *mut List[string]
     clock: *mut dyn Clock
-    ack: mut Suspend[void]
+    ack: mut Suspend[void, 'a]
 
-impl AsyncDisposable for Flush:
+impl['a] AsyncDisposable for Flush['a]:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("closed at ${self.clock.now().unix_milliseconds()}")

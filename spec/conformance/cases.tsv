@@ -5216,6 +5216,8 @@ typing/invalid/suspension-holds-local-argument.hd	type	reject:local-reference-es
 typing/valid/suspension-holds-arguments.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension
 typing/valid/suspension-lifetime-field.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension.lifetime
 typing/invalid/suspension-lifetime-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.lifetime.field
+typing/invalid/suspension-local-boxed.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.store
+typing/invalid/suspension-local-field.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.store
 typing/invalid/dependent-result-auto-address-receiver-own-storage.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.origin.place
 typing/invalid/dependent-result-temporary.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.temporary
 typing/invalid/dependent-result-trait-value-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.trait

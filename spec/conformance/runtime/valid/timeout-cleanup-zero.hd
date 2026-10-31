@@ -7,11 +7,11 @@ use std.ops.AsyncDisposable
 use std.task.{TimedOut, timeout, apply}
 use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
-struct Close:
+struct Close['a]:
     log: *mut List[string]
-    ack: mut Suspend[void]
+    ack: mut Suspend[void, 'a]
 
-impl AsyncDisposable for Close:
+impl['a] AsyncDisposable for Close['a]:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("closed")

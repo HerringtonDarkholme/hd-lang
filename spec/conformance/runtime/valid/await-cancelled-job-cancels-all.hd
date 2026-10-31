@@ -20,11 +20,11 @@ impl AsyncDisposable for Report:
     fn dispose!(&mut self) -> void:
         self.log.push("supervise cleanup")
 
-struct Runner:
+struct Runner['a]:
     log: *mut List[string]
-    job: mut Suspend[string]
+    job: mut Suspend[string, 'a]
 
-impl AsyncDisposable for Runner:
+impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
         defer:
             self.log.push("runner defer")

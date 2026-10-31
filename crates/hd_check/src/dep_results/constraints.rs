@@ -9,10 +9,10 @@ use hd_tir::ir::{IntrinsicOp, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData};
 
 use super::{
-    ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HOST_MSG, Inputs, Layout,
-    NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty,
-    capture_slot, closure_allows, intrinsic_ops, local_ref, referent, referent_fn, returned,
-    scoped_uses, site, source_arg, w,
+    ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
+    Layout, Layouts, NO_SOURCE, Origin, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts,
+    call_arg_ty, capture_slot, closure_allows, intrinsic_ops, local_ref, referent, referent_fn,
+    returned, scoped_uses, site, source_arg, w,
 };
 use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
@@ -537,14 +537,19 @@ impl Gen<'_, '_> {
         at.flatten().filter(|n| *n != NodeIdx::NONE).unwrap_or(here)
     }
 
-    /// The capture slots at the top of view `v`, but a suspension's, which
-    /// may be kept wherever its type may (`ref.dep.suspension`).
-    fn fun_tops(&self, v: &View) -> Vec<Region> {
+    /// The capture slots at the top of view `v`, each with the category
+    /// of its check: `cat`, or a suspension's [`Category::Held`] with
+    /// `held`, where the destination's type has no position for it
+    /// (`ref.dep.suspension.local`).
+    fn fun_tops(&self, v: &View, cat: Category, held: bool) -> Vec<(Region, Category)> {
         let l = self.s.ls.of(v.1);
-        let fun = |k: usize| l.slots.get(k).is_some_and(|s| s.top && s.fun && !s.hold);
+        let fun = |k: usize| {
+            l.slots
+                .get(k)
+                .filter(|s| s.top && s.fun && (held || !s.hold))
+        };
         (v.0.iter().enumerate())
-            .filter(|&(k, _)| fun(k))
-            .map(|(_, &r)| r)
+            .filter_map(|(k, &r)| Some((r, if fun(k)?.hold { Category::Held } else { cat })))
             .collect()
     }
 
@@ -560,8 +565,8 @@ impl Gen<'_, '_> {
             return;
         };
         if let PlaceRoot::Global(..) = p.root {
-            for r in self.fun_tops(value) {
-                self.checked(r, self.stat, Category::CallerPlace, at);
+            for (r, cat) in self.fun_tops(value, Category::CallerPlace, true) {
+                self.checked(r, self.stat, cat, at);
             }
             return;
         }
@@ -587,11 +592,13 @@ impl Gen<'_, '_> {
     /// [`Gen::call`].
     fn escapes(&mut self, i: u32) {
         let (b, s, iu) = (self.s.b, self.s, i as usize);
-        let mut kept: Vec<(u32, Category)> = Vec::new();
-        let mut parts = |pick: &dyn Fn(Word) -> bool, cat| {
+        // Each kept value, its category, and whether a suspension's slot
+        // counts: not where the destination's type carries it.
+        let mut kept: Vec<(u32, Category, bool)> = Vec::new();
+        let mut parts = |pick: &dyn Fn(Word) -> bool, cat, held| {
             slots(b, iu, |_, v, word| {
                 if pick(word) {
-                    kept.push((v, cat));
+                    kept.push((v, cat, held));
                 }
             });
         };
@@ -602,8 +609,8 @@ impl Gen<'_, '_> {
                     && matches!(s.pool.get(b.ty[iu]), TyData::Ref { counted: true, .. }) =>
             {
                 if let (_, Some(p)) = self.place(i, b.data[iu][0], usize::MAX, (false, false)) {
-                    for r in self.fun_tops(&p) {
-                        self.checked(r, self.stat, Category::Box, b.syn[iu]);
+                    for (r, cat) in self.fun_tops(&p, Category::Box, true) {
+                        self.checked(r, self.stat, cat, b.syn[iu]);
                     }
                 }
             }
@@ -613,7 +620,8 @@ impl Gen<'_, '_> {
                     .decode_place(place)
                     .is_some_and(|p| matches!(p.root, PlaceRoot::Local(_)) && p.proj.is_empty());
                 if !local {
-                    kept.push((v, Category::FieldCapture));
+                    let held = self.field_drops_held(i, place);
+                    kept.push((v, Category::FieldCapture, held));
                 }
             }
             Tag::NewStruct
@@ -622,9 +630,10 @@ impl Gen<'_, '_> {
             | Tag::NewTuple
             | Tag::NewList
             | Tag::NewMap => {
-                parts(&consume, Category::FieldCapture);
+                parts(&consume, Category::FieldCapture, false);
                 // A field of a type parameter keeps what it captures in the
-                // struct's slot (`ref.generic.outlives.field`).
+                // struct's slot (`ref.generic.outlives.field`), and one that
+                // writes a suspension's lifetime what it holds.
                 if let (Tag::NewStruct, TyData::Adt { def, .. }) =
                     (b.tags[iu], s.pool.get(b.ty[iu]))
                     && let Some(item) = s.cx.lookup.item(def)
@@ -635,22 +644,63 @@ impl Gen<'_, '_> {
                     let capturing = |f: &hd_resolve::Field| {
                         capturing_field(s.pool, static_bound, def, &item.generics, f.ty)
                     };
-                    kept.retain(|(v, _)| {
-                        !rec.iter().zip(fields).any(|(x, f)| x == v && capturing(f))
+                    kept.retain_mut(|(v, _, held)| {
+                        let Some((_, f)) = rec.iter().zip(fields).find(|(x, _)| *x == v) else {
+                            return true;
+                        };
+                        *held = !capturing(f) && !writes_held(s.ls, f);
+                        !capturing(f)
                     });
                 }
             }
-            Tag::Intrinsic => parts(&consume, Category::FieldCapture),
-            Tag::With | Tag::ContextNew => parts(&|w| w == Word::Provider, Category::Provider),
-            Tag::CallHost => parts(&|w| matches!(w, Word::Value(_)), Category::HostCall),
+            Tag::Intrinsic => parts(&consume, Category::FieldCapture, false),
+            Tag::With | Tag::ContextNew => {
+                parts(&|w| w == Word::Provider, Category::Provider, true);
+            }
+            Tag::CallHost => parts(&|w| matches!(w, Word::Value(_)), Category::HostCall, true),
             _ => {}
         }
-        for (v, cat) in kept {
+        for (v, cat, held) in kept {
             let at = self.node(v);
-            for r in self.val(v).map(|v| self.fun_tops(&v)).unwrap_or_default() {
+            for (r, cat) in (self.val(v).map(|v| self.fun_tops(&v, cat, held))).unwrap_or_default()
+            {
                 self.checked(r, self.stat, cat, at);
             }
         }
+    }
+
+    /// Whether a store into the place `word` lands in a struct's field whose
+    /// declared type is no type parameter and writes no suspension's
+    /// lifetime, which drops what a suspension holds
+    /// (`ref.dep.suspension.local`).
+    fn field_drops_held(&mut self, i: u32, word: u32) -> bool {
+        let (b, pool) = (self.s.b, self.s.pool);
+        let Some(p) = b.decode_place(word) else {
+            return false;
+        };
+        let Some(&Proj::Field(j)) = p.proj.last() else {
+            return false;
+        };
+        let (_, Some((_, mut t))) = self.place(i, word, p.proj.len() - 1, (false, false)) else {
+            return false;
+        };
+        while let TyData::Mut(x) | TyData::Ref { inner: x, .. } = pool.get(t) {
+            t = x;
+        }
+        let TyData::Adt { def, .. } = pool.get(t) else {
+            return false;
+        };
+        let Some(item) = self.s.cx.lookup.item(def) else {
+            return false;
+        };
+        let ItemData::Data(fields) = &item.data else {
+            return false;
+        };
+        let static_bound = self.s.cx.names.known.static_bound;
+        fields.get(j as usize).is_some_and(|f| {
+            !capturing_field(pool, static_bound, def, &item.generics, f.ty)
+                && !writes_held(self.s.ls, f)
+        })
     }
 
     /// Returned value `v`'s top slots ⊑ the universal region of the
@@ -1065,6 +1115,7 @@ impl Gen<'_, '_> {
 /// category `cat` by an instruction of tag `tag`.
 fn message(cat: Category, tag: Tag) -> &'static str {
     match (cat, tag) {
+        (Category::Held, _) => HELD_MSG,
         (Category::Box, _) => BOX_MSG,
         (Category::Provider, _) => PROVIDER_MSG,
         (Category::HostCall, _) => HOST_MSG,
@@ -1075,4 +1126,11 @@ fn message(cat: Category, tag: Tag) -> &'static str {
         | (Category::Forward, _) => FN_PARAM_MSG,
         _ => FIELD_MSG,
     }
+}
+
+/// Whether field `f` names a lifetime for a suspension of its type
+/// (`ref.dep.suspension.lifetime`).
+fn writes_held(ls: &Layouts<'_>, f: &hd_resolve::Field) -> bool {
+    let lts = ls.slot_lifetimes(f.ty, &f.lifetimes);
+    (ls.of(f.ty).slots.iter().zip(&lts)).any(|(s, &l)| s.hold && l != 0)
 }
