@@ -384,7 +384,8 @@ value copies, as a capture does today ([`fn.capture.copy.value`](../../spec/lang
   ([`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)), and private fields need `Serialize`
   ([`module.boundary.out`](../../spec/lang/10-modules.md#r-module.boundary.out), [`module.boundary.error`](../../spec/lang/10-modules.md#r-module.boundary.error)).
 - **New:** the boundary check runs on a crossing's captures, not only on a
-  registered signature. Code for separate memory is bounded `Fn`, so a
+  registered signature. Code for separate memory is bounded `Fn`
+  (**approved**: question 10), so a
   closure that writes a capture is `not-writable`
   ([`fn.trait.read-only`](../../spec/lang/07-functions.md#r-fn.trait.read-only)). Today a captured variable shares a cell with
   its scope ([`fn.capture.cell.writes`](../../spec/lang/07-functions.md#r-fn.capture.cell.writes)); across memories the write would
@@ -506,7 +507,7 @@ $.use(Gpu[Device = Gpu0]).run!(blur, tex)?           # valid
   equality. The target's capabilities come from its key, checked as in the
   row check; a row without that key is `missing-requirement`
   ([`req.use.missing`](../../spec/lang/11-requirements-and-suspension.md#r-req.use.missing)).
-- **New:** a target read from a type: `at(tex)` with `tex: Texture[D]`
+- **New** (**approved**: question 11): a target read from a type: `at(tex)` with `tex: Texture[D]`
   resolves to the provider for `Gpu[Device = D]`. Then a walk compares
   every handle in the code with `D`.
 
@@ -597,7 +598,8 @@ workers.call!(fn() -> void $ Log: $.use(Log).info("done"))?  # valid: the worker
 The gaps:
 
 - **No `Send` or `Sync`.** A shallow `&` and a shared cell race across
-  threads.
+  threads. `Sync` gets its own design before threads land; until then
+  lend reaches only scoped threads (question 12).
 - **No threads and no shared heap.** One instance runs on one thread
   ([`module.instance.thread`](../../spec/lang/10-modules.md#r-module.instance.thread)), and instances' heaps are disjoint
   ([`module.instance.disjoint`](../../spec/lang/10-modules.md#r-module.instance.disjoint)). Lend waits for both.
@@ -665,6 +667,15 @@ decides it (question 7).
    2026-10-31): a std marker trait the compiler knows, implemented by each
    handle type (`impl Handle for Texture[D]`), as `AutoClosing` is for
    `using`. A domain type argument alone does not make a type a handle.
+10. **May code for separate memory write a capture?** Answered (owner,
+    2026-10-31): no. It is bounded `Fn`, so a write is `not-writable`; the
+    code returns the new value instead, as Swift's `@Sendable` closures do.
+11. **May a crossing target a handle's home?** Answered (owner,
+    2026-10-31): yes, `at(tex)` reads the domain from the handle's type and
+    every other handle the code uses must share it (Chapel's `on x do`).
+12. **What stops a lend racing?** Answered (owner, 2026-10-31): design
+    `Sync` before threads; until then lend is for scoped threads only and
+    the race is a listed gap.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
