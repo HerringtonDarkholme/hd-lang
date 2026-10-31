@@ -30,6 +30,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 - [Positional Union Types](UNION_TYPES.md): fully built with conformance, both-engine parity, and size measurements (#1120-#1125).
 - [Decimal](DECIMAL.md): fixed 128-bit exact decimal with explicit rounding and exact string serde; design accepted 2026-10-28 as a future package, not in std and not scheduled (#840).
 - [Scope Guards](SCOPE_GUARDS.md): accepted: sync `using`, `using!` and error-level `unbound-disposable` built (#962); `on_exit` with tier-2 capture lifetimes, `@auto_closing` (#1099) and library `defer`/`ensure` (#1101) built; the `defer:` statement is being removed (#1117).
+- [Non-Copyable Types](NON_COPYABLE.md): proposal: `~Copyable` structs and enums that move like `&mut`, copyable-by-default type parameters, no partial moves, `&self` read traits, `using` skips a moved binding (#1141).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 - [Design By Contract](DESIGN_BY_CONTRACT.md): `require(message, condition)` as ordinary std code, checked in every profile until `@cfg` splits it; `ensure` deferred to tier 2 (#978); design accepted 2026-10-28 (#880).
 - [Inline And Cold Decorators](INLINE_AND_COLD.md): `@inline(.Always)`, `@inline(.Never)` and `@cold` compiler decorators over the release inliner and table calls; accepted, phases 1-3 implemented, the std rare paths (#884) measured a miss, `.Always` open (#873).
