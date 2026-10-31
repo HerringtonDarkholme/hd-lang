@@ -4,13 +4,15 @@ import { createPackageRuntime, readPackageContract } from "./package-providers.t
 import { Dec, Enc, HostContract } from "./wire.ts";
 import { createCoreHost, pendingOperation, isAsciiUrl, writtenHost } from "./core.ts";
 
-const runtime = () => createPackageRuntime({});
-const encode = (codec, value) => {
+type Dynamic = ReturnType<typeof JSON.parse>;
+
+const runtime = (): Dynamic => createPackageRuntime({});
+const encode = (codec: Dynamic, value: Dynamic): Uint8Array => {
   const e = new Enc();
   codec.enc(e, value, []);
   return e.done();
 };
-const roundTrip = (codec, value) => {
+const roundTrip = (codec: Dynamic, value: Dynamic): Dynamic => {
   const d = new Dec(encode(codec, value));
   const result = codec.dec(d);
   assert.equal(d.at, d.b.length);
@@ -122,7 +124,7 @@ test("private Serde values retain numeric kind, deep containers and literal obje
     ["f", 1.0],
   ]);
   assert.deepEqual(roundTrip(r.json, input), input);
-  const wire = (tokens) => {
+  const wire = (tokens: Dynamic): Dec => {
     const e = new Enc();
     e.str(JSON.stringify(tokens));
     return new Dec(e.done());
@@ -143,7 +145,7 @@ test("private Serde values retain numeric kind, deep containers and literal obje
   for (const bad of [undefined, () => {}, 1n << 64n, -(1n << 63n) - 1n, new Date(), [undefined]]) {
     assert.throws(() => encode(r.json, bad), HostContract);
   }
-  const cyclic = {};
+  const cyclic: Dynamic = {};
   cyclic.self = cyclic;
   assert.throws(() => encode(r.json, cyclic), /cyclic/);
   const shared = { value: 7n };
@@ -163,9 +165,9 @@ test("private Serde values retain numeric kind, deep containers and literal obje
 // A tiny module with the real contract custom section and exchange memory.
 // Its methods are driven directly so readiness and delivery can be separated.
 function operationHost(
-  wait,
-  { suspends = true, grants = {}, extraEnv = {}, generatedIdentity } = {},
-) {
+  wait: Dynamic,
+  { suspends = true, grants = {}, extraEnv = {}, generatedIdentity }: Dynamic = {},
+): Dynamic {
   const identity = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   const moduleName = "hd:pkg:readiness-test";
   const e = new Enc();
@@ -201,7 +203,7 @@ function operationHost(
       module,
       createPackageRuntime,
       grants: { "pkg.Source": true, ...grants },
-      packageBindings(runtime) {
+      packageBindings(runtime: Dynamic) {
         descriptor = {
           identity: generatedIdentity,
           module: moduleName,
@@ -234,9 +236,11 @@ function operationHost(
     moduleName,
     identity,
     target: host.imports[moduleName],
-    finish(id) {
+    finish(id: number) {
       const length = host.imports[moduleName]["wait.finish"](id);
-      return new Dec(new Uint8Array(instance.exports["hd.x"].buffer, 0, length)).str();
+      return new Dec(
+        new Uint8Array((instance.exports["hd.x"] as WebAssembly.Memory).buffer, 0, length),
+      ).str();
     },
   };
 }
@@ -245,7 +249,7 @@ test("provider interface identity stays checked and immutable after metadata cha
   const expected = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   let calls = 0;
   const h = operationHost(
-    (context) => {
+    (context: Dynamic) => {
       calls++;
       const identity = context.interfaceIdentity;
       assert.deepEqual(identity, expected);
@@ -302,7 +306,7 @@ test("pollable package operations retain results until checked delivery", () => 
     computed = 0,
     delivered = 0,
     aborted = 0;
-  const h = operationHost((context) =>
+  const h = operationHost((context: Dynamic) =>
     context.pending(
       () => ready,
       () => {
@@ -341,8 +345,8 @@ test("aborting a ready package operation cancels its undelivered resource once",
   let computed = 0,
     delivered = 0,
     aborted = 0,
-    signal;
-  const h = operationHost((context) => {
+    signal: AbortSignal;
+  const h = operationHost((context: Dynamic) => {
     signal = context.signal;
     return context.pending(
       () => true,
@@ -377,8 +381,8 @@ test("aborting a ready package operation cancels its undelivered resource once",
 
 test("package close cancels pollable work and preserves the original core factory", () => {
   let aborted = 0,
-    instanceSignal;
-  const h = operationHost((context) => {
+    instanceSignal!: AbortSignal;
+  const h = operationHost((context: Dynamic) => {
     instanceSignal = context.instanceSignal;
     return context.pending(
       () => false,
@@ -415,7 +419,7 @@ test("package close cancels pollable work and preserves the original core factor
 
 test("a failed pollable delivery is a contract failure with cleanup still owned", () => {
   let aborted = 0;
-  const h = operationHost((context) =>
+  const h = operationHost((context: Dynamic) =>
     context.pending(
       () => true,
       () => "held",
@@ -440,8 +444,8 @@ test("a failed pollable delivery is a contract failure with cleanup still owned"
 
 test("synchronous package methods cannot create or retain pending work", () => {
   const context = operationHost(
-    (c) =>
-      c.pending(
+    (context: Dynamic) =>
+      context.pending(
         () => true,
         () => "value",
       ),
@@ -475,7 +479,7 @@ test("synchronous package methods cannot create or retain pending work", () => {
 test("pollable callback failures preserve cancellation ownership", () => {
   for (const stage of ["poll", "done", "invalid readiness"]) {
     let aborted = 0;
-    const h = operationHost((context) =>
+    const h = operationHost((context: Dynamic) =>
       context.pending(
         () => {
           if (stage === "poll") {
@@ -511,7 +515,7 @@ test("pollable factories validate callbacks before registering work", () => {
     [() => true, () => "value", 1],
     [() => true, () => "value", null, 1],
   ]) {
-    const h = operationHost((context) => context.pending(...args));
+    const h = operationHost((context: Dynamic) => context.pending(...args));
     try {
       assert.throws(() => h.target["wait.start"](), HostContract);
       assert.equal(h.host.core.st.ops.size, 0);
@@ -523,10 +527,10 @@ test("pollable factories validate callbacks before registering work", () => {
 
 // Public provider methods obtain this view through their real call context;
 // none of these controls reads private host state or a compiler cache path.
-function httpContext(grants) {
-  let policy;
+function httpContext(grants: Dynamic): Dynamic {
+  let policy: Dynamic;
   const h = operationHost(
-    (context) => {
+    (context: Dynamic) => {
       policy = context.http;
       return "policy observed";
     },
@@ -566,9 +570,9 @@ test("package context Http coverage preserves the runtime's deny, true and scope
 
 test("package context Http coverage uses the same core grant object and fixed Http key", () => {
   const { host, policy } = httpContext({ Http: ["allowed.test:443"], Process: true });
-  const calls = [];
+  const calls: Dynamic[] = [];
   const original = host.grant.coversHost;
-  host.grant.coversHost = (key, name, port) => {
+  host.grant.coversHost = (key: string, name: string, port: number) => {
     calls.push([key, name, port]);
     return original(key, name, port);
   };
@@ -627,7 +631,7 @@ test("package contexts cannot silently create a missing Http policy service", ()
           module: original.moduleName,
           contract: original.contract,
           implementation: {
-            wait(context) {
+            wait(context: Dynamic) {
               return context.http.coversHost("any.test", 443) ? "allowed" : "denied";
             },
           },
@@ -666,7 +670,7 @@ test("package contexts cannot silently create a missing Console policy service",
           module: original.moduleName,
           contract: original.contract,
           implementation: {
-            wait(context) {
+            wait(context: Dynamic) {
               return context.console.allows() ? "allowed" : "denied";
             },
           },
@@ -684,9 +688,9 @@ test("package contexts cannot silently create a missing Console policy service",
 });
 
 test("one runtime shares its immutable Http view between provider contexts", () => {
-  const views = [];
+  const views: Dynamic[] = [];
   const h = operationHost(
-    (context) => {
+    (context: Dynamic) => {
       views.push(context.http);
       assert.equal(Reflect.set(context, "http", {}), false);
       assert.equal(
@@ -710,14 +714,14 @@ test("one runtime shares its immutable Http view between provider contexts", () 
 });
 
 test("a caller cannot override the context policy with an unrelated env service", () => {
-  let policy;
+  let policy: Dynamic;
   const forged = {
     coversHost: () => true,
     isAsciiUrl: () => true,
     writtenHost: () => "allowed.test",
   };
   const h = operationHost(
-    (context) => {
+    (context: Dynamic) => {
       policy = context.http;
       return "fixed policy";
     },

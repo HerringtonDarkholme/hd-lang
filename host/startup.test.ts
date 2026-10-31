@@ -15,7 +15,7 @@ const module = new WebAssembly.Module(
 );
 
 test("panic-only modules skip the provider host", async () => {
-  const text = [];
+  const text: string[] = [];
   const host = await createStartupHost(module, {
     out: (value) => text.push(value),
     err: (value) => text.push(value),

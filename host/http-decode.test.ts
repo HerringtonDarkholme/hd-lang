@@ -6,7 +6,7 @@ import { MAX_DECODED_BYTES, decodedResponse } from "./http-decode.ts";
 test("decoded HTTP output validates and reverses the complete coding stack", () => {
   const original = Buffer.from("stacked body");
   const encoded = deflateSync(gzipSync(original));
-  const headers = [
+  const headers: [string, string][] = [
     ["content-encoding", "gzip"],
     ["content-encoding", "deflate, identity"],
     ["content-length", String(encoded.length)],
@@ -20,7 +20,7 @@ test("decoded HTTP output validates and reverses the complete coding stack", () 
 test("decoded HTTP output accepts concatenated gzip members", () => {
   const encoded = Buffer.concat([gzipSync("first "), gzipSync("second")]);
   const decoded = decodedResponse("GET", 200, [["content-encoding", "gzip"]], encoded);
-  assert.equal(decoded.body.toString(), "first second");
+  assert.equal(decoded.body!.toString(), "first second");
 });
 
 test("decoded HTTP output rejects unsupported, corrupt, and raw deflate bodies", () => {
@@ -41,7 +41,7 @@ test("decoded HTTP output rejects unsupported, corrupt, and raw deflate bodies",
 });
 
 test("bodyless HTTP responses do not inspect an encoded payload", () => {
-  const headers = [
+  const headers: [string, string][] = [
     ["content-encoding", "gzip"],
     ["content-length", "18"],
   ];
@@ -53,13 +53,13 @@ test("bodyless HTTP responses do not inspect an encoded payload", () => {
 });
 
 test("decoded HTTP output accepts the 64 MiB boundary and rejects the next byte", () => {
-  const headers = [
+  const headers: [string, string][] = [
     ["content-encoding", "identity"],
     ["content-length", String(MAX_DECODED_BYTES)],
     ["x-test", "kept"],
   ];
   const exact = decodedResponse("GET", 200, headers, Buffer.alloc(MAX_DECODED_BYTES));
-  assert.equal(exact.body.length, MAX_DECODED_BYTES);
+  assert.equal(exact.body!.length, MAX_DECODED_BYTES);
   assert.deepEqual(exact.headers, [["x-test", "kept"]]);
 
   assert.deepEqual(decodedResponse("GET", 200, [], Buffer.alloc(MAX_DECODED_BYTES + 1)), {

@@ -5,13 +5,17 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
 import net from "node:net";
-import { Dec, Enc, Err, Ok, str } from "./wire.ts";
-import { METHODS } from "./gen/abi.ts";
-import { createHost, syncClient } from "./node.ts";
+import type { Socket } from "node:net";
+import type { TestContext } from "node:test";
+import { Err, Ok } from "./wire.ts";
+import { syncClient } from "./node.ts";
+import { netHost } from "./node-test-support.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
 
 // Exercise the Windows worker branch on every OS without changing the
 // production worker's API or loading a replacement process implementation.
-function windowsWorker(t) {
+function windowsWorker(t: TestContext): Dynamic {
   const root = mkdtempSync(join(tmpdir(), "hd-process-job-"));
   const entry = join(root, "entry.ts");
   writeFileSync(
@@ -19,7 +23,7 @@ function windowsWorker(t) {
     `Object.defineProperty(process,'platform',{value:'win32'});process.env.HD_PROCESS_TEST_ROOT=${JSON.stringify(root)};await import(${JSON.stringify(new URL("./process.ts", import.meta.url).href)});`,
   );
   const client = syncClient(pathToFileURL(entry), "close");
-  const call = (request) => {
+  const call = (request: Dynamic): Dynamic => {
     const deadline = performance.now() + 10_000;
     return client.call(request, () => deadline - performance.now());
   };
@@ -42,7 +46,7 @@ function windowsWorker(t) {
         timeout: Infinity,
         ...more,
       }).ok,
-    helper: (source, interpreter = process.execPath) => {
+    helper: (source: string, interpreter = process.execPath) => {
       const path = join(root, "helper");
       writeFileSync(path, `#!${interpreter}\n${source}`);
       chmodSync(path, 0o755);
@@ -96,7 +100,7 @@ mark reply-flushed`,
       "/bin/sh",
     );
     const operation = start({ launcher });
-    let result;
+    let result: Dynamic;
     await t.waitFor(
       () => {
         result = call({ op: "wait_poll", operation });
@@ -188,65 +192,17 @@ test(
   },
 );
 
-function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
-  const host = make({ out() {}, err() {} }, env);
-  host.core.st.deadline = performance.now() + 5000;
-  t.after(() => host.close());
-  const memory = new WebAssembly.Memory({ initial: trait === "hd:Process" ? 32 : 1 });
-  host.prime({ exports: { "hd.x": memory } });
-  const imports = host.imports[trait];
-  const decode = (name, len) =>
-    METHODS[trait][name].result.dec(new Dec(new Uint8Array(memory.buffer, 0, len)));
-  const call = (name, ...args) => {
-    const method = METHODS[trait][name];
-    const encoded = new Enc(),
-      raw = [];
-    if (method.params.length === 1 && method.params[0] === str) {
-      const bytes = new TextEncoder().encode(args[0]);
-      new Uint8Array(memory.buffer).set(bytes);
-      raw.push(bytes.length);
-    } else {
-      method.params.forEach((param, i) => {
-        if (typeof param === "string") {
-          raw.push(args[i]);
-        } else {
-          param.enc(encoded, args[i]);
-        }
-      });
-      if (raw.length !== method.params.length) {
-        new Uint8Array(memory.buffer).set(encoded.done());
-        raw.push(encoded.len);
-      }
-    }
-    if (method.wait === "never") {
-      return { result: decode(name, imports[name](...raw)) };
-    }
-    const [status, value] = imports[`${name}.start`](...raw);
-    return status === 0 ? { result: decode(name, value) } : { operation: value };
-  };
-  const take = (name, started) => {
-    if (started.result) {
-      return started.result;
-    }
-    if (!host.core.st.ops.get(started.operation).completed) {
-      host.imports["hd:rt"].block();
-    }
-    return decode(name, imports[`${name}.finish`](started.operation));
-  };
-  return { host, call, take };
-}
-
-function fixture(t) {
+function fixture(t: TestContext): string {
   const root = mkdtempSync(join(tmpdir(), "hd-job-descendant-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
 }
 
-function processHost(t) {
+function processHost(t: TestContext): Dynamic {
   const api = netHost(t, "hd:Process", { processLauncher: process.env.HD_PROCESS_LAUNCHER });
   return {
     ...api,
-    run: (script, options = {}) =>
+    run: (script: string, options: Dynamic = {}) =>
       api.call("run", {
         program: process.execPath,
         args: ["-e", script],
@@ -263,12 +219,12 @@ function processHost(t) {
 for (const phase of ["running", "leader-exited", "detached"]) {
   test(`Process Job ${phase} preserves cancellation and normal completion`, async (t) => {
     const root = join(fixture(t), "descendant");
-    let peer;
+    let peer: Socket | undefined;
     const server = net.createServer((socket) => {
       peer = socket;
       socket.on("error", () => {});
     });
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     t.after(() => {
       peer?.destroy();
       server.close();
@@ -280,7 +236,7 @@ for (const phase of ["running", "leader-exited", "detached"]) {
         fileURLToPath(new URL("./fixtures/process-descendant.ts", import.meta.url)),
         phase,
         root,
-        String(server.address().port),
+        String((server.address() as net.AddressInfo).port),
       ],
     });
     await t.waitFor(
@@ -308,11 +264,11 @@ for (const phase of ["running", "leader-exited", "detached"]) {
       );
       // A normally completed call does not kill detached descendants.
       process.kill(pid, 0);
-      peer.write("release");
+      peer!.write("release");
       await t.waitFor(() => assert.ok(existsSync(root + ".released")), { timeout: 5000 });
     } else {
       assert.equal(host.core.st.ops.get(child.operation).completed, false);
-      const closed = new Promise((resolve) => peer.once("close", resolve));
+      const closed = new Promise<void>((resolve) => peer!.once("close", resolve));
       host.imports["hd:rt"].abort(child.operation);
       await closed;
       assert.equal(existsSync(root + ".released"), false);

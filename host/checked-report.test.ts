@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { cycleReport } from "./checked-report.ts";
 
-function moduleWith(data) {
+function moduleWith(data: number[]): WebAssembly.Module {
   const name = [...new TextEncoder().encode("hd.cycles")];
   const custom = [name.length, ...name, ...data];
   return new WebAssembly.Module(

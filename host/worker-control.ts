@@ -17,7 +17,12 @@ interface ControlReply {
   fault?: string;
 }
 
-const post = (port: MessagePort, flag: Flag, id: number, reply: Omit<ControlReply, "id">): void => {
+const post = (
+  port: Pick<MessagePort, "postMessage">,
+  flag: Flag,
+  id: number,
+  reply: Omit<ControlReply, "id">,
+): void => {
   port.postMessage({ id, ...reply });
   Atomics.store(flag, 0, 1);
   Atomics.notify(flag, 0);
@@ -47,7 +52,12 @@ export function receiveReply(
   }
 }
 
-export function postReply(port: MessagePort, flag: Flag, id: number, result: Dynamic): void {
+export function postReply(
+  port: Pick<MessagePort, "postMessage">,
+  flag: Flag,
+  id: number,
+  result: Dynamic,
+): void {
   post(port, flag, id, { result });
 }
 

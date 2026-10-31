@@ -5,14 +5,17 @@ import dgram from "node:dgram";
 import net from "node:net";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { fixture, netHost, netWorker, tcpHost } from "./node-test-support.ts";
 import { Ok } from "./wire.ts";
 
+type Dynamic = ReturnType<typeof JSON.parse>;
+
 // #814: a held resolver lives only in the test worker; the provider and
 // transport are unmodified production sources copied beside that wrapper.
-async function heldLookupHost(t) {
+async function heldLookupHost(t: TestContext): Promise<Dynamic> {
   const root = fixture(t, {});
   for (const name of [
     "node.ts",
@@ -84,7 +87,7 @@ for (const abort of [false, true]) {
   });
 }
 
-async function finishWrite(t, api, started) {
+async function finishWrite(t: TestContext, api: Dynamic, started: Dynamic): Promise<Dynamic> {
   if (started.result) {
     return started.result;
   }
@@ -121,9 +124,9 @@ for (const abort of [false, true]) {
         host.imports["hd:Clock"]["sleep.finish"](clock);
         assert.equal(host.core.st.ops.get(started.operation).completed, false);
       }
-      const chunks = [];
+      const chunks: Buffer[] = [];
       let size = 0;
-      peer.on("data", (chunk) => {
+      peer.on("data", (chunk: Buffer) => {
         chunks.push(chunk);
         size += chunk.length;
       });
@@ -164,7 +167,7 @@ for (const kind of ["listen", "bind_udp"]) {
       port: 0,
       address: "127.0.0.1:0",
     }).ok;
-    let result;
+    let result: Dynamic;
     await t.waitFor(
       () => {
         result = call({ op: "wait_poll", operation });
@@ -223,18 +226,18 @@ for (const kind of ["listen", "bind_udp"]) {
     const port = Number(readFileSync(ready, "utf8"));
     if (kind === "listen") {
       const replacement = net.createServer();
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         replacement.once("error", reject);
-        replacement.listen(port, "127.0.0.1", resolve);
+        replacement.listen(port, "127.0.0.1", () => resolve());
       });
-      await new Promise((resolve) => replacement.close(resolve));
+      await new Promise<void>((resolve) => replacement.close(() => resolve()));
     } else {
       const replacement = dgram.createSocket("udp4");
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         replacement.once("error", reject);
-        replacement.bind(port, "127.0.0.1", resolve);
+        replacement.bind(port, "127.0.0.1", () => resolve());
       });
-      await new Promise((resolve) => replacement.close(resolve));
+      await new Promise<void>((resolve) => replacement.close(() => resolve()));
     }
     writeFileSync(release, "");
     await t.waitFor(() => assert.ok(existsSync(finished)), { timeout: 5000 });
@@ -248,7 +251,7 @@ test("Net UDP abort while DNS is held sends no late datagram", async (t) => {
   const bound = take("bind_udp", call("bind_udp", "127.0.0.1", 0));
   assert.ok(bound.ok);
   const target = dgram.createSocket("udp4");
-  await new Promise((resolve) => target.bind(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => target.bind(0, "127.0.0.1", () => resolve()));
   t.after(() => target.close());
   let arrivals = 0;
   target.on("message", () => {

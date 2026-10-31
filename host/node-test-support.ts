@@ -4,13 +4,29 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { MessageChannel, Worker } from "node:worker_threads";
+import type { Socket } from "node:net";
+import type { TestContext } from "node:test";
 
 import { METHODS } from "./gen/abi.ts";
 import { createHost } from "./node.ts";
 import { Dec, Enc, str } from "./wire.ts";
 import { receiveReply } from "./worker-control.ts";
 
-export function fixture(t, files) {
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
+
+interface WorkerOptions {
+  url?: URL;
+  data?: DynamicRecord;
+  close?: string;
+}
+
+interface WorkerCall {
+  (request: Dynamic, transfer?: Dynamic[]): Dynamic;
+  worker: Worker;
+}
+
+export function fixture(t: TestContext, files: Record<string, string | Uint8Array>): string {
   // The resolved path: grant errors report a path with its links resolved,
   // and the temporary directory may sit behind one (macOS /var).
   const root = realpathSync(mkdtempSync(join(tmpdir(), "hd-cgroup-")));
@@ -23,7 +39,7 @@ export function fixture(t, files) {
   return root;
 }
 
-export function netWorker(t, options = {}) {
+export function netWorker(t: TestContext, options: WorkerOptions = {}): WorkerCall {
   const { port1, port2 } = new MessageChannel();
   const flag = new Int32Array(new SharedArrayBuffer(4));
   const worker = new Worker(options.url ?? new URL("./net.ts", import.meta.url), {
@@ -38,7 +54,7 @@ export function netWorker(t, options = {}) {
     await worker.terminate();
   });
   let nextCall = 1;
-  const call = (request, transfer = []) => {
+  const call = ((request: Dynamic, transfer: Dynamic[] = []): Dynamic => {
     const id = nextCall++;
     const deadline = performance.now() + 5000;
     Atomics.store(flag, 0, 0);
@@ -46,23 +62,29 @@ export function netWorker(t, options = {}) {
     const reply = receiveReply(port1, flag, id, () => deadline - performance.now());
     assert.ok(reply, "worker control reply");
     return reply.result;
-  };
+  }) as WorkerCall;
   call.worker = worker;
   return call;
 }
 
 // Exercise the real provider through the ABI, including complete-before-finish.
-export function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
+export function netHost(
+  t: TestContext,
+  trait = "hd:Net",
+  env: DynamicRecord = {},
+  make: Dynamic = createHost,
+): Dynamic {
   const host = make({ out() {}, err() {} }, env);
   host.core.st.deadline = performance.now() + 5000;
   t.after(() => host.close());
   const memory = new WebAssembly.Memory({ initial: trait === "hd:Process" ? 32 : 1 });
   host.prime({ exports: { "hd.x": memory } });
-  const imports = host.imports[trait];
-  const decode = (name, len) =>
-    METHODS[trait][name].result.dec(new Dec(new Uint8Array(memory.buffer, 0, len)));
-  const call = (name, ...args) => {
-    const method = METHODS[trait][name];
+  const imports: Dynamic = host.imports[trait];
+  const methods: Dynamic = METHODS;
+  const decode = (name: string, len: number): Dynamic =>
+    methods[trait][name].result.dec(new Dec(new Uint8Array(memory.buffer, 0, len)));
+  const call = (name: string, ...args: Dynamic[]): Dynamic => {
+    const method = methods[trait][name];
     const encoded = new Enc(),
       raw = [];
     if (method.params.length === 1 && method.params[0] === str) {
@@ -70,7 +92,7 @@ export function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
       new Uint8Array(memory.buffer).set(bytes);
       raw.push(bytes.length);
     } else {
-      method.params.forEach((param, index) => {
+      method.params.forEach((param: Dynamic, index: number) => {
         if (typeof param === "string") {
           raw.push(args[index]);
         } else {
@@ -88,7 +110,7 @@ export function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
     const [status, value] = imports[`${name}.start`](...raw);
     return status === 0 ? { result: decode(name, value) } : { operation: value };
   };
-  const take = (name, started) => {
+  const take = (name: string, started: Dynamic): Dynamic => {
     if (started.result) {
       return started.result;
     }
@@ -100,16 +122,18 @@ export function netHost(t, trait = "hd:Net", env = {}, make = createHost) {
   return { host, call, take };
 }
 
-export async function tcpHost(t) {
-  let connected;
-  const arrived = new Promise((resolve) => {
+export async function tcpHost(t: TestContext): Promise<Dynamic> {
+  let connected!: (socket: Socket) => void;
+  const arrived = new Promise<Socket>((resolve) => {
     connected = resolve;
   });
   const server = net.createServer((socket) => connected(socket));
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => server.close());
   const api = netHost(t);
-  const stream = api.take("connect", api.call("connect", "127.0.0.1", server.address().port));
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  const stream = api.take("connect", api.call("connect", "127.0.0.1", address.port));
   assert(stream.ok);
   const peer = await arrived;
   t.after(() => peer.destroy());

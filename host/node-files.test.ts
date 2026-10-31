@@ -4,20 +4,27 @@ import { once } from "node:events";
 import { symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import type { TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { fixture, netHost } from "./node-test-support.ts";
 import { Err, Ok } from "./wire.ts";
 
+type Dynamic = ReturnType<typeof JSON.parse>;
+
 // #815: the peer is not started until the polling thread ran its clocks.
 const fifoTest = { skip: process.platform === "win32", timeout: 15000 };
-function makeFifo(t, name = "pipe") {
+function makeFifo(t: TestContext, name = "pipe"): string {
   const root = fixture(t, {});
   const path = join(root, name);
   execFileSync("mkfifo", [path]);
   return path;
 }
-function fifoPeer(t, path, bytes = null) {
+function fifoPeer(
+  t: TestContext,
+  path: string,
+  bytes: string | Uint8Array | number[] | null = null,
+): Promise<Buffer> {
   const child = spawn(
     process.execPath,
     [
@@ -31,17 +38,17 @@ function fifoPeer(t, path, bytes = null) {
     { stdio: ["ignore", "pipe", "pipe"] },
   );
   t.after(() => child.kill("SIGKILL"));
-  const output = [],
-    errors = [];
-  child.stdout.on("data", (bytes) => output.push(bytes));
-  child.stderr.on("data", (bytes) => errors.push(bytes));
+  const output: Buffer[] = [],
+    errors: Buffer[] = [];
+  child.stdout.on("data", (bytes: Buffer) => output.push(bytes));
+  child.stderr.on("data", (bytes: Buffer) => errors.push(bytes));
   const done = once(child, "close").then(([code]) => {
     assert.equal(code, 0, Buffer.concat(errors).toString());
     return Buffer.concat(output);
   });
   return done;
 }
-function siblingClocks(api, operations) {
+function siblingClocks(api: Dynamic, operations: number[]): void {
   for (let i = 0; i < 3; i++) {
     const [, clock] = api.host.imports["hd:Clock"]["sleep.start"](0n);
     assert.equal(api.host.imports["hd:rt"].block(), 1);
@@ -51,7 +58,7 @@ function siblingClocks(api, operations) {
     }
   }
 }
-function finishFile(api, name, pending) {
+function finishFile(api: Dynamic, name: string, pending: Dynamic): Dynamic {
   while (!api.host.core.st.ops.get(pending.operation).completed) {
     api.host.imports["hd:rt"].block();
   }
@@ -66,7 +73,7 @@ test("Fs regular files and path/grant errors stay inline", (t) => {
     [join(root, "absent"), "NotFound"],
     [join(root, "not-dir/child"), "NotADirectory"],
     [root, "IsADirectory"],
-  ]) {
+  ] as [string, string][]) {
     assert.deepEqual(api.call("read_text", path), { result: Err({ tag, path }) });
   }
   const denied = netHost(t, "hd:FsRead", { grants: { FsRead: false } });
@@ -239,13 +246,13 @@ test("Fs blocked helper exits if its control worker is terminated", fifoTest, as
     },
   );
   t.after(() => child.kill("SIGKILL"));
-  const bytes = [],
-    errors = [];
-  child.stdout.on("data", (b) => bytes.push(b));
-  child.stderr.on("data", (b) => errors.push(b));
+  const bytes: Buffer[] = [],
+    errors: Buffer[] = [];
+  child.stdout.on("data", (chunk: Buffer) => bytes.push(chunk));
+  child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
   const [code] = await once(child, "close");
   assert.equal(code, 0, Buffer.concat(errors).toString());
-  const pids = JSON.parse(Buffer.concat(bytes).toString());
+  const pids: number[] = JSON.parse(Buffer.concat(bytes).toString());
   assert.equal(pids.length, 1, "one blocked file helper was started");
   // The old helper orphaned its synchronous FIFO open here. Clean up on
   // failure too, so a regression cannot leave a blocked process behind.
@@ -265,7 +272,7 @@ test("Fs blocked helper exits if its control worker is terminated", fifoTest, as
   });
   const until = performance.now() + 3000;
   while (alive().length && performance.now() < until) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
   }
   assert.deepEqual(alive(), [], "abrupt worker termination leaves no file helper process");
 });

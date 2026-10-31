@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build:web-compiler": "node scripts/build-web-compiler.js",
-    "check": "pnpm run check:types && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh",
+    "check": "pnpm run check:types && pnpm run check:host-sources && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh",
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
+    "check:host-sources": "node scripts/check-host-sources.js",
     "format": "oxfmt --write 'host/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'host/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "lint": "oxlint .",

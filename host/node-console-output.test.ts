@@ -6,6 +6,7 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import type { TestContext } from "node:test";
 import { MessageChannel } from "node:worker_threads";
 
 import { createHost } from "./node.ts";
@@ -14,8 +15,10 @@ import { createOutput } from "./output.ts";
 import { Ok } from "./wire.ts";
 import { receiveReply } from "./worker-control.ts";
 
+type Dynamic = ReturnType<typeof JSON.parse>;
+
 // #813: the worker reserves original bytes until guest finish.
-function inputWorker(t, content) {
+function inputWorker(t: TestContext, content: string | Uint8Array): Dynamic {
   const root = mkdtempSync(join(tmpdir(), "hd-input-"));
   writeFileSync(join(root, "input"), content);
   const fd = openSync(join(root, "input"), "r");
@@ -25,8 +28,8 @@ function inputWorker(t, content) {
     rmSync(root, { recursive: true, force: true });
   });
   const start = (kind = "line") => call({ op: "wait_start", kind, fd }).ok;
-  const ready = async (operation) => {
-    let result;
+  const ready = async (operation: number): Promise<Dynamic> => {
+    let result: Dynamic;
     await t.waitFor(
       () => {
         result = call({ op: "wait_poll", operation });
@@ -118,7 +121,9 @@ test("Output full socket keeps control live", async (t) => {
   await once(server, "listening");
   t.after(() => server.close());
   const accepted = once(server, "connection");
-  const writer = net.connect(server.address().port, "127.0.0.1");
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  const writer = net.connect(address.port, "127.0.0.1");
   await once(writer, "connect");
   const [reader] = await accepted;
   reader.pause();
@@ -134,7 +139,7 @@ test("Output full socket keeps control live", async (t) => {
   const flag = new Int32Array(new SharedArrayBuffer(4));
   call({ op: "attach", port: port2, flag }, [port2]);
   t.after(() => port1.close());
-  const fd = writer._handle.fd;
+  const fd = (writer as Dynamic)._handle.fd;
   const before = "earlier-output\n";
   call({ op: "enqueue", fd, text: before });
   const text = "abcdefg".repeat(2400000);
@@ -147,8 +152,8 @@ test("Output full socket keeps control live", async (t) => {
   }
   const suffix = '\nerr\t"panic after output"\nran\tcomplete\n';
   call({ op: "enqueue", fd, text: suffix });
-  const chunks = [];
-  reader.on("data", (bytes) => chunks.push(bytes));
+  const chunks: Buffer[] = [];
+  reader.on("data", (bytes: Buffer) => chunks.push(bytes));
   const ended = once(reader, "end");
   reader.resume();
   await t.waitFor(() => assert.deepEqual(call({ op: "idle" }), { ok: true }), { timeout: 10000 });
@@ -190,7 +195,7 @@ test(
     t.after(() => pinned.port.close());
     const started = performance.now();
     for (let i = 0; i < 2000; i++) {
-      assert.deepEqual(output.write(reader.stdin._handle.fd, "x"), Ok(undefined));
+      assert.deepEqual(output.write((reader.stdin as Dynamic)._handle.fd, "x"), Ok(undefined));
     }
     const elapsed = performance.now() - started;
     assert.ok(elapsed < 2000, `2000 pinned writes took ${elapsed.toFixed(0)} ms`);
@@ -239,7 +244,7 @@ test(
     child.stdout.pause();
     let errors = "";
     const closed = once(child, "close");
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       child.stderr.on("data", (bytes) => {
         errors += bytes;
         if (errors.includes("blocking\n")) {
@@ -248,8 +253,8 @@ test(
       });
       closed.then(() => reject(new Error(`exited before the reader resumed: ${errors}`)));
     });
-    const chunks = [];
-    child.stdout.on("data", (bytes) => chunks.push(bytes));
+    const chunks: Buffer[] = [];
+    child.stdout.on("data", (bytes: Buffer) => chunks.push(bytes));
     child.stdout.resume();
     const [code] = await closed;
     assert.equal(code, 0, errors);

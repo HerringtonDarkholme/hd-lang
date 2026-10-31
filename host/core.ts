@@ -60,6 +60,10 @@ type Dynamic = ReturnType<typeof JSON.parse>;
 type DynamicRecord = Record<string, Dynamic>;
 type ProviderFunction = (...args: Dynamic[]) => Dynamic;
 
+interface HostInstance {
+  readonly exports: DynamicRecord;
+}
+
 export interface Sink {
   out(text: string): void;
   err(text: string): void;
@@ -131,15 +135,15 @@ export interface StepDriver {
 }
 
 export interface Host {
-  imports: WebAssembly.Imports;
+  imports: DynamicRecord;
   run(
-    instance: WebAssembly.Instance,
+    instance: HostInstance,
     init: string,
     poll: string,
     options?: { driver?: Dynamic; cancel?: Dynamic },
   ): Promise<RunResult>;
-  createDriver(instance: WebAssembly.Instance, init?: string, poll?: string): StepDriver;
-  prime(instance: WebAssembly.Instance): void;
+  createDriver(instance: HostInstance, init?: string, poll?: string): StepDriver;
+  prime(instance: HostInstance): void;
   close(): void;
   leaks(): [string, number][];
   args: string[];

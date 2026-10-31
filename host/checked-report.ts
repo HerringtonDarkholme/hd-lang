@@ -1,9 +1,6 @@
 // Checked-only descriptor counts. Metadata stays in a custom section;
 // the guest stores only u64 counters, never names or formatting strings.
-export function cycleReport(
-  module: WebAssembly.Module,
-  instance: WebAssembly.Instance,
-): string | null {
+export function cycleReport(module: unknown, instance: WebAssembly.Instance): string | null {
   if (!(module instanceof WebAssembly.Module)) {
     return null;
   }

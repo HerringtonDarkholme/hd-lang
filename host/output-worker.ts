@@ -22,7 +22,9 @@ const { write } = process.getBuiltinModule("node:fs");
 const { workerData } = process.getBuiltinModule("node:worker_threads");
 
 // A failed write's result.
-export const failed = (error: NodeJS.ErrnoException): Dynamic =>
+export const failed = (
+  error: Partial<Pick<NodeJS.ErrnoException, "code" | "errno" | "message">>,
+): Dynamic =>
   Err(
     error.code === "EPIPE" || error.code === "ENOTCONN"
       ? { tag: "Closed" }

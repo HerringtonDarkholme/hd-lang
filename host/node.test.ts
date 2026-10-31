@@ -3,10 +3,12 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
+import type { TestContext } from "node:test";
 import net from "node:net";
 import dgram from "node:dgram";
 import http from "node:http";
 import https from "node:https";
+import type { TLSSocket } from "node:tls";
 import { once } from "node:events";
 import { createCoreHost, httpProvider, httpSettings, pendingOperation, TimeLimit } from "./core.ts";
 import { Dec, Enc, Err, HostContract, Ok } from "./wire.ts";
@@ -17,6 +19,14 @@ import { fixture, netHost, netWorker, tcpHost } from "./node-test-support.ts";
 import { browserSend } from "./web.ts";
 import { failed as failedOutput } from "./output-worker.ts";
 import { postReply } from "./worker-control.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+
+const portOf = (server: net.Server): number => {
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  return address.port;
+};
 
 test("Console errors carry only stream tags and numeric host codes", () => {
   assert.deepEqual(failedOutput({ code: "EPIPE", errno: -32 }), Err({ tag: "Closed" }));
@@ -34,7 +44,7 @@ test("Console errors carry only stream tags and numeric host codes", () => {
 
 // Deliberately violate notification timing in a worker, while using the
 // production client. Queue publication and the wake hint must be independent.
-function controlClient(t) {
+function controlClient(t: TestContext): Dynamic {
   const root = fixture(t, {
     "control.ts": `
       import {workerData} from 'node:worker_threads';
@@ -56,7 +66,7 @@ function controlClient(t) {
   t.after(() => client.stop());
   return {
     ...client,
-    call: (request, left = null) => {
+    call: (request: Dynamic, left: (() => number) | null = null) => {
       const deadline = performance.now() + 5000;
       return client.call(request, left ?? (() => deadline - performance.now()));
     },
@@ -111,7 +121,7 @@ test("worker control publishes a reply before setting its wake hint", () => {
 for (const [name, file, request, close, message] of [
   ["HTTP", "http.ts", { op: "poll", operation: 0 }, null, "unknown HTTP operation"],
   ["Process", "process.ts", { op: "wait_poll", operation: 0 }, "close", "unknown process wait"],
-]) {
+] as [string, string, Dynamic, string | null, string][]) {
   test(`${name} worker protocol faults are host contracts`, (t) => {
     const client = syncClient(new URL(`./${file}`, import.meta.url), close);
     t.after(() => client.stop());
@@ -212,7 +222,12 @@ test("the walk stops at its cgroup mount", (t) => {
 });
 
 // #757: a provider may stay pending while the guest polls its deadline.
-function operationHost(ready, onDone, onAbort, onFinish = null) {
+function operationHost(
+  ready: () => boolean,
+  onDone: () => void,
+  onAbort: () => void,
+  onFinish: (() => void) | null = null,
+): Dynamic {
   const host = createCoreHost(
     { out() {}, err() {} },
     {},
@@ -228,7 +243,12 @@ function operationHost(ready, onDone, onAbort, onFinish = null) {
                   return Ok(null);
                 },
                 onAbort,
-                onFinish,
+                onFinish === null
+                  ? null
+                  : () => {
+                      onFinish();
+                      return undefined;
+                    },
               ),
           },
         },
@@ -385,7 +405,7 @@ test("host close releases pending and completed untaken operations", () => {
 test("the async entry driver polls external readiness before waking the guest", async () => {
   let ready = false,
     done = 0,
-    pending;
+    pending: number | undefined;
   const { host, memory, start } = operationHost(
     () => ready,
     () => {
@@ -405,7 +425,7 @@ test("the async entry driver polls external readiness before waking the guest", 
         host.imports["hd:ConsoleInput"]["read_line.finish"](pending);
         return 0;
       },
-      "hd.wake": (count) => {
+      "hd.wake": (count: number) => {
         assert.equal(count, 1);
         assert.equal(ready, true);
         assert.equal(new DataView(memory.buffer).getInt32(0, true), pending);
@@ -424,16 +444,16 @@ test("the async entry driver polls external readiness before waking the guest", 
   }
 });
 
-async function loopback(t) {
-  const sockets = new Set();
+async function loopback(t: TestContext): Promise<Dynamic> {
+  const sockets = new Set<net.Socket>();
   const server = net.createServer((socket) => {
     sockets.add(socket);
     socket.on("error", () => {});
     socket.once("close", () => sockets.delete(socket));
   });
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(0, "127.0.0.1", () => resolve());
   });
   t.after(() => {
     for (const socket of sockets) {
@@ -441,7 +461,7 @@ async function loopback(t) {
     }
     server.close();
   });
-  return { host: "127.0.0.1", port: server.address().port, address: "loopback" };
+  return { host: "127.0.0.1", port: portOf(server), address: "loopback" };
 }
 
 for (const phase of ["pending", "completed before finish", "completed past deadline"]) {
@@ -541,7 +561,7 @@ test(
     assert.notEqual(receive.operation, undefined);
     const peer = dgram.createSocket("udp4");
     t.after(() => peer.close());
-    await new Promise((resolve, reject) =>
+    await new Promise<void>((resolve, reject) =>
       peer.send(Buffer.from("abc"), port, "127.0.0.1", (e) => (e ? reject(e) : resolve())),
     );
     host.imports["hd:rt"].block();
@@ -681,17 +701,17 @@ test(
 );
 
 // #726: the HTTP worker owns a request until its final body or abort.
-async function httpLoopback(t, handler) {
-  const sockets = new Set();
+async function httpLoopback(t: TestContext, handler: http.RequestListener): Promise<string> {
+  const sockets = new Set<net.Socket>();
   const server = http.createServer(handler);
   server.on("connection", (socket) => {
     sockets.add(socket);
     socket.on("error", () => {});
     socket.once("close", () => sockets.delete(socket));
   });
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(0, "127.0.0.1", () => resolve());
   });
   t.after(() => {
     for (const socket of sockets) {
@@ -699,12 +719,12 @@ async function httpLoopback(t, handler) {
     }
     server.close();
   });
-  return `http://127.0.0.1:${server.address().port}`;
+  return `http://127.0.0.1:${portOf(server)}`;
 }
 
-function httpWorker(t) {
+function httpWorker(t: TestContext): Dynamic {
   const call = netWorker(t, { url: new URL("./http.ts", import.meta.url) });
-  const start = (url, options = {}) => {
+  const start = (url: string, options: Dynamic = {}) => {
     const result = call({
       op: "start",
       method: "GET",
@@ -718,8 +738,8 @@ function httpWorker(t) {
     assert.equal(typeof result.ok, "number", "start returns an operation without waiting for HTTP");
     return result.ok;
   };
-  const result = async (operation) => {
-    let answer;
+  const result = async (operation: number): Promise<Dynamic> => {
+    let answer: Dynamic;
     await t.waitFor(
       () => {
         answer = call({ op: "poll", operation });
@@ -734,11 +754,11 @@ function httpWorker(t) {
 
 for (const phase of ["headers", "body", "redirect"]) {
   test(`HTTP abort closes a request waiting for ${phase}`, { timeout: 10000 }, async (t) => {
-    let seen;
-    const received = new Promise((resolve) => {
+    let seen!: (request: http.IncomingMessage) => void;
+    const received = new Promise<http.IncomingMessage>((resolve) => {
       seen = resolve;
     });
-    const paths = [];
+    const paths: (string | undefined)[] = [];
     const url = await httpLoopback(t, (request, response) => {
       paths.push(request.url);
       if (phase === "redirect" && request.url === "/") {
@@ -769,8 +789,8 @@ test(
   "HTTP operations complete independently and abort never posts a stray reply",
   { timeout: 10000 },
   async (t) => {
-    let slow;
-    const received = new Promise((resolve) => {
+    let slow!: (request: http.IncomingMessage) => void;
+    const received = new Promise<http.IncomingMessage>((resolve) => {
       slow = resolve;
     });
     const url = await httpLoopback(t, (request, response) => {
@@ -793,7 +813,7 @@ test(
     assert.equal(new TextDecoder().decode(answer.body), "/fast");
     assert.equal(answer.url, `${url}/fast`);
     assert.deepEqual(
-      answer.headers.filter(([name]) => name === "x-repeat"),
+      answer.headers.filter(([name]: [string, string]) => name === "x-repeat"),
       [
         ["x-repeat", "one"],
         ["x-repeat", "two"],
@@ -828,9 +848,9 @@ test("HTTP grant and URL errors finish before any network wait", async (t) => {
 // #950: a derived provider's transport settings on the Node host. The TLS
 // fixtures are test-only keys: a CA, a server certificate for 127.0.0.1
 // that it signed, and a client identity that it signed.
-const tlsFixture = (name) =>
+const tlsFixture = (name: string): string =>
   readFileSync(new URL(`./fixtures/tls/${name}.pem`, import.meta.url), "utf8");
-const settings = (changes = {}) => ({
+const settings = (changes: Dynamic = {}): Dynamic => ({
   dnsServers: null,
   tlsRoots: [],
   tlsIdentity: null,
@@ -841,18 +861,22 @@ const settings = (changes = {}) => ({
   ...changes,
 });
 
-async function httpsLoopback(t, options, handler) {
+async function httpsLoopback(
+  t: TestContext,
+  options: https.ServerOptions,
+  handler: http.RequestListener,
+): Promise<string> {
   const server = https.createServer(
     { cert: tlsFixture("server"), key: tlsFixture("server-key"), ...options },
     handler,
   );
   server.on("tlsClientError", () => {});
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   t.after(() => {
     server.closeAllConnections?.();
     server.close();
   });
-  return `https://127.0.0.1:${server.address().port}`;
+  return `https://127.0.0.1:${portOf(server)}`;
 }
 
 test("an HTTP setting the Node host does not honour is refused before any work", (t) => {
@@ -881,7 +905,7 @@ test(
     for (const [path, change] of [
       ["/headers", { responseHeaderTimeout: 100 }],
       ["/body", { bodyReadTimeout: 100 }],
-    ]) {
+    ] as [string, Dynamic][]) {
       const started = performance.now();
       const answer = await result(start(`${url}${path}`, { settings: settings(change) }));
       assert.deepEqual(answer, { error: "Timeout", text: null }, path);
@@ -896,13 +920,13 @@ test("a zero connect timeout expires before any connection", async (t) => {
     connections += 1;
     socket.destroy();
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   t.after(() => server.close());
   const { start, result } = httpWorker(t);
-  const url = `http://127.0.0.1:${server.address().port}/`;
+  const url = `http://127.0.0.1:${portOf(server)}/`;
   const answer = await result(start(url, { settings: settings({ connectTimeout: 0 }) }));
   assert.deepEqual(answer, { error: "Timeout", text: null });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await new Promise<void>((resolve) => setTimeout(resolve, 50));
   assert.equal(connections, 0);
 });
 
@@ -929,11 +953,11 @@ test("each redirect hop restarts the phase timers", { timeout: 10000 }, async (t
 
 test("a TLS handshake timeout stops a peer that never answers the hello", async (t) => {
   const server = net.createServer((socket) => socket.on("error", () => {}));
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   t.after(() => server.close());
   const { start, result } = httpWorker(t);
   const answer = await result(
-    start(`https://127.0.0.1:${server.address().port}/`, {
+    start(`https://127.0.0.1:${portOf(server)}/`, {
       settings: settings({ tlsHandshakeTimeout: 100 }),
     }),
   );
@@ -945,8 +969,9 @@ test("extra TLS roots extend the store and an identity reaches the server", asyn
     t,
     { ca: tlsFixture("ca"), requestCert: true, rejectUnauthorized: false },
     (request, response) => {
-      const peer = request.socket.getPeerCertificate();
-      response.end(request.socket.authorized ? `client ${peer.subject.CN}` : "anonymous");
+      const socket = request.socket as TLSSocket;
+      const peer = socket.getPeerCertificate();
+      response.end(socket.authorized ? `client ${peer.subject.CN}` : "anonymous");
     },
   );
   const { start, result } = httpWorker(t);
@@ -982,8 +1007,8 @@ test("a TLS key Node cannot load is a TLS failure", async (t) => {
 
 for (const mode of ["expired deadline", "host close"]) {
   test(`the real Node host aborts pending HTTP after ${mode}`, { timeout: 10000 }, async (t) => {
-    let seen;
-    const received = new Promise((resolve) => {
+    let seen!: (request: http.IncomingMessage) => void;
+    const received = new Promise<http.IncomingMessage>((resolve) => {
       seen = resolve;
     });
     const url = await httpLoopback(t, (request) => {
@@ -1059,12 +1084,12 @@ test("the browser host refuses every transport setting before any request", () =
 });
 
 // #812: real children live on a worker even when the guest uses rt.block.
-function processHost(t, env) {
+function processHost(t: TestContext, env: Dynamic = {}): Dynamic {
   const api = netHost(t, "hd:Process", {
     processLauncher: process.env.HD_PROCESS_LAUNCHER,
     ...env,
   });
-  const run = (script, options = {}) =>
+  const run = (script: string, options: Dynamic = {}) =>
     api.call("run", {
       program: process.execPath,
       args: ["-e", script],
@@ -1154,9 +1179,9 @@ test("Process missing program, grant and malformed commands keep typed errors", 
   assert.equal(bad.result.error.tag, "Other");
 });
 
-function processWorker(t) {
+function processWorker(t: TestContext): Dynamic {
   const call = netWorker(t, { url: new URL("./process.ts", import.meta.url), close: "close" });
-  const start = (script, more = {}) =>
+  const start = (script: string, more: Dynamic = {}) =>
     call({
       op: "wait_start",
       program: process.execPath,

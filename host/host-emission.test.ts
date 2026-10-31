@@ -4,6 +4,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promise
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
+// @ts-expect-error -- #1089 migrates this remaining repository script to TypeScript.
 import { emitHostJavaScript, emitHostSources, readHostSources } from "../scripts/host-emission.mjs";
 
 test("typed host sources emit runnable plain .js without changing source", async () => {
@@ -41,11 +42,11 @@ test("typed host sources emit runnable plain .js without changing source", async
 
     assert.deepEqual(await emitHostSources(output, source, graph), first);
     assert.equal(await readFile(join(source, "entry.ts"), "utf8"), entry);
-    const module = await import(pathToFileURL(join(output, "entry.js")));
+    const module = await import(pathToFileURL(join(output, "entry.js")).href);
     assert.equal(module.answer, 42);
     assert.equal((await module.load()).twice(4), 8);
     assert.equal(module.worker.search, "?kind=test");
-    assert.equal((await import(pathToFileURL(join(output, "plain.js")))).answer, 42);
+    assert.equal((await import(pathToFileURL(join(output, "plain.js")).href)).answer, 42);
 
     await assert.rejects(emitHostSources(output, source, graph), { code: "EEXIST" });
     assert.equal(await access(join(output, "entry.js")), undefined);

@@ -5,9 +5,11 @@ import { Enc, Ok } from "./wire.ts";
 import { readFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 
+type Dynamic = ReturnType<typeof JSON.parse>;
+
 // A real module forwards its root ABI exports to observable callbacks.
 // Completion and exchange-memory handling remain the production core's.
-function instance(callbacks, resultType = 0x7f) {
+function instance(callbacks: Dynamic, resultType = 0x7f): Dynamic {
   const types = new Enc().leb(3);
   types.leb(0x60).leb(0).leb(0);
   types.leb(0x60).leb(1).leb(0x7f).leb(1).leb(resultType);
@@ -39,15 +41,15 @@ function instance(callbacks, resultType = 0x7f) {
 
 test("a step initializes once, publishes wakes, and retains its terminal status", () => {
   const host = createCoreHost({ out() {}, err() {} });
-  const events = [];
-  let handle,
+  const events: string[] = [];
+  let handle: number | undefined,
     ready = false,
     first = true;
   const guest = instance({
     init() {
       events.push("init");
     },
-    poll(context) {
+    poll(context: number) {
       assert.equal(context, 0);
       events.push("poll");
       if (first) {
@@ -61,7 +63,7 @@ test("a step initializes once, publishes wakes, and retains its terminal status"
       host.imports["hd:Clock"]["sleep.finish"](handle);
       return 7;
     },
-    wake(count) {
+    wake(count: number) {
       events.push("wake");
       assert.equal(count, 1);
       assert.equal(new DataView(guest.exports["hd.x"].buffer).getUint32(0, true), handle);
@@ -83,7 +85,7 @@ test("a step initializes once, publishes wakes, and retains its terminal status"
 test("idle turns retain pollable I/O without creating a timer or background driver", async () => {
   let ready = false,
     woken = false,
-    handle,
+    handle: number | undefined,
     polls = 0,
     cancelled = 0;
   const host = createCoreHost(
@@ -125,9 +127,9 @@ test("idle turns retain pollable I/O without creating a timer or background driv
   });
   const timeout = globalThis.setTimeout;
   try {
-    globalThis.setTimeout = () => {
+    globalThis.setTimeout = (() => {
       throw new Error("a step must not create a timer");
-    };
+    }) as Dynamic;
     const driver = host.createDriver(guest);
     assert.deepEqual(driver.step(), { status: -1, wakes: 0 });
     assert.deepEqual(driver.step(), { status: -1, wakes: 0 });
@@ -207,7 +209,7 @@ test("close cancels pending work once and forbids subsequent turns", () => {
 });
 
 test("a driver rejects reentrancy, including output callbacks", () => {
-  let driver;
+  let driver: Dynamic;
   const host = createCoreHost({
     out() {
       driver.step();
@@ -231,7 +233,7 @@ test("a driver rejects reentrancy, including output callbacks", () => {
 });
 
 test("a trap flushes earlier output and permanently fails that driver", () => {
-  const output = [];
+  const output: string[] = [];
   const trap = new WebAssembly.RuntimeError("unreachable");
   const host = createCoreHost({
     out(text) {
@@ -343,9 +345,11 @@ test(
     timeout: 10000,
   },
   async () => {
-    const output = [],
-      errors = [];
-    const module = new WebAssembly.Module(readFileSync(process.env.HD_DRIVER_GUEST));
+    const output: string[] = [],
+      errors: string[] = [];
+    const module = new WebAssembly.Module(
+      new Uint8Array(readFileSync(process.env.HD_DRIVER_GUEST!)),
+    );
     const host = createCoreHost(
       {
         out(text) {
