@@ -114,7 +114,9 @@ fn stage_b_over<'i>(
 pub fn local_supertraits(cx: &HeaderCx<'_>, it: &Item) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
     if !matches!(&it.data, ItemData::Impl { trait_, kind, .. }
-        if *trait_ != DefId::NONE && kind.is_impl() && *kind != ImplKind::TupleTemplate)
+        if *trait_ != DefId::NONE
+            && kind.is_impl()
+            && !matches!(kind, ImplKind::TupleTemplate | ImplKind::UnionTemplate))
     {
         return Ok(out);
     }
@@ -505,7 +507,10 @@ impl<'a> ItemCheck<'_, 'a> {
         else {
             return Ok(());
         };
-        if *trait_ == DefId::NONE || !kind.is_impl() || *kind == ImplKind::TupleTemplate {
+        if *trait_ == DefId::NONE
+            || !kind.is_impl()
+            || matches!(kind, ImplKind::TupleTemplate | ImplKind::UnionTemplate)
+        {
             return Ok(());
         }
         if *trait_ == self.cx.names.known.auto_closing {

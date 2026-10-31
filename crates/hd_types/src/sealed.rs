@@ -28,6 +28,7 @@ pub struct SealedTraits {
     /// `FnMut[I, O, $R]`, `Fn`'s supertrait, implemented by the same types.
     pub fn_mut_trait: DefId,
     pub structure: DefId,
+    pub union_type: DefId,
     /// The `'static` bound (`ref.generic.static`), which a type meets
     /// when it holds no local reference.
     pub static_bound: DefId,
@@ -48,6 +49,7 @@ impl Default for SealedTraits {
             fn_trait: DefId::NONE,
             fn_mut_trait: DefId::NONE,
             structure: DefId::NONE,
+            union_type: DefId::NONE,
             static_bound: DefId::NONE,
             list: DefId::NONE,
             map: DefId::NONE,
@@ -69,6 +71,7 @@ impl SealedTraits {
                 self.fn_trait,
                 self.fn_mut_trait,
                 self.structure,
+                self.union_type,
                 self.static_bound,
             ]
             .contains(&trait_)
@@ -226,6 +229,13 @@ pub(crate) fn row(
             Row::Fails(FailReason::NoImpl)
         });
     }
+    if trait_ == s.union_type {
+        return Some(if matches!(t, TyData::Union(_)) {
+            Row::Holds(BuiltinImpl::Union, Vec::new())
+        } else {
+            Row::Fails(FailReason::NoImpl)
+        });
+    }
     if trait_ == s.inspectable {
         let mut subs = Vec::new();
         let ok = match t {
@@ -241,6 +251,10 @@ pub(crate) fn row(
                 if let Some(r) = rest {
                     argument(pool, r, &mut subs);
                 }
+                true
+            }
+            TyData::Union(members) => {
+                subs.extend(pool.list_items(members).iter().copied());
                 true
             }
             // A declaration applied to inspectable arguments, `Option`
@@ -279,7 +293,7 @@ pub(crate) fn row(
     // template's `T` is a parameter that the environment answers; codegen
     // asks it once a tuple template's instance is collected, and lowers
     // its methods per tuple type (`crates/hd_mono/DESIGN.md` §13.6).
-    Some(if matches!(t, TyData::Tuple { .. }) {
+    Some(if matches!(t, TyData::Tuple { .. } | TyData::Union(_)) {
         Row::Holds(BuiltinImpl::Structure, Vec::new())
     } else {
         Row::Fails(FailReason::NoImpl)

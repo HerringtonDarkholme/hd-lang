@@ -197,6 +197,17 @@ impl<'a> Universe<'a> {
                     }
                 }
             }
+            if let Some(template) = list.iter().find(|i| is_union_template(i)) {
+                for imp in &list {
+                    if let ItemData::Impl { self_ty, kind, .. } = &imp.data
+                        && *kind != ImplKind::UnionTemplate
+                        && matches!(pool.get(*self_ty), TyData::Union(_))
+                    {
+                        out.push((template.def, imp.def, self.show(*self_ty)));
+                        reported.insert(imp.def);
+                    }
+                }
+            }
             for imp in list {
                 let ItemData::Impl {
                     self_ty,
@@ -207,7 +218,7 @@ impl<'a> Universe<'a> {
                 else {
                     continue;
                 };
-                if *kind == ImplKind::TupleTemplate {
+                if matches!(kind, ImplKind::TupleTemplate | ImplKind::UnionTemplate) {
                     continue;
                 }
                 match self.family(imp, *self_ty) {
@@ -483,6 +494,17 @@ fn is_tuple_template(it: &Item) -> bool {
         it.data,
         ItemData::Impl {
             kind: ImplKind::TupleTemplate,
+            ..
+        }
+    )
+}
+
+/// Whether an item is a union template, an implementation for every union.
+fn is_union_template(it: &Item) -> bool {
+    matches!(
+        it.data,
+        ItemData::Impl {
+            kind: ImplKind::UnionTemplate,
             ..
         }
     )

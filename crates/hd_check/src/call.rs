@@ -5509,7 +5509,10 @@ impl Ck<'_, '_> {
         let ItemData::Impl {
             trait_,
             self_ty,
-            kind: hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate,
+            kind:
+                hd_resolve::ImplKind::Template
+                | hd_resolve::ImplKind::TupleTemplate
+                | hd_resolve::ImplKind::UnionTemplate,
             ..
         } = &self.cx.lookup.item(*owner)?.data
         else {

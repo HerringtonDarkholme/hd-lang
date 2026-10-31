@@ -444,7 +444,7 @@ pub struct TraitData {
 }
 
 /// What an impl declaration is (`crates/hd_check/DESIGN.md` (trait solver) §3.10, annotations §Templates).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum ImplKind {
     /// A written implementation (or an inherent block when the trait is NONE).
@@ -455,6 +455,8 @@ pub enum ImplKind {
     Template,
     /// `impl[T < Tuple] Tr for T by Structure`: every tuple, at every size.
     TupleTemplate,
+    /// `impl[T < UnionType] Tr for T by Structure`: every union type.
+    UnionTemplate,
     /// `impl Tr for C by Structure`: a derivation block for one target.
     Derivation,
     /// `@derive(Tr)` on a declaration.
@@ -468,11 +470,12 @@ pub enum ImplKind {
 }
 
 impl ImplKind {
-    const ALL: [ImplKind; 8] = [
+    const ALL: [ImplKind; 9] = [
         ImplKind::Written,
         ImplKind::Delegated,
         ImplKind::Template,
         ImplKind::TupleTemplate,
+        ImplKind::UnionTemplate,
         ImplKind::Derivation,
         ImplKind::Derived,
         ImplKind::Error,
@@ -2204,10 +2207,10 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             .or_insert((n, n + 1));
         t.trait_.push(trait_);
         t.def.push(def);
-        t.head_key.push(if kind == ImplKind::TupleTemplate {
-            HeadKey::TupleAny
-        } else {
-            HeadKey::of(names.pool.types(), self_ty)
+        t.head_key.push(match kind {
+            ImplKind::TupleTemplate => HeadKey::TupleAny,
+            ImplKind::UnionTemplate => HeadKey::UnionAny,
+            _ => HeadKey::of(names.pool.types(), self_ty),
         });
         let arg_keys: Vec<HeadKey> = names
             .pool
@@ -2268,6 +2271,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
         });
         t.origin.push(match kind {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
+            ImplKind::UnionTemplate => ImplOrigin::UnionTemplate,
             ImplKind::Delegated => ImplOrigin::Delegated { field: 0 },
             ImplKind::Derived | ImplKind::Derivation => ImplOrigin::Derived { template: trait_ },
             ImplKind::Written | ImplKind::Template | ImplKind::Error | ImplKind::Poison => {

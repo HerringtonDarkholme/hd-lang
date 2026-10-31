@@ -6,7 +6,7 @@
 
 use std.function.Tuple
 use std.num.Integer
-use std.structure.{Structure, Walker, Variant, Field}
+use std.structure.{Structure, UnionType, Walker, Variant, Field}
 
 # A value's text in string interpolation
 # (spec/lang/05-expressions.md#string-interpolation).
@@ -19,6 +19,26 @@ pub trait Display:
 ## See [trait.debug.module](../../spec/lang/09-traits.md#r-trait.debug.module).
 pub trait Debug:
     fn debug(self, out: *mut DebugWriter) -> void
+
+# A union's Display forwards directly to its active payload.
+struct UnionText[S]:
+    pub text: string
+
+impl[S] Walker[S] for UnionText[S]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.text = value.to_string()
+        .Ok(())
+
+impl[T < UnionType] Display for T by Structure:
+    fn to_string(self) -> string:
+        let mut w = UnionText::[T] { text: "" }
+        _ := Structure::walk(self, &mut w)
+        w.text
 
 # The structured writer that `Debug.debug` writes through. An implementation
 # describes the value with builder calls, like Rust's `Formatter`; the
@@ -941,6 +961,16 @@ impl[T] Debug for T by Structure:
         if shape.members == 0:
             out.write(qualified)
             return
+        let mut fields = DebugFields::[T] { tuple: out.debug_tuple(qualified) }
+        _ := Structure::walk(self, &mut fields)
+        fields.tuple.finish()
+
+# Union `Debug`: the ordinary enum derivation with `Union._k` case names.
+impl[T < UnionType] Debug for T by Structure:
+    fn debug(self, out: *mut DebugWriter) -> void:
+        let mut shape = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
+        _ := Structure::walk(self, &mut shape)
+        qualified := T::name() + "." + shape.name
         let mut fields = DebugFields::[T] { tuple: out.debug_tuple(qualified) }
         _ := Structure::walk(self, &mut fields)
         fields.tuple.finish()

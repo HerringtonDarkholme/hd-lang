@@ -49,7 +49,11 @@ pub(crate) fn impl_lines(root: &str, ifaces: &[(String, Arc<[u8]>)]) -> ImplLine
             else {
                 continue;
             };
-            if trait_ == DefId::NONE || matches!(kind, ImplKind::Template | ImplKind::TupleTemplate)
+            if trait_ == DefId::NONE
+                || matches!(
+                    kind,
+                    ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate
+                )
             {
                 continue;
             }

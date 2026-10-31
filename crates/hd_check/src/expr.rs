@@ -4095,19 +4095,21 @@ impl Ck<'_, '_> {
         let result = self.cx.names.known.result;
         // `expr.try.expected`: the operand's hint is `Result[T, E]` or `T?`,
         // by the nearest function's result kind.
-        let hint = want
-            .map(|w| self.strip_mut(w))
-            .and_then(|w| match pool.get(ret) {
-                TyData::Option(_) => Some(pool.intern_ty(&TyData::Option(w))),
-                TyData::Adt { def, args } if def == result => {
-                    let err = pool.list_items(args)[1];
-                    Some(pool.intern_ty(&TyData::Adt {
-                        def,
-                        args: pool.list(&[w, err]),
-                    }))
-                }
-                _ => None,
-            });
+        let success = match want {
+            Some(w) => self.strip_mut(w),
+            None => self.infer.fresh(pool, VarKind::General),
+        };
+        let hint = match pool.get(ret) {
+            TyData::Option(_) => Some(pool.intern_ty(&TyData::Option(success))),
+            TyData::Adt { def, args } if def == result => {
+                let err = pool.list_items(args)[1];
+                Some(pool.intern_ty(&TyData::Adt {
+                    def,
+                    args: pool.list(&[success, err]),
+                }))
+            }
+            _ => None,
+        };
         let (r, t) = self.expr(*e, hint)?;
         let t = self.infer.resolve(pool, t);
         match (pool.get(t), pool.get(ret)) {

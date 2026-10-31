@@ -1,0 +1,13 @@
+# Spec 09 Union Trait Templates: trait.target.union.conditional,
+# trait.target.union.enum-shape.
+use std.json.{decode, encode}
+
+type Choice = i32 | string
+
+tests:
+    it("union serde uses positional single-payload cases"):
+        let first: Choice = ._0(7)
+        decoded := match decode::[Choice](encode(first)):
+            .Ok(value) => value
+            .Err(_) => panic("the encoded union must decode")
+        assert_equal(decoded, first)

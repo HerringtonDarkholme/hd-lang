@@ -185,6 +185,7 @@ pub enum HeadKey {
     Prim(Prim),
     Tuple(u16),
     TupleAny,
+    UnionAny,
     Fn,
     SuspendFn,
     Param,
@@ -202,6 +203,7 @@ impl HeadKey {
                 HeadKey::Tuple(u16::try_from(pool.list_items(elems).len()).expect("arity"))
             }
             TyData::Tuple { rest: Some(_), .. } => HeadKey::TupleAny,
+            TyData::Union(_) => HeadKey::UnionAny,
             TyData::Fn { suspends: true, .. } => HeadKey::SuspendFn,
             TyData::Fn { .. } => HeadKey::Fn,
             TyData::Mut(i) => HeadKey::of(pool, i),
@@ -220,10 +222,11 @@ impl HeadKey {
             HeadKey::Prim(p) => (2, u32::from(p as u8)),
             HeadKey::Tuple(n) => (3, u32::from(n)),
             HeadKey::TupleAny => (4, 0),
-            HeadKey::Fn => (5, 0),
-            HeadKey::SuspendFn => (6, 0),
-            HeadKey::Param => (7, 0),
-            HeadKey::Any => (8, 0),
+            HeadKey::UnionAny => (5, 0),
+            HeadKey::Fn => (6, 0),
+            HeadKey::SuspendFn => (7, 0),
+            HeadKey::Param => (8, 0),
+            HeadKey::Any => (9, 0),
         };
         (tag << 32) | u64::from(payload)
     }
@@ -237,6 +240,7 @@ pub enum ImplOrigin {
     Error,
     NumericFamily,
     TupleTemplate,
+    UnionTemplate,
 }
 
 /// A row of an impl table: module and row.
@@ -305,6 +309,33 @@ pub trait TuplePlans: Sync {
     fn tuple_plan(&self, template: DefId) -> Option<Arc<[MemberStep]>>;
 }
 
+fn member_goal(
+    pool: Types<'_>,
+    template: DefId,
+    step: &MemberStep,
+    target: Ty,
+    member: Ty,
+) -> TraitRef {
+    let args = pool.list(
+        &pool
+            .list_items(step.args)
+            .iter()
+            .map(|a| {
+                pool.subst(*a, &|p: ParamRef| match (p.owner == template, p.index) {
+                    (true, MEMBER_PARAM) => Some(member),
+                    (true, 0) => Some(target),
+                    _ => None,
+                })
+            })
+            .collect::<Vec<_>>(),
+    );
+    TraitRef {
+        trait_: step.trait_,
+        self_ty: member,
+        args,
+    }
+}
+
 /// The member goals of a tuple template's plan at the tuple `tuple`, each
 /// with its step index, numbered from `first` in the order the steps and
 /// the members come (§3.9). A tuple type that is not a tuple asks none.
@@ -330,34 +361,8 @@ pub fn tuple_goals(
     });
     let mut out = Vec::new();
     let ask = |member: Ty, step: &MemberStep, out: &mut Vec<(u16, TraitRef)>| {
-        let args = pool.list(
-            &pool
-                .list_items(step.args)
-                .iter()
-                .map(|a| {
-                    pool.subst(*a, &|p: ParamRef| {
-                        if p.owner != template {
-                            None
-                        } else if p.index == MEMBER_PARAM {
-                            Some(member)
-                        } else if p.index == 0 {
-                            Some(tuple)
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .collect::<Vec<_>>(),
-        );
         let at = first.saturating_add(u16::try_from(out.len()).unwrap_or(u16::MAX));
-        out.push((
-            at,
-            TraitRef {
-                trait_: step.trait_,
-                self_ty: member,
-                args,
-            },
-        ));
+        out.push((at, member_goal(pool, template, step, tuple, member)));
     };
     for step in steps {
         match step.on {
@@ -376,6 +381,32 @@ pub fn tuple_goals(
                     ask(r, step, &mut out);
                 }
             }
+        }
+    }
+    out
+}
+
+/// The member goals of a union template's plan at `union`. Each positional
+/// case contributes its one payload type, in case order.
+#[must_use]
+pub fn union_goals(
+    pool: Types<'_>,
+    template: DefId,
+    steps: &[MemberStep],
+    union: Ty,
+    first: u16,
+) -> Vec<(u16, TraitRef)> {
+    let TyData::Union(members) = pool.get(union) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for step in steps {
+        if step.on != MemberOn::Elements {
+            continue;
+        }
+        for &member in pool.list_items(members) {
+            let at = first.saturating_add(u16::try_from(out.len()).unwrap_or(u16::MAX));
+            out.push((at, member_goal(pool, template, step, union, member)));
         }
     }
     out
@@ -897,6 +928,7 @@ pub enum BuiltinImpl {
     AnyRef,
     Inspectable,
     Tuple,
+    Union,
     Num,
     Integer,
     Float,
@@ -1601,12 +1633,19 @@ pub fn row_goals(
     args: &[Ty],
 ) -> Vec<(u16, TraitRef)> {
     let mut goals = plan_goals(pool, t, row, args);
-    if t.origin[row] == ImplOrigin::TupleTemplate
-        && let Some(&tuple) = args.first()
+    if let Some(&target) = args.first()
         && let Some(steps) = impls.tuple_plan(t.def[row])
     {
         let first = u16::try_from(t.plan[row].len()).unwrap_or(u16::MAX);
-        goals.extend(tuple_goals(pool, t.def[row], &steps, tuple, first));
+        match t.origin[row] {
+            ImplOrigin::TupleTemplate => {
+                goals.extend(tuple_goals(pool, t.def[row], &steps, target, first));
+            }
+            ImplOrigin::UnionTemplate => {
+                goals.extend(union_goals(pool, t.def[row], &steps, target, first));
+            }
+            _ => {}
+        }
     }
     goals
 }
@@ -2077,10 +2116,18 @@ impl<'s, 'a> Search<'s, 'a> {
         let heads = u16::try_from(cands.len()).unwrap_or(u16::MAX);
         for (at, t) in cands {
             let r = at.row as usize;
-            // A tuple template's head is every tuple (§3.9); its `T` is
-            // the tuple.
-            if t.origin[r] == ImplOrigin::TupleTemplate {
-                if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
+            // An anonymous-shape template's head is every value of that shape;
+            // its `T` is the concrete tuple or union.
+            if matches!(
+                t.origin[r],
+                ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
+            ) {
+                let fits = matches!(
+                    (t.origin[r], pool.get(self_ty)),
+                    (ImplOrigin::TupleTemplate, TyData::Tuple { .. })
+                        | (ImplOrigin::UnionTemplate, TyData::Union(_))
+                );
+                if fits {
                     yes.push((at, vec![self_ty], t));
                 }
                 continue;
@@ -2596,8 +2643,16 @@ impl Search<'_, '_> {
         let mut matched = Vec::new();
         for (at, t) in cands {
             let r = at.row as usize;
-            if t.origin[r] == ImplOrigin::TupleTemplate {
-                if matches!(pool.get(self_ty), TyData::Tuple { .. }) {
+            if matches!(
+                t.origin[r],
+                ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
+            ) {
+                let fits = matches!(
+                    (t.origin[r], pool.get(self_ty)),
+                    (ImplOrigin::TupleTemplate, TyData::Tuple { .. })
+                        | (ImplOrigin::UnionTemplate, TyData::Union(_))
+                );
+                if fits {
                     matched.push((at, t, None));
                 }
                 continue;
@@ -2635,12 +2690,20 @@ impl Search<'_, '_> {
         for (at, t, fixed) in matched {
             let r = at.row as usize;
             let Some(fixed) = fixed else {
-                // A tuple template at a tuple (§3.9): its member steps
-                // decide, as a fixed parameter's plan steps do below.
+                // An anonymous-shape template's member steps decide, as a
+                // fixed parameter's plan steps do below.
                 let first = u16::try_from(t.plan[r].len()).unwrap_or(u16::MAX);
                 let goals = impls
                     .tuple_plan(t.def[r])
-                    .map(|steps| tuple_goals(pool, t.def[r], &steps, self_ty, first))
+                    .map(|steps| match t.origin[r] {
+                        ImplOrigin::TupleTemplate => {
+                            tuple_goals(pool, t.def[r], &steps, self_ty, first)
+                        }
+                        ImplOrigin::UnionTemplate => {
+                            union_goals(pool, t.def[r], &steps, self_ty, first)
+                        }
+                        _ => Vec::new(),
+                    })
                     .unwrap_or_default();
                 let mut residual = Vec::new();
                 let mut dropped = false;
@@ -4812,6 +4875,7 @@ mod tests {
                 fn_trait: DefId::NONE,
                 fn_mut_trait: DefId::NONE,
                 structure: id(6),
+                union_type: DefId::NONE,
                 static_bound: DefId::NONE,
                 list: DefId::NONE,
                 map: DefId::NONE,
@@ -5463,12 +5527,11 @@ mod tests {
         assert_eq!(cands(tuple(p, &[Ty::I32, f64_ty], None), false), 1);
     }
 
-    /// `tuple_goals` puts the member for [`super::MEMBER_PARAM`] and the
-    /// tuple for the template's `T` in a step's arguments, and numbers
-    /// the goals on from the bound plan's steps.
+    /// Template goals put the member for [`super::MEMBER_PARAM`] and the
+    /// concrete tuple or union for `T` in the step arguments.
     #[test]
-    fn member_steps_substitute_the_member_and_the_tuple() {
-        use super::{MEMBER_PARAM, MemberOn, MemberStep, tuple_goals};
+    fn member_steps_substitute_the_member_and_the_anonymous_target() {
+        use super::{MEMBER_PARAM, MemberOn, MemberStep, tuple_goals, union_goals};
         let gp = InternPool::new();
         let p = gp.types();
         let (template, tr) = (DefId::from_raw(7), DefId::from_raw(8));
@@ -5478,7 +5541,7 @@ mod tests {
             args: p.list(&[param(p, template, MEMBER_PARAM), param(p, template, 0)]),
         };
         let pair = tuple(p, &[Ty::I32, Ty::STRING], None);
-        let goals = tuple_goals(p, template, &[step], pair, 1);
+        let goals = tuple_goals(p, template, std::slice::from_ref(&step), pair, 1);
         let got: Vec<(u16, Ty, Vec<Ty>)> = goals
             .iter()
             .map(|(i, g)| (*i, g.self_ty, p.list_items(g.args).to_vec()))
@@ -5491,5 +5554,11 @@ mod tests {
             ]
         );
         assert!(tuple_goals(p, template, &[], Ty::I32, 0).is_empty());
+        let union = p.intern_ty(&TyData::Union(p.list(&[Ty::I32, Ty::STRING])));
+        let goals = union_goals(p, template, &[step], union, 3);
+        assert_eq!(goals[0].0, 3);
+        assert_eq!(goals[0].1.self_ty, Ty::I32);
+        assert_eq!(p.list_items(goals[0].1.args), [Ty::I32, union]);
+        assert_eq!(goals[1].1.self_ty, Ty::STRING);
     }
 }

@@ -1,0 +1,60 @@
+# Spec 09 Union Trait Templates: trait.target.union.conditional,
+# trait.target.union.display, trait.target.union.error-source.
+use std.error.Error
+
+type Choice = i32 | string
+
+@error
+enum FirstError:
+    @error("first")
+    First
+
+@error
+enum WrappedError:
+    @error("wrapped")
+    Wrapped(
+        @source
+        source: FirstError,
+    )
+
+type LoadError = FirstError | WrappedError
+
+struct Document:
+    text: string
+
+fn fetch!() -> Result[string, FirstError]:
+    .Ok("document")
+
+fn parse(text: string) -> Result[Document, WrappedError]:
+    .Ok(Document { text: text })
+
+fn load!() -> Result[Document, LoadError]:
+    text := fetch!().map_err(Union._0)?
+    parse(text).map_err(Union._1)
+
+fn source_text(error: LoadError) -> string:
+    match error.source():
+        .Some(source) => source.to_string()
+        .None => "none"
+
+tests:
+    it("union comparison and debug use positional cases"):
+        let first: Choice = ._0(7)
+        let same: Choice = ._0(7)
+        let other: Choice = ._1("7")
+        assert_equal(first == same, true)
+        assert_equal(first == other, false)
+        assert_equal(debug(first), "Union._0(7)")
+
+    it("union display and error source forward to the active payload"):
+        let plain: LoadError = ._0(FirstError.First)
+        let wrapped: LoadError = ._1(WrappedError.Wrapped(FirstError.First))
+        assert_equal(plain.to_string(), "first")
+        assert_equal(wrapped.to_string(), "wrapped")
+        assert_equal(source_text(plain), "none")
+        assert_equal(source_text(wrapped), "first")
+
+    it("map_err and propagation build the motivating union result"):
+        match load!():
+            .Ok(document) => assert_equal(document.text, "document")
+            .Err(_) => panic("the load succeeds")

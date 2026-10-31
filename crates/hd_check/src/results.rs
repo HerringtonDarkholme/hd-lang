@@ -589,7 +589,7 @@ fn template_named(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) -> hd_base::
         let template = matches!(
             cx.lookup.item(*owner).map(|o| &o.data),
             Some(ItemData::Impl {
-                kind: ImplKind::Template | ImplKind::TupleTemplate,
+                kind: ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate,
                 ..
             })
         );

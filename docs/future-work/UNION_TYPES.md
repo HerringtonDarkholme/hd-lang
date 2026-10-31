@@ -1,7 +1,7 @@
 # Positional Union Types
 
-Status: syntax, ordered type identity, construction, matching, and runtime lowering
-specified and implemented 2026-10-31; traits and parity remain in #1124-#1125.
+Status: syntax, ordered type identity, construction, matching, runtime lowering,
+and conditional traits specified and implemented 2026-10-31; parity remains in #1125.
 This record turns the decisions in [#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)
 into an implementation-sized design. It changes no specification or compiler
 behavior beyond the slices named in the status line. A prior [twelve-case stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/UNION_TYPES.md)
@@ -76,13 +76,13 @@ priority to `?`.
 - Representation, drop behavior, copying, borrowing and pattern lowering are
   exactly those of an equivalent enum. `(A | B) | C` therefore has an outer
   and inner discriminant; flat `A | B | C` has one.
-- Conditional `Eq`, `Debug`, `Display` and `Error` implementations follow the
-  member types. Equality compares the tag then the payload. Debug includes
-  `Union._k`. Like thiserror's transparent wrapper, Display and `Error.source`
-  forward to the active payload's own Display and source; the union does not
-  add itself or the active payload as another source-chain layer.
-- No automatic `Structure`, `Serialize`, `Deserialize`, `Ord` or public field
-  names are introduced. Use a named enum when those semantics are needed.
+- Conditional `Eq`, `Debug`, `Hash`, `Serialize`, and `Deserialize`
+  implementations treat the union as a positional enum. Display and Error
+  follow the member types too. Like thiserror's transparent wrapper, Display
+  and `Error.source` forward to the active payload; the union adds no source
+  chain layer.
+- No public `Structure`, automatic `Ord`, or public field names are introduced.
+  Use a named enum when those semantics are needed.
 
 ## Cost And Performance Budget
 
@@ -247,8 +247,9 @@ The specification admits [union syntax](../../spec/lang/04-type-system.md#union-
 [ordered identity](../../spec/lang/04-type-system.md#union-type-identity), and
 [positional construction and matching](../../spec/lang/04-type-system.md#union-construction-and-matching).
 The checker lowers constructors and patterns through ordinary enum operations,
-and unions reuse enum layout and active-payload ownership. Conditional traits
-remain in #1124.
+and unions reuse enum layout and active-payload ownership. Conditional `Eq`,
+`Debug`, `Hash`, serde, `Display`, and `Error` implementations follow the
+members as specified in [Union Trait Templates](../../spec/lang/09-traits.md#union-trait-templates).
 
 `Union._0` works when an expected constructor result supplies its union type.
 Without that context it reports `cannot-infer-type`. Contextual `._0` is not a

@@ -1,0 +1,13 @@
+# Spec 09 Union Trait Templates: trait.target.union.conditional,
+# trait.target.union.enum-shape.
+use std.hash.hash_of
+
+type Choice = i32 | string
+
+tests:
+    it("union hash uses its positional tag and active payload"):
+        let first: Choice = ._0(7)
+        let same: Choice = ._0(7)
+        let other: Choice = ._1("7")
+        assert_equal(hash_of(first) == hash_of(same), true)
+        assert_equal(hash_of(first) == hash_of(other), false)

@@ -5589,3 +5589,7 @@ typing/invalid/union-match-nonexhaustive.hd	type	reject:nonexhaustive-match	lang
 runtime/panic/alias-write-under-call-result-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/valid/alias-write-beside-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/valid/union-runtime-layout-and-ownership.hd	runtime	accept	lang/04-type-system.md#r-types.union.representation
+runtime/valid/union-trait-forwarding.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.conditional
+typing/invalid/union-trait-requires-every-member.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.target.union.conditional
+runtime/valid/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of
+runtime/valid/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct

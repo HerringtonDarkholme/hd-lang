@@ -1,0 +1,7 @@
+# @dump: wat
+# expected: call the Eq template specialized for the concrete union.
+type Choice = i32 | string
+
+fn same(left: Choice, right: Choice) -> bool:
+    # subject
+    left == right

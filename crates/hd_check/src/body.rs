@@ -711,7 +711,9 @@ pub(crate) fn new_ck<'a, 'c>(
                 // `annot.template.qualified-self`).
                 if matches!(
                     kind,
-                    hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate
+                    hd_resolve::ImplKind::Template
+                        | hd_resolve::ImplKind::TupleTemplate
+                        | hd_resolve::ImplKind::UnionTemplate
                 ) {
                     ck.in_template = Some(*owner);
                     let st = cx.names.known.structure;
