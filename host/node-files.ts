@@ -123,7 +123,7 @@ const FS_CODES = {
   EISDIR: "IsADirectory",
 } as const;
 
-type FsTag = (typeof FS_CODES)[keyof typeof FS_CODES] | "InvalidUtf8";
+type FsTag = (typeof FS_CODES)[keyof typeof FS_CODES] | "InvalidUtf8" | "NotGranted";
 interface ErrorLike {
   code?: string;
   message?: unknown;

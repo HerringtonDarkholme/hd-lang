@@ -9,6 +9,9 @@
 // module.profile.panic-status).
 
 import { receiveReply } from "./worker-control.ts";
+import type { MessagePort, Worker as NodeWorker } from "node:worker_threads";
+import type { CoreEnv, Host, Sink } from "./core.ts";
+export type { Host, Session, Sink } from "./core.ts";
 export { exitPast } from "./run-support.ts";
 import {
   createCoreHost,
@@ -34,6 +37,40 @@ import {
   validHost,
 } from "./node-files.ts";
 import { Err, Ok, variant } from "./wire.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
+type DynamicRecord = Record<string, Dynamic>;
+
+export interface HostEnv extends CoreEnv {
+  /** A file descriptor, or `null` for a closed standard input. */
+  stdin?: number | null;
+  /** Explicit hd executable used for Windows Process Job ownership. */
+  processLauncher?: string;
+  tempDir?: string;
+  snapshot?: { dir: string; shown?: string; slug: string; update: boolean };
+  programs?: Record<string, { host: string; wasm: string; config: string; cwd: string }>;
+}
+
+interface WorkerClient {
+  port: MessagePort;
+  flag: Int32Array<SharedArrayBuffer>;
+  worker: NodeWorker;
+}
+
+interface SyncClient {
+  started(): boolean;
+  call(request: Dynamic, left?: () => number): Dynamic;
+  stop(): void;
+}
+
+export interface LineReader {
+  (): string | null | false;
+  all(): string | false;
+}
+
+interface ErrorWithCode {
+  code?: string;
+}
 
 // Builtins come from `process.getBuiltinModule`, not `import`: an ESM
 // import of a builtin builds its module facade, which for `node:fs` loads
@@ -71,7 +108,7 @@ const EXIT_GRACE_MS = 500;
 // The same refusal spelling as hd_run::refused_path. Resolving cwd first
 // avoids mistaking a link in the working directory itself for a change in
 // the requested relative path. Path hints use std.path's / separators.
-function refusedPath(path, cwd = process.cwd()) {
+function refusedPath(path: string, cwd = process.cwd()): string {
   const base = resolvePath(cwd);
   const target = resolvePath(path, cwd);
   if (target === resolve(base, path)) {
@@ -86,8 +123,8 @@ function refusedPath(path, cwd = process.cwd()) {
 
 // The names `std.host` gives Node's platforms and architectures
 // (std-host.sys.os, std-host.sys.arch); any other is Node's own name.
-const OS_NAMES = { darwin: "macos", win32: "windows" };
-const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
+const OS_NAMES: Record<string, string> = { darwin: "macos", win32: "windows" };
+const ARCH_NAMES: Record<string, string> = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
 
 // A client thread running `file` (`http.ts`, `net.ts`), started on its
 // first call. `call(request, left)` posts the request and waits for the
@@ -95,8 +132,8 @@ const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
 // start/poll/finish/abort requests rather than waiting for their I/O here.
 // A control call waits at most `left()` milliseconds before stopping its
 // client and throwing the `time-limit` panic.
-export const syncClient = (file, close = null) => {
-  let client = null;
+export const syncClient = (file: string | URL, close: string | null = null): SyncClient => {
+  let client: WorkerClient | null = null;
   let nextCall = 1;
   // Stops the thread, allowing an optional close request to release OS children.
   const stop = () => {
@@ -116,7 +153,7 @@ export const syncClient = (file, close = null) => {
   return {
     // Whether the thread has started, so it may hold something open.
     started: () => client !== null,
-    call: (request, left = () => Infinity) => {
+    call: (request: Dynamic, left = () => Infinity): Dynamic => {
       if (left() <= 0) {
         throw new TimeLimit();
       }
@@ -152,9 +189,9 @@ export const syncClient = (file, close = null) => {
 
 // Start/poll/abort are short worker control calls. The response body stays
 // in the worker until complete; the guest can race its clock meanwhile.
-const httpSend = (client, request) => {
+const httpSend = (client: Dynamic, request: Dynamic): Dynamic => {
   const { ok: operation } = client.call({ ...request, op: "start" });
-  let result = null;
+  let result: Dynamic = null;
   const poll = () => {
     const outcome = client.call({ op: "poll", operation });
     if (outcome.pending) {
@@ -177,10 +214,10 @@ const httpSend = (client, request) => {
 // (cli.host.default-profile.input-closed): the line without its ending,
 // `null` at the end of input (and every time after), or `false` when
 // standard input cannot be read.
-export function lineReader(fd) {
+export function lineReader(fd: number | null): LineReader {
   // A closed standard input is at its end (cli.test.env.stdin).
   if (fd === null) {
-    const none = () => null;
+    const none = (() => null) as LineReader;
     none.all = () => "";
     return none;
   }
@@ -194,11 +231,12 @@ export function lineReader(fd) {
     try {
       n = readSync(fd, chunk, 0, chunk.length, null);
     } catch (err) {
-      if (err.code === "EAGAIN") {
+      const code = (err as ErrorWithCode).code;
+      if (code === "EAGAIN") {
         Atomics.wait(waiter, 0, 0, 5);
         return true;
       }
-      if (err.code !== "EOF") {
+      if (code !== "EOF") {
         return false;
       }
       n = 0;
@@ -210,7 +248,7 @@ export function lineReader(fd) {
     }
     return true;
   };
-  const line = () => {
+  const line = (() => {
     for (;;) {
       const nl = pending.indexOf(10);
       if (nl >= 0) {
@@ -233,7 +271,7 @@ export function lineReader(fd) {
         return false;
       }
     }
-  };
+  }) as LineReader;
   // The rest of the input as read, with `\r\n` read as `\n`
   // (std-console.input.read-all-host-coded-error).
   line.all = () => {
@@ -252,16 +290,16 @@ export function lineReader(fd) {
 // `hd:ConsoleInput`: the next input line, `.None` at the end, `.Err(.Other(code))`
 // when the host descriptor cannot be read. `env.readLine`, when a host has one, reads it instead
 // of the input worker (the REPL keeps its framed control reader).
-function consoleInputProvider({ env, flush, inputClient }) {
+function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): DynamicRecord {
   if (env.readLine === undefined && env.stdin !== null) {
-    const read = (kind) => {
+    const read = (kind: string): Dynamic => {
       flush();
       const { ok: operation } = inputClient.call({
         op: "wait_start",
         kind,
         fd: env.stdin ?? 0,
       });
-      let result = null;
+      let result: Dynamic = null;
       const poll = () => {
         const outcome = inputClient.call({ op: "wait_poll", operation });
         if (outcome.pending) {
@@ -272,6 +310,7 @@ function consoleInputProvider({ env, flush, inputClient }) {
       };
       const finish = () => {
         inputClient.call({ op: "wait_finish", operation });
+        return undefined;
       };
       const output = () => {
         if (result.error !== undefined) {
@@ -326,7 +365,7 @@ function consoleInputProvider({ env, flush, inputClient }) {
 }
 
 // A missing/unreadable cgroup limit leaves the OS affinity count intact.
-const quotaText = (path) => {
+const quotaText = (path: string): string | null => {
   try {
     return readFileSync(path, "utf8").trim();
   } catch {
@@ -337,7 +376,7 @@ const quotaText = (path) => {
 // std-host.sys.cpu-count: every ancestor constrains the offered processors.
 // Keep the walk rooted at its mount, including when tested on macOS.
 // Like Rust's available_parallelism, round quotas down, with at least one.
-export function cgroupCpuCount(root, group, offered) {
+export function cgroupCpuCount(root: string, group: string, offered: number): number {
   root = resolve(root);
   let count = offered;
   let dir = resolve(root, group.replace(/^\/+/, ""));
@@ -348,7 +387,13 @@ export function cgroupCpuCount(root, group, offered) {
       maximum === null
         ? [quotaText(join(dir, "cpu.cfs_quota_us")), quotaText(join(dir, "cpu.cfs_period_us"))]
         : maximum.split(/\s+/);
-    if (/^\d+$/.test(quota ?? "") && /^\d+$/.test(period ?? "") && BigInt(period) > 0n) {
+    if (
+      quota !== null &&
+      period !== null &&
+      /^\d+$/.test(quota) &&
+      /^\d+$/.test(period) &&
+      BigInt(period) > 0n
+    ) {
       count = Math.min(count, Number(BigInt(quota) / BigInt(period)));
     }
     if (dir === root) {
@@ -359,7 +404,7 @@ export function cgroupCpuCount(root, group, offered) {
   return Math.max(1, count);
 }
 
-function v1CpuCount(group, offered) {
+function v1CpuCount(group: string, offered: number): number {
   for (const root of ["/sys/fs/cgroup/cpu", "/sys/fs/cgroup/cpu,cpuacct"]) {
     if (existsSync(join(root, group))) {
       return cgroupCpuCount(root, group, offered);
@@ -379,7 +424,7 @@ function v1CpuCount(group, offered) {
   return offered;
 }
 
-function cpuCount() {
+function cpuCount(): number {
   const offered = availableParallelism();
   if (platform() !== "linux") {
     return offered;
@@ -401,11 +446,11 @@ function cpuCount() {
 // The host system's four reads (std-host.sys.*). The grant covers each by
 // its method's name (cli.cap.scope.sys); a refused or unanswerable
 // read is `.Err` with that name (std-host.sys.not-granted, .unsupported).
-function sysProvider({ grant }) {
+function sysProvider({ grant }: DynamicRecord): DynamicRecord {
   // `Result[T, HostError]` of the read `name`: `.Ok` of what `value`
   // returns, `.Err(.NotGranted(name))` outside the grant, or
   // `.Err(.Unsupported(name))` when the host cannot answer it.
-  const sysRead = (name, value) => {
+  const sysRead = (name: string, value: () => Dynamic): Dynamic => {
     if (!grant.coversName("Sys", name)) {
       return Err({ tag: "NotGranted", subject: name });
     }
@@ -424,24 +469,28 @@ function sysProvider({ grant }) {
 }
 
 // `hd:Net` and its socket handles (spec/std/net.md).
-function netProvider({ grant, netClient }) {
+function netProvider({ grant, netClient }: DynamicRecord): DynamicRecord {
+  const netError = (error: Dynamic): Dynamic => {
+    const [tag, ...values] = error as [string, ...unknown[]];
+    return variant(NetError, tag, ...values);
+  };
   // `Result[T, NetError]` of a `Net` method from a client outcome.
-  const netResult = (r) => (r.error ? Err(variant(NetError, ...r.error)) : Ok(r.ok));
+  const netResult = (r: Dynamic): Dynamic => (r.error ? Err(netError(r.error)) : Ok(r.ok));
   // `Result[T, NetError]` of a handle's method: an operation on a closed
   // handle is `Closed` (std-net.handles.closed).
-  const handleResult = (r) => {
+  const handleResult = (r: Dynamic): Dynamic => {
     if (r.unknown) {
       throw new HostContract("an operation on a handle the host never made");
     }
     if (r.disposed) {
       return Err(variant(NetError, "Closed"));
     }
-    return r.error ? Err(variant(NetError, ...r.error)) : Ok(r.ok);
+    return r.error ? Err(netError(r.error)) : Ok(r.ok);
   };
   // A call names its address `host:port` (std-net.error.address): one
   // whose host is no host is `InvalidAddress`, and one the grant does not
   // cover `NotGranted` (cli.cap.scope.net), before any socket opens.
-  const netAt = (op, host, port, more = {}) => {
+  const netAt = (op: string, host: string, port: number, more: DynamicRecord = {}): Dynamic => {
     const address = `${host}:${port}`;
     if (!validHost(host)) {
       return { error: ["InvalidAddress", address] };
@@ -451,12 +500,12 @@ function netProvider({ grant, netClient }) {
     }
     return netClient.call({ op, host, port, address, ...more });
   };
-  const waitFor = (started, resultOf) => {
+  const waitFor = (started: Dynamic, resultOf: (result: Dynamic) => Dynamic): Dynamic => {
     if (started.ok === undefined) {
       return resultOf(started);
     }
     const operation = started.ok;
-    let result = null;
+    let result: Dynamic = null;
     const poll = () => {
       const outcome = netClient.call({ op: "wait_poll", operation });
       if (outcome.pending) {
@@ -481,26 +530,32 @@ function netProvider({ grant, netClient }) {
       finish,
     );
   };
-  const opened = (kind) => (host, port) =>
-    waitFor(netAt("wait_start", host, port, { kind }), netResult);
-  const handleOp = (op) => (h, more) => handleResult(netClient.call({ op, handle: h, ...more }));
+  const opened =
+    (kind: string) =>
+    (host: string, port: number): Dynamic =>
+      waitFor(netAt("wait_start", host, port, { kind }), netResult);
+  const handleOp =
+    (op: string) =>
+    (h: Dynamic, more: DynamicRecord): Dynamic =>
+      handleResult(netClient.call({ op, handle: h, ...more }));
   const waitOn =
-    (kind) =>
-    (h, more = {}) =>
+    (kind: string) =>
+    (h: Dynamic, more: DynamicRecord = {}): Dynamic =>
       waitFor(netClient.call({ op: "wait_start", handle: h, kind, ...more }), handleResult);
   // std-net.timeout.set: the `Duration?` crosses to the client thread as
   // milliseconds, or `null` for no bound.
-  const setBound = (h, timeout) =>
+  const setBound = (h: Dynamic, timeout: Dynamic): Dynamic =>
     handleOp("set_timeout")(h, { timeout: timeout === null ? null : Number(timeout.millis) });
   // std-net.option.nodelay and std-net.option.keepalive: the flag crosses
   // as a number, and the idle `Duration?` as milliseconds, or `null` for off.
-  const setNoDelay = (h, enabled) => handleOp("set_nodelay")(h, { enabled: enabled !== 0 });
-  const setKeepAlive = (h, idle) =>
+  const setNoDelay = (h: Dynamic, enabled: Dynamic): Dynamic =>
+    handleOp("set_nodelay")(h, { enabled: enabled !== 0 });
+  const setKeepAlive = (h: Dynamic, idle: Dynamic): Dynamic =>
     handleOp("set_keepalive")(h, { idle: idle === null ? null : Number(idle.millis) });
   // A second `close` is `Closed` (std-net.handles.closed).
-  const close = (h) => handleResult(netClient.call({ op: "close", handle: h }));
+  const close = (h: Dynamic): Dynamic => handleResult(netClient.call({ op: "close", handle: h }));
   // `dispose!` closes an open handle and reports nothing (std-net.dispose).
-  const dispose = (h) => {
+  const dispose = (h: Dynamic): void => {
     const r = netClient.call({ op: "dispose", handle: h });
     if (r.unknown) {
       throw new HostContract("an operation on a handle the host never made");
@@ -508,7 +563,7 @@ function netProvider({ grant, netClient }) {
   };
   return {
     // cli.cap.scope.net.lookup: an entry covers a lookup of its host.
-    lookup: (host) => {
+    lookup: (host: string): Dynamic => {
       if (!validHost(host)) {
         return netResult({ error: ["InvalidAddress", host] });
       }
@@ -517,13 +572,13 @@ function netProvider({ grant, netClient }) {
       }
       return waitFor(netClient.call({ op: "wait_start", kind: "lookup", host }), netResult);
     },
-    connect: (host, port) => {
+    connect: (host: string, port: number): Dynamic => {
       const started = netAt("connect_start", host, port);
       if (started.error) {
         return netResult(started);
       }
       const operation = started.ok;
-      let result = null;
+      let result: Dynamic = null;
       const poll = () => {
         const outcome = netClient.call({ op: "connect_poll", operation });
         if (outcome.pending) {
@@ -554,8 +609,8 @@ function netProvider({ grant, netClient }) {
     },
     listen: opened("listen"),
     bind_udp: opened("bind_udp"),
-    "TcpStream.read": (h, max) => waitOn("read")(h, { max }),
-    "TcpStream.write": (h, bytes) => waitOn("write")(h, { bytes }),
+    "TcpStream.read": (h: Dynamic, max: number) => waitOn("read")(h, { max }),
+    "TcpStream.write": (h: Dynamic, bytes: Uint8Array) => waitOn("write")(h, { bytes }),
     "TcpStream.set_timeout": setBound,
     "TcpStream.set_nodelay": setNoDelay,
     "TcpStream.set_keepalive": setKeepAlive,
@@ -563,11 +618,11 @@ function netProvider({ grant, netClient }) {
     "TcpStream.dispose": dispose,
     "TcpListener.accept": waitOn("accept"),
     "TcpListener.set_timeout": setBound,
-    "TcpListener.local_address": (h) => handleOp("local_address")(h, {}),
+    "TcpListener.local_address": (h: Dynamic) => handleOp("local_address")(h, {}),
     "TcpListener.close": close,
     "TcpListener.dispose": dispose,
     // std-net.send-to.grant: each datagram's own address.
-    "UdpSocket.send_to": (h, host, port, bytes) => {
+    "UdpSocket.send_to": (h: Dynamic, host: string, port: number, bytes: Uint8Array) => {
       // Reject closed and unknown handles before destination validation.
       // This checks metadata only.
       const checked = netClient.call({ op: "check", handle: h });
@@ -580,9 +635,9 @@ function netProvider({ grant, netClient }) {
         handleResult,
       );
     },
-    "UdpSocket.receive": (h, max) => waitOn("receive")(h, { max }),
+    "UdpSocket.receive": (h: Dynamic, max: number) => waitOn("receive")(h, { max }),
     "UdpSocket.set_timeout": setBound,
-    "UdpSocket.local_address": (h) => handleOp("local_address")(h, {}),
+    "UdpSocket.local_address": (h: Dynamic) => handleOp("local_address")(h, {}),
     "UdpSocket.close": close,
     "UdpSocket.dispose": dispose,
   };
@@ -590,11 +645,11 @@ function netProvider({ grant, netClient }) {
 
 // `hd:Env`: granted variables read, the rest read as unset with one
 // notice per name.
-function envProvider({ grant, sink, st, flush }) {
+function envProvider({ grant, sink, st, flush }: DynamicRecord): DynamicRecord {
   return {
     // A variable outside the grant reads as unset; when it is set, a
     // notice names the flag, once per name (cli.cap.env.notice).
-    get: (name) => {
+    get: (name: string) => {
       const value = process.env[name];
       if (!grant.coversName("Env", name)) {
         if (value !== undefined && !st.noticed.has(name)) {
@@ -620,7 +675,7 @@ const fileOpening = new Set([
   "append_text",
   "copy",
 ]);
-const specialFile = (path) => {
+const specialFile = (path: string): boolean => {
   if (process.platform === "win32") {
     // Inspecting a Windows pipe can itself open/wait on it. Native uses
     // these same device namespace spellings without touching the device.
@@ -643,19 +698,19 @@ const specialFile = (path) => {
 };
 
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
-function fsProviders({ grant, flush, fsClient }) {
+function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.ts). A
   // special-file call is offloaded after these checks. Output is flushed
   // first (std-console.host.visible-text-sync). A method that
   // creates its directories keeps the OS's own rule for a `..` after a
   // missing name, as the Rust host's `create` does.
-  const fsOps = (module, ops) =>
+  const fsOps = (module: string, ops: DynamicRecord): DynamicRecord =>
     Object.fromEntries(
       Object.entries(ops).map(([name, op]) => {
-        const m = METHODS[module][name];
-        const { create = false } = typeof op === "function" ? {} : op;
-        const provider = (...args) => {
+        const m = (METHODS as DynamicRecord)[module][name];
+        const { create = false } = typeof op === "function" ? {} : (op as DynamicRecord);
+        const provider = (...args: Dynamic[]) => {
           const ps = args.filter((_, i) => m.resource === "path" && m.params[i] === Path);
           const refused = ps.find(
             (p, i) =>
@@ -676,7 +731,7 @@ function fsProviders({ grant, flush, fsClient }) {
           flush();
           if (fileOpening.has(name) && ps.some(specialFile)) {
             const { ok: operation } = fsClient.call({ op: "wait_start", module, name, args });
-            let result = null;
+            let result: Dynamic = null;
             const poll = () => {
               const outcome = fsClient.call({ op: "wait_poll", operation });
               if (outcome.pending) {
@@ -709,8 +764,13 @@ function fsProviders({ grant, flush, fsClient }) {
 // the program, an argument, an environment pair or the directory, an
 // environment name that is neither empty nor holds `=`, and a directory
 // that exists.
-const refusal = (name, argv, pairs, dir) => {
-  const other = (message) => Err({ tag: "Other", message });
+const refusal = (
+  name: string,
+  argv: string[],
+  pairs: [string, string][],
+  dir: string | null,
+): Dynamic => {
+  const other = (message: string) => Err({ tag: "Other", message });
   if (name.includes("\0")) {
     return other("program name contains a NUL byte");
   }
@@ -731,16 +791,17 @@ const refusal = (name, argv, pairs, dir) => {
   }
   return null;
 };
-const isDirectory = (path) => {
+const isDirectory = (path: string): boolean => {
   try {
     return statSync(path).isDirectory();
   } catch {
     return false;
   }
 };
-const noDirectory = (dir) => Err({ tag: "Other", message: `working directory not found: ${dir}` });
+const noDirectory = (dir: string | null): Dynamic =>
+  Err({ tag: "Other", message: `working directory not found: ${dir}` });
 
-function childEnvironment(pairs) {
+function childEnvironment(pairs: [string, string][]): NodeJS.ProcessEnv {
   const childEnv = { ...process.env };
   for (const [key, value] of pairs) {
     const own =
@@ -752,7 +813,7 @@ function childEnvironment(pairs) {
   return childEnv;
 }
 
-function processCommand({ env, name, argv, pairs, dir }) {
+function processCommand({ env, name, argv, pairs, dir }: DynamicRecord): Dynamic {
   const bad = refusal(name, argv, pairs, dir);
   if (bad) {
     return bad;
@@ -782,8 +843,14 @@ function processCommand({ env, name, argv, pairs, dir }) {
 // profile, cli.test.process): the test runner's provider starts the
 // package's executables and tasks by name, the default profile's a host
 // program.
-function processProvider({ grant, env, left, processClient }) {
-  const run = ({ program: name, args: argv, env: pairs, current_dir: dir, stdin: text }) => {
+function processProvider({ grant, env, left, processClient }: DynamicRecord): DynamicRecord {
+  const run = ({
+    program: name,
+    args: argv,
+    env: pairs,
+    current_dir: dir,
+    stdin: text,
+  }: DynamicRecord): Dynamic => {
     if (!grant.coversName("Process", name)) {
       return Err({ tag: "NotGranted" });
     }
@@ -809,7 +876,7 @@ function processProvider({ grant, env, left, processClient }) {
       input: text,
       timeout: ms,
     });
-    let result = null;
+    let result: Dynamic = null;
     const poll = () => {
       const outcome = processClient.call({ op: "wait_poll", operation });
       if (outcome.pending) {
@@ -855,17 +922,17 @@ function processProvider({ grant, env, left, processClient }) {
 // directories, its snapshot files and its regression streams.
 export const nodeFiles = {
   join,
-  read: (path) => (existsSync(path) ? readFileSync(path, "utf8") : null),
-  write: (path, text) => {
+  read: (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : null),
+  write: (path: string, text: string) => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, text);
   },
-  remove: (dir) => rmSync(dir, { recursive: true, force: true }),
+  remove: (dir: string) => rmSync(dir, { recursive: true, force: true }),
 };
 
 // `hd:TestRunner`: the temp directory of a case
 // (std-testing.runner.temp-dir); the core has the other hooks.
-function testRunnerProvider({ env, st }) {
+function testRunnerProvider({ env, st }: DynamicRecord): DynamicRecord {
   const tempDir = () => {
     if (!env.tempDir) {
       // A run without a configured directory makes its own.
@@ -883,14 +950,15 @@ function testRunnerProvider({ env, st }) {
 
 // A relative path is from `cwd` (the process's by default), with `..` and
 // links resolved (cli.cap.scope.path.resolved).
-const resolveTarget = (path, cwd = process.cwd()) => resolvePath(path, cwd);
+const resolveTarget = (path: string, cwd = process.cwd()): string => resolvePath(path, cwd);
 
 // The grant with Node's path resolution.
-export const createGrant = (limits = {}) => createCoreGrant(limits, resolveTarget, sep);
+export const createGrant = (limits: DynamicRecord = {}) =>
+  createCoreGrant(limits, resolveTarget, sep);
 
 // `count` bytes of the operating system's random source. Reading the
 // device needs no `crypto`, whose module costs about 3 ms to load.
-function urandom(count) {
+function urandom(count: number): Uint8Array {
   const out = new Uint8Array(count);
   const fd = openSync("/dev/urandom", "r");
   try {
@@ -910,7 +978,7 @@ export const nodeLayer = {
   resolveTarget,
   sep,
   files: nodeFiles,
-  providers: ({ env, sink, st, grant, flush, left }) => {
+  providers: ({ env, sink, st, grant, flush, left }: DynamicRecord) => {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
     const net = syncClient("net.ts");
@@ -925,11 +993,11 @@ export const nodeLayer = {
       flush();
       return left();
     };
-    const client = (worker) => ({
-      call: (request) => worker.call(request, waiting),
+    const client = (worker: SyncClient): Dynamic => ({
+      call: (request: Dynamic) => worker.call(request, waiting),
       // Cancellation owns no I/O wait. It still releases resources after
       // the program deadline expired, and never starts a replacement worker.
-      cancel: (request) =>
+      cancel: (request: Dynamic) =>
         worker.started() ? worker.call(request, () => EXIT_GRACE_MS) : { ok: null },
     });
     const netClient = client(net);
@@ -954,11 +1022,13 @@ export const nodeLayer = {
           return [];
         }
         const counts = net.call({ op: "open" }).ok ?? {};
-        return [
-          ["TcpStream", counts.stream ?? 0],
-          ["TcpListener", counts.listener ?? 0],
-          ["UdpSocket", counts.udp ?? 0],
-        ].filter(([, n]) => n > 0);
+        return (
+          [
+            ["TcpStream", counts.stream ?? 0],
+            ["TcpListener", counts.listener ?? 0],
+            ["UdpSocket", counts.udp ?? 0],
+          ] as [string, number][]
+        ).filter(([, n]) => n > 0);
       },
       // Removes a directory the host made for itself, and closes its
       // sockets.
@@ -982,10 +1052,11 @@ export const nodeLayer = {
 
 // One host per instance on Node; `sink` and `env` are `createCoreHost`'s.
 // `env.stdin` is a file descriptor, or `null` for a closed standard input.
-export const createHost = (sink, env = {}) => createCoreHost(sink, env, nodeLayer);
+export const createHost = (sink: Sink, env: HostEnv = {}): Host =>
+  createCoreHost(sink, env, nodeLayer);
 
 // Loaded only by the REPL child; ordinary programs skip the session graph.
-export async function driveNodeSession() {
+export async function driveNodeSession(): Promise<void> {
   const { driveNodeSession: drive } = await import("./node-session.ts");
   return drive();
 }

@@ -3,18 +3,24 @@
 import { createOutput } from "./output.ts";
 import { createSession } from "./session.ts";
 import { lineReader, nodeLayer } from "./node.ts";
+import type { HostEnv, LineReader, Sink } from "./node.ts";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
 
 const { readFileSync } = process.getBuiltinModule("node:fs");
 
-function endOf(live) {
+function endOf(live: Dynamic): string {
   if (live === null) {
     return "-";
   }
   return live.end.kind === "exit" ? `exit${live.end.status}` : live.end.kind;
 }
 
-export const createNodeSession = (sink, env = {}, options = {}) =>
-  createSession(sink, env, nodeLayer, options);
+export const createNodeSession = (
+  sink: Sink,
+  env: HostEnv = {},
+  options: { journalCap?: number } = {},
+) => createSession(sink, env, nodeLayer, options);
 
 // The CLI owns the user's streams. stdin/stdout of this child carry only
 // framed control messages; even a guest read goes through its own request,
@@ -33,15 +39,15 @@ export async function driveNodeSession() {
     return JSON.parse(line);
   };
   const output = createOutput();
-  const frame = (kind, ...fields) => `${[kind, ...fields].join("\t")}\n`;
-  const send = (kind, ...fields) => output.out(frame(kind, ...fields));
-  const input = (all) => {
+  const frame = (kind: string, ...fields: Dynamic[]) => `${[kind, ...fields].join("\t")}\n`;
+  const send = (kind: string, ...fields: Dynamic[]): void => output.out(frame(kind, ...fields));
+  const input = (all: boolean): Dynamic => {
     send(all ? "all" : "input");
     return receive()?.value ?? null;
   };
-  const readLine = () => input(false);
+  const readLine = (() => input(false)) as LineReader;
   readLine.all = () => input(true);
-  let session;
+  let session: ReturnType<typeof createNodeSession> | undefined;
   let recording = true;
   try {
     for (let request; (request = receive()) !== null;) {
@@ -50,10 +56,10 @@ export async function driveNodeSession() {
           case "open":
             session = createNodeSession(
               {
-                write: (fd, text) =>
+                write: (fd: number, text: string) =>
                   output.write(1, frame(fd === 1 ? "out" : "err", JSON.stringify(text))),
-                out: (text) => send("out", JSON.stringify(text)),
-                err: (text) => send("err", JSON.stringify(text)),
+                out: (text: string) => send("out", JSON.stringify(text)),
+                err: (text: string) => send("err", JSON.stringify(text)),
               },
               { args: [], program: "", readLine },
               { journalCap: request.cap },
@@ -61,12 +67,12 @@ export async function driveNodeSession() {
             send("ready");
             break;
           case "run": {
-            const ran = await session.run(
+            const ran = await session!.run(
               readFileSync(request.wasm),
               request.sources,
               request.live,
             );
-            const notice = session.takeJournalNotice();
+            const notice = session!.takeJournalNotice();
             recording &&= !notice;
             const live = ran.live;
             const end = endOf(live);
@@ -85,7 +91,7 @@ export async function driveNodeSession() {
             break;
           }
           case "clear":
-            session.clear();
+            session!.clear();
             recording = true;
             send("cleared");
             break;
@@ -95,7 +101,7 @@ export async function driveNodeSession() {
             throw new Error("unknown session control request");
         }
       } catch (error) {
-        send("error", JSON.stringify(String(error?.message ?? error)));
+        send("error", JSON.stringify(String(error instanceof Error ? error.message : error)));
       }
     }
   } finally {
