@@ -1409,7 +1409,7 @@ fn reset(r: &mut Point) -> void:
 1. r[ref.deref.write] `*r = v` and `*r op= v` replace the value `r` refers to. `r` must be a writable reference, `*mut` or `&mut`. Error: `not-writable`.
 2. r[ref.write.field] Assigning a field through a reference, as in `r.x = v`, writes the field of the referenced value. The reference must be a writable one, `*mut` or `&mut`. Error: `not-writable`.
 3. r[ref.write.seen] The write is seen through every reference to the place, and through the place itself.
-4. r[ref.write.no-exclusivity] A writable reference, `*mut T` or `&mut T`, is not exclusive: other references to the same place may exist and be used, and no check limits them.
+4. r[ref.write.no-exclusivity] A counted writable reference, `*mut T`, is not exclusive: other references to the same place may exist and be used. A `&mut T` is exclusive while it is live, as [Writes While Borrowed](#writes-while-borrowed) states.
 5. r[ref.write.index] An element store through a reference to a list or a map, as in `r[i] = v` or `r[i] op= v`, stores into the referenced value. A change of that value through a method call, as in `r.push(x)`, changes it in place as well. The reference must be a writable one, `*mut` or `&mut`. Error: `not-writable`.
 
 ```text
