@@ -1273,6 +1273,19 @@ pub(super) fn finish(
         for t in em.temps.clone() {
             places.push((None, None, vec![t]));
         }
+        // The key of a call's result's loan, from the frame's save of the
+        // body's local that keeps it.
+        let mut keys: Vec<(usize, u32)> = em.loan_keys.drain().collect();
+        keys.sort_stable();
+        for (l, k) in keys {
+            if let Some((at, v)) = at_of(k) {
+                let x = em.f.local(v);
+                em.f.get(FRAME);
+                em.f.op(load_op(v, at));
+                em.f.set(x);
+                em.loan_keys.insert(l, x);
+            }
+        }
         for (inst, local, ls) in places {
             let mut loaded = Vec::new();
             let mut ok = true;

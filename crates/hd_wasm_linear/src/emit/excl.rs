@@ -261,10 +261,9 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
 
 impl Em<'_, '_, '_> {
     /// Finds the body's holder bindings and the stores that bind them,
-    /// when the program registers loans at all. A suspending body, whose
-    /// frame keeps no key local, registers no call's result. A binding
-    /// keeps its first holder's key.
-    pub(super) fn find_holders(&mut self, suspending: bool) {
+    /// when the program registers loans at all. A binding keeps its first
+    /// holder's key; a suspending body's frame saves the key's local.
+    pub(super) fn find_holders(&mut self) {
         if self.m.loans.is_empty() {
             return;
         }
@@ -280,7 +279,7 @@ impl Em<'_, '_, '_> {
             } else {
                 let ty = self.sub(self.b.local_ty[l]);
                 let (target, excl, keyed) = match (bind, loan) {
-                    (Bind::Call(_), Some(loan)) if !suspending => {
+                    (Bind::Call(_), Some(loan)) => {
                         let t = self.fold_path(loan.object, &loan.path).ok();
                         (t.map(|x| x.0), loan.excl, true)
                     }

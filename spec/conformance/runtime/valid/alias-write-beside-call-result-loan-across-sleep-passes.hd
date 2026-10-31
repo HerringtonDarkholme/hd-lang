@@ -1,0 +1,34 @@
+# test: a call's result held across a suspension in a suspending body keeps only the place its receiver refers to, until its last use, so writes through an alias beside it or after it pass
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+# expect-stdout: c a 2
+# expect-stdout: d
+use std.time.{Clock, sleep}
+
+struct Addr:
+    city: string
+
+impl Addr:
+    fn place(&self) -> &string:
+        &self.city
+
+struct User:
+    name: string
+    age: i32
+    addr: Addr
+
+struct Team:
+    lead: *mut User
+
+fn moved!(t: &Team, alias: *mut User) -> void $ Console + Clock:
+    c := t.lead.addr.place()
+    sleep!(1ms)
+    alias.age += 1
+    println("${*c} ${alias.name} ${alias.age}")
+    sleep!(1ms)
+    alias.addr.city = "d"
+    println(*t.lead.addr.place())
+
+pub fn main!() -> void $ Console + Clock:
+    t := Team { lead: box(User { name: "a", age: +1, addr: Addr { city: "c" } }) }
+    alias := t.lead
+    moved!(&t, alias)

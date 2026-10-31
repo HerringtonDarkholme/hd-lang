@@ -5604,3 +5604,6 @@ runtime/valid/union-trait-forwarding.hd	runtime	accept	lang/09-traits.md#r-trait
 typing/invalid/union-trait-requires-every-member.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.target.union.conditional
 runtime/valid/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of
 runtime/valid/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct
+runtime/panic/alias-write-under-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/valid/alias-write-beside-call-result-loan-across-sleep-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
+runtime/valid/alias-write-after-abandoned-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan

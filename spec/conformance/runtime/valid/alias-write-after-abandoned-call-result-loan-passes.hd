@@ -1,0 +1,38 @@
+# test: abandoning a task that holds a call's result's run-time loan while it waits ends the loan, so a write through an alias afterwards passes
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan; Spec 11 Abandoning.
+# expect-stdout: won stopped
+# expect-stdout: a 2
+use std.task.{all, race}
+use std.time.{Clock, sleep}
+
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn label(&self) -> &string:
+        &self.name
+
+struct Team:
+    lead: *mut User
+
+fn hold!(t: Team) -> string $ Clock:
+    n := t.lead.label()
+    sleep!(60s)
+    *n
+
+fn ready!() -> string:
+    "won"
+
+fn stop!(job: mut Suspend[string]) -> string:
+    job.abandon()
+    "stopped"
+
+pub fn main!() -> void $ Console + Clock:
+    t := Team { lead: box(User { name: "a", age: +1 }) }
+    alias := t.lead
+    let mut job: mut Suspend[string] = hold(t)
+    let (w, s) = all!(race(job, ready()), stop(job))
+    println("${w} ${s}")
+    alias.age += 1
+    println("${alias.name} ${alias.age}")
