@@ -368,7 +368,7 @@ workers.call!(fn() -> void $ Log: log_size(doc))?           # valid: the worker 
 - **New:** the table as a rule. The mode follows from the value's type and
   the domain kind. A copyable value copies, a non-copyable one transfers, a
   `&` or `&mut` lends, and a handle type crosses as a handle. So the
-  checker infers every mode, and a written mode is a claim it verifies.
+  checker infers every mode, and code never writes one (question 7).
 
 The four modes add these checks.
 
@@ -409,17 +409,16 @@ as a move.
   ([`ref.move.use`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.use)); assigning the returned value makes the binding
   usable again ([`ref.move.reassign`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.reassign)).
 - **New:** a crossing's capture is a move site, one more row of the
-  [`ref.move.sites`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.sites) table. Transfer of a copyable type is an error; the
-  value crosses as a copy. In separate memory the value must also hold no
+  [`ref.move.sites`](https://github.com/HerringtonDarkholme/hd-lang/blob/78c1ee262/spec/lang/13-values-and-references.md#r-ref.move.sites) table. A copyable type never transfers; it
+  copies. In separate memory the value must also hold no
   reference into the source's memory. Every non-copyable type today holds
   a `&mut`, so transfer into a worker, a service or a device has no valid
   case before `~Copyable`
-  ([#535](https://github.com/HerringtonDarkholme/hd-lang/issues/535)).
+  ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
   Until then transfer is the scoped thread's ordinary move.
 
 ```text
 # hypothetical syntax
-workers.call!(fn() -> (Image, Image): thumbnail(transfer(photo), 256))?  # error: Image is copyable, so photo is copied
 scope(fn(s: &mut Scope) -> void:
     s.spawn(fn() -> void: lowercase_all(left))  # left, a SpanMut, moves into the thread
     lowercase_all(left)                          # error: use-of-moved-value
@@ -605,7 +604,7 @@ The gaps:
   another build, needs it
   ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md#r-fn.capture.serializable-deferred)).
 - **No owned non-copyable type.** Transfer into separate memory waits for
-  `~Copyable` ([#535](https://github.com/HerringtonDarkholme/hd-lang/issues/535)).
+  `~Copyable` ([#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141)).
 - **No device-code subset.** A kernel's body is checked only by its row.
 - **The outcome type is not a gap.** Unknown is an error case (section 4).
 
@@ -614,13 +613,13 @@ The gaps:
 Every spelling here is hypothetical and needs approval. Two alternatives:
 
 ```text
-small := $.use(Workers).call!(thumbnail, transfer(photo), 256)?                   # hypothetical syntax
-small := at workers capture { photo = transfer(photo) } do: thumbnail(photo, 256)  # hypothetical syntax
+small := $.use(Workers).call!(thumbnail, photo, 256)?            # hypothetical syntax
+small := at workers capture { photo } do: thumbnail(photo, 256)  # hypothetical syntax
 ```
 
-The first is a call on a domain value, with a mode written on each
-argument; copy is the default and stays unwritten. The second is the
-owner's note's block, which names every capture and its mode.
+The first is a call on a domain value. The second is the owner's note's
+block, which names every capture. Neither writes a mode: each value's type
+decides it (question 7).
 
 ## 7. Questions For The Owner
 
@@ -650,6 +649,12 @@ owner's note's block, which names every capture and its mode.
    its type, and the checker requires every handle the code uses to share
    it, as Chapel's `on x do`. Preferred affinity is a run-time hint to a
    domain pool (`Workers`), outside the checker.
+
+7. **Is a crossing mode ever written?** Answered (owner, 2026-10-31): no.
+   The type decides: a copyable value copies, a non-copyable one
+   transfers, a reference lends, and a handle stays home. There is no
+   `transfer(x)`; to move a value instead of copying it, make its type
+   `~Copyable`. Swift and Rust have no transfer keyword either.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
