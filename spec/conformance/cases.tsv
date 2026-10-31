@@ -5642,3 +5642,8 @@ typing/invalid/mut-tuple-use-after-move.hd	type	reject:use-of-moved-value	lang/1
 typing/invalid/mut-optional-use-after-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.holds
 typing/invalid/mut-holder-use-after-typed-let.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.reborrow.typed
 typing/valid/mut-holder-moves-once.hd	type	accept	lang/13-values-and-references.md#r-ref.move.holds
+typing/invalid/mut-holder-use-after-field-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.use.partial
+typing/invalid/mut-holder-moved-field-use.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.use.partial
+typing/invalid/mut-outer-use-after-nested-field-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.field
+typing/valid/mut-holder-field-moves-out.hd	type	accept	lang/13-values-and-references.md#r-ref.move.use.partial
+typing/valid/mut-holder-field-reborrows.hd	type	accept	lang/13-values-and-references.md#r-ref.move.field

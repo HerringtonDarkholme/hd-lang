@@ -1,0 +1,18 @@
+# test: a struct's `&mut` field read where a `&mut` type is expected reborrows the field, so the struct stays usable
+# Spec 13 Moves: ref.move.field, ref.move.reborrow.typed.
+struct Holder['a]:
+    target: &'a mut i32
+
+fn take(h: Holder) -> void:
+    pass
+
+fn bump(r: &mut i32) -> void:
+    *r += 1
+
+fn demo(x: &mut i32) -> void:
+    h := Holder { target: x }
+    let t: &mut i32 = h.target
+    *t = 2
+    bump(h.target)
+    *h.target += 1
+    take(h)

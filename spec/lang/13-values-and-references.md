@@ -1790,13 +1790,15 @@ fn demo(c: &mut Counter) -> void:
 1. r[ref.move.mut] A `&mut T` value is moved, not copied. A `*mut T` or `&T` value is copied.
 2. r[ref.move.holds] A value whose type holds a `&mut` is moved, not copied. A type holds a `&mut` when it is `&mut T`, a struct with a field whose type holds one, an enum with such a payload, or a tuple, optional, or union with such a member. `SpanMut[T, 'a]` holds one. A generic `T` argument of such a type moves too.
 3. r[ref.move.sites] A read of a whole binding that is not copied moves its value at each site in the table below. No `&mut` type is expected at these sites.
-4. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
-5. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
-6. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`. Only a `&mut` value reborrows: a value of another type that is not copied moves at a `let` that writes its type, at an assignment, and into a field.
-7. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
-8. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
-9. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it.
-10. r[ref.move.reassign] Assigning the binding a new value makes it usable again.
+4. r[ref.move.field] A read of a field of a binding, where the field's type is not copied, moves the field out at each site in the table below. The binding is then partly moved. A site that expects a `&mut` type reborrows the field instead, as for a binding. A field of a field moves the same way.
+5. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
+6. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
+7. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`. Only a `&mut` value reborrows: a value of another type that is not copied moves at a `let` that writes its type, at an assignment, and into a field.
+8. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
+9. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
+10. r[ref.move.use.partial] A use of a partly moved binding is an error when it reaches a moved field: a use of the whole binding, of the moved field, or of a place inside that field. Its other fields stay usable. Error: `use-of-moved-value`.
+11. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it. A closure captures the whole binding.
+12. r[ref.move.reassign] Assigning the binding a new value makes it usable again. Assigning a moved field a new value makes that field usable again, and the binding whole when no other field is moved.
 
 | Site | Example |
 | --- | --- |
@@ -1831,6 +1833,27 @@ fn after_branch(c: &mut Counter, early: bool) -> void:
 fn in_loop(c: &mut Counter) -> void:
     for i in 0..3:
         keep(c)  # error: use-of-moved-value
+```
+
+```text
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+fn take(h: Holder) -> void:
+    pass
+
+fn moved(x: &mut i32) -> void:
+    h := Holder { target: x, count: 1 }
+    t := h.target  # moves the field out
+    n := h.count   # another field stays usable
+    take(h)        # error: use-of-moved-value
+
+fn demo(x: &mut i32, y: &mut i32) -> void:
+    let mut h = Holder { target: x, count: 1 }
+    t := h.target
+    h.target = y   # h is whole again
+    take(h)
 ```
 
 > **Why.** This is Rust's rule (E0382) for `&mut`. Two copies of one

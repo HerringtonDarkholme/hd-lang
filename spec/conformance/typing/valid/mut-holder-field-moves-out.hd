@@ -1,0 +1,17 @@
+# test: moving a struct's `&mut` field out leaves its other fields usable, and assigning the field again makes the struct whole
+# Spec 13 Moves: ref.move.field, ref.move.use.partial, ref.move.reassign.
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+fn take(h: Holder) -> void:
+    pass
+
+fn demo(x: &mut i32, y: &mut i32) -> i32:
+    let mut h = Holder { target: x, count: 1 }
+    t := h.target
+    *t = 2
+    total := h.count + 1
+    h.target = y
+    take(h)
+    total

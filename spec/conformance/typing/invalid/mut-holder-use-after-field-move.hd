@@ -1,0 +1,15 @@
+# test: reading a struct's `&mut` field into a new binding moves the field out, so its other fields stay usable and a later move of the struct is an error
+# Spec 13 Moves: ref.move.field, ref.move.use.partial.
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+fn take(h: Holder) -> void:
+    pass
+
+fn moved(x: &mut i32) -> void:
+    h := Holder { target: x, count: 1 }
+    t := h.target
+    n := h.count
+    take(h) # diagnostic: use-of-moved-value
+    *t = 2

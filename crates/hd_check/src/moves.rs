@@ -2,7 +2,9 @@
 //! `&mut T` value is not copied, nor is a value of a type that holds one
 //! ([`copies`]). A read of a whole such binding moves it where no `&mut`
 //! type is expected: a `:=` or untyped `let`, a generic argument, a tuple
-//! or optional part, a return. A site that expects a declared `&mut`
+//! or optional part, a return. A read of a field that is not copied
+//! moves the field out the same way, and the binding is then partly
+//! moved: its other fields stay usable. A site that expects a declared `&mut`
 //! reborrows a `&mut` instead: a parameter, a typed `let`, an assignment,
 //! a field declared `&mut`. A use of the binding after a move on some path
 //! is `use-of-moved-value`, until an assignment gives it a value again. The
@@ -115,23 +117,51 @@ struct Uses<'x> {
     hidden_reads: &'x HashMap<LocalId, Vec<u32>>,
 }
 
-/// The transfer of the move walk: one bit per `&mut` local, set while the
-/// local may have moved.
+/// The binding a place reaches and the field path to it: a read of
+/// `h.a.b` is a read of `h` and two field reads, each rooted at the last.
+struct Access {
+    local: LocalId,
+    path: Vec<u32>,
+    /// Whether the place is the field itself, not a place behind a
+    /// dereference or an element of it.
+    exact: bool,
+}
+
+/// The transfer of the move walk: one bit per binding or field path that
+/// some read moves (`ref.move.field`), set while it may have moved.
 struct Walk<'x> {
-    /// The bit of each local, or `NONE`.
-    bit: &'x [u32],
-    /// The reads that move their local.
-    moving: &'x [bool],
-    /// The first use after a move of each local, by its bit.
-    found: &'x mut HashMap<u32, u32>,
+    acc: &'x [Option<Access>],
+    /// The reads that only lead to a field read of the same binding.
+    link: &'x [bool],
+    /// The bit each moving read sets, or `NONE`.
+    move_bit: &'x [u32],
+    /// The binding and path of each bit.
+    bits: &'x [(LocalId, Vec<u32>)],
+    of_local: &'x HashMap<LocalId, Vec<u32>>,
+    /// The first use after a move of each binding, and whether only a
+    /// field of it moved.
+    found: &'x mut HashMap<LocalId, (u32, bool)>,
 }
 
 impl Walk<'_> {
-    fn use_of(&mut self, bit: u32, x: u32, s: &BitArena, st: usize) {
-        // A loop's later round may reach an earlier use.
-        if s.get(st, bit) {
-            let at = self.found.entry(bit).or_insert(x);
-            *at = (*at).min(x);
+    /// A use of `path` of `l` conflicts with a moved path that contains
+    /// it or lies inside it; with `strict`, only with one that contains
+    /// it, as an assignment to the path needs.
+    fn use_of(&mut self, l: LocalId, path: &[u32], strict: bool, x: u32, s: &BitArena, st: usize) {
+        for &k in self.of_local.get(&l).into_iter().flatten() {
+            let p = &self.bits[k as usize].1;
+            let hit = if strict {
+                p.len() < path.len() && path.starts_with(p)
+            } else {
+                path.starts_with(p) || p.starts_with(path)
+            };
+            // A loop's later round may reach an earlier use.
+            if hit && s.get(st, k) {
+                let at = self.found.entry(l).or_insert((x, !p.is_empty()));
+                if x < at.0 {
+                    *at = (x, !p.is_empty());
+                }
+            }
         }
     }
 }
@@ -143,32 +173,34 @@ impl Forward for Walk<'_> {
         let i = x as usize;
         match b.tags[i] {
             tag @ (Tag::Read | Tag::Ref | Tag::Store) => {
-                let Some((l, whole)) = local_of(b, b.data[i][0]) else {
+                let Some(a) = &self.acc[i] else {
                     return;
                 };
-                let bit = self.bit[l.idx()];
-                if bit == NONE {
+                if self.link[i] {
                     return;
                 }
-                // `ref.move.reassign`: storing a whole value makes the
-                // binding usable again.
-                if tag == Tag::Store && whole {
-                    s.set(st, bit, false);
+                // `ref.move.reassign`: storing a whole value at a moved
+                // path makes it usable again.
+                if tag == Tag::Store && a.exact {
+                    self.use_of(a.local, &a.path, true, x, s, st);
+                    for &k in self.of_local.get(&a.local).into_iter().flatten() {
+                        if self.bits[k as usize].1.starts_with(&a.path) {
+                            s.set(st, k, false);
+                        }
+                    }
                     return;
                 }
-                self.use_of(bit, x, s, st);
-                if tag == Tag::Read && whole && self.moving[i] {
-                    s.set(st, bit, true);
+                self.use_of(a.local, &a.path, false, x, s, st);
+                if self.move_bit[i] != NONE {
+                    s.set(st, self.move_bit[i], true);
                 }
             }
             // A closure's captures use the locals it captures.
             Tag::Closure if !b.is_instantiation(i) => {
                 if let [start, len, ..] = *b.record(b.data[i][1]) {
                     for c in start..start.saturating_add(len) {
-                        if let Some(&l) = b.cap_local.get(c as usize)
-                            && self.bit[l.idx()] != NONE
-                        {
-                            self.use_of(self.bit[l.idx()], x, s, st);
+                        if let Some(&l) = b.cap_local.get(c as usize) {
+                            self.use_of(l, &[], false, x, s, st);
                         }
                     }
                 }
@@ -178,6 +210,18 @@ impl Forward for Walk<'_> {
     }
 
     fn enter(&mut self, _: &Body, _: u32, _: &mut BitArena, _: usize) {}
+}
+
+/// The leading field projections of `proj`, and whether they are all.
+fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
+    let mut path = Vec::new();
+    for p in proj {
+        match *p {
+            Proj::Field(k) => path.push(k),
+            _ => return (path, false),
+        }
+    }
+    (path, true)
 }
 
 impl Ck<'_, '_> {
@@ -199,18 +243,8 @@ impl Ck<'_, '_> {
         let held: Vec<bool> = (b.local_ty.iter())
             .map(|&t| !copies(pool, self.cx.lookup, t))
             .collect();
-        let mut bits = 0;
-        let bit: Vec<u32> = (held.iter().zip(&hidden))
-            .map(|(&held, &hidden)| {
-                if held && !hidden {
-                    bits += 1;
-                    bits - 1
-                } else {
-                    NONE
-                }
-            })
-            .collect();
-        if bits == 0 {
+        let tracked = |l: LocalId| held[l.idx()] && !hidden[l.idx()];
+        if !(0..b.local_ty.len()).any(|l| held[l] && !hidden[l]) {
             return;
         }
         let n = b.len();
@@ -242,46 +276,104 @@ impl Ck<'_, '_> {
             hidden: &hidden,
             hidden_reads: &hidden_reads,
         };
-        let moving: Vec<bool> = (0..n)
+        // The binding and field path each place reaches.
+        let mut acc: Vec<Option<Access>> = Vec::with_capacity(n);
+        for i in 0..n {
+            let a = (matches!(b.tags[i], Tag::Read | Tag::Ref | Tag::Store))
+                .then(|| b.decode_place(b.data[i][0]))
+                .flatten()
+                .and_then(|p| {
+                    let (more, exact) = field_prefix(&p.proj);
+                    let (local, mut path) = match p.root {
+                        PlaceRoot::Local(l) if tracked(l) => (l, Vec::new()),
+                        PlaceRoot::Value(r) => match acc.get(r.0 as usize) {
+                            Some(Some(a)) if a.exact && b.tags[r.0 as usize] == Tag::Read => {
+                                (a.local, a.path.clone())
+                            }
+                            _ => return None,
+                        },
+                        _ => return None,
+                    };
+                    path.extend(more);
+                    Some(Access { local, path, exact })
+                });
+            acc.push(a);
+        }
+        // A read whose every use is a place rooted at it is not a use of
+        // its own; the field reads at the ends are.
+        let link: Vec<bool> = (0..n)
             .map(|i| {
                 b.tags[i] == Tag::Read
-                    && local_of(b, b.data[i][0])
-                        .is_some_and(|(l, whole)| whole && bit[l.idx()] != NONE)
-                    && self.moves(&cx, w(i), 0)
+                    && acc[i].is_some()
+                    && !users[i].is_empty()
+                    && users[i].iter().all(|&(u, _)| {
+                        acc[u as usize].is_some()
+                            && b.decode_place(b.data[u as usize][0])
+                                .is_some_and(|p| p.root == PlaceRoot::Value(Ref(w(i))))
+                    })
             })
             .collect();
-        if !moving.contains(&true) {
+        // A read of the binding, or of a field of it that is not copied,
+        // moves it or the field where it moves (`ref.move.field`).
+        let mut bits: Vec<(LocalId, Vec<u32>)> = Vec::new();
+        let mut of_local: HashMap<LocalId, Vec<u32>> = HashMap::default();
+        let mut move_bit = vec![NONE; n];
+        for i in 0..n {
+            let Some(a) = &acc[i] else { continue };
+            let field_copies = !a.path.is_empty() && copies(pool, self.cx.lookup, b.ty[i]);
+            if b.tags[i] != Tag::Read
+                || link[i]
+                || !a.exact
+                || field_copies
+                || !self.moves(&cx, w(i), 0)
+            {
+                continue;
+            }
+            let key = (a.local, a.path.clone());
+            let k = bits.iter().position(|k| *k == key).unwrap_or_else(|| {
+                bits.push(key);
+                of_local.entry(a.local).or_default().push(w(bits.len() - 1));
+                bits.len() - 1
+            });
+            move_bit[i] = w(k);
+        }
+        if bits.is_empty() {
             return;
         }
         let mut found = HashMap::default();
         let mut flow = Flow::default();
-        flow.arena.words = (bits as usize).div_ceil(64);
+        flow.arena.words = bits.len().div_ceil(64);
         // The body's root is not yet in `sub_root`, which holds the
         // closures' roots.
         let roots = std::iter::once(root.0).chain(b.sub_root.iter().copied());
         for root in roots.filter(|&r| (r as usize) < n && b.tags[r as usize] == Tag::Block) {
             let st = flow.arena.alloc(None);
             let mut walk = Walk {
-                bit: &bit,
-                moving: &moving,
+                acc: &acc,
+                link: &link,
+                move_bit: &move_bit,
+                bits: &bits,
+                of_local: &of_local,
                 found: &mut found,
             };
             forward(b, cx.topo, &mut flow, &mut walk, root, st);
             flow.arena.free(st);
         }
-        let mut found: Vec<(u32, u32)> = found.into_iter().collect();
-        found.sort_stable_by_key(|&(_, x)| x);
-        for (bit_of, x) in found {
+        let mut found: Vec<(LocalId, (u32, bool))> = found.into_iter().collect();
+        found.sort_stable_by_key(|&(_, (x, _))| x);
+        for (l, (x, partial)) in found {
             let b = self.b.body();
             let at = b.syn[x as usize];
-            let Some(l) = bit.iter().position(|&k| k == bit_of) else {
-                continue;
-            };
             if at == hd_base::NodeIdx::NONE {
                 continue;
             }
+            let l = l.idx();
             let name = self.cx.names.text(b.local_name[l]).to_string();
-            let msg = if is_mut_ref(self.pool(), b.local_ty[l]) {
+            let msg = if partial {
+                format!(
+                    "a field of `{name}` was moved out before this use; assign the field again to use `{name}` whole"
+                )
+            } else if is_mut_ref(self.pool(), b.local_ty[l]) {
                 format!(
                     "`{name}` was moved before this use; pass `&mut *{name}` where it moves to keep using it"
                 )

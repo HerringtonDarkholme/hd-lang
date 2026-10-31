@@ -1,0 +1,17 @@
+# test: moving a `&mut` field out of a field leaves the outer struct partly moved
+# Spec 13 Moves: ref.move.field, ref.move.use.partial.
+struct Holder['a]:
+    target: &'a mut i32
+
+struct Outer['a]:
+    holder: Holder['a]
+    count: i32
+
+fn take(o: Outer) -> void:
+    pass
+
+fn demo(x: &mut i32) -> void:
+    o := Outer { holder: Holder { target: x }, count: 1 }
+    t := o.holder.target
+    n := o.count
+    take(o) # diagnostic: use-of-moved-value

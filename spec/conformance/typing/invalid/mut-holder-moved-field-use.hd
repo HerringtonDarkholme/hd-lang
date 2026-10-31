@@ -1,0 +1,10 @@
+# test: a moved `&mut` field cannot be read again until it is assigned
+# Spec 13 Moves: ref.move.field, ref.move.use.partial.
+struct Holder['a]:
+    target: &'a mut i32
+
+fn demo(x: &mut i32) -> void:
+    h := Holder { target: x }
+    t := h.target
+    u := h.target # diagnostic: use-of-moved-value
+    *t = 2
