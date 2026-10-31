@@ -10,7 +10,7 @@ use hd_resolve::FnSig;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, TirCheckpoint, TirSink};
 use hd_types::solver::{
-    Answer, Candidate, Goal, ImplOrigin, Impls, TraitRef, plan_goals, tuple_goals,
+    Answer, Candidate, Goal, ImplOrigin, Impls, TraitRef, plan_goals, tuple_goals, union_goals,
 };
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
@@ -513,12 +513,18 @@ impl Ck<'_, '_> {
         // A tuple template's member steps number on after its bound
         // plan's, at the receiver's tuple type (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
         let mut goals = plan_goals(pool, table, row, &impl_args);
-        if table.origin[row] == ImplOrigin::TupleTemplate
-            && let Some(steps) = Impls::Owned(self.cx.impls).tuple_plan(impl_def)
+        if matches!(
+            table.origin[row],
+            ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
+        ) && let Some(steps) = Impls::Owned(self.cx.impls).tuple_plan(impl_def)
         {
             let first = u16::try_from(table.plan[row].len()).unwrap_or(u16::MAX);
-            let tuple = self.strip_mut(self_ty);
-            goals.extend(tuple_goals(pool, impl_def, &steps, tuple, first));
+            let target = self.strip_mut(self_ty);
+            goals.extend(match table.origin[row] {
+                ImplOrigin::TupleTemplate => tuple_goals(pool, impl_def, &steps, target, first),
+                ImplOrigin::UnionTemplate => union_goals(pool, impl_def, &steps, target, first),
+                _ => Vec::new(),
+            });
         }
         let residual: Vec<TraitRef> = goals
             .into_iter()

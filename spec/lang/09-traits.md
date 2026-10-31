@@ -933,6 +933,16 @@ fn index(counts: Map[(i32, string), i32]) -> i32:
 > So a tuple with a rest element is a hashable map key when its elements
 > and its rest's items are hashable.
 
+#### Union Trait Templates
+
+1. r[trait.target.union.conditional] A union implements `Eq`, `Debug`, `Hash`, `Serialize`, or `Deserialize` exactly when every member implements that trait.
+2. r[trait.target.union.enum-shape] Those implementations act as for an enum with positional single-payload cases `_0`, `_1`, and so on, in member order.
+3. r[trait.target.union.debug] Union `Debug` writes the active case as `Union._k(payload)`.
+4. r[trait.target.union.display] A union implements `Display` exactly when every member does, and its text is the active payload's text with no union wrapper.
+5. r[trait.target.union.error] A union implements `Error` exactly when every member does.
+6. r[trait.target.union.error-source] Union `Error.source` returns the active payload's source directly, without adding the union or its payload to the source chain.
+7. r[trait.target.union.no-other] A union gets no conditional `PartialOrd`, `Ord`, `Default`, or other trait implementation unless another rule names it.
+
 ### Implementation Ownership
 
 An `impl Trait[Args] for Target` may be declared only in a package that owns
@@ -2085,6 +2095,7 @@ compiler and the standard library supply.
 | r[trait.sealed.anyref-members] AnyRef | `AnyRef` | the reference types, trait value references included, and the types whose values are shared objects, which lists and maps are not ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
 | r[trait.sealed.structure] Structure | `Structure` | each derivation's target, while its template is instantiated ([The Structure Trait](14-annotations.md#the-structure-trait)) |
+| r[trait.sealed.union-type] UnionType | `UnionType` | every union type ([Union Trait Templates](#union-trait-templates)) |
 | r[trait.sealed.num] Num | `Num` | every integer and floating-point type ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.integer] Integer | `Integer` | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, and `usize` ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.float] Float | `Float` | `f32` and `f64` ([Numeric Traits](#numeric-traits)) |
@@ -2379,6 +2390,7 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 | r[trait.inspectable.primitive] Primitive | the primitive types and `string` |
 | r[trait.inspectable.declared] Declared | a struct, enum, or newtype declared at module level, public or private, applied to inspectable type arguments |
 | r[trait.inspectable.collections] Collection | `List[T]` and `Map[K, V]` with inspectable type arguments, and tuples of inspectable elements |
+| r[trait.inspectable.union] Union | a union whose members are inspectable |
 | r[trait.inspectable.reference-type] Reference | a reference whose referent is inspectable or is a trait value type |
 | r[trait.inspectable.parameter] Type parameter | a type parameter bounded by `Inspectable` or by a trait that has it as a supertrait |
 

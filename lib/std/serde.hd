@@ -12,6 +12,7 @@ use std.hash.Hash
 use std.text.Parse
 use std.structure.{
     Structure,
+    UnionType,
     Walker,
     Describer,
     Source,
@@ -398,6 +399,19 @@ impl[T] Serialize for T by Structure:
             .Data => out.end_data()
             _ => out.end_variant()
 
+# Union `Serialize`: the ordinary enum derivation over positional cases.
+impl[T < UnionType] Serialize for T by Structure:
+    fn serialize[W < Serializer](self, out: *mut W) -> Result[void, W::Error]:
+        let mut walker = SerializeWalker::[T, W] {
+            out: out,
+            facts: T::facts(),
+            form: VariantForm.Record,
+        }
+        Structure::walk(self, &mut walker)?
+        match walker.form:
+            .Data => out.end_data()
+            _ => out.end_variant()
+
 enum VariantForm:
     Data
     Record
@@ -533,6 +547,22 @@ impl[T] Deserialize for T by Structure:
                             _ => pass
                         attempt += 1
                 _ => pass
+        let mut source = DeserializeSource::[T, R] {
+            input: input,
+            facts: facts,
+            at: 0,
+            form: VariantForm.Record,
+        }
+        built := T::build(&mut source)?
+        match source.form:
+            .Data => input.end_data()?
+            _ => input.end_variant()?
+        .Ok(built)
+
+# Union `Deserialize`: the ordinary enum derivation over positional cases.
+impl[T < UnionType] Deserialize for T by Structure:
+    fn deserialize[R < Deserializer](input: *mut R) -> Result[T, R::Error]:
+        facts := T::facts()
         let mut source = DeserializeSource::[T, R] {
             input: input,
             facts: facts,

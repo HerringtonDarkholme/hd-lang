@@ -6,12 +6,33 @@
 # (module.prelude.error-inspectable).
 use std.inspect.Inspectable
 use std.format.DebugWriter
+use std.structure.{Structure, UnionType, Walker, Variant, Field}
 
 ## The standard error trait: a displayable, inspectable failure that may name its source.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable:
     fn source(self) -> (*dyn Error)?:
         .None
+
+# A union forwards its source transparently to the active payload's source.
+struct UnionSource[S]:
+    pub source: (*dyn Error)?
+
+impl[S] Walker[S] for UnionSource[S]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Error](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.source = value.source()
+        .Ok(())
+
+impl[T < UnionType & Display & Inspectable] Error for T by Structure:
+    fn source(self) -> (*dyn Error)?:
+        let mut w = UnionSource::[T] { source: .None }
+        _ := Structure::walk(self, &mut w)
+        w.source
 
 # The source-chain helpers are inherent methods of `dyn Error`
 # (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value

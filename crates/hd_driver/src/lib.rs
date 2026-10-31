@@ -5519,7 +5519,8 @@ impl Run<'_> {
                         let (kind, _) = items.impl_kind(i)?;
                         let template = match kind {
                             hd_resolve::ImplKind::Template => true,
-                            hd_resolve::ImplKind::TupleTemplate => false,
+                            hd_resolve::ImplKind::TupleTemplate
+                            | hd_resolve::ImplKind::UnionTemplate => false,
                             _ => return None,
                         };
                         let p = self.item_module_text(*items.defs().get(i)?).into_owned();
@@ -6447,7 +6448,9 @@ impl Run<'_> {
                 if matches!(
                     &it.data,
                     ItemData::Impl {
-                        kind: hd_resolve::ImplKind::Template | hd_resolve::ImplKind::TupleTemplate,
+                        kind: hd_resolve::ImplKind::Template
+                            | hd_resolve::ImplKind::TupleTemplate
+                            | hd_resolve::ImplKind::UnionTemplate,
                         ..
                     }
                 ) && !hd_resolve::lower::misplaced_template(&names, cx.session, it)

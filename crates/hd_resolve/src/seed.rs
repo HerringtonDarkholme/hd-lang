@@ -412,6 +412,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     ..TraitData::default()
                 }),
             );
+            item("UnionType", vec![], ItemData::Trait(TraitData::default()));
             out.extend(members);
         }
         "std.testing" => {

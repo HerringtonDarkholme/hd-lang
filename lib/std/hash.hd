@@ -7,7 +7,7 @@
 # 64-bit FNV-1a, and `hash_of` hashes a value into a new one
 # (spec/std/hash.md#default-hasher).
 use std.function.Tuple
-use std.structure.{Structure, Walker, Variant, Field}
+use std.structure.{Structure, UnionType, Walker, Variant, Field}
 
 ## A sink that hashes the bytes written to it; its methods change it, so a hasher is passed as `&mut dyn Hasher`.
 ## See [trait.hash.ref-receiver](../../spec/lang/09-traits.md#r-trait.hash.ref-receiver).
@@ -291,6 +291,12 @@ pub fn hash_of[T < Hash](value: T) -> u64:
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.
 impl[T] Hash for T by Structure:
+    fn hash(self, state: *mut dyn Hasher) -> void:
+        let mut w = HashWalker::[T] { state: state }
+        _ := Structure::walk(self, &mut w)
+
+# Union `Hash`: the ordinary enum derivation, including the active case index.
+impl[T < UnionType] Hash for T by Structure:
     fn hash(self, state: *mut dyn Hasher) -> void:
         let mut w = HashWalker::[T] { state: state }
         _ := Structure::walk(self, &mut w)

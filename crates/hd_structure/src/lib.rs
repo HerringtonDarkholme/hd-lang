@@ -235,6 +235,50 @@ pub fn tuple_target(pool: &InternPool, ty: Ty) -> Option<Target> {
     })
 }
 
+/// The compiler-supplied `Structure` target of a union: one positional,
+/// single-payload enum variant `_k` per member, in member order.
+#[must_use]
+pub fn union_target(pool: &InternPool, ty: Ty) -> Option<Target> {
+    let TyData::Union(members) = pool.get(ty) else {
+        return None;
+    };
+    let vars = pool
+        .list_items(members)
+        .iter()
+        .enumerate()
+        .map(|(k, &member)| Var {
+            name: format!("_{k}"),
+            index: u32::try_from(k).unwrap_or(u32::MAX),
+            def: DefId::NONE,
+            shape: Shape::Enum,
+            members: vec![Mem {
+                name: "0".to_owned(),
+                declared: "0".to_owned(),
+                position: 0,
+                field: 0,
+                ty: member,
+                embedded: false,
+                positional: true,
+                has_default: false,
+                omitted: false,
+                type_default: None,
+                rest: false,
+                self_ref: 0,
+                facts: None,
+            }],
+            self_ref: 0,
+            facts: None,
+            shared: Vec::new(),
+        })
+        .collect();
+    Some(Target {
+        ty,
+        name: "Union".to_owned(),
+        vars,
+        facts: None,
+    })
+}
+
 /// What a derivation adds to its module: hidden methods of its
 /// `Structure`'s owner and their bodies.
 #[derive(Default)]
@@ -1150,6 +1194,10 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     fn doc_value(&mut self, v: &Var, member: Option<&Mem>, type_doc: bool) -> StageResult<Ref> {
         let names = self.names;
+        if v.def == DefId::NONE {
+            let ty = self.field_ty(self.std("Member"), "doc", &[])?;
+            return Ok(self.unit_variant(0, ty));
+        }
         let mut path = Vec::new();
         let owner = if v.shape == Shape::Enum {
             let p = hd_base::PathId::from_raw(v.def.raw());
@@ -1876,5 +1924,27 @@ mod tests {
         );
         assert!(v.members.iter().all(|m| !m.has_default && m.self_ref == 0));
         assert!(tuple_target(&pool, Ty::I32).is_none());
+    }
+
+    #[test]
+    fn a_union_target_is_an_enum_with_one_positional_payload_per_case() {
+        let pool = InternPool::new();
+        let t = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, Ty::STRING])));
+        let target = union_target(&pool, t).expect("a union");
+        assert_eq!(target.name, "Union");
+        let shown: Vec<_> = target
+            .vars
+            .iter()
+            .map(|v| (v.name.as_str(), v.index, v.shape, v.members[0].ty))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                ("_0", 0, Shape::Enum, Ty::I32),
+                ("_1", 1, Shape::Enum, Ty::STRING)
+            ]
+        );
+        assert!(target.vars.iter().all(|v| v.members[0].positional));
+        assert!(union_target(&pool, Ty::I32).is_none());
     }
 }

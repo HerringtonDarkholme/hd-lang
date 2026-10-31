@@ -4,7 +4,7 @@
 use std.function.Tuple
 use std.hash.Hasher
 use std.num.{Num, Integer}
-use std.structure.{Structure, Walker, Variant, Field}
+use std.structure.{Structure, UnionType, Walker, Variant, Field}
 
 ## How two values order: `Less`, `Equal`, or `Greater`.
 ## See [trait.cmp.ordering](../../spec/lang/09-traits.md#r-trait.cmp.ordering).
@@ -306,6 +306,14 @@ impl[T < Ord] Ord for T?:
 # equal when they hold the same variant and every member of `self` equals
 # the same member of `other`. The walk stops at the first difference.
 impl[T] Eq for T by Structure:
+    fn eq(self, other: T) -> bool:
+        let mut w = EqualWalker::[T] { other: other }
+        match Structure::walk(self, &mut w):
+            .Ok(_) => true
+            .Err(_) => false
+
+# Union `Eq`: the ordinary enum derivation over the active positional case.
+impl[T < UnionType] Eq for T by Structure:
     fn eq(self, other: T) -> bool:
         let mut w = EqualWalker::[T] { other: other }
         match Structure::walk(self, &mut w):

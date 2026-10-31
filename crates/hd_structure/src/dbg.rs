@@ -19,6 +19,9 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
     if let Some(target) = super::tuple_target(cx.names.pool, ty) {
         return Some(target);
     }
+    if let Some(target) = super::union_target(cx.names.pool, ty) {
+        return Some(target);
+    }
     let names = cx.names;
     let pool = names.pool;
     let TyData::Adt { def, args } = pool.get(ty) else {

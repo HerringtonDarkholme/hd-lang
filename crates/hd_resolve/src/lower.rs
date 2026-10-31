@@ -4859,8 +4859,13 @@ impl Lower<'_, '_, '_> {
             && generics
                 .first()
                 .is_some_and(|g| g.bound.is_some_and(|b| b == self.names.known.tuple));
+        let union_bound = bare_param
+            && generics
+                .first()
+                .is_some_and(|g| g.bound.is_some_and(|b| b == self.names.known.union_type));
         let kind = match by.as_deref() {
             Some("Structure") if tuple_bound => ImplKind::TupleTemplate,
+            Some("Structure") if union_bound => ImplKind::UnionTemplate,
             Some("Structure") if bare_param => ImplKind::Template,
             Some("Structure") => ImplKind::Derivation,
             Some(_) => ImplKind::Delegated,
@@ -6310,7 +6315,11 @@ fn same_module(names: &Names<'_>, session: &[PathId], a: DefId, b: DefId) -> boo
 pub fn misplaced_template(names: &Names<'_>, session: &[PathId], it: &Item) -> bool {
     matches!(
         &it.data,
-        ItemData::Impl { trait_, kind: ImplKind::Template | ImplKind::TupleTemplate, .. }
+        ItemData::Impl {
+            trait_,
+            kind: ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate,
+            ..
+        }
             if *trait_ != DefId::NONE && !same_module(names, session, it.def, *trait_)
     )
 }
@@ -6865,7 +6874,7 @@ fn placement(
     diags: &mut DiagBuf,
 ) {
     // The traits that already have their one template of each kind.
-    let mut templated: HashSet<(DefId, bool)> = HashSet::default();
+    let mut templated: HashSet<(DefId, ImplKind)> = HashSet::default();
     // The types that already have their one derivation block with no trait.
     for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
         let Some(it) = index.get(items, h.def) else {
@@ -6898,17 +6907,18 @@ fn placement(
         if let Some(msg) = msg {
             diags.error(Code::MisplacedDerivation, src.span(h.node), msg);
         }
-        // A trait has at most one template and one tuple template, so a
-        // second is an error (`annot.template.unique`,
-        // `annot.template.tuple.rules`); a misplaced one counts for nothing.
-        if matches!(kind, ImplKind::Template | ImplKind::TupleTemplate)
-            && msg.is_none()
-            && !templated.insert((*trait_, *kind == ImplKind::TupleTemplate))
+        // A trait has at most one template of each kind, so a second is an
+        // error; a misplaced one counts for nothing.
+        if matches!(
+            kind,
+            ImplKind::Template | ImplKind::TupleTemplate | ImplKind::UnionTemplate
+        ) && msg.is_none()
+            && !templated.insert((*trait_, *kind))
         {
-            let msg = if *kind == ImplKind::TupleTemplate {
-                "a trait has at most one tuple template"
-            } else {
-                "a trait has at most one template"
+            let msg = match kind {
+                ImplKind::TupleTemplate => "a trait has at most one tuple template",
+                ImplKind::UnionTemplate => "a trait has at most one union template",
+                _ => "a trait has at most one template",
             };
             diags.error(Code::OverlappingImpl, src.span(h.node), msg);
         }

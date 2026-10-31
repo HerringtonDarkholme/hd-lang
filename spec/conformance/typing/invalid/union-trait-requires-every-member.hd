@@ -1,0 +1,5 @@
+# Spec 09 Union Trait Templates: trait.target.union.conditional.
+type Bad = i32 | fn(i32) -> i32
+
+fn same(a: Bad, b: Bad) -> bool:
+    a == b # diagnostic: type-mismatch
