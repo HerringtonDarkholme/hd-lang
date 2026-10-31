@@ -1,0 +1,11 @@
+# test: a scope guard whose action captures a reference to an inner block's local outlives the local
+# Spec std/ops Scope Guards: std-ops.scope-guard.captures; Spec 13 Lifetime Bounds: ref.generic.outlives.argument-origins; Local Scope: ref.dep.scope.
+use std.ops.on_exit
+
+fn outlive(outer: &mut List[string]) -> void:
+    let mut g = on_exit(fn() -> void: outer.push("outer"))
+    if outer.len() > 0:
+        let mut inner: List[string] = []
+        r := &mut inner
+        g = on_exit(fn() -> void: r.push("inner"))
+    using h = g # diagnostic: local-reference-outlives-local

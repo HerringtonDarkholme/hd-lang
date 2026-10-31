@@ -1,0 +1,33 @@
+# test: a using scope guard whose action captures local references runs at its scope exit while the captures are alive
+# Spec std/ops Scope Guards: std-ops.scope-guard.captures, std-ops.scope-guard.on-exit.generic, std-ops.scope-guard.dispose.generic.
+# Spec 13 Lifetime Bounds: ref.generic.outlives.argument-origins.
+use std.ops.on_exit
+
+struct Log:
+    lines: List[string]
+
+fn work(log: &mut Log, name: &string) -> void:
+    using guard = on_exit(fn() -> void: log.lines.push("closed $name"))
+    log.lines.push("opened $name")
+
+fn nested() -> List[string]:
+    let mut log = Log { lines: [] }
+    name := "file"
+    r := &mut log
+    n := &name
+    work(r, n)
+    if r.lines.len() > 0:
+        using guard = on_exit(fn() -> void: r.lines.push("block $n"))
+        r.lines.push("in block")
+    log.lines
+
+fn counted() -> i32:
+    let mut closed = +0
+    if closed == 0:
+        using guard = on_exit(fn() -> void: closed += 1)
+    closed
+
+tests:
+    it("runs each guard at its scope exit"):
+        assert_equal(nested(), ["opened file", "closed file", "in block", "block file"])
+        assert_equal(counted(), +1)

@@ -1,0 +1,8 @@
+# test: returning a scope guard whose action captures a local reference is local-reference-escapes
+# Spec std/ops Scope Guards: std-ops.scope-guard.captures; Spec 13 Lifetime Bounds: ref.generic.outlives.read.
+use std.ops.{on_exit, Disposable}
+
+fn leak() -> impl Disposable:
+    let mut lines: List[string] = []
+    r := &mut lines
+    on_exit(fn() -> void: r.push("done")) # diagnostic: local-reference-escapes

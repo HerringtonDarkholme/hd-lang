@@ -199,12 +199,17 @@ fn finish() -> void $ Console:
 fn work() -> void $ Console:
     using guard = on_exit(finish)
     println("working")
+
+fn record(log: &mut List[string]) -> void:
+    using guard = on_exit(fn() -> void: log.push("closed"))
+    log.push("opened")
 ```
 
-1. r[std-ops.scope-guard.type.generic] `std.ops` declares `pub struct ScopeGuard[F < Fn() -> void $ R, $R]`, which holds one private action of type `F`.
-2. r[std-ops.scope-guard.on-exit.generic] `pub fn on_exit[F < Fn() -> void $ R, $R](action: F) -> ScopeGuard[F, $R]` returns a guard that holds `action`.
-3. r[std-ops.scope-guard.dispose.generic] `ScopeGuard[F, $R]` implements `Disposable[$R]` when `F < Fn() -> void $ R`; each `dispose` call invokes its action once. A `using` binding therefore runs the action once at that binding's scope exit, subject to [`flow.using.cleanup-row.check`](../lang/06-control-flow.md#r-flow.using.cleanup-row.check).
+1. r[std-ops.scope-guard.type.generic] `std.ops` declares `pub struct ScopeGuard[F < FnMut() -> void $ R & 'a, $R, 'a]`, which holds one private action of type `F`.
+2. r[std-ops.scope-guard.on-exit.generic] `pub fn on_exit[F < FnMut() -> void $ R & 'a, $R, 'a](action: F) -> ScopeGuard[F, $R, 'a]` returns a guard that holds `action`.
+3. r[std-ops.scope-guard.dispose.generic] `ScopeGuard[F, $R, 'a]` implements `Disposable[$R]` when `F < FnMut() -> void $ R & 'a`; each `dispose` call invokes its action once. A `using` binding therefore runs the action once at that binding's scope exit, subject to [`flow.using.cleanup-row.check`](../lang/06-control-flow.md#r-flow.using.cleanup-row.check).
 4. r[std-ops.scope-guard.explicit] Constructing or ordinarily binding a scope guard does not register cleanup. Registration remains explicit through `using`, by [`flow.using.register.split`](../lang/06-control-flow.md#r-flow.using.register.split).
+5. r[std-ops.scope-guard.captures] The action may capture local references and change through them, as `log` above. The guard holds those captures in `'a`'s positions, by [`ref.generic.outlives.argument-origins`](../lang/13-values-and-references.md#r-ref.generic.outlives.argument-origins). Returning the guard, or keeping it past a captured local's block, is an error. Error: `local-reference-escapes` or `local-reference-outlives-local`.
 
 > **Why.** A callback captures the cleanup it needs while `using` keeps the
 > end-of-scope action visible. The row parameter makes those captured

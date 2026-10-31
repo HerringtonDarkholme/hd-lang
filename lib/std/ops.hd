@@ -11,7 +11,7 @@
 # (r-expr.literal-fn.marker), and `@annotate::[F](.Fn)` limits
 # each marker to functions (r-expr.literal-fn.fn-only).
 use std.annotation.annotate
-use std.function.{Fn, Tuple}
+use std.function.{FnMut, Tuple}
 use std.hash.Hash
 use std.num.{Num, Integer, Float}
 use std.structure.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
@@ -176,17 +176,17 @@ pub trait AsyncDisposable[$ R = $ ()]:
 
 # A scope guard turns a synchronous callback into explicit `using` cleanup.
 # It is ordinary standard-library code over `Disposable`.
-## A guard that runs `action` when a `using` binding of it ends. The action may require `R`.
+## A guard that runs `action` when a `using` binding of it ends. The action may require `R` and may capture references of lifetime `'a`.
 ## See [std-ops.scope-guard.type.generic](../../spec/std/ops.md#r-std-ops.scope-guard.type.generic).
-pub struct ScopeGuard[F < Fn() -> void $ R, $ R]:
+pub struct ScopeGuard[F < FnMut() -> void $ R & 'a, $ R, 'a]:
     action: F
 
 ## Builds a scope guard whose cleanup runs `action`.
 ## See [std-ops.scope-guard.on-exit.generic](../../spec/std/ops.md#r-std-ops.scope-guard.on-exit.generic).
-pub fn on_exit[F < Fn() -> void $ R, $ R](action: F) -> ScopeGuard[F, $ R]:
+pub fn on_exit[F < FnMut() -> void $ R & 'a, $ R, 'a](action: F) -> ScopeGuard[F, $ R, 'a]:
     ScopeGuard { action: action }
 
-impl[$ R, F < Fn() -> void $ R] Disposable[$ R] for ScopeGuard[F, $ R]:
+impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for ScopeGuard[F, $ R, 'a]:
     fn dispose(&mut self) -> void $ R:
         (self.action)()
 
