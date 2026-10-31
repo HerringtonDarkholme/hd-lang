@@ -1,0 +1,3 @@
+# Spec 04 Union Construction And Matching: types.union.constructor-context.
+fn missing_context() -> void:
+    _ := Union._0 # diagnostic: cannot-infer-type

@@ -1,0 +1,4 @@
+# Spec 04 Union Construction And Matching: types.union.match.
+fn invalid(value: i32 | string) -> string:
+    match value: # diagnostic: nonexhaustive-match
+        ._0(number) => "$number"

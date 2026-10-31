@@ -1,0 +1,8 @@
+# Spec std/result Map: std-result.map-err.
+type Errors = string | bool
+
+fn failed(error: string) -> Result[i32, string]:
+    .Err(error)
+
+fn mapped(error: string) -> Result[i32, Errors]:
+    failed(error).map_err(Union._0)

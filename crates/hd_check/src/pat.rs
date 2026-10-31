@@ -393,7 +393,7 @@ impl Ck<'_, '_> {
                     // variants to name.
                     let enum_like = matches!(
                         pool.get(self.infer.resolve(pool, inner)),
-                        TyData::Option(_) | TyData::Adt { .. }
+                        TyData::Option(_) | TyData::Adt { .. } | TyData::Union(_)
                     );
                     if !enum_like {
                         let msg = format!("`.{name}` needs an enum subject, not {}", self.show(t));
@@ -1874,6 +1874,13 @@ impl Ck<'_, '_> {
             // The rest element is the tuple's last member.
             TyData::Tuple { .. } => Some(vec![("()".into(), self.tuple_members(st))]),
             TyData::Option(i) => Some(vec![("None".into(), vec![]), ("Some".into(), vec![i])]),
+            TyData::Union(members) => Some(
+                pool.list_items(members)
+                    .iter()
+                    .enumerate()
+                    .map(|(i, member)| (format!("_{i}"), vec![*member]))
+                    .collect(),
+            ),
             TyData::Adt { def, args } => match &self.cx.lookup.item(def)?.data {
                 ItemData::Enum { variants, .. } => {
                     let argv = pool.list_items(args);

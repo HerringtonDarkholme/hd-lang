@@ -174,6 +174,10 @@ This section defines identifier, qualified, and contextual variant names.
 6. r[expr.name.contextual.rules] `.Variant` has the same construction and argument rules as `Enum.Variant`; a payload-bearing variant still requires a call.
 7. r[expr.name.contextual.no-search] The compiler does not search all visible enums for a matching variant name.
 8. r[expr.name.contextual.no-type] Without a unique expected enum type, `.Variant` is a type error. Error: `missing-contextual-enum-type`.
+9. r[expr.name.union.contextual] For an expected union type, `._k` names its positional case `_k` under the same call rules as an enum variant.
+10. r[expr.name.union.qualified] `Union._k` names a positional union constructor from its expected result type; name resolution does not search for a declaration named `Union`.
+11. r[expr.name.union.function] `Union._k` without an argument clause is a function value only when its expected function result fixes the union type.
+12. r[expr.name.union.no-result] If that result does not fix a union type, the constructor cannot be inferred. Error: `cannot-infer-type`.
 
 ```text
 enum Status:
@@ -199,6 +203,7 @@ fn headline(titles: List[string]) -> string:
 > `expr.name.qualified.private`, as for a module of the package.
 
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations),
+[Union Construction And Matching](04-type-system.md#union-construction-and-matching),
 [Use Forms](10-modules.md#use-forms), [Use Roots](10-modules.md#use-roots).
 
 ### Literals
