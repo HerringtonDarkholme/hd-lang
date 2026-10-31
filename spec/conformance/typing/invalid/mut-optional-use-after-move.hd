@@ -1,0 +1,12 @@
+# test: an optional `&mut` moves, so a use after passing it on is an error
+# Spec 13 Moves: ref.move.holds, ref.move.sites.
+struct Counter:
+    count: i32
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn after_optional(c: &mut Counter) -> bool:
+    let found: (&mut Counter)? = .Some(c)
+    keep(found)
+    found.is_some() # diagnostic: use-of-moved-value

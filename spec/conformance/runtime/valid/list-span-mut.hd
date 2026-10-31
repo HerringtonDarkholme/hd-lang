@@ -14,8 +14,8 @@ tests:
         span[0] = 10
         second := span.get_mut(1).expect("index 1")
         *second = 20
-        assert_equal(*span.get(0).expect("index 0"), 10, reason="get reads a write")
-        let mut part = span.slice_mut(1..4)
+        assert_equal(*items.span_mut().get(0).expect("index 0"), 10, reason="get reads a write")
+        let mut part = items.span_mut().slice_mut(1..4)
         part.swap(0, 2)
         part.fill(7)
         assert_equal(*part[1], 7, reason="the slice remains readable")

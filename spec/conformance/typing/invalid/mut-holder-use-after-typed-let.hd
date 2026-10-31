@@ -1,0 +1,15 @@
+# test: a `let` that writes a holder's type moves the holder; only a `&mut` value reborrows there
+# Spec 13 Moves: ref.move.holds, ref.move.reborrow.typed.
+struct Counter:
+    count: i32
+
+struct Holder['a]:
+    target: &'a mut Counter
+
+fn read['a](h: &Holder['a]) -> i32:
+    h.target.count
+
+fn after_typed_let(c: &mut Counter) -> i32:
+    let h = Holder { target: c }
+    let other: Holder = h
+    read(&h) # diagnostic: use-of-moved-value

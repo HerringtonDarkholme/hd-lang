@@ -1,16 +1,17 @@
-//! Moves (`ref.move`, #1137, slice M1 of #1130): a `&mut T` value is
-//! not copied. A read of a whole `&mut` binding moves it where no `&mut`
+//! Moves (`ref.move`, #1137 and #1138, slices M1 and M2 of #1130): a
+//! `&mut T` value is not copied, nor is a value of a type that holds one
+//! ([`copies`]). A read of a whole such binding moves it where no `&mut`
 //! type is expected: a `:=` or untyped `let`, a generic argument, a tuple
 //! or optional part, a return. A site that expects a declared `&mut`
-//! reborrows it instead: a parameter, a typed `let`, an assignment, a
-//! field declared `&mut`. A use of the binding after a move on some path is
-//! `use-of-moved-value`, until an assignment gives it a value again. The
+//! reborrows a `&mut` instead: a parameter, a typed `let`, an assignment,
+//! a field declared `&mut`. A use of the binding after a move on some path
+//! is `use-of-moved-value`, until an assignment gives it a value again. The
 //! paths are the forward walk over the structured control flow that the
 //! ownership passes use (`hd_tir::own::flow`).
 
 use hd_base::{HashMap, LocalId, SliceSort as _};
 use hd_diag::Code;
-use hd_resolve::ItemData;
+use hd_resolve::{ItemData, Lookup};
 use hd_syntax::SyntaxKind;
 use hd_tir::Callee;
 use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, slots};
@@ -33,6 +34,56 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
         } => mutable && !counted,
         TyData::Mut(i) => is_mut_ref(pool, i),
         _ => false,
+    }
+}
+
+/// Whether a value of `t` is copied (`ref.move.holds`): not a `&mut`, nor
+/// a struct, enum, tuple, optional or union that holds one by value. A
+/// `*mut T` and a `&T` copy; so does a type parameter.
+fn copies(pool: Types<'_>, lookup: &Lookup<'_>, t: Ty) -> bool {
+    copies_in(pool, lookup, t, &mut Vec::new())
+}
+
+fn copies_in(pool: Types<'_>, lookup: &Lookup<'_>, t: Ty, seen: &mut Vec<Ty>) -> bool {
+    if seen.contains(&t) || seen.len() > 32 {
+        return true;
+    }
+    let all = |ts: &[Ty], seen: &mut Vec<Ty>| ts.iter().all(|&e| copies_in(pool, lookup, e, seen));
+    match pool.get(t) {
+        TyData::Ref {
+            mutable, counted, ..
+        } => !mutable || counted,
+        TyData::Mut(i) | TyData::Option(i) => copies_in(pool, lookup, i, seen),
+        TyData::Tuple { elems, rest } => {
+            all(pool.list_items(elems), seen)
+                && rest.is_none_or(|r| copies_in(pool, lookup, r, seen))
+        }
+        TyData::Union(ms) => all(pool.list_items(ms), seen),
+        TyData::Adt { def, args } => {
+            let Some(item) = lookup.item(def) else {
+                return true;
+            };
+            let fields: Vec<&hd_resolve::Field> = match &item.data {
+                ItemData::Data(fs) => fs.iter().collect(),
+                ItemData::Enum { shared, variants } => (shared.iter())
+                    .chain(variants.iter().flat_map(|v| &v.fields))
+                    .collect(),
+                _ => return true,
+            };
+            let argv = pool.list_items(args);
+            seen.push(t);
+            let ok = fields.iter().all(|f| {
+                let ft = pool.subst(f.ty, &|p| {
+                    (p.owner == def)
+                        .then(|| argv.get(p.index as usize).copied())
+                        .flatten()
+                });
+                copies_in(pool, lookup, ft, seen)
+            });
+            seen.pop();
+            ok
+        }
+        _ => true,
     }
 }
 
@@ -130,8 +181,9 @@ impl Forward for Walk<'_> {
 }
 
 impl Ck<'_, '_> {
-    /// `ref.move`: each use of a `&mut` binding after its value moved on
-    /// some path is `use-of-moved-value`, reported once per binding.
+    /// `ref.move`: each use of a binding that is not copied, after its
+    /// value moved on some path, is `use-of-moved-value`, reported once
+    /// per binding.
     pub(crate) fn check_moves(&mut self, root: Ref) {
         let pool = self.pool();
         let b = self.b.body();
@@ -144,10 +196,13 @@ impl Ck<'_, '_> {
         let hidden: Vec<bool> = (b.local_name.iter())
             .map(|&s| self.cx.names.text(s).starts_with('$'))
             .collect();
+        let held: Vec<bool> = (b.local_ty.iter())
+            .map(|&t| !copies(pool, self.cx.lookup, t))
+            .collect();
         let mut bits = 0;
-        let bit: Vec<u32> = (b.local_ty.iter().zip(&hidden))
-            .map(|(&t, &hidden)| {
-                if !hidden && is_mut_ref(pool, t) {
+        let bit: Vec<u32> = (held.iter().zip(&hidden))
+            .map(|(&held, &hidden)| {
+                if held && !hidden {
                     bits += 1;
                     bits - 1
                 } else {
@@ -226,15 +281,21 @@ impl Ck<'_, '_> {
                 continue;
             }
             let name = self.cx.names.text(b.local_name[l]).to_string();
-            let msg = format!(
-                "`{name}` was moved before this use; pass `&mut *{name}` where it moves to keep using it"
-            );
+            let msg = if is_mut_ref(self.pool(), b.local_ty[l]) {
+                format!(
+                    "`{name}` was moved before this use; pass `&mut *{name}` where it moves to keep using it"
+                )
+            } else {
+                format!(
+                    "`{name}` was moved before this use; its type holds a `&mut`, so it is not copied"
+                )
+            };
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::UseOfMovedValue, node, &msg);
         }
     }
 
-    /// Whether value `v`, a `&mut`, moves where it is used
+    /// Whether value `v`, which is not copied, moves where it is used
     /// (`ref.move.sites`, `ref.move.reborrow`).
     fn moves(&self, cx: &Uses<'_>, v: u32, depth: u32) -> bool {
         if depth > 64 {
@@ -244,9 +305,9 @@ impl Ck<'_, '_> {
         cx.users[v as usize].iter().any(|&(u, role)| {
             let i = u as usize;
             if b.tags[i] == Tag::Coerce {
-                // A coercion to `&T` reborrows; one that keeps `&mut`
-                // passes the value on.
-                return is_mut_ref(pool, b.ty[i]) && self.moves(cx, u, depth + 1);
+                // A coercion to `&T` reborrows; one that keeps a type
+                // that is not copied passes the value on.
+                return !copies(pool, self.cx.lookup, b.ty[i]) && self.moves(cx, u, depth + 1);
             }
             match role {
                 Role::Consume => self.consume_moves(cx, i, v, depth),
@@ -283,6 +344,10 @@ impl Ck<'_, '_> {
                 }
                 // An assignment, or a `let` that writes the type, expects
                 // the binding's `&mut` type; `:=` and a bare `let` do not.
+                // Only a `&mut` reborrows (`ref.move.reborrow.typed`).
+                if !is_mut_ref(pool, b.local_ty[h.idx()]) {
+                    return true;
+                }
                 let at = b.syn[i];
                 if at == hd_base::NodeIdx::NONE {
                     return true;

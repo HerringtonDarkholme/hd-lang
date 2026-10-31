@@ -191,7 +191,7 @@ relative to the view, and every mutation preserves the list's length.
 | Operation | Signature or trait |
 | --- | --- |
 | whole-list view | `span_mut['a](&'a mut self) -> SpanMut[T, 'a]` |
-| `len` | `len(self) -> usize` |
+| `len` | `len(&self) -> usize` |
 | `get` | `get(self, index: usize) -> (&'a T)?` |
 | `get_mut` | `get_mut(self, index: usize) -> (&'a mut T)?` |
 | `slice_mut` | `slice_mut(self, range: Range[usize]) -> SpanMut[T, 'a]` |

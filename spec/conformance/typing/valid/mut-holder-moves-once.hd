@@ -1,0 +1,27 @@
+# test: a struct holding a `&mut` moves into a new binding, and its `&mut self` methods borrow it for each call
+# Spec 13 Moves: ref.move.holds, ref.move.reborrow, ref.move.reassign.
+struct Counter:
+    count: i32
+
+struct Holder['a]:
+    target: &'a mut Counter
+
+impl['a] Holder['a]:
+    fn bump(&mut self) -> void:
+        self.target.count += 1
+
+fn take['a](h: Holder['a]) -> void:
+    pass
+
+fn moves_once(c: &mut Counter) -> void:
+    let mut h = Holder { target: c }
+    h.bump()
+    h.bump()
+    let mut moved = h
+    moved.bump()
+    take(moved)
+
+fn copies_shared(c: &Counter) -> i32:
+    pair := (c, 1)
+    other := pair
+    pair._0.count + other._0.count

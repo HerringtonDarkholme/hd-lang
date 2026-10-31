@@ -1,0 +1,8 @@
+# test: `:=` moves a `SpanMut`, which holds a `&mut`, so a later use of the old binding is an error
+# Spec 13 Moves: ref.move.holds, ref.move.sites.
+use std.collections.SpanMut
+
+fn spans(items: &mut List[i32]) -> usize:
+    span := items.span_mut()
+    copy := span
+    span.len() + copy.len() # diagnostic: use-of-moved-value

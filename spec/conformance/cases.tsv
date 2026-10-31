@@ -5629,3 +5629,9 @@ typing/invalid/mut-reference-use-after-move-in-branch.hd	type	reject:use-of-move
 typing/invalid/mut-reference-use-after-move-in-loop.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.use
 typing/invalid/mut-reference-capture-after-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.use.forms
 typing/invalid/mut-reference-reborrow-after-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.use.forms
+typing/invalid/span-mut-use-after-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.holds
+typing/invalid/mut-holder-use-after-generic-argument.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.holds
+typing/invalid/mut-tuple-use-after-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.holds
+typing/invalid/mut-optional-use-after-move.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.holds
+typing/invalid/mut-holder-use-after-typed-let.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.reborrow.typed
+typing/valid/mut-holder-moves-once.hd	type	accept	lang/13-values-and-references.md#r-ref.move.holds

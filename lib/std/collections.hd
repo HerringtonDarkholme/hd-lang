@@ -672,7 +672,7 @@ pub struct SpanMut[T, 'a]:
 impl[T, 'a] SpanMut[T, 'a]:
     ## Returns the number of elements in the span.
     ## See [std-collections.span-mut.len](../../spec/std/collections.md#r-std-collections.span-mut.len).
-    pub fn len(self) -> usize:
+    pub fn len(&self) -> usize:
         self.end - self.start
 
     ## Returns a shared reference to the indexed element, or `.None` outside the span.

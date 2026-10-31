@@ -1,0 +1,15 @@
+# test: a struct holding a `&mut` moves into a generic argument, so a later use is an error
+# Spec 13 Moves: ref.move.holds, ref.move.sites.
+struct Counter:
+    count: i32
+
+struct Holder['a]:
+    target: &'a mut Counter
+
+fn keep[T](x: T) -> void:
+    pass
+
+fn after_generic(c: &mut Counter) -> void:
+    let h = Holder { target: c }
+    keep(h)
+    h.target.count = 1 # diagnostic: use-of-moved-value

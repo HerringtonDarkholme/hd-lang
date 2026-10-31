@@ -1,0 +1,9 @@
+# test: a tuple with a `&mut` element moves, so a use after `:=` is an error
+# Spec 13 Moves: ref.move.holds, ref.move.sites.
+struct Counter:
+    count: i32
+
+fn after_tuple(c: &mut Counter) -> void:
+    pair := (c, 1)
+    other := pair
+    pair._0.count = 2 # diagnostic: use-of-moved-value

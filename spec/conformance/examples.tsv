@@ -683,7 +683,8 @@ lang/13-values-and-references.md	25	mixed	typing/invalid/reference-equality.hd|t
 lang/13-values-and-references.md	26	mixed	typing/invalid/element-reference-mut-short-binding.hd
 lang/13-values-and-references.md	27	mixed	typing/invalid/element-access-conflict-reference.hd|typing/invalid/element-binding-push-while-live.hd|typing/valid/element-reference-binding.hd
 lang/13-values-and-references.md	28	mixed	typing/invalid/mut-reference-use-after-let.hd|typing/invalid/mut-reference-use-after-generic-argument.hd|typing/invalid/mut-reference-use-after-move-in-branch.hd|typing/invalid/mut-reference-use-after-move-in-loop.hd
-lang/13-values-and-references.md	29	mixed	typing/invalid/reference-slice-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd
+lang/13-values-and-references.md	29	mixed	typing/invalid/span-mut-use-after-move.hd|typing/valid/mut-holder-moves-once.hd
+lang/13-values-and-references.md	30	mixed	typing/invalid/reference-slice-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

@@ -1787,14 +1787,15 @@ fn demo(c: &mut Counter) -> void:
 ```
 
 1. r[ref.move.mut] A `&mut T` value is moved, not copied. A `*mut T` or `&T` value is copied.
-2. r[ref.move.sites] A read of a whole `&mut` binding moves its value at each site in the table below. No `&mut` type is expected at these sites.
-3. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
-4. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
-5. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`.
-6. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
-7. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
-8. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it.
-9. r[ref.move.reassign] Assigning the binding a new value makes it usable again.
+2. r[ref.move.holds] A value whose type holds a `&mut` is moved, not copied. A type holds a `&mut` when it is `&mut T`, a struct with a field whose type holds one, an enum with such a payload, or a tuple, optional, or union with such a member. `SpanMut[T, 'a]` holds one. A generic `T` argument of such a type moves too.
+3. r[ref.move.sites] A read of a whole binding that is not copied moves its value at each site in the table below. No `&mut` type is expected at these sites.
+4. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
+5. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
+6. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`. Only a `&mut` value reborrows: a value of another type that is not copied moves at a `let` that writes its type, at an assignment, and into a field.
+7. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
+8. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
+9. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it.
+10. r[ref.move.reassign] Assigning the binding a new value makes it usable again.
 
 | Site | Example |
 | --- | --- |
@@ -1836,9 +1837,23 @@ fn in_loop(c: &mut Counter) -> void:
 > forbid. The implicit reborrow keeps the common case, `bump(c); bump(c)`,
 > valid.
 
-> **Note.** A struct, tuple, or enum value that holds a `&mut` is still
-> copied; [#1138](https://github.com/HerringtonDarkholme/hd-lang/issues/1138)
-> makes it move too.
+A value that holds a `&mut` moves the same way. Its `&mut self` methods
+borrow it for the call, as with any `let mut` binding:
+
+```text
+use std.collections.SpanMut
+
+fn spans(items: &mut List[i32]) -> void:
+    let mut span = items.span_mut()
+    span.swap(0, 1)      # a `&mut self` receiver: span stays usable
+    let mut part = span  # span moves into part
+    part.fill(0)
+    span.fill(1)         # error: use-of-moved-value
+```
+
+> **Why.** Rust's rule: a type is `Copy` only when all its
+> fields are, and `&mut T` is not. Copying a span would give two views
+> that write one list.
 
 See also: [Writes While Borrowed](#writes-while-borrowed).
 
