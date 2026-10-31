@@ -340,7 +340,8 @@ fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<O
         }
         (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
         | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
-        | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
+        | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
+        | (TyData::Union(a), TyData::Union(b)) => {
             for (&x, &y) in pool.list_items(a).iter().zip(pool.list_items(b)) {
                 head_match(pool, owner, x, y, out);
             }
@@ -388,6 +389,11 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
             }
             if let Some(r) = rest {
                 params_in(pool, r, out);
+            }
+        }
+        TyData::Union(members) => {
+            for &member in pool.list_items(members) {
+                params_in(pool, member, out);
             }
         }
         TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {

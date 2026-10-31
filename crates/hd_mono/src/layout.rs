@@ -305,6 +305,9 @@ fn layout_in(
                 _ => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             }
         }
+        TyData::Union(_) => {
+            return Err(NotImplemented::new(Stage::Emit, "union type layout"));
+        }
         TyData::Option(inner) => {
             let li = layout_in(pool, env, inner, memo)?;
             match (li.class, li.values.as_slice()) {
@@ -589,6 +592,10 @@ pub fn canon(
             if let Some(r) = rest {
                 h.hash(canon(pool, path_hash, memo, r));
             }
+        }
+        TyData::Union(members) => {
+            h.u8(20);
+            canon_list(pool, path_hash, memo, members, &mut h);
         }
         TyData::Option(i) => {
             h.u8(4);
@@ -1290,6 +1297,22 @@ mod tests {
             super::canon(&p, &ph, &mut CanonMemo::default(), t)
         };
         assert_ne!(enc(tv(Ty::I32)), enc(tv(Ty::STRING)));
+    }
+
+    #[test]
+    fn canon_preserves_union_order_duplicates_and_nesting() {
+        let p = InternPool::new();
+        let union = |members: &[Ty]| p.intern_ty(&TyData::Union(p.list(members)));
+        let encode = |t| super::canon(&p, &|_| Hash128(0), &mut CanonMemo::default(), t);
+        let ab = union(&[Ty::I32, Ty::STRING]);
+        let ba = union(&[Ty::STRING, Ty::I32]);
+        let duplicate = union(&[Ty::I32, Ty::I32]);
+        let flat = union(&[Ty::I32, Ty::STRING, Ty::BOOL]);
+        let nested = union(&[ab, Ty::BOOL]);
+
+        assert_ne!(encode(ab), encode(ba));
+        assert_ne!(encode(ab), encode(duplicate));
+        assert_ne!(encode(flat), encode(nested));
     }
 
     #[test]

@@ -5567,3 +5567,8 @@ runtime/valid/alias-write-after-loan-last-use-passes.hd	runtime	accept	lang/13-v
 runtime/valid/alias-write-to-disjoint-field-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.access
 parse/valid/defer-ordinary-name.hd	parse	accept	lang/01-lexical-structure.md#r-lex.defer.identifier
 parse/valid/union-type-syntax.hd	parse	accept	lang/02-grammar.md#r-grammar.type.union
+typing/valid/union-type-identity-and-aliases.hd	type	accept	lang/04-type-system.md#r-types.union.identity
+typing/invalid/union-order-is-type-identity.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.identity
+typing/invalid/union-duplicate-arity-is-type-identity.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.identity
+typing/invalid/union-nesting-is-type-identity.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.nesting
+typing/invalid/union-member-does-not-inject.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.no-member-injection

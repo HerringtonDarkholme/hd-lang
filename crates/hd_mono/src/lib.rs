@@ -909,6 +909,21 @@ fn name_into(
             }
             out.push(')');
         }
+        TyData::Union(members) => {
+            for (index, &member) in pool.list_items(members).iter().enumerate() {
+                if index > 0 {
+                    out.push_str(" | ");
+                }
+                let nested = matches!(pool.get(member), TyData::Union(_));
+                if nested {
+                    out.push('(');
+                }
+                name_into(pool, env, printed, member, out, limit);
+                if nested {
+                    out.push(')');
+                }
+            }
+        }
         TyData::Option(i) => {
             name_into(pool, env, printed, i, out, limit);
             out.push('?');
@@ -1707,6 +1722,7 @@ impl Cx<'_> {
                 parts.extend(pool.list_items(elems));
                 parts.extend(rest);
             }
+            TyData::Union(members) => parts.extend(pool.list_items(members)),
             TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => parts.push(i),
             TyData::Fn {
                 params,

@@ -315,6 +315,9 @@ pub enum TyData {
         elems: TyList,
         rest: Option<Ty>,
     },
+    /// An ordered anonymous sum. Members keep their arity, order,
+    /// duplicates, and nested union identities.
+    Union(TyList),
     Option(Ty),
     Fn {
         params: TyList,
@@ -406,6 +409,7 @@ enum PoolTag {
     RowTy,
     Context,
     Const,
+    Union,
     /// A function type's dependency map: `[inputs, results, lifetimes...]`.
     Deps,
 }
@@ -1208,6 +1212,7 @@ impl<'a> Types<'a> {
                 elems,
                 rest: Some(r),
             } => (T::TupleRest, 0, self.list_meta(*elems) | self.meta_of(*r)),
+            TyData::Union(members) => (T::Union, members.0, self.list_meta(*members)),
             TyData::Option(inner) => (T::Option, inner.0, self.meta_of(*inner)),
             TyData::Fn {
                 params,
@@ -1404,6 +1409,7 @@ impl<'a> Types<'a> {
                 elems: TyList(x[0]),
                 rest: Some(Ty(x[1])),
             },
+            PoolTag::Union => TyData::Union(TyList(d)),
             PoolTag::Option => TyData::Option(Ty(d)),
             PoolTag::Fn => TyData::Fn {
                 params: TyList(x[0]),
@@ -1523,6 +1529,7 @@ impl<'a> Types<'a> {
             TyData::Tuple { elems, rest } => {
                 list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
             }
+            TyData::Union(members) => list(members),
             TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
                 self.names_trait_self(i, trait_)
             }
@@ -1610,6 +1617,7 @@ impl<'a> Types<'a> {
             TyData::Tuple { elems, rest } => {
                 list(elems) + rest.map_or(0, |r| self.ref_slots_at(r, d))
             }
+            TyData::Union(members) => list(members),
             TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args),
             _ => 0,
         }
@@ -1674,6 +1682,7 @@ impl<'a> Types<'a> {
                 elems: l(elems),
                 rest: rest.map(|r| self.lower_refs(cell, r)),
             },
+            TyData::Union(members) => TyData::Union(l(members)),
             TyData::Option(i) => TyData::Option(self.lower_refs(cell, i)),
             TyData::Mut(i) => TyData::Mut(self.lower_refs(cell, i)),
             TyData::Fn {
@@ -1811,6 +1820,7 @@ impl<'a> Types<'a> {
                 elems: l(elems, memo),
                 rest: rest.map(|r| self.raise_refs_in(cell, r, memo)),
             },
+            TyData::Union(members) => TyData::Union(l(members, memo)),
             TyData::Option(i) => TyData::Option(self.raise_refs_in(cell, i, memo)),
             TyData::Mut(i) => TyData::Mut(self.raise_refs_in(cell, i, memo)),
             TyData::Assoc {
@@ -1924,6 +1934,7 @@ impl<'a> Types<'a> {
                 elems: l(elems),
                 rest: rest.map(|r| self.subst(r, f)),
             },
+            TyData::Union(members) => TyData::Union(l(members)),
             TyData::Option(i) => TyData::Option(self.subst(i, f)),
             TyData::Mut(i) => TyData::Mut(self.subst(i, f)),
             TyData::Ref {
@@ -2028,6 +2039,19 @@ impl<'a> Types<'a> {
                     rest.map_or(String::new(), |r| format!(", ...{}", self.display(r)))
                 )
             }
+            TyData::Union(members) => self
+                .list_items(members)
+                .iter()
+                .map(|&member| {
+                    let shown = self.display(member);
+                    if matches!(self.get(member), TyData::Union(_)) {
+                        format!("({shown})")
+                    } else {
+                        shown
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" | "),
             TyData::Option(i) => format!("{}?", self.display(i)),
             TyData::Fn {
                 params,
@@ -2132,6 +2156,7 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
             elems: list(elems),
             rest,
         },
+        TyData::Union(members) => TyData::Union(list(members)),
         TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
         TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
         TyData::Ref {
@@ -2421,6 +2446,7 @@ mod tests {
                 elems: list,
                 rest: Some(Ty::BOOL),
             },
+            TyData::Union(list),
             TyData::Option(Ty::I32),
             TyData::Fn {
                 params: list,
@@ -2474,6 +2500,37 @@ mod tests {
         assert_eq!(p.row_data(row).keys.len(), 2);
         let opt = p.intern_ty(&TyData::Option(Ty::POISON));
         assert!(p.has_poison(opt));
+    }
+
+    #[test]
+    fn union_identity_keeps_order_duplicates_nesting_and_substitution() {
+        let p = InternPool::new();
+        let union = |members: &[Ty]| p.intern_ty(&TyData::Union(p.list(members)));
+        let ab = union(&[Ty::I32, Ty::STRING]);
+        let ba = union(&[Ty::STRING, Ty::I32]);
+        let duplicate = union(&[Ty::I32, Ty::I32]);
+        let flat = union(&[Ty::I32, Ty::STRING, Ty::BOOL]);
+        let nested_left = union(&[ab, Ty::BOOL]);
+        let nested_right = union(&[Ty::I32, union(&[Ty::STRING, Ty::BOOL])]);
+
+        assert_ne!(ab, ba);
+        assert_ne!(duplicate, Ty::I32);
+        assert_ne!(flat, nested_left);
+        assert_ne!(flat, nested_right);
+        assert_ne!(nested_left, nested_right);
+        assert_eq!(p.display(nested_left), "(i32 | string) | bool");
+        assert_eq!(p.display(nested_right), "i32 | (string | bool)");
+
+        let owner = DefId::from_raw(81);
+        let parameter = super::ParamRef { owner, index: 0 };
+        let generic = union(&[
+            p.intern_ty(&TyData::Param(parameter)),
+            p.intern_ty(&TyData::Param(parameter)),
+        ]);
+        assert_eq!(
+            p.subst(generic, &|p| (p == parameter).then_some(Ty::I32)),
+            duplicate
+        );
     }
 
     /// Rows are sets (`req.row.set.union`, `req.row.set.duplicate`,

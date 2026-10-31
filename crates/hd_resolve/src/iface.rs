@@ -2081,6 +2081,7 @@ pub fn mentioned_defs<'a>(
                 stack.extend(pool.list_items(elems));
                 stack.extend(rest);
             }
+            TyData::Union(members) => stack.extend(pool.list_items(members)),
             TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => stack.push(i),
             TyData::Fn {
                 params,
@@ -2414,6 +2415,19 @@ fn show_marked(
                 show_marked(names, pool, r, (rows, qualified), marks)
             ))
         ),
+        TyData::Union(members) => pool
+            .list_items(members)
+            .iter()
+            .map(|&member| {
+                let shown = show_marked(names, pool, member, (rows, qualified), marks);
+                if matches!(pool.get(member), TyData::Union(_)) {
+                    format!("({shown})")
+                } else {
+                    shown
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" | "),
         TyData::Option(i) => format!("{}?", show_marked(names, pool, i, (rows, qualified), marks)),
         TyData::Mut(i) => format!(
             "mut {}",

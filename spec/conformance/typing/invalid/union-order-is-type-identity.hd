@@ -1,0 +1,6 @@
+# Spec 04 Union Type Identity: types.union.identity.
+fn take(value: i32 | string) -> void:
+    pass
+
+fn reversed(value: string | i32) -> void:
+    take(value) # diagnostic: type-mismatch

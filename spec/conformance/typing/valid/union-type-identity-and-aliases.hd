@@ -1,0 +1,26 @@
+# Spec 04 Union Type Identity: types.union.identity,
+# types.union.nesting, types.union.alias, and types.union.substitution.
+type Choice = i32 | string
+type SameChoice = i32 | string
+type Duplicate = i32 | i32
+type Nested = (i32 | string) | bool
+type NestedAlias = Choice | bool
+type GenericChoice[T] = T | i32
+
+fn relay(value: SameChoice) -> Choice:
+    value
+
+fn keep_duplicate(value: Duplicate) -> i32 | i32:
+    value
+
+fn keep_nested(value: NestedAlias) -> Nested:
+    value
+
+fn keep_generic[T](value: GenericChoice[T]) -> T | i32:
+    value
+
+fn identity[T](value: T | i32) -> T | i32:
+    value
+
+fn apply(value: string | i32) -> string | i32:
+    identity(value)

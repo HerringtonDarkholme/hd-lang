@@ -141,6 +141,9 @@ impl Scan<'_> {
                 children.extend(self.pool.list_items(elems).iter().copied());
                 children.extend(rest);
             }
+            TyData::Union(members) => {
+                children.extend(self.pool.list_items(members).iter().copied());
+            }
             TyData::Option(inner) | TyData::Mut(inner) | TyData::Ref { inner, .. } => {
                 children.push(inner);
             }

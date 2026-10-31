@@ -60,6 +60,7 @@ mod tag {
     pub const CREF: u8 = 24;
     pub const CREF_MUT: u8 = 25;
     pub const CONST: u8 = 26;
+    pub const UNION: u8 = 27;
 }
 
 impl<'a> TableWriter<'a> {
@@ -213,6 +214,10 @@ impl<'a> TableWriter<'a> {
             } => {
                 let words = [self.list(elems)?, self.ty(r)?];
                 self.row(tag::TUPLE_REST, &words)
+            }
+            TyData::Union(members) => {
+                let members = self.list(members)?;
+                self.row(tag::UNION, &[members])
             }
             TyData::Option(i) => {
                 let inner = self.ty(i)?;
@@ -495,6 +500,7 @@ impl Tables {
                     })
                     .0
                 }
+                tag::UNION => pool.intern_ty(&TyData::Union(TyList(row(0)?))).0,
                 tag::TRAIT_VALUE => {
                     let mut bindings = Vec::new();
                     let mut i = 2;
@@ -815,6 +821,28 @@ mod tests {
             output.bytes, actual.bytes,
             "fresh IDs retain the exact format"
         );
+    }
+
+    #[test]
+    fn ordered_nested_unions_round_trip_through_wire_tables() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let inner = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, Ty::STRING])));
+        let outer = pool.intern_ty(&TyData::Union(pool.list(&[inner, Ty::BOOL, Ty::BOOL])));
+        let mut tables = TableWriter::new(&pool, &paths, &syms);
+        let row = tables.ty(outer).expect("union");
+        let mut bytes = Writer::default();
+        tables.write(&mut bytes);
+
+        let other = InternPool::new();
+        let mut reader = Reader::new(&bytes.bytes);
+        let decoded = Tables::read(&mut reader, &other, &paths, &syms).expect("tables");
+        let union = decoded.ty(row).expect("union row");
+        assert!(reader.ok() && reader.at_end());
+        assert_eq!(other.display(union), "(i32 | string) | bool | bool");
     }
 
     #[test]

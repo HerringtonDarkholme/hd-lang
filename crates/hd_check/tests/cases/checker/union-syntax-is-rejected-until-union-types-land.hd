@@ -1,3 +1,0 @@
-# @dump: tir
-# Parsing accepts the syntax, but U1 leaves union types unsupported.
-type Choice = i32 | string
