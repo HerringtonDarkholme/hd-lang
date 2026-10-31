@@ -4,6 +4,8 @@
 type Flat = A | B | C
 type NestedLeft = (A | B) | C
 type NestedRight = A | (B | C)
+type NestedBoth = (A | B) | (C | D)
+type NestedDeep = ((A | B) | C) | D
 type Applied = Box[A] | B
 type FunctionResult = fn() -> A | B
 

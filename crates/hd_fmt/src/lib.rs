@@ -75,9 +75,8 @@ mod tests {
 
     #[test]
     fn union_types_space_pipes_and_keep_nesting_parentheses() {
-        let src = "type Flat = A|B|C\ntype Nested = (A|B)|C\ntype Applied = Box[A]|B\n";
-        let expected =
-            "type Flat = A | B | C\ntype Nested = (A | B) | C\ntype Applied = Box[A] | B\n";
+        let src = "type Flat = A|B|C\ntype NestedLeft = (A|B)|C\ntype NestedRight = A|(B|C)\ntype NestedBoth = (A|B)|(C|D)\ntype NestedDeep = ((A|B)|C)|D\ntype Applied = Box[A]|B\n";
+        let expected = "type Flat = A | B | C\ntype NestedLeft = (A | B) | C\ntype NestedRight = A | (B | C)\ntype NestedBoth = (A | B) | (C | D)\ntype NestedDeep = ((A | B) | C) | D\ntype Applied = Box[A] | B\n";
         assert_eq!(round_trip(src), src);
         let formatted = format(src).expect("union types parse");
         assert_eq!(formatted, expected);
