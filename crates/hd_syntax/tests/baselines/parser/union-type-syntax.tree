@@ -24,6 +24,28 @@ type NestedRight = A | (B | C)
 >         UnionType |
 >           NamedType B
 >           NamedType C
+type NestedBoth = (A | B) | (C | D)
+>   TypeDecl type NestedBoth =
+>     UnionType |
+>       ParenType ( )
+>         UnionType |
+>           NamedType A
+>           NamedType B
+>       ParenType ( )
+>         UnionType |
+>           NamedType C
+>           NamedType D
+type NestedDeep = ((A | B) | C) | D
+>   TypeDecl type NestedDeep =
+>     UnionType |
+>       ParenType ( )
+>         UnionType |
+>           ParenType ( )
+>             UnionType |
+>               NamedType A
+>               NamedType B
+>           NamedType C
+>       NamedType D
 type Applied = Box[A] | B
 >   TypeDecl type Applied =
 >     UnionType |
