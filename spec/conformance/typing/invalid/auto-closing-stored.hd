@@ -1,0 +1,19 @@
+# test: an AutoClosing value cannot be stored in another value
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.storage.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    pass
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+struct Holder:
+    guard: Guard
+
+fn invalid(value: Guard) -> void:
+    holder := Holder { guard: value }  # diagnostic: unregistered-auto-closing

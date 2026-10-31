@@ -1,5 +1,5 @@
 # test: values are found by type in source order
-# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.compiler-decorators.
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.compiler-decorators.v2.
 # expect-stdout: 3
 # expect-stdout: /users
 # expect-stdout: lists users

@@ -1954,7 +1954,7 @@ impl Ck<'_, '_> {
                 return unsupported("a tuple spread before the last element");
             }
             let w = wants.get(i).copied().flatten().or(rest_item);
-            let (r, t) = self.expr(*e, w)?;
+            let (r, t) = self.stored_expr(*e, w, "in this tuple")?;
             let r = match w {
                 Some(w) => self.coerce(r, t, w, *e, "tuple element", ExpectPosition::General),
                 None => r,
@@ -2154,7 +2154,7 @@ impl Ck<'_, '_> {
                     refs.push(r);
                     continue;
                 }
-                let (r, t) = this.expr(*e, Some(elem))?;
+                let (r, t) = this.stored_expr(*e, Some(elem), "in this list")?;
                 refs.push(this.coerce(r, t, elem, *e, "list element", ExpectPosition::General));
             }
             // An element type solved from the elements alone drops an outer
@@ -2207,9 +2207,9 @@ impl Ck<'_, '_> {
                     let [ke, ve] = ek.as_slice() else {
                         return unsupported("a map entry shape");
                     };
-                    let (kr, kt) = this.expr(*ke, Some(k))?;
+                    let (kr, kt) = this.stored_expr(*ke, Some(k), "as this map key")?;
                     refs.push(this.coerce(kr, kt, k, *ke, "map key", ExpectPosition::General));
-                    let (vr, vt) = this.expr(*ve, Some(v))?;
+                    let (vr, vt) = this.stored_expr(*ve, Some(v), "as this map value")?;
                     refs.push(this.coerce(vr, vt, v, *ve, "map value", ExpectPosition::General));
                 }
                 // A key type an expected map type did not fix meets the key
@@ -2416,7 +2416,7 @@ impl Ck<'_, '_> {
                 {
                     self.local_capture_argument = Some(e.index());
                 }
-                let result = self.expr(e, Some(ft));
+                let result = self.stored_expr(e, Some(ft), "in this field");
                 self.local_capture_argument = saved;
                 result?
             } else {
@@ -2432,6 +2432,13 @@ impl Ck<'_, '_> {
                 };
                 self.read_local(l, d, *a)
             };
+            if a.children().next().is_none() && self.implements_auto_closing(t)? {
+                self.err(
+                    Code::UnregisteredAutoClosing,
+                    *a,
+                    "an AutoClosing value cannot be stored in this field",
+                );
+            }
             vals[i] = self.coerce(r, t, ft, *a, "field", ExpectPosition::General);
             // `fn.trait.read-only`: a field of a type parameter bounded by
             // `Fn` holds a value that changes no capture.
@@ -3601,9 +3608,9 @@ impl Ck<'_, '_> {
                 let [k, v] = ek.as_slice() else {
                     return unsupported("a map comprehension entry");
                 };
-                let (kr, kt) = self.expr(*k, Some(args[0]))?;
+                let (kr, kt) = self.stored_expr(*k, Some(args[0]), "as this map key")?;
                 let kr = self.coerce(kr, kt, args[0], *k, "map key", ExpectPosition::General);
-                let (vr, vt) = self.expr(*v, Some(args[1]))?;
+                let (vr, vt) = self.stored_expr(*v, Some(args[1]), "as this map value")?;
                 let vr = self.coerce(vr, vt, args[1], *v, "map value", ExpectPosition::General);
                 let rec = self.b.refs_record(&[a, kr, vr]);
                 self.b.emit(
@@ -3614,7 +3621,7 @@ impl Ck<'_, '_> {
                     n.index(),
                 );
             } else {
-                let (r, t) = self.expr(last, Some(args[0]))?;
+                let (r, t) = self.stored_expr(last, Some(args[0]), "in this list")?;
                 let r = self.coerce(r, t, args[0], last, "element", ExpectPosition::General);
                 let rec = self.b.refs_record(&[a, r]);
                 self.b.emit(

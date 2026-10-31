@@ -1,0 +1,5 @@
+# test: an auto-closing function must return an AutoClosing value
+# Spec lang/14 Auto-Closing Functions: annot.auto-closing.result.
+@auto_closing
+fn count() -> i32:  # diagnostic: unsatisfied-trait-bound
+    1

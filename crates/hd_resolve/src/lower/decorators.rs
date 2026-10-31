@@ -345,6 +345,19 @@ impl Lower<'_, '_, '_> {
                         );
                     }
                 }
+                "auto_closing" => {
+                    if k != kind::FN {
+                        self.target_error(
+                            span,
+                            "`@auto_closing` precedes only a module-level function",
+                        );
+                    } else if !deco.bare || deco.typed {
+                        self.target_error(
+                            span,
+                            "write bare `@auto_closing`, without arguments or type arguments",
+                        );
+                    }
+                }
                 "derive" => {
                     if k & (kind::FN | kind::TRAIT | kind::IMPL | kind::METHOD) != 0 {
                         let msg = "`@derive` precedes only a data type or an enum";
@@ -461,7 +474,7 @@ impl Lower<'_, '_, '_> {
             first: Src::child(target, SyntaxKind::Block)
                 .and_then(|b| b.children().next())
                 .map(|n| self.src.span(n)),
-            marker: matches!(name, Some("intrinsic" | "from" | "source")),
+            marker: matches!(name, Some("intrinsic" | "from" | "source" | "auto_closing")),
             valid: self.diags.errors_since(mark) == 0,
         });
     }
@@ -584,6 +597,37 @@ impl Lower<'_, '_, '_> {
             .map_or(0, |(v, _)| v)
     }
 
+    /// Whether a module-level function carries the valid literal marker
+    /// `@auto_closing`. Target and result checks run separately.
+    pub(super) fn auto_closing(&self, n: NodeRef<'_>) -> bool {
+        n.children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .filter_map(|d| self.deco(d))
+            .any(|deco| deco.name == "auto_closing" && deco.bare && !deco.typed)
+    }
+
+    /// Checks that a function has at most one compiler-known
+    /// `@auto_closing` marker. Its spelling and target are checked with the
+    /// other decorators; its return-type obligation is a stage-B trait goal.
+    fn check_auto_closing(&mut self, f: NodeRef<'_>) {
+        let lines: Vec<_> = f
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .filter_map(|d| self.deco(d).map(|deco| (d, deco)))
+            .filter(|(_, deco)| deco.name == "auto_closing")
+            .collect();
+        for (index, (line, _)) in lines.into_iter().enumerate() {
+            let span = self.src.span(line);
+            if index > 0 {
+                self.diags.error(
+                    Code::DuplicateFact,
+                    span,
+                    "a function has one `@auto_closing` line",
+                );
+            }
+        }
+    }
+
     /// Checks the `@inline` and `@cold` lines of a function or method
     /// (`annot.inline.*`): a valid argument, a body of its own, and one
     /// choice.
@@ -625,6 +669,7 @@ impl Lower<'_, '_, '_> {
     fn check_fn(&mut self, f: NodeRef<'_>, k: u16, items: &HashMap<DefId, &Item>) {
         self.check_cfg(f, k);
         self.check_inline(f);
+        self.check_auto_closing(f);
         self.check_decorators(
             f,
             Place {

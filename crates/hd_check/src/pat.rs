@@ -894,6 +894,13 @@ impl Ck<'_, '_> {
             }
         };
         let initializer_failed = self.diags.errors_since(initializer_diags) != 0;
+        if !using && !initializer_failed && self.implements_auto_closing(t)? {
+            self.err(
+                Code::UnregisteredAutoClosing,
+                rhs,
+                "an AutoClosing value cannot be bound with `:=` or `let`; call its `@auto_closing` constructor as a statement",
+            );
+        }
         let (r, t) = match annot {
             Some(a) => (
                 self.coerce(r, t, a, rhs, "binding", ExpectPosition::General),

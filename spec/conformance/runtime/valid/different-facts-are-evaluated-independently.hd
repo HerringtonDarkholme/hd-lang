@@ -1,5 +1,5 @@
 # test: different facts are evaluated independently
-# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.compiler-decorators.
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.compiler-decorators.v2.
 # expect-stdout: 0
 # expect-stdout: 0
 # expect-stdout: a_

@@ -2257,6 +2257,13 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("a call of an item outside the closure");
         };
+        if item.auto_closing && self.auto_closing_statement != Some(n.index()) {
+            self.err(
+                Code::UnregisteredAutoClosing,
+                n,
+                "an `@auto_closing` function is called only as a statement, where its result is registered for cleanup",
+            );
+        }
         if !matches!(&item.data, ItemData::Fn(_)) {
             let generics = item.generics.clone();
             self.check_data_targ_kinds(def, &generics, explicit, n);
@@ -2540,7 +2547,7 @@ impl Ck<'_, '_> {
                     return unsupported("a newtype's type");
                 };
                 let it = subst_owner(pool, def, pool.list_items(targs), inner);
-                let (r, rt) = self.expr(*e, Some(it))?;
+                let (r, rt) = self.stored_expr(*e, Some(it), "in this newtype")?;
                 let r = self.coerce(r, rt, it, *e, "argument", ExpectPosition::General);
                 // A newtype over a composite keeps its base value's outer
                 // `mut`, which only a `mut Suspend[T]` base can have.
@@ -3194,7 +3201,7 @@ impl Ck<'_, '_> {
         let mut named_bad = false;
         for (i, e) in args.positional.iter().enumerate() {
             let ft = fields.get(i).copied();
-            let (r, rt) = self.expr(*e, ft)?;
+            let (r, rt) = self.stored_expr(*e, ft, "in this enum payload")?;
             match (ft, slots.get_mut(i)) {
                 (Some(ft), Some(slot)) => {
                     *slot = Some(self.coerce(r, rt, ft, *e, "payload", ExpectPosition::General));
@@ -3216,7 +3223,7 @@ impl Ck<'_, '_> {
                 named_bad = true;
                 continue;
             }
-            let (r, rt) = self.expr(*e, Some(ft))?;
+            let (r, rt) = self.stored_expr(*e, Some(ft), "in this enum payload")?;
             slots[i] = Some(self.coerce(r, rt, ft, *e, "payload", ExpectPosition::General));
         }
         if extra || (!named_bad && slots.iter().any(Option::is_none)) {

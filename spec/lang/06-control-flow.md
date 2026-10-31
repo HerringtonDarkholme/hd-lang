@@ -1209,6 +1209,78 @@ fn plain(id: i32) -> void:
 > needs a `defer` in the dispose that closes it. Neither binding stops an alias
 > of the value from outliving its scope.
 
+## Auto-Closing Calls
+
+An auto-closing function makes registration visible on the producer instead
+of requiring `using` at every call:
+
+```text
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    log: *mut List[string]
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        self.log.push("closed")
+
+impl AutoClosing for Guard:
+    pass
+
+@auto_closing
+fn guard(log: *mut List[string]) -> Guard:
+    Guard { log: log }
+
+fn work(log: *mut List[string]) -> void:
+    guard(log)  # registered here; dispose runs when work returns
+```
+
+### Marker And Protocol
+
+1. r[flow.auto-closing.marker] `std.ops` declares the compiler-known marker trait `AutoClosing`. Code imports the trait to name it in an implementation.
+2. r[flow.auto-closing.protocol] An `AutoClosing` implementation refines either `Disposable[$R]` or `AsyncDisposable[$R]` for some row `$R`. The target must implement the refined protocol. Error: `missing-supertrait-implementation`.
+3. r[flow.auto-closing.only-registration] An `AutoClosing` value exists only to be registered for cleanup; it cannot remain unregistered.
+
+### Call And Registration
+
+1. r[flow.auto-closing.statement] A direct call of an `@auto_closing` function is valid as an expression statement. The call evaluates its result into an unnameable local and immediately registers that local through its `AutoClosing` disposal protocol.
+2. r[flow.auto-closing.order] That registration shares one cleanup stack with `defer`, `using`, and `using!`, in last-in, first-out order.
+3. r[flow.auto-closing.cleanup] The registered entry follows the selected protocol's `using` or `using!` rules for requirements, suspension, scope exit, cancellation, and panic.
+4. r[flow.auto-closing.uncompleted] A call that does not produce its result, because it propagates with `?` or panics, registers nothing.
+5. r[flow.auto-closing.scope] A statement call at module top level is an error, because module top level is not a cleanup scope. Error: `defer-outside-cleanup-scope`.
+
+### Registered-Only Values
+
+1. r[flow.auto-closing.call-value] Using an `@auto_closing` call as a value is an error. Error: `unregistered-auto-closing`.
+2. r[flow.auto-closing.binding] Binding an `AutoClosing` value with `:=` or `let` is an error. Error: `unregistered-auto-closing`.
+3. r[flow.auto-closing.storage] Storing an `AutoClosing` value in another binding, field, variant payload, newtype, or collection is an error. Error: `unregistered-auto-closing`.
+4. r[flow.auto-closing.return] Returning an `AutoClosing` value from a function without `@auto_closing` is an error. Error: `unregistered-auto-closing`.
+
+```text
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    label: string
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+@auto_closing
+fn guard() -> Guard:
+    Guard { label: "temporary" }
+
+fn invalid() -> void:
+    kept := guard()  # error: unregistered-auto-closing
+```
+
+> **Why.** The marker is an explicit promise that a value is useful only as
+> registered cleanup. Requiring statement position prevents a guard from
+> silently remaining live without a cleanup entry.
+
 ## Unreachable Code
 
 This section defines unreachable statements.

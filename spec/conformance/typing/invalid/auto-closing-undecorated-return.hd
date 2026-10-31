@@ -1,0 +1,16 @@
+# test: an undecorated function cannot return an AutoClosing value
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.return.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    pass
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+fn invalid(value: Guard) -> Guard:
+    value  # diagnostic: unregistered-auto-closing

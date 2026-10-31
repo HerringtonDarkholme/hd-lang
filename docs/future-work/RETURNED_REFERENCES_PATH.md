@@ -348,6 +348,11 @@ Applied by #1017 (6a1, [Lifetime Structs](../../spec/lang/13-values-and-referenc
 Applied by #1018 (6a2): a field typed `&'a T`, or any field whose reference positions all name `'a`, lies in the value's `'a` position, both when a literal constructs it and when it is read; a field of two or more lifetimes still takes every position.
 Applied by #1027: 6d2 is specified by [Static Fn Bounds](../../spec/lang/07-functions.md#static-fn-bounds) and [`ref.type.dyn.no-fn`](../../spec/lang/13-values-and-references.md#r-ref.type.dyn.no-fn).
 
+Applied by #1099 (6g1): `AutoClosing` and `@auto_closing` register a direct
+statement call on the shared cleanup stack; marker values cannot remain
+unregistered. See [Auto-Closing Calls](../../spec/lang/06-control-flow.md#auto-closing-calls)
+and [Auto-Closing Functions](../../spec/lang/14-annotations.md#auto-closing-functions).
+
 Applied by #1019 (6a3): an elided lifetime argument in a signature is a reference position that writes no lifetime, so `p: &Parser[string]` has two and `-> Parser[string]` elides as `-> &T` does; the resolver decides elision over a signature's typed positions. A lifetime written inside a generic argument (`Option[&'a T]`, `Wrap[&'a T]`) and in an implementation's target (`impl[T, 'a] Parser[T, 'a]`) is placed; an elided target lifetime stays not-yet (6c3).
 
 Applied by #1023 (6c1, [Lifetime Traits](../../spec/lang/13-values-and-references.md#lifetime-traits)): a trait may declare lifetimes after its type parameters, and its methods may write them. Implementations, bounds and trait values instantiate those lifetimes. A trait implementation target may write the lifetimes passed to the trait; at that slice, other target lifetimes stayed not-yet until 6c3.

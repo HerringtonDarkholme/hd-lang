@@ -258,6 +258,44 @@ An `@inline` or `@cold` line before any other target, such as a struct, is a
 > compiler decorators, not values, because an ordinary value changes
 > nothing by [`annot.decorator.attach`](#r-annot.decorator.attach).
 
+#### Auto-Closing Functions
+
+`@auto_closing` marks a function whose direct statement calls register their
+results for cleanup:
+
+```text
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    id: i32
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+@auto_closing
+fn guard(id: i32) -> Guard:
+    Guard { id: id }
+```
+
+1. r[annot.auto-closing.compiler-decorator] `auto_closing` is a compiler-known prefix decorator. It is not a value, needs no import, and attaches no fact.
+2. r[annot.auto-closing.target] A bare `@auto_closing` line, without value or type arguments, precedes only a module-level function. Any other spelling or target is an error. Error: `decorator-target-kind`.
+3. r[annot.auto-closing.duplicate] A module-level function has at most one `@auto_closing` line. Error: `duplicate-fact`.
+4. r[annot.auto-closing.result] The function's result type must implement `std.ops.AutoClosing`. Error: `unsatisfied-trait-bound`.
+5. r[annot.auto-closing.registration] The decorator does not wrap or run the function. A direct statement call registers its result by [Auto-Closing Calls](06-control-flow.md#auto-closing-calls).
+
+```text
+@auto_closing
+fn count() -> i32:  # error: unsatisfied-trait-bound
+    1
+```
+
+> **Why.** Matching `AutoClosing` and `@auto_closing` makes the registration
+> convention visible and searchable at both the result type and its producer.
+
 #### Build-Profile Bodies
 
 `@cfg(.Debug)` and `@cfg(.Release)` give one callable two checked bodies:
@@ -312,7 +350,7 @@ fn users_path() -> string:
 
 1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
 2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration. The name may go through a module qualifier or a `use` import. The argument is not evaluated.
-3. r[annot.facts-of.result.compiler-decorators] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, `@cold`, and `@cfg` lines.
+3. r[annot.facts-of.result.compiler-decorators.v2] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, `@cold`, `@auto_closing`, and `@cfg` lines.
 4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`.
 
 ```text

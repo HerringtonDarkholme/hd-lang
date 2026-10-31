@@ -1314,7 +1314,7 @@ impl Ck<'_, '_> {
         let want = self.deref_ty(inner, true);
         let v = match compound {
             None => {
-                let (vr, vt) = self.expr(rhs, Some(want))?;
+                let (vr, vt) = self.stored_expr(rhs, Some(want), "through this reference")?;
                 self.coerce(vr, vt, want, rhs, "assignment", ExpectPosition::General)
             }
             Some(k) => {

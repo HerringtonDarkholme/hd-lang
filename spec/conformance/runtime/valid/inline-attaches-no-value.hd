@@ -1,6 +1,6 @@
 # test: @inline and @cold attach no value, through an alias or a module path
 # Spec 14 Inline And Cold: annot.inline.recognized, annot.inline.meaning,
-# annot.facts-of.result.compiler-decorators.
+# annot.facts-of.result.compiler-decorators.v2.
 use std.annotation
 use std.annotation.{Cold, InlineHint, facts_of}
 use std.annotation.inline as hint

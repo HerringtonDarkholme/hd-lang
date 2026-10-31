@@ -13,7 +13,7 @@ use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{ChoiceKind, TirSink, local_flags};
-use hd_types::solver::{Answer, TraitRef};
+use hd_types::solver::{Answer, Evidence, TraitRef};
 use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::{Ck, supertrait_args, unsupported};
@@ -53,7 +53,7 @@ impl Ck<'_, '_> {
     /// (`flow.using.place.v2`), and one that holds a reference passes the
     /// reference, a trait value reference its trait value
     /// (`flow.using.reference.v2`).
-    fn dispose_suite(
+    pub(crate) fn dispose_suite(
         &mut self,
         (l, depth): (LocalId, usize),
         t: Ty,
@@ -192,6 +192,98 @@ impl Ck<'_, '_> {
         )?;
         let suite = self.b.close_block(m, None, Ty::VOID, s.index());
         self.b.defer(suite, s.index());
+        Ok(())
+    }
+
+    /// Whether `t` implements the compiler-known `AutoClosing` marker.
+    pub(crate) fn implements_auto_closing(&mut self, t: Ty) -> StageResult<bool> {
+        let self_ty = self.strip_mut(t);
+        if self.pool().has_poison(self_ty) {
+            return Ok(false);
+        }
+        let goal = TraitRef {
+            trait_: self.cx.names.known.auto_closing,
+            self_ty,
+            args: hd_types::TyList::EMPTY,
+        };
+        Ok(matches!(
+            self.solve(goal)?,
+            Answer::Holds { evidence, .. } if !matches!(evidence, Evidence::Poison)
+        ))
+    }
+
+    /// Checks an expression whose value is about to be stored in an
+    /// existing place or inside a newly constructed value.
+    pub(crate) fn stored_expr(
+        &mut self,
+        expression: NodeRef<'_>,
+        want: Option<Ty>,
+        place: &str,
+    ) -> StageResult<(hd_tir::ir::Ref, Ty)> {
+        let before = self.diags.mark();
+        let (value, ty) = self.expr(expression, want)?;
+        if self.diags.errors_since(before) == 0 && self.implements_auto_closing(ty)? {
+            let message = format!(
+                "an AutoClosing value cannot be stored {place}; call its `@auto_closing` constructor as a statement"
+            );
+            self.err(Code::UnregisteredAutoClosing, expression, &message);
+        }
+        Ok((value, ty))
+    }
+
+    /// Which disposal protocol an auto-closing value uses. A synchronous
+    /// implementation is selected when present; otherwise the suspending
+    /// protocol is tried. The marker implementation is checked separately.
+    fn auto_closing_protocol(&mut self, t: Ty) -> StageResult<Option<bool>> {
+        let self_ty = self.strip_mut(t);
+        if self.pool().has_poison(self_ty) {
+            return Ok(None);
+        }
+        for (asynchronous, trait_) in [
+            (false, self.cx.names.known.disposable),
+            (true, self.cx.names.known.async_disposable),
+        ] {
+            let row = self.fresh_disposal_arg();
+            let goal = TraitRef {
+                trait_,
+                self_ty,
+                args: self.pool().list(&[row]),
+            };
+            if matches!(
+                self.solve(goal)?,
+                Answer::Holds { evidence, .. } if !matches!(evidence, Evidence::Poison)
+            ) {
+                return Ok(Some(asynchronous));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Keeps an `@auto_closing` call's result in an unnameable local and
+    /// registers its selected disposal suite at the call statement.
+    pub(crate) fn register_auto_closing(
+        &mut self,
+        value: hd_tir::ir::Ref,
+        ty: Ty,
+        at: NodeRef<'_>,
+    ) -> StageResult<()> {
+        if self.cleanup_blocks.is_empty() {
+            self.err(
+                Code::DeferOutsideCleanupScope,
+                at,
+                "a module's top level is not a cleanup scope",
+            );
+            return Ok(());
+        }
+        let Some(asynchronous) = self.auto_closing_protocol(ty)? else {
+            return Ok(());
+        };
+        let (local, depth) = self.hold(value, ty, at);
+        self.add_flags(local, local_flags::SHORT | local_flags::READ);
+        self.dispose_suite((local, depth), ty, asynchronous, at)?;
+        if let Some(cleanup) = self.cleanup_blocks.last_mut() {
+            *cleanup = true;
+        }
         Ok(())
     }
 

@@ -1,0 +1,9 @@
+# test: AutoClosing must refine a disposal protocol
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.protocol.
+use std.ops.AutoClosing
+
+struct Guard:
+    pass
+
+impl AutoClosing for Guard:  # diagnostic: missing-supertrait-implementation
+    pass
