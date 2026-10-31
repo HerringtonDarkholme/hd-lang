@@ -5214,6 +5214,8 @@ typing/invalid/dependent-result-store-caller-place.hd	type	reject:local-referenc
 typing/invalid/dependent-result-counted-lend.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/suspension-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local
 typing/valid/suspension-holds-arguments.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension
+typing/valid/suspension-lifetime-field.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension.lifetime
+typing/invalid/suspension-lifetime-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.lifetime.field
 typing/invalid/dependent-result-auto-address-receiver-own-storage.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.origin.place
 typing/invalid/dependent-result-temporary.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.temporary
 typing/invalid/dependent-result-trait-value-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.trait

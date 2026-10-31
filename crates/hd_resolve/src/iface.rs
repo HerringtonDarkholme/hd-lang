@@ -371,6 +371,8 @@ pub struct FnSig {
     /// [`hd_types::Types::ref_slots`] order over the declared types. 0 is
     /// elided; `k` is the `k`-th lifetime in scope, an enclosing
     /// implementation's first. Empty when the signature writes none.
+    /// When a `Suspend` writes one, each `Suspend`'s follows, in order
+    /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
 }
 
@@ -401,6 +403,8 @@ pub struct Field {
     /// A lifetime struct's field (`ref.lifetime.struct.read`): the lifetime
     /// each local reference slot of `ty` names, 1-based among the struct's
     /// lifetimes, 0 when unknown. Empty for a struct without lifetimes.
+    /// When a `Suspend` writes one, each `Suspend`'s follows, in order
+    /// (`ref.dep.suspension.lifetime`).
     pub lifetimes: Vec<u16>,
 }
 

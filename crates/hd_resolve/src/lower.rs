@@ -1705,6 +1705,9 @@ struct Lower<'a, 'r, 'x> {
     /// While a signature's parameter or result type is lowered: the
     /// lifetime of each local reference slot so far (`FnSig::lifetimes`).
     slots: Option<Vec<u16>>,
+    /// Alongside `slots`: the lifetime each `Suspend` names, 0 when
+    /// omitted, after its type argument's (`ref.dep.suspension.lifetime`).
+    held: Option<Vec<u16>>,
     /// While a field's type is lowered (`ref.local.escape.field`).
     in_field: bool,
     /// The module's block-local declarations.
@@ -2867,6 +2870,18 @@ impl Lower<'_, '_, '_> {
         );
         let want = if typed { self.r.lifetime_count(def) } else { 0 };
         let ids: Vec<u16> = written.iter().map(|&t| self.lifetime_of(t, gn)).collect();
+        // `Suspend[R, 'a]`: one optional lifetime, for what the suspension
+        // holds (`ref.dep.suspension.lifetime`).
+        if def == self.names.known.suspend {
+            if ids.len() > 1 && self.r.frozen.is_none() {
+                let msg = "`Suspend` takes at most 1 lifetime argument";
+                self.diags.error(Code::ArgumentCount, self.src.span(n), msg);
+            }
+            if let Some(held) = &mut self.held {
+                held.push(ids.first().copied().unwrap_or(0));
+            }
+            return ids;
+        }
         if self.r.frozen.is_none() {
             let name = self.names.display_name(def).to_owned();
             let span = self.src.span(n);
@@ -3158,6 +3173,7 @@ impl Lower<'_, '_, '_> {
                 // `fn.type.lifetime`: the type's own reference slots, whose
                 // written lifetimes name the enclosing declaration's.
                 let outer = self.slots.replace(Vec::new());
+                let outer_held = self.held.take();
                 let in_field = std::mem::replace(&mut self.in_field, false);
                 for c in n.children() {
                     if c.kind() == SyntaxKind::RequirementRow {
@@ -3190,6 +3206,7 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 let written = std::mem::replace(&mut self.slots, outer).unwrap_or_default();
+                self.held = outer_held;
                 self.in_field = in_field;
                 let deps = pool.types().fn_deps_written(&params, result, &written);
                 pool.intern_ty(&TyData::Fn {
@@ -3729,6 +3746,7 @@ impl Lower<'_, '_, '_> {
         let mut defaults = Vec::new();
         let mut variadic = false;
         let saved = self.slots.replace(Vec::new());
+        let saved_held = self.held.replace(Vec::new());
         if let Some(pl) = Src::child(f, SyntaxKind::ParameterList) {
             let nodes: Vec<NodeRef<'_>> = pl
                 .children()
@@ -3839,11 +3857,19 @@ impl Lower<'_, '_, '_> {
         let ret = self.ty(Src::type_child(f), gn);
         self.opaque_result = before;
         let mut lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+        let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
         if let Some(rn) = Src::type_child(f)
             && self.r.frozen.is_none()
         {
             self.elided_source(rn, &params, ret, &lifetimes);
         }
+        let pool = self.names.pool.types();
+        with_held(
+            &mut lifetimes,
+            params.iter().map(|p| p.1).chain([ret]),
+            &held,
+            pool,
+        );
         if lifetimes.iter().all(|l| *l == 0) {
             lifetimes = Vec::new();
         }
@@ -3944,8 +3970,11 @@ impl Lower<'_, '_, '_> {
             };
             let outer = std::mem::replace(&mut self.in_field, true);
             let saved = std::mem::replace(&mut self.slots, lifetimes.then(Vec::new));
+            let saved_held = std::mem::replace(&mut self.held, lifetimes.then(Vec::new));
             let ty = self.ty(tn, gn);
-            let slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+            let mut slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+            let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
+            with_held(&mut slots, [ty], &held, self.names.pool.types());
             self.in_field = outer;
             out.push(Field {
                 name,
@@ -5725,6 +5754,7 @@ fn lower_aliases(
                 opaque_result: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                held: None,
                 in_field: false,
                 locals: &locals[mi],
                 at: mods[mi].src.span(h.node).lo,
@@ -5790,6 +5820,7 @@ fn lower_aliases(
                 opaque_result: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                held: None,
                 in_field: false,
                 locals: &locals[mi],
                 at: 0,
@@ -7154,6 +7185,7 @@ pub fn build_folder_with_facts(
                     opaque_result: None,
                     kind_reported: HashSet::default(),
                     slots: None,
+                    held: None,
                     in_field: false,
                     locals: &locals,
                     at: 0,
@@ -7265,6 +7297,7 @@ pub fn build_folder_with_facts(
                 opaque_result: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                held: None,
                 in_field: false,
                 locals: &[],
                 at: 0,
@@ -7403,6 +7436,7 @@ fn own_trait_generics(
                 opaque_result: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                held: None,
                 in_field: false,
                 locals: &locals,
                 at: m.src.span(h.node).lo,
@@ -7674,6 +7708,7 @@ fn own_trait_supers(
                 opaque_result: None,
                 kind_reported: HashSet::default(),
                 slots: None,
+                held: None,
                 in_field: false,
                 locals: &locals,
                 at: m.src.span(h.node).lo,
@@ -7954,5 +7989,21 @@ mod module_key_tests {
             assert!(r.visiting.borrow().is_empty());
             assert_ne!(a, PathId::NONE);
         });
+    }
+}
+
+/// Appends the lifetimes `Suspend` types name (`held`) to the reference
+/// slots' `lifetimes` of `tys`, which it pads first, when one is written
+/// (`FnSig::lifetimes`, `Field::lifetimes`).
+fn with_held(
+    lifetimes: &mut Vec<u16>,
+    tys: impl IntoIterator<Item = Ty>,
+    held: &[u16],
+    pool: hd_types::Types<'_>,
+) {
+    if held.iter().any(|&l| l != 0) {
+        let refs = tys.into_iter().map(|t| pool.ref_slots(t)).sum();
+        lifetimes.resize(refs, 0);
+        lifetimes.extend(held);
     }
 }

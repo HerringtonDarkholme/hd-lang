@@ -1,0 +1,12 @@
+# test: a holder of a suspension that borrows a local may not be returned past that local
+# Spec 13 Dependent Results: ref.dep.suspension.lifetime.field, ref.dep.suspension.local.
+fn hold!(r: &string) -> usize:
+    r.len()
+
+struct Holder['a]:
+    s: mut Suspend[usize, 'a]
+
+fn escape(q: &string) -> Holder:
+    x := "abc"
+    h := Holder { s: hold(&x) }
+    h # diagnostic: local-reference-escapes

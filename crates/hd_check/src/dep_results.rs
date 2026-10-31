@@ -98,13 +98,23 @@ impl DepSig {
         let ref_ins: usize = params.iter().map(|&(_, t)| pool.ref_slots(t)).sum();
         let ref_outs = pool.ref_slots(ret);
         let trust_in = written.len() >= ref_ins;
-        let trust_out = written.len() == ref_ins + ref_outs;
+        let trust_out = written.len() >= ref_ins + ref_outs;
         let mut written_at = 0;
         let mut dep_at = 0;
+        // A suspension's written lifetime follows the reference slots'
+        // (`ref.dep.suspension.lifetime`).
+        let held_at = std::cell::Cell::new(ref_ins + ref_outs);
+        let next_held = || {
+            held_at.set(held_at.get() + 1);
+            (written.get(held_at.get() - 1).copied())
+                .filter(|&l| l != 0)
+                .map(u32::from)
+        };
         let ps: Vec<(Ty, Vec<u32>)> = params
             .iter()
             .map(|&(_, t)| {
-                let ids = slot_ids(ls, t, &mut written_at, &mut dep_at, |k| {
+                let at = (&mut written_at, &mut dep_at);
+                let ids = slot_ids(ls, t, at, &next_held, |k| {
                     written
                         .get(k)
                         .copied()
@@ -142,7 +152,7 @@ impl DepSig {
                     ty: st, fun, hold, ..
                 } = s;
                 if hold {
-                    return held;
+                    return next_held().or(held);
                 }
                 if fun {
                     return match capture_elided {
@@ -189,7 +199,8 @@ impl DepSig {
             .list_items(params)
             .iter()
             .map(|&p| {
-                let ids = slot_ids(ls, p, &mut ref_at, &mut dep_at, |k| ins.get(k).copied());
+                let at = (&mut ref_at, &mut dep_at);
+                let ids = slot_ids(ls, p, at, &|| None, |k| ins.get(k).copied());
                 (p, ids)
             })
             .collect::<Vec<_>>();
@@ -422,13 +433,16 @@ impl DepSig {
 fn slot_ids(
     ls: &Layouts<'_>,
     t: Ty,
-    ref_at: &mut usize,
-    dep_at: &mut usize,
+    (ref_at, dep_at): (&mut usize, &mut usize),
+    held: &dyn Fn() -> Option<u32>,
     written: impl Fn(usize) -> Option<u32>,
 ) -> Vec<u32> {
     let ids = (ls.of(t).slots.iter().enumerate())
         .map(|(k, s)| {
             let own = ANON + w(*dep_at + k);
+            if s.hold {
+                return held().unwrap_or(own);
+            }
             if s.fun {
                 return own;
             }
@@ -624,8 +638,8 @@ struct Slot {
 /// The origin slots of a type in pre-order (`ref.dep.slot`): each
 /// reference type outside function types and counted references, as in
 /// [`Types::ref_slots`], each borrowing opaque type, each function type
-/// outside another function type, and each suspension ahead of its
-/// result's slots. [`Layouts`] makes each once.
+/// outside another function type, and each suspension after its
+/// result's slots, as a struct's lifetime. [`Layouts`] makes each once.
 struct Layout {
     slots: Vec<Slot>,
     /// The top slots.
@@ -697,11 +711,14 @@ impl Layout {
                 }
             }
             TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                if hold {
-                    out.push(slot);
-                }
                 for &a in pool.list_items(args) {
                     walk(a, top, out);
+                }
+                if hold {
+                    out.push(Slot {
+                        end: out.len() + 1,
+                        ..slot
+                    });
                 }
             }
             _ => {}
@@ -780,6 +797,24 @@ impl<'a> Layouts<'a> {
     }
 
     /// The type of field `j` and where its slots lie ([`FieldMap`]).
+    /// A field's `lifetimes` by slot of `f`, a suspension's from past the
+    /// reference slots' (`ref.dep.suspension.lifetime`); as written when
+    /// it names none or `f` has a capture slot.
+    fn slot_lifetimes(&self, f: Ty, lifetimes: &[u16]) -> Vec<u16> {
+        let (refs, decl) = (self.pool.ref_slots(f), self.of(f));
+        if lifetimes.len() <= refs || decl.slots.iter().any(|s| s.fun && !s.hold) {
+            return lifetimes.to_vec();
+        }
+        let (mut r, mut h) = (0, refs);
+        let next = |k: &mut usize| {
+            *k += 1;
+            lifetimes.get(*k - 1).copied().unwrap_or(0)
+        };
+        (decl.slots.iter())
+            .map(|s| if s.hold { next(&mut h) } else { next(&mut r) })
+            .collect()
+    }
+
     fn field_map(
         &self,
         cx: &BodyCx<'_>,
@@ -845,18 +880,19 @@ impl<'a> Layouts<'a> {
                     // no one slot.
                     _ => {
                         let (decl, inst) = (self.of(f), self.of(ty));
+                        let lts = self.slot_lifetimes(f, &field.lifetimes);
                         let mut at = vec![ALL_SLOTS; inst.slots.len()];
-                        let aligned = decl.slots.len() == field.lifetimes.len()
+                        let aligned = decl.slots.len() == lts.len()
                             && decl.tops.len() == inst.tops.len()
                             && !decl.tops.is_empty();
                         if aligned && decl.slots.len() == inst.slots.len() {
-                            for (k, &l) in field.lifetimes.iter().enumerate() {
+                            for (k, &l) in lts.iter().enumerate() {
                                 at[k] = lifetime(l).unwrap_or(ALL_SLOTS);
                             }
                         }
                         let mut known = aligned;
                         for (&d, &k) in decl.tops.iter().zip(&inst.tops) {
-                            match lifetime(field.lifetimes.get(d).copied().unwrap_or(0)) {
+                            match lifetime(lts.get(d).copied().unwrap_or(0)) {
                                 Some(s) => at[k] = s,
                                 None => known = false,
                             }
@@ -1323,7 +1359,7 @@ impl Ck<'_, '_> {
         let lined = (line_up_call(ls, dep.ret, b.ty[i]).map(|keys| (None, keys)))
             .or_else(|| Some((Some(vec![Var::Held]), line_up_call(ls, dep.ret, output?)?)));
         let outs: Vec<Vec<Var>> = match lined {
-            Some((held, keys)) => held.into_iter().chain(keys.into_iter().map(out)).collect(),
+            Some((held, keys)) => keys.into_iter().map(out).chain(held).collect(),
             None => vec![vec![Var::Held]; ls.of(b.ty[i]).slots.len()],
         };
         let lifetime = |e: Elided| match e {
