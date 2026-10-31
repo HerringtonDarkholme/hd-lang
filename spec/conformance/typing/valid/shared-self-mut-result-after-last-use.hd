@@ -1,0 +1,19 @@
+# test: a `&self` method's `&mut` result leaves its receiver usable after its last use, and a sibling of its result path usable while it is live
+# Spec 13 Writes While Borrowed: ref.excl.call, ref.excl.mut.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+    size: i32
+
+impl Team:
+    fn lead_name(&self) -> &'self.lead.name mut string:
+        &mut self.lead.name
+
+fn rename(t: &Team) -> void $ Console:
+    n := t.lead_name()
+    println(t.lead.age)
+    *n = "x"
+    println(t.lead.name)

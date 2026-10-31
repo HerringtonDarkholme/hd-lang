@@ -1,0 +1,18 @@
+# test: a `&self` method's `&mut` result with no result path excludes every other use of its whole receiver while it is used later
+# Spec 13 Writes While Borrowed: ref.excl.call, ref.excl.mut.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+    size: i32
+
+impl Team:
+    fn lead_name(&self) -> &mut string:
+        &mut self.lead.name
+
+fn rename(t: &Team) -> void $ Console:
+    n := t.lead_name()
+    println(t.size) # diagnostic: conflicting-access
+    *n = "x"

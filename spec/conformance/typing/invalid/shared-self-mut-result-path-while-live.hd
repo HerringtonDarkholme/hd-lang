@@ -1,0 +1,18 @@
+# test: a `&self` method's `&mut` result through a `*mut` field excludes other uses of the place its result path names while it is used later
+# Spec 13 Writes While Borrowed: ref.excl.call, ref.excl.mut.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+    size: i32
+
+impl Team:
+    fn lead_name(&self) -> &'self.lead.name mut string:
+        &mut self.lead.name
+
+fn rename(t: &Team) -> void $ Console:
+    n := t.lead_name()
+    println(t.lead.name) # diagnostic: conflicting-access
+    *n = "x"
