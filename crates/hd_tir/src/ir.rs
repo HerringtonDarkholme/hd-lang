@@ -1292,6 +1292,10 @@ pub trait TirSink {
     fn coerce(&mut self, kind: Coercion, evidence: u32, v: Ref, to: Ty, syn: NodeIdx) -> Ref;
     fn emit(&mut self, tag: Tag, a: u32, b: u32, ty: Ty, syn: NodeIdx) -> Ref;
     fn open_block(&mut self) -> BlockMark;
+    /// Removes an open block mark without grouping the instructions emitted
+    /// since it. Used when a checker discovers that speculative grouping was
+    /// unnecessary.
+    fn cancel_block(&mut self, m: BlockMark);
     fn close_block(&mut self, m: BlockMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Ref;
     fn open_scope(&mut self) -> ScopeMark;
     fn defer(&mut self, suite: Ref, syn: NodeIdx);
@@ -1616,6 +1620,10 @@ impl TirSink for TirBuilder {
         self.open
             .push(u32::try_from(self.scratch.len()).expect("scratch"));
         BlockMark(u32::try_from(self.open.len()).expect("open"))
+    }
+    fn cancel_block(&mut self, m: BlockMark) {
+        assert_eq!(m.0 as usize, self.open.len(), "blocks cancel in order");
+        self.open.pop().expect("open block");
     }
     fn close_block(&mut self, m: BlockMark, tail: Option<Ref>, ty: Ty, syn: NodeIdx) -> Ref {
         assert_eq!(m.0 as usize, self.open.len(), "blocks close in order");

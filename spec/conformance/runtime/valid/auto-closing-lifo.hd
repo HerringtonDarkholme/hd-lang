@@ -1,0 +1,34 @@
+# test: an auto-closing statement call shares defer's LIFO cleanup stack
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.order.
+# expect-stdout: third
+# expect-stdout: second
+# expect-stdout: first
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    log: *mut List[string]
+    label: string
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        self.log.push(self.label)
+
+impl AutoClosing for Guard:
+    pass
+
+@auto_closing
+fn closing(log: *mut List[string], label: string) -> Guard:
+    Guard { log: log, label: label }
+
+fn run(log: *mut List[string]) -> void:
+    defer:
+        log.push("first")
+    closing(log, "second")
+    defer:
+        log.push("third")
+
+pub fn main() -> void $ Console:
+    let log: *mut List[string] = box([])
+    run(log)
+    for line in log:
+        println(line)

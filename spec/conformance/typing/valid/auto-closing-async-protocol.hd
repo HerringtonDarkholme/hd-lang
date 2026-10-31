@@ -1,0 +1,20 @@
+# test: AutoClosing may refine AsyncDisposable and register a suspending cleanup
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.protocol.
+use std.ops.{AsyncDisposable, AutoClosing}
+
+struct Guard:
+    pass
+
+impl AsyncDisposable for Guard:
+    fn dispose!(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+@auto_closing
+fn closing() -> Guard:
+    Guard {}
+
+fn use_guard!() -> void:
+    closing()

@@ -250,6 +250,15 @@ pub(crate) struct Ck<'a, 'c> {
     /// The locals bound with `using`, which are not reassignable
     /// (`flow.using.binding.v2`).
     pub using_locals: Vec<LocalId>,
+    /// Whether each open lexical block has registered cleanup. A block is
+    /// grouped as a TIR cleanup scope only when its own entry becomes true.
+    pub cleanup_blocks: Vec<bool>,
+    /// The direct call node allowed to consume an `@auto_closing` result as
+    /// the current expression statement.
+    pub auto_closing_statement: Option<hd_base::NodeIdx>,
+    /// Whether the root function carries `@auto_closing`; nested closures do
+    /// not inherit this permission for their returns.
+    pub auto_closing_function: bool,
     /// The locals bound with `let mut`: a struct value in one changes in
     /// place (`types.value.writable-forms`).
     pub mut_locals: Vec<LocalId>,
@@ -586,6 +595,9 @@ pub(crate) fn new_ck<'a, 'c>(
         const_gens: Vec::new(),
         using_bind: false,
         using_locals: Vec::new(),
+        cleanup_blocks: Vec::new(),
+        auto_closing_statement: None,
+        auto_closing_function: false,
         mut_locals: Vec::new(),
         changed_locals: Vec::new(),
         mut_params: Vec::new(),
@@ -1118,6 +1130,7 @@ fn fn_body_steps(
         (sig.ret, sig.row),
         diags,
     );
+    ck.auto_closing_function = item.auto_closing;
     if let Some(o) = opt_in {
         ck.enter_opt_in(o);
     }
@@ -3033,24 +3046,35 @@ impl Ck<'_, '_> {
         // The suite's local declarations end with it: the rest of the
         // enclosing statement is back where it started.
         let at = self.at;
-        // A suite with `defer` is a cleanup scope (`flow.defer.scopes`):
-        // a `Scope` over its statements, whose suites are its `Defer`s.
-        let r = if block
+        // A suite with registered cleanup is a cleanup scope
+        // (`flow.defer.scopes`, `flow.auto-closing.statement`): a `Scope`
+        // over its statements, whose suites are its `Defer`s. An
+        // auto-closing call is known only after its callee is selected, so
+        // open a speculative block and cancel its mark if no cleanup was
+        // registered; cancellation leaves the emitted TIR unchanged.
+        let written_cleanup = block
             .children()
-            .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt))
-        {
-            let sm = self.b.open_scope();
-            let inner = self.b.open_block();
-            match self.lines(block, want) {
-                Ok((tail, ty)) => {
+            .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt));
+        let sm = self.b.open_scope();
+        let inner = self.b.open_block();
+        self.cleanup_blocks.push(written_cleanup);
+        let lines = self.lines(block, want);
+        let cleanup = self.cleanup_blocks.pop().unwrap_or(written_cleanup);
+        let r = match lines {
+            Ok((tail, ty)) => {
+                if cleanup {
                     let body = self.b.close_block(inner, tail, ty, block.index());
                     let scope = self.b.close_scope(sm, body, ty, block.index());
                     Ok((if tail.is_some() { Some(scope) } else { None }, ty))
+                } else {
+                    self.b.cancel_block(inner);
+                    Ok((tail, ty))
                 }
-                Err(e) => Err(e),
             }
-        } else {
-            self.lines(block, want)
+            Err(e) => {
+                self.b.cancel_block(inner);
+                Err(e)
+            }
         };
         self.scopes.pop();
         self.move_to(at);
@@ -3095,9 +3119,21 @@ impl Ck<'_, '_> {
                     && self.fn_body == Some(block.index()))
                 .then(|| e.index());
                 let saved_tail = std::mem::replace(&mut self.fn_body_tail, tail_if);
+                let value_diags = self.diags.mark();
                 let checked = self.expr(e, want);
                 self.fn_body_tail = saved_tail;
                 let (r, t) = checked?;
+                if self.fn_body == Some(block.index())
+                    && !self.auto_closing_function
+                    && self.diags.errors_since(value_diags) == 0
+                    && self.implements_auto_closing(t)?
+                {
+                    self.err(
+                        Code::UnregisteredAutoClosing,
+                        e,
+                        "an AutoClosing value can be returned only from an `@auto_closing` function",
+                    );
+                }
                 // A last expression that cannot complete is a statement.
                 if self.infer.shallow(self.pool(), t) == Ty::NEVER {
                     diverged = true;
@@ -3636,8 +3672,15 @@ impl Ck<'_, '_> {
     fn selected_item_callee(&self, e: NodeRef<'_>, result: Ref) -> Option<DefId> {
         let call = match e.kind() {
             SyntaxKind::CallExpr => e,
-            SyntaxKind::TrailingCallExpr => {
-                e.children().find(|c| c.kind() == SyntaxKind::CallExpr)?
+            SyntaxKind::TrailingCallExpr => e
+                .children()
+                .find(|c| c.kind() == SyntaxKind::CallExpr)
+                .unwrap_or(e),
+            SyntaxKind::ParenExpr => {
+                return e
+                    .children()
+                    .next()
+                    .and_then(|inner| self.selected_item_callee(inner, result));
             }
             _ => return None,
         };
@@ -3654,6 +3697,22 @@ impl Ck<'_, '_> {
         match callee {
             Callee::Item { def, .. } => Some(def),
             Callee::TraitMethod { .. } => None,
+        }
+    }
+
+    /// The call node an expression statement may use as its direct
+    /// `@auto_closing` call, through parentheses or trailing-block syntax.
+    fn statement_call_node(e: NodeRef<'_>) -> Option<hd_base::NodeIdx> {
+        match e.kind() {
+            SyntaxKind::CallExpr => Some(e.index()),
+            SyntaxKind::TrailingCallExpr => Some(
+                e.children()
+                    .find(|c| c.kind() == SyntaxKind::CallExpr)
+                    .unwrap_or(e)
+                    .index(),
+            ),
+            SyntaxKind::ParenExpr => e.children().next().and_then(Self::statement_call_node),
+            _ => None,
         }
     }
 
@@ -3749,8 +3808,19 @@ impl Ck<'_, '_> {
                     self.shown = Some((s.index(), Some((r, t))));
                     return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
                 }
-                let (result, t) = self.expr(*e, Some(Ty::VOID))?;
+                let direct_call = Self::statement_call_node(*e);
+                let saved_auto = std::mem::replace(&mut self.auto_closing_statement, direct_call);
+                let checked = self.expr(*e, Some(Ty::VOID));
+                self.auto_closing_statement = saved_auto;
+                let (result, t) = checked?;
                 let t = self.infer.shallow(self.pool(), t);
+                let selected = self.selected_item_callee(*e, result);
+                let auto_closing = selected
+                    .and_then(|def| self.cx.lookup.item(def))
+                    .is_some_and(|item| item.auto_closing);
+                if auto_closing && !matches!(t, Ty::NEVER | Ty::POISON) {
+                    self.register_auto_closing(result, t, *e)?;
+                }
                 // `fn.body.void-final`: a `void` function rejects a
                 // non-`void` final expression. An omitted result is
                 // inferred, never `void` by declaration, and poison
@@ -3761,12 +3831,8 @@ impl Ck<'_, '_> {
                     && t != Ty::VOID
                     && t != Ty::NEVER
                     && !self.pool().has_poison(t)
-                    && !self.must_use(t);
-                // Ordinary checking needs declaration identity only for this
-                // core exception; other discarded expressions need it in lint.
-                let selected = (void_value || self.cx.source_facts.is_some())
-                    .then(|| self.selected_item_callee(*e, result))
-                    .flatten();
+                    && !self.must_use(t)
+                    && !auto_closing;
                 let prelude_debug = selected == Some(self.cx.names.item("std.format", "debug"));
                 if void_value && !prelude_debug {
                     let open = matches!(self.pool().get(t), TyData::Infer(_))
@@ -3779,7 +3845,7 @@ impl Ck<'_, '_> {
                         self.err(Code::TypeMismatch, *e, &msg);
                     }
                 }
-                if self.must_use(t) {
+                if self.must_use(t) && !auto_closing {
                     let msg = format!(
                         "a {} value is discarded; handle it or write `_ := ...`",
                         self.show(t)
@@ -3787,7 +3853,8 @@ impl Ck<'_, '_> {
                     self.err(Code::DiscardedMustUseValue, *e, &msg);
                 }
                 if self.cx.source_facts.is_some() {
-                    let unbound_disposable = self.implements_disposal_protocol(t)?;
+                    let unbound_disposable =
+                        !auto_closing && self.implements_disposal_protocol(t)?;
                     let fact = self.discarded_expression(*e, selected, unbound_disposable);
                     self.discarded.push(fact);
                 }
@@ -3818,7 +3885,18 @@ impl Ck<'_, '_> {
                 }
                 let ret = *self.rets.last().expect("ret");
                 let r = if let Some(e) = kids.first() {
+                    let value_diags = self.diags.mark();
                     let (r, t) = self.expr(*e, Some(ret))?;
+                    if !(self.auto_closing_function && self.rets.len() == 1)
+                        && self.diags.errors_since(value_diags) == 0
+                        && self.implements_auto_closing(t)?
+                    {
+                        self.err(
+                            Code::UnregisteredAutoClosing,
+                            *e,
+                            "an AutoClosing value can be returned only from an `@auto_closing` function",
+                        );
+                    }
                     self.coerce(r, t, ret, *e, "return", ExpectPosition::General)
                 } else {
                     if self.strict_rets.contains(&ret) {
@@ -4020,7 +4098,7 @@ impl Ck<'_, '_> {
                     if compound.is_some() {
                         return unsupported("compound assignment to a top-level binding");
                     }
-                    let (r, t) = self.expr(*rhs, Some(ty))?;
+                    let (r, t) = self.stored_expr(*rhs, Some(ty), "in this binding")?;
                     let v = self.coerce(r, t, ty, *rhs, "assignment", ExpectPosition::General);
                     self.store_global(def, ty, v, s.index());
                     return Ok(());
@@ -4057,7 +4135,7 @@ impl Ck<'_, '_> {
                 let lt = self.b.local_ty(l);
                 let v = match compound {
                     None => {
-                        let (r, t) = self.expr(*rhs, Some(lt))?;
+                        let (r, t) = self.stored_expr(*rhs, Some(lt), "in this binding")?;
                         self.coerce(r, t, lt, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
@@ -4155,7 +4233,7 @@ impl Ck<'_, '_> {
                 let br = pr;
                 let v = match compound {
                     None => {
-                        let (r, t) = self.expr(*rhs, Some(ft))?;
+                        let (r, t) = self.stored_expr(*rhs, Some(ft), "in this field")?;
                         self.coerce(r, t, ft, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
@@ -4230,7 +4308,7 @@ impl Ck<'_, '_> {
                 let kr = self.index_key((kr, key_ty), *key, kt);
                 let v = match compound {
                     None => {
-                        let (r, t) = self.expr(*rhs, Some(vt))?;
+                        let (r, t) = self.stored_expr(*rhs, Some(vt), "in this element")?;
                         self.coerce(r, t, vt, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
@@ -4319,7 +4397,7 @@ impl Ck<'_, '_> {
             return Ok(());
         }
         let (vr, vt) = match compound {
-            None => self.expr(rhs, None)?,
+            None => self.stored_expr(rhs, None, "through this index")?,
             Some(k) => {
                 let index = self.cx.names.known.index;
                 if !self.op_fits(index, bt, Some(kt))? {

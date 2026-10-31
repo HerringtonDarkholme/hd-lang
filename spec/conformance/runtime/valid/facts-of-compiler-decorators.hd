@@ -1,6 +1,6 @@
 # test: facts_of leaves out compiler decorators, which attach no value
 # expect: test
-# Spec 14 Function Facts: annot.facts-of.result.compiler-decorators.
+# Spec 14 Function Facts: annot.facts-of.result.compiler-decorators.v2.
 use std.annotation.facts_of
 use std.ops.{Template, num_suffix, str_prefix}
 

@@ -17,6 +17,7 @@ const COMPILER_DECORATORS: &[&str] = &[
     "annotate",
     "host",
     "cfg",
+    "auto_closing",
 ];
 
 /// A decorator line's callee, without its call and type-argument wrappers.

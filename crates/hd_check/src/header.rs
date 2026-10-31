@@ -14,7 +14,7 @@
 //! `item-too-complex` on the item (`fn.limit.complexity.error`), and its
 //! remaining goals are not asked. Otherwise only `Fails` is an error.
 
-use hd_base::{DefId, Fuel, StageResult, Symbol};
+use hd_base::{DefId, Fuel, InferVar, StageResult, Symbol};
 use hd_diag::Code;
 use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, LookupDecls, Names};
 use hd_types::solver::{
@@ -431,6 +431,27 @@ impl<'a> ItemCheck<'_, 'a> {
             }
             self.check_ty(t, slot)?;
         }
+        if it.auto_closing
+            && let ItemData::Fn(sig) = &it.data
+            && self.fails_ref(
+                TraitRef {
+                    trait_: self.cx.names.known.auto_closing,
+                    self_ty: sig.ret,
+                    args: TyList::EMPTY,
+                },
+                u32::try_from(sig.params.len() + 1).unwrap_or(0),
+            )?
+        {
+            let message = format!(
+                "an `@auto_closing` function must return an AutoClosing value, but {} does not implement AutoClosing",
+                self.show(sig.ret)
+            );
+            self.report(
+                u32::try_from(sig.params.len() + 1).unwrap_or(0),
+                Code::UnsatisfiedTraitBound,
+                message,
+            );
+        }
         self.value_item(it);
         // The bounds the item writes are written types too
         // (`trait.bound.no-implied.positions`); they report at the header.
@@ -486,6 +507,18 @@ impl<'a> ItemCheck<'_, 'a> {
         };
         if *trait_ == DefId::NONE || !kind.is_impl() || *kind == ImplKind::TupleTemplate {
             return Ok(());
+        }
+        if *trait_ == self.cx.names.known.auto_closing {
+            let sync = self.holds_protocol(*self_ty, self.cx.names.known.disposable)?;
+            let asynchronous =
+                self.holds_protocol(*self_ty, self.cx.names.known.async_disposable)?;
+            if !sync && !asynchronous {
+                let message = format!(
+                    "{} implements AutoClosing but neither Disposable nor AsyncDisposable",
+                    self.show(*self_ty)
+                );
+                self.report(0, Code::MissingSupertraitImplementation, message);
+            }
         }
         // A local impl's supertraits are those implemented where it is
         // declared, which its body's checker asks (`local_supertraits`).
@@ -881,8 +914,13 @@ impl<'a> ItemCheck<'_, 'a> {
     /// Whether a written bound goal provably fails under the item's
     /// environment. This is [`Self::fails`] after the bound is substituted.
     fn fails_ref(&mut self, tref: TraitRef, slot: u32) -> StageResult<bool> {
+        Ok(matches!(self.answer_ref(tref, slot)?, Answer::Fails(_)))
+    }
+
+    /// Solves one header goal, reporting the shared depth and fuel failures.
+    fn answer_ref(&mut self, tref: TraitRef, slot: u32) -> StageResult<Answer> {
         if self.too_complex {
-            return Ok(false);
+            return Ok(Answer::OutOfFuel);
         }
         let pool = self.pool();
         let t = tref.self_ty;
@@ -892,7 +930,10 @@ impl<'a> ItemCheck<'_, 'a> {
             _ => t,
         };
         if inner == Ty::NEVER {
-            return Ok(false);
+            return Ok(Answer::Holds {
+                evidence: hd_types::solver::Evidence::Poison,
+                learned: Vec::new(),
+            });
         }
         let goal = Goal::Implements {
             tref,
@@ -928,7 +969,62 @@ impl<'a> ItemCheck<'_, 'a> {
             self.too_complex = true;
             self.report(0, Code::ItemTooComplex, TOO_COMPLEX.to_owned());
         }
-        Ok(matches!(answer, Answer::Fails(_)))
+        Ok(answer)
+    }
+
+    /// Whether `self_ty` implements a cleanup protocol for some requirement
+    /// row. The existential row lives in this one header probe's local pool.
+    fn holds_protocol(&mut self, self_ty: Ty, trait_: DefId) -> StageResult<bool> {
+        if self.too_complex {
+            return Ok(false);
+        }
+        let local = hd_types::LocalPool::new();
+        let pool = Types::with_local(self.cx.names.pool, &local);
+        let row = pool.intern_ty(&TyData::Infer(InferVar::from_raw(0)));
+        let goal = Goal::Implements {
+            tref: TraitRef {
+                trait_,
+                self_ty,
+                args: pool.list(&[row]),
+            },
+            bindings: vec![],
+            mut_: false,
+        };
+        let decls = LookupDecls {
+            lookup: self.cx.lookup,
+            pool: self.cx.names.pool,
+            sealed: self.cx.names.known.sealed(),
+            paths: self.cx.names.paths,
+            syms: self.cx.names.syms,
+        };
+        let mut scx = SolveCx {
+            pool,
+            env: &self.env,
+            universe: self.cx.impls.universe,
+            impls: Impls::Owned(self.cx.impls),
+            decls: &decls,
+            body_memo: &mut self.memo,
+            global: self.cx.global,
+        };
+        let answer = self.cx.solver.solve(&mut scx, &goal, &mut self.fuel)?;
+        match answer {
+            Answer::Holds { .. } => Ok(true),
+            Answer::Overflow => {
+                let message = format!(
+                    "the proof that {} implements {} needs more than 64 nested bounds",
+                    self.show(self_ty),
+                    self.cx.names.display_name(trait_)
+                );
+                self.report(0, Code::TraitResolutionDepth, message);
+                Ok(false)
+            }
+            Answer::OutOfFuel => {
+                self.too_complex = true;
+                self.report(0, Code::ItemTooComplex, TOO_COMPLEX.to_owned());
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
     }
 
     /// A written requirement key may not be `Inspectable` or extend it

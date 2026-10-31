@@ -50,7 +50,7 @@ impl Ck<'_, '_> {
         place.ty = ft;
         let v = match compound {
             None => {
-                let (r, t) = self.expr(rhs, Some(ft))?;
+                let (r, t) = self.stored_expr(rhs, Some(ft), "in this field")?;
                 self.coerce(r, t, ft, rhs, "assignment", ExpectPosition::General)
             }
             Some(k) => {

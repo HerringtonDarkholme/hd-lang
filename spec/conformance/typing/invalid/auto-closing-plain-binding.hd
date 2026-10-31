@@ -1,0 +1,16 @@
+# test: an AutoClosing value cannot be bound with an ordinary binding
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.binding.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    pass
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+fn invalid(value: Guard) -> void:
+    copy := value  # diagnostic: unregistered-auto-closing

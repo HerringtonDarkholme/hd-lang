@@ -533,8 +533,11 @@ pub struct Item {
     /// `INLINE_AUTO`, `INLINE_ALWAYS`, `INLINE_NEVER` and `COLD`, or 0
     /// (`annot.inline.recognized`).
     pub inline: u8,
+    /// A module-level function marked with the compiler decorator
+    /// `@auto_closing` (`annot.auto-closing.compiler-decorator`).
+    pub auto_closing: bool,
     /// A function whose decorators attach values: `facts_of` of it reads
-    /// its facts body (`annot.facts-of.result.compiler-decorators`).
+    /// its facts body (`annot.facts-of.result.compiler-decorators.v2`).
     pub has_facts: bool,
     /// Whether this callable has one checked body for each build profile.
     pub configured: bool,
@@ -587,6 +590,7 @@ impl Item {
             targets: None,
             literal_fn: 0,
             inline: 0,
+            auto_closing: false,
             has_facts: false,
             configured: false,
             fact_pattern: None,
@@ -1301,6 +1305,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(it.targets.map_or(u32::MAX, u32::from));
     w.u8(it.literal_fn);
     w.u8(it.inline);
+    w.u8(u8::from(it.auto_closing));
     w.u8(u8::from(it.has_facts));
     w.u8(u8::from(it.configured));
     w.u32(opt_ty(t, it.fact_pattern)?);
@@ -1417,6 +1422,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     };
     let literal_fn = r.u8();
     let inline = r.u8();
+    let auto_closing = r.u8() != 0;
     let has_facts = r.u8() != 0;
     let configured = r.u8() != 0;
     let fact_pattern = get_opt_ty(r, t).ok()?;
@@ -1521,6 +1527,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         targets,
         literal_fn,
         inline,
+        auto_closing,
         has_facts,
         configured,
         fact_pattern,
@@ -2723,7 +2730,9 @@ mod tests {
             vec![(syms.intern("a"), t)],
             t,
         );
-        let items = vec![Item::new(f, syms.intern("first"), true, ItemData::Fn(sig))];
+        let mut item = Item::new(f, syms.intern("first"), true, ItemData::Fn(sig));
+        item.auto_closing = true;
+        let items = vec![item];
         let exports = vec![Export {
             module: "app.geo".into(),
             name: syms.intern("first"),

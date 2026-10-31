@@ -6394,7 +6394,7 @@ impl Run<'_> {
             }
         }
         // The facts body of each function whose decorators attach values,
-        // which `facts_of` reads (spec 14 `annot.facts-of.result.compiler-decorators`).
+        // which `facts_of` reads (spec 14 `annot.facts-of.result.compiler-decorators.v2`).
         for h in heads
             .iter()
             .filter(|h| h.kind == hd_resolve::HeadKind::Fn)

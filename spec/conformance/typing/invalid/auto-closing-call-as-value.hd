@@ -1,0 +1,20 @@
+# test: an auto-closing function call cannot be used as a value
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.call-value.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    pass
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+@auto_closing
+fn closing() -> Guard:
+    Guard {}
+
+fn invalid() -> void:
+    value := closing()  # diagnostic: unregistered-auto-closing

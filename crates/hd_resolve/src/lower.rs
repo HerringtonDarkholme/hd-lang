@@ -5326,6 +5326,7 @@ impl Lower<'_, '_, '_> {
                 it.intrinsic = self.intrinsic(n);
                 it.literal_fn = self.literal_fn(n);
                 it.inline = self.inline_hint(n);
+                it.auto_closing = self.auto_closing(n);
                 it.has_facts = !crate::facts::fact_lines(&self.src, n, |d| {
                     self.literal_marker(d).is_some() || self.inline_marker(d)
                 })
