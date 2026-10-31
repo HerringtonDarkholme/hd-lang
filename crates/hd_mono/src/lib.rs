@@ -50,6 +50,12 @@ pub trait ProgramEnv: LayoutEnv {
     fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Body>> {
         Ok(None)
     }
+    /// Release (#1118): `def`'s exclusive copy, which borrows through the
+    /// parameters in its mask across calls that may write, and which a
+    /// call may run where `hd_tir::own::exclusive_call` holds.
+    fn exclusive_body(&self, _def: DefId) -> Option<(u64, Arc<Body>)> {
+        None
+    }
     /// Codegen-only result facts. The driver decodes the raw checked body,
     /// without recursively entering its ownership once-cell.
     fn opaque_result(
@@ -1572,6 +1578,51 @@ impl Cx<'_> {
             .push_with_defaults(item, sub, args, known, defaults, depth, parent, key);
         self.work.push(id);
         Ok(key)
+    }
+
+    /// Stage 8 (#1118): call `at` of `body` (instance `caller`'s) as a
+    /// call of its callee's exclusive copy, where the callee has one, the
+    /// target is its plain instance with no folded facts, and the
+    /// arguments qualify (`hd_tir::own::exclusive_call`); else `t`.
+    fn exclusive_target(
+        &mut self,
+        body: &Body,
+        at: usize,
+        t: CallTarget,
+        caller: InstId,
+    ) -> StageResult<CallTarget> {
+        if t.kind != TargetKind::Instance {
+            return Ok(t);
+        }
+        let Some((relies, copy)) = self.env.exclusive_body(t.item) else {
+            return Ok(t);
+        };
+        let table = &self.out.table;
+        let plain = table.get(t.item, Sub::Body(0), t.args);
+        if plain.is_none_or(|p| table.key[p.idx()] != t.key) {
+            return Ok(t);
+        }
+        let flag = hd_tir::ir::sub_flags::EXCLUSIVE;
+        let own = match body.sub_flags.first() {
+            Some(f) if f & flag != 0 => {
+                let item = table.item[caller.idx()];
+                self.env.exclusive_body(item).map_or(0, |e| e.0)
+            }
+            _ => 0,
+        };
+        if !hd_tir::own::exclusive_call(body, at, relies, own)
+            || self.env.instance_body(t.item, t.args)?.is_some()
+        {
+            return Ok(t);
+        }
+        let mark = [defaults::EXCLUSIVE];
+        let key =
+            self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], &mark, caller)?;
+        let table = &self.out.table;
+        if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], &mark) {
+            self.out.instance_bodies.entry(id).or_insert(copy);
+        }
+        Ok(CallTarget { key, ..t })
     }
 
     /// A direct call that omits a pure constant default can use a body whose
@@ -3340,6 +3391,7 @@ impl Cx<'_> {
                         calls.insert(ix, target);
                         continue;
                     }
+                    let t = self.exclusive_target(body, i, t, id)?;
                     self.hash_target(&t, &mut reps);
                     calls.insert(ix, Target::Call(t));
                 }

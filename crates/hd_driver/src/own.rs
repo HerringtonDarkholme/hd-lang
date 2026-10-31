@@ -54,14 +54,14 @@ pub(super) struct Summaries {
     /// Per item whose passes would borrow through a `&T` or `&mut T`
     /// parameter across a call that may write (#1118): the parameters
     /// that relies on, and the body after the passes in exclusive mode
-    /// (`sub_flags::EXCLUSIVE`) with its hash. Callers whose arguments
-    /// stage 7 keeps exclusive for the call may run that copy.
+    /// (`sub_flags::EXCLUSIVE`). Collection gives it to the calls whose
+    /// arguments stage 7 keeps exclusive (`hd_tir::own::exclusive_call`).
     exclusive: std::sync::Mutex<HashMap<DefId, Exclusive>>,
 }
 
 /// An exclusive copy: the parameters it relies on, and the body after the
-/// passes with its hash ([`Summaries::exclusive`]).
-pub(super) type Exclusive = (u64, std::sync::Arc<(Body, Hash128)>);
+/// passes ([`Summaries::exclusive`]).
+pub(super) type Exclusive = (u64, std::sync::Arc<Body>);
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
 /// parameters, by local, the one every result is, and whether it is
@@ -107,7 +107,7 @@ impl Summaries {
 
     /// `item`'s exclusive copy and the parameters it relies on, if its
     /// passes would borrow differently in exclusive mode.
-    pub(super) fn exclusive(&self, item: DefId) -> Option<(u64, std::sync::Arc<(Body, Hash128)>)> {
+    pub(super) fn exclusive(&self, item: DefId) -> Option<Exclusive> {
         lock(&self.exclusive).get(&item).cloned()
     }
 }
@@ -966,9 +966,7 @@ impl Env<'_> {
             plain.sub_flags[0] |= hd_tir::ir::sub_flags::EXCLUSIVE;
             let (excl, _, relies) = self.own_passes(plain, false)?;
             if relies != 0 {
-                let mut k = StableHasher::new("own-passes-exclusive");
-                k.hash(hash);
-                let copy = std::sync::Arc::new((excl, k.finish()));
+                let copy = std::sync::Arc::new(excl);
                 lock(&all.exclusive).insert(body.item, (relies, copy));
             }
         }

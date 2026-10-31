@@ -2004,6 +2004,20 @@ backend's is below.
   reference view is reachable (`RefViewsAbsent`), a fact the link folds;
   a view module keeps its ordinary reads and writes. The loop's exit
   drops the cache. Bounds checks still use the cached length.
+- **Exclusive copies** (stage 8, #1118). In release, a body whose read
+  through a `&T` or `&mut T` parameter would borrow across a call that
+  may write, were nothing else able to reach the referent for the call,
+  gets its passes run a second time in exclusive mode
+  (`sub_flags::EXCLUSIVE`): that read borrows unless the call receives
+  the reference itself. Collection gives a direct or static trait call
+  the copy (an instance of its own, keyed by `defaults::EXCLUSIVE`) when
+  each relied-on argument is `&` or `&mut` of a part of a local no
+  closure captures, or of what one of the caller's relied-on parameters
+  refers to, with no other dereference, element or top-level binding,
+  in a body with no suspension point (`hd_tir::own::exclusive_call`):
+  stage 7 then lets nothing else write it during the call. Every other
+  call, a trait value's and a function value's included, runs the plain
+  body, and no borrow flag is needed.
 - **Checked by** fixtures covering invalidating alias calls, erased
   getter temporaries, early returns, initial copy-on-write sharing and
   snapshots created by callbacks between writes.

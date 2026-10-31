@@ -1,13 +1,10 @@
 # @dump: counts own
 # @build: v8 release
-# expected: no count operations; calling a closure stored in a field of
-# `&self` borrows its environment for the call (closures: MapIter.next,
-# Filter.next, ListIter.next count an environment per element). #676 keeps
-# the count: the closure itself could reach `self` and replace `transform`
-# while it runs, so borrowing needs proof that it cannot. Stage 8 (#1118)
-# gives that proof for a caller whose `self` is no place behind a `*`:
-# stage 7 lets nothing else write it during the call.
-# tracked by #1118
+# This plain body keeps its count of the environment for the call: a
+# caller may pass a `self` that another alias can replace `transform`
+# through while the closure runs. A caller whose `self` stage 7 keeps
+# exclusive runs the exclusive copy instead, with no count (#1118,
+# closure-field-call-from-a-local-runs-the-exclusive-copy).
 struct Mapper:
     transform: fn(i32) -> i32
 

@@ -516,6 +516,59 @@ pub fn params(b: &Body) -> Vec<u32> {
         .collect()
 }
 
+/// Stage 8 (#1118): whether `Call` `call` of `b` may run its callee's
+/// exclusive copy, which borrows through its parameters in `relies`
+/// across calls that may write. Each such argument must be one that stage
+/// 7 keeps exclusive for the call: `&` or `&mut` of a part of a local no
+/// closure captures, or of the referent of a parameter of `b` in `own`
+/// (those its own exclusive copy relies on; none in a plain body), or that
+/// parameter's reference itself. Only fields and variant payloads may
+/// follow: no other dereference, no element, no top-level binding. A body
+/// with a suspension point keeps the plain callee.
+#[must_use]
+pub fn exclusive_call(b: &Body, call: usize, relies: u64, own: u64) -> bool {
+    if b.tags[call] != Tag::Call || b.tags.iter().any(|&t| crate::ir::is_suspension(t)) {
+        return false;
+    }
+    let params = params(b);
+    let exclusive_param = |l: u32| {
+        (params.iter().position(|&p| p == l)).is_some_and(|k| k < 64 && own & (1 << k) != 0)
+    };
+    // The local a value reads whole.
+    let whole = |i: usize| {
+        let p = (b.tags[i] == Tag::Read).then(|| b.view(b.data[i][0]))?;
+        if p.whole() { p.local() } else { None }
+    };
+    let words = b.record(b.data[call][1]);
+    let args = &words[..words.len().saturating_sub(3)];
+    (0..64).filter(|k| relies & (1 << k) != 0).all(|k| {
+        let Some(i) = args
+            .get(k)
+            .and_then(|&v| Ref(v).as_inst())
+            .map(|r| r.0 as usize)
+        else {
+            return false;
+        };
+        if b.tags[i] == Tag::Read {
+            return whole(i).is_some_and(exclusive_param);
+        }
+        if b.tags[i] != Tag::Ref {
+            return false;
+        }
+        let p = b.view(b.data[i][0]);
+        let mut steps = p.steps(b).peekable();
+        let deref = steps.next_if_eq(&crate::ir::Proj::Deref).is_some();
+        let root = match p.root {
+            Root::Local(l) if deref => exclusive_param(l),
+            // A closure's capture is the only way to it besides the call.
+            Root::Local(l) => !b.cap_local.iter().any(|c| c.raw() == l),
+            Root::Value(u) => deref && whole(u as usize).is_some_and(exclusive_param),
+            _ => false,
+        };
+        root && steps.all(|s| matches!(s, crate::ir::Proj::Field(_) | crate::ir::Proj::Variant(_)))
+    })
+}
+
 /// The parameter every result of `b` is ([`Summary::returns`]), read
 /// before the passes: each `Return` of its own sub-body and its root's
 /// tail are a whole read of that parameter, which no `Store`, `Ref`,

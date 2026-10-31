@@ -28,6 +28,11 @@ impl Value {
     }
 }
 
+/// The mark of an exclusive copy's instance among its defaults (#1118): a
+/// slot no parameter has. Like a default, it gives the copy a key and
+/// emitted code of its own, and its closure bodies carry it.
+pub const EXCLUSIVE: (u32, Value) = (u32::MAX, Value::Variant(u32::MAX));
+
 /// Preserve all pre-existing keys when no default was specialized.
 #[must_use]
 pub fn digest(known: &[(u32, Hash128)], defaults: &[(u32, Value)]) -> Hash128 {

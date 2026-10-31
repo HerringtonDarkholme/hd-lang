@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# Stage 8 (#1118): `apply` has two instances. `run` lends `&m` of a local
+# no closure captures, which stage 7 keeps exclusive for the call, so it
+# calls the exclusive copy, which takes no count of the environment.
+# `run_counted` lends a place behind a `*mut`, which another alias may
+# change during the call, so it calls the plain body, which counts it.
+struct Mapper:
+    transform: fn(i32) -> i32
+
+impl Mapper:
+    fn apply(&self, x: i32) -> i32:
+        (self.transform)(x)
+
+fn run(m: Mapper, x: i32) -> i32:
+    m.apply(x)
+
+fn run_counted(m: *mut Mapper, x: i32) -> i32:
+    m.apply(x)

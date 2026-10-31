@@ -11523,6 +11523,9 @@ impl ProgramEnv for Env<'_> {
     fn body(&self, def: DefId) -> Option<&Body> {
         self.run.body_of(self.p, def).map(|b| &b.0)
     }
+    fn exclusive_body(&self, def: DefId) -> Option<(u64, Arc<Body>)> {
+        self.run.summaries.as_ref()?.exclusive(def)
+    }
     fn instance_body(&self, def: DefId, args: TyList) -> StageResult<Option<Body>> {
         if hd_opt::inline::InlineEnv::memo(self).is_none() {
             return Ok(None);
