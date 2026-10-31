@@ -1,0 +1,10 @@
+# test: a result path through a `&T` field is not checked yet
+# Spec 13 Result Paths: ref.result.path.not-yet.
+struct User:
+    name: string
+
+struct View['a]:
+    lead: &'a User
+
+fn lead_name['a](v: &View['a]) -> &'v.lead.name string: # diagnostic: references-not-yet-checked
+    &v.lead.name

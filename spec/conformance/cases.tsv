@@ -5367,7 +5367,9 @@ typing/valid/result-path-through-reference-sibling.hd	type	accept	lang/13-values
 typing/invalid/result-path-through-reference-write.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.counted
 typing/invalid/result-path-through-reference-replace.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.counted
 typing/invalid/result-path-through-reference-outside.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.result.path.counted
-typing/invalid/result-path-through-shared-reference.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.result.path.not-yet
+typing/valid/result-path-through-shared-reference.hd	type	accept	lang/13-values-and-references.md#r-ref.result.path.counted
+typing/invalid/result-path-through-shared-reference-replace.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.result.path.counted
+typing/invalid/result-path-through-local-reference.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.result.path.not-yet
 typing/invalid/result-path-private-field.hd	type	reject:private-type-leak	lang/13-values-and-references.md#r-ref.result.path.public
 typing/invalid/result-path-trait-method.hd	type	reject:trait-method-signature	lang/13-values-and-references.md#r-ref.result.path.trait
 typing/invalid/result-path-trait-impl.hd	type	reject:trait-method-signature	lang/13-values-and-references.md#r-ref.result.path.trait

@@ -68,7 +68,7 @@ const PATH: u32 = 1 << 30;
 pub(super) struct OwnPath {
     param: u32,
     /// The place steps from the parameter's referent: each field, and a
-    /// dereference after a `*mut` field (`ref.result.path.counted`).
+    /// dereference after a `*T` or `*mut T` field (`ref.result.path.counted`).
     steps: Vec<Proj>,
     slot: usize,
     text: String,
@@ -1902,7 +1902,8 @@ impl Ck<'_, '_> {
 
     /// The place steps of result path `fields` from parameter type `pty`:
     /// each field, and a dereference where the next field is reached
-    /// through a `*mut` (`ref.result.path.fields`, `ref.result.path.counted`).
+    /// through a `*T` or `*mut T` (`ref.result.path.fields`,
+    /// `ref.result.path.counted`).
     fn path_steps(
         &self,
         pty: Ty,
@@ -1914,8 +1915,8 @@ impl Ck<'_, '_> {
         for &name in fields {
             if let TyData::Ref {
                 inner,
-                mutable: true,
                 counted: true,
+                ..
             } = pool.get(self.strip_mut(t))
             {
                 steps.push(Proj::Deref);
