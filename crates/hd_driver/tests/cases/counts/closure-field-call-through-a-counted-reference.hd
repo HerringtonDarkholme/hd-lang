@@ -1,0 +1,11 @@
+# @dump: counts
+# @build: v8 release
+# Control for closure-field-call (#1118): through a `*mut`, another alias
+# may replace `transform` while the closure runs, so the call keeps its
+# count of the environment, in stage 8 too.
+struct Mapper:
+    transform: fn(i32) -> i32
+
+fn apply(m: *mut Mapper, x: i32) -> i32:
+    # subject
+    (m.transform)(x)

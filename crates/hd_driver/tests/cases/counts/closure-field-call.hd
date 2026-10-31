@@ -4,8 +4,10 @@
 # `&self` borrows its environment for the call (closures: MapIter.next,
 # Filter.next, ListIter.next count an environment per element). #676 keeps
 # the count: the closure itself could reach `self` and replace `transform`
-# while it runs, so borrowing needs proof that it cannot.
-# tracked by #671
+# while it runs, so borrowing needs proof that it cannot. Stage 8 (#1118)
+# gives that proof for a caller whose `self` is no place behind a `*`:
+# stage 7 lets nothing else write it during the call.
+# tracked by #1118
 struct Mapper:
     transform: fn(i32) -> i32
 
