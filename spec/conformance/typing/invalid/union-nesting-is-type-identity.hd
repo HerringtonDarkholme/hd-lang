@@ -1,0 +1,6 @@
+# Spec 04 Union Type Identity: types.union.nesting.
+fn take(value: (i32 | string) | bool) -> void:
+    pass
+
+fn regrouped(value: i32 | (string | bool)) -> void:
+    take(value) # diagnostic: type-mismatch

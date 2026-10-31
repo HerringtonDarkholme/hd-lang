@@ -1,0 +1,6 @@
+# Spec 04 Union Type Identity: types.union.no-member-injection.
+fn take(value: i32 | string) -> void:
+    pass
+
+fn member(value: i32) -> void:
+    take(value) # diagnostic: type-mismatch

@@ -2475,20 +2475,34 @@ injection do not, which is why [Variance](#variance) excludes them.
 > **Why.** A flat syntax node preserves the decided ordered cases without
 > choosing a binary associativity, while explicit parentheses preserve nesting.
 
+## Union Type Identity
+
+1. r[types.union.identity] A union type's identity includes its arity, member order, and duplicate members.
+2. r[types.union.nesting] A nested union member keeps its own identity, so `A | B | C`, `(A | B) | C`, and `A | (B | C)` are three different types.
+3. r[types.union.alias] A type alias expands normally inside and around a union, so aliases of the same union denote the same type.
+4. r[types.union.substitution] Substitution replaces union members by position without reordering, flattening, or removing duplicates.
+5. r[types.union.no-member-injection] A union member is not assignable to its union without an explicit positional constructor. Error: `type-mismatch`.
+6. r[types.union.diagnostic] A diagnostic renders a union with ` | ` and the parentheses needed to preserve nested identity.
+
+```text
+type Choice = i32 | string
+type SameChoice = i32 | string
+
+fn relay(value: SameChoice) -> Choice:
+    value
+```
+
+> **Why.** Ordered identity gives every case one stable position, including
+> duplicate payload types, and avoids implicit injection or set normalization.
+
 ## Unsupported Type-System Extensions
 
 This section lists type-system features that hd-lang does not have.
 
 1. r[types.unsupported.type-test] The only runtime type test is exact-type recovery from an `Inspectable` value.
 2. r[types.unsupported.no-assertions] There are no trait-to-trait assertions, no tests on `Any` or on trait values whose trait does not extend `Inspectable`, and no type patterns in `match`.
-3. r[types.unsupported.no-unions] hd-lang has no anonymous union types, including error unions such as `FsError | HttpError`. The parser accepts their syntax, but checking one reports `syntax-error`.
-4. r[types.unsupported.error-type] An error type is a nominal type or a dynamic trait value such as `std.error.Error`.
-5. r[types.unsupported.panic-abi] The exact host representation of a checked runtime panic is an ABI concern; its language-level control-flow semantics are defined in [Control Flow](06-control-flow.md#runtime-panics).
-
-```text
-fn pick(flag: bool) -> i32 | string:   # error: syntax-error
-    if flag: +1 else: "a"
-```
+3. r[types.unsupported.error-type] An error type is a nominal type or a dynamic trait value such as `std.error.Error`.
+4. r[types.unsupported.panic-abi] The exact host representation of a checked runtime panic is an ABI concern; its language-level control-flow semantics are defined in [Control Flow](06-control-flow.md#runtime-panics).
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity),
 [Error Trait](09-traits.md#error-trait).

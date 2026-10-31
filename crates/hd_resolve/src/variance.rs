@@ -87,6 +87,11 @@ pub fn walk(
                 go(r, polarity, seen);
             }
         }
+        TyData::Union(members) => {
+            for &member in pool.list_items(members) {
+                go(member, polarity, seen);
+            }
+        }
         TyData::Fn {
             params,
             result,

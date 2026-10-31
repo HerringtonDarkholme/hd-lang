@@ -950,12 +950,12 @@ impl Ck<'_, '_> {
                 pool.intern_ty(&TyData::Option(t))
             }
             SyntaxKind::UnionType => {
-                self.err(
-                    Code::SyntaxError,
-                    n,
-                    "anonymous union types are not supported yet",
-                );
-                Ty::POISON
+                let members: StageResult<Vec<Ty>> = n
+                    .children()
+                    .filter(|c| c.kind().is_type())
+                    .map(|c| self.ty_node(c))
+                    .collect();
+                pool.intern_ty(&TyData::Union(pool.list(&members?)))
             }
             SyntaxKind::MutType => {
                 let t = first(self, n)?;

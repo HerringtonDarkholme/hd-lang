@@ -1,9 +1,10 @@
 # Positional Union Types
 
-Status: design complete 2026-10-28; not specified or implemented.
+Status: syntax and ordered type identity specified and implemented 2026-10-31;
+construction, lowering, traits, and parity remain in #1122-#1125.
 This record turns the decisions in [#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)
 into an implementation-sized design. It changes no specification or compiler
-behavior. A prior [twelve-case stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/UNION_TYPES.md)
+behavior beyond the slices named in the status line. A prior [twelve-case stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/UNION_TYPES.md)
 supplies the evidence summarized in Appendix A.
 
 ## Proposal
@@ -242,10 +243,10 @@ injection or error-specific algebra.
 
 ## Appendix D: Today In hd
 
-The specification currently forbids anonymous unions
-([`types.unsupported.no-unions`](../../spec/lang/04-type-system.md#r-types.unsupported.no-unions)).
-A named generic enum expresses the representation, variant constructors are
-function values
+The specification admits [union syntax](../../spec/lang/04-type-system.md#union-type-syntax)
+with [ordered identity](../../spec/lang/04-type-system.md#union-type-identity).
+Until #1122 adds positional construction, a named generic enum supplies values;
+its variant constructors are function values
 ([`data.enum.fn-value.use`](../../spec/lang/08-data-and-enums.md#r-data.enum.fn-value.use)),
 and `?` performs only assignability or one `From` conversion
 ([`expr.try.convert`](../../spec/lang/05-expressions.md#r-expr.try.convert)).
@@ -279,7 +280,7 @@ gaps to paper over with more inference.
 | Optimization | inlining and dead-code elimination see ordinary constructor and match operations |
 | Soundness | no untagged reinterpretation, implicit coercion or post-monomorphization case selection |
 | Diagnostics | reuse `cannot-infer-type`, `type-mismatch`, `unknown-variant` and `invalid-result-propagation` |
-| Specification | retire `types.unsupported.no-unions`; add new IDs for syntax, identity, construction, matching and traits |
+| Specification | replace the unsupported-union rule with syntax, identity, construction, matching and trait rules |
 | Conformance | flat, nested, duplicate, generic, exhaustive, trait and both-engine runtime fixtures |
 
 Implementation is deliberately split into hour-sized, revertible slices:

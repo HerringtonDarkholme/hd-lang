@@ -1,0 +1,7 @@
+# @dump: tir
+# Ordered and nested unions stay visible in a type mismatch.
+fn take(value: (i32 | string) | bool) -> void:
+    pass
+
+fn regrouped(value: i32 | (string | bool)) -> void:
+    take(value)

@@ -1619,6 +1619,11 @@ fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
                 slot_paths(pool, e, f);
             }
         }
+        TyData::Union(members) => {
+            for &member in pool.list_items(members) {
+                slot_paths(pool, member, f);
+            }
+        }
         TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
             for &a in pool.list_items(args) {
                 slot_paths(pool, a, f);
@@ -3075,12 +3080,12 @@ impl Lower<'_, '_, '_> {
                 pool.intern_ty(&TyData::Option(t))
             }
             SyntaxKind::UnionType => {
-                self.diags.error(
-                    Code::SyntaxError,
-                    self.src.span(n),
-                    "anonymous union types are not supported yet",
-                );
-                Ty::POISON
+                let members: Vec<Ty> = n
+                    .children()
+                    .filter(|c| c.kind().is_type())
+                    .map(|c| self.ty(Some(c), gn))
+                    .collect();
+                pool.intern_ty(&TyData::Union(pool.list(&members)))
             }
             SyntaxKind::MutType => {
                 let t = first_ty(self, n);
@@ -5963,6 +5968,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
             kids.extend(pool.list_items(elems));
             kids.extend(rest);
         }
+        TyData::Union(members) => kids.extend(pool.list_items(members)),
         TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => kids.push(i),
         TyData::Fn {
             params,

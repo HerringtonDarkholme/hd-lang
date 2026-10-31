@@ -268,6 +268,7 @@ impl InferTable {
                 elems: rl(elems),
                 rest: rest.map(r),
             },
+            TyData::Union(members) => TyData::Union(rl(members)),
             TyData::Option(i) => TyData::Option(r(i)),
             TyData::Mut(i) => TyData::Mut(r(i)),
             TyData::Ref {
@@ -353,6 +354,11 @@ impl InferTable {
                 .iter()
                 .copied()
                 .chain(rest)
+                .any(|x| self.occurs(pool, v, x)),
+            TyData::Union(members) => pool
+                .list_items(members)
+                .iter()
+                .copied()
                 .any(|x| self.occurs(pool, v, x)),
             TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
                 self.occurs(pool, v, i)
@@ -521,6 +527,7 @@ impl InferTable {
                 self.unify_lists(pool, e1, e2, a, b)?;
                 self.unify(pool, r1, r2)
             }
+            (TyData::Union(x), TyData::Union(y)) => self.unify_lists(pool, x, y, a, b),
             (TyData::Option(x), TyData::Option(y)) => self.unify(pool, x, y),
             (
                 TyData::TraitValue {
