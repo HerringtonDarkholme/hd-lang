@@ -20,30 +20,130 @@
 // and the grant before it posts an operation that accesses an address;
 // a metadata-only check may first reject a closed or unknown handle.
 import { serve } from "./worker-control.ts";
+import type { Flag } from "./worker-control.ts";
 import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
 import net from "node:net";
 import { setImmediate as nextCheck } from "node:timers/promises";
 import { workerData } from "node:worker_threads";
+import type { MessagePort } from "node:worker_threads";
+
+interface InboxEnd {
+  error?: unknown;
+  end?: boolean;
+  closed?: boolean;
+}
+
+interface InboxItem<Value> {
+  value: Value;
+  order: number;
+  offset: number;
+}
+
+interface StreamHandle {
+  kind: "stream";
+  socket: net.Socket;
+  inbox: Inbox<Buffer>;
+  closed: boolean;
+  timeout: number | null;
+}
+
+interface ListenerHandle {
+  kind: "listener";
+  server: net.Server;
+  inbox: Inbox<net.Socket>;
+  closed: boolean;
+  timeout: number | null;
+}
+
+interface DatagramArrival {
+  msg: Buffer;
+  rinfo: dgram.RemoteInfo;
+}
+
+interface UdpHandle {
+  kind: "udp";
+  socket: dgram.Socket;
+  inbox: Inbox<DatagramArrival>;
+  closed: boolean;
+  timeout: number | null;
+}
+
+type Handle = StreamHandle | ListenerHandle | UdpHandle;
+type NetFailure = { error: [string, string?] };
+type NetResult =
+  | { ok: unknown }
+  | NetFailure
+  | { disposed: true }
+  | { cancelled: true }
+  | { pending: true }
+  | { unknown: true };
+
+interface NetRequest {
+  op: string;
+  handle?: number;
+  h?: Handle;
+  kind: string;
+  operation: number;
+  host: string;
+  port: number;
+  address: string;
+  max: number;
+  bytes: Uint8Array;
+  timeout: number | null;
+  enabled: boolean;
+  idle: number | null;
+  signal: AbortSignal;
+  retain?: (undo: () => void) => void;
+}
+
+interface WaitState {
+  h: Handle | undefined;
+  result: unknown | null;
+  undo: (() => void) | null;
+  controller: AbortController;
+}
+
+interface ConnectState {
+  result: NetResult | null;
+  abort: (() => void) | null;
+}
+
+interface NetWorkerData {
+  port: MessagePort;
+  flag: Flag;
+}
+
+interface ErrorLike {
+  code?: string;
+  message?: unknown;
+}
+
+const errorLike = (error: unknown): ErrorLike =>
+  typeof error === "object" && error !== null ? (error as ErrorLike) : {};
 
 // Open handles by number; a closed one stays, marked, so each later
 // operation on it is `Closed`.
-const handles = new Map();
+const handles = new Map<number, Handle>();
 let nextHandle = 1;
-const open = (h) => {
+const open = (handle: Handle): number => {
   const n = nextHandle++;
-  handles.set(n, h);
+  handles.set(n, handle);
   return n;
 };
 
-const fail = (variant, text) => ({ error: [variant, text] });
-const timedOut = () => ({ error: ["Timeout"] });
+const fail = (variant: string, text?: string): NetFailure => ({ error: [variant, text] });
+const timedOut = (): NetFailure => ({ error: ["Timeout"] });
 
 // What `Inbox.next` returns when its bound ends first.
 const TIMED_OUT = Symbol("timed out");
 const CANCELLED = Symbol("cancelled");
 
-async function immediateResult(ms, signal, ready) {
+async function immediateResult(
+  ms: number | null,
+  signal: AbortSignal | null,
+  ready: () => boolean,
+): Promise<typeof CANCELLED | typeof TIMED_OUT | null> {
   if (ms === null || ms > 0 || ready()) {
     return null;
   }
@@ -57,8 +157,9 @@ async function immediateResult(ms, signal, ready) {
 
 // The `NetError` of a failed socket operation on `address`, or of a lookup
 // of `host` (std-net.error.*).
-const failure = (e, address, host) => {
-  const code = e?.code ?? "";
+const failure = (error: unknown, address: string, host: string): NetFailure => {
+  const detail = errorLike(error);
+  const code = detail.code ?? "";
   if (
     code === "ENOTFOUND" ||
     code === "EAI_AGAIN" ||
@@ -70,23 +171,28 @@ const failure = (e, address, host) => {
   if (code === "ECONNREFUSED" || code === "EADDRINUSE") {
     return fail("Refused", address);
   }
-  return fail("Other", String(e?.message ?? e));
+  return fail("Other", String(detail.message ?? error));
 };
 
 // A queue of arrivals that a later operation waits for: data chunks, a
 // connection, a datagram; or the end or an error, which stays.
-class Inbox {
+class Inbox<Value> {
+  items: InboxItem<Value>[];
+  nextItem: number;
+  end: InboxEnd | null;
+  waiters: Set<() => void>;
+
   constructor() {
     this.items = [];
     this.nextItem = 0;
     this.end = null;
     this.waiters = new Set();
   }
-  push(x) {
-    this.items.push({ value: x, order: this.nextItem++, offset: 0 });
+  push(value: Value): void {
+    this.items.push({ value, order: this.nextItem++, offset: 0 });
     this.wake();
   }
-  restore(item) {
+  restore(item: InboxItem<Value>): void {
     // A chunk can be split by several concurrent reads. Restoring their
     // reservations in either abort order must keep the original byte order.
     const at = this.items.findIndex(
@@ -96,11 +202,11 @@ class Inbox {
     this.items.splice(at === -1 ? this.items.length : at, 0, item);
     this.wake();
   }
-  finish(why) {
+  finish(why: InboxEnd): void {
     this.end ??= why;
     this.wake();
   }
-  wake() {
+  wake(): void {
     const waiters = [...this.waiters];
     this.waiters.clear();
     for (const wake of waiters) {
@@ -109,8 +215,11 @@ class Inbox {
   }
   // The next arrival, or `null` once nothing more will come, or
   // `TIMED_OUT` once `ms` milliseconds pass first (`null`: no bound).
-  async next(ms = null, signal = null) {
-    const ready = () => this.items.length || this.end !== null;
+  async next(
+    ms: number | null = null,
+    signal: AbortSignal | null = null,
+  ): Promise<InboxItem<Value> | typeof CANCELLED | typeof TIMED_OUT | null> {
+    const ready = (): boolean => this.items.length > 0 || this.end !== null;
     const immediate = await immediateResult(ms, signal, ready);
     if (immediate !== null) {
       return immediate;
@@ -133,18 +242,20 @@ class Inbox {
         if (late) {
           return TIMED_OUT;
         }
-        await new Promise((r) => {
-          this.waiters.add(r);
+        await new Promise<void>((resolve) => {
+          this.waiters.add(resolve);
         });
       }
       if (signal?.aborted) {
         return CANCELLED;
       }
     } finally {
-      clearTimeout(timer);
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
       signal?.removeEventListener("abort", abort);
     }
-    return this.items.length ? this.items.shift() : null;
+    return this.items.length ? this.items.shift()! : null;
   }
 }
 
@@ -152,13 +263,14 @@ class Inbox {
 // socket. Reading pauses there, so a fast peer meets backpressure from the
 // hd reader instead of filling this process's memory (std-net.read).
 const READ_AHEAD = 256 * 1024;
-const queued = (inbox) => inbox.items.reduce((n, item) => n + item.value.length, 0);
+const queued = (inbox: Inbox<Buffer>): number =>
+  inbox.items.reduce((total, item) => total + item.value.length, 0);
 
 // A TCP stream handle: its socket and the data it received.
-const stream = (socket) => {
-  const inbox = new Inbox();
-  socket.on("data", (c) => {
-    inbox.push(c);
+const stream = (socket: net.Socket): number => {
+  const inbox = new Inbox<Buffer>();
+  socket.on("data", (chunk: Buffer) => {
+    inbox.push(chunk);
     if (queued(inbox) >= READ_AHEAD) {
       socket.pause();
     }
@@ -171,18 +283,21 @@ const stream = (socket) => {
 
 // A connect belongs to its operation until the program takes its outcome.
 // Aborting also releases a completed stream that was never delivered.
-const connects = new Map();
+const connects = new Map<number, ConnectState>();
 let nextConnect = 1;
 // A wait owns its consumed input until finish, including the gap between
 // poll reporting readiness and the guest taking its outcome. Abort restores
 // undelivered bytes/datagrams, or releases an undelivered accepted stream.
-const waits = new Map();
+const waits = new Map<number, WaitState>();
 let nextWait = 1;
-const beginConnect = ({ host, port, address }, done) => {
-  let result = null;
+const beginConnect = (
+  { host, port, address }: Pick<NetRequest, "host" | "port" | "address">,
+  done: (result: NetResult) => void,
+): (() => void) => {
+  let result: NetResult | null = null;
   let stopped = false;
-  let socket = null;
-  const finish = (outcome) => {
+  let socket: net.Socket | null = null;
+  const finish = (outcome: NetResult): void => {
     if (stopped || result !== null) {
       return;
     }
@@ -201,13 +316,13 @@ const beginConnect = ({ host, port, address }, done) => {
   return () => {
     stopped = true;
     socket?.destroy();
-    if (result?.ok !== undefined) {
+    if (result !== null && "ok" in result && typeof result.ok === "number") {
       handles.delete(result.ok);
     }
   };
 };
 
-const ops = {
+const ops: Record<string, (request: NetRequest) => unknown | Promise<unknown>> = {
   wait_start: ({ h, kind, ...request }) => {
     if (
       !["read", "accept", "receive", "lookup", "listen", "bind_udp", "write", "send_to"].includes(
@@ -217,9 +332,9 @@ const ops = {
       throw new Error("unknown socket wait");
     }
     const id = nextWait++;
-    const state = { h, result: null, undo: null, controller: new AbortController() };
+    const state: WaitState = { h, result: null, undo: null, controller: new AbortController() };
     waits.set(id, state);
-    const retain = (undo) => {
+    const retain = (undo: () => void): void => {
       if (state.controller.signal.aborted) {
         undo();
       } else {
@@ -227,14 +342,14 @@ const ops = {
       }
     };
     Promise.resolve()
-      .then(() => ops[kind]({ ...request, h, signal: state.controller.signal, retain }))
+      .then(() => ops[kind]!({ ...request, h, kind, signal: state.controller.signal, retain }))
       .then(
-        (result) => {
+        (result: unknown) => {
           if (!state.controller.signal.aborted) {
             state.result = result;
           }
         },
-        (error) => {
+        (error: unknown) => {
           if (!state.controller.signal.aborted) {
             state.result = failure(error, request.address ?? "", request.host ?? "");
           }
@@ -288,10 +403,10 @@ const ops = {
   },
   connect_start: (r) => {
     const id = nextConnect++;
-    const operation = { result: null, abort: null };
+    const operation: ConnectState = { result: null, abort: null };
     connects.set(id, operation);
     try {
-      operation.abort = beginConnect(r, (result) => {
+      operation.abort = beginConnect(r, (result: NetResult) => {
         operation.result = result;
       });
       return { ok: id };
@@ -312,14 +427,14 @@ const ops = {
     return state.result;
   },
   connect_abort: ({ operation }) => {
-    connects.get(operation)?.abort();
+    connects.get(operation)?.abort!();
     connects.delete(operation);
     return { ok: null };
   },
   listen: ({ host, port, address, signal, retain }) =>
-    new Promise((done) => {
+    new Promise<NetResult>((done) => {
       const server = net.createServer({ pauseOnConnect: false });
-      const inbox = new Inbox();
+      const inbox = new Inbox<net.Socket>();
       let stopped = false;
       let settled = false;
       const close = () => {
@@ -330,7 +445,7 @@ const ops = {
         }
         inbox.items = [];
       };
-      const settle = (result) => {
+      const settle = (result: NetResult): void => {
         if (settled) {
           return;
         }
@@ -370,9 +485,9 @@ const ops = {
       });
     }),
   bind_udp: ({ host, port, address, signal, retain }) =>
-    new Promise((done) => {
+    new Promise<NetResult>((done) => {
       const socket = dgram.createSocket(net.isIPv6(host) ? "udp6" : "udp4");
-      const inbox = new Inbox();
+      const inbox = new Inbox<DatagramArrival>();
       let stopped = false;
       let settled = false;
       const close = () => {
@@ -380,12 +495,12 @@ const ops = {
         try {
           socket.close();
         } catch (error) {
-          if (error.code !== "ERR_SOCKET_DGRAM_NOT_RUNNING") {
+          if (errorLike(error).code !== "ERR_SOCKET_DGRAM_NOT_RUNNING") {
             throw error;
           }
         }
       };
-      const settle = (result) => {
+      const settle = (result: NetResult): void => {
         if (settled) {
           return;
         }
@@ -430,43 +545,45 @@ const ops = {
     }),
   // std-net.read: at least one byte, at most `max`; empty at the end.
   read: async ({ h, max: signed, signal, retain }) => {
+    const handle = h as StreamHandle;
     // `usize` crosses the ABI as an i32 bit pattern, so read it unsigned.
     const max = signed >>> 0;
     if (max === 0) {
       return { ok: new Uint8Array(0) };
     }
-    const item = await h.inbox.next(h.timeout, signal);
+    const item = await handle.inbox.next(handle.timeout, signal);
     if (item === CANCELLED) {
       return { cancelled: true };
     }
     if (item === TIMED_OUT) {
       return timedOut();
     }
-    if (h.closed) {
+    if (handle.closed) {
       return { disposed: true };
     }
     if (item === null) {
-      const why = h.inbox.end;
+      const why = handle.inbox.end;
       return why?.error ? failure(why.error, "", "") : { ok: new Uint8Array(0) };
     }
     let chunk = item.value;
     if (chunk.length > max) {
-      h.inbox.restore({ ...item, value: chunk.subarray(max), offset: item.offset + max });
+      handle.inbox.restore({ ...item, value: chunk.subarray(max), offset: item.offset + max });
       chunk = chunk.subarray(0, max);
     }
     const unread = { ...item, value: chunk };
     retain?.(() => {
-      if (!h.closed) {
-        h.inbox.restore(unread);
+      if (!handle.closed) {
+        handle.inbox.restore(unread);
       }
     });
-    if (h.socket.isPaused() && queued(h.inbox) < READ_AHEAD / 2) {
-      h.socket.resume();
+    if (handle.socket.isPaused() && queued(handle.inbox) < READ_AHEAD / 2) {
+      handle.socket.resume();
     }
     return { ok: chunk };
   },
   // std-net.write: once every byte is written.
   write: async ({ h, bytes, signal }) => {
+    const handle = h as StreamHandle;
     const buffer = Buffer.from(bytes);
     // Limit queued data so cancellation stops submitting further chunks,
     // leaving the stream open and only already accepted bytes in flight.
@@ -474,26 +591,26 @@ const ops = {
       if (signal?.aborted) {
         return { cancelled: true };
       }
-      if (h.closed) {
+      if (handle.closed) {
         return { disposed: true };
       }
-      const result = await new Promise((done) => {
+      const result = await new Promise<NetFailure | { cancelled: true } | { ok: null }>((done) => {
         let settled = false;
-        const settle = (result) => {
+        const settle = (outcome: NetFailure | { cancelled: true } | { ok: null }): void => {
           if (settled) {
             return;
           }
           settled = true;
           signal?.removeEventListener("abort", abort);
-          done(result);
+          done(outcome);
         };
         const abort = () => settle({ cancelled: true });
         signal?.addEventListener("abort", abort, { once: true });
-        h.socket.write(buffer.subarray(offset, offset + 65536), (error) =>
+        handle.socket.write(buffer.subarray(offset, offset + 65536), (error) =>
           settle(error ? failure(error, "", "") : { ok: null }),
         );
       });
-      if (result.error || result.cancelled) {
+      if ("error" in result || "cancelled" in result) {
         return result;
       }
     }
@@ -501,30 +618,34 @@ const ops = {
   },
   // std-net.accept: the next connection's stream.
   accept: async ({ h, signal, retain }) => {
-    const item = await h.inbox.next(h.timeout, signal);
+    const handle = h as ListenerHandle;
+    const item = await handle.inbox.next(handle.timeout, signal);
     if (item === CANCELLED) {
       return { cancelled: true };
     }
     if (item === TIMED_OUT) {
       return timedOut();
     }
-    const socket = item?.value;
-    if (h.closed) {
-      socket?.destroy();
+    if (handle.closed) {
+      if (item !== null) {
+        item.value.destroy();
+      }
       return { disposed: true };
     }
     if (item === null) {
-      return failure(h.inbox.end?.error ?? "the listener stopped", "", "");
+      return failure(handle.inbox.end?.error ?? "the listener stopped", "", "");
     }
-    const handle = stream(socket);
+    const socket = item.value;
+    const acceptedHandle = stream(socket);
     retain?.(() => {
       socket.destroy();
-      handles.delete(handle);
+      handles.delete(acceptedHandle);
     });
-    return { ok: handle };
+    return { ok: acceptedHandle };
   },
   // std-net.send-to: one datagram.
   send_to: async ({ h, host, port, address, bytes, signal }) => {
+    const handle = h as UdpHandle;
     try {
       // Resolve before queuing the datagram so an aborted name lookup does
       // not send a packet later. Numeric destinations need no resolver wait.
@@ -532,17 +653,18 @@ const ops = {
         ? host
         : (
             await dns.lookup(host, {
-              family: h.socket.type === "udp6" ? 6 : 4,
+              family:
+                (handle.socket as dgram.Socket & { type: "udp4" | "udp6" }).type === "udp6" ? 6 : 4,
             })
           ).address;
       if (signal?.aborted) {
         return { cancelled: true };
       }
-      if (h.closed) {
+      if (handle.closed) {
         return { disposed: true };
       }
-      return await new Promise((done) => {
-        h.socket.send(Buffer.from(bytes), port, destination, (error) =>
+      return await new Promise<NetResult>((done) => {
+        handle.socket.send(Buffer.from(bytes), port, destination, (error) =>
           done(error ? failure(error, address, host) : { ok: null }),
         );
       });
@@ -552,23 +674,24 @@ const ops = {
   },
   // std-net.receive: one datagram, at most `max` of its bytes.
   receive: async ({ h, max: signed, signal, retain }) => {
+    const handle = h as UdpHandle;
     const max = signed >>> 0;
-    const item = await h.inbox.next(h.timeout, signal);
+    const item = await handle.inbox.next(handle.timeout, signal);
     if (item === CANCELLED) {
       return { cancelled: true };
     }
     if (item === TIMED_OUT) {
       return timedOut();
     }
-    if (h.closed) {
+    if (handle.closed) {
       return { disposed: true };
     }
     if (item === null) {
-      return failure(h.inbox.end?.error ?? "the socket stopped", "", "");
+      return failure(handle.inbox.end?.error ?? "the socket stopped", "", "");
     }
     retain?.(() => {
-      if (!h.closed) {
-        h.inbox.restore(item);
+      if (!handle.closed) {
+        handle.inbox.restore(item);
       }
     });
     const got = item.value;
@@ -578,60 +701,66 @@ const ops = {
   },
   // std-net.timeout.set: milliseconds, or `null` for no bound.
   set_timeout: ({ h, timeout }) => {
-    h.timeout = timeout;
+    h!.timeout = timeout;
     return { ok: null };
   },
   // std-net.option.nodelay: `TCP_NODELAY` on or off; a refusal carries the
   // system's message (std-net.option.failure).
   set_nodelay: ({ h, enabled }) => {
+    const handle = h as StreamHandle;
     try {
-      h.socket.setNoDelay(enabled);
+      handle.socket.setNoDelay(enabled);
       return { ok: null };
-    } catch (e) {
-      return fail("Other", e.message);
+    } catch (error) {
+      return fail("Other", errorLike(error).message as string);
     }
   },
   // std-net.option.keepalive: `idle` milliseconds before the first probe,
   // or `null` for off. The system counts whole seconds, so a shorter idle
   // rounds up to one second, as on wasmtime.
   set_keepalive: ({ h, idle }) => {
+    const handle = h as StreamHandle;
     try {
       if (idle === null) {
-        h.socket.setKeepAlive(false);
+        handle.socket.setKeepAlive(false);
       } else {
-        h.socket.setKeepAlive(true, Math.max(1, Math.ceil(idle / 1000)) * 1000);
+        handle.socket.setKeepAlive(true, Math.max(1, Math.ceil(idle / 1000)) * 1000);
       }
       return { ok: null };
-    } catch (e) {
-      return fail("Other", e.message);
+    } catch (error) {
+      return fail("Other", errorLike(error).message as string);
     }
   },
   // std-net.local-address: the bound IP address as text and the port, which
   // is the one the system picked for port 0.
   local_address: ({ h }) => {
+    const handle = h!;
     try {
-      const { address, port } = (h.kind === "listener" ? h.server : h.socket).address();
+      const { address, port } = (
+        handle.kind === "listener" ? handle.server : handle.socket
+      ).address() as net.AddressInfo;
       return { ok: [address, port] };
-    } catch (e) {
-      return fail("Other", e.message);
+    } catch (error) {
+      return fail("Other", errorLike(error).message as string);
     }
   },
   close: ({ h }) => {
+    const handle = h!;
     // std-net.close.release: a full close of both directions.
-    if (h.kind === "stream") {
-      h.socket.destroy();
-    } else if (h.kind === "listener") {
-      h.server.close();
+    if (handle.kind === "stream") {
+      handle.socket.destroy();
+    } else if (handle.kind === "listener") {
+      handle.server.close();
     } else {
-      h.socket.close();
+      handle.socket.close();
     }
-    h.closed = true;
-    h.inbox.finish({ closed: true });
+    handle.closed = true;
+    handle.inbox.finish({ closed: true });
     return { ok: null };
   },
   check: () => ({ ok: null }),
   // std-net.dispose: a close that reports nothing.
-  dispose: (r) => ops.close(r),
+  dispose: (request: NetRequest) => ops.close!(request),
   // The open handles by kind, for the leak report of `hd test`
   // (cli.test.leak).
   open: () => {
@@ -647,20 +776,20 @@ const ops = {
 
 // Shared with worker callback-order regressions; this is the same
 // dispatcher the message transport below calls.
-export const run = async (r) => {
-  if (r.handle === undefined) {
-    return ops[r.op](r);
+export const run = async (request: NetRequest): Promise<unknown> => {
+  if (request.handle === undefined) {
+    return ops[request.op]!(request);
   }
-  const h = handles.get(r.handle);
+  const h = handles.get(request.handle);
   if (h === undefined) {
     return { unknown: true };
   }
   // Disposing a closed handle does nothing (std-net.dispose).
   if (h.closed) {
-    return r.op === "dispose" ? { ok: null } : { disposed: true };
+    return request.op === "dispose" ? { ok: null } : { disposed: true };
   }
-  return ops[r.op]({ ...r, h });
+  return ops[request.op]!({ ...request, h });
 };
 
-const { port, flag } = workerData;
+const { port, flag } = workerData as NetWorkerData;
 serve(port, flag, run);

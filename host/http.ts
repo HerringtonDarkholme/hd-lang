@@ -24,18 +24,89 @@
 //   handshake, response headers and body (std-http.settings.*). A setting
 //   this host does not honour is `UnsupportedSetting` before any work.
 import { serve } from "./worker-control.ts";
+import type { Flag } from "./worker-control.ts";
 import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
 import { createGrant, isAsciiUrl, unsupportedSetting, writtenHost } from "./core.ts";
 import { MAX_DECODED_BYTES, decodedResponse, hasNoBody } from "./http-decode.ts";
+import type { DecodedResponse, Header, HttpFailure } from "./http-decode.ts";
 import { pathSeparator, resolvePath } from "./node-files.ts";
 import { workerData } from "node:worker_threads";
+import type { ClientRequest } from "node:http";
+import type { MessagePort } from "node:worker_threads";
 
 // The provider's default timeout (std-http.request.default-timeout).
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-const err = (variant, text = null) => ({ error: variant, text });
+interface TlsIdentity {
+  certificateChain: string;
+  privateKey: string;
+}
+
+interface HttpSettings {
+  dnsServers: string[] | null;
+  tlsRoots: string[];
+  tlsIdentity: TlsIdentity | null;
+  connectTimeout: number | null;
+  tlsHandshakeTimeout: number | null;
+  responseHeaderTimeout: number | null;
+  bodyReadTimeout: number | null;
+}
+
+interface HttpRequest {
+  method: string;
+  url: string;
+  headers: Header[];
+  body: Uint8Array;
+  redirects: number;
+  settings: HttpSettings | null;
+  grants?: Record<string, boolean | string[]>;
+}
+
+interface HttpResponse extends DecodedResponse {
+  url?: string;
+}
+
+type HttpResult = HttpResponse | HttpFailure;
+
+interface OnceRequest {
+  url: URL;
+  host: string;
+  method: string;
+  headers: Header[];
+  body: Uint8Array;
+  ms: number;
+  signal: AbortSignal;
+  settings?: HttpSettings | null;
+}
+
+type HttpControlRequest =
+  | ({ op: "start" } & HttpRequest)
+  | { op: "poll" | "abort"; operation: number }
+  | { op: "open" };
+
+interface HttpState {
+  controller: AbortController;
+  result: HttpResult | null;
+}
+
+interface HttpWorkerData {
+  port: MessagePort;
+  flag: Flag;
+}
+
+interface ErrorLike {
+  code?: string;
+  message?: unknown;
+}
+
+const errorLike = (error: unknown): ErrorLike =>
+  typeof error === "object" && error !== null ? (error as ErrorLike) : {};
+const err = (variant: string, text: string | null = null): HttpFailure => ({
+  error: variant,
+  text,
+});
 
 // The settings this host honours (std-http.settings.host-support). A custom
 // resolver waits for its resolver-endpoint grant.
@@ -57,8 +128,8 @@ const defaultRoots = () =>
     : tls.rootCertificates;
 
 // The TLS options of a derived provider's settings, for an HTTPS hop.
-const tlsOptions = (settings) => {
-  const options = {};
+const tlsOptions = (settings: HttpSettings | null): https.RequestOptions => {
+  const options: https.RequestOptions = {};
   if (settings?.tlsRoots?.length) {
     options.ca = [...defaultRoots(), ...settings.tlsRoots];
   }
@@ -80,7 +151,7 @@ const TLS_CODES = new Set([
 ]);
 const REQUEST_VALIDATION_CODES = new Set(["ERR_INVALID_CHAR", "ERR_INVALID_HTTP_TOKEN"]);
 
-function requestUrl(url) {
+function requestUrl(url: string): URL | null {
   try {
     if (!isAsciiUrl(url)) {
       return null;
@@ -92,23 +163,28 @@ function requestUrl(url) {
   }
 }
 
-function requestPort(url) {
+function requestPort(url: URL): number {
   if (url.port) {
     return Number(url.port);
   }
   return url.protocol === "https:" ? 443 : 80;
 }
-const finalResponse = (request, got, location) =>
-  got.error ||
+const finalResponse = (
+  request: HttpRequest,
+  got: HttpResult,
+  location: string | undefined,
+): boolean =>
+  got.error !== undefined ||
   request.redirects === 0 ||
-  ![301, 302, 303, 307, 308].includes(got.status) ||
+  ![301, 302, 303, 307, 308].includes(got.status!) ||
   location === undefined;
-const redirectsToGet = (status, method) =>
+const redirectsToGet = (status: number, method: string): boolean =>
   status === 303 || ((status === 301 || status === 302) && method === "POST");
 
 // The `HttpError` of a failed connection to `host`.
-const failure = (e, host) => {
-  const code = e?.code ?? "";
+const failure = (error: unknown, host: string): HttpFailure => {
+  const detail = errorLike(error);
+  const code = detail.code ?? "";
   if (
     code === "ENOTFOUND" ||
     code === "EAI_AGAIN" ||
@@ -119,42 +195,56 @@ const failure = (e, host) => {
   }
   // A fatal TLS alert from the peer, such as `unknown_ca`, surfaces as
   // `EPROTO` with OpenSSL's text (`tlsv1 alert unknown ca`).
-  const alert = code === "EPROTO" && /\b(tls|ssl)/i.test(String(e.message));
+  const alert = code === "EPROTO" && /\b(tls|ssl)/i.test(String(detail.message));
   if (TLS_CODES.has(code) || code.startsWith("ERR_TLS") || code.startsWith("ERR_SSL") || alert) {
-    return err("Tls", String(e.message));
+    return err("Tls", String(detail.message));
   }
-  return err("Connect", String(e?.message ?? e));
+  return err("Connect", String(detail.message ?? error));
 };
 
-function transportHeaders(headers, body, url, host) {
-  const encoded = headers.some(([name]) => /^accept-encoding$/i.test(name))
+function transportHeaders(headers: Header[], body: Uint8Array, url: URL, host: string): Header[] {
+  const encoded: Header[] = headers.some(([name]) => /^accept-encoding$/i.test(name))
     ? headers
     : [
         ...headers,
         [
           "Accept-Encoding",
           headers.some(([name]) => /^range$/i.test(name)) ? "identity" : "gzip, deflate",
-        ],
+        ] as Header,
       ];
   const framed = encoded.some(([name]) => /^(content-length|transfer-encoding)$/i.test(name));
-  const sized =
-    body.length && !framed ? [...encoded, ["Content-Length", String(body.length)]] : encoded;
+  const sized: Header[] =
+    body.length && !framed
+      ? [...encoded, ["Content-Length", String(body.length)] as Header]
+      : encoded;
   const shown = host.includes(":") ? `[${host}]` : host;
   const authority = url.port ? `${shown}:${url.port}` : shown;
-  return sized.some(([name]) => /^host$/i.test(name)) ? sized : [["Host", authority], ...sized];
+  return sized.some(([name]) => /^host$/i.test(name))
+    ? sized
+    : [["Host", authority] as Header, ...sized];
 }
 
-function requestFailure(error, secure, host) {
-  if (REQUEST_VALIDATION_CODES.has(error?.code)) {
-    return err("Other", String(error?.message ?? error));
+function requestFailure(error: unknown, secure: boolean, host: string): HttpFailure {
+  const detail = errorLike(error);
+  if (REQUEST_VALIDATION_CODES.has(detail.code ?? "")) {
+    return err("Other", String(detail.message ?? error));
   }
-  return secure ? err("Tls", String(error?.message ?? error)) : failure(error, host);
+  return secure ? err("Tls", String(detail.message ?? error)) : failure(error, host);
 }
 
 // One request without redirects, within `ms` milliseconds, each of its
 // phases within the provider's phase timeouts (std-http.settings.phase-timeouts).
-const once = ({ url, host, method, headers, body, ms, signal, settings = null }) =>
-  new Promise((done) => {
+const once = ({
+  url,
+  host,
+  method,
+  headers,
+  body,
+  ms,
+  signal,
+  settings = null,
+}: OnceRequest): Promise<HttpResult> =>
+  new Promise<HttpResult>((done) => {
     if (ms <= 0) {
       done(err("Timeout"));
       return;
@@ -166,23 +256,29 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
     const secure = url.protocol === "https:";
     const lib = secure ? https : http;
     let settled = false;
-    let timer = null;
-    let phaseTimer = null;
-    let req = null;
+    let timer: NodeJS.Timeout | null = null;
+    let phaseTimer: NodeJS.Timeout | null = null;
+    let req: ClientRequest | null = null;
     const aborted = () => settle(err("Other", "request cancelled"));
-    const settle = (r) => {
+    const settle = (result: HttpResult): void => {
       if (!settled) {
         settled = true;
-        clearTimeout(timer);
-        clearTimeout(phaseTimer);
+        if (timer !== null) {
+          clearTimeout(timer);
+        }
+        if (phaseTimer !== null) {
+          clearTimeout(phaseTimer);
+        }
         signal.removeEventListener("abort", aborted);
-        done(r);
+        done(result);
       }
     };
     // Starts the next phase's timer, ending the previous one; a zero
     // limit expires at once (std-http.settings.zero-timeout).
-    const phase = (limit) => {
-      clearTimeout(phaseTimer);
+    const phase = (limit: number | null | undefined): void => {
+      if (phaseTimer !== null) {
+        clearTimeout(phaseTimer);
+      }
       phaseTimer = null;
       if (limit == null || settled) {
         return;
@@ -215,7 +311,7 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
     // `127.1` is the resolver's to resolve.
     const all = transportHeaders(headers, body, url, host);
     try {
-      req = lib.request({
+      const request = lib.request({
         protocol: url.protocol,
         host,
         port: url.port || undefined,
@@ -226,6 +322,7 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
         signal,
         ...(secure ? tlsOptions(settings) : {}),
       });
+      req = request;
     } catch (e) {
       // Node builds the TLS context here: a root or identity it cannot
       // load is a TLS failure. Request syntax keeps its exact portable
@@ -262,25 +359,27 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
     req.on("response", (res) => {
       responded = true;
       phase(settings?.bodyReadTimeout);
-      const groups = new Map();
+      const groups = new Map<string, string[]>();
       for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) {
         const name = res.rawHeaders[i].toLowerCase();
         if (!groups.has(name)) {
           groups.set(name, []);
         }
-        groups.get(name).push(res.rawHeaders[i + 1]);
+        groups.get(name)!.push(res.rawHeaders[i + 1]);
       }
-      const pairs = [...groups].flatMap(([name, values]) => values.map((v) => [name, v]));
+      const pairs: Header[] = [...groups].flatMap(([name, values]) =>
+        values.map((value): Header => [name, value]),
+      );
       const codings = pairs
         .filter(([name]) => name === "content-encoding")
         .flatMap(([, value]) => value.split(",").map((part) => part.trim().toLowerCase()));
       const decodedIsWireBody = codings.every((coding) => coding === "identity");
-      const chunks = [];
+      const chunks: Buffer[] = [];
       let received = 0;
-      res.on("data", (c) => {
-        received += c.length;
+      res.on("data", (chunk: Buffer) => {
+        received += chunk.length;
         if (
-          !hasNoBody(method, res.statusCode) &&
+          !hasNoBody(method, res.statusCode!) &&
           decodedIsWireBody &&
           received > MAX_DECODED_BYTES
         ) {
@@ -288,26 +387,26 @@ const once = ({ url, host, method, headers, body, ms, signal, settings = null })
           res.destroy();
           return;
         }
-        chunks.push(c);
+        chunks.push(chunk);
       });
       res.on("error", (e) => settle(failure(e, host)));
       res.on("end", () => {
-        settle(decodedResponse(method, res.statusCode, pairs, Buffer.concat(chunks)));
+        settle(decodedResponse(method, res.statusCode!, pairs, Buffer.concat(chunks)));
       });
     });
     req.end(body.length ? Buffer.from(body) : undefined);
   });
 
 // A request and its redirects, as the program's grant allows them.
-async function send(r, signal) {
+async function send(request: HttpRequest, signal: AbortSignal): Promise<HttpResult> {
   // Every changed setting is checked before any URL, grant or connection
   // work (std-http.settings.preflight).
-  const refused = unsupportedSetting(r.settings, SUPPORTED);
+  const refused = unsupportedSetting(request.settings, SUPPORTED);
   if (refused) {
     return refused;
   }
-  const grant = createGrant(r.grants, resolvePath, pathSeparator);
-  let { method, url, body } = r;
+  const grant = createGrant(request.grants, resolvePath, pathSeparator);
+  let { method, url, body } = request;
   let written = url;
   const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
   for (let redirects = 0; ; redirects++) {
@@ -327,30 +426,34 @@ async function send(r, signal) {
       url: u,
       host,
       method,
-      headers: r.headers,
+      headers: request.headers,
       body,
       ms: deadline - Date.now(),
       signal,
-      settings: r.settings,
+      settings: request.settings,
     });
     const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
-    if (finalResponse(r, got, location)) {
-      return got.error ? got : { ...got, url };
+    if (finalResponse(request, got, location)) {
+      return got.error !== undefined ? got : { ...got, url };
     }
+    const redirectLocation = location!;
+    const response = got as HttpResponse;
     // A Location outside printable ASCII is no RFC 3986 URL.
-    if (!isAsciiUrl(location)) {
-      return err("InvalidUrl", location);
+    if (!isAsciiUrl(redirectLocation)) {
+      return err("InvalidUrl", redirectLocation);
     }
-    url = new URL(location, u).href;
+    url = new URL(redirectLocation, u).href;
     // A relative Location keeps the host as written; an absolute one
     // brings its own.
-    if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(location)) {
-      written = location.startsWith("//") ? `${u.protocol}${location}` : location;
+    if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(redirectLocation)) {
+      written = redirectLocation.startsWith("//")
+        ? `${u.protocol}${redirectLocation}`
+        : redirectLocation;
     }
-    if (redirects === r.redirects) {
+    if (redirects === request.redirects) {
       return err("TooManyRedirects", url);
     }
-    if (redirectsToGet(got.status, method)) {
+    if (redirectsToGet(response.status, method)) {
       method = "GET";
       body = new Uint8Array(0);
     }
@@ -359,39 +462,39 @@ async function send(r, signal) {
 
 // Replies go only to control calls; asynchronous completion never posts
 // an unsolicited message that could become another operation's reply.
-const operations = new Map();
+const operations = new Map<number, HttpState>();
 let nextOperation = 1;
-const run = (r) => {
-  switch (r.op) {
+const run = (request: HttpControlRequest): unknown => {
+  switch (request.op) {
     case "start": {
       const operation = nextOperation++;
       const controller = new AbortController();
-      const state = { controller, result: null };
+      const state: HttpState = { controller, result: null };
       operations.set(operation, state);
-      const complete = (result) => {
+      const complete = (result: HttpResult): void => {
         if (operations.get(operation) === state) {
           state.result = result;
         }
       };
-      send(r, controller.signal).then(complete, (error) =>
-        complete(err("Other", String(error?.message ?? error))),
+      send(request, controller.signal).then(complete, (error: unknown) =>
+        complete(err("Other", String(errorLike(error).message ?? error))),
       );
       return { ok: operation };
     }
     case "poll": {
-      const state = operations.get(r.operation);
+      const state = operations.get(request.operation);
       if (state === undefined) {
         throw new Error("unknown HTTP operation");
       }
       if (state.result === null) {
         return { pending: true };
       }
-      operations.delete(r.operation);
+      operations.delete(request.operation);
       return state.result;
     }
     case "abort":
-      operations.get(r.operation)?.controller.abort();
-      operations.delete(r.operation);
+      operations.get(request.operation)?.controller.abort();
+      operations.delete(request.operation);
       return { ok: null };
     case "open":
       return { ok: operations.size };
@@ -400,5 +503,5 @@ const run = (r) => {
   }
 };
 
-const { port, flag } = workerData;
+const { port, flag } = workerData as HttpWorkerData;
 serve(port, flag, run);
