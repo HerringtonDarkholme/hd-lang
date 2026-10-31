@@ -6,17 +6,19 @@ fn replace_then_write(list: &mut List[i32], old: &mut i32) -> i32:
     *old = 20
     *old
 
-fn replaced(list: &mut List[i32]) -> i32:
-    replace_then_write(list, &mut list[1])
+# The list comes through a box alias, which the checker does not see.
+fn replaced(list: *mut List[i32]) -> i32:
+    alias := list
+    replace_then_write(alias, &mut list[1])
 
 tests:
     use std.testing.assert_equal
 
     it("xs = [] leaves the reference on the old elements"):
-        let mut xs = [+1, 2, 3]
+        xs := box([+1, 2, 3])
         assert_equal(
-            replaced(&mut xs),
+            replaced(xs),
             20,
             reason="the old reference still reads and writes its slot",
         )
-        assert_equal(xs, [+5], reason="the new list is untouched by the old reference")
+        assert_equal(*xs, [+5], reason="the new list is untouched by the old reference")

@@ -12,13 +12,15 @@ fn sort_then_read(list: &mut List[i32], first: &i32) -> i32:
         i = i + 1
     *first
 
-fn sorted_first(list: &mut List[i32]) -> i32:
-    sort_then_read(list, &list[0])
+# The list comes through a box alias, which the checker does not see.
+fn sorted_first(list: *mut List[i32]) -> i32:
+    alias := list
+    sort_then_read(alias, &list[0])
 
 tests:
     use std.testing.assert_equal
 
     it("the reference names the slot, not the element"):
-        let mut xs = [+3, 1, 2]
-        assert_equal(sorted_first(&mut xs), 1, reason="slot 0 now holds the smallest element")
-        assert_equal(xs, [+1, 2, 3], reason="the sort ran while the list was pinned")
+        xs := box([+3, 1, 2])
+        assert_equal(sorted_first(xs), 1, reason="slot 0 now holds the smallest element")
+        assert_equal(*xs, [+1, 2, 3], reason="the sort ran while the list was pinned")

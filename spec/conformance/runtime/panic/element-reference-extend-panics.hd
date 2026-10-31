@@ -1,13 +1,11 @@
-# test: a std extend that adds elements through a &mut parameter during an element reference's call panics with collection-pinned
+# test: a std extend that adds elements through a box alias the checker cannot see during an element reference's call panics with collection-pinned
 # std Collections, List And Map Values: std-collections.value.pinned-length.
 fn change(list: &mut List[i32], first: &i32) -> i32:
     list.extend([+3]) # panic: collection-pinned
     *first
 
-fn through(list: &mut List[i32]) -> i32:
-    change(list, &list[0])
-
 tests:
     it("extend grows a pinned list"):
-        let mut xs = [+1, 2]
-        _ := through(&mut xs)
+        xs := box([+1, 2])
+        alias := xs
+        _ := change(alias, &xs[0])

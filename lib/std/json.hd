@@ -2600,6 +2600,56 @@ struct TextReader:
     # The facts of a list or a map frame, made once per reader.
     pub no_facts: Facts
 
+# List the distinct keys of the frame's object: the first occurrence
+# fixes key order and the last one the value, matching JsonObject. Small
+# objects need no map, and their unescaped keys remain input slices.
+fn scan_object(parser: &mut Parser, frame: &mut TextReadFrame) -> Result[void, JsonError]:
+    frame.key_count = 0
+    if frame.positions.len() > 0:
+        frame.positions = {}
+    let member: usize = 0
+    let child = frame.entry + 2 + 2 * frame.count
+    while member < frame.count:
+        key := parser.key_at(parser.index[frame.entry + 2 + 2 * member])?
+        value := parser.index[frame.entry + 3 + 2 * member]
+        byte := bytes_at(parser.text, value)
+        let entry: usize = 0
+        if byte == 91 || byte == 123:
+            entry = parser.index[child]
+            child = child + 1
+        let slot = frame.key_count
+        if frame.key_count <= 16:
+            let i: usize = 0
+            while i < frame.key_count:
+                if frame.keys[i] == key:
+                    slot = i
+                    break
+                i = i + 1
+        else:
+            slot = frame.positions.get(key).unwrap_or(frame.key_count)
+        if slot == frame.key_count:
+            if slot < frame.keys.len():
+                frame.keys[slot] = key
+                frame.offsets[slot] = value
+                frame.children[slot] = entry
+            else:
+                frame.keys.push(key)
+                frame.offsets.push(value)
+                frame.children.push(entry)
+            frame.key_count = slot + 1
+            if frame.key_count == 17:
+                let i: usize = 0
+                while i < frame.key_count:
+                    frame.positions[frame.keys[i]] = i
+                    i = i + 1
+            else if frame.key_count > 17:
+                frame.positions[key] = slot
+        else:
+            frame.offsets[slot] = value
+            frame.children[slot] = entry
+        member = member + 1
+    .Ok(())
+
 # Record `key` as the path step at `slot`.
 fn step_key_in(steps: &mut List[i64], names: &mut List[string], slot: usize, key: string) -> void:
     if slot < steps.len():
@@ -2667,56 +2717,6 @@ impl TextReader:
         self.at = at
         self.entry = self.parser.child_of(object, count, slot, at)
 
-    # List the distinct keys of the frame's object: the first occurrence
-    # fixes key order and the last one the value, matching JsonObject. Small
-    # objects need no map, and their unescaped keys remain input slices.
-    fn scan_object(&mut self, frame: &mut TextReadFrame) -> Result[void, JsonError]:
-        frame.key_count = 0
-        if frame.positions.len() > 0:
-            frame.positions = {}
-        let member: usize = 0
-        let child = frame.entry + 2 + 2 * frame.count
-        while member < frame.count:
-            key := self.parser.key_at(self.parser.index[frame.entry + 2 + 2 * member])?
-            value := self.parser.index[frame.entry + 3 + 2 * member]
-            byte := bytes_at(self.parser.text, value)
-            let entry: usize = 0
-            if byte == 91 || byte == 123:
-                entry = self.parser.index[child]
-                child = child + 1
-            let slot = frame.key_count
-            if frame.key_count <= 16:
-                let i: usize = 0
-                while i < frame.key_count:
-                    if frame.keys[i] == key:
-                        slot = i
-                        break
-                    i = i + 1
-            else:
-                slot = frame.positions.get(key).unwrap_or(frame.key_count)
-            if slot == frame.key_count:
-                if slot < frame.keys.len():
-                    frame.keys[slot] = key
-                    frame.offsets[slot] = value
-                    frame.children[slot] = entry
-                else:
-                    frame.keys.push(key)
-                    frame.offsets.push(value)
-                    frame.children.push(entry)
-                frame.key_count = slot + 1
-                if frame.key_count == 17:
-                    let i: usize = 0
-                    while i < frame.key_count:
-                        frame.positions[frame.keys[i]] = i
-                        i = i + 1
-                else if frame.key_count > 17:
-                    frame.positions[key] = slot
-            else:
-                frame.offsets[slot] = value
-                frame.children[slot] = entry
-            member = member + 1
-        .Ok(())
-
     fn enter(
         &mut self,
         at: usize,
@@ -2772,10 +2772,10 @@ impl TextReader:
         frame.facts = facts
         match kind:
             .Items => pass
-            .Entries => self.scan_object(frame)?
+            .Entries => scan_object(&mut self.parser, frame)?
             _ =>
                 if frame.count > 16:
-                    self.scan_object(frame)?
+                    scan_object(&mut self.parser, frame)?
         self.open = slot + 1
         .Ok(())
 

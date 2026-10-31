@@ -1,16 +1,14 @@
-# test: push with room left in the buffer during an element reference's call panics with collection-pinned
+# test: push with room left in the buffer, through a box alias the checker cannot see, during an element reference's call panics with collection-pinned
 # Spec 13 Call-Scoped Access: ref.elem.access.pin, ref.elem.pinned.
 fn change(list: &mut List[i32], first: &mut i32) -> void:
     list.push(4) # panic: collection-pinned
     *first = 5
 
-fn through(list: &mut List[i32]) -> void:
-    change(list, &mut list[2])
-
 tests:
     it("push with room changes the length of a pinned list"):
-        let mut xs: List[i32] = []
+        xs := box::[List[i32]]([])
         xs.push(1)
         xs.push(2)
         xs.push(3)
-        through(&mut xs)
+        alias := xs
+        change(alias, &mut xs[2])

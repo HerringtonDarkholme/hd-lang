@@ -1,0 +1,8 @@
+# test: a call that takes &mut of a list reached through a &mut parameter beside a reference to one of its elements conflicts
+# Spec 13 Call-Scoped Access: ref.elem.conflict, ref.elem.conflict.reference.
+fn change(list: &mut List[i32], first: &mut i32) -> void:
+    list.push(4)
+    *first = 5
+
+fn through(list: &mut List[i32]) -> void:
+    change(list, &mut list[2]) # diagnostic: conflicting-access

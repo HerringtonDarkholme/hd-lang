@@ -5545,3 +5545,10 @@ typing/invalid/element-binding-call-takes-list-while-live.hd	type	reject:conflic
 typing/invalid/element-argument-result-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
 typing/valid/element-binding-length-kept.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.access.length
 runtime/panic/element-binding-box-alias-push-panics.hd	runtime	panic:collection-pinned	lang/13-values-and-references.md#r-ref.elem.pinned
+typing/invalid/element-argument-beside-mut-parameter-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
+typing/invalid/element-argument-shared-beside-mut-parameter-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
+typing/invalid/element-argument-beside-mut-parameter-map.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
+typing/invalid/element-argument-method-beside-mut-parameter-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.method
+typing/invalid/element-binding-argument-beside-mut-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
+typing/invalid/element-argument-receiver-holds-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
+typing/valid/element-argument-beside-length-kept.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.conflict

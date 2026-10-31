@@ -1,13 +1,11 @@
-# test: a remove_at through a &mut parameter during an element reference's call panics with collection-pinned
+# test: a remove_at through a box alias the checker cannot see during an element reference's call panics with collection-pinned
 # Spec 13 Call-Scoped Access: ref.elem.access.pin, ref.elem.pinned.
 fn change(list: &mut List[i32], first: &mut i32) -> void:
     _ := list.remove_at(0) # panic: collection-pinned
     *first = 5
 
-fn through(list: &mut List[i32]) -> void:
-    change(list, &mut list[2])
-
 tests:
     it("remove_at moves the elements of a pinned list"):
-        let mut xs = [+1, 2, 3]
-        through(&mut xs)
+        xs := box([+1, 2, 3])
+        alias := xs
+        change(alias, &mut xs[2])
