@@ -2,7 +2,7 @@
 name = "provider-tool"
 
 [host]
-"main.Probe" = "provider.mjs"
+"main.Probe" = "provider.ts"
 
 [capabilities]
 Console = true

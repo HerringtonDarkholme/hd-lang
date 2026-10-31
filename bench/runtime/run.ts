@@ -5,12 +5,13 @@
 // directly, 1 warmup + 5 measured runs each (`--runs N`), p50/p95. Prints a markdown
 // report to stdout. Fails loudly when hd and JS outputs differ.
 //
-// Usage: node bench/runtime/run.mjs [workdir] [--release] [--hd PATH] [--only a,b] [--runs N]
+// Usage: node bench/runtime/run.ts [workdir] [--release] [--hd PATH] [--only a,b] [--runs N]
 // With --release, programs are built with `hd build --release` and the
 // release-profile Wasm is timed; otherwise the debug profile. Every build
 // passes `--engine node`, so its Wasm is tuned for V8, which runs it here,
 // whatever `HD_ENGINE` or the default engine says.
 import { execFileSync } from "node:child_process";
+import type { ExecFileSyncOptionsWithStringEncoding } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -19,15 +20,15 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 const NEW_HD = join(REPO, "target", "release", "hd");
-const RUNNER = join(REPO, "host", "run.mjs");
+const RUNNER = join(REPO, "host", "run.ts");
 let RUNS = 5;
 const TIMEOUT_MS = 300_000;
 
 const args = process.argv.slice(2);
 let release = false;
 let hdBinary = NEW_HD;
-let only;
-let workRoot;
+let only: string[] | undefined;
+let workRoot: string | undefined;
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
   if (arg === "--release") {
@@ -44,17 +45,29 @@ for (let i = 0; i < args.length; i++) {
     throw new Error(`unknown argument ${arg}`);
   }
 }
-workRoot ??= join(tmpdir(), `hd-runtime-${process.pid}`);
+const workDirectory = workRoot ?? join(tmpdir(), `hd-runtime-${process.pid}`);
 const profile = release ? "release" : "debug";
 
-function sh(cmd, argv, opts = {}) {
+interface CommandResult {
+  ms: number;
+  ok: boolean;
+  code: number;
+  out: string;
+}
+
+function sh(
+  cmd: string,
+  argv: string[],
+  opts: Omit<ExecFileSyncOptionsWithStringEncoding, "encoding"> = {},
+): CommandResult {
   const start = performance.now();
   let ok = true;
   let code = 0;
   let out = "";
   try {
     out = execFileSync(cmd, argv, { encoding: "utf8", timeout: TIMEOUT_MS, ...opts });
-  } catch (err) {
+  } catch (error) {
+    const err = error as { status?: number; stdout?: string; stderr?: string };
     ok = false;
     code = err.status ?? 1;
     out = (err.stdout ?? "") + (err.stderr ?? "");
@@ -62,13 +75,13 @@ function sh(cmd, argv, opts = {}) {
   return { ms: performance.now() - start, ok, code, out: String(out) };
 }
 
-function stats(samples) {
+function stats(samples: number[]) {
   const s = [...samples].sort((a, b) => a - b);
   const max = s[s.length - 1];
   return { p50: s[Math.floor(s.length / 2)], p95: max, min: s[0], max };
 }
 
-function measure(fn) {
+function measure(fn: () => CommandResult) {
   fn(); // warmup, excluded
   const samples = [];
   let last = null;
@@ -114,13 +127,19 @@ function main() {
   }
   const selected = names.filter((name) => !only || only.includes(name));
   const hash = gitHash();
-  const rows = [];
+  const rows: {
+    name: string;
+    hdT: ReturnType<typeof measure>;
+    jsT: ReturnType<typeof measure>;
+    ratio: number;
+    out: string;
+  }[] = [];
   let logRatioSum = 0;
 
-  mkdirSync(workRoot, { recursive: true });
+  mkdirSync(workDirectory, { recursive: true });
   for (const name of selected) {
     const src = readFileSync(join(HERE, "progs", `${name}.hd`), "utf8");
-    const dir = join(workRoot, name);
+    const dir = join(workDirectory, name);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(join(dir, "src"), { recursive: true });
     writeFileSync(
@@ -128,7 +147,7 @@ function main() {
       `[package]\nname = "${name}"\n\n[capabilities]\nConsole = true\n`,
     );
     writeFileSync(join(dir, "src", "main.hd"), src);
-    const cache = join(workRoot, `cache-${name}`);
+    const cache = join(workDirectory, `cache-${name}`);
     rmSync(cache, { recursive: true, force: true });
     mkdirSync(cache, { recursive: true });
     const buildArgs = ["build", "--engine", "node", ...(release ? ["--release"] : [])];

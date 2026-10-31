@@ -1,7 +1,7 @@
 [package]
 name = "private_values"
 [host]
-"main.Server" = "provider.mjs"
+"main.Server" = "provider.ts"
 [capabilities]
 "pkg.main.Server" = true
 Console = true

@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 
+interface HttpContext {
+  http: {
+    coversHost(host: string, port: number): boolean;
+    isAsciiUrl(text: string): boolean;
+    writtenHost(text: string): string;
+  };
+}
+
 export default {
-  inspect(context) {
+  inspect(context: HttpContext) {
     const policy = context.http;
     assert.equal(Object.isFrozen(policy), true);
     assert.equal(Reflect.set(context, "http", {}), false);

@@ -2,7 +2,7 @@
 import { readFile, mkdir, open, rename, rm } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { readHostSources } from "../../../scripts/host-emission.mjs";
+import { readHostSources } from "../../../scripts/host-emission.ts";
 import { digest, graphFingerprint, runtimeSources } from "./runtime-model.ts";
 
 const root = new URL("../../../", import.meta.url);

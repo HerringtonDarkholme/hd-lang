@@ -59,7 +59,7 @@ struct with a name, facts and a doc) by value to `member_name` and to
 `Serializer.member`. Each call retains the strings and lists inside the
 value and releases them at the callee's exit. A release build should
 pass them with no count, since no callee keeps them. The engineer runs
-`node bench/study/run.mjs --quick --only json` before and after, and reads
+`node bench/study/run.ts --quick --only json` before and after, and reads
 the `counts` baselines.
 
 **Use case 2: a builder chain (#681).** `out.push("item-$i;")` in a loop:
@@ -659,7 +659,7 @@ for byte; the digest check proves that. Each slice is a revert.
   across the pipelines (tiering.md §4.3).
 - **Determinism.** A unit test builds one program with its roots in two
   orders and compares the summaries.
-- **Bench.** `node bench/study/run.mjs --quick` for json, string_build,
+- **Bench.** `node bench/study/run.ts --quick` for json, string_build,
   map_count, dyn_iter and closures, before and after each slice.
 
 ## Extension points
@@ -678,7 +678,7 @@ parameters, as Go's `-gcflags=-m` does.
 
 | Measure | Value | Method |
 | --- | ---: | --- |
-| json, string_build, map_count | 100, 197, 180 ms | `bench/study/run.mjs --quick`, the worktree's release CLI, Node 24.19 |
+| json, string_build, map_count | 100, 197, 180 ms | `bench/study/run.ts --quick`, the worktree's release CLI, Node 24.19 |
 | a returned-receiver count pair | 3.4 ns per call | the `chain`/`plain` probes above |
 | an owned struct-with-string parameter | 6.3 ns per call | the `owned`/`lent` probes above |
 | json's reached bodies, instructions after the passes | 279, 10,663 | tir-v2.md, "Compile time and code size" |

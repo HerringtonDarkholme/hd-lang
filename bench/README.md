@@ -19,7 +19,7 @@ Generate the fifth case, an exact 10,000-line package spread across four
 nested folders, then run it:
 
 ```sh
-node bench/generated/generate.mjs
+node bench/generated/generate.ts
 (cd bench/generated/out/package && cargo run --release --manifest-path ../../../../Cargo.toml -p hd_cli -- run)
 ```
 
@@ -49,7 +49,7 @@ Two Node tools drive the Rust `hd` as a child process:
   [docs/compiler/goals.md](../docs/compiler/goals.md);
 - [`micro/`](micro/README.md): runtime microbenchmarks of the same programs
   in hd, Python and Node.
-- [`study/`](study/run.mjs): the runtime suite on the RC backend, below.
+- [`study/`](study/run.ts): the runtime suite on the RC backend, below.
 
 ## Runtime Suite On The RC Backend
 
@@ -62,10 +62,10 @@ The runner also times `runtime/progs`, `micro`, `tokenizer`, `math` and an empty
 
 ```sh
 cargo build --release -p hd_cli --features wasmtime
-node bench/study/run.mjs                      # every case, median of 5
-node bench/study/run.mjs --quick              # hd on V8 only, 3 runs, about a minute
-node bench/study/run.mjs --only nbody,json    # some cases
-node bench/study/run.mjs --python-only        # Python only, once each
+node bench/study/run.ts                      # every case, median of 5
+node bench/study/run.ts --quick              # hd on V8 only, 3 runs, about a minute
+node bench/study/run.ts --only nbody,json    # some cases
+node bench/study/run.ts --python-only        # Python only, once each
 ```
 
 Each study program's input is tuned so hd on V8 runs about 300 ms
@@ -104,8 +104,8 @@ unmeasured activations, then measures fresh hosts and instances of that
 same module in one process:
 
 ```sh
-node bench/study/run.mjs --quick --only mandelbrot --warm-module
-node --test bench/study/run.test.mjs
+node bench/study/run.ts --quick --only mandelbrot --warm-module
+node --test bench/study/run.test.ts
 ```
 
 The extra table labels fresh-process wall time and warm-module activation
@@ -222,7 +222,7 @@ separate range-adapter comparison. Long-case checksums are
 `66666653333334`; the short-chain aggregate is `653400000`.
 
 ```sh
-node bench/study/run.mjs --hd target/debug/hd --only dyn_iter --no-refs --runs 1
+node bench/study/run.ts --hd target/debug/hd --only dyn_iter --no-refs --runs 1
 go build -o target/dyn-iter-go bench/study/go/dyn_iter.go
 target/dyn-iter-go
 ```
@@ -261,7 +261,7 @@ load spike). "hd V8, 10-20" is the previous table's run at `c163ee2c0`.
 
 "Wasm GC era" is hd on V8 built by `84095aa9e`, the last commit whose CLI
 has `--backend wasm-gc`, running the same sources at the same sizes
-(`run.mjs --backend wasm-gc`, median of 5, once). `dyn_iter` does not
+(`run.ts --backend wasm-gc`, median of 5, once). `dyn_iter` does not
 compile there (no `Iterator` trait), so it has no GC-era number. The
 owner's RC target is hd V8 at most 1.2x the Wasm GC era.
 

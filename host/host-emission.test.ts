@@ -4,8 +4,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promise
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
-// @ts-expect-error -- #1089 migrates this remaining repository script to TypeScript.
-import { emitHostJavaScript, emitHostSources, readHostSources } from "../scripts/host-emission.mjs";
+import { emitHostJavaScript, emitHostSources, readHostSources } from "../scripts/host-emission.ts";
 
 test("typed host sources emit runnable plain .js without changing source", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "hd-host-emission-"));

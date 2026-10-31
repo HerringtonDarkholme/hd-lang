@@ -180,7 +180,7 @@ Every perf change reports the same table, so results compare across jobs.
 
 - **Every program, hd only, base and head:** the 11 study programs plus
   every one in `bench/runtime/progs` (20 in all today; count the directory). Use
-  `node bench/study/run.mjs --no-refs` in release mode with `--engines node`,
+  `node bench/study/run.ts --no-refs` in release mode with `--engines node`,
   or interleaved runs of the two compilers' modules. Give each program's
   ms before and after, the geometric mean of head/base, and the machine
   load.
@@ -205,9 +205,9 @@ Every perf change reports the same table, so results compare across jobs.
 - **Reference languages** (hand-written JS, MoonBit linear and wasm-gc,
   Rust, Go, Python, any added later) are not part of a per-commit report.
   The orchestrator runs them once after a round of merges (owner,
-  2026-10-26): `node bench/study/run.mjs` with references,
-  `node bench/runtime/run.mjs --release`, and
-  `node bench/study/moonbit/compare.mjs`.
+  2026-10-26): `node bench/study/run.ts` with references,
+  `node bench/runtime/run.ts --release`, and
+  `node bench/study/moonbit/compare.ts`.
 - **Goal:** beat hand-written JS on every program except
   `progs/string-build` (the deliberately naive `out + s` loop). Then beat
   MoonBit's linear backend clearly on every program at every tier (#866).

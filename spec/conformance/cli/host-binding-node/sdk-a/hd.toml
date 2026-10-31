@@ -2,4 +2,4 @@
 name = "same_sdk"
 
 [host]
-"Server" = "provider.mjs"
+"Server" = "provider.ts"

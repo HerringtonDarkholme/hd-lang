@@ -457,7 +457,7 @@ uses the existing Deployment capability.
 1. r[std-server-sdk.vercel.build-output] Preparation emits Build Output version 3 with a catch-all route selecting one complete immutable Node function generation.
 2. r[std-server-sdk.vercel.output-layout] Function generations use `functions/<name>-<hash>.func`, where `hash` is the first 48 hexadecimal characters of the complete generation SHA-256.
 3. r[std-server-sdk.vercel.route-path] The catch-all route sets `request.path` to `/$1` so the Node runtime receives its matched pathname.
-4. r[std-server-sdk.vercel.function-config] Each function declares runtime `nodejs24.x`, handler `index.mjs`, launcher type `Nodejs`, and disabled launcher helpers.
+4. r[std-server-sdk.vercel.function-config] Each function declares runtime `nodejs24.x`, handler `index.js`, launcher type `Nodejs`, and disabled launcher helpers.
 5. r[std-server-sdk.vercel.function-payload] A function generation includes captured Wasm, rebuilt bindings, the portable runtime, Node adapters, production grants and provenance.
 6. r[std-server-sdk.vercel.output-owned] Vercel preparation refuses existing output without its SDK Vercel ownership record.
 7. r[std-server-sdk.vercel.output-integrity] Modified generations, unknown function directories, or an externally modified selector reject publication.

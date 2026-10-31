@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const file = process.argv[2];
 if (!file) {
-  console.error("usage: node bench/wasm-size.mjs FILE.wasm");
+  console.error("usage: node bench/wasm-size.ts FILE.wasm");
   process.exit(2);
 }
 
@@ -13,7 +13,16 @@ if (bytes.length < 8 || bytes.subarray(0, 4).toString("hex") !== "0061736d") {
   throw new Error(`${file}: not a Wasm module`);
 }
 
-function u32(cursor) {
+interface Cursor {
+  at: number;
+}
+
+interface Range {
+  payloadStart: number;
+  end: number;
+}
+
+function u32(cursor: Cursor): number {
   let value = 0;
   let shift = 0;
   for (;;) {
@@ -29,14 +38,14 @@ function u32(cursor) {
   }
 }
 
-function string(cursor) {
+function string(cursor: Cursor): string {
   const length = u32(cursor);
   const start = cursor.at;
   cursor.at += length;
   return bytes.subarray(start, start + length).toString("utf8");
 }
 
-function limits(cursor) {
+function limits(cursor: Cursor): void {
   const flags = u32(cursor);
   u32(cursor);
   if (flags & 1) {
@@ -47,7 +56,7 @@ function limits(cursor) {
   }
 }
 
-function skipRefType(cursor) {
+function skipRefType(cursor: Cursor): void {
   const first = bytes[cursor.at++];
   if (first === 0x63 || first === 0x64) {
     u32(cursor);
@@ -71,9 +80,9 @@ const sectionNames = [
   "tag",
 ];
 const sections = [];
-const byId = new Map();
-const custom = [];
-let cursor = { at: 8 };
+const byId = new Map<number, Range>();
+const custom: ({ name: string } & Range)[] = [];
+let cursor: Cursor = { at: 8 };
 while (cursor.at < bytes.length) {
   const start = cursor.at;
   const id = bytes[cursor.at++];
@@ -153,7 +162,7 @@ if (exportSection) {
   }
 }
 
-function paddedIndex(at, end) {
+function paddedIndex(at: number, end: number): number | undefined {
   if (at + 5 > end) {
     return undefined;
   }
@@ -230,12 +239,15 @@ if (dataSection) {
 }
 
 const root = exports.find((item) => item.kind === 0 && item.name === "main")?.index;
-const parents = new Map(root === undefined ? [] : [[root, null]]);
-const edgeKinds = new Map();
-const queue = root === undefined ? [] : [root];
+const parents = new Map<number, number | null>(root === undefined ? [] : [[root, null]]);
+const edgeKinds = new Map<number, string>();
+const queue: number[] = root === undefined ? [] : [root];
 const functionByIndex = new Map(functions.map((fn) => [fn.index, fn]));
 while (queue.length) {
   const from = queue.shift();
+  if (from === undefined) {
+    continue;
+  }
   const fn = functionByIndex.get(from);
   if (!fn) {
     continue;
@@ -250,12 +262,12 @@ while (queue.length) {
   }
 }
 
-function chain(index) {
+function chain(index: number): string {
   if (!parents.has(index)) {
     return "reachable through a table, adapter, or linker root";
   }
-  const path = [];
-  for (let at = index; at !== null; at = parents.get(at)) {
+  const path: number[] = [];
+  for (let at: number | null = index; at !== null; at = parents.get(at) ?? null) {
     path.push(at);
   }
   path.reverse();

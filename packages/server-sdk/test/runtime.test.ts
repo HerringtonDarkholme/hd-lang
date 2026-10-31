@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readPortableRuntime, emitPortableRuntime } from "../packaging/portable-runtime.ts";
 import { runtimeSources } from "../packaging/runtime-model.ts";
-import { readHostSources } from "../../../scripts/host-emission.mjs";
+import { readHostSources } from "../../../scripts/host-emission.ts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const archive = new URL("../runtime/runtime-sources.json", import.meta.url);

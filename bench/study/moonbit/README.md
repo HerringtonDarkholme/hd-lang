@@ -3,7 +3,7 @@
 MoonBit ports of every hd benchmark program (11 in `bench/study`, 9 in
 `bench/runtime/progs`) plus `empty`, and a runner that compares hd's release
 Wasm with `moon build --target wasm` output, or `--target wasm-gc`. Same algorithm, sizes and stdout
-as the hd source; `compare.mjs` fails if the two stdouts differ.
+as the hd source; `compare.ts` fails if the two stdouts differ.
 
 Packages: `study_<name>` (from `bench/study/<name>.hd`), `progs_<name>` (from
 `bench/runtime/progs/<name>.hd`, dashes become underscores), `empty`.
@@ -14,7 +14,7 @@ Versions measured: moon 0.1.20261023 (3778465 2026-10-23), node v24.19.0.
 
 ```sh
 cargo build --release -p hd_cli -j 4            # target/release/hd
-node bench/study/moonbit/compare.mjs --build    # hd packages into work/, then moon build
+node bench/study/moonbit/compare.ts --build    # hd packages into work/, then moon build
 # the MoonBit half alone:
 cd bench/study/moonbit && /Users/hd/.moon/bin/moon build --target wasm --release
 ```
@@ -22,9 +22,9 @@ cd bench/study/moonbit && /Users/hd/.moon/bin/moon build --target wasm --release
 ## Run
 
 ```sh
-node bench/study/moonbit/compare.mjs                        # 11 runs, all programs
-node bench/study/moonbit/compare.mjs --runs 5 --only study_json,empty
-node bench/study/moonbit/compare.mjs --build --target wasm-gc   # then run with --target wasm-gc
+node bench/study/moonbit/compare.ts                        # 11 runs, all programs
+node bench/study/moonbit/compare.ts --runs 5 --only study_json,empty
+node bench/study/moonbit/compare.ts --build --target wasm-gc   # then run with --target wasm-gc
 ```
 
 Each run is a fresh `node` process; one discarded warm-up, then `--runs`
@@ -52,10 +52,10 @@ rolling checksum, `563962784`.
 The benchmark is registered in both hd runners and this comparison:
 
 ```sh
-node bench/runtime/run.mjs target/bench-nested-display-runtime --release --hd target/debug/hd --only nested-display
-node bench/study/run.mjs --only progs/nested-display --engines node --hd target/debug/hd --work target/bench-nested-display-study
-node bench/study/moonbit/compare.mjs --build --only progs_nested_display --hd target/debug/hd
-node bench/study/moonbit/compare.mjs --only progs_nested_display --runs 5
+node bench/runtime/run.ts target/bench-nested-display-runtime --release --hd target/debug/hd --only nested-display
+node bench/study/run.ts --only progs/nested-display --engines node --hd target/debug/hd --work target/bench-nested-display-study
+node bench/study/moonbit/compare.ts --build --only progs_nested_display --hd target/debug/hd
+node bench/study/moonbit/compare.ts --only progs_nested_display --runs 5
 ```
 
 `--hd` selects an existing compiler, including a dev compiler. `--only` also

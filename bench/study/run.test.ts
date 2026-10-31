@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { measure, measureWarmModule } from "./run.mjs";
+import { measure, measureWarmModule } from "./run.ts";
 
 // (module (global (export "counter") (mut i32) (i32.const 0))
 //   (func (export "hd.init") (global.set 0 (i32.add (global.get 0) (i32.const 1))))
@@ -11,8 +11,8 @@ import { measure, measureWarmModule } from "./run.mjs";
 //     (i32.sub (global.get 0) (i32.const 1))))
 // A second init on a reused instance returns a nonzero status.
 function counterModule() {
-  const section = (id, bytes) => [id, bytes.length, ...bytes];
-  const name = (text) => [text.length, ...Buffer.from(text)];
+  const section = (id: number, bytes: number[]): number[] => [id, bytes.length, ...bytes];
+  const name = (text: string): number[] => [text.length, ...Buffer.from(text)];
   return new WebAssembly.Module(
     new Uint8Array([
       0,
@@ -49,14 +49,18 @@ function counterModule() {
 test("warm activations reuse the compiled module and isolate mutable instance state", async (t) => {
   const module = counterModule();
   const instantiate = WebAssembly.instantiate;
-  const instances = [];
-  t.mock.method(WebAssembly, "instantiate", async (seen, imports) => {
-    assert.equal(seen, module);
-    const instance = await instantiate(seen, imports);
-    assert.equal(instance.exports.counter.value, 0);
-    instances.push(instance);
-    return instance;
-  });
+  const instances: WebAssembly.Instance[] = [];
+  t.mock.method(
+    WebAssembly,
+    "instantiate",
+    async (seen: WebAssembly.Module, imports?: WebAssembly.Imports) => {
+      assert.equal(seen, module);
+      const instance = (await instantiate(seen, imports)) as WebAssembly.Instance;
+      assert.equal((instance.exports.counter as WebAssembly.Global).value, 0);
+      instances.push(instance);
+      return instance;
+    },
+  );
   const result = await measureWarmModule(module, 3, "", 2);
   assert.equal(result.error, undefined);
   assert.equal(result.runs, 3);
@@ -64,27 +68,31 @@ test("warm activations reuse the compiled module and isolate mutable instance st
   assert.equal(instances.length, 5);
   assert.equal(new Set(instances).size, 5);
   for (const instance of instances) {
-    assert.equal(instance.exports.counter.value, 1);
+    assert.equal((instance.exports.counter as WebAssembly.Global).value, 1);
   }
 });
 
 test("warm-up stdout is validated", async () => {
   const result = await measureWarmModule(counterModule(), 1, "wrong", 1);
-  assert.match(result.error, /^output /);
+  assert.match(result.error!, /^output /);
 });
 
 test("a failed measured activation is refused after successful warm-up", async (t) => {
   const instantiate = WebAssembly.instantiate;
   let calls = 0;
-  t.mock.method(WebAssembly, "instantiate", async (...args) => {
-    const instance = await instantiate(...args);
-    if (++calls === 2) {
-      instance.exports.counter.value = 7;
-    }
-    return instance;
-  });
+  t.mock.method(
+    WebAssembly,
+    "instantiate",
+    async (module: WebAssembly.Module, imports?: WebAssembly.Imports) => {
+      const instance = (await instantiate(module, imports)) as WebAssembly.Instance;
+      if (++calls === 2) {
+        (instance.exports.counter as WebAssembly.Global).value = 7;
+      }
+      return instance;
+    },
+  );
   const result = await measureWarmModule(counterModule(), 2, "", 1);
-  assert.match(result.error, /^exit 7:/);
+  assert.match(result.error!, /^exit 7:/);
 });
 
 for (const failure of ["output", "status"]) {
@@ -101,6 +109,6 @@ for (const failure of ["output", "status"]) {
       process.stdout.write(n > 0 && ${JSON.stringify(failure)} === 'output' ? 'wrong' : 'ok');
     `;
     const result = measure([process.execPath, "-e", script, counter], 2, "ok");
-    assert.match(result.error, failure === "output" ? /^output / : /^exit 7:/);
+    assert.match(result.error!, failure === "output" ? /^output / : /^exit 7:/);
   });
 }

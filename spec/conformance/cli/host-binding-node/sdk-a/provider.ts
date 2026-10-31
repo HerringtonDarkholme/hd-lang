@@ -1,9 +1,9 @@
 export default {
-  read(text) {
-    return "B " + text;
+  read(text: string) {
+    return "A " + text;
   },
   async wait() {
     await Promise.resolve();
-    return "B pending";
+    return "A pending";
   },
 };

@@ -10,7 +10,7 @@
 // the median of the measured runs, in integer milliseconds;
 // peak RSS is the largest `/usr/bin/time -l` saw.
 //
-// Usage: node bench/study/run.mjs [--runs N] [--only a,b] [--engines node,wasmtime]
+// Usage: node bench/study/run.ts [--runs N] [--only a,b] [--engines node,wasmtime]
 //                                 [--hd PATH] [--work DIR] [--no-refs] [--python-only]
 //                                 [--backend B] [--quick] [--warm-module]
 //
@@ -22,7 +22,7 @@
 // then measures fresh hosts and instances of that same module in this process.
 // `--quick` is hd on V8 only, no references, 3 runs. `--backend B` passes
 // `--backend B` to `hd build` (the Wasm GC era CLI has `--backend wasm-gc`).
-//        node bench/study/run.mjs --checked PATH [--only a,b] [--work DIR]
+//        node bench/study/run.ts --checked PATH [--only a,b] [--work DIR]
 //
 // `--checked PATH` names an `hd` whose disk build sets `Packages::checked`
 // when HD_BENCH_CHECKED is set (a local patch; checked mode has no CLI
@@ -37,9 +37,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHost } from "../../host/node.ts";
 
+type Dynamic = ReturnType<typeof JSON.parse>;
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
-const RUNNER = join(REPO, "host", "run.mjs");
+const RUNNER = join(REPO, "host", "run.ts");
 
 const STUDY = [
   "spectral_norm",
@@ -90,8 +92,8 @@ const MICRO = ["fib", "sum", "string_build", "map", "sort"];
 const EMPTY = 'pub fn main() -> void:\n    if 1 + 1 != 2: panic("wrong")\n';
 
 /** Every case: its name, hd source, and the references that print the same output. */
-function cases() {
-  const list = [];
+function cases(): Dynamic[] {
+  const list: Dynamic[] = [];
   for (const n of STUDY) {
     list.push({
       name: n,
@@ -141,7 +143,7 @@ const SMALL = {
   ],
 };
 
-function applyArg(opts, argv, index) {
+function applyArg(opts: Dynamic, argv: string[], index: number): number {
   const arg = argv[index];
   switch (arg) {
     case "--runs":
@@ -183,8 +185,8 @@ function applyArg(opts, argv, index) {
   return index;
 }
 
-function parseArgs(argv) {
-  const opts = { runs: 5, engines: ["node", "wasmtime"], refs: true };
+function parseArgs(argv: string[]): Dynamic {
+  const opts: Dynamic = { runs: 5, engines: ["node", "wasmtime"], refs: true };
   for (let i = 0; i < argv.length; i++) {
     i = applyArg(opts, argv, i);
   }
@@ -203,7 +205,7 @@ function parseArgs(argv) {
 }
 
 /** Runs argv under /usr/bin/time -l: wall ms, peak RSS MB, stdout, status. */
-function timed(argv, env = process.env) {
+function timed(argv: string[], env: NodeJS.ProcessEnv = process.env): Dynamic {
   const start = performance.now();
   const r = spawnSync("/usr/bin/time", ["-l", ...argv], {
     encoding: "utf8",
@@ -221,7 +223,7 @@ function timed(argv, env = process.env) {
   };
 }
 
-const median = (xs) => {
+const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.floor(s.length / 2)];
 };
@@ -231,7 +233,7 @@ const median = (xs) => {
  * over 20 s counts as measured, and one over 60 s is the only run.
  * Python-only mode disables the discarded preflight and requests exactly one run.
  */
-export function measure(argv, runs, expect, preflight = true) {
+export function measure(argv: string[], runs: number, expect?: string, preflight = true): Dynamic {
   const first = timed(argv);
   const expected = expect ?? first.out;
   const failure = validate(first, expected);
@@ -256,7 +258,7 @@ export function measure(argv, runs, expect, preflight = true) {
   };
 }
 
-function validate(sample, expected) {
+function validate(sample: Dynamic, expected: string): string | null {
   if (sample.status !== 0) {
     return `exit ${sample.status}: ${sample.err.slice(-400)}`;
   }
@@ -266,7 +268,7 @@ function validate(sample, expected) {
   return null;
 }
 
-function summarize(samples) {
+function summarize(samples: Dynamic[]): Dynamic {
   return {
     runs: samples.length,
     ms: median(samples.map((s) => s.ms)),
@@ -278,11 +280,16 @@ function summarize(samples) {
  * Includes host creation, instantiation, init/poll and close; excludes compilation.
  * Every activation must match the expected stdout and succeed, including warm-ups.
  */
-export async function measureWarmModule(module, runs, expect, warmups = 3) {
-  const samples = [];
+export async function measureWarmModule(
+  module: WebAssembly.Module,
+  runs: number,
+  expect: string,
+  warmups = 3,
+): Promise<Dynamic> {
+  const samples: Dynamic[] = [];
   for (let i = 0; i < warmups + runs; i++) {
-    const out = [];
-    const err = [];
+    const out: string[] = [];
+    const err: string[] = [];
     const start = performance.now();
     const host = createHost(
       { out: (text) => out.push(text), err: (text) => err.push(text) },
@@ -290,7 +297,10 @@ export async function measureWarmModule(module, runs, expect, warmups = 3) {
     );
     let status;
     try {
-      const instance = await WebAssembly.instantiate(module, host.imports);
+      const instance = (await WebAssembly.instantiate(
+        module,
+        host.imports,
+      )) as WebAssembly.Instance;
       ({ status } = await host.run(instance, "hd.init", "hd.poll"));
     } finally {
       host.close();
@@ -308,7 +318,12 @@ export async function measureWarmModule(module, runs, expect, warmups = 3) {
 }
 
 /** Builds `source` as package NAME in WORK/pkgs; returns the release Wasm path. */
-function build(hd, work, name, ...[source, engine, env = process.env, backend = undefined]) {
+function build(
+  hd: string,
+  work: string,
+  name: string,
+  ...[source, engine, env = process.env, backend]: [string, string, NodeJS.ProcessEnv?, string?]
+): string {
   const flat = name.replaceAll("/", "-").replaceAll("_", "-");
   const dir = join(work, "pkgs", `${flat}-${engine}`);
   rmSync(dir, { recursive: true, force: true });
@@ -331,7 +346,7 @@ function build(hd, work, name, ...[source, engine, env = process.env, backend = 
   return join(dir, "build", "release", `${flat}.wasm`);
 }
 
-function checkedRun(opts, list) {
+function checkedRun(opts: Dynamic, list: Dynamic[]): void {
   const env = { ...process.env, HD_BENCH_CHECKED: "1" };
   const work = join(opts.work, "checked");
   mkdirSync(work, { recursive: true });
@@ -341,7 +356,7 @@ function checkedRun(opts, list) {
   console.log("| --- | --- | ---: | ---: | ---: | ---: |");
   for (const c of list) {
     let src = c.src ?? readFileSync(c.hd, "utf8");
-    const small = SMALL[c.name] ?? [];
+    const small: string[][] = (SMALL as Dynamic)[c.name] ?? [];
     for (const [from, to] of small) {
       src = src.replace(from, to);
     }
@@ -384,7 +399,7 @@ process.argv = [process.argv[0], runner, ...process.argv.slice(2)];
 await import("file://" + runner);
 `;
 
-function pythonAvailable(opts, list) {
+function pythonAvailable(opts: Dynamic, list: Dynamic[]): boolean {
   if (!(opts.refs || opts.pythonOnly) || !list.some((c) => c.py)) {
     return false;
   }
@@ -395,8 +410,8 @@ function pythonAvailable(opts, list) {
   return available;
 }
 
-function expectedOutput(c, opts) {
-  const known = EXPECTED[c.name];
+function expectedOutput(c: Dynamic, opts: Dynamic): string | undefined {
+  const known = (EXPECTED as Dynamic)[c.name] as string | undefined;
   if (known !== undefined) {
     return known;
   }
@@ -409,7 +424,7 @@ function expectedOutput(c, opts) {
   return c.emptyExpected ? "" : undefined;
 }
 
-function measureReferences({ row, c, opts, python, expect }) {
+function measureReferences({ row, c, opts, python, expect }: Dynamic): void {
   if (opts.refs && !opts.pythonOnly && c.js) {
     row.js = measure(["node", c.js], opts.runs, expect);
   }
@@ -423,7 +438,7 @@ function measureReferences({ row, c, opts, python, expect }) {
   }
 }
 
-async function measureEngines({ row, c, opts, expect }) {
+async function measureEngines({ row, c, opts, expect }: Dynamic): Promise<void> {
   for (const engine of opts.pythonOnly ? [] : opts.engines) {
     const wasm = build(
       opts.hd,
@@ -445,8 +460,8 @@ async function measureEngines({ row, c, opts, expect }) {
   }
 }
 
-async function measureCase(c, opts, python) {
-  const row = { name: c.name };
+async function measureCase(c: Dynamic, opts: Dynamic, python: boolean): Promise<Dynamic> {
+  const row: Dynamic = { name: c.name };
   const expect = expectedOutput(c, opts);
   measureReferences({ row, c, opts, python, expect });
   await measureEngines({ row, c, opts, expect });
@@ -456,18 +471,18 @@ async function measureCase(c, opts, python) {
   return row;
 }
 
-const resultCell = (measurement) => {
+const resultCell = (measurement: Dynamic): string => {
   if (!measurement) {
     return "";
   }
   return measurement.error ? "fail" : Math.round(measurement.ms).toString();
 };
-const resultRss = (measurement) =>
+const resultRss = (measurement: Dynamic): string =>
   measurement && !measurement.error ? Math.round(measurement.rssMb).toString() : "";
-const ratio = (left, right) =>
+const ratio = (left: Dynamic, right: Dynamic): string =>
   left && right && !left.error && !right.error ? (left.ms / right.ms).toFixed(1) : "";
 
-function printResults(rows) {
+function printResults(rows: Dynamic[]): void {
   console.log(
     `Node ${process.version}; V8 ${process.versions.v8}. Process-wall samples each start a fresh process; a discarded preflight is not module warm-up.`,
   );
@@ -489,7 +504,7 @@ function printResults(rows) {
   }
 }
 
-function printWarmModules(rows) {
+function printWarmModules(rows: Dynamic[]): void {
   console.log("\nNode/V8 timings, ms (median):");
   console.log(
     "| Program | fresh-process wall | samples | warm-module activation | samples | discarded activations | output validation |",
@@ -506,7 +521,7 @@ function printWarmModules(rows) {
   }
 }
 
-function printDynamicIterations(rows) {
+function printDynamicIterations(rows: Dynamic[]): void {
   const dynamic = rows.find((row) => row.name === "dyn_iter");
   if (!dynamic) {
     return;
@@ -515,14 +530,14 @@ function printDynamicIterations(rows) {
     if (dynamic[engine] && !dynamic[engine].error) {
       const times = dynamic[engine].err
         .split("\n")
-        .filter((line) => /^\S+ \d+ms$/.test(line))
+        .filter((line: string) => /^\S+ \d+ms$/.test(line))
         .join("; ");
       console.log(`- dyn_iter ${engine}: ${times}`);
     }
   }
 }
 
-const failedRows = (rows) =>
+const failedRows = (rows: Dynamic[]): boolean =>
   rows.some((row) =>
     ["node", "wasmtime", "js", "go", "py", "warmModule"].some((key) => row[key]?.error),
   );
@@ -542,7 +557,7 @@ async function main() {
     list = list.filter((c) => c.py);
   }
   const python = pythonAvailable(opts, list);
-  const rows = [];
+  const rows: Dynamic[] = [];
   for (const c of list) {
     rows.push(await measureCase(c, opts, python));
   }

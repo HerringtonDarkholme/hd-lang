@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 
+interface ConsoleContext {
+  console: { allows(): boolean };
+}
+
 export default {
-  inspect(context) {
+  inspect(context: ConsoleContext) {
     const policy = context.console;
     assert.equal(Object.isFrozen(policy), true);
     assert.equal(Reflect.set(context, "console", {}), false);

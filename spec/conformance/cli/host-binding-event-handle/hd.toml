@@ -2,7 +2,7 @@
 name = "surface"
 
 [host]
-"main.Surface" = "provider.mjs"
+"main.Surface" = "provider.ts"
 
 [capabilities]
 Console = true

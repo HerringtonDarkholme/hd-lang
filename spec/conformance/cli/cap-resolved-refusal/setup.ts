@@ -1,5 +1,5 @@
-const fs = require("node:fs");
-const path = require("node:path");
+import fs from "node:fs";
+import path from "node:path";
 fs.mkdirSync("granted", { recursive: true });
 fs.mkdirSync("outside/deep", { recursive: true });
 fs.writeFileSync("outside/deep/x", "outside");

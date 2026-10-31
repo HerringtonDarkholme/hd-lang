@@ -1,7 +1,7 @@
 [package]
 name = "identity_context"
 [host]
-"main.Source" = "provider.mjs"
+"main.Source" = "provider.ts"
 [capabilities]
 "pkg.main.Source" = true
 Console = true

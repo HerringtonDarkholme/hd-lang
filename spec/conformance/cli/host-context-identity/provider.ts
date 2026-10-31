@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 
-let sourceIdentity;
-function inspect(context, trait) {
+interface Identity {
+  package: string;
+  version: string;
+  trait_path: string;
+}
+
+interface IdentityContext {
+  interfaceIdentity: Identity;
+  pending?<T>(ready: () => boolean, done: () => T): unknown;
+}
+
+let sourceIdentity: Identity | undefined;
+function inspect(context: IdentityContext, trait: string): void {
   const identity = context.interfaceIdentity;
   assert.deepEqual(Object.keys(identity).sort(), ["package", "trait_path", "version"]);
   assert.equal(typeof identity.package, "string");
@@ -15,20 +26,22 @@ function inspect(context, trait) {
   if (trait === "main.Source") {
     sourceIdentity = { ...identity };
   } else {
+    assert.ok(sourceIdentity);
     assert.equal(identity.package, sourceIdentity.package);
     assert.equal(identity.version, sourceIdentity.version);
   }
 }
 export default {
-  inspect(context) {
+  inspect(context: IdentityContext) {
     inspect(context, "main.Source");
     return "source";
   },
-  child(context) {
+  child(context: IdentityContext) {
     inspect(context, "main.Source");
     return {
-      inspect(context) {
+      inspect(context: IdentityContext) {
         inspect(context, "main.Child");
+        assert.ok(context.pending);
         return context.pending(
           () => true,
           () => "child",

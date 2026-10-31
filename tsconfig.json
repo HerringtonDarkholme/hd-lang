@@ -11,6 +11,12 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["host/**/*.ts", "bench/**/*.ts", "spec/**/*.ts", "website/**/*.ts"],
+  "include": [
+    "host/**/*.ts",
+    "bench/**/*.ts",
+    "scripts/**/*.ts",
+    "spec/**/*.ts",
+    "website/**/*.ts"
+  ],
   "exclude": ["website/playground"]
 }

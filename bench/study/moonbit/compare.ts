@@ -1,8 +1,8 @@
 // hd release Wasm vs MoonBit, same programs. MoonBit's target is its
 // linear-memory `wasm` backend, or `wasm-gc` with --target wasm-gc.
 //
-//   node bench/study/moonbit/compare.mjs --build [--target wasm-gc]   build both sides
-//   node bench/study/moonbit/compare.mjs [--target wasm-gc] [--runs 11] [--only a,b]
+//   node bench/study/moonbit/compare.ts --build [--target wasm-gc]   build both sides
+//   node bench/study/moonbit/compare.ts [--target wasm-gc] [--runs 11] [--only a,b]
 //
 // Every run is a fresh `node` process: a child (`--child`) loads one module,
 // instantiates it, then times only the call of its entry. The parent also
@@ -14,6 +14,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
+
+type Dynamic = ReturnType<typeof JSON.parse>;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", "..");
@@ -62,10 +64,11 @@ const CASES = [
   })),
 ];
 const EMPTY_CASE = { name: "empty", src: EMPTY };
-const hdWasm = (c) => join(WORK, c.name, "build", "release", `${c.name.replaceAll("_", "-")}.wasm`);
-const mbtWasm = (c) => join(MBT_BUILD, c.name, `${c.name}.wasm`);
+const hdWasm = (c: Dynamic): string =>
+  join(WORK, c.name, "build", "release", `${c.name.replaceAll("_", "-")}.wasm`);
+const mbtWasm = (c: Dynamic): string => join(MBT_BUILD, c.name, `${c.name}.wasm`);
 
-function build(cases, hd) {
+function build(cases: Dynamic[], hd: string): void {
   for (const c of cases) {
     const dir = join(WORK, c.name);
     rmSync(dir, { recursive: true, force: true });
@@ -92,16 +95,16 @@ function build(cases, hd) {
 }
 
 // ---- child: one module, one run ----
-async function child(kind, file) {
+async function child(kind: string, file: string): Promise<void> {
   const bytes = readFileSync(file);
-  const out = [];
-  let ms;
+  const out: string[] = [];
+  let ms: number;
   if (kind === "hd") {
-    const { createStartupHost } = await import(join(REPO, "host", "startup.mjs"));
+    const { createStartupHost } = await import(join(REPO, "host", "startup.ts"));
     const module = await WebAssembly.compile(bytes);
     const host = await createStartupHost(
       module,
-      { out: (t) => out.push(t), err: (t) => out.push(t) },
+      { out: (text: string) => out.push(text), err: (text: string) => out.push(text) },
       {},
     );
     const instance = new WebAssembly.Instance(module, host.imports);
@@ -115,19 +118,19 @@ async function child(kind, file) {
   } else {
     // The whole host MoonBit needs: fd_write for println (wasm), or
     // print_char, one UTF-16 unit per call (wasm-gc).
-    let mem;
-    const chunks = [];
-    const units = [];
+    let mem: WebAssembly.Memory | undefined;
+    const chunks: Buffer[] = [];
+    const units: number[] = [];
     const imports = {
-      spectest: { print_char: (c) => units.push(c) },
+      spectest: { print_char: (character: number) => units.push(character) },
       wasi_snapshot_preview1: {
-        fd_write(_fd, iov, n, nw) {
-          const dv = new DataView(mem.buffer);
+        fd_write(_fd: number, iov: number, n: number, nw: number) {
+          const dv = new DataView(mem!.buffer);
           let total = 0;
           for (let i = 0; i < n; i++) {
             const p = dv.getUint32(iov + i * 8, true);
             const l = dv.getUint32(iov + i * 8 + 4, true);
-            chunks.push(Buffer.from(new Uint8Array(mem.buffer, p, l)));
+            chunks.push(Buffer.from(new Uint8Array(mem!.buffer, p, l)));
             total += l;
           }
           dv.setUint32(nw, total, true);
@@ -136,9 +139,9 @@ async function child(kind, file) {
       },
     };
     const { instance } = await WebAssembly.instantiate(bytes, imports);
-    mem = instance.exports.memory;
+    mem = instance.exports.memory as WebAssembly.Memory;
     const t = performance.now();
-    instance.exports._start();
+    (instance.exports._start as () => void)();
     ms = performance.now() - t;
     out.push(Buffer.concat(chunks).toString());
     for (let i = 0; i < units.length; i += 4096) {
@@ -148,10 +151,11 @@ async function child(kind, file) {
   process.stdout.write(JSON.stringify({ ms, out: out.join("") }));
 }
 
-const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
-const gmean = (xs) => Math.exp(xs.reduce((s, x) => s + Math.log(x), 0) / xs.length);
+const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+const gmean = (xs: number[]): number =>
+  Math.exp(xs.reduce((sum, value) => sum + Math.log(value), 0) / xs.length);
 
-function once(kind, file, flags) {
+function once(kind: string, file: string, flags: string[]): Dynamic {
   const t = performance.now();
   const r = spawnSync("node", [...flags, fileURLToPath(import.meta.url), "--child", kind, file], {
     encoding: "utf8",
@@ -165,10 +169,13 @@ function once(kind, file, flags) {
   return { ms, wall, out };
 }
 
-function measure(c, flags, runs) {
-  const files = { hd: hdWasm(c), mbt: mbtWasm(c) };
-  const res = { hd: { ms: [], wall: [] }, mbt: { ms: [], wall: [] } };
-  const outs = {};
+function measure(c: Dynamic, flags: string[], runs: number): Dynamic {
+  const files: Record<string, string> = { hd: hdWasm(c), mbt: mbtWasm(c) };
+  const res: Record<string, { ms: number[]; wall: number[] }> = {
+    hd: { ms: [], wall: [] },
+    mbt: { ms: [], wall: [] },
+  };
+  const outs: Record<string, string> = {};
   for (let i = -1; i < runs; i++) {
     for (const k of ["hd", "mbt"]) {
       const r = once(k, files[k], flags);
@@ -198,10 +205,10 @@ function measure(c, flags, runs) {
 async function main() {
   const argv = process.argv.slice(2);
   if (argv[0] === "--child") {
-    return child(argv[1], argv[2]);
+    return child(argv[1]!, argv[2]!);
   }
   let runs = 11;
-  let only;
+  let only: string[] | undefined;
   let hd = HD;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--build") {
@@ -225,22 +232,22 @@ async function main() {
   if (argv.includes("--build")) {
     return build(cases, hd);
   }
-  const tiers = [[], ["--no-liftoff"]];
-  const rows = [];
+  const tiers: string[][] = [[], ["--no-liftoff"]];
+  const rows: Dynamic[] = [];
   for (const c of cases) {
     const r = tiers.map((f) => measure(c, f, runs));
     rows.push({ name: c.name, def: r[0], nl: r[1] });
     console.error(`done ${c.name}`);
   }
-  const f = (x) => x.toFixed(x < 10 ? 2 : 1);
-  const ratio = (a, b) => a / b;
-  const table = (title, key) => {
+  const f = (value: number): string => value.toFixed(value < 10 ? 2 : 1);
+  const ratio = (left: number, right: number): number => left / right;
+  const table = (title: string, key: string): void => {
     console.log(`\n${title}\n`);
     console.log(
       "| program | hd default ms | MoonBit default ms | hd/MBT | hd --no-liftoff ms | MBT --no-liftoff ms | hd/MBT |",
     );
     console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
-    const g = [[], []];
+    const g: number[][] = [[], []];
     for (const r of rows) {
       const [h1, m1, h2, m2] =
         key === "ms"

@@ -10,7 +10,7 @@ fn show!(path: string) -> void $ Console + FsRead:
 
 pub fn main!() -> void $ Console + FsRead + Process + Args:
     if args().get(0).unwrap_or("") == "setup":
-        match Command::new("node").args(["setup.cjs"]).run!():
+        match Command::new("node").args(["setup.ts"]).run!():
             .Ok(output) =>
                 if output.status != 0:
                     panic(output.stderr)

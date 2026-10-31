@@ -12,7 +12,13 @@ if (process.argv[2] === "serve") {
       server.close();
     }, 1000);
   });
-  server.listen(0, "127.0.0.1", () => process.send(server.address().port));
+  server.listen(0, "127.0.0.1", () => {
+    const address = server.address();
+    if (address === null || typeof address === "string" || process.send === undefined) {
+      throw new Error("server did not publish a loopback port");
+    }
+    process.send(address.port);
+  });
   setTimeout(() => server.close(), 10_000).unref();
 } else {
   const child = fork(fileURLToPath(import.meta.url), ["serve"], {

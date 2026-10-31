@@ -1,5 +1,5 @@
 export default {
-  async render(commands) {
+  async render(commands: unknown[]) {
     return commands.length;
   },
   async events() {

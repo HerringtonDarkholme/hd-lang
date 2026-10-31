@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+
+interface PendingContext {
+  signal: AbortSignal;
+  pending<T>(ready: () => boolean, done: () => T, abort: () => void, finish: () => T): unknown;
+}
+
 let aborted = 0;
 export default {
-  wait(kind, context) {
+  wait(kind: string, context: PendingContext) {
     let ready = false;
     const timer = setTimeout(
       () => {

@@ -4,7 +4,7 @@ use std.task.{timeout, apply}
 use std.time.{Clock, ms}
 
 pub fn main!() -> void $ Console + Http + Process + Clock:
-    port := match Command::new("node").arg("server.mjs").run!():
+    port := match Command::new("node").arg("server.ts").run!():
         .Ok(output) => output.stdout
         .Err(_) => panic("the loopback fixture server did not start")
     result := apply!(timeout(100ms)):

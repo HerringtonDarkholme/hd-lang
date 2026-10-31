@@ -611,14 +611,14 @@ fn parse_matches_rust() {
     }
 }
 
-/// Runs the host's `float.ts` and the exact reference `float_exact.mjs`
+/// Runs the host's `float.ts` and the exact reference `float_exact.ts`
 /// (the `BigInt` printer and parser the host used before it took the
 /// engine's native ones) side by side on one request per line (`s32 BITS`,
 /// `s64 BITS`, `parse TEXT`) and returns the requests where they differ.
 fn reference_mismatches(requests: &[String]) -> Vec<String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let host = hd_run::canonicalize(dir.join("../../host/float.ts")).expect("float.ts");
-    let exact = hd_run::canonicalize(dir.join("tests/all/float_exact.mjs")).expect("float_exact");
+    let exact = hd_run::canonicalize(dir.join("tests/all/float_exact.ts")).expect("float_exact");
     let script = r#"const host = await import(process.argv[1]);
 const exact = await import(process.argv[2]);
 import { readFileSync } from "node:fs";

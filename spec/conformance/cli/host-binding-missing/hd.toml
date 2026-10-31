@@ -2,7 +2,7 @@
 name = "host_probe"
 
 [host]
-"main.Server" = "provider.mjs"
+"main.Server" = "provider.ts"
 
 [capabilities]
 Console = true
