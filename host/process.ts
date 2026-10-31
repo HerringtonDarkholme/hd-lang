@@ -2,19 +2,86 @@
 // keep polling sibling tasks. As with Net, control calls only start, probe,
 // commit or cancel an operation; completion never posts unsolicited replies.
 import { serve } from "./worker-control.ts";
+import type { Flag } from "./worker-control.ts";
 import { spawn } from "node:child_process";
 import { constants } from "node:os";
 import { workerData } from "node:worker_threads";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type { MessagePort } from "node:worker_threads";
 
-const operations = new Map();
+interface SystemError extends Error {
+  code?: string;
+}
+
+interface ProcessOutput {
+  stdout: string;
+  stderr: string;
+  status: number;
+}
+
+type ProcessResult =
+  | { timeout: true }
+  | { error: { code?: string; message: string } }
+  | { ok: ProcessOutput };
+
+interface ProcessStartRequest {
+  op: "wait_start";
+  launcher: string | null;
+  program: string;
+  args: string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  input: string;
+  timeout: number;
+}
+
+type ProcessControlRequest =
+  | ProcessStartRequest
+  | { op: "wait_poll" | "wait_finish" | "wait_abort"; operation: number }
+  | { op: "close" };
+
+interface ProcessState {
+  result: ProcessResult | null;
+  child: ChildProcessWithoutNullStreams | null;
+  timer: NodeJS.Timeout | null;
+  closed: Promise<void>;
+  abort: () => void;
+}
+
+interface WindowsStatus {
+  timeout: boolean;
+  error: SystemError | null;
+  aborted: boolean;
+}
+
+interface ProcessWorkerData {
+  port: MessagePort;
+  flag: Flag;
+}
+
+const systemError = (error: unknown): SystemError =>
+  error instanceof Error ? (error as SystemError) : new Error(String(error));
+const record = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+const clearTimer = (state: ProcessState): void => {
+  if (state.timer !== null) {
+    clearTimeout(state.timer);
+  }
+};
+const detached = (): boolean => process.platform !== "win32";
+
+const operations = new Map<number, ProcessState>();
 // Aborted operations still own child reaping until the close event.
-const children = new Set();
+const children = new Set<ProcessState>();
 let nextOperation = 1;
 const brokenInput = new Set(["EPIPE", "ECONNRESET", "ENOTCONN", "EOF"]);
 const MAX_BUFFER = 1 << 30;
-const failure = (error) => ({ error: { code: error.code, message: String(error.message) } });
+const failure = (error: unknown): ProcessResult => {
+  const detail = systemError(error);
+  return { error: { code: detail.code, message: detail.message } };
+};
 
-function windowsResult(output, status) {
+function windowsResult(output: readonly Buffer[], status: WindowsStatus): ProcessResult {
   if (status.timeout) {
     return { timeout: true };
   }
@@ -24,38 +91,43 @@ function windowsResult(output, status) {
   if (status.aborted) {
     return failure(new Error("process cancelled"));
   }
-  const result = JSON.parse(Buffer.concat(output).toString("utf8"));
-  const ok = result?.ok;
+  const result: unknown = JSON.parse(Buffer.concat(output).toString("utf8"));
+  const ok = record(result) ? result.ok : undefined;
   if (
-    ok &&
+    record(ok) &&
     typeof ok.stdout === "string" &&
     typeof ok.stderr === "string" &&
     Number.isInteger(ok.status)
   ) {
-    return result;
+    return result as { ok: ProcessOutput };
   }
-  const error = result?.error;
-  if (error && typeof error.code === "string" && typeof error.message === "string") {
-    return result;
+  const error = record(result) ? result.error : undefined;
+  if (record(error) && typeof error.code === "string" && typeof error.message === "string") {
+    return result as { error: { code: string; message: string } };
   }
   throw new Error("invalid result");
 }
 
-function begin(request) {
+function begin(request: ProcessStartRequest): ProcessState {
   if (process.platform === "win32") {
     return beginWindows(request);
   }
-  const state = { result: null, child: null, timer: null };
-  let reaped;
-  state.closed = new Promise((resolve) => {
-    reaped = resolve;
-  });
+  let reaped!: () => void;
+  const state: ProcessState = {
+    result: null,
+    child: null,
+    timer: null,
+    closed: new Promise<void>((resolve) => {
+      reaped = resolve;
+    }),
+    abort: () => {},
+  };
   const closed = () => {
     children.delete(state);
     reaped();
   };
   const kill = () => {
-    clearTimeout(state.timer);
+    clearTimer(state);
     const child = state.child;
     if (!child?.pid || state.result !== null) {
       return;
@@ -63,7 +135,7 @@ function begin(request) {
     try {
       process.kill(-child.pid, "SIGKILL");
     } catch (error) {
-      if (error.code !== "ESRCH") {
+      if (systemError(error).code !== "ESRCH") {
         throw error;
       }
     }
@@ -76,30 +148,30 @@ function begin(request) {
     const child = spawn(request.program, request.args, {
       cwd: request.cwd,
       env: request.env,
-      detached: process.platform !== "win32",
+      detached: detached(),
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
     state.child = child;
     children.add(state);
-    let error = null;
+    let error: SystemError | null = null;
     let timeout = false;
-    const stdout = [],
-      stderr = [];
+    const stdout: Buffer[] = [],
+      stderr: Buffer[] = [];
     let outSize = 0,
       errSize = 0;
-    const failed = (e) => {
-      error ??= e;
+    const failed = (reason: unknown) => {
+      error ??= systemError(reason);
     };
     child.on("error", failed);
-    child.stdin.on("error", (e) => {
+    child.stdin.on("error", (reason) => {
       // A child that never started still reports its spawn error. A closed
       // reader drops remaining input, keeping the real output and status.
-      if (!brokenInput.has(e.code)) {
-        failed(e);
+      if (!brokenInput.has(systemError(reason).code ?? "")) {
+        failed(reason);
       }
     });
-    const collect = (chunks, stream) => (bytes) => {
+    const collect = (chunks: Buffer[], stream: "stdout" | "stderr") => (bytes: Buffer) => {
       if (stream === "stdout") {
         outSize += bytes.length;
       } else {
@@ -117,7 +189,7 @@ function begin(request) {
     child.stdout.on("error", failed);
     child.stderr.on("error", failed);
     child.on("close", (status, signal) => {
-      clearTimeout(state.timer);
+      clearTimer(state);
       closed();
       if (timeout) {
         state.result = { timeout: true };
@@ -128,7 +200,7 @@ function begin(request) {
           ok: {
             stdout: Buffer.concat(stdout).toString("utf8"),
             stderr: Buffer.concat(stderr).toString("utf8"),
-            status: status ?? 128 + (constants.signals[signal] ?? 0),
+            status: status ?? 128 + (constants.signals[signal as NodeJS.Signals] ?? 0),
           },
         };
       }
@@ -160,12 +232,17 @@ function begin(request) {
 // The helper creates the child suspended and assigns its Job before resuming
 // it. Closing this lifetime pipe asks the helper to kill and reap the Job.
 // Terminating the helper during spawn could strand an unassigned child.
-function beginWindows(request) {
-  const state = { result: null, child: null, timer: null };
-  let resolveClosed;
-  state.closed = new Promise((resolve) => {
-    resolveClosed = resolve;
-  });
+function beginWindows(request: ProcessStartRequest): ProcessState {
+  let resolveClosed!: () => void;
+  const state: ProcessState = {
+    result: null,
+    child: null,
+    timer: null,
+    closed: new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    }),
+    abort: () => {},
+  };
   const closed = () => {
     children.delete(state);
     resolveClosed();
@@ -173,7 +250,7 @@ function beginWindows(request) {
   let aborted = false;
   let settle = () => {};
   const abort = () => {
-    clearTimeout(state.timer);
+    clearTimer(state);
     if (aborted || state.result !== null) {
       return;
     }
@@ -194,21 +271,21 @@ function beginWindows(request) {
     });
     state.child = child;
     children.add(state);
-    let error = null,
+    let error: SystemError | null = null,
       timeout = false,
       size = 0;
-    const output = [];
+    const output: Buffer[] = [];
     let exited = false,
       ended = false,
       framed = false;
-    const failed = (reason) => {
-      error ??= reason;
+    const failed = (reason: unknown) => {
+      error ??= systemError(reason);
     };
     child.on("error", (reason) =>
       failed(new Error(`cannot start Windows processLauncher: ${reason.message}`)),
     );
     child.stdin.on("error", (reason) => {
-      if (!brokenInput.has(reason.code)) {
+      if (!brokenInput.has(systemError(reason).code ?? "")) {
         failed(reason);
       }
     });
@@ -236,7 +313,7 @@ function beginWindows(request) {
       ) {
         return;
       }
-      clearTimeout(state.timer);
+      clearTimer(state);
       try {
         state.result = windowsResult(output, { timeout, error, aborted });
       } catch {
@@ -294,31 +371,31 @@ function beginWindows(request) {
   return state;
 }
 
-const run = (r) => {
-  switch (r.op) {
+const run = (request: ProcessControlRequest): unknown | Promise<{ ok: null }> => {
+  switch (request.op) {
     case "wait_start": {
       const operation = nextOperation++;
-      operations.set(operation, begin(r));
+      operations.set(operation, begin(request));
       return { ok: operation };
     }
     case "wait_poll": {
-      const state = operations.get(r.operation);
+      const state = operations.get(request.operation);
       if (!state) {
         throw new Error("unknown process wait");
       }
       return state.result ?? { pending: true };
     }
     case "wait_finish": {
-      const state = operations.get(r.operation);
+      const state = operations.get(request.operation);
       if (!state || state.result === null) {
         throw new Error("unfinished process wait");
       }
-      operations.delete(r.operation);
+      operations.delete(request.operation);
       return { ok: null };
     }
     case "wait_abort":
-      operations.get(r.operation)?.abort();
-      operations.delete(r.operation);
+      operations.get(request.operation)?.abort();
+      operations.delete(request.operation);
       return { ok: null };
     case "close": {
       const waiting = [...children];
@@ -333,5 +410,5 @@ const run = (r) => {
   }
 };
 
-const { port, flag } = workerData;
+const { port, flag } = workerData as ProcessWorkerData;
 serve(port, flag, run, (request) => request.op === "close");

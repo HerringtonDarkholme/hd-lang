@@ -3,6 +3,8 @@
 // evaluating the host that starts those workers.
 import { FsError, METHODS, Path } from "./gen/abi.ts";
 import { Err, Ok, variant } from "./wire.ts";
+import type { Result, TaggedValue } from "./wire.ts";
+import type { BigIntStats } from "node:fs";
 
 const {
   appendFileSync,
@@ -36,8 +38,8 @@ export const pathSeparator = sep;
 // so there the path is made lexical first. A relative path is from `cwd`.
 // `realpathSync.native`, like Rust's canonicalize, asks the OS, so on Windows
 // both expand 8.3 short names (RUNNER~1) and agree on the drive letter case.
-export function resolvePath(path, cwd = process.cwd(), links = 0) {
-  let full;
+export function resolvePath(path: string, cwd = process.cwd(), links = 0): string {
+  let full: string;
   if (sep === "\\") {
     full = resolve(cwd, path);
   } else {
@@ -47,9 +49,9 @@ export function resolvePath(path, cwd = process.cwd(), links = 0) {
   const parts = full
     .slice(root.length)
     .split(sep)
-    .filter((p) => p !== "" && p !== ".");
+    .filter((part) => part !== "" && part !== ".");
   let start = parts.length;
-  let out = realOf(root + parts.join(sep));
+  let out: string | null = realOf(root + parts.join(sep));
   while (out === null && start > 0) {
     start -= 1;
     out = realOf(root + parts.slice(0, start).join(sep));
@@ -78,7 +80,7 @@ export function resolvePath(path, cwd = process.cwd(), links = 0) {
 const MAX_LINKS = 40;
 
 // `path` resolved by the OS, or `null` when it does not exist.
-function realOf(path) {
+function realOf(path: string): string | null {
   try {
     return realpathSync.native(path);
   } catch {
@@ -89,7 +91,7 @@ function realOf(path) {
 // `path`, whose parent is resolved, resolved by the OS, or through the
 // symbolic link it names when the link's target does not exist; `null`
 // when no such file or link exists.
-function linkStep(path, links) {
+function linkStep(path: string, links: number): string | null {
   const real = realOf(path);
   if (real !== null || links >= MAX_LINKS) {
     return real;
@@ -105,7 +107,7 @@ function linkStep(path, links) {
 
 // Whether `host` is a name or an IP address
 // (std-net.error.invalid-address).
-export function validHost(host) {
+export function validHost(host: string): boolean {
   const name =
     /^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\.?$/;
   return process.getBuiltinModule("node:net").isIP(host) !== 0 || name.test(host);
@@ -119,18 +121,29 @@ const FS_CODES = {
   EEXIST: "AlreadyExists",
   ENOTDIR: "NotADirectory",
   EISDIR: "IsADirectory",
-};
+} as const;
+
+type FsTag = (typeof FS_CODES)[keyof typeof FS_CODES] | "InvalidUtf8";
+interface ErrorLike {
+  code?: string;
+  message?: unknown;
+}
+
+const errorLike = (error: unknown): ErrorLike =>
+  typeof error === "object" && error !== null ? (error as ErrorLike) : {};
 
 // `.Err(FsError)` of the variant `tag` for a file operation on `path`.
-export const fsErr = (path, tag) => Err(variant(FsError, tag, path));
-const fsFail = (path, err) => {
-  const tag = FS_CODES[err?.code];
+export const fsErr = (path: string, tag: FsTag): Result<never, TaggedValue> =>
+  Err(variant(FsError, tag, path));
+const fsFail = (path: string, error: unknown): Result<never, TaggedValue> => {
+  const detail = errorLike(error);
+  const tag = FS_CODES[detail.code as keyof typeof FS_CODES];
   return tag === undefined
-    ? Err({ tag: "Other", message: String(err?.message ?? err) })
+    ? Err({ tag: "Other", message: String(detail.message ?? error) })
     : fsErr(path, tag);
 };
 
-const belowFile = (path) => {
+const belowFile = (path: string): boolean => {
   for (let up = dirname(path); ; up = dirname(up)) {
     try {
       return !statSync(up).isDirectory();
@@ -147,14 +160,15 @@ const belowFile = (path) => {
 // existing ancestor is not a directory is `NotADirectory`
 // (std-fs.memory.error.not-directory); a missing ancestor chain stays
 // `NotFound`. The Rust host's `below_a_file` walks the same way.
-const opening = (path, open) => {
+const opening = <Value>(path: string, open: () => Value): Value => {
   try {
     return open();
-  } catch (err) {
-    if ((err?.code === "ENOENT" || err?.code === "ENOTDIR") && belowFile(path)) {
-      throw Object.assign(err, { code: "ENOTDIR" });
+  } catch (error) {
+    const detail = errorLike(error);
+    if ((detail.code === "ENOENT" || detail.code === "ENOTDIR") && belowFile(path)) {
+      throw Object.assign(error as object, { code: "ENOTDIR" });
     }
-    throw err;
+    throw error;
   }
 };
 
@@ -164,7 +178,7 @@ const opening = (path, open) => {
 // itself, but Windows resolves `..` as text and skips the missing name, so
 // the host checks it on every OS (cli.engine.same-behavior, #277). The
 // prefix is joined by hand: `path.join` would resolve the `..` away.
-export const beforeDotDot = (path) => {
+export const beforeDotDot = (path: string): "NotFound" | "NotADirectory" | undefined => {
   const parts = path.split(/[\\/]/);
   let prefix = parts[0];
   for (const part of parts.slice(1)) {
@@ -185,7 +199,7 @@ export const beforeDotDot = (path) => {
 };
 
 // An `Entry`: path, kind, size, and an optional Unix-millisecond timestamp.
-const entry = (path, st) => {
+const entry = (path: string, st: BigIntStats) => {
   let kind = "File";
   if (st.isSymbolicLink()) {
     kind = "Symlink";
@@ -202,22 +216,22 @@ const entry = (path, st) => {
 
 export const fileOperations = {
   "hd:FsRead": {
-    read_bytes: (p) => Ok(opening(p, () => readFileSync(p))),
-    read_text: (p) => {
-      const bytes = opening(p, () => readFileSync(p));
+    read_bytes: (path: string) => Ok(opening(path, () => readFileSync(path))),
+    read_text: (path: string) => {
+      const bytes = opening(path, () => readFileSync(path));
       try {
         return Ok(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
       } catch {
-        return fsErr(p, "InvalidUtf8");
+        return fsErr(path, "InvalidUtf8");
       }
     },
     // The entries in the byte order of their names; each path is the
     // directory's, `/`, and the name (as `MemoryFs` lists them).
-    list_dir: (p) => {
-      const names = opening(p, () => readdirSync(p)).sort((a, b) =>
-        Buffer.compare(Buffer.from(a), Buffer.from(b)),
+    list_dir: (path: string) => {
+      const names = opening(path, () => readdirSync(path)).sort((left, right) =>
+        Buffer.compare(Buffer.from(left), Buffer.from(right)),
       );
-      const under = p.endsWith("/") ? p : `${p}/`;
+      const under = path.endsWith("/") ? path : `${path}/`;
       const found = [];
       for (const n of names) {
         try {
@@ -228,44 +242,47 @@ export const fileOperations = {
       }
       return Ok(found);
     },
-    stat: (p) => {
-      let st;
+    stat: (path: string) => {
+      let stats: BigIntStats;
       try {
-        st = lstatSync(p, { bigint: true });
-      } catch (err) {
-        if (err.code === "ENOENT" || err.code === "ENOTDIR") {
+        stats = lstatSync(path, { bigint: true });
+      } catch (error) {
+        const detail = errorLike(error);
+        if (detail.code === "ENOENT" || detail.code === "ENOTDIR") {
           return Ok(null);
         }
-        throw err;
+        throw error;
       }
-      return Ok(entry(p, st));
+      return Ok(entry(path, stats));
     },
   },
   "hd:FsWrite": {
-    write_bytes: (p, bytes) => Ok(opening(p, () => writeFileSync(p, bytes))),
-    write_text: (p, text) => Ok(opening(p, () => writeFileSync(p, text))),
-    append_text: (p, text) => Ok(opening(p, () => appendFileSync(p, text))),
+    write_bytes: (path: string, bytes: Uint8Array) =>
+      Ok(opening(path, () => writeFileSync(path, bytes))),
+    write_text: (path: string, text: string) => Ok(opening(path, () => writeFileSync(path, text))),
+    append_text: (path: string, text: string) =>
+      Ok(opening(path, () => appendFileSync(path, text))),
     create_dir_all: {
-      run: (p) => {
-        if (existsSync(p) && !statSync(p).isDirectory()) {
-          return fsErr(p, "NotADirectory");
+      run: (path: string) => {
+        if (existsSync(path) && !statSync(path).isDirectory()) {
+          return fsErr(path, "NotADirectory");
         }
-        mkdirSync(p, { recursive: true });
+        mkdirSync(path, { recursive: true });
         return Ok(undefined);
       },
       create: true,
     },
-    remove: (p) => {
-      if (lstatSync(p).isDirectory()) {
-        rmdirSync(p);
+    remove: (path: string) => {
+      if (lstatSync(path).isDirectory()) {
+        rmdirSync(path);
       } else {
-        unlinkSync(p);
+        unlinkSync(path);
       }
       return Ok(undefined);
     },
     // cli.cap.scope.rename: the grant covers both paths.
-    rename: (from, to) => Ok(renameSync(from, to)),
-    copy: (from, to) => {
+    rename: (from: string, to: string) => Ok(renameSync(from, to)),
+    copy: (from: string, to: string) => {
       // Validate the source as a read before attributing destination errors.
       try {
         if (opening(from, () => statSync(from)).isDirectory()) {
@@ -285,13 +302,23 @@ export const fileOperations = {
 
 // Shared by the inline provider and its isolated special-file helper;
 // checks stay in the provider, and both paths keep the same result/errors.
-export function fileOperation(module, name, args) {
-  const op = fileOperations[module][name];
+type FileOperation = ((...args: unknown[]) => unknown) | { run: (...args: unknown[]) => unknown };
+
+export interface FileJob {
+  module: string;
+  name: string;
+  args: unknown[];
+}
+
+export function fileOperation(module: string, name: string, args: unknown[]): unknown {
+  const modules = fileOperations as unknown as Record<string, Record<string, FileOperation>>;
+  const op = modules[module]![name]!;
   try {
     return (typeof op === "function" ? op : op.run)(...args);
-  } catch (err) {
-    const m = METHODS[module][name];
-    const ps = args.filter((_, i) => m.params[i] === Path);
-    return fsFail(ps[ps.length - 1], err);
+  } catch (error) {
+    const methods = METHODS as unknown as Record<string, Record<string, { params: unknown[] }>>;
+    const method = methods[module]?.[name];
+    const paths = args.filter((_, index) => method?.params[index] === Path) as string[];
+    return fsFail(paths[paths.length - 1]!, error);
   }
 }

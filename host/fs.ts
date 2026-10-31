@@ -4,27 +4,61 @@
 // blocked libuv pool jobs would also starve unrelated special-file calls.
 // Only these uncommon calls start a child; regular files stay inline.
 import { serve } from "./worker-control.ts";
+import type { Flag } from "./worker-control.ts";
 import { fork } from "node:child_process";
 import { parentPort, Worker, workerData } from "node:worker_threads";
 import { fileOperation } from "./node-files.ts";
+import type { FileJob } from "./node-files.ts";
 import { Err } from "./wire.ts";
+import type { ChildProcess, Serializable } from "node:child_process";
+import type { MessagePort } from "node:worker_threads";
 
-const disconnect = () => process.disconnect();
-const sendAndDisconnect = (result) => process.send(result, disconnect);
+interface FileState {
+  result: { result: unknown } | null;
+  child: ChildProcess | null;
+  closed: Promise<void>;
+  abort: () => void;
+}
 
-if (workerData?.port) {
-  const operations = new Map();
-  const children = new Set();
+type FileControlRequest =
+  | ({ op: "wait_start" } & FileJob)
+  | { op: "wait_poll" | "wait_finish" | "wait_abort"; operation: number }
+  | { op: "close" };
+
+interface ControlWorkerData {
+  port: MessagePort;
+  flag: Flag;
+}
+
+interface JobWorkerData {
+  job: FileJob;
+}
+
+const data = workerData as ControlWorkerData | JobWorkerData | null;
+const message = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+const disconnect = (): void => process.disconnect!();
+const sendAndDisconnect = (result: unknown): void => {
+  process.send!(result as Serializable, disconnect);
+};
+
+if (data && "port" in data) {
+  const operations = new Map<number, FileState>();
+  const children = new Set<FileState>();
   let nextOperation = 1;
-  const failure = (error) => ({
-    result: Err({ tag: "Other", message: String(error?.message ?? error) }),
+  const failure = (error: unknown): FileState["result"] => ({
+    result: Err({ tag: "Other", message: message(error) }),
   });
-  const begin = (request) => {
-    const state = { result: null, child: null };
-    let reaped;
-    state.closed = new Promise((resolve) => {
-      reaped = resolve;
-    });
+  const begin = (request: FileJob): FileState => {
+    let reaped!: () => void;
+    const state: FileState = {
+      result: null,
+      child: null,
+      closed: new Promise<void>((resolve) => {
+        reaped = resolve;
+      }),
+      abort: () => {},
+    };
     state.abort = () => state.child?.kill("SIGKILL");
     try {
       const child = fork(new URL(import.meta.url), [], {
@@ -46,7 +80,7 @@ if (workerData?.port) {
         children.delete(state);
         reaped();
       });
-      child.send(request, (error) => {
+      child.send(request as Serializable, (error) => {
         if (error) {
           state.result ??= failure(error);
           state.abort();
@@ -61,7 +95,7 @@ if (workerData?.port) {
     }
     return state;
   };
-  const run = (request) => {
+  const run = (request: FileControlRequest): unknown | Promise<{ ok: null }> => {
     switch (request.op) {
       case "wait_start": {
         const operation = nextOperation++;
@@ -99,34 +133,38 @@ if (workerData?.port) {
         throw new Error("unknown file control call");
     }
   };
-  const { port, flag } = workerData;
+  const { port, flag } = data;
   serve(port, flag, run, (request) => request.op === "close");
-} else if (workerData?.job) {
-  const { module, name, args } = workerData.job;
-  parentPort.postMessage(fileOperation(module, name, args));
+} else if (data && "job" in data) {
+  const { module, name, args } = data.job;
+  parentPort!.postMessage(fileOperation(module, name, args));
 } else {
   // Keep this child's IPC loop responsive while its one OS call blocks.
   // If a supervisor terminates the control worker, its IPC closes and
   // this process kills itself, including the blocked thread. process.exit
   // would wait for that thread. An in-flight write may have taken effect.
-  let worker = null;
+  let worker: Worker | null = null;
   process.once("disconnect", () => {
     if (worker !== null && worker.threadId !== -1) {
       process.kill(process.pid, "SIGKILL");
     }
   });
-  process.once("message", ({ module, name, args }) => {
+  process.once("message", (childMessage) => {
     if (!process.connected) {
       return;
     }
-    worker = new Worker(new URL(import.meta.url), { workerData: { job: { module, name, args } } });
-    worker.on("message", (result) => {
+    const { module, name, args } = childMessage as FileJob;
+    const operationWorker = new Worker(new URL(import.meta.url), {
+      workerData: { job: { module, name, args } },
+    });
+    worker = operationWorker;
+    operationWorker.on("message", (result) => {
       // Sending the result is asynchronous; wait for the worker's exit
       // before disconnecting so ordinary completion is never killed.
-      worker.once("exit", () => sendAndDisconnect(result));
+      operationWorker.once("exit", () => sendAndDisconnect(result));
     });
-    worker.on("error", (error) => {
-      sendAndDisconnect(Err({ tag: "Other", message: String(error.message) }));
+    operationWorker.on("error", (error: Error) => {
+      sendAndDisconnect(Err({ tag: "Other", message: error.message }));
     });
   });
 }

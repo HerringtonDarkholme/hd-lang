@@ -6,10 +6,10 @@ const { receiveMessageOnPort } = process.getBuiltinModule("node:worker_threads")
 import type { MessagePort } from "node:worker_threads";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
-type Flag = Int32Array<SharedArrayBuffer>;
-interface ControlCall {
+export type Flag = Int32Array<SharedArrayBuffer>;
+interface ControlCall<Request> {
   id: number;
-  request: Dynamic;
+  request: Request;
 }
 interface ControlReply {
   id: number;
@@ -53,13 +53,13 @@ export function postReply(port: MessagePort, flag: Flag, id: number, result: Dyn
 
 // Serve one capability worker's correlated control calls. A thrown error is
 // a fault in the host protocol, not an ordinary provider error for the guest.
-export function serve(
+export function serve<Request, Reply>(
   port: MessagePort,
   flag: Flag,
-  run: (request: Dynamic) => Dynamic | Promise<Dynamic>,
-  closes: (request: Dynamic) => boolean = () => false,
+  run: (request: Request) => Reply | Promise<Reply>,
+  closes: (request: Request) => boolean = () => false,
 ): void {
-  port.on("message", async ({ id, request }: ControlCall) => {
+  port.on("message", async ({ id, request }: ControlCall<Request>) => {
     let reply: Omit<ControlReply, "id">;
     try {
       reply = { result: await run(request) };
