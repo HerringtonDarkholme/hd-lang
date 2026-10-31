@@ -2,13 +2,14 @@
 (module
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:loan_begin" (func $rt:loan_begin (param i32 i32 i32)))
+  (import "fixture" "rt:loan_count" (func $rt:loan_count (param i32 i32 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:loan_check" (func $rt:loan_check (param i32 i32 i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "loan_top" (global $loan_top (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $older (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i64) (local $t2 i32)
+  (func $older (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $n i32) (local $t1 i64)
     block
     ;; 15 |     n := t.lead.label()
       local.get $t
@@ -16,10 +17,34 @@
       local.tee $t
       call $rt:retain_known
       local.get $t
+      local.tee $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      i32.const 1
+      i32.eq
+      if
+        i32.const 0
+        local.set $t0
+      else
+        local.get $t0
+        i32.const 12
+        i32.const 0
+        call $rt:loan_begin
+      end
       local.get $t
       call $"impl User.label"
+      local.set $n
+      local.get $t0
+      if
+        local.get $t0
+        i32.const 12
+        i32.const 0
+        i32.const -1
+        call $rt:loan_count
+      end
       ;; ...
-      local.set $t
+      local.get $t
       local.tee $t0
       i32.const 12
       i32.const 0
@@ -44,7 +69,7 @@
       end
       local.get $t1
       i32.wrap_i64
-      local.set $t2
+      local.set $t
       global.get $loan_top
       if
         local.get $alias
@@ -55,19 +80,16 @@
         call $rt:loan_check
       end
       local.get $alias
-      local.get $t2
+      local.get $t
       i32.store $heap offset=8
     ;; 17 |     *n
-      local.get $t
+      local.get $n
       i32.load $heap
-      local.tee $alias
-      local.get $t
+      local.tee $t
+      local.get $n
       i32.load $heap offset=4
-      local.tee $t2
+      local.tee $alias
       call $rt:retain
-      ;; ...
-      local.get $alias
-      local.get $t2
       ;; ...
     end
     ;; ...

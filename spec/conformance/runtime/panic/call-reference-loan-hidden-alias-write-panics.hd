@@ -1,0 +1,19 @@
+# test: a direct reference argument through a counted object registers a loan while the callee writes through an alias hidden in another object
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Writer:
+    user: *mut User
+
+fn overwrite(writer: &Writer, _name: &string) -> void:
+    writer.user.name = "b" # panic: borrow-conflict
+
+fn conflict(view: *mut User, writer: &Writer) -> void:
+    overwrite(writer, &view.name)
+
+pub fn main() -> void:
+    user := box(User { name: "a", age: 1 })
+    writer := Writer { user: user }
+    conflict(user, &writer)

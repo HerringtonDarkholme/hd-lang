@@ -9,12 +9,13 @@
 //! panics `borrow-conflict` on a conflicting overlap. A call's result
 //! that such a binding stores takes the loan of the argument the checker
 //! found it holds ([`Body::held_args`]), keyed by that argument's address,
-//! which a local of its own keeps. A program with no such binding emits
-//! none of this.
+//! which a local of its own keeps. In a development build, a direct
+//! reference argument takes the same loan only until its call returns.
+//! A program with no such binding or argument emits none of this.
 
 use hd_base::{SliceSort as _, StageResult};
-use hd_mono::{ProgramEnv, Sub, subst};
-use hd_tir::ir::{Body, Place, PlaceRoot, Proj, ReadMode, Tag, Word, slots};
+use hd_mono::{ProgramEnv, Sub, Target, subst};
+use hd_tir::ir::{Body, Callee, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, Word, slots};
 use hd_types::{InternPool, Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -162,9 +163,10 @@ fn arg_loan(
     sub: &dyn Fn(Ty) -> Ty,
     a: u32,
 ) -> Option<Loan> {
+    let v = direct_value(b, a)?;
     let excl = ref_mutable(pool, env, sub(*b.ty.get(a as usize)?));
-    if b.tags[a as usize] == Tag::Ref {
-        let p = b.decode_place(b.data[a as usize][0])?;
+    if b.tags[v] == Tag::Ref {
+        let p = b.decode_place(b.data[v][0])?;
         let root = match p.root {
             PlaceRoot::Local(r) => sub(b.local_ty[r.idx()]),
             PlaceRoot::Global(_, t) => sub(t),
@@ -172,10 +174,6 @@ fn arg_loan(
         };
         let (object, path) = loan_place(pool, env, root, &p)?;
         return Some(Loan { object, path, excl });
-    }
-    let mut v = a as usize;
-    while b.same_value_coercion(v) {
-        v = b.data[v][0] as usize;
     }
     let t = sub(*b.ty.get(v)?);
     match kind(pool, env, t) {
@@ -190,6 +188,86 @@ fn arg_loan(
         }),
         _ => None,
     }
+}
+
+/// The instruction behind representation-preserving coercions of `a`.
+fn direct_value(b: &Body, a: u32) -> Option<usize> {
+    let mut v = Ref(a).as_inst()?.0 as usize;
+    while b.same_value_coercion(v) {
+        v = Ref(b.data[v][0]).as_inst()?.0 as usize;
+    }
+    Some(v)
+}
+
+/// The values passed as arguments by call instruction `i`.
+fn call_args(b: &Body, i: usize) -> Vec<u32> {
+    if b.tags[i] == Tag::CallValue {
+        return b.record(b.data[i][1]).to_vec();
+    }
+    let mut args = Vec::new();
+    slots(b, i, |_, v, word| {
+        if matches!(word, Word::Value(_)) && v < u32::try_from(i).expect("insts") {
+            args.push(v);
+        }
+    });
+    args
+}
+
+/// Whether call `i` is non-suspending, and its auto-ref receiver's
+/// mutability when it has one.
+#[allow(clippy::option_option)] // Outer: ordinary call; inner: auto-ref receiver.
+fn call_info(
+    input: &Input<'_>,
+    b: &Body,
+    i: usize,
+    target: Option<&Target>,
+) -> Option<Option<bool>> {
+    if b.tags[i] == Tag::CallValue {
+        return Some(None);
+    }
+    if b.tags[i] != Tag::Call {
+        return None;
+    }
+    let env = input.env;
+    match target? {
+        Target::Call(call) => Some(env.local_ref_receiver(call.item)),
+        Target::Dyn => {
+            let Callee::TraitMethod { method, .. } = Callee::from_words(b.record(b.data[i][0]))?
+            else {
+                return None;
+            };
+            Some(env.local_ref_receiver(method))
+        }
+        _ => None,
+    }
+}
+
+/// The direct local-reference arguments of call `i` that take a loan for
+/// the call. A stored reference already has its binding's longer loan.
+fn call_loans(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    sub: &dyn Fn(Ty) -> Ty,
+    i: usize,
+    receiver: Option<bool>,
+) -> Vec<(u32, Loan)> {
+    call_args(b, i)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(k, a)| {
+            let v = direct_value(b, a)?;
+            let auto = (k == 0).then_some(receiver).flatten();
+            if auto.is_none() && b.tags[v] != Tag::Ref {
+                return None;
+            }
+            let mut loan = arg_loan(pool, env, b, sub, a)?;
+            if let Some(mutable) = auto {
+                loan.excl = mutable;
+            }
+            Some((a, loan))
+        })
+        .collect()
 }
 
 /// The flattened value slots of `t` that hold local references, and each
@@ -498,10 +576,85 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
                 m.loans.push(loan);
             }
         }
+        // Call loans are development-build checks; release registers none.
+        if input.release {
+            continue;
+        }
+        for i in 0..b.tags.len() {
+            let target = input.collected.calls[id.idx()].get(&u32::try_from(i).expect("insts"));
+            let Some(receiver) = call_info(input, b, i, target) else {
+                continue;
+            };
+            for (_, loan) in call_loans(input.pool, input.env, b, &sub, i, receiver) {
+                if !m.loans.contains(&loan) {
+                    m.loans.push(loan);
+                }
+            }
+        }
     }
 }
 
 impl Em<'_, '_, '_> {
+    /// Registers the direct reference arguments of call `i` until that
+    /// call returns. Their values are the addresses that key the loans.
+    /// Release builds register none.
+    pub(super) fn loan_call_begin(&mut self, i: u32) -> StageResult<Vec<(u32, u32, i32)>> {
+        if self.input.release || self.m.loans.is_empty() || !self.owned {
+            return Ok(Vec::new());
+        }
+        let sub = |t| self.sub(t);
+        let Some(receiver) = call_info(self.input, self.b, i as usize, self.calls.get(&i)) else {
+            return Ok(Vec::new());
+        };
+        let loans = call_loans(self.pool(), self.env(), self.b, &sub, i as usize, receiver);
+        let mut active = Vec::new();
+        for (arg, loan) in loans {
+            let (target, _) = self.fold_path(loan.object, &loan.path)?;
+            let size = mem_of(self.pool(), self.env(), target)?.size;
+            let excl = i32::from(loan.excl);
+            let key = self.f.local(Val::I32);
+            self.comp(arg, 0)?;
+            self.f.set(key);
+            let conditional = loan.path.is_empty();
+            if conditional {
+                self.f.get(key);
+                self.f.u32(crate::module::HEADER);
+                self.f.op(I::I32Sub);
+                self.f
+                    .op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
+                self.f.i32(1);
+                self.f.op(I::I32Eq);
+                self.f.op(I::If(BlockType::Empty));
+                self.f.i32(0);
+                self.f.set(key);
+                self.f.op(I::Else);
+            }
+            self.f.get(key);
+            self.f.u32(size);
+            self.f.i32(excl);
+            self.f.helper(Helper::LoanBegin);
+            if conditional {
+                self.f.op(I::End);
+            }
+            active.push((key, size, excl));
+        }
+        Ok(active)
+    }
+
+    /// Ends the temporary argument loans after their call returns.
+    pub(super) fn loan_call_end(&mut self, loans: &[(u32, u32, i32)]) {
+        for &(key, size, excl) in loans.iter().rev() {
+            self.f.get(key);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.get(key);
+            self.f.u32(size);
+            self.f.i32(excl);
+            self.f.i32(-1);
+            self.f.helper(Helper::LoanCount);
+            self.f.op(I::End);
+        }
+    }
+
     /// Finds the body's holder bindings and the stores that bind them,
     /// when the program registers loans at all. A binding keeps its first
     /// holder's key; a suspending body's frame saves the key's local.

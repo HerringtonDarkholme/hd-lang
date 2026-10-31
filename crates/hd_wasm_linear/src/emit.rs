@@ -1689,8 +1689,24 @@ impl Em<'_, '_, '_> {
             return self.open_inst(i, k);
         }
         self.loan_access(i)?;
+        if self.calls.contains_key(&i)
+            || matches!(self.b.tags[i as usize], Tag::CallValue | Tag::DefaultCall)
+        {
+            return self.inst_call(i, a, bw);
+        }
         self.loan_before_store(i);
         self.inst_tag(i, a, bw)?;
+        self.loan_after_store(i)
+    }
+
+    /// Emits an instruction that may be an ordinary call while keeping
+    /// its temporary argument loans out of non-call emitter frames.
+    #[inline(never)]
+    fn inst_call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
+        let loans = self.loan_call_begin(i)?;
+        self.loan_before_store(i);
+        self.inst_tag(i, a, bw)?;
+        self.loan_call_end(&loans);
         self.loan_after_store(i)
     }
 

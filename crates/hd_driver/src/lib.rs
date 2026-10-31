@@ -11490,6 +11490,19 @@ fn push_json_vtable(table: &hd_mono::VTable, out: &mut Vec<Hash128>) {
 }
 
 impl ProgramEnv for Env<'_> {
+    fn local_ref_receiver(&self, def: DefId) -> Option<bool> {
+        let item = self.p.items.get(def)?;
+        let (_, ty) = item.sig()?.params.first()?;
+        match self.run.pool.get(*ty) {
+            TyData::Ref {
+                mutable,
+                counted: false,
+                ..
+            } if self.takes_self(item) => Some(mutable),
+            _ => None,
+        }
+    }
+
     fn host_bridge(&self, key: Ty) -> Option<hd_mono::HostBridge> {
         let TyData::TraitValue { def, args, .. } = self.run.pool.get(key) else {
             return None;

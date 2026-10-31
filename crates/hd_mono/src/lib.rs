@@ -81,6 +81,9 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
+    /// Whether the function is a method with an `&self` or `&mut self`
+    /// receiver, as whether that receiver is mutable.
+    fn local_ref_receiver(&self, def: DefId) -> Option<bool>;
     /// Whether the function is marked `@cold`: each direct call of it goes
     /// through the function table (`annot.inline.cold`).
     fn cold(&self, _def: DefId) -> bool {

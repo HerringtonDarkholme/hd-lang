@@ -674,7 +674,8 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
 2. r[ref.excl.alias.counted-access] An **access through a counted reference** is a use of a place whose last dereference reads a `*mut` or a `*T`, with only fields after it. An assignment, a `&mut` and a built-in change of the place write it; a read and a `&` read it. A call that takes a `*mut` writes the whole object it refers to, and a call that takes a `*T` reads it. A bang call checks its arguments as accesses on its first poll; later polls do not access them again.
 3. r[ref.excl.alias.conflict] An access through a counted reference whose address range overlaps a live run-time loan's panics when it writes, or when the loan is a `&mut`. Panic: `borrow-conflict`.
 4. r[ref.excl.alias.shared-counted-loan] A reference held directly or through a call's result from a place reached through a `*T` takes the same run-time loan as one reached through a `*mut`.
-5. r[ref.excl.alias.untracked] Other references take no run-time loan, so an alias reads or writes their place in place. This is the reference a call takes for one call. Nor does replacing a `*mut` on a loan's path conflict with the loan; the reference keeps the old object alive.
+5. r[ref.excl.alias.call-loan] A `&` or `&mut` argument or auto-ref receiver whose place is reached through a `*mut` takes a run-time loan from immediately before its call until the call returns, in a debug or test build. A release build does not check this loan.
+6. r[ref.excl.alias.untracked-call] Other references take no run-time loan, so an alias reads or writes their place in place. Replacing a `*mut` on a loan's path does not conflict with the loan; the reference keeps the old object alive.
 
 ### Lifetime Variables
 
