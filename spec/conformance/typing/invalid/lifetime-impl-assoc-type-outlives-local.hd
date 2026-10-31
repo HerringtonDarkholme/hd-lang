@@ -1,0 +1,21 @@
+# test: an index result through an associated type of the target's lifetime outlives the local it points into
+# Spec 13 Lifetime Implementation Targets: ref.lifetime.impl-target.assoc; Local Scope: ref.dep.scope.
+use std.ops.Index
+
+struct Borrowed[T, 'a]:
+    item: &'a T
+
+impl[T, 'a] Index[usize] for Borrowed[T, 'a]:
+    type Out = &'a T
+    fn index(self, key: usize) -> &'a T:
+        if key > 0:
+            panic("out of bounds")
+        self.item
+
+fn read(fallback: &i32) -> i32:
+    let mut kept = fallback
+    if *fallback > 0:
+        value := +7
+        borrowed := Borrowed { item: &value }
+        kept = borrowed[0]
+    *kept # diagnostic: local-reference-outlives-local

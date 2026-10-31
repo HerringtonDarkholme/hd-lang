@@ -263,12 +263,15 @@ impl DepSig {
     /// `Self` shape (`ref.lifetime.trait.impl-target`). Trait lifetime `k` takes
     /// the implementation lifetime written as its `k`th argument. Slots
     /// which the trait's abstract `Self` gains from the implementation
-    /// target take that target slot's lifetime.
+    /// target take that target slot's lifetime. A result slot of a
+    /// projection of `Self`, as `Self::Out`, takes the implementation
+    /// result's lifetime `impl_outs` when the target has it: the impl's
+    /// associated type may name the impl's lifetimes (`ref.dep.trait`).
     fn align_trait_impl(
         self,
         ls: &Layouts<'_>,
         params: &[(hd_base::Symbol, Ty)],
-        ret: Ty,
+        (ret, impl_outs): (Ty, &[Option<u32>]),
         trait_: DefId,
         trait_lifetimes: &[u16],
         self_lifetimes: &[u16],
@@ -289,16 +292,26 @@ impl DepSig {
         // parameters' own ones, but the trait's `Self` that of the target.
         let own = ANON + w(self.params.iter().map(|(_, ids)| ids.len()).sum());
         let mut fresh: Vec<Key> = Vec::new();
-        let mut align = |d: Ty, t: Ty, ids: &[Option<u32>]| -> Option<Vec<Option<u32>>> {
+        let is_self = |p: hd_types::ParamRef| p.owner == trait_ && p.index == 0;
+        let of_self = |id: u32| self_lifetimes.iter().any(|&l| l != 0 && u32::from(l) == id);
+        let mut align = |d: Ty,
+                         t: Ty,
+                         ids: &[Option<u32>],
+                         outs: Option<&[Option<u32>]>|
+         -> Option<Vec<Option<u32>>> {
             let target = |p: hd_types::ParamRef, s: usize| {
-                let l = *self_lifetimes
-                    .get(s)
-                    .filter(|_| p.owner == trait_ && p.index == 0)?;
+                let l = *self_lifetimes.get(s).filter(|_| is_self(p))?;
                 (l != 0).then_some(u32::from(l))
             };
-            (line_up(ls, d, t)?.into_iter())
-                .map(|k| match k {
+            let keys = line_up_in(ls, d, t, outs.is_some())?;
+            (keys.into_iter().enumerate())
+                .map(|(at, k)| match k {
                     Key::Decl(j) => Some(ids.get(j).copied()?.map(remap)),
+                    Key::AllOf(p) if is_self(p) => {
+                        let out = outs.and_then(|o| o.get(at).copied().flatten());
+                        Some(out.filter(|&id| of_self(id)))
+                    }
+                    Key::AllOf(_) if outs.is_some() => None,
                     Key::None | Key::AllOf(_) => Some(None),
                     Key::Param(p, s) => Some(Some(target(p, s).unwrap_or_else(|| {
                         let at = fresh.iter().position(|&x| x == k).unwrap_or_else(|| {
@@ -313,7 +326,7 @@ impl DepSig {
         let params = (self.params.into_iter().zip(params))
             .map(|((decl, ids), &(_, actual))| {
                 let ids: Vec<Option<u32>> = ids.into_iter().map(Some).collect();
-                match align(decl, actual, &ids) {
+                match align(decl, actual, &ids, None) {
                     Some(out) => (
                         actual,
                         out.into_iter().map(|id| id.unwrap_or(NO_SOURCE)).collect(),
@@ -322,7 +335,7 @@ impl DepSig {
                 }
             })
             .collect();
-        let outs = align(self.ret, ret, &self.outs).unwrap_or_default();
+        let outs = align(self.ret, ret, &self.outs, Some(impl_outs)).unwrap_or_default();
         DepSig {
             params,
             outs,
@@ -1092,10 +1105,11 @@ impl Ck<'_, '_> {
         } else {
             dep
         };
+        let impl_outs = DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).outs;
         dep.align_trait_impl(
             ls,
             &sig.params,
-            sig.ret,
+            (sig.ret, &impl_outs),
             trait_,
             trait_lifetimes,
             self_lifetimes,
