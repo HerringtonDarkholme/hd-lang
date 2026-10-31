@@ -1,0 +1,19 @@
+# test: replacing either counted pointer slot on a live reference loan's path through an alias panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.path-pointer, ref.excl.alias.conflict.
+struct Address:
+    city: string
+
+struct User:
+    address: *mut Address
+
+struct Team:
+    lead: *mut User
+
+fn replace(t: *mut Team, alias: *mut Team) -> string:
+    city := &t.lead.address.city
+    alias.lead.address = box(Address { city: "new" }) # panic: borrow-conflict
+    *city
+
+pub fn main() -> void:
+    t := box(Team { lead: box(User { address: box(Address { city: "old" }) }) })
+    _ := replace(t, t)

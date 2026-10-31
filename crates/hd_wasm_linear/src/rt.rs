@@ -4528,10 +4528,43 @@ fn loan_key(f: &mut Func, e: u32, [start, size, excl]: [u32; 3]) {
     f.op(Instruction::I32And);
 }
 
+/// A final loan ending also ends its immediately preceding path-slot
+/// markers. Copies count only the final entry, so the markers stay live
+/// until its count reaches zero.
+fn loan_end_markers(f: &mut Func, k: u32, e: u32, count: u32) {
+    f.get(count);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(k);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(k);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.set(k);
+    loan_entry(f, k);
+    f.set(e);
+    load(f, e, 8);
+    f.i32(-1);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::BrIf(1));
+    f.get(e);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+}
+
 /// [`Helper::LoanCount`].
 fn loan_count(m: &Module) -> Func {
     let mut f = m.func("rt:loan_count", vec![Val::I32; 4], vec![]);
     let (k, e) = (f.local(Val::I32), f.local(Val::I32));
+    // Path-slot markers exist only in development builds.
+    let count = (!m.release).then(|| f.local(Val::I32));
     f.global_get(Global::LoanTop);
     f.set(k);
     f.op(Instruction::Block(BlockType::Empty));
@@ -4551,7 +4584,13 @@ fn loan_count(m: &Module) -> Func {
     load(&mut f, e, 12);
     f.get(3);
     f.op(Instruction::I32Add);
+    if let Some(count) = count {
+        f.op(Instruction::LocalTee(count));
+    }
     f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+    if let Some(count) = count {
+        loan_end_markers(&mut f, k, e, count);
+    }
     f.op(Instruction::Br(2));
     f.op(Instruction::End);
     f.op(Instruction::Br(0));
@@ -4606,6 +4645,11 @@ fn loan_check(m: &Module) -> Func {
     f.op(Instruction::I32And);
     f.get(2);
     load(&mut f, e, 8);
+    // A development build's path-slot marker has exclusivity -1: shared.
+    if !m.release {
+        f.i32(1);
+        f.op(Instruction::I32Eq);
+    }
     f.op(Instruction::I32Or);
     f.op(Instruction::I32And);
     f.op(Instruction::If(BlockType::Empty));

@@ -5620,6 +5620,8 @@ runtime/panic/shared-counted-reference-loan-write-panics.hd	runtime	panic:borrow
 runtime/valid/shared-counted-reference-loan-disjoint-write-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.shared-counted-loan
 runtime/panic/call-reference-loan-hidden-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 runtime/valid/call-reference-loan-hidden-alias-disjoint-write-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
+runtime/panic/replace-pointer-on-live-loan-path-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
+runtime/valid/replace-disjoint-pointer-beside-live-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
 typing/valid/mut-reference-reborrow-call.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow
 typing/valid/mut-reference-explicit-reborrow.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.explicit
 typing/valid/mut-reference-shared-reborrow.hd	type	accept	lang/13-values-and-references.md#r-ref.move.reborrow.shared

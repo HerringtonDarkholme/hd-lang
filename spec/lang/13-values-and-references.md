@@ -675,7 +675,8 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
 3. r[ref.excl.alias.conflict] An access through a counted reference whose address range overlaps a live run-time loan's panics when it writes, or when the loan is a `&mut`. Panic: `borrow-conflict`.
 4. r[ref.excl.alias.shared-counted-loan] A reference held directly or through a call's result from a place reached through a `*T` takes the same run-time loan as one reached through a `*mut`.
 5. r[ref.excl.alias.call-loan] A `&` or `&mut` argument or auto-ref receiver whose place is reached through a `*mut` takes a run-time loan from immediately before its call until the call returns, in a debug or test build. A release build does not check this loan.
-6. r[ref.excl.alias.untracked-call] Other references take no run-time loan, so an alias reads or writes their place in place. Replacing a `*mut` on a loan's path does not conflict with the loan; the reference keeps the old object alive.
+6. r[ref.excl.alias.path-pointer] A run-time loan also covers each `*mut` slot read along its place's path as a shared loan, so replacing any such slot conflicts until the loan ends, in a debug or test build. A release build does not check these slots.
+7. r[ref.excl.alias.untracked-path] Other references take no run-time loan, so an alias reads or writes their place in place.
 
 ### Lifetime Variables
 
