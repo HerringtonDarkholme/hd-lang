@@ -3071,10 +3071,10 @@ impl Ck<'_, '_> {
                     Ok((tail, ty))
                 }
             }
-            Err(e) => {
-                self.b.cancel_block(inner);
-                Err(e)
-            }
+            // An unsupported body is discarded with its builder. Nested
+            // lowering may already have left block marks open, so only a
+            // successfully lowered speculative block is cancelled here.
+            Err(e) => Err(e),
         };
         self.scopes.pop();
         self.move_to(at);
