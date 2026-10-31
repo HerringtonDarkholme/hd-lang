@@ -1,7 +1,9 @@
-//! Shared references against writes (`ref.excl`, stage 7a of
-//! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each shared `Ref` of
-//! a place a local's path reaches is a loan of its own, [`Origin::Site`],
-//! which the solver carries with the local's. A write to a place that
+//! Shared references against writes (`ref.excl`, stages 7a and 7b of
+//! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each written shared
+//! `Ref` of a place a local's path reaches is a loan of its own,
+//! [`Origin::Site`], which the solver carries with the local's. So is each
+//! shared reference a call takes for a receiver or an argument, which
+//! reaches the call's result when the result depends on it. A write to a place that
 //! overlaps a site's is `conflicting-access` when a binding that holds
 //! the site is read after the write on some path. The order comes from
 //! the block structure: an instruction runs after the earlier ones of its
@@ -44,21 +46,35 @@ fn path_of(b: &Body, word: u32) -> Option<Path> {
     }
 }
 
-/// The path of a shared `Ref`'s place `word` that takes a site loan: one
-/// a local's fields and dereferences reach, without an element, which
-/// the pin covers (`ref.elem.access.pin`).
-pub(super) fn site_path(b: &Body, word: u32) -> Option<Path> {
-    path_of(b, word).filter(|(_, p)| !p.iter().any(|s| matches!(s, Proj::Elem(_))))
+/// The place shared loan `i` covers, without an element, which the pin
+/// covers (`ref.elem.access.pin`): a shared `Ref`'s place, or what a
+/// `&mut` binding refers to where a call reads it as `&` (`ref.excl.call`).
+fn loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
+    let (b, i) = (s.b, i as usize);
+    let path = match b.tags[i] {
+        Tag::Ref if !is_mut(s.pool, b.ty[i]) => path_of(b, b.data[i][0]),
+        Tag::Coerce if b.same_value_coercion(i) && !is_mut(s.pool, b.ty[i]) => {
+            let v = b.data[i][0] as usize;
+            if b.ty.get(v).is_none() || b.tags[v] != Tag::Read || !is_mut(s.pool, b.ty[v]) {
+                return None;
+            }
+            path_of(b, b.data[v][0]).map(|(l, mut p)| {
+                p.push(Proj::Deref);
+                (l, p)
+            })
+        }
+        _ => None,
+    }?;
+    (!path.1.iter().any(|s| matches!(s, Proj::Elem(_)))).then_some(path)
 }
 
-/// Whether shared `Ref` `i` takes a site loan: a written `&` (the address
-/// a call takes for a receiver is stage 7b's) of a place [`site_path`] gives.
+/// Whether shared `Ref` `i` is a written `&` that takes a site loan
+/// (`ref.excl.place`).
 pub(super) fn site(s: &Inputs<'_>, i: u32) -> bool {
-    let (b, i) = (s.b, i as usize);
-    let at = b.syn[i];
+    let at = s.b.syn[i as usize];
     at != NodeIdx::NONE
         && s.cx.src.parse.tree.node(at).kind() == SyntaxKind::RefExpr
-        && site_path(b, b.data[i][0]).is_some()
+        && loan_path(s, i).is_some()
 }
 
 /// Whether two paths of one local overlap: no step of the one is a field
@@ -175,6 +191,34 @@ impl Gen<'_, '_> {
         (out, sets)
     }
 
+    /// `ref.excl.call`: each shared reference a call takes for a receiver
+    /// or an argument is a site loan, which the call's result holds when
+    /// it depends on that argument.
+    pub(super) fn call_loans(&mut self) {
+        let b = self.s.b;
+        for c in 0..b.tags.len() {
+            if !matches!(
+                b.tags[c],
+                Tag::Call | Tag::CallDyn | Tag::CallValue | Tag::Await
+            ) {
+                continue;
+            }
+            let mut args = Vec::new();
+            slots(b, c, |_, v, word| {
+                if matches!(word, Word::Value(_)) && (v as usize) < c {
+                    args.push(v);
+                }
+            });
+            for v in args {
+                if loan_path(self.s, v).is_some()
+                    && let Some(&top) = self.val(v).as_ref().and_then(|x| x.0.first())
+                {
+                    self.seed(top, Origin::Site(v));
+                }
+            }
+        }
+    }
+
     /// `ref.excl.shared`: each write to a place that overlaps a site's
     /// while a binding that holds the site is still read.
     pub(super) fn conflicts(&self, sol: &Solution) -> Vec<(NodeIdx, String)> {
@@ -189,7 +233,7 @@ impl Gen<'_, '_> {
         let mut sites = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
             let Origin::Site(i) = *o else { continue };
-            let Some(place) = site_path(b, b.data[i as usize][0]) else {
+            let Some(place) = loan_path(self.s, i) else {
                 continue;
             };
             let holders: Vec<(u32, Vec<u32>)> = (0..self.locals)

@@ -5226,7 +5226,6 @@ typing/invalid/dependent-result-auto-address-receiver-own-storage.hd	type	reject
 typing/invalid/dependent-result-temporary.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.temporary
 typing/invalid/dependent-result-trait-value-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.trait
 typing/invalid/local-reference-escapes-bound-method-result.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.fn-value-result
-runtime/valid/dependent-result-reassigned-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.caller
 runtime/valid/dependent-result-caller-side.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.caller
 runtime/valid/dependent-result-temporary.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.temporary
 typing/invalid/local-reference-outlives-block.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
@@ -5487,3 +5486,8 @@ typing/invalid/shared-reference-write-in-loop.hd	type	reject:conflicting-access	
 typing/valid/shared-reference-disjoint-field-write.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.place
 typing/valid/shared-reference-write-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.live
 typing/valid/shared-reference-reassigned-binding.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.reassign
+typing/invalid/dependent-result-write-source-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+typing/invalid/dependent-result-reassign-source-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+typing/valid/dependent-result-write-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
+typing/valid/dependent-result-copy-out.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
+typing/valid/dependent-result-borrow-field-instead.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call

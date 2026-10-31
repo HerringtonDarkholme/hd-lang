@@ -1,0 +1,15 @@
+# test: reassigning a call's source while its shared result is used later is a conflicting access
+# Spec 13 Writes While Borrowed: ref.excl.call, ref.excl.live.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn reset() -> void $ Console:
+    let mut u = User { name: "a", age: 0 }
+    n := u.name()
+    u = User { name: "b", age: 1 } # diagnostic: conflicting-access
+    println(*n)

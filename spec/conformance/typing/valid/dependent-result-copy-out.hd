@@ -1,0 +1,14 @@
+# test: copying a call's shared result out leaves no reference, so the source may be written while the copy is used
+# Spec 13 Writes While Borrowed: ref.excl.call.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn birthday(u: &mut User) -> void $ Console:
+    name := *u.name()
+    u.age += 1
+    println(name)

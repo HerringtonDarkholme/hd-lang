@@ -794,7 +794,7 @@ impl Gen<'_, '_> {
                 let inv = is_mut(pool, me.1);
                 let (at, place) = self.place(i, a, usize::MAX, (true, inv));
                 self.lies_in(at, me.0[0]);
-                if !inv && exclusive::site(self.s, i) {
+                if exclusive::site(self.s, i) {
                     self.seed(me.0[0], Origin::Site(i));
                 }
                 let inner = (me.0[1..].to_vec(), referent(pool, me.1));
@@ -931,6 +931,7 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         g.step(i);
         g.escapes(i);
     }
+    g.call_loans();
     if let Some((_, slots)) = r.own {
         for v in returned(b, r.root) {
             g.returns(v, None, slots);

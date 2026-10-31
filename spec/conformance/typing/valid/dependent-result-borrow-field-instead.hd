@@ -1,0 +1,10 @@
+# test: borrowing the field directly locks only that field, so another field may be written while it is used
+# Spec 13 Writes While Borrowed: ref.excl.call, ref.excl.place.
+struct User:
+    name: string
+    age: i32
+
+fn birthday(u: &mut User) -> void $ Console:
+    n := &u.name
+    u.age += 1
+    println(*n)

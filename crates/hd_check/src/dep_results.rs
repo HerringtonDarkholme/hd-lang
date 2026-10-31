@@ -1002,7 +1002,8 @@ enum Origin {
     /// A top-level binding.
     Global(u32),
     /// The shared `Ref` at an instruction of a place a local's path
-    /// reaches, for the conflict check only (`ref.excl.shared`).
+    /// reaches, or a `&mut` binding a call reads as `&`, for the conflict
+    /// check only (`ref.excl.shared`, `ref.excl.call`).
     Site(u32),
 }
 

@@ -1,10 +1,10 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 5, stage 6 except 6g and `Span.iter()`, and stage 7a (#1098).
-Open: 6g1 `@auto_closing` (#1099) and 6g2 library `defer`/`ensure` (#1101),
-`Span.iter()` (#1104, after #1103), the `for` cursor gap (#1105), and stage 7b
-to 7e; 6i is not planned for now (see its row). It reviews
+stages 1 to 5, stage 6 except 6g and `Span.iter()`, and stages 7a (#1098)
+and 7b (#1106). Open: 6g1 `@auto_closing` (#1099) and 6g2 library
+`defer`/`ensure` (#1101), `Span.iter()` (#1104, after #1103), the `for` cursor
+gap (#1105), and stage 7c to 7e; 6i is not planned for now (see its row). It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
@@ -424,6 +424,8 @@ no code and may come later if real programs hit the lock often.
   result).
 
 Slice 7a applied by #1098 ([Writes While Borrowed](../../spec/lang/13-values-and-references.md#writes-while-borrowed)): each written shared `&` of a local's path is a loan of its own, and a write to an overlapping place while a binding that holds it is still read is `conflicting-access`.
+
+Slice 7b applied by #1106 (`ref.excl.call`): the `&` a call takes for a `&self` receiver or a `&` argument is a loan of the whole place it was taken from, so a live result that depends on it locks that place.
 
 ### Stage 9: field paths on results
 

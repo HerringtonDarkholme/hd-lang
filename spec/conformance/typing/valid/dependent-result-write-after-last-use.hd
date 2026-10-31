@@ -1,0 +1,14 @@
+# test: writing a call's source after its shared result's last use is valid
+# Spec 13 Writes While Borrowed: ref.excl.call, ref.excl.live.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
+fn birthday(u: &mut User) -> void $ Console:
+    n := u.name()
+    println(*n)
+    u.age += 1

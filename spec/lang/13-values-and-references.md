@@ -413,8 +413,7 @@ fn tagged(u: &User) -> &List[string]?:  # one reference position: depends on u
     if u.tags.len() > 0: .Some(&u.tags) else: .None
 
 fn demo(u: &mut User) -> void:
-    n := u.name()
-    u.name = "changed"   # n refers to the field, and sees the write
+    n := u.name()        # n borrows all of u while it is used
     t := u.tags_mut()
     t.push("x")          # writes u.tags in place
 ```
@@ -434,7 +433,7 @@ fn demo(u: &mut User) -> void:
 13. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
 14. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
 15. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
-16. r[ref.dep.caller] While a dependent result is in use, the caller may read, write, and reassign its source, and pass `&mut` of it. A read through the result sees the source's current value.
+16. r[ref.dep.caller] While a dependent result is in use, the caller may read its source. It may write the source only as [Writes While Borrowed](#writes-while-borrowed) allows. A read through the result sees the source's current value.
 17. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
 18. r[ref.dep.suspension] A suspension, the `mut Suspend[R]` of a bang call made without `!`, holds every reference that its call's arguments hold, the receiver's included. It holds them in one position of its own, after the positions of `R`.
 19. r[ref.dep.suspension.local] A suspension that holds a local reference is a local reference value of the caller, so every rule of [Local References](#local-references) and [`ref.dep.return`](#r-ref.dep.return) applies to it. Error: `local-reference-escapes`.
@@ -598,12 +597,23 @@ struct User:
     name: string
     age: i32
 
+impl User:
+    fn name(&self) -> &string:
+        &self.name
+
 fn rename(u: &mut User) -> void $ Console:
     n := &u.name
     u.age += 1    # valid: another field
     u.name = "b"  # error: conflicting-access
     println(*n)   # the last use of n
     u.name = "c"  # valid
+
+fn birthday(u: &mut User) -> void $ Console:
+    n := u.name() # n borrows all of u
+    println(u.age) # valid: a read
+    u.age += 1    # error: conflicting-access
+    println(*n)   # the last use of n
+    u.age += 1    # valid
 ```
 
 1. r[ref.excl.shared] While a shared reference `&p` is live, a write to `p` or to a place that overlaps it is an error. Error: `conflicting-access`.
@@ -612,11 +622,14 @@ fn rename(u: &mut User) -> void $ Console:
 4. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
 5. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
 6. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
+7. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field.
 
 > **Why.** This is Rust's E0506 with non-lexical lifetimes. A write while a
 > shared reference is live would change what the reader sees behind its
-> back. The fixes are Rust's: make the change after the last use, copy the
-> value out first, or borrow only the field the code reads.
+> back. A call's result locks its whole source, as in Rust, since a
+> signature does not say which field the result points into. The fixes are
+> Rust's: make the change after the last use, copy the value out first
+> (`name := *u.name()`), or borrow only the field the code reads (`&u.name`).
 
 ### Lifetime Variables
 
