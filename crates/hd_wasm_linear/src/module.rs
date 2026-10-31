@@ -323,7 +323,7 @@ impl Val {
 /// value of a module storage binding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Global {
-    /// The forbidden-context counter (`req.drive.block-on.forbidden-contexts`).
+    /// The forbidden-context counter (`req.drive.block-on.forbidden-contexts.v2`).
     Forbid,
     /// The first free heap address of the bump allocation that serves
     /// until the std allocator (job 5) takes over.

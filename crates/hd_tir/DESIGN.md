@@ -849,7 +849,7 @@ backend keeps the buffer's address and length in locals for that loop.
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `Block` | a: `[instructions]`, b: tail value or `NONE` | the tail's type, or `void` |
-| `Scope` | a: body `Block`, b: `[defer suite Blocks]`, in instruction order | the body's type. A cleanup scope ([`flow.defer.scopes`](../../spec/lang/06-control-flow.md#r-flow.defer.scopes)) |
+| `Scope` | a: body `Block`, b: `[cleanup suite Blocks]`, in instruction order | the body's type. A cleanup scope ([`flow.cleanup.scopes`](../../spec/lang/06-control-flow.md#r-flow.cleanup.scopes)) |
 | `Defer` | a: suite number in the enclosing `Scope` | `void`; registers that suite here |
 | `If` | a: condition, b: `[then Block, else Block]` | the join of both |
 | `Loop` | a: body `Block`, b: always `NONE` | the join of its `Break` values, or `void` |
@@ -1116,8 +1116,7 @@ body built elsewhere, such as a generated structure method, gets
     against its target, and not in a module with errors
     (`finish_tolerating`).
   - 5: only that labels exist and are written.
-  - 6: only the `defer` suite half (`defer_suite_violations`, which the
-    checker also uses to poison what it rejected).
+  - 6: only the cleanup-suite half (`cleanup_suite_violations`).
   - 7: only the rows that exist; no body writes one yet.
   - 12: only that the row exists.
   - 15: only the operands, for a `DefaultCall` passed to a `Call` or

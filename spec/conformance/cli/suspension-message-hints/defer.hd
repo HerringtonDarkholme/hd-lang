@@ -1,5 +1,0 @@
-use std.time.{Clock, sleep, ms}
-
-pub fn main!() -> void $ Clock:
-    defer:
-        sleep!(1ms)

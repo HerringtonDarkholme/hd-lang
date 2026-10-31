@@ -1,8 +1,7 @@
-//! Run-time forbidden contexts (spec 11 `req.drive.block-on.indirect`,
-//! `req.drive.block-on.fact-contexts`, spec 6
-//! `flow.defer.block-on.indirect`): `block_on` reached through
-//! another call while a `defer` suite, a default expression, a facts body or
-//! non-entry module initialization runs panics with
+//! Run-time forbidden contexts (spec 11 `req.drive.block-on.indirect` and
+//! `req.drive.block-on.fact-contexts`): `block_on` reached through
+//! another call while a synchronous cleanup, a default expression, a facts
+//! body or non-entry module initialization runs panics with
 //! `suspension-forbidden-context`. Outside those contexts it runs. Programs
 //! build through the driver and run on V8 (`host/run.ts`).
 

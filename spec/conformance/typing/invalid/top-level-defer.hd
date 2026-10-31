@@ -1,2 +1,0 @@
-defer: # diagnostic: defer-outside-cleanup-scope
-    pass

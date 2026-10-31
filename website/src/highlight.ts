@@ -229,9 +229,8 @@ function wordClass(word: string, line: string, start: number, end: number): Toke
 }
 
 // `use`, `super`, and `as` in a use declaration, a provider word after `$.`,
-// `derive` after `@`, `by` after the target of an `impl` header (with or
-// without a trait), and `defer`
-// opening a `defer:` statement are keywords
+// `derive` after `@`, and `by` after the target of an `impl` header (with or
+// without a trait) are keywords
 // (01-lexical-structure.md#contextual-words).
 function contextualKeyword(word: string, line: string, start: number, end: number): boolean {
   if (word === "using" || word === "using!") {
@@ -242,9 +241,6 @@ function contextualKeyword(word: string, line: string, start: number, end: numbe
   }
   if (word === "derive") {
     return line[start - 1] === "@";
-  }
-  if (word === "defer") {
-    return /^\s*$/.test(line.slice(0, start)) && /^\s*:/.test(line.slice(end));
   }
   if (word === "by") {
     return /^\s*impl\b.*\S\s+$/.test(line.slice(0, start)) && /^\s+\S/.test(line.slice(end));

@@ -2580,17 +2580,14 @@ impl Ck<'_, '_> {
     }
 
     /// `req.drive.block-on.direct`: a call of `block_on` written directly
-    /// in a `defer` suite, a default or fact expression, or a non-entry
-    /// module's initialization.
+    /// in a default or fact expression, or a non-entry module's initialization.
     /// A closure or local function declared there is not direct.
     pub(crate) fn check_forbidden_call(&mut self, def: DefId, name: &str, n: NodeRef<'_>) {
         let known = self.cx.names.known;
         if def != known.block_on {
             return;
         }
-        let context = if self.defer_base.is_some() && self.subs.len() == self.defer_subs {
-            "a `defer` suite"
-        } else if self.subs.is_empty()
+        let context = if self.subs.is_empty()
             && let Some(c) = self.forbidden
         {
             c
@@ -2654,14 +2651,7 @@ impl Ck<'_, '_> {
                 "a bang call of a function that does not suspend",
             );
         }
-        if self.defer_base.is_some() {
-            // `flow.defer.suspend`: a `defer` suite cannot suspend.
-            self.err(
-                Code::SuspensionForbiddenContext,
-                n,
-                "a `defer` suite cannot suspend; collect the value in the scope and act on it after the scope ends",
-            );
-        } else if !self.suspends.last().copied().unwrap_or(false) {
+        if !self.suspends.last().copied().unwrap_or(false) {
             if self.forbidden == Some("a default or fact expression")
                 && self.suspends.len() == self.default_depth
             {

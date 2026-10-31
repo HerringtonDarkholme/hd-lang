@@ -318,14 +318,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether the body or closure being checked suspends (a driver
     /// context for bang calls).
     pub suspends: Vec<bool>,
-    /// Inside a `defer` suite: the loop depth at its start.
-    pub defer_base: Option<usize>,
-    /// The open closures at the start of that `defer` suite: a call in a
-    /// closure declared inside it is not written directly in it.
-    pub defer_subs: usize,
     /// The context a call written directly in this body is forbidden to
     /// suspend in: a default or fact expression, or a non-entry module's
-    /// initialization (`req.drive.block-on.forbidden-contexts`).
+    /// initialization (`req.drive.block-on.forbidden-contexts.v2`).
     pub forbidden: Option<&'static str>,
     /// The `suspends` depth of the default expression being checked: a bang
     /// call there is `suspension-forbidden-context`, not a call outside any
@@ -626,8 +621,6 @@ pub(crate) fn new_ck<'a, 'c>(
         local_defaults: None,
         local_forms: HashMap::default(),
         suspends: vec![false],
-        defer_base: None,
-        defer_subs: 0,
         uninit: hd_base::HashSet::default(),
         bound: Vec::new(),
         stmt_binding: None,
@@ -3047,14 +3040,12 @@ impl Ck<'_, '_> {
         // enclosing statement is back where it started.
         let at = self.at;
         // A suite with registered cleanup is a cleanup scope
-        // (`flow.defer.scopes`, `flow.auto-closing.statement`): a `Scope`
-        // over its statements, whose suites are its `Defer`s. An
+        // (`flow.cleanup.scopes`, `flow.auto-closing.statement`): a `Scope`
+        // over its statements, whose suites are its cleanup entries. An
         // auto-closing call is known only after its callee is selected, so
         // open a speculative block and cancel its mark if no cleanup was
         // registered; cancellation leaves the emitted TIR unchanged.
-        let written_cleanup = block
-            .children()
-            .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt));
+        let written_cleanup = block.children().any(|c| c.kind() == SyntaxKind::UsingStmt);
         let sm = self.b.open_scope();
         let inner = self.b.open_block();
         self.cleanup_blocks.push(written_cleanup);
@@ -3880,9 +3871,6 @@ impl Ck<'_, '_> {
                     );
                     return Ok(Ty::NEVER);
                 }
-                if self.defer_base.is_some() && self.subs.len() == self.defer_subs {
-                    self.err(Code::DeferControlFlow, s, "a `defer` suite cannot `return`");
-                }
                 let ret = *self.rets.last().expect("ret");
                 let r = if let Some(e) = kids.first() {
                     let value_diags = self.diags.mark();
@@ -3919,13 +3907,6 @@ impl Ck<'_, '_> {
                     self.err(Code::BreakOutsideLoop, s, "break-outside-loop");
                     return Ok(Ty::NEVER);
                 };
-                if self.defer_base == Some(self.loops.len()) {
-                    self.err(
-                        Code::DeferControlFlow,
-                        s,
-                        "a `defer` suite cannot leave an enclosing loop",
-                    );
-                }
                 if s.kind() == SyntaxKind::ContinueStmt {
                     self.b
                         .emit(Tag::Continue, lp.0.raw(), NONE, Ty::NEVER, s.index());
@@ -3957,27 +3938,6 @@ impl Ck<'_, '_> {
                 };
                 self.b.emit(Tag::Break, lp.0.raw(), v, Ty::NEVER, s.index());
                 return Ok(Ty::NEVER);
-            }
-            SyntaxKind::DeferStmt => {
-                let Some(blk) = Src::child(s, SyntaxKind::Block) else {
-                    return unsupported("a `defer` without a suite");
-                };
-                let m = self.b.open_block();
-                let saved = self.defer_base.replace(self.loops.len());
-                let saved_subs = std::mem::replace(&mut self.defer_subs, self.subs.len());
-                self.block_value(blk, Some(Ty::VOID))?;
-                self.defer_base = saved;
-                self.defer_subs = saved_subs;
-                let suite = self.b.close_block(m, None, Ty::VOID, blk.index());
-                // Each of these was reported (`defer-control-flow`,
-                // `suspension-forbidden-context`); a poison keeps the
-                // suite within invariant 6.
-                let body = self.b.body_mut();
-                for i in hd_tir::ir::defer_suite_violations(body, suite.0) {
-                    body.tags[i as usize] = Tag::Poison;
-                    body.data[i as usize] = [NONE, NONE];
-                }
-                self.b.defer(suite, s.index());
             }
             SyntaxKind::DataDecl
             | SyntaxKind::EnumDecl

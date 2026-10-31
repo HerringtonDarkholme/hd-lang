@@ -1,10 +1,11 @@
+# test: defer is an ordinary name in declarations, calls, and bindings
+# Spec 01 Contextual Words: lex.defer.identifier.
+
 fn defer(action: fn() -> void) -> void:
     action()
 
 fn run(action: fn() -> void) -> void:
     defer(action)
-    defer:
-        action()
 
 fn bind(action: fn() -> void) -> void:
     defer := action

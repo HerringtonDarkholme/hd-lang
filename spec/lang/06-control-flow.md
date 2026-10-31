@@ -2,8 +2,8 @@
 
 Status: language specification draft.
 
-This chapter defines suites, conditionals, loops, `match`, `return`, `defer`,
-and runtime panics.
+This chapter defines suites, conditionals, loops, `match`, `return`, cleanup
+registration, and runtime panics.
 
 1. r[flow.suites] hd-lang control-flow constructs use indentation-delimited suites and may produce values.
 2. r[flow.condition.bool] Conditions are always `bool`: there is no truthiness conversion from numbers, strings, collections, or optional values.
@@ -46,7 +46,6 @@ fn demo(flag: bool) -> i32:
    - a loop body;
    - an `if` without `else`;
    - a statement-position `match` arm;
-   - a `defer` suite;
    - a module's top-level script.
 4. r[flow.must-use.handled] Such a value must be propagated with `?`, inspected by `match`, returned, stored for later use, or explicitly discarded with `_ := expression` or `let _ = expression`.
 5. r[flow.must-use.underscore] The `_` spelling does not bind a local name.
@@ -1003,99 +1002,51 @@ names are visible.
 return 1  # error: return-outside-function
 ```
 
-## Deferred Cleanup
+## Cleanup Registration
 
-`defer:` registers a cleanup suite:
-
-```text
-fn read_first!(path: string) -> Result[string, FileError] $ Files:
-    let handle: &mut dyn FileHandle = $.use(Files).open!(path)?
-    defer:
-        _ := handle.close()
-    handle.read!()
-```
+Using bindings and auto-closing calls register cleanup suites on executing
+lexical blocks.
 
 ### Registration And Order
 
-1. r[flow.defer.register] `defer:` registers a synchronous cleanup suite on the innermost executing lexical block.
-2. r[flow.defer.not-run] Reaching the statement does not run its suite.
-3. r[flow.defer.run] Registered suites run once in last-in, first-out order when that block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
-4. r[flow.defer.loop] Each loop iteration has its own body block, so its registered suites run before the next iteration begins.
-5. r[flow.defer.result-saved] A value-producing block evaluates and saves its result before running its registered suites.
-6. r[flow.defer.operands] Likewise, a `return` or `break` operand and a value being propagated by `?` are evaluated before cleanup begins.
-7. r[flow.defer.captures] A cleanup suite observes captured lexical storage at cleanup time.
+1. r[flow.cleanup.run] Registered cleanup suites run once in last-in, first-out order when their block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
+2. r[flow.cleanup.loop] Each loop iteration has its own body block, so its registered cleanup suites run before the next iteration begins.
+3. r[flow.cleanup.result-saved] A value-producing block evaluates and saves its result before running its registered cleanup suites.
+4. r[flow.cleanup.operands] Likewise, a `return` or `break` operand and a value being propagated by `?` are evaluated before cleanup begins.
 
-```hd
-fn first() -> void: pass
+```text
+use std.ops.Disposable
 
-fn second() -> void: pass
+struct Mark:
+    log: *mut List[string]
+    label: string
 
-fn work() -> void: pass
+impl Disposable for Mark:
+    fn dispose(&mut self) -> void:
+        self.log.push(self.label)
 
-fn demo() -> void:
-    defer: first()
-    defer: second()
-    work()   # work, then second, then first
+fn work(log: *mut List[string]) -> void:
+    using first = Mark { log: log, label: "first" }
+    using second = Mark { log: log, label: "second" }
+    log.push("work")  # work, then second, then first
 ```
 
 ### Cleanup Scopes
 
-1. r[flow.defer.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, and match arms. Provider scopes and trailing callback blocks, including test bodies, are cleanup scopes too.
-2. r[flow.defer.not-scopes] Module top level and declaration bodies that do not execute are not cleanup scopes.
-3. r[flow.defer.outside] A `defer` there is an error. Error: `defer-outside-cleanup-scope`.
+1. r[flow.cleanup.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, and match arms. Provider scopes and trailing callback blocks, including test bodies, are cleanup scopes too.
+2. r[flow.cleanup.not-scopes] Module top level and declaration bodies that do not execute are not cleanup scopes.
+3. r[flow.cleanup.outside] Cleanup registration at module top level is an error. Error: `defer-outside-cleanup-scope`.
 
 ```text
-defer:   # error: defer-outside-cleanup-scope
-    pass
+using lock = Lock { name: "a" }  # error: defer-outside-cleanup-scope
 ```
 
-### Cleanup Suite Restrictions
+### Panics
 
-1. r[flow.defer.void] A `defer` suite must produce `void`.
-2. r[flow.defer.restricted] It cannot bang-call, otherwise suspend, propagate with `?`, or transfer control with `return`, `break`, or `continue`.
-3. r[flow.defer.suspend] A bang call or other suspending operation in the suite is an error. Error: `suspension-forbidden-context`.
-4. r[flow.defer.control] Propagation with `?`, or a `return`, `break`, or `continue` that would leave the suite, is an error. Error: `defer-control-flow`.
-5. r[flow.defer.block-on.direct-call] A call of `std.task.block_on` written directly in the suite is an error. Error: `suspension-forbidden-context`.
-6. r[flow.defer.block-on.indirect] Such a call reached through another call while the suite runs panics, as [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect) says. Panic: `suspension-forbidden-context`.
-
-```text
-defer:  # error: defer-outside-cleanup-scope
-    pass
-
-fn cleanup!() -> void:
-    pass
-
-fn invalid!() -> void:
-    defer:
-        cleanup!()  # error: suspension-forbidden-context
-    pass
-
-fn run() -> i32:
-    defer:
-        return 1  # error: defer-control-flow
-    0
-```
-
-See also: [Suspending Functions](11-requirements-and-suspension.md#suspending-functions).
-
-### Panics And Escaping Aliases
-
-1. r[flow.defer.panic] A runtime panic does not run pending `defer` suites.
-2. r[flow.defer.cleanup-panic] If a cleanup suite itself panics, the instance is poisoned and no remaining cleanup suite is guaranteed to run.
-3. r[flow.defer.alias-escape] `defer` does not stop an alias to a closed handle from escaping.
-
-```hd
-fn cleanup() -> void: pass
-
-fn demo() -> void:
-    defer: cleanup()   # not run: a panic skips pending defer suites
-    panic("boom")
-```
+1. r[flow.cleanup.panic] A runtime panic does not run pending cleanup suites.
+2. r[flow.cleanup.cleanup-panic] If a cleanup suite itself panics, the instance is poisoned and no remaining cleanup suite is guaranteed to run.
 
 > **Why.** Core hd-lang has no panic unwinding.
-
-> **Note.** Ownership and alias-escape prevention remain
-> [open design work](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
 
 ## Using Bindings
 
@@ -1153,21 +1104,20 @@ pub trait AsyncDisposable[$ R = $ ()]:
 6. r[flow.using.place.v2] A binding that holds its value is the place that the selected disposal method changes: the registered call takes the binding's address, as a `&mut self` call on a `let mut` binding does. No other `&mut self` call may change the binding. Error: `not-writable`.
 7. r[flow.using.reference.v2] A binding of `&mut T` disposes the value it refers to: the registered call passes the reference, so every other reference to that value sees it disposed. A trait value reference `&mut dyn Tr` disposes through its trait value, by [`trait.dyn.ref.member`](09-traits.md#r-trait.dyn.ref.member).
 8. r[flow.using.reference.read-only.v2] A binding of `&T` or `&dyn Tr` is an error, since both disposal protocols change the value. Error: `not-writable`.
-9. r[flow.using.register.split] Once the initializer is evaluated and bound, `using` registers a cleanup suite that calls `name.dispose()`; `using!` registers one that calls `name.dispose!()`. Each is registered exactly as a `defer` at that point would be.
+9. r[flow.using.register.split] Once the initializer is evaluated and bound, `using` registers a cleanup suite that calls `name.dispose()`; `using!` registers one that calls `name.dispose!()`.
 10. r[flow.using.dispose.v2] That suite runs by the rules of [Registration And Order](#registration-and-order). So a value is disposed when its block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
-11. r[flow.using.order.v2] Synchronous disposes, asynchronous disposes, and `defer` suites of one block run in one last-in, first-out order.
+11. r[flow.using.order.v2] Synchronous and asynchronous disposes of one block run in one last-in, first-out order.
 12. r[flow.using.loop.v2] Each loop iteration disposes the values that its body bound with `using` or `using!` before the next iteration begins.
 13. r[flow.using.unbound.v2] A statement whose initializer does not complete, because it propagates with `?` or panics, registers nothing.
-14. r[flow.using.scopes.v2] A `using` or `using!` binding follows the cleanup scope rules of `defer`, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
+14. r[flow.using.scopes.v2] A `using` or `using!` binding follows the [Cleanup Scopes](#cleanup-scopes) rules, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
 15. r[flow.using.async.driver] The registered call of `using!` is a bang call written at that statement, so `using!` outside a driver context is an error. `using` is accepted in ordinary and suspending functions. Error: `bang-call-outside-suspension`.
-16. r[flow.using.async.in-defer] A `using!` binding inside a `defer` suite is a suspension in that suite. A synchronous `using` binding is not. Error: `suspension-forbidden-context`.
-17. r[flow.using.async.suite-suspends] A `using!` dispose suite may suspend, and the scope exit goes on once `dispose!` returns. A `using` dispose suite runs inline.
-18. r[flow.using.async.not-forbidden] An asynchronous dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
-19. r[flow.using.panic.v2] A runtime panic does not run pending synchronous or asynchronous disposes, as [`flow.defer.panic`](#r-flow.defer.panic) says of `defer` suites.
-20. r[flow.using.cancel.v2] Cancellation unwinds a task as any exit does: its registered synchronous and asynchronous disposes run in last-in, first-out order with its `defer` suites.
-21. r[flow.using.async.cancel.shielded] An asynchronous `dispose!` is shielded from the cancellation, and it takes no cancellation of its own. So each dispose runs to its end, unless it is cut short as the next rule says.
-22. r[flow.using.async.cancel.cut-short] Only [`abandon()`](11-requirements-and-suspension.md#abandoning) and an await of a suspension cancelled elsewhere cut an asynchronous dispose short, by [`req.abandon.dispose`](11-requirements-and-suspension.md#r-req.abandon.dispose) and [`req.abandon.dependency`](11-requirements-and-suspension.md#r-req.abandon.dependency).
-23. r[flow.using.async.cancel.wait] The cancellation of a task completes only once its asynchronous disposes have. A suspension whose cancellation reaches a child waits for the child's asynchronous disposes before it runs its own cleanups.
+16. r[flow.using.async.suite-suspends] A `using!` dispose suite may suspend, and the scope exit goes on once `dispose!` returns. A `using` dispose suite runs inline.
+17. r[flow.using.async.not-forbidden] An asynchronous dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
+18. r[flow.using.panic.v2] A runtime panic does not run pending synchronous or asynchronous disposes, as [`flow.cleanup.panic`](#r-flow.cleanup.panic) says of cleanup suites.
+19. r[flow.using.cancel.v2] Cancellation unwinds a task as any exit does: its registered synchronous and asynchronous disposes run in last-in, first-out order.
+20. r[flow.using.async.cancel.shielded] An asynchronous `dispose!` is shielded from the cancellation, and it takes no cancellation of its own. So each dispose runs to its end, unless it is cut short as the next rule says.
+21. r[flow.using.async.cancel.cut-short] Only [`abandon()`](11-requirements-and-suspension.md#abandoning) and an await of a suspension cancelled elsewhere cut an asynchronous dispose short, by [`req.abandon.dispose`](11-requirements-and-suspension.md#r-req.abandon.dispose) and [`req.abandon.dependency`](11-requirements-and-suspension.md#r-req.abandon.dependency).
+22. r[flow.using.async.cancel.wait] The cancellation of a task completes only once its asynchronous disposes have. A suspension whose cancellation reaches a child waits for the child's asynchronous disposes before it runs its own cleanups.
 
 ```text
 use std.ops.{AsyncDisposable, Disposable}
@@ -1207,8 +1157,8 @@ fn plain(id: i32) -> void:
 > and a cancel that arrives during a dispose takes it over, by
 > [`req.cancel.takeover`](11-requirements-and-suspension.md#r-req.cancel.takeover).
 > `abandon()` stops a waiting dispose instead, and a handle the dispose owns
-> needs a `defer` in the dispose that closes it. Neither binding stops an alias
-> of the value from outliving its scope.
+> needs its own cleanup registration. Neither binding stops an alias of the
+> value from outliving its scope.
 
 ## Auto-Closing Calls
 
@@ -1245,7 +1195,7 @@ fn work(log: *mut List[string]) -> void:
 ### Call And Registration
 
 1. r[flow.auto-closing.statement] A direct call of an `@auto_closing` function is valid as an expression statement. The call evaluates its result into an unnameable local and immediately registers that local through its `AutoClosing` disposal protocol.
-2. r[flow.auto-closing.order] That registration shares one cleanup stack with `defer`, `using`, and `using!`, in last-in, first-out order.
+2. r[flow.auto-closing.order] That registration shares one cleanup stack with `using`, `using!`, and other auto-closing calls, in last-in, first-out order.
 3. r[flow.auto-closing.cleanup] The registered entry follows the selected protocol's `using` or `using!` rules for requirements, suspension, scope exit, cancellation, and panic.
 4. r[flow.auto-closing.uncompleted] A call that does not produce its result, because it propagates with `?` or panics, registers nothing.
 5. r[flow.auto-closing.scope] A statement call at module top level is an error, because module top level is not a cleanup scope. Error: `defer-outside-cleanup-scope`.

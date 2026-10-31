@@ -7,5 +7,5 @@ fn main() -> i32:
     panic("boom") # panic: explicit-panic
 
 tests:
-    it("explicit panic does not run the pending defer"):
+    it("explicit panic does not run pending cleanup"):
         _ := main()

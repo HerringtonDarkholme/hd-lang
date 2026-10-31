@@ -166,8 +166,7 @@ test("by is a keyword after an impl header's target, with or without a trait", (
   assert.equal(classify("by := 1")[0]?.kind, "plain");
 });
 
-test("defer is a keyword only where it opens a defer: statement", () => {
-  assert.equal(classify("    defer: save()")[1]?.kind, "keyword");
+test("defer is an ordinary function name", () => {
   assert.equal(classify("    defer(save)").find(({ text }) => text === "defer")?.kind, "function");
 });
 

@@ -303,7 +303,6 @@ pub fn init_statements(root: NodeRef<'_>) -> Vec<NodeRef<'_>> {
                     | SyntaxKind::AssignmentStmt
                     | SyntaxKind::DiscardStmt
                     | SyntaxKind::ReturnStmt
-                    | SyntaxKind::DeferStmt
                     | SyntaxKind::UsingStmt
                     | SyntaxKind::BreakStmt
                     | SyntaxKind::ContinueStmt
@@ -743,7 +742,7 @@ impl Ck<'_, '_> {
     fn top_level(&mut self, s: NodeRef<'_>) -> StageResult<()> {
         match s.kind() {
             SyntaxKind::EnumDecl => return self.shared_init(s),
-            // `flow.return.outside`, `flow.defer.outside`.
+            // `flow.return.outside`, `flow.cleanup.outside`.
             SyntaxKind::ReturnStmt => {
                 self.err(
                     Code::ReturnOutsideFunction,
@@ -752,7 +751,7 @@ impl Ck<'_, '_> {
                 );
                 return Ok(());
             }
-            SyntaxKind::DeferStmt | SyntaxKind::UsingStmt => {
+            SyntaxKind::UsingStmt => {
                 self.err(
                     Code::DeferOutsideCleanupScope,
                     s,

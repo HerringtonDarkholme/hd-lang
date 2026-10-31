@@ -1049,13 +1049,12 @@ pub fn main() -> void:
     println("missing")  # error: missing-requirement
 ```
 
-A `println` call in a `defer` suite is valid, since it drives nothing:
+A function whose requirement row supplies `Console` may call `println`
+directly:
 
 ```text
-fn report() -> void $ Console:
-    defer:
-        println("done")
-    println("working")
+fn greet() -> void $ Console:
+    println("hello")
 ```
 
 A recording provider receives the text and newline as separate writes:

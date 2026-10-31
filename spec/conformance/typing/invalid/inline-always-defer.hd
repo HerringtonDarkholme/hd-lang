@@ -1,9 +1,12 @@
-# test: inline Always cannot copy defer
-# Spec 14 Inline And Cold: annot.inline.always-copyable.
+# test: inline Always cannot copy cleanup registration
+# Spec 14 Inline And Cold: annot.inline.always-copyable.v2.
 use std.ops.defer
 use std.annotation.inline
 
+fn cleanup() -> void:
+    pass
+
 @inline(.Always) # diagnostic: inline-always-uncopyable
 fn finish() -> i32:
-    defer(fn() -> void: pass)
+    defer(cleanup)
     +1

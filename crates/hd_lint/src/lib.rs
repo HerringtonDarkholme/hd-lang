@@ -597,7 +597,6 @@ fn statement_kind(kind: SyntaxKind) -> bool {
             | SyntaxKind::ReturnStmt
             | SyntaxKind::BreakStmt
             | SyntaxKind::ContinueStmt
-            | SyntaxKind::DeferStmt
             | SyntaxKind::UsingStmt
             | SyntaxKind::ExprStmt
     )

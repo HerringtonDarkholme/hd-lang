@@ -362,7 +362,7 @@ impl Ck<'_, '_> {
 
     fn captures_parameter(&self, node: NodeRef<'_>, name: &str) -> bool {
         match node.kind() {
-            SyntaxKind::ClosureExpr | SyntaxKind::DeferStmt => self.names_parameter(node, name),
+            SyntaxKind::ClosureExpr => self.names_parameter(node, name),
             _ => node
                 .children()
                 .any(|child| self.captures_parameter(child, name)),

@@ -1290,13 +1290,13 @@ These rules refine the steps:
 7. r[expr.try.convert.no-injection] With the same implementations, a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is also an error. The conversion to `B` would need an optional injection after it. Error: `invalid-result-propagation`.
 8. r[expr.try.convert.single-rule.reference-values] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, *dyn Tr?]`.
 9. r[expr.try.convert.only-try] Only `?` calls a conversion. `return .Err(error)` and every other `.Err` construction use ordinary assignability.
-10. r[expr.try.convert.before-defer] The conversion is part of the propagated value, so it runs before any deferred cleanup.
+10. r[expr.try.convert.before-cleanup] The conversion is part of the propagated value, so it runs before any registered cleanup.
 11. r[expr.try.convert.pure] A conversion neither suspends nor uses a requirement, because `from` has neither.
 12. r[expr.try.convert.inferred-closure] When the nearest function is a closure whose result type is neither written nor supplied by an expected function type, `?` performs no conversion. There, `E` itself contributes to the inferred result type.
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Conversion Trait](09-traits.md#conversion-trait),
-[Deferred Cleanup](06-control-flow.md#deferred-cleanup).
+[Cleanup Registration](06-control-flow.md#cleanup-registration).
 
 #### Propagation Targets
 

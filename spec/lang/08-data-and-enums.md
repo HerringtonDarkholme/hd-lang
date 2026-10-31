@@ -845,17 +845,8 @@ See also: [Optional Types](04-type-system.md#optional-types),
 4. r[data.repr.memory-api] The language does not expose manual deallocation or user-visible finalizers. The standard library may expose weak values over the runtime operations in [`ref.weak.target.whole`](13-values-and-references.md#r-ref.weak.target.whole).
 5. r[data.repr.weak-observable] A weak upgrade may observe whether its target remains alive. The runtime clears that target exactly as [`ref.weak.target.free`](13-values-and-references.md#r-ref.weak.target.free) specifies; no finalizer runs.
 6. r[data.repr.cleanup] Resource cleanup is separate from memory reclamation.
-7. r[data.repr.defer] Block-scoped `defer` provides explicit synchronous cleanup on ordinary control-flow exits and cancellation; it is not an ownership or garbage-collection mechanism.
-
-```hd
-fn work() -> void: pass
-
-fn done() -> void: pass
-
-fn demo() -> void:
-    defer: done()
-    work()
-```
+> **Note.** The standard library provides callback cleanup through
+> [Library Defer](../std/ops.md#library-defer).
 
 Ownership, alias-escape prevention, automatic finalization, and asynchronous
 or fallible cleanup policy remain deferred in
