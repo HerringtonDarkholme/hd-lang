@@ -512,6 +512,7 @@ impl Em<'_, '_, '_> {
             Tag::Await => {
                 let rec = self.rec(bw);
                 let args = rec[..rec.len().saturating_sub(3)].to_vec();
+                self.loan_call_args(&args, Some((self.pc(), k)))?;
                 match self.calls.get(&i).cloned() {
                     Some(Target::Call(t)) if t.kind == TargetKind::Instance => {
                         if !self.env().suspends(t.item) {

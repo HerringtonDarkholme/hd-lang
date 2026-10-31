@@ -1,5 +1,5 @@
 # test: a `&mut self` call through an unseen `*mut` alias writes the whole object, so it panics while a `&` binding borrows one field
-# Spec 13 Conflicts Through Aliases: ref.excl.alias.access, ref.excl.alias.conflict.
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.counted-access, ref.excl.alias.conflict.
 struct User:
     name: string
     age: i32

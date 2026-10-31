@@ -723,23 +723,7 @@ impl Em<'_, '_, '_> {
                     args.push(v);
                 }
             });
-            for v in args {
-                let ty = self.ty_of(v);
-                let Kind::Ref {
-                    target,
-                    fat: false,
-                    whole: true,
-                } = self.kind(ty)
-                else {
-                    continue;
-                };
-                let write = ref_mutable(self.pool(), self.env(), ty);
-                if !self.vals.contains_key(&v) || !self.may_conflict(target, &[], write) {
-                    continue;
-                }
-                let size = mem_of(self.pool(), self.env(), target)?.size;
-                self.loan_check(write, size, |em| em.comp(v, 0))?;
-            }
+            self.loan_call_args(&args, None)?;
             return Ok(());
         }
         let write = match tag {
@@ -783,6 +767,52 @@ impl Em<'_, '_, '_> {
             }
             Ok(())
         })
+    }
+
+    /// Checks the counted-reference arguments of a call as whole-object
+    /// accesses. A bang call passes `(pc, state)` so its resumed polls skip
+    /// the checks: only the first poll accesses the arguments.
+    pub(super) fn loan_call_args(
+        &mut self,
+        args: &[u32],
+        first_poll: Option<(u32, u32)>,
+    ) -> StageResult<()> {
+        if self.m.loans.is_empty() || !self.owned {
+            return Ok(());
+        }
+        let mut accesses = Vec::new();
+        for &v in args {
+            let ty = self.ty_of(v);
+            let Kind::Ref {
+                target,
+                fat: false,
+                whole: true,
+            } = self.kind(ty)
+            else {
+                continue;
+            };
+            let write = ref_mutable(self.pool(), self.env(), ty);
+            if !self.vals.contains_key(&v) || !self.may_conflict(target, &[], write) {
+                continue;
+            }
+            accesses.push((v, write, mem_of(self.pool(), self.env(), target)?.size));
+        }
+        if accesses.is_empty() {
+            return Ok(());
+        }
+        if let Some((pc, state)) = first_poll {
+            self.f.get(pc);
+            self.f.u32(state);
+            self.f.op(I::I32Ne);
+            self.f.op(I::If(BlockType::Empty));
+        }
+        for (v, write, size) in accesses {
+            self.loan_check(write, size, |em| em.comp(v, 0))?;
+        }
+        if first_poll.is_some() {
+            self.f.op(I::End);
+        }
+        Ok(())
     }
 
     /// While any loan is registered: `addr` pushes the accessed place's

@@ -1,5 +1,5 @@
 # test: a read through an unseen `*mut` alias of a field a live `&mut` binding borrows panics with borrow-conflict
-# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.access, ref.excl.alias.conflict.
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.counted-access, ref.excl.alias.conflict.
 struct User:
     name: string
     age: i32

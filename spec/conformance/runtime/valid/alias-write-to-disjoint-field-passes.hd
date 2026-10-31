@@ -1,5 +1,5 @@
 # test: while a `&` binding borrows one field of a `*mut` object, a write through an alias to another field passes, and a `&self` call reads
-# Spec 13 Conflicts Through Aliases: ref.excl.alias.access, ref.excl.alias.conflict.
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.counted-access, ref.excl.alias.conflict.
 # expect-stdout: a 3
 struct User:
     name: string

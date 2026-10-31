@@ -1,0 +1,31 @@
+# test: a bang call's disjoint argument passes, and a resumed poll does not recheck it against the callee's own live loan
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.counted-access, ref.excl.alias.conflict.
+# expect-stdout: a 1
+use std.time.{Clock, sleep}
+
+struct Stats:
+    count: i32
+
+struct User:
+    name: string
+    stats: *mut Stats
+
+struct Team:
+    lead: *mut User
+
+fn count_after_wait!(stats: *mut Stats) -> i32 $ Clock:
+    held := &stats.count
+    sleep!(1ms)
+    *held
+
+fn disjoint!(t: &Team, alias: *mut User) -> void $ Console + Clock:
+    held := &t.lead.name
+    count := count_after_wait!(alias.stats)
+    println("${*held} $count")
+
+pub fn main!() -> void $ Console + Clock:
+    t := Team {
+        lead: box(User { name: "a", stats: box(Stats { count: +1 }) }),
+    }
+    alias := t.lead
+    disjoint!(&t, alias)
