@@ -1,0 +1,20 @@
+# Spec 04 Union Construction And Matching: types.union.case,
+# types.union.construct, types.union.constructor-namespace, types.union.match.
+type Choice = i32 | string
+
+fn choose(value: i32) -> Choice:
+    ._0(value)
+
+fn second(value: string) -> Choice:
+    Union._1(value)
+
+fn construct_with(value: i32, make: fn(i32) -> Choice) -> Choice:
+    make(value)
+
+fn wrapped(value: i32) -> Choice:
+    construct_with(value, Union._0)
+
+fn label(value: Choice) -> string:
+    match value:
+        ._0(number) => "$number"
+        ._1(text) => text

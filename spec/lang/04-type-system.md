@@ -2495,6 +2495,41 @@ fn relay(value: SameChoice) -> Choice:
 > **Why.** Ordered identity gives every case one stable position, including
 > duplicate payload types, and avoids implicit injection or set normalization.
 
+## Union Construction And Matching
+
+1. r[types.union.case] Member position `k` gives a union its case `_k`, with that member as the case's one positional payload. A case outside the union's arity is an error. Error: `unknown-variant`.
+2. r[types.union.construct] Where the expected type is a union, `._k(value)` constructs case `_k`; `value` is checked against that case's member type as an ordinary enum payload argument. Error: `type-mismatch`.
+3. r[types.union.constructor-namespace] `Union._k` is a compiler-known constructor namespace whose union is fixed by the expected constructor result. `Union` is not a declaration, prelude item, or source-level variadic generic.
+4. r[types.union.constructor-context] Without an expected union result, `Union._k` cannot determine a union type. Error: `cannot-infer-type`.
+5. r[types.union.constructor-value] With an expected `fn(A) -> U` type, where `U` is a union and case `_k` has payload `A`, `Union._k` is that one-argument constructor function value.
+6. r[types.union.match] A union is matched with `._k(payload)` patterns under the ordinary enum payload, reachability, and exhaustiveness rules. Every positional case must be covered unless a catch-all covers it. Error: `nonexhaustive-match`.
+7. r[types.union.no-type-pattern] Union matching selects positional cases only; it adds no type-test pattern or type-directed arm.
+
+```text
+type Choice = i32 | string
+
+fn choose(value: i32) -> Choice:
+    ._0(value)
+
+fn label(choice: Choice) -> string:
+    match choice:
+        ._0(number) => "$number"
+        ._1(text) => text
+
+fn construct_with(value: i32, make: fn(i32) -> Choice) -> Choice:
+    make(value)
+
+fn wrapped(value: i32) -> Choice:
+    construct_with(value, Union._0)
+
+fn missing_context() -> void:
+    _ := Union._0  # error: cannot-infer-type
+```
+
+See also: [Names](05-expressions.md#names),
+[Exhaustiveness](06-control-flow.md#exhaustiveness),
+[Variant Constructors As Function Values](08-data-and-enums.md#variant-constructors-as-function-values).
+
 ## Unsupported Type-System Extensions
 
 This section lists type-system features that hd-lang does not have.

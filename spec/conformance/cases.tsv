@@ -5572,3 +5572,9 @@ typing/invalid/union-order-is-type-identity.hd	type	reject:type-mismatch	lang/04
 typing/invalid/union-duplicate-arity-is-type-identity.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.identity
 typing/invalid/union-nesting-is-type-identity.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.nesting
 typing/invalid/union-member-does-not-inject.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.no-member-injection
+typing/valid/union-construction-and-match.hd	type	accept	lang/04-type-system.md#r-types.union.construct
+typing/valid/union-map-err-constructor.hd	type	accept	std/result.md#r-std-result.map-err
+typing/invalid/union-constructor-without-result-context.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.union.constructor-context
+typing/invalid/union-constructor-unknown-case.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case
+typing/invalid/union-constructor-payload-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.construct
+typing/invalid/union-match-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/04-type-system.md#r-types.union.match

@@ -1,0 +1,26 @@
+# @dump: tir
+# Union constructors and matches reuse the ordinary enum TIR operations.
+fn contextual(value: i32) -> i32 | string:
+    ._0(value)
+
+fn qualified(value: string) -> i32 | string:
+    Union._1(value)
+
+fn construct_with(value: i32, make: fn(i32) -> i32 | string) -> i32 | string:
+    make(value)
+
+fn constructor_value(value: i32) -> i32 | string:
+    construct_with(value, Union._0)
+
+fn failed(error: string) -> Result[i32, string]:
+    .Err(error)
+
+type Errors = string | bool
+
+fn mapped(error: string) -> Result[i32, Errors]:
+    failed(error).map_err(Union._0)
+
+fn visit(value: i32 | string) -> void:
+    match value:
+        ._0(_) => pass
+        ._1(_) => pass

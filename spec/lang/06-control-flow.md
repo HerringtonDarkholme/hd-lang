@@ -656,6 +656,7 @@ fn choose(flag: Flag) -> i32:
 10. r[flow.match.optional.nested] Matching `T??` with `.Some(value)` removes only the outer layer, so `value` has type `T?`. `.Some(.Some(value))` reaches the inner value.
 11. r[flow.match.optional.no-pattern] There is no optional-specific pattern: `value?` is not a pattern.
 12. r[flow.match.contextual] A `.Variant` pattern whose expected subject or nested payload type is not an enum is an error, as for `.Some(value)` against an `i32` subject. Error: `missing-contextual-enum-type`.
+13. r[flow.match.union] A union subject uses its positional `._k(payload)` cases as ordinary enum variants for payload checking, reachability, and exhaustiveness.
 
 ```text
 fn value_or_zero(value: i32?) -> i32:

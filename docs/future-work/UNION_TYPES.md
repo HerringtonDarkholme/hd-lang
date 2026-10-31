@@ -1,7 +1,7 @@
 # Positional Union Types
 
-Status: syntax and ordered type identity specified and implemented 2026-10-31;
-construction, lowering, traits, and parity remain in #1122-#1125.
+Status: syntax, ordered type identity, construction, and matching specified and
+implemented 2026-10-31; lowering, traits, and parity remain in #1123-#1125.
 This record turns the decisions in [#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)
 into an implementation-sized design. It changes no specification or compiler
 behavior beyond the slices named in the status line. A prior [twelve-case stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/UNION_TYPES.md)
@@ -243,25 +243,16 @@ injection or error-specific algebra.
 
 ## Appendix D: Today In hd
 
-The specification admits [union syntax](../../spec/lang/04-type-system.md#union-type-syntax)
-with [ordered identity](../../spec/lang/04-type-system.md#union-type-identity).
-Until #1122 adds positional construction, a named generic enum supplies values;
-its variant constructors are function values
-([`data.enum.fn-value.use`](../../spec/lang/08-data-and-enums.md#r-data.enum.fn-value.use)),
-and `?` performs only assignability or one `From` conversion
-([`expr.try.convert`](../../spec/lang/05-expressions.md#r-expr.try.convert)).
+The specification admits [union syntax](../../spec/lang/04-type-system.md#union-type-syntax),
+[ordered identity](../../spec/lang/04-type-system.md#union-type-identity), and
+[positional construction and matching](../../spec/lang/04-type-system.md#union-construction-and-matching).
+The checker lowers constructors and patterns through ordinary enum operations.
+Runtime layout and ownership remain in #1123.
 
-The direct probe above currently reports:
-
-```console
-syntax-error: expected a line ending, found '|'
-```
-
-`Union._0` as a generic named-enum function works when the enclosing result
-supplies its expected type. Without that context, the existing diagnostic is
-`cannot-infer-type`. Contextual `._0` is not a function value and reports
-`missing-contextual-enum-type`. Those diagnostics are useful constraints, not
-gaps to paper over with more inference.
+`Union._0` works when an expected constructor result supplies its union type.
+Without that context it reports `cannot-infer-type`. Contextual `._0` is not a
+function value and reports `missing-contextual-enum-type`. Those diagnostics
+remain deliberate constraints on inference.
 
 ## Appendix E: Language Checklist And Implementation Slices
 

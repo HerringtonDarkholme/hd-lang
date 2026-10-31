@@ -2974,7 +2974,9 @@ impl Ck<'_, '_> {
                 _ => w,
             });
         let enum_ty = match w.map(|w| pool.get(w)) {
-            Some(TyData::Option(_) | TyData::Adt { .. }) => w.unwrap_or(Ty::POISON),
+            Some(TyData::Option(_) | TyData::Adt { .. } | TyData::Union(_)) => {
+                w.unwrap_or(Ty::POISON)
+            }
             // A poisoned expectation already reported its error.
             Some(TyData::Poison) => return Ok((Ref(NONE), Ty::POISON)),
             // An open expectation may still resolve to an optional or a
@@ -3046,7 +3048,45 @@ impl Ck<'_, '_> {
                     .collect();
                 Some((u32::try_from(i).ok()?, fs))
             }
+            TyData::Union(members) => {
+                let index = name.strip_prefix('_')?.parse::<usize>().ok()?;
+                if name != format!("_{index}") {
+                    return None;
+                }
+                let member = pool.list_items(members).get(index).copied()?;
+                Some((u32::try_from(index).ok()?, vec![member]))
+            }
             _ => None,
+        }
+    }
+
+    /// The anonymous union fixed by the expected result of `Union._k`.
+    fn union_constructor_type(&mut self, want: Option<Ty>, n: NodeRef<'_>) -> Option<Ty> {
+        let pool = self.pool();
+        let Some(want) = want else {
+            self.err(
+                Code::CannotInferType,
+                n,
+                "`Union._k` needs an expected union result; add a type annotation",
+            );
+            return None;
+        };
+        let mut t = self.infer.shallow(pool, want);
+        if let TyData::Fn { result, .. } = pool.get(self.strip_mut(t)) {
+            t = self.infer.shallow(pool, result);
+        }
+        t = self.strip_mut(t);
+        match pool.get(t) {
+            TyData::Union(_) => Some(t),
+            TyData::Poison => Some(Ty::POISON),
+            _ => {
+                self.err(
+                    Code::CannotInferType,
+                    n,
+                    "`Union._k` needs an expected union result; add a type annotation",
+                );
+                None
+            }
         }
     }
 
@@ -3061,6 +3101,20 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<Option<(Ref, Ty)>> {
+        if base.kind() == SyntaxKind::NameExpr
+            && self.cx.src.text(self.cx.src.first(base)) == "Union"
+        {
+            let Some(t) = self.union_constructor_type(want, n) else {
+                return Ok(Some((Ref(NONE), Ty::POISON)));
+            };
+            if t == Ty::POISON {
+                return Ok(Some((Ref(NONE), Ty::POISON)));
+            }
+            if let Some(v) = self.variant_fn_value(t, name, want, n) {
+                return Ok(Some(v));
+            }
+            return Ok(Some(self.variant_by_name(t, name, &Args::empty(), n)?));
+        }
         let named = if base.kind() == SyntaxKind::FieldExpr {
             self.module_item(base)
         } else {
@@ -3269,6 +3323,18 @@ impl Ck<'_, '_> {
         };
         self.elem_may_stand(base, crate::elem_refs::ElemUse::Receiver);
         let name = self.cx.src.text(self.cx.src.last(callee)).to_owned();
+        if base.kind() == SyntaxKind::NameExpr
+            && self.cx.src.text(self.cx.src.first(base)) == "Union"
+            && self.find_local(self.sym_of(base)).is_none()
+        {
+            let Some(t) = self.union_constructor_type(want, n) else {
+                return Ok((Ref(NONE), Ty::POISON));
+            };
+            if t == Ty::POISON {
+                return Ok((Ref(NONE), Ty::POISON));
+            }
+            return self.variant_by_name(t, &name, args, n);
+        }
         // Static forms: a type, a type parameter, a trait or a module,
         // each also through a module (`text.StringBuilder::new()`).
         if matches!(base.kind(), SyntaxKind::NameExpr | SyntaxKind::TypeArgsExpr)
@@ -4398,6 +4464,35 @@ impl Ck<'_, '_> {
                         recv
                     }
                 };
+                // The result context fixes constructor results in callback
+                // arguments, as in `.map_err(Union._0)`.
+                let has_union_constructor = args
+                    .positional
+                    .iter()
+                    .chain(&args.after_spread)
+                    .chain(args.named.iter().map(|(_, value)| value))
+                    .chain(args.spread.iter())
+                    .any(|value| {
+                        value.kind() == SyntaxKind::FieldExpr
+                            && value.children().next().is_some_and(|base| {
+                                base.kind() == SyntaxKind::NameExpr
+                                    && self.cx.src.text(self.cx.src.first(base)) == "Union"
+                                    && self.find_local(self.sym_of(base)).is_none()
+                            })
+                    });
+                if let Some(w) = want
+                    && !sig.suspends
+                    && w != Ty::VOID
+                    && has_union_constructor
+                {
+                    let ret = self.normalize_deep(inst(sig.ret))?;
+                    if pool.has_infer(ret) {
+                        let snap = self.infer.snapshot();
+                        if self.infer.unify(pool, ret, w).is_err() {
+                            self.infer.rollback(snap);
+                        }
+                    }
+                }
                 let mut refs = vec![recv];
                 let mut all = impl_args.clone();
                 all.extend(&vars);
