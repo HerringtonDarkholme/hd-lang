@@ -1036,6 +1036,9 @@ struct CallSig {
     /// The arguments for `&` or `&mut` parameters whose reference the
     /// result holds (`ref.excl.call`).
     held: Vec<u32>,
+    /// Each argument the result borrows only through result paths, and the
+    /// field indices those paths share (`ref.result.path.caller`).
+    paths: Vec<(u32, Vec<u32>)>,
 }
 
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
@@ -1465,7 +1468,12 @@ impl Ck<'_, '_> {
             Var::Life(l) => l < ANON,
             _ => true,
         });
+        let paths = match &sig {
+            Some(sig) if !sig.paths.is_empty() => self.call_paths(ls, b, i, sig, &dep),
+            _ => Vec::new(),
+        };
         Some(CallSig {
+            paths,
             store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
             result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
             elided: [dep.elided, dep.capture_elided]
@@ -1477,6 +1485,58 @@ impl Ck<'_, '_> {
             outs,
             held: held_args,
         })
+    }
+
+    /// `ref.result.path.caller`: each argument of call `i` whose
+    /// parameter's lifetime reaches only result slots that name a path of
+    /// it, with the fields those paths share. Its result's loan covers only
+    /// that part of the argument's place.
+    fn call_paths(
+        &self,
+        ls: &Layouts<'_>,
+        b: &Body,
+        i: usize,
+        sig: &hd_resolve::FnSig,
+        dep: &DepSig,
+    ) -> Vec<(u32, Vec<u32>)> {
+        let slots = path_slots(ls, sig.ret, &sig.paths);
+        let mut out = Vec::new();
+        for (p, (_, ids)) in dep.params.iter().enumerate() {
+            let (Some(&id), Some(&(_, pty))) = (ids.first(), sig.params.get(p)) else {
+                continue;
+            };
+            let mine: Vec<_> = (slots.iter().zip(&sig.paths))
+                .filter(|(s, _)| s.1 == w(p))
+                .collect();
+            let only = |r: usize| mine.iter().any(|(s, _)| s.0 == r);
+            let elsewhere = (dep.outs.iter().enumerate())
+                .any(|(r, o)| *o == Some(ANY) || *o == Some(id) && !only(r))
+                || (dep.params.iter().enumerate()).any(|(q, x)| q != p && x.1.contains(&id));
+            if mine.is_empty() || elsewhere {
+                continue;
+            }
+            // The fields every path of the parameter starts with.
+            let mut shared: Option<Vec<u32>> = None;
+            for (_, path) in &mine {
+                let mut t = referent(ls.pool, pty);
+                let mut fields = Vec::new();
+                for &name in &path.fields {
+                    let Ok((j, next)) = self.path_step(t, name, false) else {
+                        break;
+                    };
+                    fields.push(j);
+                    t = next;
+                }
+                let s = shared.get_or_insert_with(|| fields.clone());
+                let n = s.iter().zip(&fields).take_while(|(a, b)| a == b).count();
+                s.truncate(n);
+            }
+            if let (Some(v), Some(fields)) = (source_arg(b, i, p), shared.filter(|f| !f.is_empty()))
+            {
+                out.push((v, fields));
+            }
+        }
+        out
     }
 
     /// For each reference slot an implementation gives the trait's

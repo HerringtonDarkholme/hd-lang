@@ -96,6 +96,22 @@ fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
     Some(((l, path), Kind::Elem))
 }
 
+/// The place a call's result holds for loan `i`, a site of `loan_path`:
+/// the call that takes `i` and the place extended by the fields the
+/// callee's result paths name for that argument (`ref.result.path.caller`).
+/// While the call runs, `i` still covers its whole place.
+fn held_path(s: &Inputs<'_>, i: u32, (l, path): &Path, kind: Kind) -> Option<(usize, Path)> {
+    if kind == Kind::Elem {
+        return None;
+    }
+    s.calls.iter().find_map(|(&c, sig)| {
+        let (_, fields) = sig.paths.iter().find(|x| x.0 == i)?;
+        let mut path = path.clone();
+        path.extend(fields.iter().map(|&f| Proj::Field(f)));
+        Some((c as usize, (*l, path)))
+    })
+}
+
 /// Whether `Ref` `i` is a written `&` or `&mut` that takes a site loan
 /// (`ref.excl.place`, `ref.excl.mut`).
 pub(super) fn site(s: &Inputs<'_>, i: u32) -> bool {
@@ -364,9 +380,12 @@ impl Gen<'_, '_> {
         let mut sites = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
             let Origin::Site(i) = *o else { continue };
-            let Some((place, kind)) = loan_path(self.s, i) else {
+            let Some((mut place, kind)) = loan_path(self.s, i) else {
                 continue;
             };
+            if let Some((_, p)) = held_path(self.s, i, &place, kind) {
+                place = p;
+            }
             let holders: Vec<(u32, Vec<u32>)> = (0..self.locals)
                 .filter(|&h| h != place.0 && has(&self.local(h).0, w(loan)))
                 .map(|h| {
@@ -458,10 +477,12 @@ impl Gen<'_, '_> {
                 _ => None,
             })
             .partition(|x| x.3 == Kind::Elem);
-        let drop_kind = |v: Vec<(u32, u32, Path, Kind)>| -> Vec<(u32, u32, Path)> {
-            v.into_iter().map(|x| (x.0, x.1, x.2)).collect()
-        };
-        let (elems, sites) = (drop_kind(elems), drop_kind(sites));
+        let elems: Vec<(u32, u32, Path)> = elems.into_iter().map(|x| (x.0, x.1, x.2)).collect();
+        // A site a call's result holds covers only its result path after
+        // that call.
+        let sites: Vec<_> = (sites.into_iter())
+            .map(|(loan, i, p, k)| (loan, i, held_path(self.s, i, &p, k), p))
+            .collect();
         let (mut uses, mut writes) = (None, None);
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
         for c in 0..b.tags.len() {
@@ -512,7 +533,8 @@ impl Gen<'_, '_> {
                 }
                 for &u in args.iter().filter(|&&u| excl && u != v) {
                     let held = self.val(u).map(|x| x.0).unwrap_or_default();
-                    if sites.iter().any(|(loan, i, q)| {
+                    if sites.iter().any(|(loan, i, after, q)| {
+                        let q = after.as_ref().filter(|x| x.0 != c).map_or(q, |x| &x.1);
                         *i != v && hit(q) && held.iter().any(|&g| sol.value(g).contains(*loan))
                     }) {
                         hits.push(u);

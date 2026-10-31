@@ -638,7 +638,7 @@ fn copy_name(u: &mut User, v: &User) -> void:
 5. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
 6. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
 7. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
-8. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field.
+8. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field, unless its signature names that field ([`ref.result.path.caller`](#r-ref.result.path.caller)).
 9. r[ref.excl.args] While a call takes a `&mut` of a place, its other arguments and its receiver may not hold a reference to an overlapping place. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
 10. r[ref.excl.args.after] An argument after a written `&mut p` argument may not use `p` or an overlapping place. The arguments of a `&mut self` method call may read the receiver's place, as in `xs.push(xs.len())`. Error: `conflicting-access`.
 11. r[ref.excl.args.shared] An argument after a `&` of `p` that the call takes, written or for a `&self` receiver, may not write `p` or an overlapping place: `referred(&ys, ys.pop())` is an error, and `referred(&ys, ys.len())` is valid. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
@@ -646,8 +646,8 @@ fn copy_name(u: &mut User, v: &User) -> void:
 > **Why.** This is Rust's E0506, E0503 and E0499 with non-lexical
 > lifetimes. A write while a shared reference is live would change what the
 > reader sees behind its back, and a `&mut` holder expects the same of its
-> place. A call's result locks its whole source, as in Rust, since a
-> signature does not say which field the result points into. The fixes are
+> place. A call's result locks its whole source, as in Rust, unless its
+> signature names the field the result points into ([Result Paths](#result-paths)). The fixes are
 > Rust's: make the change after the last use, copy the value out first
 > (`name := *u.name()`), or borrow only the field the code reads (`&u.name`).
 
@@ -777,10 +777,23 @@ fn copy(u: User) -> &'u.name Name:  # error: unknown-lifetime
 trait Named:
     fn first(&self) -> &'self.name string  # error: trait-method-signature
 
-fn birthday(u: &mut User) -> void $ Console:
-    n := u.first()  # n borrows all of u
-    u.age += 1      # error: conflicting-access
+struct Team:
+    lead: User
+    size: i32
+
+fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
+    n := u.first()     # n borrows only u.name
+    u.age += 1         # valid: another field
+    u.tags.push("x")   # valid
+    u.name.last = "b"  # error: conflicting-access
     println(*n)
+    tags := u.tags_mut()  # tags borrows only u.tags, as `&mut`
+    println(u.age)        # valid
+    tags.push("y")
+    m := t.lead.first()   # m borrows only t.lead.name
+    t.size += 1           # valid
+    t.lead = *u           # error: conflicting-access
+    println(*m)
 ```
 
 1. r[ref.result.path.form] A **result path** is a tick, a parameter's name, and one or more `.field` steps, written in the lifetime position of a local reference type: `&'p.f T` and `&'p.f mut T`. Without a step, `'p` is a lifetime variable ([`ref.lifetime.declared`](#r-ref.lifetime.declared)).
@@ -793,10 +806,11 @@ fn birthday(u: &mut User) -> void $ Console:
 8. r[ref.result.path.lifetime] The result position has the parameter's lifetime, as if the signature wrote one variable on both.
 9. r[ref.result.path.callee] A returned value in that position must point into the path's place. It is a `&` or `&mut` of a place that starts with the parameter and the path's fields, returned directly or through a binding. A value that may point elsewhere in the parameter's referent is an error. A call's result counts as pointing anywhere in its source. Error: `local-reference-escapes`.
 10. r[ref.result.path.trait] A trait's method names the whole `self`, so its signature writes no result path. An implementation's method of a trait writes none either, since a bound or `&dyn` caller sees only the trait. Error: `trait-method-signature`.
-11. r[ref.result.path.caller] A call's result with a result path still holds the whole place its argument was taken from ([`ref.excl.call`](#r-ref.excl.call)).
+11. r[ref.result.path.caller] A call's result in a result path's position holds only that part of the place its argument was taken from: the place followed by the path's fields ([`ref.excl.call`](#r-ref.excl.call)). For `u.first()` the result holds `u.name`, and for `t.lead.first()` it holds `t.lead.name`. A `&mut` result holds its part as `&mut`.
+12. r[ref.result.path.caller.whole] The result holds the whole place, as without a path, when the parameter's lifetime is also on a result reference that names no path of it, or on another parameter. When several result references name paths of one parameter, the result holds the fields those paths share.
 
 > **Why.** A signature that says which field a result points into lets a
-> caller lock only that field. Private fields stay out of public signatures,
+> caller lock only that field, as a written `&u.name` does. Private fields stay out of public signatures,
 > so a layout change never breaks a caller. Only the body is checked against
 > the path; a caller never depends on a callee's body.
 

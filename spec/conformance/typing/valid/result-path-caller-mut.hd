@@ -1,0 +1,16 @@
+# test: a `&mut` result with a result path locks only that path exclusively
+# Spec 13 Result Paths: ref.result.path.caller.
+struct User:
+    name: string
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn tags_mut(&mut self) -> &'self.tags mut List[string]:
+        &mut self.tags
+
+fn tag(u: &mut User) -> void $ Console:
+    t := u.tags_mut()
+    u.age += 1
+    println(u.name)
+    t.push("x")

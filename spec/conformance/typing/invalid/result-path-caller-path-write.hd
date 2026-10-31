@@ -1,4 +1,4 @@
-# test: a call's result with a result path still locks its whole source
+# test: a write to a result path's place while the call's result is live
 # Spec 13 Result Paths: ref.result.path.caller.
 struct User:
     name: string
@@ -8,7 +8,7 @@ impl User:
     fn name(&self) -> &'self.name string:
         &self.name
 
-fn birthday(u: &mut User) -> void $ Console:
+fn rename(u: &mut User) -> void $ Console:
     n := u.name()
-    u.age += 1 # diagnostic: conflicting-access
+    u.name = "x" # diagnostic: conflicting-access
     println(*n)

@@ -1,0 +1,18 @@
+# test: result references with paths of one parameter lock the fields those paths share
+# Spec 13 Result Paths: ref.result.path.caller.whole.
+struct Name:
+    first: string
+    last: string
+
+struct User:
+    name: Name
+    age: i32
+
+impl User:
+    fn parts(&self) -> (&'self.name.first string, &'self.name.last string):
+        (&self.name.first, &self.name.last)
+
+fn birthday(u: &mut User) -> void $ Console:
+    p := u.parts()
+    u.age += 1
+    println(*p._0)

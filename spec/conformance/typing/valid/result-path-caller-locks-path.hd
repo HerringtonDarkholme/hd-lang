@@ -1,0 +1,16 @@
+# test: a call's result with a result path locks only that path of its source
+# Spec 13 Result Paths: ref.result.path.caller.
+struct User:
+    name: string
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn name(&self) -> &'self.name string:
+        &self.name
+
+fn birthday(u: &mut User) -> void $ Console:
+    n := u.name()
+    u.age += 1
+    u.tags.push("x")
+    println(*n)

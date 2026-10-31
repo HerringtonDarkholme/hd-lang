@@ -1,0 +1,18 @@
+# test: a write of the argument's place that holds a result path's place
+# Spec 13 Result Paths: ref.result.path.caller.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: User
+    size: i32
+
+impl User:
+    fn name(&self) -> &'self.name string:
+        &self.name
+
+fn replace(t: &mut Team, u: User) -> void $ Console:
+    n := t.lead.name()
+    t.lead = u # diagnostic: conflicting-access
+    println(*n)

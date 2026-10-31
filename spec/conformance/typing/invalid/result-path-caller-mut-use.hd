@@ -1,0 +1,14 @@
+# test: a use of a `&mut` result path's place while the call's result is live
+# Spec 13 Result Paths: ref.result.path.caller.
+struct User:
+    name: string
+    tags: List[string]
+
+impl User:
+    fn tags_mut(&mut self) -> &'self.tags mut List[string]:
+        &mut self.tags
+
+fn tag(u: &mut User) -> void $ Console:
+    t := u.tags_mut()
+    println(u.tags.len()) # diagnostic: conflicting-access
+    t.push("x")
