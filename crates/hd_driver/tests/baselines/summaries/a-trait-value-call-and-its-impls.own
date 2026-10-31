@@ -59,4 +59,4 @@ fn emit(s: &mut dyn Sink, m: Member) -> void:
 >   %3 = Drop [%0] : ()
 >   %4 = Block - : ()
 >   exit sub 0 drops [$1]
->   summary kept [$1] writes
+>   summary kept [$1] writes relies [$0]

@@ -436,7 +436,9 @@ pub struct OwnScratch {
 
 impl OwnScratch {
     /// Bit k: exclusive mode borrowed a read through reference parameter k
-    /// across a call that may write, in the body the passes ran over last.
+    /// across a call that may write, in the body the passes ran over last;
+    /// in release, for a plain body, that it would have (a probe that
+    /// changes no decision).
     #[must_use]
     pub fn relies(&self) -> u64 {
         self.borrow.relies

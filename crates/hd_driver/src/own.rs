@@ -51,7 +51,17 @@ pub(super) struct Summaries {
     read: std::sync::Mutex<HashMap<(DefId, u32), bool>>,
     /// The inliner's copies and the functions it found recursive.
     inline: hd_opt::inline::Memo,
+    /// Per item whose passes would borrow through a `&T` or `&mut T`
+    /// parameter across a call that may write (#1118): the parameters
+    /// that relies on, and the body after the passes in exclusive mode
+    /// (`sub_flags::EXCLUSIVE`) with its hash. Callers whose arguments
+    /// stage 7 keeps exclusive for the call may run that copy.
+    exclusive: std::sync::Mutex<HashMap<DefId, Exclusive>>,
 }
+
+/// An exclusive copy: the parameters it relies on, and the body after the
+/// passes with its hash ([`Summaries::exclusive`]).
+pub(super) type Exclusive = (u64, std::sync::Arc<(Body, Hash128)>);
 
 /// The `own` view's line for `body`'s summary in `all`: its kept
 /// parameters, by local, the one every result is, and whether it is
@@ -75,6 +85,13 @@ pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
     if s.writes {
         line.push_str(" writes");
     }
+    if let Some((relies, _)) = all.exclusive(body.item) {
+        let on: Vec<String> = (params.iter().enumerate())
+            .filter(|&(k, _)| k < 64 && relies & (1 << k) != 0)
+            .map(|(_, l)| format!("${l}"))
+            .collect();
+        let _ = write!(line, " relies [{}]", on.join(" "));
+    }
     if lock(&all.cycle).contains_key(&body.item) {
         line.push_str(" recursive");
     }
@@ -86,6 +103,12 @@ impl Summaries {
     /// The summary of `item`'s body, once the passes have run over it.
     pub(super) fn of(&self, item: DefId) -> Option<Summary> {
         lock(&self.by_item).get(&item).copied()
+    }
+
+    /// `item`'s exclusive copy and the parameters it relies on, if its
+    /// passes would borrow differently in exclusive mode.
+    pub(super) fn exclusive(&self, item: DefId) -> Option<(u64, std::sync::Arc<(Body, Hash128)>)> {
+        lock(&self.exclusive).get(&item).cloned()
     }
 }
 
@@ -405,7 +428,7 @@ impl Env<'_> {
         &self,
         mut body: Body,
         summarize: bool,
-    ) -> StageResult<(Body, Option<Summary>)> {
+    ) -> StageResult<(Body, Option<Summary>, u64)> {
         // A body's passes never run another's; the tables are taken out
         // anyway, so a nested run would only start from empty ones.
         let mut scratch = SCRATCH.with(RefCell::take);
@@ -426,6 +449,7 @@ impl Env<'_> {
                 .flatten();
             (refused, summary)
         });
+        let relies = scratch.relies();
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
         let path = || self.run.names().path(body.item);
         if let Err(what) = refused {
@@ -450,7 +474,7 @@ impl Env<'_> {
                 ));
             }
         }
-        Ok((body, summary))
+        Ok((body, summary, relies))
     }
 
     /// A body collection generates (a supplied method's, a `dbg` body),
@@ -922,14 +946,32 @@ impl Env<'_> {
     /// summary. Its ordinary generic body remains the calling-convention
     /// authority; this copy differs only by post-monomorphization folds.
     pub(super) fn own_instance(&self, body: Body) -> StageResult<Body> {
-        self.own_passes(body, false).map(|(body, _)| body)
+        self.own_passes(body, false).map(|(body, ..)| body)
     }
 
     /// Inlined body `body`, with hash `hash` (`hd_opt::inline::inline_calls`), after
     /// the ownership passes, and its hash, which changes with them; in
     /// release, its summary is recorded.
     fn own_inlined(&self, body: Body, hash: Hash128) -> StageResult<(Body, Hash128)> {
-        let (body, summary) = self.own_passes(body, self.run.summaries.is_some())?;
+        // Release: a body with a `&T` or `&mut T` parameter is kept as it
+        // is before the passes, for an exclusive copy (#1118).
+        let n = hd_tir::own::params(&body).len();
+        let plain = (self.run.summaries.is_some()
+            && (0..n).any(|k| self.local_ref_param(body.item, k, n)))
+        .then(|| body.clone());
+        let (body, summary, relies) = self.own_passes(body, self.run.summaries.is_some())?;
+        if let (Some(all), Some(mut plain)) = (&self.run.summaries, plain)
+            && relies != 0
+        {
+            plain.sub_flags[0] |= hd_tir::ir::sub_flags::EXCLUSIVE;
+            let (excl, _, relies) = self.own_passes(plain, false)?;
+            if relies != 0 {
+                let mut k = StableHasher::new("own-passes-exclusive");
+                k.hash(hash);
+                let copy = std::sync::Arc::new((excl, k.finish()));
+                lock(&all.exclusive).insert(body.item, (relies, copy));
+            }
+        }
         if let (Some(all), Some(mut s)) = (&self.run.summaries, summary) {
             s.writes = lock(&all.writes).get(&body.item) != Some(&false);
             // The passes add no write the walk before them missed.

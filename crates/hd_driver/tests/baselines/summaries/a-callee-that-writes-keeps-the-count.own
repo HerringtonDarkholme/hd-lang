@@ -137,7 +137,7 @@ fn through_alias(node: &Node) -> i64:
 >   %12 = Block - : never
 >   %14 = Block - : never
 >   %15 = SwitchTag %0 [#1 %12 %14] : never
->   summary kept [] writes
+>   summary kept [] writes relies [$0]
 
 fn through_a_cycle(node: *mut Node) -> i64:
     match node.left:

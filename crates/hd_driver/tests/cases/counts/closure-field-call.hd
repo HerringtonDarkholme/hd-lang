@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts own
 # @build: v8 release
 # expected: no count operations; calling a closure stored in a field of
 # `&self` borrows its environment for the call (closures: MapIter.next,

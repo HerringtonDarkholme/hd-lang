@@ -240,8 +240,10 @@ pub(crate) struct Tables {
     /// index when it is a `&T` or `&mut T` parameter whose reference only
     /// calls take, else `NONE`; whether anything else takes it; the calls
     /// that receive a local's reference, in instruction order
-    /// ([`receivers`]); and the parameters a borrow relied on.
+    /// ([`receivers`]); and the parameters a borrow relied on, or in a
+    /// release probe (`probe`) would have.
     excl: bool,
+    probe: bool,
     excl_param: Vec<u32>,
     whole_other: Vec<bool>,
     receives: Vec<(u32, u32)>,
@@ -487,10 +489,14 @@ pub(crate) fn run(
         }
     }
     index_writes(b, cx, t);
-    t.excl = b
+    // Release probes every other body: what exclusive mode would borrow,
+    // reported in `relies`, while every decision stays the plain one.
+    let flagged = b
         .sub_flags
         .first()
-        .is_some_and(|f| f & sub_flags::EXCLUSIVE != 0)
+        .is_some_and(|f| f & sub_flags::EXCLUSIVE != 0);
+    t.probe = !flagged && cx.summarizes();
+    t.excl = (flagged || t.probe)
         && matches!(b.kind, BodyKind::Fn | BodyKind::DeriveInstance)
         && !b.tags.iter().any(|&tag| is_suspension(tag));
     if t.excl {
@@ -872,10 +878,11 @@ fn decide(
     }
     let chain = t.walk(b, b.data[r][0], true);
     let mut relied = 0;
-    if !chain.ok || conflicts(t, chain, x, lo, end, &mut relied) {
+    let blocked = !chain.ok || conflicts(t, chain, x, lo, end, &mut relied);
+    t.relies |= relied;
+    if blocked {
         return;
     }
-    t.relies |= relied;
     b.data[r][1] = ReadMode::Borrow as u32;
     let locals = u32_of(b.local_ty.len());
     if alias != NONE {
@@ -1200,7 +1207,19 @@ pub(crate) fn keeps_drops(b: &Body, cx: &dyn OwnCx, r: usize) -> bool {
 
 /// Whether anything in read `r`'s span, the instructions `lo..=end`, may
 /// change or release what its resolved chain reads (rules 2 to 4).
+/// [`conflicts_at`], with `relied` the parameters exclusive mode relies on
+/// for the borrow: a probe still refuses it, and `relied` then says what
+/// the exclusive body would borrow; a refusal for any other reason relies
+/// on nothing.
 fn conflicts(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32, relied: &mut u64) -> bool {
+    if conflicts_at(t, chain, r, lo, end, relied) {
+        *relied = 0;
+        return true;
+    }
+    t.probe && *relied != 0
+}
+
+fn conflicts_at(t: &Tables, chain: Chain, r: u32, lo: u32, end: u32, relied: &mut u64) -> bool {
     for link in &t.links {
         if link.key == NONE {
             continue;
