@@ -41,8 +41,9 @@ tests:
                 "written $n",
                 reason="a borrowed field address remains writable through the callee",
             )
+            again := &mut holder
             assert_equal(
-                shared.read_then_call(shared, n),
+                again.read_then_call(again, n),
                 "written $n",
                 reason="the receiver read stays alive across alias mutation",
             )

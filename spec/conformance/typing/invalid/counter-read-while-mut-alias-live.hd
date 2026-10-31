@@ -1,0 +1,7 @@
+# test: reading a counter while a `&mut` of it is used later conflicts
+# Spec 13 Writes While Borrowed: ref.excl.mut, ref.excl.live.
+fn count(n: usize) -> void:
+    let mut i: usize = 0
+    alias := &mut i
+    if i < n: # diagnostic: conflicting-access
+        *alias = n

@@ -1,0 +1,14 @@
+# test: a call's `&mut` result excludes every other use of its whole source, so reading another field while it is used later conflicts
+# Spec 13 Writes While Borrowed: ref.excl.mut, ref.excl.call.
+struct User:
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn tags_mut(&mut self) -> &mut List[string]:
+        &mut self.tags
+
+fn tag(u: &mut User) -> void $ Console:
+    t := u.tags_mut()
+    println(u.age) # diagnostic: conflicting-access
+    t.push("y")

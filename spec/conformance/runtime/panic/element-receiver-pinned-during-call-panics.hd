@@ -10,6 +10,6 @@ impl Item:
 
 tests:
     it("the receiver's list is pinned for the call"):
-        let mut items = [Item { n: 0 }]
-        r := &mut items
-        items[0].grow(r)
+        items := box([Item { n: 0 }])
+        alias := items
+        items[0].grow(alias)

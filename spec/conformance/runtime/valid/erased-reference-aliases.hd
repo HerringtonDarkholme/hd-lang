@@ -54,15 +54,16 @@ tests:
     it("keeps a projected alias when an open local's box is replaced"):
         let factory: &dyn Factory = &Maker {}
         pair := factory.make(Pair { number: +4, text: "first" })
+        same := pair
         field := &mut pair.text
-        another := &mut pair.text
+        another := &mut same.text
         assert(field is another, reason="independently created projections share identity")
         other := factory.make(Pair { number: +4, text: "first" })
         assert(
             !(field is &mut other.text),
             reason="equal values in different roots have distinct field identities",
         )
-        *pair = Pair { number: +5, text: "replacement" }
+        *same = Pair { number: +5, text: "replacement" }
         assert_equal(
             *field,
             "replacement",

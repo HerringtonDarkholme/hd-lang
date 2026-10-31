@@ -5491,3 +5491,14 @@ typing/invalid/dependent-result-reassign-source-while-live.hd	type	reject:confli
 typing/valid/dependent-result-write-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 typing/valid/dependent-result-copy-out.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 typing/valid/dependent-result-borrow-field-instead.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
+typing/invalid/mut-result-read-source-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
+typing/invalid/mut-reference-shared-borrow-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
+typing/invalid/shared-reference-bound-mut-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.write
+typing/invalid/dyn-ref-mut-write-source-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
+typing/invalid/counter-read-while-mut-alias-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
+typing/invalid/element-dependent-result-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
+typing/invalid/element-receiver-borrowed-list-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
+typing/invalid/list-first-mut-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+typing/invalid/map-get-or-insert-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+typing/valid/mut-result-use-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.live
+typing/valid/mut-reference-disjoint-field-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.place

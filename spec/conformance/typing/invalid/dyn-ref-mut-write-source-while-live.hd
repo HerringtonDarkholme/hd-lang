@@ -1,0 +1,17 @@
+# test: writing a place while a `&mut dyn` reference converted from `&mut` of it is used later conflicts
+# Spec 13 Writes While Borrowed: ref.excl.mut.
+trait Counter:
+    fn total(&self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Counter for Tally:
+    fn total(&self) -> i32:
+        self.n
+
+fn main() -> void $ Console:
+    let mut tally = Tally { n: 0 }
+    let counter: &mut dyn Counter = &mut tally
+    tally.n = 10 # diagnostic: conflicting-access
+    println("${counter.total()}")

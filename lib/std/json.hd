@@ -2775,13 +2775,13 @@ impl TextReader:
         self.open = slot + 1
         .Ok(())
 
-    fn top(&mut self) -> &mut TextReadFrame:
+    fn top(&self) -> usize:
         if self.open == 0:
             panic("std.json: no open container")
-        &mut self.frames[self.open - 1]
+        self.open - 1
 
     fn leave(&mut self) -> void:
-        self.depth = self.top().home
+        self.depth = self.frames[self.top()].home
         self.open = self.open - 1
 
     fn number(&mut self) -> Result[Number?, JsonError]:
@@ -2870,7 +2870,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("array"))
 
     fn next_item(&mut self) -> Result[bool, JsonError]:
-        frame := self.top()
+        frame := &mut self.frames[self.top()]
         index := frame.next
         let found = false
         let next_index = index + 1
@@ -2914,7 +2914,7 @@ impl Deserializer for TextReader:
         if self.present && self.byte() == 123:
             let name = ""
             if self.open > 0:
-                frame := self.top()
+                frame := &mut self.frames[self.top()]
                 let tagged = false
                 match frame.kind:
                     .Tagged => tagged = true
@@ -2934,7 +2934,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("object"))
 
     fn next_key(&mut self) -> Result[string?, JsonError]:
-        frame := self.top()
+        frame := &mut self.frames[self.top()]
         index := frame.next
         match frame.kind:
             .Entries =>
@@ -3156,7 +3156,7 @@ impl Deserializer for TextReader:
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
 
     fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
-        frame := self.top()
+        frame := &mut self.frames[self.top()]
         match frame.kind:
             .Tagged =>
                 if !frame.facts.items.is_empty():
@@ -3178,7 +3178,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("newtype variant"))
 
     fn begin_tuple_variant(&mut self, len: usize) -> Result[void, JsonError]:
-        frame := self.top()
+        frame := &mut self.frames[self.top()]
         self.depth = frame.base
         match frame.kind:
             .Tagged =>
@@ -3208,7 +3208,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("array of $len items"))
 
     fn member(&mut self, m: &Member) -> Result[void, JsonError]:
-        frame := self.top()
+        frame := &mut self.frames[self.top()]
         name := member_name(m, frame.facts)
         let found = false
         let record = true
@@ -3279,7 +3279,7 @@ impl Deserializer for TextReader:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, JsonError]:
-        frame := self.top()
+        frame := &mut self.frames[self.top()]
         match frame.kind:
             .Tagged =>
                 if bytes_at(self.parser.text, frame.at) != 123:

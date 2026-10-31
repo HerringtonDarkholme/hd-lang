@@ -3,11 +3,11 @@
 fn fail() -> void:
     xs := [+1, 2]
     n := xs.len()
-    let mut i = 0
-    alias := &mut i
-    while i < n:
+    i := box::[usize](0)
+    alias := i
+    while *i < n:
         *alias = n
-        _ := xs[i] # panic: index-out-of-bounds
-        i += 1
+        _ := xs[*i] # panic: index-out-of-bounds
+        *i += 1
 
 fail()

@@ -27,8 +27,8 @@ pub fn main() -> void $ Console:
     println("${body.pos.x} ${body.pos.y}")
     r := &mut body
     nudge(&mut r.vel)
-    println(body.vel.x)
     scale(&mut r.vel.y)
+    println(body.vel.x)
     println(body.vel.y)
     let mut c = Counter { n: 1 }
     n := &mut c.n

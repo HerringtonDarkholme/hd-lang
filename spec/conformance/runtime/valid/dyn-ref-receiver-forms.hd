@@ -58,4 +58,5 @@ pub fn main() -> void $ Console:
     println(describe(c))
     c.rescale(1.5)
     println(describe(c))
-    println("${c.grown_area()} ${s.grown_area()}")
+    let t: &mut dyn Shape = &mut sq
+    println("${c.grown_area()} ${t.grown_area()}")

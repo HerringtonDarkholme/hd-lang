@@ -1,0 +1,16 @@
+# test: a call's `&mut` result locks its source only until its last use, and the source may be used through it
+# Spec 13 Writes While Borrowed: ref.excl.mut, ref.excl.live.
+struct User:
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn tags_mut(&mut self) -> &mut List[string]:
+        &mut self.tags
+
+fn tag(u: &mut User) -> void $ Console:
+    t := u.tags_mut()
+    t.push("y")
+    println(t.len())
+    println(u.age)
+    u.age += 1

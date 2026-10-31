@@ -20,8 +20,8 @@ let mut origin = Vec2 { x: +0, y: +0 }
 pub fn main() -> void $ Console:
     let mut b = Body { pos: Vec2 { x: +1, y: +2 }, vel: Vec2 { x: +1, y: +2 } }
     println("${&b.pos.x is &b.pos.x} ${&b.pos.x is &b.vel.x}")
-    r := &mut b
-    inner := &mut r.pos
+    r := &b
+    inner := &r.pos
     println("${&r.pos.y is &b.pos.y} ${&inner.y is &b.pos.y}")
     let c: &mut Counter = &mut Counter { hits: +0 }
     let d: &mut Counter = &mut Counter { hits: +0 }

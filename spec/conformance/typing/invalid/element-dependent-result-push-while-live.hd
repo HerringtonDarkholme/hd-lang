@@ -1,0 +1,12 @@
+# test: a push to a list while an element result of a call that took `&mut` of it is used later conflicts
+# Spec 13 Writes While Borrowed: ref.excl.mut; Dependent Results: ref.dep.origin.element.
+fn first_mut[T](xs: &mut List[T]) -> &mut T?:
+    if xs.len() == 0: .None else: .Some(&mut xs[0])
+
+fn bump() -> void:
+    let mut xs = [+1, 2]
+    match first_mut(&mut xs):
+        .Some(r) =>
+            xs.push(3) # diagnostic: conflicting-access
+            *r += 1
+        .None => pass

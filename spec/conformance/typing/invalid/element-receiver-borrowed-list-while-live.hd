@@ -1,0 +1,14 @@
+# test: a call on a list element while a `&mut` of the list is live and passed to that call conflicts
+# Spec 13 Writes While Borrowed: ref.excl.mut.
+struct Item:
+    n: i32
+
+impl Item:
+    fn grow(&mut self, all: &mut List[Item]) -> void:
+        self.n += 1
+        all.push(Item { n: 0 })
+
+fn grow_first() -> void:
+    let mut items = [Item { n: 0 }]
+    r := &mut items
+    items[0].grow(r) # diagnostic: conflicting-access

@@ -4,11 +4,12 @@ fn insert(stock: &mut Map[string, i32], apples: &mut i32) -> void:
     _ := stock.get_or_insert("pear", 1) # panic: collection-pinned
     *apples += 1
 
-fn through(stock: &mut Map[string, i32]) -> void:
+fn through(stock: &mut Map[string, i32], alias: &mut Map[string, i32]) -> void:
     apples := stock.get_or_insert("apple", 0)
-    insert(stock, apples)
+    insert(alias, apples)
 
 tests:
     it("a missing key changes the length of a pinned map"):
-        let mut stock: Map[string, i32] = { "apple": 3 }
-        through(&mut stock)
+        stock := box::[Map[string, i32]]({ "apple": 3 })
+        alias := stock
+        through(stock, alias)

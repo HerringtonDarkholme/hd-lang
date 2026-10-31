@@ -1864,7 +1864,7 @@ struct Verdicts {
     closures: Vec<(NodeIdx, Origin)>,
     /// `local-reference-outlives-local`.
     scope: Vec<(NodeIdx, String)>,
-    /// `conflicting-access` (`ref.excl.shared`).
+    /// `conflicting-access` (`ref.excl.shared`, `ref.excl.mut`).
     conflicts: Vec<(NodeIdx, String)>,
 }
 

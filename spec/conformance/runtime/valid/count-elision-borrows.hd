@@ -22,8 +22,8 @@ fn field_reads(n: i32) -> void:
 
 fn alias_write(n: i32) -> void:
     let mut p = pair(n)
-    shared := &mut p
     old := p.left
+    shared := &mut p
     shared.left = "replacement $n"
     assert_equal(old, "left $n", reason="a mutable alias cannot invalidate a field read")
     assert_equal(p.left, "replacement $n", reason="the alias updates the source")

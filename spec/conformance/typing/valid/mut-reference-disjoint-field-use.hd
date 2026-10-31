@@ -1,0 +1,15 @@
+# test: a written `&mut` of one field leaves the other fields of its local free to use
+# Spec 13 Writes While Borrowed: ref.excl.mut, ref.excl.place.
+struct User:
+    age: i32
+    tags: List[string]
+
+impl User:
+    fn tags_mut(&mut self) -> &mut List[string]:
+        &mut self.tags
+
+fn tag(u: &mut User) -> void $ Console:
+    t := &mut u.tags
+    println(u.age)
+    u.age += 1
+    t.push("y")

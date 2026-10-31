@@ -1,4 +1,4 @@
-# test: a `&mut dyn Counter` made from `&mut c` changes `c` through `&mut self` methods, and a write to `c` is seen through it
+# test: a `&mut dyn Counter` made from `&mut c` changes `c` through `&mut self` methods, and a later trait value reference sees a write to `c`
 # Spec 09 Trait Value References: trait.dyn.ref.share, trait.dyn.ref.write-through, trait.dyn.ref.member.
 # expect-stdout: 2 2
 # expect-stdout: 10 10
@@ -26,8 +26,9 @@ pub fn main() -> void $ Console:
     let counter: &mut dyn Counter = &mut tally
     counter.bump()
     counter.bump()
-    println("${tally.n} ${counter.total()}")
-    tally.n = 10
     println("${counter.total()} ${tally.n}")
+    tally.n = 10
+    let again: &dyn Counter = &tally
+    println("${again.total()} ${tally.n}")
     bump_three(&mut tally)
     println("${tally.n}")

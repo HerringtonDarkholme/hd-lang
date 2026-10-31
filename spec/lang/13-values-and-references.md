@@ -590,7 +590,7 @@ See also: [Element References](#element-references),
 
 ### Writes While Borrowed
 
-While a shared reference to a place is in use, the place may be read but not changed.
+While a shared reference to a place is in use, the place may be read but not changed. While a `&mut` reference to it is in use, the place may not be used at all except through that reference.
 
 ```text
 struct User:
@@ -600,6 +600,8 @@ struct User:
 impl User:
     fn name(&self) -> &string:
         &self.name
+    fn age_mut(&mut self) -> &mut i32:
+        &mut self.age
 
 fn rename(u: &mut User) -> void $ Console:
     n := &u.name
@@ -614,19 +616,27 @@ fn birthday(u: &mut User) -> void $ Console:
     u.age += 1    # error: conflicting-access
     println(*n)   # the last use of n
     u.age += 1    # valid
+
+fn tag(u: &mut User) -> void $ Console:
+    a := u.age_mut() # a borrows all of u exclusively
+    println(u.age)   # error: conflicting-access
+    *a += 1          # valid: through a, its last use
+    println(u.age)   # valid
 ```
 
 1. r[ref.excl.shared] While a shared reference `&p` is live, a write to `p` or to a place that overlaps it is an error. Error: `conflicting-access`.
-2. r[ref.excl.place] The rule covers a written `&p` whose place is a local or a parameter followed by fields and dereferences. Two places of one local overlap unless their paths name two different fields at the same depth.
-3. r[ref.excl.write] A write is an assignment to the place or a part of it, or a call that takes `&mut` of it or a `&mut` binding to it, a `&mut self` method call included. A built-in method that changes the place writes too: a list's `push` or `reserve`, a map store, and a map's `remove`. A call's `&mut` writes when the call runs, after its other arguments.
-4. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
-5. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
-6. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
-7. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field.
+2. r[ref.excl.mut] While a `&mut p` is live, a use of `p` or of a place that overlaps it is an error, except through that reference. A use is a read, a write, a `&p`, another `&mut p`, or a closure that captures it. Error: `conflicting-access`.
+3. r[ref.excl.place] The rules cover a written `&p` or `&mut p` whose place is a local or a parameter followed by fields and dereferences. Two places of one local overlap unless their paths name two different fields at the same depth.
+4. r[ref.excl.write] A write is an assignment to the place or a part of it, a `&mut` of it that a binding keeps, or a call that takes `&mut` of it or a `&mut` binding to it. A `&mut self` method call is such a call. A built-in change writes too: a list's `push` or `reserve`, a map store, and a map's `remove`. A call's `&mut` writes when the call runs, after its other arguments.
+5. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
+6. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
+7. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
+8. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field.
 
-> **Why.** This is Rust's E0506 with non-lexical lifetimes. A write while a
-> shared reference is live would change what the reader sees behind its
-> back. A call's result locks its whole source, as in Rust, since a
+> **Why.** This is Rust's E0506, E0503 and E0499 with non-lexical
+> lifetimes. A write while a shared reference is live would change what the
+> reader sees behind its back, and a `&mut` holder expects the same of its
+> place. A call's result locks its whole source, as in Rust, since a
 > signature does not say which field the result points into. The fixes are
 > Rust's: make the change after the last use, copy the value out first
 > (`name := *u.name()`), or borrow only the field the code reads (`&u.name`).

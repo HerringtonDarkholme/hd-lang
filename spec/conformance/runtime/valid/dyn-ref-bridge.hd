@@ -20,7 +20,7 @@ pub fn main() -> void $ Console:
     let counter: &mut dyn Counter = &mut tally
     counter.bump()
     counter.bump()
-    println("${tally.n} ${counter.total()}")
+    println("${counter.total()} ${tally.n}")
     let fresh: &mut dyn Counter = &mut Tally { n: 0 }
     fresh.bump()
     println("${fresh.total()}")

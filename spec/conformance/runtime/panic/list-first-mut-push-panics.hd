@@ -1,10 +1,11 @@
-# test: a List first_mut result pins its list until the result's last use
+# test: a List first_mut result pins its list until the result's last use, so a push through a box alias the checker cannot see panics
 # std Collections: std-collections.access.first-mut; Spec 13 Element References: ref.elem.pinned.
 tests:
     it("push panics while first_mut is live"):
-        let mut items = [+1, 2]
+        items := box([+1, 2])
+        alias := items
         match items.first_mut():
             .Some(first) =>
-                items.push(3) # panic: collection-pinned
+                alias.push(3) # panic: collection-pinned
                 *first += 1
             .None => pass

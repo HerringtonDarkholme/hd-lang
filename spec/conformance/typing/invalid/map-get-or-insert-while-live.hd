@@ -1,0 +1,9 @@
+# test: passing a map to a call while its get_or_insert result is used later conflicts
+# Spec 13 Writes While Borrowed: ref.excl.mut, ref.excl.call; std Collections: std-collections.map.get-or-insert.
+fn insert(stock: &mut Map[string, i32], apples: &mut i32) -> void:
+    _ := stock.get_or_insert("pear", 1)
+    *apples += 1
+
+fn through(stock: &mut Map[string, i32]) -> void:
+    apples := stock.get_or_insert("apple", 0)
+    insert(stock, apples) # diagnostic: conflicting-access

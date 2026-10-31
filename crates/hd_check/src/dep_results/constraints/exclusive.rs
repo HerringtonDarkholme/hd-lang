@@ -1,11 +1,12 @@
-//! Shared references against writes (`ref.excl`, stages 7a and 7b of
-//! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each written shared
-//! `Ref` of a place a local's path reaches is a loan of its own,
-//! [`Origin::Site`], which the solver carries with the local's. So is each
-//! shared reference a call takes for a receiver or an argument, which
-//! reaches the call's result when the result depends on it. A write to a place that
-//! overlaps a site's is `conflicting-access` when a binding that holds
-//! the site is read after the write on some path. The order comes from
+//! Exclusivity (`ref.excl`, stages 7a to 7c of
+//! `docs/future-work/RETURNED_REFERENCES_PATH.md`). Each written `Ref` of
+//! a place a local's path reaches is a loan of its own, [`Origin::Site`],
+//! which the solver carries with the local's: shared for `&`, exclusive
+//! for `&mut`. So is each reference a call takes for a receiver or an
+//! argument, which reaches the call's result when the result depends on
+//! it. A write to a place that overlaps a site's, or any use of it for an
+//! exclusive site, is `conflicting-access` when a binding that holds the
+//! site is read after it on some path. The order comes from
 //! the block structure: an instruction runs after the earlier ones of its
 //! block's statements, and a loop's body runs again, so a read earlier in
 //! a loop follows a write later in it when the binding outlives one
@@ -46,14 +47,20 @@ fn path_of(b: &Body, word: u32) -> Option<Path> {
     }
 }
 
-/// The place shared loan `i` covers, without an element, which the pin
-/// covers (`ref.elem.access.pin`): a shared `Ref`'s place, or what a
-/// `&mut` binding refers to where a call reads it as `&` (`ref.excl.call`).
-fn loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
+/// The place loan `i` covers, without an element, which the pin covers
+/// (`ref.elem.access.pin`), and whether the loan is exclusive: a `Ref`'s
+/// place, or what a `&mut` binding refers to where a call reads it as `&`
+/// or as `&mut` (`ref.excl.call`).
+fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, bool)> {
     let (b, i) = (s.b, i as usize);
+    let excl = is_mut(s.pool, b.ty[i]);
     let path = match b.tags[i] {
-        Tag::Ref if !is_mut(s.pool, b.ty[i]) => path_of(b, b.data[i][0]),
-        Tag::Coerce if b.same_value_coercion(i) && !is_mut(s.pool, b.ty[i]) => {
+        Tag::Ref => path_of(b, b.data[i][0]),
+        Tag::Read if excl => path_of(b, b.data[i][0]).map(|(l, mut p)| {
+            p.push(Proj::Deref);
+            (l, p)
+        }),
+        Tag::Coerce if b.same_value_coercion(i) && !excl => {
             let v = b.data[i][0] as usize;
             if b.ty.get(v).is_none() || b.tags[v] != Tag::Read || !is_mut(s.pool, b.ty[v]) {
                 return None;
@@ -65,15 +72,16 @@ fn loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
         }
         _ => None,
     }?;
-    (!path.1.iter().any(|s| matches!(s, Proj::Elem(_)))).then_some(path)
+    (!path.1.iter().any(|s| matches!(s, Proj::Elem(_)))).then_some((path, excl))
 }
 
-/// Whether shared `Ref` `i` is a written `&` that takes a site loan
-/// (`ref.excl.place`).
+/// Whether `Ref` `i` is a written `&` or `&mut` that takes a site loan
+/// (`ref.excl.place`, `ref.excl.mut`).
 pub(super) fn site(s: &Inputs<'_>, i: u32) -> bool {
     let at = s.b.syn[i as usize];
     at != NodeIdx::NONE
         && s.cx.src.parse.tree.node(at).kind() == SyntaxKind::RefExpr
+        && s.b.tags[i as usize] == Tag::Ref
         && loan_path(s, i).is_some()
 }
 
@@ -88,7 +96,8 @@ fn overlap(a: &[Proj], b: &[Proj]) -> bool {
 impl Gen<'_, '_> {
     /// The writes of the body: each instruction that writes a place
     /// (`ref.excl.write`), the place, and where the write happens. A
-    /// `&mut` a call takes writes at the call.
+    /// `&mut` a call takes writes at the call, a bound one where it is
+    /// taken.
     fn writes(&self, users: &[u32]) -> Vec<(u32, Path, u32)> {
         let (b, pool) = (self.s.b, self.s.pool);
         let mut out = Vec::new();
@@ -103,9 +112,11 @@ impl Gen<'_, '_> {
             // The place, where it is written, and whether through a `&mut`.
             let (word, at, through) = match b.tags[i] {
                 Tag::Store if !self.declares(i) => (a, i, false),
-                // A `&mut` a call takes, or a `&mut` binding a call
-                // reborrows; one a binding keeps is stage 7c's.
-                Tag::Ref if is_mut(pool, b.ty[i]) && calls(b.tags.get(u)) => (a, u, false),
+                // A `&mut` a call takes or a binding keeps, or a `&mut`
+                // binding a call reborrows.
+                Tag::Ref if is_mut(pool, b.ty[i]) => {
+                    (a, if calls(b.tags.get(u)) { u } else { i }, false)
+                }
                 Tag::Read if is_mut(pool, b.ty[i]) && calls(b.tags.get(u)) => (a, u, true),
                 Tag::Intrinsic
                     if matches!(
@@ -191,7 +202,53 @@ impl Gen<'_, '_> {
         (out, sets)
     }
 
-    /// `ref.excl.call`: each shared reference a call takes for a receiver
+    /// The uses of a place for an exclusive loan (`ref.excl.mut`): each
+    /// read, reference and store of it but a declaring one, and each
+    /// closure that captures its local. A read that only roots a longer
+    /// place is that place's use.
+    fn accesses(&self) -> Vec<(u32, Path)> {
+        let b = self.s.b;
+        let mut base = vec![false; b.tags.len()];
+        for i in 0..b.tags.len() {
+            if let Tag::Read | Tag::Ref | Tag::Store = b.tags[i]
+                && let Some(p) = b.decode_place(b.data[i][0])
+                && let PlaceRoot::Value(v) = p.root
+            {
+                let mut v = v.0 as usize;
+                while v < b.tags.len() && b.tags[v] == Tag::Coerce {
+                    base[v] = true;
+                    v = b.data[v][0] as usize;
+                }
+                if let Some(x) = base.get_mut(v) {
+                    *x = true;
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for i in (0..b.tags.len()).filter(|&i| !base[i]) {
+            match b.tags[i] {
+                Tag::Read | Tag::Ref => {}
+                Tag::Store if !self.declares(i) => {}
+                Tag::Closure if !b.is_instantiation(i) => {
+                    if let [start, len, ..] = *b.record(b.data[i][1]) {
+                        for c in start..start.saturating_add(len) {
+                            if let Some(l) = b.cap_local.get(c as usize) {
+                                out.push((w(i), (l.raw(), Vec::new())));
+                            }
+                        }
+                    }
+                    continue;
+                }
+                _ => continue,
+            }
+            if let Some(p) = path_of(b, b.data[i][0]) {
+                out.push((w(i), p));
+            }
+        }
+        out
+    }
+
+    /// `ref.excl.call`: each reference a call takes for a receiver
     /// or an argument is a site loan, which the call's result holds when
     /// it depends on that argument.
     pub(super) fn call_loans(&mut self) {
@@ -219,8 +276,9 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// `ref.excl.shared`: each write to a place that overlaps a site's
-    /// while a binding that holds the site is still read.
+    /// `ref.excl.shared`, `ref.excl.mut`: each write to a place that
+    /// overlaps a site's, or each use of one for an exclusive site, while
+    /// a binding that holds the site is still read.
     pub(super) fn conflicts(&self, sol: &Solution) -> Vec<(NodeIdx, String)> {
         let b = self.s.b;
         if !self.loans.iter().any(|o| matches!(o, Origin::Site(_))) {
@@ -233,7 +291,7 @@ impl Gen<'_, '_> {
         let mut sites = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
             let Origin::Site(i) = *o else { continue };
-            let Some(place) = loan_path(self.s, i) else {
+            let Some((place, excl)) = loan_path(self.s, i) else {
                 continue;
             };
             let holders: Vec<(u32, Vec<u32>)> = (0..self.locals)
@@ -249,9 +307,9 @@ impl Gen<'_, '_> {
                     (h, other)
                 })
                 .collect();
-            sites.push((i, place, holders));
+            sites.push((i, place, excl, holders));
         }
-        if sites.iter().all(|s| s.2.is_empty()) {
+        if sites.iter().all(|s| s.3.is_empty()) {
             return Vec::new();
         }
         let mut users = vec![NONE; b.tags.len()];
@@ -268,13 +326,21 @@ impl Gen<'_, '_> {
             cx: self,
         };
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
-        for (wi, (root, path), at) in self.writes(&users) {
+        let writes = self
+            .writes(&users)
+            .into_iter()
+            .map(|(i, p, at)| (i, p, at, true));
+        let touches = self.accesses().into_iter().map(|(i, p)| (i, p, i, false));
+        // One error for a node, or a node inside or around it.
+        let range = |n: NodeIdx| super::super::range(self.s.cx.src.parse.tree.node(n));
+        let nests = |(a, b): (u32, u32), (c, d): (u32, u32)| a <= c && d <= b || c <= a && b <= d;
+        for (wi, (root, path), at, write) in writes.chain(touches) {
             let node = b.syn[wi as usize];
-            if node == NodeIdx::NONE || out.iter().any(|x| x.0 == node) {
+            if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
-            'site: for (i, (r, sp), holders) in &sites {
-                if *r != root || !overlap(sp, &path) || *i == wi {
+            'site: for (i, (r, sp), excl, holders) in &sites {
+                if *r != root || !overlap(sp, &path) || *i == wi || !write && !excl {
                     continue;
                 }
                 for (h, other) in holders {
@@ -285,7 +351,7 @@ impl Gen<'_, '_> {
                     let live =
                         |u: u32| order.hop(at, u, h) && !order.kills(&sets[h as usize], at, u);
                     if reads[h as usize].iter().any(|&u| live(u)) {
-                        out.push((node, self.conflict_message(root, h)));
+                        out.push((node, self.conflict_message(root, h, *excl)));
                         break 'site;
                     }
                 }
@@ -294,18 +360,24 @@ impl Gen<'_, '_> {
         out
     }
 
-    fn conflict_message(&self, root: u32, holder: u32) -> String {
+    fn conflict_message(&self, root: u32, holder: u32, excl: bool) -> String {
         let (b, names) = (self.s.b, &self.s.cx.names);
         let name = |l: u32| {
             let n = names.text(b.local_name[l as usize]);
             (!n.starts_with('$')).then(|| format!("`{n}`"))
         };
         let place = name(root).unwrap_or_else(|| "a temporary".to_owned());
-        match name(holder) {
-            Some(h) => format!(
+        match (name(holder), excl) {
+            (Some(h), true) => format!(
+                "this uses {place} while {h} refers to it as `&mut` and is used later; use {place} after {h}'s last use, or through {h}"
+            ),
+            (None, true) => format!(
+                "this uses {place} while a `&mut` reference to it is used later; use {place} after that use"
+            ),
+            (Some(h), false) => format!(
                 "this changes {place} while {h} refers to it and is used later; make the change after {h}'s last use"
             ),
-            None => format!(
+            (None, false) => format!(
                 "this changes {place} while a reference to it is used later; make the change after that use"
             ),
         }
