@@ -1,0 +1,21 @@
+# test: a reference held in an Option keeps its run-time loan, so a write through an unseen alias panics with borrow-conflict
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn rename(t: &Team, alias: *mut User) -> string:
+    let held: Option[&string] = .Some(&t.lead.name)
+    alias.name = "b" # panic: borrow-conflict
+    match held:
+        .Some(name) => *name
+        .None => ""
+
+tests:
+    it("a write panics while an Option holds the reference"):
+        t := Team { lead: box(User { name: "a", age: +1 }) }
+        alias := t.lead
+        _ := rename(&t, alias)

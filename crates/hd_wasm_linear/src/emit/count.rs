@@ -604,7 +604,8 @@ impl Em<'_, '_, '_> {
             return false;
         }
         let b = self.b;
-        !self.cells.is_empty()
+        !self.holders.is_empty()
+            || !self.cells.is_empty()
             || (0..b.local_ty.len()).any(|l| self.counted(self.sub(b.local_ty[l])).is_some())
             || (0..b.ty.len()).any(|i| {
                 self.counted(self.ty(u32::try_from(i).expect("insts")))
@@ -653,12 +654,24 @@ impl Em<'_, '_, '_> {
         if self.owned {
             // The exit set: the locals that may still hold a value here.
             let b = self.b;
+            let mut released = hd_base::HashSet::default();
             for &(s, l) in &b.exit_drops {
                 if s.raw() != u32::from(self.sub_id) || self.borrowed.contains(&l.idx()) {
                     continue;
                 }
                 if let Some(ls) = self.locals.get(&l.idx()).cloned() {
                     self.release_owned_local(l.idx(), &ls)?;
+                    released.insert(l.idx());
+                }
+            }
+            // A value made only of references needs no ownership drop, so
+            // the move pass may omit it from `exit_drops`. Its contained
+            // run-time loans still end when the value is released here.
+            for l in self.loan_holder_locals() {
+                if !released.contains(&l)
+                    && let Some(ls) = self.locals.get(&l).cloned()
+                {
+                    self.loan_release(l, &ls);
                 }
             }
             for l in self.unowned_params.clone() {

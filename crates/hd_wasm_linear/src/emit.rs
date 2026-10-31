@@ -1004,14 +1004,14 @@ struct Em<'i, 'a, 'm> {
     /// ([`Em::prepare_own_loans`]): they hold no count.
     loan_locals: HashMap<usize, u32>,
     /// The bindings that hold a registered loan (`excl.rs`).
-    holders: HashMap<usize, excl::Holder>,
+    holders: HashMap<excl::Held, excl::Holder>,
     /// How each `Store` into a holder binding registers its loan.
-    binds: HashMap<u32, excl::Bind>,
+    binds: HashMap<u32, Vec<excl::Binding>>,
     /// The argument of each call whose result a holder binds, with the
     /// local its address is kept in once emitted.
     held_srcs: HashMap<u32, Option<u32>>,
     /// Each keyed holder's local of its loan's address.
-    loan_keys: HashMap<usize, u32>,
+    loan_keys: HashMap<excl::Held, u32>,
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
     projs: Vec<shape::Projected>,

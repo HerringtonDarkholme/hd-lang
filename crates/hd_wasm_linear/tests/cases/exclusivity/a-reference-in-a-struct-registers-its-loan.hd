@@ -1,0 +1,27 @@
+# @dump: tir wat
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+struct Held['a]:
+    name: &'a string
+
+fn in_struct(t: &Team, alias: *mut User) -> string:
+    held := Held { name: &t.lead.name }
+    alias.name = "b"
+    *held.name
+
+fn in_tuple(t: &Team, alias: *mut User) -> string:
+    held := (&t.lead.name, +1)
+    alias.name = "b"
+    *held._0
+
+fn in_option(t: &Team, alias: *mut User) -> string:
+    let held: Option[&string] = .Some(&t.lead.name)
+    alias.name = "b"
+    match held:
+        .Some(name) => *name
+        .None => ""

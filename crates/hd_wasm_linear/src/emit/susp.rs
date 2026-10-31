@@ -1275,7 +1275,7 @@ pub(super) fn finish(
         }
         // The key of a call's result's loan, from the frame's save of the
         // body's local that keeps it.
-        let mut keys: Vec<(usize, u32)> = em.loan_keys.drain().collect();
+        let mut keys: Vec<(super::excl::Held, u32)> = em.loan_keys.drain().collect();
         keys.sort_stable();
         for (l, k) in keys {
             if let Some((at, v)) = at_of(k) {
