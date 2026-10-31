@@ -458,13 +458,15 @@ Slice 7e applied by #1114 ([Conflicts Through Aliases](../../spec/lang/13-values
 ### Stage 9: field paths on results
 
 A result may name the field of its source it points into (owner,
-2026-10-29). The lifetime is still the source's; the path adds the place
+2026-10-29). The syntax is `'param.path` in the lifetime position: a tick,
+the parameter's name, and one or more `.field` steps, so it cannot be
+confused with a lifetime variable such as `'a` (owner, 2026-10-31). The lifetime is still the source's; the path adds the place
 the loan covers, which only stage 7's conflict check reads. So the caller
 locks only that field, across the call:
 
 ```text
-fn name(&self) -> &'self.name string                    # hypothetical syntax
-fn tags_mut(&mut self) -> &mut 'self.tags List[string]  # hypothetical syntax
+fn name(&self) -> &'self.name string
+fn tags_mut(&mut self) -> &mut 'self.tags List[string]
 
 n := u.name()
 u.age += 1          # valid: n locks only u.name
