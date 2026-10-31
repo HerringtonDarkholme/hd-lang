@@ -247,6 +247,29 @@ destination's representation (example 4's upload).
 - **L3.** A handle keeps its data alive until the last handle is dropped.
 - **L4.** The later/resume domain allows only copy and handle.
 
+### Affinity (Open)
+
+Some work belongs near some data (owner, 2026-10-31). Two kinds behave
+differently:
+
+| Kind | Meaning | Example | Who decides |
+| --- | --- | --- | --- |
+| Required | The work can run only where the data is: a handle is valid only in its home domain | five kernels on the GPU that holds the texture (4); a query on the shard that holds the rows (6) | the checker, from the handles the code uses |
+| Preferred | The work may run anywhere but is cheaper near data already there | a worker pool reusing the worker that holds the photo (1); a replica with a warm cache | the scheduler at run time, as a cost hint |
+
+A sketch of how each fits the model, for discussion:
+
+- **Required affinity follows from handles.** Every handle has a home
+  domain (question 4). A crossing may target the domain a handle lives in,
+  instead of a named domain, as Chapel's `on x do` runs where `x` lives.
+  The checker then requires every handle the code uses to share that home,
+  so a kernel cannot take a texture from another GPU.
+- **Preferred affinity is a scheduling hint, not a type.** A domain pool
+  (`Workers`) may pick the member that already holds a value. It changes
+  cost, never meaning, so the checker need not see it. Prior art keeps it
+  in the runtime: Spark and Dask preferred locations, Ray's locality-aware
+  scheduling, Orleans placement, NUMA and Kubernetes affinity rules.
+
 ## 4. Outcomes: An Open Question
 
 A domain that can lose contact may leave a crossing with no answer. In
@@ -351,6 +374,12 @@ owner's note's block, which names every capture and its mode.
 5. **When does transfer apply to plain values?** Only `&mut` moves today.
    Options: (a) transfer waits for `~Copyable` (#535); (b) transfer now for
    `&mut` and handle types only. Recommended: (a).
+6. **How is affinity expressed?** Required affinity: (a) a crossing may
+   target a handle's home domain, and the checker requires every handle in
+   the code to share it; (b) code always names the domain, and a handle
+   from another domain is a type error. Preferred affinity: a run-time hint
+   to a domain pool, or left to deployment. Decide with question 4, since
+   required affinity reads the handle's domain.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
