@@ -632,6 +632,11 @@ impl[T, 'a] Span[T, 'a]:
     pub fn get(self, index: usize) -> (&'a T)?:
         if index >= self.len(): .None else: .Some(&self.items[self.start + index])
 
+    ## Returns a cursor that yields the span's elements by reference, in order.
+    ## See [std-collections.span.iter](../../spec/std/collections.md#r-std-collections.span.iter).
+    pub fn iter(self) -> SpanIter[T, 'a]:
+        SpanIter { span: self, at: 0 }
+
     ## Returns the part of this span selected by `range`, without copying elements.
     ## See [std-collections.span.slice](../../spec/std/collections.md#r-std-collections.span.slice).
     pub fn slice(self, range: Range[usize]) -> Span[T, 'a]:
@@ -650,6 +655,20 @@ impl[T, 'a] Index[usize] for Span[T, 'a]:
         if key >= self.len():
             panic_with("index-out-of-bounds", "span index out of bounds")
         &self.items[self.start + key]
+
+## The cursor of a span's `iter`: the span's elements in order, each borrowed from its list.
+## See [std-collections.span.cursor](../../spec/std/collections.md#r-std-collections.span.cursor).
+pub struct SpanIter[T, 'a]:
+    span: Span[T, 'a]
+    at: usize
+
+impl[T, 'a] Iterator[&'a T] for SpanIter[T, 'a]:
+    fn next(&mut self) -> (&'a T)?:
+        if self.at >= self.span.len():
+            return .None
+        let at = self.at
+        self.at = self.at + 1
+        self.span.get(at)
 
 # A double-ended queue (spec/std/collections.md#deque): a ring buffer.
 # `slots` holds the `count` elements from `head` on, wrapping at its end,

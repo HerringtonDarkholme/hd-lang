@@ -2964,6 +2964,7 @@ runtime/valid/list-view-snapshot.hd	runtime	accept	std/collections.md#r-std-coll
 typing/invalid/list-view-assignment.hd	type	reject:invalid-assignment-target	std/collections.md#r-std-collections.view.read-only
 runtime/valid/list-span.hd	runtime	accept	std/collections.md#spans
 typing/invalid/list-span-local-escape.hd	type	reject:local-reference-escapes	std/collections.md#r-std-collections.span.lifetime
+typing/invalid/list-span-iter-outlives-local.hd	type	reject:local-reference-outlives-local	std/collections.md#r-std-collections.span.iter-lifetime
 typing/invalid/unknown-std-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-std-module-grouped.hd	type	reject:unknown-module	lang/10-modules.md#use-forms
 typing/invalid/unknown-pkg-module.hd	type	reject:unknown-module	lang/10-modules.md#use-forms

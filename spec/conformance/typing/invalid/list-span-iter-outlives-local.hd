@@ -1,0 +1,11 @@
+# test: a span iterator kept past the block of its local list is local-reference-outlives-local
+# std Collections, Spans: std-collections.span.iter-lifetime.
+
+fn read_after_block(fallback: &List[i32]) -> i32:
+    let mut cursor = fallback.span().iter()
+    if fallback.len() > 0:
+        items := [+1, 2, 3]
+        cursor = items.span().iter()
+    match cursor.next(): # diagnostic: local-reference-outlives-local
+        .Some(item) => *item
+        .None => +0

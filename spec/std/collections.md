@@ -160,6 +160,7 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 | `get` | `get(self, index: usize) -> (&'a T)?` |
 | `slice` | `slice(self, range: Range[usize]) -> Span[T, 'a]` |
 | index read | `Index[usize]` with `Out = &'a T` |
+| `iter` | `iter(self) -> SpanIter[T, 'a]` |
 
 1. r[std-collections.span.type] `std.collections` declares `Span[T, 'a]` with private fields and the surface above.
 2. r[std-collections.span.list] `list.span()` borrows the list for `'a` and returns a span covering every element.
@@ -175,6 +176,9 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 12. r[std-collections.span.slice-borrow] Slicing copies no element and returns another span that borrows the same list for `'a`.
 13. r[std-collections.span.lifetime] A span cannot outlive its list; returning a span of a local list is an error. Error: `local-reference-escapes`.
 14. r[std-collections.span.read-only] A span has no `IndexSet` implementation, so assigning through `span[index]` is an error. Error: `invalid-assignment-target`.
+15. r[std-collections.span.iter] `iter()` returns a cursor that yields each element in span order as `&'a T`.
+16. r[std-collections.span.cursor] A span's cursor type is `SpanIter[T, 'a]`, which `std.collections` declares with private fields.
+17. r[std-collections.span.iter-lifetime] A span cursor retains the span's borrow for `'a`, so it cannot outlive the borrowed list. Error: `local-reference-outlives-local`.
 
 > **Why.** `Span` supports borrowed reads without a snapshot allocation.
 > Its explicit lifetime makes retention beyond the source list a compile-time error.

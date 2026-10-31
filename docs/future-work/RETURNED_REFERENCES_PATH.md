@@ -1,10 +1,10 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 5, stage 6 except 6g and `Span.iter()`, and stages 7a (#1098)
+stages 1 to 5, stage 6 except 6g, and stages 7a (#1098)
 7b (#1106) and 7c (#1107). Open: 6g1 `@auto_closing` (#1099) and 6g2 library
-`defer`/`ensure` (#1101), `Span.iter()` (#1104, after #1103), the `for` cursor
-gap (#1105), and stages 7d and 7e; 6i is not planned for now (see its row). It reviews
+`defer`/`ensure` (#1101), the `for` cursor gap (#1105), and stages 7d and 7e;
+6i is not planned for now (see its row). It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
 the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
@@ -23,7 +23,7 @@ calls and inlined getters, is `crates/hd_wasm_linear/DESIGN.md` §23.38
 and its Generic Calls (#1016).
 Slice 6h's `Span` construction, reads, indexing and slicing are
 [Spans](../../spec/std/collections.md#spans) (#1097); reference-yielding
-iteration remains #1104.
+iteration is specified there too (#1104).
 
 ## Context
 
