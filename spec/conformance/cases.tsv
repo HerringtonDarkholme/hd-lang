@@ -5529,6 +5529,9 @@ typing/invalid/dependent-result-reassign-source-while-live.hd	type	reject:confli
 typing/valid/dependent-result-write-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 typing/valid/dependent-result-copy-out.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 typing/valid/dependent-result-borrow-field-instead.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
+typing/invalid/shared-self-mut-result-path-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+typing/invalid/shared-self-mut-result-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+typing/valid/shared-self-mut-result-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 typing/invalid/mut-result-read-source-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
 typing/invalid/mut-reference-shared-borrow-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.mut
 typing/invalid/shared-reference-bound-mut-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.write

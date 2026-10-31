@@ -62,18 +62,21 @@ enum Kind {
 
 /// The place loan `i` covers and its kind: a `Ref`'s place, or what a
 /// `&mut` binding refers to where a call reads it as `&` or as `&mut`
-/// (`ref.excl.call`). An element reference covers the collection its last
-/// element step indexes, when only fields follow that step; any other
-/// path with an element is left to the pin (`ref.elem.access.pin`).
+/// (`ref.excl.call`), or a `&` binding where a call's `&mut` result holds
+/// it. An element reference covers the collection its last element step
+/// indexes, when only fields follow that step; any other path with an
+/// element is left to the pin (`ref.elem.access.pin`).
 fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
     let (b, i) = (s.b, i as usize);
     let excl = is_mut(s.pool, b.ty[i]);
     let (l, mut path) = match b.tags[i] {
         Tag::Ref => path_of(b, b.data[i][0]),
-        Tag::Read if excl => path_of(b, b.data[i][0]).map(|(l, mut p)| {
-            p.push(Proj::Deref);
-            (l, p)
-        }),
+        Tag::Read if excl || mut_result(s, w(i)).is_some() => {
+            path_of(b, b.data[i][0]).map(|(l, mut p)| {
+                p.push(Proj::Deref);
+                (l, p)
+            })
+        }
         Tag::Coerce if b.same_value_coercion(i) && !excl => {
             let v = b.data[i][0] as usize;
             if b.ty.get(v).is_none() || b.tags[v] != Tag::Read || !is_mut(s.pool, b.ty[v]) {
@@ -109,6 +112,14 @@ fn held_path(s: &Inputs<'_>, i: u32, (l, path): &Path, kind: Kind) -> Option<(us
         let mut path = path.clone();
         path.extend(steps.iter().copied());
         Some((c as usize, (*l, path)))
+    })
+}
+
+/// The call whose `&mut` result holds argument `i`, whatever the
+/// argument's kind: after the call, its loan is exclusive (`ref.excl.call`).
+fn mut_result(s: &Inputs<'_>, i: u32) -> Option<usize> {
+    s.calls.iter().find_map(|(&c, sig)| {
+        (sig.held.contains(&i) && is_mut(s.pool, s.b.ty[c as usize])).then_some(c as usize)
     })
 }
 
@@ -380,11 +391,16 @@ impl Gen<'_, '_> {
         let mut sites = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
             let Origin::Site(i) = *o else { continue };
-            let Some((mut place, kind)) = loan_path(self.s, i) else {
+            let Some((mut place, mut kind)) = loan_path(self.s, i) else {
                 continue;
             };
             if let Some((_, p)) = held_path(self.s, i, &place, kind) {
                 place = p;
+            }
+            // A `&mut` result's loan is exclusive from its call on.
+            let mut from = i;
+            if let (Kind::Shared, Some(c)) = (kind, mut_result(self.s, i)) {
+                (kind, from) = (Kind::Excl, w(c));
             }
             let holders: Vec<(u32, Vec<u32>)> = (0..self.locals)
                 .filter(|&h| h != place.0 && has(&self.local(h).0, w(loan)))
@@ -399,9 +415,9 @@ impl Gen<'_, '_> {
                     (h, other)
                 })
                 .collect();
-            sites.push((i, place, kind, holders));
+            sites.push((i, from, place, kind, holders));
         }
-        if sites.iter().all(|s| s.3.is_empty()) {
+        if sites.iter().all(|s| s.4.is_empty()) {
             return Vec::new();
         }
         let users = self.users();
@@ -424,7 +440,7 @@ impl Gen<'_, '_> {
             if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
-            'site: for (i, (r, sp), kind, holders) in &sites {
+            'site: for (i, from, (r, sp), kind, holders) in &sites {
                 if *r != root || !overlap(sp, &path) || *i == wi || !write && *kind != Kind::Excl {
                     continue;
                 }
@@ -436,7 +452,7 @@ impl Gen<'_, '_> {
                     continue;
                 }
                 for (h, other) in holders {
-                    let (i, h) = (*i, *h);
+                    let (i, h) = (*from, *h);
                     if !order.hop(i, at, h) || order.kills(other, i, at) {
                         continue;
                     }
