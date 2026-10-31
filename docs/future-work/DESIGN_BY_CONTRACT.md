@@ -7,7 +7,7 @@ change at call sites.
 
 This record resolves [issue #880](https://github.com/HerringtonDarkholme/hd-lang/issues/880).
 It reviews [Functions](../../spec/lang/07-functions.md),
-[Deferred Cleanup](../../spec/lang/06-control-flow.md#deferred-cleanup),
+[Cleanup Registration](../../spec/lang/06-control-flow.md#cleanup-registration),
 [Runtime Panics](../../spec/lang/06-control-flow.md#runtime-panics), and
 [Prefix Decorators](../../spec/lang/14-annotations.md#prefix-decorators).
 

@@ -475,7 +475,6 @@ typing/invalid/checker-a-match-must-cover-every-variant-24.hd	type	reject:nonexh
 typing/invalid/checker-a-rejected-power-is-an-error-value-92.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/checker-a-rejected-power-is-an-error-value-93.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/checker-a-try-error-that-does-not-convert-is-invalid-propagation-99.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#propagation
-typing/invalid/checker-block-on-and-println-are-forbidden-in-direct-contexts-105.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.direct
 typing/invalid/checker-block-on-and-println-are-forbidden-in-direct-contexts-107.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.direct
 typing/invalid/checker-block-on-and-println-are-forbidden-in-direct-contexts-108.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.direct
 typing/invalid/checker-block-on-and-println-are-forbidden-in-direct-contexts-109.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.direct
@@ -1100,7 +1099,6 @@ typing/valid/console-error-entry.hd	type	accept	lang/10-modules.md#entry-point
 typing/invalid/nondisplay-entry-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.result-termination
 typing/valid/defer-cleanup.hd	type	accept	std/ops.md#r-std-ops.defer.cleanup
 typing/invalid/the-stored-value-must-fit-the-update-impl.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#callable-values
-typing/invalid/top-level-defer.hd	type	reject:defer-outside-cleanup-scope	lang/06-control-flow.md#deferred-cleanup
 typing/invalid/defer-suspends.hd	type	reject:bang-call-outside-suspension	lang/11-requirements-and-suspension.md#suspending-functions
 typing/valid/using-transfer.hd	type	accept	lang/06-control-flow.md#using-bindings
 typing/valid/using-contextual-word.hd	type	accept	lang/01-lexical-structure.md#contextual-words
@@ -1516,7 +1514,6 @@ runtime/valid/dynamic-suspending-method.hd	runtime	accept	lang/11-requirements-a
 typing/invalid/println-without-console.hd	type	reject:missing-requirement	lang/10-modules.md#prelude
 runtime/valid/multi-provider-use-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#provider-access
 runtime/valid/block-on-inside-driver.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
-typing/invalid/block-on-in-defer.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.direct
 runtime/valid/block-on-stored-suspension.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/assert-equal-lists-in-main.hd	runtime	panic:assertion-failed	lang/10-modules.md#standard-testing
 typing/invalid/assert-equal-fieldless-data-without-partial-eq.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#standard-testing
@@ -1711,7 +1708,6 @@ typing/invalid/nil-is-unknown-name.hd	type	reject:unknown-name	lang/01-lexical-s
 typing/invalid/bool-ordering.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/tuple-index-out-of-range.hd	type	reject:unknown-field	lang/05-expressions.md#member-access
 typing/valid/explicit-empty-row.hd	type	accept	lang/02-grammar.md#types
-parse/valid/defer-same-line-nested-suite.hd	parse	accept	lang/02-grammar.md#statements
 parse/valid/header-resumes-after-nested-suite.hd	parse	accept	lang/01-lexical-structure.md#physical-and-logical-lines
 parse/valid/bracketed-for-multi-name-binding.hd	parse	accept	lang/01-lexical-structure.md#physical-and-logical-lines
 parse/invalid/header-after-indented-suite.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
@@ -1733,7 +1729,6 @@ typing/invalid/variant-unknown-payload-field.hd	type	reject:unknown-field	lang/0
 typing/invalid/variant-pattern-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#match-expressions
 typing/invalid/for-binding-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#for-loops
 typing/invalid/for-over-non-iterable.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#for-loops
-typing/invalid/defer-return.hd	type	reject:defer-control-flow	lang/06-control-flow.md#deferred-cleanup
 typing/invalid/variant-pattern-missing-payload.hd	type	reject:pattern-arity	lang/06-control-flow.md#match-expressions
 typing/valid/variant-pattern-lists-payload.hd	type	accept	lang/06-control-flow.md#match-expressions
 typing/invalid/match-arm-after-catch-all.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#match-expressions
@@ -1835,7 +1830,6 @@ parse/invalid/call-suffix-on-next-line.hd	parse	reject:syntax-error	lang/01-lexi
 parse/valid/operator-and-member-lines-continue-in-brackets.hd	parse	accept	lang/01-lexical-structure.md#physical-and-logical-lines
 parse/invalid/nested-same-line-if.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
 parse/invalid/same-line-if-in-function-body.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
-parse/invalid/same-line-if-in-defer-suite.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
 runtime/valid/parenthesized-nested-same-line-if.hd	runtime	accept	lang/06-control-flow.md#conditional-expressions
 runtime/valid/trailing-block-right-hand-sides.hd	runtime	accept	lang/07-functions.md#trailing-callback-blocks
 runtime/valid/bang-call-explicit-type-arguments.hd	runtime	accept	lang/07-functions.md#generic-functions
@@ -2278,12 +2272,12 @@ runtime/valid/bare-marker-decorator.hd	runtime	accept	lang/14-annotations.md#r-a
 typing/valid/inline-and-cold.hd	type	accept	lang/14-annotations.md#r-annot.inline.argument
 typing/valid/inline-auto-reference.hd	type	accept	lang/14-annotations.md#r-annot.inline.auto
 typing/valid/inline-always-reference.hd	type	accept	lang/14-annotations.md#r-annot.inline.always
-typing/invalid/inline-always-suspends.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
-typing/invalid/inline-always-defer.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
-typing/invalid/inline-always-closure.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
-typing/invalid/inline-always-requirement.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
-typing/invalid/inline-always-with.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
-typing/invalid/inline-always-cycle.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable
+typing/invalid/inline-always-suspends.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable.v2
+typing/invalid/inline-always-defer.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable.v2
+typing/invalid/inline-always-closure.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable.v2
+typing/invalid/inline-always-requirement.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable.v2
+typing/invalid/inline-always-with.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable.v2
+typing/invalid/inline-always-cycle.hd	type	reject:inline-always-uncopyable	lang/14-annotations.md#r-annot.inline.always-copyable.v2
 typing/invalid/inline-on-requirement.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.targets
 typing/invalid/inline-unknown-argument.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.argument
 typing/invalid/cold-argument.hd	type	reject:invalid-inline-decorator	lang/14-annotations.md#r-annot.inline.argument
@@ -4031,7 +4025,7 @@ typing/invalid/entry-init-provider-scope.hd	type	reject:missing-requirement	lang
 typing/invalid/entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.non-script
 typing/invalid/non-entry-init-provider-scope.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.operations
 typing/invalid/non-entry-init-requirement.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.init.requirement-free.non-script
-typing/invalid/non-entry-init-block-on.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts
+typing/invalid/non-entry-init-block-on.hd	type	reject:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.forbidden-contexts.v2
 runtime/valid/script-top-level-provider-get.hd	runtime	accept	lang/10-modules.md#r-module.init.script-profile
 runtime/valid/script-top-level-runs.hd	runtime	accept	lang/10-modules.md#r-module.init.script-body
 typing/invalid/main-module-top-level-bang-call.hd	type	reject:bang-call-outside-suspension	lang/10-modules.md#r-module.init.script-driver
@@ -4218,7 +4212,7 @@ runtime/valid/unicode-function-names.hd	runtime	accept	lang/01-lexical-structure
 runtime/valid/let-patterns-and-let-else.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.let-pattern
 runtime/valid/suite-statement-right-sides.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.suite
 runtime/valid/trailing-block-right-sides.hd	runtime	accept	lang/02-grammar.md#r-grammar.call.trailing-block
-runtime/valid/defer-and-discard-statements.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.defer
+runtime/valid/defer-and-discard-statements.hd	runtime	accept	std/ops.md#r-std-ops.defer.cleanup
 runtime/valid/binding-chain-with-suite.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
 runtime/valid/same-line-suite-body-forms.hd	runtime	accept	lang/02-grammar.md#r-grammar.inline.statement
 runtime/valid/data-and-enum-declaration-forms.hd	runtime	accept	lang/02-grammar.md#r-grammar.data.default
@@ -5494,7 +5488,6 @@ typing/invalid/lifetime-store-through-reference-other-lifetime.hd	type	reject:lo
 runtime/valid/scope-guard-captures.hd	runtime	accept	std/ops.md#r-std-ops.scope-guard.captures
 typing/invalid/scope-guard-capture-escapes.hd	type	reject:local-reference-escapes	std/ops.md#r-std-ops.scope-guard.captures
 typing/invalid/scope-guard-capture-outlives.hd	type	reject:local-reference-outlives-local	std/ops.md#r-std-ops.scope-guard.captures
-parse/valid/defer-contextual-call.hd	parse	accept	lang/01-lexical-structure.md#r-lex.contextual.defer
 typing/invalid/shared-reference-write-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.shared
 typing/invalid/shared-reference-mut-method-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.write
 typing/invalid/shared-reference-write-in-loop.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.live
@@ -5558,3 +5551,4 @@ runtime/panic/alias-write-under-copied-loan-panics.hd	runtime	panic:borrow-confl
 runtime/panic/alias-write-under-shared-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/alias-write-after-loan-last-use-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
 runtime/valid/alias-write-to-disjoint-field-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.access
+parse/valid/defer-ordinary-name.hd	parse	accept	lang/01-lexical-structure.md#r-lex.defer.identifier

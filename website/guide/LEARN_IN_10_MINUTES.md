@@ -168,7 +168,8 @@ else:
     "nobody"
 ```
 
-`defer:` registers cleanup that runs when the enclosing block exits.
+`defer(action)` from `std.ops` registers a callback that runs when the
+enclosing block exits.
 
 ## Data and Mutability
 

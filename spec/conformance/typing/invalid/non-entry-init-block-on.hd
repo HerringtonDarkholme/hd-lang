@@ -1,5 +1,5 @@
 # test: block_on written directly in the top-level code of a non-entry module is an error
-# Spec 11 Driving A Stored Suspension: req.drive.block-on.forbidden-contexts, req.drive.block-on.direct.
+# Spec 11 Driving A Stored Suspension: req.drive.block-on.forbidden-contexts.v2, req.drive.block-on.direct.
 # The primary file is an ordinary module of the tree's package.
 # fixture-package-tree: lib-root/src/catalog.hd
 use std.task.block_on

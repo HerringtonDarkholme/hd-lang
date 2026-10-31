@@ -231,13 +231,13 @@ instance.
 2. Every exit that leaves the scope (fall-through, `Break`, `Continue`,
    `Return`, a failing `?` leaf) stores its value and an exit code in
    locals, then branches to one cleanup block at the scope's end
-   ([`flow.defer.result-saved`](../../spec/lang/06-control-flow.md#r-flow.defer.result-saved)).
+   ([`flow.cleanup.result-saved`](../../spec/lang/06-control-flow.md#r-flow.cleanup.result-saved)).
 3. The cleanup block runs the flagged suites, last in, first out, then
    dispatches on the exit code with a `br_table` to the real target.
 4. A scope with one exit runs its suites there directly (the common case).
 
 Panics skip the ladder: a panic is a trap and runs no suite
-([`flow.defer.panic`](../../spec/lang/06-control-flow.md#r-flow.defer.panic)).
+([`flow.cleanup.panic`](../../spec/lang/06-control-flow.md#r-flow.cleanup.panic)).
 Cancellation runs the same suites of the same scopes through the frame's
 cancel function (§14.6).
 

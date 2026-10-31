@@ -1,6 +1,6 @@
 # test: use declarations take each root, a group with aliases and a trailing comma, and a pub marker, while the contextual words stay ordinary names elsewhere
 # Spec 02 Use Declarations: grammar.use.contextual-words, grammar.use.self-root, grammar.use.needs-root, grammar.use.no-import-export.
-# Spec 01 Contextual Words: lex.contextual.fixed.defer, lex.contextual.use-root, lex.contextual.as, lex.contextual.use, lex.contextual.context, lex.contextual.derive, lex.contextual.by-header, lex.contextual.elsewhere.
+# Spec 01 Contextual Words: lex.contextual.fixed.v2, lex.contextual.use-root, lex.contextual.as, lex.contextual.use, lex.contextual.context, lex.contextual.derive, lex.contextual.by-header, lex.contextual.elsewhere.
 use std.testing.assert
 use std.testing.assert_equal as equal
 use std.testing.{assert_equal, assert as check}

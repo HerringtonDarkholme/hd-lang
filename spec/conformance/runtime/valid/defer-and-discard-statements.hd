@@ -1,5 +1,5 @@
-# test: defer registers cleanup that runs when the scope ends, and a discard evaluates an expression and drops its value
-# Spec 02 Discard And Defer Statements: grammar.stmt.defer, grammar.stmt.discard.
+# test: library defer registers cleanup that runs when the scope ends, and a discard evaluates an expression and drops its value
+# Spec std.ops Library Defer: std-ops.defer.cleanup. Spec 02 Discard Statements: grammar.stmt.discard.
 # expect-stdout: open ledger
 # expect-stdout: posting 3
 # expect-stdout: close ledger

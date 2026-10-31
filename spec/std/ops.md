@@ -225,7 +225,7 @@ The `defer` function packages a callback as an auto-closing cleanup registered b
 2. r[std-ops.defer.protocol] `DeferGuard[F, $R, 'a]` implements `AutoClosing` and `Disposable[$R]`; its `dispose` calls the action once.
 3. r[std-ops.defer.decl] `std.ops` declares `@auto_closing pub fn defer[F < FnMut() -> void $ R & 'a, $R, 'a](action: F) -> DeferGuard[F, $R, 'a]`.
 4. r[std-ops.defer.cleanup] A statement call `defer(action)` registers `action` on the calling scope's cleanup stack according to [`flow.auto-closing.statement`](../lang/06-control-flow.md#r-flow.auto-closing.statement), and the registered cleanup runs at every exit governed by [`flow.auto-closing.cleanup`](../lang/06-control-flow.md#r-flow.auto-closing.cleanup).
-5. r[std-ops.defer.order] The registered action shares the last-in, first-out order of `defer:`, `using`, `using!`, and other auto-closing calls by [`flow.auto-closing.order`](../lang/06-control-flow.md#r-flow.auto-closing.order).
+5. r[std-ops.defer.order] The registered action shares the last-in, first-out order of `using`, `using!`, and other auto-closing calls by [`flow.auto-closing.order`](../lang/06-control-flow.md#r-flow.auto-closing.order).
 6. r[std-ops.defer.captures] The action may capture local references and change through them; `DeferGuard` holds those captures in `'a`'s positions.
 
 > **Why.** The function form lets a library supply a reusable cleanup callback while the statement call keeps registration visible and ordered with the language cleanup forms.

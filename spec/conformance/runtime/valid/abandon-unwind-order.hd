@@ -1,7 +1,7 @@
 # expect-stdout: stopped
 # expect-stdout: tail, dispose start, dispose defer, outer
 # test: abandon() unwinds a job at once as one LIFO list: the tail defer, the dispose that had not started up to its first wait with its own defer, then the outer defer
-# Spec lang/11 Abandoning: req.abandon.method, req.abandon.unwind, req.abandon.order.using-split, req.abandon.defer, req.abandon.dispose.unstarted.
+# Spec lang/11 Abandoning: req.abandon.method, req.abandon.unwind, req.abandon.order.using-split, req.abandon.registered-cleanup, req.abandon.dispose.unstarted.
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.race

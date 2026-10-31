@@ -163,18 +163,18 @@ export async function replSteps(options: ReplE2e): Promise<void> {
     await shows(repl, "out", "41 : usize");
   });
 
-  await step("Stop of a sleep cancels it and runs its defer suite", async () => {
+  await step("Stop of a sleep cancels it and runs its deferred callback", async () => {
     const restored = await repl.locator(".repl-note", { hasText: /^restored:/ }).count();
-    await enter(repl, "use std.time.{sleep, Duration}");
+    await enter(repl, "use std.ops.defer\nuse std.time.{sleep, Duration}");
     await enter(
       repl,
-      'fn nap!() -> void:\n    defer:\n        dbg("woke")\n    sleep!(Duration.seconds(+30))',
+      'fn nap!() -> void:\n    defer(fn() -> void: dbg("woke"))\n    sleep!(Duration.seconds(+30))',
     );
     await enter(repl, "nap!()");
     await running(page, 11);
     const started = Date.now();
     await page.locator("#repl-stop").click();
-    await shows(repl, "debug", 'repl#10:3:9: "woke" = "woke"');
+    await shows(repl, "debug", 'repl#10:2:25: "woke" = "woke"');
     await shows(repl, "error", "cancelled");
     assert.ok(Date.now() - started < 10_000, "the sleep was not cancelled");
     assert.equal(

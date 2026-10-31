@@ -138,7 +138,7 @@ pub enum Helper {
     },
     /// `hd.init`: the inits in order; a flagged one belongs to a module
     /// other than the entry's and runs as a forbidden context
-    /// (`req.drive.block-on.forbidden-contexts`).
+    /// (`req.drive.block-on.forbidden-contexts.v2`).
     EntryInit {
         inits: Vec<(Hash128, bool)>,
     },
@@ -515,7 +515,7 @@ pub enum Helper {
         result: Option<Val>,
     },
     /// The forbidden-context check of `block_on`
-    /// (`req.drive.block-on.forbidden-contexts`).
+    /// (`req.drive.block-on.forbidden-contexts.v2`).
     ForbidCheck,
     /// A host provider's vtable slot for a method that may wait
     /// (`crates/hd_run_wasmtime/DESIGN.md` §17.2): `(data, arguments) ->

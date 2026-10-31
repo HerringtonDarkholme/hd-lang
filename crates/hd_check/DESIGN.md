@@ -1074,14 +1074,11 @@ The ban is **direct-only**. A call whose resolved callee is
 `std.task.block_on` or `println`, written directly (not in a nested
 closure) in one of these contexts, is `suspension-forbidden-context`:
 
-- a `defer` suite;
 - a default expression;
 - a fact or metadata expression;
 - the initialization of a module that is not an entry module, for
   `block_on`; a `println` there is `missing-requirement` instead.
 
-A bang call in a `defer` suite is `suspension-forbidden-context` too
-([`flow.defer.suspend`](../../spec/lang/06-control-flow.md#r-flow.defer.suspend)).
 The check reads the resolved callee at the call (`check_forbidden_call`).
 It never looks into another body, so it needs no summary. An indirect
 call reaches the run-time check codegen emits.

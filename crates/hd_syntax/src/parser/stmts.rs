@@ -139,23 +139,6 @@ impl Parser<'_> {
             Some(TokenKind::KwContinue) => {
                 self.token_node(SyntaxKind::ContinueStmt);
             }
-            Some(TokenKind::KwDefer | TokenKind::Ident)
-                if self.at(TokenKind::KwDefer)
-                    || self.nth_text(0) == "defer"
-                        && !matches!(self.nth(1), Some(TokenKind::LParen | TokenKind::ColonEq)) =>
-            {
-                let marker = self.start();
-                let (_, end) = self.token_span(self.pos());
-                self.bump();
-                let error = self.errors.len();
-                let same_line_expression = !self.nth_line_first(0) && self.can_begin_expr();
-                if self.expect(TokenKind::Colon, "':'") {
-                    self.suite(false, Ctx::Inline);
-                } else if same_line_expression {
-                    self.fix_error(error, "insert `:` after `defer`", &[(end, end, ":")]);
-                }
-                self.complete(marker, SyntaxKind::DeferStmt);
-            }
             Some(TokenKind::Ident) if self.at_using() => self.using_statement(ctx),
             _ => {
                 if self.at(TokenKind::KwMut)

@@ -225,7 +225,7 @@ fn first(input: &List[u8]) -> u8:
 11. r[annot.inline.meaning] None of these lines changes a program's output, its panics, or its panic frames.
 12. r[annot.inline.auto] In every build and package, `@inline` or `@inline(.Auto)` copies each statically known call whose body has at most 64 TIR instructions and is copyable. Reference parameters are allowed. A body that is too large or cannot be copied remains a call without a diagnostic.
 13. r[annot.inline.always] In every build and package, `@inline(.Always)` copies every statically known call. The body's size and reference parameters do not limit the copy.
-14. r[annot.inline.always-copyable] A function marked `@inline(.Always)` must not suspend, contain a `defer`, make a closure, have a requirement row, contain `with`, or belong to `std.rt`. Functions marked `@inline(.Always)` must not form a cycle consisting only of such functions. Error: `inline-always-uncopyable`.
+14. r[annot.inline.always-copyable.v2] A function marked `@inline(.Always)` must not suspend, register cleanup, make a closure, have a requirement row, contain `with`, or belong to `std.rt`. Functions marked `@inline(.Always)` must not form a cycle consisting only of such functions. Error: `inline-always-uncopyable`.
 
 ```text
 use std.annotation.{cold, inline}

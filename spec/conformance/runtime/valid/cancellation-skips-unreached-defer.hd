@@ -1,4 +1,4 @@
-# test: a defer statement not yet reached is not registered, so cancellation does not run it
+# test: a library defer call not yet reached is not registered, so cancellation does not run it
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
 use std.ops.defer

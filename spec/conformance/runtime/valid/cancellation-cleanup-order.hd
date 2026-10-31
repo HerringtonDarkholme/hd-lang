@@ -1,5 +1,5 @@
 # test: cancellation runs child cleanup before parent cleanup
-# Spec 11 Cancellation: req.cancel.steps, req.cancel.defer,
+# Spec 11 Cancellation: req.cancel.steps, req.cancel.sync-cleanup,
 # req.cancel.cooperative, req.runtime.cancel-cleanup.
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait

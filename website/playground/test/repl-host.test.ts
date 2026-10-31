@@ -165,14 +165,14 @@ test("inputs run under the page's numbers; a panic leaves the session going", as
   assert.deepEqual(worker.printed(), ["40 : usize\n", ""]);
 });
 
-test("a stop cancels an input that waits; its defer suite runs", async () => {
+test("a stop cancels an input that waits; its deferred callback runs", async () => {
   const worker = new Worker();
   await worker.start();
-  await worker.input(1, "use std.time.{sleep, Duration}\n");
+  await worker.input(1, "use std.ops.defer\nuse std.time.{sleep, Duration}\n");
   await worker.input(2, "let woke = 0\n");
   await worker.input(
     3,
-    'fn nap!() -> void:\n    defer:\n        woke = 1\n        dbg("woke")\n    sleep!(Duration.seconds(+30))\n',
+    'fn nap!() -> void:\n    defer(\n        fn() -> void:\n            woke = 1\n            dbg("woke")\n        ,\n    )\n    sleep!(Duration.seconds(+30))\n',
   );
   worker.printed();
   const begun = performance.now();
@@ -181,7 +181,7 @@ test("a stop cancels an input that waits; its defer suite runs", async () => {
   assert.deepEqual([nap.joined, nap.end], [false, { kind: "cancelled" }]);
   assert.deepEqual(worker.printed(), [
     "",
-    'repl#3:4:9: "woke" = "woke"\ncancelled\nnote: repl#4 was cancelled, so the next rebuild skips it; its changes are not restored\n',
+    'repl#3:5:13: "woke" = "woke"\ncancelled\nnote: repl#4 was cancelled, so the next rebuild skips it; its changes are not restored\n',
   ]);
   await worker.input(5, "woke\n");
   assert.deepEqual(worker.printed(), ["0 : usize\n", ""]);

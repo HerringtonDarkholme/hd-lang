@@ -1,5 +1,5 @@
 # test: inline Always cannot make a closure
-# Spec 14 Inline And Cold: annot.inline.always-copyable.
+# Spec 14 Inline And Cold: annot.inline.always-copyable.v2.
 use std.annotation.inline
 
 @inline(.Always) # diagnostic: inline-always-uncopyable

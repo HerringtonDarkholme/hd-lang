@@ -18,10 +18,6 @@ fn migration_fixes_preserve_surrounding_source_and_parse() {
             "use std.fs.{read_text, FsRead}\n",
         ),
         (
-            "fn f():\n    defer save()\n",
-            "fn f():\n    defer: save()\n",
-        ),
-        (
             "fn f(pair: P):\n    (low, (high, _)) := pair\n",
             "fn f(pair: P):\n    let (low, (high, _)) = pair\n",
         ),
@@ -51,7 +47,6 @@ fn migration_fixes_do_not_guess_from_other_invalid_forms() {
         "fn f(pair: P): pair.0xA\n",
         "fn f(): { : value }\n",
         "use std.fs.{read_text!()}\n",
-        "fn f():\n    defer\n    save()\n",
         "fn f(pair: P):\n    (low, +1) := pair\n",
         "fn f(pair: P):\n    (low, call()) := pair\n",
         "fn f(pair: P):\n    (low, self) := pair\n",

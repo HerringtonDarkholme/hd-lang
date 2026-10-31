@@ -135,8 +135,7 @@ statement = suite_statement
           | simple_statement, NEWLINE
           ;
 
-suite_statement = defer_statement
-                | suite_expression
+suite_statement = suite_expression
                 | trailing_block_call
                 | "_", ":=", suite_right_side
                 | identifier, ":=", { identifier, ":=" },
@@ -153,8 +152,6 @@ suite_statement = defer_statement
                 ;
 
 suite_right_side = suite_expression | trailing_block_call ;
-
-defer_statement = "defer", ":", suite_body ;
 
 simple_statement = let_statement
                  | using_statement
@@ -309,13 +306,12 @@ fn sum(p: Point, pair: (i32, i32)) -> i32:
 > two. `let` already takes every pattern, and `:=` stays the short form
 > for one name.
 
-### Discard And Defer Statements
+### Discard Statements
 
 1. r[grammar.stmt.discard] The dedicated discard forms make `_ := expression` a statement without making the placeholder `_` an identifier or a binding pattern.
 2. r[grammar.stmt.discard.suite] The suite form of a discard exists for the same reason when the discarded expression owns an indented suite.
-3. r[grammar.stmt.defer] `defer` is parsed wherever a suite statement is accepted; the semantic rules in [Control Flow](06-control-flow.md#deferred-cleanup) restrict it to executing cleanup scopes.
-4. r[grammar.stmt.using-split] A statement that starts with the contextual word `using`, an optional glued `!`, and a name on the same line is a `using_statement`. The semantic rules are in [Using Bindings](06-control-flow.md#using-bindings).
-5. r[grammar.stmt.using-split.one-name] A `using` or `using!` statement binds exactly one name: no pattern and no `mut`.
+3. r[grammar.stmt.using-split] A statement that starts with the contextual word `using`, an optional glued `!`, and a name on the same line is a `using_statement`. The semantic rules are in [Using Bindings](06-control-flow.md#using-bindings).
+4. r[grammar.stmt.using-split.one-name] A `using` or `using!` statement binds exactly one name: no pattern and no `mut`.
 
 ```hd
 fn twice(n: i32) -> i32: n * 2
@@ -357,7 +353,7 @@ fn choose(flag: bool) -> i32:
 1. r[grammar.inline.statement] A same-line suite body is an `inline_statement`.
 2. r[grammar.inline.closed-by-layout] Layout closes a same-line suite at the end of its logical line and at any comma at the suite's own delimiter depth.
 3. r[grammar.inline.no-comma] The body therefore contains no comma at that depth and no indented suite.
-4. r[grammar.inline.no-if] It also contains no same-line `if` at that depth: `if a: if b: 1 else: 2 else: 3`, `fn f() -> i32: if c: 1 else: 2`, and `defer: if flag: pass` are syntax errors. Error: `syntax-error`.
+4. r[grammar.inline.no-if] It also contains no same-line `if` at that depth: `if a: if b: 1 else: 2 else: 3` and `fn f() -> i32: if c: 1 else: 2` are syntax errors. Error: `syntax-error`.
 5. r[grammar.inline.nested-if] Parentheses nest a conditional, as in `if a: (if b: 1 else: 2) else: 3`, and an indented body may hold one.
 6. r[grammar.inline.else-if] `else if` continues the same conditional rather than nesting one.
 7. r[grammar.inline.loops] Same-line `for` and `while` loops may still appear directly in a same-line suite.
@@ -377,7 +373,6 @@ fn pick(a: bool, b: bool) -> i32:
 fn sign(x: i32) -> i32: if x < 0: -1 else: 1  # error: syntax-error
 
 fn release(flag: bool) -> void:
-    defer: if flag: pass  # error: syntax-error
     if flag: a, b := pair()  # error: syntax-error
     if flag: let a, b = pair()  # error: syntax-error
 ```

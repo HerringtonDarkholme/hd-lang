@@ -80,7 +80,6 @@ pub enum TokenKind {
     KwBreak,
     KwContinue,
     KwData,
-    KwDefer,
     KwDyn,
     KwElse,
     KwEnum,
@@ -1466,7 +1465,7 @@ mod tests {
     }
 
     #[test]
-    fn defer_is_a_contextual_word() {
+    fn defer_is_an_identifier() {
         let lexed = lex(b"defer");
         assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
         assert_eq!(lexed.tokens.kind, [TokenKind::Ident]);

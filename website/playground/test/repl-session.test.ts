@@ -147,7 +147,7 @@ const butModules = (journal: Uint8Array) => {
   return record;
 };
 
-test("inputs see earlier ones, and a panic inside defer leaves no state behind", async () => {
+test("inputs see earlier ones, and a panic inside deferred cleanup leaves no state behind", async () => {
   const repl = new Repl();
   repl.start();
   assert.equal(await repl.input("rate := +3\n"), 0);
@@ -155,7 +155,7 @@ test("inputs see earlier ones, and a panic inside defer leaves no state behind",
   assert.equal(await repl.input("price(+2)\n"), 0);
   assert.deepEqual(repl.printed(), ["6 : i32\n", ""]);
   const panics =
-    "fn cleanup(xs: List[i32]) -> void:\n    defer:\n        _ := xs[3]\n    pass\n\ncleanup([+1])\n";
+    "use std.ops.defer\nfn cleanup(xs: List[i32]) -> void:\n    defer(fn() -> void: _ := xs[3])\n    pass\n\ncleanup([+1])\n";
   assert.equal(await repl.input(panics), 3);
   assert.deepEqual(repl.printed(), ["", "panic: index-out-of-bounds: list index out of bounds\n"]);
   assert.equal(await repl.input('println("after ${price(+5)}")\n'), 0);
@@ -262,12 +262,12 @@ impl[T] Columns for T by Structure:
 test("a stop cancels a waiting input; the next replay skips it, a rebuild drops from the first divergence", async () => {
   const repl = new Repl();
   repl.start();
-  assert.equal(await repl.input("use std.time.{sleep, Duration}\n"), 0);
+  assert.equal(await repl.input("use std.ops.defer\nuse std.time.{sleep, Duration}\n"), 0);
   assert.equal(await repl.input("let kept = 7\n"), 0);
-  // Its `defer` suite runs on the cancel; the next input's replay skips
+  // Its deferred callback runs on the cancel; the next input's replay skips
   // it, so its change is not restored (`cli.repl.rebuild.stopped`).
   const nap =
-    "fn nap!() -> void:\n    defer:\n        kept = 8\n    sleep!(Duration.seconds(+30))\n\nnap!()\n";
+    "fn nap!() -> void:\n    defer(fn() -> void: kept = 8)\n    sleep!(Duration.seconds(+30))\n\nnap!()\n";
   const started = performance.now();
   const status = await repl.input(nap, (session) => setTimeout(() => session.stop(), 50));
   assert.equal(status, 3);

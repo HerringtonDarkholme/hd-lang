@@ -2000,13 +2000,13 @@ pub fn global_place_types(b: &Body) -> Vec<usize> {
     out
 }
 
-/// The instructions of a `defer` suite that invariant 6 forbids: a
+/// The instructions of a cleanup suite that invariant 6 forbids: a
 /// suspension point, a `Return`, or a `Break` or `Continue` whose loop
 /// is outside the suite. A closure inside the suite is its own body and
 /// is not searched: its root block, though listed in the suite, is a
 /// sub-body root.
 #[must_use]
-pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
+pub fn cleanup_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
     let mut seen = vec![false; b.len()];
     for &r in &b.sub_root {
         if let Some(s) = seen.get_mut(r as usize) {
@@ -2224,9 +2224,8 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
         }
         if tag == Tag::Defer {
             // A suspension point may stand in a suite: a `using!` binding's
-            // `dispose!` (flow.using.async.suite-suspends); the checker rejects one that
-            // source writes in a `defer` suite (flow.defer.suspend).
-            let suites = defer_suite_violations(b, b.data[i][0]);
+            // `dispose!` (flow.using.async.suite-suspends).
+            let suites = cleanup_suite_violations(b, b.data[i][0]);
             for v in suites
                 .into_iter()
                 .filter(|v| !is_suspension(b.tags[*v as usize]))
@@ -2234,7 +2233,7 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
                 errs.push(VerifyError {
                     invariant: 6,
                     inst: v,
-                    what: format!("{} inside a defer suite", b.tags[v as usize].name()),
+                    what: format!("{} inside a cleanup suite", b.tags[v as usize].name()),
                 });
             }
         }
@@ -3028,7 +3027,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_rejects_leaving_a_defer_suite() {
+    fn verifier_rejects_leaving_a_cleanup_suite() {
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let n = NodeIdx::from_raw(1);
         let zero = b.const_value(Ty::I32, 0);
