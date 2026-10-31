@@ -1,13 +1,14 @@
 # The Path To Returned Local References
 
 **Status:** accepted 2026-10-29; domain: references and lifetimes. Built:
-stages 1 to 8 (stage 7: #1098, #1106 to #1108, #1111 to #1114; stage 8:
-#1118, no borrow flags). Open: stage 9 (field paths on results, its syntax
-awaits the owner) and #1115 (call results through `*mut` at run time); 6i is
-not planned for now (see its row). It reviews
+stages 1 to 9 (stage 7: #1098, #1106 to #1108, #1111 to #1115, #1129;
+stage 8: #1118, no borrow flags; stage 9: #1119, #1126, #1127). Open: copying
+a `&mut` (waits on `~Copyable`), and the same paths for `&mut` parameters
+(Rust's view types, below), not scheduled; 6i is not planned for now (see its
+row). It reviews
 [Local References](../../spec/lang/13-values-and-references.md#local-references),
 [Element References](../../spec/lang/13-values-and-references.md#element-references),
-the parked [tier-2 study](OBJECT_MODEL_TIER2.md), Muse's closed PR #999
+the tier-2 study (git history at 1586412c5, docs/future-work/OBJECT_MODEL_TIER2.md), Muse's closed PR #999
 (`OBJECT_MODEL_TIER2_LIFETIMES.md`), and the tier-2 requirements in #978
 and #995. It changes no spec, compiler or std code.
 

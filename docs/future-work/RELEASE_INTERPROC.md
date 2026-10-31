@@ -922,7 +922,7 @@ gain). The slices follow Phasing in order.
 - In this repository: docs/compiler/tir-v2.md, docs/compiler/tiering.md,
   crates/hd_opt/DESIGN.md, crates/hd_cache/DESIGN.md,
   crates/hd_mono/DESIGN.md §11 and §13.11, crates/hd_wasm_linear/DESIGN.md
-  §23.8 and §23.25 to §23.27, docs/future-work/OBJECT_MODEL_TIER2.md Part
+  §23.8 and §23.25 to §23.27, docs/future-work/OBJECT_MODEL_TIER2.md (git history at 1586412c5) Part
   3, and issues #165, #667, #681 and #702.
 
 **The probes.** Run with `hd --release FILE` at 11972f1e3's worktree.

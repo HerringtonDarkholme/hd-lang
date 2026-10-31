@@ -6,7 +6,7 @@
 checker (compiler internals). It reviews `crates/hd_check/src/dep_results.rs`
 and `local_refs.rs` at e77e0c2d3, the stages in
 [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md), the
-cost figures in [the tier-2 study](OBJECT_MODEL_TIER2.md#13-costs) and the
+cost figures in the tier-2 study (git history at 1586412c5, docs/future-work/OBJECT_MODEL_TIER2.md, §13) and the
 #978 log. It changes no spec, compiler or std code. Tier 2 itself is
 committed; this is about building it cheaper.
 
