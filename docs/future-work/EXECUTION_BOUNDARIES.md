@@ -329,7 +329,7 @@ trait Gpu:
     fn run!(&mut self, kernel: fn(Texture[Self::Device]) -> void, texture: Texture[Self::Device]) -> Result[void, CrossingError]
 ```
 
-### The Row Against The Destination
+### The Row Against The Destination (**approved**: question 8)
 
 - **Checked at the crossing:** every key in the code's row is a capability
   of the destination. The source's row need not hold them (example 2).
@@ -655,6 +655,11 @@ decides it (question 7).
    transfers, a reference lends, and a handle stays home. There is no
    `transfer(x)`; to move a value instead of copying it, make its type
    `~Copyable`. Swift and Rust have no transfer keyword either.
+8. **How does a destination state its capabilities?** Answered (owner,
+   2026-10-31): as a row parameter on the domain trait, such as
+   `Workers[$ Clock + Console]`, checked by row subsumption, so each pool
+   offers its own set and tests swap it with `$.with`. Not a fixed set per
+   domain kind.
 
 ```text
 let tex: Texture[Gpu0] = gpu0.upload!(photo)?  # question 4 (a)
