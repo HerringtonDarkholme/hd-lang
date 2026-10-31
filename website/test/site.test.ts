@@ -152,16 +152,17 @@ describe("website build", () => {
     const home = await readFile(join(scratch, "pages", "index.html"), "utf8");
     const readme = await readFile(join(REPO_DIR, "README.md"), "utf8");
     const slogan = /^\*\*(.+)\*\*$/m.exec(readme)![1]!;
-    assert.match(home, new RegExp(`<h1 id="hero-title">${slogan.replaceAll(".", "\\.")}</h1>`));
+    // The heading is the slogan, its last words lit in the logo's colors.
+    const heading = /<h1 id="hero-title">(.*?)<\/h1>/.exec(home)?.[1] ?? "";
+    assert.equal(heading.replaceAll(/<[^>]+>/g, ""), slogan);
+    assert.match(heading, /<span class="hero-glow">/);
     assert.match(home, /<div class="layout layout-home">/);
     assert.match(home, /<a class="button button-primary" href="\/hd-lang\/tour\/">Take the tour/);
     assert.match(home, /<a class="button" href="\/hd-lang\/playground\.html">/);
     assert.match(home, /href="\/hd-lang\/guide\/learn-in-10-minutes\.html">Learn in 10 minutes/);
-    // The hero sample is the README's own code, highlighted.
-    assert.match(
-      home,
-      /<span class="hl-keyword">trait<\/span> <span class="hl-type">Mailer<\/span>/,
-    );
+    // The three pillars come from the README's list, under their marks.
+    assert.equal([...home.matchAll(/<article class="pillar">/g)].length, 3);
+    assert.match(home, /<h3>Requirements declare<\/h3>/);
     // Each claim card opens its whole example in the playground.
     const examples = [
       ...home.matchAll(/<a href="\/hd-lang\/playground\.html#code=([A-Za-z0-9_-]+)">Run the full/g),
@@ -179,8 +180,9 @@ describe("website build", () => {
       /<span class="line-mark"><span class="hl-keyword">fn<\/span> <span class="hl-function">welcome!<\/span>/,
     );
     assert.match(home, /<figure class="claim-output claim-output-error">/);
-    // The README's sections follow the hero.
-    assert.match(home, /<h2 id="why-hd">/);
+    // Each claim has a tab, and the page renders no other README section.
+    assert.equal([...home.matchAll(/role="tab"/g)].length, FEATURES.length);
+    assert.doesNotMatch(home, /<h2 id="why-hd">/);
   });
 
   test("claim outputs are real compiler output", () => {

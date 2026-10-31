@@ -1,6 +1,7 @@
 // Client behavior for the hd-lang site: the mobile navigation toggle, the
-// theme toggle, heading search, copy buttons on code blocks, and passing
-// `#code=` from the playground page to the playground.
+// theme toggle, heading search, copy buttons on code blocks, passing
+// `#code=` from the playground page to the playground, and the home page's
+// claims explorer.
 
 const base = document.body.dataset.base ?? "/";
 
@@ -290,9 +291,57 @@ function setupOutline() {
   }
 }
 
+/**
+ * The home page's claims explorer: one claim shows at a time, chosen by its
+ * tab. Arrow keys, Home, and End move between tabs.
+ */
+function setupExplorer() {
+  for (const explorer of document.querySelectorAll("[data-explorer]")) {
+    const tabs = [...explorer.querySelectorAll('[role="tab"]')];
+    const select = (tab, focus) => {
+      for (const other of tabs) {
+        const selected = other === tab;
+        other.setAttribute("aria-selected", String(selected));
+        other.tabIndex = selected ? 0 : -1;
+        const panel = document.getElementById(other.getAttribute("aria-controls"));
+        if (panel) {
+          panel.hidden = !selected;
+        }
+      }
+      if (focus) {
+        tab.focus();
+      }
+    };
+    for (const [index, tab] of tabs.entries()) {
+      tab.addEventListener("click", () => select(tab, false));
+      tab.addEventListener("keydown", (event) => {
+        const last = tabs.length - 1;
+        const next = {
+          ArrowDown: index === last ? 0 : index + 1,
+          ArrowRight: index === last ? 0 : index + 1,
+          ArrowUp: index === 0 ? last : index - 1,
+          ArrowLeft: index === 0 ? last : index - 1,
+          Home: 0,
+          End: last,
+        }[event.key];
+        if (next !== undefined) {
+          event.preventDefault();
+          select(tabs[next], true);
+        }
+      });
+    }
+    const current = tabs.find((tab) => tab.getAttribute("aria-selected") === "true") ?? tabs[0];
+    if (current) {
+      select(current, false);
+      explorer.classList.add("is-ready");
+    }
+  }
+}
+
 setupMenu();
 setupTheme();
 setupCopy();
 setupSearch();
 setupPlayground();
 setupOutline();
+setupExplorer();

@@ -1,3 +1,4 @@
+import { logoSvg } from "./logo.ts";
 import { escapeHtml, inlineCode, type Heading } from "./markdown.ts";
 import {
   navSections,
@@ -53,11 +54,12 @@ interface LayoutInput {
 export const REPL_SCRIPT = "assets/repl.js";
 
 /**
- * The site's faces, Inter and JetBrains Mono, as an HTML attribute value.
- * style.css falls back to system fonts when they do not load.
+ * The site's faces, Outfit for display type, Inter, and JetBrains Mono, as an
+ * HTML attribute value. style.css falls back to system fonts when they do not
+ * load.
  */
 const FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap";
+  "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap";
 
 /** The localStorage key of the theme toggle; site.js writes it. */
 const THEME_KEY = "hd-theme";
@@ -70,6 +72,8 @@ const THEME_ICON =
 
 const SEARCH_ICON =
   '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m20 20-4.5-4.5M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0z"/></svg>';
+
+const BRAND_MARK = logoSvg({ id: "brand-logo", variant: "mark", className: "brand-mark" });
 
 function link(base: string, output: string): string {
   return base + output.replace(/(^|\/)index\.html$/, "$1");
@@ -198,6 +202,8 @@ export function renderLayout(input: LayoutInput): string {
 <title>${escapeHtml(pageTitle)}</title>
 <meta name="description" content="${escapeHtml(input.description)}">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7fafa" media="(prefers-color-scheme: light)">
 <script>try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -222,7 +228,7 @@ export function renderLayout(input: LayoutInput): string {
   <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Toggle navigation">
     <span></span><span></span><span></span>
   </button>
-  <a class="brand" href="${base}" aria-label="hd-lang home"><span class="brand-mark" aria-hidden="true">hd</span><span class="brand-name">hd-lang</span></a>
+  <a class="brand" href="${base}" aria-label="hd-lang home">${BRAND_MARK}<span class="brand-name">hd-lang</span></a>
   <nav class="topnav" aria-label="Primary">${primaryLinks(input)}</nav>
   <div class="search" role="search">
     ${SEARCH_ICON}

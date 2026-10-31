@@ -1,5 +1,6 @@
-// The landing page's claim cards. Every snippet is lines copied from a
-// playground example, and every output line is either quoted in that
+// The landing page's claim cards, all about the effect system, the part of
+// hd that sets it apart. Every snippet is lines copied from a playground
+// example, and every output line is either quoted in that
 // example's comments or printed by `hd check` on the stated variant;
 // website/test/site.test.ts checks both.
 
@@ -78,70 +79,6 @@ export const FEATURES: readonly Feature[] = [
       { from: "pub fn main!() -> void $ Console: # ← the console, and nothing else", lines: 5 },
     ],
     marks: ["pub fn main!() -> void $ Console: # ← the console, and nothing else"],
-  },
-  {
-    title: "Exhaustive match",
-    blurb: "Add a variant, and the compiler lists every match to update.",
-    contrast: "A catch-all arm would have hidden both errors.",
-    example: "exhaustive",
-    ranges: [{ from: "fn can_cancel(status: OrderStatus) -> bool:", lines: 6 }],
-    marks: ["match status:"],
-    output: {
-      caption: "hd check, after adding Refunded(cents: i32)",
-      lines: [
-        "main.hd:3:5: nonexhaustive-match: match does not cover: Refunded",
-        "main.hd:29:5: nonexhaustive-match: match does not cover: Refunded",
-      ],
-      kind: "error",
-      source: "comment",
-    },
-  },
-  {
-    title: "Typed errors with context",
-    blurb: "`?` returns the error early, and `.context` says what the program was doing.",
-    contrast: "No exceptions: the signature says what can fail.",
-    example: "errors",
-    ranges: [{ from: "fn start(config: string) -> Result[string, *dyn Error]:", lines: 2 }],
-    marks: ['n := port(config).context("starting the server")? # ← early return, with context'],
-    output: {
-      caption: 'report for "port = eighty"',
-      lines: [
-        "starting the server",
-        "source: port 'eighty' is not a number",
-        "source: invalid digit at position 0",
-      ],
-      kind: "output",
-      source: "comment",
-    },
-  },
-  {
-    title: "Property tests find real bugs",
-    blurb: "`@derive(Arbitrary)` feeds the test; it found the bug two hand-picked cases missed.",
-    example: "derive",
-    ranges: [
-      { from: "@derive(Arbitrary, Debug, Eq)", lines: 3 },
-      { from: "it_prop(", lines: 4 },
-    ],
-    marks: [
-      "@derive(Arbitrary, Debug, Eq)",
-      'prop=fn!(m: Money): assert_equal(parse(print(m)), .Some(m), reason="round trip")',
-    ],
-    output: {
-      caption: "hd test, on the first version of print",
-      lines: [
-        'property test "parse undoes print" shrunk input Money { cents: -1000 };',
-        "assertion-failed: round trip: actual Option.None, expected Option.Some(Money { cents: -1000 })",
-      ],
-      kind: "error",
-      source: "comment",
-    },
-  },
-  {
-    title: "Structured concurrency",
-    blurb: "`all!` runs both calls at once and joins the results.",
-    example: "concurrency",
-    ranges: [{ from: "fn page!(id: i32) -> string $ Clock:", lines: 3 }],
-    marks: ["let (profile, orders) = all!(fetch_profile(id), fetch_orders(id)) # ← both at once"],
   },
 ];
 
