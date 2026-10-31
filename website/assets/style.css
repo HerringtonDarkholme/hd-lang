@@ -53,6 +53,11 @@
   --logo-ring-blush: light-dark(#e597ba, #ffd6e8);
   --logo-rose: light-dark(#d9689a, #ffb1d3);
   --logo-satellite: light-dark(#fbd3e4, #fff4f9);
+  --logo-ring-core: light-dark(#ffffff, #f6fffd);
+  --logo-halo: light-dark(#e0559b, #ff5cb4);
+  --logo-rim: light-dark(#e8fffb, #effffc);
+  --logo-ring-glow: 0.35;
+  --logo-ring-core-opacity: 0.35;
   --logo-glow: 0.2;
   --mark-bg: light-dark(rgb(28 196 182 / 0.1), rgb(46 230 212 / 0.08));
   --hl-keyword: light-dark(#b4387a, #ff9fcc);
@@ -94,11 +99,15 @@
 /* The logo's glow strengths are numbers, which light-dark() cannot pick between. */
 :root[data-theme="dark"] {
   --logo-glow: 0.45;
+  --logo-ring-glow: 0.75;
+  --logo-ring-core-opacity: 0.95;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --logo-glow: 0.45;
+    --logo-ring-glow: 0.75;
+    --logo-ring-core-opacity: 0.95;
   }
 }
 

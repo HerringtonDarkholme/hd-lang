@@ -531,6 +531,12 @@ test("glossary helpers rebase links and match plurals", () => {
     "[a](std/iter.md#x) [b](README.md#y)",
   );
   assert.equal(rebaseLinks("[a](https://e.com/x.md)", "std"), "[a](https://e.com/x.md)");
+  // A same-page anchor, quoted on another page, names its page.
+  assert.equal(
+    rebaseLinks("[r](#r-x.y)", "lang", "lang/13-values.md"),
+    "[r](lang/13-values.md#r-x.y)",
+  );
+  assert.equal(rebaseLinks("[r](#r-x.y)", "lang"), "[r](#r-x.y)");
   assert.ok(termKeys("trait candidates").includes("trait candidate"));
   assert.ok(termKeys("mutable edges").includes("mutable edge"));
 });

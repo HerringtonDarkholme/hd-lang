@@ -64,13 +64,18 @@ export function termKeys(term: string): string[] {
   return keys;
 }
 
-/** Rewrites the relative links of Markdown written in `directory` (under spec/) to be relative to spec/. */
-export function rebaseLinks(markdown: string, directory: string): string {
-  if (directory === "" || directory === ".") {
-    return markdown;
-  }
+/**
+ * Rewrites the relative links of Markdown written in `directory` (under spec/)
+ * to be relative to spec/. Given the `file` it came from (relative to spec/),
+ * a link to an anchor on that same page gains the file's name, so the
+ * Markdown can be quoted on another page.
+ */
+export function rebaseLinks(markdown: string, directory: string, file?: string): string {
   return markdown.replaceAll(/\]\(([^)\s]+)\)/g, (whole, href: string) => {
-    if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(href)) {
+    if (href.startsWith("#")) {
+      return file ? `](${file}${href})` : whole;
+    }
+    if (directory === "" || directory === "." || /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(href)) {
       return whole;
     }
     return `](${posix.normalize(posix.join(directory, href))})`;
@@ -205,7 +210,7 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
       const definition = termDefinition(block, parts, term);
       out.push({
         term,
-        definition: rebaseLinks(definition, directory),
+        definition: rebaseLinks(definition, directory, chapter.name),
         chapter: chapter.name,
         ...place(block.line, rule),
         source: "chapter-bold",
@@ -242,7 +247,7 @@ function chapterTerms(chapter: Chapter): GlossaryTerm[] {
     const rule = LEADING_MARKER.exec(first.text)?.[1];
     out.push({
       term: section.title.replaceAll("`", "").toLowerCase(),
-      definition: rebaseLinks(sentence.replace(LEADING_MARKER, ""), directory),
+      definition: rebaseLinks(sentence.replace(LEADING_MARKER, ""), directory, chapter.name),
       chapter: chapter.name,
       ...place(rule ? first.line : section.line, rule),
       source: "chapter-heading",
