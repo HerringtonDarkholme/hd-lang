@@ -2,17 +2,17 @@
 const SIZE = 1400;
 const ITER = 50;
 let inside = 0;
-for (let y = 0; y < SIZE; y++) {
-  const ci = (2 * y) / SIZE - 1;
-  for (let x = 0; x < SIZE; x++) {
-    const cr = (2 * x) / SIZE - 1.5;
+for (let row = 0; row < SIZE; row++) {
+  const ci = (2 * row) / SIZE - 1;
+  for (let column = 0; column < SIZE; column++) {
+    const cr = (2 * column) / SIZE - 1.5;
     let zr = 0;
     let zi = 0;
     let i = 0;
     while (i < ITER && zr * zr + zi * zi <= 4) {
-      const t = zr * zr - zi * zi + cr;
+      const nextReal = zr * zr - zi * zi + cr;
       zi = 2 * zr * zi + ci;
-      zr = t;
+      zr = nextReal;
       i++;
     }
     if (i === ITER) {

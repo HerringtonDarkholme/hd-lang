@@ -4,29 +4,29 @@ class Double {
   constructor(k) {
     this.k = k;
   }
-  step(x) {
-    return x * 2 + this.k;
+  step(value) {
+    return value * 2 + this.k;
   }
 }
 class Add {
   constructor(k) {
     this.k = k;
   }
-  step(x) {
-    return x + this.k;
+  step(value) {
+    return value + this.k;
   }
 }
-function apply(s, x) {
-  return s.step(x);
+function apply(stepper, value) {
+  return stepper.step(value);
 }
-function drive(n) {
+function drive(count) {
   const double = new Double(3);
   const add = new Add(5);
-  let x = 1;
-  for (let i = 0; i < n; i++) {
-    x = apply(double, x) % 1000003;
-    x = apply(add, x) % 1000003;
+  let value = 1;
+  for (let i = 0; i < count; i++) {
+    value = apply(double, value) % 1000003;
+    value = apply(add, value) % 1000003;
   }
-  return x;
+  return value;
 }
 console.log(drive(35000000));

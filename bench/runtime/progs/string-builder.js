@@ -1,6 +1,6 @@
-function build(n) {
+function build(count) {
   const parts = [];
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < count; i++) {
     parts.push("abcdefgh");
   }
   return parts.join("");

@@ -61,7 +61,10 @@ type Diagnostic = Record<string, unknown>;
 
 const describe = (found: readonly Diagnostic[]): string =>
   found
-    .map((d) => `${String(d.code)}@${d.file ? `${String(d.file)}:` : ""}${String(d.line)}`)
+    .map(
+      (item) =>
+        `${String(item.code)}@${item.file ? `${String(item.file)}:` : ""}${String(item.line)}`,
+    )
     .join(" ") || "none";
 
 /** One check: a name for the report, and the problem it found, if any. */
@@ -210,12 +213,12 @@ function generatorChecks(hd: HdCommand, context: MetricContext): Check[] {
 
 /** Why a mistake program's report does not show its mistake, or undefined. */
 export function mistakeProblem(mistake: Mistake, found: readonly Diagnostic[]): string | undefined {
-  const codes = found.map((d) => String(d.code));
+  const codes = found.map((item) => String(item.code));
   const allowed = new Set([mistake.code, ...mistake.cascade]);
   if (!codes.includes(mistake.code)) {
     return `expected ${mistake.code}, got ${describe(found)}`;
   }
-  const other = found.filter((d) => !allowed.has(String(d.code)));
+  const other = found.filter((item) => !allowed.has(String(item.code)));
   if (other.length > 0) {
     return `expected ${[...allowed].join(", ")} only, also got ${describe(other)}`;
   }
@@ -258,14 +261,14 @@ export function markerProblem(text: string, found: readonly Diagnostic[]): strin
       marks.set(index + 1, match[1]!);
     }
   });
-  const stray = found.filter((d) => marks.get(Number(d.line)) !== d.code);
+  const stray = found.filter((item) => marks.get(Number(item.line)) !== item.code);
   if (stray.length > 0) {
     return `unmarked or wrong diagnostics: ${describe(stray)}`;
   }
   const parses = ![...marks.values()].includes("syntax-error");
   const missing = [...marks].filter(
     ([line, code]) =>
-      (parses || code === "syntax-error") && !found.some((d) => Number(d.line) === line),
+      (parses || code === "syntax-error") && !found.some((item) => Number(item.line) === line),
   );
   if (missing.length > 0) {
     return `marked lines not reported: ${missing.map(([line, code]) => `${code}@${line}`).join(" ")}`;

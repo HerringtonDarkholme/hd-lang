@@ -15,10 +15,12 @@ export const diagLocation: Metric = {
   summary: "mistake corpus: share of diagnostics on the mistake's line",
   async run(context) {
     const outcomes = await mistakeOutcomes(context);
-    const hits = outcomes.filter((o) => o.reported && o.reported.line === o.mistake.line);
+    const hits = outcomes.filter(
+      (item) => item.reported && item.reported.line === item.mistake.line,
+    );
     const misses = outcomes
-      .filter((o) => !hits.includes(o))
-      .map((o) => `${o.mistake.name}@${o.reported ? String(o.reported.line) : "none"}`);
+      .filter((item) => !hits.includes(item))
+      .map((item) => `${item.mistake.name}@${item.reported ? String(item.reported.line) : "none"}`);
     return [
       judge(
         NAME,

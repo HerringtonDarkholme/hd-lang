@@ -74,7 +74,10 @@ export function removeAllTempDirs(): void {
 }
 
 /** Runs `body` with a fresh directory and removes the directory afterwards. */
-export async function withTempDir<T>(label: string, body: (dir: string) => Promise<T>): Promise<T> {
+export async function withTempDir<Result>(
+  label: string,
+  body: (dir: string) => Promise<Result>,
+): Promise<Result> {
   const dir = makeTempDir(label);
   try {
     return await body(dir);

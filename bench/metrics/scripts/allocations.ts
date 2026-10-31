@@ -79,8 +79,8 @@ export const allocations: Metric = {
     );
     for (const [index, loop] of LOOPS.entries()) {
       try {
-        const build = (n: number, size: string) =>
-          buildFixture(context.hd, loop.program, { n }, `alloc-${index}-${size}`);
+        const build = (value: number, size: string) =>
+          buildFixture(context.hd, loop.program, { n: value }, `alloc-${index}-${size}`);
         const small = await build(SMALL, "small");
         const large = await build(LARGE, "large");
         const bytes = async (program: Program, run: number): Promise<number | undefined> => {

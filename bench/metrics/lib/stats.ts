@@ -5,15 +5,15 @@
  * least `p` percent of the values are at or below it. `p` is in 0..100.
  * Throws on an empty list, since a metric with no samples has no value.
  */
-export function percentile(values: readonly number[], p: number): number {
+export function percentile(values: readonly number[], percent: number): number {
   if (values.length === 0) {
     throw new Error("percentile of an empty list");
   }
-  if (!(p >= 0 && p <= 100)) {
-    throw new Error(`percentile ${p} is outside 0..100`);
+  if (!(percent >= 0 && percent <= 100)) {
+    throw new Error(`percentile ${percent} is outside 0..100`);
   }
-  const sorted = [...values].sort((a, b) => a - b);
-  const rank = Math.max(1, Math.ceil((p / 100) * sorted.length));
+  const sorted = [...values].sort((left, right) => left - right);
+  const rank = Math.max(1, Math.ceil((percent / 100) * sorted.length));
   return sorted[rank - 1]!;
 }
 
@@ -38,7 +38,7 @@ export function geomean(values: readonly number[]): number {
 }
 
 /** The share of `items` for which `test` holds, in 0..1; 0 for an empty list. */
-export function share<T>(items: readonly T[], test: (item: T) => boolean): number {
+export function share<Value>(items: readonly Value[], test: (item: Value) => boolean): number {
   if (items.length === 0) {
     return 0;
   }

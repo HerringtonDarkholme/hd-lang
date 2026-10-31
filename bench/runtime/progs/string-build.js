@@ -1,6 +1,6 @@
-function build(n) {
+function build(count) {
   let out = "";
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < count; i++) {
     out = out + "abcdefgh";
   }
   return out;

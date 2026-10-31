@@ -77,12 +77,12 @@ export function growthBound(from: number, to: number, pageBytes: number): number
 
 /** The largest RSS from `from` inputs on, minus the RSS at `from`; NaN when `from` has no sample. */
 export function growthFrom(samples: readonly Sample[], from: number): number {
-  const base = samples.find((s) => s.inputs === from);
-  const later = samples.filter((s) => s.inputs >= from);
+  const base = samples.find((item) => item.inputs === from);
+  const later = samples.filter((item) => item.inputs >= from);
   if (!base || later.length === 0) {
     return Number.NaN;
   }
-  return Math.max(...later.map((s) => s.rssBytes)) - base.rssBytes;
+  return Math.max(...later.map((item) => item.rssBytes)) - base.rssBytes;
 }
 
 async function run(command: string, args: string[]): Promise<string | undefined> {
@@ -141,9 +141,10 @@ export const longSession: Metric = {
     if (result.status !== 0 || !last) {
       return [failed(NAME, label, target, `the session test failed: ${result.stderr.slice(-300)}`)];
     }
-    const at = (inputs: number) => samples.find((s) => s.inputs === inputs);
-    const mb = (s: Sample | undefined) => (s ? formatValue(s.rssBytes, "MB") : "?");
-    const ms = (s: Sample | undefined) => (s ? `${(s.buildUs / 1000).toFixed(0)} ms` : "?");
+    const at = (inputs: number) => samples.find((item) => item.inputs === inputs);
+    const mb = (source: Sample | undefined) => (source ? formatValue(source.rssBytes, "MB") : "?");
+    const ms = (source: Sample | undefined) =>
+      source ? `${(source.buildUs / 1000).toFixed(0)} ms` : "?";
     const detail =
       `RSS ${mb(at(BASELINE_INPUT))} at input ${BASELINE_INPUT}, ${mb(last)} at input ${last.inputs}; ` +
       `build per input ${ms(at(STEP))} at ${STEP}, ${ms(last)} at ${last.inputs}; ` +

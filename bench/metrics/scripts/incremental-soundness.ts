@@ -155,8 +155,8 @@ export function difference(
   incremental: readonly string[],
   clean: readonly string[],
 ): string | undefined {
-  const only = (a: readonly string[], b: readonly string[]) =>
-    a.filter((line) => !b.includes(line));
+  const only = (left: readonly string[], right: readonly string[]) =>
+    left.filter((line) => !right.includes(line));
   const extra = only(incremental, clean);
   const missing = only(clean, incremental);
   if (extra.length === 0 && missing.length === 0) {

@@ -1,39 +1,39 @@
 // spectral-norm, n = 2000 (benchmarks game). Prints trunc(norm * 1e9).
-const N = 2800;
-const a = (i, j) => 1 / (((i + j) * (i + j + 1)) / 2 + i + 1);
-function mulAv(n, v, out) {
-  for (let i = 0; i < n; i++) {
-    let s = 0;
-    for (let j = 0; j < n; j++) {
-      s += a(i, j) * v[j];
+const SIZE = 2800;
+const coefficient = (i, j) => 1 / (((i + j) * (i + j + 1)) / 2 + i + 1);
+function mulAv(count, input, out) {
+  for (let i = 0; i < count; i++) {
+    let sum = 0;
+    for (let j = 0; j < count; j++) {
+      sum += coefficient(i, j) * input[j];
     }
-    out[i] = s;
+    out[i] = sum;
   }
 }
-function mulAtv(n, v, out) {
-  for (let i = 0; i < n; i++) {
-    let s = 0;
-    for (let j = 0; j < n; j++) {
-      s += a(j, i) * v[j];
+function mulAtv(count, input, out) {
+  for (let i = 0; i < count; i++) {
+    let sum = 0;
+    for (let j = 0; j < count; j++) {
+      sum += coefficient(j, i) * input[j];
     }
-    out[i] = s;
+    out[i] = sum;
   }
 }
-function mulAtAv(n, v, out, tmp) {
-  mulAv(n, v, tmp);
-  mulAtv(n, tmp, out);
+function mulAtAv(count, input, out, tmp) {
+  mulAv(count, input, tmp);
+  mulAtv(count, tmp, out);
 }
-const u = new Float64Array(N).fill(1);
-const v = new Float64Array(N);
-const tmp = new Float64Array(N);
+const vectorU = new Float64Array(SIZE).fill(1);
+const vectorV = new Float64Array(SIZE);
+const tmp = new Float64Array(SIZE);
 for (let i = 0; i < 10; i++) {
-  mulAtAv(N, u, v, tmp);
-  mulAtAv(N, v, u, tmp);
+  mulAtAv(SIZE, vectorU, vectorV, tmp);
+  mulAtAv(SIZE, vectorV, vectorU, tmp);
 }
 let vBv = 0;
 let vv = 0;
-for (let i = 0; i < N; i++) {
-  vBv += u[i] * v[i];
-  vv += v[i] * v[i];
+for (let i = 0; i < SIZE; i++) {
+  vBv += vectorU[i] * vectorV[i];
+  vv += vectorV[i] * vectorV[i];
 }
 console.log(Math.trunc(Math.sqrt(vBv / vv) * 1e9));

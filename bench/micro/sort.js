@@ -3,7 +3,7 @@ function main() {
   for (let i = 0; i < 100_000; i++) {
     items.push((i * 48271) % 1_000_003);
   }
-  items.sort((a, b) => a - b);
+  items.sort((left, right) => left - right);
   if (items[0] !== 0) {
     throw new Error(`wrong min: ${items[0]}`);
   }
@@ -20,5 +20,5 @@ for (let i = 0; i < 3; i++) {
   main();
   times.push(performance.now() - start);
 }
-times.sort((a, b) => a - b);
+times.sort((left, right) => left - right);
 console.log(times[1].toFixed(1));

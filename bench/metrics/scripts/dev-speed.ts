@@ -114,7 +114,9 @@ export const devSpeed: Metric = {
           failed(NAME, WORST_LABEL, worstTarget, reason),
         ];
       }
-      const worst = ratios.reduce((a, b) => (b.ratio > a.ratio ? b : a));
+      const worst = ratios.reduce((accumulator, value) =>
+        value.ratio > accumulator.ratio ? value : accumulator,
+      );
       const results: TargetResult[] = [
         judge(
           NAME,

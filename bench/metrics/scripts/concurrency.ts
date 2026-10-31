@@ -37,13 +37,13 @@ const SOLO_ROUNDS = 3;
 const RATIO = 1.5;
 
 /** The p95 latency bound at N processes on `cores` cores, as a ratio to N = 1. */
-export const latencyBound = (n: number, cores: number): number =>
-  n <= cores ? RATIO : (RATIO * n) / cores;
+export const latencyBound = (value: number, cores: number): number =>
+  value <= cores ? RATIO : (RATIO * value) / cores;
 
 /** Starts N checks at once, each in its own copy, sharing one fresh cache. */
-async function round(context: MetricContext, source: string, n: number) {
+async function round(context: MetricContext, source: string, value: number) {
   const env = freshCache();
-  const dirs = Array.from({ length: n }, () => copyPackage(source, NAME));
+  const dirs = Array.from({ length: value }, () => copyPackage(source, NAME));
   const results = await Promise.all(
     dirs.map((cwd) =>
       runHd(context.hd, ["check"], { cwd, env, timeoutMs: TIMEOUT_MS, measure: true }),
@@ -53,7 +53,7 @@ async function round(context: MetricContext, source: string, n: number) {
     removeTempDir(dir);
   }
   const problems = results
-    .map((result, index) => runProblem(result, TIMEOUT_MS, `check ${index + 1} of ${n}`))
+    .map((result, index) => runProblem(result, TIMEOUT_MS, `check ${index + 1} of ${value}`))
     .filter((problem) => problem !== undefined);
   return { results, problem: problems[0] };
 }
@@ -70,14 +70,19 @@ export const concurrency: Metric = {
     const counts = context.max ? [4, 16, 64] : [4, 16];
     const { dir: source } = materialize("small", NAME);
     const cpuLabel = `total CPU growth exponent, N = 1 to ${counts.at(-1)}`;
-    const ratioLabel = (n: number) => `p95 latency at N = ${n} vs N = 1`;
+    const ratioLabel = (value: number) => `p95 latency at N = ${value} vs N = 1`;
     const solo: RunResult[] = [];
     for (let index = 0; index < SOLO_ROUNDS; index++) {
       const { results, problem } = await round(context, source, 1);
       if (problem) {
         return [
-          ...counts.map((n) =>
-            failed(NAME, ratioLabel(n), `≤ ${formatValue(latencyBound(n, cores), "x")}`, problem),
+          ...counts.map((item) =>
+            failed(
+              NAME,
+              ratioLabel(item),
+              `≤ ${formatValue(latencyBound(item, cores), "x")}`,
+              problem,
+            ),
           ),
           failed(NAME, cpuLabel, "< 1.00", problem),
         ];
@@ -89,21 +94,21 @@ export const concurrency: Metric = {
     const out: TargetResult[] = [];
     let last: { readonly n: number; readonly cpu: number } | undefined;
     let lastProblem: string | undefined;
-    for (const n of counts) {
-      context.log(`${NAME}: ${n} concurrent checks on ${cores} cores`);
-      const bound = latencyBound(n, cores);
-      const { results, problem } = await round(context, source, n);
+    for (const count of counts) {
+      context.log(`${NAME}: ${count} concurrent checks on ${cores} cores`);
+      const bound = latencyBound(count, cores);
+      const { results, problem } = await round(context, source, count);
       if (problem) {
-        out.push(failed(NAME, ratioLabel(n), `≤ ${formatValue(bound, "x")}`, problem));
+        out.push(failed(NAME, ratioLabel(count), `≤ ${formatValue(bound, "x")}`, problem));
         lastProblem = problem;
         continue;
       }
       const ratio = p95(results.map((result) => result.wallMs)) / soloP95;
       const cpu = totalCpu(results);
       const note = `p95 ${formatValue(soloP95, "ms")} at N = 1; ${cores} cores; total CPU ${formatValue(cpu, "ms")}`;
-      out.push(judge(NAME, ratioLabel(n), ratio, bound, "x", "at-most", note));
-      if (n === counts.at(-1)) {
-        last = { n, cpu };
+      out.push(judge(NAME, ratioLabel(count), ratio, bound, "x", "at-most", note));
+      if (count === counts.at(-1)) {
+        last = { n: count, cpu };
       }
     }
     if (!canMeasure()) {

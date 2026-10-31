@@ -76,9 +76,9 @@ function sh(
 }
 
 function stats(samples: number[]) {
-  const s = [...samples].sort((a, b) => a - b);
-  const max = s[s.length - 1];
-  return { p50: s[Math.floor(s.length / 2)], p95: max, min: s[0], max };
+  const sorted = [...samples].sort((left, right) => left - right);
+  const max = sorted[sorted.length - 1];
+  return { p50: sorted[Math.floor(sorted.length / 2)], p95: max, min: sorted[0], max };
 }
 
 function measure(fn: () => CommandResult) {
@@ -115,8 +115,8 @@ function nodeVersion() {
 
 function main() {
   const names = readdirSync(join(HERE, "progs"))
-    .filter((f) => f.endsWith(".hd"))
-    .map((f) => f.slice(0, -3))
+    .filter((item) => item.endsWith(".hd"))
+    .map((item) => item.slice(0, -3))
     .sort();
   if (only) {
     for (const name of only) {
@@ -186,9 +186,9 @@ function main() {
   console.log(``);
   console.log(`| Program | hd p50 / p95 (ms) | JS p50 / p95 (ms) | hd/JS | Checksum |`);
   console.log(`| --- | ---: | ---: | ---: | ---: |`);
-  for (const r of rows) {
+  for (const result of rows) {
     console.log(
-      `| ${r.name} | ${r.hdT.p50.toFixed(0)} / ${r.hdT.p95.toFixed(0)} | ${r.jsT.p50.toFixed(0)} / ${r.jsT.p95.toFixed(0)} | ${r.ratio.toFixed(2)}x | ${r.out} |`,
+      `| ${result.name} | ${result.hdT.p50.toFixed(0)} / ${result.hdT.p95.toFixed(0)} | ${result.jsT.p50.toFixed(0)} / ${result.jsT.p95.toFixed(0)} | ${result.ratio.toFixed(2)}x | ${result.out} |`,
     );
   }
   console.log(``);

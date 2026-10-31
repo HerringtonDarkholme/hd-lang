@@ -49,7 +49,7 @@ export const errorsPerRun: Metric = {
         results.push(failed(NAME, name, "all, once", `timed out after ${TIMEOUT_MS / 1000} s`));
         continue;
       }
-      const found = diagnosticsOf(result.stdout).map((d) => Number(d.line));
+      const found = diagnosticsOf(result.stdout).map((item) => Number(item.line));
       const reported = lines.filter((line) => found.includes(line)).length;
       const repeated = lines.filter((line) => found.filter((at) => at === line).length > 1).length;
       const stray = found.filter((at) => !lines.includes(at)).length;

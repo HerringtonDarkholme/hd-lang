@@ -83,7 +83,9 @@ export const answerSize: Metric = {
     );
 
     const json = await run(["test", "--filter", filter, "--format", "json"]);
-    const record = jsonLines(json.stdout).find((r) => r.kind === "test" && r.outcome === "failed");
+    const record = jsonLines(json.stdout).find(
+      (item) => item.kind === "test" && item.outcome === "failed",
+    );
     results.push(
       record
         ? judge(

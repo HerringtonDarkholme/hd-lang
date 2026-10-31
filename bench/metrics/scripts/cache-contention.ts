@@ -30,7 +30,7 @@ import { listTree, makeTempDir } from "../lib/tmp.ts";
 import { copyPackage, materialize } from "../lib/gen.ts";
 
 const NAME = "cache-contention";
-const N = 8;
+const value = 8;
 const TIMEOUT_MS = 60_000;
 const SAFE = "no corruption";
 const ONCE = "computed once";
@@ -53,8 +53,8 @@ async function checkAll(
 }
 
 async function dependencyLines(context: MetricContext): Promise<TargetResult[]> {
-  const safeLabel = `dependency cache, ${N} concurrent fetches: ${SAFE}`;
-  const onceLabel = `dependency cache, ${N} concurrent fetches: fetched once`;
+  const safeLabel = `dependency cache, ${value} concurrent fetches: ${SAFE}`;
+  const onceLabel = `dependency cache, ${value} concurrent fetches: fetched once`;
   const setup = await prepareDependent(context.hd);
   if ("na" in setup) {
     return [
@@ -83,8 +83,8 @@ async function dependencyLines(context: MetricContext): Promise<TargetResult[]> 
   start = remote.connections();
   const cache = makeTempDir("cache");
   const env = { ...remote.env, HD_CACHE: cache };
-  const dirs = Array.from({ length: N }, () => copyPackage(setup.dir, NAME));
-  context.log(`${NAME}: ${N} concurrent checks that fetch one dependency`);
+  const dirs = Array.from({ length: value }, () => copyPackage(setup.dir, NAME));
+  context.log(`${NAME}: ${value} concurrent checks that fetch one dependency`);
   const concurrent = await checkAll(context, dirs, env, "concurrent check");
   const total = remote.connections() - start;
   remote.disconnect();
@@ -121,8 +121,8 @@ export const cacheShape = (files: readonly string[]): string[] =>
   files.map((path) => path.replaceAll(/\b[0-9a-f]{16,}\b/g, "*")).sort();
 
 async function compileLines(context: MetricContext): Promise<TargetResult[]> {
-  const safeLabel = `compilation cache, ${N} concurrent checks: ${SAFE}`;
-  const onceLabel = `compilation cache, ${N} concurrent checks: written once`;
+  const safeLabel = `compilation cache, ${value} concurrent checks: ${SAFE}`;
+  const onceLabel = `compilation cache, ${value} concurrent checks: written once`;
   const cache = await findCompileCache(context.hd);
   if (cache === undefined) {
     return [
@@ -140,8 +140,8 @@ async function compileLines(context: MetricContext): Promise<TargetResult[]> {
     return [failed(NAME, safeLabel, SAFE, single), failed(NAME, onceLabel, ONCE, single)];
   }
   const env = freshCache();
-  const dirs = Array.from({ length: N }, () => copyPackage(source, NAME));
-  context.log(`${NAME}: ${N} concurrent checks with one compilation cache`);
+  const dirs = Array.from({ length: value }, () => copyPackage(source, NAME));
+  context.log(`${NAME}: ${value} concurrent checks with one compilation cache`);
   const problem =
     (await checkAll(context, dirs, env, "concurrent check")) ??
     (await checkAll(context, dirs, env, "the second check in copy"));
@@ -178,7 +178,7 @@ async function compileLines(context: MetricContext): Promise<TargetResult[]> {
 export const cacheContention: Metric = {
   name: NAME,
   pillar: 2,
-  summary: `${N} processes filling one cache at once: no corruption, each entry computed once`,
+  summary: `${value} processes filling one cache at once: no corruption, each entry computed once`,
   async run(context) {
     return [...(await dependencyLines(context)), ...(await compileLines(context))];
   },

@@ -94,13 +94,13 @@ const EMPTY = 'pub fn main() -> void:\n    if 1 + 1 != 2: panic("wrong")\n';
 /** Every case: its name, hd source, and the references that print the same output. */
 function cases(): Dynamic[] {
   const list: Dynamic[] = [];
-  for (const n of STUDY) {
+  for (const count of STUDY) {
     list.push({
-      name: n,
-      hd: join(HERE, `${n}.hd`),
-      js: join(HERE, `${n}.js`),
-      go: join(HERE, "go", `${n}.go`),
-      py: join(HERE, "py", `${n}.py`),
+      name: count,
+      hd: join(HERE, `${count}.hd`),
+      js: join(HERE, `${count}.js`),
+      go: join(HERE, "go", `${count}.go`),
+      py: join(HERE, "py", `${count}.py`),
     });
   }
   list.push({
@@ -109,17 +109,17 @@ function cases(): Dynamic[] {
     go: join(HERE, "go", "dyn_iter.go"),
     py: join(HERE, "py", "dyn_iter.py"),
   });
-  for (const n of PROGS) {
-    const base = join(REPO, "bench", "runtime", "progs", n);
-    list.push({ name: `progs/${n}`, hd: `${base}.hd`, js: `${base}.js` });
+  for (const program of PROGS) {
+    const base = join(REPO, "bench", "runtime", "progs", program);
+    list.push({ name: `progs/${program}`, hd: `${base}.hd`, js: `${base}.js` });
   }
-  for (const n of MICRO) {
-    list.push({ name: `micro/${n}`, hd: join(REPO, "bench", "micro", `${n}.hd`) });
+  for (const benchmark of MICRO) {
+    list.push({ name: `micro/${benchmark}`, hd: join(REPO, "bench", "micro", `${benchmark}.hd`) });
   }
   list.push({ name: "empty", src: EMPTY, emptyExpected: true });
-  for (const n of ["tokenizer", "math"]) {
-    const dir = join(REPO, "bench", n);
-    list.push({ name: n, hd: join(dir, "main.hd"), expected: join(dir, "expected.out") });
+  for (const countValue of ["tokenizer", "math"]) {
+    const dir = join(REPO, "bench", countValue);
+    list.push({ name: countValue, hd: join(dir, "main.hd"), expected: join(dir, "expected.out") });
   }
   return list;
 }
@@ -207,25 +207,25 @@ function parseArgs(argv: string[]): Dynamic {
 /** Runs argv under /usr/bin/time -l: wall ms, peak RSS MB, stdout, status. */
 function timed(argv: string[], env: NodeJS.ProcessEnv = process.env): Dynamic {
   const start = performance.now();
-  const r = spawnSync("/usr/bin/time", ["-l", ...argv], {
+  const execution = spawnSync("/usr/bin/time", ["-l", ...argv], {
     encoding: "utf8",
     env,
     maxBuffer: 1 << 28,
   });
   const ms = performance.now() - start;
-  const rss = /(\d+)\s+maximum resident set size/.exec(r.stderr ?? "");
+  const rss = /(\d+)\s+maximum resident set size/.exec(execution.stderr ?? "");
   return {
     ms,
     rssMb: rss ? Number(rss[1]) / 1048576 : null,
-    out: r.stdout ?? "",
-    err: r.stderr ?? "",
-    status: r.status,
+    out: execution.stdout ?? "",
+    err: execution.stderr ?? "",
+    status: execution.status,
   };
 }
 
-const median = (xs: number[]): number => {
-  const s = [...xs].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+const median = (samples: number[]): number => {
+  const sorted = [...samples].sort((left, right) => left - right);
+  return sorted[Math.floor(sorted.length / 2)];
 };
 
 /**
@@ -252,7 +252,7 @@ export function measure(argv: string[], runs: number, expect?: string, preflight
   }
   return {
     ...summarize(samples),
-    rssMb: Math.max(...samples.map((s) => s.rssMb ?? 0)),
+    rssMb: Math.max(...samples.map((item) => item.rssMb ?? 0)),
     out: first.out,
     err: first.err,
   };
@@ -271,8 +271,9 @@ function validate(sample: Dynamic, expected: string): string | null {
 function summarize(samples: Dynamic[]): Dynamic {
   return {
     runs: samples.length,
-    ms: median(samples.map((s) => s.ms)),
-    spread: Math.max(...samples.map((s) => s.ms)) - Math.min(...samples.map((s) => s.ms)),
+    ms: median(samples.map((item) => item.ms)),
+    spread:
+      Math.max(...samples.map((item) => item.ms)) - Math.min(...samples.map((item) => item.ms)),
   };
 }
 
@@ -354,20 +355,23 @@ function checkedRun(opts: Dynamic, list: Dynamic[]): void {
   writeFileSync(probe, PROBE.replace("RUNNER", JSON.stringify(RUNNER)));
   console.log("| Program | reduced input | retains | releases | allocations | heap pages |");
   console.log("| --- | --- | ---: | ---: | ---: | ---: |");
-  for (const c of list) {
-    let src = c.src ?? readFileSync(c.hd, "utf8");
-    const small: string[][] = (SMALL as Dynamic)[c.name] ?? [];
+  for (const context of list) {
+    let src = context.src ?? readFileSync(context.hd, "utf8");
+    const small: string[][] = (SMALL as Dynamic)[context.name] ?? [];
     for (const [from, to] of small) {
       src = src.replace(from, to);
     }
-    const wasm = build(opts.checked, work, c.name, src, "node", env);
-    const r = spawnSync("node", [probe, wasm], { encoding: "utf8", maxBuffer: 1 << 28 });
-    const line = /PROBE (.*)/.exec(r.stderr ?? "");
-    const p = line ? JSON.parse(line[1]) : {};
+    const wasm = build(opts.checked, work, context.name, src, "node", env);
+    const execution = spawnSync("node", [probe, wasm], { encoding: "utf8", maxBuffer: 1 << 28 });
+    const line = /PROBE (.*)/.exec(execution.stderr ?? "");
+    const path = line ? JSON.parse(line[1]) : {};
     const input = small.map(([, to]) => to).join(", ") || "full";
-    const ok = r.status === 0 ? "" : ` (exit ${r.status}: ${(r.stderr ?? "").split("\n")[0]})`;
+    const ok =
+      execution.status === 0
+        ? ""
+        : ` (exit ${execution.status}: ${(execution.stderr ?? "").split("\n")[0]})`;
     console.log(
-      `| ${c.name}${ok} | ${input} | ${p.retained ?? "?"} | ${p.released ?? "?"} | ${p.allocated ?? "?"} | ${p.pages ?? "?"} |`,
+      `| ${context.name}${ok} | ${input} | ${path.retained ?? "?"} | ${path.released ?? "?"} | ${path.allocated ?? "?"} | ${path.pages ?? "?"} |`,
     );
   }
 }
@@ -400,7 +404,7 @@ await import("file://" + runner);
 `;
 
 function pythonAvailable(opts: Dynamic, list: Dynamic[]): boolean {
-  if (!(opts.refs || opts.pythonOnly) || !list.some((c) => c.py)) {
+  if (!(opts.refs || opts.pythonOnly) || !list.some((item) => item.py)) {
     return false;
   }
   const available = spawnSync("python3", ["--version"], { encoding: "utf8" }).status === 0;
@@ -410,18 +414,18 @@ function pythonAvailable(opts: Dynamic, list: Dynamic[]): boolean {
   return available;
 }
 
-function expectedOutput(c: Dynamic, opts: Dynamic): string | undefined {
-  const known = (EXPECTED as Dynamic)[c.name] as string | undefined;
+function expectedOutput(context: Dynamic, opts: Dynamic): string | undefined {
+  const known = (EXPECTED as Dynamic)[context.name] as string | undefined;
   if (known !== undefined) {
     return known;
   }
-  if (c.js && !opts.pythonOnly) {
-    return execFileSync("node", [c.js], { encoding: "utf8" });
+  if (context.js && !opts.pythonOnly) {
+    return execFileSync("node", [context.js], { encoding: "utf8" });
   }
-  if (c.expected) {
-    return readFileSync(c.expected, "utf8");
+  if (context.expected) {
+    return readFileSync(context.expected, "utf8");
   }
-  return c.emptyExpected ? "" : undefined;
+  return context.emptyExpected ? "" : undefined;
 }
 
 function measureReferences({ row, c, opts, python, expect }: Dynamic): void {
@@ -460,11 +464,11 @@ async function measureEngines({ row, c, opts, expect }: Dynamic): Promise<void> 
   }
 }
 
-async function measureCase(c: Dynamic, opts: Dynamic, python: boolean): Promise<Dynamic> {
-  const row: Dynamic = { name: c.name };
-  const expect = expectedOutput(c, opts);
-  measureReferences({ row, c, opts, python, expect });
-  await measureEngines({ row, c, opts, expect });
+async function measureCase(context: Dynamic, opts: Dynamic, python: boolean): Promise<Dynamic> {
+  const row: Dynamic = { name: context.name };
+  const expect = expectedOutput(context, opts);
+  measureReferences({ row, c: context, opts, python, expect });
+  await measureEngines({ row, c: context, opts, expect });
   console.error(
     JSON.stringify(row, (key, value) => (key === "out" || key === "err" ? undefined : value)),
   );
@@ -547,19 +551,19 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   let list = cases();
   if (opts.only) {
-    list = list.filter((c) => opts.only.includes(c.name));
+    list = list.filter((item) => opts.only.includes(item.name));
   }
   mkdirSync(join(opts.work, "go"), { recursive: true });
   if (opts.checked) {
     return checkedRun(opts, list);
   }
   if (opts.pythonOnly) {
-    list = list.filter((c) => c.py);
+    list = list.filter((item) => item.py);
   }
   const python = pythonAvailable(opts, list);
   const rows: Dynamic[] = [];
-  for (const c of list) {
-    rows.push(await measureCase(c, opts, python));
+  for (const context of list) {
+    rows.push(await measureCase(context, opts, python));
   }
   writeFileSync(join(opts.work, "results.json"), JSON.stringify(rows, null, 1));
   printResults(rows);

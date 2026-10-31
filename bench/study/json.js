@@ -1,7 +1,7 @@
 // json: encode the benchmark records to JSON text, decode them back, check the sums.
-const N = 170_000;
+const RECORD_COUNT = 170_000;
 const records = [];
-for (let i = 0; i < N; i++) {
+for (let i = 0; i < RECORD_COUNT; i++) {
   records.push({
     id: i,
     name: `user${i}`,
@@ -13,7 +13,7 @@ for (let i = 0; i < N; i++) {
 const text = JSON.stringify(records);
 const back = JSON.parse(text);
 let sum = 0;
-for (const r of back) {
-  sum += r.score + r.tags[1].length + (r.active ? 1 : 0);
+for (const record of back) {
+  sum += record.score + record.tags[1].length + (record.active ? 1 : 0);
 }
 console.log(`${text.length} ${sum}`);

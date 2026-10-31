@@ -270,7 +270,7 @@ describe("fixtures", () => {
     ].join("\n");
     const scope: TemplateScope = {
       k: 3,
-      twice: (n: string) => 2 * Number(n),
+      twice: (text: string) => 2 * Number(text),
       items: [{ i: 1 }, { i: 2, tail: "!" }],
       tail: "",
       on: false,
@@ -655,7 +655,7 @@ describe("pillar 3 helpers", () => {
 
   it("measures flat memory from the samples after warm-up", () => {
     const mb = 1024 * 1024;
-    const flat = [50, 80, 100, 100, 101, 100, 99, 100, 101, 100, 100, 102].map((v) => v * mb);
+    const flat = [50, 80, 100, 100, 101, 100, 99, 100, 101, 100, 100, 102].map((item) => item * mb);
     assert.ok(flatGrowth(flat) <= 2 * mb);
     const growing = Array.from({ length: 12 }, (_, i) => (100 + i * 5) * mb);
     assert.equal(flatGrowth(growing), 30 * mb);
@@ -699,12 +699,12 @@ describe("pillar 3 helpers", () => {
       });
     const test = (name: string, result: string) =>
       JSON.stringify({ kind: "test", name, outcome: result });
-    const a = outcome(1, [diag("/w/src/a.hd", 2), test("t1", "passed")].join("\n"), "/w");
-    const b = outcome(1, [test("t1", "passed"), diag("/f/src/a.hd", 2)].join("\n"), "/f");
-    assert.equal(difference(a, b), undefined);
-    const c = outcome(1, [test("t1", "failed"), diag("/f/src/a.hd", 2)].join("\n"), "/f");
+    const incremental = outcome(1, [diag("/w/src/a.hd", 2), test("t1", "passed")].join("\n"), "/w");
+    const clean = outcome(1, [test("t1", "passed"), diag("/f/src/a.hd", 2)].join("\n"), "/f");
+    assert.equal(difference(incremental, clean), undefined);
+    const changed = outcome(1, [test("t1", "failed"), diag("/f/src/a.hd", 2)].join("\n"), "/f");
     assert.match(
-      difference(a, c) ?? "",
+      difference(incremental, changed) ?? "",
       /incremental only: test \| t1 \| passed; clean only: test \| t1 \| failed/,
     );
     assert.match(difference(outcome(0, "", "/w"), outcome(1, "", "/f")) ?? "", /status 0/);

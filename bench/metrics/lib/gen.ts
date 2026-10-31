@@ -60,10 +60,10 @@ export function makeRandom(seed: string): () => number {
   let state = hashSeed(seed);
   return () => {
     state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    let mixed = state;
+    mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
   };
 }
 
@@ -87,7 +87,7 @@ export const moduleName = (index: number): string => `m${pad(index)}`;
 
 interface Random {
   int(low: number, high: number): number;
-  pick<T>(items: readonly T[]): T;
+  pick<Value>(items: readonly Value[]): Value;
 }
 
 function wrap(next: () => number): Random {
@@ -110,12 +110,12 @@ export const helperTemplates = (): string[] =>
     )
     .filter(Boolean);
 
-function generateModule(k: number, r: Random, deps: readonly number[]): string {
-  const int = (low: string, high: string) => r.int(Number(low), Number(high));
-  const word = r.pick(WORDS);
+function generateModule(k: number, random: Random, deps: readonly number[]): string {
+  const int = (low: string, high: string) => random.int(Number(low), Number(high));
+  const word = random.pick(WORDS);
   const templates = helperTemplates();
-  const helpers = Array.from({ length: r.int(6, 12) }, (_, h) =>
-    render(r.pick(templates), { k, h, int }, "package/helpers.hd.tmpl"),
+  const helpers = Array.from({ length: random.int(6, 12) }, (_, helper) =>
+    render(random.pick(templates), { k, h: helper, int }, "package/helpers.hd.tmpl"),
   );
   return renderFixture("package/module.hd.tmpl", {
     k,
@@ -136,7 +136,7 @@ export interface GenerateOptions {
 }
 
 export function generatePackage(options: GenerateOptions): GeneratedPackage {
-  const r = wrap(makeRandom(options.seed));
+  const random = wrap(makeRandom(options.seed));
   const files = new Map<string, string>();
   const modules: GeneratedModule[] = [];
   let total = 0;
@@ -144,12 +144,12 @@ export function generatePackage(options: GenerateOptions): GeneratedPackage {
     let deps: number[];
     if (k === 0) {
       deps = [];
-    } else if (k >= 3 && r.int(0, 1) === 1) {
+    } else if (k >= 3 && random.int(0, 1) === 1) {
       deps = [k - 1, k - 3];
     } else {
       deps = [k - 1];
     }
-    const text = generateModule(k, r, deps);
+    const text = generateModule(k, random, deps);
     total += text.split("\n").length;
     const file = `src/${moduleName(k)}.hd`;
     files.set(file, text);
@@ -197,7 +197,7 @@ function replaceOnce(text: string, pattern: RegExp, replacement: string, what: s
 export function editBody(text: string): string {
   const next = text.replace(
     /^( {4}let bump = \+)(\d+)$/m,
-    (_, head: string, n: string) => `${head}${Number(n) + 1}`,
+    (_, head: string, number: string) => `${head}${Number(number) + 1}`,
   );
   if (next === text) {
     throw new Error("no body edit site in the module");
@@ -231,8 +231,8 @@ export const repairTest = (text: string): string =>
   replaceOnce(text, /(assert_equal\(total\d+\(items\), )7,/, "$16,", "broken test expectation");
 
 /** Appends the public function `addedK_N`. */
-export const addFunction = (text: string, k: number, n: number): string =>
-  `${text.trimEnd()}\n\n## An added function.\npub fn added${k}_${n}(x: i32) -> i32:\n    x + ${n}\n`;
+export const addFunction = (text: string, k: number, number: number): string =>
+  `${text.trimEnd()}\n\n## An added function.\npub fn added${k}_${number}(x: i32) -> i32:\n    x + ${number}\n`;
 
 // --------------------------------------------- packages on disk
 
@@ -310,7 +310,7 @@ export function unitPackage(tests: number): Files {
 /** The library of an integration-test package, with `docs` doc tests. */
 const integrationLib = (docs: number): string =>
   renderFixture("integration-test-perf/lib.hd.tmpl", {
-    docs: Array.from({ length: docs }, (_, d) => ({ d })),
+    docs: Array.from({ length: docs }, (_, doc) => ({ d: doc })),
   });
 
 const integrationManifest = (): string =>
@@ -325,12 +325,12 @@ export function integrationPackage(programs: number): Files {
     ["hd.toml", integrationManifest()],
     ["src/lib.hd", integrationLib(0)],
   ]);
-  for (let p = 0; p < programs; p++) {
+  for (let program = 0; program < programs; program++) {
     files.set(
-      `tests/export${p}.hd`,
+      `tests/export${program}.hd`,
       renderFixture("integration-test-perf/export.hd.tmpl", {
-        p,
-        cases: [0, 1].map((c) => ({ c })),
+        p: program,
+        cases: [0, 1].map((testCase) => ({ c: testCase })),
       }),
     );
   }

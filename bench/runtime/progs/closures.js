@@ -1,11 +1,11 @@
-function total(n) {
+function total(count) {
   const items = [];
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < count; i++) {
     items.push((i * 31 + 7) % 100003);
   }
   return items
-    .map((x) => x * 3 + 1)
-    .filter((x) => x % 2 === 0)
-    .reduce((acc, x) => (acc + x) % 1000003, 0);
+    .map((item) => item * 3 + 1)
+    .filter((item) => item % 2 === 0)
+    .reduce((acc, value) => (acc + value) % 1000003, 0);
 }
 console.log(total(24000000));

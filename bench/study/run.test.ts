@@ -46,11 +46,11 @@ function counterModule() {
   );
 }
 
-test("warm activations reuse the compiled module and isolate mutable instance state", async (t) => {
+test("warm activations reuse the compiled module and isolate mutable instance state", async (text) => {
   const module = counterModule();
   const instantiate = WebAssembly.instantiate;
   const instances: WebAssembly.Instance[] = [];
-  t.mock.method(
+  text.mock.method(
     WebAssembly,
     "instantiate",
     async (seen: WebAssembly.Module, imports?: WebAssembly.Imports) => {
@@ -77,10 +77,10 @@ test("warm-up stdout is validated", async () => {
   assert.match(result.error!, /^output /);
 });
 
-test("a failed measured activation is refused after successful warm-up", async (t) => {
+test("a failed measured activation is refused after successful warm-up", async (text) => {
   const instantiate = WebAssembly.instantiate;
   let calls = 0;
-  t.mock.method(
+  text.mock.method(
     WebAssembly,
     "instantiate",
     async (module: WebAssembly.Module, imports?: WebAssembly.Imports) => {
@@ -96,9 +96,9 @@ test("a failed measured activation is refused after successful warm-up", async (
 });
 
 for (const failure of ["output", "status"]) {
-  test(`fresh-process samples validate later ${failure}, beyond the preflight`, (t) => {
+  test(`fresh-process samples validate later ${failure}, beyond the preflight`, (text) => {
     const dir = mkdtempSync(join(tmpdir(), "hd-study-test-"));
-    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    text.after(() => rmSync(dir, { recursive: true, force: true }));
     const counter = join(dir, "counter");
     const script = `
       const fs = require('node:fs');

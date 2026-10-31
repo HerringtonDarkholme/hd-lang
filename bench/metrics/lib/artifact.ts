@@ -84,11 +84,11 @@ export function pickArtifact(
   release: boolean,
   executable: (path: string) => boolean = () => false,
 ): { readonly path: string; readonly kind: "wasm" | "native" } | undefined {
-  const ranked = [...files].sort((a, b) => {
+  const ranked = [...files].sort((left, right) => {
     const score = (path: string) =>
       (release && path.split("/").includes("release") ? 0 : 2) +
       (path.split("/").at(-1) === `${PACKAGE}.wasm` ? 0 : 1);
-    return score(a) - score(b) || a.localeCompare(b);
+    return score(left) - score(right) || left.localeCompare(right);
   });
   const wasm = ranked.find((path) => path.endsWith(".wasm"));
   if (wasm) {
@@ -406,7 +406,11 @@ export async function runNodeProgram(
 /** The median of a list of numbers a Node program printed under `key`. */
 export function nodeMedian(result: Record<string, unknown>, key: string): number {
   const value = result[key];
-  if (!Array.isArray(value) || value.length === 0 || value.some((v) => typeof v !== "number")) {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((item) => typeof item !== "number")
+  ) {
     throw new Error(`the Node program printed no ${key} list`);
   }
   return p50(value as number[]);

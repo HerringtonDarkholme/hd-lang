@@ -1,6 +1,6 @@
-function tally(n, buckets) {
+function tally(iterations, buckets) {
   const counts = new Map();
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < iterations; i++) {
     const key = (i * 31 + 7) % buckets;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }

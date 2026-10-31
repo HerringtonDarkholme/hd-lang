@@ -57,27 +57,30 @@ const progs = [
 ];
 // name = MoonBit package name; hd = source path.
 const CASES = [
-  ...study.map((n) => ({ name: `study_${n}`, hd: join(REPO, "bench", "study", `${n}.hd`) })),
-  ...progs.map((n) => ({
-    name: `progs_${n.replaceAll("-", "_")}`,
-    hd: join(REPO, "bench", "runtime", "progs", `${n}.hd`),
+  ...study.map((item) => ({
+    name: `study_${item}`,
+    hd: join(REPO, "bench", "study", `${item}.hd`),
+  })),
+  ...progs.map((item) => ({
+    name: `progs_${item.replaceAll("-", "_")}`,
+    hd: join(REPO, "bench", "runtime", "progs", `${item}.hd`),
   })),
 ];
 const EMPTY_CASE = { name: "empty", src: EMPTY };
-const hdWasm = (c: Dynamic): string =>
-  join(WORK, c.name, "build", "release", `${c.name.replaceAll("_", "-")}.wasm`);
-const mbtWasm = (c: Dynamic): string => join(MBT_BUILD, c.name, `${c.name}.wasm`);
+const hdWasm = (context: Dynamic): string =>
+  join(WORK, context.name, "build", "release", `${context.name.replaceAll("_", "-")}.wasm`);
+const mbtWasm = (context: Dynamic): string => join(MBT_BUILD, context.name, `${context.name}.wasm`);
 
 function build(cases: Dynamic[], hd: string): void {
-  for (const c of cases) {
-    const dir = join(WORK, c.name);
+  for (const context of cases) {
+    const dir = join(WORK, context.name);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(join(dir, "src"), { recursive: true });
     writeFileSync(
       join(dir, "hd.toml"),
-      `[package]\nname = "${c.name.replaceAll("_", "-")}"\n\n[capabilities]\nConsole = true\nClock = true\n`,
+      `[package]\nname = "${context.name.replaceAll("_", "-")}"\n\n[capabilities]\nConsole = true\nClock = true\n`,
     );
-    writeFileSync(join(dir, "src", "main.hd"), c.src ?? readFileSync(c.hd, "utf8"));
+    writeFileSync(join(dir, "src", "main.hd"), context.src ?? readFileSync(context.hd, "utf8"));
     execFileSync("nice", [hd, "build", "--release", "--engine", "node"], {
       cwd: dir,
       env: { ...process.env, HD_CACHE: join(WORK, "cache") },
@@ -86,7 +89,7 @@ function build(cases: Dynamic[], hd: string): void {
   }
   execFileSync(
     "nice",
-    [MOON, "build", "--target", TARGET, "--release", ...cases.map((c) => c.name)],
+    [MOON, "build", "--target", TARGET, "--release", ...cases.map((item) => item.name)],
     {
       cwd: HERE,
       stdio: ["ignore", "ignore", "inherit"],
@@ -108,9 +111,9 @@ async function child(kind: string, file: string): Promise<void> {
       {},
     );
     const instance = new WebAssembly.Instance(module, host.imports);
-    const t = performance.now();
+    const started = performance.now();
     const { status } = await host.run(instance, "hd.init", "hd.poll");
-    ms = performance.now() - t;
+    ms = performance.now() - started;
     host.close();
     if (status !== 0) {
       throw new Error(`hd status ${status}`);
@@ -124,14 +127,14 @@ async function child(kind: string, file: string): Promise<void> {
     const imports = {
       spectest: { print_char: (character: number) => units.push(character) },
       wasi_snapshot_preview1: {
-        fd_write(_fd: number, iov: number, n: number, nw: number) {
+        fd_write(_fd: number, iov: number, value: number, nw: number) {
           const dv = new DataView(mem!.buffer);
           let total = 0;
-          for (let i = 0; i < n; i++) {
-            const p = dv.getUint32(iov + i * 8, true);
-            const l = dv.getUint32(iov + i * 8 + 4, true);
-            chunks.push(Buffer.from(new Uint8Array(mem!.buffer, p, l)));
-            total += l;
+          for (let i = 0; i < value; i++) {
+            const offset = dv.getUint32(iov + i * 8, true);
+            const length = dv.getUint32(iov + i * 8 + 4, true);
+            chunks.push(Buffer.from(new Uint8Array(mem!.buffer, offset, length)));
+            total += length;
           }
           dv.setUint32(nw, total, true);
           return 0;
@@ -140,9 +143,9 @@ async function child(kind: string, file: string): Promise<void> {
     };
     const { instance } = await WebAssembly.instantiate(bytes, imports);
     mem = instance.exports.memory as WebAssembly.Memory;
-    const t = performance.now();
+    const started = performance.now();
     (instance.exports._start as () => void)();
-    ms = performance.now() - t;
+    ms = performance.now() - started;
     out.push(Buffer.concat(chunks).toString());
     for (let i = 0; i < units.length; i += 4096) {
       out.push(String.fromCharCode(...units.slice(i, i + 4096)));
@@ -151,26 +154,31 @@ async function child(kind: string, file: string): Promise<void> {
   process.stdout.write(JSON.stringify({ ms, out: out.join("") }));
 }
 
-const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
-const gmean = (xs: number[]): number =>
-  Math.exp(xs.reduce((sum, value) => sum + Math.log(value), 0) / xs.length);
+const median = (samples: number[]): number =>
+  [...samples].sort((left, right) => left - right)[Math.floor(samples.length / 2)];
+const gmean = (samples: number[]): number =>
+  Math.exp(samples.reduce((sum, value) => sum + Math.log(value), 0) / samples.length);
 
 function once(kind: string, file: string, flags: string[]): Dynamic {
-  const t = performance.now();
-  const r = spawnSync("node", [...flags, fileURLToPath(import.meta.url), "--child", kind, file], {
-    encoding: "utf8",
-    maxBuffer: 1 << 26,
-  });
-  const wall = performance.now() - t;
-  if (r.status !== 0) {
-    throw new Error(`${kind} ${file}: ${r.stderr.slice(-400)}`);
+  const started = performance.now();
+  const execution = spawnSync(
+    "node",
+    [...flags, fileURLToPath(import.meta.url), "--child", kind, file],
+    {
+      encoding: "utf8",
+      maxBuffer: 1 << 26,
+    },
+  );
+  const wall = performance.now() - started;
+  if (execution.status !== 0) {
+    throw new Error(`${kind} ${file}: ${execution.stderr.slice(-400)}`);
   }
-  const { ms, out } = JSON.parse(r.stdout);
+  const { ms, out } = JSON.parse(execution.stdout);
   return { ms, wall, out };
 }
 
-function measure(c: Dynamic, flags: string[], runs: number): Dynamic {
-  const files: Record<string, string> = { hd: hdWasm(c), mbt: mbtWasm(c) };
+function measure(context: Dynamic, flags: string[], runs: number): Dynamic {
+  const files: Record<string, string> = { hd: hdWasm(context), mbt: mbtWasm(context) };
   const res: Record<string, { ms: number[]; wall: number[] }> = {
     hd: { ms: [], wall: [] },
     mbt: { ms: [], wall: [] },
@@ -178,20 +186,20 @@ function measure(c: Dynamic, flags: string[], runs: number): Dynamic {
   const outs: Record<string, string> = {};
   for (let i = -1; i < runs; i++) {
     for (const k of ["hd", "mbt"]) {
-      const r = once(k, files[k], flags);
-      outs[k] ??= r.out;
-      if (r.out !== outs[k]) {
-        throw new Error(`${c.name} ${k}: output changed between runs`);
+      const measurement = once(k, files[k], flags);
+      outs[k] ??= measurement.out;
+      if (measurement.out !== outs[k]) {
+        throw new Error(`${context.name} ${k}: output changed between runs`);
       }
       if (i >= 0) {
-        res[k].ms.push(r.ms);
-        res[k].wall.push(r.wall);
+        res[k].ms.push(measurement.ms);
+        res[k].wall.push(measurement.wall);
       }
     }
   }
   if (outs.hd !== outs.mbt) {
     throw new Error(
-      `${c.name}: stdout differs\n hd:  ${JSON.stringify(outs.hd.slice(0, 200))}\n mbt: ${JSON.stringify(outs.mbt.slice(0, 200))}`,
+      `${context.name}: stdout differs\n hd:  ${JSON.stringify(outs.hd.slice(0, 200))}\n mbt: ${JSON.stringify(outs.mbt.slice(0, 200))}`,
     );
   }
   return {
@@ -225,7 +233,7 @@ async function main() {
       throw new Error(`unknown flag ${argv[i]}`);
     }
   }
-  const cases = [...CASES, EMPTY_CASE].filter((c) => !only || only.includes(c.name));
+  const cases = [...CASES, EMPTY_CASE].filter((item) => !only || only.includes(item.name));
   if (!cases.length) {
     throw new Error("no matching program");
   }
@@ -234,12 +242,12 @@ async function main() {
   }
   const tiers: string[][] = [[], ["--no-liftoff"]];
   const rows: Dynamic[] = [];
-  for (const c of cases) {
-    const r = tiers.map((f) => measure(c, f, runs));
-    rows.push({ name: c.name, def: r[0], nl: r[1] });
-    console.error(`done ${c.name}`);
+  for (const context of cases) {
+    const measurements = tiers.map((flags) => measure(context, flags, runs));
+    rows.push({ name: context.name, def: measurements[0], nl: measurements[1] });
+    console.error(`done ${context.name}`);
   }
-  const f = (value: number): string => value.toFixed(value < 10 ? 2 : 1);
+  const format = (value: number): string => value.toFixed(value < 10 ? 2 : 1);
   const ratio = (left: number, right: number): number => left / right;
   const table = (title: string, key: string): void => {
     console.log(`\n${title}\n`);
@@ -247,28 +255,28 @@ async function main() {
       "| program | hd default ms | MoonBit default ms | hd/MBT | hd --no-liftoff ms | MBT --no-liftoff ms | hd/MBT |",
     );
     console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
-    const g: number[][] = [[], []];
-    for (const r of rows) {
+    const value: number[][] = [[], []];
+    for (const result of rows) {
       const [h1, m1, h2, m2] =
         key === "ms"
-          ? [r.def.hd, r.def.mbt, r.nl.hd, r.nl.mbt]
-          : [r.def.hdWall, r.def.mbtWall, r.nl.hdWall, r.nl.mbtWall];
+          ? [result.def.hd, result.def.mbt, result.nl.hd, result.nl.mbt]
+          : [result.def.hdWall, result.def.mbtWall, result.nl.hdWall, result.nl.mbtWall];
       console.log(
-        `| ${r.name} | ${f(h1)} | ${f(m1)} | ${ratio(h1, m1).toFixed(2)} | ${f(h2)} | ${f(m2)} | ${ratio(h2, m2).toFixed(2)} |`,
+        `| ${result.name} | ${format(h1)} | ${format(m1)} | ${ratio(h1, m1).toFixed(2)} | ${format(h2)} | ${format(m2)} | ${ratio(h2, m2).toFixed(2)} |`,
       );
-      if (r.name !== "empty") {
-        g[0].push(ratio(h1, m1));
-        g[1].push(ratio(h2, m2));
+      if (result.name !== "empty") {
+        value[0].push(ratio(h1, m1));
+        value[1].push(ratio(h2, m2));
       }
     }
     console.log(
-      `| **geomean (excl. empty)** | | | ${gmean(g[0]).toFixed(2)} | | | ${gmean(g[1]).toFixed(2)} |`,
+      `| **geomean (excl. empty)** | | | ${gmean(value[0]).toFixed(2)} | | | ${gmean(value[1]).toFixed(2)} |`,
     );
   };
   console.log(
     `MoonBit target ${TARGET}; node ${process.version}, runs ${runs} (median, 1 discarded warm-up), load avg at end ${os
       .loadavg()
-      .map((x) => x.toFixed(2))
+      .map((item) => item.toFixed(2))
       .join(" ")}`,
   );
   table("Run time (entry call only, after instantiation)", "ms");

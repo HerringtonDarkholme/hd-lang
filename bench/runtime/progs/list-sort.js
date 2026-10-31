@@ -1,7 +1,7 @@
-function fill(n) {
+function fill(count) {
   const items = [];
   let state = 12345;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < count; i++) {
     state = (state * 31 + 7) % 100003;
     items.push(state);
   }

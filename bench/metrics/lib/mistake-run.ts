@@ -61,7 +61,7 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
         cwd: dir,
         timeoutMs: TIMEOUT_MS,
       });
-      const reported = diagnostics.find((d) => d.code === mistake.code) ?? diagnostics[0];
+      const reported = diagnostics.find((item) => item.code === mistake.code) ?? diagnostics[0];
       const fixFieldSeen = diagnostics.some(hasFixField);
       const edits = reported ? fixOf(reported) : undefined;
       const base = {
@@ -116,4 +116,4 @@ export function mistakeOutcomes(context: MetricContext): Promise<MistakeOutcome[
 
 /** Error diagnostics only. */
 export const errorsOf = (diagnostics: readonly Record<string, unknown>[]) =>
-  diagnostics.filter((d) => d.severity !== "warning");
+  diagnostics.filter((item) => item.severity !== "warning");

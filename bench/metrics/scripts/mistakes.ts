@@ -20,15 +20,15 @@ export const mistakes: Metric = {
   async run(context) {
     const outcomes = await mistakeOutcomes(context);
     const results: TargetResult[] = [];
-    const broken = outcomes.filter((o) => o.problem).map((o) => o.mistake.name);
+    const broken = outcomes.filter((item) => item.problem).map((item) => item.mistake.name);
     const brokenNote = broken.length ? `runs failed: ${broken.join(", ")}` : undefined;
 
-    const single = outcomes.filter((o) => o.diagnostics.length === 1);
+    const single = outcomes.filter((item) => item.diagnostics.length === 1);
     results.push(
       judge(
         NAME,
         "programs with exactly one diagnostic",
-        share(outcomes, (o) => o.diagnostics.length === 1),
+        share(outcomes, (options) => options.diagnostics.length === 1),
         0.95,
         "%",
         "at-least",
@@ -36,11 +36,11 @@ export const mistakes: Metric = {
       ),
     );
     const coded = outcomes.filter(
-      (o) => o.diagnostics.length === 1 && o.diagnostics[0]!.code === o.mistake.code,
+      (item) => item.diagnostics.length === 1 && item.diagnostics[0]!.code === item.mistake.code,
     );
     const wrong = outcomes
-      .filter((o) => !coded.includes(o))
-      .map((o) => o.mistake.name)
+      .filter((item) => !coded.includes(item))
+      .map((item) => item.mistake.name)
       .slice(0, 8);
     results.push(
       judge(
@@ -54,7 +54,7 @@ export const mistakes: Metric = {
       ),
     );
 
-    if (!outcomes.some((o) => o.fixFieldSeen)) {
+    if (!outcomes.some((item) => item.fixFieldSeen)) {
       results.push(
         notApplicable(
           NAME,
@@ -64,8 +64,8 @@ export const mistakes: Metric = {
         ),
       );
     } else {
-      const resolved = outcomes.filter((o) => o.afterFix && o.afterFix.length === 0);
-      const offered = outcomes.filter((o) => o.fixApplied).length;
+      const resolved = outcomes.filter((item) => item.afterFix && item.afterFix.length === 0);
+      const offered = outcomes.filter((item) => item.fixApplied).length;
       results.push(
         judge(
           NAME,
@@ -79,12 +79,12 @@ export const mistakes: Metric = {
       );
     }
 
-    const answered = outcomes.filter((o) => o.text.trim() !== "");
-    const tokens = answered.map((o) => estimateTokens(o.text));
-    const bytes = answered.map((o) => Buffer.byteLength(o.text, "utf8"));
-    const largest = answered.reduce<{ name: string; tokens: number } | undefined>((best, o) => {
-      const count = estimateTokens(o.text);
-      return !best || count > best.tokens ? { name: o.mistake.name, tokens: count } : best;
+    const answered = outcomes.filter((item) => item.text.trim() !== "");
+    const tokens = answered.map((item) => estimateTokens(item.text));
+    const bytes = answered.map((item) => Buffer.byteLength(item.text, "utf8"));
+    const largest = answered.reduce<{ name: string; tokens: number } | undefined>((best, value) => {
+      const count = estimateTokens(value.text);
+      return !best || count > best.tokens ? { name: value.mistake.name, tokens: count } : best;
     }, undefined);
     results.push(
       judge(
@@ -96,7 +96,7 @@ export const mistakes: Metric = {
         "at-most",
         tokens.length
           ? `largest: ${largest!.name}; median ${p50(tokens)} tokens, ${p50(bytes)} B; ${
-              tokens.filter((t) => t <= TOKEN_LIMIT).length
+              tokens.filter((item) => item <= TOKEN_LIMIT).length
             } of ${tokens.length} within`
           : "no program printed a diagnostic",
       ),

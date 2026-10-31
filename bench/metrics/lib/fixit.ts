@@ -64,7 +64,7 @@ export function applyEdits(text: string, edits: readonly Edit[]): string {
   const source = Buffer.from(text, "utf8");
   const boundary = (offset: number): boolean =>
     offset === source.length || (source[offset]! & 0xc0) !== 0x80;
-  const ranges = [...edits].sort((a, b) => b.start - a.start || b.end - a.end);
+  const ranges = [...edits].sort((left, right) => right.start - left.start || right.end - left.end);
   let result = source;
   let limit = source.length;
   for (const edit of ranges) {

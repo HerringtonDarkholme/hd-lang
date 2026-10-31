@@ -18,5 +18,5 @@ for (let i = 0; i < 3; i++) {
   main();
   times.push(performance.now() - start);
 }
-times.sort((a, b) => a - b);
+times.sort((left, right) => left - right);
 console.log(times[1].toFixed(1));

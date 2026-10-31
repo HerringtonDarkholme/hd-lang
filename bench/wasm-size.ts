@@ -94,8 +94,8 @@ while (cursor.at < bytes.length) {
   }
   let name = sectionNames[id] ?? `section_${id}`;
   if (id === 0) {
-    const c = { at: payloadStart };
-    name = `custom:${string(c)}`;
+    const customCursor = { at: payloadStart };
+    name = `custom:${string(customCursor)}`;
     custom.push({ name, payloadStart, end });
   } else {
     byId.set(id, { payloadStart, end });
@@ -175,8 +175,8 @@ function paddedIndex(at: number, end: number): number | undefined {
   ) {
     return undefined;
   }
-  const c = { at };
-  return u32(c);
+  const indexCursor = { at };
+  return u32(indexCursor);
 }
 
 const functions = [];

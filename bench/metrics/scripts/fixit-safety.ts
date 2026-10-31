@@ -13,8 +13,8 @@ const NAME = "fixit-safety";
 
 const counts = (diagnostics: readonly Record<string, unknown>[]): Map<string, number> => {
   const result = new Map<string, number>();
-  for (const d of errorsOf(diagnostics)) {
-    const code = String(d.code);
+  for (const data of errorsOf(diagnostics)) {
+    const code = String(data.code);
     result.set(code, (result.get(code) ?? 0) + 1);
   }
   return result;
@@ -26,7 +26,9 @@ export function newErrors(
   after: readonly Record<string, unknown>[],
 ): string[] {
   const old = counts(before);
-  return [...counts(after)].filter(([code, n]) => n > (old.get(code) ?? 0)).map(([code]) => code);
+  return [...counts(after)]
+    .filter(([code, count]) => count > (old.get(code) ?? 0))
+    .map(([code]) => code);
 }
 
 export const fixitSafety: Metric = {
@@ -36,7 +38,7 @@ export const fixitSafety: Metric = {
   async run(context) {
     const outcomes = await mistakeOutcomes(context);
     const target = "≥ 100.0%";
-    if (!outcomes.some((o) => o.fixFieldSeen)) {
+    if (!outcomes.some((item) => item.fixFieldSeen)) {
       return [
         notApplicable(
           NAME,
@@ -46,7 +48,7 @@ export const fixitSafety: Metric = {
         ),
       ];
     }
-    const applied = outcomes.filter((o) => o.fixApplied && o.afterFix);
+    const applied = outcomes.filter((item) => item.fixApplied && item.afterFix);
     if (applied.length === 0) {
       return [
         notApplicable(
@@ -58,7 +60,10 @@ export const fixitSafety: Metric = {
       ];
     }
     const unsafe = applied
-      .map((o) => ({ name: o.mistake.name, added: newErrors(o.diagnostics, o.afterFix!) }))
+      .map((item) => ({
+        name: item.mistake.name,
+        added: newErrors(item.diagnostics, item.afterFix!),
+      }))
       .filter((entry) => entry.added.length > 0);
     return [
       judge(

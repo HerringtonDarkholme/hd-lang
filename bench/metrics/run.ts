@@ -100,7 +100,9 @@ const markdownCell = (value: string): string =>
     .replaceAll("|", "&#124;")
     .replace(/[\r\n]/g, " ");
 const counts = (run: MetricsRun): number[] =>
-  ["pass", "fail", "n/a"].map((status) => run.results.filter((r) => r.status === status).length);
+  ["pass", "fail", "n/a"].map(
+    (status) => run.results.filter((item) => item.status === status).length,
+  );
 const historyRows = (text: string): string[][] =>
   text
     .trimEnd()
@@ -382,7 +384,7 @@ async function main(): Promise<number> {
     console.log(
       formatTable([
         ["metric", "pillar", "measures"],
-        ...METRICS.map((m) => [m.name, String(m.pillar), m.summary]),
+        ...METRICS.map((item) => [item.name, String(item.pillar), item.summary]),
       ]),
     );
     return 0;
@@ -403,16 +405,16 @@ async function main(): Promise<number> {
   for (const metric of selected) {
     results.push(...(await runMetric(metric, context)));
   }
-  const rows = results.map((r) => [
-    r.metric,
-    r.name,
-    r.value,
-    r.target,
-    STATUS_LABEL[r.status].trim(),
+  const rows = results.map((item) => [
+    item.metric,
+    item.name,
+    item.value,
+    item.target,
+    STATUS_LABEL[item.status].trim(),
   ]);
   console.log(`\n${formatTable([["metric", "target", "value", "goal", "status"], ...rows])}`);
   const count = (status: TargetResult["status"]) =>
-    results.filter((r) => r.status === status).length;
+    results.filter((item) => item.status === status).length;
   console.log(`\n${count("pass")} passed, ${count("fail")} failed, ${count("n/a")} n/a`);
   if (values.json) {
     const processors = cpus();
