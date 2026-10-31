@@ -1,0 +1,14 @@
+# test: a next result through a trait argument cannot borrow from the receiver instead of the target's lifetime
+# Spec 13 Lifetime Implementation Targets: ref.lifetime.impl-target.assoc.
+use std.iter.Iterator
+
+struct RefIter[T, 'a]:
+    item: &'a T
+    done: bool
+
+impl[T, 'a] Iterator[&'a T] for RefIter[T, 'a]:
+    fn next(&mut self) -> (&T)?: # diagnostic: trait-method-signature
+        if self.done:
+            return .None
+        self.done = true
+        .Some(self.item)

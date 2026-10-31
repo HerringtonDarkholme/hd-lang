@@ -741,7 +741,7 @@ impl['a] Identity for Wrap[&'a string]:
 ```
 
 1. r[ref.lifetime.impl-target] An implementation target may write any lifetime declared by the implementation, including in a type argument, and every method's `self` and `Self` have those lifetimes.
-2. r[ref.lifetime.impl-target.assoc] A trait implementation's associated type may name a lifetime its target writes. A method whose trait result is that associated type, as `Self::Out`, may return a reference of that lifetime, which depends on `self`'s positions of it.
+2. r[ref.lifetime.impl-target.assoc] A trait implementation's trait arguments and associated types may name a lifetime its target writes. A method whose trait result is built from such a trait argument or associated type, as `Item?` in `impl['a] Iterator[&'a T] for RefIter[T, 'a]` or `Self::Out`, may return a reference of that lifetime. A call's result in that position depends on `self`'s positions of it.
 
 See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 [Lifetime Traits](#lifetime-traits), [Lifetime Structs](#lifetime-structs).

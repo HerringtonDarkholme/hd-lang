@@ -290,10 +290,12 @@ impl DepSig {
     /// `Self` shape (`ref.lifetime.trait.impl-target`). Trait lifetime `k` takes
     /// the implementation lifetime written as its `k`th argument. Slots
     /// which the trait's abstract `Self` gains from the implementation
-    /// target take that target slot's lifetime. A result slot of a
-    /// projection of `Self`, as `Self::Out`, takes the implementation
-    /// result's lifetime `impl_outs` when the target has it: the impl's
-    /// associated type may name the impl's lifetimes (`ref.dep.trait`).
+    /// target take that target slot's lifetime. A result slot the
+    /// implementation fills in, from a trait type argument or an
+    /// associated type of `Self` as `Self::Out`, is the implementation's
+    /// type substituted there, so it takes the implementation result's
+    /// lifetime `impl_outs` when the target has it
+    /// (`ref.lifetime.impl-target.assoc`).
     fn align_trait_impl(
         self,
         ls: &Layouts<'_>,
@@ -320,6 +322,11 @@ impl DepSig {
         let own = ANON + w(self.params.iter().map(|(_, ids)| ids.len()).sum());
         let mut fresh: Vec<Key> = Vec::new();
         let is_self = |p: hd_types::ParamRef| p.owner == trait_ && p.index == 0;
+        let filled = |k: Key| match k {
+            Key::AllOf(p) => is_self(p),
+            Key::Param(p, _) => p.owner == trait_ && p.index > 0,
+            _ => false,
+        };
         let of_self = |id: u32| self_lifetimes.iter().any(|&l| l != 0 && u32::from(l) == id);
         let mut align = |d: Ty,
                          t: Ty,
@@ -334,7 +341,7 @@ impl DepSig {
             (keys.into_iter().enumerate())
                 .map(|(at, k)| match k {
                     Key::Decl(j) => Some(ids.get(j).copied()?.map(remap)),
-                    Key::AllOf(p) if is_self(p) => {
+                    _ if outs.is_some() && filled(k) => {
                         let out = outs.and_then(|o| o.get(at).copied().flatten());
                         Some(out.filter(|&id| of_self(id)))
                     }
@@ -1269,11 +1276,12 @@ impl Ck<'_, '_> {
             }
             None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
         };
+        let is_trait_self =
+            |p: hd_types::ParamRef| trait_.is_some_and(|tr| p.owner == tr && p.index == 0);
         // A slot of the trait's `Self` that the implementation target's
         // lifetime fills (`ref.lifetime.trait`).
         let target = |p: hd_types::ParamRef, s: usize| {
-            trait_.filter(|&tr| p.owner == tr && p.index == 0)?;
-            self_slots.get(s).copied().flatten()
+            (is_trait_self(p).then(|| self_slots.get(s).copied().flatten())).flatten()
         };
         // Where a capture slot a type parameter adds is kept.
         let declared = def.and_then(|d| Some((d, self.cx.lookup.item(d)?.sig()?)));
@@ -1344,6 +1352,11 @@ impl Ck<'_, '_> {
             Key::None => Vec::new(),
             Key::Param(q, j) => match target(q, j) {
                 Some(l) => vec![Var::Life(l)],
+                // A trait type argument the implementation fills in may
+                // name `Self`'s lifetimes (`ref.lifetime.impl-target.assoc`).
+                None if trait_.is_some_and(|tr| q.owner == tr && q.index > 0) => {
+                    from(&|x| x == k || matches!(x, Key::Param(p, _) if is_trait_self(p)))
+                }
                 None => from(&|x| x == k),
             },
             Key::AllOf(q) => from(&|x| matches!(x, Key::Param(p, _) if p == q)),

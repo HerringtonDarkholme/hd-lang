@@ -5364,6 +5364,9 @@ runtime/valid/lifetime-alias-parameters.hd	runtime	accept	lang/13-values-and-ref
 runtime/valid/lifetime-impl-target-written.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.impl-target
 runtime/valid/lifetime-impl-assoc-type-run.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.impl-target.assoc
 typing/invalid/lifetime-impl-assoc-type-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.impl-target.assoc
+runtime/valid/lifetime-impl-trait-arg-run.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.impl-target.assoc
+typing/invalid/lifetime-impl-trait-arg-outlives-local.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.lifetime.impl-target.assoc
+typing/invalid/lifetime-impl-trait-arg-receiver-borrow.hd	type	reject:trait-method-signature	lang/13-values-and-references.md#r-ref.lifetime.impl-target.assoc
 typing/invalid/lifetime-struct-argument-count.hd	type	reject:argument-count	lang/13-values-and-references.md#r-ref.lifetime.struct.argument.count
 runtime/valid/lifetime-struct-read.hd	runtime	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.position
 typing/valid/lifetime-struct-field-read.hd	type	accept	lang/13-values-and-references.md#r-ref.lifetime.struct.read

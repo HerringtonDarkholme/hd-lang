@@ -1,0 +1,24 @@
+# test: a next result through a trait argument of the target's lifetime outlives the local it points into
+# Spec 13 Lifetime Implementation Targets: ref.lifetime.impl-target.assoc; Local Scope: ref.dep.scope.
+use std.iter.Iterator
+
+struct RefIter[T, 'a]:
+    item: &'a T
+    done: bool
+
+impl[T, 'a] Iterator[&'a T] for RefIter[T, 'a]:
+    fn next(&mut self) -> (&'a T)?:
+        if self.done:
+            return .None
+        self.done = true
+        .Some(self.item)
+
+fn read(fallback: &i32) -> i32:
+    let mut kept = fallback
+    if *fallback > 0:
+        value := +7
+        let mut it = RefIter { item: &value, done: false }
+        match it.next():
+            .Some(x) => kept = x
+            .None => pass
+    *kept # diagnostic: local-reference-outlives-local

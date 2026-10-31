@@ -1,0 +1,21 @@
+# test: an implementation's trait argument names the target's lifetime, and a loop reads through it
+# Spec 13 Lifetime Implementation Targets: ref.lifetime.impl-target.assoc.
+# expect-stdout: 7
+use std.iter.Iterator
+
+struct RefIter[T, 'a]:
+    item: &'a T
+    done: bool
+
+impl[T, 'a] Iterator[&'a T] for RefIter[T, 'a]:
+    fn next(&mut self) -> (&'a T)?:
+        if self.done:
+            return .None
+        self.done = true
+        .Some(self.item)
+
+pub fn main() -> void $ Console:
+    value := +7
+    it := RefIter { item: &value, done: false }
+    for x in it:
+        println("${*x}")
