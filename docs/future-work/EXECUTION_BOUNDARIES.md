@@ -339,11 +339,11 @@ owner's note's block, which names every capture and its mode.
    done and failed; libraries fold timeouts into errors. No recommendation
    (section 4).
 2. **Do L1 to L4 hold?** Answered: yes, all four (owner, 2026-10-31).
-3. **Does code name the destination?** A handle tied to one GPU needs that
-   GPU in code. The 2026-10-17 #166 decision says the deployment
-   configuration names places. Options: (a) configuration only; (b) a
-   domain value in code, such as a `Gpu` or `Workers` provider, with
-   configuration for services. Recommended: (b).
+3. **Does code name the destination?** Answered (owner, 2026-10-31): a
+   domain value in code for workers and devices, a provider such as `Gpu`
+   or `Workers` from the requirement row (swappable with `$.with` in
+   tests); services stay named by the deployment configuration, as the
+   2026-10-17 #166 decision says.
 4. **How does a handle name its domain instance?** Options: (a) in the
    type, as `Texture[Gpu0]`, for static instances only; (b) a run-time
    instance id checked on use, panicking on a mismatch. Recommended: (a),
