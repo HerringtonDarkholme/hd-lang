@@ -1633,7 +1633,10 @@ pub fn row_goals(
     args: &[Ty],
 ) -> Vec<(u16, TraitRef)> {
     let mut goals = plan_goals(pool, t, row, args);
-    if let Some(&target) = args.first()
+    if matches!(
+        t.origin[row],
+        ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
+    ) && let Some(&target) = args.first()
         && let Some(steps) = impls.tuple_plan(t.def[row])
     {
         let first = u16::try_from(t.plan[row].len()).unwrap_or(u16::MAX);
@@ -5236,6 +5239,51 @@ mod tests {
         fn tuple_plan(&self, template: DefId) -> Option<std::sync::Arc<[super::MemberStep]>> {
             (template == self.0).then(|| std::sync::Arc::clone(&self.1))
         }
+    }
+
+    struct RejectPlans;
+
+    impl super::TuplePlans for RejectPlans {
+        fn tuple_plan(&self, _: DefId) -> Option<std::sync::Arc<[super::MemberStep]>> {
+            panic!("ordinary impl rows must not query template plans")
+        }
+    }
+
+    #[test]
+    fn an_ordinary_impl_row_does_not_query_template_plans() {
+        use super::{ImplView, Impls, OwnerMap, UniverseImpls};
+        use hd_intern::PathTable;
+
+        let gp = InternPool::new();
+        let p = gp.types();
+        let mut t = ImplTable::default();
+        push_row(
+            &mut t,
+            p,
+            (DefId::from_raw(1), DefId::from_raw(2)),
+            Ty::I32,
+            TyList::EMPTY,
+            (0, vec![]),
+        );
+        let paths = PathTable::new();
+        let owners = OwnerMap::default();
+        let extra = UniverseImpls::default();
+        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let arity = |_: DefId| 0;
+        let provider = RejectPlans;
+        let view = ImplView {
+            paths: &paths,
+            owners: &owners,
+            own: None,
+            folders: &[],
+            universe,
+            extra: &extra,
+            arity: &arity,
+            hidden: &[],
+            plans: Some(&provider),
+        };
+
+        assert!(super::row_goals(p, Impls::Owned(&view), &t, 0, &[Ty::I32]).is_empty());
     }
 
     /// The paths and owners of the tuple-template tests: `Hash`, `List`,

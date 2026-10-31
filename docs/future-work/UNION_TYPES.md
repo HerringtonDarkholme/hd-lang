@@ -1,7 +1,7 @@
 # Positional Union Types
 
-Status: syntax, ordered type identity, construction, matching, runtime lowering,
-and conditional traits specified and implemented 2026-10-31; parity remains in #1125.
+Status: fully specified and built 2026-10-31. Conformance, both-engine parity,
+compile time, release Wasm, and web size meet the acceptance bars in Appendix F.
 This record turns the decisions in [#804](https://github.com/HerringtonDarkholme/hd-lang/issues/804)
 into an implementation-sized design. It changes no specification or compiler
 behavior beyond the slices named in the status line. A prior [twelve-case stress test](https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/UNION_TYPES.md)
@@ -15,15 +15,15 @@ variants; `(A | B) | C` has two outer variants and a nested union in `_0`.
 Order matters, duplicates remain, and construction is always explicit.
 
 ```text
-type LoadError = HttpError | JsonError # hypothetical syntax
-fn load!() -> Result[Document, LoadError] $ Http: # hypothetical syntax
-    response := http.get!(url).map_err(Union._0)? # hypothetical syntax
-    response.json::[Document]().map_err(Union._1) # hypothetical syntax
+type LoadError = HttpError | JsonError
+fn load!() -> Result[Document, LoadError] $ Http:
+    response := http.get!(url).map_err(Union._0)?
+    response.json::[Document]().map_err(Union._1)
 
-fn message(error: LoadError) -> string: # hypothetical syntax
-    match error: # hypothetical syntax
-        ._0(http) => "http: ${http}" # hypothetical syntax
-        ._1(json) => "json: ${json}" # hypothetical syntax
+fn message(error: LoadError) -> string:
+    match error:
+        ._0(http) => "http: ${http}"
+        ._1(json) => "json: ${json}"
 ```
 
 There is no member-to-union coercion, type-directed injection, commutative
@@ -258,7 +258,7 @@ remain deliberate constraints on inference.
 
 ## Appendix E: Language Checklist And Implementation Slices
 
-| Domain | Proposed behavior or check |
+| Domain | Built behavior or check |
 | --- | --- |
 | Grammar | `|` is allowed only in type grammar; it binds looser than type application; chains flatten unless parenthesized |
 | Formatting | one space around `|`; parentheses retained when they preserve nesting |
@@ -273,31 +273,64 @@ remain deliberate constraints on inference.
 | Optimization | inlining and dead-code elimination see ordinary constructor and match operations |
 | Soundness | no untagged reinterpretation, implicit coercion or post-monomorphization case selection |
 | Diagnostics | reuse `cannot-infer-type`, `type-mismatch`, `unknown-variant` and `invalid-result-propagation` |
-| Specification | replace the unsupported-union rule with syntax, identity, construction, matching and trait rules |
+| Specification | no unsupported-union rule remains; syntax, identity, construction, matching, runtime and trait rules replace it |
 | Conformance | flat, nested, duplicate, generic, exhaustive, trait and both-engine runtime fixtures |
 
-Implementation is deliberately split into hour-sized, revertible slices:
+Implementation was split into hour-sized, revertible slices:
 
-1. Parse, print and stage-test union type trees; do not type-check them yet.
-2. Add canonical ordered identity, alias expansion and diagnostic rendering.
-3. Resolve positional constructors and patterns through ordinary enum checks.
-4. Lower flat and nested unions through enum layout, ownership and matches.
-5. Add the decided conditional trait templates, including transparent Display
+1. Parsed, printed and stage-tested union type trees.
+2. Added canonical ordered identity, alias expansion and diagnostic rendering.
+3. Resolved positional constructors and patterns through ordinary enum checks.
+4. Lowered flat and nested unions through enum layout, ownership and matches.
+5. Added the decided conditional trait templates, including transparent Display
    and `Error.source` forwarding.
-6. Add conformance, both-engine runtime parity, compile-time and Wasm-size
-   comparisons against named controls; update the spec only in this final job.
+6. Added conformance, both-engine parity, and named-control measurements.
 
-If a slice exceeds its budget, changes representation, or misses the named-enum
-runtime/size target, revert that slice and keep named enums. No compatibility
-promise exists until the final specification slice is accepted.
+No slice exceeded its budget or changed the decided representation. Appendix F
+records the final specification and implementation checks.
+
+## Appendix F: Build Report
+
+All six slices are built. No language rule describes union types as
+unsupported, and no known-failure row is needed.
+
+| Domain | Conformance evidence | Result |
+| --- | --- | --- |
+| Grammar and formatting | `parse/valid/union-type-syntax.hd` plus parser and formatter fixed-point stages | all five flat and parenthesized shapes preserved |
+| Identity and generics | `typing/valid/union-type-identity-and-aliases.hd` and four negative identity cases | order, duplicates, nesting, aliases and substitution covered |
+| Construction and matching | `typing/valid/union-construction-and-match.hd` plus four negative constructor or exhaustiveness cases | contextual cases and exhaustive matching covered |
+| Runtime and ownership | `runtime/valid/union-runtime-layout-and-ownership.hd` | flat, nested, duplicate, generic and borrowed values pass five tests on each engine |
+| Traits and errors | the forwarding, hash and serde runtime fixtures plus the missing-member negative case | five tests pass on each engine; a missing member implementation rejects |
+
+The compiler-corpus comparison ran the same 3,422 parse and type cases with
+four workers. Five cycles alternated the pre-union and completed compilers.
+The named controls used 21 alternating cold release builds.
+
+| Measure | Base or named control | Union feature | Delta | Bar |
+| --- | ---: | ---: | ---: | --- |
+| Production Rust | — | 601 net lines | — | 460-860: pass |
+| Compiler corpus median | 3.51 s | 3.47 s | -1.1% | less than 1% increase: pass |
+| Layout-control compile median | 179.5 ms | 182.2 ms | +1.5% | ranges overlap: no measurable regression |
+| Trait-control compile median | 235.8 ms | 232.8 ms | -1.3% | no regression |
+| Layout-control release Wasm | 3,707 B | 3,707 B | 0 B | byte-identical: pass |
+| Trait-control release Wasm | 40,586 B | 39,582 B | -1,004 B | no increase: pass |
+| Web compiler gzip | 1,918,876 B | 1,924,129 B | +5,253 B | at most 15 KB: pass |
+
+The layout modules have the same stripped SHA-256,
+`fab6fb88859c4353bf8def232d52f291a697bf6b5a8ac0d0678a1ab2a5a7a5cb`.
+The trait control is smaller because its required debug case name differs from
+the named enum, but it adds no code-size regression.
+
+An audit found no std or example enum whose only purpose is combining two
+error types. No wrapper conversion was therefore applicable.
 
 ## Parse Log
 
 Each `text` block was copied exactly to a scratch `.hd` file and run through
-`scripts/hd-conformance.sh parse` on 2026-10-28.
+`scripts/hd-conformance.sh parse` on 2026-10-31.
 
 | Block | Result |
 | --- | --- |
-| proposed union alias and use | expected current failure: `syntax-error: expected a line ending, found '|'` |
+| proposed union alias and use | `1/1 clean` after the completed implementation |
 | present-day generic `Union[A, B]` control | `1/1 clean` |
 | present-day generic `Timed[E]` control | `1/1 clean` |
