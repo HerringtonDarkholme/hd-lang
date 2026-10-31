@@ -1292,7 +1292,10 @@ pub(super) fn finish(
             }
             match (inst, local) {
                 (Some(i), _) => em.release_locals(&loaded, em.ty(i))?,
-                (None, Some(l)) => em.count_local(l, &loaded, false)?,
+                (None, Some(l)) => {
+                    em.loan_release(l, &loaded);
+                    em.count_local(l, &loaded, false)?;
+                }
                 (None, None) => {
                     em.f.get(loaded[0]);
                     em.f.helper(Helper::ReleaseRef);

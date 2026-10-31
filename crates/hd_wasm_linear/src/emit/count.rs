@@ -588,6 +588,7 @@ impl Em<'_, '_, '_> {
     /// where a view's getter made the value fresh: the borrow's flag
     /// ([`Em::view_loans`]) says so, and is cleared.
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
+        self.loan_release(l, ls);
         match self.loan_locals.get(&l) {
             None => self.count_local(l, ls, false),
             Some(w) if self.view_loans.contains_key(w) => self.release_view_loan(*w, ls),

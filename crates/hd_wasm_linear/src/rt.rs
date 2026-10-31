@@ -690,6 +690,15 @@ pub enum Helper {
         walk: Option<Walk>,
         counts: bool,
     },
+    /// `(start, size, excl)`: registers a loan of the place `size` bytes
+    /// from `start` (`ref.excl.alias`, `emit/excl.rs`), with one count.
+    LoanBegin,
+    /// `(start, size, excl, delta)`: adds `delta` to the count of the
+    /// newest live loan with that key; an ended loan leaves the table.
+    LoanCount,
+    /// `(start, size, write)`: panics `borrow-conflict` when a live loan
+    /// overlaps the accessed place and the access conflicts with it.
+    LoanCheck,
 }
 
 /// A list's element as the list glue sees it: its stride, its values in
@@ -1029,6 +1038,17 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
             Global::NodeLen,
             Global::NodeFree,
         ] {
+            f.i32(0);
+            f.global_set(g);
+        }
+        f.op(Instruction::End);
+    }
+    if !m.loans.is_empty() {
+        f.global_get(Global::LoanTab);
+        f.op(Instruction::If(BlockType::Empty));
+        f.global_get(Global::LoanTab);
+        f.call(Sym::Inst(r.acyclic.free));
+        for g in [Global::LoanTab, Global::LoanCap, Global::LoanTop] {
             f.i32(0);
             f.global_set(g);
         }
@@ -1752,6 +1772,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RetainFields { leaves, walk } => {
             fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m))
         }
+        Helper::LoanBegin => loan_begin(m),
+        Helper::LoanCount => loan_count(m),
+        Helper::LoanCheck => loan_check(m),
         Helper::ListPinned => list_pinned(m),
         Helper::ListClone { elem } => list_clone(m, elem),
         Helper::ListBuf { elem } => list_buf(m, elem),
@@ -4422,4 +4445,211 @@ pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
             _ => unreachable!(),
         }
     }
+}
+
+/// A loan table entry's bytes: its start, its end, whether it is
+/// exclusive, and its count, 0 once it ended.
+const LOAN: i32 = 16;
+
+/// Pushes the address of loan table entry `k` (a local).
+fn loan_entry(f: &mut Func, k: u32) {
+    f.global_get(Global::LoanTab);
+    f.get(k);
+    f.i32(LOAN);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+}
+
+/// [`Helper::LoanBegin`].
+fn loan_begin(m: &Module) -> Func {
+    let mut f = m.func("rt:loan_begin", vec![Val::I32; 3], vec![]);
+    let (cap, fresh, e) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.global_get(Global::LoanTop);
+    f.global_get(Global::LoanCap);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::If(BlockType::Empty));
+    f.global_get(Global::LoanCap);
+    f.i32(2);
+    f.op(Instruction::I32Mul);
+    f.i32(8);
+    f.op(Instruction::I32Add);
+    f.set(cap);
+    f.get(cap);
+    f.i32(LOAN);
+    f.op(Instruction::I32Mul);
+    match m.runtime {
+        Some(r) => f.call(Sym::Inst(r.alloc)),
+        None => f.helper(Helper::Alloc),
+    }
+    f.set(fresh);
+    f.global_get(Global::LoanTab);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(fresh);
+    f.global_get(Global::LoanTab);
+    f.global_get(Global::LoanTop);
+    f.i32(LOAN);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    if let Some(r) = m.runtime {
+        f.global_get(Global::LoanTab);
+        f.call(Sym::Inst(r.acyclic.free));
+    }
+    f.op(Instruction::End);
+    f.get(fresh);
+    f.global_set(Global::LoanTab);
+    f.get(cap);
+    f.global_set(Global::LoanCap);
+    f.op(Instruction::End);
+    let top = f.local(Val::I32);
+    f.global_get(Global::LoanTop);
+    f.set(top);
+    loan_entry(&mut f, top);
+    f.set(e);
+    for (off, word) in [(0, 0), (4, 1), (8, 2)] {
+        f.get(e);
+        f.get(word);
+        if off == 4 {
+            f.get(0);
+            f.op(Instruction::I32Add);
+        }
+        f.op(Instruction::I32Store(mem(HEAP, off, 2)));
+    }
+    f.get(e);
+    f.i32(1);
+    f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+    f.get(top);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.global_set(Global::LoanTop);
+    f
+}
+
+/// Pushes whether live entry `e` (a local) has the key of the loan of
+/// `size` bytes from `start` that `excl` says is exclusive or not.
+fn loan_key(f: &mut Func, e: u32, [start, size, excl]: [u32; 3]) {
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(start);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::I32And);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.get(start);
+    f.get(size);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::I32And);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.get(excl);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::I32And);
+}
+
+/// [`Helper::LoanCount`].
+fn loan_count(m: &Module) -> Func {
+    let mut f = m.func("rt:loan_count", vec![Val::I32; 4], vec![]);
+    let (k, e) = (f.local(Val::I32), f.local(Val::I32));
+    f.global_get(Global::LoanTop);
+    f.set(k);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(k);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(k);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.set(k);
+    loan_entry(&mut f, k);
+    f.set(e);
+    loan_key(&mut f, e, [0, 1, 2]);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(e);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.get(3);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+    f.op(Instruction::Br(2));
+    f.op(Instruction::End);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    // Ended entries at the top leave the table.
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.global_get(Global::LoanTop);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.global_get(Global::LoanTop);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.set(k);
+    loan_entry(&mut f, k);
+    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.op(Instruction::BrIf(1));
+    f.get(k);
+    f.global_set(Global::LoanTop);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f
+}
+
+/// [`Helper::LoanCheck`].
+fn loan_check(m: &Module) -> Func {
+    let mut f = m.func("rt:loan_check", vec![Val::I32; 3], vec![]);
+    let (k, e) = (f.local(Val::I32), f.local(Val::I32));
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(k);
+    f.global_get(Global::LoanTop);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    loan_entry(&mut f, k);
+    f.set(e);
+    // A live loan whose range meets the access's, which it excludes.
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(0);
+    f.get(1);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::I32And);
+    f.get(0);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::I32And);
+    f.get(2);
+    f.get(e);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.op(Instruction::I32Or);
+    f.op(Instruction::I32And);
+    f.op(Instruction::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "borrow-conflict: a place a live reference borrows was accessed through another `*mut`"
+            .into(),
+    ));
+    f.op(Instruction::End);
+    f.get(k);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(k);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f
 }
