@@ -900,6 +900,9 @@ enum Origin {
     Hidden(u32),
     /// A top-level binding.
     Global(u32),
+    /// The shared `Ref` at an instruction of a place a local's path
+    /// reaches, for the conflict check only (`ref.excl.shared`).
+    Site(u32),
 }
 
 /// An instruction's, a local's or a parameter's index as a word.
@@ -1570,6 +1573,8 @@ impl Ck<'_, '_> {
         }
         let scope = v.scope.into_iter();
         out.extend(scope.map(|(at, msg)| (at, Code::LocalReferenceOutlivesLocal, msg)));
+        let conflicts = v.conflicts.into_iter();
+        out.extend(conflicts.map(|(at, msg)| (at, Code::ConflictingAccess, msg)));
         out
     }
 
@@ -1691,7 +1696,9 @@ impl Ck<'_, '_> {
                     None => format!("`{}` is another parameter", name(p)),
                 }
             }
-            Origin::Hidden(_) => format!("the value refers to a temporary of {f}"),
+            Origin::Hidden(_) | Origin::Site(_) => {
+                format!("the value refers to a temporary of {f}")
+            }
             Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
         };
         let mut sources: Vec<String> = (0..own.params.len())
@@ -1744,6 +1751,8 @@ struct Verdicts {
     closures: Vec<(NodeIdx, Origin)>,
     /// `local-reference-outlives-local`.
     scope: Vec<(NodeIdx, String)>,
+    /// `conflicting-access` (`ref.excl.shared`).
+    conflicts: Vec<(NodeIdx, String)>,
 }
 
 /// What each top slot of a returned value of type `ret` may depend on

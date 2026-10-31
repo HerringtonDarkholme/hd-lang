@@ -419,6 +419,8 @@ no code and may come later if real programs hit the lock often.
 - replacing a `*mut` that a live result's path crosses (it left a stale
   result).
 
+Slice 7a applied by #1098 ([Writes While Borrowed](../../spec/lang/13-values-and-references.md#writes-while-borrowed)): each written shared `&` of a local's path is a loan of its own, and a write to an overlapping place while a binding that holds it is still read is `conflicting-access`.
+
 ### Stage 9: field paths on results
 
 A result may name the field of its source it points into (owner,

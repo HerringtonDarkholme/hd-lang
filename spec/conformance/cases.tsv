@@ -5466,3 +5466,9 @@ typing/invalid/lifetime-store-through-reference-other-lifetime.hd	type	reject:lo
 runtime/valid/scope-guard-captures.hd	runtime	accept	std/ops.md#r-std-ops.scope-guard.captures
 typing/invalid/scope-guard-capture-escapes.hd	type	reject:local-reference-escapes	std/ops.md#r-std-ops.scope-guard.captures
 typing/invalid/scope-guard-capture-outlives.hd	type	reject:local-reference-outlives-local	std/ops.md#r-std-ops.scope-guard.captures
+typing/invalid/shared-reference-write-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.shared
+typing/invalid/shared-reference-mut-method-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.write
+typing/invalid/shared-reference-write-in-loop.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.live
+typing/valid/shared-reference-disjoint-field-write.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.place
+typing/valid/shared-reference-write-after-last-use.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.live
+typing/valid/shared-reference-reassigned-binding.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.reassign

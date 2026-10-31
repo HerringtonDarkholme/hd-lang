@@ -1,0 +1,12 @@
+# test: reassigning the binding that holds a shared reference ends that reference, so a later write is valid
+# Spec 13 Writes While Borrowed: ref.excl.reassign.
+struct User:
+    name: string
+    age: i32
+
+fn swap_names(u: &mut User, other: &User) -> void $ Console:
+    let r = &u.name
+    println(*r)
+    r = &other.name
+    u.name = "x"
+    println(*r)

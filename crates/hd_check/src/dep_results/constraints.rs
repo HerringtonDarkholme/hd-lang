@@ -17,6 +17,8 @@ use super::{
 use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
 
+mod exclusive;
+
 /// A value's or a place's region variables, one per slot of its type.
 type View = (Vec<Region>, Ty);
 
@@ -732,6 +734,9 @@ impl Gen<'_, '_> {
                 let inv = is_mut(pool, me.1);
                 let (at, place) = self.place(i, a, usize::MAX, (true, inv));
                 self.lies_in(at, me.0[0]);
+                if !inv && exclusive::site(self.s, i) {
+                    self.seed(me.0[0], Origin::Site(i));
+                }
                 let inner = (me.0[1..].to_vec(), referent(pool, me.1));
                 // A reborrow of a local's or a reference's part, shared or
                 // `&mut`, has that part's own slots, by the field slot maps
@@ -886,7 +891,9 @@ impl Gen<'_, '_> {
     fn origins(&self, sol: &Solution, v: &View) -> Set {
         let tops = self.split(v).0;
         let loans = tops.iter().flat_map(|&r| sol.value(r).iter());
-        let mut set: Set = loans.map(|l| self.loans[l as usize]).collect();
+        let mut set: Set = (loans.map(|l| self.loans[l as usize]))
+            .filter(|o| !matches!(o, Origin::Site(_)))
+            .collect();
         set.sort_stable();
         set.dedup();
         set
@@ -993,6 +1000,8 @@ impl Gen<'_, '_> {
             let o = self.loans[l as usize];
             let global = matches!(o, Origin::Global(_));
             match e.cat {
+                // A site loan only marks what a shared `Ref` reaches.
+                _ if matches!(o, Origin::Site(_)) => true,
                 Category::Flow => true,
                 Category::Result => match (results[&e.to], r.own) {
                     ((None, ids), Some((own, _))) => ids.iter().any(|&id| own.allows(ls, o, id)),
@@ -1037,6 +1046,7 @@ impl Gen<'_, '_> {
             }
         }
         v.scope = scoped_uses(b, self.s.cx, r.skip, &|i| self.uses(sol, i));
+        v.conflicts = self.conflicts(sol);
         v
     }
 }

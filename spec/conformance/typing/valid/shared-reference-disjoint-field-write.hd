@@ -1,0 +1,10 @@
+# test: a write to another field of the place a live shared reference points into is valid
+# Spec 13 Writes While Borrowed: ref.excl.place.
+struct User:
+    name: string
+    age: i32
+
+fn older(u: &mut User) -> void $ Console:
+    r := &u.name
+    u.age += 1
+    println(*r)

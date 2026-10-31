@@ -1,0 +1,11 @@
+# test: assigning a field while a shared reference to it is used later is a conflicting access
+# Spec 13 Writes While Borrowed: ref.excl.shared, ref.excl.live.
+struct User:
+    name: string
+    age: i32
+
+fn rename() -> void $ Console:
+    let mut u = User { name: "a", age: 0 }
+    r := &u.name
+    u.name = "x" # diagnostic: conflicting-access
+    println(*r)

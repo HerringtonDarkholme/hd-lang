@@ -1440,7 +1440,8 @@ fn advance(vm: &mut Vm) -> bool:
 # A new thread starts only where the prefilter lets a match start, and
 # when no thread is alive the search jumps to the next such byte.
 fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
-    program := &vm.program
+    # A copy: the calls below change `vm` (r-ref.excl.write).
+    program := vm.program
     ops := program.ops
     points := program.points
     ranges := program.ranges
@@ -1468,7 +1469,7 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
             return false
         at = usize(start)
     restart(scratch, slot_count, at)
-    count = add_thread(vm, program, current, 0, 0, at)
+    count = add_thread(vm, &program, current, 0, 0, at)
     if earliest && has(dense, sparse, current, count, done):
         return true
     let matched = false
@@ -1521,7 +1522,7 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 while slot < slot_count:
                     scratch[slot] = slots[base + slot]
                     slot = slot + 1
-                next_count = add_thread(vm, program, next, next_count, pc + 1, after)
+                next_count = add_thread(vm, &program, next, next_count, pc + 1, after)
                 if earliest && has(dense, sparse, next, next_count, done):
                     return true
         if at >= size:
@@ -1534,7 +1535,7 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
             if seed >= 0:
                 at = usize(seed)
                 restart(scratch, slot_count, at)
-                next_count = add_thread(vm, program, next, next_count, 0, at)
+                next_count = add_thread(vm, &program, next, next_count, 0, at)
                 if earliest && has(dense, sparse, next, next_count, done):
                     return true
             else if next_count == 0:

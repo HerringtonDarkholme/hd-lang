@@ -554,6 +554,35 @@ Storage that must outlive its block is boxed at its declaration, and the binding
 See also: [Element References](#element-references),
 [Reference Receivers](07-functions.md#reference-receivers).
 
+### Writes While Borrowed
+
+While a shared reference to a place is in use, the place may be read but not changed.
+
+```text
+struct User:
+    name: string
+    age: i32
+
+fn rename(u: &mut User) -> void $ Console:
+    n := &u.name
+    u.age += 1    # valid: another field
+    u.name = "b"  # error: conflicting-access
+    println(*n)   # the last use of n
+    u.name = "c"  # valid
+```
+
+1. r[ref.excl.shared] While a shared reference `&p` is live, a write to `p` or to a place that overlaps it is an error. Error: `conflicting-access`.
+2. r[ref.excl.place] The rule covers a written `&p` whose place is a local or a parameter followed by fields and dereferences. Two places of one local overlap unless their paths name two different fields at the same depth.
+3. r[ref.excl.write] A write is an assignment to the place or a part of it, or a call that takes `&mut` of it or a `&mut` binding to it, a `&mut self` method call included. A built-in method that changes the place writes too: a list's `push` or `reserve`, a map store, and a map's `remove`. A call's `&mut` writes when the call runs, after its other arguments.
+4. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
+5. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
+6. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
+
+> **Why.** This is Rust's E0506 with non-lexical lifetimes. A write while a
+> shared reference is live would change what the reader sees behind its
+> back. The fixes are Rust's: make the change after the last use, copy the
+> value out first, or borrow only the field the code reads.
+
 ### Lifetime Variables
 
 A **lifetime variable** `'a`, written after `&`, names the lifetime of a local reference. The reference positions that write one variable share its lifetime:

@@ -1,0 +1,14 @@
+# test: a &mut self method call on a place a live shared reference points into is a conflicting access
+# Spec 13 Writes While Borrowed: ref.excl.shared, ref.excl.write.
+struct User:
+    name: string
+    age: i32
+
+impl User:
+    fn birthday(&mut self) -> void:
+        self.age += 1
+
+fn celebrate(u: &mut User) -> void $ Console:
+    r := &u.name
+    u.birthday() # diagnostic: conflicting-access
+    println(*r)

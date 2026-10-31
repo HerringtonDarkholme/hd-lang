@@ -1,9 +1,8 @@
-# test: a reference into an outer local stays valid after a block reassigns the reference or the local
+# test: a reference into an outer local stays valid after a block reassigns the reference to it
 # Spec 13 Dependent Results, Local Scope: ref.dep.scope, ref.dep.scope.binding.
 fn pick(x: i32, b: bool) -> i32:
     let y = +5
     let a: &i32 = &x
     if b:
         a = &y
-        y = 7
     *a
