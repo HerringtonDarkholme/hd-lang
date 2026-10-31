@@ -7,7 +7,7 @@ struct Names:
 
 impl Index[usize] for Names:
     type Out = string
-    fn index(self, key: usize) -> string:
+    fn index(&self, key: usize) -> string:
         self.items[key]
 
 impl IndexSet[usize, string] for Names:

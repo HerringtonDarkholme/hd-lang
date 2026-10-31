@@ -1799,6 +1799,24 @@ impl Ck<'_, '_> {
         let [base, key] = kids else {
             return unsupported("an index shape");
         };
+        // `expr.index.trait.read-ref`: a place read through `Index` takes
+        // the place's address, as a `&self` call does, so the read neither
+        // copies nor moves the receiver.
+        if let Some(pt) = self.peek_place_ty(*base)
+            && self.ref_of(pt).is_none()
+        {
+            let vt = self.infer.resolve(self.pool(), pt);
+            let builtin = self.index_kind(vt);
+            let traited = match builtin {
+                None => true,
+                Some((get, _, _)) => get != Indexed::Map && key.kind() == SyntaxKind::RangeExpr,
+            };
+            if traited {
+                let (br, bt) = self.index_place_receiver(*base)?;
+                let (kr, kt) = self.index_key_value(*key, builtin)?;
+                return self.index_of_value((br, bt), builtin, (kr, kt), (*key, n));
+            }
+        }
         let (br, bt) = self.expr(*base, None)?;
         // A base that already failed, such as a type name written where a
         // value is needed, leaves nothing to index.
@@ -1832,6 +1850,9 @@ impl Ck<'_, '_> {
             return Ok((self.index_read(get, (br, kr), vt, n.index()), vt));
         }
         let index = self.cx.names.known.index;
+        // `Index::index` takes `&self`, so a reference receiver passes on
+        // (`expr.index.trait.read-ref`).
+        let (br, bt) = self.index_receiver(br, bt, n);
         self.tuple_key_choice(index, bt, kt)?;
         // `expr.index.trait.no-read`.
         if !self.op_fits(index, bt, Some(kt))? {
@@ -1849,6 +1870,39 @@ impl Ck<'_, '_> {
             return Ok(chosen);
         }
         self.trait_call_args(index, "index", br, bt, &[(kr, kt, *key)], n)
+    }
+
+    /// The reference to the place `base` that an `Index` read passes as
+    /// its `&self` receiver, marked local as a call's receiver address is,
+    /// with the type of the value it refers to.
+    fn index_place_receiver(&mut self, base: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+        let (r, t) = self.address_of_place(base, "index", false, vec![])?;
+        if let Some(i) = r.as_inst() {
+            let b = self.b.body_mut();
+            if b.tags[i.0 as usize] == Tag::Ref {
+                b.data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
+            }
+        }
+        Ok((r, t))
+    }
+
+    /// The `&self` receiver of `Index::index` for the receiver `r` of type
+    /// `t`: a reference passes on as a shared one, and any other value is
+    /// held in a new local that the call refers to. The type is that of
+    /// the value referred to.
+    pub(crate) fn index_receiver(&mut self, r: Ref, t: Ty, n: NodeRef<'_>) -> (Ref, Ty) {
+        if r.0 == NONE || matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+            return (r, t);
+        }
+        let rt = self.b.ty_of(r);
+        if let Some((inner, m)) = self.ref_of(rt) {
+            let vt = self.deref_ty(inner, m);
+            let counted = self.ref_counted(rt).unwrap_or(true);
+            let shared = self.ref_ty(self.strip_mut(vt), false, counted);
+            return (self.retype(r, shared, n.index()), vt);
+        }
+        let (r, _) = self.object_ref(r, t, (false, false), n);
+        (r, t)
     }
 
     /// An index key, checked with the expected type its built-in receiver

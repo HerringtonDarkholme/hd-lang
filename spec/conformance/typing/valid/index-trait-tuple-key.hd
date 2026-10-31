@@ -8,7 +8,7 @@ struct Grid[T]:
 
 impl[T] Index[(usize, usize)] for Grid[T]:
     type Out = T
-    fn index(self, at: (usize, usize)) -> T:
+    fn index(&self, at: (usize, usize)) -> T:
         self.cells[at._0 * self.width + at._1]
 
 fn corner[T](grid: Grid[T]) -> T:

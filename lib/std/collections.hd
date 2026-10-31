@@ -591,7 +591,7 @@ impl[T] ListView[T]:
 
 impl[T] Index[usize] for ListView[T]:
     type Out = T
-    fn index(self, key: usize) -> T:
+    fn index(&self, key: usize) -> T:
         len := self.end - self.start
         if key >= len:
             panic_with(
@@ -657,7 +657,7 @@ impl[T, 'a] Span[T, 'a]:
 
 impl[T, 'a] Index[usize] for Span[T, 'a]:
     type Out = &'a T
-    fn index(self, key: usize) -> &'a T:
+    fn index(&self, key: usize) -> &'a T:
         if key >= self.len():
             panic_with("index-out-of-bounds", "span index out of bounds")
         &self.items[self.start + key]
@@ -714,12 +714,14 @@ impl[T, 'a] SpanMut[T, 'a]:
             self.items[self.start + index] = value
             index = index + 1
 
+# A copy of the element, as `items[i]` reads: `index` borrows the span
+# only for the call, so a reference result could outlive a later write.
 impl[T, 'a] Index[usize] for SpanMut[T, 'a]:
-    type Out = &'a T
-    fn index(self, key: usize) -> &'a T:
+    type Out = T
+    fn index(&self, key: usize) -> T:
         if key >= self.len():
             panic_with("index-out-of-bounds", "mutable span index out of bounds")
-        &self.items[self.start + key]
+        self.items[self.start + key]
 
 impl[T, 'a] IndexSet[usize, T] for SpanMut[T, 'a]:
     fn index_set(&mut self, key: usize, value: T) -> void:

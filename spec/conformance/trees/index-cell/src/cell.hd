@@ -6,7 +6,7 @@ pub struct Cell:
 impl Index[usize] for Cell:
     type Out = i32
 
-    fn index(self, key: usize) -> i32:
+    fn index(&self, key: usize) -> i32:
         self.value[0]
 
 impl IndexSet[usize, i32] for Cell:

@@ -1,0 +1,36 @@
+# test: an `Index` read borrows its receiver: a place, a reference and a temporary each read without a copy or a move
+# Spec 05 Index Traits: expr.index.trait.read-ref; std Collections, Mutable Spans: std-collections.span-mut.index.
+use std.ops.Index
+
+struct Grid:
+    cells: List[i32]
+
+impl Index[usize] for Grid:
+    type Out = i32
+    fn index(&self, key: usize) -> i32:
+        self.cells[key]
+
+fn through(grid: &Grid) -> i32:
+    grid[0] + grid[1]
+
+fn fresh() -> Grid:
+    Grid { cells: [+7, 8] }
+
+fn span_reads(items: &mut List[i32]) -> i32:
+    let mut span = items.span_mut()
+    first := span[0]
+    span[0] = 9
+    first + span[0] + span[1]
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads a place, a reference and a temporary"):
+        grid := Grid { cells: [+1, 2] }
+        assert_equal(grid[0] + grid[1], 3, reason="a place reads twice")
+        assert_equal(through(&grid), 3, reason="a reference passes on")
+        assert_equal(fresh()[1], 8, reason="a temporary is held for the call")
+
+    it("reads a mutable span twice and keeps a copy"):
+        let mut items = [+1, 2, 3]
+        assert_equal(span_reads(&mut items), 12, reason="the first read is a copy, 1 + 9 + 2")

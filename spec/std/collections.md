@@ -195,7 +195,7 @@ relative to the view, and every mutation preserves the list's length.
 | `get` | `get['b](&'b self, index: usize) -> (&'b T)?` |
 | `get_mut` | `get_mut['b](&'b mut self, index: usize) -> (&'b mut T)?` |
 | `slice_mut` | `slice_mut['b](&'b mut self, range: Range[usize]) -> SpanMut[T, 'b]` |
-| index read | `Index[usize]` with `Out = &'a T` |
+| index read | `Index[usize]` with `Out = T` |
 | index write | `IndexSet[usize, T]` |
 | `swap` | `swap(&mut self, left: usize, right: usize) -> void` |
 | `fill` | `fill(&mut self, value: T) -> void` |
@@ -207,7 +207,7 @@ relative to the view, and every mutation preserves the list's length.
 5. r[std-collections.span-mut.len] `len` returns the number of elements in the mutable span.
 6. r[std-collections.span-mut.get] `get(index)` returns the indexed element as `&'b T` in `.Some`, or `.None` outside the span. It borrows the span for `'b`, so the span stays usable after the last use of the result.
 7. r[std-collections.span-mut.get-mut] `get_mut(index)` returns the indexed element as `&'b mut T` in `.Some`, or `.None` outside the span. It borrows the span mutably for `'b`.
-8. r[std-collections.span-mut.index] `span[index]` returns the indexed element as `&'a T`.
+8. r[std-collections.span-mut.index] `span[index]` returns a copy of the indexed element, as a list's `items[i]` does. The read borrows the span only for the call, so the span stays usable; `get` gives a reference.
 9. r[std-collections.span-mut.index-set] `span[index] = value` replaces the indexed element without changing the list's length.
 10. r[std-collections.span-mut.index-range] An index read or write outside the span is a checked runtime panic. Panic: `index-out-of-bounds`.
 11. r[std-collections.span-mut.slice] `slice_mut(start..end)` returns the elements at relative indices `start` up to, not including, `end`.

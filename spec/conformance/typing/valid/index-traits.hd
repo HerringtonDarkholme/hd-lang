@@ -7,7 +7,7 @@ struct Ring:
 
 impl Index[usize] for Ring:
     type Out = i32
-    fn index(self, key: usize) -> i32:
+    fn index(&self, key: usize) -> i32:
         self.items[key % self.items.len()]
 
 impl IndexSet[usize, i32] for Ring:

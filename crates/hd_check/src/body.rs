@@ -4330,7 +4330,7 @@ impl Ck<'_, '_> {
 
     /// `r[k] = v` and `r[k] op= v` on a receiver without built-in
     /// indexing: `IndexSet::[K, V]::index_set(&mut r, k, v)`, after
-    /// `Index::[K]::index(r, k)` for a compound one
+    /// `Index::[K]::index(&r, k)` for a compound one
     /// (`expr.index.trait.write-ref`). `br` is the reference to the receiver
     /// (`Ck::store_receiver`), and `bt` the type of the value it refers to.
     fn index_set(
@@ -4370,8 +4370,8 @@ impl Ck<'_, '_> {
                     self.err(Code::TypeMismatch, lhs, &msg);
                     return Ok(());
                 }
-                // `index` reads the value the reference refers to.
-                let (bv, bvt) = self.emit_deref(br, self.b.ty_of(br), lhs.index());
+                // `index` reads through the reference (`expr.index.trait.read-ref`).
+                let (bv, bvt) = self.index_receiver(br, self.b.ty_of(br), lhs);
                 let chosen =
                     self.literal_arg_choice(index, "index", (bv, bvt), (&[key], kt), lhs)?;
                 let (cur, ct) = match chosen {

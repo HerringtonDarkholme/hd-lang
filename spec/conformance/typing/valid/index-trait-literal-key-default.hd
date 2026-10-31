@@ -7,12 +7,12 @@ struct Table:
 
 impl Index[usize] for Table:
     type Out = i32
-    fn index(self, key: usize) -> i32:
+    fn index(&self, key: usize) -> i32:
         self.size
 
 impl Index[string] for Table:
     type Out = string
-    fn index(self, key: string) -> string:
+    fn index(&self, key: string) -> string:
         key
 
 fn first(table: Table) -> i32:

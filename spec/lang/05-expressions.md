@@ -879,7 +879,7 @@ struct Ring:
 
 impl Index[usize] for Ring:
     type Out = i32
-    fn index(self, key: usize) -> i32:
+    fn index(&self, key: usize) -> i32:
         self.items[key % self.items.len()]
 
 impl IndexSet[usize, i32] for Ring:
@@ -896,22 +896,23 @@ fn rotate(ring: &mut Ring) -> i32:
 ```text
 pub trait Index[K]:
     type Out
-    fn index(self, key: K) -> Self::Out
+    fn index(&self, key: K) -> Self::Out
 
 pub trait IndexSet[K, V]:
     fn index_set(&mut self, key: K, value: V) -> void
 ```
 
-1. r[expr.index.trait.std-ref] `std.ops` declares `Index[K]`, with an associated type `Out`, and `IndexSet[K, V]`, whose `index_set` takes `&mut self`, as shown above.
-2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(r, k)`. Its type is that implementation's `Out`.
-3. r[expr.index.trait.write-ref] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(&mut r, k, v)`. The call takes the address of the place `r`, as a `&mut self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a `&mut` reference, the call passes it, so the store changes the value it refers to.
-4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
-5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
-6. r[expr.index.trait.mut-ref] Since `index_set` takes `&mut self`, the receiver must be a writable place or a `&mut` reference. A store into any other receiver, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `not-writable`.
-7. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
-8. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
-9. r[expr.index.trait.builtin-direct] A receiver whose type is `List`, `Map`, or `string` keeps the built-in indexing above, even though these types implement the traits, as [Built-In Implementations](#built-in-implementations) states.
-10. r[expr.index.trait.independent] The two traits are independent: a type may implement either one alone.
+1. r[expr.index.trait.std-ref] `std.ops` declares `Index[K]`, with an associated type `Out`, whose `index` takes `&self`, and `IndexSet[K, V]`, whose `index_set` takes `&mut self`, as shown above.
+2. r[expr.index.trait.read-other] For a receiver whose type is not `List`, `Map`, or `string`, a type parameter included, reading `r[k]` is the call `Index::[K]::index(&r, k)`. Its type is that implementation's `Out`.
+3. r[expr.index.trait.read-ref] The read takes the address of the place `r`, as a `&self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a reference, the call passes it. Any other receiver is held in a new local that the call refers to. So a read neither copies nor moves `r`.
+4. r[expr.index.trait.write-ref] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(&mut r, k, v)`. The call takes the address of the place `r`, as a `&mut self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a `&mut` reference, the call passes it, so the store changes the value it refers to.
+5. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
+6. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
+7. r[expr.index.trait.mut-ref] Since `index_set` takes `&mut self`, the receiver must be a writable place or a `&mut` reference. A store into any other receiver, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `not-writable`.
+8. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
+9. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
+10. r[expr.index.trait.builtin-direct] A receiver whose type is `List`, `Map`, or `string` keeps the built-in indexing above, even though these types implement the traits, as [Built-In Implementations](#built-in-implementations) states.
+11. r[expr.index.trait.independent] The two traits are independent: a type may implement either one alone.
 
 ```text
 use std.ops.Index
@@ -921,7 +922,7 @@ struct Row:
 
 impl Index[usize] for Row:
     type Out = i32
-    fn index(self, key: usize) -> i32:
+    fn index(&self, key: usize) -> i32:
         self.cells[key]
 
 struct Plain:
