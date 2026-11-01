@@ -238,8 +238,26 @@ fn a_closure_holding_a_trailing_block_keeps_its_suite_inside_brackets() {
         !output.contains("fn(item): live:"),
         "the closure collapsed around a trailing block:\n{output}"
     );
+    assert_eq!(output, source);
+}
+
+#[test]
+fn a_last_block_closure_argument_stays_on_the_call_line() {
+    let source = "fn f():\n    button(\"add\", fn():\n        n := count[0]\n        count[0] = n + 1\n    )\n";
+    assert_eq!(formatted(source), source);
+    let broken = "fn f():\n    button(\n        \"add\",\n        fn():\n            n := count[0]\n            count[0] = n + 1\n        ,\n    )\n";
+    assert_eq!(formatted(broken), source);
+}
+
+#[test]
+fn a_block_closure_before_other_arguments_leaves_no_lone_comma() {
+    let only = "fn f():\n    one(fn():\n        a()\n        b()\n    , \"x\")\n";
+    assert_eq!(formatted(only), only);
+    let two = "fn f():\n    two(\n        fn():\n            a()\n            b()\n        , fn():\n            c()\n            d()\n    )\n";
+    let output = formatted(two);
+    assert_eq!(output, two);
     assert!(
-        output.contains("        fn(item):\n            live:\n"),
-        "{output}"
+        !output.lines().any(|line| line.trim() == ","),
+        "a lone comma:\n{output}"
     );
 }

@@ -43,7 +43,6 @@ struct Analysis<'s, 'p> {
     token_owners: Vec<NodeIdx>,
     optional_commas: Vec<bool>,
     added_group_commas: Vec<bool>,
-    standalone_group_commas: Vec<bool>,
     suppressed_commas: Vec<bool>,
     chain_indents: Vec<bool>,
     pipe_indents: Vec<bool>,
@@ -111,7 +110,6 @@ impl<'s, 'p> Analysis<'s, 'p> {
             token_owners,
             optional_commas: vec![false; token_count],
             added_group_commas: vec![false; parsed.tree.len()],
-            standalone_group_commas: vec![false; parsed.tree.len()],
             suppressed_commas: vec![false; token_count],
             chain_indents: vec![false; parsed.tree.len()],
             pipe_indents: vec![false; parsed.tree.len()],
@@ -542,6 +540,9 @@ impl<'s, 'p> Analysis<'s, 'p> {
         if matches!(node.kind(), S::DataExpr | S::DataPattern) {
             self.set_gap(open, Gap::Space);
         }
+        if node.kind() == S::ArgumentList && self.mark_hugged_closure(node, open, close) {
+            return;
+        }
         if close > open + 1 {
             self.indent_starts[open + 1] += 1;
             self.indent_ends[close] += 1;
@@ -575,26 +576,119 @@ impl<'s, 'p> Analysis<'s, 'p> {
             })
             .last()
             .is_some_and(|child| self.node_flags[child.index().idx()] & CONTAINS_SUITE != 0);
-        self.standalone_group_commas[node.index().idx()] = suite_final;
-        if trailing {
-            let comma_count = node
-                .direct_tokens()
-                .filter(|&token| tokens.kind(token) == T::Comma)
-                .count();
-            let singleton_tuple =
-                matches!(node.kind(), S::TupleExpr | S::TupleType | S::TuplePattern)
-                    && comma_count == 1;
-            if !singleton_tuple {
-                if suite_final {
-                    self.suppressed_commas[last] = true;
-                    self.added_group_commas[node.index().idx()] = true;
-                } else {
-                    self.optional_commas[last] = true;
-                }
+        // A comma after a multi-line block opens the next element's line,
+        // so no comma stands alone; a final suite takes no trailing comma.
+        for child in node.children() {
+            if self.node_flags[child.index().idx()] & CONTAINS_SUITE != 0
+                && let Some((_, end)) = token_bounds(child)
+                && end + 1 < last
+                && tokens.kind[end + 1] == T::Comma
+                && self.token_owners[end + 1] == node.index()
+                && self.ends_in_broken_block(child)
+            {
+                self.force_gap(end + 2, Gap::Space);
             }
+        }
+        let comma_count = node
+            .direct_tokens()
+            .filter(|&token| tokens.kind(token) == T::Comma)
+            .count();
+        let singleton_tuple = matches!(node.kind(), S::TupleExpr | S::TupleType | S::TuplePattern)
+            && comma_count == 1;
+        if trailing && singleton_tuple {
+            // The comma makes the tuple: it stays as written.
+        } else if suite_final {
+            if trailing {
+                self.suppressed_commas[last] = true;
+            }
+        } else if trailing {
+            self.optional_commas[last] = true;
         } else {
             self.added_group_commas[node.index().idx()] = true;
         }
+    }
+
+    /// Whether `block` always prints on lines of its own (`mark_block`).
+    fn block_breaks(&self, block: NodeRef<'_>) -> bool {
+        !(self.block_is_inline_pass(block)
+            || self.block_may_inline(block)
+            || (self.block_in_pipe_step(block) && self.block_can_inline(block)))
+    }
+
+    /// Whether `node` ends with a block that prints on lines of its own,
+    /// so whatever follows it starts after a dedent.
+    fn ends_in_broken_block(&self, node: NodeRef<'_>) -> bool {
+        let end = node.last_token().get();
+        let mut current = Some(node);
+        while let Some(at) = current {
+            if at.kind() == S::Block && self.block_breaks(at) {
+                return true;
+            }
+            current = at
+                .children()
+                .filter(|child| child.first_token().get().is_some())
+                .last()
+                .filter(|child| child.last_token().get() == end);
+        }
+        false
+    }
+
+    /// A call whose one suite-holding argument is a closure with a
+    /// multi-line block keeps the closure on the call's line, as Swift and
+    /// Kotlin print it: `button("add", fn():`, the body one level in, then
+    /// `)` on its own line when the closure is last, or `, rest)` after
+    /// the body when it is not. Returns whether it applied.
+    fn mark_hugged_closure(&mut self, node: NodeRef<'_>, open: usize, close: usize) -> bool {
+        if self.node_flags[node.index().idx()] & CONTAINS_SUITE == 0 {
+            return false;
+        }
+        let mut hugged = None;
+        let mut last_argument = None;
+        for argument in node
+            .children()
+            .filter(|child| matches!(child.kind(), S::Argument | S::NamedArgument))
+        {
+            if self.node_flags[argument.index().idx()] & CONTAINS_SUITE != 0 {
+                if hugged.is_some() {
+                    return false;
+                }
+                hugged = Some(argument);
+            }
+            last_argument = Some(argument.index());
+        }
+        let Some(hugged) = hugged else {
+            return false;
+        };
+        let closure = hugged
+            .children()
+            .filter(|child| child.kind() == S::ClosureExpr)
+            .last();
+        let Some(block) = closure.and_then(|c| c.children().find(|child| child.kind() == S::Block))
+        else {
+            return false;
+        };
+        if !self.block_breaks(block) || !self.comment_range(open + 1).is_empty() {
+            return false;
+        }
+        let tokens = &self.parsed.tokens;
+        self.force_gap(open + 1, Gap::None);
+        for comma in node
+            .direct_tokens()
+            .filter(|&token| tokens.kind(token) == T::Comma)
+        {
+            self.force_gap(comma.idx() + 1, Gap::Space);
+        }
+        let last = close - 1;
+        if tokens.kind[last] == T::Comma && node.direct_tokens().any(|token| token.idx() == last) {
+            self.suppressed_commas[last] = true;
+        }
+        let hugged_last = last_argument == Some(hugged.index());
+        if hugged_last {
+            self.set_gap(close, Gap::Hard);
+        } else {
+            self.force_gap(close, Gap::None);
+        }
+        true
     }
 
     fn mark_binary(&mut self, node: NodeRef<'_>) {
@@ -1124,26 +1218,13 @@ impl<'s, 'p> Builder<'s, 'p> {
                 signature_group_open = false;
             }
             if emitted {
-                let added = index == last && self.analysis.added_group_commas[node.index().idx()];
-                let standalone = added && self.analysis.standalone_group_commas[node.index().idx()];
-                if added && !standalone {
+                if index == last && self.analysis.added_group_commas[node.index().idx()] {
                     self.document.commands.push(C::ModeText {
                         flat: "",
                         broken: ",",
                     });
                 }
-                if standalone {
-                    self.emit_gap(index);
-                    self.document.commands.push(C::StartIndent);
-                    self.document.commands.push(C::ModeText {
-                        flat: "",
-                        broken: ",",
-                    });
-                    self.document.commands.push(C::EndIndent);
-                    self.document.commands.push(C::SoftLine(""));
-                } else {
-                    self.emit_gap(index);
-                }
+                self.emit_gap(index);
             }
             if children
                 .peek()

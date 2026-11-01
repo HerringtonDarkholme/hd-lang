@@ -1,0 +1,17 @@
+fn demo(mut count: List[i32]) -> void:
+    button("add", fn():
+        n := count[0]
+        count[0] = n + 1
+    )
+    one(fn():
+        count[0] = 1
+        count[0] = 2
+    , "x")
+    two(
+        fn():
+            count[0] = 1
+            count[0] = 2
+        , fn():
+            count[0] = 3
+            count[0] = 4
+    )

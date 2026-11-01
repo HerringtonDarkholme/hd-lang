@@ -1426,7 +1426,7 @@ hd fmt --check          # writes nothing; lists each file that would change
 17. r[cli.fmt.width.binary-delimited] A broken binary chain inside brackets or braces places its operands on separate lines without adding parentheses.
 18. r[cli.fmt.width.binary-operands] A broken binary chain places one operand per line, with the operator before each later operand.
 19. r[cli.fmt.width.protected] Comment and string literal text remains as written, even when it exceeds the width.
-20. r[cli.fmt.width.trailing-comma] A comma-delimited group written one element per line ends its last element with a comma.
+20. r[cli.fmt.width.trailing-comma] A comma-delimited group written one element per line ends its last element with a comma, unless that element ends in a suite.
 21. r[cli.fmt.width.flat-comma] A trailing comma that is not required by the syntax is absent when its group stays flat.
 22. r[cli.fmt.spacing] Formatting normalizes spacing around keywords, assignments, binary operators, commas, colons, and nonempty flat record braces.
 23. r[cli.fmt.spacing.equal] Value-level named arguments and provider bindings have no spaces around `=`, while type-level bindings and every other `=` have one space on each side.
@@ -1434,17 +1434,20 @@ hd fmt --check          # writes nothing; lists each file that would change
 25. r[cli.fmt.suite.value] Match arms, closures, and value-position `if` expressions stay inline only when their complete canonical form fits.
 26. r[cli.fmt.suite.if-value] A tail `if` with `else` is a value unless its function declares `-> void`; an omitted result type counts as a value.
 27. r[cli.fmt.suite.if-statement] An `if` without `else`, or a tail `if` in a `-> void` function, is a statement.
-28. r[cli.fmt.suite.final-comma] In a broken comma-delimited group whose final element ends in a suite, the final comma is placed after that suite dedents to the element's indentation.
-29. r[cli.fmt.comments] Formatting preserves comment bytes and whether each comment is inline or standalone.
-30. r[cli.fmt.comments.width] An inline comment does not make its preceding canonical code group break.
-31. r[cli.fmt.parentheses] Formatting preserves parentheses except obsolete continuation wrappers in noncallee value and suite-header positions.
-32. r[cli.fmt.parentheses.callee] Formatting preserves parentheses around a call target.
-33. r[cli.fmt.chain] A broken postfix chain keeps its first complete call as the head, then places each remaining dot segment on a leading-dot line.
-34. r[cli.fmt.chain.header] A broken chain in a suite header has one complete continuation wrapper before its colon.
-35. r[cli.fmt.pipe] A broken pipe chain keeps its head unparenthesized and places each pipe step on a leading-`|>` line.
-36. r[cli.fmt.blank-lines] Formatting keeps at most one authored blank line between sibling statements.
-37. r[cli.fmt.line-endings] Generated layout uses LF and exactly one final newline, while an empty file remains empty.
-38. r[cli.fmt.width.unbreakable] An unbreakable token or syntax form may exceed 100 columns.
+28. r[cli.fmt.suite.final-comma] In a broken comma-delimited group whose final element ends in a suite, no comma follows that element.
+29. r[cli.fmt.suite.next-comma] In a broken comma-delimited group, the comma after an element that ends in a multi-line suite starts the next element's line, as `, next`, so no comma stands alone on a line.
+30. r[cli.fmt.suite.hugged-closure] A call whose only suite-holding argument is a closure with a multi-line body keeps its arguments on the call's line, and the body is indented four spaces beyond that line.
+31. r[cli.fmt.suite.hugged-close] In such a call, the closing parenthesis starts its own line at the call line's indentation when the closure is last; otherwise `, `, the remaining arguments and the parenthesis follow the body.
+32. r[cli.fmt.comments] Formatting preserves comment bytes and whether each comment is inline or standalone.
+33. r[cli.fmt.comments.width] An inline comment does not make its preceding canonical code group break.
+34. r[cli.fmt.parentheses] Formatting preserves parentheses except obsolete continuation wrappers in noncallee value and suite-header positions.
+35. r[cli.fmt.parentheses.callee] Formatting preserves parentheses around a call target.
+36. r[cli.fmt.chain] A broken postfix chain keeps its first complete call as the head, then places each remaining dot segment on a leading-dot line.
+37. r[cli.fmt.chain.header] A broken chain in a suite header has one complete continuation wrapper before its colon.
+38. r[cli.fmt.pipe] A broken pipe chain keeps its head unparenthesized and places each pipe step on a leading-`|>` line.
+39. r[cli.fmt.blank-lines] Formatting keeps at most one authored blank line between sibling statements.
+40. r[cli.fmt.line-endings] Generated layout uses LF and exactly one final newline, while an empty file remains empty.
+41. r[cli.fmt.width.unbreakable] An unbreakable token or syntax form may exceed 100 columns.
 
 > **Why.** Formatting around a syntax error could rewrite code that the
 > parser misread, so the file waits until it parses.

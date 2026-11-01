@@ -71,6 +71,12 @@ run: hd fmt --check inputs/review.input
 stdout-json: []
 run: hd fmt inputs/review.input
 same-text: inputs/review.input want/review.hd
+run: hd fmt --check inputs/closures.input
+exit: 1
+run: hd fmt inputs/closures.input
+same-text: inputs/closures.input want/closures.hd
+run: hd fmt --check inputs/closures.input
+stdout-json: []
 run: hd fmt --check inputs/already-broken.input
 stdout-json: []
 run: hd fmt --check inputs/canonical.input

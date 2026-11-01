@@ -160,13 +160,13 @@ fn exactly_one_hundred_columns_stay_on_one_line() {
 }
 
 #[test]
-fn an_existing_multiline_closure_joins_and_its_separator_dedents() {
+fn an_existing_multiline_closure_joins_with_no_lone_comma() {
     let source = format!(
         "fn f():\n    consume({FIRST}, {SECOND}, {THIRD}, fn(value):\n        use_value(value)\n    )\n"
     );
     let formatted = narrow(&source);
     assert!(
-        formatted.contains("        fn(value): use_value(value)\n        ,\n    )"),
+        formatted.contains("        fn(value): use_value(value)\n    )"),
         "{formatted}"
     );
 }
@@ -314,19 +314,19 @@ fn parenthesized_multiline_closures_keep_delimiter_lines() {
         "{formatted}"
     );
     assert!(
-        formatted.contains("halved - 5\n        )\n        ,\n    )"),
+        formatted.contains("halved - 5\n        )\n    )"),
         "{formatted}"
     );
 }
 
 #[test]
-fn broken_value_if_argument_dedents_before_its_comma() {
+fn broken_value_if_argument_ends_the_list_with_no_lone_comma() {
     let source =
         format!("fn f():\n    consume(if ready: {FIRST} + {SECOND} else: {SECOND} + {THIRD})\n");
     let formatted = narrow(&source);
     assert!(
         formatted.contains(&format!(
-            "        if ready:\n            {FIRST} + {SECOND}\n        else:\n            {SECOND} + {THIRD}\n        ,\n    )"
+            "        if ready:\n            {FIRST} + {SECOND}\n        else:\n            {SECOND} + {THIRD}\n    )"
         )),
         "{formatted}"
     );
