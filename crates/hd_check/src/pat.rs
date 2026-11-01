@@ -6,8 +6,8 @@
 //! outcome keeps the rows, in order, that may still match. Exhaustiveness
 //! is Maranget's usefulness test over the arm patterns.
 
-use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_base::{HashMap, HashSet};
 
 use hd_base::{LocalId, NodeIdx, StageResult};
 use hd_diag::Code;
@@ -57,6 +57,24 @@ enum Cell<'t> {
     Wild,
     Pat(NodeRef<'t>),
     Some(Option<NodeRef<'t>>),
+}
+
+/// The rows of `m` at the positions `named` and `wild`, in row order:
+/// the rows that can match one constructor in the first column.
+fn head_rows(m: &[Vec<P>], named: Option<&Vec<usize>>, wild: &[usize]) -> Vec<Vec<P>> {
+    let mut at: Vec<usize> = named.cloned().unwrap_or_default();
+    at.extend_from_slice(wild);
+    at.sort_stable();
+    at.into_iter().map(|i| m[i].clone()).collect()
+}
+
+/// A tag switch's rows by the variant each names in the switched
+/// column (row positions in order), the rows with no test there, and
+/// whether the rows name every variant.
+struct Tags {
+    by_tag: HashMap<u32, Vec<usize>>,
+    wild: Vec<usize>,
+    all: bool,
 }
 
 /// A row of a decision matrix: a cell per column, the stores its
@@ -1388,26 +1406,48 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let t = occs[j].1;
         let mut named: Vec<(u32, Vec<Ty>, NodeIdx)> = Vec::new();
-        for r in m {
+        let mut seen = HashSet::default();
+        // Each row's variant, looked up once: by variant, the rows that
+        // name it, and the rows with no test in this column.
+        let mut by_tag: HashMap<u32, Vec<usize>> = HashMap::default();
+        let mut wild = Vec::new();
+        for (i, r) in m.iter().enumerate() {
             let (name, at) = match r.cells[j] {
+                Cell::Wild => {
+                    wild.push(i);
+                    continue;
+                }
                 Cell::Some(_) => ("Some".to_owned(), NodeIdx::NONE),
                 Cell::Pat(p) if p.kind() == SyntaxKind::VariantPattern => {
                     (self.variant_pattern_name(p), p.index())
                 }
-                _ => continue,
+                Cell::Pat(_) => continue,
             };
-            let Some((idx, fs)) = self.variant_fields(t, &name) else {
-                continue;
+            // `Some(..)` is the variant at index 1 whether or not the
+            // column's type names it.
+            let found = self.variant_fields(t, &name);
+            let tag = match (&r.cells[j], &found) {
+                (Cell::Some(_), _) => Some(1),
+                (_, found) => found.as_ref().map(|f| f.0),
             };
-            if !named.iter().any(|n| n.0 == idx) {
+            if let Some(tag) = tag {
+                by_tag.entry(tag).or_default().push(i);
+            }
+            if let Some((idx, fs)) = found
+                && seen.insert(idx)
+            {
                 named.push((idx, fs, at));
             }
         }
         let all = self.ctors(t).is_some_and(|c| c.len() == named.len());
-        self.switch_from(rows, occs, m, j, &named, all, lits)
+        let tags = Tags { by_tag, wild, all };
+        self.switch_from(rows, occs, m, j, &named, &tags, lits)
     }
 
-    /// The `SwitchTag` chain of [`Self::switch`] from `named[0]` on.
+    /// The `SwitchTag` chain of [`Self::switch`]: each variant's test
+    /// sits in the fail block of the one before it. The chain is built
+    /// in a loop, its fail blocks closed from the innermost out, so a
+    /// match over many variants does not recurse once per variant.
     fn switch_from<'t>(
         &mut self,
         rows: &[Row<'t>],
@@ -1415,77 +1455,80 @@ impl Ck<'_, '_> {
         m: &[DRow<'t>],
         j: usize,
         named: &[(u32, Vec<Ty>, NodeIdx)],
-        all: bool,
+        tags: &Tags,
         lits: &mut HashMap<NodeIdx, P>,
     ) -> StageResult<()> {
-        let Some((idx, fs, at)) = named.first() else {
-            if all {
-                self.b
-                    .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
-                return Ok(());
-            }
-            let rest = m
-                .iter()
-                .filter(|r| matches!(r.cells[j], Cell::Wild))
-                .map(|r| r.clone().with_column(j, []))
-                .collect();
-            return self.tree(rows, &splice(occs, j, []), rest, lits);
-        };
-        let (idx, at) = (*idx, *at);
         let (v, t) = occs[j];
-        let ok = self.b.open_block();
-        let mut spec: Vec<(DRow<'t>, Vec<Option<NodeRef<'t>>>)> = Vec::new();
-        for r in m {
-            let subs = match r.cells[j] {
-                Cell::Wild => Vec::new(),
-                Cell::Some(p) if idx == 1 => vec![p],
-                Cell::Pat(p) if p.kind() == SyntaxKind::VariantPattern => {
-                    let name = self.variant_pattern_name(p);
-                    if self.variant_fields(t, &name).map(|f| f.0) != Some(idx) {
-                        continue;
-                    }
-                    self.variant_subpatterns(p, t, &name)?.0
-                }
-                _ => continue,
-            };
-            spec.push((r.clone(), subs));
-        }
         let is_option = matches!(self.pool().get(self.strip(t)), TyData::Option(_));
-        let mut cols = Vec::new();
-        for (f, &ft) in fs.iter().enumerate() {
-            let Some(s) = spec
-                .iter()
-                .filter_map(|(_, s)| s.get(f).copied().flatten())
-                .find(|s| reads(*s))
-            else {
-                continue;
-            };
-            let g = if is_option {
-                self.b.payload(v, 1, 0, ft, s.index())
-            } else {
-                let k = u32::try_from(f).unwrap_or(0);
-                self.b.payload(v, idx, k, ft, s.index())
-            };
-            cols.push((f, (g, ft)));
+        let mut fails = Vec::with_capacity(named.len());
+        for (idx, fs, at) in named {
+            let (idx, at) = (*idx, *at);
+            let ok = self.b.open_block();
+            let mut picked = tags.by_tag.get(&idx).cloned().unwrap_or_default();
+            picked.extend_from_slice(&tags.wild);
+            picked.sort_stable();
+            let mut spec: Vec<(DRow<'t>, Vec<Option<NodeRef<'t>>>)> = Vec::new();
+            for i in picked {
+                let r = &m[i];
+                let subs = match r.cells[j] {
+                    Cell::Wild => Vec::new(),
+                    Cell::Some(p) => vec![p],
+                    Cell::Pat(p) => {
+                        let name = self.variant_pattern_name(p);
+                        self.variant_subpatterns(p, t, &name)?.0
+                    }
+                };
+                spec.push((r.clone(), subs));
+            }
+            let mut cols = Vec::new();
+            for (f, &ft) in fs.iter().enumerate() {
+                let Some(s) = spec
+                    .iter()
+                    .filter_map(|(_, s)| s.get(f).copied().flatten())
+                    .find(|s| reads(*s))
+                else {
+                    continue;
+                };
+                let g = if is_option {
+                    self.b.payload(v, 1, 0, ft, s.index())
+                } else {
+                    let k = u32::try_from(f).unwrap_or(0);
+                    self.b.payload(v, idx, k, ft, s.index())
+                };
+                cols.push((f, (g, ft)));
+            }
+            let occs_in = splice(occs, j, cols.iter().map(|c| c.1));
+            let m_in = spec
+                .into_iter()
+                .map(|(r, s)| {
+                    r.with_column(
+                        j,
+                        cols.iter().map(|(f, _)| {
+                            s.get(*f).copied().flatten().map_or(Cell::Wild, Cell::Pat)
+                        }),
+                    )
+                })
+                .collect();
+            self.tree(rows, &occs_in, m_in, lits)?;
+            let okb = self.b.close_block(ok, None, Ty::NEVER, at);
+            fails.push((idx, okb, at, self.b.open_block()));
         }
-        let occs_in = splice(occs, j, cols.iter().map(|c| c.1));
-        let m_in = spec
-            .into_iter()
-            .map(|(r, s)| {
-                r.with_column(
-                    j,
-                    cols.iter()
-                        .map(|(f, _)| s.get(*f).copied().flatten().map_or(Cell::Wild, Cell::Pat)),
-                )
-            })
-            .collect();
-        self.tree(rows, &occs_in, m_in, lits)?;
-        let okb = self.b.close_block(ok, None, Ty::NEVER, at);
-        let fb = self.b.open_block();
-        self.switch_from(rows, occs, m, j, &named[1..], all, lits)?;
-        let fail = self.b.close_block(fb, None, Ty::NEVER, at);
-        let rec = self.b.refs_record(&[Ref(idx), okb, fail]);
-        self.b.emit(Tag::SwitchTag, v.0, rec, Ty::NEVER, at);
+        if tags.all {
+            self.b
+                .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+        } else {
+            let rest = tags
+                .wild
+                .iter()
+                .map(|&i| m[i].clone().with_column(j, []))
+                .collect();
+            self.tree(rows, &splice(occs, j, []), rest, lits)?;
+        }
+        while let Some((idx, okb, at, fb)) = fails.pop() {
+            let fail = self.b.close_block(fb, None, Ty::NEVER, at);
+            let rec = self.b.refs_record(&[Ref(idx), okb, fail]);
+            self.b.emit(Tag::SwitchTag, v.0, rec, Ty::NEVER, at);
+        }
         Ok(())
     }
 
@@ -1914,6 +1957,29 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The field types of the constructor `c` of `t`, as [`Self::ctors`]
+    /// lists them, without listing every other constructor.
+    fn ctor_fields(&self, t: Ty, c: &str) -> Option<Vec<Ty>> {
+        let pool = self.pool();
+        if let TyData::Adt { def, args } = pool.get(self.strip(t))
+            && let ItemData::Enum { variants, .. } = &self.cx.lookup.item(def)?.data
+        {
+            let sym = self.cx.names.syms.intern(c);
+            let v = variants.iter().find(|v| v.name == sym)?;
+            let argv = pool.list_items(args);
+            return Some(
+                v.fields
+                    .iter()
+                    .map(|f| subst_owner(pool, def, argv, f.ty))
+                    .collect(),
+            );
+        }
+        self.ctors(t)?
+            .into_iter()
+            .find(|(n, _)| n == c)
+            .map(|x| x.1)
+    }
+
     fn useful(&self, m: &[Vec<P>], q: &[P], tys: &[Ty], depth: u32) -> bool {
         if depth > 64 {
             return false;
@@ -1960,8 +2026,7 @@ impl Ck<'_, '_> {
             }),
             P::Ctor(c, args) => {
                 let ftys = self
-                    .ctors(t)
-                    .and_then(|cs| cs.into_iter().find(|(n, _)| n == c).map(|x| x.1))
+                    .ctor_fields(t, c)
                     .unwrap_or_else(|| vec![Ty::POISON; args.len()]);
                 let mut nq = args.clone();
                 nq.resize(ftys.len(), P::Wild);
@@ -1976,23 +2041,28 @@ impl Ck<'_, '_> {
                     return self.useful_int(m, q, tys, all, depth);
                 }
                 let ctors = self.ctors(t);
-                let present: Vec<&String> = m
-                    .iter()
-                    .filter_map(|r| match &r[0] {
-                        P::Ctor(c, _) => Some(c),
-                        _ => None,
-                    })
-                    .collect();
+                // The rows by head constructor, so each constructor's
+                // specialization reads only its own rows and the wild ones.
+                let mut by_ctor: HashMap<&str, Vec<usize>> = HashMap::default();
+                for (i, r) in m.iter().enumerate() {
+                    if let P::Ctor(c, _) = &r[0] {
+                        by_ctor.entry(c.as_str()).or_default().push(i);
+                    }
+                }
                 if let Some(cs) = ctors
                     && !cs.is_empty()
-                    && cs.iter().all(|(c, _)| present.contains(&c))
+                    && cs.iter().all(|(c, _)| by_ctor.contains_key(c.as_str()))
                 {
+                    let wild: Vec<usize> = (0..m.len())
+                        .filter(|&i| matches!(m[i][0], P::Wild))
+                        .collect();
                     return cs.iter().any(|(c, ftys)| {
                         let mut nq = vec![P::Wild; ftys.len()];
                         nq.extend(q[1..].iter().cloned());
                         let mut nt = ftys.clone();
                         nt.extend(tys[1..].iter().copied());
-                        self.useful(&spec(c, ftys.len(), m), &nq, &nt, depth + 1)
+                        let rows = head_rows(m, by_ctor.get(c.as_str()), &wild);
+                        self.useful(&spec(c, ftys.len(), &rows), &nq, &nt, depth + 1)
                     });
                 }
                 let d: Vec<Vec<P>> = m
@@ -2068,6 +2138,11 @@ impl Ck<'_, '_> {
 
     fn check_reachable(&mut self, rows: &[Row<'_>], rejected: &[bool], t: Ty) {
         let mut before: Vec<Vec<P>> = Vec::new();
+        // The earlier arms by head constructor, and the wild ones: a
+        // constructor arm is useful against only those that can match it,
+        // so each arm reads its own few rows, not every earlier arm.
+        let mut by_ctor: HashMap<String, Vec<usize>> = HashMap::default();
+        let mut wild = Vec::new();
         for (r, rej) in rows.iter().zip(rejected) {
             // A rejected pattern has reported its error: its arm neither
             // is reported nor hides the arms after it.
@@ -2075,8 +2150,15 @@ impl Ck<'_, '_> {
                 continue;
             }
             let p = self.to_p(r.pat, t);
+            let useful = match &p {
+                P::Ctor(c, _) => {
+                    let m = head_rows(&before, by_ctor.get(c.as_str()), &wild);
+                    self.useful(&m, std::slice::from_ref(&p), &[t], 0)
+                }
+                _ => self.useful(&before, std::slice::from_ref(&p), &[t], 0),
+            };
             // An arm with an out-of-type bound is already an error.
-            if !self.useful(&before, std::slice::from_ref(&p), &[t], 0)
+            if !useful
                 && !r.pat.is_some_and(|n| self.bound_outside(n, t))
                 && let Some(node) = r.pat
             {
@@ -2087,6 +2169,11 @@ impl Ck<'_, '_> {
                 );
             }
             if r.guard.is_none() {
+                match &p {
+                    P::Ctor(c, _) => by_ctor.entry(c.clone()).or_default().push(before.len()),
+                    P::Wild => wild.push(before.len()),
+                    _ => {}
+                }
                 before.push(vec![p]);
             }
         }
