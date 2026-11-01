@@ -52,6 +52,6 @@ fn port(config: string) -> Result[i32, ConfigError]:
 
 pub fn main() -> void $ Console:
     for config in ["port = 8080", "host = local", "port = eighty"]:
-        match start(config):
+        match start(*config):
             .Ok(message) => println(message)
             .Err(e) => println(report_of(e))

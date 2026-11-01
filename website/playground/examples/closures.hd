@@ -4,7 +4,7 @@ use std.annotation.inline
 
 @inline(.Always)
 fn apply_all(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
-    [for price in prices => rule(price)]
+    [for price in prices => rule(*price)]
 
 tests:
     use std.testing.assert_equal

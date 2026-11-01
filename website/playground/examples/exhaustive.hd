@@ -33,4 +33,4 @@ fn label(status: OrderStatus) -> string:
 
 pub fn main() -> void $ Console:
     for status in [OrderStatus.Pending, OrderStatus.Paid(4999), OrderStatus.Shipped("DHL")]:
-        println("${label(status)}; can cancel: ${can_cancel(status)}")
+        println("${label(*status)}; can cancel: ${can_cancel(*status)}")

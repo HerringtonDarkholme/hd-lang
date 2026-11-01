@@ -55,4 +55,4 @@ fn parse(text: string) -> Money?:
 
 pub fn main() -> void $ Console:
     for cents in [5, 150, -1000]:
-        println(print(Money { cents: cents }))
+        println(print(Money { cents: *cents }))
