@@ -1,0 +1,18 @@
+# test: a match arm that binds a payload holding a `&mut` moves it out of the scrutinee, so matching the binding again is an error
+# Spec 13 Moves: ref.move.pattern, ref.move.use.partial.
+struct Holder['a]:
+    target: &'a mut i32
+
+fn take(h: Holder) -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    let mut x = +1
+    let o: Holder? = .Some(Holder { target: &mut x })
+    match o:
+        .Some(h) => take(h)
+        .None => pass
+    match o: # diagnostic: use-of-moved-value
+        .Some(h) => take(h)
+        .None => pass
+    println("ok")

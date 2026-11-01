@@ -1,0 +1,17 @@
+# test: a let-else pattern that binds a payload holding a `&mut` moves it out, so a later move of the binding is an error
+# Spec 13 Moves: ref.move.pattern, ref.move.use.partial.
+struct Holder['a]:
+    target: &'a mut i32
+
+fn take(h: Holder) -> void:
+    pass
+
+fn keep[T](value: T) -> void:
+    pass
+
+fn moved(x: &mut i32) -> void:
+    let o: Holder? = .Some(Holder { target: x })
+    let .Some(h) = o else:
+        return
+    take(h)
+    keep(o) # diagnostic: use-of-moved-value

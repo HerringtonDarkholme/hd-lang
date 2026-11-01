@@ -1,0 +1,35 @@
+# test: a match arm that binds only copied parts, or `_`, moves nothing, and assigning the binding again makes it whole after a payload moves
+# Spec 13 Moves: ref.move.pattern, ref.move.reassign.
+struct Holder['a]:
+    target: &'a mut i32
+
+struct Pair['a]:
+    count: i32
+    holder: Holder['a]
+
+fn take(h: Holder) -> void:
+    pass
+
+fn copied(x: &mut i32) -> i32:
+    let o: Pair? = .Some(Pair { count: +1, holder: Holder { target: x } })
+    let total = +0
+    match o:
+        .Some(Pair { count, holder: _ }) => total = count
+        .None => pass
+    match o:
+        .Some(_) => total += 1
+        .None => pass
+    match o:
+        .Some(pair) => take(pair.holder)
+        .None => pass
+    total
+
+fn refill(x: &mut i32, y: &mut i32) -> void:
+    let o: Holder? = .Some(Holder { target: x })
+    match o:
+        .Some(h) => take(h)
+        .None => pass
+    o = .Some(Holder { target: y })
+    match o:
+        .Some(h) => take(h)
+        .None => pass

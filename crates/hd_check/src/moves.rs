@@ -4,7 +4,9 @@
 //! type is expected: a `:=` or untyped `let`, a generic argument, a tuple
 //! or optional part, a return. A read of a field that is not copied
 //! moves the field out the same way, and the binding is then partly
-//! moved: its other fields stay usable. A site that expects a declared `&mut`
+//! moved: its other fields stay usable. A pattern that binds a payload
+//! reads it as a field of its variant, so a match moves the payload out
+//! the same way (`ref.move.pattern`). A site that expects a declared `&mut`
 //! reborrows a `&mut` instead: a parameter, a typed `let`, an assignment,
 //! a field declared `&mut`. A use of the binding after a move on some path
 //! is `use-of-moved-value`, until an assignment gives it a value again. The
@@ -138,9 +140,9 @@ struct Walk<'x> {
     /// The binding and path of each bit.
     bits: &'x [(LocalId, Vec<u32>)],
     of_local: &'x HashMap<LocalId, Vec<u32>>,
-    /// The first use after a move of each binding, and whether only a
-    /// field of it moved.
-    found: &'x mut HashMap<LocalId, (u32, bool)>,
+    /// The first use after a move of each binding, and the bit of the
+    /// move it reaches.
+    found: &'x mut HashMap<LocalId, (u32, u32)>,
 }
 
 impl Walk<'_> {
@@ -157,9 +159,9 @@ impl Walk<'_> {
             };
             // A loop's later round may reach an earlier use.
             if hit && s.get(st, k) {
-                let at = self.found.entry(l).or_insert((x, !p.is_empty()));
+                let at = self.found.entry(l).or_insert((x, k));
                 if x < at.0 {
-                    *at = (x, !p.is_empty());
+                    *at = (x, k);
                 }
             }
         }
@@ -212,12 +214,18 @@ impl Forward for Walk<'_> {
     fn enter(&mut self, _: &Body, _: u32, _: &mut BitArena, _: usize) {}
 }
 
-/// The leading field projections of `proj`, and whether they are all.
+/// The mark of a variant step in a field path, beside its index: a
+/// match arm's payload is field `j` of variant `k`, the path `[k | VARIANT, j]`.
+const VARIANT: u32 = 1 << 31;
+
+/// The leading field and variant projections of `proj`, and whether they
+/// are all.
 fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
     let mut path = Vec::new();
     for p in proj {
         match *p {
             Proj::Field(k) => path.push(k),
+            Proj::Variant(k) => path.push(k | VARIANT),
             _ => return (path, false),
         }
     }
@@ -359,9 +367,10 @@ impl Ck<'_, '_> {
             forward(b, cx.topo, &mut flow, &mut walk, root, st);
             flow.arena.free(st);
         }
-        let mut found: Vec<(LocalId, (u32, bool))> = found.into_iter().collect();
+        let mut found: Vec<(LocalId, (u32, u32))> = found.into_iter().collect();
         found.sort_stable_by_key(|&(_, (x, _))| x);
-        for (l, (x, partial)) in found {
+        for (l, (x, k)) in found {
+            let path = &bits[k as usize].1;
             let b = self.b.body();
             let at = b.syn[x as usize];
             if at == hd_base::NodeIdx::NONE {
@@ -369,7 +378,11 @@ impl Ck<'_, '_> {
             }
             let l = l.idx();
             let name = self.cx.names.text(b.local_name[l]).to_string();
-            let msg = if partial {
+            let msg = if path.iter().any(|&p| p & VARIANT != 0) {
+                format!(
+                    "a payload of `{name}` was moved out by a pattern before this use; assign the matched value again to use `{name}` whole"
+                )
+            } else if !path.is_empty() {
                 format!(
                     "a field of `{name}` was moved out before this use; assign the field again to use `{name}` whole"
                 )
