@@ -1,0 +1,16 @@
+# @dump: own counts
+# @build: v8 release
+# Borrow: `*r` reads what a shared reference refers to, and `count` only
+# reads its by-value parameter, so the call lends the referent: no retain
+# for the argument and no release after the call, though `count` stays a
+# call. A dev build has no callee summaries, so there the owned argument
+# is a counted copy.
+use std.annotation.inline
+
+@inline(.Never)
+fn count(t: string) -> usize:
+    t.len()
+
+fn through(r: &string) -> usize:
+    # subject
+    count(*r)

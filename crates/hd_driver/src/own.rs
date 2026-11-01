@@ -597,7 +597,6 @@ impl InlineEnv for Env<'_> {
     }
 
     fn lent_referent(&self, t: Ty) -> Option<Ty> {
-        self.run.promote_args.then_some(())?;
         hd_wasm_linear::lent_referent(&self.run.pool, self, t)
     }
 

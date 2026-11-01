@@ -225,10 +225,12 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     }
     renumber_through(b, fin, 0)?;
     // Rows keep their places until the permutation below.
+    let mut unaddressed = Vec::new();
     for (i, ty) in by_value_reads {
         b.tags[i as usize] = Tag::Read;
         b.data[i as usize][1] = crate::ir::ReadMode::Use as u32;
         b.ty[i as usize] = ty;
+        unaddressed.extend(b.view(b.data[i as usize][0]).local());
     }
     if b.anchors.is_empty() {
         b.anchors = (0..u32_of(n)).collect();
@@ -275,7 +277,38 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     if b.fallback.len() > rows {
         b.fallback.sort_stable_by_key(|r| r[0]);
     }
+    for l in unaddressed {
+        if !still_reached(b, l) {
+            b.local_flags[l as usize] &= !local_flags::CAPTURED;
+        }
+    }
     Ok(copied)
+}
+
+/// Whether local `l` of `b`, whose `Ref`s a by-value binding now reads
+/// instead (`Site::by_value`), is still reached other than by its own
+/// instructions. The checker flags a local `CAPTURED` for a `Ref` of it,
+/// a closure's capture (`cap_local`) and a `&dyn`'s held source, which
+/// its `RefDyn`'s address block reads; a `&mut` (`CAPTURED_ASSIGNED`) is
+/// never bound by value. With none of them left, the flag goes: only the
+/// body's instructions change the local, as the passes and the backend
+/// then assume.
+fn still_reached(b: &Body, l: u32) -> bool {
+    let reads_l = |x: u32| {
+        let x = x as usize;
+        b.tags.get(x) == Some(&Tag::Read) && b.view(b.data[x][0]).local() == Some(l)
+    };
+    b.local_flags[l as usize] & local_flags::CAPTURED_ASSIGNED != 0
+        || b.cap_local.iter().any(|c| c.raw() == l)
+        || (0..b.len()).any(|i| match b.tags[i] {
+            Tag::Ref => b.view(b.data[i][0]).local() == Some(l),
+            Tag::RefDyn => {
+                let blk = b.data[i][0] as usize;
+                b.tags.get(blk) == Some(&Tag::Block)
+                    && b.record(b.data[blk][0]).iter().any(|&x| reads_l(x))
+            }
+            _ => false,
+        })
 }
 
 /// Checks `site` against the caller, unchanged yet, and lists the

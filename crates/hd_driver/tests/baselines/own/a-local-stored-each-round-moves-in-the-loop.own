@@ -4,35 +4,34 @@ app/main/collect
   local $1 n: i32 [param read]
   local $2 out: List[string] [read assigned]
   local $3 line: string [read assigned mutated]
-  local $4 i: i32 [read assigned mutated captured]
+  local $4 i: i32 [read assigned mutated]
+  local $5 self: i32 [read]
   %4 = IsUnique hoisted [$2] : ()
   %5 = Read copy [$4] : i32
   %6 = Read copy [$1] : i32
   %7 = Prim Lt [%5 %6] : bool
   %8 = Read borrow [$0] : string
-  %9 = Ref local frame [$4] : Counted[i32]
-  %10 = Call std/format/Display.to_string for i32 [] via Impl (%9) : string
-  %11 = Drop [%9] : ()
-  %12 = Intrinsic StrConcat [%8 %10] : string
-  %13 = Drop [%10] : ()
-  %14 = Store [$3] %12 : ()
-  %15 = Read move [$3] : string
-  %16 = Read borrow [$2] : List[string]
-  %17 = Intrinsic ListPush [%16 %15] : ()
-  %18 = Read copy [$4] : i32
-  %19 = Prim Add [%18 1:i32] : i32
-  %20 = Store [$4] %19 : ()
-  %21 = Block - : ()
-  %22 = Break L0 - : never
-  %23 = Block - : ()
-  %24 = If %7 [%21 %23] : ()
+  %9 = Read copy [$4] : i32
+  %10 = Store [$5] %9 : ()
+  %11 = Read copy [$5] : i32
+  %12 = Call std/format/format_int[i32] (%11) : string
+  %13 = Break L1 %12 : never
+  %14 = Block - : string
+  %15 = Scope %14 [] : string
+  %16 = Intrinsic StrConcat [%8 %15] : string
+  %17 = Drop [%15] : ()
+  %18 = Store [$3] %16 : ()
+  %19 = Read move [$3] : string
+  %20 = Read borrow [$2] : List[string]
+  %21 = Intrinsic ListPush [%20 %19] : ()
+  %22 = Read copy [$4] : i32
+  %23 = Prim Add [%22 1:i32] : i32
+  %24 = Store [$4] %23 : ()
   %25 = Block - : ()
-  %26 = Loop %25 - : ()
-  %27 = Drop [$4] : ()
-  %28 = Drop [$3] : ()
-  %5 finds [$4] full
-  %9 finds [$4] full
-  %18 finds [$4] full
-  %20 finds [$4] full
-  %26 finds [$4] full
+  %26 = Break L0 - : never
+  %27 = Block - : ()
+  %28 = If %7 [%25 %27] : ()
+  %29 = Block - : ()
+  %30 = Loop %29 - : ()
+  %31 = Drop [$3] : ()
   exit sub 0 drops [$0]

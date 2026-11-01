@@ -74,10 +74,10 @@ pub trait InlineEnv: ProgramEnv {
     /// collection selects it; `None` for an open type or a compiler-supplied
     /// implementation.
     fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId>;
-    /// Release (#1151): the referent of a reference of type `t` that a
-    /// copy may take by value (`hd_wasm_linear::lent_referent`, counted
-    /// parts allowed); `None` when the pipeline does not promote
-    /// arguments.
+    /// The referent of a reference of type `t` that an inlined copy may
+    /// take by value (`hd_wasm_linear::lent_referent`, counted parts
+    /// allowed), in every build (#1151, #1167); `None` when the
+    /// environment binds no copy by value.
     fn lent_referent(&self, _t: Ty) -> Option<Ty> {
         None
     }
@@ -351,8 +351,8 @@ impl dyn InlineEnv + '_ {
     /// Whether `copy`, the body of `def` at `targs`, may inline:
     /// The rule selected by `def`'s [`InlineHint`]: ordinary calls use
     /// [`INLINE_LIMIT`] and refuse reference parameters, but for a
-    /// getter's ([`Self::takes_reference`]) and, in a release build, those
-    /// the copy takes by value ([`Self::by_value`]); `.Auto` uses
+    /// getter's ([`Self::takes_reference`]) and those the copy takes by
+    /// value ([`Self::by_value`]); `.Auto` uses
     /// [`AUTO_INLINE_LIMIT`] and accepts them, and `.Always` has neither
     /// limit. The checker has already rejected uncopyable `.Always`
     /// bodies.
@@ -430,8 +430,8 @@ impl dyn InlineEnv + '_ {
         refs.len() > 1 || (refs.len() == 1 && !getter)
     }
 
-    /// Release (#1151): the parameters a copy of `def` at `targs` takes by
-    /// value (bit k: parameter k), when each of its reference parameters
+    /// The parameters a copy of `def` at `targs` takes by value (#1151;
+    /// bit k: parameter k), in dev and release builds alike, when each of its reference parameters
     /// has a referent a copy may take by value (`lent_referent`) and
     /// `copy` only reads through it
     /// (`hd_tir::own::promote::read_only_params`). The copy then binds the
@@ -439,12 +439,14 @@ impl dyn InlineEnv + '_ {
     /// (`crates/hd_wasm_linear/DESIGN.md` §23.40). The binding is an
     /// ordinary read of the caller's place, before the passes, so a
     /// counted referent's count is theirs to decide: a temporary's moves
-    /// into the copy, and a local that stays unchanged lends it.
+    /// into the copy, and a local that stays unchanged lends it. So a dev
+    /// build copies std's `&self` readers as it copies its `self` ones
+    /// (#1167): `part.len()` binds `part`'s value, which borrows, where a
+    /// call would address the local and count it.
     ///
     /// With the mask, the parameters among them whose referents hold
     /// counted parts (`InlineEnv::counted_referent`).
     fn by_value(&self, def: DefId, targs: TyList, copy: &Body) -> Option<(u64, u64)> {
-        self.memo()?;
         let (mut mask, mut counted) = (0, 0);
         for (k, t) in self.reference_params(def, targs)? {
             self.lent_referent(t).filter(|_| k < 64)?;

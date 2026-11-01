@@ -1,8 +1,9 @@
-//! Argument promotion (#1151), release only: a `&T` parameter whose body
-//! only reads through it takes its referent by value in a promoted copy
-//! of the body, and a direct call whose argument is the address of the
-//! caller's own local passes that local's value instead
-//! (`crates/hd_wasm_linear/DESIGN.md` §23.40). Whether `T` is small and
+//! Argument promotion (#1151): a `&T` parameter whose body only reads
+//! through it takes its referent by value in a promoted copy of the body,
+//! and a direct call whose argument is the address of the caller's own
+//! local passes that local's value instead
+//! (`crates/hd_wasm_linear/DESIGN.md` §23.40). A promoted call is
+//! release only; an inlined copy binds by value in every build. Whether `T` is small and
 //! holds no counted leaf is the backend's question; these are the TIR
 //! halves: which parameters the body only reads through
 //! ([`read_only_params`]), the copy ([`promote`]), which calls may run
@@ -291,8 +292,8 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
     (seen == 1).then_some(steps)
 }
 
-/// Release (#1151): the arguments of `Call` `call` of `b` that an inlined
-/// copy may bind by value (bit k: argument k), with
+/// The arguments of `Call` `call` of `b` that an inlined copy may bind by
+/// value (#1151; bit k: argument k), with
 /// `hd_tir::inline::Site::by_value`: a lent `Ref` of a part of a local
 /// as [`promotable_args`] takes, or, for an argument in `relaxed`, of an
 /// element of a list the local holds or of what a reference reaches from

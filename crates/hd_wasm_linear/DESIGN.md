@@ -2387,12 +2387,13 @@ in one (`drive.rs`).
 
 ### 23.40 Promoted Arguments
 
-Issue #1151, release only: LLVM's `argpromotion`. A `&T` parameter whose
-referent is a small value the body only reads is passed by value. The
-caller passes the value, not the address of a local, so the local needs
-no frame slot (§23.38) or cell, and the callee loads nothing. The
-language and the declared signatures do not change; dev builds keep the
-address. The optimized pipeline declares the pass `arg_promote`
+Issue #1151: LLVM's `argpromotion`. A `&T` parameter whose referent is
+a small value the body only reads is passed by value. The caller passes
+the value, not the address of a local, so the local needs no frame slot
+(§23.38) or cell, and the callee loads nothing. The language and the
+declared signatures do not change. A promoted call is release only, and
+dev builds keep the address at a call; the inliner's by-value binding
+(below) runs in every build. The optimized pipeline declares the pass `arg_promote`
 (`hd_opt::passes`), and `Input::promote_args` says whether it runs.
 
 - **Which referents.** `promotable_referent` (`emit/promote.rs`): a thin,
@@ -2447,7 +2448,7 @@ address. The optimized pipeline declares the pass `arg_promote`
   the value for the primitive comparisons it lowers itself (`eq`, `cmp`,
   `partial_cmp` on a promotable referent), which load the referent
   anyway.
-- **The inliner.** A release build copies an ordinary callee that takes
+- **The inliner.** Every build copies an ordinary callee that takes
   references when each referent is one a promoted copy takes
   (`lent_referent`, counted parts allowed) and the copy only reads
   through it (`hd_opt/src/inline.rs`, `by_value`), at a call whose
@@ -2459,7 +2460,12 @@ address. The optimized pipeline declares the pass `arg_promote`
   a counted referent's read is theirs to decide: a temporary's count
   moves into the copy, and a local that stays unchanged lends its value.
   `Display for i64.to_string(&self)` copies this way, and so does
-  `build(n).len()` for a `len(&self)` on `string`.
+  `build(n).len()` for a `len(&self)` on `string`. A dev build, which
+  copies only std callees, so copies std's `&self` readers as it copies
+  its `self` ones (#1167). Once no `Ref` of the caller's local is left,
+  the copy clears the local's `CAPTURED` flag
+  (`hd_tir::inline::still_reached`), so the passes and the list emitter
+  treat it as a local only its instructions change.
   For a referent with counted parts the argument may also be a `Ref` of
   an element of a list a local holds, or of a place behind a reference
   (`inline_args`, #1167): `xs[i].len()`, `self.s.len()` in a `&self`
