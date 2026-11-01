@@ -160,8 +160,7 @@ fn labels[T < Named](items: List[T]) -> List[string]:
 pub fn main() -> void $ Console:
     let items: List[*mut dyn Named] = [box(Item { n: 1 })]
     println(labels(items)[0])
-    let label: fn(*mut dyn Named) -> string = Named::label
-    println([for item in items => label(item)][0])
+    println(items.map(Named::label)[0])
     let greet: fn(&dyn Named, string) -> string = Named::greet
     println(greet(&Item { n: 2 }, \"bob\"))
     let tag: fn(&dyn Tagged) -> string = Tagged::tag
