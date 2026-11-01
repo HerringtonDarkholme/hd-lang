@@ -18,6 +18,11 @@ const RELEASE: (&str, &str) = (
     "--release",
     "build for release: integer overflow wraps instead of panicking",
 );
+/// `hd test --release` keeps the test profile (`cli.profile.test.release`).
+const TEST_RELEASE: (&str, &str) = (
+    "--release",
+    "select the optimizing pipeline; integer overflow still panics",
+);
 const PACKAGE: (&str, &str) = (
     "-p, --package NAME",
     "act on the workspace member NAME only; may be repeated",
@@ -129,7 +134,7 @@ const COMMANDS: &[Command] = &[
             "always checked; --release only selects the optimizing pipeline.",
         ],
         flags: &[
-            RELEASE,
+            TEST_RELEASE,
             ENGINE,
             PACKAGE,
             (
