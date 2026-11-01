@@ -56,6 +56,7 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
         };
         let mut steps = p.steps(b);
         let ok = match tag {
+            Tag::Read if p.whole() => only_deref(b, i),
             Tag::Read => {
                 steps.next() == Some(Proj::Deref)
                     && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
@@ -70,9 +71,43 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
     mask
 }
 
+/// Whether value `v` of `b`, a read of all of a reference, is used only
+/// through it: each place rooted at it is a `Read` that dereferences it
+/// first and then names fields or variant payloads, or a `Drop` of all of
+/// it, and its one other use is a `Match`'s scrutinee, as `match self:` in
+/// a `&self` method reads its arms' tags and payloads through it.
+fn only_deref(b: &Body, v: usize) -> bool {
+    let mut ops = Vec::new();
+    (0..b.len()).all(|j| {
+        let tag = b.tags[j];
+        if matches!(
+            tag,
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::Pin
+        ) {
+            let p = b.view(b.data[j][0]);
+            if p.root == Root::Value(u32::try_from(v).expect("insts")) {
+                let mut steps = p.steps(b);
+                return match tag {
+                    Tag::Read => {
+                        steps.next() == Some(Proj::Deref)
+                            && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                    }
+                    Tag::Drop => p.whole(),
+                    _ => false,
+                };
+            }
+        }
+        super::operands(b, j, &mut ops);
+        !ops.iter().any(|o| o.value as usize == v)
+            || (tag == Tag::Match && b.data[j][0] as usize == v)
+    })
+}
+
 /// Body `b` with each parameter in `mask` ([`read_only_params`]) taking
 /// its referent by value: the local's type is `referent` of its reference
-/// type, and each `Read [*$l rest]` reads `[$l rest]`.
+/// type, and each `Read [*$l rest]` reads `[$l rest]`. A read of all of
+/// `$l` reads the referent, and a read through it, `[*%v rest]`, reads
+/// `[%v rest]`.
 #[must_use]
 pub fn promote(b: &Body, mask: u64, referent: impl Fn(Ty) -> Ty) -> Body {
     let mut out = b.clone();
@@ -84,6 +119,19 @@ pub fn promote(b: &Body, mask: u64, referent: impl Fn(Ty) -> Ty) -> Body {
     for &l in &promoted {
         out.local_ty[l as usize] = referent(b.local_ty[l as usize]);
     }
+    // The whole reads of a promoted local, which now read its referent.
+    let mut whole = Vec::new();
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Read
+            && let Some(p) = b.decode_place(b.data[i][0])
+            && let crate::ir::PlaceRoot::Local(l) = p.root
+            && p.proj.is_empty()
+            && promoted.contains(&l.raw())
+        {
+            out.ty[i] = referent(b.ty[i]);
+            whole.push(u32::try_from(i).expect("insts"));
+        }
+    }
     for i in 0..b.len() {
         if b.tags[i] != Tag::Read {
             continue;
@@ -91,15 +139,20 @@ pub fn promote(b: &Body, mask: u64, referent: impl Fn(Ty) -> Ty) -> Body {
         let Some(mut p) = b.decode_place(b.data[i][0]) else {
             continue;
         };
-        let crate::ir::PlaceRoot::Local(l) = p.root else {
-            continue;
+        let through = match p.root {
+            crate::ir::PlaceRoot::Local(l) => promoted.contains(&l.raw()),
+            crate::ir::PlaceRoot::Value(v) => whole.contains(&v.0),
+            _ => false,
         };
-        if !promoted.contains(&l.raw()) || p.proj.first() != Some(&Proj::Deref) {
+        if !through || p.proj.first() != Some(&Proj::Deref) {
             continue;
         }
         p.proj.remove(0);
         out.data[i][0] = match p.words() {
-            None => l.raw() | place::BARE_LOCAL,
+            None => match p.root {
+                crate::ir::PlaceRoot::Local(l) => l.raw() | place::BARE_LOCAL,
+                _ => unreachable!("only a local's place has no record"),
+            },
             Some(words) => {
                 let at = u32::try_from(out.extra.len()).expect("extra");
                 out.extra.push(u32::try_from(words.len()).expect("place"));

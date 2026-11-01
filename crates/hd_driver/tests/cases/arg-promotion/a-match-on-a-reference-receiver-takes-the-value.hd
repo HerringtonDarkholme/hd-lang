@@ -1,0 +1,21 @@
+# @dump: wat
+# @build: v8 release
+# Release (§23.40, #1167): `is_a` matches `self`, a reference, and only
+# reads its tag through it, so the call takes the value: the trait call's
+# temporary result stays in Wasm locals, with no cell (`rt:new`).
+enum E:
+    A(i32)
+    B(i64)
+
+impl E:
+    fn is_a(&self) -> bool:
+        match self:
+            .A(_) => true
+            .B(_) => false
+
+trait W:
+    fn w(&mut self) -> E
+
+fn temp(x: &mut dyn W) -> bool:
+    x.w().is_a()
+    #^^^^^^^^^^^^
