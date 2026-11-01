@@ -68,11 +68,11 @@ fn last(items: List[i32]) -> i32?:
 fn check_queue(queue: &Deque[i32], model: List[i32]) -> void:
     assert_equal(queue.len(), model.len(), reason="deque length follows the sequence model")
     assert_equal(queue.is_empty(), model.is_empty(), reason="deque emptiness follows its length")
-    assert_equal(queue.front(), model.get(0).copied(), reason="front reads without removing")
-    assert_equal(queue.back(), last(model), reason="back reads without removing")
+    assert_equal(queue.front().copied(), model.get(0).copied(), reason="front reads without removing")
+    assert_equal(queue.back().copied(), last(model), reason="back reads without removing")
     for index in 0..model.len():
         assert_equal(
-            queue.get(index),
+            queue.get(index).copied(),
             .Some(model[index]),
             reason="indexed elements count from the front",
         )
@@ -151,7 +151,7 @@ fn check_heap(heap: &Heap[i32], model: List[i32]) -> void:
         reason="heap length counts every value, including duplicates",
     )
     assert_equal(heap.is_empty(), model.is_empty(), reason="heap emptiness follows its length")
-    assert_equal(heap.peek(), last(model), reason="peek reads a largest model value")
+    assert_equal(heap.peek().copied(), last(model), reason="peek reads a largest model value")
     assert_equal(
         heap.to_sorted_list(),
         model,

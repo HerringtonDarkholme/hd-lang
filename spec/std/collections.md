@@ -511,8 +511,8 @@ fn rotate(items: List[i32]) -> List[i32]:
 | `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
 | `push_front`, `push_back` | `push_front(&mut self, value: T) -> void`, and the same for `push_back` |
 | `pop_front`, `pop_back` | `pop_front(&mut self) -> T?`, and the same for `pop_back` |
-| `front`, `back` | `front(self) -> T?`, and the same for `back` |
-| `get` | `get(self, index: usize) -> T?` |
+| `front`, `back` | `front(&self) -> (&T)?`, and the same for `back` |
+| `get` | `get(&self, index: usize) -> (&T)?` |
 | iteration | `Iterable[T]` |
 | equality | `Eq` when `T < Eq` |
 | `Debug` | when `T < Debug` |
@@ -523,8 +523,8 @@ fn rotate(items: List[i32]) -> List[i32]:
 3. r[std-collections.deque.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
 4. r[std-collections.deque.push] `push_front(value)` adds `value` before the front, and `push_back(value)` adds it after the back.
 5. r[std-collections.deque.pop] `pop_front` removes the front element and returns it in `.Some`, and `pop_back` does the same at the back. On an empty deque, each returns `.None` and changes nothing.
-6. r[std-collections.deque.ends] `front` and `back` return the front and the back element without removing it, or `.None` when the deque is empty.
-7. r[std-collections.deque.get] `get(i)` returns the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
+6. r[std-collections.deque.ends] `front` and `back` return a reference to the front and the back element without removing it, or `.None` when the deque is empty.
+7. r[std-collections.deque.get] `get(i)` returns a reference to the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
 8. r[std-collections.deque.iter] Iterating a deque yields its elements from front to back, each as `T`.
 9. r[std-collections.deque.cursor] A deque's cursor type is `DequeIter[T]`, which `std.collections` declares with private fields.
 10. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a list.
@@ -579,7 +579,7 @@ fn smallest(items: List[i32]) -> i32?:
 | `len`, `is_empty` | `len(self) -> usize`; `is_empty(self) -> bool` |
 | `push` | `push(&mut self, value: T) -> void` |
 | `pop` | `pop(&mut self) -> T?` |
-| `peek` | `peek(self) -> T?` |
+| `peek` | `peek(&self) -> (&T)?` |
 | `to_sorted_list` | `to_sorted_list(self) -> List[T]` |
 | `Debug` | when `T < Debug` |
 | `collect` | `FromIterator[T]` |
@@ -588,7 +588,7 @@ fn smallest(items: List[i32]) -> i32?:
 2. r[std-collections.heap.len] `new` returns an empty heap. `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
 3. r[std-collections.heap.push] `push(value)` adds `value` to the heap.
 4. r[std-collections.heap.pop] `pop` removes a largest element by `Ord` and returns it in `.Some`. On an empty heap, it returns `.None`.
-5. r[std-collections.heap.peek] `peek` returns a largest element without removing it, or `.None` when the heap is empty.
+5. r[std-collections.heap.peek] `peek` returns a reference to a largest element without removing it, or `.None` when the heap is empty.
 6. r[std-collections.heap.ties] When several elements are equal by `cmp`, which of them `pop` and `peek` return is not specified.
 7. r[std-collections.heap.sorted] `to_sorted_list` returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
 8. r[std-collections.heap.min] `std` has no separate min-heap: a `Heap[Reverse[T]]` pops the smallest `T` first, by [`std-cmp.reverse.order`](cmp.md#r-std-cmp.reverse.order).
