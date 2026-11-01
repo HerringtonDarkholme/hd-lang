@@ -1,9 +1,11 @@
 # Non-Copyable Types
 
 Status: accepted 2026-10-31; domain: language (values and moves) and std
-traits. Built so far: partial moves (#1142), pattern moves (#1143),
-`move-out-of-place` for `*r` (#1144), `Index`/`Eq`/`Ord`/`Hash` taking
-`&self`. The `Copy` marker (#1145, #1146) is next.
+traits. Built: partial moves (#1142), pattern moves (#1143),
+`move-out-of-place` for `*r` (#1144), the `Copy` marker (#1145, #1146),
+and `Index`/`Eq`/`Ord`/`Hash`/`Display`/`Debug`/`Serialize`/`MapKey` taking
+`&self`; `Inspectable.runtime_type` waits on #1161. The reference-first
+std that lets generics move by default is proposed in PR #1162.
 
 This addresses [#1141](https://github.com/HerringtonDarkholme/hd-lang/issues/1141).
 It builds on [Moves](../../spec/lang/13-values-and-references.md#moves)
