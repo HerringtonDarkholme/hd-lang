@@ -113,10 +113,10 @@ impl[T] List[T]:
         kept
 
     # The checked read beside `items[i]` (r-std-collections.access.get).
-    ## Returns `.Some` of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+    ## Returns `.Some` of a reference to the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
     ## See [std-collections.access.get](../../spec/std/collections.md#r-std-collections.access.get).
-    pub fn get(self, index: usize) -> T?:
-        if index >= self.len(): .None else: .Some(self[index])
+    pub fn get(&self, index: usize) -> (&T)?:
+        if index >= self.len(): .None else: .Some(&self[index])
 
     ## Returns a mutable reference to the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
     ## See [std-collections.access.get-mut](../../spec/std/collections.md#r-std-collections.access.get-mut).
@@ -146,20 +146,20 @@ impl[T] List[T]:
     pub fn extend(&mut self, other: List[T]) -> void:
         list_extend(self, other)
 
-    ## Returns the first element in `.Some`, or `.None` for an empty list.
+    ## Returns a reference to the first element in `.Some`, or `.None` for an empty list.
     ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
-    pub fn first(self) -> T?:
-        if self.len() == 0: .None else: .Some(self[0])
+    pub fn first(&self) -> (&T)?:
+        if self.len() == 0: .None else: .Some(&self[0])
 
     ## Returns a mutable reference to the first element, or `.None` for an empty list.
     ## See [std-collections.access.first-mut](../../spec/std/collections.md#r-std-collections.access.first-mut).
     pub fn first_mut(&mut self) -> (&mut T)?:
         if self.len() == 0: .None else: .Some(&mut self[0])
 
-    ## Returns the last element in `.Some`, or `.None` for an empty list.
+    ## Returns a reference to the last element in `.Some`, or `.None` for an empty list.
     ## See [std-collections.access.first-last](../../spec/std/collections.md#r-std-collections.access.first-last).
-    pub fn last(self) -> T?:
-        if self.len() == 0: .None else: .Some(self[self.len() - 1])
+    pub fn last(&self) -> (&T)?:
+        if self.len() == 0: .None else: .Some(&self[self.len() - 1])
 
     ## Returns a mutable reference to the last element, or `.None` for an empty list.
     ## See [std-collections.access.last-mut](../../spec/std/collections.md#r-std-collections.access.last-mut).
@@ -362,12 +362,14 @@ impl[T] List[T]:
                 return false
         true
 
-    ## Returns the first element for which `test` is true, in `.Some`, or `.None`.
+    ## Returns a reference to the first element for which `test` is true, in `.Some`, or `.None`.
     ## See [std-collections.helper.find](../../spec/std/collections.md#r-std-collections.helper.find).
-    pub fn find(&self, test: fn(&T) -> bool) -> T?:
-        for item in self:
-            if test(&item):
-                return .Some(item)
+    pub fn find(&self, test: fn(&T) -> bool) -> (&T)?:
+        let index: usize = 0
+        while index < self.len():
+            if test(&self[index]):
+                return .Some(&self[index])
+            index = index + 1
         .None
 
     ## Applies `transform` to each element and concatenates the results, in order.
@@ -418,7 +420,7 @@ impl[T < Eq] List[T]:
     pub fn dedup(self) -> List[T]:
         let mut kept: List[T] = []
         for item in self:
-            match kept.last():
+            match kept.last().copied():
                 .Some(previous) =>
                     if previous != item:
                         kept.push(item)
@@ -449,30 +451,32 @@ impl[T < Ord] List[T]:
         *self = self.sorted()
 
     # The first of the smallest elements.
-    ## Returns the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## Returns a reference to the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.min-max.first](../../spec/std/collections.md#r-std-collections.helper.min-max.first).
-    pub fn min(self) -> T?:
-        let best: T? = .None
-        for item in self:
-            match best:
-                .Some(current) =>
-                    if before(item, current):
-                        best = .Some(item)
-                .None => best = .Some(item)
-        best
+    pub fn min(&self) -> (&T)?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let index: usize = 1
+        while index < self.len():
+            if before(self[index], self[best]):
+                best = index
+            index = index + 1
+        .Some(&self[best])
 
     # The first of the largest elements, as Python's `max` gives.
-    ## Returns the first largest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## Returns a reference to the first largest element by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.min-max.first](../../spec/std/collections.md#r-std-collections.helper.min-max.first).
-    pub fn max(self) -> T?:
-        let best: T? = .None
-        for item in self:
-            match best:
-                .Some(current) =>
-                    if before(current, item):
-                        best = .Some(item)
-                .None => best = .Some(item)
-        best
+    pub fn max(&self) -> (&T)?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let index: usize = 1
+        while index < self.len():
+            if before(self[best], self[index]):
+                best = index
+            index = index + 1
+        .Some(&self[best])
 
 impl[T < Eq & Hash] List[T]:
     ## Returns the list with each element after its first occurrence dropped, in list order.
@@ -488,39 +492,37 @@ impl[T < Eq & Hash] List[T]:
 # The by-key extremes keep the first of equal keys, as `min` and `max` do
 # (r-std-collections.helper.by-key.first).
 impl[T] List[T]:
-    ## Returns the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## Returns a reference to the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
-    pub fn min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
-        let best: T? = .None
-        let best_key: K? = .None
-        for item in self:
-            item_key := key(&item)
-            match best_key:
-                .Some(current) =>
-                    if before(item_key, current):
-                        best = .Some(item)
-                        best_key = .Some(item_key)
-                .None =>
-                    best = .Some(item)
-                    best_key = .Some(item_key)
-        best
+    pub fn min_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let best_key = key(&self[0])
+        let index: usize = 1
+        while index < self.len():
+            item_key := key(&self[index])
+            if before(item_key, best_key):
+                best = index
+                best_key = item_key
+            index = index + 1
+        .Some(&self[best])
 
-    ## Returns the first element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## Returns a reference to the first element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.by-key.first](../../spec/std/collections.md#r-std-collections.helper.by-key.first).
-    pub fn max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
-        let best: T? = .None
-        let best_key: K? = .None
-        for item in self:
-            item_key := key(&item)
-            match best_key:
-                .Some(current) =>
-                    if before(current, item_key):
-                        best = .Some(item)
-                        best_key = .Some(item_key)
-                .None =>
-                    best = .Some(item)
-                    best_key = .Some(item_key)
-        best
+    pub fn max_by_key[K < Ord](&self, key: fn(&T) -> K) -> (&T)?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let best_key = key(&self[0])
+        let index: usize = 1
+        while index < self.len():
+            item_key := key(&self[index])
+            if before(best_key, item_key):
+                best = index
+                best_key = item_key
+            index = index + 1
+        .Some(&self[best])
 
 # Whether `left` orders before `right`.
 fn before[T < Ord](left: T, right: T) -> bool:
@@ -1119,7 +1121,7 @@ impl[T < Ord] Heap[T]:
     ## Returns a largest element without removing it, or `.None` when the heap is empty.
     ## See [std-collections.heap.peek](../../spec/std/collections.md#r-std-collections.heap.peek).
     pub fn peek(self) -> T?:
-        self.items.first()
+        self.items.first().copied()
 
     # A new list of the elements in ascending order; the heap is unchanged
     # (r-std-collections.heap.sorted).

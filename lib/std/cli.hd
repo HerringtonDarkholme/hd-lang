@@ -312,7 +312,7 @@ pub struct Parsed:
 impl Parsed:
     ## The selected command and a copy of its parsed arguments, when present.
     pub fn command(self) -> (string, Parsed)?:
-        self.selected_command.get(0)
+        self.selected_command.get(0).copied()
 
     ## A copy of every positional in input order, including extra positionals.
     pub fn positionals(self) -> List[string]:
@@ -333,7 +333,7 @@ impl Parsed:
                 if name != selected:
                     return .None
                 match self.value_histories.get(name):
-                    .Some(values) => return values.get(self.one_index)
+                    .Some(values) => return values.get(self.one_index).copied()
                     .None =>
                         if self.one_index > 0:
                             return .None

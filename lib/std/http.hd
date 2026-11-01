@@ -1270,7 +1270,7 @@ impl Deserializer for MessageFormReader:
         self.values = match self.groups.get(self.path):
             .Some(values) => values
             .None => []
-        self.current = self.values.get(0)
+        self.current = self.values.get(0).copied()
         .Ok(())
     fn end_variant(&mut self) -> Result[void, FormError]:
         if self.tagged:
