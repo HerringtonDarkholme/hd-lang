@@ -560,7 +560,7 @@ function setupOrbit() {
     back.setAttribute("opacity", String((1 - shown) * 0.9));
   };
 
-  const LAP = 5200;
+  const LAP = 3090;
   const REST = 12000;
   const ease = (part) => (part < 0.5 ? 4 * part ** 3 : 1 - (2 - 2 * part) ** 3 / 2);
   let visible = true;
