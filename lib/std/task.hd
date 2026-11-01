@@ -453,7 +453,7 @@ pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R]
     width := if limit < 1: 1 else: limit
     let count: usize = 0
     while count < width && count < items.len():
-        workers.push(map_all_worker(items, work, slots, cursor))
+        workers.push(map_join_worker(items, work, slots, cursor))
         count = count + 1
     all_list!(workers)
     let mut values: List[U] = []
@@ -467,7 +467,7 @@ pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R]
 struct Cursor:
     next: usize
 
-fn map_all_worker![T, U, F < Fn(T) -> mut Suspend[U] $ R, $ R](
+fn map_join_worker![T, U, F < Fn(T) -> mut Suspend[U] $ R, $ R](
     items: List[T],
     work: F,
     slots: &mut List[U?],

@@ -2,14 +2,14 @@
   "format": 1,
   "packageHostABI": 1,
   "provenance": {
-    "sourceBaseRevision": "d7ef3ca643efcca01c2044fdfdc1084bb484057f",
-    "compilerBaseRevision": "d7ef3ca643efcca01c2044fdfdc1084bb484057f",
-    "compilerSha256": "be716903342a87c3b3d38e282550589116272bad3418b9a42b0ee40a71437956",
+    "sourceBaseRevision": "4db5f460cf2e4597bf85778236dbc1dffbd290c4",
+    "compilerBaseRevision": "4db5f460cf2e4597bf85778236dbc1dffbd290c4",
+    "compilerSha256": "7c7d239fd2a92eaa4d70460be3be743bd571b2c99739850e2e0d1149fb459534",
     "referenceWasmSha256": "43dea7d997a89ee386251e0ebc9be9bfb9d31ce50eb21a98548096862069e7a3",
     "referenceContractSha256": "23cfe52849ab6efa633dc80af294a50c6a7e2a368c8516e1c820dc7b6987613c",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
-      "packages/server-sdk/src/server.hd": "ba559def42f9eb2f61e9688dcb1b4c7271bd8ccd5bfaeab7908e8d4182f1eb7f",
+      "packages/server-sdk/src/server.hd": "0994272ae05a870220076afc844edbb48c085ea07095f00438d1e2fb83bcfee6",
       "lib/std/console.hd": "25bbfdb5a767e1bd0899f5595c1f352e18f1c1c978f67e550c3c61054cb0e5e7",
       "lib/std/http.hd": "747f9882e57409cbeff296d8702258488e6751d6dfeadac6e27626b33e8d474f",
       "lib/std/http_wire.hd": "bc8ccf8a09b048b3b102639f8f4a409d39ff27dc77ac3b38610f9352187afa11",
@@ -1380,5 +1380,5 @@
       }
     ]
   },
-  "fingerprint": "e2b5bf6e257f5168e69eee4776a1d2626d3feddd809066d0bfb5d6ae0dabf3d8"
+  "fingerprint": "005f03d234e8c9131cdf5b96ef13088b5d91460fb16e01d952d4cf1293dfca4c"
 }
