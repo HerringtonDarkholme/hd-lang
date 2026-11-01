@@ -1127,23 +1127,42 @@ impl Parser:
         else:
             return .Err(self.unexpected(index))
         let exotic = false
+        # The digits as one integer `significand` while it stays at most
+        # 2^53, and the power of ten that scales it, for `exact_float`.
+        let significand = magnitude
+        let exact = !overflow && magnitude <= exact_limit()
+        let scale: i64 = 0
         if index < size && bytes_at(text, index) == 46:
             index = index + 1
             if index >= size || !is_digit(bytes_at(text, index)):
                 return .Err(self.unexpected(index))
             while index < size && is_digit(bytes_at(text, index)):
+                if exact:
+                    significand = significand * 10 + u64(bytes_at(text, index) - 48)
+                    scale = scale - 1
+                    exact = significand <= exact_limit()
                 index = index + 1
             exotic = true
         if index < size && (bytes_at(text, index) == 101 || bytes_at(text, index) == 69):
             index = index + 1
+            let below = false
             if index < size && (bytes_at(text, index) == 43 || bytes_at(text, index) == 45):
+                below = bytes_at(text, index) == 45
                 index = index + 1
             if index >= size || !is_digit(bytes_at(text, index)):
                 return .Err(self.unexpected(index))
+            let power: i64 = 0
             while index < size && is_digit(bytes_at(text, index)):
+                if power < 1000:
+                    power = power * 10 + i64(bytes_at(text, index) - 48)
                 index = index + 1
+            scale = if below: scale - power else: scale + power
             exotic = true
         self.at = index
+        if exotic && exact && scale >= -22 && scale <= 22:
+            value := exact_float(significand, scale)
+            signed := if negative: -value else: value
+            return .Ok(Json.Number(Number { repr: NumberRepr.Float(signed) }))
         if exotic || overflow || (negative && magnitude > sign_limit()):
             return float_number(text, start, index)
         if !negative:
@@ -1193,6 +1212,23 @@ fn sign_limit() -> u64:
 
 fn u64_max() -> u64:
     18446744073709551615
+
+# 2^53: every integer up to it is an exact `f64`.
+fn exact_limit() -> u64:
+    9007199254740992
+
+# The `f64` nearest `significand * 10^scale`, ties to even, for a
+# significand of at most 2^53 and a scale in [-22, 22]: both factors are
+# exact `f64` values, so one correctly rounded multiply or divide gives
+# the correctly rounded result (Clinger's fast path, as in Rust's
+# `dec2flt` and Go's `atof64exact`).
+fn exact_float(significand: u64, scale: i64) -> f64:
+    let power = 1.0
+    let k: i64 = if scale < 0: -scale else: scale
+    while k > 0:
+        power = power * 10.0
+        k = k - 1
+    if scale < 0: f64(significand) / power else: f64(significand) * power
 
 # The float of the number text from `start` up to `end`, which the caller
 # has read to the end of its grammar; past the f64 range it is a
