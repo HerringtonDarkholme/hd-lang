@@ -122,8 +122,12 @@ fn first_two(items: &mut List[i32]) -> void:
    the bound, and the body moves such a `T` like any non-copyable value.
    A trait's `Self` and its type parameters are `Copy` by default too, as
    Swift's protocols are: only a copyable type implements `trait Iterator`.
-   `trait Disposable: ?Copy` opts out, and its default bodies then move
-   `Self`. `Copy` is in the prelude.
+   `trait Disposable < ?Copy` opts out, and its default bodies then move
+   `Self`. `Copy` is in the prelude. A `&mut dyn Trait` value is not
+   `Copy`, so it does not meet a plain `[T < Trait]` bound; code that
+   works through `dyn` takes `&mut dyn Trait` as its parameter type.
+   Whether a `?Copy` trait should relax the parameters it bounds is open
+   (parked 2026-11-01).
 4. **Places.** Moving a non-copyable field out of a local binding leaves
    the binding partly moved: its other fields stay usable, a use of the
    whole is `use-of-moved-value`, and assigning the field makes it whole
