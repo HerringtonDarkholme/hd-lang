@@ -26,7 +26,7 @@ fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
 >   %8 = Read [$2] : usize
 >   %9 = Prim Add [%8 1:usize] : usize
 >   %10 = Store [$2] %9 : ()
->   %11 = Ref local [%0 [%7]] : Ref[fn() -> ()]
+>   %11 = Ref local slot [%0 [%7]] : Ref[fn() -> ()]
 >   %15 = Block - : ()
 >   %16 = Store [$3] %11 : ()
 >   %18 = Block - : never

@@ -619,6 +619,14 @@ fn push_loan(m: &mut Module, loan: Loan) {
     }
 }
 
+/// Whether `bind` begins a `for` loop's loan of a list in a counted
+/// object (`ref_word::SLOT` on the loop's hidden reference,
+/// `flow.for.ref.alias`), which only a development or test build checks.
+fn loop_loan(b: &Body, bind: Bind) -> bool {
+    matches!(bind, Bind::Begin(a) if b.tags.get(a as usize) == Some(&Tag::Ref)
+        && b.data[a as usize][1] & hd_tir::ir::ref_word::SLOT != 0)
+}
+
 pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
     let t = &input.collected.table;
     if input.runtime.is_none() {
@@ -630,7 +638,10 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
         };
         let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
         let sub = |ty| subst(input.pool, input.env, item, args, ty);
-        for (_, _, _, loan) in binds(input.pool, input.env, b, &sub) {
+        for (_, _, bind, loan) in binds(input.pool, input.env, b, &sub) {
+            if input.release && loop_loan(b, bind) {
+                continue;
+            }
             if let Some(loan) = loan {
                 push_loan(m, loan);
             }
@@ -798,7 +809,10 @@ impl Em<'_, '_, '_> {
             return;
         }
         let sub = |t| self.sub(t);
-        let found = binds(self.pool(), self.env(), self.b, &sub);
+        let mut found = binds(self.pool(), self.env(), self.b, &sub);
+        if self.input.release {
+            found.retain(|x| !loop_loan(self.b, x.2));
+        }
         if !self.input.release {
             let mut marked = Vec::new();
             for (_, _, bind, loan) in &found {

@@ -111,7 +111,7 @@ fn touch(b: &hd_tir::ir::Body, i: usize) -> Option<(u32, bool)> {
     let [a, d] = b.data[i];
     match b.tags[i] {
         Tag::Store => Some((a, true)),
-        Tag::Ref => Some((a, d != 0)),
+        Tag::Ref => Some((a, d & hd_tir::ir::ref_word::MUT != 0)),
         Tag::Read => Some((a, false)),
         Tag::Intrinsic
             if matches!(
@@ -526,7 +526,10 @@ impl Ck<'_, '_> {
         // and each step reaches the list through it.
         let holder = self.counted_place(lr).map(|word| {
             let rt = self.ref_ty(lt, mutable, false);
-            let r = self.b.emit(Tag::Ref, word, u32::from(mutable), rt, at);
+            // `SLOT` marks the loop's loan, which only a development or
+            // test build registers.
+            let w = u32::from(mutable) | hd_tir::ir::ref_word::SLOT;
+            let r = self.b.emit(Tag::Ref, word, w, rt, at);
             let l = self
                 .b
                 .local(rt, self.cx.names.syms.intern("$loan"), ASSIGNED, at);
@@ -568,7 +571,12 @@ impl Ck<'_, '_> {
         // (`ref.expr.kind.always-local`).
         let rt = self.ref_ty(inner, mutable, false);
         let item = if ok {
-            self.make_ref(&place, mutable, rt, src)
+            let r = self.make_ref(&place, mutable, rt, src);
+            // A shared loop's slot reference (`flow.for.ref.access`).
+            if !mutable && let Some(i) = r.as_inst() {
+                self.b.body_mut().data[i.0 as usize][1] |= hd_tir::ir::ref_word::SLOT;
+            }
+            r
         } else {
             self.b.emit(Tag::Poison, NONE, NONE, rt, src.index())
         };

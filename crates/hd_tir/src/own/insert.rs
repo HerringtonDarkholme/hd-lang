@@ -51,7 +51,9 @@
 //!    the buffer, so the pin ends with the reference's drop (rule 2 or 3);
 //!    nothing else releases it. A `for` over element references pins its
 //!    list this way at each step, from the step's reference to the end of
-//!    the step, where its binding is dropped.
+//!    the step, where its binding is dropped; borrow's **loop slots** then
+//!    delete the pins of a shared loop that nothing can change its list
+//!    in, whose references take no count.
 //!
 //! Why it is sound: on every path an owned value is consumed by its one
 //! use or dropped once, after its last use or before a jump that leaves

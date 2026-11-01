@@ -15,7 +15,7 @@ app/main/visit
   %8 = Read [$2] : usize
   %9 = Prim Add [%8 1:usize] : usize
   %10 = Store [$2] %9 : ()
-  %11 = Ref local [%0 [%7]] : Ref[i32]
+  %11 = Ref local slot [%0 [%7]] : Ref[i32]
   %12 = Block - : ()
   %13 = Store [$3] %11 : ()
   %15 = Block - : never

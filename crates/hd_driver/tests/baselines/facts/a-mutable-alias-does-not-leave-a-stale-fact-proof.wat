@@ -15,6 +15,7 @@
       ;; ...
       local.get $t0
       call $"impl Facts.find[std.serde.EnumTagging]"
+      ;; ...
       local.set $t1
       local.set $t2
       local.set $t3

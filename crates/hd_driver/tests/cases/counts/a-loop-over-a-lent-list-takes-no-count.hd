@@ -3,8 +3,6 @@
 # nothing in the body can change the caller's list, a call that may write
 # included, so the loop needs no snapshot of it (#870;
 # `List[T].serialize`). Read again after the loop, the list is not moved.
-# expected: no count operations; the borrowing loop's per-step element
-# reference pins the list with a retain of each slot (slot 4 follow-up).
 fn show(names: List[string]) -> usize $ Console:
     let n: usize = 0
     for name in names:

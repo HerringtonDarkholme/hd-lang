@@ -17,7 +17,7 @@ fn has_style(facts: Facts) -> bool:
 > app/main/has_style
 >   local $0 facts: Facts [param read]
 >   local $1 self: RenameAll? [read]
->   %0 = Read move [$0] : Facts
+>   %0 = Read borrow [$0] : Facts
 >   %1 = Call std/structure/impl Facts.find[RenameAll] (%0) : RenameAll?
 >   %2 = Store [$1] %1 : ()
 >   %3 = Read copy [$1] : RenameAll?
@@ -35,8 +35,7 @@ fn has_style(facts: Facts) -> bool:
 >   %18 = Block - : bool
 >   %19 = Scope %18 [] : bool
 >   %20 = Block %19 : bool
->   exit sub 0 drops [$0]
->   summary kept [$0]
+>   summary kept []
 
 fn name_of(m: &Member, frames: &List[Frame]) -> string:
     member_name(m, frames[0].facts)
@@ -44,7 +43,8 @@ fn name_of(m: &Member, frames: &List[Frame]) -> string:
 >   local $0 m: Ref[Member] [param read]
 >   local $1 frames: Ref[List[Frame]] [param read]
 >   %0 = Read borrow [$0] : Ref[Member]
->   %1 = Read copy [*$1 [0:usize] .facts] : Facts
+>   %1 = Read borrow [*$1 [0:usize] .facts] : Facts
 >   %2 = Call std/serde/member_name[] (%0, %1) : string
->   %3 = Block %2 : string
->   summary kept [$1]
+>   %3 = Drop [%1] : ()
+>   %4 = Block %2 : string
+>   summary kept []

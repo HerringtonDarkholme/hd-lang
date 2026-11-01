@@ -732,6 +732,17 @@ pub mod ref_word {
     /// (`crates/hd_wasm_linear/DESIGN.md` §23.38). Its count is never
     /// taken (`TAKES`). The checker never sets it (invariant 22).
     pub const FRAME: u32 = 16;
+    /// Set by the checker: a `&T` a `for` loop over a list binds to a
+    /// slot (spec/lang/06-control-flow.md#r-flow.for.ref.access), whose
+    /// loop is one shared loan of the list; or the loop's hidden reference
+    /// to a list in a counted object, the run-time loan only a
+    /// development or test build registers (`flow.for.ref.alias`).
+    pub const SLOT: u32 = 32;
+    /// Set by the borrow pass on a `SLOT` reference whose loop nothing can
+    /// change the list in: the list's own count keeps the slot alive for
+    /// the loop, so the reference takes no count and its pins go. The
+    /// checker never sets it (invariant 22).
+    pub const LOOP: u32 = 64;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -2084,6 +2095,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             }
             Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::FRAME != 0 => "a frame `Ref` before the passes".to_owned(),
+            Tag::Ref if w & ref_word::LOOP != 0 => "a loop `Ref` before the passes".to_owned(),
             _ => continue,
         };
         errs.push(VerifyError {

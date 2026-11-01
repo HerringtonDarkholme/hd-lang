@@ -99,16 +99,21 @@ impl Em<'_, '_, '_> {
                     }
                 }
                 // A reference into what a lent parameter refers to
-                // (`ref_word::LENT`) takes no count where the referent is
-                // physical; a view's projection makes one, which the flag
-                // marks for the reference's `Drop`, as for a read.
+                // (`ref_word::LENT`), or a loop's slot that nothing in the
+                // loop can move (`ref_word::LOOP`), takes no count where
+                // the referent is physical; a view's projection makes one,
+                // which the flag marks for the reference's `Drop`, as for
+                // a read.
                 Tag::Ref
-                    if w & hd_tir::ir::ref_word::LENT != 0
+                    if w & (hd_tir::ir::ref_word::LENT | hd_tir::ir::ref_word::LOOP) != 0
                         && !hd_mono::is_open(self.pool(), self.ty(x))
                         && !matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_)))
                         && self.ref_target(self.ty(x)).is_some_and(|(_, fat)| !fat) =>
                 {
                     self.loans.insert(x);
+                    if w & hd_tir::ir::ref_word::LOOP != 0 {
+                        self.slot_loans.insert(x);
+                    }
                     let flag = self.f.local(crate::module::Val::I32);
                     self.view_loans.insert(x, flag);
                 }
@@ -127,7 +132,28 @@ impl Em<'_, '_, '_> {
                     self.loans.insert(x);
                     self.view_loans.insert(x, flag);
                 }
-                Tag::Store if self.b.is_borrow(w) => {
+                // A read of all of a loop slot's reference (`ref_word::LOOP`)
+                // holds what it holds: no count, the view flag its `Drop`s
+                // release a fresh value by.
+                Tag::Read
+                    if self.b.decode_place(a).is_some_and(|p| {
+                        p.proj.is_empty()
+                            && matches!(p.root, hd_tir::ir::PlaceRoot::Value(v)
+                                if self.b.tags.get(v.0 as usize) == Some(&Tag::Ref)
+                                                    && self.slot_loans.contains(&v.0))
+                    }) =>
+                {
+                    let v = match self.b.decode_place(a).map(|p| p.root) {
+                        Some(hd_tir::ir::PlaceRoot::Value(v)) => v.0,
+                        _ => continue,
+                    };
+                    self.loans.insert(x);
+                    self.slot_loans.insert(x);
+                    if let Some(&flag) = self.view_loans.get(&v) {
+                        self.view_loans.insert(x, flag);
+                    }
+                }
+                Tag::Store if self.b.is_borrow(w) || self.slot_read(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)
                     } else {
@@ -148,6 +174,14 @@ impl Em<'_, '_, '_> {
             }
         }
         self.frame_loans();
+    }
+
+    /// Whether value `w` is a read of all of a loop slot's reference that
+    /// [`Em::prepare_own_loans`] made a loan.
+    fn slot_read(&self, w: u32) -> bool {
+        self.loans.contains(&w)
+            && self.b.tags.get(w as usize) == Some(&Tag::Read)
+            && !self.b.is_borrow(w)
     }
 
     /// The addresses in the frame's slots (§23.38), which take no count, as
@@ -850,6 +884,7 @@ impl Em<'_, '_, '_> {
             || !self.vals.contains_key(&r)
             || self.counted(self.ty_of(r)).is_none()
             || self.moving.contains(&(user, r))
+            || self.slot_loans.contains(&r)
         {
             return false;
         }
@@ -1037,6 +1072,25 @@ impl Em<'_, '_, '_> {
         let ls = self.local(u32::try_from(l).expect("locals"))?;
         for x in &ls {
             self.f.get(*x);
+        }
+        // A binding local that holds a loop slot's reference holds no
+        // count: every read of it is a loan, which a keeping consumer
+        // counts for itself.
+        if self
+            .loan_locals
+            .get(&l)
+            .is_some_and(|w| self.slot_loans.contains(w))
+        {
+            self.loans.insert(i);
+            self.slot_loans.insert(i);
+            if let Some(&flag) = self
+                .loan_locals
+                .get(&l)
+                .and_then(|w| self.view_loans.get(w))
+            {
+                self.view_loans.insert(i, flag);
+            }
+            return self.store(i);
         }
         match mode {
             Some(ReadMode::Copy) => self.store(i),

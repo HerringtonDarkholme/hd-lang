@@ -5,7 +5,9 @@
     block
       ;; ...
     ;; 12 |     if facts.find::[EnumTagging]().is_some():
+      local.tee $unrelated
       call $"impl Facts.find[std.serde.EnumTagging]"
+      ;; ...
       local.set $t0
       local.set $t1
       local.set $t2

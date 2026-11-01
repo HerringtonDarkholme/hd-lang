@@ -89,6 +89,14 @@
 //! `Drop`s stay for an instance whose reference view makes the referent
 //! fresh.
 //!
+//! A **loop slot** (`ref_word::SLOT`, a shared `for` loop's element
+//! reference) whose loop holds no write that may reach its list, by rules
+//! 2 to 4 over the whole loop, loses the `IsUnique`s and `Pin`s insertion
+//! put before it and takes no count (`ref_word::LOOP`): the list's own
+//! count keeps every slot alive for the loop. The tables leave those pins
+//! out; a candidate that a write reaches keeps its pins, and the tables
+//! are made again until no candidate drops out.
+//!
 //! A read whose value an instance may have to make (one through a
 //! dereference, which a view's getter makes fresh; one that names a type
 //! parameter, which an erased body's thunk makes) keeps its `Drop`s: in
@@ -248,6 +256,12 @@ pub(crate) struct Tables {
     whole_other: Vec<bool>,
     receives: Vec<(u32, u32)>,
     pub(crate) relies: u64,
+    /// Per instruction: a loop slot's pin this pass deletes
+    /// ([`slot_candidates`]), which the tables leave out.
+    skip: Vec<bool>,
+    /// Per instruction: a loop slot's reference whose pins are left out,
+    /// which keeps nothing of the list read it is rooted at.
+    slot_ref: Vec<bool>,
 }
 
 impl Tables {
@@ -466,29 +480,36 @@ pub(crate) fn run(
     let n = b.len();
     let locals = b.local_ty.len();
     t.reset(n, locals);
-    scan(b, cx, t);
-    // Per local: the reads of it whose value a use keeps or a store takes.
-    fill(&mut t.kept_read, locals, 0);
-    fill(&mut t.kept_whole, locals, 0);
-    fill(&mut t.kept_bind, locals, 0);
-    for i in 0..n {
-        let p = b.view(b.data[i][0]);
-        if b.tags[i] == Tag::Read
-            && let Some(l) = p.local()
-            && (t.keeps[i] || t.stored[i] != NONE)
-            && cx.counted(b.ty[i]) != Tri::No
-        {
-            t.kept_read[l as usize] += 1;
-            t.kept_whole[l as usize] += u32::from(p.whole());
-            t.kept_bind[l as usize] += u32::from(
-                !t.keeps[i]
-                    && t.uses[i] == 1
-                    && b.data[i][1] == ReadMode::Copy as u32
-                    && binding(b, t, t.stored[i]).is_some(),
-            );
+    let mut slots = slot_candidates(b, topo, t);
+    // The tables leave the candidates' pins out; a candidate whose loop
+    // another write reaches keeps its pins, and the tables are made again
+    // with them.
+    loop {
+        tables(b, cx, t);
+        let before = slots.len();
+        slots.retain(|s| {
+            let ok = !slot_conflicts(b, topo, t, s);
+            if !ok {
+                for &p in &s.pins {
+                    t.skip[p as usize] = false;
+                }
+                t.slot_ref[s.r as usize] = false;
+            }
+            ok
+        });
+        if slots.len() == before {
+            break;
         }
+        let (skip, slot_ref) = (std::mem::take(&mut t.skip), std::mem::take(&mut t.slot_ref));
+        t.reset(n, locals);
+        (t.skip, t.slot_ref) = (skip, slot_ref);
     }
-    index_writes(b, cx, t);
+    for s in &slots {
+        for &p in &s.pins {
+            edits.remove(p);
+        }
+        b.data[s.r as usize][1] |= crate::ir::ref_word::LOOP;
+    }
     // Release probes every other body: what exclusive mode would borrow,
     // reported in `relies`, while every decision stays the plain one.
     let flagged = b
@@ -520,11 +541,131 @@ pub(crate) fn run(
     }
 }
 
+/// The per-value, per-local and write tables of [`run`].
+fn tables(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
+    let n = b.len();
+    let locals = b.local_ty.len();
+    scan(b, cx, t);
+    // Per local: the reads of it whose value a use keeps or a store takes.
+    fill(&mut t.kept_read, locals, 0);
+    fill(&mut t.kept_whole, locals, 0);
+    fill(&mut t.kept_bind, locals, 0);
+    for i in 0..n {
+        let p = b.view(b.data[i][0]);
+        if b.tags[i] == Tag::Read
+            && let Some(l) = p.local()
+            && (t.keeps[i] || t.stored[i] != NONE)
+            && cx.counted(b.ty[i]) != Tri::No
+        {
+            t.kept_read[l as usize] += 1;
+            t.kept_whole[l as usize] += u32::from(p.whole());
+            t.kept_bind[l as usize] += u32::from(
+                !t.keeps[i]
+                    && t.uses[i] == 1
+                    && b.data[i][1] == ReadMode::Copy as u32
+                    && binding(b, t, t.stored[i]).is_some(),
+            );
+        }
+    }
+    index_writes(b, cx, t);
+}
+
+/// A shared loop's slot reference (`ref_word::SLOT`) and the `IsUnique`s
+/// and `Pin`s insertion put just before it (insertion's rule 6).
+struct Slot {
+    r: u32,
+    pins: Vec<u32>,
+}
+
+/// **Loop slots**: a slot reference of a `for` loop over a list needs no
+/// pin of its own, and no count, when nothing in the loop can change the
+/// list: no write in the loop reaches the list's place, as rules 2 to 4
+/// state for a read whose span is the whole loop. The list's own count
+/// then keeps every slot alive for the loop. The candidates are every
+/// shared slot reference; their pins are marked to be left out of the
+/// tables.
+fn slot_candidates(b: &Body, topo: &Topology, t: &mut Tables) -> Vec<Slot> {
+    fill(&mut t.skip, b.len(), false);
+    fill(&mut t.slot_ref, b.len(), false);
+    let mut out = Vec::new();
+    for r in 0..b.len() {
+        let w = b.data[r][1];
+        if b.tags[r] != Tag::Ref
+            || w & crate::ir::ref_word::SLOT == 0
+            || w & crate::ir::ref_word::MUT != 0
+            || topo.blk[r] == NONE
+            || topo.loop_of[r] == NONE
+        {
+            continue;
+        }
+        let members = b.record(b.data[topo.blk[r] as usize][0]);
+        let mut pins = Vec::new();
+        for &m in members[..topo.pos[r] as usize].iter().rev() {
+            match b.tags[m as usize] {
+                Tag::IsUnique | Tag::Pin => pins.push(m),
+                Tag::Read => {}
+                _ => break,
+            }
+        }
+        if pins.is_empty() {
+            continue;
+        }
+        for &p in &pins {
+            t.skip[p as usize] = true;
+        }
+        t.slot_ref[r] = true;
+        out.push(Slot { r: u32_of(r), pins });
+    }
+    out
+}
+
+/// Whether slot `s`'s reference may leave the reach of the loop's loan, or
+/// a write in its loop may reach a list its pins name. A whole read of the
+/// reference may be stored only into a binding local that nothing
+/// captures, refers to or stores again. A consumer that keeps the
+/// reference or a read of it takes a count of its own (the backend's
+/// `Em::slot_loans`).
+fn slot_conflicts(b: &Body, topo: &Topology, t: &mut Tables, s: &Slot) -> bool {
+    let r = s.r as usize;
+    for v in 0..b.len() {
+        let whole = b.tags[v] == Tag::Read && {
+            let p = b.view(b.data[v][0]);
+            p.whole() && matches!(p.root, Root::Value(x) if x as usize == r)
+        };
+        if !whole || t.stored[v] == NONE {
+            continue;
+        }
+        let Some(l) = b.local_in_place(b.data[t.stored[v] as usize][0]) else {
+            return true;
+        };
+        let l = l.idx();
+        if t.captured[l] || t.reached[l] || t.stores[l] != 1 {
+            return true;
+        }
+    }
+    let lp = topo.loop_of[s.r as usize];
+    let lo = topo.first[lp as usize];
+    for &p in &s.pins {
+        if b.tags[p as usize] != Tag::IsUnique {
+            continue;
+        }
+        let chain = t.walk(b, b.data[p as usize][0], true);
+        let mut relied = 0;
+        if !chain.ok || conflicts(t, chain, s.r, lo, lp, &mut relied) || relied != 0 {
+            return true;
+        }
+    }
+    false
+}
+
 /// The per-value and per-local facts: uses, drops, stores, reads.
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
     let mut ops = std::mem::take(&mut t.ops);
     for i in 0..n {
+        if t.skip[i] {
+            continue;
+        }
         let [a, w] = b.data[i];
         let tag = b.tags[i];
         match tag {
@@ -640,6 +781,9 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     | Tag::ContextNew => false,
                     // A reference into the value's own storage outlives
                     // the read; one through it, to a referent, does not.
+                    // A loop slot's reference is the loop's loan of the
+                    // list, which its place keeps alive ([`slot_candidates`]).
+                    Tag::Ref if t.slot_ref[i] => false,
                     Tag::Ref => {
                         let p = b.view(a);
                         matches!(p.root, Root::Const(_)) || p.first(b) != Some(Proj::Deref)
@@ -670,6 +814,9 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
     let locals = u32_of(b.local_ty.len());
     for i in 0..n {
+        if t.skip[i] {
+            continue;
+        }
         let x = u32_of(i);
         let [a, w] = b.data[i];
         let tag = b.tags[i];

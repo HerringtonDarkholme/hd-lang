@@ -2344,7 +2344,10 @@ is worth deciding only if they are hot.
       to the end of the step. No code of the body runs between steps, so
       the list is pinned wherever the body runs (`flow.for.ref.access`;
       `own/a-loop-over-element-references-pins-each-step.hd`). The double
-      `IsUnique` and `Pin` of commit 6 are gone.
+      `IsUnique` and `Pin` of commit 6 are gone. A shared loop's slot
+      references (`ref_word::SLOT`) lose those pins and their counts in
+      the borrow pass when no write in the loop may reach the list
+      (`ref_word::LOOP`, `counts/a-loop-over-a-lent-list-takes-no-count.hd`).
     - **Write marks.** `mark_write_path` leaves an element read a read. It
       still turns a map value's read into `MapIndexMut`, an intrinsic that
       stays to stage 3: a `&mut self` call on a map value holds the value in
