@@ -246,7 +246,7 @@ fn body_func<'a>(
     );
     if em.m.track_origins {
         em.f.origins = Some(Vec::new());
-        em.f.set_origin_source_len(b.tags.len());
+        em.f.set_origin_source_len(b.anchor_len());
         em.f.origin_item = Some((input.path)(b.item));
         em.f.origin_root = Some(b.sub_root[sub as usize]);
         em.f.origin_at = em.f.origin_root;
@@ -1114,7 +1114,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
     fn annotate_func(&self, f: &mut Func) {
         if self.m.track_origins {
             f.origins = Some(Vec::new());
-            f.set_origin_source_len(self.b.tags.len());
+            f.set_origin_source_len(self.b.anchor_len());
             f.origin_item = Some((self.input.path)(self.b.item));
             f.origin_root = Some(self.origin_root);
             f.origin_at = f.origin_root;
@@ -1124,7 +1124,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
     fn inherit_origin_source(&mut self) {
         if self.m.track_origins {
             self.f.origins = Some(Vec::new());
-            self.f.set_origin_source_len(self.b.tags.len());
+            self.f.set_origin_source_len(self.b.anchor_len());
             self.f.origin_item = Some((self.input.path)(self.b.item));
             self.f.origin_root = Some(self.origin_root);
             self.f.origin_at = self.f.origin_root;

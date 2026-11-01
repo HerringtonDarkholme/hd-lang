@@ -964,6 +964,16 @@ impl Body {
         }
     }
 
+    /// A number past every instruction of the checker's body that an
+    /// instruction of this one comes from ([`Body::anchor`]): at least the
+    /// body's length, and more when a rebuild before the passes deleted
+    /// some (`root_places`).
+    #[must_use]
+    pub fn anchor_len(&self) -> usize {
+        let named = self.anchors.iter().filter(|&&a| a != NONE).max();
+        named.map_or(0, |&a| a as usize + 1).max(self.len())
+    }
+
     /// Whether instruction `i` is a `Coerce` that keeps its operand's
     /// values as they are (`Weaken`, `Variance`, `RowSubsume`,
     /// `SuspendFnToCtor`, `Identity`, `ProviderAsRef`): its value is its

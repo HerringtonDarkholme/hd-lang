@@ -1,0 +1,44 @@
+# @dump: counts
+# @build: v8 release
+# `self.items[self.pick()]` reads `self.items` before `pick` runs. `pick`
+# writes nothing the caller can reach, so the read moves after the call
+# and reads one element in place, with no copy of the list, as
+# `i := self.pick()` then `self.items[i]` does (#1153). `bump` writes
+# `self`, and `drain` writes the same stack through a `*mut Stack`, so a
+# read across either keeps its copy of the list. A dev build has no
+# summary of what a callee writes, so every call there keeps the copy.
+struct Item:
+    home: usize
+    name: string
+
+struct Stack:
+    items: List[Item]
+    open: usize
+    peers: List[*mut Stack]
+
+impl Stack:
+    fn pick(&self) -> usize:
+        if self.open == 0:
+            panic("empty stack")
+        self.open - 1
+
+    fn bump(&mut self) -> usize:
+        self.open = self.open + 1
+        self.open - 1
+
+    fn drain(&self) -> usize:
+        for peer in self.peers:
+            peer.items = []
+        0
+
+    fn read(&self) -> usize:
+        self.items[self.pick()].home
+
+    fn read_mut(&mut self) -> usize:
+        self.items[self.pick()].home
+
+    fn read_bump(&mut self) -> usize:
+        self.items[self.bump()].home
+
+    fn read_drain(&self) -> usize:
+        self.items[self.drain()].home

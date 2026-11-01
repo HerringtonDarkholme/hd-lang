@@ -2882,6 +2882,8 @@ impl TextReader:
         self.open - 1
 
     fn leave(&mut self) -> void:
+        # Index with a local: in a dev build, `self.frames[self.top()]`
+        # copies `frames` before the call (#1153).
         top := self.top()
         self.depth = self.frames[top].home
         self.open = self.open - 1
@@ -2972,8 +2974,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("array"))
 
     fn next_item(&mut self) -> Result[bool, JsonError]:
-        top := self.top()
-        frame := &mut self.frames[top]
+        frame := &mut self.frames[self.top()]
         index := frame.next
         let found = false
         let next_index = index + 1
@@ -3018,8 +3019,7 @@ impl Deserializer for TextReader:
         if self.present && self.byte() == 123:
             let name = ""
             if self.open > 0:
-                top := self.top()
-                frame := &mut self.frames[top]
+                frame := &mut self.frames[self.top()]
                 let tagged = false
                 match frame.kind:
                     .Tagged => tagged = true
@@ -3039,8 +3039,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("object"))
 
     fn next_key(&mut self) -> Result[string?, JsonError]:
-        top := self.top()
-        frame := &mut self.frames[top]
+        frame := &mut self.frames[self.top()]
         index := frame.next
         match frame.kind:
             .Entries =>
@@ -3263,8 +3262,7 @@ impl Deserializer for TextReader:
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
 
     fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
-        top := self.top()
-        frame := &mut self.frames[top]
+        frame := &mut self.frames[self.top()]
         match frame.kind:
             .Tagged =>
                 if !frame.facts.items.is_empty():
@@ -3286,8 +3284,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("newtype variant"))
 
     fn begin_tuple_variant(&mut self, len: usize) -> Result[void, JsonError]:
-        top := self.top()
-        frame := &mut self.frames[top]
+        frame := &mut self.frames[self.top()]
         self.depth = frame.base
         match frame.kind:
             .Tagged =>
@@ -3317,8 +3314,7 @@ impl Deserializer for TextReader:
         .Err(self.fail("array of $len items"))
 
     fn member(&mut self, m: &Member) -> Result[void, JsonError]:
-        top := self.top()
-        frame := &mut self.frames[top]
+        frame := &mut self.frames[self.top()]
         base := frame.base
         name := member_name(m, frame.facts)
         let found = false
@@ -3391,8 +3387,7 @@ impl Deserializer for TextReader:
         .Ok(())
 
     fn end_variant(&mut self) -> Result[void, JsonError]:
-        top := self.top()
-        frame := &mut self.frames[top]
+        frame := &mut self.frames[self.top()]
         match frame.kind:
             .Tagged =>
                 if bytes_at(self.parser.text, frame.at) != 123:

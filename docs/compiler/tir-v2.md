@@ -2249,7 +2249,12 @@ is worth deciding only if they are hot.
       after an `IsUnique [*$0]`, `self.x` is `Read [*$0 .x]`, `grid[i][j]`
       is `Read [$0 [%1] [%2]]`. Bodies collection generates (supplied
       methods, `dbg` bodies) are rooted the same way before their passes
-      (`Env::owned_generated`).
+      (`Env::owned_generated`). The driver roots each body with a call
+      that writes nothing (`OwnCx::may_write`) once more before its
+      passes, folding only the reads with no element step that such
+      calls, and the shared references they take, kept apart (#1153):
+      `self.items[self.pick()]` reads `[*$0 .items [%i]]` after `pick`,
+      with no copy of the list.
     - **Place folding** (commit 5's `own/fold.rs`) is gone: rooting folds
       every read it folded (a field of a whole local's read, the very next
       statement, a type naming no parameter) and more.

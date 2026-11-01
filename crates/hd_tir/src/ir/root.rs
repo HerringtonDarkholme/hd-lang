@@ -38,6 +38,17 @@
 //!    and every other instance is monomorphized, so `self.infos[i].x` in
 //!    `impl[T] Members[T]` folds as it does in plain code.
 //!
+//! The checker's rooting lets no call stand between a read through
+//! memory and its uses. The driver roots each body again before the
+//! ownership passes, where it knows which calls write nothing the body
+//! can reach (`OwnCx::may_write`), and folds only the reads such a call
+//! kept apart: it, and a shared reference such as the `&self` it takes,
+//! may stand between a read whose place has no element step, since that
+//! read checks nothing and neither changes its place. So
+//! `self.items[self.pick()]` reads `[*$0 .items [%i]]` after `pick`, as
+//! `i := self.pick()` and then `self.items[i]` would (#1153), and does
+//! not copy the list first.
+//!
 //! When only rule 2's statements between fail, the `Store`s and `Ref`s
 //! among the uses still become `P` followed by their steps, and the read
 //! stays only for the reads among them: `xs[i] = f(i)` stores into
@@ -51,7 +62,7 @@
 use hd_base::DefId;
 use hd_types::{Ty, Types};
 
-use super::{Body, IntrinsicOp, NONE, PlaceView, Root, Tag, Topology, place, u32_of};
+use super::{Body, Callee, IntrinsicOp, NONE, PlaceView, Root, Tag, Topology, place, u32_of};
 use crate::own::{Loc, operands};
 
 /// The tables of [`root_places`], reused across bodies.
@@ -117,6 +128,17 @@ fn inert(b: &Body, i: usize) -> bool {
     }
 }
 
+/// Whether statement `s` is a call of a callee that writes nothing the
+/// body can reach (`pure`), or a shared reference, such as the `&self`
+/// such a call takes (`self.slot(i)`).
+fn pure_step(b: &Body, s: usize, pure: &dyn Fn(&Callee) -> bool) -> bool {
+    match b.tags[s] {
+        Tag::Call => Callee::from_words(b.record(b.data[s][0])).is_some_and(|c| pure(&c)),
+        Tag::Ref => b.data[s][1] & super::ref_word::MUT == 0,
+        _ => false,
+    }
+}
+
 /// Whether statement `s` is inert and checks nothing that could stop the
 /// program: a read of a place with no element step, such as an index
 /// local's.
@@ -144,7 +166,16 @@ fn unreached(b: &Body, l: u32, v: usize, last: usize, mark: &[u32]) -> bool {
 /// Folds every base read of a local's place into the places rooted at its
 /// value (the module docs' rules), and deletes the reads it folds. `open`
 /// says whether a type names a type parameter or an associated type.
-pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) {
+/// With `pure`, which says whether a call of a callee writes nothing the
+/// body can reach, it folds only the reads with no element step that such
+/// a call (and the shared references it takes) kept from folding: the
+/// driver's second rooting of a body the checker rooted.
+pub fn root_places(
+    b: &mut Body,
+    open: &dyn Fn(Ty) -> bool,
+    pure: Option<&dyn Fn(&Callee) -> bool>,
+    t: &mut RootTables,
+) {
     let n = b.len();
     t.topo.build(b);
     t.gone.clear();
@@ -229,6 +260,8 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
             t.mark[u as usize] = u32_of(v);
         }
         let mut quiet = ok && !valued;
+        // Whether a pure call or a shared reference stands between.
+        let mut crossed = false;
         if ok {
             let elem = p.kinds(b).1;
             let members = b.record(b.data[blk as usize][0]);
@@ -242,13 +275,15 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
                     || t.mark[s] == u32_of(v)
                     || calm
                     || if elem { unchecked(b, s) } else { inert(b, s) };
-                if !fine {
+                let across = !fine && !elem && pure.is_some_and(|f| pure_step(b, s, f));
+                crossed |= across;
+                if !fine && !across {
                     quiet = false;
                     break;
                 }
             }
         }
-        if !ok {
+        if !ok || (pure.is_some() && !(quiet && crossed)) {
             continue;
         }
         // Each use's place: `P` followed by the use's own steps. Where a

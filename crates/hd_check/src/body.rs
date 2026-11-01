@@ -5078,7 +5078,9 @@ impl Ck<'_, '_> {
         let item = body.item;
         let open = |t: Ty| hd_tir::ir::erasable(pool, item, t);
         body.sub_root[0] = root.0;
-        ROOTS.with(|r| hd_tir::ir::root_places(body, &open, &mut r.borrow_mut()));
+        // No call is known pure here: the driver roots again across the
+        // calls that write nothing, before the ownership passes.
+        ROOTS.with(|r| hd_tir::ir::root_places(body, &open, None, &mut r.borrow_mut()));
         let root = Ref(body.sub_root[0]);
         let known = VerifyFacts { cx: self.cx };
         let body = self

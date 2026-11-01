@@ -331,7 +331,7 @@ impl Em<'_, '_, '_> {
             let subject = crate::views::count_subject(self.pool(), self.env(), t);
             self.f.note_count(
                 start,
-                u32::try_from(self.b.tags.len()).expect("TIR instructions"),
+                u32::try_from(self.b.anchor_len()).expect("TIR instructions"),
                 if retain {
                     crate::views::CountAction::Retain
                 } else {

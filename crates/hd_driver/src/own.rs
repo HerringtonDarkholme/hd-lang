@@ -18,7 +18,7 @@ use hd_mono::ProgramEnv;
 use hd_opt::fact_specialize::FactEnv;
 use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_opt::structure_specialize::{GeneratedHandle, StructureEnv};
-use hd_tir::ir::{Body, Callee, ChoiceKind};
+use hd_tir::ir::{Body, Callee, ChoiceKind, Tag};
 use hd_tir::own::{OwnCx, OwnScratch, Pass, Summary, Tri};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
@@ -152,6 +152,7 @@ const PURE_INTRINSICS: &[&str] = &[
     "format_f32",
     "format_f64_fixed",
     "panic",
+    "panic_message",
 ];
 
 /// The intrinsics that own their value arguments, as a function's value
@@ -439,6 +440,7 @@ impl Env<'_> {
         if body.anchors.is_empty() {
             body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
         }
+        self.root_across_pure_calls(&mut body);
         let returns = summarize
             .then(|| hd_tir::own::returned_param(&body))
             .flatten();
@@ -478,15 +480,36 @@ impl Env<'_> {
         Ok((body, summary, relies))
     }
 
+    /// Roots `body`'s places again, across the calls that write nothing the
+    /// body can reach (`hd_tir::ir::root_places`): the checker roots them
+    /// across no call, so `self.items[self.pick()]` reads `self.items`
+    /// before `pick` and the list's read must copy it (#1153). Only a body
+    /// with such a call can fold more.
+    fn root_across_pure_calls(&self, body: &mut Body) {
+        let pure = |c: &Callee| !self.may_write(c);
+        let any = (0..body.len()).any(|i| {
+            body.tags[i] == Tag::Call
+                && Callee::from_words(body.record(body.data[i][0])).is_some_and(|c| pure(&c))
+        });
+        if any {
+            self.root(body, Some(&pure));
+        }
+    }
+
+    /// Roots `body`'s places at their locals (`hd_tir::ir::root_places`).
+    fn root(&self, body: &mut Body, pure: Option<&dyn Fn(&Callee) -> bool>) {
+        ROOTS.with(|r| {
+            let (types, item) = (self.run.pool.types(), body.item);
+            let open = |t| hd_tir::ir::erasable(types, item, t);
+            hd_tir::ir::root_places(body, &open, pure, &mut r.borrow_mut());
+        });
+    }
+
     /// A body collection generates (a supplied method's, a `dbg` body),
     /// after the ownership passes. Its places are rooted at their locals
     /// first, as the checker roots its bodies' (`hd_tir::ir::root_places`).
     pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
-        ROOTS.with(|r| {
-            let (types, item) = (self.run.pool.types(), body.item);
-            let open = |t| hd_tir::ir::erasable(types, item, t);
-            hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut());
-        });
+        self.root(&mut body, None);
         Ok(self.own_passes(body, false)?.0)
     }
 }
