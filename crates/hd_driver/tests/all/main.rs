@@ -72,6 +72,7 @@ mod map_key_bounds;
 mod map_run;
 mod match_decision_tree_run;
 mod method_bound_unmet;
+mod method_chain_depth;
 mod method_choice;
 mod mixed_signedness;
 mod module_case_collision;

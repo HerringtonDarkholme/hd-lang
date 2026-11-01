@@ -415,6 +415,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// A bare pipe step's piped value, which stands for the argument node
     /// at this index (`expr.pipe.bare.call`).
     pub pipe_arg: Option<(hd_base::NodeIdx, (Ref, Ty))>,
+    /// A method chain's receiver call, already checked: the value its
+    /// node stands for when the next link checks it (`Ck::chain_receivers`).
+    pub chain_recv: Option<(hd_base::NodeIdx, (Ref, Ty))>,
     /// Checking the call a bare pipe step stands for.
     pub bare_step: bool,
     /// The next `for` loop's `else` suite and the loop's result type.
@@ -656,6 +659,7 @@ pub(crate) fn new_ck<'a, 'c>(
         open_trials: 0,
         placeholder: None,
         pipe_arg: None,
+        chain_recv: None,
         bare_step: false,
         loop_else: None,
         reserve_into: None,

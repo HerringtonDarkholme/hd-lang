@@ -103,6 +103,21 @@ fn step_slots<'t>(
     }
 }
 
+/// The receiver of the method call `n` when that receiver is itself a
+/// call: `a.f()` for `a.f().g()`. A bang, type arguments or a trailing
+/// block on `n` ends the chain.
+fn chain_receiver(n: NodeRef<'_>) -> Option<NodeRef<'_>> {
+    if n.kind() != SyntaxKind::CallExpr {
+        return None;
+    }
+    let callee = n.children().next()?;
+    if callee.kind() != SyntaxKind::FieldExpr {
+        return None;
+    }
+    let base = callee.children().next()?;
+    (base.kind() == SyntaxKind::CallExpr).then_some(base)
+}
+
 /// The text of a plain string literal without interpolation, as a test
 /// name or option (`module.testing.it.name`); `None` for anything else.
 pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<String> {
@@ -152,6 +167,12 @@ impl Ck<'_, '_> {
         if let Some((at, v)) = self.pipe_arg
             && at == n.index()
         {
+            return Ok(v);
+        }
+        if let Some((at, v)) = self.chain_recv
+            && at == n.index()
+        {
+            self.chain_recv = None;
             return Ok(v);
         }
         let kids: Vec<NodeRef<'_>> = n.children().collect();
@@ -211,7 +232,10 @@ impl Ck<'_, '_> {
             SyntaxKind::PowerExpr => self.power(n, &kids)?,
             SyntaxKind::FieldExpr => self.field_expr(n, &kids, want)?,
             SyntaxKind::IndexExpr => self.index_expr(n, &kids)?,
-            SyntaxKind::CallExpr => self.call(n, &kids, want)?,
+            SyntaxKind::CallExpr => {
+                self.chain_receivers(n)?;
+                self.call(n, &kids, want)?
+            }
             SyntaxKind::DataExpr => self.data_expr(n, &kids, want)?,
             SyntaxKind::ListExpr => self.list_expr(n, &kids, want)?,
             SyntaxKind::MapExpr => self.map_expr(n, &kids, want)?,
@@ -267,6 +291,29 @@ impl Ck<'_, '_> {
             SyntaxKind::PathExpr => self.path_value(n, want, &[])?,
             other => return unsupported(format!("expression {other:?}")),
         })
+    }
+
+    /// Checks the receiver calls of the method chain `n` ends, innermost
+    /// first, so a chain of any length checks in a loop instead of one
+    /// nested `member_call` per link. A link's receiver call is checked
+    /// with no expectation either way; each result waits in `chain_recv`
+    /// for the next link's receiver check.
+    fn chain_receivers(&mut self, n: NodeRef<'_>) -> StageResult<()> {
+        let mut spine = Vec::new();
+        let mut cur = n;
+        while let Some(base) = chain_receiver(cur) {
+            if self.chain_recv.is_some_and(|(at, _)| at == base.index()) {
+                break;
+            }
+            spine.push(base);
+            cur = base;
+        }
+        for link in spine.into_iter().rev() {
+            self.elem_may_stand(link, crate::elem_refs::ElemUse::Receiver);
+            let v = self.expr(link, None)?;
+            self.chain_recv = Some((link.index(), v));
+        }
+        Ok(())
     }
 
     fn literal(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
