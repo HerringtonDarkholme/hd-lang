@@ -9,5 +9,5 @@ fn last_short(lines: List[string]) -> string:
         # subject
         if line.len() > 3:
             break
-        last = line
+        last = *line
     last

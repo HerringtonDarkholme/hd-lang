@@ -19,7 +19,7 @@ use crate::body::{Ck, ExpectPosition, OpenSub, unsupported};
 
 /// A counted loop's `else` suite with the loop's result type, and the
 /// comprehension result it reserves room in before the loop, if any.
-type LoopEnds = (
+pub(crate) type LoopEnds = (
     Option<(hd_base::NodeIdx, Ty)>,
     Option<(hd_base::LocalId, Ty)>,
 );
@@ -555,6 +555,15 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<Ref> {
         let pool = self.pool();
+        // A local reference shows its referent, which it already points
+        // to (`expr.op.ref-read`).
+        if !held
+            && self.ref_counted(t) == Some(false)
+            && self.dyn_ref_of(t).is_none()
+            && let Some((inner, _)) = self.ref_of(t)
+        {
+            return self.display_str((r, inner, true), n);
+        }
         let tt = self.infer.shallow(pool, t);
         let tt = match pool.get(tt) {
             TyData::Mut(i) => self.infer.shallow(pool, i),
@@ -3218,7 +3227,7 @@ impl Ck<'_, '_> {
         // references (`flow.for.ref`).
         let refsrc = crate::elem_refs::strip_parens(src);
         if refsrc.kind() == SyntaxKind::RefExpr
-            && let Some(done) = self.ref_loop(pat, refsrc, els, e, body)?
+            && let Some(done) = self.ref_loop(pat, refsrc, (els, reserve), e, body)?
         {
             return Ok(done);
         }
@@ -3226,8 +3235,7 @@ impl Ck<'_, '_> {
         // own writable copy; an explicit reference keeps sharing its target
         // (`flow.for.iterator.owned-binding`).
         let (sr, st) = self.expr(src, None)?;
-        // A named reference to a collection is a value source; the
-        // syntactic `&xs` element-reference loop was handled above.
+        // A reference to a collection is read through.
         let (sr, st) = if self
             .ref_of(st)
             .is_some_and(|(inner, _)| self.is_coll_ty(inner))
@@ -3236,6 +3244,12 @@ impl Ck<'_, '_> {
         } else {
             (sr, st)
         };
+        // A list's loop borrows it and binds a reference to each slot
+        // (`flow.for.list`).
+        if let Some((Indexed::List, _, vt)) = self.index_kind(st) {
+            let list = (sr, st, vt);
+            return self.slot_loop(pat, (src, list, false), (els, reserve), e, body);
+        }
         let st_r = self.infer.resolve(pool, st);
         let st_i = match pool.get(st_r) {
             TyData::Mut(i) => i,
@@ -3283,20 +3297,16 @@ impl Ck<'_, '_> {
             }
         }
         if let TyData::Adt { def, args } = pool.get(st_i)
-            && (def == self.cx.names.known.list || def == self.cx.names.known.map)
+            && def == self.cx.names.known.map
         {
-            let items = pool.list_items(args);
-            let map = def == self.cx.names.known.map;
-            let item = match items {
-                [t] if !map => *t,
-                [k, v] if map => pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[*k, *v]),
-                    rest: None,
-                }),
-                _ => return unsupported("a collection type's arguments"),
+            let [k, v] = pool.list_items(args) else {
+                return unsupported("a map type's arguments");
             };
-            let reserve = reserve.filter(|_| !map);
-            return self.collection_loop(pat, (sr, st, item, map), (els, reserve), e, body);
+            let item = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[*k, *v]),
+                rest: None,
+            });
+            return self.map_loop(pat, (sr, st, item), els, e, body);
         }
         let (referent, writable) = self.ref_of(st_i).unwrap_or((st_i, false));
         let mut direct = self.iterator_item(referent)?;
@@ -3525,7 +3535,7 @@ impl Ck<'_, '_> {
 
     /// `ListReserve` of the list in local `acc`: room for `count` more
     /// elements.
-    fn reserve_room(
+    pub(crate) fn reserve_room(
         &mut self,
         (acc, at_ty): (hd_base::LocalId, Ty),
         count: Ref,
@@ -3727,18 +3737,18 @@ impl Ck<'_, '_> {
         Ok((self.b.close_loop(lp, lbody, ty, at), ty))
     }
 
-    /// A `for` over a built-in `List` or `Map` as a counted loop
+    /// A `for` over a built-in `Map` as a counted loop over its slots
     /// (lowering-catalog "Loops"): no iterator value. The loop iterates a
-    /// snapshot of the collection as it was when the loop began
+    /// snapshot of the map as it was when the loop began
     /// (`flow.for.snapshot`): `$coll` holds the source value, a copy of a
-    /// place's collection sharing its buffer, which a change to the place
-    /// during the loop copies first. Each round reads the next element or
-    /// live entry, advances, and binds it.
-    fn collection_loop(
+    /// place's map sharing its table, which a change to the place during
+    /// the loop copies first. Each round finds the next live entry,
+    /// advances, and binds it.
+    fn map_loop(
         &mut self,
         pat: NodeRef<'_>,
-        (sr, st, item_ty, map): (Ref, Ty, Ty, bool),
-        (loop_else, reserve): LoopEnds,
+        (sr, st, item_ty): (Ref, Ty, Ty),
+        loop_else: Option<(hd_base::NodeIdx, Ty)>,
         e: NodeRef<'_>,
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
@@ -3766,39 +3776,23 @@ impl Ck<'_, '_> {
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
         let c = self.b.get(src_l, st, at);
-        let len_op = if map {
-            IntrinsicOp::MapLen
-        } else {
-            IntrinsicOp::ListLen
-        };
-        let n = intr(self, len_op, &[c], us);
+        let n = intr(self, IntrinsicOp::MapLen, &[c], us);
         self.set_local(len_l, n, at);
-        if let Some(acc) = reserve {
-            let count = self.b.get(len_l, us, at);
-            self.reserve_room(acc, count, at);
-        }
-        // A map's loop visits the slots written when it began; a list's,
-        // its captured length.
-        let end = if map {
-            let c = self.b.get(src_l, st, at);
-            intr(self, IntrinsicOp::MapSlots, &[c], us)
-        } else {
-            self.b.get(len_l, us, at)
-        };
+        // The loop visits the slots written when it began.
+        let c = self.b.get(src_l, st, at);
+        let end = intr(self, IntrinsicOp::MapSlots, &[c], us);
         self.set_local(end_l, end, at);
         let zero = self.b.const_value(us, 0);
         self.set_local(pos_l, zero, at);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
-        if map {
-            let (c, p, d) = (
-                self.b.get(src_l, st, at),
-                self.b.get(pos_l, us, at),
-                self.b.get(end_l, us, at),
-            );
-            let next = intr(self, IntrinsicOp::MapSlotNext, &[c, p, d], us);
-            self.set_local(pos_l, next, at);
-        }
+        let (c, p, d) = (
+            self.b.get(src_l, st, at),
+            self.b.get(pos_l, us, at),
+            self.b.get(end_l, us, at),
+        );
+        let next = intr(self, IntrinsicOp::MapSlotNext, &[c, p, d], us);
+        self.set_local(pos_l, next, at);
         let (p, d) = (self.b.get(pos_l, us, at), self.b.get(end_l, us, at));
         let go = self.b.prim(PrimOp::Lt as u32, &[p, d], Ty::BOOL, at);
         // The round: read, advance, then bind and run the body.
@@ -3806,12 +3800,7 @@ impl Ck<'_, '_> {
         self.loops.push((lp, result));
         self.scopes.push(HashMap::default());
         let (c, p) = (self.b.get(src_l, st, at), self.b.get(pos_l, us, at));
-        // A map's live entry, or a list's element place `[%c [%p]]`.
-        let item = if map {
-            intr(self, IntrinsicOp::MapSlotEntry, &[c, p], item_ty)
-        } else {
-            self.b.element(c, p, item_ty, at)
-        };
+        let item = intr(self, IntrinsicOp::MapSlotEntry, &[c, p], item_ty);
         let p = self.b.get(pos_l, us, at);
         let one = self.b.const_value(us, 1);
         let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);

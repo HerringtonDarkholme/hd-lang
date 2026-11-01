@@ -2,49 +2,47 @@
 app/main/total_len
   local $0 parts: List[string] [param read]
   local $1 total: usize [read assigned mutated]
-  local $2 $coll: List[string] [assigned]
-  local $3 $len: usize [assigned]
-  local $4 $pos: usize [assigned]
-  local $5 $end: usize [assigned]
-  local $6 part: string [read assigned]
-  local $7 self: string [read]
-  %1 = Read move [$0] : List[string]
-  %2 = Store [$2] %1 : ()
-  %3 = Read borrow [$2] : List[string]
-  %4 = Intrinsic ListLen [%3] : usize
-  %5 = Store [$3] %4 : ()
-  %6 = Read copy [$3] : usize
-  %7 = Store [$5] %6 : ()
-  %8 = Store [$4] 0:usize : ()
-  %9 = Read copy [$4] : usize
-  %10 = Read copy [$5] : usize
-  %11 = Prim Lt [%9 %10] : bool
-  %12 = Read copy [$4] : usize
-  %13 = Read borrow [$2 [%12]] : string
-  %14 = Read copy [$4] : usize
-  %15 = Prim Add [%14 1:usize] : usize
-  %16 = Store [$4] %15 : ()
-  %17 = Read copy [$1] : usize
-  %18 = Read borrow [$6] : string
-  %19 = Store [$7] %18 : ()
-  %20 = Read borrow [$7] : string
-  %21 = Call std/text/bytes_len[] (%20) : usize
-  %22 = Break L1 %21 : never
-  %23 = Block - : usize
-  %24 = Scope %23 [] : usize
-  %25 = Prim Add [%17 %24] : usize
+  local $2 $len: usize [assigned]
+  local $3 $pos: usize [assigned]
+  local $4 part: Ref[string] [read assigned]
+  local $5 self: string [read]
+  %1 = Read borrow [$0] : List[string]
+  %2 = Intrinsic ListLen [%1] : usize
+  %3 = Store [$2] %2 : ()
+  %4 = Store [$3] 0:usize : ()
+  %5 = Read copy [$3] : usize
+  %6 = Read copy [$2] : usize
+  %7 = Prim Lt [%5 %6] : bool
+  %8 = Read copy [$3] : usize
+  %9 = Read copy [$3] : usize
+  %10 = Prim Add [%9 1:usize] : usize
+  %11 = Store [$3] %10 : ()
+  %12 = IsUnique [$0] : ()
+  %13 = Pin [$0] : ()
+  %14 = Read borrow [$0] : List[string]
+  %15 = Ref local [%14 [%8]] : Ref[string]
+  %16 = Read copy [$1] : usize
+  %17 = Read borrow [*$4] : string
+  %18 = Store [$5] %17 : ()
+  %19 = Read borrow [$5] : string
+  %20 = Call std/text/bytes_len[] (%19) : usize
+  %21 = Break L1 %20 : never
+  %22 = Block - : usize
+  %23 = Scope %22 [] : usize
+  %24 = Drop [$5] : ()
+  %25 = Prim Add [%16 %23] : usize
   %26 = Store [$1] %25 : ()
   %27 = Block - : ()
-  %28 = Read borrow [%13] : string
-  %29 = Store [$6] %28 : ()
+  %28 = Read borrow [%15] : Ref[string]
+  %29 = Store [$4] %28 : ()
   %31 = Block - : never
-  %32 = Match %13 [%31 %27] : ()
-  %33 = Block - : ()
-  %34 = Break L0 - : never
-  %35 = Block - : ()
-  %36 = If %11 [%33 %35] : ()
-  %37 = Block - : ()
-  %38 = Loop %37 - : ()
-  %39 = Drop [$2] : ()
+  %32 = Match %15 [%31 %27] : ()
+  %33 = Drop [%15] : ()
+  %34 = Block - : ()
+  %35 = Break L0 - : never
+  %36 = Block - : ()
+  %37 = If %7 [%34 %36] : ()
+  %38 = Block - : ()
+  %39 = Loop %38 - : ()
+  %40 = Drop [$0] : ()
   exit sub 0 drops [$0]
-  loop %38 keeps [$2]

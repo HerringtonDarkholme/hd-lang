@@ -28,7 +28,7 @@ impl Stack:
 
     fn drain(&self) -> usize:
         for peer in self.peers:
-            peer.items = []
+            (*peer).items = []
         0
 
     fn read(&self) -> usize:

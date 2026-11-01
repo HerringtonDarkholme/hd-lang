@@ -8,8 +8,8 @@ fn db_handler() -> void $ Db:
 
 fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
     for x in xs:
-        x()
+        (*x)()
 
 pub fn wire() -> void:
     run_all([db_handler])
-> error: main.hd:258..279: missing-requirement: this needs `$ Db`, which the enclosing function's row does not name
+> error: main.hd:261..282: missing-requirement: this needs `$ Db`, which the enclosing function's row does not name

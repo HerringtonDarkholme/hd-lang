@@ -431,11 +431,12 @@ whether the cursor is in range and advances it before running the body,
 so `continue` needs no separate increment. At an inclusive endpoint it
 clears the flag rather than overflowing the cursor.
 
-Built-in list and map loops read indexed elements or live entries. A
-loop holds its source value: a copy of a place's collection shares its
-initial buffer, and changes copy that buffer first (`flow.for.snapshot`);
-the ownership passes lend it when nothing in the loop changes the place.
-A fresh source is owned by the loop. Iterator-protocol loops instead
+Built-in list loops bind an element reference to each slot of the list
+they borrow (`flow.for.list`); each step's reference pins the list. Map
+loops read live entries. A map loop holds its source value: a copy of a
+place's map shares its initial table, and changes copy that table first
+(`flow.for.snapshot`); the ownership passes lend it when nothing in the
+loop changes the place. A fresh source is owned by the loop. Iterator-protocol loops instead
 call `iter`/`next` and match the optional item. No specialized counted-loop
 tags remain for emission to interpret.
 

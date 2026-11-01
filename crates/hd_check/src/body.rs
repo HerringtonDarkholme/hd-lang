@@ -408,6 +408,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub excl: Vec<crate::elem_refs::Excl>,
     pub excl_frames: Vec<usize>,
     pub conflicts: Vec<(LocalId, hd_base::NodeIdx)>,
+    /// The loans of the borrowing loops over lists (`flow.for.loan`),
+    /// checked against the writes in their bodies at the body's end.
+    pub loop_loans: Vec<crate::elem_refs::LoopLoan>,
     /// The checkpoints taken and not yet rolled back or committed.
     pub open_trials: u32,
     /// A pipe's value while its step is checked (`_`).
@@ -656,6 +659,7 @@ pub(crate) fn new_ck<'a, 'c>(
         excl: Vec::new(),
         excl_frames: Vec::new(),
         conflicts: Vec::new(),
+        loop_loans: Vec::new(),
         open_trials: 0,
         placeholder: None,
         pipe_arg: None,
@@ -4830,6 +4834,7 @@ impl Ck<'_, '_> {
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
         let bindings = self.finish_bindings()?;
+        self.report_loop_loans();
         self.report_conflicts();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;

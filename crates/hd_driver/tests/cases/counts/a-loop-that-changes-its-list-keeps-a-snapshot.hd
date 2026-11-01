@@ -1,11 +1,12 @@
 # @dump: counts
-# A `for` over a list that its body changes iterates a copy of the list
-# as it was when the loop began (`flow.for.snapshot`): the copy counts the
-# buffer, so the push copies the buffer first.
+# A loop borrows its list, so a body that changes the list walks a copy
+# of it (`flow.for.ref.conflict`): the copy counts the buffer, so the push
+# copies the buffer first.
 fn doubled(start: List[i32]) -> List[i32]:
     let mut xs = start
     xs.push(+1)
-    for x in xs:
-    #^^^^^^^^^^^
-        xs.push(x)
+    snapshot := xs
+    for x in snapshot:
+    #^^^^^^^^^^^^^^^^^
+        xs.push(*x)
     xs

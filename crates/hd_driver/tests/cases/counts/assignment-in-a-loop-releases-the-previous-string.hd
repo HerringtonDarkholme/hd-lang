@@ -9,5 +9,5 @@ fn last(items: List[string]) -> string:
     let result = ""
     for value in items:
         # subject
-        result = value
+        result = *value
     result

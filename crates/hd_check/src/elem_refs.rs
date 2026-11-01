@@ -4,8 +4,9 @@
 //! `&xs[i]` and `&mut xs[i]` name a slot of the list's buffer, as Go's
 //! `&s[i]` does, and `&m[k]` and `&mut m[k]` the value of a map's entry
 //! (`ref.elem.map`), whose number `MapEntry` looks up just before the
-//! reference. `for p in &xs` and `for p in &mut xs` bind an element
-//! reference per step. An element reference is a `Ref` of the element
+//! reference. A loop over a list, `for p in xs` or `for p in &mut xs`,
+//! binds an element reference per step and takes a loan of the list for
+//! its body (`flow.for.ref.access`). An element reference is a `Ref` of the element
 //! place and nothing else: the ownership passes make the collection unique
 //! and pin it before the reference, and the reference's drop at its last
 //! use ends the pin (`docs/compiler/tir-v2.md`, stage 2 commit 12b; a
@@ -15,7 +16,7 @@
 use hd_base::{HashSet, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind};
-use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag, TirSink};
+use hd_tir::ir::{IntrinsicOp, NONE, PlaceRoot, Proj, Ref, Tag, TirSink};
 use hd_types::{Prim, Ty};
 
 use crate::body::Ck;
@@ -92,6 +93,76 @@ impl CollPath {
                 _ => false,
             })
     }
+}
+
+/// The loan a loop over a list takes (`flow.for.loan`): the list value
+/// the loop read, the body's instruction range, and whether the loop binds
+/// `&mut` references.
+pub(crate) struct LoopLoan {
+    coll: Ref,
+    span: (usize, usize),
+    excl: bool,
+}
+
+/// The place that instruction `i` reads, refers to or writes, and whether
+/// it writes it (`ref.excl.write`): a store, a `&mut`, a `&mut` binding a
+/// call takes, or a built-in change of a collection operand.
+fn touch(b: &hd_tir::ir::Body, i: usize) -> Option<(u32, bool)> {
+    let [a, d] = b.data[i];
+    match b.tags[i] {
+        Tag::Store => Some((a, true)),
+        Tag::Ref => Some((a, d != 0)),
+        Tag::Read => Some((a, false)),
+        Tag::Intrinsic
+            if matches!(
+                IntrinsicOp::from_u32(a),
+                Some(
+                    IntrinsicOp::ListPush
+                        | IntrinsicOp::ListReserve
+                        | IntrinsicOp::MapSet
+                        | IntrinsicOp::MapRemove
+                )
+            ) =>
+        {
+            let c = *b.record(d).first()? as usize;
+            (b.tags.get(c) == Some(&Tag::Read)).then(|| (b.data[c][0], true))
+        }
+        _ => None,
+    }
+}
+
+/// The local and path of place `word`, through the reads its value root
+/// is made of.
+fn place_path(b: &hd_tir::ir::Body, word: u32) -> Option<(LocalId, Vec<Proj>)> {
+    let p = b.decode_place(word)?;
+    match p.root {
+        PlaceRoot::Local(l) => Some((l, p.proj)),
+        PlaceRoot::Value(v) => {
+            let (l, mut path) = value_place(b, v.0)?;
+            path.extend(p.proj);
+            Some((l, path))
+        }
+        _ => None,
+    }
+}
+
+/// The place the value `v` was read from, past its coercions.
+fn value_place(b: &hd_tir::ir::Body, mut v: u32) -> Option<(LocalId, Vec<Proj>)> {
+    while b.ty.get(v as usize).is_some() && b.tags[v as usize] == Tag::Coerce {
+        v = b.data[v as usize][0];
+    }
+    if b.ty.get(v as usize).is_none() || b.tags[v as usize] != Tag::Read {
+        return None;
+    }
+    place_path(b, b.data[v as usize][0])
+}
+
+/// Whether two paths of one local overlap: no step of the one is a field
+/// other than the other's at the same depth (`ref.excl.place`).
+fn overlap(a: &[Proj], b: &[Proj]) -> bool {
+    !a.iter()
+        .zip(b)
+        .any(|p| matches!(p, (Proj::Field(x), Proj::Field(y)) if x != y))
 }
 
 /// An entry of the open calls' exclusivity stack (`ref.elem.conflict`).
@@ -362,19 +433,17 @@ impl Ck<'_, '_> {
         );
     }
 
-    /// `for p in &xs` and `for p in &mut xs` over a list (`flow.for.ref`):
-    /// a counted loop over the list's slots that binds an element
-    /// reference per step. `None` when
-    /// the operand is no list or map, whose loop is the ordinary one.
+    /// `for p in &xs` and `for p in &mut xs`: a list's loop
+    /// ([`Self::slot_loop`]). `None` when the operand is no list or map,
+    /// whose loop is the ordinary one.
     pub(crate) fn ref_loop(
         &mut self,
         pat: NodeRef<'_>,
         src: NodeRef<'_>,
-        loop_else: Option<(NodeIdx, Ty)>,
+        ends: crate::expr::LoopEnds,
         e: NodeRef<'_>,
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<Option<(Ref, Ty)>> {
-        use hd_tir::ir::local_flags::ASSIGNED;
         let Some(operand) = src.children().next() else {
             return Ok(None);
         };
@@ -387,9 +456,13 @@ impl Ck<'_, '_> {
         let (lr, lt) = self.expr(operand, None)?;
         // A reference to a list is read through (`flow.for.ref.through`).
         let (lr, lt) = self.deref_index_base(lr, lt, operand.index());
-        let builtin = self.index_kind(lt);
-        let vt = match builtin {
-            Some((Indexed::List, _, vt)) => vt,
+        match self.index_kind(lt) {
+            Some((Indexed::List, _, vt)) => {
+                self.commit(cp);
+                let list = (lr, lt, vt);
+                self.slot_loop(pat, (src, list, mutable), ends, e, body)
+                    .map(Some)
+            }
             Some((Indexed::Map, ..)) => {
                 self.commit(cp);
                 self.err(
@@ -400,14 +473,30 @@ impl Ck<'_, '_> {
                 let p = self
                     .b
                     .emit(Tag::Poison, NONE, NONE, Ty::POISON, src.index());
-                return Ok(Some((p, Ty::VOID)));
+                Ok(Some((p, Ty::VOID)))
             }
             _ => {
                 self.rollback(cp);
-                return Ok(None);
+                Ok(None)
             }
-        };
-        self.commit(cp);
+        }
+    }
+
+    /// A loop over a list (`flow.for.list`): a counted loop over the slots
+    /// of the list value `lr` of type `lt`, already read through a
+    /// reference, that binds a `&T`, or for `mutable` a `&mut T`, to each
+    /// slot. The loop is one loan of the list from its first step to its
+    /// last (`flow.for.loan`), which [`Self::report_loop_loans`] checks
+    /// against the body's writes.
+    pub(crate) fn slot_loop(
+        &mut self,
+        pat: NodeRef<'_>,
+        (src, (lr, lt, vt), mutable): (NodeRef<'_>, (Ref, Ty, Ty), bool),
+        (loop_else, reserve): crate::expr::LoopEnds,
+        e: NodeRef<'_>,
+        body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
+    ) -> StageResult<(Ref, Ty)> {
+        use hd_tir::ir::local_flags::ASSIGNED;
         let at = e.index();
         let us = Ty::prim(Prim::Usize);
         let lt = self.strip_mut(self.infer.resolve(self.pool(), lt));
@@ -426,8 +515,24 @@ impl Ck<'_, '_> {
             .b
             .emit(Tag::Intrinsic, IntrinsicOp::ListLen as u32, rec, us, at);
         self.set_local(len_l, n, at);
+        if let Some(acc) = reserve {
+            let count = self.b.get(len_l, us, at);
+            self.reserve_room(acc, count, at);
+        }
         let zero = self.b.const_value(us, 0);
         self.set_local(pos_l, zero, at);
+        // A list inside a counted object is held by a hidden reference
+        // binding, the backend's run-time loan (`flow.for.loan.alias`),
+        // and each step reaches the list through it.
+        let holder = self.counted_place(lr).map(|word| {
+            let rt = self.ref_ty(lt, mutable, false);
+            let r = self.b.emit(Tag::Ref, word, u32::from(mutable), rt, at);
+            let l = self
+                .b
+                .local(rt, self.cx.names.syms.intern("$loan"), ASSIGNED, at);
+            self.set_local(l, r, at);
+            (l, rt)
+        });
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (p, d2) = (self.b.get(pos_l, us, at), self.b.get(len_l, us, at));
@@ -445,6 +550,13 @@ impl Ck<'_, '_> {
             .b
             .prim(hd_tir::ir::PrimOp::Add as u32, &[p, one], us, at);
         self.set_local(pos_l, next, at);
+        let lr = match holder {
+            Some((l, rt)) => {
+                let r = self.b.get(l, rt, at);
+                self.emit_deref(r, rt, at).0
+            }
+            None => lr,
+        };
         let place = Place {
             root: Root::Elem(lr, index, lt),
             path: vec![],
@@ -452,7 +564,7 @@ impl Ck<'_, '_> {
         };
         let ok = !mutable || self.place_writable(&place, src);
         let inner = self.strip_mut(self.infer.resolve(self.pool(), vt));
-        // An element reference loop's binding is local, as `&e` is
+        // A loop's binding is local, as `&e` is
         // (`ref.expr.kind.always-local`).
         let rt = self.ref_ty(inner, mutable, false);
         let item = if ok {
@@ -467,12 +579,15 @@ impl Ck<'_, '_> {
             self.irrefutable_loop_pattern(pat, rt);
         }
         let ab = self.b.open_block();
-        // The loop is one access to the list (`flow.for.ref.access`).
-        self.open_access_frame();
-        self.begin_access(lr);
-        let checked = body(self);
-        self.close_access_frame();
-        checked?;
+        // The loop's loan covers its body (`flow.for.loan`).
+        let lo = self.b.body_mut().len();
+        body(self)?;
+        let hi = self.b.body_mut().len();
+        self.loop_loans.push(LoopLoan {
+            coll: lr,
+            span: (lo, hi),
+            excl: mutable,
+        });
         let arm = self.b.close_block(ab, None, Ty::VOID, at);
         let rows = vec![crate::pat::Row {
             pat: Some(pat),
@@ -496,6 +611,133 @@ impl Ck<'_, '_> {
         self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
         let lbody = self.b.close_block(lb, None, Ty::VOID, at);
         let ty = result.unwrap_or(Ty::VOID);
-        Ok(Some((self.b.close_loop(lp, lbody, ty, at), ty)))
+        Ok((self.b.close_loop(lp, lbody, ty, at), ty))
+    }
+
+    /// The place of the list value `lr` when it is read from inside a
+    /// counted object: one dereference of a counted reference, then
+    /// fields.
+    fn counted_place(&mut self, lr: Ref) -> Option<u32> {
+        let i = lr.as_inst()?.0 as usize;
+        let (word, root) = {
+            let b = self.b.body_mut();
+            if b.tags[i] != Tag::Read {
+                return None;
+            }
+            let word = b.data[i][0];
+            let p = b.decode_place(word)?;
+            let [Proj::Deref, rest @ ..] = p.proj.as_slice() else {
+                return None;
+            };
+            if !rest.iter().all(|s| matches!(s, Proj::Field(_))) {
+                return None;
+            }
+            let t = match p.root {
+                PlaceRoot::Local(l) => b.local_ty[l.idx()],
+                PlaceRoot::Value(v) => *b.ty.get(v.0 as usize)?,
+                _ => return None,
+            };
+            (word, t)
+        };
+        (self.ref_counted(root) == Some(true)).then_some(word)
+    }
+
+    /// `flow.for.loan.shared`, `flow.for.loan.mut`: in the body of a loop
+    /// over a list place, a write to the list or to a place that holds it
+    /// or lies in it is an error, and for a `&mut` loop any other use of
+    /// it too. A list reached through a counted reference is left to the
+    /// run-time checks; so is a closure that captures the list.
+    pub(crate) fn report_loop_loans(&mut self) {
+        let loans = std::mem::take(&mut self.loop_loans);
+        if loans.is_empty() {
+            return;
+        }
+        let pool = self.pool();
+        // Each conflicting instruction's node, whether it writes, and the
+        // loop's local.
+        let mut found: Vec<(NodeIdx, bool, LocalId)> = Vec::new();
+        {
+            let b = self.b.body_mut();
+            for loan in &loans {
+                let Some((root, path)) = value_place(b, loan.coll.0) else {
+                    continue;
+                };
+                let (lo, hi) = (loan.span.0, loan.span.1.min(b.len()));
+                // A read that only roots a longer place is that place's use.
+                let mut base = HashSet::default();
+                for i in lo..hi {
+                    if let Some((word, _)) = touch(b, i)
+                        && let Some(p) = b.decode_place(word)
+                        && let PlaceRoot::Value(mut v) = p.root
+                    {
+                        while b.ty.get(v.0 as usize).is_some()
+                            && b.tags[v.0 as usize] == Tag::Coerce
+                        {
+                            v = Ref(b.data[v.0 as usize][0]);
+                        }
+                        base.insert(v.0 as usize);
+                    }
+                }
+                for i in (lo..hi).filter(|i| !base.contains(i)) {
+                    let Some((word, mut write)) = touch(b, i) else {
+                        continue;
+                    };
+                    // A `&mut` binding read whole lends its target to a call.
+                    if b.tags[i] == Tag::Read {
+                        write |= matches!(
+                            pool.get(b.ty[i]),
+                            hd_types::TyData::Ref {
+                                mutable: true,
+                                counted: false,
+                                ..
+                            }
+                        );
+                    }
+                    if !write && !loan.excl {
+                        continue;
+                    }
+                    let Some((r, p)) = place_path(b, word) else {
+                        continue;
+                    };
+                    let at = b.syn[i];
+                    if r == root && overlap(&path, &p) && at != NodeIdx::NONE {
+                        found.push((at, write, root));
+                    }
+                }
+            }
+        }
+        // One error for a node, or for a node inside or around a reported
+        // one.
+        let mut done: Vec<(u32, u32)> = Vec::new();
+        for (at, write, root) in found {
+            let node = self.cx.src.parse.tree.node(at);
+            let span = self.cx.src.span(node);
+            if (done.iter())
+                .any(|&(lo, hi)| lo <= span.lo && span.hi <= hi || span.lo <= lo && hi <= span.hi)
+            {
+                continue;
+            }
+            done.push((span.lo, span.hi));
+            let name = self
+                .cx
+                .names
+                .text(self.b.body_mut().local_name[root.idx()])
+                .to_owned();
+            let place = if name.starts_with('$') {
+                "the list".to_owned()
+            } else {
+                format!("`{name}`")
+            };
+            let msg = if write {
+                format!(
+                    "this changes {place} while a `for` loop borrows it; change it after the loop, or loop over a copy or by index"
+                )
+            } else {
+                format!(
+                    "this uses {place} while a `for` loop holds it as `&mut`; reach its elements through the loop's binding"
+                )
+            };
+            self.err(Code::ConflictingAccess, node, &msg);
+        }
     }
 }

@@ -30,10 +30,9 @@ impl Stack:
     fn drain(&self) -> usize:
         for peer in self.peers:
 > app/main/impl Stack.drain
->   copy List[&mut app.main.Stack]
->   retain &mut app.main.Stack
->   release &mut app.main.Stack
-            peer.items = []
+>   retain &&mut app.main.Stack
+>   release &&mut app.main.Stack
+            (*peer).items = []
 >   release counted reference
         0
 

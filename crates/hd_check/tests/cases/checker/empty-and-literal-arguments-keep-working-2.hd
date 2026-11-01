@@ -7,7 +7,7 @@ fn db_handler() -> void $ Db:
 
 fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
     for x in xs:
-        x()
+        (*x)()
 
 pub fn wire() -> void:
     run_all([db_handler])
