@@ -57,6 +57,9 @@ pub(super) struct Summaries {
     /// (`sub_flags::EXCLUSIVE`). Collection gives it to the calls whose
     /// arguments stage 7 keeps exclusive (`hd_tir::own::exclusive_call`).
     exclusive: std::sync::Mutex<HashMap<DefId, Exclusive>>,
+    /// Per item and type arguments, its promoted copy (#1151,
+    /// [`Env::promoted_copy`]), once asked.
+    promoted: std::sync::Mutex<HashMap<(DefId, TyList), Option<Exclusive>>>,
 }
 
 /// An exclusive copy: the parameters it relies on, and the body after the
@@ -1069,6 +1072,55 @@ impl Env<'_> {
         (self.run.summaries.as_ref())
             .and_then(|all| lock(&all.lent).get(&def).copied())
             .unwrap_or(0)
+    }
+
+    /// Release (#1151): `def`'s promoted copy at `args` and the parameters
+    /// it takes by value: each `&T` parameter whose referent at `args`
+    /// is small with no counted leaf (`hd_wasm_linear::promotable_referent`)
+    /// and that the owned body only reads through
+    /// (`hd_tir::own::promote::read_only_params`). None for a suspending
+    /// item, or when the pipeline does not promote.
+    pub(super) fn promoted_copy(&self, def: DefId, args: TyList) -> Option<Exclusive> {
+        let all = self
+            .run
+            .summaries
+            .as_ref()
+            .filter(|_| self.run.promote_args)?;
+        if let Some(hit) = lock(&all.promoted).get(&(def, args)) {
+            return hit.clone();
+        }
+        let out = self.promote(def, args);
+        lock(&all.promoted).insert((def, args), out.clone());
+        out
+    }
+
+    fn promote(&self, def: DefId, args: TyList) -> Option<Exclusive> {
+        if ProgramEnv::suspends(self, def) {
+            return None;
+        }
+        let b = ProgramEnv::body(self, def)?;
+        let pool = &self.run.pool;
+        let params = hd_tir::own::params(b);
+        let mut candidates = 0;
+        for (k, &l) in params.iter().enumerate().take(64) {
+            let t = hd_mono::subst(pool, self, def, args, b.local_ty[l as usize]);
+            if hd_wasm_linear::promotable_referent(pool, self, t).is_some() {
+                candidates |= 1 << k;
+            }
+        }
+        let mask = hd_tir::own::promote::read_only_params(b, candidates);
+        if mask == 0 {
+            return None;
+        }
+        let cells = self.ref_cells();
+        let referent = |t: Ty| match pool.get(t) {
+            TyData::Adt { def, args } if cells.holds(def) => {
+                pool.list_items(args).first().copied().unwrap_or(t)
+            }
+            _ => t,
+        };
+        let copy = hd_tir::own::promote::promote(b, mask, referent);
+        Some((mask, std::sync::Arc::new(copy)))
     }
 
     /// The callee scan: the items whose summaries inlined body `body`'s

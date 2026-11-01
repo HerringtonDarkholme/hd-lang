@@ -1,0 +1,35 @@
+# @dump: wat
+# @build: v8 release
+# `norm` only reads through `p`, and `area` through `self`, so a release
+# build gives each a copy that takes the referent's values (§23.40,
+# #1151): `use_point` passes `p.x` and `p.y` with no frame slot, and
+# `total[i32]` passes `x` itself to `area'1`. The plain bodies, `norm'2`
+# and `area'2`, keep the address for function values and glue; a
+# program's link drops them when nothing calls them. Both are long
+# enough that a release build leaves them calls.
+struct Point:
+    x: i32
+    y: i32
+
+trait Area:
+    fn area(&self) -> i32
+
+impl Area for i32:
+    fn area(&self) -> i32:
+        (*self + 1) * (*self + 2) * (*self + 3) * (*self + 4) * (*self + 5) / (*self + 6)
+
+fn norm(p: &Point) -> i32:
+    (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)
+
+fn total[T < Area](x: T, n: i32) -> i32:
+    let mut s = +0
+    for _ in 0..n:
+        s = s + x.area()
+    s
+
+fn use_point() -> i32:
+    let p = Point { x: +1, y: +2 }
+    norm(&p)
+
+fn use_total() -> i32:
+    total(+3, +4)

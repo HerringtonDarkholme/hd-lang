@@ -56,6 +56,13 @@ pub trait ProgramEnv: LayoutEnv {
     fn exclusive_body(&self, _def: DefId) -> Option<(u64, Arc<Body>)> {
         None
     }
+    /// Release (#1151): `def`'s promoted copy at `args`, which takes the
+    /// `&T` parameters in its mask by value (`hd_tir::own::promote`), and
+    /// which a call may run where `hd_tir::own::promote::promoted_call`
+    /// holds.
+    fn promoted_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)> {
+        None
+    }
     /// Codegen-only result facts. The driver decodes the raw checked body,
     /// without recursively entering its ownership once-cell.
     fn opaque_result(
@@ -1641,6 +1648,44 @@ impl Cx<'_> {
             self.out.instance_bodies.entry(id).or_insert(copy);
         }
         Ok(CallTarget { key, ..t })
+    }
+
+    /// Argument promotion (#1151): call `at` of `body` (instance
+    /// `caller`'s) as a call of its callee's promoted copy at its type
+    /// arguments, where the callee has one, the target is its plain
+    /// instance with no folded facts, and each promoted argument is a
+    /// reference to a local of `body` (`hd_tir::own::promote`).
+    fn promoted_target(
+        &mut self,
+        body: &Body,
+        at: usize,
+        t: &CallTarget,
+        caller: InstId,
+    ) -> StageResult<Option<CallTarget>> {
+        if t.kind != TargetKind::Instance {
+            return Ok(None);
+        }
+        let table = &self.out.table;
+        let plain = table.get(t.item, Sub::Body(0), t.args);
+        if plain.is_none_or(|p| table.key[p.idx()] != t.key) {
+            return Ok(None);
+        }
+        let Some((by_value, copy)) = self.env.promoted_body(t.item, t.args) else {
+            return Ok(None);
+        };
+        if !hd_tir::own::promote::promoted_call(body, at, by_value)
+            || self.env.instance_body(t.item, t.args)?.is_some()
+        {
+            return Ok(None);
+        }
+        let mark = [defaults::promoted(by_value)];
+        let key =
+            self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], &mark, caller)?;
+        let table = &self.out.table;
+        if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], &mark) {
+            self.out.instance_bodies.entry(id).or_insert(copy);
+        }
+        Ok(Some(CallTarget { key, ..t.clone() }))
     }
 
     /// A direct call that omits a pure constant default can use a body whose
@@ -3411,7 +3456,10 @@ impl Cx<'_> {
                         calls.insert(ix, target);
                         continue;
                     }
-                    let t = self.exclusive_target(body, i, t, id)?;
+                    let t = match self.promoted_target(body, i, &t, id)? {
+                        Some(p) => p,
+                        None => self.exclusive_target(body, i, t, id)?,
+                    };
                     self.hash_target(&t, &mut reps);
                     calls.insert(ix, Target::Call(t));
                 }

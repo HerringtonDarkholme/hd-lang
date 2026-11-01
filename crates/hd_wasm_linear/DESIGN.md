@@ -2380,6 +2380,23 @@ address. The optimized pipeline declares the pass `arg_promote`
   read-only reference to a value held in locals with no counted leaf and
   one to four Wasm values. That is a number, `bool`, `char`, or a small
   struct, tuple or enum of them.
+- **Which parameters.** `hd_tir::own::promote::read_only_params`: every
+  place rooted at the parameter is a `Read` through it (`[*$p .f]`) or a
+  `Drop` of it. A whole read of the reference (to store, return, compare
+  with `is` or pass it on), a `Ref` through it, a `Store` through it, a
+  capture and a suspension point each keep the address.
+- **The copy.** Collection gives a direct or static trait call its
+  callee's promoted copy at its type arguments (`promoted_target`, keyed
+  by the mark `defaults::promoted(mask)`), when the target is the plain
+  instance and each promoted argument is a read-only `Ref` of a part of a
+  local no closure captures, used only by the call and its `Drop`s
+  (`promoted_call`). The copy's parameter local has the referent's type,
+  and its reads drop the dereference (`promote::promote`), so the copy's
+  Wasm parameters are the referent's values (`callee_params` reads them
+  from the copy). A trait value's call, a function value's adapter and
+  every piece of glue (vtable slots, erased thunks, map key operations,
+  host codecs) call the plain instance, which keeps the address; the link
+  drops it when nothing calls it.
 - **The caller.** `promoted_refs` finds each such argument: a `Ref`
   passed to a parameter the callee instance's mark
   (`defaults::promoted(mask)`) takes by value. It is typed as its referent,
