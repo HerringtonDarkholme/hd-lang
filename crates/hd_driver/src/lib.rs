@@ -11045,6 +11045,12 @@ impl LayoutEnv for Env<'_> {
             _ => None,
         }
     }
+    fn is_enum(&self, def: DefId) -> bool {
+        self.p
+            .items
+            .get(def)
+            .is_some_and(|i| matches!(i.data, ItemData::Enum { .. }))
+    }
     fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
         match &self.p.items.get(def)?.data {
             ItemData::Enum { variants, .. } => Some(

@@ -167,7 +167,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     if env.std_kind(def) != StdKind::Other {
         return Kind::Value;
     }
-    if env.enum_variants(def, args).is_some() {
+    if env.is_enum(def) {
         return if env.recursive_enum(def) {
             Kind::Boxed
         } else {
@@ -299,7 +299,7 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
         TyData::Adt { def, args }
             if env.std_kind(def) == StdKind::Other
                 && matches!(kind(pool, env, t), Kind::Value)
-                && env.enum_variants(def, args).is_none() =>
+                && !env.is_enum(def) =>
         {
             let tys: Vec<Ty> = env
                 .data_fields(def)
@@ -844,7 +844,7 @@ pub fn struct_mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult
     let t = strip(pool, env, t);
     let fields = match pool.get(t) {
         TyData::Tuple { .. } => tuple_members(pool, t),
-        TyData::Adt { def, args } if env.enum_variants(def, args).is_none() => env
+        TyData::Adt { def, args } if !env.is_enum(def) => env
             .data_fields(def)
             .unwrap_or_default()
             .into_iter()

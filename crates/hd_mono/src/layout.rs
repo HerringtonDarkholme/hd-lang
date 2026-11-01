@@ -138,6 +138,11 @@ pub trait LayoutEnv {
     /// An enum's variant payload types as declared, over its own
     /// parameters; `None` for any other item.
     fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>>;
+    /// Whether `def` is an enum: [`Self::enum_declared`] without building
+    /// its variants, which a type test asks once per use.
+    fn is_enum(&self, def: DefId) -> bool {
+        self.enum_declared(def).is_some()
+    }
     /// Whether an enum is self-recursive (`recursive_enums`): every
     /// instance of it is boxed.
     fn recursive_enum(&self, def: DefId) -> bool;

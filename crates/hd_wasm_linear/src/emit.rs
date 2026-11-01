@@ -1034,6 +1034,14 @@ struct Em<'i, 'a, 'm> {
     /// The `Ref`s whose loans register path-slot markers, in a
     /// development build (`excl.rs`).
     marked_refs: hd_base::HashSet<u32>,
+    /// Each enum type's layout and payload positions ([`Em::flat`]), and
+    /// its variants' payload types ([`Em::variant_tys`]), once per body:
+    /// a body over a large enum, such as a derived `eq`, reads them once
+    /// per payload, and each costs as much as the enum has variants.
+    flats: std::cell::RefCell<
+        HashMap<Ty, std::rc::Rc<(crate::layout::Mem, crate::layout::Positions)>>,
+    >,
+    variant_tys: std::cell::RefCell<HashMap<Ty, std::rc::Rc<Vec<Vec<Ty>>>>>,
     /// Each such `Ref`'s marker slot addresses, kept in locals when it is
     /// emitted: its place's root may be released before its loan begins.
     path_marks: HashMap<u32, Vec<u32>>,
@@ -1198,6 +1206,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             held_srcs: HashMap::default(),
             loan_keys: HashMap::default(),
             marked_refs: hd_base::HashSet::default(),
+            flats: std::cell::RefCell::default(),
+            variant_tys: std::cell::RefCell::default(),
             path_marks: HashMap::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
@@ -2016,7 +2026,7 @@ impl Em<'_, '_, '_> {
                 self.close();
             }
             Tag::NewVariant => {
-                let tys = crate::layout::variants(self.pool(), self.env(), self.ty(i))
+                let tys = (self.variant_tys(self.ty(i)).ok())
                     .and_then(|vs| vs.get(a as usize).cloned())
                     .unwrap_or_default();
                 let payload: Vec<value::Src> =

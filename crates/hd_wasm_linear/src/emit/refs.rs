@@ -217,9 +217,9 @@ impl Em<'_, '_, '_> {
                     let Some(&Proj::Field(f)) = proj.get(k + 1) else {
                         return Ok(None);
                     };
-                    let (_, positions) = self.flat(ty)?;
-                    let tys =
-                        crate::layout::variants(self.pool(), self.env(), ty).unwrap_or_default();
+                    let flat = self.flat(ty)?;
+                    let positions = &flat.1;
+                    let tys = self.variant_tys(ty).unwrap_or_default();
                     let (Some(at), Some(&ft)) = (
                         positions.get(v as usize).and_then(|fs| fs.get(f as usize)),
                         tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
@@ -1382,8 +1382,9 @@ impl Em<'_, '_, '_> {
     /// Field `f` of variant `v`'s payload of the enum at `at`: its values
     /// among the enum's, in the boxed enum's cell when it has one.
     fn at_variant(&mut self, at: At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
-        let (m, positions) = self.flat(ty)?;
-        let tys = crate::layout::variants(self.pool(), self.env(), ty).unwrap_or_default();
+        let flat = self.flat(ty)?;
+        let (m, positions) = (&flat.0, &flat.1);
+        let tys = self.variant_tys(ty).unwrap_or_default();
         let (Some(sel), Some(&ft)) = (
             positions.get(v as usize).and_then(|fs| fs.get(f as usize)),
             tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
@@ -1563,8 +1564,7 @@ impl Em<'_, '_, '_> {
                     let Some(&Proj::Field(f)) = steps.get(k + 1) else {
                         return unsupported("a variant without its payload field");
                     };
-                    let tys =
-                        crate::layout::variants(self.pool(), self.env(), ty).unwrap_or_default();
+                    let tys = self.variant_tys(ty).unwrap_or_default();
                     ty = tys
                         .get(v as usize)
                         .and_then(|fs| fs.get(f as usize))

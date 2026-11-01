@@ -25,7 +25,8 @@ impl Em<'_, '_, '_> {
     /// values of `item` itself; and the optional's values.
     fn opt_of(&self, item: hd_types::Ty) -> StageResult<(Vec<OptVal>, Vec<crate::module::Val>)> {
         let ot = self.pool().intern_ty(&TyData::Option(item));
-        let (om, positions) = self.flat(ot)?;
+        let flat = self.flat(ot)?;
+        let (om, positions) = (&flat.0, &flat.1);
         let Some(some) = positions.get(1).and_then(|fs| fs.first()) else {
             return unsupported("an optional without its payload");
         };
