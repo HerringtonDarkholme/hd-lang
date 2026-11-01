@@ -2564,7 +2564,9 @@ impl Identity:
                 chain_valid = false
         key := pem_labels(&private_key).unwrap_or([])
         key_valid := (
-            key == ["PRIVATE KEY"] || key == ["RSA PRIVATE KEY"] || key == ["EC PRIVATE KEY"]
+            key == ["PRIVATE KEY"]
+            || key == ["RSA PRIVATE KEY"]
+            || key == ["EC PRIVATE KEY"]
         )
         if !chain_valid || !key_valid:
             return .Err(.InvalidIdentity)
@@ -2700,10 +2702,12 @@ impl Http for HostHttp:
         body := request.body.bytes()?
         settings := self.settings
         identity := settings.tls_identity.map(
-            fn(identity): WireIdentity {
-                certificate_chain: identity.certificate_chain,
-                private_key: identity.private_key,
-            },
+            fn(identity):
+                WireIdentity {
+                    certificate_chain: identity.certificate_chain,
+                    private_key: identity.private_key,
+                }
+            ,
         )
         response := self.wire.send!(
             WireRequest {

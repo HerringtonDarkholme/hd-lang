@@ -339,7 +339,13 @@ pub struct FlatMap[I < Iterator[T], T, U, J < Iterable[U], F < FnMut(T) -> J = f
     transform: F
     part: J::IntoIter?
 
-impl[I < Iterator[T], T, U, J < Iterable[U], F < FnMut(T) -> J] Iterator[U] for FlatMap[I, T, U, J, F]:
+impl[I < Iterator[T], T, U, J < Iterable[U], F < FnMut(T) -> J] Iterator[U] for FlatMap[
+    I,
+    T,
+    U,
+    J,
+    F,
+]:
     fn next(&mut self) -> U?:
         while true:
             match self.part:
