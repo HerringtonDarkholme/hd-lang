@@ -10,8 +10,9 @@ and argument promotion (#1151). Signatures and examples:
 ## The Proposal
 
 std hands out references, not copies. Accessors return `&T` or `&mut T`,
-and a callback that looks at an item takes `&T`. `for x in xs` borrows
-`xs` and binds `x: &T`, movers move, and read-only methods take `&self`. One
+and a callback that looks at an item takes `&T`. Loops follow Rust's three
+forms: `for x in xs` binds copies, `for x in &xs` borrows and binds `&T`,
+and `for x in &mut xs` binds `&mut T`. Movers move, and read-only methods take `&self`. One
 `List`, `Map`, `Set`, `Deque` and `Heap` serve copyable and non-copyable
 items; only a method that builds a new collection of copies needs `Copy`.
 
@@ -111,22 +112,24 @@ pool.idle.push(conn)                           # moves back
   place. Read traits (`Debug`, `Display`, `Eq`, `Hash`, `Serialize`) take
   `&self` and declare `< ?Copy`, so a `!Copy` type derives them.
 
-**The borrowing loop.** For `for x in xs` with `xs` a `List` place or a
-reference to one:
+**Loops.** The source decides what `x` is, as Rust's `IntoIterator` does:
 
-1. The loop takes a shared loan of `xs` from its first step to its last,
-   and binds `x: &T` to each slot. There is no snapshot.
-2. A write to `xs` in the body is `conflicting-access`. Writes are a
-   store, `push`, `&mut xs`, `&mut xs[i]`, and a `&mut self` call on a
-   place holding `xs`. Reads, `&xs[i]` and a nested loop are valid.
-3. A write through another `*mut` path panics `borrow-conflict` in a dev
-   or test build. A length change also panics `collection-pinned` in
-   every build, so `x` stays valid in release.
-4. `for p in &mut xs` takes the loan as `&mut` and binds `p: &mut T`.
-5. A comprehension `[for x in xs => e]` follows rules 1-3. Its `e` sees
-   `x: &T`, so `[for x in xs => x]` is a `List[&T]`, local to the
-   function.
-6. Ranges, iterators, `Set`, `Deque`, `Heap` and user types iterate
+1. `for x in xs` with `xs` a `List` value or place iterates a copy of the
+   list (one count, no deep copy) and binds `x: T`, a copy of each
+   element. For a non-copyable `T` the list is moved and its elements
+   moved out.
+2. `for x in &xs`, and `for x in r` with `r: &List[T]`, take a shared loan
+   of the list from the loop's first step to its last and bind `x: &T` to
+   each slot, with no snapshot. A write to the list in the body (a store,
+   `push`, `&mut xs`, `&mut xs[i]`, a `&mut self` call on a place holding
+   it) is `conflicting-access`; reads, `&xs[i]` and a nested loop are
+   valid. A write through another `*mut` path panics `borrow-conflict` in
+   a dev or test build; a length change panics `collection-pinned` in
+   every build.
+3. `for p in &mut xs` takes the loan as `&mut` and binds `p: &mut T`; the
+   list is reachable only through `p` in the body.
+4. A comprehension `[for x in ... => e]` follows the same three forms.
+5. Ranges, iterators, `Set`, `Deque`, `Heap` and user types iterate
    through `Iterable` and `Iterator` as today; their `iter()` borrows.
 
 ## Cost
@@ -174,7 +177,7 @@ compiler can say; "proposed" rows are reasoned from the rules above.
 | 5 | Swift `counts[word, default: 0] += 1` | `get_or_insert` | nothing to do |
 | 6 | `for item in self.items: self.record(item)` with `record(&mut self)` | proposed: `conflicting-access`, as Rust's E0502 | the fix is `items := self.items` (one count) or an index loop; the diagnostic names it |
 | 7 | ch. 06's snapshot example: `for value in out: out.push(value)` | today valid; proposed `conflicting-access` (today's `&out` loop already says so, p9) | `snapshot := out`, then loop over `snapshot` |
-| 8 | `fn ok(xs: List[T]) -> List[T]: [for x in xs if x.ok => x]` | `type-mismatch`: expected `T`, found `&T` | write `*x`; the message says so |
+| 8 | `fn ok(xs: List[T]) -> List[T]: [for x in xs if x.ok => x]` | valid: `x` is a copy | `[for x in &xs if x.ok => *x]` borrows instead |
 | 9 | `xs.contains(&name)` from Rust habit | `type-mismatch`: expected `string`, found `&string` | the message says the value goes by value; no fix-it while reference fix-its wait |
 | 10 | `opt.map(fn(l: &Line) -> &string: &l.sku)` | today `type-mismatch` (p10): a closure result cannot hold a reference into its argument | **gap**: write a `match`; closure result lifetimes are ch. 07 work |
 | 11 | `filter` on an owning iterator of `!Copy` items | `unsatisfied-trait-bound`: the item is copied to test it | `retain` in place, or borrow first: `conns.iter().filter(...)` |
@@ -254,9 +257,8 @@ let current = self.current.take();
 ```
 
 Accessors return references, loops borrow with `&`, movers move, and
-`copied` turns `Option<&T>` into `Option<T>`. hd takes all of it, borrows
-in `for x in xs` without the `&`, and takes keys by value instead of
-`Borrow<Q>`.
+`copied` turns `Option<&T>` into `Option<T>`. hd takes all of it, including
+the three loop forms, and takes keys by value instead of `Borrow<Q>`.
 
 **Swift** ([`Array`](https://developer.apple.com/documentation/swift/array),
 [SE-0390](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0390-noncopyable-structs-and-enums.md),
@@ -297,8 +299,9 @@ today's hd snapshot loop, and the cost this proposal removes.
   ruled it out on 2026-11-01: one collection type per kind.
 - **Rust's `get(&Q)` keys.** It needs a `Borrow` trait, and every lookup
   writes `&`: `m.get(&"ada")`.
-- **Keep the snapshot loop and borrow only in `for x in &xs`.** The owner
-  chose a borrowing `for x in xs`; the snapshot hides a copy per change.
+- **A borrowing `for x in xs`.** Every loop item becomes `&T`, so passing
+  it to a by-value parameter needs `*x` in nearly every loop (measured:
+  7 of 10 playground examples, about 400 lines in the repo).
 - **An iterator `copied()` adapter.** A default method cannot require
   `T = &U`, and a blanket impl is `bare-parameter-impl-target` (p7).
 - **Rename `Iterable.iter` to `into_iter`.** The inherent `iter(&self)`
