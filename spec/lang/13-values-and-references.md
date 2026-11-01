@@ -255,7 +255,7 @@ See also: [Prelude Functions](10-modules.md#prelude-functions),
 1. r[ref.place.writable] `&mut e` on a place requires a writable place. A `let mut` local, a `mut` parameter, `mut self`, and a value reached through a writable reference, `*mut` or `&mut`, are writable. A struct field of a writable place is writable too.
 2. r[ref.place.writable.top-level] A top-level binding is writable when it is bound with `let mut`.
 3. r[ref.place.writable.collection] `&mut` of a list or a map value in a writable place is valid. A change through the reference changes that place.
-4. r[ref.place.writable.enum] `&mut` of an enum value in a writable place is valid: a `let mut` local, a `mut` parameter, or a struct field of one. `*r = v` through `&mut E` replaces the whole value. A payload is no place (`ref.match.copy`), so `&mut` of a payload binding is an error by the rows below.
+4. r[ref.place.writable.enum] `&mut` of an enum value in a writable place is valid: a `let mut` local, a `mut` parameter, or a struct field of one. `*r = v` through `&mut E` replaces the whole value. A copied payload binding is no place (`ref.match.copy`), so `&mut` of one is an error by the rows below.
 5. r[ref.place.shared-any] `&e` needs no writable place: it may refer to a `:=` binding, a plain `let` binding, or a value parameter.
 
 `&mut` of a place that is not writable is an error, by what holds the place:
@@ -1477,8 +1477,10 @@ fn eval(e: &Expr) -> i64:
 1. r[ref.match.read] A variant, tuple, data, literal, or range pattern matched against a reference of either kind, `*T`, `*mut T`, `&T`, or `&mut T`, matches the value the reference refers to.
 2. r[ref.match.nested] The rule applies at every depth: a nested pattern reads through a payload field, a tuple element, or a struct field of reference type.
 3. r[ref.match.binding] A binding or `_` matched against a reference takes the reference itself, so `whole => whole is e` is `true`.
-4. r[ref.match.copy] A payload or field that a pattern binds below such a read is a copy of it, read at the time of the match. A payload is not a place.
+4. r[ref.match.copy] A copied payload or field that a pattern binds below such a read is a copy of it, read at the time of the match.
 5. r[ref.match.declared-type] A binding copied by a pattern through a reference keeps its declared type.
+6. r[ref.match.borrow] Below a `&T` or `&mut T`, a pattern binds a payload or field whose type is not copied as a reference to it. The binding has type `&F` below a `&T`, and `&mut F` below a `&mut T` with no `&` above it. Error: `type-mismatch` where an `F` is expected.
+7. r[ref.match.borrow.excl] Such a binding is a reference to the matched place, like `&*r` or `&mut *r`. [`ref.excl.mut`](#r-ref.excl.mut) and [`ref.excl.shared`](#r-ref.excl.shared) apply to it while it is live. Error: `conflicting-access`.
 
 ```text
 enum Holder:
@@ -1492,10 +1494,27 @@ fn reset(h: &Holder) -> void:
         .Empty => pass
 ```
 
-> **Why.** Payloads are not places, so a match never lends part of an
-> enum. A binding is a copy, and a later write to the matched place does
-> not change it; an enum's layout can then change between variants under
-> no reference.
+```text
+struct Photo:
+    width: i32
+
+impl !Copy for Photo
+
+enum Slot:
+    Empty
+    Full(Photo)
+
+fn widen(r: &mut Slot) -> void:
+    match r:
+        .Full(p) => p.width += 1   # p: &mut Photo
+        .Empty => pass
+```
+
+> **Why.** A copied binding is a value, so a later write to the matched
+> place does not change it. A payload that is not copied cannot be read
+> out of a place behind a reference, so the pattern lends it instead,
+> and the exclusivity rules keep the enum's variant fixed while the loan
+> is live.
 
 See also: [Payload Bindings](06-control-flow.md#payload-bindings),
 [Exhaustiveness](06-control-flow.md#exhaustiveness).

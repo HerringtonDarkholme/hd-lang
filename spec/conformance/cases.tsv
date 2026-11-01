@@ -1398,6 +1398,8 @@ typing/invalid/integer-literal-match-without-catch-all.hd	type	reject:nonexhaust
 runtime/valid/literal-patterns.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 typing/invalid/guarded-catch-all-not-exhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#match-expressions
 typing/invalid/match-guard-type-mismatch.hd	type	reject:type-mismatch	lang/06-control-flow.md#match-expressions
+typing/invalid/match-reference-payload-borrow-conflict.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.match.borrow.excl
+typing/invalid/match-reference-payload-borrow-type.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.match.borrow
 typing/valid/match-guard-reads-binding.hd	type	accept	lang/06-control-flow.md#match-expressions
 runtime/valid/match-guards.hd	runtime	accept	lang/06-control-flow.md#match-expressions
 runtime/valid/optional-propagation.hd	runtime	accept	lang/04-type-system.md#optional-types
@@ -4802,6 +4804,7 @@ runtime/valid/recursive-list-tree.hd	runtime	accept	lang/08-data-and-enums.md#r-
 runtime/valid/recursive-optional-reference-list.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.contains.reference
 runtime/valid/match-reference-payload-copy.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.copy
 runtime/valid/match-reference-declared-payload.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.declared-type
+runtime/valid/match-reference-payload-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 typing/invalid/match-reference-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#r-flow.match.cover.reference
 runtime/valid/serde-reference-round-trip.hd	runtime	accept	std/serde.md#r-std-serde.std.reference
 runtime/valid/list-copy-independent.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value

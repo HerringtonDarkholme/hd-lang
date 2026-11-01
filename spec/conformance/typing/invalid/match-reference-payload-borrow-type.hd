@@ -1,0 +1,18 @@
+# test: a payload that is not copied, bound below a reference, is a reference and not the payload's own type
+# Spec 13 Matching Through A Reference: ref.match.borrow.
+struct Photo:
+    width: i32
+
+impl !Copy for Photo
+
+enum Slot:
+    Empty
+    Full(Photo)
+
+fn take(p: Photo) -> i32:
+    p.width
+
+fn s(r: &Slot) -> i32:
+    match r:
+        .Full(p) => take(p) # diagnostic: type-mismatch
+        .Empty => 0

@@ -113,6 +113,25 @@ pub enum Helper {
         first: u32,
         offset: u32,
     },
+    /// A reference to an enum's payload field: a view over the reference
+    /// to the enum, always, since the field's leaves lie in the enum's
+    /// shared slots (`picks`, by leaf index) rather than at one offset.
+    RefPayload {
+        parent: RefLayout,
+        field: RefLayout,
+        picks: Vec<u32>,
+        offset: u32,
+    },
+    RefPayloadGet {
+        parent: RefLayout,
+        field: RefLayout,
+        picks: Vec<u32>,
+    },
+    RefPayloadSet {
+        parent: RefLayout,
+        field: RefLayout,
+        picks: Vec<u32>,
+    },
     /// Whether an address names a counted representation view.
     RefIsView,
     /// A link-time proof: no reachable representation-view constructor.
@@ -1408,6 +1427,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::RefProject { .. } | Helper::RefFieldGet { .. } | Helper::RefFieldSet { .. } => {
             ref_field_helper(h, m)
+        }
+        Helper::RefPayload { .. } | Helper::RefPayloadGet { .. } | Helper::RefPayloadSet { .. } => {
+            ref_payload_helper(h, m)
         }
         Helper::RefIsView
         | Helper::RefViewDrop
@@ -4423,6 +4445,100 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
             f
         }
         _ => unreachable!("a field reference helper"),
+    }
+}
+
+/// [`Helper::RefPayload`] and its getter and setter: a view whose source
+/// is the reference to the enum. The getter loads the enum and boxes the
+/// leaves `picks` names; the setter loads it, puts the new leaves there,
+/// and stores it back.
+fn ref_payload_helper(h: &Helper, m: &Module) -> Func {
+    match h {
+        Helper::RefPayload {
+            parent,
+            field,
+            picks,
+            offset,
+        } => {
+            let mut f = m.func("rt:ref_payload", vec![Val::I32], vec![Val::I32]);
+            let at = f.local(Val::I32);
+            f.i32(20);
+            // A view holds its source, whose type is not known here, so
+            // it takes part in cycle collection.
+            push_desc(&mut f, Some(Sym::Helper(Helper::RefViewDrop)), true);
+            f.helper(Helper::New);
+            f.set(at);
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.retain));
+            }
+            f.get(at);
+            f.get(0);
+            f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+            for (slot, helper) in [
+                (
+                    4,
+                    Helper::RefPayloadGet {
+                        parent: parent.clone(),
+                        field: field.clone(),
+                        picks: picks.clone(),
+                    },
+                ),
+                (
+                    8,
+                    Helper::RefPayloadSet {
+                        parent: parent.clone(),
+                        field: field.clone(),
+                        picks: picks.clone(),
+                    },
+                ),
+            ] {
+                f.get(at);
+                f.table_slot(Sym::Helper(helper));
+                f.op(Instruction::I32Store(mem(HEAP, slot, 2)));
+            }
+            f.get(at);
+            f.u32(*offset);
+            f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+            f.get(at);
+            f.i32(0);
+            f.op(Instruction::I32Store(mem(HEAP, 16, 2)));
+            f.get(at);
+            f
+        }
+        Helper::RefPayloadGet {
+            parent,
+            field,
+            picks,
+        } => {
+            let mut f = m.func("rt:ref_payload_get", vec![Val::I32], vec![Val::I32]);
+            let src = view_source(&mut f);
+            let ls = ref_load(&mut f, src, parent);
+            let child: Vec<u32> = picks.iter().map(|&p| ls[p as usize]).collect();
+            ref_count(&mut f, &child, field, true);
+            ref_count(&mut f, &ls, parent, false);
+            ref_box(&mut f, &child, field);
+            f
+        }
+        Helper::RefPayloadSet {
+            parent,
+            field,
+            picks,
+        } => {
+            let mut f = m.func("rt:ref_payload_set", vec![Val::I32; 2], vec![]);
+            let child = ref_unbox(&mut f, 1, field);
+            let src = view_source(&mut f);
+            let ls = ref_load(&mut f, src, parent);
+            let into: Vec<u32> = picks.iter().map(|&p| ls[p as usize]).collect();
+            ref_count(&mut f, &into, field, false);
+            for (target, source) in into.iter().zip(child) {
+                f.get(source);
+                f.set(*target);
+            }
+            ref_store(&mut f, src, &ls, parent, true);
+            f
+        }
+        _ => unreachable!("a payload reference helper"),
     }
 }
 

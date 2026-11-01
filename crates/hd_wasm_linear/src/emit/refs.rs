@@ -637,11 +637,92 @@ impl Em<'_, '_, '_> {
                 (_, None) => return unsupported("a dereference of a value that is no reference"),
             };
         }
+        let owned_base = view.map(|(_, v)| v[0]);
         let Some(path) = fields(&p.proj[from..]) else {
-            return unsupported("a reference to a payload field");
+            self.payload_ref(i, &at, ty, &p.proj[from..], owned_base, fat)?;
+            return self.release_fresh(&fresh);
         };
-        self.ref_from(i, at, ty, &path, view.map(|(_, v)| v[0]), fat)?;
+        self.ref_from(i, at, ty, &path, owned_base, fat)?;
         self.release_fresh(&fresh)
+    }
+
+    /// The rest of `Ref` `i` when `steps` go through a variant's payload
+    /// (`ref.match.borrow`): a view over the reference to the enum at
+    /// `base`, of type `ty`, whose getter and setter pick the field's
+    /// leaves out of the enum's shared slots, since those lie at no one
+    /// offset. `owned_base` is a view the head made, released after.
+    fn payload_ref(
+        &mut self,
+        i: u32,
+        base: &At,
+        parent_ty: Ty,
+        steps: &[Proj],
+        owned_base: Option<u32>,
+        fat: bool,
+    ) -> StageResult<()> {
+        if fat {
+            return unsupported("a reference to a payload field that is a trait value");
+        }
+        let &At::Mem(a, off) = base else {
+            return unsupported("a reference to a payload field in no memory");
+        };
+        let parent = self.ref_layout(parent_ty)?;
+        let mut picks: Vec<u32> =
+            (0..u32::try_from(parent.leaves.len()).expect("leaves")).collect();
+        let mut ty = parent_ty;
+        let mut k = 0;
+        while k < steps.len() {
+            match (steps[k], steps.get(k + 1)) {
+                (Proj::Variant(v), Some(&Proj::Field(f))) => {
+                    if matches!(self.kind(ty), Kind::Boxed) {
+                        return unsupported("a reference to a payload field of a boxed enum");
+                    }
+                    let layout = self.flat(ty)?;
+                    let tys = self.variant_tys(ty)?;
+                    let (Some(sel), Some(&ft)) = (
+                        layout.1.get(v as usize).and_then(|fs| fs.get(f as usize)),
+                        tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
+                    ) else {
+                        return unsupported("a payload field the enum does not have");
+                    };
+                    picks = sel.iter().map(|&p| picks[p]).collect();
+                    ty = ft;
+                    k += 2;
+                }
+                (Proj::Field(f), _) => {
+                    let (ft, part) = self.path_step(ty, f)?;
+                    picks = picks[part.first..part.first + part.count].to_vec();
+                    ty = ft;
+                    k += 1;
+                }
+                _ => return unsupported("a reference to a payload field through this place"),
+            }
+        }
+        let field = self.ref_layout(ty)?;
+        let fits = picks.len() == field.leaves.len()
+            && picks
+                .iter()
+                .zip(&field.leaves)
+                .all(|(&p, l)| parent.leaves[p as usize].val == l.val);
+        if !fits {
+            return unsupported("a payload field whose leaves differ from its slots");
+        }
+        let offset = picks
+            .first()
+            .map_or(0, |&p| parent.leaves[p as usize].offset);
+        let at = self.offset_local(a, off);
+        self.f.get(at);
+        self.f.helper(Helper::RefPayload {
+            parent,
+            field,
+            picks,
+            offset,
+        });
+        self.store_owned(i)?;
+        if let Some(view) = owned_base {
+            self.release_open(view);
+        }
+        Ok(())
     }
 
     /// The rest of `Ref` `i` from where its place's head lies (`base`, of

@@ -1396,7 +1396,9 @@ impl Module {
             && !seen.iter().any(|s| {
                 matches!(
                     &*self.symbols.get(s),
-                    Sym::Helper(crate::rt::Helper::RefView { .. })
+                    Sym::Helper(
+                        crate::rt::Helper::RefView { .. } | crate::rt::Helper::RefPayload { .. }
+                    )
                 )
             })
         {
@@ -1500,7 +1502,10 @@ impl Module {
                 f.is_some()
                     && matches!(
                         &*self.symbols.get(SymId(u32::try_from(k).expect("symbols"))),
-                        Sym::Helper(crate::rt::Helper::RefView { .. })
+                        Sym::Helper(
+                            crate::rt::Helper::RefView { .. }
+                                | crate::rt::Helper::RefPayload { .. }
+                        )
                     )
             });
         for f in self.funcs.iter_mut().flatten() {

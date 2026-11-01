@@ -445,6 +445,13 @@ pub(crate) struct Ck<'a, 'c> {
     /// Set when `declare_pattern` rejected a pattern; its arm then takes
     /// no part in the reachability and exhaustiveness checks.
     pub pattern_rejected: bool,
+    /// While a pattern is declared below a local reference's read: the
+    /// binding mode, `Some(true)` for `&mut`, `Some(false)` once a `&`
+    /// is crossed (`ref.match.borrow`).
+    pub pattern_below_ref: Option<bool>,
+    /// The pattern bindings that take a reference to their payload rather
+    /// than a copy, and whether it is `&mut` (`ref.match.borrow`).
+    pub ref_bound: HashMap<LocalId, bool>,
     /// Source bindings for unread-suspension checks and optional tooling facts.
     pub user_locals: Vec<LocalId>,
     /// Whether the body read a name that a failed `use` poisoned, or a
@@ -669,6 +676,8 @@ pub(crate) fn new_ck<'a, 'c>(
         written_row: None,
         let_view: None,
         pattern_rejected: false,
+        pattern_below_ref: None,
+        ref_bound: HashMap::default(),
         user_locals: Vec::new(),
         norm_depth: 0,
         pre_args: Vec::new(),

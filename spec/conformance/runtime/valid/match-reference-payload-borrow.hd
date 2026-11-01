@@ -1,0 +1,48 @@
+# test: matching through a reference binds a payload that is not copied as a reference of the same kind, which reads and writes the payload in place
+# Spec 13 Matching Through A Reference: ref.match.borrow, ref.match.copy.
+# expect-stdout: 3 1005 -1
+# expect-stdout: a b/7 none
+# expect-stdout: 6 1007 b!!/7
+struct Photo:
+    width: i32
+    name: string
+
+impl !Copy for Photo
+
+enum Slot:
+    Empty
+    Full(Photo)
+    Pair(i64, Photo)
+
+fn width_of(r: &Slot) -> i32:
+    match r:
+        .Full(p) => p.width
+        .Pair(_, p) => p.width + 1000
+        .Empty => -1
+
+fn name_of(r: &Slot) -> string:
+    match r:
+        .Full(p) => p.name
+        .Pair(n, p) => "${p.name}/$n"
+        .Empty => "none"
+
+fn grow(r: &mut Slot) -> void:
+    match r:
+        .Full(p) =>
+            let q: &mut Photo = p
+            q.width = q.width * 2
+        .Pair(_, p) =>
+            p.width = p.width + 1
+            p.name = "${p.name}!"
+        .Empty => pass
+
+pub fn main() -> void $ Console:
+    let mut a = Slot.Full(Photo { width: 3, name: "a" })
+    let mut b = Slot.Pair(7, Photo { width: 5, name: "b" })
+    let e = Slot.Empty
+    println("${width_of(&a)} ${width_of(&b)} ${width_of(&e)}")
+    println("${name_of(&a)} ${name_of(&b)} ${name_of(&e)}")
+    grow(&mut a)
+    grow(&mut b)
+    grow(&mut b)
+    println("${width_of(&a)} ${width_of(&b)} ${name_of(&b)}")

@@ -1,0 +1,17 @@
+# test: a payload bound below a `&mut` is a loan of the matched place, so replacing the place while the binding is used later conflicts
+# Spec 13 Matching Through A Reference: ref.match.borrow.excl.
+struct Photo:
+    width: i32
+
+impl !Copy for Photo
+
+enum Slot:
+    Empty
+    Full(Photo)
+
+fn clear_while_lent(r: &mut Slot) -> i32:
+    match r:
+        .Full(p) =>
+            *r = .Empty # diagnostic: conflicting-access
+            p.width
+        .Empty => 0

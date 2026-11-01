@@ -124,11 +124,19 @@ fn mut_result(s: &Inputs<'_>, i: u32) -> Option<usize> {
 }
 
 /// Whether `Ref` `i` is a written `&` or `&mut` that takes a site loan
-/// (`ref.excl.place`, `ref.excl.mut`).
+/// (`ref.excl.place`, `ref.excl.mut`), or a pattern's binding of a
+/// payload below a reference, which is such a reference too
+/// (`ref.match.borrow`).
 pub(super) fn site(s: &Inputs<'_>, i: u32) -> bool {
     let at = s.b.syn[i as usize];
     at != NodeIdx::NONE
-        && s.cx.src.parse.tree.node(at).kind() == SyntaxKind::RefExpr
+        && matches!(
+            s.cx.src.parse.tree.node(at).kind(),
+            SyntaxKind::RefExpr
+                | SyntaxKind::BindingPattern
+                | SyntaxKind::NamedPattern
+                | SyntaxKind::DataPatternField
+        )
         && s.b.tags[i as usize] == Tag::Ref
         && loan_path(s, i).is_some()
 }
@@ -773,7 +781,23 @@ impl Order<'_, '_, '_> {
         let again = cy[k..]
             .iter()
             .any(|&l| self.b.tags[l as usize] == Tag::Loop && self.outside(h, l));
-        again || x < y && !self.apart(&cx, &cy, k, lca) && !self.ends(&cx, lca)
+        let before = x < y || self.decides(&cx, &cy, k, lca);
+        again || before && !self.apart(&cx, &cy, k, lca) && !self.ends(&cx, lca)
+    }
+
+    /// Whether `x` lies in the block that decides match `lca` and `y` in
+    /// one of its arms, which runs after it whatever their order in the
+    /// body: a pattern's binding (`ref.match.borrow`) is made there.
+    fn decides(&self, cx: &[u32], cy: &[u32], k: usize, lca: u32) -> bool {
+        let b = self.b;
+        if b.tags[lca as usize] != Tag::Match || k == 0 {
+            return false;
+        }
+        let Some(j) = cx.iter().position(|&a| a == lca).filter(|&j| j > 0) else {
+            return false;
+        };
+        let first = b.record(b.data[lca as usize][1]).first().copied();
+        Some(cx[j - 1]) == first && Some(cy[k - 1]) != first
     }
 
     /// Whether one of the stores `sets` of a binding runs on every path

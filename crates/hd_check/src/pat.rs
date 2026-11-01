@@ -13,7 +13,9 @@ use hd_base::{LocalId, NodeIdx, StageResult};
 use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink};
+use hd_tir::ir::{
+    IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, PrimOp, Proj, Ref, Tag, TirSink,
+};
 use hd_types::{Prim, Ty, TyData, VarKind};
 
 use crate::body::{Ck, ExpectPosition, unsupported};
@@ -203,7 +205,16 @@ impl Ck<'_, '_> {
         if tests_value(p)
             && let Some((referent, mutable)) = self.ref_of(t)
         {
-            return self.declare_pattern(p, self.deref_ty(referent, mutable), binds);
+            // `ref.match.borrow`: below a local reference a binding of a
+            // payload that is not copied takes a reference of its kind;
+            // a `&` crossed keeps every binding below it shared.
+            let saved = self.pattern_below_ref;
+            if self.ref_counted(t) == Some(false) {
+                self.pattern_below_ref = Some(saved.map_or(mutable, |m| m && mutable));
+            }
+            let r = self.declare_pattern(p, self.deref_ty(referent, mutable), binds);
+            self.pattern_below_ref = saved;
+            return r;
         }
         let tr = self.infer.resolve(pool, t);
         let inner = match pool.get(tr) {
@@ -609,7 +620,22 @@ impl Ck<'_, '_> {
             Some(false) => self.readonly_view(t),
             _ => t,
         };
+        let borrow = self.pattern_below_ref.filter(|_| !self.copies(t));
+        let t = match borrow {
+            Some(mutable) => {
+                let pool = self.pool();
+                pool.intern_ty(&TyData::Ref {
+                    inner: self.strip_mut(t),
+                    mutable,
+                    counted: false,
+                })
+            }
+            None => t,
+        };
         let l = self.bind_local(name, t, p);
+        if let Some(mutable) = borrow {
+            self.ref_bound.insert(l, mutable);
+        }
         if self.let_view.is_some()
             && p.direct_tokens()
                 .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
@@ -1268,6 +1294,10 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let first = m.remove(0);
         for &(l, v, at) in &first.sets {
+            let v = match self.ref_bound.get(&l) {
+                Some(&mutable) => self.payload_ref(l, v, mutable, at).unwrap_or(v),
+                None => v,
+            };
             self.set_local(l, v, at);
         }
         let row = &rows[first.row];
@@ -1289,6 +1319,45 @@ impl Ck<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// `ref.match.borrow`: the reference a binding below a local reference
+    /// takes to its payload. The column's value `v` reads the payload out
+    /// of a read through the reference; the reference is to the same place,
+    /// read through the reference itself: `[*r as #1 .0]`. `None` when `v`
+    /// reads no such place.
+    fn payload_ref(&mut self, l: LocalId, v: Ref, mutable: bool, at: NodeIdx) -> Option<Ref> {
+        let b = self.b.body();
+        let i = v.as_inst()?.0 as usize;
+        if b.tags[i] != Tag::Read {
+            return None;
+        }
+        let mut place = b.decode_place(b.data[i][0])?;
+        // Prefix each read the place is rooted at, until the one that
+        // dereferences the reference.
+        loop {
+            let PlaceRoot::Value(x) = place.root else {
+                return None;
+            };
+            let x = x.0 as usize;
+            if x >= b.len() || b.tags[x] != Tag::Read {
+                return None;
+            }
+            let inner = b.decode_place(b.data[x][0])?;
+            let deref = inner.proj.contains(&Proj::Deref);
+            let mut proj = inner.proj;
+            proj.extend(place.proj);
+            place = TirPlace {
+                root: inner.root,
+                proj,
+            };
+            if deref {
+                break;
+            }
+        }
+        let ty = self.b.local_ty(l);
+        let word = self.b.place(&place);
+        Some(self.b.emit(Tag::Ref, word, u32::from(mutable), ty, at))
     }
 
     /// Replaces tuple column `j` by a column per member that some row
