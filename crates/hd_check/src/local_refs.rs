@@ -124,15 +124,40 @@ pub fn declarations(src: &Src<'_>, diags: &mut DiagBuf) {
     }
 }
 
-/// Every type under `n` outside a type, in its declaration's position.
+/// One step of [`walk`]'s work: a node to walk, a type to check in its
+/// position, or a body's local functions.
+enum Task<'t> {
+    Walk(NodeRef<'t>, bool),
+    Ty(NodeRef<'t>, Option<Escape>, bool),
+    LocalFns(NodeRef<'t>),
+}
+
+/// Every type under `n` outside a type, in its declaration's position. A
+/// work stack, not recursion: a method chain nests one node per link, so
+/// a long one would overflow the stack (#1180). Each node's tasks run in
+/// order, before its next sibling's, as a recursive walk would.
 fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
+    let mut stack = vec![Task::Walk(n, body)];
+    let mut next = Vec::new();
+    while let Some(task) = stack.pop() {
+        match task {
+            Task::Walk(n, body) => walk_node(src, n, body, &mut next),
+            Task::Ty(n, at, keep) => walk_ty(src, n, at, keep, diags),
+            Task::LocalFns(n) => local_fns(src, n, diags),
+        }
+        stack.extend(next.drain(..).rev());
+    }
+}
+
+/// The tasks of walking node `n`, in order.
+fn walk_node<'t>(src: &Src<'_>, n: NodeRef<'t>, body: bool, next: &mut Vec<Task<'t>>) {
     match n.kind() {
         SyntaxKind::DataField => {
             for c in n.children() {
                 if c.kind().is_type() {
-                    walk_ty(src, c, Some(Escape::Field), true, diags);
+                    next.push(Task::Ty(c, Some(Escape::Field), true));
                 } else {
-                    walk(src, c, body, diags);
+                    next.push(Task::Walk(c, body));
                 }
             }
         }
@@ -143,14 +168,14 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
                     for p in c.children() {
                         for t in p.children() {
                             if t.kind().is_type() {
-                                walk_ty(src, t, Some(Escape::Field), true, diags);
+                                next.push(Task::Ty(t, Some(Escape::Field), true));
                             } else {
-                                walk(src, t, body, diags);
+                                next.push(Task::Walk(t, body));
                             }
                         }
                     }
                 } else {
-                    walk(src, c, body, diags);
+                    next.push(Task::Walk(c, body));
                 }
             }
         }
@@ -159,15 +184,15 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
         SyntaxKind::FnDecl => {
             for c in n.children() {
                 if c.kind() == SyntaxKind::Block {
-                    local_fns(src, c, diags);
+                    next.push(Task::LocalFns(c));
                 }
-                walk(src, c, c.kind() == SyntaxKind::Block, diags);
+                next.push(Task::Walk(c, c.kind() == SyntaxKind::Block));
             }
         }
         // A test case's suite is a body.
         SyntaxKind::TrailingCallExpr => {
             for c in n.children() {
-                walk(src, c, true, diags);
+                next.push(Task::Walk(c, true));
             }
         }
         // A closure's written result may hold a local reference, whose
@@ -176,9 +201,9 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
         SyntaxKind::ClosureExpr => {
             for c in n.children() {
                 if c.kind().is_type() {
-                    walk_ty(src, c, None, !body, diags);
+                    next.push(Task::Ty(c, None, !body));
                 } else {
-                    walk(src, c, body, diags);
+                    next.push(Task::Walk(c, body));
                 }
             }
         }
@@ -187,7 +212,7 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
         SyntaxKind::TypeDecl => {
             if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_none() {
                 for c in n.children().filter(|c| c.kind().is_type()) {
-                    walk_ty(src, c, Some(Escape::Field), true, diags);
+                    next.push(Task::Ty(c, Some(Escape::Field), true));
                 }
             }
         }
@@ -195,7 +220,7 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
         // hold a local reference (`ref.generic.local`).
         SyntaxKind::TypeArgumentList => {
             for c in n.children() {
-                walk_ty(src, c, None, !body, diags);
+                next.push(Task::Ty(c, None, !body));
             }
         }
         // `ref.lifetime.store.type`: a `&mut` parameter's list or
@@ -203,16 +228,16 @@ fn walk(src: &Src<'_>, n: NodeRef<'_>, body: bool, diags: &mut DiagBuf) {
         SyntaxKind::Parameter if !body => {
             for c in n.children() {
                 if c.kind().is_type() {
-                    walk_ty(src, c, None, !lifetime_place(src, c), diags);
+                    next.push(Task::Ty(c, None, !lifetime_place(src, c)));
                 } else {
-                    walk(src, c, body, diags);
+                    next.push(Task::Walk(c, body));
                 }
             }
         }
-        _ if n.kind().is_type() => walk_ty(src, n, None, !body, diags),
+        _ if n.kind().is_type() => next.push(Task::Ty(n, None, !body)),
         _ => {
             for c in n.children() {
-                walk(src, c, body, diags);
+                next.push(Task::Walk(c, body));
             }
         }
     }
@@ -361,7 +386,10 @@ fn ref_positions<'s>(src: &Src<'s>, n: NodeRef<'_>, out: &mut Vec<Option<&'s str
 /// holds a local reference needs one source as a function type's does
 /// (`fn.closure.lifetime`).
 fn local_fns(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
-    for c in n.children() {
+    // A work stack in source order, as `walk`'s: a long chain nests deep.
+    let mut stack: Vec<NodeRef<'_>> = n.children().collect();
+    stack.reverse();
+    while let Some(c) = stack.pop() {
         match c.kind() {
             SyntaxKind::FnDecl => {
                 let Some(ret) = c
@@ -384,7 +412,11 @@ fn local_fns(src: &Src<'_>, n: NodeRef<'_>, diags: &mut DiagBuf) {
                 }
             }
             SyntaxKind::ImplDecl | SyntaxKind::TraitDecl => {}
-            _ => local_fns(src, c, diags),
+            _ => {
+                let start = stack.len();
+                stack.extend(c.children());
+                stack[start..].reverse();
+            }
         }
     }
 }
