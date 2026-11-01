@@ -1,6 +1,6 @@
 use std.http.{Http, Request, Response, request_from_wire, response_to_wire}
 use std.http_wire.{WireRequest, WireResponse}
-use std.task.{apply, map_all, race, timeout, TimedOut, CleanupEnd}
+use std.task.{apply, map_join, race, timeout, TimedOut, CleanupEnd}
 use std.ops.AsyncDisposable
 use std.time.{Clock, ms, s}
 
@@ -122,7 +122,7 @@ pub fn serve![S, $ R](
     let mut slots: List[usize] = []
     for slot in 0..width:
         slots.push(slot)
-    results := map_all!(
+    results := map_join!(
         slots,
         width,
         fn!(_slot: usize) -> Result[void, ServerError] $ R + HttpServer: worker!(state, handler)

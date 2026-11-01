@@ -6,7 +6,7 @@
 # operation, so block_on polls again instead of waiting in the host.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, block_on, race}
+use std.task.{join, block_on, race}
 use std.time.{Clock, s, sleep}
 
 struct Conn:
@@ -43,7 +43,7 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
     "stopped"
 
 fn trio!(job: mut Suspend[string], log: &mut List[string]) -> string:
-    let (winner, waited, stopped) = all!(race(job, ready()), waiter(job, log), stop(job, log))
+    let (winner, waited, stopped) = join!(race(job, ready()), waiter(job, log), stop(job, log))
     "${winner} ${waited} ${stopped}"
 
 fn drive(log: *mut List[string]) -> string $ Clock:

@@ -56,7 +56,7 @@ fn program(body: &str) -> String {
     format!(
         "\
 use std.time.{{Clock, Duration, sleep}}
-use std.task.{{all, race}}
+use std.task.{{join, race}}
 use std.ops.defer
 
 fn nap!(ms: i64) -> void $ Clock:

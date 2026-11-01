@@ -5,7 +5,7 @@
 # test: a task cancelled because the job it awaits was cancelled ends .Abandoned when that job's cleanup ended .Abandoned, before the await or while the task unwinds, and .Cancelled otherwise; the result carries up a chain of awaiters
 # Spec lang/11 Abandoning: req.abandon.carry; Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate; Driving A Stored Suspension: req.drive.block-on.cancelled.
 use std.ops.AsyncDisposable
-use std.task.{all, block_on}
+use std.task.{join, block_on}
 use std.time.{Clock, s, sleep}
 
 struct Conn['a]:
@@ -31,19 +31,19 @@ fn stop!(job: mut Suspend[string], hard: bool) -> string:
         job.cancel!()
     "stopped"
 
-# `all!` polls `job` again once `stop` cancelled it, so `pair` is
+# `join!` polls `job` again once `stop` cancelled it, so `pair` is
 # cancelled at that await and its cleanup folds the job's.
 fn pair!(job: mut Suspend[string], hard: bool) -> string:
-    let (a, b) = all!(job, stop(job, hard))
+    let (a, b) = join!(job, stop(job, hard))
     "${a} ${b}"
 
 fn watch!(job: mut Suspend[string]) -> string:
     job!()
 
 # `watch` is cancelled at its bang call of `job`, and `chained` at its
-# `all!` of `watch`.
+# `join!` of `watch`.
 fn chained!(job: mut Suspend[string]) -> string:
-    let (a, b) = all!(watch(job), stop(job, true))
+    let (a, b) = join!(watch(job), stop(job, true))
     "${a} ${b}"
 
 fn report!(task: mut Suspend[string]) -> string:

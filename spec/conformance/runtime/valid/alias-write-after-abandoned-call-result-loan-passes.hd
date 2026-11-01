@@ -2,7 +2,7 @@
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.loan; Spec 11 Abandoning.
 # expect-stdout: won stopped
 # expect-stdout: a 2
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, sleep}
 
 struct User:
@@ -32,7 +32,7 @@ pub fn main!() -> void $ Console + Clock:
     t := Team { lead: box(User { name: "a", age: +1 }) }
     alias := t.lead
     let mut job: mut Suspend[string] = hold(t)
-    let (w, s) = all!(race(job, ready()), stop(job))
+    let (w, s) = join!(race(job, ready()), stop(job))
     println("${w} ${s}")
     alias.age += 1
     println("${alias.name} ${alias.age}")

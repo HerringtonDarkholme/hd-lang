@@ -241,10 +241,10 @@ its other tasks:
 
 ```hd
 use std.http.{Http, HttpError, Response, get}
-use std.task.all
+use std.task.join
 
 fn both!(left: string, right: string) -> (Result[Response, HttpError], Result[Response, HttpError]) $ Http:
-    all!(get(left), get(right))   # both requests wait at the same time
+    join!(get(left), get(right))   # both requests wait at the same time
 ```
 
 1. r[std-host.op.wait] A bang host method that waits lets the instance run its other tasks until it completes.

@@ -1,7 +1,7 @@
 # Cancelling a pending wait leaves its socket open and its input available.
 # No time provider is needed to let a sibling cancel a network wait.
 use std.net.{Net, NetError, TcpStream, UdpSocket, bind_udp, connect, listen}
-use std.task.{all, race}
+use std.task.{join, race}
 use std.testing.assert_equal
 
 fn read_size!(stream: &mut dyn TcpStream) -> usize:
@@ -16,7 +16,7 @@ fn stop!() -> usize:
 pub fn main!() -> Result[void, NetError] $ Net + Console:
     using! listener = listen!("127.0.0.1", 0)?
     address := listener.local_address()?
-    pair := all!(listener.accept(), connect("127.0.0.1", address._1))
+    pair := join!(listener.accept(), connect("127.0.0.1", address._1))
     using! peer = pair._0?
     using! client = pair._1?
     assert_equal(race!(read_size(peer), stop()), 0, reason="a sibling cancels the pending read")

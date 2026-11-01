@@ -1,9 +1,9 @@
-# test: map_all! of an empty list returns an empty list
+# test: map_join! of an empty list returns an empty list
 # Spec std/task Map All: std-task.map-all.empty.
-use std.task.map_all
+use std.task.map_join
 fn none!() -> List[string]:
     let tasks: List[string] = []
-    map_all!(tasks, tasks.len(), fn!(value: string) -> string: value)
+    map_join!(tasks, tasks.len(), fn!(value: string) -> string: value)
 
 tests:
     use std.testing.assert_equal

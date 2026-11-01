@@ -208,7 +208,7 @@ file of its own.
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `ParseTimeError`; the serialization opt-in of the time types |
 | [`weak.md`](weak.md) | `std.weak` | `std-weak` | `Weak[T]`, `WeakMut[T]`, optional whole-object construction, upgrading, weakening, identity, and release |
-| [`task.md`](task.md) | `std.task` | `std-task` | `Layer` and `apply!`; retry, timeout, fallback, breaker and hedge policies; `TimedOut` and `CircuitOpen`; `map_all!` |
+| [`task.md`](task.md) | `std.task` | `std-task` | `Layer` and `apply!`; retry, timeout, fallback, breaker and hedge policies; `TimedOut` and `CircuitOpen`; `map_join!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of` |

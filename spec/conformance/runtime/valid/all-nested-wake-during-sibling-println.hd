@@ -2,7 +2,7 @@
 # expect-stdout: 3 3
 # test: zero sleeps that complete while a println in a nested all! waits in the host wake both the inner and the outer all! child
 # Spec lang/11 Cooperative Scheduling: req.schedule.all-unfinished.
-use std.task.all
+use std.task.join
 use std.time.{Clock, ms, sleep}
 
 fn first!() -> usize $ Clock:
@@ -14,7 +14,7 @@ fn second!() -> usize $ Console:
     2
 
 fn inner!() -> usize $ Clock + Console:
-    pair := all!(first(), second())
+    pair := join!(first(), second())
     pair._0 + pair._1
 
 fn third!() -> usize $ Clock:
@@ -22,5 +22,5 @@ fn third!() -> usize $ Clock:
     3
 
 pub fn main!() -> void $ Clock + Console:
-    outer := all!(third(), inner())
+    outer := join!(third(), inner())
     println("${outer._0} ${outer._1}")

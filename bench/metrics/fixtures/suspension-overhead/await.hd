@@ -1,5 +1,5 @@
 # One await of a ready value per iteration.
-use std.task.{all, race}
+use std.task.{join, race}
 
 fn echo!(value: i64) -> i64:
     value

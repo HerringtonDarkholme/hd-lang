@@ -80,7 +80,7 @@ export const EFFECT_STEPS: readonly Feature[] = [
       "JavaScript: `async` spreads to every caller, and a forgotten `await` still compiles.",
     example: "concurrency",
     ranges: [{ from: "fn page!(id: i32) -> string $ Clock:", lines: 3 }],
-    marks: ["let (profile, orders) = all!(fetch_profile(id), fetch_orders(id)) # ← both at once"],
+    marks: ["let (profile, orders) = join!(fetch_profile(id), fetch_orders(id)) # ← both at once"],
   },
 ];
 

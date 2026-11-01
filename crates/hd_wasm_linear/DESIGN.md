@@ -124,7 +124,7 @@ check and the wait, because nothing runs between them
 (`req.schedule.yield-points`), and a signal in between moves the epoch
 the frame compares.
 
-### 14.5 `all!` And `race!`
+### 14.5 `join!` And `race!`
 
 Generated task frames own their children and retain the results they need.
 
@@ -1177,7 +1177,7 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   is the cold constructor and the body, poll and cancel are its parts
   (`Part`). The frame's release glue is a fourth part. Until the body has
   left, the glue releases each place the body owns that the save area
-  holds, the results an `all!` kept, the providers and the child. The
+  holds, the results a `join!` kept, the providers and the child. The
   body is `(frame, args..., providers...) -> (results..., frame)`. A frame
   of 0 starts fresh, and the frame is made at the first Pending (§14.3).
   The cold constructor stores the arguments and providers in a fresh
@@ -1215,17 +1215,17 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   cancelled elsewhere, they kill the child instead of waiting. A frame
   cancelled while such a suite waited leaves by `Cancel` once the ladder
   has run.
-- **`all!` and `race!`.** `all!` keeps a done mask, each child's result
+- **`join!` and `race!`.** `join!` keeps a done mask, each child's result
   and a counted waker node in the save area. Its first poll visits every
   child; later polls visit only unfinished children whose ready bit is
   set (#630). While a child is polled, host leaves register its node and
   bit. A host completion sets that bit and follows the node's enclosing
-  links, so nested `all!` points wake the appropriate outer child.
+  links, so nested `join!` points wake the appropriate outer child.
   Shared cancellation cleanups keep every distinct live waiter, merging
   bits for the same node generation. Registrations compare full host
   handle generations; waiter targets separately use the weak node slots
   of §14.4. Completion/abort releases edge storage, without retaining or
-  releasing enclosing target nodes. A stale wake never reads a freed node. Completing or cancelling an `all!` releases
+  releasing enclosing target nodes. A stale wake never reads a freed node. Completing or cancelling a `join!` releases
   its node, and frame drop/trace glue handles a node saved while pending.
   Dev builds export the `i32` global `hd.all_polls`: 30 separately woken
   children take exactly 60 child polls. `race!` is §14.5's frame over the
@@ -1249,7 +1249,7 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   own host trait gets a vtable of imports from `hd:<Trait>`. Only methods
   with no arguments and a `void` result are built (`Gate.wait!`).
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/task_tests.hd` makes
-  cold frames, `all!`, `race!`, `cancel!` and `block_on` frames in a
+  cold frames, `join!`, `race!`, `cancel!` and `block_on` frames in a
   loop, and checks that the heap does not grow after a warm-up.
 
 ### 23.22 Code Size: The Local Cleanup And The Allocator
@@ -1711,7 +1711,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   releases its references through `rt:release_ref` and does nothing else.
   Outside a collection a release reads the global and never calls
   `visit`. Frame glue walks the saved ownership slots:
-  moved and dead places are zeroed before `SaveAll`, and each `all!`
+  moved and dead places are zeroed before `SaveAll`, and each `join!`
   result is guarded by its done bit. `EXITED` skips released body slots;
   providers and the child retain their separate ownership. The suspension
   plan selects the resume state; these saved zeros encode that state's
@@ -2345,7 +2345,7 @@ in one (`drive.rs`).
   `block_on` drives, either as its argument or through a local. The
   call is stored in the local, and `block_on` moves it out. Only drops
   of other values may run between (`drive::block_on_of`). Any other cold
-  call, such as a suspension kept for `all!`, uses the cold slot. Only
+  call, such as a suspension kept for `join!`, uses the cold slot. Only
   a method that is not generic, of a trait with no type arguments and no
   supertraits, has a drive slot, so all of the trait's vtables have the
   same shape.

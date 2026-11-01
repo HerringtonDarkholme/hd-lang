@@ -6,7 +6,7 @@
 # Spec lang/11 Abandoning: req.abandon.carry, req.abandon.result.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, s, sleep}
 
 struct Conn:
@@ -46,7 +46,7 @@ pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     let kid: mut Suspend[string] = child(log)
     let top: mut Suspend[string] = parent(kid, log)
-    let (winner, stopped) = all!(race(top, ready()), stop(kid, log))
+    let (winner, stopped) = join!(race(top, ready()), stop(kid, log))
     println("${winner} ${stopped}")
     println(log.join(", "))
     println("parent ${ended!(top)}")

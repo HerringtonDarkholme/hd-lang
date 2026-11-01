@@ -9,7 +9,7 @@
 use std.ops.defer
 use std.net.{ScriptedStream, TcpStream}
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, s, sleep}
 
 struct Channel:
@@ -42,7 +42,7 @@ pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     socket := ScriptedStream::new([[7]])
     let job: mut Suspend[string] = serve(socket, log)
-    let (winner, stopped) = all!(race(job, ready()), stop(job))
+    let (winner, stopped) = join!(race(job, ready()), stop(job))
     println("${winner} ${stopped}")
     println(log.join(", "))
     println("closed ${socket.is_closed()}")

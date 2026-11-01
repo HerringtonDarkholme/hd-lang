@@ -1,5 +1,5 @@
 # race! of two ready tasks per iteration.
-use std.task.{all, race}
+use std.task.{join, race}
 
 fn echo!(value: i64) -> i64:
     value

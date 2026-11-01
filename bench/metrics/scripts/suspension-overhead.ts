@@ -5,7 +5,7 @@
 // runs COUNT times and is timed against an empty loop that calls the plain
 // `echo_plain` instead:
 // - await: `total = total + echo!(i)`;
-// - all!: `(a, b) := all!(echo(i), echo(i + 1))`, two tasks per iteration;
+// - all!: `(a, b) := join!(echo(i), echo(i + 1))`, two tasks per iteration;
 // - race!: `race!(echo(i), echo(i))`, two tasks per iteration.
 // After a warm-up, each loop and the empty loop run RUNS times,
 // interleaved; the cost per iteration is the median of (loop run i - empty

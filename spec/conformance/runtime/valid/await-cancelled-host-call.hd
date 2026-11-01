@@ -6,7 +6,7 @@
 # Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.kinds, req.cancel.await.dispose.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.all
+use std.task.join
 use std.time.{Clock, ms, s, sleep}
 
 struct Runner['a]:
@@ -42,12 +42,12 @@ fn waiter!(call: mut Suspend[void], log: &mut List[string]) -> void:
 
 fn supervise!(call: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("supervise defer"))
-    _ := all!(call, stop_later(call, log))
+    _ := join!(call, stop_later(call, log))
     "supervise never"
 
 fn supervise_waiter!(call: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("supervise defer"))
-    _ := all!(waiter(call, log), stop_later(call, log))
+    _ := join!(waiter(call, log), stop_later(call, log))
     "supervise never"
 
 pub fn main!() -> void $ Console + Clock:

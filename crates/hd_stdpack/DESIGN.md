@@ -37,7 +37,7 @@ wins.
 
 | Module | Supplied names | Why source alone is not enough |
 | --- | --- | --- |
-| `std.task` | `all` | `all!` has no writable signature; the emitter lowers it through the `task_all` key |
+| `std.task` | `all` | `join!` has no writable signature; the emitter lowers it through the `task_all` key |
 | `std.function` | `Fn`, `SuspendFn` | function-type syntax lowers to these constructors; `Tuple` stays in `function.hd` |
 | `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
 | `std.testing` | `it`, `assert_equal` | intrinsic bodies (`test_case`, `assert_equal`) |

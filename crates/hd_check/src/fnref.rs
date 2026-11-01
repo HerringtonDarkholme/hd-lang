@@ -282,7 +282,7 @@ impl Ck<'_, '_> {
         {
             return Ok(self.bad_facts_target(n, "it is called, not used as a value"));
         }
-        // `all` is only the callee of a direct call (`req.combinator.all-direct`).
+        // `join` is only the callee of a direct call (`req.combinator.all-direct`).
         if self
             .cx
             .lookup
@@ -293,7 +293,7 @@ impl Ck<'_, '_> {
             self.err(
                 Code::TypeMismatch,
                 n,
-                "`all` is only the callee of a direct call, not a function value",
+                "`join` is only the callee of a direct call, not a function value",
             );
             return Ok((Ref(NONE), Ty::POISON));
         }

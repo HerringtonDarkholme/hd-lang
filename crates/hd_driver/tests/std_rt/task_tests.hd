@@ -1,13 +1,13 @@
 # The hd tests of suspensions on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.21): a suspension's frame is a counted object, so the cold frames of
-# plain calls, the frames of `all!`, `race!` and `cancel!`, and the frames
+# plain calls, the frames of `join!`, `race!` and `cancel!`, and the frames
 # a `block_on` drives are freed once their last holder lets go, and making
 # them in a loop runs in bounded memory. Only std may read the heap's size,
 # so the conformance runner adds this file to std as `std.rt.task_tests`.
 use std.ops.defer
 use std.rt.memory.pages
 use std.rt.checked.released
-use std.task.{BlockOn, all, block_on, race}
+use std.task.{BlockOn, join, block_on, race}
 
 fn label(n: i32) -> string:
     "s$n"
@@ -28,7 +28,7 @@ fn number!(n: i32) -> i32:
     n
 
 fn nested!(n: i32) -> i32:
-    let (a, b) = all!(number(n), number(n + 1))
+    let (a, b) = join!(number(n), number(n + 1))
     a + b
 
 tests:
@@ -37,7 +37,7 @@ tests:
     it("a cold suspension runs when it is awaited"):
         let job: mut Suspend[string] = twice(+1)
         assert(job!() == "s1s2", "the body ran once, on the await")
-        let (a, b) = all!(twice(+3), step(+5))
+        let (a, b) = join!(twice(+3), step(+5))
         assert(a == "s3s4" && b == "s5", "all! keeps each child's result")
         assert(race!(step(+7), twice(+8)) == "s7", "the first child wins")
 
@@ -58,7 +58,7 @@ tests:
             if round == 30:
                 start = pages()
             let job: mut Suspend[string] = twice(round)
-            let (a, b) = all!(step(round), guarded(&mut log, round))
+            let (a, b) = join!(step(round), guarded(&mut log, round))
             won := race!(twice(round), step(round))
             let cold: mut Suspend[string] = guarded(&mut log, round)
             _ := cold.cancel!()
@@ -81,7 +81,7 @@ tests:
         let total = +0
         let winners = +0
         for round in 0..2000:
-            let (a, b) = all!(nested(round), nested(round + 1))
+            let (a, b) = join!(nested(round), nested(round + 1))
             total += a + b
             winners += race!(number(round), number(round + 1))
         assert(total == 8004000 && winners == 1999000, "all and race preserve their owned results")

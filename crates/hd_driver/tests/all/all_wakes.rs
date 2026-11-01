@@ -1,6 +1,6 @@
-//! An `all!` polls only the children a wake names
+//! A `join!` polls only the children a wake names
 //! (`crates/hd_wasm_linear/DESIGN.md` §14.4 and §14.5): each child's host leaf
-//! registers under the `all!`'s waker node, a wake sets that child's bit,
+//! registers under the `join!`'s waker node, a wake sets that child's bit,
 //! and later polls skip the children whose bit is clear. The count of
 //! child polls is the dev module's exported `hd.all_polls` global.
 
@@ -10,10 +10,10 @@ use hd_driver::{EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Packages,
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-/// Children in the `all!`.
+/// Children in the `join!`.
 const WIDE: usize = 30;
 
-/// An `all!` of `WIDE` children, child `j` sleeping `5 * j` milliseconds,
+/// A `join!` of `WIDE` children, child `j` sleeping `5 * j` milliseconds,
 /// so their wakes arrive apart.
 fn wide() -> String {
     let children: Vec<String> = (1..=WIDE).map(|j| format!("nap({j})")).collect();
@@ -22,7 +22,7 @@ fn wide() -> String {
     names.push("last");
     format!(
         "{NAP}pub fn main!() -> void $ Console + Clock:\n    \
-         let ({}) = all!({})\n    \
+         let ({}) = join!({})\n    \
          println(\"${{first}} ${{last}}\")\n",
         names.join(", "),
         children.join(", "),
@@ -31,12 +31,12 @@ fn wide() -> String {
 
 /// The child every program here waits on.
 const NAP: &str = "use std.time.{Clock, Duration, sleep}\n\
-                   use std.task.all\n\n\
+                   use std.task.join\n\n\
                    fn nap!(j: i64) -> i64 $ Clock:\n    \
                    sleep!(Duration::milliseconds(5 * j))\n    \
                    j\n\n";
 
-/// How many `all!` children the run of `main` polled, and its standard
+/// How many `join!` children the run of `main` polled, and its standard
 /// output.
 fn polls(main: &str, checked: bool) -> (usize, String) {
     let mut src = MemorySources::default();
@@ -89,14 +89,14 @@ fn one_wake_polls_only_the_woken_child() {
 
 #[test]
 fn a_wake_inside_a_nested_all_reaches_the_outer_one() {
-    // `pair`'s `all!` runs as the outer `all!`'s child 0: a wake of
+    // `pair`'s `join!` runs as the outer `join!`'s child 0: a wake of
     // `nap(9)` sets its bit in the inner node and child 0's bit in the
     // outer one, so both are polled again and the program ends.
     let main = format!(
         "{NAP}fn pair!() -> (i64, i64) $ Clock:\n    \
-         all!(nap(1), nap(9))\n\n\
+         join!(nap(1), nap(9))\n\n\
          pub fn main!() -> void $ Console + Clock:\n    \
-         let (p, c) = all!(pair(), nap(5))\n    \
+         let (p, c) = join!(pair(), nap(5))\n    \
          let (a, b) = p\n    \
          println(\"${{a}} ${{b}} ${{c}}\")\n"
     );

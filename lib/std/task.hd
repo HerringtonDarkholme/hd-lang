@@ -1,9 +1,9 @@
 # std.task, the part written in hd (spec/std/task.md). The `Suspend`
-# protocol, `block_on`, `all!`, and `race!` are compiler intrinsics
+# protocol, `block_on`, `join!`, and `race!` are compiler intrinsics
 # (spec/lang/11-requirements-and-suspension.md#standard-combinators). The
-# compiler provides `all!` and `Waker` by name; `all!` has no written
+# compiler provides `join!` and `Waker` by name; `join!` has no written
 # signature (r-req.combinator.all-typing).
-use std.task.all
+use std.task.join
 use std.error.Error
 use std.convert.From
 use std.function.{Fn, FnMut}
@@ -124,7 +124,7 @@ fn race_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[T]:
 fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
     panic("intrinsic")
 
-# The private flat engine of map_all!. The worker suspensions stay cold
+# The private flat engine of map_join!. The worker suspensions stay cold
 # until the frame polls them, in list order.
 fn all_list![T](tasks: List[mut Suspend[T]]) -> List[T]:
     let frame: mut Suspend[List[T]] = all_frame(tasks)
@@ -432,14 +432,14 @@ fn pending_frame[T]() -> mut Suspend[T]:
     panic("intrinsic")
 
 # Runs `work` on every item with at most `limit` calls in flight and
-# returns the values in item order (spec/std/task.md#map-all). It starts
+# returns the values in item order (spec/std/task.md#map-join). It starts
 # `limit` worker suspension frames, as one `all_list!`; each takes the next unstarted index
 # when its previous item completes, which is a sliding window. A bang
 # call is the only yield point (r-req.schedule.yield-points), so the
 # shared counter needs no lock.
 ## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
 ## See [std-task.map-all.generic](../../spec/std/task.md#r-std-task.map-all.generic).
-pub fn map_all![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R](
+pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R](
     items: List[T],
     limit: usize,
     work: F,
@@ -460,7 +460,7 @@ pub fn map_all![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R](
     for slot in *slots:
         match slot:
             .Some(value) => values.push(value)
-            .None => panic("map_all!: an item finished without a value")
+            .None => panic("map_join!: an item finished without a value")
     values
 
 # The next index no worker has taken.

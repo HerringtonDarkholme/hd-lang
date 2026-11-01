@@ -2,7 +2,7 @@
 # expect-stdout: 3
 # test: a block_on that drives an all! polls again instead of waiting when a nested println took a child's completion
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.inner-only.
-use std.task.{all, block_on}
+use std.task.{join, block_on}
 use std.time.{Clock, ms, sleep}
 
 fn first!() -> usize $ Clock:
@@ -14,7 +14,7 @@ fn second!() -> usize $ Console:
     2
 
 fn both!() -> usize $ Clock + Console:
-    pair := all!(first(), second())
+    pair := join!(first(), second())
     pair._0 + pair._1
 
 fn drive() -> usize $ Clock + Console:

@@ -1,5 +1,5 @@
 # test: combinator call forms empty task list at run time panics
-use std.task.{all, race}
+use std.task.{join, race}
 
 fn one!() -> i32:
     1

@@ -3,7 +3,7 @@
 # test: cancel!() of a stored task waits until its dispose! that suspends has finished, then returns .Finished
 # Spec lang/11 Cancellation: req.cancel.bang, req.cancel.wait, req.cancel.result.
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
@@ -35,6 +35,6 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     let log: *mut List[string] = box([])
     let job: mut Suspend[string] = session(log)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    let (winner, stopped) = join!(race(job, ready()), stopper(job, log))
     println("${winner} ${stopped}")
     println(log.join(", "))

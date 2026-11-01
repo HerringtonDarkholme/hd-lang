@@ -4,7 +4,7 @@
 # test: several cancel!() calls share one cleanup: the close runs once, each gets the same result, and a later call returns the kept result
 # Spec lang/11 Cancellation: req.cancel.shared, req.cancel.kept.
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
@@ -27,7 +27,7 @@ fn ready!() -> string:
     "won"
 
 fn stop_twice!(job: mut Suspend[string], log: &mut List[string]) -> string:
-    let (first, second) = all!(job.cancel(), job.cancel())
+    let (first, second) = join!(job.cancel(), job.cancel())
     log.push("waiters")
     for end in [first, second]:
         match end:
@@ -38,7 +38,7 @@ fn stop_twice!(job: mut Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     let job: mut Suspend[string] = session(log)
-    let (winner, _) = all!(race(job, ready()), stop_twice(job, log))
+    let (winner, _) = join!(race(job, ready()), stop_twice(job, log))
     println(winner)
     println(log.join(", "))
     match job.cancel!():

@@ -4,7 +4,7 @@
 # Spec lang/11 Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate, req.cancel.await.dispose; Standard Combinators: req.combinator.all-cancelled.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.all
+use std.task.join
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
@@ -45,7 +45,7 @@ fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
 
 fn supervise!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
     using! report = &mut Report { log: log }
-    _ := all!(job, stop_later(job, log))
+    _ := join!(job, stop_later(job, log))
     "supervise never"
 
 fn outer!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:

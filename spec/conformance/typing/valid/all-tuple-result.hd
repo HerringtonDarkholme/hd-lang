@@ -1,6 +1,6 @@
 # test: all! over cold calls of different result types has the tuple of those types
 # expect: accept
-use std.task.all
+use std.task.join
 
 struct User:
     name: string
@@ -12,11 +12,11 @@ fn load_orders!(id: i64) -> List[i64]:
     [id]
 
 fn page!(id: i64) -> string:
-    let (user, orders) = all!(load_user(id), load_orders(id))
+    let (user, orders) = join!(load_user(id), load_orders(id))
     "${user.name}: ${orders.len()}"
 
 fn typed!(id: i64) -> (User, List[i64], i64):
-    all!(load_user(id), load_orders(id), load_count(id))
+    join!(load_user(id), load_orders(id), load_count(id))
 
 fn load_count!(id: i64) -> i64:
     id

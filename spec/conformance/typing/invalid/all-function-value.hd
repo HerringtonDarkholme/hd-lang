@@ -1,5 +1,5 @@
-# test: all is not a function value
-use std.task.all
+# test: join is not a function value
+use std.task.join
 
 fn keep() -> void:
-    f := all # diagnostic: type-mismatch
+    f := join # diagnostic: type-mismatch

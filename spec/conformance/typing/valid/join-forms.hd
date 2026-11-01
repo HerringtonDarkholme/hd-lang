@@ -1,0 +1,20 @@
+# test: join! of direct tasks is the tuple of their results, and join! of one spread list is the list of its results
+# Spec lang/11 Standard Combinators: req.combinator.all-typing, req.combinator.join-list.
+use std.task.join
+
+fn number!() -> i32: 1
+
+fn word!() -> string: "w"
+
+fn pair!() -> (i32, string):
+    let both: (i32, string) = join!(number(), word())
+    both
+
+fn many!(count: i32) -> List[i32]:
+    let mut tasks: List[mut Suspend[i32]] = []
+    let i: i32 = 0
+    while i < count:
+        tasks.push(number())
+        i = i + 1
+    let results: List[i32] = join!(tasks...)
+    results

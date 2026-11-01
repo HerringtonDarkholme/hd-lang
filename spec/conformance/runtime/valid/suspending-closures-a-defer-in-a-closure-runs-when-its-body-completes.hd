@@ -5,7 +5,7 @@
 # expect-stdout: cleanup 1
 use std.ops.defer
 use std.time.{Clock, Duration, sleep}
-use std.task.{all, race}
+use std.task.{join, race}
 
 fn nap!(ms: i64) -> void $ Clock:
     sleep!(Duration::milliseconds(ms))

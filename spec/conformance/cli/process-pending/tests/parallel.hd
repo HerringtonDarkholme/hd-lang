@@ -1,5 +1,5 @@
 use std.process.{Command, Process}
-use std.task.all
+use std.task.join
 use std.testing.{assert, assert_equal}
 use std.time.{Clock, ms, sleep}
 
@@ -21,5 +21,5 @@ fn ticker!(state: &State) -> usize $ Clock:
 
 it("a sibling advances while the child runs"):
     state := &mut State {}
-    pair := all!(child(state), ticker(state))
+    pair := join!(child(state), ticker(state))
     assert(pair._1 > 0, reason="Process.run yields while waiting for the child")

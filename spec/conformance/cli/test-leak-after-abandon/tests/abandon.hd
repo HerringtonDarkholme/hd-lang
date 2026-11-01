@@ -2,7 +2,7 @@ use std.ops.defer
 use pkg.open_listener
 use std.net.{Net, TcpListener}
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.testing.assert
 use std.time.{Clock, s, sleep}
 
@@ -43,7 +43,7 @@ fn stop!(job: mut Suspend[string]) -> string:
 fn abandoned!(fallback: bool) -> string $ Clock + Net:
     let mut listener = open_listener!().expect("a listener")
     let job: mut Suspend[string] = session(listener, fallback)
-    let (winner, stopped) = all!(race(job, ready()), stop(job))
+    let (winner, stopped) = join!(race(job, ready()), stop(job))
     "${winner} ${stopped}"
 
 it("abandons a dispose whose defer closes the listener"):

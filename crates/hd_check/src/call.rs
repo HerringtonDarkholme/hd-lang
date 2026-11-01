@@ -2314,7 +2314,7 @@ impl Ck<'_, '_> {
                     self.err(
                         Code::TypeMismatch,
                         n,
-                        "`all` takes no type arguments; its result type is the tuple of its tasks",
+                        "`join` takes no type arguments; its result type is the tuple of its tasks, or the list of their results",
                     );
                     return Ok((Ref(NONE), Ty::POISON));
                 }
@@ -2676,29 +2676,24 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
+    /// `join!(a(), b())`: cold suspensions, then one `AwaitAll` whose
     /// value is the tuple of their results (`crates/hd_wasm_linear/DESIGN.md` §14.5).
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
         if let Some(s) = args.spread {
-            self.err(
-                Code::TypeMismatch,
-                s,
-                "`all` takes its tasks as direct arguments, not as a spread",
-            );
-            return Ok((Ref(NONE), Ty::NEVER));
+            return self.await_join_list(args, s, n, bang);
         }
         if let Some((_, e)) = args.named.first() {
             self.err(
                 Code::TypeMismatch,
                 *e,
-                "`all` takes its tasks as positional arguments, not named ones",
+                "`join` takes its tasks as positional arguments, not named ones",
             );
             return Ok((Ref(NONE), Ty::NEVER));
         }
-        plain_args(args, "`all`")?;
+        plain_args(args, "`join`")?;
         let pool = self.pool();
         if !bang {
-            self.err(Code::NotSuspending, n, "`all` is called as `all!(...)`");
+            self.err(Code::NotSuspending, n, "`join` is called as `join!(...)`");
         }
         if bang {
             self.check_bang(true, n);
@@ -2731,6 +2726,59 @@ impl Ck<'_, '_> {
         });
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::AwaitAll, NONE, rec, t, n.index()), t))
+    }
+
+    /// `join!(tasks...)`, the list form (`req.combinator.join-list`): one
+    /// spread of a `List[mut Suspend[T]]` and no other argument, which
+    /// awaits std's `all_list!` engine and has type `List[T]`.
+    fn await_join_list(
+        &mut self,
+        args: &Args<'_>,
+        spread: NodeRef<'_>,
+        n: NodeRef<'_>,
+        bang: bool,
+    ) -> StageResult<(Ref, Ty)> {
+        if !args.positional.is_empty() || !args.after_spread.is_empty() || !args.named.is_empty() {
+            self.err(
+                Code::TypeMismatch,
+                n,
+                "`join` takes either its tasks as direct arguments or one spread of a list of tasks",
+            );
+            return Ok((Ref(NONE), Ty::NEVER));
+        }
+        if !bang {
+            self.err(Code::NotSuspending, n, "`join` is called as `join!(...)`");
+        }
+        let pool = self.pool();
+        let suspend = self.cx.names.known.suspend;
+        let (r, t) = self.expr(spread, None)?;
+        let item = self
+            .list_item(self.infer.resolve(pool, t))
+            .map(|i| self.strip_mut(i))
+            .and_then(|i| match pool.get(i) {
+                TyData::Adt { def, args } if def == suspend => {
+                    pool.list_items(args).first().copied()
+                }
+                _ => None,
+            });
+        let Some(x) = item else {
+            let msg = format!(
+                "in spread: expected a list of cold suspensions, found {}",
+                self.show(t)
+            );
+            self.err(Code::TypeMismatch, spread, &msg);
+            return Ok((Ref(NONE), Ty::POISON));
+        };
+        let list = self.cx.names.known.list;
+        let ret = pool.intern_ty(&TyData::Adt {
+            def: list,
+            args: pool.list(&[x]),
+        });
+        let c = Callee::Item {
+            def: self.cx.names.known.all_list,
+            targs: pool.list(&[x]),
+        };
+        Ok(self.emit_call(&c, &[r], ret, true, bang, n))
     }
 
     /// `expr.pipe.bare.no-suspend`: a bare step would suspend with no `!`.

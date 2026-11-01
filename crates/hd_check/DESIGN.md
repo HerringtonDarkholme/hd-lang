@@ -1061,10 +1061,10 @@ reported (`ambiguous-row-pattern`).
 - A bang call whose callee does not suspend is `not-suspending`.
 - A plain call of a suspending callee has type `mut Suspend[T]`, a
   must-use type.
-- `all!` and `race!` are intrinsics typed by
-  [Typing `all!`](../../spec/lang/11-requirements-and-suspension.md#typing-all).
+- `join!` and `race!` are intrinsics typed by
+  [Typing `join!`](../../spec/lang/11-requirements-and-suspension.md#typing-all).
   Each argument must be a cold `mut Suspend[T]`.
-- Each bang call, `s!()`, `all!` and `race!` is emitted as `Await`,
+- Each bang call, `s!()`, `join!` and `race!` is emitted as `Await`,
   `AwaitValue`, `AwaitAll` or `AwaitRace`. Frames, polling and
   cancellation paths are codegen's.
 

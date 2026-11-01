@@ -7,7 +7,7 @@
 # expect-stdout: sum 5
 # test: a nested synchronous host drive keeps another async host completion, with caller storage reused in each iteration
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.inner-only, req.drive.block-on.completed.
-use std.task.{all, block_on}
+use std.task.{join, block_on}
 
 pub trait Tick:
     fn tick!(&mut self, note: string) -> void
@@ -23,7 +23,7 @@ fn inner!(n: usize) -> usize $ Console + Tick:
     n
 
 fn pair!(n: usize) -> usize $ Console + Tick:
-    values := all!(older(n), inner(n))
+    values := join!(older(n), inner(n))
     values._0 + values._1
 
 pub fn main() -> void $ Console + Tick:

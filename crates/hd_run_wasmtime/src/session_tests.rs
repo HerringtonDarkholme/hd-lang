@@ -639,13 +639,13 @@ fn a_cancelled_input_leaves_no_timer_behind() {
 #[test]
 fn a_panicking_input_leaves_no_operation_pending() {
     let input = "\
-use std.task.{all}
+use std.task.{join}
 use std.time.{sleep, Duration}
 
 fn boom!() -> void:
     _ := [+1][3]
 
-all!(sleep(Duration.seconds(+30)), boom())
+join!(sleep(Duration.seconds(+30)), boom())
 ";
     with_session(|session, io| {
         let mut repl = repl(session);
@@ -1365,7 +1365,7 @@ fn a_rebuilt_session_makes_no_network_call() {
 /// The session inputs that declare `fetch!` over the `Http` provider and
 /// `nap!`, a 100 ms sleep.
 const HTTP_INPUTS: [&str; 3] = [
-    "use std.http.{Http, HttpError, get}\nuse std.task.{all, race}\nuse std.time.{Clock, ms, sleep}\n",
+    "use std.http.{Http, HttpError, get}\nuse std.task.{join, race}\nuse std.time.{Clock, ms, sleep}\n",
     "fn fetch!(url: string) -> string $ Http:\n    match get!(url):\n        .Ok(r) => \"status ${r.status.code()}\"\n        .Err(e) => \"${e}\"\n",
     "fn nap!() -> string $ Clock:\n    sleep!(ms(100))\n    \"timeout\"\n",
 ];
@@ -1425,7 +1425,7 @@ fn a_race_ends_a_send_at_its_timeout_and_closes_the_connection() {
     );
 }
 
-/// `std-host.op.wait`: `all!` of two `send!` to a server that answers
+/// `std-host.op.wait`: `join!` of two `send!` to a server that answers
 /// only once both requests have arrived. One request after the other
 /// would reach its 10 s timeout instead.
 #[test]
@@ -1468,7 +1468,7 @@ fn all_sends_two_requests_at_the_same_time() {
             text(&io.err)
         );
         assert_eq!(
-            repl.input("all!(timed(), timed())\n"),
+            repl.input("join!(timed(), timed())\n"),
             Outcome::Exit(0),
             "{}",
             text(&io.err)
@@ -1576,7 +1576,7 @@ fn a_rebuilt_session_sends_no_request_again() {
 
 #[cfg(unix)]
 const FS_INPUTS: [&str; 3] = [
-    "use std.fs.{FsRead}\nuse std.path.Path\nuse std.task.{all, race}\nuse std.time.{Clock, ms, sleep}\n",
+    "use std.fs.{FsRead}\nuse std.path.Path\nuse std.task.{join, race}\nuse std.time.{Clock, ms, sleep}\n",
     "fn slurp!(path: string) -> string $ FsRead:\n    match $.use(FsRead).read_bytes!(Path(path)):\n        .Ok(bytes) => \"read ${bytes.len()}\"\n        .Err(e) => \"${e}\"\n",
     "fn nap!() -> string $ Clock:\n    sleep!(ms(100))\n    \"timeout\"\n",
 ];

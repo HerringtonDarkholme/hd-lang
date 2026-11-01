@@ -251,7 +251,7 @@ lexical frame. An expected context type is matched by type equality, so
   resolved callee is `block_on` or `println` is an error. The check reads
   resolved callees in those contexts and no other body. An indirect call
   panics at run time; D2 emits that check.
-- `Suspend[T]` values, `all!` and `race!` are typed as the spec says;
+- `Suspend[T]` values, `join!` and `race!` are typed as the spec says;
   their lowering is D2's.
 
 #### 4.13.6 GADT Refinement
@@ -716,7 +716,7 @@ providers from the callee's signature row; the `Pending` form is unused.
 | --- | --- | --- |
 | `Await` | a: `[callee]`, b: `[arguments, providers]` | the callee's result `T`. A bang call: a suspension point |
 | `AwaitValue` | a: a `mut Suspend[T]` value | `T`. `s!()` on a stored suspension: a suspension point |
-| `AwaitAll` | b: `[children]`, each `mut Suspend[X_i]` | `(X_1, ..., X_n)`. `all!`: one suspension point |
+| `AwaitAll` | b: `[children]`, each `mut Suspend[X_i]` | `(X_1, ..., X_n)`. `join!`: one suspension point |
 | `AwaitRace` | a: a `List[mut Suspend[T]]` | `T`. `race!`: one suspension point |
 | `Hook` | a: `HookKind`, b: the instruction it observes | `void`; normal emission drops it |
 
@@ -926,7 +926,7 @@ is a run ID.
 | `Order(x)` newtype call | nothing: the newtype is erased, so construction and unwrapping change no value (`types.newtype.construct`, `types.newtype.construct-ref`, `types.newtype.construct-value`) |
 | a type parameter in a type (`T?`) | nothing: the name resolves to the in-scope parameter (`names.type-param.local`) and types erase |
 | `$.with`, `$.use`, `$.context` | `With`, `ProviderGet`, `ContextNew` |
-| `all!(a(x), b(y))` | two cold `Call`s, then `AwaitAll` |
+| `join!(a(x), b(y))` | two cold `Call`s, then `AwaitAll` |
 | `race!(...)` | a `NewList` of cold suspensions, then `AwaitRace` |
 | test registrations | `Call`s in a `TestCase` body |
 | `f(a): block` (trailing block call) | the ordinary arguments, then `Call` with one more final argument: a `Closure` built from the block, contextually typed by the callee's final zero-argument function parameter |

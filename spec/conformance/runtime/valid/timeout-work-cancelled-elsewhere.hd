@@ -5,7 +5,7 @@
 # Also covers lang/11 Standard Combinators: req.combinator.race-child-cancelled; Cancellation: req.cancel.await.propagate, req.cancel.await.dispose.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{TimedOut, all, timeout, apply}
+use std.task.{TimedOut, join, timeout, apply}
 use std.time.{Clock, ms, s, sleep}
 
 struct Runner['a]:
@@ -16,7 +16,7 @@ struct Runner['a]:
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
         defer(fn() -> void: self.log.push("runner defer"))
-        let (result, _) = all!(self.timed, self.stop)
+        let (result, _) = join!(self.timed, self.stop)
         match result:
             .Ok(value) => self.log.push("work gave ${value}")
             .Err(_) => self.log.push("timed out")

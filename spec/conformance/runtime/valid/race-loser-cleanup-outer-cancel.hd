@@ -4,7 +4,7 @@
 # Spec lang/11 Standard Combinators: req.combinator.race-outer-cancel.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
@@ -42,6 +42,6 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string $ Clock:
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     let job: mut Suspend[string] = racer(log)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    let (winner, stopped) = join!(race(job, ready()), stopper(job, log))
     println("${winner} ${stopped}")
     println(log.join(", "))

@@ -5,7 +5,7 @@
 # Spec lang/11 Abandoning: req.abandon.dispose, req.abandon.host, req.abandon.result; std/task Cleanup End: std-task.cleanup-end.cut-short.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, s, sleep}
 
 struct Conn:
@@ -47,7 +47,7 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     let job: mut Suspend[string] = session(log)
-    let (winner, waited, stopped) = all!(race(job, ready()), waiter(job, log), stop(job, log))
+    let (winner, waited, stopped) = join!(race(job, ready()), waiter(job, log), stop(job, log))
     println("${winner} ${waited} ${stopped}")
     println(log.join(", "))
     println("later ${ended!(job)}")

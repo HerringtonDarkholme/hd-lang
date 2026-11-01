@@ -320,7 +320,7 @@ fn named_child_external_process_uses_case_cwd_without_changing_parent() {
 }
 
 /// Two children that take about a second each run at the same time, as
-/// `all!(run!(a), run!(b))` starts them: the wait is one second, not two.
+/// `join!(run!(a), run!(b))` starts them: the wait is one second, not two.
 #[cfg(unix)]
 #[test]
 fn two_children_run_at_the_same_time() {

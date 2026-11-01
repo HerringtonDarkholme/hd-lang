@@ -1,6 +1,6 @@
 use std.ops.defer
 use std.time.{Clock, Duration, sleep}
-use std.task.{all, race}
+use std.task.{join, race}
 
 # Logs its start, sleeps on the host timer, then logs its end; its
 # cleanup runs on completion and on cancellation alike.
@@ -17,7 +17,7 @@ pub fn main!() -> void $ Console + Clock:
     println("slept")
     # The 245ms gap keeps task 2 first even when timer wakes coalesce
     # under load; a 15ms gap reordered the log (issue #55).
-    let (a, b) = all!(work(1, 250, &mut log), work(2, 5, &mut log))
+    let (a, b) = join!(work(1, 250, &mut log), work(2, 5, &mut log))
     println("all $a $b")
     w := race!(work(3, 5, &mut log), work(4, 500, &mut log))
     println("race $w")

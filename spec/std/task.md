@@ -10,12 +10,12 @@ ordinary hd over the language tier:
 - the `timeout` and `with_timeout` builders, their `TimeLimit` policy, and `TimedOut`;
 - the `Fallback`, `Guard`, and `Hedge` policies and their builders;
 - the `Breaker` state and `CircuitOpen` marker;
-- the `map_all!` combinator;
+- the `map_join!` combinator;
 - the `CleanupEnd` enum, which `cancel!()` returns;
 - the `BlockOn` enum, which `block_on` returns.
 
 The language tier keeps the `Suspend` protocol, `block_on`, and the
-polling combinators `all!` and `race!`, which are compiler intrinsics
+polling combinators `join!` and `race!`, which are compiler intrinsics
 ([Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators)).
 
 ## Retry
@@ -148,31 +148,33 @@ sleeps 800 milliseconds and returns `.Err("busy")` after five calls.
 
 See also: [Retry](#retry), [Clock](time.md#clock).
 
-## All List
+## Join List
 
-`all_list!` is the private engine of `map_all!`.
-Public callers use `map_all!` with the input length as the concurrency limit:
+`all_list!` is the private engine of `map_join!` and of `join!`'s list form
+([`req.combinator.join-list`](../lang/11-requirements-and-suspension.md#r-req.combinator.join-list)).
+Callers use `join!(tasks...)` on a list of tasks, or `map_join!` on a list of
+items:
 
 ```text
-use std.task.map_all
+use std.task.map_join
 
 fn square!(value: i32) -> i32:
     value * value
 
 fn squares!() -> List[i32]:
-    map_all!([3, 1, 2], 3, square)
+    map_join!([3, 1, 2], 3, square)
 ```
 
-1. r[std-task.map-all.private-engine] `std.task.all_list` is private and cannot be imported by a caller. Error: `private-import`.
+1. r[std-task.map-all.private-engine] `std.task.all_list` is private and cannot be imported by a caller; `join!(tasks...)` reaches it. Error: `private-import`.
 
 `squares!` returns `[9, 1, 4]`, in input order.
 
-> **Why.** `map_all!` accepts items directly, so callers need not construct
+> **Why.** `map_join!` accepts items directly, so callers need not construct
 > a list of closures. Its private engine drives one flat list of cold
 > workers and retains results until every worker finishes. Waker readiness
 > routes later polls to unfinished workers without scanning unwoken ones.
 
-See also: [Map All](#map-all),
+See also: [Map Join](#map-join),
 [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators).
 
 ## Timeout
@@ -300,16 +302,16 @@ Had the caller cancelled the execution at t3 instead, the deadline would be t4.
 See also: [Cleanup End](#cleanup-end),
 [Abandoning](../lang/11-requirements-and-suspension.md#abandoning).
 
-## Map All
+## Map Join
 
-`map_all!` runs a suspending function over a list with a bound on how many
+`map_join!` runs a suspending function over a list with a bound on how many
 calls are in flight:
 
 ```text
-pub fn map_all![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $R](items: List[T], limit: usize, work: F) -> List[U] $ R
+pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $R](items: List[T], limit: usize, work: F) -> List[U] $ R
 ```
 
-1. r[std-task.map-all.generic] `std.task` declares `map_all!` with the signature above, storing `F` in its worker suspension frames and calling it statically; a suspending function value satisfies the bound through [`fn.type.suspend.weaken`](../lang/07-functions.md#r-fn.type.suspend.weaken). It is an ordinary `fn!` function, not an intrinsic, and code imports it with `use std.task.map_all`.
+1. r[std-task.map-all.generic] `std.task` declares `map_join!` with the signature above, storing `F` in its worker suspension frames and calling it statically; a suspending function value satisfies the bound through [`fn.type.suspend.weaken`](../lang/07-functions.md#r-fn.type.suspend.weaken). It is an ordinary `fn!` function, not an intrinsic, and code imports it with `use std.task.map_join`.
 2. r[std-task.map-all.static] `T` and `U` are bounded by `'static`: the workers keep the items, and a counted list keeps the values ([Generic Locality](../lang/13-values-and-references.md#generic-locality)).
 3. r[std-task.map-all.order] The result holds `work(item)` for each item at the item's index in `items`, whatever order the calls complete in.
 4. r[std-task.map-all.start-order] `work` is called once for each item. Calls start in item order: no call starts before the call for every earlier item has started.
@@ -317,10 +319,10 @@ pub fn map_all![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $R](i
 6. r[std-task.map-all.window] When one call completes and an item has not started, the next item in order starts, so the number in flight stays at `limit` until the items run out.
 7. r[std-task.map-all.zero-limit] A `limit` of zero counts as one, so calls run one after another.
 8. r[std-task.map-all.empty] An empty `items` gives an empty list and calls `work` never.
-9. r[std-task.map-all.like-all] Scheduling, cancellation, failure, and panics follow the rules of `all!`: a panic in one call propagates, and cancelling `map_all!` cancels every call in flight and starts no more ([`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children)).
+9. r[std-task.map-all.like-all] Scheduling, cancellation, failure, and panics follow the rules of `join!`: a panic in one call propagates, and cancelling `map_join!` cancels every call in flight and starts no more ([`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children)).
 
 ```text
-use std.task.map_all
+use std.task.map_join
 use std.time.{Clock, ms, sleep}
 
 fn fetch!(id: i32) -> string $ Clock:
@@ -328,7 +330,7 @@ fn fetch!(id: i32) -> string $ Clock:
     "item ${id}"
 
 fn fetch_all!() -> List[string] $ Clock:
-    map_all!([1, 2, 3, 4, 5], 2, fn!(id: i32) -> string $ Clock: fetch!(id))
+    map_join!([1, 2, 3, 4, 5], 2, fn!(id: i32) -> string $ Clock: fetch!(id))
 ```
 
 `fetch_all!` returns `["item 1", ..., "item 5"]` in that order. On a real clock
@@ -343,7 +345,7 @@ starts as soon as the first completes.
 > Bang calls are the only yield points, so the shared index needs no
 > lock. A `limit` of 0 counts as 1, as for retry attempts.
 
-See also: [All List](#all-list), [Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).
+See also: [Join List](#join-list), [Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).
 
 ## Channels
 
@@ -390,7 +392,7 @@ fn run!() -> i32:
 10. r[std-task.channel.cancel-recv] A `recv!` that is cancelled while it waits takes no item, so the item goes to a later receive.
 11. r[std-task.channel.cancel-send] A `send!` that is cancelled while it waits leaves its value unsent.
 12. r[std-task.channel.no-host] A channel's waits are woken by the suspensions that send, receive, or close, as [`req.combinator.wait-cell`](../lang/11-requirements-and-suspension.md#r-req.combinator.wait-cell) states. A program whose only pending waits are on channels panics by [`req.entry.deadlock`](../lang/11-requirements-and-suspension.md#r-req.entry.deadlock). Panic: `suspension-deadlock`.
-13. r[std-task.channel.pool] A pool of workers is `map_all!` over the worker count, with each worker receiving from one shared `Receiver` until it gives `.None`.
+13. r[std-task.channel.pool] A pool of workers is `map_join!` over the worker count, with each worker receiving from one shared `Receiver` until it gives `.None`.
 
 > **Why.** Go's channels and Rust's `tokio::sync::mpsc` hand work between
 > tasks the same way. A `Notify` is a `Channel[()]`. The handles copy, as

@@ -5,7 +5,7 @@
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.cancelled; Runtime Checks: req.check.driver-cancelled.await.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, block_on}
+use std.task.{join, block_on}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
@@ -33,13 +33,13 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
         .Abandoned => log.push("stop abandoned")
     "stopped"
 
-# `job` turns out cancelled when `all!` polls it again, so `all!` is
+# `job` turns out cancelled when `join!` polls it again, so `join!` is
 # cancelled, and so is `both`, the suspension that block_on drives. Its
 # cleanup waits in the dispose of `conn`, and block_on drives it to its end.
 fn both!(job: mut Suspend[string], log: *mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("both defer"))
     using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
-    let (worked, stopped) = all!(job, stop(job, log))
+    let (worked, stopped) = join!(job, stop(job, log))
     "${worked} ${stopped}"
 
 fn ended[T](pending: mut Suspend[T]) -> string:

@@ -2,7 +2,7 @@
 # expect-stdout: 22
 # expect-stdout: 33
 use std.time.{Clock, Duration, sleep}
-use std.task.{all, race}
+use std.task.{join, race}
 
 fn nap!(ms: i64) -> void $ Clock:
     sleep!(Duration::milliseconds(ms))
@@ -13,7 +13,7 @@ pub fn main!() -> void $ Console + Clock:
         count = count + 1
         nap!(1)
         count = count + 10
-    _ := all!(bump(), bump())
+    _ := join!(bump(), bump())
     println(count)
     bump!()
     println(count)

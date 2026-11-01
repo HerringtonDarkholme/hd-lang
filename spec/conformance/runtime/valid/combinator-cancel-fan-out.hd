@@ -4,7 +4,7 @@
 # Spec lang/11 Standard Combinators: req.combinator.cancel-order, req.combinator.cancel-fold, req.combinator.cancel-parent-last.using-split.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Server:
@@ -38,7 +38,7 @@ fn acceptor!(server: &mut Server) -> void $ Clock:
 
 fn serve!(server: *mut Server) -> string $ Clock:
     defer(fn() -> void: server.log.push("serve defer"))
-    _ := all!(connections(server), acceptor(server))
+    _ := join!(connections(server), acceptor(server))
     "served"
 
 fn shutdown!() -> string $ Clock:

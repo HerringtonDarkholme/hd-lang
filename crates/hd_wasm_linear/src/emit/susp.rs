@@ -121,12 +121,12 @@ pub(super) struct Susp {
     /// The data locals of the body's providers: a frame holds a count of
     /// each, since the scope that installed them may end first.
     pub provs: Vec<u32>,
-    /// Each `all!` point's done mask and, per child, its instruction, the
+    /// Each `join!` point's done mask and, per child, its instruction, the
     /// locals that keep its result, and the result's type.
     pub alls: HashMap<u32, AllPoint>,
 }
 
-/// An `all!` point's state in the save area (§14.5).
+/// A `join!` point's state in the save area (§14.5).
 #[derive(Clone)]
 pub(super) struct AllPoint {
     pub done: u32,
@@ -357,7 +357,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32And);
     }
 
-    /// The awaited child in local `child` (or none, for `all!`) was
+    /// The awaited child in local `child` (or none, for `join!`) was
     /// cancelled by another task, so this task is cancelled at the point
     /// (`req.cancel.await`): its frame is marked and the point's
     /// cancellation branch runs. A child the frame does not hold yet
@@ -459,7 +459,7 @@ impl Em<'_, '_, '_> {
         self.f.set(seen);
         let all = self.susp.as_ref().and_then(|s| s.alls.get(&i).cloned());
         if let Some(all) = &all {
-            // `all!` cancels its unfinished children in argument order
+            // `join!` cancels its unfinished children in argument order
             // (`req.combinator.cancel-order`).
             for (j, (ch, _, _)) in all.parts.iter().enumerate() {
                 self.f.get(all.done);
@@ -805,14 +805,14 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// `all!(a, b, ...)` (§14.5): the first poll polls every child;
+    /// `join!(a, b, ...)` (§14.5): the first poll polls every child;
     /// later polls visit only unfinished children whose waker bit is set.
     /// The counted node lives in the save area, and registrations keep
     /// it and its enclosing nodes alive until completion or cancellation.
     fn await_all(&mut self, i: u32, k: u32, bw: u32) -> StageResult<()> {
         let children = self.rec(bw);
         if children.len() > 31 {
-            return unsupported("`all!` of more than 31 suspensions");
+            return unsupported("`join!` of more than 31 suspensions");
         }
         let pc = self.pc();
         let tys = crate::layout::tuple_members(
@@ -820,7 +820,7 @@ impl Em<'_, '_, '_> {
             crate::layout::strip(self.pool(), self.env(), self.ty(i)),
         );
         if tys.len() != children.len() {
-            return unsupported("an `all!` result that is not a tuple of its children's");
+            return unsupported("a `join!` result that is not a tuple of its children's");
         }
         let (done, gone, ready, s) = (
             self.f.local(Val::I32),
@@ -953,7 +953,7 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// Lets go of the results that `all!` point `all` kept for the
+    /// Lets go of the results that `join!` point `all` kept for the
     /// children its mask marks done, and clears the mask.
     fn release_done(&mut self, all: &AllPoint) -> StageResult<()> {
         for (j, (_, ls, t)) in all.parts.iter().enumerate() {
@@ -1316,7 +1316,7 @@ pub(super) fn finish(
                 }
             }
         }
-        // The results an `all!` kept for its done children.
+        // The results a `join!` kept for its done children.
         let mut alls: Vec<(u32, AllPoint)> = em
             .susp
             .as_ref()

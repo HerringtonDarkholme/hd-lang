@@ -1093,7 +1093,7 @@ would slow every monomorphized use of that type.
   value, and a function reference to a generic method at a trait-value
   `Self`.
 
-### 13.6 Tuples, Arity And `all!`
+### 13.6 Tuples, Arity And `join!`
 
 There are no variadic generics. Tuples are ordinary types:
 
@@ -1152,7 +1152,7 @@ There are no variadic generics. Tuples are ordinary types:
   passed to `w.rest` (`annot.walk.rest`); std's default `rest` panics
   instead of calling `member` (`annot.walk.rest.default`), and the checker
   builds no rest tuple value yet.
-- `all!` is one intrinsic frame instance per tuple of child result types
+- `join!` is one intrinsic frame instance per tuple of child result types
   (§14.5). `race!` is an ordinary generic intrinsic over `T`.
 
 ### 13.7 Merging Byte-Identical Functions

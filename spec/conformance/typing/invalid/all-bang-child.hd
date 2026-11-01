@@ -1,8 +1,8 @@
 # test: a bang call inside all! is awaited first, so its value is not a Suspend
-use std.task.all
+use std.task.join
 
 fn ready!() -> i32:
     1
 
 fn eager!() -> (i32, i32):
-    all!(ready!(), ready()) # diagnostic: type-mismatch
+    join!(ready!(), ready()) # diagnostic: type-mismatch

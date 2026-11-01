@@ -3,7 +3,7 @@
 # test: a cancel that reaches a task disposing at the end of a using block takes that dispose over: it runs once, and the code after the block never runs
 # Spec lang/11 Cancellation: req.cancel.takeover.
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, sleep}
 
 struct Conn:
@@ -36,6 +36,6 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     let job: mut Suspend[string] = session(log, true)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    let (winner, stopped) = join!(race(job, ready()), stopper(job, log))
     println("${winner} ${stopped}")
     println(log.join(", "))

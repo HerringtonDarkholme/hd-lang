@@ -77,7 +77,7 @@ const EXIT: &str = "total 14 of 5\n40\nrect 6\ncircle 12\nfound 4\nmissing\nok 3
 const INIT: &str = "hello\n15\n1\n5\n2\n";
 
 /// M4d: `main!` awaits a host timer, then two timed operations with
-/// `all!`, then a `race!` whose loser is cancelled mid-wait: its `defer`
+/// `join!`, then a `race!` whose loser is cancelled mid-wait: its `defer`
 /// runs and its end never does.
 const SUSPEND: &str = "slept\nall 10 20\nrace 30\nstart 1\nstart 2\ndone 2\ncleanup 2\n\
                        done 1\ncleanup 1\nstart 3\nstart 4\ndone 3\ncleanup 3\ncleanup 4\n";

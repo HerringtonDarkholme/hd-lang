@@ -2822,7 +2822,10 @@ typing/invalid/race-no-tasks.hd	type	reject:argument-count	lang/11-requirements-
 typing/valid/all-tuple-result.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.combinator.all-typing
 typing/invalid/all-non-suspend-argument.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.combinator.all-argument
 typing/invalid/all-bang-child.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.combinator.all-bang-child
-typing/invalid/all-spread-argument.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.combinator.all-direct
+typing/invalid/join-list-mixed.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.combinator.join-list.only
+typing/valid/join-forms.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.combinator.join-list
+runtime/valid/join-list-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.join-list
+runtime/valid/join-list-cancelled-child.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.join-list.rules
 typing/invalid/all-function-value.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.combinator.all-direct
 typing/invalid/all-explicit-type-arguments.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.combinator.all-direct
 typing/valid/tuple-derived-traits.hd	type	accept	lang/09-traits.md#r-trait.target.tuple.templates
@@ -5218,7 +5221,7 @@ runtime/valid/channel-close-drain.hd	runtime	accept	std/task.md#r-std-task.chann
 runtime/valid/channel-full-blocks-sender.hd	runtime	accept	std/task.md#r-std-task.channel.send
 runtime/valid/channel-cancel-recv.hd	runtime	accept	std/task.md#r-std-task.channel.cancel-recv
 runtime/valid/channel-cancel-send.hd	runtime	accept	std/task.md#r-std-task.channel.cancel-send
-runtime/valid/channel-map-all-pool.hd	runtime	accept	std/task.md#r-std-task.channel.pool
+runtime/valid/channel-map-join-pool.hd	runtime	accept	std/task.md#r-std-task.channel.pool
 typing/valid/mut-self-struct-trait.hd	type	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 runtime/valid/mut-self-struct-trait-copy.hd	runtime	accept	lang/07-functions.md#r-fn.method.receiver.mut-self
 typing/invalid/mut-self-struct-trait-reference.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.signature

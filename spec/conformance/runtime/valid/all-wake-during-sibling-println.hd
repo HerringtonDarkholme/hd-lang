@@ -4,7 +4,7 @@
 # Spec lang/11 Cooperative Scheduling: req.schedule.all-unfinished.
 # println drives its write with block_on, whose host wait also takes the
 # sleep's completion; the all! must poll first again instead of waiting.
-use std.task.all
+use std.task.join
 use std.time.{Clock, ms, sleep}
 
 fn first!() -> usize $ Clock:
@@ -16,5 +16,5 @@ fn second!() -> usize $ Console:
     2
 
 pub fn main!() -> void $ Clock + Console:
-    pair := all!(first(), second())
+    pair := join!(first(), second())
     println("${pair._0} ${pair._1}")

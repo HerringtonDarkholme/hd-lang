@@ -261,12 +261,12 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             private.has_default = true;
             item("PollContext", vec![], ItemData::Data(vec![private]));
             item("Waker", vec![], ItemData::Data(vec![]));
-            // `all!` has no written signature (`crates/hd_wasm_linear/DESIGN.md` §14.5): its
+            // `join!` has no written signature (`crates/hd_wasm_linear/DESIGN.md` §14.5): its
             // checker rule is the compiler's.
-            let mut all = FnSig::simple(vec![], vec![], Ty::VOID);
-            all.suspends = true;
-            all.variadic = true;
-            item("all", vec![], ItemData::Fn(all));
+            let mut join = FnSig::simple(vec![], vec![], Ty::VOID);
+            join.suspends = true;
+            join.variadic = true;
+            item("join", vec![], ItemData::Fn(join));
             if let Some(p) = out.last_mut() {
                 p.intrinsic = Some(sym(names, "task_all"));
             }

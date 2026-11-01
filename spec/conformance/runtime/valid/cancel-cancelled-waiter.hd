@@ -4,7 +4,7 @@
 # Spec lang/11 Cancellation: req.cancel.nested.using-split.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
@@ -35,6 +35,6 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
     let job: mut Suspend[string] = session(log)
-    let (first, second) = all!(race(job, ready()), race(stopper(job, log), ready()))
+    let (first, second) = join!(race(job, ready()), race(stopper(job, log), ready()))
     println("${first} ${second}")
     println(log.join(", "))

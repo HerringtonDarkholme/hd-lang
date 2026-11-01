@@ -2,7 +2,7 @@
 # expect-stdout: 42
 # expect-stdout: 41
 use std.time.{Clock, Duration, sleep}
-use std.task.{all, race}
+use std.task.{join, race}
 
 fn nap!(ms: i64) -> void $ Clock:
     sleep!(Duration::milliseconds(ms))

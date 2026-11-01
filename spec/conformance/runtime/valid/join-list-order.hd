@@ -1,0 +1,18 @@
+# test: join! of a spread list gives each task's value at its index, whatever order the tasks complete in
+# Spec lang/11 Standard Combinators: req.combinator.join-list.
+# expect-stdout: finished c b a
+# expect-stdout: results a b c
+use std.task.join
+use std.time.{Clock, ms, sleep}
+
+fn later!(name: string, delay: i64, log: *mut List[string]) -> string $ Clock:
+    sleep!(ms(delay))
+    log.push(name)
+    name
+
+pub fn main!() -> void $ Console + Clock:
+    let log: *mut List[string] = box([])
+    let tasks: List[mut Suspend[string]] = [later("a", 30, log), later("b", 20, log), later("c", 10, log)]
+    results := join!(tasks...)
+    println("finished ${log.join(" ")}")
+    println("results ${results.join(" ")}")

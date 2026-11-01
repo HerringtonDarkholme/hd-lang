@@ -1,6 +1,6 @@
 # Structured concurrency: `all!` runs two calls together and joins them.
 fn page!(id: i32) -> string $ Clock:
-    let (profile, orders) = all!(fetch_profile(id), fetch_orders(id)) # ← both at once
+    let (profile, orders) = join!(fetch_profile(id), fetch_orders(id)) # ← both at once
     "${profile.name} has ${orders.len()} orders"
 
 tests:
@@ -12,7 +12,7 @@ tests:
             assert_equal(page!(7), "user-7 has 2 orders", reason="joined page")
 
 # ── plumbing ──────────
-use std.task.all
+use std.task.join
 use std.time.{Clock, ManualClock, Timestamp, ms}
 
 struct Profile:

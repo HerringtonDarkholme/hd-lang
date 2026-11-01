@@ -4,7 +4,7 @@
 # expect-stdout: 1
 # expect-stdout: 2
 # expect-stdout: 1 2
-use std.task.{all, race}
+use std.task.{join, race}
 
 fn one!() -> i32:
     1
@@ -18,5 +18,5 @@ pub fn main!() -> void $ Console:
     println(race!(tasks=[one(), two()]))
     let list: List[mut Suspend[i32]] = [two(), one()]
     println(race!(list...))
-    let (a, b) = all!(one(), two())
+    let (a, b) = join!(one(), two())
     println("${a} ${b}")

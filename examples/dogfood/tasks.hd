@@ -1,10 +1,10 @@
 # tasks: a dependency resolver.
 # Shows topological sort by depth-first search, cycle detection that returns
 # the cycle path as an error, a requirement trait for running tasks, `defer`,
-# and `all!` to run independent tasks of one wave together.
+# and `join!` to run independent tasks of one wave together.
 use std.ops.defer
 use std.cmp.max
-use std.task.all
+use std.task.join
 
 @derive(Eq, Debug)
 enum PlanError:
@@ -95,7 +95,7 @@ fn run_one!(name: string) -> string $ Runner:
     $.use(Runner).run!(name)
     name
 
-# Runs one wave. `all!` takes a fixed number of children, so a wave runs in
+# Runs one wave. `join!` takes a fixed number of children, so a wave runs in
 # batches of up to three concurrent tasks.
 fn run_wave!(names: List[string]) -> List[string] $ Runner:
     if names.len() == 0:
@@ -103,9 +103,9 @@ fn run_wave!(names: List[string]) -> List[string] $ Runner:
     if names.len() == 1:
         return [run_one!(names[0])]
     if names.len() == 2:
-        let (a, b) = all!(run_one(names[0]), run_one(names[1]))
+        let (a, b) = join!(run_one(names[0]), run_one(names[1]))
         return [a, b]
-    let (a, b, c) = all!(run_one(names[0]), run_one(names[1]), run_one(names[2]))
+    let (a, b, c) = join!(run_one(names[0]), run_one(names[1]), run_one(names[2]))
     rest := run_wave!(names.view(3, names.len()).to_list())
     [a, b, c, rest...]
 

@@ -983,7 +983,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 > ([`req.ref.use.reference-values`](#r-req.ref.use.reference-values)).
 
 > **Note.** Two tasks in one provider scope, such as the children of
-> `std.task.all!`, share one mutable provider. Each sees the other's changes
+> `std.task.join!`, share one mutable provider. Each sees the other's changes
 > between its `!` calls, which are the only yield points
 > ([Cooperative Scheduling](#cooperative-scheduling)). Code that needs
 > isolation installs a provider per task with `$.with`.
@@ -1465,8 +1465,8 @@ fn demo() -> void:
 
 1. r[req.schedule.one-thread] Each program instance executes cooperatively on one thread.
 2. r[req.schedule.yield-points] Bang calls are the only language-level yield points; code between them does not interleave with a sibling suspension in that instance.
-3. r[req.schedule.all-unfinished] `std.task.all!` polls its children in argument order on its initial poll. After every wake it polls again, in argument order, only the children that have not completed.
-4. r[req.schedule.all-completed] `all!` never polls a completed child again; it keeps that child's result.
+3. r[req.schedule.all-unfinished] `std.task.join!` polls its children in argument order on its initial poll. After every wake it polls again, in argument order, only the children that have not completed.
+4. r[req.schedule.all-completed] `join!` never polls a completed child again; it keeps that child's result.
 
 ```hd
 fn first!() -> i32: +1
@@ -1561,7 +1561,7 @@ short, and how the standard combinators cancel their children.
 
 ```text
 use std.ops.AsyncDisposable
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
@@ -1593,7 +1593,7 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
 pub fn main!() -> void $ Console + Clock:
     let log: *mut List[string] = box([])
     let job: mut Suspend[string] = session(log)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    let (winner, stopped) = join!(race(job, ready()), stopper(job, log))
     println("${winner} ${stopped}")   # won stopped
     println(log.join(", "))           # closing, closed, stopper finished
 ```
@@ -1613,7 +1613,7 @@ pub fn main!() -> void $ Console + Clock:
 13. r[req.cancel.kept] A cancel made after the cleanup ended returns at once how it ended.
 14. r[req.cancel.takeover] A cancel that reaches a suspension already disposing, after `return`, `?`, or the end of a block, takes over that dispose. The dispose goes on from where it is, and the code after the block never runs.
 15. r[req.cancel.nested.using-split] Cancelling the task that waits in a cancel stops only that wait. The cleanup goes on as part of the task's own cleanup, which ends after it, by [`flow.using.async.cancel.wait`](06-control-flow.md#r-flow.using.async.cancel.wait).
-16. r[req.cancel.await] A task that awaits the value of a cancelled suspension, by a bang call or as a child of `all!`, is cancelled at that await.
+16. r[req.cancel.await] A task that awaits the value of a cancelled suspension, by a bang call or as a child of `join!`, is cancelled at that await.
 17. r[req.cancel.await.unwind] The task unwinds as any cancellation does, and its cleanup folds the awaited suspension's cleanup. No value is produced, and nothing panics.
 18. r[req.cancel.await.kinds] The rule holds for every suspension: a compiler-generated frame, a `std.task` combinator or cancel, and a pending host operation.
 19. r[req.cancel.await.propagate] A task that awaits a task cancelled this way is cancelled the same way, up to the first task where the chain ends.
@@ -1696,7 +1696,7 @@ pub fn main!() -> void $ Console + Clock:
 5. r[req.abandon.dispose] A `dispose!` that waits is stopped at its suspension point, after its own registered synchronous cleanup suites run. The code after that point never runs.
 6. r[req.abandon.dispose.unstarted] A dispose that has not started yet starts. It runs to its first suspension point and is stopped there the same way.
 7. r[req.abandon.host] A pending host operation is aborted as that operation's own cancellation rule says. Abandoning closes no handle: one that a dispose borrows, or that the operation uses, stays open.
-8. r[req.abandon.folded] Every cleanup that cancellation folds into the suspension is abandoned the same way. That includes an unfinished child's cleanup, the children's of `all!` and `race!`, and a cleanup the suspension waits on in `cancel!()`.
+8. r[req.abandon.folded] Every cleanup that cancellation folds into the suspension is abandoned the same way. That includes an unfinished child's cleanup, the children's of `join!` and `race!`, and a cleanup the suspension waits on in `cancel!()`.
 9. r[req.abandon.result] Every `cancel!()` waiting on the suspension's cleanup returns `.Abandoned`, and so does every later `cancel!()` of it.
 10. r[req.abandon.carry] A cleanup that folds an abandoned cleanup ends `.Abandoned` too, even when its own part ran to its end.
 11. r[req.abandon.cold] Abandoning a cold suspension marks it cancelled without running its body.
@@ -1717,9 +1717,9 @@ pub fn main!() -> void $ Console + Clock:
 
 ### Standard Combinators
 
-1. r[req.combinator.cancel-children] The `std.task` combinators `all!` and `race!` cancel their children when the parent is cancelled.
+1. r[req.combinator.cancel-children] The `std.task` combinators `join!` and `race!` cancel their children when the parent is cancelled.
 2. r[req.combinator.race-losers-disposed.using-split] `race!` also cancels losing children before returning the first completed value. It returns that value once every loser's disposes have finished, by [`flow.using.async.cancel.wait`](06-control-flow.md#r-flow.using.async.cancel.wait).
-3. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `all!` and `race!`, are compiler intrinsics.
+3. r[req.combinator.intrinsic] The standard polling combinators in `std.task`, including `join!` and `race!`, are compiler intrinsics.
 4. r[req.combinator.bang-called] Each is imported and bang-called like an ordinary `fn!` function, but the compiler supplies its frame and polling behavior.
 5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
 6. r[req.combinator.user] Because `Suspend[T]` is a built-in type, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
@@ -1735,7 +1735,7 @@ pub fn main!() -> void $ Console + Clock:
 > **Note.** The channels are in [std task, Channels](../std/task.md#channels).
 
 ```hd
-use std.task.all
+use std.task.join
 
 fn load_user!(id: i64) -> string:
     "user $id"
@@ -1744,18 +1744,18 @@ fn load_orders!(id: i64) -> List[i64]:
     [id]
 
 fn page!(id: i64) -> string:
-    let (user, orders) = all!(load_user(id), load_orders(id))
+    let (user, orders) = join!(load_user(id), load_orders(id))
     "$user: ${orders.len()}"
 ```
 
 #### Cancelling The Children
 
-A cancelled `all!` or `race!` stops every unfinished child before it waits
+A cancelled `join!` or `race!` stops every unfinished child before it waits
 for any, so a server shuts down without a deadlock:
 
 ```text
 use std.ops.{AsyncDisposable, Disposable}
-use std.task.{all, race}
+use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}
 
 struct Server:
@@ -1800,7 +1800,7 @@ fn acceptor!(server: &mut Server) -> void $ Clock:
 
 fn serve!(server: *mut Server) -> string $ Clock:
     using mark = Mark { log: server.log, label: "serve cleanup" }
-    _ := all!(connections(server), acceptor(server))
+    _ := join!(connections(server), acceptor(server))
     "served"
 
 fn shutdown!() -> string $ Clock:
@@ -1817,8 +1817,8 @@ pub fn main!() -> void $ Console + Clock:
 2. r[req.combinator.cancel-order] It starts every unfinished child's cleanup, in argument order, before it waits for any of them.
 3. r[req.combinator.cancel-parent-last.using-split] The task that awaits the combinator runs its own cleanup only after every child's cleanup has ended, by [`flow.using.async.cancel.wait`](06-control-flow.md#r-flow.using.async.cancel.wait).
 4. r[req.combinator.race-outer-cancel] A cancel that reaches `race!` while a loser's cleanup runs continues that cleanup as part of the race's own cleanup.
-5. r[req.combinator.all-cancelled] An `all!` child that turns out cancelled cancels the task that awaits the `all!`, by [`req.cancel.await`](#r-req.cancel.await).
-6. r[req.combinator.race-child-cancelled] A `race!` child that turns out cancelled cancels the task that awaits the `race!` at once, as an `all!` child does by [`req.cancel.await`](#r-req.cancel.await). A child that completed earlier on the same poll wins instead.
+5. r[req.combinator.all-cancelled] A `join!` child that turns out cancelled cancels the task that awaits the `join!`, by [`req.cancel.await`](#r-req.cancel.await).
+6. r[req.combinator.race-child-cancelled] A `race!` child that turns out cancelled cancels the task that awaits the `race!` at once, as a `join!` child does by [`req.cancel.await`](#r-req.cancel.await). A child that completed earlier on the same poll wins instead.
 
 > **Note.** In the example, the connections' dispose waits until the
 > acceptor stops accepting, and the acceptor's `StopAccepting` dispose stops it.
@@ -1827,17 +1827,17 @@ pub fn main!() -> void $ Console + Clock:
 > own parent's cleanup still never ends, since the parent cleans up last.
 
 > **Why.** A child cancelled from outside means the structure around it
-> is being torn down, so `race!` stops as `all!` does. Otherwise
+> is being torn down, so `race!` stops as `join!` does. Otherwise
 > `timeout!`, a race of work and a sleep, would wait out its limit and
 > report `TimedOut` for work that was cancelled.
 
-#### Typing `all!`
+#### Typing `join!`
 
-`all!` awaits children of different result types and returns their results
+`join!` awaits children of different result types and returns their results
 as one tuple:
 
 ```text
-use std.task.all
+use std.task.join
 
 struct User:
     name: string
@@ -1849,37 +1849,40 @@ fn load_orders!(id: i64) -> List[i64]:
     [id]
 
 fn page!(id: i64) -> string:
-    let (user, orders) = all!(load_user(id), load_orders(id))
+    let (user, orders) = join!(load_user(id), load_orders(id))
     "${user.name}: ${orders.len()}"
 ```
 
-1. r[req.combinator.all-typing] `all!` has no written signature. A call `all!(e_1, ..., e_n)` in which each `e_i` has type `mut Suspend[X_i]` has type `(X_1, ..., X_n)`.
+1. r[req.combinator.all-typing] `join!` has no written signature. A call `join!(e_1, ..., e_n)` in which each `e_i` has type `mut Suspend[X_i]` has type `(X_1, ..., X_n)`.
 2. r[req.combinator.all-argument] An argument of any other type is an error. Error: `type-mismatch`.
-3. r[req.combinator.all-direct] `all` must be the callee of a direct call with positional arguments. A spread, a named argument, an explicit type argument list such as `all!::[i32, string]`, or a use as a function value is an error. Error: `type-mismatch`.
-4. r[req.combinator.all-bang-child] A child written as a bang call, as in `all!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `all!` starts, so its value is not a `Suspend`.
+3. r[req.combinator.all-direct] `join` must be the callee of a direct call. A named argument, an explicit type argument list such as `join!::[i32, string]`, or a use as a function value is an error. Error: `type-mismatch`.
+4. r[req.combinator.all-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
+5. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[mut Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
+6. r[req.combinator.join-list.rules] The list form polls, completes, cancels, abandons, and disposes its children as the tuple form does, by the rules above and [`req.combinator.all-cancelled`](#r-req.combinator.all-cancelled).
+7. r[req.combinator.join-list.only] A spread with any other argument, positional or named, is an error. Error: `type-mismatch`.
 
 ```text
-use std.task.all
+use std.task.join
 
 fn ready!() -> i32: 1
 
 fn eager!() -> (i32, i32):
-    all!(ready!(), ready())  # error: type-mismatch
+    join!(ready!(), ready())  # error: type-mismatch
 
-fn spread!(tasks: List[mut Suspend[i32]]) -> void:
-    _ := all!(tasks...)  # error: type-mismatch
+fn both!(tasks: List[mut Suspend[i32]]) -> List[i32]:
+    join!(tasks...)  # the list form: one result per task, in order
 
 fn explicit!() -> (i32, i32):
-    all!::[i32, i32](ready(), ready())  # error: type-mismatch
+    join!::[i32, i32](ready(), ready())  # error: type-mismatch
 ```
 
 > **Note.** A plain call of a suspending function, such as
-> `load_user(id)`, builds the cold `mut Suspend[User]` that `all!` polls
+> `load_user(id)`, builds the cold `mut Suspend[User]` that `join!` polls
 > ([`req.suspend.type.plain-call`](#r-req.suspend.type.plain-call)).
 > Scheduling, cancellation, and failure follow the rules above and
 > [Cooperative Scheduling](#cooperative-scheduling).
 
-> **Why.** A written signature for `all!` would need a type-level map over
+> **Why.** A written signature for `join!` would need a type-level map over
 > a tuple, from `Suspend[X_i]` to `X_i`. The language has no higher-kinded
 > types, so one written typing rule replaces the signature.
 

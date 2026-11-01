@@ -1,8 +1,8 @@
 # expect-stdout: 2000 results; 2000 started and cleaned
-# test: map_all handles 2000 workers and cancels every pending worker
+# test: map_join handles 2000 workers and cancels every pending worker
 # Spec std/task Map All: std-task.map-all.order, .empty, and .like-all.
 use std.ops.defer
-use std.task.{TimedOut, map_all, timeout, apply}
+use std.task.{TimedOut, map_join, timeout, apply}
 use std.testing.assert_equal
 use std.time.{Clock, ManualClock, Timestamp, sleep}
 
@@ -17,13 +17,13 @@ fn work!(gauge: &mut Gauge, item: usize) -> usize $ Clock:
     item
 
 fn batch!(gauge: *mut Gauge, items: List[usize]) -> List[usize] $ Clock:
-    map_all!(items, items.len(), fn!(item: usize) -> usize $ Clock: work!(gauge, item))
+    map_join!(items, items.len(), fn!(item: usize) -> usize $ Clock: work!(gauge, item))
 
 pub fn main!() -> void $ Console + Clock:
     let mut items: List[usize] = []
     for item in 0..2000:
         items.push(item)
-    values := map_all!(items, items.len(), fn!(item: usize) -> usize: item + 1)
+    values := map_join!(items, items.len(), fn!(item: usize) -> usize: item + 1)
     assert_equal(values.len(), 2000, reason="one value per item")
     for item in 0..2000:
         assert_equal(values[item], item + 1, reason="results keep input order")

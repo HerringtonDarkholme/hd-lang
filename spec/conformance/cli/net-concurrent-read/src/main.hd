@@ -1,7 +1,7 @@
 # Both clients must write before either can receive its reply.
 # Accept and read must yield to the other children without requiring Clock.
 use std.net.{Net, NetError, TcpListener, connect, listen}
-use std.task.all
+use std.task.join
 
 fn serve!(listener: &mut dyn TcpListener) -> Result[void, NetError]:
     using! first = listener.accept!()?
@@ -21,7 +21,7 @@ fn client!(port: u16) -> Result[usize, NetError] $ Net:
 pub fn main!() -> Result[void, NetError] $ Net + Console:
     using! listener = listen!("127.0.0.1", 0)?
     address := listener.local_address()?
-    let (served, first, second) = all!(serve(listener), client(address._1), client(address._1))
+    let (served, first, second) = join!(serve(listener), client(address._1), client(address._1))
     served?
     println("${first?} ${second?}")
     .Ok(())

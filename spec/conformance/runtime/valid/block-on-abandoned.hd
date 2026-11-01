@@ -4,7 +4,7 @@
 # Spec lang/11 Driving A Stored Suspension: req.drive.block-on.cancelled; Abandoning: req.abandon.dependency.result; std/task Block On: std-task.block-on.abandoned.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{all, block_on}
+use std.task.{join, block_on}
 use std.time.{Clock, s, sleep}
 
 struct Channel['a]:
@@ -30,7 +30,7 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
         .Abandoned => log.push("stop abandoned")
     "stopped"
 
-# `job` turns out cancelled when `all!` polls it again, so `all!` and
+# `job` turns out cancelled when `join!` polls it again, so `join!` and
 # `both` are cancelled, and the dispose of `channel` cannot finish.
 fn both!(
     job: mut Suspend[string],
@@ -39,7 +39,7 @@ fn both!(
 ) -> string $ Clock:
     defer(fn() -> void: log.push("both defer"))
     using! channel = &mut Channel { log: log, ack: ack }
-    let (worked, stopped) = all!(job, stop(job, log))
+    let (worked, stopped) = join!(job, stop(job, log))
     "${worked} ${stopped}"
 
 fn drive(log: *mut List[string]) -> string $ Clock:

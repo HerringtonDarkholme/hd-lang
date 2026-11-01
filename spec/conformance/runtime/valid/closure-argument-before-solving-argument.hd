@@ -4,7 +4,7 @@ struct Item:
     name: string
     cents: i32
 
-fn map_all[A, B](f: fn(A) -> B, items: List[A]) -> List[B]:
+fn map_join[A, B](f: fn(A) -> B, items: List[A]) -> List[B]:
     [for item in items => f(item)]
 
 fn fold[A, S](step: fn(S, A) -> S, items: List[A], start: S) -> S:
@@ -15,7 +15,7 @@ fn fold[A, S](step: fn(S, A) -> S, items: List[A], start: S) -> S:
 
 fn priced() -> i32:
     items := [Item { name: "tea", cents: +250 }, Item { name: "cake", cents: +400 }]
-    names := map_all(fn(item): item.name, items)
+    names := map_join(fn(item): item.name, items)
     total := fold(fn(sum, item): sum + item.cents, items=items, start=+0)
     total + i32(names.len())
 

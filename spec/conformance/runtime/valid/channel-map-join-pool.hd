@@ -1,7 +1,7 @@
-# test: a pool of map_all! workers shares one receiver, and every job is done once
+# test: a pool of map_join! workers shares one receiver, and every job is done once
 # Spec std task, Channels: std-task.channel.handles, std-task.channel.pool.
 # expect-stdout: jobs 10, total 55
-use std.task.{all, channel, map_all, Receiver, Sender}
+use std.task.{all, channel, map_join, Receiver, Sender}
 
 fn feed!(tx: Sender[i32]) -> i32:
     let job: i32 = 1
@@ -20,7 +20,7 @@ fn work!(rx: Receiver[i32]) -> i32:
     done
 
 fn pool!(rx: Receiver[i32]) -> i32:
-    per_worker := map_all!([0, 1, 2], 3, fn!(id: i32) -> i32: work!(rx))
+    per_worker := map_join!([0, 1, 2], 3, fn!(id: i32) -> i32: work!(rx))
     per_worker.sum()
 
 pub fn main!() -> void $ Console:

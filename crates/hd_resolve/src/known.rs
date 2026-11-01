@@ -151,6 +151,9 @@ pub struct KnownItems {
     pub block_on: DefId,
     /// `std.task.race`, whose call needs a task (`req.combinator.race-empty`).
     pub race: DefId,
+    /// `std.task.all_list`, the engine of `join!`'s list form
+    /// (`req.combinator.join-list`).
+    pub all_list: DefId,
     pub println: DefId,
     // std.annotation, std.testing
     pub annotate: DefId,
@@ -351,6 +354,7 @@ impl KnownItems {
             suspend,
             block_on: item("std.task", "block_on"),
             race: item("std.task", "race"),
+            all_list: item("std.task", "all_list"),
             println: item("std.console", "println"),
             annotate: item("std.annotation", "annotate"),
             inline: item("std.annotation", "inline"),

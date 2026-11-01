@@ -4,7 +4,7 @@
 # Spec std/task Cleanup Bound: std-task.policy.time-limit.cleanup-outlives, .cleanup-deadline, .cleanup-abandon.
 use std.ops.defer
 use std.ops.AsyncDisposable
-use std.task.{TimedOut, all, race, timeout, apply}
+use std.task.{TimedOut, join, race, timeout, apply}
 use std.time.{Clock, Duration, ms, s, sleep}
 
 struct Close:
@@ -45,7 +45,7 @@ fn mark!(log: &mut List[string], at: Duration, text: string) -> void $ Clock:
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let (outcome, _, _) = all!(
+    let (outcome, _, _) = join!(
         race(request(log), caller_cancels(log)),
         mark(log, ms(150), "still closing"),
         mark(log, ms(350), "after deadline"),
