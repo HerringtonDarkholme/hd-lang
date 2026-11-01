@@ -91,7 +91,7 @@ fn walk[T](tree: Tree[T], out: &mut List[T]) -> void:
 fn build(xs: List[i32]) -> Tree[i32]:
     let t: Tree[i32] = Tree.Leaf
     for x in xs:
-        t = insert(t, x)
+        t = insert(t, *x)
     t
 
 pub fn main() -> void $ Console:
@@ -133,12 +133,12 @@ fn count(v: Value) -> i32:
         .Items(items) =>
             let n = +1
             for item in items:
-                n = n + count(item)
+                n = n + count(*item)
             n
         .Fields(fields) =>
             let n = +1
             for key in keys():
-                match fields.get(key):
+                match fields.get(*key):
                     .Some(inner) => n = n + count(inner)
                     .None => pass
             n
@@ -153,12 +153,12 @@ fn render(v: Value) -> string:
         .Items(items) =>
             let mut parts: List[string] = []
             for item in items:
-                parts.push(render(item))
+                parts.push(render(*item))
             \"[\" + parts.join(\",\") + \"]\"
         .Fields(fields) =>
             let mut parts: List[string] = []
             for key in keys():
-                match fields.get(key):
+                match fields.get(*key):
                     .Some(inner) => parts.push(key + \":\" + render(inner))
                     .None => pass
             \"{\" + parts.join(\",\") + \"}\"

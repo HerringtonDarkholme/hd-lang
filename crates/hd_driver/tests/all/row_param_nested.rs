@@ -40,7 +40,7 @@ pub struct Holder[T]:
 
 fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
     for x in xs:
-        x()
+        (*x)()
 
 fn run_map[$R](xs: Map[string, fn() -> void $ R]) -> void $ R:
     pass

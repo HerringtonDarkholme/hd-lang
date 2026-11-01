@@ -101,7 +101,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn references_to_builtin_impls_call_through_their_adapters() {
     let main = "fn texts(xs: List[i32], show: fn(&i32) -> string) -> List[string]:
-    [for x in xs => show(&x)]
+    [for x in xs => show(x)]
 
 pub fn main() -> void $ Console:
     show := i32::to_string

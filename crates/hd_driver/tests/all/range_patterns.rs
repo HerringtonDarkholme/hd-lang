@@ -165,7 +165,7 @@ fn pair(t: (u8, i8)) -> string:
 
 pub fn main() -> void $ Console:
     for n in [-5, -1, 0, 1, 9, 10, 99, 100, 1000]:
-        println(bucket(n))
+        println(bucket(*n))
     println(first(150))
     println(first(201))
     println(edge(-9_000_000_001))
