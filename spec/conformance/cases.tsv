@@ -5655,3 +5655,8 @@ typing/valid/mut-holder-field-reborrows.hd	type	accept	lang/13-values-and-refere
 typing/invalid/mut-holder-match-moves-payload.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.pattern
 typing/invalid/mut-holder-let-pattern-moves-payload.hd	type	reject:use-of-moved-value	lang/13-values-and-references.md#r-ref.move.pattern
 typing/valid/mut-holder-match-moves-nothing.hd	type	accept	lang/13-values-and-references.md#r-ref.move.pattern
+typing/invalid/move-out-of-shared-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/invalid/move-field-out-of-mut-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/invalid/move-out-of-mut-reference-argument.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/valid/deref-copyable-copies.hd	type	accept	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/valid/deref-borrow-passed-on.hd	type	accept	lang/13-values-and-references.md#r-ref.move.out-of-place

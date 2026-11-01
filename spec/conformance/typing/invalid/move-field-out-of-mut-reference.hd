@@ -1,0 +1,9 @@
+# test: a `&mut` field read through a `&mut` reference cannot move out where no `&mut` type is expected
+# Spec 13 Moves: ref.move.out-of-place.
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+fn field(r: &mut Holder) -> void:
+    t := r.target # diagnostic: move-out-of-place
+    *t = 2

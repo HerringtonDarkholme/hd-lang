@@ -1794,14 +1794,15 @@ fn demo(c: &mut Counter) -> void:
 3. r[ref.move.sites] A read of a whole binding that is not copied moves its value at each site in the table below. No `&mut` type is expected at these sites.
 4. r[ref.move.field] A read of a field of a binding, where the field's type is not copied, moves the field out at each site in the table below. The binding is then partly moved. A site that expects a `&mut` type reborrows the field instead, as for a binding. A field of a field moves the same way.
 5. r[ref.move.pattern] A `match` arm or `let` pattern that binds a value whose type is not copied moves that value out of the matched value. When the matched value is a binding, or a field of one, a bound payload or field moves out as a field does. The binding is then partly moved. A `_` pattern moves nothing, and neither does binding only copied parts. A pattern matched through a reference binds as [Matching Through A Reference](#matching-through-a-reference) states.
-6. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
-7. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
-8. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`. Only a `&mut` value reborrows: a value of another type that is not copied moves at a `let` that writes its type, at an assignment, and into a field.
-9. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
-10. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
-11. r[ref.move.use.partial] A use of a partly moved binding is an error when it reaches a moved field: a use of the whole binding, of the moved field, or of a place inside that field. Its other fields stay usable. A moved payload counts as a moved field, so matching the binding again is such a use. Error: `use-of-moved-value`.
-12. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it. A closure captures the whole binding.
-13. r[ref.move.reassign] Assigning the binding a new value makes it usable again. Assigning a moved field a new value makes that field usable again, and the binding whole when no other field is moved.
+6. r[ref.move.out-of-place] A read of a value that is not copied, from a place behind a `&T` or `&mut T`, is an error at each site in the table below. Such a place is `*r`, or a field reached through `r`, such as `r.target`. A site that expects a `&mut` type reborrows instead. Error: `move-out-of-place`.
+7. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
+8. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
+9. r[ref.move.reborrow.typed] A site that expects a written `&mut T` type reborrows the value instead of moving it. These sites are a `let` that writes the type, an assignment to a place of a `&mut` type, and a struct field or variant payload declared `&mut`. Only a `&mut` value reborrows: a value of another type that is not copied moves at a `let` that writes its type, at an assignment, and into a field.
+10. r[ref.move.reborrow.shared] Converting a `&mut T` value to `&T`, as in `let t: &T = r`, reborrows it as a shared reference and does not move it.
+11. r[ref.move.use] A use of a binding whose value moved on some path to the use is an error. The path may run through an earlier iteration of a loop. Error: `use-of-moved-value`.
+12. r[ref.move.use.partial] A use of a partly moved binding is an error when it reaches a moved field: a use of the whole binding, of the moved field, or of a place inside that field. Its other fields stay usable. A moved payload counts as a moved field, so matching the binding again is such a use. Error: `use-of-moved-value`.
+13. r[ref.move.use.forms] A use is a read of the binding or of a place through it, a write through it, a reference to it, or a closure that captures it. A closure captures the whole binding.
+14. r[ref.move.reassign] Assigning the binding a new value makes it usable again. Assigning a moved field a new value makes that field usable again, and the binding whole when no other field is moved.
 
 | Site | Example |
 | --- | --- |
@@ -1887,6 +1888,34 @@ fn refill(x: &mut i32, y: &mut i32) -> void:
         .Some(g) => take(g)
         .None => pass
 ```
+
+```text
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+fn peek(h: &Holder) -> i32:
+    h.count
+
+fn keep[T](x: T) -> void: pass
+
+fn twice['a, 'b](r: &'b Holder['a]) -> (Holder['a], Holder['a]):
+    (*r, *r)  # error: move-out-of-place
+
+fn whole(r: &mut Holder) -> i32:
+    n := (*r).count   # an i32 is copied
+    keep(*r)          # error: move-out-of-place
+    peek(&*r) + peek(r)
+
+fn field(r: &mut Holder) -> void:
+    t := r.target     # error: move-out-of-place
+    let u: &mut i32 = r.target  # a reborrow
+```
+
+> **Why.** A reference lends a place but does not own the value there.
+> Moving a value that holds a `&mut` out of it would leave two values
+> that write one place. Rust reports the same read as "cannot move out of
+> `*r`" (E0507). Borrow the place with `&*r` or `&mut *r`, or pass `r` on.
 
 > **Why.** This is Rust's rule (E0382) for `&mut`. Two copies of one
 > `&mut` would both write the same place, which the exclusivity rules

@@ -1,0 +1,13 @@
+# test: `*r` through a `&` cannot move out a value that holds a `&mut`
+# Spec 13 Moves: ref.move.out-of-place.
+struct Holder['a]:
+    target: &'a mut i32
+
+fn twice['a, 'b](r: &'b Holder['a]) -> (Holder['a], Holder['a]):
+    (*r, *r) # diagnostic: move-out-of-place
+
+pub fn main() -> void $ Console:
+    let mut x = +1
+    h := Holder { target: &mut x }
+    pair := twice(&h)
+    println("ok")

@@ -18,11 +18,13 @@ use hd_diag::Code;
 use hd_resolve::{ItemData, Lookup};
 use hd_syntax::SyntaxKind;
 use hd_tir::Callee;
-use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, slots};
+use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology};
 use hd_tir::own::flow::{BitArena, Flow, Forward, Suites, forward};
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::Ck;
+
+mod out_of_place;
 
 /// An instruction index as a word.
 fn w(i: usize) -> u32 {
@@ -243,11 +245,7 @@ impl Ck<'_, '_> {
         if b.tags.contains(&Tag::Poison) {
             return;
         }
-        // A hidden local, such as a call's `$ref`, holds a value for the
-        // checker's own lowering, and is not a binding.
-        let hidden: Vec<bool> = (b.local_name.iter())
-            .map(|&s| self.cx.names.text(s).starts_with('$'))
-            .collect();
+        let hidden = self.hidden_locals(b);
         let held: Vec<bool> = (b.local_ty.iter())
             .map(|&t| !copies(pool, self.cx.lookup, t))
             .collect();
@@ -256,27 +254,8 @@ impl Ck<'_, '_> {
             return;
         }
         let n = b.len();
-        let mut users: Vec<Vec<(u32, Role)>> = vec![Vec::new(); n];
-        for i in 0..n {
-            slots(b, i, |_, v, word| {
-                if let Word::Value(role) = word
-                    && Ref(v).as_inst().is_some()
-                    && (v as usize) < n
-                {
-                    users[v as usize].push((w(i), role));
-                }
-            });
-        }
-        // The reads of each whole hidden local.
-        let mut hidden_reads: HashMap<LocalId, Vec<u32>> = HashMap::default();
-        for i in 0..n {
-            if b.tags[i] == Tag::Read
-                && let Some((l, true)) = local_of(b, b.data[i][0])
-                && hidden[l.idx()]
-            {
-                hidden_reads.entry(l).or_default().push(w(i));
-            }
-        }
+        let users = out_of_place::users_of(b);
+        let hidden_reads = out_of_place::hidden_reads_of(b, &hidden);
         let cx = Uses {
             b,
             topo: &Topology::new(b),

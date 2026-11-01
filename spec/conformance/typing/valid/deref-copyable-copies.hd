@@ -1,0 +1,25 @@
+# test: `*r` and a field read through a reference copy a value that is copied
+# Spec 13 Moves: ref.move.out-of-place.
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+struct Point:
+    x: i32
+    y: i32
+
+fn sum(r: &Point, n: &i32) -> i32:
+    p := *r
+    q := *r
+    p.x + q.y + *n
+
+fn shared(r: &Holder) -> i32:
+    n := (*r).count
+    n + r.count
+
+pub fn main() -> void $ Console:
+    let mut x = +1
+    h := Holder { target: &mut x, count: 2 }
+    p := Point { x: 3, y: 4 }
+    k := +5
+    println("${sum(&p, &k)} ${shared(&h)}")

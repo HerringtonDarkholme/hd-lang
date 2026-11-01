@@ -1,0 +1,29 @@
+# test: borrowing `&*r`, passing `r` on, and reborrowing a `&mut` field through a reference move nothing out
+# Spec 13 Moves: ref.move.out-of-place, ref.move.reborrow.typed.
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+fn peek(h: &Holder) -> i32:
+    h.count
+
+fn bump(x: &mut i32) -> void:
+    *x += 1
+
+fn shared(r: &Holder) -> i32:
+    peek(&*r) + peek(r)
+
+fn field(r: &mut Holder) -> void:
+    bump(r.target)
+    let u: &mut i32 = r.target
+    *u = 2
+    t := &mut *r.target
+    *t = 3
+    s := &mut *r
+    s.count = 4
+
+pub fn main() -> void $ Console:
+    let mut x = +1
+    let mut h = Holder { target: &mut x, count: 2 }
+    field(&mut h)
+    println("${shared(&h)}")
