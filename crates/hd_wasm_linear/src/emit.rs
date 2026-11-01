@@ -43,6 +43,8 @@ pub(crate) use excl::{Loan, collect_loans};
 mod iter;
 mod list;
 mod map;
+mod promote;
+pub use promote::promotable_referent;
 mod refs;
 mod scope;
 mod shape;
@@ -120,10 +122,21 @@ fn body_func<'a>(
     } else {
         closure::closure_suspends(input, b, args, sub)?
     };
-    let roots = ref_roots(input, b, item, args, suspending);
+    // Promoted arguments (§23.40): a call that takes a local's value
+    // where its declaration takes a reference. A plain function picks
+    // its own for primitive comparisons in the optimized pipeline.
+    let pick = input.promote_args
+        && sub == 0
+        && !suspending
+        && erased.is_none()
+        && own.cold.is_none()
+        && input.runtime.is_some();
+    let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick)?;
+    let roots = ref_roots(input, b, item, args, suspending, &promoted);
     let cells = closure::cell_locals(b, &roots);
     let direct_json = input.direct_json_encoders.contains(&own.key);
     let mut em = Em::new(input, m, b, (item, args), targets, cells, direct_json);
+    em.type_promoted(promoted)?;
     // A local only local references lend lives in the frame (§23.38): a
     // plain function's own, at a runtime that counts.
     if sub == 0 && !suspending && erased.is_none() && own.cold.is_none() && input.runtime.is_some()
@@ -684,11 +697,16 @@ fn ref_roots(
     item: DefId,
     args: TyList,
     suspending: bool,
+    promoted: &hd_base::HashSet<u32>,
 ) -> Vec<usize> {
     let (pool, env) = (input.pool, input.env);
     (0..b.len())
         .filter_map(|i| {
             let l = shape::ref_local(b, i)?;
+            // A promoted argument reads its local's value.
+            if promoted.contains(&u32::try_from(i).expect("insts")) {
+                return None;
+            }
             let t = subst(pool, env, item, args, b.ty[i]);
             let addr = matches!(
                 crate::layout::kind(pool, env, t),
@@ -1066,6 +1084,9 @@ struct Em<'i, 'a, 'm> {
     /// local stack, not in a counted cell (§23.38), each with its slot's
     /// offset in the frame ([`closure::slot_locals`]).
     slots: HashMap<usize, u32>,
+    /// The promoted arguments (§23.40, `promote.rs`): `Ref`s that read
+    /// their place's value, typed as its referent.
+    promoted: hd_base::HashSet<u32>,
     /// A handle body's once-cell key: its cells live in static data, as
     /// the body runs once per instance ([`closure::Em::raw_cell`]).
     static_cells: Option<Hash128>,
@@ -1194,6 +1215,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
             slots: HashMap::default(),
+            promoted: hd_base::HashSet::default(),
             static_cells: None,
             frame: None,
             drive_buffer: None,

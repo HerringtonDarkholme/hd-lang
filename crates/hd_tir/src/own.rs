@@ -58,6 +58,7 @@ mod late;
 mod moves;
 mod pairs;
 pub(crate) mod parts;
+pub mod promote;
 pub(crate) mod splice;
 
 /// Whether a type holds a counted leaf.

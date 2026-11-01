@@ -33,6 +33,27 @@ impl Value {
 /// emitted code of its own, and its closure bodies carry it.
 pub const EXCLUSIVE: (u32, Value) = (u32::MAX, Value::Variant(u32::MAX));
 
+/// The mark of a promoted copy's instance among its defaults (#1151): a
+/// slot no parameter has, with the mask of the parameters it takes by
+/// value. Like [`EXCLUSIVE`], it gives the copy a key and code of its own.
+#[must_use]
+pub const fn promoted(mask: u64) -> (u32, Value) {
+    (u32::MAX - 1, Value::Scalar(mask))
+}
+
+/// The parameters an instance with `defaults` takes by value: the mask
+/// of its [`promoted`] mark, 0 for any other instance.
+#[must_use]
+pub fn promoted_mask(defaults: &[(u32, Value)]) -> u64 {
+    defaults
+        .iter()
+        .find_map(|&d| match d {
+            (p, Value::Scalar(mask)) if p == u32::MAX - 1 => Some(mask),
+            _ => None,
+        })
+        .unwrap_or(0)
+}
+
 /// Preserve all pre-existing keys when no default was specialized.
 #[must_use]
 pub fn digest(known: &[(u32, Hash128)], defaults: &[(u32, Value)]) -> Hash128 {

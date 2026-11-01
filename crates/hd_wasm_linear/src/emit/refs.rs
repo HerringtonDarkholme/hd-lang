@@ -508,6 +508,10 @@ impl Em<'_, '_, '_> {
     /// `Ref` `i`: the place's address, or the trait value
     /// there for a reference to a trait value, with a count of its own.
     pub(super) fn place_ref(&mut self, i: u32) -> StageResult<()> {
+        // A promoted argument is its place's value (§23.40).
+        if self.promoted.contains(&i) {
+            return self.place_read(i);
+        }
         // A reference the move pass marked to take its local's count of
         // the cell (`docs/compiler/tir-v2.md`, "Move" rule 4): the cell's
         // address, owned, and the local left empty. Where the reference

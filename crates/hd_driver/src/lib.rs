@@ -1453,6 +1453,9 @@ struct Run<'a> {
     /// Whether the pipeline's link inlines the count fast paths
     /// (`inline_counts`, the wasmtime target's).
     inline_counts: bool,
+    /// Whether the pipeline promotes small read-only reference arguments
+    /// to values (`arg_promote`, `hd_tir::own::promote`).
+    promote_args: bool,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
     /// The selected optimization pipeline, separate from arithmetic semantics.
@@ -2239,6 +2242,9 @@ fn build_packages_inner(
             .tir
             .contains(&"summaries")
             .then(own::Summaries::default),
+        promote_args: hd_opt::passes::pipeline(packages.target, packages.level)
+            .tir
+            .contains(&"arg_promote"),
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
@@ -10015,6 +10021,7 @@ impl Run<'_> {
             entry,
             release: self.build_profile == BuildProfile::Release,
             optimized: self.level == OptLevel::Optimized,
+            promote_args: self.promote_args,
             runtime,
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,

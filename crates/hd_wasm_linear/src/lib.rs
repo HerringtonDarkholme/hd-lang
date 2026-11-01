@@ -34,6 +34,7 @@ use hd_mono::{Collected, ProgramEnv, Target, TargetKind};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty, TyData};
 
+pub use emit::promotable_referent;
 pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
@@ -282,6 +283,10 @@ pub struct Input<'a> {
     /// Whether the optimized pipeline is selected, independently of arithmetic
     /// and count-auditing profiles. Whole-program decoder proofs run only here.
     pub optimized: bool,
+    /// Whether the optimized pipeline promotes arguments (`arg_promote`,
+    /// `crates/hd_wasm_linear/DESIGN.md` §23.40): emission then reads a
+    /// local's value for a primitive comparison's reference to it.
+    pub promote_args: bool,
     /// The instances of std's runtime that counting calls. Without them a
     /// module counts nothing and allocates from a bump pointer.
     pub runtime: Option<Runtime>,

@@ -2365,3 +2365,26 @@ in one (`drive.rs`).
   hd provider that never waits does. Yielding when a sibling could run
   is not built: the guest has no run queue to read, and due timers are
   known only to the host.
+
+### 23.40 Promoted Arguments
+
+Issue #1151, release only: LLVM's `argpromotion`. A `&T` parameter whose
+referent is a small value the body only reads is passed by value. The
+caller passes the value, not the address of a local, so the local needs
+no frame slot (§23.38) or cell, and the callee loads nothing. The
+language and the declared signatures do not change; dev builds keep the
+address. The optimized pipeline declares the pass `arg_promote`
+(`hd_opt::passes`), and `Input::promote_args` says whether it runs.
+
+- **Which referents.** `promotable_referent` (`emit/promote.rs`): a thin,
+  read-only reference to a value held in locals with no counted leaf and
+  one to four Wasm values. That is a number, `bool`, `char`, or a small
+  struct, tuple or enum of them.
+- **The caller.** `promoted_refs` finds each such argument: a `Ref`
+  passed to a parameter the callee instance's mark
+  (`defaults::promoted(mask)`) takes by value. It is typed as its referent,
+  emitted as a read of its place, and left out of `ref_roots`, so a local
+  only such `Ref`s lend lives in Wasm locals. A plain function also reads
+  the value for the primitive comparisons it lowers itself (`eq`, `cmp`,
+  `partial_cmp` on a promotable referent), which load the referent
+  anyway.

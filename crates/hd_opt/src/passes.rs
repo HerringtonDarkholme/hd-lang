@@ -392,6 +392,18 @@ pub static PASSES: &[PassSpec] = &[
         Optional,
         Instance(not_yet)
     ),
+    // Argument promotion (#1151, `hd_tir::own::promote`): collection
+    // gives a direct call a copy of its callee that takes a small
+    // read-only `&T` parameter by value, and emission passes the value.
+    pass!(
+        "arg_promote",
+        TirDecision,
+        [],
+        [],
+        gate::HAS_CALL,
+        Optional,
+        Instance(not_yet)
+    ),
     pass!(
         "escape",
         TirAnalysis,
@@ -470,6 +482,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
         "devirt_known",
         "closure_spec",
         "summaries",
+        "arg_promote",
         "escape",
         "scalar_replace",
         "liveness",
@@ -774,8 +787,8 @@ mod tests {
 
     /// A change to these values changes every code key. Job (c1) changed
     /// both: the hash dropped the pipeline name and gained the knob values
-    /// and the link passes; the release summaries changed the optimized
-    /// one, and only it.
+    /// and the link passes; the release summaries and argument promotion
+    /// changed the optimized one, and only it.
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
@@ -785,7 +798,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 197_633_577_451_581_921_990_823_630_658_444_050_384,
+            optimized, 321_480_786_636_863_885_057_137_669_080_240_890_939,
             "optimized"
         );
     }

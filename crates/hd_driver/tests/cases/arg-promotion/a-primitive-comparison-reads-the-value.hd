@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# `a == b` lends both parameters to `Eq.eq`, which takes `&self` and
+# `&Self`. In release `same` is inlined into `check`, where the
+# comparison of two `i32`s reads their values (§23.40, #1151): no frame
+# slot and no load. A dev build keeps the slots
+# (`frame-slots/a-lent-parameter-lives-in-the-frame`).
+fn same[T < Eq](a: T, b: T) -> bool:
+    a == b
+
+fn check() -> bool:
+    same(+3, +4)
