@@ -221,9 +221,9 @@ impl Json:
     ## The pretty text of the value: each item of an array and each entry of an object on its own line, indented by two spaces for each level of nesting.
     ## See [std-json.value.pretty](../../spec/std/json.md#r-std-json.value.pretty).
     pub fn pretty(self) -> string:
-        let mut parts: List[string] = []
-        render(self, &mut parts, true, 0)
-        concat_all(parts)
+        let mut out: List[u8] = []
+        render(self, &mut out, true, 0)
+        string_from_bytes(out)
 
     ## The value of `key` when the value is an `Object` with that key.
     ## See [std-json.value.accessors.get](../../spec/std/json.md#r-std-json.value.accessors.get).
@@ -360,62 +360,62 @@ fn pointer_token(path: string, start: usize, end: usize) -> string:
 # Keep handwritten Display: render JSON syntax rather than an Error message.
 impl Display for Json:
     fn to_string(self) -> string:
-        let mut parts: List[string] = []
-        render(self, &mut parts, false, 0)
-        concat_all(parts)
+        let mut out: List[u8] = []
+        render(self, &mut out, false, 0)
+        string_from_bytes(out)
 
-# The text is collected as pieces and joined once. Every piece is valid
-# UTF-8 (a literal, a number's text, or a run of a string cut next to an
-# ASCII byte), so the joined text needs no check.
-fn render(value: Json, parts: &mut List[string], spaced: bool, depth: usize) -> void:
+# The text is appended to one byte buffer. Every piece is valid UTF-8 (a
+# literal, a number's text, or a run of a string cut next to an ASCII
+# byte), so the text needs no check.
+fn render(value: Json, out: &mut List[u8], spaced: bool, depth: usize) -> void:
     match value:
-        .Null => parts.push("null")
+        .Null => bytes_append(out, "null")
         .Bool(flag) =>
-            parts.push(if flag: "true" else: "false")
-        .Number(number) => parts.push("$number")
-        .Text(text) => push_quoted(parts, text)
+            bytes_append(out, if flag: "true" else: "false")
+        .Number(number) => bytes_append(out, "$number")
+        .Text(text) => push_quoted(out, text)
         .Array(items) =>
             if items.len() == 0:
-                parts.push("[]")
+                bytes_append(out, "[]")
                 return
-            parts.push("[")
+            bytes_append(out, "[")
             let first = true
             for item in items:
                 if !first:
-                    parts.push(",")
+                    bytes_append(out, ",")
                 first = false
-                line_break(parts, spaced, depth + 1)
-                render(item, parts, spaced, depth + 1)
-            line_break(parts, spaced, depth)
-            parts.push("]")
+                line_break(out, spaced, depth + 1)
+                render(item, out, spaced, depth + 1)
+            line_break(out, spaced, depth)
+            bytes_append(out, "]")
         .Object(fields) =>
             if fields.len() == 0:
-                parts.push("{}")
+                bytes_append(out, "{}")
                 return
-            parts.push("{")
+            bytes_append(out, "{")
             let first = true
             for entry in fields:
                 if !first:
-                    parts.push(",")
+                    bytes_append(out, ",")
                 first = false
-                line_break(parts, spaced, depth + 1)
-                push_quoted(parts, entry._0)
-                parts.push(if spaced: ": " else: ":")
-                render(entry._1, parts, spaced, depth + 1)
-            line_break(parts, spaced, depth)
-            parts.push("}")
+                line_break(out, spaced, depth + 1)
+                push_quoted(out, entry._0)
+                bytes_append(out, if spaced: ": " else: ":")
+                render(entry._1, out, spaced, depth + 1)
+            line_break(out, spaced, depth)
+            bytes_append(out, "}")
 
-fn line_break(parts: &mut List[string], spaced: bool, depth: usize) -> void:
+fn line_break(out: &mut List[u8], spaced: bool, depth: usize) -> void:
     if !spaced:
         return
-    parts.push("\n")
+    bytes_append(out, "\n")
     if depth > 0:
-        parts.push("  ".repeat(depth))
+        bytes_append(out, "  ".repeat(depth))
 
-fn push_quoted(parts: &mut List[string], text: string) -> void:
-    parts.push("\"")
-    push_escaped(parts, text)
-    parts.push("\"")
+fn push_quoted(out: &mut List[u8], text: string) -> void:
+    bytes_append(out, "\"")
+    push_escaped(out, text)
+    bytes_append(out, "\"")
 
 # The inside of a quoted string: `"` and `\` escaped, the control
 # characters below U+0020 as `\b`, `\f`, `\n`, `\r`, `\t`, or `\u00XX` with
@@ -423,21 +423,21 @@ fn push_quoted(parts: &mut List[string], text: string) -> void:
 # (r-std-json.display.text). Each run of bytes that needs no escape goes in
 # whole, as a slice that shares the string's bytes; an escaped byte is
 # ASCII, so every run starts and ends on a scalar boundary.
-fn push_escaped(parts: &mut List[string], text: string) -> void:
+fn push_escaped(out: &mut List[u8], text: string) -> void:
     size := bytes_len(text)
     let plain: usize = 0
     let index = bytes_index_json(text, 0)
     while index < size:
         if index > plain:
-            parts.push(bytes_slice(text, plain, index))
-        parts.push(escape_text(bytes_at(text, index)))
+            bytes_append(out, bytes_slice(text, plain, index))
+        bytes_append(out, escape_text(bytes_at(text, index)))
         plain = index + 1
         index = bytes_index_json(text, plain)
     if plain == 0:
         if size > 0:
-            parts.push(text)
+            bytes_append(out, text)
     else if plain < size:
-        parts.push(bytes_slice(text, plain, size))
+        bytes_append(out, bytes_slice(text, plain, size))
 
 fn escape_text(byte: u8) -> string:
     match byte:
@@ -1662,7 +1662,7 @@ enum Irregular:
 # text: a list, a map, or a record adds one, and a variant two, for its
 # `{"Variant": {` once a member opens it.
 struct TextWriter:
-    pub parts: List[string]
+    pub out: List[u8]
     pub depth: usize
     pub kinds: List[FrameKind]
     pub names: List[string]
@@ -1684,7 +1684,7 @@ struct TextWriter:
 impl TextWriter:
     fn new(spaced: bool) -> TextWriter:
         TextWriter {
-            parts: [],
+            out: [],
             depth: 0,
             kinds: [],
             names: [],
@@ -1704,10 +1704,14 @@ impl TextWriter:
         }
 
     # The text, or `.None` when the walk was not regular or not complete.
-    fn finish(&self) -> string?:
+    fn finish(&mut self) -> string?:
         if !self.regular || !self.written || self.depth > 0:
             return .None
-        .Some(concat_all(self.parts))
+        # The buffer moves out, so `string_from_bytes` takes it over with
+        # no copy.
+        bytes := self.out
+        self.out = []
+        .Some(string_from_bytes(bytes))
 
     fn give_up(&mut self) -> Result[void, Irregular]:
         self.regular = false
@@ -1731,8 +1735,8 @@ impl TextWriter:
         match kind:
             .Items =>
                 if count > 0:
-                    self.parts.push(",")
-                line_break(&mut self.parts, self.spaced, self.indent)
+                    bytes_append(&mut self.out, ",")
+                line_break(&mut self.out, self.spaced, self.indent)
                 return .Ok(())
             _ => pass
         if !self.keyed:
@@ -1745,20 +1749,20 @@ impl TextWriter:
             self.spaced_key(kind, count, self.names[last], key)
             return .Ok(())
         if count > 0:
-            self.parts.push(",\"")
+            bytes_append(&mut self.out, ",\"")
         else:
             match kind:
                 .Tagged =>
-                    self.parts.push("{\"")
-                    push_escaped(&mut self.parts, self.names[last])
-                    self.parts.push("\":{\"")
+                    bytes_append(&mut self.out, "{\"")
+                    push_escaped(&mut self.out, self.names[last])
+                    bytes_append(&mut self.out, "\":{\"")
                 .Named =>
-                    self.parts.push("{\"")
-                    push_escaped(&mut self.parts, self.names[last])
-                    self.parts.push("\":{\"")
-                _ => self.parts.push("\"")
-        push_escaped(&mut self.parts, key)
-        self.parts.push("\":")
+                    bytes_append(&mut self.out, "{\"")
+                    push_escaped(&mut self.out, self.names[last])
+                    bytes_append(&mut self.out, "\":{\"")
+                _ => bytes_append(&mut self.out, "\"")
+        push_escaped(&mut self.out, key)
+        bytes_append(&mut self.out, "\":")
         .Ok(())
 
     # The pretty text before a value of an object: a comma after an earlier
@@ -1766,23 +1770,23 @@ impl TextWriter:
     # opens `{`, its name, and `: {` first, each on its own line.
     fn spaced_key(&mut self, kind: FrameKind, count: usize, name: string, key: string) -> void:
         if count > 0:
-            self.parts.push(",")
+            bytes_append(&mut self.out, ",")
         else:
             match kind:
                 .Tagged =>
-                    self.parts.push("{")
-                    line_break(&mut self.parts, true, self.indent - 1)
-                    push_quoted(&mut self.parts, name)
-                    self.parts.push(": {")
+                    bytes_append(&mut self.out, "{")
+                    line_break(&mut self.out, true, self.indent - 1)
+                    push_quoted(&mut self.out, name)
+                    bytes_append(&mut self.out, ": {")
                 .Named =>
-                    self.parts.push("{")
-                    line_break(&mut self.parts, true, self.indent - 1)
-                    push_quoted(&mut self.parts, name)
-                    self.parts.push(": {")
+                    bytes_append(&mut self.out, "{")
+                    line_break(&mut self.out, true, self.indent - 1)
+                    push_quoted(&mut self.out, name)
+                    bytes_append(&mut self.out, ": {")
                 _ => pass
-        line_break(&mut self.parts, true, self.indent)
-        push_quoted(&mut self.parts, key)
-        self.parts.push(": ")
+        line_break(&mut self.out, true, self.indent)
+        push_quoted(&mut self.out, key)
+        bytes_append(&mut self.out, ": ")
 
     # Reuse the writer's key slots across objects. No object allocates a
     # duplicate-key map; nested objects use disjoint ranges of the buffer.
@@ -1806,10 +1810,10 @@ impl TextWriter:
     fn open(&mut self, kind: FrameKind, name: string, facts: Facts) -> Result[void, Irregular]:
         self.start()?
         match kind:
-            .Items => self.parts.push("[")
+            .Items => bytes_append(&mut self.out, "[")
             .Tagged => pass
             .Named => pass
-            _ => self.parts.push("{")
+            _ => bytes_append(&mut self.out, "{")
         at := self.depth
         if at < self.kinds.len():
             self.kinds[at] = kind
@@ -1841,44 +1845,44 @@ impl TextWriter:
         let spaced = self.spaced && count > 0
         match (kind, open_kind):
             (.Items, .Items) =>
-                line_break(&mut self.parts, spaced, self.indent - 1)
-                self.parts.push("]")
+                line_break(&mut self.out, spaced, self.indent - 1)
+                bytes_append(&mut self.out, "]")
             (.Entries, .Entries) =>
-                line_break(&mut self.parts, spaced, self.indent - 1)
-                self.parts.push("}")
+                line_break(&mut self.out, spaced, self.indent - 1)
+                bytes_append(&mut self.out, "}")
             (.Record, .Record) =>
-                line_break(&mut self.parts, spaced, self.indent - 1)
-                self.parts.push("}")
+                line_break(&mut self.out, spaced, self.indent - 1)
+                bytes_append(&mut self.out, "}")
             (.Record, .Tagged) =>
                 if spaced:
-                    line_break(&mut self.parts, true, self.indent - 1)
-                    self.parts.push("}")
-                    line_break(&mut self.parts, true, self.indent - 2)
-                    self.parts.push("}")
+                    line_break(&mut self.out, true, self.indent - 1)
+                    bytes_append(&mut self.out, "}")
+                    line_break(&mut self.out, true, self.indent - 2)
+                    bytes_append(&mut self.out, "}")
                 else if count > 0:
-                    self.parts.push("}}")
+                    bytes_append(&mut self.out, "}}")
                 else:
-                    push_quoted(&mut self.parts, self.names[last])
+                    push_quoted(&mut self.out, self.names[last])
             (.Record, .Named) =>
                 if count > 0:
                     if spaced:
-                        line_break(&mut self.parts, true, self.indent - 1)
-                        self.parts.push("}")
-                        line_break(&mut self.parts, true, self.indent - 2)
-                        self.parts.push("}")
+                        line_break(&mut self.out, true, self.indent - 1)
+                        bytes_append(&mut self.out, "}")
+                        line_break(&mut self.out, true, self.indent - 2)
+                        bytes_append(&mut self.out, "}")
                     else:
-                        self.parts.push("}}")
+                        bytes_append(&mut self.out, "}}")
                 else if self.spaced:
-                    self.parts.push("{")
-                    line_break(&mut self.parts, true, self.indent - 1)
-                    push_quoted(&mut self.parts, self.names[last])
-                    self.parts.push(": {}")
-                    line_break(&mut self.parts, true, self.indent - 2)
-                    self.parts.push("}")
+                    bytes_append(&mut self.out, "{")
+                    line_break(&mut self.out, true, self.indent - 1)
+                    push_quoted(&mut self.out, self.names[last])
+                    bytes_append(&mut self.out, ": {}")
+                    line_break(&mut self.out, true, self.indent - 2)
+                    bytes_append(&mut self.out, "}")
                 else:
-                    self.parts.push("{\"")
-                    push_escaped(&mut self.parts, self.names[last])
-                    self.parts.push("\":{}}")
+                    bytes_append(&mut self.out, "{\"")
+                    push_escaped(&mut self.out, self.names[last])
+                    bytes_append(&mut self.out, "\":{}}")
             _ => return self.give_up()
         self.key_count = self.key_starts[last]
         self.depth = last
@@ -1900,7 +1904,7 @@ impl TextWriter:
 
     fn scalar(&mut self, text: string) -> Result[void, Irregular]:
         self.start()?
-        self.parts.push(text)
+        bytes_append(&mut self.out, text)
         .Ok(())
 
 impl Serializer for TextWriter:
@@ -1928,7 +1932,7 @@ impl Serializer for TextWriter:
 
     fn text(&mut self, value: string) -> Result[void, Irregular]:
         self.start()?
-        push_quoted(&mut self.parts, value)
+        push_quoted(&mut self.out, value)
         .Ok(())
 
     fn begin_list(&mut self, len: usize) -> Result[void, Irregular]:
@@ -3421,6 +3425,11 @@ fn concat_all(parts: List[string]) -> string:
 # The string of `bytes`, which the caller has checked are UTF-8.
 @intrinsic("string_from_bytes")
 fn string_from_bytes(bytes: List[u8]) -> string:
+    panic("intrinsic")
+
+# Appends the bytes of `text` to the list `bytes` refers to, in one copy.
+@intrinsic("bytes_append")
+fn bytes_append(bytes: &mut List[u8], text: string) -> void:
     panic("intrinsic")
 
 # The offset of the first byte at or after `from` that JSON must escape,
