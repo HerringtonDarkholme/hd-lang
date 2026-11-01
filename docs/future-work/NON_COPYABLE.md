@@ -85,7 +85,7 @@ fn dup[T](x: T) -> (T, T): (x, x)
 
 fn split(items: &mut List[i32]) -> void:
     span := items.span_mut()
-    let (a, b) = dup(span)  # today: accepted; proposed: error: not-copyable
+    let (a, b) = dup(span)  # today: accepted; proposed: error: unsatisfied-trait-bound
 ```
 
 Four more holes check today (Appendix D): a field read `h.target`, an
@@ -118,9 +118,12 @@ fn first_two(items: &mut List[i32]) -> void:
    the value, as in Rust.
 3. **Type parameters.** Every generic parameter is `Copy` by default:
    of a function, struct, enum, `impl` block or method. An argument for one
-   must be copyable. Error: `not-copyable`. `< ?Copy` lifts the bound,
-   and the body moves such a `T` like any non-copyable value. A trait's
-   default bodies treat `Self` as possibly non-copyable.
+   must be copyable. Error: `unsatisfied-trait-bound`. `< ?Copy` lifts
+   the bound, and the body moves such a `T` like any non-copyable value.
+   A trait's `Self` and its type parameters are `Copy` by default too, as
+   Swift's protocols are: only a copyable type implements `trait Iterator`.
+   `trait Disposable: ?Copy` opts out, and its default bodies then move
+   `Self`. `Copy` is in the prelude.
 4. **Places.** Moving a non-copyable field out of a local binding leaves
    the binding partly moved: its other fields stay usable, a use of the
    whole is `use-of-moved-value`, and assigning the field makes it whole
@@ -134,10 +137,10 @@ fn first_two(items: &mut List[i32]) -> void:
 6. **Patterns through references.** Below a `&` or `&mut`, a pattern binds
    a non-copyable payload as a reference of the same kind. It is a copy
    for a copyable payload, as [`ref.match.copy`](../../spec/lang/13-values-and-references.md#r-ref.match.copy) says today.
-7. **Collections.** `List[T < ?Copy]` and `Map[K, V < ?Copy]`.
-   Methods that hand out an item by value (`get`, `first`, `last`,
-   indexing a copy) sit in an `impl[T < Copy]` block; `get_ref`-style
-   borrows, `push`, `pop` and iteration by reference take any `T`.
+7. **Collections.** `List`, `Map`, `Set`, `Deque` and `Heap` take
+   copyable items for now: `[Photo { ... }]` is `unsatisfied-trait-bound`,
+   as Swift's `Array` first was. A list of non-copyable items waits for a
+   real program that needs one.
 8. **Cleanup.** No destructor runs; the counting runtime frees memory as
    today. Moving a `using` binding is `use-of-moved-value`, so `using`
    always disposes at scope exit.
@@ -155,7 +158,7 @@ fn close(client: &mut Client) -> Conn:
     replace(&mut client.conn, .Closed)  # moving `client.conn` out of a reference: error: move-out-of-place
 
 fn demo(c: &mut Counter, photo: Photo) -> void:
-    keep(c)      # error: not-copyable; today c moves into keep
+    keep(c)      # error: unsatisfied-trait-bound; today c moves into keep
     hold(c)      # valid: c moves
     hold(photo)  # valid: photo moves
 ```
@@ -182,13 +185,12 @@ Estimated bottom-up from the files named; nothing is measured yet.
 | --- | --- | --- |
 | Parser, `hd fmt`, item flag | `impl !Copy for T` and `?Copy` in bound lists | +60 lines |
 | `copies` | read the flag and the parameter bound | +15 lines |
-| Generic default | `not-copyable` at each instantiation | +90 lines |
+| Generic default | `unsatisfied-trait-bound` at each instantiation | +90 lines |
 | Places, captures, patterns | rules 4 to 6 in the move walk, per-field move state | +260 lines |
 | `using` and moves | a moved `using` binding is `use-of-moved-value` | +10 lines |
 | `Index` to `&self` | the trait, 41 std impls, 35 elsewhere, ch. 05 | about 80 one-line edits |
 | `Eq`, `Ord`, `Hash` to `&self` | 74 std impls, 66 elsewhere, the derive templates, `==` passes `&` | about 160 edits, +20 compiler lines |
 | `Display`, `Debug`, `Serialize` and the rest | 123 std impls, 164 elsewhere, the derive templates | about 300 edits |
-| `Option`, `Result`, `List`, `Map` | an `impl[T < Copy]` block for the methods that copy an item | about 60 methods move |
 | Compile time | one flag per type; the checks join the existing move walk | not measurable, expected |
 | Runtime and Wasm size | none: a move is the same bits as a copy, with no count change | 0 |
 | Web compiler gzip | about 400 Rust lines | about +2 KB, far under the 2 MB cap |
@@ -206,14 +208,14 @@ Each case is written in the proposal; "today" is the current build.
 | 2 | `PARALLELISM_AND_LOCALITY.md`'s chunk loop: `using chunk = alloc(..)`, `read_into!(..)?`, `send!(chunk.take(n))` | Read with `using`, the early `?` disposes and the send skips it, which is right. With `:=`, the `?` path leaks the block | Keep `using` (rule 7). `unbound-disposable` already denies the `:=` form |
 | 3 | Swift SE-0390's `FileDescriptor` with `consuming func close()` | hd's `self` is "the method's own copy"; [`fn.method.no-ownership-receiver`](../../spec/lang/07-functions.md#r-fn.method.no-ownership-receiver) says no receiver takes ownership | Rule 2: for a non-copyable type, `self` takes the value. That rule and the receiver table change |
 | 4 | A tokio-style state machine: `self.state = match self.state: ...` | Moves out of a field: `move-out-of-place` | `match replace(&mut self.state, .Closed):`, Rust's `mem::replace` idiom |
-| 5 | A pool of connections, `List[Conn]` with `Conn < ?Copy` | Today `List[Conn]` copies its items, duplicating each connection | `List[T < ?Copy]` holds it (rule 7); `get` needs `T < Copy`, so the pool lends with `&pool[i]` or takes with `pop` |
+| 5 | A pool of connections, `List[Conn]` with `impl !Copy for Conn` | Today `List[Conn]` copies its items, duplicating each connection | `unsatisfied-trait-bound` for now (rule 7); the pool holds `*mut Conn` handles until a list of non-copyable items is needed |
 | 6 | `let p = photo; f := fn() -> u32: p.width; send(p); f()` | A `let` capture is a shared cell, so `f()` would read a moved value | Rule 5: the capture moves `p`, so `send(p)` is `use-of-moved-value` |
 | 7 | `t.lead` through `t: &Team` where `lead: Photo` | Shallow `&` (#535) would hand out a copy | Rule 4: `move-out-of-place`; `&t.lead` lends it |
 | 8 | `@derive(Eq)` on a `!Copy` struct before slice 5 | The derived `eq(self, other)` consumes both sides: `a == b && a == b` is `use-of-moved-value` (probe p6, with a `&mut` holder) | Slice order: `Eq` moves to `&self` before user types can opt out |
 | 9 | `photo.is_some()` on `Photo?`, `opt.map(f)` | `is_some(self)` consumes; `impl[T] T?` takes copyable `T` only | Methods every payload allows move to `impl[T < ?Copy] T?`; `is_some` takes `&self` |
-| 10 | `for x in [photo]` | A list literal of a non-copyable type | `not-copyable`, as 5 |
+| 10 | `for x in [photo]` | A list literal of a non-copyable type | `unsatisfied-trait-bound`, as 5 |
 | 11 | `b := box(photo); c := *b` | `*b` would copy the photo out of a shared box | `move-out-of-place`; boxes share, they never duplicate |
-| 12 | ch. 13's `keep(c)` and std calls that pass a `&mut` to a plain `T`, as `.expect` on `get_mut`'s `(&mut T)?` | Valid today (a move); `not-copyable` under rule 3 | Mark `Option` and `Result` first; the generic slice lists every flipped site and stops past 15 |
+| 12 | ch. 13's `keep(c)` and std calls that pass a `&mut` to a plain `T`, as `.expect` on `get_mut`'s `(&mut T)?` | Valid today (a move); `unsatisfied-trait-bound` under rule 3 | Mark `Option` and `Result` first; the generic slice lists every flipped site and stops past 15 |
 | 13 | A `pub struct` gains a non-copyable field in a patch release | Every caller that copies it breaks, with no change at the declaration (the structural check) | `RELEASE.md`'s API comparison reports copyability changes as breaking |
 
 ## Appendix B. Prior Art, With Code
@@ -359,7 +361,7 @@ with a `struct Holder['a]` holding a `&'a mut List[i32]`:
   the counting runtime see the same code as today.
 - Soundness: rules 3 and 4 close the five holes of Appendix D for `&mut`
   holders too.
-- Diagnostics: `not-copyable` and `move-out-of-place` are new; messages
+- Diagnostics: `move-out-of-place` is new; messages
   name the field or parameter that makes a type non-copyable.
 - Spec: ch. 13 Moves (rules 1 to 8), ch. 04 Value Types, ch. 07 receivers
   and captures, ch. 05 `Index`, ch. 06 `using`, `spec/std/ops.md` for
@@ -376,7 +378,7 @@ with a `struct Holder['a]` holding a `&'a mut List[i32]`:
 5. `Eq`, `Ord`, `Hash` to `&self`, with the derive templates.
 6. Generic default and `?Copy` parameters; `Option` and `Result`
    blocks.
-7. `List[T < ?Copy]` and `Map` (rule 7).
+7. Collections take copyable items (rule 7).
 8. Captures (rule 5).
 9. `using` and moves (rule 8).
 10. `Display`, `Debug`, `Serialize` and the remaining read traits.
