@@ -118,26 +118,37 @@ pub fn promote(b: &Body, mask: u64, referent: impl Fn(Ty) -> Ty) -> Body {
 /// suspension point keeps the plain callee.
 #[must_use]
 pub fn promoted_call(b: &Body, call: usize, mask: u64) -> bool {
-    if mask == 0 || b.tags[call] != Tag::Call || b.tags.iter().any(|&t| crate::ir::is_suspension(t))
-    {
-        return false;
+    mask != 0 && promotable_args(b, call) & mask == mask
+}
+
+/// The arguments of `Call` `call` of `b` that a promoted copy may take by
+/// value (bit k: argument k), as [`promoted_call`] reads them; none in a
+/// body with a suspension point.
+#[must_use]
+pub fn promotable_args(b: &Body, call: usize) -> u64 {
+    if b.tags[call] != Tag::Call || b.tags.iter().any(|&t| crate::ir::is_suspension(t)) {
+        return 0;
     }
     let words = b.record(b.data[call][1]);
     let args = &words[..words.len().saturating_sub(3)];
-    (0..64).filter(|k| mask & (1 << k) != 0).all(|k| {
-        let Some(i) = args.get(k).and_then(|&v| Ref(v).as_inst()) else {
-            return false;
-        };
-        promotable_ref(b, i.0 as usize, call)
-    })
+    (args.iter().enumerate().take(64))
+        .filter(|&(_, &v)| {
+            Ref(v)
+                .as_inst()
+                .is_some_and(|i| promotable_ref(b, i.0 as usize, call))
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
 }
 
 /// Whether `Ref` `i` of `b` is a read-only reference to a part of a local
 /// no closure captures, used once by instruction `user` and otherwise only
-/// dropped: the reference a promoted argument replaces with its value.
+/// dropped, that takes no count of its local (`ref_word::TAKES`): the
+/// reference a promoted argument replaces with its value.
 #[must_use]
 pub fn promotable_ref(b: &Body, i: usize, user: usize) -> bool {
-    if b.tags[i] != Tag::Ref || b.data[i][1] & crate::ir::ref_word::MUT != 0 {
+    let flags = b.data[i][1];
+    if b.tags[i] != Tag::Ref || flags & (crate::ir::ref_word::MUT | crate::ir::ref_word::TAKES) != 0
+    {
         return false;
     }
     let p = b.view(b.data[i][0]);

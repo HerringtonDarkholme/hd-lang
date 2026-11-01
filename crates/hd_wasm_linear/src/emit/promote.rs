@@ -23,6 +23,18 @@ pub fn promotable_referent(
     env: &dyn hd_mono::ProgramEnv,
     t: Ty,
 ) -> Option<Ty> {
+    lent_referent(pool, env, t).filter(|&target| crate::layout::walk(pool, env, target).is_none())
+}
+
+/// [`promotable_referent`], counted parts allowed: the referent of a
+/// reference a promoted copy may take by value, lent with no count
+/// (§23.40), such as a `string` or a small struct holding one.
+#[must_use]
+pub fn lent_referent(
+    pool: &hd_types::InternPool,
+    env: &dyn hd_mono::ProgramEnv,
+    t: Ty,
+) -> Option<Ty> {
     let Kind::Ref {
         target, fat: false, ..
     } = kind(pool, env, t)
@@ -32,7 +44,6 @@ pub fn promotable_referent(
     if crate::layout::ref_mutable(pool, env, t)
         || hd_mono::is_open(pool, target)
         || !matches!(kind(pool, env, target), Kind::Value)
-        || crate::layout::walk(pool, env, target).is_some()
     {
         return None;
     }
@@ -104,14 +115,29 @@ pub(super) fn promoted_refs(
     Ok(out)
 }
 
+/// The parameters instance `key`, a promoted copy, takes by value: the
+/// mask of its mark (`defaults::promoted`), 0 for any other instance.
+/// Both sides of a call read them as lent: the caller passes its local's
+/// value with no count, and the copy owns none.
+pub(super) fn promoted_params(input: &Input<'_>, m: &Module, key: hd_base::Hash128) -> u64 {
+    m.inst_of.get(&key).map_or(0, |id| {
+        hd_mono::defaults::promoted_mask(&input.collected.table.defaults[id.idx()])
+    })
+}
+
 impl Em<'_, '_, '_> {
     /// Types each promoted argument ([`promoted_refs`]) as its referent.
+    /// A counted one is a loan: its read takes no count, and its `Drop`
+    /// releases none, as the callee only borrows it.
     pub(super) fn type_promoted(&mut self, promoted: HashSet<u32>) -> StageResult<()> {
         for &a in &promoted {
             let Some((target, false)) = self.ref_target(self.inst_ty[a as usize]) else {
                 return unsupported("a promoted argument whose type is no thin reference");
             };
             self.inst_ty[a as usize] = target;
+            if self.counted(target).is_some() {
+                self.loans.insert(a);
+            }
         }
         self.promoted = promoted;
         Ok(())

@@ -60,7 +60,16 @@ pub trait ProgramEnv: LayoutEnv {
     /// `&T` parameters in its mask by value (`hd_tir::own::promote`), and
     /// which a call may run where `hd_tir::own::promote::promoted_call`
     /// holds.
-    fn promoted_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)> {
+    /// With `exclusive`, the promoted copy of `def`'s exclusive copy
+    /// ([`ProgramEnv::exclusive_body`]); only the parameters in `want` may
+    /// be taken by value.
+    fn promoted_body(
+        &self,
+        _def: DefId,
+        _args: TyList,
+        _exclusive: bool,
+        _want: u64,
+    ) -> Option<(u64, Arc<Body>)> {
         None
     }
     /// Codegen-only result facts. The driver decodes the raw checked body,
@@ -1670,7 +1679,23 @@ impl Cx<'_> {
         if plain.is_none_or(|p| table.key[p.idx()] != t.key) {
             return Ok(None);
         }
-        let Some((by_value, copy)) = self.env.promoted_body(t.item, t.args) else {
+        // A call that may also run the exclusive copy runs the promoted
+        // copy of that one, which borrows what it reads across calls.
+        let exclusive = self.env.exclusive_body(t.item).is_some_and(|(relies, _)| {
+            let own = match body.sub_flags.first() {
+                Some(f) if f & hd_tir::ir::sub_flags::EXCLUSIVE != 0 => {
+                    let item = self.out.table.item[caller.idx()];
+                    self.env.exclusive_body(item).map_or(0, |e| e.0)
+                }
+                _ => 0,
+            };
+            hd_tir::own::exclusive_call(body, at, relies, own)
+        });
+        let want = hd_tir::own::promote::promotable_args(body, at);
+        let Some((by_value, copy)) = (want != 0)
+            .then(|| self.env.promoted_body(t.item, t.args, exclusive, want))
+            .flatten()
+        else {
             return Ok(None);
         };
         if !hd_tir::own::promote::promoted_call(body, at, by_value)
@@ -1678,11 +1703,11 @@ impl Cx<'_> {
         {
             return Ok(None);
         }
-        let mark = [defaults::promoted(by_value)];
-        let key =
-            self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], &mark, caller)?;
+        let marks = [defaults::promoted(by_value), defaults::EXCLUSIVE];
+        let mark = if exclusive { &marks[..] } else { &marks[..1] };
+        let key = self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], mark, caller)?;
         let table = &self.out.table;
-        if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], &mark) {
+        if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], mark) {
             self.out.instance_bodies.entry(id).or_insert(copy);
         }
         Ok(Some(CallTarget { key, ..t.clone() }))

@@ -23,32 +23,25 @@
     end
     ;; ...
   )
-  (func $run (param $t0 i32) (param $t1 i32) (param $x i32) (result i32) (local $m i32)
-    ;; ...
+  (func $"impl Mapper.apply'2" (param $self.transform.0 i32) (param $self.transform.1 i32) (param $x i32) (result i32)
     block
-    ;; 16 |     m.apply(x)
-      local.get $m
+    ;; 13 |         (self.transform)(x)
+      local.get $self.transform.1
       local.get $x
-      call $"impl Mapper.apply'2"
-      local.set $t0
+      i32.const 0
+      local.get $self.transform.0
+      call_indirect $table0 (param i32 i32 i32) (result i32)
       ;; ...
     end
     ;; ...
   )
-  (func $"impl Mapper.apply'2" (param $self i32) (param $x i32) (result i32) (local $t0 i32)
+  (func $run (param $m.transform.0 i32) (param $m.transform.1 i32) (param $x i32) (result i32)
     block
-    ;; 13 |         (self.transform)(x)
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.set $self
-      local.get $t0
+    ;; 16 |     m.apply(x)
+      local.get $m.transform.0
+      local.get $m.transform.1
       local.get $x
-      i32.const 0
-      local.get $self
-      call_indirect $table0 (param i32 i32 i32) (result i32)
+      call $"impl Mapper.apply'2"
       ;; ...
     end
     ;; ...

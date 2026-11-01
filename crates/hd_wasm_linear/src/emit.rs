@@ -44,7 +44,7 @@ mod iter;
 mod list;
 mod map;
 mod promote;
-pub use promote::promotable_referent;
+pub use promote::{lent_referent, promotable_referent};
 mod refs;
 mod scope;
 mod shape;
@@ -79,7 +79,8 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         key: t.key[id.idx()],
         erased,
         cold: None,
-        lends: input.env.lends(item),
+        // A promoted copy borrows what it takes by value (§23.40).
+        lends: input.env.lends(item) | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]),
     };
     body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)
 }
@@ -2338,7 +2339,8 @@ impl Em<'_, '_, '_> {
                         return self.call_results(i, ct.ret);
                     }
                     let params = self.param_tys(ct.key, ct.item, ct.args);
-                    let lends = self.env().lends(ct.item);
+                    let lends = self.env().lends(ct.item)
+                        | promote::promoted_params(self.input, self.m, ct.key);
                     self.push_args(&args, params.as_deref(), lends)?;
                     let c = self.push_call_providers(ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));

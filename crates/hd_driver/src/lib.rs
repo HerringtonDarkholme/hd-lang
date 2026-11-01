@@ -11549,8 +11549,14 @@ impl ProgramEnv for Env<'_> {
     fn exclusive_body(&self, def: DefId) -> Option<(u64, Arc<Body>)> {
         self.run.summaries.as_ref()?.exclusive(def)
     }
-    fn promoted_body(&self, def: DefId, args: TyList) -> Option<(u64, Arc<Body>)> {
-        self.promoted_copy(def, args)
+    fn promoted_body(
+        &self,
+        def: DefId,
+        args: TyList,
+        exclusive: bool,
+        want: u64,
+    ) -> Option<(u64, Arc<Body>)> {
+        self.promoted_copy(def, args, exclusive, want)
     }
     fn instance_body(&self, def: DefId, args: TyList) -> StageResult<Option<Body>> {
         if hd_opt::inline::InlineEnv::memo(self).is_none() {

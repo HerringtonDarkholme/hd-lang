@@ -1,0 +1,33 @@
+# @dump: wat
+# @build: v8 release
+# Release (§23.40, #1151): a read-only reference to a value with counted
+# parts is promoted too, and the value is lent with no count. `label`
+# only reads `w.name`, so `use_label` passes the string's two words with
+# no frame slot, and `label'2` neither retains nor releases them.
+# `Show for string` returns `*self`, a copy, so `show'1` takes a count
+# of the value it returns; `shown[string]` lends `value` with none.
+use std.annotation.inline
+
+trait Show:
+    fn show(&self) -> string
+
+impl Show for string:
+    fn show(&self) -> string:
+        *self
+
+struct Wrap:
+    name: string
+
+fn label(w: &Wrap) -> usize:
+    (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
+
+fn use_label(name: string) -> usize:
+    let w = Wrap { name: name }
+    label(&w)
+
+@inline(.Never)
+fn shown[T < Show](value: T) -> string:
+    value.show()
+
+fn use_shown() -> string:
+    shown("abc")

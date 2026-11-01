@@ -57,10 +57,14 @@ pub(super) struct Summaries {
     /// (`sub_flags::EXCLUSIVE`). Collection gives it to the calls whose
     /// arguments stage 7 keeps exclusive (`hd_tir::own::exclusive_call`).
     exclusive: std::sync::Mutex<HashMap<DefId, Exclusive>>,
-    /// Per item and type arguments, its promoted copy (#1151,
-    /// [`Env::promoted_copy`]), once asked.
-    promoted: std::sync::Mutex<HashMap<(DefId, TyList), Option<Exclusive>>>,
+    /// Per item, type arguments and whether of the exclusive copy, its
+    /// promoted copy (#1151, [`Env::promoted_copy`]), once asked.
+    promoted: std::sync::Mutex<HashMap<PromotedKey, Option<Exclusive>>>,
 }
+
+/// A promoted copy's item, type arguments, whether of the exclusive copy,
+/// and the parameters its call may pass by value ([`Env::promoted_copy`]).
+type PromotedKey = (DefId, TyList, bool, u64);
 
 /// An exclusive copy: the parameters it relies on, and the body after the
 /// passes ([`Summaries::exclusive`]).
@@ -1081,39 +1085,54 @@ impl Env<'_> {
 
     /// Release (#1151): `def`'s promoted copy at `args` and the parameters
     /// it takes by value: each `&T` parameter whose referent at `args`
-    /// is small with no counted leaf (`hd_wasm_linear::promotable_referent`)
+    /// is small (`hd_wasm_linear::lent_referent`; a counted one is lent
+    /// with no count)
     /// and that the owned body only reads through
-    /// (`hd_tir::own::promote::read_only_params`). None for a suspending
-    /// item, or when the pipeline does not promote.
-    pub(super) fn promoted_copy(&self, def: DefId, args: TyList) -> Option<Exclusive> {
+    /// (`hd_tir::own::promote::read_only_params`). With `exclusive`, the
+    /// copy of `def`'s exclusive copy (`sub_flags::EXCLUSIVE`), for a call
+    /// that may run both. Only the parameters in `want` (those whose
+    /// arguments the call may pass by value) are candidates. None for a
+    /// suspending item, or when the pipeline does not promote.
+    pub(super) fn promoted_copy(
+        &self,
+        def: DefId,
+        args: TyList,
+        exclusive: bool,
+        want: u64,
+    ) -> Option<Exclusive> {
         let all = self
             .run
             .summaries
             .as_ref()
             .filter(|_| self.run.promote_args)?;
-        if let Some(hit) = lock(&all.promoted).get(&(def, args)) {
+        let at = (def, args, exclusive, want);
+        if let Some(hit) = lock(&all.promoted).get(&at) {
             return hit.clone();
         }
-        let out = self.promote(def, args);
-        lock(&all.promoted).insert((def, args), out.clone());
+        let out = self.promote(def, args, exclusive, want);
+        lock(&all.promoted).insert(at, out.clone());
         out
     }
 
-    fn promote(&self, def: DefId, args: TyList) -> Option<Exclusive> {
+    fn promote(&self, def: DefId, args: TyList, exclusive: bool, want: u64) -> Option<Exclusive> {
         if ProgramEnv::suspends(self, def) {
             return None;
         }
-        let b = ProgramEnv::body(self, def)?;
+        let excl = exclusive.then(|| self.run.summaries.as_ref()?.exclusive(def));
+        let b = match &excl {
+            Some(e) => &*e.as_ref()?.1,
+            None => ProgramEnv::body(self, def)?,
+        };
         let pool = &self.run.pool;
         let params = hd_tir::own::params(b);
         let mut candidates = 0;
         for (k, &l) in params.iter().enumerate().take(64) {
             let t = hd_mono::subst(pool, self, def, args, b.local_ty[l as usize]);
-            if hd_wasm_linear::promotable_referent(pool, self, t).is_some() {
+            if hd_wasm_linear::lent_referent(pool, self, t).is_some() {
                 candidates |= 1 << k;
             }
         }
-        let mask = hd_tir::own::promote::read_only_params(b, candidates);
+        let mask = hd_tir::own::promote::read_only_params(b, candidates & want);
         if mask == 0 {
             return None;
         }

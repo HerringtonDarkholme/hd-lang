@@ -3,14 +3,10 @@
 # Release argument promotion (§23.40, #1151) keeps the address of a
 # parameter the body passes on whole or compares with `is`: `relay`
 # passes `p` itself to `norm`, which calls `norm`'s plain body with the
-# address, and `same_place` compares the addresses. `wrap` holds a
-# string, which is counted, so `label` keeps its address too.
+# address, and `same_place` compares the addresses.
 struct Point:
     x: i32
     y: i32
-
-struct Wrap:
-    name: string
 
 fn norm(p: &Point) -> i32:
     (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)
@@ -21,13 +17,9 @@ fn relay(p: &Point) -> i32:
 fn same_place(a: &Point, b: &Point) -> bool:
     a is b
 
-fn label(w: &Wrap) -> usize:
-    w.name.len()
-
 fn use_all() -> i32:
     let p = Point { x: +1, y: +2 }
-    let w = Wrap { name: "abc" }
-    let n = i32(label(&w))
+    let n = +3
     if same_place(&p, &p):
         relay(&p) + n
     else:

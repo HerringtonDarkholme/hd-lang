@@ -2380,6 +2380,14 @@ address. The optimized pipeline declares the pass `arg_promote`
   read-only reference to a value held in locals with no counted leaf and
   one to four Wasm values. That is a number, `bool`, `char`, or a small
   struct, tuple or enum of them.
+  A promoted copy also takes a referent with counted parts
+  (`lent_referent`), such as a `string` or a small struct holding one,
+  lent with no count: the caller's read of its local is a loan (no
+  retain, and its `Drop` releases nothing), and the copy receives the
+  parameter borrowed (`Own::lends` and the call's lends add the mark's
+  mask), so it owns no count either. The copy's reads keep the modes the
+  passes gave the reads through the reference, so a value it keeps,
+  returns or passes on as owned is a copy with a count of its own.
 - **Which parameters.** `hd_tir::own::promote::read_only_params`: every
   place rooted at the parameter is a `Read` through it (`[*$p .f]`) or a
   `Drop` of it. A whole read of the reference (to store, return, compare
@@ -2390,8 +2398,13 @@ address. The optimized pipeline declares the pass `arg_promote`
   by the mark `defaults::promoted(mask)`), when the target is the plain
   instance and each promoted argument is a read-only `Ref` of a part of a
   local no closure captures, used only by the call and its `Drop`s
-  (`promoted_call`). The copy's parameter local has the referent's type,
-  and its reads drop the dereference (`promote::promote`), so the copy's
+  (`promoted_call`). Only the parameters whose arguments are such
+  `Ref`s are candidates (`promotable_args`), so one argument passed on
+  from a reference keeps the others promoted. A call that may also run
+  the callee's exclusive copy (stage 8, #1118) runs the promoted copy of
+  that one, which borrows across calls what the plain body counts. The
+  copy's parameter local has the referent's type, and its reads drop the
+  dereference (`promote::promote`), so the copy's
   Wasm parameters are the referent's values (`callee_params` reads them
   from the copy). A trait value's call, a function value's adapter and
   every piece of glue (vtable slots, erased thunks, map key operations,
