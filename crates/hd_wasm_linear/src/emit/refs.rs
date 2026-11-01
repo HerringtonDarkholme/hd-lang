@@ -795,7 +795,8 @@ impl Em<'_, '_, '_> {
                 }
                 self.store_owned(i)?;
             } else {
-                let (_, part) = self.fold_path(target, &fields)?;
+                let declared = self.declared_referent(&p, d)?;
+                let (_, part) = self.fold_path(declared, &fields)?;
                 self.read_part(i, r, &value, target, part)?;
             }
             return self.release_fresh(&fresh);
@@ -1686,6 +1687,25 @@ impl Em<'_, '_, '_> {
         }
         let ty = self.walk_ty(self.at_root_ty(p.root), &p.proj[..d])?;
         Ok(Some((d, self.ref_target(ty))))
+    }
+
+    /// The type that the reference at step `d` of `p` refers to, as
+    /// declared. [`Em::last_through`]'s target has its newtypes erased; this
+    /// one keeps them, so a field path through the reference steps into a
+    /// newtype's one field ([`Em::path_step`]), as `string(*name)` does.
+    pub(super) fn declared_referent(&self, p: &Place, d: usize) -> StageResult<Ty> {
+        let ty = self.walk_ty(self.at_root_ty(p.root), &p.proj[..d])?;
+        let (pool, env) = (self.pool(), self.env());
+        let declared = match pool.get(crate::layout::strip(pool, env, ty)) {
+            TyData::Adt { def, args } if env.ref_cells().holds(def) => {
+                pool.list_items(args).first().copied()
+            }
+            _ => None,
+        };
+        declared.map_or_else(
+            || unsupported("a dereference of a value that is not a reference"),
+            |t| Ok(self.strip_mut(t)),
+        )
     }
 }
 
